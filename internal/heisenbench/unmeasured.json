@@ -5651,6 +5651,26 @@
 		{
 			"id": "packages/devtools/src/devtools/cache-headers.ts > probe_cache > filter:0~6e173d",
 			"reason": "drops the failed probes from at most `limit` probes, constant work per probe; devtools-cache-headers.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/ctx.ts > CompileCtx > get app_spec > stat",
+			"reason": "a forwarder to the compiler's fs seam (`fs.stat`), no work of its own; region-identity-canonical.test.ts runs the root-absolute case"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/source.ts > ast_edits_or_null_unparsed > sort:0~c12a84",
+			"reason": "a sort comparator over one module's macro edits (a handful), constant work per compare"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/source.ts > ast_edits_or_null_unparsed > walk:1~30be9a",
+			"reason": "the AST walk's per-node visitor, constant work per node; the macro tests run it on every module they rewrite"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/wire.ts > ast_edits_or_null_unparsed > sort:0~c12a84",
+			"reason": "a sort comparator over one module's wire edits (a handful), constant work per compare"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/wire.ts > ast_edits_or_null_unparsed > walk:1~8d2430",
+			"reason": "the AST walk's per-node visitor, constant work per node; og-wire tests run it on every module they rewrite"
 		}
 	]
 }
