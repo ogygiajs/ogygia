@@ -742,7 +742,7 @@ class FileCompilation {
 	#resolve_region_mark(
 		inline: Map<string, string>,
 		fail: (msg: string) => Error
-	): { strategy: string; options: Record<string, unknown> } | null {
+	): RegionMark | null {
 		const import_keys = this.#import_keys;
 		const ctx = this.#ctx;
 		const rel_host = this.#rel_host;

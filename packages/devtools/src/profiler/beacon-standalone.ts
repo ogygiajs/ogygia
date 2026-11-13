@@ -1482,11 +1482,27 @@ export function standalone_beacon(): void {
 							...nv,
 							nav: { ...(ov.nav as object), ...(nv.nav as object) },
 							paints: { ...(ov.paints as object), ...(nv.paints as object) },
-							islands: union(arr(ov.islands), arr(nv.islands), (i) => `${i.fp}|${i.t0}`),
+							islands: union(
+								arr(ov.islands),
+								arr(nv.islands),
+								(i) => `${String(i.fp)}|${String(i.t0)}`
+							),
 							firsts: union(arr(ov.firsts), arr(nv.firsts), (f) => String(f.fp)),
-							shifts: union(arr(ov.shifts), arr(nv.shifts), (s) => `${s.t}|${s.value}`),
-							longtasks: union(arr(ov.longtasks), arr(nv.longtasks), (l) => `${l.t}|${l.ms}`),
-							marks: union(arr(ov.marks), arr(nv.marks), (m) => `${m.name}|${m.t0 ?? ''}|${m.ms}`),
+							shifts: union(
+								arr(ov.shifts),
+								arr(nv.shifts),
+								(s) => `${String(s.t)}|${String(s.value)}`
+							),
+							longtasks: union(
+								arr(ov.longtasks),
+								arr(nv.longtasks),
+								(l) => `${String(l.t)}|${String(l.ms)}`
+							),
+							marks: union(
+								arr(ov.marks),
+								arr(nv.marks),
+								(m) => `${String(m.name)}|${String(m.t0 ?? '')}|${String(m.ms)}`
+							),
 							resources:
 								arr(nv.resources).length >= arr(ov.resources).length ? nv.resources : ov.resources
 						},
@@ -1518,10 +1534,11 @@ export function standalone_beacon(): void {
 						visit: { ...visit, resources: [], regions: [], islands: [] }
 					});
 		});
+		const at = visit.at as number;
 		void store_visit({
-			key: `${landing}|${visit.at}`,
+			key: `${landing}|${at}`,
 			page: landing,
-			at: visit.at as number,
+			at,
 			visit,
 			snapshots: part?.snapshots(final) ?? []
 		}); // ok: never rejects (a browser store it cannot open keeps nothing)
