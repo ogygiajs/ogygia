@@ -323,7 +323,7 @@ export interface AutopilotOptions {
 	readonly only?: string;
 	readonly limit?: number;
 	/** The time limit of a mutant's run. A run past it is stopped and each of its tests runs alone
- *  under the same limit: one that fails or is stopped alone is a failing test. */
+	 *  under the same limit: one that fails or is stopped alone is a failing test. */
 	readonly timeout_ms: number;
 	/** The time limit of a map run (default: ten mutant limits). */
 	readonly map_timeout_ms?: number;
