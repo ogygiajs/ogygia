@@ -45,7 +45,7 @@
 			const v = parse(text, REVIVERS);
 			return v && typeof v === 'object' && Object.keys(v).length ? v : null;
 		} catch {
-			return null;
+			return null; // ok: props that do not decode are not shown; the panel shows the rest
 		}
 	}
 
@@ -71,7 +71,7 @@
 			try {
 				return new URL(u).pathname;
 			} catch {
-				return u;
+				return u; // ok: not a URL: kept as written
 			}
 		});
 		const out = [];
@@ -115,7 +115,7 @@
 				if (row || findings.length) browser = { row, findings };
 			}
 		} catch {
-			browser = null;
+			browser = null; // ok: the page could not be read: the detail shows without the browser's part
 		}
 		// what happened to it in the last recorded session (the Record tab): clicks, slow handlers, the
 		// requests its clicks caused and the server's split of each

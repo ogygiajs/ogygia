@@ -137,7 +137,8 @@ function sigOf(endpoint: string): string | null {
 /**
  * Stream a batch of region calls into the frame store. Endpoints must share an endpoint path, read
  * here off the first URL: `send_batches` groups them so (#987). Frames apply as they land; the
- * promise resolves when the response ends.
+ * promise resolves when the response ends, however it ends: called off with its visit, stalled,
+ * refused, or failed (the request or the body breaking off) is never a rejection.
  *
  * `visit`: the scope of the page whose holes these are (the page on screen by default; a navigation
  * hands the next page's, runtime/session.ts `PageVisit`). The batch is its: the visit ending stops
@@ -199,6 +200,9 @@ export async function streamFrames(
 	// The batch's own owner, under its page's visit: closed at its end, whichever (the request and
 	// its body stop; the reservations are released below)
 	const batch_scope = visit.child();
+	// (the stream is the batch's: called off, its waits settle STALE, and a body read the browser then
+	// fails is no error: test/browser/batch-called-off-mid-body.test.ts)
+	batch_scope.defer(() => stream.stop());
 	void stream.wait('stalled').then((s) => s !== STALE && batch_scope.close()); // ok: a machine's wait never rejects
 
 	try {
@@ -216,7 +220,7 @@ export async function streamFrames(
 				})
 			);
 		} catch {
-			return; // network error — release() in finally lets bound regions fall back to their own fetch
+			return; // ok: network error; release() in finally lets bound regions fall back to their own fetch
 		}
 		if (res === STALE) return; // no answer at all for STALL_MS
 		stream.go('reading');
@@ -237,7 +241,12 @@ export async function streamFrames(
 		let parcels = false;
 		for (;;) {
 			// (STALE: quiet for STALL_MS; the holes it still owes fetch on their own)
-			const read = await stream.scope.task(() => reader.read());
+			let read: ReadableStreamReadResult<Uint8Array> | typeof STALE;
+			try {
+				read = await stream.scope.task(() => reader.read());
+			} catch {
+				return; // ok: the body broke off, as a request can fail: the holes it still owes fetch on their own
+			}
 			if (read === STALE) return;
 			const { done, value } = read;
 			// (done once the page left: its owner cancelled the body)
@@ -349,7 +358,7 @@ export function join_batch(endpoint: string): Promise<void> {
 const REGION_CALL_RE = /[?&]id=/;
 
 function gather(list: string[]): void {
-	void send_batches(list, 'page'); // ok: a batch says its own failure, and its holes fall back to their own fetch
+	void send_batches(list, 'page'); // ok: a batch settles on every end, called off or broken off (streamFrames), and its holes fall back to their own fetch
 }
 
 /**

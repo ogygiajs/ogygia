@@ -101,3 +101,9 @@ export function set_island_hazards(map: typeof hazards_by_entry) {
 }
 // (hooks.ts reads it; Vite's alias lets a missing export through, plain Node's linker does not)
 export const fn_manifest = (): Record<string, string> | null => null;
+type StubProblem = { kind: 'missing' | 'unreadable'; tried: string[]; error?: string };
+let problem: StubProblem | null = null;
+export const handoff_problem = (): StubProblem | null => problem;
+export function set_handoff_problem(p: StubProblem | null) {
+	problem = p;
+}
