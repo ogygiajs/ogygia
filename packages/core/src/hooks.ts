@@ -1358,7 +1358,9 @@ class OgygiaHandle {
 			// sole base/assets authority, and every ogygia URL (prod `/${appDir}/…`, dev `/@id/…`) is
 			// baked base-LESS — so an island-LESS page under a non-root `base` loads the runtime too.
 			const runtime_tag =
-				router_enabled && runtime_url && !page_declares_runtime_script(probe)
+				(router_enabled || !!current_facts()?.codeOrigins?.length) &&
+				runtime_url &&
+				!page_declares_runtime_script(probe)
 					? runtime_bootstrap(kit_asset)
 					: null;
 			// (with the code origins the plugins and this render named: runtime/code-origins.ts)
