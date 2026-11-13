@@ -662,21 +662,10 @@ export function transformHost(
 	return new FileCompilation(source, id, ctx).run();
 }
 
-/**
- * `FileCompilation` — the per-file compilation unit for a `.svelte` host, and the biggest win of the
- * rewrite. The ephemeral state the fused pass threaded through ~30 nested closures (the AST, the marks
- * map, the free-var sets, …) lives here as `#fields`; the phases are methods over shared `this`:
- * `#analyze()` reads the AST into the fields (the {@link FileIR} shape), `#lower()` rewrites from them.
- * A fresh instance per file, discarded after — it organizes EPHEMERAL state, never cross-file state
- * (that is the Program's job), so it stays pure per file.
- */
 class FileCompilation {
-	// config (constructor)
 	#source: string;
 	#id: string;
 	#ctx: HostCtx;
-	// analyze ▸ lower — the FileIR fields, now shared class state (see ./ir.ts). Assigned in #analyze,
-	// read in #lower (which run() only reaches after #analyze), so definite-assignment asserted.
 	#ast!: SvelteNode;
 	#instance_body!: SvelteNode[];
 	#module_body!: SvelteNode[];
@@ -688,12 +677,6 @@ class FileCompilation {
 	#imports_to_strip!: Set<{ start: number; end: number }>;
 	#export_names!: Map<string, string>;
 	#has_island_children!: boolean;
-	/** Hydrate bindings PLACED as a static `<Tag>` in this host — the complement (a marked hydrate
-	 *  binding with NO static placement) is a dynamically-used island: a registry value, an each/
-	 *  `{@const}`/`svelte:component` use, a prop hand-off. Its call sites are compile-invisible, so
-	 *  children CAN cross at runtime and the app must carry the wire revivers (see program.register —
-	 *  a field regression: a registry-placed carousel's slot pointers hydrated against a runtime
-	 *  without the hub → "Unknown type OgygiaRef", every island dead). */
 	#static_placed!: Set<string>;
 	#has_island_hint!: boolean;
 	#to_kit: Array<{ start: number; end: number; text: string }> = [];
@@ -703,7 +686,6 @@ class FileCompilation {
 		return this.#ctx.routeCsr === true && is_wake_island(mark);
 	}
 
-	/** The host with only its Kit-owned marks rewritten to plain imports. */
 	#kit_only() {
 		const s = new MagicString(this.#source);
 		for (const edit of this.#to_kit) s.overwrite(edit.start, edit.end, edit.text);
@@ -721,17 +703,12 @@ class FileCompilation {
 		this.#import_keys = normalize_import_keys(ctx.importKeys);
 	}
 
-	/** Compile the host: analyze ▸ (early-out) ▸ lower. */
 	run() {
 		const early = this.#analyze();
 		if (early) return early.done;
 		return this.#lower();
 	}
 
-	/** Every name the host's code references outside its imports and the `skip`ped instance
-	 *  statements: Identifier names, Component names and each dotted prefix of one (`<Ui.Card>`
-	 *  references `Ui`). ONE walk answers every "is `local` used?" question — asking per import walked
-	 *  the whole file once per island, quadratic in the island count. Pure over the AST. */
 	#referenced_names(skip?: Set<SvelteNode>) {
 		const names = new Set<string>();
 		const walk = (node: SvelteNode) => {
@@ -758,15 +735,10 @@ class FileCompilation {
 
 	#used_names?: Set<string>;
 
-	/** Is a marked import's `local` used anywhere but its own import (else it is dead, strip it)? */
 	#marked_import_referenced(local: string) {
 		return (this.#used_names ??= this.#referenced_names()).has(local);
 	}
 
-	// The SINGLE source of truth for a host's region option surface — every marked import, default or
-	// named. Given the attribute key→value map (import attributes are always string-valued), return the
-	// { strategy, options } mark, or null when no REGION key is present (a plain import attribute we
-	// don't claim). `fail(msg)` throws the caller's contextual error.
 	#resolve_region_mark(
 		inline: Map<string, string>,
 		fail: (msg: string) => Error
@@ -782,17 +754,13 @@ class FileCompilation {
 			import_keys.region
 		];
 		const err_shim = (_names: string, msg: string) => fail(msg);
-		// Retired `partial:` key → point at its replacement (only when it isn't the configured name).
 		if (inline.has('partial') && !REGION_KEYS.includes('partial')) {
 			throw fail(
 				`the \`partial\` import attribute was retired. Mark a held-across-a-boundary component with \`${import_keys.region}: 'raw'\` (schedule set at the \`region()\` call), or bake a schedule with a \`${import_keys.wake}:\` mark.`
 			);
 		}
-		// Only carriers of a REGION key are ours. A standard import attribute on an UNRELATED import —
-		// `import data from './d.json' with { type: 'json' }` — is left untouched.
 		if (!REGION_KEYS.some((k) => inline.has(k))) return null;
 
-		// `with { region: 'raw' }` — a held region a registry hands to `region()`, minted on demand.
 		if (inline.has(import_keys.region)) {
 			if (inline.size > 1) {
 				throw fail(
@@ -803,9 +771,6 @@ class FileCompilation {
 			return { strategy: 'held', options: {} };
 		}
 
-		// The block carries a `wake` schedule (an island), a `fetch` schedule (a hole), a `render` MODE, or
-		// a preset. No option keys inline — all tuning lives in plugin config (presets). Canonical internal
-		// slots stay `hydrate`/`defer` (+live).
 		const attrs = new Map<string, string>();
 		let remount_opt:
 			| { policy: string; when?: string; maxAgeMs?: number; onExpire?: string }
@@ -868,12 +833,8 @@ class FileCompilation {
 			if (inline.has(import_keys.wake)) wake_val = inline.get(import_keys.wake);
 			if (inline.has(import_keys.fetch)) fetch_val = inline.get(import_keys.fetch);
 			if (inline.has('keep')) attrs.set('keep', inline.get('keep')!);
-			// A schedule dial like `fetch`, so it may ride inline (`with { fetch: 'interaction',
-			// prefetch: 'idle' }`) as well as in a preset.
 			if (inline.has('prefetch')) attrs.set('prefetch', inline.get('prefetch')!);
 			if (inline.has('stitch')) {
-				// Import-attribute values are STRINGS by grammar — `stitch: 'serve' | 'edge'` are the
-				// spellings (presets, being plugin config, also take `stitch: true` = 'serve').
 				const mode = inline.get('stitch');
 				if (mode !== 'serve' && mode !== 'edge') {
 					throw fail(
@@ -889,9 +850,6 @@ class FileCompilation {
 				`unknown ${import_keys.render} '${render_mode}'. Use 'static' (inline HTML) | 'deferred' (a hole, fetched) | 'live' (a hole that revalidates).`
 			);
 		}
-		// `render: 'deferred'` says it is a hole; `fetch` says WHEN its HTML arrives. `wake` is when an
-		// island's JS runs — a hole ships no JS — so the old `wake` timing still times the hole, with a
-		// warning naming its replacement; both at once is a contradiction and fails the build.
 		const said = from_preset ? `preset '${from_preset}'` : 'this import';
 		if (render_mode === 'deferred' && wake_val != null) {
 			if (fetch_val != null) {
@@ -934,7 +892,6 @@ class FileCompilation {
 		} else if (wake_val != null) {
 			attrs.set('hydrate', wake_val);
 		}
-		// marks that would be accepted and then do nothing are refused (test/transform.test.ts)
 		if (render_mode === 'static' && wake_val == null) {
 			throw fail(
 				`${said} sets \`${import_keys.render}: 'static'\` alone, which marks nothing: 'static' is how a region renders when nothing else is said. Drop it for a plain import, or add \`${import_keys.wake}\` for an island.`
@@ -974,7 +931,6 @@ class FileCompilation {
 			throw fail(`\`remount\` is only valid with \`${import_keys.wake}: 'none'\`.`);
 		}
 
-		// `defer` → SERVER island (content-only hole, fetched on the `fetch` schedule).
 		if (attrs.has('defer')) {
 			const dval = attrs.get('defer')!;
 			let when: string;
@@ -991,7 +947,6 @@ class FileCompilation {
 				prefetch?: string;
 			} = { when };
 			if (attrs.has('prefetch')) {
-				// The warm schedule. Validated here (not at the preset) so the error names the import.
 				const p = attrs.get('prefetch')!;
 				if (!parse_trigger(p, SCHEDULE)) {
 					throw fail(
@@ -1018,7 +973,6 @@ class FileCompilation {
 		if (attrs.has('hydrate')) {
 			const val = attrs.get('hydrate')!;
 			if (val === 'none') {
-				// A LAKE (render: page, hydrate: none) — a frozen region inside a hydrated island.
 				const lake_opts: {
 					remount?: string;
 					when?: string;
@@ -1058,10 +1012,9 @@ class FileCompilation {
 			}
 			return { strategy, options };
 		}
-		return null; // a render/wake combo that produced nothing actionable
+		return null;
 	}
 
-	/** Non-fallback children on a hydrate/defer call site cannot cross devalue — reject. */
 	#assert_portable_children(node: SvelteNode, local: string, is_server: boolean) {
 		const kids = (node.fragment?.nodes ?? []).filter(
 			(n: SvelteNode) => !(n.type === 'Text' && !String(n.data ?? '').trim())
@@ -1080,8 +1033,6 @@ class FileCompilation {
 		});
 	}
 
-	/** Walk the markup: enforce region-usage rules + surface whether a hydrate island has real
-	 *  children (the app then needs the wire slot revivers). Mutates #has_island_children. */
 	#visit_usages(nodes: SvelteNode[]) {
 		for (const node of nodes ?? []) {
 			if (node.type === 'Component') {
@@ -1107,53 +1058,29 @@ class FileCompilation {
 								this.#err(specifiers, msg)
 							);
 					} else if (mark.strategy === 'server' || mark.strategy === 'held') {
-						// Server islands render in isolation from serialized props (only the reserved
-						// fallback snippet crosses); held regions are minted as data. Snippets can't cross either.
 						this.#assert_portable_children(node, name, mark.strategy === 'server');
 					} else {
-						// A hydrate island WITH real children crosses them as an OgygiaS slot pointer —
-						// the app's runtime must carry the wire revivers. Surfaced for the plugin's
-						// usage-gated `wire` detection (a childless minimal app stays lean).
 						const kids = (node.fragment?.nodes ?? []).filter(
 							(n: SvelteNode) => !(n.type === 'Text' && !String(n.data ?? '').trim())
 						);
 						if (kids.length) this.#has_island_children = true;
 					}
-					// Hydrate-island children need NO compile-time handling: the wrapper forwards them to
-					// Region as its slot, the server renders them IN-PLACE inside a `<ogygia-slot>` marker,
-					// and the payload carries a slot POINTER the client revives into an adopting snippet
-					// (see region-snippet.ts). Nested islands inside render as full regions and wake on
-					// their own. This is the single crossing path — the per-usage "child synth" is gone.
 				}
 			}
-			// `CHILD_KEYS` already includes `fragment`, so this one loop covers a Component's children.
-			// A separate explicit `this.#visit_usages(node.fragment.nodes)` for Components re-descended the
-			// SAME subtree a second time — for NESTED island components that doubled the work per level,
-			// i.e. O(2^depth) (measured: depth-18 ≈ 62ms, depth-25 hangs). One traversal, once.
 			for (const k of CHILD_KEYS) if (node[k]?.nodes) this.#visit_usages(node[k].nodes);
 		}
 	}
 
-	/** Root-relative posix path — island ids must not drift across Windows/POSIX build legs. */
 	#posix_rel(abs: string) {
 		return path.relative(this.#ctx.root, abs).split(PATH_SEP).join('/');
 	}
 
-	/**
-	 * Region-identity path for a component: filesystem components key on their root-relative posix
-	 * path; a package specifier IS its own identity (already stable + posix, and identical across
-	 * hosts — so two hosts marking the same package import share one region id). A file under a
-	 * DECLARED `ogygia.files` package keys as `<pkg-name>/<rel>` instead of root-relative: pnpm
-	 * store paths carry version+peer hashes, so a root-relative key would change per install and
-	 * prod HTML would stop matching its chunks.
-	 */
 	#component_identity(p: string) {
 		if (!path.isAbsolute(p)) return p;
 		const pkg = typeof this.#ctx.pkg_identity === 'function' ? this.#ctx.pkg_identity(p) : null;
 		return pkg ?? this.#posix_rel(p);
 	}
 
-	/** `host: import { … } — msg` (`region_import_invalid`) — the region-import error formatter. */
 	#err(specifiers: string, msg: string) {
 		return new OgygiaError('region_import_invalid', {
 			host: this.#rel_host,
@@ -1162,13 +1089,6 @@ class FileCompilation {
 		});
 	}
 
-	/**
-	 * Analyze — read the host's AST into the compilation's fields: its imports, region marks (import
-	 * attributes), the usage findings, and the csr tri-state. No MagicString,
-	 * no rewriting — a pure "what does this file declare" pass. Returns `{ done }` for an early exit (a
-	 * csr=true route host, the cheap island-hint bailout, a snippet-less file with no islands), or
-	 * `null` once the fields are populated and `#lower()` should run.
-	 */
 	#analyze() {
 		const source = this.#source;
 		const id = this.#id;
@@ -1176,18 +1096,12 @@ class FileCompilation {
 		const import_keys = this.#import_keys;
 		const has_island_hint = import_keys_hint(import_keys).test(source);
 
-		// cheap bailout — the library only touches region imports (configured key names), PLUS files
-		// that define a {#snippet} (a candidate portable snippet forwarded into an island) or name the
-		// retired import.meta.og.asRegion (refused). Files with none of those return null unchanged.
 		if (!has_island_hint && !source.includes('{#snippet') && !source.includes('asRegion')) {
 			return { done: null };
 		}
 
 		let ast: SvelteNode;
 		try {
-			// blanked styles: a raw SCSS `<style>` threw here, and the host's region imports were
-			// left untransformed in silence (its islands never became islands). The host `<style>`
-			// is still read below, by offset, from the original source.
 			ast = parse(blank_styles(source), { modern: true, filename: id });
 		} catch (err) {
 			warn_unparsed(id, err);
@@ -1198,31 +1112,18 @@ class FileCompilation {
 		const module_body = ast.module?.content?.body ?? [];
 		const lang = script_lang_attr(ast.instance) || script_lang_attr(ast.module);
 
-		// Posix-relative host path — island ids must not drift across Windows/POSIX build legs. Stored on
-		// the compilation early so #resolve_region_mark (a method) can read it during this same phase.
 		const rel_host = (this.#rel_host = path.relative(ctx.root, id).split(PATH_SEP).join('/'));
 
-		// a dynamic `import(mod, { with: { wake: … } })` is not an authoring path: refused, not ignored
 		reject_dynamic_region_imports(instance_body, import_keys, rel_host);
 		reject_dynamic_region_imports(module_body, import_keys, rel_host);
 
-		// --- collect host imports & region marks (the two-key region model) --------
-		// The authoring syntax is the import attribute, one concern per key (`wake` = the schedule,
-		// `render` = the delivery mode). These become the internal `hydrate` / `defer` DOM attributes below:
-		//   import Comp from './Comp.svelte' with { wake: 'visible', margin: '200px' };
-		//   import Comp from './Comp.svelte' with { wake: '(min-width: 768px)' };
-		//   import Comp from './Comp.svelte' with { render: 'deferred', fetch: 'load' };  // deferred HTML hole
-		// Values MUST be string literals (ES import-attribute spec). See DESIGN.md.
-		/** localName -> { node, cleaned } */
 		const imports = new Map();
-		/** localName -> { strategy, options } */
 		const marked_components = (this.#marked_components = new Map());
-		const imports_to_strip = new Set<{ start: number; end: number }>(); // ImportDeclaration nodes to remove from host
+		const imports_to_strip = new Set<{ start: number; end: number }>();
 
 		const roots = [ast.instance?.content, ast.module?.content, ast.fragment];
 		refuse_as_region(roots, source, rel_host);
 
-		/** marked localName -> its import declaration + the export it reads (the use check's input) */
 		const marked_imports = new Map<string, { node: SvelteNode; exportName: string }>();
 		const export_names = new Map<string, string>();
 		const region_keys = [
@@ -1245,11 +1146,9 @@ class FileCompilation {
 
 			const inline = new Map();
 			for (const a of attr_list) inline.set(a.key.name ?? a.key.value, String(a.value.value));
-			if (!region_keys.some((k) => inline.has(k))) continue; // a plain import attribute we don’t claim
-			// what it binds first (a namespace, nothing, a type: refused), then its options
+			if (!region_keys.some((k) => inline.has(k))) continue;
 			const bindings = marked_import_bindings(node, source, rel_host);
 			const names = bindings.map((b) => b.local).join(', ');
-			// One parser for the whole region option surface → the mark.
 			const mark = this.#resolve_region_mark(inline, (m) => this.#err(names, m));
 			if (!mark) continue;
 			for (const b of bindings) marked_imports.set(b.local, { node, exportName: b.exportName });
@@ -1262,23 +1161,16 @@ class FileCompilation {
 				export_names.set(b.local, b.exportName);
 			}
 		}
-		// every marked name is a component: placed, or handed on as a value
 		check_marked_uses(roots, marked_imports, source, rel_host);
 
-		// No islands here, but a `{#snippet}` may still need making portable (forwarded into an island by
-		// the component it's handed to). Keep going for those; the island passes below no-op with an empty
-		// `marked_components`, and the end guard returns `null` unchanged if no portable work happens.
 		if (marked_components.size === 0 && !source.includes('{#snippet')) {
 			return { done: this.#to_kit.length ? this.#kit_only() : null };
 		}
-
-		/** Non-fallback children on a hydrate/defer call site cannot cross devalue — reject. */
 
 		this.#has_island_children = false;
 		this.#static_placed = new Set();
 		this.#visit_usages(ast.fragment?.nodes ?? []);
 
-		// analyze products → shared compilation state (the FileIR fields), read by #lower().
 		this.#ast = ast;
 		this.#instance_body = instance_body;
 		this.#module_body = module_body;
@@ -1292,13 +1184,6 @@ class FileCompilation {
 		return null;
 	}
 
-	/**
-	 * Lower — the compilation's fields → rewritten source + `IslandDescriptor[]`. Consumes ONLY the
-	 * analyze pass's fields (it never re-reads the file): creates the MagicString, rewrites each marked
-	 * import to its wrapper / binding / stub, mints the island records, and brands portable snippets.
-	 * `err` / `referenced_names` / `marked_import_referenced` are rebuilt here from those fields — pure
-	 * over the AST + host path.
-	 */
 	#lower() {
 		const source = this.#source;
 		const id = this.#id;
@@ -1317,11 +1202,6 @@ class FileCompilation {
 
 		const s = new MagicString(source);
 		for (const edit of this.#to_kit) s.overwrite(edit.start, edit.end, edit.text);
-		// The resolution base for this host's relative specifiers. For a real file it IS the file.
-		// For a generated entry (a portable-snippet synth re-processed under its virtual id) it is the
-		// file the slice was cut from — and it is what every record minted here stamps as `hostPath`,
-		// so a nested snippet's own entry inherits the real origin instead of the outer virtual id
-		// (the driver's `resolve_id` rebases an entry's imports against that same `hostPath`).
 		const origin = typeof ctx.originOf === 'function' ? ctx.originOf(id) || id : id;
 		const islands_by_id = new Map();
 		const salt = ctx.idSalt || '';
@@ -1330,48 +1210,21 @@ class FileCompilation {
 				? ctx.wrapperPathFor
 				: (_host: string, iid: string) => wrapperVirtualId(iid);
 
-		// Portable binding target for this compile:
-		//   - SSR / csr=true client → real wrapper (Island shell + __component link)
-		//   - csr=false client → stub (page node must not pull N wrappers into the client graph;
-		//     emitFile owns hydrate entries; runtime loads via import(entry))
 		const link_virtual = ctx.linkVirtualIsland !== false;
 		const binding_stub =
 			typeof ctx.clientBindingStub === 'string' && ctx.clientBindingStub
 				? ctx.clientBindingStub
 				: CLIENT_BINDING_STUB;
 
-		// Rewrite each marked import binding → wrapper or stub (islands still deduped by identity).
 		const rewritten_import_nodes = new Set();
-		/** marked declaration → the binding import of each name it binds (one `with` covers them all) */
 		const node_rewrites = new Map<{ start: number; end: number }, string[]>();
 		const rewrite_binding = (node: { start: number; end: number }, text: string) => {
 			const lines = node_rewrites.get(node);
 			if (lines) lines.push(text);
 			else node_rewrites.set(node, [text]);
 		};
-		/** Entry module specs already emitted as side-effect CSS imports on this host. */
 		const fouc_css_specs = new Set();
 
-		/**
-		 * Kit links CSS only from the *client* page graph, so a marked component whose scoped CSS is
-		 * NOT in that graph must side-effect-import `ogygia:region/fouc-css/<entry>` (the CSS graph
-		 * only — not the component JS) to ship its stylesheet without dual-owning the module emitFile
-		 * registers as `og-region.*`. When the CSS *is* absent from the client graph depends on the
-		 * binding, not on `link_virtual` alone:
-		 *   - island STUB leg (`!link_virtual`), DEV only: no component in the graph → needs the link
-		 *     (Vite serves component CSS as modules; the graph is the only way it reaches the page).
-		 *     In a BUILD the link is dropped: Kit would link the CSS of every marked import the host
-		 *     declares, rendered or not, while Region.svelte already links exactly the islands that
-		 *     render (`island_css_html`, from the chunk closure `islandCss()` records) — the render
-		 *     pass decides, not the import list. See link/registry-stub.ts for the same rule applied
-		 *     to a `.ts` registry the host imports.
-		 *   - island real-wrapper leg (`link_virtual`, a csr=true-capable page/layout): the wrapper
-		 *     pulls the hydrate entry, which carries the CSS → no link needed.
-		 *   - LAKE (`always_link_css`): its inner is client-stubbed to render-nothing on EVERY client
-		 *     leg — including the real-wrapper leg a csr=true-capable layout takes — so its CSS never
-		 *     reaches the client graph on its own and it always needs the link on a client build.
-		 * `ctx.ssr` guards the server build (it renders the real component and collects CSS directly).
-		 */
 		const binding_rewrite = (
 			local: string,
 			bindingPath: string,
@@ -1379,9 +1232,6 @@ class FileCompilation {
 			always_link_css = false
 		) => {
 			let text = `import ${local} from ${JSON.stringify(bindingPath)};`;
-			// fouc-css needs a real on-disk path (its virtual id is root-relative); a PACKAGE-specifier
-			// component skips it — its styles are global package CSS (e.g. a theme.css import), not a
-			// root-relative scoped stylesheet the fouc virtual could read.
 			if (
 				!ctx.ssr &&
 				(always_link_css || (!link_virtual && ctx.dev)) &&
@@ -1397,18 +1247,13 @@ class FileCompilation {
 			return text;
 		};
 
-		// Names declared at the top of the host `<script>` — used to tell a captured host VALUE (serialize
-		// it) apart from a host IMPORT (re-import it into the synth) and a global (leave it alone).
 		const host_declared = new Set<string>();
-		// Both scripts: a `<script module>` value is as much the host's as an instance one, and a name
-		// left out here was taken for a global — the synth then threw `ReferenceError` at render.
 		const declare = (node: SvelteNode) => {
 			if (node?.type === 'VariableDeclaration')
 				for (const d of node.declarations) pattern_names(d.id, host_declared);
 			else if (node?.type === 'FunctionDeclaration' || node?.type === 'ClassDeclaration') {
 				if (node.id?.name) host_declared.add(node.id.name);
 			} else if (node?.type === 'ExportNamedDeclaration') declare(node.declaration);
-			// legacy `$: name = …` declares `name`
 			else if (node?.type === 'LabeledStatement' && node.label?.name === '$') {
 				const e = node.body?.type === 'ExpressionStatement' ? node.body.expression : null;
 				if (e?.type === 'AssignmentExpression') pattern_names(e.left, host_declared);
@@ -1416,7 +1261,6 @@ class FileCompilation {
 		};
 		for (const node of instance_body) declare(node);
 		for (const node of module_body) declare(node);
-		// `<script module>` imports: the synth re-imports them like instance imports (cleaned of attributes).
 		const module_imports = new Map<string, string>();
 		for (const node of module_body) {
 			if (node.type !== 'ImportDeclaration') continue;
@@ -1424,9 +1268,6 @@ class FileCompilation {
 			for (const spec of node.specifiers) module_imports.set(spec.local.name, cleaned);
 		}
 
-		// Best-effort store detection, for warning when a store crosses a boundary as an OBJECT:
-		// a name is store-like when the host initializes it via a store constructor, or the file
-		// subscribes to it (`$name`) anywhere. Heuristic by design — used only to warn, never to gate.
 		const store_like = new Set<string>();
 		for (const node of instance_body) {
 			if (node.type !== 'VariableDeclaration') continue;
@@ -1439,16 +1280,9 @@ class FileCompilation {
 		}
 		STORE_SUB_RE.lastIndex = 0;
 		for (let m; (m = STORE_SUB_RE.exec(source));) {
-			// skip `$$props`-family and the runes ($state/$derived/…): not store subscriptions
-			if (source.charCodeAt(m.index - 1) === 36 /* $ */) continue;
+			if (source.charCodeAt(m.index - 1) === 36) continue;
 			if (!RUNE_NAMES.has(m[1])) store_like.add(m[1]);
 		}
-
-		// Children of a hydrate island need NO compile-time crossing (the old per-usage "child synth"
-		// is gone): the wrapper forwards them to Region as its slot, the server renders them IN-PLACE
-		// inside a `<ogygia-slot>` marker, and the payload carries a slot POINTER the client revives into
-		// an adopting snippet (region-snippet.ts). Nested islands inside render as full regions (see
-		// SlotBoundary.svelte) and wake independently.
 
 		for (const [local, mark] of marked_components) {
 			const info = imports.get(local);
