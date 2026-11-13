@@ -13,7 +13,8 @@
  */
 import { cache, machine } from '@ogygia/machine';
 import { element_address, resolve_address } from './interaction.ts';
-import { region_signature } from './reconcile.ts';
+// (the pure signature, not reconcile.ts's `region_signature`: that module is the lazy nav chunk)
+import { signature_of } from '../contract/hash.ts';
 import { slots } from './slots.ts';
 import { OGYGIA_NO_KEEP } from '../wire-markup.ts';
 
@@ -70,7 +71,10 @@ function region_names(regions: Iterable<Element>): Map<Element, string> {
 	const copies = new Map<string, number>();
 	const names = new Map<Element, string>();
 	for (const region of regions) {
-		const signature = region_signature(region);
+		const signature = signature_of(
+			region.getAttribute('entry') ?? '',
+			region.getAttribute('endpoint') ?? ''
+		);
 		const n = copies.get(signature) ?? 0;
 		copies.set(signature, n + 1);
 		names.set(region, `${n} ${signature}`);
