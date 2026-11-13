@@ -66,6 +66,14 @@ describe('rewrite_wire — the strict compile construct', () => {
 		expect(rewrite_wire(src, '/app/x.ts', MARKUP)).toContain(`static [${WIRE_EXPR}] = ${CODEC};`);
 	});
 
+	it('scanner fallback leaves a wire call that is not a static wire member as written', () => {
+		const src = dedent`
+			const c = import.meta.og.wire(${CODEC});
+			const broken = (
+		`;
+		expect(rewrite_wire(src, '/app/x.ts', MARKUP)).toBe(src);
+	});
+
 	it('returns the same reference when there is nothing to do', () => {
 		const src = `export const x = 1;`;
 		expect(rewrite_wire(src, '/app/x.ts', MARKUP)).toBe(src);
@@ -88,6 +96,11 @@ describe('rewrite_wire — strictness (build errors, file:line)', () => {
 	it('rejects a wrongly-named static member', () => {
 		const src = `class C { static codec = import.meta.og.wire(${CODEC}); }`;
 		expect(() => rewrite_wire(src, '/app/x.ts', MARKUP)).toThrow(/must be named exactly `wire`/);
+	});
+
+	it('rejects a computed member, even one keyed by a name `wire`', () => {
+		const src = `const wire = 'w';\nclass C { static [wire] = import.meta.og.wire(${CODEC}); }`;
+		expect(() => rewrite_wire(src, '/app/x.ts', MARKUP)).toThrow(/got `<computed>`/);
 	});
 
 	it('rejects an arg-less call (codec required)', () => {
