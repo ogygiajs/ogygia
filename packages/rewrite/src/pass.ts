@@ -475,12 +475,15 @@ async function rewrite_chunk(
 	let full = false;
 	let check: Record<string, string> | null = null;
 	let first_load = false;
-	let lead_at = -1;
+	let meta_at = -1;
+	let style_at = -1;
 	for (let i = 0; i < units.length; i++) {
 		const span = scanned.spans[i];
 		const s = settle_unit(units[i], res, all);
 		out.push(html.slice(pos, span.start));
-		if (lead_at === -1) lead_at = out.push('') - 1;
+		const slot = out.push('') - 1;
+		if (meta_at === -1 && s.first_load) meta_at = slot;
+		if (style_at === -1 && s.stand_ins) style_at = slot;
 		if (units[i].changed) out.push(sheets_for(units[i], res, head));
 		out.push(s.html);
 		pos = span.end;
@@ -491,18 +494,19 @@ async function rewrite_chunk(
 		if (s.check) Object.assign((check ??= {}), s.check);
 	}
 	out.push(html.slice(pos));
-	const lead: string[] = [];
 	if (stand_ins && !res.stand_ins) {
 		res.stand_ins = true;
-		(res.head_open ? head : lead).push(`<style ${OG_STAND_INS}>${STAND_IN_CSS}</style>`);
+		const style = `<style ${OG_STAND_INS}>${STAND_IN_CSS}</style>`;
+		if (res.head_open) head.push(style);
+		else out[style_at] = style;
 	}
 	if (first_load && !res.first_load) {
 		res.first_load = true;
-		(res.head_open ? head : lead).push(FIRST_LOAD);
+		if (res.head_open) head.push(FIRST_LOAD);
+		else out[meta_at] = `${out[meta_at]}${FIRST_LOAD}`;
 	}
 	const script =
 		restored || stand_ins ? (check ? check_script(check) : '') + restore_script(res, full) : '';
-	out[lead_at] = lead.join('');
 	const body = place(res, script, scanned.safe, page.body, out);
 	return { html: out.join(''), head: head.join(''), body };
 }

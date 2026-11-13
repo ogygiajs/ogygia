@@ -32,13 +32,15 @@ const card: fc.Arbitrary<string> = fc.letrec<{ card: string }>((tie) => ({
 		.map((kids) => `<x-card class="c">${kids.join('')}</x-card>`)
 })).card;
 const block = fc.oneof(
-	fc.array(fc.oneof(card, leaf), { minLength: 1, maxLength: 3 }).map(
-		(xs) => `<ogygia-region entry="./a.js" data-og-fp="f">${xs.join('')}</ogygia-region>`
-	),
-	fc.array(card, { minLength: 1, maxLength: 2 }).map(
-		(xs) => `<ogygia-region wake="none">${xs.join('')}</ogygia-region>`
-	),
-	fc.array(fc.oneof(card, leaf), { minLength: 1, maxLength: 2 }).map((xs) => `<div>${xs.join('')}</div>`)
+	fc
+		.array(fc.oneof(card, leaf), { minLength: 1, maxLength: 3 })
+		.map((xs) => `<ogygia-region entry="./a.js" data-og-fp="f">${xs.join('')}</ogygia-region>`),
+	fc
+		.array(card, { minLength: 1, maxLength: 2 })
+		.map((xs) => `<ogygia-region wake="none">${xs.join('')}</ogygia-region>`),
+	fc
+		.array(fc.oneof(card, leaf), { minLength: 1, maxLength: 2 })
+		.map((xs) => `<div>${xs.join('')}</div>`)
 );
 const body = fc.array(block, { minLength: 1, maxLength: 5 }).map((bs) => bs.join(''));
 
@@ -48,7 +50,7 @@ function scoped(html: string, tag: string, trim: boolean): string {
 	const open_of = `<${tag}`;
 	const close_of = `</${tag}>`;
 	let out = html;
-	for (let before = out.length; ; ) {
+	for (let before = out.length; ;) {
 		const open = before < 0 ? -1 : out.lastIndexOf(open_of, before);
 		if (open === -1) return out;
 		before = open - 1;
@@ -108,7 +110,9 @@ function faulty(tag: string, run: Run): ElementRewrite {
 }
 
 function cut(html: string, at: readonly number[]): string[] {
-	const sorted = [...new Set(at.map((n) => n % Math.max(1, html.length)))].filter(Boolean).sort((a, b) => a - b);
+	const sorted = [...new Set(at.map((n) => n % Math.max(1, html.length)))]
+		.filter(Boolean)
+		.sort((a, b) => a - b);
 	const out: string[] = [];
 	let from = 0;
 	for (const n of sorted) {
@@ -157,10 +161,23 @@ test('a seeded swarm of streamed pages through two failing rewrites restores wha
 		fc.asyncProperty(
 			body,
 			fc.array(fc.nat(), { maxLength: 6 }),
-			fc.array(fc.constantFrom<Fault>('ok', 'ok', 'ok', 'throw', 'count', 'malformed', 'strip', 'slow', 'abort'), {
-				minLength: 1,
-				maxLength: 8
-			}),
+			fc.array(
+				fc.constantFrom<Fault>(
+					'ok',
+					'ok',
+					'ok',
+					'throw',
+					'count',
+					'malformed',
+					'strip',
+					'slow',
+					'abort'
+				),
+				{
+					minLength: 1,
+					maxLength: 8
+				}
+			),
 			fc.boolean(),
 			fc.scheduler(),
 			async (inner, at, faults, csr, scheduler) => {
@@ -196,19 +213,26 @@ test('a seeded swarm of streamed pages through two failing rewrites restores wha
 					}
 				})();
 				await scheduler.waitFor(work);
-				const served = html.replace('</head>', `${head_add}</head>`).replace('</body>', `${body_add}</body>`);
+				const served = html
+					.replace('</head>', `${head_add}</head>`)
+					.replace('</body>', `${body_add}</body>`);
 				const original = new DOMParser().parseFromString(page, 'text/html');
 				const doc = new DOMParser().parseFromString(served, 'text/html');
 				(window as { __og_restore_log?: unknown[] }).__og_restore_log = [];
 				restore(doc);
-				const log = (window as { __og_restore_log?: { kind: string; diff?: string }[] }).__og_restore_log!;
-				expect(log.filter((e) => e.kind === 'mismatch'), served).toEqual([]);
+				const log = (window as { __og_restore_log?: { kind: string; diff?: string }[] })
+					.__og_restore_log!;
+				expect(
+					log.filter((e) => e.kind === 'mismatch'),
+					served
+				).toEqual([]);
 				expect(marks_left(doc.body), served).toEqual([]);
 				expect(islands(doc.body), served).toEqual(islands(original.body));
 				const coded = failed.filter((f) => f.code !== 'rewrite_element_split');
 				if (run.abort.signal.aborted) expect(coded.length).toBeGreaterThanOrEqual(0);
 				else if (run.injected === 0) expect(coded, served).toEqual([]);
-				for (const f of coded) expect(['rewrite_element_failed', 'rewrite_marks_lost']).toContain(f.code);
+				for (const f of coded)
+					expect(['rewrite_element_failed', 'rewrite_marks_lost']).toContain(f.code);
 				const before = doc.body.innerHTML;
 				expect(restore(doc)).toBe(0);
 				expect(doc.body.innerHTML).toBe(before);
@@ -220,30 +244,40 @@ test('a seeded swarm of streamed pages through two failing rewrites restores wha
 
 test('region answers: every host restored in the fragment, nothing left, idempotent', async () => {
 	await fc.assert(
-		fc.asyncProperty(fc.array(card, { minLength: 1, maxLength: 4 }), fc.scheduler(), async (cards, scheduler) => {
-			const answer = cards.join('');
-			const run: Run = { faults: ['ok'], at: 0, injected: 0, abort: new AbortController(), scheduler };
-			const request = new Request('http://x/');
-			const pass = rewrite_pass(
-				[step_of(faulty('x-card', run)), step_of(faulty('x-icon', run))],
-				{ request, url: new URL(request.url) } as RequestEvent,
-				{ dev: true }
-			);
-			const out = await pass.region(answer);
-			const inert = document.implementation.createHTMLDocument('');
-			const t = inert.createElement('template');
-			t.innerHTML = out;
-			const box = inert.createElement('div');
-			box.append(t.content);
-			restore(box);
-			expect(marks_left(box)).toEqual([]);
-			const want = inert.createElement('div');
-			const t2 = inert.createElement('template');
-			t2.innerHTML = answer;
-			want.append(t2.content);
-			expect(box.textContent).toBe(want.textContent);
-			expect(restore(box)).toBe(0);
-		}),
+		fc.asyncProperty(
+			fc.array(card, { minLength: 1, maxLength: 4 }),
+			fc.scheduler(),
+			async (cards, scheduler) => {
+				const answer = cards.join('');
+				const run: Run = {
+					faults: ['ok'],
+					at: 0,
+					injected: 0,
+					abort: new AbortController(),
+					scheduler
+				};
+				const request = new Request('http://x/');
+				const pass = rewrite_pass(
+					[step_of(faulty('x-card', run)), step_of(faulty('x-icon', run))],
+					{ request, url: new URL(request.url) } as RequestEvent,
+					{ dev: true }
+				);
+				const out = await pass.region(answer);
+				const inert = document.implementation.createHTMLDocument('');
+				const t = inert.createElement('template');
+				t.innerHTML = out;
+				const box = inert.createElement('div');
+				box.append(t.content);
+				restore(box);
+				expect(marks_left(box)).toEqual([]);
+				const want = inert.createElement('div');
+				const t2 = inert.createElement('template');
+				t2.innerHTML = answer;
+				want.append(t2.content);
+				expect(box.textContent).toBe(want.textContent);
+				expect(restore(box)).toBe(0);
+			}
+		),
 		{ numRuns: 40, seed: 1676 }
 	);
 });

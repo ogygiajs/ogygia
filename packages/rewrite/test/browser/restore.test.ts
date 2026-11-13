@@ -235,7 +235,7 @@ test('every dev check under the root is read and consumed: a restore of a stream
 	expect(restore(document)).toBe(2);
 	const log = (window as { __og_restore_log?: { kind: string }[] }).__og_restore_log!;
 	expect(log.filter((e) => e.kind === 'mismatch')).toHaveLength(1);
-	expect(document.querySelectorAll('script').length).toBe(0);
+	expect(document.body.querySelectorAll('script').length).toBe(0);
 	const before = document.body.innerHTML;
 	expect(restore(document)).toBe(0);
 	expect(document.body.innerHTML).toBe(before);

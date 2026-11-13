@@ -183,7 +183,9 @@ describe('element rewrites: the restore', () => {
 	it('a chunk-1 meta or sheet never lands inside an island: the first-load mark goes before the element it is for (found by the rewrite sim)', async () => {
 		const { chunk } = chunked([scoped()]);
 		await chunk(doc('').replace('</body></html>', ''), { done: false });
-		const out = await chunk(`${island('<demo-card>a</demo-card>')}<div><demo-card>b</demo-card></div>`);
+		const out = await chunk(
+			`${island('<demo-card>a</demo-card>')}<div><demo-card>b</demo-card></div>`
+		);
 		const meta = out.html.indexOf('ogygia-first-load');
 		expect(meta).toBeGreaterThan(out.html.indexOf('</ogygia-region>'));
 	});
