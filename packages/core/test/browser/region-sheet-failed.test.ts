@@ -63,9 +63,9 @@ it_with_network_routes(
 	'answers that find the sheet still loading wait on that same download',
 	async () => {
 		const first = region_fragment(answer).ready;
-		const second = region_fragment(answer).ready;
-		await Promise.all([first, second]);
+		await region_fragment(answer).ready;
 		expect(sheets()).toHaveLength(1);
-		expect(getComputedStyle(probe).color).toBe(GREEN);
+		expect(getComputedStyle(probe).color, 'the second answer paints styled').toBe(GREEN);
+		await first;
 	}
 );
