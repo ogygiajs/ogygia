@@ -5,8 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
 	apply_mutant,
+	baseline_packages,
 	clone_command,
+	confirmed,
 	package_of,
+	runnable,
 	tally,
 	verdict,
 	type Mutant
@@ -139,10 +142,52 @@ describe('a mutation run', () => {
 		expect(tally([{ killed: true }, { killed: false }], 5, '2026-11-12T10:00:00.000Z')).toEqual({
 			killed: 1,
 			judged: 2,
+			equivalent: 0,
 			total: 5,
 			rate: 50,
 			at: '2026-11-12T10:00:00.000Z'
 		});
 		expect(tally([], 5, 'x').rate).toBe(0);
+	});
+
+	it('keeps a kill only when a second run of its seed finds the same again (gen 734, seed 12: a chunk 404 three mutants "died" by, that no second run found)', () => {
+		const again = (found: Record<string, string[]>) => (target: string, seed: number) =>
+			found[`${target}:${seed}`] ?? [];
+		const by = ['gen734:12 page-errors aaa', 'gen734:3 stuck bbb'];
+		expect(confirmed(by, again({}))).toEqual([]);
+		expect(confirmed(by, again({ 'gen734:3': ['stuck bbb'] }))).toEqual(['gen734:3 stuck bbb']);
+		// (a build that failed is no seed's finding: it stands)
+		expect(confirmed(['the package build failed'], again({}))).toEqual([
+			'the package build failed'
+		]);
+	});
+
+	it('sets apart a mutant written up as equivalent: never run, said with its reason, out of the rate', () => {
+		const m = (equivalent?: string): Mutant => ({
+			file: 'packages/core/src/runtime/schedule.ts',
+			line: 1,
+			operator: 'boolean',
+			...(equivalent ? { equivalent } : {})
+		});
+		const { run, equivalent } = runnable([m(), m('no run can tell'), m()]);
+		expect(run).toHaveLength(2);
+		expect(equivalent.map((e) => e.equivalent)).toEqual(['no run can tell']);
+		expect(tally([{ killed: true }, { killed: false }], 3, 'x', 1)).toMatchObject({
+			killed: 1,
+			judged: 2,
+			equivalent: 1,
+			rate: 50
+		});
+	});
+
+	it("builds, before its baseline, every package a mutant's build would (a clone's stale dependents killed every mutant alike)", () => {
+		const m = (file: string): Mutant => ({ file, line: 1, operator: 'statement' });
+		expect(
+			baseline_packages([
+				m('packages/core/src/runtime/core.ts'),
+				m('packages/core/src/runtime/schedule.ts'),
+				m('packages/federation/src/peer.ts')
+			])
+		).toEqual(['packages/core', 'packages/federation']);
 	});
 });
