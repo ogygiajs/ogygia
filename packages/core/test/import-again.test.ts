@@ -2,7 +2,7 @@
 // keeps the failed URL for the life of the page). The real browser behaviour is proven by the e2e
 // lazy-chunk-retry spec; this pins the URL reading and the attempt sequence.
 import { describe, expect, it, vi } from 'vitest';
-import { flights } from '@ogygia/machine';
+import { flights, observe } from '@ogygia/machine';
 import {
 	import_again,
 	is_failed_import,
@@ -211,6 +211,51 @@ describe('import_again', () => {
 		} finally {
 			entries.mockRestore();
 			on_reload_needed(() => {});
+		}
+	});
+
+	it('a retry already out when another got stuck still lands: the file loaded after all, and every later call is that load', async () => {
+		const file = 'https://shop.test/_app/immutable/chunks/late.js';
+		// (retry 1's own file came, so its failure is a dependency's: stuck; retry 2 is still out)
+		const entries = vi
+			.spyOn(performance, 'getEntriesByName')
+			.mockImplementation(
+				(name) =>
+					(name.includes('og-retry=1')
+						? [{ responseStatus: 200, responseStart: 1 }]
+						: []) as unknown as PerformanceEntryList
+			);
+		const moves: string[] = [];
+		const off = observe((name, from, to) => {
+			if (name === 'import-again') moves.push(`${from.kind} -> ${to ? to.kind : 'stopped'}`);
+		});
+		on_reload_needed(() => {});
+		try {
+			let land!: (value: string) => void;
+			const late = new Promise<string>((resolve) => (land = resolve));
+			const fresh = async (url: string) => {
+				if (url.includes('og-retry=1'))
+					throw new TypeError(`Failed to fetch dynamically imported module: ${url}`);
+				return late;
+			};
+			const load = import_again(
+				() => Promise.reject(new TypeError(`Failed to fetch dynamically imported module: ${file}`)),
+				fresh,
+				file
+			);
+			await expect(load()).rejects.toThrow(TypeError);
+			const first = load();
+			const second = load();
+			await expect(first).rejects.toThrow('og-retry=1');
+			// (the verdict: its own file came)
+			await vi.waitFor(() => expect(moves).toContain('failed -> stuck'));
+			land('late');
+			await expect(second).resolves.toBe('late');
+			await expect(load()).resolves.toBe('late');
+			expect(moves.at(-1)).toBe('stuck -> loaded');
+		} finally {
+			off();
+			entries.mockRestore();
 		}
 	});
 

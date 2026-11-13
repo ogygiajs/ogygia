@@ -181,6 +181,7 @@ export type BootLink = {
 	register_island_graph: typeof import('./island-graph-preload.ts').register_island_graph;
 	is_warmed_module: typeof import('./region-endpoint-url.ts').is_warmed_module;
 	warm_island_module: typeof import('./region-endpoint-url.ts').warm_island_module;
+	runs_entry: typeof import('./region-attrs.ts').runs_entry;
 	note_entry_location: typeof import('./entry-locations.ts').note_entry_location;
 	props_sidecar_of: typeof import('./sidecar.ts').props_sidecar_of;
 	parse_region_html: typeof import('./html-sink.ts').parse_region_html;
@@ -241,6 +242,7 @@ export type BootLink = {
 };
 export type RouterLink = {
 	jump_to_hash: typeof import('./router.ts').jump_to_hash;
+	fragment_target: typeof import('./fragment.ts').fragment_target;
 };
 export type InteractionLink = {
 	resolve_address: typeof import('./interaction.ts').resolve_address;

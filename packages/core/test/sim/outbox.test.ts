@@ -9,7 +9,7 @@
 import { describe, it } from 'vitest';
 import { fc, simulate } from '@ogygia/config/sim';
 import { outbox, policy } from '@ogygia/machine';
-import { server_rules_hold } from './_server.ts';
+import { PRIMITIVE_RUNS, server_rules_hold } from './_server.ts';
 
 type Item = { id: 'x' | 'y' | 'z'; n: number };
 
@@ -128,7 +128,7 @@ describe('the outbox, simulated', () => {
 					)
 				);
 			},
-			{ runs: 1000 }
+			{ runs: PRIMITIVE_RUNS }
 		);
 	});
 });
