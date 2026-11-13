@@ -18,6 +18,7 @@ import {
 	Leaks,
 	live_events,
 	mpa_equivalent,
+	no_viewport_wait,
 	normalize,
 	live_regions_out,
 	page_errors,
@@ -1120,5 +1121,30 @@ describe('what a filed bug says', () => {
 		]);
 		expect(said.known.map((k) => k.issue)).toEqual([1158]);
 		expect(said.left).toEqual(['unhandled: TypeError: something else']);
+	});
+});
+
+describe('a document nobody has looked at', () => {
+	const tab = (moves: string, o: { hidden?: boolean; seen?: boolean } = {}) =>
+		({
+			realm: 'tab-1#2',
+			hidden: o.hidden ?? true,
+			seen: new Set(o.seen ? ['tab-1#2'] : []),
+			page: {
+				mainFrame: { url: 'https://app.test/p1', window: { __ogygia_moves: () => moves } }
+			}
+		}) as unknown as Parameters<typeof no_viewport_wait>[0];
+	const waited = 'hydrate-drain#1 queued -> idle\nhydrate-drain#1 idle -> waiting';
+
+	it('never holds its islands for a viewport it does not have (schedule.ts: a hidden document skips the snapshot and the hold)', () => {
+		expect(no_viewport_wait(tab('hydrate-drain#1 idle -> queued'))?.oracle).toBeUndefined();
+		const found = no_viewport_wait(tab(waited));
+		expect(found?.oracle).toBe('viewport-wait');
+		expect(found?.detail).toContain('https://app.test/p1');
+	});
+
+	it('leaves out a document that was shown, or is shown now: it had a viewport to wait for', () => {
+		expect(no_viewport_wait(tab(waited, { seen: true }))).toBeNull();
+		expect(no_viewport_wait(tab(waited, { hidden: false }))).toBeNull();
 	});
 });
