@@ -1284,8 +1284,46 @@ export function peer_answers(
 		exchanges.some((e) => e.for === realm && (failed_on_wire(e) || e.tampered));
 	const origin = new URL(tab.page.mainFrame.url).origin;
 	const wrong: string[] = [];
+	// (the peer gave the page whole, well inside the deadline counted from the visitor's own ask: the
+	// app had its page to answer with; a mutant that made every exposed page a redirect, which the
+	// mount then failed on, answered 5xx and survived)
+	const peer_gave = (e: (typeof exchanges)[number], path: string): boolean => {
+		const hops = exchanges.filter(
+			(h) =>
+				h.for === e.from &&
+				h.at >= e.at &&
+				new URL(h.url).pathname.endsWith('/og/fragment/page') &&
+				new URL(h.url).searchParams.get('path') === path.slice(MOUNT.length)
+		);
+		return (
+			hops.length > 0 &&
+			hops.every(
+				(h) =>
+					typeof h.status === 'number' &&
+					h.status < 500 &&
+					!failed_on_wire(h) &&
+					!h.tampered &&
+					h.stalled !== true &&
+					h.ended_at !== undefined &&
+					h.ended_at - e.at < PEER_TIMEOUT_MS
+			)
+		);
+	};
 	for (const e of exchanges.slice(since)) {
 		if (e.for !== undefined || !e.from.startsWith(`${tab.name}#`) || e.method !== 'GET') continue;
+		if (
+			typeof e.status === 'number' &&
+			e.status >= 500 &&
+			!e.cut &&
+			!e.tampered &&
+			!e.redirected &&
+			new URL(e.url).origin === origin &&
+			peer_gave(e, new URL(e.url).pathname)
+		) {
+			const owed = EDGE_OWED.find(([is]) => is(new URL(e.url).pathname));
+			if (owed)
+				wrong.push(`${new URL(e.url).pathname} answered ${e.status}, the peer answered ${owed[1]}`);
+		}
 		if (typeof e.status !== 'number' || e.status >= 500 || e.cut || e.tampered || e.redirected)
 			continue;
 		const url = new URL(e.url);
