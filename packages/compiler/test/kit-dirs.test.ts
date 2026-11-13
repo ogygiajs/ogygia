@@ -113,6 +113,20 @@ describe('kit.files.routes / kit.outDir', () => {
 		expect(kit_inline_style_threshold('/apps/never-set')).toBe(0);
 	});
 
+	it("Kit's inlineStyleThreshold is read for the region CSS too; a value that is not a positive number is 0", async () => {
+		const at = async (v: string) => {
+			const root = app({
+				'svelte.config.js': `export default { kit: { inlineStyleThreshold: ${v} } };`
+			});
+			await load_kit_dirs(root);
+			return kit_inline_style_threshold(root);
+		};
+		expect(await at('4096')).toBe(4096);
+		expect(await at('-1')).toBe(0);
+		expect(await at('Infinity')).toBe(0);
+		expect(await at("'big'")).toBe(0);
+	});
+
 	it("the app's universal and client hooks are found as .ts or .js", () => {
 		for (const ext of ['ts', 'js']) {
 			const root = app({ [`src/hooks.${ext}`]: '', [`src/hooks.client.${ext}`]: '' });

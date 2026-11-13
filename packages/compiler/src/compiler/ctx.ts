@@ -8,6 +8,13 @@ import type { AliasEntry, PluginMacro } from './macros/pipeline.ts';
 import type { AppSpecCtx } from './app-spec.ts';
 import type { PreprocessCss } from './fouc-css.ts';
 
+/** The part of a seed-shaping plugin the compiler calls (the whole of it: vite/plugin-api.ts
+ *  `PageReads`): each module the transform reads, and each module's answer when chunks are finished. */
+export interface PageReadsSink {
+	module(id: string, code: string): void;
+	keys(id: string): ReadonlySet<string> | 'unknown' | null;
+}
+
 /** A plugin's reader of the prescan (`b.prescan`): the modules it asked for, as the prescan reads
  *  them, and the end of a build. */
 export interface PrescanHook {
@@ -95,6 +102,9 @@ export interface CompileCtxInit {
 	preprocess_css?: PreprocessCss;
 	/** The plugins' `import.meta.og.*` macros (`b.macro`), in plugin order. Optional (default none). */
 	macros?: readonly PluginMacro[];
+	/** The plugin that reads which `page.data` keys a module reads (`b.pageReads`), handed each
+	 *  module the build compiles. Optional (default none: every region gets all of `page.data`). */
+	page_reads?: PageReadsSink | null;
 	/** The plugins' prescan readers (`b.prescan`), in plugin order. Optional (default none). */
 	prescans?: readonly PrescanHook[];
 	/** The names of the plugins listed beside `ogygia()` (`'@ogygia/flags'`). Optional (default none). */
@@ -169,6 +179,7 @@ export class CompileCtx {
 	}
 	readonly preprocess_css: PreprocessCss | undefined;
 	readonly macros: readonly PluginMacro[];
+	readonly page_reads: PageReadsSink | null;
 	readonly prescans: readonly PrescanHook[];
 	readonly plugins: readonly string[];
 	readonly pkg_root: string;
@@ -221,6 +232,7 @@ export class CompileCtx {
 		this.resolve_alias = init.resolve_alias;
 		this.preprocess_css = init.preprocess_css;
 		this.macros = init.macros ?? [];
+		this.page_reads = init.page_reads ?? null;
 		this.prescans = init.prescans ?? [];
 		this.plugins = init.plugins ?? [];
 		this.pkg_root = init.pkg_root;

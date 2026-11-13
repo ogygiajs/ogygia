@@ -1,23 +1,3 @@
-/**
- * The BUILD side of a plugin (design: internal/notes/packages.md, plugin API v2): `definePlugin` and
- * the build context. Loads in plain node — vite.config imports it before any bundler runs.
- *
- *   export const postrender = (options: PostrenderOptions = {}) =>
- *     definePlugin({
- *       name: '@ogygia/postrender',                    // the package name: the plugin's identity
- *       options,                                        // JSON; reaches the server realm as `app.options`
- *       server: import.meta.resolve('./server.ts'),     // the server realm (`defineServer`)
- *       build(b) { b.routeConfig('postrender'); }
- *     });
- *
- * A plugin IS a Vite plugin: the app lists it beside `ogygia()` (`plugins: [ogygia(), postrender(),
- * sveltekit()]`), and `ogygia()` finds it there by the definition it carries under {@link PLUGIN} —
- * never by its name. A factory that needs Vite hooks of its own returns them beside it, as an array.
- *
- * REALMS are named by the plugin: `server` and `client` point at the modules themselves, resolved
- * next to the factory (`import.meta.resolve`), so they are the same files the package's own imports
- * reach and a plugin's modules exist once. A package's export names stay its own.
- */
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -62,6 +42,10 @@ export interface PluginDefinition<Options = unknown> {
 	options?: Options;
 	/** Run before (`'pre'`) or after (`'post'`) the other plugins, in every realm. */
 	enforce?: 'pre' | 'post';
+	/** The plugins this one needs listed beside it: each one's package name, its call and the
+	 *  package to import it from. One the app does not list fails the build
+	 *  (`plugin_needs_plugin`), naming the line to add. */
+	needs?: readonly { name: string; call: string; from: string }[];
 	/** Build-time contributions, with the build context. */
 	build?(b: BuildContext): void;
 }
@@ -209,9 +193,50 @@ export interface BuildContext {
 	 *  page module; `files`: absolute paths that are page modules themselves (compiled ones: app source,
 	 *  or a `files()` / `ogygia.files` surface). */
 	pageModules(modules: { importers?: string[]; files?: string[] }): void;
+	/** SEED SHAPING: this plugin answers which top-level `page.data` keys a module reads
+	 *  (`@ogygia/page-keys`). One plugin at most. Without one, every region that reads the page gets
+	 *  all of `page.data`, and every server hole looks it up. */
+	pageReads(reads: PageReads): void;
 }
 
-/** The name of `ogygia()`'s own Vite plugin: what a listed plugin looks for beside it. */
+/** A specifier resolved from an importer, as the bundler resolves it (null: it does not). */
+export type PageReadsResolve = (
+	specifier: string,
+	importer: string
+) => Promise<{ id: string } | null | undefined>;
+
+/** Why a module answers `'unknown'`: the construct, and its line. */
+export interface PageReadWhy {
+	readonly why: string;
+	readonly line: number | null;
+}
+
+/**
+ * What a seed-shaping plugin answers (handed to {@link BuildContext.pageReads}). Module ids are
+ * query-less, with forward slashes. Core unions the answers over each island's closure and walks
+ * each server hole's graph; `'unknown'` anywhere ships (or looks up) all of `page.data`.
+ */
+export interface PageReads {
+	/** A module the build compiles, in its source form (before ogygia's own rewrites). Build only. */
+	module(id: string, code: string): void;
+	/** Once in the client leg, before core asks `keys`: settle what needs the bundler (a helper in
+	 *  another module that the page is handed to). */
+	settle(resolve: PageReadsResolve): Promise<void>;
+	/** The keys a module reads, `'unknown'`, or null (it was never seen reading the page). */
+	keys(id: string): ReadonlySet<string> | 'unknown' | null;
+	/** Why a module answers `'unknown'` (the build's seed report, the profiler). */
+	why(id: string): PageReadWhy | null;
+	/** Dev, for the profiler: what these files read together (an island's component and the app
+	 *  modules below it), as the build would answer; null when none reads the page. */
+	dev(
+		files: readonly string[],
+		resolve: PageReadsResolve
+	): Promise<{
+		keys: string[] | 'unknown' | null;
+		why: { file: string; line: number | null; why: string }[];
+	}>;
+}
+
 const OGYGIA_VITE_PLUGIN = 'ogygia';
 
 /** A plugin, as the Vite plugin the app lists beside `ogygia()`. */
@@ -228,7 +253,6 @@ export function definePlugin<Options = undefined>(
 	};
 }
 
-/** The prefix of SvelteKit's own Vite plugins' names (`sveltekit()` returns several). */
 const KIT_VITE_PLUGIN_PREFIX = 'vite-plugin-sveltekit';
 
 /** The plugin definitions in the app's Vite plugin list (nested arrays and promises included), in
@@ -291,9 +315,10 @@ export interface ResolvedPlugins {
 	page_modules: { importers: string[]; files: string[] };
 	/** stage transforms (`b.transform()`), in plugin order */
 	transforms: StageTransform[];
+	/** the plugin that answers seed shaping (`b.pageReads()`), or null: every region gets all */
+	page_reads: PageReads | null;
 }
 
-/** What core hands every plugin's build context: the export index and the pinned-import check. */
 /** The live region table (read at call time, so it is complete once the app's islands are known). */
 export interface RegionsSeam {
 	/** island id → its component's name */
@@ -310,9 +335,7 @@ export interface BuildSeams {
 }
 
 const MACRO_NAME_RE = /^[a-z][A-Za-z0-9]*$/;
-/** core's own `import.meta.og.*` constructs: a plugin may never claim one */
-// static: the macros core defines
-const CORE_MACROS = new Set(['wire', '$', 'source', 'store']);
+const CORE_MACROS: ReadonlySet<string> = new Set(['wire', '$', 'source', 'store']);
 
 function order(plugins: readonly PluginDefinition[]): PluginDefinition[] {
 	return [
@@ -324,8 +347,6 @@ function order(plugins: readonly PluginDefinition[]): PluginDefinition[] {
 
 const ROUTE_CONFIG_KEY_RE = /^[a-z][A-Za-z0-9]*$/;
 
-/** The seams outside a configured `ogygia()` (a unit test of the plugin list): asking for one is a
- *  mistake in that test, said loudly. */
 const NO_SEAMS: BuildSeams = {
 	exports: {
 		map: () => Promise.reject(new Error('resolve_plugins: no export index without ogygia()'))
@@ -372,11 +393,17 @@ export function check_plugins(plugins: readonly unknown[]): PluginDefinition[] {
 			}
 		}
 	}
+	for (const plugin of plugins as PluginDefinition[])
+		for (const need of plugin.needs ?? [])
+			if (!seen.has(need.name))
+				throw new OgygiaError('plugin_needs_plugin', {
+					plugin: plugin.name,
+					needs: need.call,
+					from: need.from
+				});
 	return plugins as PluginDefinition[];
 }
 
-/** A realm's module as an absolute POSIX path (what the generated imports name), or null when the
- *  plugin has none. A location that is not a file is a mistake, said loudly. */
 function realm_path(plugin: PluginDefinition, realm: 'server' | 'client'): string | null {
 	const where = plugin[realm];
 	if (where === undefined) return null;
@@ -402,7 +429,6 @@ export function client_hook_names(plugin: string, file: string): RuntimeHookName
 		if (s.type === 'VariableDeclaration' && s.kind === 'const')
 			for (const d of s.declarations as AstNode[])
 				if (d.id?.type === 'Identifier' && d.init) consts.set(d.id.name as string, d.init);
-	// what a value is, as written: through casts, parentheses and the module's own `const` names
 	const unwrap = (n: AstNode | null | undefined): AstNode | null | undefined => {
 		const seen = new Set<string>();
 		while (n) {
@@ -423,7 +449,6 @@ export function client_hook_names(plugin: string, file: string): RuntimeHookName
 		}
 		return n;
 	};
-	// a bundler writes `export { client as default }` where the source had `export default client`
 	const default_local = body
 		.filter((s) => s.type === 'ExportNamedDeclaration' && !s.source)
 		.flatMap((s) => s.specifiers as AstNode[])
@@ -463,7 +488,6 @@ function package_resolves(req: NodeJS.Require, name: string): boolean {
 		req.resolve(`${name}/package.json`);
 		return true;
 	} catch (e) {
-		// a package whose exports do not list package.json still resolves (the error says so)
 		return (e as { code?: string }).code === 'ERR_PACKAGE_PATH_NOT_EXPORTED';
 	}
 }
@@ -496,8 +520,10 @@ export function resolve_plugins(
 		measure: false,
 		files: [],
 		page_modules: { importers: [], files: [] },
-		transforms: []
+		transforms: [],
+		page_reads: null
 	};
+	let page_reads_owner: string | null = null;
 	const config_owner = new Map<string, string>();
 	const macro_owner = new Map<string, string>();
 	const last_macros: ResolvedPlugins['macros'] = [];
@@ -556,7 +582,6 @@ export function resolve_plugins(
 				out.definers.push({ module, names: [...names] });
 			},
 			events(options) {
-				// eager wins: one plugin measuring from boot outranks another's launcher-only ask
 				const lazy = options?.lazy === true;
 				out.events = out.events ? { lazy: out.events.lazy && lazy } : { lazy };
 			},
@@ -579,10 +604,18 @@ export function resolve_plugins(
 						throw new OgygiaError('page_modules_not_absolute', { plugin: plugin.name, file });
 					if (!out.page_modules.files.includes(file)) out.page_modules.files.push(file);
 				}
+			},
+			pageReads(reads) {
+				if (page_reads_owner !== null)
+					throw new OgygiaError('page_reads_claimed', {
+						owner: page_reads_owner,
+						plugin: plugin.name
+					});
+				page_reads_owner = plugin.name;
+				out.page_reads = reads;
 			}
 		});
 	}
-	// the `last` macros after every other one, each in plugin order
 	out.macros.push(...last_macros);
 	return out;
 }

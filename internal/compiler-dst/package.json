@@ -8,7 +8,8 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"@ogygia/compiler": "workspace:*"
+		"@ogygia/compiler": "workspace:*",
+		"@ogygia/page-keys": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",

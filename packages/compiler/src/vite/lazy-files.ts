@@ -1,20 +1,3 @@
-/**
- * EACH LAZY LOADER'S OWN FILE (#385, #392). A lazy loader (`import_again(() => import('./x.ts'))`,
- * runtime/import-again.ts) asks for its file again under a fresh URL after a download fails. Which
- * file that is, the failure cannot say: WebKit's error names none, and Firefox's names the file that
- * failed, which can be a dependency of the one imported. The build can, so it hands each loader its
- * own:
- *
- * - each `import_again(() => import('<spec>'))` becomes
- *   `import_again(() => import('<spec>'), void 0, <file>, import.meta.url)`. Code that writes its
- *   loaders out another way (the transportable classes' map) puts a `file_token` beside each
- *   (compiler/link/file-token.ts);
- * - dev: the file is the module's URL: a relative spec as written, another the resolved file under
- *   `/@fs/`;
- * - build: once chunks are named, the path from the loader's chunk to the module's own chunk, or
- *   `null` when the module has none: a relocation, replaced with the others at renderChunk
- *   (compiler/link/relocations.ts `FILE`).
- */
 import MagicString from 'magic-string';
 import type { Plugin } from 'vite';
 import {
@@ -24,12 +7,8 @@ import {
 	file_token_id
 } from '../compiler/link/file-token.ts';
 
-/** A loader: an arrow that imports one string (and may read part of it, `.then(…)`), as the start
- *  of its `import_again(` call. */
 const LOADER_RE = /\bimport_again\(\s*\(\)\s*=>\s*import\(\s*(["'`])([^"'`]+)\1\s*\)/g;
 
-/** The `)` that closes the call opened at `open`, and how many arguments it has (strings and
- *  comments skipped); null when the code ends first. */
 function call_end(code: string, open: number): { end: number; args: number } | null {
 	let depth = 0;
 	let args = 1;
@@ -56,7 +35,6 @@ function call_end(code: string, open: number): { end: number; args: number } | n
 	return null;
 }
 
-/** `id`'s URL on the dev server; `null` for a module with no file (a virtual one). */
 function dev_url(id: string): string | null {
 	if (id.startsWith('\0')) return null;
 	return `/@fs/${id.replace(/^\/+/, '')}`;
@@ -78,7 +56,6 @@ export function lazy_files(): Plugin {
 				for (const m of code.matchAll(LOADER_RE)) {
 					const [, , spec] = m;
 					const call = call_end(code, m.index + 'import_again'.length);
-					// (one argument, the loader; or two, the loader and how a retry reads the file)
 					if (call === null || call.args > 2) continue;
 					let file: string | null;
 					if (dev && spec.startsWith('.')) file = JSON.stringify(spec);

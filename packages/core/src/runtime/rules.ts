@@ -28,6 +28,8 @@
  *   first document (SPA-HEAD, ./head-deny.ts).
  * - `rule_turns_counted`: the hydration scheduler's count of pending turns is the turns it holds,
  *   each in the heap its snapshot names (./schedule.ts `turns_counted`: the drain's pick rests on it).
+ * - `rule_seed_key_unshipped`: island code reads no `page.data` key the server had and the shaped
+ *   page seed left out (seed shaping, `pageKeys()`; the seed names what it left out in rules builds).
  *
  * Each area tells this module what it holds (`note_mount`, `note_visit`, `watch_router`) only when
  * rules are on (`RULES`): every call site folds out of a build without them.
@@ -49,7 +51,8 @@ type RuntimeRule =
 	| 'rule_region_left_busy'
 	| 'rule_head_adopted'
 	| 'rule_lake_restored'
-	| 'rule_turns_counted';
+	| 'rule_turns_counted'
+	| 'rule_seed_key_unshipped';
 
 /** The runtime's rules. */
 export const runtime_rules: Rules<RuntimeRule> = /* @__PURE__ */ new Rules<RuntimeRule>();
@@ -68,6 +71,7 @@ class RuleRows {
 	readonly visits: Array<{ visit: Visit; n: number }> = [];
 	readonly uncoded: string[] = [];
 	readonly parsed_built: string[] = [];
+	readonly unshipped_reads: string[] = [];
 	readonly lakes_unpaired: string[] = [];
 }
 const R = new RuleRows();
@@ -342,6 +346,16 @@ function note_parse(fragment: DocumentFragment): void {
 const no_parse_upgraded = (): string | null =>
 	R.parsed_built.length === 0 ? null : R.parsed_built.join('; ');
 
+function note_unshipped_read(key: string): void {
+	const said = `page.data.${key} on ${location.pathname}`;
+	if (R.unshipped_reads.length < 10 && !R.unshipped_reads.includes(said))
+		R.unshipped_reads.push(said);
+	check_soon();
+}
+
+const no_unshipped_read = (): string | null =>
+	R.unshipped_reads.length === 0 ? null : R.unshipped_reads.join('; ');
+
 // ── a hydrate gives back every lake it lifted ──
 
 /** An island's hydrate lifted `lifted` lakes out of `region` and found `found` to give them back to
@@ -424,6 +438,9 @@ export function install_rules(dev: boolean): void {
 	runtime_rules.add('rule_turns_counted', turns_counted);
 	watch_head();
 	(globalThis as PageGlobals).__og_parsed = note_parse;
+	runtime_rules.add('rule_seed_key_unshipped', no_unshipped_read);
+	(globalThis as { __og_unshipped_read?: (key: string) => void }).__og_unshipped_read =
+		note_unshipped_read;
 	(globalThis as { __ogygia_rules?: () => BrokenRule[] }).__ogygia_rules = () =>
 		runtime_rules.broken();
 	const moves = trace();
