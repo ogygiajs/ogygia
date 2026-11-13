@@ -89,6 +89,15 @@ describe('read_route_config — export shapes', () => {
 		);
 	});
 
+	it('a regular expression or a bigint is no plain literal: a build error too', () => {
+		for (const value of ['/x/', '1n']) {
+			const dir = routes({ 'a/+page.ts': `export const config = { postrender: ${value} };` });
+			expect(() => read_route_config(R, join(dir, 'a/+page.ts'), KEYS), value).toThrow(
+				/config\.postrender` must be a literal/
+			);
+		}
+	});
+
 	it('nothing is stripped: the route module stays exactly what Kit reads', () => {
 		const src = `${dedent`
 			export const config = { postrender: false };
