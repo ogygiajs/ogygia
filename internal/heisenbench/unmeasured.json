@@ -381,10 +381,6 @@
 			"reason": "the e2e harness's end-of-test rules read: Playwright only, runs at the end of every e2e spec"
 		},
 		{
-			"id": "packages/tooling/src/e2e/index.ts > rules > evaluate:0~336849",
-			"reason": "the e2e harness's end-of-test rules read: Playwright only, runs at the end of every e2e spec"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > import_again:0",
 			"reason": "browser only: the dynamic import of the hydrate core chunk; its download, failure and retry are proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
@@ -1989,10 +1985,6 @@
 			"reason": "dev only: a collection's module ran again, so the old collection is disposed; one call, constant work of its own"
 		},
 		{
-			"id": "packages/flags/src/vite.ts > flags > definePlugin:0~de4de4 > build",
-			"reason": "build time: declares the flags definer through the plugin builder (not cloneable), constant work"
-		},
-		{
 			"id": "packages/machine/src/define.ts > defineRun",
 			"reason": "dev only: a module's new run ends the run before it and returns its wrapper (a function, not cloneable), constant work of its own"
 		},
@@ -2839,10 +2831,6 @@
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad",
 			"reason": "one declaration against the pinned keys and locals (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~d4dbd6",
-			"reason": "one specifier's local against the asRegion locals (a Set has); proven in packages/barrels/test/as-region.test.ts"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~e91cb2",
@@ -3805,10 +3793,6 @@
 			"reason": "reads and counts down the request's known copies (hidden state: the request event's map), constant work per region; proven in packages/core/test/property-known-copies.test.ts and packages/core/test/server-delta-opt-in.test.ts (#846)"
 		},
 		{
-			"id": "packages/tooling/src/e2e/index.ts > extend:0~698079 > <anonymous>~24f7e2",
-			"reason": "the e2e harness's per-test server-rules fixture: Playwright only, reads the suite's server log around each test (#928)"
-		},
-		{
 			"id": "packages/tooling/src/e2e/server-log.ts > server_log",
 			"reason": "the e2e harness: reads the suite's log path from the environment (hidden state), Playwright only (#928)"
 		},
@@ -3895,10 +3879,6 @@
 		{
 			"id": "packages/compiler/src/vite/lazy-files.ts > lazy_files > transform",
 			"reason": "a live Vite transform hook (its this.resolve is the plugin context, not recorded); returns at once for a module without import_again or a file token; proven in packages/compiler/test/lazy-files.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/lazy-files.ts > lazy_files > renderChunk",
-			"reason": "build only: Vite's renderChunk hook over a rendered chunk and its bundle (not cloneable), linear in the chunk's file tokens; proven in packages/compiler/test/lazy-files.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/import-again.ts > import_again > next > catch:0~df975d",
@@ -4303,10 +4283,6 @@
 		{
 			"id": "packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > refuse",
 			"reason": "throws the coded build error (not replayable), constant work; proven in packages/core/test/macros-own-source.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > macros > run_module_macros:2~cee8e9 > ownSource",
-			"reason": "forwards to CompileCtx.is_own_source, one call; proven in packages/core/test/macros-own-source.test.ts"
 		},
 		{
 			"id": "packages/compiler/src/compiler/ctx.ts > CompileCtx > is_own_source",
@@ -4959,6 +4935,110 @@
 		{
 			"id": "packages/devtools/src/devtools/session.ts > start_session > counting > push:0~64a57a > map:0~529f9c",
 			"reason": "browser only: one console.error argument as text, constant work per argument; proven in packages/devtools/test/devtools-session-console.test.ts"
+		},
+		{
+			"id": "packages/bake/src/bake.ts > call:0~16f6c5 > run",
+			"reason": "build only: one bake call's evaluation in the build's Node, once per call site per build; its cost is the app's own function"
+		},
+		{
+			"id": "packages/bake/src/index.ts > bake",
+			"reason": "the plugin's factory, once per config load: builds one plugin record, constant work"
+		},
+		{
+			"id": "packages/bake/src/index.ts > bake > definePlugin:0~13f695 > build",
+			"reason": "the plugin's build hook, once per build: registers one macro, constant work"
+		},
+		{
+			"id": "packages/bake/src/index.ts > bake > definePlugin:0~13f695 > build > macro:1~62246b",
+			"reason": "build only: the bake macro over one call site, delegating to bake.ts (its run measured by the bake tests), once per call site"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_arity > details",
+			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_arity > text",
+			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_eval_failed > details",
+			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_eval_failed > text",
+			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_not_function > details",
+			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_not_function > text",
+			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_not_serializable > details",
+			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_not_serializable > text",
+			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
+		},
+		{
+			"id": "packages/cli/src/mcp.ts > load_flag_inventory",
+			"reason": "CLI tool only: one import of the flag inventory per server, kept once it lands; run by packages/cli/test/mcp-flags-trust.test.ts in a child process"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > prescan > once:1~8ca9a8",
+			"reason": "build only: one plugin_not_listed warning per unlisted plugin package, once per build"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > prescan > read_for_plugins > some:0~fcb899",
+			"reason": "build only: a lookup of one prescan hook's imports per prescanned module specifier, a handful of plugins"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > prescan_rel",
+			"reason": "build only: one path relativize per prescanned module a plugin hook claims, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > plugin_not_listed > details",
+			"reason": "a message's prose for its docs page and build warning: constant text, printed once per unlisted plugin"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > plugin_not_listed > text",
+			"reason": "a message's one line for the build warning: a template over its detail, printed once per unlisted plugin"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > config > handler > map:0~364fcf#3",
+			"reason": "config only, once per Vite config resolve: a map over the listed plugins, a handful"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > transform > transform_module:2~3aec12 > watch",
+			"reason": "dev and build: one addWatchFile per route option file a host's csr reads, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~f1ee24 > prescan",
+			"reason": "build only: a plugin's prescan registration, once per plugin per build, constant work"
+		},
+		{
+			"id": "packages/flags/src/build-messages.ts > FLAGS_BUILD_WARNINGS > flags_manifest_written > details",
+			"reason": "a message's prose for its docs page and build note: constant text, printed once per build"
+		},
+		{
+			"id": "packages/flags/src/build-messages.ts > FLAGS_BUILD_WARNINGS > flags_manifest_written > text",
+			"reason": "a message's one line for the build note: a template over its detail, printed once per build"
+		},
+		{
+			"id": "packages/flags/src/vite.ts > inventory",
+			"reason": "the plugin's factory, once per config load: builds one plugin record, constant work"
+		},
+		{
+			"id": "packages/flags/src/vite.ts > inventory > module",
+			"reason": "build only: the inventory's prescan hook over one module that imports @ogygia/flags, delegating to collect_flag_sites (measured on its own)"
+		},
+		{
+			"id": "packages/flags/src/vite.ts > inventory > written",
+			"reason": "build only, once per build: writes the flags manifest file, linear in flag sites"
 		}
 	]
 }

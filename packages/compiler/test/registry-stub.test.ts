@@ -123,26 +123,16 @@ describe('registry_client_source', () => {
 		expect(out).not.toContain('Hero.svelte');
 	});
 
-	test('asRegion: the call blanks, its component import drops, sibling names stay', () => {
+	test('a marked named import blanks every name it binds; a plain import of the same module stays', () => {
 		const src = dedent`
-			import { Card, Plain } from './barrel';
-			export const Island = import.meta.og.asRegion(Card, { wake: 'load' });
-			export { Plain };
+			import { Card, Badge as B } from './barrel' with { wake: 'load' };
+			import { Plain } from './barrel';
+			export { Card, B, Plain };
 		`;
 		const out = registry_client_source(src, FILE, KEYS)!;
 		expect(out).toContain(`import { Plain } from './barrel';`);
-		expect(out).toContain('const Card = undefined;');
-		expect(out).toContain('export const Island = undefined;');
-	});
-
-	test('asRegion on a sole default import drops the whole import', () => {
-		const out = registry_client_source(
-			`import Card from './Card.svelte';\nexport const C = import.meta.og.asRegion(Card, { wake: 'idle' });`,
-			FILE,
-			KEYS
-		)!;
-		expect(out).not.toContain('Card.svelte');
-		expect(out).toContain('const Card = undefined;');
+		expect(out).toContain('const Card = undefined, B = undefined;');
+		expect(out).not.toContain('with {');
 	});
 
 	test('import.meta.og.regions(glob) blanks to an empty registry', () => {

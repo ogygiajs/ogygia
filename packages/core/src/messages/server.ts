@@ -202,8 +202,10 @@ export const SERVER_WARNINGS = {
 	endpoint_props_decode_failed: {
 		text: (): string => 'region endpoint 403: island module load / props decode failed',
 		details: (): string => prose`
-			Dev only. The islands endpoint could not load the region's module, or could not decode
-			the props in its address, so it refused the request. The error follows the message.
+			The islands endpoint could not load the region's module, or could not decode the props in
+			its address, so it refused the request and the page keeps the region's fallback. The
+			error follows the message, in the server's log only: the visitor's answer says nothing of
+			it.
 		`
 	},
 	endpoint_foreign_key: {
