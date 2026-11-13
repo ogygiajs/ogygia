@@ -100,7 +100,7 @@ function parse(text: string, file: string): Lines | null {
 		);
 		return lines_of_map(map.mappings, own === -1 ? 0 : own);
 	} catch {
-		return null;
+		return null; // ok: an unreadable inline map: the file shows without source lines
 	}
 }
 
