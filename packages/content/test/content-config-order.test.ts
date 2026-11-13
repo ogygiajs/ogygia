@@ -9,20 +9,19 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { content, extensions, preprocess } from '../src/vite/index.ts';
 import { bridge } from '../src/bridge.ts';
 
-type Order = { markdownOrder?: string };
-const saved: Partial<typeof bridge> & Order = {};
+const saved: Partial<typeof bridge> = {};
 beforeEach(() => {
 	saved.markdownConfig = bridge.markdownConfig;
 	saved.contentPresets = bridge.contentPresets;
-	saved.markdownOrder = (bridge as Order).markdownOrder;
+	saved.markdownOrder = bridge.markdownOrder;
 	// a process where nothing ran yet
 	bridge.markdownConfig = null;
-	(bridge as Order).markdownOrder = 'unset';
+	bridge.markdownOrder = 'unset';
 });
 afterEach(() => {
 	bridge.markdownConfig = saved.markdownConfig ?? null;
 	bridge.contentPresets = saved.contentPresets ?? null;
-	(bridge as Order).markdownOrder = saved.markdownOrder;
+	bridge.markdownOrder = saved.markdownOrder ?? 'unset';
 });
 
 describe('content() and the svelte config', () => {
