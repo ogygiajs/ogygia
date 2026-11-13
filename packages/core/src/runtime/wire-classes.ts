@@ -1,23 +1,25 @@
 /**
  * THE TRANSPORTABLE CLASSES AN ISLAND NEEDS, loaded before it decodes its props. An `[ogygia.wire]`
- * class revives through its registered codec, and its module registers it when it loads. Every island
- * page used to load every transportable class of the app up front (each island entry imported them
- * all); now the client build carries only a map of lazy loaders (`ogygia:region/transportables`), and
- * an island loads just what it carries:
+ * class revives through its registered codec, and its module registers it when it loads. The client
+ * build carries a map of lazy loaders (`ogygia:region/transportables`), and an island loads just what
+ * it carries:
  * - its props: the server stamped the classes on the props sidecar (`data-og-wire`, tag paths);
  * - the context it reads: the `<ogygia-provide>` payloads around it and the page's context root;
  * - the page's seeds (`page.data`, the remote-query seed), checked once per document.
  * The small texts are checked for each class's tag path (`"<path>#`). An app that sends wired values
- * through Kit's `transport` (`wire_all`: remote functions, loads) gets every class with every island,
- * as before: those values decode synchronously whenever they arrive. Each module loads once.
+ * through Kit's `transport` (`wire_all`: remote functions, loads) gets every class with every island:
+ * those values decode synchronously whenever they arrive. Each module loads once.
  *
  * A download that fails is tried again at once, and a failure is never kept: the wake it failed for
  * decodes without the class (the decode says which class is missing), and the next wake that needs
  * it loads it afresh, under a fresh URL (./import-again.ts: the browser keeps the failed one).
+ * test/browser/wire-classes.test.ts holds these.
  *
  * A BOOT-phase feature (link/runtime-entry.ts), installed only when the app has transportable
- * classes: without one the loader map is empty, but the bundler cannot see that through the virtual
- * module, so this code shipped to every island page for a lookup that always found nothing.
+ * classes: without one the loader map is empty, and the bundler cannot see that through the virtual
+ * module.
+ *
+ * @packageDocumentation
  */
 import { cache, flights } from '@ogygia/machine';
 import { wire_loaders, wire_all } from 'ogygia:region';
@@ -35,13 +37,10 @@ export function install(): void {
 
 const loaders = wire_loaders;
 const paths = Object.keys(loaders);
-/** Each class module's loader: what it asks for next (its file, or a fresh URL after a failure). */
 const imports = cache<string, () => Promise<unknown>>({
 	name: 'class module loaders',
-	// (one per class module the build lists: never more)
 	max: Math.max(1, paths.length)
 });
-/** Each class module's load, by path, kept once it succeeds (a failure is never kept). */
 const loads = flights({
 	name: 'wire class',
 	run: (path: string) => {
@@ -50,8 +49,6 @@ const loads = flights({
 			const [load, file, base] = loaders[path]!;
 			imports.set(path, (import_class = import_again(load, undefined, file, base)));
 		}
-		// (each import starts in a task of its own: every class's preload ran inside the first
-		// island's start)
 		return yield_task().then(import_class);
 	},
 	retry: download
@@ -59,17 +56,14 @@ const loads = flights({
 
 function load(path: string): Promise<unknown> {
 	if (!loaders[path]) return Promise.resolve();
-	// (a failed load resolves for this wake: its decode then says which class is missing)
 	return loads.get(path).catch(() => undefined); // ok: its decode then says which class is missing
 }
 
-/** The classes a text names (`"<tag path>#…` appears in it), into `want`. */
 function scan(text: string | null | undefined, want: Set<string>): void {
 	if (!text) return;
 	for (const p of paths) if (!want.has(p) && text.indexOf(`"${p}#`) !== -1) want.add(p);
 }
 
-/** The document's seeds, checked once per document (a router swap brings new ones). */
 let seed_classes: { doc: Document; want: Set<string> } | null = null;
 function classes_in_seeds(doc: Document): Set<string> {
 	if (seed_classes?.doc === doc) return seed_classes.want;

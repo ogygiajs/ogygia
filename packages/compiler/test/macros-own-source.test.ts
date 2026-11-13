@@ -38,10 +38,29 @@ describe('module macros: the app’s own source only', () => {
 		expect(fs.existsSync(RAN)).toBe(false);
 	});
 
-	it('any other macro in an installed file fails the same way', async () => {
-		await expect(run_module_macros(WIRE, DEP, ctx(), NO_PROFILE)).rejects.toThrow(
+	it.each([
+		['wire', WIRE],
+		['$', `export const f = import.meta.og.$(() => 1);`],
+		['source', `export const f = import.meta.og.source(async () => 1);`],
+		['store', `export const s = import.meta.og.store((v) => ({ subscribe: () => {}, v }));`]
+	])('the %s macro in an installed file fails the same way', async (_name, src) => {
+		await expect(run_module_macros(src, DEP, ctx(), NO_PROFILE)).rejects.toThrow(
 			/macro_outside_app/
 		);
+	});
+
+	it('a store-shaped export is auto-branded in app source only, never in an installed file or ogygia', async () => {
+		const src = `export const createX = (seed) => ({ subscribe: () => {}, seed });`;
+		expect((await run_module_macros(src, APP, ctx(), NO_PROFILE)).code).toContain('__og_store(');
+		expect(await run_module_macros(src, DEP, ctx(), NO_PROFILE)).toEqual({
+			code: src,
+			touched: false,
+			maps: []
+		});
+		const og = path.join(ROOT, 'og', 'store.ts');
+		expect(
+			await run_module_macros(src, og, { ...ctx(), pkgRoot: path.join(ROOT, 'og') }, NO_PROFILE)
+		).toEqual({ code: src, touched: false, maps: [] });
 	});
 
 	it('a marker named only in a string or a comment of an installed file is left alone', async () => {

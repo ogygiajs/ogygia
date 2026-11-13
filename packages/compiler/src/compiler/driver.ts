@@ -33,7 +33,8 @@ import { run_module_macros } from './macros/pipeline.ts';
 import { fn_manifest_entries } from './macros/dollar.ts';
 import { is_script_request } from './script-request.ts';
 import { resolveFeatures } from './link/runtime-entry.ts';
-import { resolveFoucImportSpec, FOUC_CSS_PREFIX, FOUC_SCOPED_PREFIX } from './fouc-css.ts';
+import { FOUC_CSS_PREFIX, FOUC_SCOPED_PREFIX } from './fouc-css.ts';
+import { resolve_app_spec } from './app-spec.ts';
 import {
 	moduleHasTransportable,
 	svelteModuleHasTransportable,
@@ -700,6 +701,8 @@ export class Compiler implements CoreApp {
 			importKeys: ctx.import_keys,
 			idSalt: ctx.id_salt,
 			pkg_identity: (abs: string) => ctx.pkg_identity(abs),
+			alias: ctx.app_spec.alias,
+			stat: ctx.app_spec.stat,
 			linkVirtualIsland: link_virtual,
 			clientBindingStub: CLIENT_BINDING_STUB,
 			routeCsr: route_csr,
@@ -731,7 +734,9 @@ export class Compiler implements CoreApp {
 			appDir: ctx.app_dir,
 			importKeys: ctx.import_keys,
 			idSalt: ctx.id_salt,
-			pkg_identity: (abs: string) => ctx.pkg_identity(abs)
+			pkg_identity: (abs: string) => ctx.pkg_identity(abs),
+			alias: ctx.app_spec.alias,
+			stat: ctx.app_spec.stat
 		});
 	}
 
@@ -962,10 +967,10 @@ export class Compiler implements CoreApp {
 	mark_island_closure(componentAbs: string): string[] {
 		const ctx = this.#ctx;
 		const { island_graph } = this.program;
-		const aliases = ctx.resolve_alias;
+		const spec_ctx = ctx.app_spec;
 		const added: string[] = [];
 		const resolve_dep = (spec: string, importerAbs: string): string | null => {
-			const base = resolveFoucImportSpec(spec, importerAbs, ctx.libDir, aliases);
+			const base = resolve_app_spec(spec, importerAbs, spec_ctx);
 			if (!base) return null; // a bare package specifier — the lazy resolveId marking is the backstop
 			for (const ext of ISLAND_DEP_EXTS) if (ctx.fs.stat(base + ext) === 'file') return base + ext;
 			for (const ext of ISLAND_DEP_EXTS.slice(1)) {
@@ -1083,7 +1088,7 @@ export class Compiler implements CoreApp {
 			router_css_roots(
 				this.program.router_modules,
 				this.program.module_specs,
-				ctx.libDir,
+				ctx.app_spec,
 				(p) => ctx.fs.stat(p) === 'file'
 			)
 		);

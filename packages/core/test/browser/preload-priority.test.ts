@@ -47,6 +47,13 @@ test('a graph a speculative warm linked low is raised when a visible wake joins 
 	expect(priorities()).toEqual(['auto', 'auto']);
 });
 
+test('a link with no priority written is at the default: a default wake joining it writes none', () => {
+	preload_island_graph('/g/a.js');
+	preload_island_graph('/g/a.js');
+	const links = [...document.head.querySelectorAll(`link[${GRAPH_PRELOAD_ATTR}]`)];
+	expect(links.map((l) => l.getAttribute('fetchpriority'))).toEqual([null, null]);
+});
+
 test('a click wake raises it to high, and a later guess never lowers it', () => {
 	preload_island_graph('/g/a.js', undefined, 'low');
 	preload_island_graph('/g/a.js', undefined, 'high');
