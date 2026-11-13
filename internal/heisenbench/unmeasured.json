@@ -277,6 +277,14 @@
 			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
 		},
 		{
+			"id": "packages/core/src/runtime/rules.ts > own_code_of",
+			"reason": "browser only, dev and e2e builds: one URL read, once as the rules install; proven in packages/core/test/browser/rules-uncoded-own-code.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > thrown_at",
+			"reason": "browser only, dev and e2e builds: one regex over an uncaught error's stack, once per failure (10 at most); proven in packages/core/test/browser/rules-uncoded-own-code.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/rules.ts > install_rules",
 			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
 		},
@@ -863,18 +871,6 @@
 		{
 			"id": "packages/content/src/markdown/shiki.ts > call:0~5ff701 > run > then:0~a452b6",
 			"reason": "hands the loaded Shiki module to createHighlighter: Shiki's WASM engine, which a measuring window refuses; proven in packages/content/test/markdown-start.test.ts"
-		},
-		{
-			"id": "packages/core/src/hooks.ts > start_app_plugins:1~728add > charge",
-			"reason": "a plugin's signed hole asks the handle that serves its request to charge it: one WeakMap read over a RequestEvent (not cloneable), constant work; proven in packages/core/test/plugin-hole-budgets.test.ts"
-		},
-		{
-			"id": "packages/core/src/hooks.ts > OgygiaHandle > charge_hole",
-			"reason": "one rate-limit check over a RequestEvent (not cloneable): the probe or render bucket the region hole already pays, constant work; proven in packages/core/test/plugin-hole-budgets.test.ts"
-		},
-		{
-			"id": "packages/core/src/hooks.ts > OgygiaHandle > handle",
-			"reason": "with plugins, notes which handle serves the request (one WeakMap set) and runs the handle, whose own work the server benches count; a Kit hook input is not cloneable; proven in packages/core/test/plugin-hole-budgets.test.ts"
 		},
 		{
 			"id": "packages/core/src/plugin/css.ts > flights:0 > run",
@@ -4581,42 +4577,6 @@
 			"reason": "one region GET's steps (precheck, verify, charge, render) on a Kit request event nothing can clone; the handle runs only inside a Kit server build, its moves are benched (packages/core/bench/region-capability.bench.ts `region_request`) and its order is proven in packages/core/test/region-request-order.test.ts and the e2e hole suites"
 		},
 		{
-			"id": "packages/core/src/plugin/capability.ts > plugin_signer > plain > sign",
-			"reason": "prefixes the plugin's domain and hands the message to the app's signer (a closure over the app key, not replayable), constant work over the HMAC; proven in packages/core/test/plugin-signing.test.ts"
-		},
-		{
-			"id": "packages/core/src/plugin/capability.ts > plugin_signer > plain > verify",
-			"reason": "prefixes the plugin's domain and hands the check to the app's signer (a closure over the app key, not replayable), constant work over the HMAC; proven in packages/core/test/plugin-signing.test.ts"
-		},
-		{
-			"id": "packages/core/src/plugin/capability.ts > plugin_signer > capabilities > sign",
-			"reason": "prefixes the plugin's domain and `cap|`, then hands the message to the app's signer (a closure over the app key, not replayable), constant work over the HMAC; proven in packages/core/test/plugin-capability-key.test.ts"
-		},
-		{
-			"id": "packages/core/src/plugin/capability.ts > plugin_signer > capabilities > verify",
-			"reason": "prefixes the plugin's domain and `cap|`, then hands the check to the app's signer (a closure over the app key, not replayable), constant work over the HMAC; proven in packages/core/test/plugin-capability-key.test.ts"
-		},
-		{
-			"id": "packages/core/src/plugin/capability.ts > plugin_signer > plain_message",
-			"reason": "one prefix check and one concat (or a coded throw), constant work, inside a signer closure that is not replayable; proven in packages/core/test/plugin-signing.test.ts"
-		},
-		{
-			"id": "packages/core/src/plugin/capability.ts > plugin_capabilities > refuse",
-			"reason": "wraps a refusal Response (not cloneable) in a result, constant work; proven in packages/core/test/plugin-hole-budgets.test.ts"
-		},
-		{
-			"id": "packages/core/src/plugin/testing.ts > TEST_SIGNER > charge",
-			"reason": "the test signer's charge: returns null (a test's requests pay no budget), constant work over a RequestEvent (not cloneable)"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > plugin_capability_message > text",
-			"reason": "a message's one line for the thrown error: a template over the plugin's name, built once when a plugin signs a capability message by hand"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > plugin_capability_message > details",
-			"reason": "a message's docs paragraph: constant prose, read by the docs build and the error page"
-		},
-		{
 			"id": "packages/devtools/src/profiler/key-check.ts > sha256",
 			"reason": "one Web Crypto digest (async, not recorded), work linear in the text; proven in packages/devtools/test/profiler-key-web-crypto.test.ts"
 		},
@@ -4847,6 +4807,54 @@
 		{
 			"id": "packages/core/src/runtime/form-continuity.ts > arm_form_restore > read_names",
 			"reason": "browser only: one query of the page's regions, then region_names; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > start_app_plugins:1~728add > charge",
+			"reason": "a plugin's signed hole asks the handle that serves its request to charge it: one WeakMap read over a RequestEvent (not cloneable), constant work; proven in packages/core/test/plugin-hole-budgets.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > charge_hole",
+			"reason": "one rate-limit check over a RequestEvent (not cloneable): the probe or render bucket the region hole already pays, constant work; proven in packages/core/test/plugin-hole-budgets.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > handle",
+			"reason": "with plugins, notes which handle serves the request (one WeakMap set) and runs the handle, whose own work the server benches count; a Kit hook input is not cloneable; proven in packages/core/test/plugin-hole-budgets.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/capability.ts > plugin_signer > plain > sign",
+			"reason": "prefixes the plugin's domain and hands the message to the app's signer (a closure over the app key, not replayable), constant work over the HMAC; proven in packages/core/test/plugin-signing.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/capability.ts > plugin_signer > plain > verify",
+			"reason": "prefixes the plugin's domain and hands the check to the app's signer (a closure over the app key, not replayable), constant work over the HMAC; proven in packages/core/test/plugin-signing.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/capability.ts > plugin_signer > capabilities > sign",
+			"reason": "prefixes the plugin's domain and `cap|`, then hands the message to the app's signer (a closure over the app key, not replayable), constant work over the HMAC; proven in packages/core/test/plugin-capability-key.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/capability.ts > plugin_signer > capabilities > verify",
+			"reason": "prefixes the plugin's domain and `cap|`, then hands the check to the app's signer (a closure over the app key, not replayable), constant work over the HMAC; proven in packages/core/test/plugin-capability-key.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/capability.ts > plugin_signer > plain_message",
+			"reason": "one prefix check and one concat (or a coded throw), constant work, inside a signer closure that is not replayable; proven in packages/core/test/plugin-signing.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/capability.ts > plugin_capabilities > refuse",
+			"reason": "wraps a refusal Response (not cloneable) in a result, constant work; proven in packages/core/test/plugin-hole-budgets.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/testing.ts > TEST_SIGNER > charge",
+			"reason": "the test signer's charge: returns null (a test's requests pay no budget), constant work over a RequestEvent (not cloneable)"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > plugin_capability_message > text",
+			"reason": "a message's one line for the thrown error: a template over the plugin's name, built once when a plugin signs a capability message by hand"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > plugin_capability_message > details",
+			"reason": "a message's docs paragraph: constant prose, read by the docs build and the error page"
 		},
 		{
 			"id": "packages/content/src/vite/index.ts > markdown_read",
