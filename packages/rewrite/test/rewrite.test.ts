@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RequestEvent } from '@sveltejs/kit';
-import { RESTORE_CALL, RESTORER_SCRIPT, rewrite_pass, step_of, type Failure } from '../src/pass.ts';
+import {
+	call_render,
+	RESTORE_CALL,
+	RESTORER_SCRIPT,
+	rewrite_pass,
+	step_of,
+	type Failure
+} from '../src/pass.ts';
 import { rewrite } from '../src/index.ts';
 import type {
 	ElementRewrite,
@@ -102,9 +109,10 @@ describe('element rewrites: what goes to render', () => {
 		expect(out.head).toContain('ogygia-first-load');
 	});
 
-	it('the context carries kind, csr, url, event and the request signal', async () => {
+	it('the context carries kind, csr, url, event and a signal that fires when the request is cancelled', async () => {
 		let got: RewriteContext | null = null;
-		const event = event_of();
+		const ac = new AbortController();
+		const event = event_of(ac.signal);
 		const { chunk } = chunked(
 			[
 				{
@@ -123,8 +131,11 @@ describe('element rewrites: what goes to render', () => {
 			csr: true,
 			url: event.url,
 			event,
-			signal: event.request.signal
+			signal: expect.any(AbortSignal)
 		});
+		expect(got!.signal.aborted).toBe(false);
+		ac.abort();
+		expect(got!.signal.aborted).toBe(true);
 	});
 });
 
@@ -209,7 +220,7 @@ describe('element rewrites: the restore', () => {
 		expect(two.html).toContain('whole</slot>');
 		expect(render).toHaveBeenCalledTimes(1);
 		expect(failed).toEqual([
-			{ code: 'rewrite_element_split', name: 'demo-card', error: expect.any(String) }
+			{ ok: false, code: 'rewrite_element_split', name: 'demo-card', error: expect.any(String) }
 		]);
 	});
 });
@@ -286,7 +297,7 @@ describe('element rewrites: failures cost only the element', () => {
 		expect(failed).toEqual([]);
 	});
 
-	it('a request cancelled while the elements are retried one at a time: shipped as is, nothing said', async () => {
+	it('a request cancelled while the elements are retried one at a time: shipped as is, nothing said, and no element’s render starts after the cancel (found by the long rewrite sim)', async () => {
 		const ac = new AbortController();
 		const render = vi.fn(async (els: readonly RewriteElement[]) => {
 			if (els.length > 1) throw new Error('batch down');
@@ -296,8 +307,49 @@ describe('element rewrites: failures cost only the element', () => {
 		const { chunk, failed } = chunked([{ match: 'demo-', render }], event_of(ac.signal));
 		const out = await chunk(page);
 		expect(out).toEqual({ html: page, head: '', body: '' });
-		expect(render).toHaveBeenCalledTimes(3);
+		expect(render.mock.calls.map((c) => c[0].length)).toEqual([2, 1]);
 		expect(failed).toEqual([]);
+	});
+
+	it('a request cancelled during the first rewrite: the second never renders, and nothing is written', async () => {
+		const ac = new AbortController();
+		const first: ElementRewrite = {
+			match: ['x-faq'],
+			render(els) {
+				ac.abort();
+				return els.map((el) => el.html.replace('<x-faq', '<x-faq data-faq'));
+			}
+		};
+		const second = vi.fn((els: readonly RewriteElement[]) => els.map((e) => fake_scoped(e.html)));
+		const { chunk, failed } = chunked(
+			[first, { match: 'demo-', render: second }],
+			event_of(ac.signal)
+		);
+		const html = doc(island('<x-faq>q</x-faq><demo-card>a</demo-card>'));
+		const out = await chunk(html);
+		expect(out).toEqual({ html, head: '', body: '' });
+		expect(second).not.toHaveBeenCalled();
+		expect(failed).toEqual([]);
+	});
+
+	it('a later chunk of a cancelled request goes out as it came, never rendered', async () => {
+		const ac = new AbortController();
+		const render = vi.fn((els: readonly RewriteElement[]) => els.map((e) => fake_scoped(e.html)));
+		const { chunk, failed } = chunked([{ match: 'demo-', render }], event_of(ac.signal));
+		await chunk(doc('<demo-card>a</demo-card>').replace('</body></html>', ''), { done: false });
+		ac.abort();
+		const later = '<demo-card>b</demo-card></body></html>';
+		expect(await chunk(later)).toEqual({ html: later, head: '', body: '' });
+		expect(render).toHaveBeenCalledTimes(1);
+		expect(failed).toEqual([]);
+	});
+
+	it('rule_rewrite_after_cancel: a render called after the request was cancelled is said with the rule’s code', async () => {
+		const ac = new AbortController();
+		ac.abort();
+		const ctx = { signal: ac.signal } as RewriteContext;
+		await call_render((els) => els.map((e) => e.html), [], ctx);
+		expect(said.map((a) => String(a[0])).join('\n')).toContain('rule_rewrite_after_cancel');
 	});
 
 	it('production says each failure with its code, once per response and element name', async () => {
@@ -317,6 +369,64 @@ describe('element rewrites: failures cost only the element', () => {
 		await pass.document(page, { ...flags, head: false });
 		const lines = said.map((a) => String(a[0]));
 		expect(lines.filter((l) => l.includes('rewrite_element_failed'))).toHaveLength(1);
+	});
+});
+
+describe('buggify points: each way a render fails, drawn by the simulator', () => {
+	const platform = globalThis as { buggify?: (point: string) => boolean };
+	const on = (...points: string[]) => {
+		platform.buggify = (p) => points.includes(p);
+	};
+	afterEach(() => {
+		delete platform.buggify;
+	});
+	const page = doc(island('<demo-card>one</demo-card><demo-link>two</demo-link>'));
+
+	it('rewrite.render-count: a batch one result short is retried one at a time, and an element whose own answer is short goes out as ogygia rendered it', async () => {
+		on('rewrite.render-count');
+		const seen: RewriteElement[][] = [];
+		const { chunk, failed } = chunked([scoped(seen)]);
+		const out = await chunk(page);
+		expect(seen.map((s) => s.length)).toEqual([2, 1, 1]);
+		expect(out.html).toBe(page);
+		expect(failed.map((f) => [f.code, f.name, f.error])).toEqual([
+			['rewrite_element_failed', 'demo-card', 'render returned 0 result(s) for 1 element(s)'],
+			['rewrite_element_failed', 'demo-link', 'render returned 0 result(s) for 1 element(s)']
+		]);
+	});
+
+	it('rewrite.render-malformed: a result that does not close what it opens goes out as ogygia rendered it', async () => {
+		on('rewrite.render-malformed');
+		const { chunk, failed } = chunked([scoped()]);
+		const out = await chunk(page);
+		expect(out.html).toBe(page);
+		expect(failed.map((f) => [f.code, f.error])).toEqual([
+			['rewrite_element_failed', 'its html does not close everything it opens'],
+			['rewrite_element_failed', 'its html does not close everything it opens']
+		]);
+	});
+
+	it('rewrite.render-strips-marks: a result without the og-h of a host ogygia restores goes out as ogygia rendered it', async () => {
+		on('rewrite.render-strips-marks');
+		const { chunk, failed } = chunked([scoped()]);
+		const out = await chunk(page);
+		expect(out.html).toBe(page);
+		expect(failed.map((f) => [f.code, f.name])).toEqual([
+			['rewrite_marks_lost', 'demo-card'],
+			['rewrite_marks_lost', 'demo-link']
+		]);
+	});
+
+	it('rewrite.chunk-split: a chunk read as two, cut inside an element, ships that element unrendered and says so', async () => {
+		on('rewrite.chunk-split');
+		const render = vi.fn((els: readonly RewriteElement[]) => els.map((e) => fake_scoped(e.html)));
+		const { chunk, failed } = chunked([{ match: 'demo-', render }]);
+		await chunk(doc('').replace('</body></html>', ''), { done: false });
+		const body = '<demo-card>a long enough card to hold the middle</demo-card>';
+		const out = await chunk(body, { head: false, body: false });
+		expect(out.html).toBe(body);
+		expect(render).not.toHaveBeenCalled();
+		expect(failed.map((f) => [f.code, f.name])).toEqual([['rewrite_element_split', 'demo-card']]);
 	});
 });
 

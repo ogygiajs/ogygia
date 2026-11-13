@@ -586,11 +586,83 @@
 		"id": "rewrite-fallback-off",
 		"file": "packages/rewrite/src/pass.ts",
 		"in": "render_one",
-		"code": "return { error: message_of(thrown) };",
+		"code": "return { ok: false, error: message_of(thrown) };",
 		"operator": "statement",
-		"from": "return { error: message_of(thrown) };",
+		"from": "return { ok: false, error: message_of(thrown) };",
 		"to": "throw thrown;",
 		"aim": "gen.reshape-throws"
+	},
+	{
+		"id": "rewrite-fallback-off-aimed",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "render_one",
+		"code": "return { ok: false, error: message_of(thrown) };",
+		"operator": "statement",
+		"from": "return { ok: false, error: message_of(thrown) };",
+		"to": "throw thrown;",
+		"aim": "rewrite.render-throws"
+	},
+	{
+		"id": "rewrite-cancel-unread",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "cancelled",
+		"code": "return res.signal.aborted;",
+		"operator": "statement",
+		"from": "return res.signal.aborted;",
+		"to": "return false;",
+		"aim": "rewrite.signal-fires"
+	},
+	{
+		"id": "rewrite-count-unchecked",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "counted",
+		"code": "if (Array.isArray(out) && out.length === n) return { ok: true, results: out };",
+		"operator": "statement",
+		"from": "out.length === n",
+		"to": "out.length > 0",
+		"aim": "rewrite.render-count"
+	},
+	{
+		"id": "rewrite-unclosed-kept",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "judge",
+		"code": "if (!closes_all(html))",
+		"operator": "statement",
+		"from": "if (!closes_all(html))",
+		"to": "if (html.length < 0)",
+		"aim": "rewrite.render-malformed"
+	},
+	{
+		"id": "rewrite-marks-lost-kept-aimed",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "judge",
+		"code": "if (!kept.has(id))",
+		"operator": "statement",
+		"from": "if (!kept.has(id))",
+		"to": "if (kept.size < 0)",
+		"aim": "rewrite.render-strips-marks"
+	},
+	{
+		"id": "rewrite-split-element-rendered",
+		"file": "packages/rewrite/src/scan.ts",
+		"in": "read",
+		"code": "if (start !== -1) spans.push({ start, end: at.end, name, owned });",
+		"operator": "statement",
+		"from": "if (start !== -1)",
+		"to": "if (start !== -2)",
+		"aim": "rewrite.chunk-split",
+		"equivalent": "a span whose start is in an earlier chunk has start -1, below the chunk's offset, so the filter after the walk (s.start >= offset) drops it into split as before: nothing it changes reaches the page (survived aimed on gens 24 and 262, 12 seeds each)"
+	},
+	{
+		"id": "rewrite-split-element-forgotten",
+		"file": "packages/rewrite/src/scan.ts",
+		"in": "read",
+		"code": "state.open = open;",
+		"operator": "statement",
+		"from": "state.open = open;",
+		"to": "state.open = null;",
+		"aim": "rewrite.chunk-split",
+		"equivalent": "for now: forgetting the element a chunk ended in renders the matched elements inside it on their own, which the rewrite-rendered oracle names, but the random app never nests a matched element in another (a box holds a region's label only), so no run can see it; it comes back when the app draws nested matches (rewrite-handoff-3)"
 	},
 	{
 		"id": "rewrite-batch-throws",
@@ -606,10 +678,220 @@
 		"id": "rewrite-marks-lost-kept",
 		"file": "packages/rewrite/src/pass.ts",
 		"in": "judge",
-		"code": "if (!kept.has(id)) return { code: 'rewrite_marks_lost', name, error: 'og-h dropped' };",
+		"code": "if (!kept.has(id))",
 		"operator": "statement",
-		"from": "if (!kept.has(id)) return",
-		"to": "if (kept.size < 0) return"
+		"from": "if (!kept.has(id))",
+		"to": "if (kept.size < 0)"
+	},
+	{
+		"id": "rewrite-ids-not-moved",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "settle_unit",
+		"code": "res.ids += record.hosts.size;",
+		"operator": "statement",
+		"from": "res.ids += record.hosts.size;",
+		"to": "res.ids += 0;"
+	},
+	{
+		"id": "rewrite-ids-not-remapped",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "settle_unit",
+		"code": "const html = offset === 0 ? s.html : remap(s.html, (id) => id + offset);",
+		"operator": "statement",
+		"from": "offset === 0 ?",
+		"to": "true ?"
+	},
+	{
+		"id": "rewrite-local-ids-kept",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "run_steps",
+		"code": "unit.cur = unit.cur.slice(0, start) + back(r.html) + unit.cur.slice(end);",
+		"operator": "statement",
+		"from": "back(r.html)",
+		"to": "r.html"
+	},
+	{
+		"id": "rewrite-owned-dropped",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "rewrite_chunk",
+		"code": "const marked = mark_with(el, { doc: false, csr: false, all, owned: span.owned });",
+		"operator": "statement",
+		"from": "owned: span.owned",
+		"to": "owned: false"
+	},
+	{
+		"id": "rewrite-script-anywhere",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "place",
+		"code": "if (safe) out.push(all);",
+		"operator": "statement",
+		"from": "if (safe)",
+		"to": "if (true)"
+	},
+	{
+		"id": "rewrite-restore-call-dropped",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "restore_script",
+		"code": "return full ? RESTORE_CALL_FULL : RESTORE_CALL;",
+		"operator": "statement",
+		"from": "return full ? RESTORE_CALL_FULL : RESTORE_CALL;",
+		"to": "return '';"
+	},
+	{
+		"id": "rewrite-restore-call-lite",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "restore_script",
+		"code": "return full ? RESTORE_CALL_FULL : RESTORE_CALL;",
+		"operator": "statement",
+		"from": "full ?",
+		"to": "false ?"
+	},
+	{
+		"id": "rewrite-sheet-never-sent",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "sheets_for",
+		"code": "if (res.sent.has(s.key)) continue;",
+		"operator": "statement",
+		"from": "if (res.sent.has(s.key))",
+		"to": "if (true)"
+	},
+	{
+		"id": "rewrite-sheets-not-placed",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "rewrite_chunk",
+		"code": "if (units[i].changed) out.push(sheets_for(units[i], res, head));",
+		"operator": "statement",
+		"from": "if (units[i].changed)",
+		"to": "if (false)"
+	},
+	{
+		"id": "rewrite-stand-in-style-dropped",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "rewrite_chunk",
+		"code": "if (stand_ins && !res.stand_ins) {",
+		"operator": "statement",
+		"from": "if (stand_ins && !res.stand_ins) {",
+		"to": "if (false) {"
+	},
+	{
+		"id": "rewrite-first-load-dropped",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "rewrite_chunk",
+		"code": "if (first_load && !res.first_load) {",
+		"operator": "statement",
+		"from": "if (first_load && !res.first_load) {",
+		"to": "if (false) {"
+	},
+	{
+		"id": "rewrite-nothing-rendered",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "run_steps",
+		"code": "if (!targets.length) continue;",
+		"operator": "statement",
+		"from": "if (!targets.length) continue;",
+		"to": "continue;"
+	},
+	{
+		"id": "rewrite-unrendered-settled",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "settle_unit",
+		"code": "if (!unit.changed || record === null)",
+		"operator": "statement",
+		"from": "!unit.changed ||",
+		"to": "false ||"
+	},
+	{
+		"id": "scan-skipped-not-read",
+		"file": "packages/rewrite/src/scan.ts",
+		"in": "scan",
+		"code": "for (const s of skipped) read(s, NONE, state, csr);",
+		"operator": "statement",
+		"from": "for (const s of skipped) read(s, NONE, state, csr);",
+		"to": "void skipped;"
+	},
+	{
+		"id": "scan-needles-wrong",
+		"file": "packages/rewrite/src/scan.ts",
+		"in": "matcher",
+		"code": "const needles = names.size <= MAX_NEEDLES ? [...names].map((n) => `<${n}`) : null;",
+		"operator": "statement",
+		"from": "`<${n}`",
+		"to": "`<${n}-`"
+	},
+	{
+		"id": "scan-body-never",
+		"file": "packages/rewrite/src/scan.ts",
+		"in": "read",
+		"code": "else if (name === 'body') state.in_body = true;",
+		"operator": "statement",
+		"from": "state.in_body = true;",
+		"to": "state.in_body = false;"
+	},
+	{
+		"id": "scan-owner-is-page",
+		"file": "packages/rewrite/src/scan.ts",
+		"in": "read",
+		"code": "owned = r.length ? r[r.length - 1] : csr;",
+		"operator": "statement",
+		"from": "r.length ? r[r.length - 1] : csr",
+		"to": "csr"
+	},
+	{
+		"id": "scan-region-never-closed",
+		"file": "packages/rewrite/src/scan.ts",
+		"in": "read",
+		"code": "} else if (name === 'ogygia-region') state.regions.pop();",
+		"operator": "statement",
+		"from": "state.regions.pop();",
+		"to": "void state;"
+	},
+	{
+		"id": "scan-depth-uncounted",
+		"file": "packages/rewrite/src/scan.ts",
+		"in": "read",
+		"code": "if (name === open.name) open.depth++;",
+		"operator": "statement",
+		"from": "open.depth++",
+		"to": "void open"
+	},
+	{
+		"id": "reversible-closes-all-lenient",
+		"file": "packages/rewrite/src/reversible.ts",
+		"in": "closes_all",
+		"code": "return stack.length === 0;",
+		"operator": "statement",
+		"from": "return stack.length === 0;",
+		"to": "return true;",
+		"aim": "rewrite.render-malformed"
+	},
+	{
+		"id": "reversible-restored-ids-none",
+		"file": "packages/rewrite/src/reversible.ts",
+		"in": "restored_ids",
+		"code": "if (r) out.add(r.id);",
+		"operator": "statement",
+		"from": "if (r) out.add(r.id);",
+		"to": "void r;",
+		"aim": "rewrite.render-strips-marks"
+	},
+	{
+		"id": "reversible-localize-off",
+		"file": "packages/rewrite/src/reversible.ts",
+		"in": "localize_marks",
+		"code": "if (!moved) return { html, back: same };",
+		"operator": "statement",
+		"from": "if (!moved) return",
+		"to": "return",
+		"equivalent": "no page can tell: without local numbering the render sees the page's own ids and hands them back, so what goes out is the same bytes; what is lost is the stable element.html an app's cache keys on and the one render of equal elements, which packages/rewrite/test/rewrite.test.ts ('run in order on one marking: the second sees the first one’s output, marks intact') kills"
+	},
+	{
+		"id": "reversible-remap-off",
+		"file": "packages/rewrite/src/reversible.ts",
+		"in": "remap > move",
+		"code": "if (to === undefined || to === r.id) return;",
+		"operator": "statement",
+		"from": "to === undefined ||",
+		"to": "true ||"
 	},
 	{
 		"id": "core-apply-note-shown",

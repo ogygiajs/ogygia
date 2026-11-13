@@ -144,7 +144,8 @@ jobs:
       github.repository == 'ogygiajs/ogygia' &&
       (github.event.schedule == '43 3 * * *' || inputs.job == 'mutate')
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # (the unaimed run's hour, the compiler's 15 minutes, then up to 10 minutes for each aim)
+    timeout-minutes: 240
     permissions:
       contents: read
     steps:
@@ -195,7 +196,12 @@ jobs:
         working-directory: internal/sim
         run: |
           for aim in $(node -e 'console.log([...new Set(require("./mutants.json").flatMap((m) => m.aim ? [m.aim] : []))].join(" "))'); do
-            node --no-warnings src/mutate.ts --mutants mutants.json --gens 191,24,262 --seeds 12 \
+            # (a rewrite's point is asked only by an app with a rewrite pass: gens 24 and 262 draw one)
+            case "$aim" in
+              rewrite.*|gen.reshape-*) gens=24,262 ;;
+              *) gens=191,24,262 ;;
+            esac
+            node --no-warnings src/mutate.ts --mutants mutants.json --gens "$gens" --seeds 12 \
               --jobs 4 --budget-min 10 --sandbox "$RUNNER_TEMP/mutbox-aim" \
               --buggify-aim "$aim" --out "$RUNNER_TEMP/dst-mutation-aimed.jsonl"
             tail -1 "$RUNNER_TEMP/dst-mutation-aimed.jsonl" | AIM="$aim" node -e '

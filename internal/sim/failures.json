@@ -46,12 +46,59 @@
 			"site": "packages/rewrite/src/pass.ts > call_render > throw:0",
 			"point": "rewrite.render-throws",
 			"how": "the point throws in place of the app's render, on a batch or on one element: the batch is retried one element at a time, and what still fails goes out as ogygia rendered it",
-			"killed_by": "rewrite-fallback-off"
+			"killed_by": "rewrite-fallback-off-aimed"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_one > result:0",
+			"point": "rewrite.signal-fires",
+			"how": "the point cancels the response while a failed batch's elements are retried: no element's own render starts after it, and the batch goes out as ogygia rendered it, nothing said",
+			"killed_by": "rewrite-cancel-unread"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_one > result:1",
+			"point": "rewrite.render-throws",
+			"how": "the point throws on one element's own call: its failure comes back as a result, and the element goes out as ogygia rendered it",
+			"killed_by": "rewrite-fallback-off-aimed"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_targets > result:0",
+			"point": "rewrite.render-throws",
+			"how": "the point throws on the batch and again on an element alone: that element goes out as ogygia rendered it, said with rewrite_element_failed"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > counted > result:0",
+			"point": "rewrite.render-count",
+			"how": "the point drops the first result of a call: a short batch is retried one element at a time, and an element whose own answer is short goes out as ogygia rendered it (a result never lands on another element)",
+			"killed_by": "rewrite-count-unchecked"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > judge > result:2",
+			"point": "rewrite.render-malformed",
+			"how": "the point leaves an unclosed <div> at the end of a result: that element goes out as ogygia rendered it, and the page around it keeps its shape",
+			"killed_by": "rewrite-unclosed-kept"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > judge > result:3",
+			"point": "rewrite.render-strips-marks",
+			"how": "the point takes og-h off a result: a host ogygia restores goes out as ogygia rendered it, never as a render with nothing to restore by",
+			"killed_by": "rewrite-marks-lost-kept-aimed"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > rewrite_chunk > result:0",
+			"point": "rewrite.chunk-split",
+			"how": "the point reads a chunk as two, cut inside the first element a rewrite matches: that element goes out unrendered, said in dev, and the page after it is read as before (rewrite-rendered judges what goes out)"
 		},
 		{
 			"site": "packages/rewrite/src/pass.ts > cancelled > abort:0",
 			"point": "rewrite.signal-fires",
-			"how": "the point reads as the request cancelled mid-batch: the batch goes out as ogygia rendered it, never retried, nothing said"
+			"how": "the point cancels the response (its own controller, under the request's signal) at a check: the batch goes out as ogygia rendered it, never retried, nothing said, and no later rewrite or chunk renders; rule_rewrite_after_cancel says any render, write or failure after it",
+			"killed_by": "rewrite-cancel-unread"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > Response > constructor > abort:0",
+			"point": "rewrite.signal-fires",
+			"how": "the controller the point aborts, as a cancelled request does: the render's ctx.signal fires with it",
+			"killed_by": "rewrite-cancel-unread"
 		},
 		{
 			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > catch:0",
@@ -451,6 +498,30 @@
 			"reason": "a wiring error, the same on every request: the sim's app lists its rewrite before ogygia.handle()",
 			"test": "packages/rewrite/test/plugin.test.ts",
 			"name": "listed after ogygia.handle() is refused with rewrite_after_ogygia"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > after_cancel > abort:0",
+			"reason": "the rule's own check: it breaks only when the pass goes on after a cancel, which no sim run of the code as it is does (the rewrite-cancel-unread mutant does, and the sim kills it)",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "rule_rewrite_after_cancel: a render called after the request was cancelled is said with the rule’s code"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > judge > result:0",
+			"reason": "a result that is not a string or { html }: a type error in the app's render, which the sim's app never makes; the test's table names the case",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "returns no html"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > judge > result:1",
+			"reason": "a sheet with no key, css or scope: a type error in the app's render, which the sim's app never makes; the test's table names the case",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "returns a bad sheet"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_targets > not-ok:0",
+			"reason": "each refused result is said with its code: no sim oracle can tell a warning that should have been said, a test can",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "production says each failure with its code, once per response and element name"
 		},
 		{
 			"site": "packages/rewrite/src/pass.ts > run_page > catch:0",
