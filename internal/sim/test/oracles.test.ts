@@ -1140,11 +1140,11 @@ describe("a reshaped page's text comes back as it was", () => {
 	});
 
 	it('finds trimmed text left trimmed (a restore that never put its text back survived), and passes it put back or changed since', async () => {
-		expect((await judged('<x-gen-box> r3 </x-gen-box>', ['\n\t\tr3\n\t']))?.oracle).toBe(
+		expect((await judged('<x-gen-box><b> pad </b></x-gen-box>', ['  pad  ']))?.oracle).toBe(
 			'text-restored'
 		);
-		expect(await judged('<x-gen-box>\n\t\tr3\n\t</x-gen-box>', ['\n\t\tr3\n\t'])).toBeNull();
-		expect(await judged('<x-gen-box>r4</x-gen-box>', ['\n\t\tr3\n\t'])).toBeNull();
+		expect(await judged('<x-gen-box><b>  pad  </b></x-gen-box>', ['  pad  '])).toBeNull();
+		expect(await judged('<x-gen-box><b>r4</b></x-gen-box>', ['  pad  '])).toBeNull();
 		expect(await judged('<x-gen-box> r3 </x-gen-box>', undefined)).toBeNull();
 	});
 });
