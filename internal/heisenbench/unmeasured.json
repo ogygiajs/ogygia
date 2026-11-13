@@ -4899,6 +4899,10 @@
 		{
 			"id": "packages/core/src/runtime/schedule.ts > turns_counted",
 			"reason": "dev and e2e builds only (folds out of production): one pass over the pending turns per rule check, off the hydrate path; proven in packages/core/test/browser/turns-counted.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > own_code_of",
+			"reason": "browser only, dev and e2e builds: one URL read, once as the rules install; proven in packages/core/test/browser/rules-uncoded-own-code.test.ts"
 		}
 	]
 }
