@@ -326,6 +326,19 @@ check sees a `<style>` held twice when it does not). Mutation: hydrate-core's he
 place, or the page copy kept, died on gen 262. The order those styles stand in after a return is
 #1107 (`KNOWN`).
 
+A RESHAPE PASS (`gen reshape`, 35% of apps; `@ogygia/reshape`): the app's own pass over the HTML
+ogygia sends, as a handle in front of ogygia's (`src/lib/gen/reshape.server.ts`, written by
+`app_reshape`), on every document and region answer. Half of the regions (`gen reshape boxes`) hold
+their label in an `<x-gen-box>`, a web component whose server render (the pass, reduced to its
+moves) puts a tree of its own in the host's light DOM and moves the host's children into a `<slot>`
+in it; with the pass's `trim` it also trims and drops whitespace-only text, as a serializer does;
+with `link`, an `<x-gen-link>` sits in a page's `<a>` and renders an `<a>` (the stand-in case; the
+outer `<a>` is `data-gen-messy`, the render's own markup). ogygia marks before the pass and restores
+in the browser before anything hydrates, so every oracle sees Svelte's markup where Svelte owns it.
+Gens 24 (trims, links,
+no router), 10 (links, router) and 196 run it. Mutation of `packages/reshape/src/restore.ts` runs
+on gens 24 and 10.
+
 ## Tabs behind, and engines without idle callbacks
 
 The visitor looks at the tab they act in, and their other tabs go behind it (`Browsers.focus`): a
