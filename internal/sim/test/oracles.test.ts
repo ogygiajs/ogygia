@@ -18,8 +18,10 @@ import {
 	Leaks,
 	live_events,
 	mpa_equivalent,
+	gate_open_early,
 	no_viewport_wait,
 	normalize,
+	parsed_first,
 	live_regions_out,
 	page_errors,
 	reshaped_live,
@@ -1141,6 +1143,22 @@ describe('a document nobody has looked at', () => {
 		const found = no_viewport_wait(tab(waited));
 		expect(found?.oracle).toBe('viewport-wait');
 		expect(found?.detail).toContain('https://app.test/p1');
+	});
+
+	it("opens no island's gate before the document is parsed (schedule.ts: the paint gate waits for DOMContentLoaded)", () => {
+		// (a click before it is parsed only marks the gate touched; it opens after the paint all the same)
+		expect(gate_open_early('critical-gate#1 fresh -> touched')).toBe(false);
+		expect(
+			gate_open_early('hydrate-drain#1 idle -> queued\ncritical-gate#1 fresh -> settled')
+		).toBe(true);
+		expect(gate_open_early('critical-gate#1 fresh -> waiting')).toBe(true);
+		const t = (early: string | null) =>
+			({
+				page: { mainFrame: { url: 'https://app.test/p1' } },
+				early_gate: early
+			}) as unknown as Parameters<typeof parsed_first>[0];
+		expect(parsed_first(t(null))).toBeNull();
+		expect(parsed_first(t('https://app.test/p1'))?.oracle).toBe('paint-gate');
 	});
 
 	it('leaves out a document that was shown, or is shown now: it had a viewport to wait for', () => {
