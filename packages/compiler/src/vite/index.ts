@@ -696,13 +696,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const server_leg = leg.server;
 				if (is_build && server_leg)
 					fs.rmSync(server_handoff_path(kit_dirs(root).out_dir), { force: true });
-				// CLIENT build (Kit-driven): emit the runtime chunk. Kit builds the SERVER bundle FIRST,
-				// then the client, so the server can't learn a hash the LATER client build produces — a
-				// forward handoff is impossible. Instead the filename is a deterministic SOURCE-content
-				// hash of ogygia's runtime SOURCE ⊕ the resolved feature set (`runtime_chunk_filename`), so the
-				// server (baking the `<script src>`) and the client (emitting this chunk) compute the
-				// SAME name independently and agree. (Standalone mode further overrides with the real
-				// output-chunk hash below.)
 				if (begins) {
 					compiler.prescan();
 					for (const source of markup) await source.scan?.({ root, readFile });
@@ -715,8 +708,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							compiler.has_hydrate_regions());
 					const handoff = read_server_handoff(kit_dirs(root).out_dir);
 					const loaded = handoff?.hosts ?? null;
-					// The holes whose styles this leg builds: the server leg's final list when it handed
-					// one off (a host only it reached late included), else this program's own.
 					const server_regions = handoff?.server_regions ?? null;
 					const skipped = compiler.emit_build_chunks(leg, (chunk) => this.emitFile(chunk), {
 						emitRuntime: emit_runtime,
@@ -725,9 +716,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					if (skipped && isMainThread)
 						console.log(line('island_chunks_not_emitted', { count: skipped }));
 					const tree_css = tree_css_walk(this);
-					// Router pages: a server router page component's whole-tree scoped CSS as one asset,
-					// resolved to a handoff `rcss:<rel>` href in writeBundle, linked at SSR by
-					// `ogygia:server/router-css` (link/router-css.ts).
 					for (const abs of compiler.router_css_roots()) {
 						const source = await tree_css(abs);
 						if (source)
@@ -736,8 +724,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 								this.emitFile({ type: 'asset', name: 'og-rcss.css', source })
 							);
 					}
-					// Holes: handed off under the island's public URL key, which `region_css_links` already
-					// resolves through `islandCss()`, so the hole response links it and the client hoists it.
 					const hole_css_by_abs = new Map<string, string>();
 					for (const { iid, abs } of server_regions ?? compiler.server_island_css_roots()) {
 						let ref = hole_css_by_abs.get(abs);
@@ -748,21 +734,15 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						}
 						if (ref) leg.hole_css_refs.set(iid, ref);
 					}
-					// (content modules: generateBundle, once the client graph is known)
 				}
 			},
 
 			configureServer(server) {
 				const compiler = compiler_of(session, 'configureServer');
 				vite_server = server;
-				// THE PROFILER IN DEV: Vite runs each server module as its transformed code, so a profile's
-				// lines are that code's; the maps back to the source live in Vite's module graph, not in
-				// `.map` files. The profiler (same process) asks through this (vite/dev-maps.ts)
 				if (measure) {
 					install_dev_maps(server);
-					// ...and the browser's modules, for the traces the browser sends
 					install_dev_client_maps(server);
-					// ...and which page.data keys each island's code reads (the build's seed answer)
 					install_dev_page_keys(
 						server,
 						(iid) => {
@@ -776,19 +756,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			watchChange(id, change) {
 				const compiler = compiler_of(session, 'watchChange');
-				// before anything re-emits: a module's parse, and what every export index built from it
 				shapes.invalidate(id, change.event);
-				// A route add/remove/rename or a `csr` export flip changes the csr topology → drop the
-				// memoized answers AND re-run the baked `ogygia:server/route-csr` module. The second
-				// half is load-bearing: context.ts imports `csr_true_routes` through the SSR module
-				// graph, so without invalidation the SERVER leg keeps deciding island-vs-inline from a
-				// STALE set while Kit flips immediately — `<ogygia-region>` shells on a Kit-booted page
-				// with the runtime withheld = dead chrome (hit at a consumer after toggling `csr`).
 				if (is_dev) {
 					const ids = compiler.routes_changed(id, change.event);
 					if (vite_server) for (const mid of ids) invalidate_module_id(vite_server, mid);
 				}
-				// Unlink often skips handleHotUpdate; drop islands that still import the deleted file.
 				if (!is_dev || change.event !== 'delete' || !vite_server) return;
 				if (!invalidate_islands_for_file(id, { deleted: true, server: vite_server })) return;
 				vite_server.ws.send({ type: 'full-reload', path: '*' });
@@ -819,7 +791,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				}
 				if (__P) {
 					const keys = [...__outHash.keys()].sort();
-					let d = 0x811c9dc5; // hash: folds numbers (each file's hash), not a string
+					// oxlint-disable-next-line ogygia/one-hash -- folds numbers (each file's hash), not a string
+					let d = 0x811c9dc5;
 					for (const k of keys) {
 						d ^= __outHash.get(k)!;
 						d = Math.imul(d, 0x01000193) >>> 0;
@@ -874,8 +847,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					}
 				}
 
-				// Island ids are hash(componentPath+strategy) — renaming a host keeps the same virtual
-				// id, so Vite's moduleGraph must be cleared or it keeps serving the old import.
 				const deleted = !fs.existsSync(strip_id(file));
 				const host_changed = !deleted && compiler.is_registered_host(file);
 				const entry_changed =
@@ -884,8 +855,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					invalidate_islands_for_file(file, { deleted, server });
 				}
 
-				// Soft CSS HMR via ogygia:dev/hmr. Route shells + island host rewrites +
-				// island entry component edits + deleted entry components need a document reload.
 				if (!needs_csr_false_full_reload(file) && !deleted && !host_changed && !entry_changed) {
 					return;
 				}
@@ -903,29 +872,18 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 				const ssr = leg_of(this).server;
 
-				// CLIENT build: Kit's client remote runtime needs `app` (never boots under csr=false).
-				// Plan A: reuse Kit's OWN remote primitives, redirecting `__sveltekit/remote` at Kit's
-				// real remote-functions entry; the router-coupled modules they import are stubbed just
-				// below. Fallback: our hand-rolled shim. enforce:'pre' wins over Kit's resolveId.
 				if (!ssr && source === '__sveltekit/remote') {
 					if (!kit_remote_index) throw new OgygiaError('kit_remote_src_missing');
 					return kit_remote_index;
 				}
-				// Scope-alias the two router-coupled modules Kit's remote-functions pull in, ONLY when
-				// imported from within Kit's remote-functions dir (so a csr=true page's real Kit client
-				// still gets the real client.js). Keeps the router graph out of island bundles.
 				if (!ssr && importer && importer.includes('/remote-functions/')) {
 					if (KIT_REMOTE_CLIENT.test(source)) return STUB_CLIENT;
 					if (KIT_REMOTE_STATE.test(source)) return STUB_STATE;
-					// (Kit 3 imports its paths and page state through its package imports)
 					if (source === '#app/paths') return STUB_PATHS;
 					if (source === '#app/state/client') return STUB_STATE;
 				}
 				if (!ssr && source === '$app/paths/internal/client') return STUB_PATHS;
 
-				// Everything else — the ogygia virtual-module vocabulary + the island CLIENT graph ($app/*
-				// shims, virtual entry ids, relative-to-host + transitive-dep resolution) — is the driver's,
-				// with Vite's own resolver threaded in for the two branches that need it.
 				return compiler_of(session, 'resolveId').resolve_id(source, importer, {
 					ssr,
 					resolve: (s, i, o) => this.resolve(s, i, o)
@@ -934,8 +892,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			async load(id) {
 				const compiler = compiler_of(session, 'load');
-				// The request's leg (its environment), never `config.build.ssr`: that stays set for Kit
-				// apps and leaked `$app/server` into the browser guard.
 				const ssr = leg_of(this).server;
 
 				const fouc_bare = id.startsWith('\0') ? id.slice(1) : id;
@@ -949,11 +905,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						root,
 						libDir,
 						readFile
-						// (no bundler resolver: this module names each sheet by its root-relative path, so it
-						// carries the app's own files — an island's exact chunk CSS reaches the page through its
-						// region-CSS link: Region.svelte `island_css_html`)
 					});
-					// Must not tree-shake: the only purpose of this module is CSS side effects.
 					return { code, moduleSideEffects: true };
 				}
 				if (isFoucScopedId(fouc_bare)) {
@@ -966,20 +918,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					} catch {
 						return { code: '', moduleType: 'css' };
 					}
-					// Preprocess (scss/sass → css, TS stripped) and KEEP the script before compiling — the
-					// same path the hole-CSS leg uses. `svelte.compile` reads neither dialect, and a
-					// script-stripped template that references a script name throws; BOTH make
-					// compileFoucScopedCss fall back to UNSCOPED style bodies. This module is a LAKE's (and
-					// island's) scoped CSS, so an unscoped fallback ships the component's rules global —
-					// `.x { … }` instead of `.x.svelte-<hash>` — and they then match any element anywhere on
-					// the page that reuses the class name (a header lake restyling an unrelated breadcrumb).
 					const code = await scoped_component_css(abs, source, preprocess_css);
 					return { code, moduleType: 'css' };
 				}
 
-				// Every other ogygia virtual is a pure `id → source` emit the driver owns. The Vite build
-				// values it can't see are threaded in: the app's universal-hooks path and Kit 3's client
-				// codec module (configResolved).
 				return compiler.emit(id, {
 					ssr,
 					universalHooks: universal_hooks,
@@ -993,22 +935,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const compiler = compiler_of(session, 'transform');
 				let source = code;
 
-				// KIT-WORLD PAGE THREAD: append the two publish lines to Kit's generated client app
-				// entry (see KIT_PAGE_THREAD above), and the version it discloses. Client leg only — the
-				// SSR graph renders islands against Kit's real modules already, and this file is
-				// client-world by construction.
 				const leg = leg_of(this);
 				if (!leg.server && KIT_CLIENT_APP_RE.test(id)) {
 					source += KIT_PAGE_THREAD + KIT_DISCLOSE_VERSION;
 				}
-				// a realm module's names, imported from the entries that have them (the graph a page
-				// ships is the names it uses: compiler/virtual/resolver.ts `split_realm_imports`)
 				source = compiler.split_realm_imports(source) ?? source;
 
-				// The whole per-file pass — content-preset tag ▸ macros ▸ host-island transform ▸ ts-region
-				// mint ▸ $app shim — is the driver's; `this.emitFile` (the one Vite primitive it needs, for
-				// the transform-time island entry) is threaded in. The driver's result is
-				// bundler-neutral (`map: unknown`); cast it to Vite's transform shape at this boundary.
 				const result = await compiler.transform_module(source, id, {
 					leg,
 					emitFile: (chunk) => this.emitFile(chunk),
@@ -1016,22 +948,15 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				});
 				if (is_dev && vite_server)
 					for (const mid of compiler.moved()) invalidate_module_id(vite_server, mid);
-				// DEV: an island this transform registered (a file added while the server runs) pulled
-				// modules into the island world that the server may already hold transformed for a
-				// non-island importer — with Kit's real `$app/*`, which never boots on a csr=false page.
-				// Drop those transforms so the next load re-resolves them to the shim (driver:
-				// mark_island_closure).
 				if (is_dev && vite_server) {
 					for (const marked of compiler.drain_closure_marks())
 						invalidate_module_id(vite_server, marked);
 				}
 				if (result) return result as { code: string; map: Rolldown.SourceMapInput | null };
-				// The driver saw nothing to do, but the edge rewrite above must still ship.
 				return source === code ? null : { code: source, map: null };
 			},
 
 			renderChunk(code, chunk, _options, meta) {
-				// the values known only once every transform has run (link/relocations.ts)
 				let facades: Map<string, string> | null = null;
 				return compiler_of(session, 'renderChunk').relocate(code, leg_of(this), {
 					chunk_file: chunk.fileName,
@@ -1049,16 +974,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				});
 			},
 
-			// THE LOCATION MAPS (client build, generateBundle below): each island entry is content-hashed;
-			// its identity is a name, not a file. Every identity → location pair is written now — the
-			// hashed names are final, and files can still join the output — once named by content and once
-			// at the one fixed name (link/location-map.ts), for a load that arrives without a location.
-			// OUR ENTRIES' FILE NAMES (client build): readable and content-hashed — the driver's pattern for
-			// an island entry or the runtime, the app's own naming for every other chunk. (The bundler
-			// files an emitted chunk under the chunk pattern, which carries no name.)
 			outputOptions(output) {
 				const compiler = compiler_of(session, 'outputOptions');
-				// (before the leg starts: rolldown reads its output options first)
 				if (!is_build || (env_of(this)?.server ?? is_ssr)) return null;
 				type Info = { name?: string };
 				type Names = string | ((info: Info) => string) | undefined;
