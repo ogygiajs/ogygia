@@ -456,7 +456,7 @@ export class PeerHandle implements Peer {
 			// (the value with its quotes, if any, becomes one double-quoted value)
 			const q = html.charCodeAt(at - 1);
 			const quoted = q === 34 || q === 39;
-			out += `${html.slice(last, quoted ? at - 1 : at)}"${escapeAttr(url)}"`;
+			out = `${out}${html.slice(last, quoted ? at - 1 : at)}"${escapeAttr(url)}"`;
 			last = at + value.length + (quoted ? 1 : 0);
 		}
 		return last === 0 ? html : `${out}${html.slice(last)}`;
