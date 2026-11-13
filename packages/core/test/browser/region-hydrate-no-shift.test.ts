@@ -12,11 +12,12 @@
 // attribute recorded — across layouts where the region sits in block flow, inline flow, and around a
 // percentage-sized hero with content below it.
 import { expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { it_with_layout_shift } from './_browsers.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 
 const REGION = 'ogygia-region[entry$="Counter.svelte"]';
-const counter = () => decodeURIComponent(escape(atob(inject('counter_ssr_b64'))));
+const counter = () => from_b64(inject('counter_ssr_b64'));
 const frames = (n: number) =>
 	new Promise<void>((resolve) => {
 		let i = 0;

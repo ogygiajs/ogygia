@@ -124,12 +124,9 @@ jobs:
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
 
-      # first, and fast: an unformatted file or a lint error fails here, not after the checks
+      # first, and fast: an unformatted file fails here, not after the checks
       - name: Format check (oxfmt)
         run: pnpm run format:check
-
-      - name: Lint (oxlint)
-        run: pnpm run lint
 
       - name: Lint rules' own tests
         run: pnpm run lint:test
@@ -205,6 +202,12 @@ jobs:
         # (the browser projects in Chromium here; the other engines in the `browsers` jobs)
         env:
           OGYGIA_BROWSERS: chromium
+
+      # after the build: type-aware lint reads each Kit app's .svelte-kit/tsconfig.json, which
+      # `svelte-kit sync` (internal/lint/kit-sync.ts) writes by loading the app's vite config, and that
+      # imports the built libraries (ogygia/vite)
+      - name: Lint (oxlint)
+        run: pnpm run lint
 
       # the bench files (packages/*/bench, run by Heisenbench in ogygiajs/bench): their private-function
       # types written from Heisenbench at the ref internal/heisenbench pins, then type-checked like the tests are,

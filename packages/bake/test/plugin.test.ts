@@ -58,9 +58,12 @@ const run = async (dir: string, plugins: PluginOption[]) =>
 		build: {
 			write: false,
 			minify: false,
-			rollupOptions: { input: path.join(dir, 'src', 'main.ts'), preserveEntrySignatures: 'strict' }
+			rolldownOptions: {
+				input: path.join(dir, 'src', 'main.ts'),
+				preserveEntrySignatures: 'strict'
+			}
 		}
-	})) as Rollup.RollupOutput;
+	})) as Rollup.RolldownOutput;
 
 describe('bake() beside ogygia()', () => {
 	it('bakes the call through the app alias, and the import that fed it leaves the bundle', async () => {

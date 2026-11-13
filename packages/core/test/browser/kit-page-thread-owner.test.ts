@@ -4,13 +4,13 @@
 // leaves the page while it waits no longer waits, and once no island waits nothing may keep watching.
 // One that still waits hydrates once Kit publishes.
 import { afterEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { publish_kit_page } from './_kit-thread.svelte.ts';
 
 const KIT_PAGE_KEY = Symbol.for('ogygia.kit-page');
 const ISLAND = 'ogygia-region[wake="idle"]';
-const inject_html = (key: 'lake_page_reader_ssr_b64') =>
-	decodeURIComponent(escape(atob(inject(key))));
+const inject_html = (key: 'lake_page_reader_ssr_b64') => from_b64(inject(key));
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // the symbol cannot be redefined (no accessor latch), for the whole file: every read of it is the

@@ -1,7 +1,8 @@
 import { expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import type { ClientPlugin } from '../../src/plugin/client.ts';
 
-const inject_html = () => decodeURIComponent(escape(atob(inject('counter_json_lane_ssr_b64'))));
+const inject_html = () => from_b64(inject('counter_json_lane_ssr_b64'));
 
 test('a client plugin boots, and its hooks are subscribed, before the first region on the page hydrates', async () => {
 	const [{ bootDev }] = await Promise.all([
