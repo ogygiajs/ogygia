@@ -112,8 +112,10 @@ describe('a byte-order-marked component', () => {
 	test('through the compiler’s transform, server leg: stamped and compiles', async () => {
 		const compiler = make_compiler();
 		const id = path.join(root, 'src/lib/Widget.svelte');
+		compiler.start_leg('ssr', true);
 		const res = await compiler.transform_module(COMPONENT, id, {
 			ssr: true,
+			leg: compiler.leg({ name: 'ssr', server: true }),
 			emitFile: () => 'ref'
 		});
 		expect(res).not.toBeNull();
@@ -125,7 +127,13 @@ describe('a byte-order-marked component', () => {
 		const id = path.join(root, 'src/routes/+page.svelte');
 		for (const ssr of [true, false]) {
 			const compiler = make_compiler();
-			const res = await compiler.transform_module(HOST, id, { ssr, emitFile: () => 'ref' });
+			const env = { name: ssr ? 'ssr' : 'client', server: ssr };
+			compiler.start_leg(env.name, env.server);
+			const res = await compiler.transform_module(HOST, id, {
+				ssr,
+				leg: compiler.leg(env),
+				emitFile: () => 'ref'
+			});
 			expect(res, `ssr=${ssr}`).not.toBeNull();
 			expect(res!.code).toContain('<ds-button');
 			expect(res!.code).not.toContain('<ds-butto ');

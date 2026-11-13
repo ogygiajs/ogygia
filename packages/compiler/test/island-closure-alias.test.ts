@@ -117,8 +117,10 @@ describe('island closure walk follows app aliases', () => {
 		]);
 		compiler.prescan();
 		const abs = path.join(root, 'src/lib/boot/read-page.ts');
+		compiler.start_leg('client', false);
 		const out = await compiler.transform_module(fs.readFileSync(abs, 'utf8'), abs, {
 			ssr: false,
+			leg: compiler.leg({ name: 'client', server: false }),
 			emitFile: () => ''
 		});
 		expect(out, 'the client leg rewrote the module').not.toBeNull();
@@ -127,8 +129,10 @@ describe('island closure walk follows app aliases', () => {
 		expect(out!.code).not.toContain("'$app/state'");
 		expect(out!.code).toMatch(/from\s*["'][^"']*shims\/app-state\.svelte\.js["']/);
 		// the SSR leg keeps Kit's real module
+		compiler.start_leg('ssr', true);
 		const ssr = await compiler.transform_module(fs.readFileSync(abs, 'utf8'), abs, {
 			ssr: true,
+			leg: compiler.leg({ name: 'ssr', server: true }),
 			emitFile: () => ''
 		});
 		expect(ssr === null || ssr.code.includes("'$app/state'")).toBe(true);
