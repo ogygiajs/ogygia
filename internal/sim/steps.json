@@ -190,6 +190,36 @@
 	],
 	"covered": [
 		{
+			"step": "lake: open -> waited",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "a region in an unsettled lake waits; in a settled one it runs"
+		},
+		{
+			"step": "lake: open -> settled",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "a lake nobody waited on wakes nobody after its swap"
+		},
+		{
+			"step": "lake: waited -> settling",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "settled before its swap, a lake wakes the regions that waited only after it"
+		},
+		{
+			"step": "lake: settling -> settled",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "settled before its swap, a lake wakes the regions that waited only after it"
+		},
+		{
+			"step": "lake: waited -> settled",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "a lake whose refresh failed for good is settled as it stands"
+		},
+		{
 			"step": "interaction-arming: armed -> woken",
 			"reason": "new with the interaction arming machine (it replaced a hand-switched state field): the next sweep's --write moves it to reached if the fake browser takes it",
 			"test": "packages/core/test/browser/interaction-delegated.test.ts",
