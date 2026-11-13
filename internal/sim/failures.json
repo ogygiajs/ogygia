@@ -2204,6 +2204,726 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/core/test/browser/app-navigation-shim.test.ts",
 			"name": "with no runtime at all, the browser fallback keeps goto’s contract: same-origin only"
+		},
+		{
+			"site": "packages/federation/src/federate.ts > post_thaw > not-ok:0",
+			"reason": "`!res.ok`: proved: the !ok check made never true turns the test red, twice",
+			"test": "packages/federation/test/owners.test.ts",
+			"name": "one peer refuses: only it is sent the thaw again, the others take it once"
+		},
+		{
+			"site": "packages/federation/src/federate.ts > post_thaw > throw:0",
+			"reason": "`throw new Error(`${t.peer_name} answered ${res.status}`);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/federation/test/owners.test.ts",
+			"name": "one peer refuses: only it is sent the thaw again, the others take it once"
+		},
+		{
+			"site": "packages/federation/src/mount.ts > mount_fn > resolve_peer > throw:0",
+			"reason": "`throw new OgygiaError('federation_mount_no_peer', { via: typeof targe…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/federation/test/router-when.test.ts",
+			"name": "a pick that yields a non-client throws loudly, naming the fix"
+		},
+		{
+			"site": "packages/federation/src/mount.ts > mount_fn > stream_slot > catch:0",
+			"reason": "`catch { yield FAILED; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/federation/test/router-stream.test.ts",
+			"name": "a dead MFE yields the offline card AFTER the flush — first byte never waited"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > doc > throw:0",
+			"reason": "`throw e;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/federation/test/peer-answer-invalid.test.ts",
+			"name": "a page read: a 502 the page handles, and the code said"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > doc > stale:0",
+			"reason": "`answer !== STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/federation/test/peer-flights.test.ts",
+			"name": "a thaw of the tags its answer carries: the waiting caller gets the page fetched again"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > widgetDoc > catch:0",
+			"reason": "`catch (e) { last_err = e; if (signal?.aborted) break; continue; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/federation/test/peer-unreachable.test.ts",
+			"name": "a static widget: the boundary card in its place, and the code said"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > answer > throw:1",
+			"reason": "`throw new HopFailed('gave no answer', 504);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/federation/test/peer-unreachable.test.ts",
+			"name": "a static widget: the boundary card in its place, and the code said"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > answer > throw:2",
+			"reason": "`throw new HopFailed(`answered ${what}`, res.status);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/federation/test/peer-answer-invalid.test.ts",
+			"name": "a static widget whose peer answers 500: the boundary card in its place, and the code said"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > answer > catch:0",
+			"reason": "`catch { doc = null; // ok: not JSON is not the document either, said …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/federation/test/peer-answer-invalid.test.ts",
+			"name": "a static widget: the boundary card in its place, and the code said"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > answer > throw:3",
+			"reason": "`throw new HopFailed('answered no document', res.status);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/federation/test/peer-answer-invalid.test.ts",
+			"name": "a static widget: the boundary card in its place, and the code said"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > widget > catch:0",
+			"reason": "`catch (e) { // (said already: the page renders, the card stands in th…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/federation/test/peer-answer-invalid.test.ts",
+			"name": "a static widget: the boundary card in its place, and the code said"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > raw_doc > catch:0",
+			"reason": "`catch (e) { last_err = e; if (signal?.aborted) break; continue; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/federation/test/peer-unreachable.test.ts",
+			"name": "a page read: a 504, and the code said"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > raw_doc > catch:1",
+			"reason": "`catch (e) { if (e instanceof HopFailed) error(e.status, e.message); t…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/federation/test/peer-answer-invalid.test.ts",
+			"name": "a page read: a 502 the page handles, and the code said"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > endpoint > catch:0",
+			"reason": "`catch { if (signal?.aborted) return null; continue; // ok: a replica …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/federation/test/peer-failover.test.ts",
+			"name": "an origin that does not answer: the next is asked"
+		},
+		{
+			"site": "packages/federation/src/shared-state.ts > snapshot > catch:0",
+			"reason": "`catch (e) { throw new OgygiaError('shared_state_not_plain', { name, r…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/federation/test/shared-state.test.ts",
+			"name": "functions and class instances THROW loudly at the write site"
+		},
+		{
+			"site": "packages/federation/src/shared-state.ts > snapshot > throw:0",
+			"reason": "`throw new OgygiaError('shared_state_not_plain', { name, reason: e ins…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/federation/test/shared-state.test.ts",
+			"name": "functions and class instances THROW loudly at the write site"
+		},
+		{
+			"site": "packages/federation/src/wire.ts > pin_graph > catch:0",
+			"reason": "`catch { return json; // ok: not a graph: peer HTML passes through as …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/federation/test/federation.test.ts",
+			"name": "a graph that is not an object passes through as it came"
+		},
+		{
+			"site": "packages/flags/src/index.ts > ask_source > stale:0",
+			"reason": "`out === STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/flags/test/source-failed.test.ts",
+			"name": "a source that never answers holds no request: past its deadline the flags fall to their native rule, and it is said"
+		},
+		{
+			"site": "packages/flags/src/index.ts > ask_source > throw:0",
+			"reason": "`throw new DOMException( `the flag source did not answer within ${SOUR…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/flags/test/source-failed.test.ts",
+			"name": "a source that never answers holds no request: past its deadline the flags fall to their native rule, and it is said"
+		},
+		{
+			"site": "packages/flags/src/index.ts > ask_source > catch:0",
+			"reason": "`catch (error) { set_prime(c, { kind: 'resolved', map: {} }); // sourc…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/flags/test/flags.test.ts",
+			"name": "a throwing source degrades every flag to native, never the request"
+		},
+		{
+			"site": "packages/flags/src/ofrep.ts > ofrep > not-ok:0",
+			"reason": "`!res.ok`: proved: the !ok check made never true turns the test red, twice",
+			"test": "packages/flags/test/sources.test.ts",
+			"name": "throws on an error answer with a JSON body, so the flags fall to their native rule and it is said"
+		},
+		{
+			"site": "packages/flags/src/ofrep.ts > ofrep > throw:0",
+			"reason": "`throw new Error(`OFREP ${endpoint} answered ${res.status}`);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/flags/test/sources.test.ts",
+			"name": "throws on an error answer with a JSON body, so the flags fall to their native rule and it is said"
+		},
+		{
+			"site": "packages/flags/src/ofrep.ts > ofrep > catch:0",
+			"reason": "`catch (error) { if (ended.aborted) return out; throw error; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/flags/test/sources.test.ts",
+			"name": "stops asking when the request ends first, and reports no failure"
+		},
+		{
+			"site": "packages/flags/src/ofrep.ts > ofrep > abort:0",
+			"reason": "`ended.aborted`: proved: .aborted made always false turns the test red, twice",
+			"test": "packages/flags/test/sources.test.ts",
+			"name": "stops asking when the request ends first, and reports no failure"
+		},
+		{
+			"site": "packages/flags/src/ofrep.ts > ofrep > throw:1",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/flags/test/source-failed.test.ts",
+			"name": "an OFREP endpoint that answers 500"
+		},
+		{
+			"site": "packages/flags/src/openfeature.ts > openfeature > catch:0",
+			"reason": "`catch (error) { source_failed(error); }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/flags/test/source-failed.test.ts",
+			"name": "an OpenFeature flag whose evaluation throws: said, and the other flags keep the source's answer"
+		},
+		{
+			"site": "packages/insights/src/fp-drift.ts > props_diff > catch:0",
+			"reason": "`catch { // ok: neither lane parsed: the text is compared, with the id…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/insights/test/devtools-fp-drift.test.ts",
+			"name": "ogygia’s own ids are left out: only they differ → no drift"
+		},
+		{
+			"site": "packages/insights/src/page-assets.ts > weigh_one > not-ok:0",
+			"reason": "`!res.ok`: proved: the !ok check made never true turns the test red, twice",
+			"test": "packages/insights/test/profiler-page-assets.test.ts",
+			"name": "a file the host could not answer now (a 5xx, a rate limit) is weighed again by the next report; a 404 is not"
+		},
+		{
+			"site": "packages/insights/src/page-insights.ts > encoding_only > catch:0",
+			"reason": "`catch { return false; // ok: a malformed escape is not the same URL w…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/insights/test/devtools-page-insights.test.ts",
+			"name": "encoding_only: the same once decoded; a real change, or a stray %, is not"
+		},
+		{
+			"site": "packages/postrender/src/adapters/valkey.ts > ValkeyStore > set_with_ttl > catch:0",
+			"reason": "`catch { await this.#client.set(key, value, { EX: ttl } as unknown as …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/postrender/test/postrender.test.ts",
+			"name": "speaks node-redis v4: SET with an options bag after the positional form throws, and an object SCAN reply"
+		},
+		{
+			"site": "packages/postrender/src/registry.ts > evict_tags > catch:0",
+			"reason": "`catch (e) { warn('postrender_tag_evict_failed', { tag }, e); failed.p…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/postrender/test/postrender.test.ts",
+			"name": "a store that throws is reported as the store, and the rest of the invalidation still runs"
+		},
+		{
+			"site": "packages/postrender/src/registry.ts > store_call > throw:1",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/postrender/test/postrender.test.ts",
+			"name": "store failures never throw through store_get/put"
+		},
+		{
+			"site": "packages/postrender/src/registry.ts > Flight > stale > abort:0",
+			"reason": "`this.#signal?.aborted`: proved: .aborted made always false turns the test red, twice",
+			"test": "packages/postrender/test/postrender.test.ts",
+			"name": "single-flight: an invalidation ends the flights of the pages it evicts, and only those (#194)"
+		},
+		{
+			"site": "packages/postrender/src/registry.ts > invalidate > throw:0",
+			"reason": "`throw new OgygiaError('postrender_invalidate_not_source');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/postrender/test/postrender-sources-and-adapters.test.ts",
+			"name": "throws the macro-law error on an unstamped function"
+		},
+		{
+			"site": "packages/postrender/src/server.ts > runtime_of > throw:0",
+			"reason": "`throw new Error(`[${ctx.app.name}] ${MISORDERED_HANDLE}`);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/postrender/test/handle.test.ts",
+			"name": "dev: the read path throws a clear error naming the fix"
+		},
+		{
+			"site": "packages/postrender/src/server.ts > invalidate > throw:0",
+			"reason": "`throw failed[0];`: proved: the throw removed turns the test red, twice",
+			"test": "packages/postrender/test/postrender.test.ts",
+			"name": "a store that throws is reported as the store, and the rest of the invalidation still runs"
+		},
+		{
+			"site": "packages/postrender/src/stitch.ts > stitch_html > .catch:0",
+			"reason": "`render(h.endpoint).catch(() => null)`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/postrender/test/postrender.test.ts",
+			"name": "FAIL-OPEN: a null/throwing render keeps that hole verbatim, others still splice"
+		},
+		{
+			"site": "packages/router/src/client-api.ts > api > call > not-ok:0",
+			"reason": "`!res.ok`: proved: the !ok check made never true turns the test red, twice",
+			"test": "packages/router/test/router-api-client.test.ts",
+			"name": "a schema 400 throws ApiError carrying the issues body"
+		},
+		{
+			"site": "packages/router/src/client-api.ts > api > call > .catch:0",
+			"reason": "`res.json().catch(() => undefined)`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/router/test/router-api-client.test.ts",
+			"name": "a 200 whose JSON body does not parse rejects, it does not resolve undefined"
+		},
+		{
+			"site": "packages/router/src/client-api.ts > api > call > throw:0",
+			"reason": "`throw new ApiError(res.status, body);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/router-api-client.test.ts",
+			"name": "a schema 400 throws ApiError carrying the issues body"
+		},
+		{
+			"site": "packages/router/src/define.ts > memo_of > run > catch:0",
+			"reason": "`catch (error) { return { ok: false, error }; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/router/test/router-define.test.ts",
+			"name": "a failed load is the request’s failure: the next call in it gets the same, without a run"
+		},
+		{
+			"site": "packages/router/src/define.ts > memo_of > run > result:0",
+			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
+			"test": "packages/router/test/router-define.test.ts",
+			"name": "a failed load is the request’s failure: the next call in it gets the same, without a run"
+		},
+		{
+			"site": "packages/router/src/define.ts > load > stale:0",
+			"reason": "`v === STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/router/test/router-define.test.ts",
+			"name": "refuses a load asked for after its request ended, with the reason the request ended"
+		},
+		{
+			"site": "packages/router/src/match.ts > compile > throw:0",
+			"reason": "`throw new Error( `[@ogygia/router] route pattern must start with \"/\":…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/router-match.test.ts",
+			"name": "rejects malformed patterns loudly"
+		},
+		{
+			"site": "packages/router/src/match.ts > compile > throw:1",
+			"reason": "`throw new Error( `[@ogygia/router] a [...rest] segment must be last: …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/router-match.test.ts",
+			"name": "rejects malformed patterns loudly"
+		},
+		{
+			"site": "packages/router/src/match.ts > compile > throw:2",
+			"reason": "`throw new Error(`[@ogygia/router] malformed segment ${JSON.stringify(…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/router-match.test.ts",
+			"name": "rejects a segment with a stray bracket left after its valid [param] groups"
+		},
+		{
+			"site": "packages/router/src/match.ts > fill > throw:0",
+			"reason": "`throw new Error( `[@ogygia/router] the rest param \"${name}\" has an em…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/property-fill-match.test.ts",
+			"name": "whatever the params, the filled path stays on the origin it is read against, or is refused"
+		},
+		{
+			"site": "packages/router/src/match.ts > fill > throw:1",
+			"reason": "`throw new Error( `[@ogygia/router] the segment \"${seg}\" fills empty, …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/property-fill-match.test.ts",
+			"name": "whatever the params, the filled path stays on the origin it is read against, or is refused"
+		},
+		{
+			"site": "packages/router/src/match.ts > fill > throw:2",
+			"reason": "`throw new Error( `[@ogygia/router] the segment \"${seg}\" fills as ${JS…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/property-fill-match.test.ts",
+			"name": "gives back the params as filled, or refuses them"
+		},
+		{
+			"site": "packages/router/src/match.ts > safe_decode > catch:0",
+			"reason": "`catch { return s; // ok: a malformed escape matches as it was written…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/router/test/router-match.test.ts",
+			"name": "hands back a param with a malformed %xx as it was, instead of throwing"
+		},
+		{
+			"site": "packages/router/src/respond.ts > redirect > throw:0",
+			"reason": "`throw { [REDIRECT]: true, status, location: String(location) } satisf…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/router-dispatch.test.ts",
+			"name": "redirect() → a redirect response"
+		},
+		{
+			"site": "packages/router/src/respond.ts > error > throw:0",
+			"reason": "`throw { [HTTP_ERROR]: true, status, message: message ?? 'Error' } sat…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/router-dispatch.test.ts",
+			"name": "error() from an endpoint → JSON error"
+		},
+		{
+			"site": "packages/router/src/router.ts > routes > throw:0",
+			"reason": "`throw new Error( `[@ogygia/router] two different layouts share the na…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/router-dispatch.test.ts",
+			"name": "two different layouts with the same name throw when the table is built"
+		},
+		{
+			"site": "packages/router/src/router.ts > routes > dispatch > catch:0",
+			"reason": "`catch (thrown) { return with_collected(await handle_thrown(thrown, le…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/router/test/router-dispatch.test.ts",
+			"name": "redirect() → a redirect response"
+		},
+		{
+			"site": "packages/router/src/stream.ts > stream_document > .catch:0",
+			"reason": "`rest.return(undefined).catch(cleanup_failed)`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/router/test/router-stream-cancel.test.ts",
+			"name": "a page generator: request_cleanup_failed, with the error"
+		},
+		{
+			"site": "packages/router/src/stream.ts > stream_document > start > catch:0",
+			"reason": "`catch (e) { if (owner.closed) return; controller.enqueue(enc.encode(l…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/router/test/router-stream.test.ts",
+			"name": "puts the error card of a throwing chunk source in the slot it was given"
+		},
+		{
+			"site": "packages/router/src/stream.ts > late_region_chunks > reject:0",
+			"reason": "`, (e: unknown) => ({ id, html: error_card_html(e) })`: proved: the rejection handler removed turns the test red, twice",
+			"test": "packages/router/test/router-allow-visitor-late.test.ts",
+			"name": "a rejected one streams its error card once, and the rest still come"
+		},
+		{
+			"site": "packages/router/src/stream.ts > end_all > .catch:0",
+			"reason": "`s.return(undefined).catch(cleanup_failed)`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/router/test/router-stream-cancel.test.ts",
+			"name": "a source a merged stream holds: request_cleanup_failed, with the error"
+		},
+		{
+			"site": "packages/testing/src/index.ts > Ogygia > record > throw:0",
+			"reason": "`throw new Error( 'record(…, { blockNavigation: true }) needs a driver…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/testing/test/testing-primitives.test.ts",
+			"name": "record({ blockNavigation }): the driver holds the loads back and the page lists them"
+		},
+		{
+			"site": "packages/testing/src/index.ts > Ogygia > record > catch:1",
+			"reason": "`catch (e) { failed = true; failure = e; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/testing/test/testing-primitives.test.ts",
+			"name": "record(): a page that left for another document says so, with the actions’ own error as the cause"
+		},
+		{
+			"site": "packages/testing/src/index.ts > Ogygia > record > .catch:1",
+			"reason": "`owner[Symbol.asyncDispose]().catch((error: unknown) => { undo_errors.…`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/testing/test/testing-primitives.test.ts",
+			"name": "record(): actions that fail, then an undo that fails too: the actions’ error is the one thrown"
+		},
+		{
+			"site": "packages/testing/src/index.ts > Ogygia > record > throw:2",
+			"reason": "`throw new Error( `the recording was lost: the page went to another do…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/testing/test/testing-primitives.test.ts",
+			"name": "record(): a page that left for another document says so, with the actions’ own error as the cause"
+		},
+		{
+			"site": "packages/testing/src/index.ts > Ogygia > record > throw:3",
+			"reason": "`throw failure;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/testing/test/testing-primitives.test.ts",
+			"name": "record(): the actions’ error still surfaces when the page stayed"
+		},
+		{
+			"site": "packages/testing/src/index.ts > toMeetBudget > not-ok:0",
+			"reason": "`!l.ok`: proved: the !ok check made never true turns the test red, twice",
+			"test": "packages/testing/test/testing-primitives.test.ts",
+			"name": "a line with nothing measured fails, and says so"
+		},
+		{
+			"site": "packages/content/src/collection-base.ts > Collection > reload > catch:0",
+			"reason": "`catch (err) { if (!lenient) throw err; refused.push(err); const kept …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "one bad update (a field the schema refuses) does not stop the ones after it"
+		},
+		{
+			"site": "packages/content/src/collection-base.ts > Collection > reload > throw:0",
+			"reason": "`throw err;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "a schema error on the first read: fixed at the source, the next read loads"
+		},
+		{
+			"site": "packages/content/src/collection-base.ts > Collection > follow > catch:0",
+			"reason": "`catch (err) { // The connection stays open for the next read (this.#c…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "a reconnect whose read fails waits and tries again on the same connection"
+		},
+		{
+			"site": "packages/content/src/collection-base.ts > Collection > follow > catch:2",
+			"reason": "`catch (err) { if (!following()) return; this.#connection = null; cons…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "a dropped connection is opened again, and what changed meanwhile is read"
+		},
+		{
+			"site": "packages/content/src/convention.ts > compile_format > throw:0",
+			"reason": "`throw new OgygiaError('content_dated_format_invalid', { format });`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/convention-dated.test.ts",
+			"name": "throws on a format missing a token"
+		},
+		{
+			"site": "packages/content/src/folder.ts > folder > throw:0",
+			"reason": "`throw new OgygiaError('content_folder_unexpected_file', { key, page: …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/sources.test.ts",
+			"name": "a file that is neither a page nor a sidecar fails at construction"
+		},
+		{
+			"site": "packages/content/src/folder.ts > folder > verify > throw:0",
+			"reason": "`throw new OgygiaError('content_folder_invalid', { issues: errors.join…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/convention.test.ts",
+			"name": "duplicate numbers in a directory fail the read, named"
+		},
+		{
+			"site": "packages/content/src/schema.ts > parseSchema > throw:0",
+			"reason": "`throw new OgygiaError('content_schema_failed', { label, issues: msgs …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "a schema error on the first read: fixed at the source, the next read loads"
+		},
+		{
+			"site": "packages/content/src/server.ts > collection_of > throw:0",
+			"reason": "`throw new OgygiaError('content_with_remotes_not_collection');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/remotes.test.ts",
+			"name": "a value that is not a content() handle is refused with its code"
+		},
+		{
+			"site": "packages/content/src/site/components/tab-groups.svelte.ts > tab_group > value > catch:0",
+			"reason": "`catch { // ok: no storage (private mode); the choice is kept in memor…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/tab-groups.test.ts",
+			"name": "with storage blocked, choosing and restoring still work in memory"
+		},
+		{
+			"site": "packages/content/src/site/components/tab-groups.svelte.ts > hydrate_group > catch:0",
+			"reason": "`catch { // ok: no storage (private mode); the fallback is chosen }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/tab-groups.test.ts",
+			"name": "with storage blocked, choosing and restoring still work in memory"
+		},
+		{
+			"site": "packages/content/src/site/fields.ts > schema > validate > catch:0",
+			"reason": "`catch (e) { return { issues: [{ message: e instanceof Error ? e.messa…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/fields.test.ts",
+			"name": "a page with no title is an issue, not a throw"
+		},
+		{
+			"site": "packages/content/src/site/fields.ts > (module) > throw:0",
+			"reason": "`throw new Error('frontmatter needs a non-empty `title`');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/fields.test.ts",
+			"name": "a page with no title is an issue, not a throw"
+		},
+		{
+			"site": "packages/content/src/site/outline.ts > OutlineImpl > weave > catch:0",
+			"reason": "`catch (error) { if (!good || !at) throw error; this.#failed.set(key, …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "an entry the outline places nowhere: the nav stays, an error says why, the fix applies"
+		},
+		{
+			"site": "packages/content/src/site/outline.ts > OutlineImpl > weave > throw:0",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/convention.test.ts",
+			"name": "duplicate numbers in a directory fail the read, named"
+		},
+		{
+			"site": "packages/content/src/site/outline.ts > materialize > throw:0",
+			"reason": "`throw new Error(`[ogygia/pharos] outline could not be built:\\n - ${er…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "an entry the outline places nowhere: the nav stays, an error says why, the fix applies"
+		},
+		{
+			"site": "packages/content/src/site/search-client.ts > SearchClient > constructor > stale:0",
+			"reason": "`s === STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "the index fails to load: the queries waiting on it, and every query after, are rejected"
+		},
+		{
+			"site": "packages/content/src/site/search-client.ts > SearchClient > constructor > throw:0",
+			"reason": "`throw this.#error();`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "the index fails to load: the queries waiting on it, and every query after, are rejected"
+		},
+		{
+			"site": "packages/content/src/site/search-worker.ts > index_now > stale:0",
+			"reason": "`index === STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "a newer load replaces the index a waiting query was going to read: it is answered from the new one"
+		},
+		{
+			"site": "packages/content/src/site/search-worker.ts > onmessage > catch:0",
+			"reason": "`catch (err) { (self as unknown as Port).postMessage({ type: 'error', …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "the index failed to build: a query is answered `error` with ITS id"
+		},
+		{
+			"site": "packages/content/src/site/search-worker.ts > onmessage > catch:1",
+			"reason": "`catch (err) { // @why a failed query is answered with its id, or it w…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "the index failed to build: a query is answered `error` with ITS id"
+		},
+		{
+			"site": "packages/content/src/site/site.ts > OgygiaSite > load > throw:0",
+			"reason": "`throw new OgygiaError( 'content_check_failed', format_findings(slug, …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/site.test.ts",
+			"name": "checks in load throw on an error finding (build/dev failure)"
+		},
+		{
+			"site": "packages/content/src/site/site.ts > OgygiaSite > deriveCtx > catch:0",
+			"reason": "`catch (e) { console.error(new OgygiaError('content_site_context_faile…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/site-context.test.ts",
+			"name": "serves the public projection and reports content_site_context_failed with the thrown error"
+		},
+		{
+			"site": "packages/tooling/src/e2e/browsers.ts > console_text > .catch:0",
+			"reason": "`a .evaluate((v) => (v instanceof Error ? `${v.name}: ${v.message}` : …`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/tooling/test/e2e-browsers.test.ts",
+			"name": "reads an argument of a page that left as empty text, without throwing"
+		},
+		{
+			"site": "packages/tooling/src/e2e/build.ts > build_app > throw:0",
+			"reason": "`throw new Error(`e2e build failed: ${dir}`);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/tooling/test/e2e-build.test.ts",
+			"name": "a build that fails throws, naming the app"
+		},
+		{
+			"site": "packages/tooling/src/e2e/config.ts > e2e_browsers > throw:0",
+			"reason": "`throw new Error(`[e2e] OGYGIA_BROWSERS: \"${b}\" is not chromium, firef…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/tooling/test/e2e-config.test.ts",
+			"name": "every spec runs in each engine: one project per browser"
+		},
+		{
+			"site": "packages/tooling/src/e2e/config.ts > shard_from > throw:0",
+			"reason": "`throw new Error(`[e2e] E2E_SHARD must look like 2/3, got \"${value}\"`);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/tooling/test/e2e-config.test.ts",
+			"name": "E2E_SHARD picks a share of the spec files (an env var, not a CLI flag); a bad one throws"
+		},
+		{
+			"site": "packages/tooling/src/e2e/index.ts > moves > catch:0",
+			"reason": "`catch { return null; // ok: closed, or navigating away: nothing to re…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/tooling/test/trace.test.ts",
+			"name": "is null for a page that keeps none, or one that closed"
+		},
+		{
+			"site": "packages/tooling/src/e2e/server-log.ts > server_log_size > catch:0",
+			"reason": "`catch { return 0; // ok: nothing written yet }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/tooling/test/server-log.test.ts",
+			"name": "a test reads what was appended after it started"
+		},
+		{
+			"site": "packages/tooling/src/e2e/servers.ts > group_alive > catch:0",
+			"reason": "`catch (error) { return (error as NodeJS.ErrnoException).code === 'EPE…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/tooling/test/servers.test.ts",
+			"name": "kill() resolves once the server is gone: the port is free right after"
+		},
+		{
+			"site": "packages/tooling/src/e2e/servers.ts > spawn_server > throw:0",
+			"reason": "`throw new Error( `port ${port_number} (${opts.url}) is still held by …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/tooling/test/servers.test.ts",
+			"name": "a port someone else keeps holding fails the spawn, naming the port"
+		},
+		{
+			"site": "packages/tooling/src/e2e/servers.ts > spawn_server > catch:0",
+			"reason": "`catch { // ok: not up yet; the loop asks again until the timeout says…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/tooling/test/servers.test.ts",
+			"name": "kill() resolves once the server is gone: the port is free right after"
+		},
+		{
+			"site": "packages/cli/src/cli.ts > globHasSvx > catch:0",
+			"reason": "`catch { continue; // ok: a folder that cannot be read adds nothing to…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/site-cli.test.ts",
+			"name": "scaffolds the full site and wires configs correctly"
+		},
+		{
+			"site": "packages/cli/src/mcp.ts > load_profiler_reading > .catch:0",
+			"reason": "`reading_load.get().catch(() => null)`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/cli/test/mcp-report-load.test.ts",
+			"name": "a failed load of the report reading is tried again once the plugin is installed"
+		},
+		{
+			"site": "packages/cli/src/mcp.ts > walk_flag_files > catch:0",
+			"reason": "`catch { return out; // ok: a folder that cannot be read adds no files…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/mcp-flags-trust.test.ts",
+			"name": "the flags tool pointed at another directory runs none of that directory's code"
+		},
+		{
+			"site": "packages/cli/src/mcp.ts > tool_flags > catch:0",
+			"reason": "`catch { manifest = null; // ok: no build's flags manifest yet: the sc…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/mcp-flags-trust.test.ts",
+			"name": "the flags tool pointed at another directory runs none of that directory's code"
+		},
+		{
+			"site": "packages/cli/src/perf/bisect.ts > bisect > catch:0",
+			"reason": "`catch { value = null; // ok: a sha that cannot be measured is skipped…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "a range with no regression names no culprit; a measure that throws counts as a skip"
+		},
+		{
+			"site": "packages/cli/src/perf/cli.ts > group_alive > catch:0",
+			"reason": "`catch (error) { return (error as NodeJS.ErrnoException).code === 'EPE…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/serve.test.ts",
+			"name": "stop then serve again on the same port: the answer is the new server, never the old one"
+		},
+		{
+			"site": "packages/cli/src/perf/cli.ts > serve > throw:0",
+			"reason": "`throw new OgygiaError('cli_server_port_busy', { url, port, ms: ready_…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/cli/test/serve.test.ts",
+			"name": "a port someone else holds is refused, naming the port"
+		},
+		{
+			"site": "packages/cli/src/perf/cli.ts > serve > signal_group > catch:0",
+			"reason": "`catch { // ok: the group already exited (ESRCH), which is what the si…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/serve.test.ts",
+			"name": "a server that exits at once fails at once, with its output"
+		},
+		{
+			"site": "packages/cli/src/perf/cli.ts > serve > catch:0",
+			"reason": "`catch { // ok: not up yet; the loop asks again until the timeout says…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/serve.test.ts",
+			"name": "stop then serve again on the same port: the answer is the new server, never the old one"
+		},
+		{
+			"site": "packages/cli/src/perf/measure.ts > measure > throw:0",
+			"reason": "`throw new Error(`page must be a path on the site: ${page}`);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "drives the profiler over HTTP with the key, one page at a time, and explains failures"
+		},
+		{
+			"site": "packages/cli/src/perf/measure.ts > measure > not-ok:0",
+			"reason": "`!res.ok`: proved: the !ok check made never true turns the test red, twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "drives the profiler over HTTP with the key, one page at a time, and explains failures"
+		},
+		{
+			"site": "packages/cli/src/perf/measure.ts > measure > throw:3",
+			"reason": "`throw new Error( `${page}: the profiler answered ${res.status}${res.s…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "drives the profiler over HTTP with the key, one page at a time, and explains failures"
+		},
+		{
+			"site": "packages/cli/src/perf/measure.ts > measure > catch:1",
+			"reason": "`catch { throw new Error( `${page}: the profiler's answer was not JSON…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "drives the profiler over HTTP with the key, one page at a time, and explains failures"
+		},
+		{
+			"site": "packages/cli/src/perf/measure.ts > measure > throw:4",
+			"reason": "`throw new Error( `${page}: the profiler's answer was not JSON — is ${…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "drives the profiler over HTTP with the key, one page at a time, and explains failures"
+		},
+		{
+			"site": "packages/cli/src/perf/report.ts > markdown > not-ok:0",
+			"reason": "`!v.ok`: proved: the !ok check made never true turns the test red, twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "the markdown comment and the terminal summary carry the verdict"
+		},
+		{
+			"site": "packages/bake/src/bake.ts > scan > throw:0",
+			"reason": "`throw new OgygiaError('macro_bake_arity', { file: id, line: line_of(s…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/bake/test/bake.test.ts",
+			"name": "rejects wrong arity"
+		},
+		{
+			"site": "packages/bake/src/bake.ts > scan > throw:1",
+			"reason": "`throw new OgygiaError('macro_bake_not_function', { file: id, line: li…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/bake/test/bake.test.ts",
+			"name": "rejects a non-function argument"
+		},
+		{
+			"site": "packages/bake/src/bake.ts > resolve_file > catch:0",
+			"reason": "`catch { // ok: not this extension; the next is tried }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/bake/test/plugin.test.ts",
+			"name": "bakes the call through the app alias, and the import that fed it leaves the bundle"
+		},
+		{
+			"site": "packages/bake/src/bake.ts > rewrite_bake > catch:0",
+			"reason": "`catch (e) { const msg = e instanceof Error ? e.message : String(e); t…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/bake/test/stress.test.ts",
+			"name": "referencing an undeclared/non-imported name FAILS LOUDLY"
+		},
+		{
+			"site": "packages/bake/src/bake.ts > rewrite_bake > throw:0",
+			"reason": "`throw new OgygiaError('macro_bake_eval_failed', { file: path.basename…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/bake/test/stress.test.ts",
+			"name": "a fn that THROWS at build surfaces as a build error"
+		},
+		{
+			"site": "packages/bake/src/bake.ts > rewrite_bake > catch:1",
+			"reason": "`catch (e) { const msg = e instanceof Error ? e.message : String(e); t…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/bake/test/bake.test.ts",
+			"name": "a non-serializable result is a build error naming the fix"
+		},
+		{
+			"site": "packages/bake/src/bake.ts > rewrite_bake > throw:1",
+			"reason": "`throw new OgygiaError('macro_bake_not_serializable', { file: id, line…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/bake/test/bake.test.ts",
+			"name": "a non-serializable result is a build error naming the fix"
+		},
+		{
+			"site": "packages/barrels/src/svelte.ts > rewrite_svelte > catch:0",
+			"reason": "`catch (err) { const e = err as { code?: string; start?: { line?: numb…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/barrels/test/left.test.ts",
+			"name": "unparsable: a component the parser cannot read keeps every barrel it imports"
 		}
 	],
 	"impossible": [
@@ -2215,9 +2935,6 @@
 		}
 	],
 	"baseline": [
-		"packages/bake/src/bake.ts > scan > throw:0",
-		"packages/bake/src/bake.ts > scan > throw:1",
-		"packages/bake/src/bake.ts > resolve_file > catch:0",
 		"packages/bake/src/bake.ts > resolve_file > catch:1",
 		"packages/bake/src/bake.ts > run > throw:0",
 		"packages/bake/src/bake.ts > run > import:0",
@@ -2225,17 +2942,11 @@
 		"packages/bake/src/bake.ts > evaluate > import:0",
 		"packages/bake/src/bake.ts > evaluate > stale:0",
 		"packages/bake/src/bake.ts > evaluate > throw:0",
-		"packages/bake/src/bake.ts > rewrite_bake > catch:0",
-		"packages/bake/src/bake.ts > rewrite_bake > throw:0",
-		"packages/bake/src/bake.ts > rewrite_bake > catch:1",
-		"packages/bake/src/bake.ts > rewrite_bake > throw:1",
-		"packages/barrels/src/svelte.ts > rewrite_svelte > catch:0",
 		"packages/cli/src/cli.ts > preflight > parse:0",
 		"packages/cli/src/cli.ts > preflight > catch:0",
 		"packages/cli/src/cli.ts > ai_install > catch:0",
 		"packages/cli/src/cli.ts > ai_install > parse:0",
 		"packages/cli/src/cli.ts > ai_install > catch:1",
-		"packages/cli/src/cli.ts > globHasSvx > catch:0",
 		"packages/cli/src/cli.ts > fragments_stub > fetch:0",
 		"packages/cli/src/cli.ts > fragments_stub > timer:0",
 		"packages/cli/src/cli.ts > fragments_stub > not-ok:0",
@@ -2252,7 +2963,6 @@
 		"packages/cli/src/mcp.ts > load_flag_inventory > stale:0",
 		"packages/cli/src/mcp.ts > load_flag_inventory > catch:0",
 		"packages/cli/src/mcp.ts > run > import:1",
-		"packages/cli/src/mcp.ts > load_profiler_reading > .catch:0",
 		"packages/cli/src/mcp.ts > load_profiler_reading > stale:0",
 		"packages/cli/src/mcp.ts > parse_marks > catch:0",
 		"packages/cli/src/mcp.ts > tool_compile > catch:0",
@@ -2281,9 +2991,7 @@
 		"packages/cli/src/mcp.ts > walk_svelte > catch:0",
 		"packages/cli/src/mcp.ts > tool_scan > catch:0",
 		"packages/cli/src/mcp.ts > tool_scan > catch:1",
-		"packages/cli/src/mcp.ts > walk_flag_files > catch:0",
 		"packages/cli/src/mcp.ts > tool_flags > parse:0",
-		"packages/cli/src/mcp.ts > tool_flags > catch:0",
 		"packages/cli/src/mcp.ts > tool_flags > catch:1",
 		"packages/cli/src/mcp.ts > tool_fragment > catch:0",
 		"packages/cli/src/mcp.ts > tool_fragment > get > fetch:0",
@@ -2294,16 +3002,12 @@
 		"packages/cli/src/mcp.ts > runMcp > parse:0",
 		"packages/cli/src/mcp.ts > runMcp > catch:0",
 		"packages/cli/src/mcp.ts > runMcp > catch:1",
-		"packages/cli/src/perf/bisect.ts > bisect > catch:0",
 		"packages/cli/src/perf/cli.ts > read_json > parse:0",
 		"packages/cli/src/perf/cli.ts > runPerf > catch:0",
 		"packages/cli/src/perf/cli.ts > sleep > .catch:0",
 		"packages/cli/src/perf/cli.ts > sleep > abort:0",
 		"packages/cli/src/perf/cli.ts > sleep > throw:0",
 		"packages/cli/src/perf/cli.ts > port_held > timer:0",
-		"packages/cli/src/perf/cli.ts > group_alive > catch:0",
-		"packages/cli/src/perf/cli.ts > serve > throw:0",
-		"packages/cli/src/perf/cli.ts > serve > signal_group > catch:0",
 		"packages/cli/src/perf/cli.ts > serve > on_exit > refused:0",
 		"packages/cli/src/perf/cli.ts > serve > on_exit > refused:1",
 		"packages/cli/src/perf/cli.ts > serve > on_exit > refused:2",
@@ -2314,24 +3018,17 @@
 		"packages/cli/src/perf/cli.ts > serve > abort:0",
 		"packages/cli/src/perf/cli.ts > serve > fetch:0",
 		"packages/cli/src/perf/cli.ts > serve > timer:0",
-		"packages/cli/src/perf/cli.ts > serve > catch:0",
 		"packages/cli/src/perf/cli.ts > serve > refused:0",
 		"packages/cli/src/perf/cli.ts > serve > throw:1",
 		"packages/cli/src/perf/cli.ts > serve > throw:2",
 		"packages/cli/src/perf/cli.ts > runBisect > measure_sha > catch:0",
 		"packages/cli/src/perf/cli.ts > runBisect > measure_sha > catch:1",
 		"packages/cli/src/perf/cli.ts > runBisect > measure_sha > catch:2",
-		"packages/cli/src/perf/measure.ts > measure > throw:0",
 		"packages/cli/src/perf/measure.ts > measure > abort:0",
 		"packages/cli/src/perf/measure.ts > measure > timer:0",
 		"packages/cli/src/perf/measure.ts > measure > catch:0",
 		"packages/cli/src/perf/measure.ts > measure > throw:1",
 		"packages/cli/src/perf/measure.ts > measure > throw:2",
-		"packages/cli/src/perf/measure.ts > measure > not-ok:0",
-		"packages/cli/src/perf/measure.ts > measure > throw:3",
-		"packages/cli/src/perf/measure.ts > measure > catch:1",
-		"packages/cli/src/perf/measure.ts > measure > throw:4",
-		"packages/cli/src/perf/report.ts > markdown > not-ok:0",
 		"packages/compiler/src/compiler/build-cache.ts > cache_root > catch:0",
 		"packages/compiler/src/compiler/build-cache.ts > BuildCache > dir > catch:0",
 		"packages/compiler/src/compiler/build-cache.ts > BuildCache > get > parse:0",
@@ -2558,19 +3255,12 @@
 		"packages/content/src/collection-base.ts > Collection > stop_following > .catch:0",
 		"packages/content/src/collection-base.ts > Collection > normalizeRef > throw:0",
 		"packages/content/src/collection-base.ts > Collection > normalizeRef > throw:1",
-		"packages/content/src/collection-base.ts > Collection > reload > catch:0",
-		"packages/content/src/collection-base.ts > Collection > reload > throw:0",
 		"packages/content/src/collection-base.ts > Collection > reloadIds > catch:0",
-		"packages/content/src/collection-base.ts > Collection > follow > catch:0",
 		"packages/content/src/collection-base.ts > Collection > follow > catch:1",
-		"packages/content/src/collection-base.ts > Collection > follow > catch:2",
 		"packages/content/src/collection-base.ts > Collection > connect > .catch:0",
 		"packages/content/src/collection-base.ts > Collection > reconnect > timer:0",
 		"packages/content/src/collection-base.ts > Collection > reconnect > .catch:0",
-		"packages/content/src/convention.ts > compile_format > throw:0",
-		"packages/content/src/folder.ts > folder > throw:0",
 		"packages/content/src/folder.ts > folder > meta > stale:0",
-		"packages/content/src/folder.ts > folder > verify > throw:0",
 		"packages/content/src/folder.ts > folder > throw:1",
 		"packages/content/src/folder.ts > folder > throw:2",
 		"packages/content/src/formats.ts > as_object > throw:0",
@@ -2609,29 +3299,18 @@
 		"packages/content/src/markdown/shiki.ts > get_highlighter > stale:0",
 		"packages/content/src/markdown/shiki.ts > highlight > throw:0",
 		"packages/content/src/markdown/shiki.ts > highlight > stale:0",
-		"packages/content/src/schema.ts > parseSchema > throw:0",
 		"packages/content/src/schema.ts > parseSchema > catch:0",
 		"packages/content/src/schema.ts > parseSchema > throw:1",
 		"packages/content/src/schema.ts > parseSchema > throw:2",
-		"packages/content/src/server.ts > collection_of > throw:0",
 		"packages/content/src/server.ts > withRemotes > list > throw:0",
-		"packages/content/src/site/components/tab-groups.svelte.ts > tab_group > value > catch:0",
-		"packages/content/src/site/components/tab-groups.svelte.ts > hydrate_group > catch:0",
 		"packages/content/src/site/dimensions.ts > Dimensions > constructor > throw:0",
 		"packages/content/src/site/dimensions.ts > Dimensions > constructor > throw:1",
 		"packages/content/src/site/dimensions.ts > Dimensions > outline_for > stale:0",
-		"packages/content/src/site/fields.ts > schema > validate > catch:0",
-		"packages/content/src/site/fields.ts > (module) > throw:0",
 		"packages/content/src/site/fields.ts > (module) > throw:1",
 		"packages/content/src/site/fields.ts > (module) > throw:2",
 		"packages/content/src/site/fields.ts > (module) > throw:3",
 		"packages/content/src/site/outline.ts > OutlineImpl > ready > stale:0",
-		"packages/content/src/site/outline.ts > OutlineImpl > weave > catch:0",
-		"packages/content/src/site/outline.ts > OutlineImpl > weave > throw:0",
 		"packages/content/src/site/outline.ts > materialize > groups_of > stale:0",
-		"packages/content/src/site/outline.ts > materialize > throw:0",
-		"packages/content/src/site/search-client.ts > SearchClient > constructor > stale:0",
-		"packages/content/src/site/search-client.ts > SearchClient > constructor > throw:0",
 		"packages/content/src/site/search-client.ts > SearchClient > constructor > .catch:0",
 		"packages/content/src/site/search-client.ts > SearchClient > constructor > onmessage > refused:0",
 		"packages/content/src/site/search-client.ts > SearchClient > constructor > error-event:0",
@@ -2640,20 +3319,15 @@
 		"packages/content/src/site/search-worker.ts > run > fetch:0",
 		"packages/content/src/site/search-worker.ts > run > not-ok:0",
 		"packages/content/src/site/search-worker.ts > run > throw:0",
-		"packages/content/src/site/search-worker.ts > index_now > stale:0",
 		"packages/content/src/site/search-worker.ts > onmessage > message:0",
-		"packages/content/src/site/search-worker.ts > onmessage > catch:0",
 		"packages/content/src/site/search-worker.ts > onmessage > message:1",
 		"packages/content/src/site/search-worker.ts > onmessage > message:2",
-		"packages/content/src/site/search-worker.ts > onmessage > catch:1",
 		"packages/content/src/site/search-worker.ts > onmessage > message:3",
 		"packages/content/src/site/search.ts > load_orama > import:0",
 		"packages/content/src/site/search.ts > load_orama > catch:0",
 		"packages/content/src/site/search.ts > load_orama > throw:0",
 		"packages/content/src/site/search.ts > create_search > search > stale:0",
 		"packages/content/src/site/search.ts > create_search > search > stale:1",
-		"packages/content/src/site/site.ts > OgygiaSite > load > throw:0",
-		"packages/content/src/site/site.ts > OgygiaSite > deriveCtx > catch:0",
 		"packages/content/src/source.ts > glob > throw:0",
 		"packages/content/src/source.ts > glob > throw:1",
 		"packages/content/src/vite/hmr.ts > content_hmr > configureServer > schedule > timer:0",
@@ -3355,41 +4029,26 @@
 		"packages/federation/src/federate.ts > (module) > policy:0",
 		"packages/federation/src/federate.ts > post_thaw > fetch:0",
 		"packages/federation/src/federate.ts > post_thaw > timer:0",
-		"packages/federation/src/federate.ts > post_thaw > not-ok:0",
-		"packages/federation/src/federate.ts > post_thaw > throw:0",
-		"packages/federation/src/mount.ts > mount_fn > resolve_peer > throw:0",
 		"packages/federation/src/mount.ts > mount_fn > stream_slot > import:0",
-		"packages/federation/src/mount.ts > mount_fn > stream_slot > catch:0",
 		"packages/federation/src/mount.ts > kit_mount > kit > import:0",
 		"packages/federation/src/peer.ts > PeerHandle > doc > catch:0",
-		"packages/federation/src/peer.ts > PeerHandle > doc > throw:0",
-		"packages/federation/src/peer.ts > PeerHandle > doc > stale:0",
 		"packages/federation/src/peer.ts > PeerHandle > doc > abort:0",
 		"packages/federation/src/peer.ts > PeerHandle > doc > throw:1",
-		"packages/federation/src/peer.ts > PeerHandle > widgetDoc > catch:0",
 		"packages/federation/src/peer.ts > PeerHandle > widgetDoc > abort:0",
 		"packages/federation/src/peer.ts > PeerHandle > answer > abort:0",
 		"packages/federation/src/peer.ts > PeerHandle > answer > throw:0",
-		"packages/federation/src/peer.ts > PeerHandle > answer > throw:1",
 		"packages/federation/src/peer.ts > PeerHandle > answer > not-ok:0",
 		"packages/federation/src/peer.ts > PeerHandle > answer > reject:0",
-		"packages/federation/src/peer.ts > PeerHandle > answer > throw:2",
 		"packages/federation/src/peer.ts > PeerHandle > answer > parse:0",
-		"packages/federation/src/peer.ts > PeerHandle > answer > catch:0",
-		"packages/federation/src/peer.ts > PeerHandle > answer > throw:3",
-		"packages/federation/src/peer.ts > PeerHandle > widget > catch:0",
 		"packages/federation/src/peer.ts > PeerHandle > widget > throw:0",
 		"packages/federation/src/peer.ts > PeerHandle > signed_fetch > fetch:0",
 		"packages/federation/src/peer.ts > PeerHandle > signed_fetch > timer:0",
-		"packages/federation/src/peer.ts > PeerHandle > raw_doc > catch:0",
 		"packages/federation/src/peer.ts > PeerHandle > raw_doc > abort:0",
-		"packages/federation/src/peer.ts > PeerHandle > raw_doc > catch:1",
 		"packages/federation/src/peer.ts > PeerHandle > raw_doc > throw:0",
 		"packages/federation/src/peer.ts > PeerHandle > own_url > catch:0",
 		"packages/federation/src/peer.ts > PeerHandle > own_target > catch:0",
 		"packages/federation/src/peer.ts > PeerHandle > endpoint > ask > fetch:0",
 		"packages/federation/src/peer.ts > PeerHandle > endpoint > ask > timer:0",
-		"packages/federation/src/peer.ts > PeerHandle > endpoint > catch:0",
 		"packages/federation/src/peer.ts > PeerHandle > endpoint > abort:0",
 		"packages/federation/src/serve.ts > (module) > policy:0",
 		"packages/federation/src/serve.ts > deploy_thaw_check > refused:0",
@@ -3404,43 +4063,28 @@
 		"packages/federation/src/serve.ts > serve_thaw > catch:1",
 		"packages/federation/src/shared-state.ts > read_seed > parse:0",
 		"packages/federation/src/shared-state.ts > read_seed > catch:0",
-		"packages/federation/src/shared-state.ts > snapshot > catch:0",
-		"packages/federation/src/shared-state.ts > snapshot > throw:0",
 		"packages/federation/src/wire.ts > any_key > catch:0",
 		"packages/federation/src/wire.ts > configured_audience > catch:0",
 		"packages/federation/src/wire.ts > claims_of > parse:0",
 		"packages/federation/src/wire.ts > claims_of > catch:0",
 		"packages/federation/src/wire.ts > verify_signed_request > catch:0",
 		"packages/federation/src/wire.ts > pin_graph > parse:0",
-		"packages/federation/src/wire.ts > pin_graph > catch:0",
 		"packages/flags/src/index.ts > (module) > policy:0",
 		"packages/flags/src/index.ts > send > refused:0",
 		"packages/flags/src/index.ts > ask_source > timer:0",
-		"packages/flags/src/index.ts > ask_source > stale:0",
-		"packages/flags/src/index.ts > ask_source > throw:0",
-		"packages/flags/src/index.ts > ask_source > catch:0",
 		"packages/flags/src/index.ts > now > catch:0",
 		"packages/flags/src/inventory.ts > collect_from_source > not-ok:0",
 		"packages/flags/src/ofrep.ts > ofrep > timer:0",
-		"packages/flags/src/ofrep.ts > ofrep > not-ok:0",
-		"packages/flags/src/ofrep.ts > ofrep > throw:0",
-		"packages/flags/src/ofrep.ts > ofrep > catch:0",
-		"packages/flags/src/ofrep.ts > ofrep > abort:0",
-		"packages/flags/src/ofrep.ts > ofrep > throw:1",
-		"packages/flags/src/openfeature.ts > openfeature > catch:0",
 		"packages/flags/src/vite.ts > inventory > written > catch:0",
 		"packages/insights/src/cpu.ts > host_of > catch:0",
 		"packages/insights/src/fp-drift.ts > props_diff > parse:0",
 		"packages/insights/src/fp-drift.ts > props_diff > parse:1",
-		"packages/insights/src/fp-drift.ts > props_diff > catch:0",
 		"packages/insights/src/page-assets.ts > resolve_ref > catch:0",
 		"packages/insights/src/page-assets.ts > serves > catch:0",
 		"packages/insights/src/page-assets.ts > weigh_one > timer:0",
-		"packages/insights/src/page-assets.ts > weigh_one > not-ok:0",
 		"packages/insights/src/page-assets.ts > weigh_one > catch:0",
 		"packages/insights/src/page-insights.ts > defer_keys > parse:0",
 		"packages/insights/src/page-insights.ts > defer_keys > catch:0",
-		"packages/insights/src/page-insights.ts > encoding_only > catch:0",
 		"packages/insights/src/page-insights.ts > analyze_page > why_script > catch:0",
 		"packages/insights/src/page-insights.ts > analyze_page > path > catch:0",
 		"packages/insights/src/page-insights.ts > analyze_page > catch:0",
@@ -3496,18 +4140,12 @@
 		"packages/postrender/src/adapters/upstash.ts > UpstashStore > command > .catch:0",
 		"packages/postrender/src/adapters/valkey.ts > ValkeyStore > get > parse:0",
 		"packages/postrender/src/adapters/valkey.ts > ValkeyStore > get > catch:0",
-		"packages/postrender/src/adapters/valkey.ts > ValkeyStore > set_with_ttl > catch:0",
 		"packages/postrender/src/adapters/valkey.ts > ValkeyStore > sadd > throw:0",
 		"packages/postrender/src/adapters/valkey.ts > ValkeyStore > smembers > throw:0",
 		"packages/postrender/src/registry.ts > notify_thaw > .catch:0",
-		"packages/postrender/src/registry.ts > evict_tags > catch:0",
 		"packages/postrender/src/registry.ts > store_call > throw:0",
-		"packages/postrender/src/registry.ts > store_call > throw:1",
-		"packages/postrender/src/registry.ts > Flight > stale > abort:0",
-		"packages/postrender/src/registry.ts > invalidate > throw:0",
 		"packages/postrender/src/registry.ts > (module) > policy:0",
 		"packages/postrender/src/server.ts > deploy_check > run > throw:0",
-		"packages/postrender/src/server.ts > runtime_of > throw:0",
 		"packages/postrender/src/server.ts > stamp_no_store > catch:0",
 		"packages/postrender/src/server.ts > dev_postrender_note > catch:0",
 		"packages/postrender/src/server.ts > capture > catch:0",
@@ -3516,58 +4154,30 @@
 		"packages/postrender/src/server.ts > page > stale:0",
 		"packages/postrender/src/server.ts > response > catch:0",
 		"packages/postrender/src/server.ts > response > catch:1",
-		"packages/postrender/src/server.ts > invalidate > throw:0",
 		"packages/postrender/src/server.ts > invalidate > throw:1",
 		"packages/postrender/src/server.ts > lastBuild > stale:0",
-		"packages/postrender/src/stitch.ts > stitch_html > .catch:0",
-		"packages/router/src/client-api.ts > api > call > not-ok:0",
-		"packages/router/src/client-api.ts > api > call > .catch:0",
-		"packages/router/src/client-api.ts > api > call > throw:0",
-		"packages/router/src/define.ts > memo_of > run > catch:0",
-		"packages/router/src/define.ts > memo_of > run > result:0",
-		"packages/router/src/define.ts > load > stale:0",
-		"packages/router/src/match.ts > compile > throw:0",
-		"packages/router/src/match.ts > compile > throw:1",
-		"packages/router/src/match.ts > compile > throw:2",
-		"packages/router/src/match.ts > fill > throw:0",
-		"packages/router/src/match.ts > fill > throw:1",
-		"packages/router/src/match.ts > fill > throw:2",
-		"packages/router/src/match.ts > safe_decode > catch:0",
-		"packages/router/src/respond.ts > redirect > throw:0",
-		"packages/router/src/respond.ts > error > throw:0",
-		"packages/router/src/router.ts > routes > throw:0",
 		"packages/router/src/router.ts > routes > dispatch > unmatched > catch:0",
 		"packages/router/src/router.ts > routes > dispatch > unmatched > throw:0",
-		"packages/router/src/router.ts > routes > dispatch > catch:0",
 		"packages/router/src/router.ts > routes > handle_thrown > throw:0",
 		"packages/router/src/router.ts > routes > $infer > throw:0",
 		"packages/router/src/router.ts > run_endpoint > catch:0",
 		"packages/router/src/stream.ts > bake_yield > throw:0",
 		"packages/router/src/stream.ts > bake_yield > throw:1",
-		"packages/router/src/stream.ts > stream_document > .catch:0",
 		"packages/router/src/stream.ts > stream_document > start > stream:0",
 		"packages/router/src/stream.ts > stream_document > start > stale:0",
 		"packages/router/src/stream.ts > stream_document > start > stream:1",
-		"packages/router/src/stream.ts > stream_document > start > catch:0",
 		"packages/router/src/stream.ts > stream_document > start > stream:2",
 		"packages/router/src/stream.ts > stream_document > start > stream:3",
 		"packages/router/src/stream.ts > stream_document > start > stream:4",
-		"packages/router/src/stream.ts > late_region_chunks > reject:0",
-		"packages/router/src/stream.ts > end_all > .catch:0",
 		"packages/testing/src/client.ts > boot > lend > import:0",
 		"packages/testing/src/index.ts > Ogygia > constructor > .catch:0",
 		"packages/testing/src/index.ts > Ogygia > page > throw:0",
 		"packages/testing/src/index.ts > Ogygia > record > parse:0",
 		"packages/testing/src/index.ts > Ogygia > record > .catch:0",
-		"packages/testing/src/index.ts > Ogygia > record > throw:0",
 		"packages/testing/src/index.ts > Ogygia > record > catch:0",
-		"packages/testing/src/index.ts > Ogygia > record > catch:1",
-		"packages/testing/src/index.ts > Ogygia > record > .catch:1",
 		"packages/testing/src/index.ts > Ogygia > record > throw:1",
 		"packages/testing/src/index.ts > Ogygia > record > parse:1",
 		"packages/testing/src/index.ts > Ogygia > record > .catch:2",
-		"packages/testing/src/index.ts > Ogygia > record > throw:2",
-		"packages/testing/src/index.ts > Ogygia > record > throw:3",
 		"packages/testing/src/index.ts > Ogygia > profile > throw:0",
 		"packages/testing/src/index.ts > Ogygia > profile > parse:0",
 		"packages/testing/src/index.ts > Ogygia > wait > timer:0",
@@ -3575,15 +4185,9 @@
 		"packages/testing/src/index.ts > Ogygia > call > .catch:0",
 		"packages/testing/src/index.ts > Ogygia > post > fetch:0",
 		"packages/testing/src/index.ts > playwrightDriver > blockNavigation > .catch:0",
-		"packages/testing/src/index.ts > toMeetBudget > not-ok:0",
-		"packages/tooling/src/e2e/browsers.ts > console_text > .catch:0",
-		"packages/tooling/src/e2e/build.ts > build_app > throw:0",
 		"packages/tooling/src/e2e/build.ts > global_build > throw:0",
 		"packages/tooling/src/e2e/build.ts > (module) > catch:0",
-		"packages/tooling/src/e2e/config.ts > e2e_browsers > throw:0",
-		"packages/tooling/src/e2e/config.ts > shard_from > throw:0",
 		"packages/tooling/src/e2e/index.ts > rules > catch:0",
-		"packages/tooling/src/e2e/index.ts > moves > catch:0",
 		"packages/tooling/src/e2e/index.ts > sleep > timer:0",
 		"packages/tooling/src/e2e/index.ts > replayed_once > reject:0",
 		"packages/tooling/src/e2e/index.ts > island_graph > parse:0",
@@ -3598,15 +4202,12 @@
 		"packages/tooling/src/e2e/run.ts > main > throw:0",
 		"packages/tooling/src/e2e/run.ts > (module) > .catch:0",
 		"packages/tooling/src/e2e/server-log.ts > append_server_log > catch:0",
-		"packages/tooling/src/e2e/server-log.ts > server_log_size > catch:0",
 		"packages/tooling/src/e2e/server-log.ts > server_log_since > catch:0",
 		"packages/tooling/src/e2e/server-log.ts > said_rules > catch:0",
 		"packages/tooling/src/e2e/servers.ts > sleep > .catch:0",
 		"packages/tooling/src/e2e/servers.ts > sleep > abort:0",
 		"packages/tooling/src/e2e/servers.ts > sleep > throw:0",
 		"packages/tooling/src/e2e/servers.ts > port_held > timer:0",
-		"packages/tooling/src/e2e/servers.ts > group_alive > catch:0",
-		"packages/tooling/src/e2e/servers.ts > spawn_server > throw:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > signal_group > catch:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > on_exit > refused:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > on_exit > refused:1",
@@ -3617,7 +4218,6 @@
 		"packages/tooling/src/e2e/servers.ts > spawn_server > kill > timer:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > abort:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > fetch:0",
-		"packages/tooling/src/e2e/servers.ts > spawn_server > catch:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > refused:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > throw:1",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > throw:2",
