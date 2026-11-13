@@ -18,6 +18,5 @@ export class Cart {
 	});
 }
 
-/** The same live `Cart`, provided to a subtree instead of drilled as a prop through every island.
- *  `createContext(key)` — the string key is what plain `getContext('cart')` reads under the hood. */
-export const cartCtx = createContext<Cart>('cart');
+/** The same live `Cart`, set once above instead of drilled as a prop through every region. */
+export const [getCart, setCart] = createContext<Cart>('docs-cart');

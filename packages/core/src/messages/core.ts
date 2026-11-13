@@ -19,6 +19,18 @@ const BUG = 'An ogygia bug: please report it with the page that shows it.';
 /** The errors: `throw new OgygiaError(code, args)`, or `console.error(new OgygiaError(…), err)` for a
  *  failure that is caught. */
 export const ERRORS = {
+	context_missing: {
+		text: (a: { key: string }): string => prose`
+			context ${a.key} is not set above this component. Call the setter createContext returned
+			in a component above it (in a csr=false layout, for regions), or ask has() first.
+		`,
+		details: (): string => prose`
+			The getter \`createContext\` returns reads a value a component above set with its setter.
+			Nothing above set one. Set it in a layout or a parent component; a value set in a
+			csr=false layout reaches every region on the page. When the value is optional, call
+			\`has()\` (the third item) before \`get()\`.
+		`
+	},
 	request_event_server_only: {
 		text: (): string => 'getRequestEvent is server-only',
 		details: (): string => prose`

@@ -7,11 +7,8 @@
  * `getContext('key')`, unchanged, reads a (csr=false) layout's context across the island-root split.
  * A `[ogygia.wire]` value resolves to the one live instance (shared + reactive); a plain value is a
  * per-consumer snapshot.
- *
- * `createContext(key)` is optional TYPED sugar over the same string key — callable to make a
- * `<Provide>` entry, `.get()` to read (typed). Nothing DOM-specific on the consumer side.
  */
-import { getContext, setContext as svelte_set_context } from 'svelte';
+import { getContext, hasContext, setContext as svelte_set_context } from 'svelte';
 import { parse, stringify } from 'devalue';
 import { DEV } from 'esm-env';
 import { REF_WIRE_KEY, ref_reducer, ref_reviver, batch } from './ref.ts';
@@ -35,7 +32,7 @@ import { key_label, key_name, key_of } from './contract/context-key.ts';
 import { boot_link } from './runtime/slots.ts';
 import { OGYGIA_PROVIDE, OGYGIA_PROVIDE_PAGE } from './wire-markup.ts';
 import { escape_script_text } from './escape.ts';
-import { warn } from './messages/island.ts';
+import { OgygiaError, warn } from './messages/island.ts';
 
 /** The `<Provide>` seam carries classes, stores AND snippets (a snippet freezes/travels live). */
 // static: the value families a provided context carries
@@ -220,37 +217,82 @@ function page_ctx(): Record<string, unknown> | undefined {
 	}).value;
 }
 
-/** A typed context handle: callable to make a `<Provide>` entry, `.get()` to read (typed). */
-export interface Context<T> {
-	/** `theme('dark')` → `{ theme: 'dark' }` — an entry for `<Provide values={[ … ]}>`. */
+/** The old callable form of a context, keyed by the plain string name. */
+interface CallableContext<T> {
+	/**
+	 * `theme('dark')` → `{ theme: 'dark' }` — an entry for `<Provide values={[ … ]}>`.
+	 *
+	 * @deprecated Destructure instead: `const [getTheme, setTheme] = createContext<Theme>('theme')`,
+	 * and call `setTheme('dark')` in the component above. The new form keys by `Symbol.for(name)`, so
+	 * move a context's provider and its readers together.
+	 */
 	(value: T): Record<string, unknown>;
-	/** Typed read — plain `getContext(key)` under the hood (seeded across islands), or the default. */
+	/**
+	 * Typed read of the string key, or the default.
+	 *
+	 * @deprecated Destructure instead: `const [getTheme] = createContext<Theme>('theme')`.
+	 */
 	get(): T | undefined;
-	/** The underlying string key, for `getContext(theme.key)` interop. */
+	/**
+	 * The string key, for `getContext(theme.key)`.
+	 *
+	 * @deprecated The new form's key is `Symbol.for(name)`.
+	 */
 	readonly key: string;
 }
 
 /**
- * Typed sugar over a string context key, shared with plain `getContext`. Callable to produce a
- * `<Provide>` entry, `.get()` to read (typed). The key is the same string plain `getContext` uses, so
- * typed and untyped code read the same context. An optional default is returned when nothing is
- * provided above.
+ * What `createContext(name)` returns: Svelte's `[get, set, has]`, keyed by `Symbol.for(name)`, so a
+ * value set above reaches every region in the browser too. It is also callable, the old form.
+ */
+export type Context<T> = readonly [get: () => T, set: (value: T) => T, has: () => boolean] &
+	CallableContext<T>;
+
+/**
+ * A typed context, in Svelte's `createContext` shape: `[get, set, has]`. Its key is
+ * `Symbol.for(name)`, so it crosses into regions (each wakes as its own root in the browser) and is the
+ * same key as a plain `setContext(Symbol.for(name), …)`. The setter is `setContext` from `ogygia`, so
+ * a value set in a csr=false layout reaches every region on the page. `get` throws when nothing above
+ * set it, like Svelte's; `has` asks first.
  *
  * ```ts
- * export const theme = createContext<'light' | 'dark'>('theme', 'light');
- * // provide: <Provide values={[ theme('dark') ]}>…</Provide>
- * // read:    theme.get()          // typed
- * //          getContext('theme')  // untyped — same key, same value
+ * import { createContext } from 'ogygia';
+ * export const [getRuntime, setRuntime] = createContext<AppRuntime>('app-runtime');
+ * // in a layout:  setRuntime(runtime);
+ * // in a region:  const runtime = getRuntime();
  * ```
+ *
+ * A value with methods crosses as a wired class (`static wire = import.meta.og.wire(…)`): every
+ * region gets the one live instance.
  */
-export function createContext<T>(key: string, defaultValue?: T): Context<T> {
-	const ctx = ((value: T): Record<string, unknown> => ({ [key]: value })) as Context<T>;
-	Object.defineProperty(ctx, 'key', { value: key, enumerable: true });
-	ctx.get = (): T | undefined => {
-		const v = getContext<T | undefined>(key);
-		return v !== undefined ? v : defaultValue;
+export function createContext<T>(name: string): Context<T>;
+/**
+ * @deprecated A default belongs to the old callable form (`theme.get()`). Destructure instead and
+ * ask `has()`: `const [getTheme, , hasTheme] = createContext<Theme>('theme')`.
+ */
+export function createContext<T>(name: string, defaultValue: T): Context<T>;
+export function createContext<T>(name: string, defaultValue?: T): Context<T> {
+	const key = Symbol.for(name);
+	const has = (): boolean => hasContext(key);
+	const get = (): T => {
+		if (!hasContext(key)) throw new OgygiaError('context_missing', { key: key_label(key) });
+		return getContext<T>(key);
 	};
-	return ctx;
+	const set = (value: T): T => setContext(key, value);
+	const ctx = (value: T): Record<string, unknown> => ({ [name]: value });
+	return Object.defineProperties(ctx, {
+		key: { value: name, enumerable: true },
+		get: {
+			value: (): T | undefined => {
+				const v = getContext<T | undefined>(name);
+				return v !== undefined ? v : defaultValue;
+			}
+		},
+		0: { value: get },
+		1: { value: set },
+		2: { value: has },
+		[Symbol.iterator]: { value: () => [get, set, has][Symbol.iterator]() }
+	}) as unknown as Context<T>;
 }
 
 /**
