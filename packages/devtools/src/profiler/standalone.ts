@@ -21,7 +21,6 @@ import {
 	attr_spans,
 	head_end,
 	next_tag,
-	text_of,
 	value_at,
 	type FoundTag
 } from '@ogygia/core/internal/server';
