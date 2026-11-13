@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RequestEvent } from '@sveltejs/kit';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 import { decodeText } from '@ogygia/core/plugin/utils';
+import { tags } from '@ogygia/core/internal/server';
 import { federate } from '../src/federate.ts';
 import { set_federation } from '../src/registry.ts';
 import { install_federation, serve_federation } from '../src/serve.ts';
@@ -50,7 +51,10 @@ function shell() {
 
 /** The `endpoint` of each region in `html`, as the browser reads it. */
 const endpoints = (html: string) =>
-	[...html.matchAll(/<ogygia-region\b[^>]*\bendpoint="([^"]*)"/g)].map((m) => decodeText(m[1]));
+	[...tags(html, 'ogygia-region')].flatMap((t) => {
+		const value = t.attr('endpoint');
+		return value === undefined ? [] : [decodeText(value)];
+	});
 
 /** Ask the shell's handle for `url`, as the browser does. */
 const ask = (url: string) => {
@@ -155,5 +159,42 @@ describe("a region of the peer's own inside its fragment", () => {
 		const forged = new URL(endpoint, 'https://shell.example');
 		forged.searchParams.set('target', '//evil.example/x');
 		expect((await ask(forged.pathname + forged.search))!.headers.get('x-ogygia-deny')).toBe('sig');
+	});
+
+	// the region tag is read the way the browser reads it, not by one quoting (#1370)
+	for (const [what, tag] of [
+		['in single quotes', `<ogygia-region render="defer" endpoint='/__ogygia__?id=a'>`],
+		['unquoted', '<ogygia-region render="defer" endpoint=/__ogygia__?id=a>'],
+		['spaced, in upper case', '<OGYGIA-REGION render="defer" ENDPOINT = "/__ogygia__?id=a">'],
+		['after a value holding >', '<ogygia-region title="a>b" endpoint="/__ogygia__?id=a">']
+	]) {
+		it(`an endpoint ${what} asks the shell too`, async () => {
+			upstream(`<section>${tag}<p>loading…</p></ogygia-region></section>`);
+			const { dash } = shell();
+			const html = ((await dash.widget('holder')) as { html: string }).html;
+			const [endpoint] = endpoints(html);
+			expect(endpoint.startsWith('/og/frag?')).toBe(true);
+			// (not left pinned to the peer's origin, where the browser would ask the shell's endpoint)
+			expect(html).not.toContain(DASH);
+		});
+	}
+
+	it('an endpoint written inside another value is left as written', async () => {
+		const decoy = ` endpoint="${DASH}/__ogygia__?id=x"`;
+		upstream(
+			`<ogygia-region render="defer" data-note='${decoy}' endpoint="/__ogygia__?id=a"></ogygia-region>`
+		);
+		const { dash } = shell();
+		const html = ((await dash.widget('holder')) as { html: string }).html;
+		expect(html).toContain(`data-note='${decoy}'`);
+		expect(endpoints(html)[0]!.startsWith('/og/frag?')).toBe(true);
+	});
+
+	it('a region tag written in a script or a comment is no tag: left as it came', async () => {
+		const written = '<ogygia-region endpoint="/__ogygia__?id=z">';
+		upstream(`<script>s='${written}'</script><!-- ${written} -->`);
+		const { dash } = shell();
+		const html = ((await dash.widget('holder')) as { html: string }).html;
+		expect(html).toContain(`<script>s='${written}'</script><!-- ${written} -->`);
 	});
 });

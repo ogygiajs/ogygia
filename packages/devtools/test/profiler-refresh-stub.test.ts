@@ -21,6 +21,37 @@ test('the build’s redirect stub: the path it sends the visitor to', () => {
 	);
 });
 
+// the tag is read the way the browser reads it, not in one quoting (#1370)
+test('a stub in any spelling the browser reads: quotes, no quotes, spaces, a > in a value', () => {
+	for (const tag of [
+		`<meta http-equiv='refresh' content='0;url=/x'>`,
+		'<meta http-equiv=refresh content=0;url=/x>',
+		'<meta http-equiv = "refresh" content = "0;url=/x">',
+		'<meta data-note="a>b" http-equiv="refresh" content="0;url=/x">',
+		'<meta http-equiv="Refresh" content="0;url=/x" content="0;url=/y">'
+	])
+		expect(refresh_target(tag, origin), tag).toBe('/x');
+	// text that only names a refresh is not one
+	expect(
+		refresh_target('<p>write http-equiv="refresh" content="0;url=/x" in a meta</p>', origin)
+	).toBeNull();
+	expect(
+		refresh_target('<meta name="x" content=\'http-equiv="refresh"\' data-c="0;url=/x">', origin)
+	).toBeNull();
+});
+
+test('a `>` in the URL is part of it; a refresh in a script or a comment is no tag', () => {
+	expect(refresh_target('<meta http-equiv="refresh" content="0;url=/d?x=>1">', origin)).toBe(
+		'/d?x=%3E1'
+	);
+	expect(
+		refresh_target('<script>s=\'<meta http-equiv="refresh" content="0;url=/e">\'</script>', origin)
+	).toBeNull();
+	expect(
+		refresh_target('<!-- <meta http-equiv="refresh" content="0;url=/f"> -->', origin)
+	).toBeNull();
+});
+
 test('not a stub: no refresh, another origin, no url, a real page', () => {
 	expect(refresh_target('<p>hi</p>', origin)).toBeNull();
 	expect(
