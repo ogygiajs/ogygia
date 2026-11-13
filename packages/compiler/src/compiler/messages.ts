@@ -1,13 +1,3 @@
-/**
- * EVERY MESSAGE OGYGIA PRINTS AT BUILD TIME — the compiler and the Vite plugin, which run in Node
- * (never in a page, so there is no production build to keep the wording out of): their code, their
- * wording, what to do about them. Same calls as the runtime's (./core.ts):
- *
- *   throw new OgygiaError('some_code', { file });
- *   warn('some_code', { file });
- *
- * The wording always prints, then the code's page `https://ogygiajs.dev/e/<code>?<args>`.
- */
 import { define_messages, prose, type MessagesOf } from '@ogygia/core/contract';
 
 const BUG = 'An ogygia bug: please report it with the file that shows it.';
@@ -37,7 +27,6 @@ export const RETIRED_OPTIONS: Record<string, string> = {
 
 /** The errors: `throw new OgygiaError(code, args)`. */
 export const BUILD_ERRORS = {
-	// ── the import.meta.og macros ─────────────────────────────────────────────────────────────────
 	macro_store_misuse: {
 		text: (a: { file: string; line: number; problem: string }): string => prose`
 			${a.file}:${a.line} — ${a.problem}. import.meta.og.store is legal in exactly one shape: a
@@ -134,7 +123,6 @@ export const BUILD_ERRORS = {
 		`
 	},
 
-	// ── the compiler ──────────────────────────────────────────────────────────────────────────────
 	kit_config_not_literal: {
 		text: (a: { file: string; key: string }): string =>
 			`${a.file}: \`config.${a.key}\` must be a literal (true, false, a number, a string or null) — ogygia reads it at build time.`,
@@ -190,7 +178,6 @@ export const BUILD_ERRORS = {
 		`
 	},
 
-	// ── region imports (the host transform) ───────────────────────────────────────────────────────
 	import_key_invalid: {
 		text: (a: { role: string; got: string }): string =>
 			`importKeys.${a.role} must be a non-empty JS identifier (got ${a.got}).`,
@@ -458,7 +445,6 @@ export const BUILD_ERRORS = {
 		`
 	},
 
-	// ── the Vite plugin: options ──────────────────────────────────────────────────────────────────
 	option_retired: {
 		text: (a: { option: string }): string =>
 			RETIRED_OPTIONS[a.option] ?? `\`${a.option}\` is gone.`,
@@ -560,7 +546,6 @@ export const BUILD_ERRORS = {
 		`
 	},
 
-	// ── the Vite plugin: ogygia plugins ───────────────────────────────────────────────────────────
 	plugin_without_ogygia: {
 		text: (a: { plugin: string }): string =>
 			`\`${a.plugin}\` is listed in vite.config but \`ogygia()\` is not — add \`ogygia()\` from \`ogygia/vite\` to \`plugins\`.`,
@@ -766,9 +751,7 @@ export const BUILD_ERRORS = {
 	}
 };
 
-/** The warnings: `warn(code, args, ...rest)`; and, at its end, the build's reports, which print
- *  their `line(code, args)` at info level. */
-export const BUILD_WARNINGS = {
+const WARNED = {
 	macro_store_returns_non_store: {
 		text: (a: { file: string; line: number }): string => prose`
 			${a.file}:${a.line} — this import.meta.og.store factory has a return that is provably not
@@ -1020,9 +1003,11 @@ export const BUILD_WARNINGS = {
 			which flags it read). That part runs only when the package's plugin is listed. Add it beside
 			\`ogygia()\` in vite.config \`plugins\`, before \`sveltekit()\`. Said once per build.
 		`
-	},
+	}
+};
 
-	// ── the build's reports: printed at info level with `line(code, args)`, never warned ──────────
+/** The build's reports: printed at info level with `line(code, args)`, never warned. */
+export const BUILD_REPORTS = {
 	island_chunks_not_emitted: {
 		text: (a: { count: number }): string =>
 			`${a.count} island chunk(s) not emitted: their host modules are not in the server bundle (unreachable from this build's routes).`,
@@ -1046,6 +1031,9 @@ export const BUILD_WARNINGS = {
 		`
 	}
 };
+
+/** The warnings: `warn(code, args, ...rest)`, then the build's reports ({@link BUILD_REPORTS}). */
+export const BUILD_WARNINGS: typeof WARNED & typeof BUILD_REPORTS = { ...WARNED, ...BUILD_REPORTS };
 
 type Build = MessagesOf<typeof BUILD_ERRORS, typeof BUILD_WARNINGS>;
 const build: Build = define_messages(BUILD_ERRORS, BUILD_WARNINGS);

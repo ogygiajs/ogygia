@@ -77,6 +77,15 @@ it('the owner ending first aborts the renders and ends the batch with nothing wr
 	expect(written).toBe('');
 });
 
+it('the owner ending after the batch ended is no failure: the batch is over, and stays so', async () => {
+	const owner = scope();
+	const out = await read(
+		batch_stream(['ok'], async () => ({ slot: 'ok', html: '<p>ok</p>' }), owner)
+	);
+	expect(out).toBe(build_parcel('ok', '<p>ok</p>') + done_parcel());
+	expect(() => owner.close()).not.toThrow();
+});
+
 it('a call left out or a failed render writes no parcel, and the batch still ends', async () => {
 	const out = await read(
 		batch_stream(['none', 'boom', 'ok'], async (endpoint) => {

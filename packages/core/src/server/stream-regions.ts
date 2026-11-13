@@ -1,4 +1,4 @@
-import { machine, STALE, type Scope } from '@ogygia/machine';
+import { machine, type Scope } from '@ogygia/machine';
 import { OG_LEN, OGYGIA_SLOT } from '../wire-markup.ts';
 
 const STREAM_DONE_SLOT = '__ogygia_done__';
@@ -64,7 +64,7 @@ export function batch_stream(
 	return new ReadableStream<Uint8Array>({
 		async start(controller) {
 			const streaming = batch.now;
-			const ran = await batch.scope.task((signal) =>
+			await batch.scope.task((signal) =>
 				Promise.all(
 					calls.map(async (endpoint) => {
 						const out = await render(endpoint, signal).catch(() => null); // ok: the render says its own failure; the hole keeps its fallback and fetches itself
@@ -73,7 +73,7 @@ export function batch_stream(
 					})
 				)
 			);
-			if (ran === STALE || !batch.move('streaming', 'ended')) return;
+			if (!batch.move('streaming', 'ended')) return;
 			controller.enqueue(encoder.encode(done_parcel()));
 			controller.close();
 		},

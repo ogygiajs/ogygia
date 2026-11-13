@@ -1,9 +1,3 @@
-/**
- * The per-region virtual id naming, the `\0`-prefix resolver, and the few virtual ids code outside
- * the table names directly (an `emitFile` entry, a generated import). Every
- * virtual module is declared in the table (./virtual/core.ts); test/virtual-table.test.ts proves
- * the table answers each id here.
- */
 import { specifier } from './virtual/specifier.ts';
 
 /** Generated sticky entry — static-imports only the features selected from build marks. */

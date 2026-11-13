@@ -1,17 +1,3 @@
-/**
- * The `Program` — the compiler's cross-file linker / island graph. It is the ONE long-lived,
- * stateful phase: a deterministic reduction of every file's `IslandDescriptor[]` into a whole-program
- * registry, deduped by content-hashed id. The blind, file-local front-end (parse ▸ analyze ▸ lower ▸
- * emit) mints descriptors; the `Program` accumulates them — never their sources — and the linker's
- * whole-program emitters read it.
- *
- * One instance per `Compiler` session, constructed in the plugin factory closure, never module-global
- * — so Kit's throwaway plugin instance is a different `Program` and can't leak into the real build.
- *
- * State has an owner: the registry Maps + the feature-mark bag live here with the behavior over them
- * (`register` / `unregister_host` / `note_runtime_mark`). Config-free by construction — it knows the
- * descriptors, never the resolved build context (that is `CompileCtx`'s job).
- */
 import path from 'node:path';
 import { renderId } from './region/identity.ts';
 import { resolveFeatures, type FeatureId, type RuntimeMarks } from './link/runtime-entry.ts';
@@ -46,7 +32,6 @@ export interface RegistryEntry {
 	renderId?: string;
 }
 
-/** What a host's last transform indexed: the region ids + virtual paths it minted. */
 interface HostIndexEntry {
 	ids: Set<string>;
 	vpaths: Set<string>;
@@ -170,19 +155,11 @@ export class Program {
 		this.runtime_marks = {
 			complete: false,
 			forms: init.forms,
-			// The wire runtime (transportable-class + portable-snippet prop revival, ~8kB) is the ONLY
-			// consumer of `slots.wire` (read_region_props). It's off until the prescan proves the app
-			// actually ships a transportable class or a portable snippet — so a plain-props app never
-			// pays for a decoder it can't use. Turned on below via note_runtime_mark / the finalize check.
 			wire: false,
-			// Seeding Kit's remote query cache: off until the prescan sees a `.remote.*` module — an app
-			// without remote functions has no query to seed.
 			remoteSeeds: false,
 			hydrate: [],
 			defer: [],
 			persistKeys: [],
-			// Router is app-wide config now (not detected from a `<Router/>` usage): the feature ships
-			// whenever `router` isn't `false`.
 			router: init.router,
 			live: false,
 			lakes: false
@@ -268,11 +245,6 @@ export class Program {
 			for (const id of prev.ids) this.#settle(id);
 			host_index.delete(key);
 		}
-		// NB: do NOT clear the driver's transform_cache here. `register()` calls this on every leg AFTER
-		// run_transform populated the cache, so clearing evicted the just-written entry (the cache
-		// never hit → every host re-parsed 3× + an O(n) scan per call). The cache is content-keyed
-		// (`hit.code === source`), so a changed source misses and recomputes on its own; a deleted
-		// file's stale entry is harmless (never queried again). HMR correctness is preserved.
 	}
 
 	/** BUILD, server leg: the server regions `ogygia:server/server-regions` was written with, each
@@ -285,26 +257,16 @@ export class Program {
 		const { island_graph, by_id, region_kinds, host_index, id_hosts } = this;
 		this.unregister_host(hostId);
 		const key = host_key(hostId);
-		// The ONE wire rule: the transform said this file can cross live content into an island
-		// (children / portable snippet / dynamically-placed wake binding — see RegisterResult), so the
-		// runtime must carry the hub revivers. The other wire evidence class — a transportable CLASS
-		// definition — is placement-independent and marked in the driver's prescan instead.
 		if (result.hasWireCrossing) this.note_runtime_mark({ wire: true });
 		const idx: HostIndexEntry = { ids: new Set(), vpaths: new Set() };
 		for (const isl of result.islands ?? []) {
-			region_kinds.set(isl.id, isl.kind ?? (isl.server ? 'defer' : 'hydrate'));
-			idx.ids.add(isl.id);
 			const kind = isl.kind ?? (isl.server ? 'defer' : 'hydrate');
-			// Record the ACTUAL wake schedule (so `interaction` is detected) + the deferred fetch
-			// timing (so streaming is only pulled for `render: 'deferred'` load holes).
+			region_kinds.set(isl.id, kind);
+			idx.ids.add(isl.id);
 			if (kind === 'defer') this.note_runtime_mark({ defer: [isl.fetchWhen || 'load'] });
 			if (kind === 'hydrate') this.note_runtime_mark({ hydrate: [isl.strategy || 'load'] });
 			if (isl.wakeAfter) this.note_runtime_mark({ hydrate: [isl.wakeAfter] });
 			if (kind === 'lake') this.note_runtime_mark({ lakes: true, hydrate: ['none'] });
-			// live + client-morph are needed by HELD regions (region() / region:'raw' / live content),
-			// which stream and re-render on the client — NOT by a plain `wake`-marked placed island,
-			// which merely hydrates once. Every wake import now has a `bindingPath` (attach-to-binding
-			// unification), so gating on that over-shipped live+morph to minimal apps; gate on `held`.
 			if (isl.held) this.note_runtime_mark({ live: true, morph: true });
 			if (isl.lakes?.length) this.note_runtime_mark({ lakes: true });
 			if (isl.keep) this.note_runtime_mark({ persist: true, persistKeys: [isl.keep] });
@@ -349,8 +311,6 @@ export class Program {
 				idx.vpaths.add(isl.lazyPath);
 				island_graph.add(isl.lazyPath);
 			}
-			// Region binding: the host imports this JS module; its source is leg-split at load()
-			// (SSR carries the signer, client is metadata-only). Not a svelte wrapper.
 			if (isl.bindingPath && isl.bindingSsrSource) {
 				rows.push([
 					isl.bindingPath,

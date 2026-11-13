@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { gate_open_early, own_text, type Tab, type Visitor } from './browser.ts';
 import { boxes, on_screen, type Box } from './layout.ts';
 import { answer_key, FOREIGN_MARK, is_page_path, LOSSY_POINTS, type World } from './world.ts';
-import { EDGE_GONE, EDGE_MOVED } from './gen.ts';
+import { EDGE_BAD, EDGE_GONE, EDGE_MOVED, MOUNT } from './gen.ts';
 
 /** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
  *  `-fresh.txt`), to read past its first hunk. */
@@ -625,11 +625,10 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 	const url = tab.page.mainFrame.url;
 	if (!url.startsWith('http') || world.skewed_for(tab.realm)) return null;
 	// (in a document a fault touched, only a hole never asked for at all: its own request may have
-	// failed, but none to fail is no fault's; a batch's body is not seen, so a document that sent one
-	// is judged only untouched)
+	// failed, but none to fail is no fault's. A batch that came whole asked for the holes it names; one
+	// the network failed asked for none: each hole it did not deliver is released to ask on its own)
 	const touched = faulted(world, tab);
 	const mine = world.network.exchanges.filter((e) => e.from === tab.realm);
-	if (touched && mine.some((e) => e.method === 'POST')) return null;
 	// (nor one whose runtime, or another script, failed to load: the runtime may never have run, and
 	// the page stays its server HTML, as runtime_load_failed says; gen 12, seed 22)
 	if (touched && world.browsers.lacks_a_file(tab.realm)) return null;
@@ -639,6 +638,8 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 	const asked = new Set(
 		mine.filter((e) => e.method === 'GET').map((e) => answer_key(new URL(e.url)))
 	);
+	for (const e of mine)
+		if (e.holes && batch_came_whole(e)) for (const key of e.holes) asked.add(key);
 	const doc = tab.page.mainFrame.document as unknown as Document;
 	const due = schedules(tab, doc);
 	const never_asked = (r: Element) => {
@@ -1036,6 +1037,13 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 	);
 }
 
+/** Whether batch `e` reached its page whole: answered 200, and nothing on the way failed, held,
+ *  changed or redirected it. Its page then had every part the server gave, and owes none of its
+ *  holes a fetch of their own. */
+function batch_came_whole(e: World['network']['exchanges'][number]): boolean {
+	return e.status === 200 && !failed_on_wire(e) && !e.stalled && !e.tampered && !e.redirected;
+}
+
 /** Whether the network failed exchange `e`: dropped, offline, cut or broken off, or a server error. */
 function failed_on_wire(e: World['network']['exchanges'][number]): boolean {
 	return (
@@ -1116,6 +1124,13 @@ export function document_faulted(world: World, tab: Tab): boolean {
 const EXPLAINED =
 	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response|Failed to read the 'on\w+' property| in JSON at position \d+/;
 
+/** Whether `line` is a buggify point's own throw (a point's error says its name), reported by the
+ *  document `realm` it fired in: what the runtime reports of a failure it recovers from. */
+function points_own(world: World, realm: string, line: string): boolean {
+	const fired = world.fired_in.get(realm);
+	return fired !== undefined && [...fired].some((p) => line.includes(`Error: ${p}`));
+}
+
 /** How the browser, or ogygia with its code, says a module or file did not download. */
 const NOT_DOWNLOADED =
 	/ogygiajs\.dev\/e\/|Failed to fetch dynamically imported module|^error: <(script|link)> \S+ failed|Failed to perform request/;
@@ -1152,6 +1167,7 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 			const excused = faulted(world, by) || faulted(world, by, since);
 			return (
 				!(excused && EXPLAINED.test(l)) &&
+				!points_own(world, by.realm, l) &&
 				!element_download_failed(world, by, l) &&
 				!deploy_took(world, by, l)
 			);
@@ -1168,19 +1184,32 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 }
 
 /** What the app owes each of a peer's edge pages (gen.ts `edges`): the peer's own answer. */
-const EDGE_OWED: ReadonlyArray<[string, string, (status: number) => boolean]> = [
-	[EDGE_GONE, 'its not-found page, a 404', (s) => s === 404],
-	[EDGE_MOVED, 'its redirect', (s) => s >= 300 && s < 400]
+const EDGE_OWED: ReadonlyArray<[(path: string) => boolean, string, (status: number) => boolean]> = [
+	[(p) => p === EDGE_GONE, 'its not-found page, a 404', (s) => s === 404],
+	[(p) => p === EDGE_MOVED, 'its redirect', (s) => s >= 300 && s < 400],
+	[(p) => p === EDGE_BAD, 'its refusal, a 400', (s) => s === 400],
+	[(p) => PEER_PAGE.test(p), 'its page, a 200', (s) => s === 200]
 ];
+/** One of the peer's own pages, as the app mounts it (gen.ts `GenPeer.pages`: `/q<i>`). */
+const PEER_PAGE = new RegExp(`^${MOUNT}/q\\d+$`);
+/** What a Kit mount's error page says for a page the peer lacks: the peer's title for it, or, with
+ *  none, federation's own word (`mount.kit`). Never nothing. */
+const PEER_GONE_SAID: readonly string[] = ['not found', 'This section is unavailable.'];
 
 /**
- * A MOUNTED PEER'S PAGE ANSWERS AS THE PEER DID: a page the peer lacks is a 404 in the app, one it
- * moved is a redirect there, and a page that shows the visitor shows the one the app vouched for
- * (`sub: 'visitor'`, both mounts' `user`). Read from the tab's requests `since` an exchange and its
- * document. An answer the network failed, or one whose hop to the peer failed or changed on the
+ * A MOUNTED PEER'S PAGE ANSWERS AS THE PEER DID: a page the peer lacks is a 404 in the app that
+ * says so (a Kit mount's error message), one it moved is a redirect there, one it refuses is a 400, one
+ * of its own pages is a 200 that shows that page, and a page that shows the visitor shows the one
+ * the app vouched for (`sub: 'visitor'`, both mounts' `user`). Read from the tab's requests `since`
+ * an exchange and its document. An answer the network failed, or one whose hop to the peer failed or changed on the
  * way, is the app's own (a 502 or 504) and is not judged.
  */
-export function peer_answers(tab: Tab, world: World, since: number): Broken | null {
+export function peer_answers(
+	tab: Tab,
+	world: World,
+	since: number,
+	mount: 'router' | 'kit' = 'router'
+): Broken | null {
 	const exchanges = world.network.exchanges;
 	const hop_failed = (realm: string): boolean =>
 		exchanges.some((e) => e.for === realm && (failed_on_wire(e) || e.tampered));
@@ -1192,15 +1221,30 @@ export function peer_answers(tab: Tab, world: World, since: number): Broken | nu
 			continue;
 		const url = new URL(e.url);
 		if (url.origin !== origin) continue;
-		const owed = EDGE_OWED.find(([path]) => path === url.pathname);
+		const owed = EDGE_OWED.find(([is]) => is(url.pathname));
 		if (owed && !owed[2](e.status) && !hop_failed(e.from))
 			wrong.push(`${url.pathname} answered ${e.status}, the peer answered ${owed[1]}`);
 	}
 	const doc = tab.page.mainFrame.document as unknown as Document;
-	if (!document_faulted(world, tab))
+	if (!document_faulted(world, tab)) {
 		for (const el of doc.querySelectorAll('[data-gen-who]'))
 			if (el.textContent !== 'visitor')
 				wrong.push(`the peer's page shows the visitor "${el.textContent}", the app's is "visitor"`);
+		// (what the document shows: a page whose hop to the peer failed shows the app's own words)
+		const path = new URL(tab.page.mainFrame.url).pathname;
+		// (a document loaded whole at the page: one a client navigation reached may be mid-way)
+		const own = exchanges.find((e) => e.from === tab.realm);
+		const loaded =
+			own !== undefined &&
+			own.method === 'GET' &&
+			new URL(own.url).pathname === path &&
+			doc.readyState === 'complete';
+		if (loaded && !hop_failed(tab.realm) && !error_page(tab)) {
+			const text = doc.documentElement?.textContent ?? '';
+			if (mount === 'kit' && path === EDGE_GONE && !PEER_GONE_SAID.some((s) => text.includes(s)))
+				wrong.push(`${path} says neither the peer's title nor the app's word for a missing page`);
+		}
+	}
 	return wrong.length === 0
 		? null
 		: { oracle: 'peer-answers', detail: `${tab.page.mainFrame.url}: ${wrong.join('\n')}` };

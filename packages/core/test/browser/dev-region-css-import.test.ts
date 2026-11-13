@@ -162,10 +162,59 @@ test('DEV: a region-css link off the page’s code origins is not imported at bo
 	expect(document.documentElement.hasAttribute('data-og-off-origin-boot')).toBe(false);
 });
 
+test('DEV: a fetched answer’s document-relative region-css href resolves against the document', async () => {
+	document.documentElement.removeAttribute('data-og-dev-css-marker');
+	const dir = location.pathname.replace(FILENAME_TAIL_RE, '');
+	const depth = dir.split('/').filter(Boolean).length;
+	const relative = '../'.repeat(depth) + marker_module('answer').slice(1);
+	await region_fragment(`<link rel="stylesheet" href="${relative}" data-ogygia-region-css><p></p>`)
+		.ready;
+	expect(document.documentElement.getAttribute('data-og-dev-css-marker')).toBe('1');
+});
+
 test('DEV: a fetched answer’s region-css link off the page’s code origins is not imported', async () => {
 	const off = off_origin_module('data-og-off-origin-answer');
 	await region_fragment(`<link rel="modulepreload" href="${off}" data-ogygia-region-css><p></p>`)
 		.ready;
 	await new Promise((r) => setTimeout(r, 50));
 	expect(document.documentElement.hasAttribute('data-og-off-origin-answer')).toBe(false);
+});
+
+test('DEV: a region-css link to a real .css asset stays a link', async () => {
+	document.head.querySelectorAll('link[data-ogygia-region-css]').forEach((n) => n.remove());
+	document.documentElement.removeAttribute('data-og-dev-css-marker');
+	css_link('/test/browser/fixtures/region-sheet.css?v=asset');
+	const asset = document.head.querySelector('link[data-ogygia-region-css]')!;
+	css_link(marker_module('beside-asset'));
+
+	bootDev();
+
+	await expect
+		.poll(() => document.documentElement.getAttribute('data-og-dev-css-marker'), {
+			timeout: 10_000
+		})
+		.toBe('1');
+	expect(asset.isConnected).toBe(true);
+	asset.remove();
+});
+
+test('DEV: a region-css link parsed after the runtime booted is imported once the document is parsed', async () => {
+	document.head.querySelectorAll('link[data-ogygia-region-css]').forEach((n) => n.remove());
+	document.documentElement.removeAttribute('data-og-dev-css-marker');
+	// the runtime's bootstrap is the first node in <head>: it boots while the rest is still parsing
+	Object.defineProperty(document, 'readyState', { configurable: true, get: () => 'loading' });
+	try {
+		bootDev();
+		await new Promise((r) => setTimeout(r, 50));
+		css_link(marker_module('parsed-late'));
+	} finally {
+		delete (document as { readyState?: unknown }).readyState;
+	}
+	document.dispatchEvent(new Event('DOMContentLoaded'));
+	await expect
+		.poll(() => document.documentElement.getAttribute('data-og-dev-css-marker'), {
+			timeout: 10_000
+		})
+		.toBe('1');
+	expect(document.head.querySelectorAll('link[data-ogygia-region-css]').length).toBe(0);
 });
