@@ -52,4 +52,11 @@ describe('PageSeed.serialize', () => {
 		expect(v.data).toEqual({ ok: 1 });
 		expect(v.error).toEqual({ message: 'm' });
 	});
+
+	it('a reducer that throws on the plain base itself: no seed, never a throw (the page still ships)', () => {
+		const throws = (() => {
+			throw new Error('a reducer that throws on everything');
+		}) as unknown as Parameters<typeof PageSeed.serialize>[1];
+		expect(PageSeed.serialize(page({ ok: 1 }), throws)).toBeNull();
+	});
 });
