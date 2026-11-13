@@ -4,7 +4,14 @@
  * exactly what the browser's restorer needs — or strips everything, for a host without a plan.
  */
 import { describe, expect, it } from 'vitest';
-import { localizeMarks, mark, settle, transformMarkup } from '../src/reversible.ts';
+import {
+	closes_all,
+	localize_marks,
+	mark,
+	restored_ids,
+	settle,
+	transformMarkup
+} from '../src/reversible.ts';
 import { fake_scoped } from './fixtures/fake-scoped-render.ts';
 
 const island = (inner: string) =>
@@ -215,11 +222,54 @@ describe('settle', () => {
 	});
 });
 
-describe('localizeMarks', () => {
+describe('closes_all', () => {
+	it('takes HTML that closes what it opens, implied closes and voids included', () => {
+		for (const ok of [
+			'<x-a><p>a<p>b</x-a>',
+			'<x-a><img><br></x-a> text',
+			'<svg><path/></svg><x-b></x-b>',
+			'<x-a><script>if (a < b) {}</script></x-a>',
+			'',
+			'1 < 2'
+		])
+			expect(closes_all(ok), ok).toBe(true);
+	});
+	it('refuses HTML that would take in the page after it, or close an element around it', () => {
+		for (const bad of [
+			'<x-a><div>',
+			'<x-a></x-a></div>',
+			'<x-a><!-- open',
+			'<x-a></x-a><script>',
+			'<x-a></x-a><b',
+			'<x-a title="x></x-a>'
+		])
+			expect(closes_all(bad), bad).toBe(false);
+	});
+});
+
+describe('restored_ids', () => {
+	it('reads og-h however a serializer quotes it', () => {
+		expect([...restored_ids(`<a og-h="1"><b og-h='2'><i og-h=3></i></b></a>`)]).toEqual([1, 2, 3]);
+	});
+});
+
+describe('localize_marks', () => {
+	it('gives back the same string when the marks already count from 0', () => {
+		const block = '<demo-card og-h="0"><!--og-c 0.0 t--> a </demo-card>';
+		const local = localize_marks(block);
+		expect(local.html).toBe(block);
+		expect(local.back('x')).toBe('x');
+	});
+	it('reads back ids a serializer requoted', () => {
+		const local = localize_marks('<demo-card og-h="7"></demo-card>');
+		expect(local.html).toBe('<demo-card og-h="0"></demo-card>');
+		expect(local.back(`<demo-card og-h='0'></demo-card>`)).toBe(`<demo-card og-h='7'></demo-card>`);
+		expect(local.back('<demo-card og-h=0></demo-card>')).toBe('<demo-card og-h=7></demo-card>');
+	});
 	it('renumbers a block’s marks from 0 for a cache key, and puts the document’s ids back after', () => {
 		const block =
 			'<demo-card og-h="41" class="x"><!--og-c 41.0 t--> a <demo-card og-h="42" og-c="41.1">b</demo-card><!--og-t 41.3--> </demo-card>';
-		const local = localizeMarks(block);
+		const local = localize_marks(block);
 		expect(local.html).toBe(
 			'<demo-card og-h="0" class="x"><!--og-c 0.0 t--> a <demo-card og-h="1" og-c="0.1">b</demo-card><!--og-t 0.3--> </demo-card>'
 		);
