@@ -6,6 +6,7 @@
 // OGYGIA_FUZZ_SEED, OGYGIA_FUZZ_RUNS).
 import { describe, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
+import { dedent } from '@ogygia/core/contract';
 import {
 	appendTransportRegistrations,
 	moduleHasTransportable
@@ -30,7 +31,12 @@ describe('the prescan counts a wire class exactly when the registration register
 		],
 		[
 			'a member over two lines',
-			`export class Cart {\n\tstatic wire =\n\t\timport.meta.og.wire(${CODEC});\n}`
+			dedent`
+				export class Cart {
+					static wire =
+						import.meta.og.wire(${CODEC});
+				}
+			`
 		],
 		[
 			'the rewritten member',
@@ -72,10 +78,9 @@ describe('the prescan counts a wire class exactly when the registration register
 						(m) => `\tstatic ${m.readonly ? 'readonly ' : ''}${m.key}${m.type} =${m.gap}${m.value};`
 					)
 					.join('\n');
-				const src =
-					exported === 'decl'
-						? `export class Cart {\n${body}\n}`
-						: `class Cart {\n${body}\n}${exported === 'list' ? '\nexport { Cart };' : ''}`;
+				const lines = [exported === 'decl' ? 'export class Cart {' : 'class Cart {', body, '}'];
+				if (exported === 'list') lines.push('export { Cart };');
+				const src = lines.join('\n');
 				expect(moduleHasTransportable(src, FILE), src).toBe(registers(src));
 			}),
 			{
