@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { dedent } from '../../packages/core/src/contract/dedent.ts';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
 const OXLINT = path.join(ROOT, 'node_modules/.bin/oxlint');
@@ -33,18 +34,17 @@ function reported(name: string, source: string): number[] {
 	}
 }
 
-const OURS = [
-	'/** @deprecated Use `now` instead. */',
-	'export function then(): number {',
-	'\treturn 1;',
-	'}',
-	'export function now(): number {',
-	'\treturn 2;',
-	'}',
-	'export const a = then();',
-	'export const b = now();',
-	''
-].join('\n');
+const OURS = dedent`
+	/** @deprecated Use \`now\` instead. */
+	export function then(): number {
+		return 1;
+	}
+	export function now(): number {
+		return 2;
+	}
+	export const a = then();
+	export const b = now();
+`;
 
 test('a use of our own @deprecated function is reported, and the current one is not', () => {
 	assert.deepEqual(reported('module.ts', OURS), [8]);
@@ -59,11 +59,10 @@ test('a config file is linted too', () => {
 });
 
 test('a waiver names the rule and its reason, and silences only its line', () => {
-	const source = [
-		'// oxlint-disable-next-line typescript/no-deprecated -- the test needs the old global',
-		"export const s = escape('x');",
-		"export const t = escape('y');",
-		''
-	].join('\n');
+	const source = dedent`
+		// oxlint-disable-next-line typescript/no-deprecated -- the test needs the old global
+		export const s = escape('x');
+		export const t = escape('y');
+	`;
 	assert.deepEqual(reported('module.ts', source), [3]);
 });
