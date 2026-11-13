@@ -140,9 +140,8 @@ describe('a dev change reloads exactly the modules that read it', () => {
 		const t = new VirtualTable<App>(
 			[
 				virtual.family<App>({
-					realm: 'server',
-					id: 'route-csr',
-					// (reads the routes on the server leg only, as core's route-csr does)
+					realm: 'region',
+					id: 'server-reads',
 					load: (a, l) => `export const r = ${l.ssr ? JSON.stringify(a.routes()) : '[]'};`
 				})
 			],
@@ -151,9 +150,10 @@ describe('a dev change reloads exactly the modules that read it', () => {
 			PARTS,
 			queries('session')
 		);
-		t.load(R('route-csr'), app, { ssr: true, universalHooks: null });
-		t.load(R('route-csr'), app, { ssr: false, universalHooks: null });
-		expect(bump(t, 'routes')).toEqual([R('route-csr')]);
+		const id = '\0ogygia:region/server-reads';
+		t.load(id, app, { ssr: true, universalHooks: null });
+		t.load(id, app, { ssr: false, universalHooks: null });
+		expect(bump(t, 'routes')).toEqual([id]);
 	});
 });
 
