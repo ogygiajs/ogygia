@@ -2341,6 +2341,14 @@
 			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
 		},
 		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_host_invalid > details",
+			"reason": "a message table entry: wording only (#1687)"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_host_invalid > text",
+			"reason": "a message table entry: wording only (#1687)"
+		},
+		{
 			"id": "packages/reshape/src/restore-report.ts > report",
 			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
 		},
