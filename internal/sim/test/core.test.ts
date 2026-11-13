@@ -215,7 +215,18 @@ describe('the network', () => {
 		hop('tab-1', 'https://peer.test/og/fragment/page');
 		hop('tab-1', 'https://peer2.test/og/fragment/page');
 		hop('tab-9', 'https://peer.test/og/fragment/page');
+		// (a page's own download from the peer, an island's chunk, is its CDN's: never down; gen 208,
+		// seed 4: every such chunk a 503)
+		let chunk = 0;
+		void net
+			.send(
+				'tab-1#1',
+				new Request('https://peer.test/_app/immutable/x.js'),
+				async () => new Response('x')
+			)
+			.then((r) => (chunk = r.status));
 		await loop.run();
+		expect(chunk).toBe(200);
 		expect(status).toEqual({
 			'tab-1 https://peer.test/og/fragment/page': expect.any(Number),
 			'tab-1 https://peer2.test/og/fragment/page': 200,
