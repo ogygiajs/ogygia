@@ -465,6 +465,14 @@
 			"reason": "browser only: the dock's teardown (its observer off, the Svelte app unmounted), once per dock; proven in packages/devtools/e2e/dock-switch.spec.ts"
 		},
 		{
+			"id": "packages/devtools/src/devtools/session.ts > start_session > counting",
+			"reason": "browser only: the recording's console.error wrapper, one line counted (200 at most) and passed on, constant work per call; proven in packages/devtools/test/devtools-session-console.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > start_session > counting > push:0~64a57a > map:0~529f9c",
+			"reason": "browser only: one console.error argument as text, constant work per argument; proven in packages/devtools/test/devtools-session-console.test.ts"
+		},
+		{
 			"id": "packages/devtools/src/devtools/session.ts > start_session > defer:0",
 			"reason": "browser only: a recording's watchers coming off (PerformanceObservers, a MutationObserver, listeners), once per recording; proven in packages/devtools/e2e/devtools.spec.ts"
 		},
