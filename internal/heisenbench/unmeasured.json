@@ -1,22 +1,6 @@
 {
 	"exempt": [
 		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > page_promise_unresolved > details",
-			"reason": "a message's wording, read once when the error is shown: constant work"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > page_promise_unresolved > text",
-			"reason": "a message's wording, read once when the error is shown: constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/page-defer.ts > install_page_defer > live > with_devalue:1~0fffae",
-			"reason": "a streamed resolve whose devalue download failed every try: one settle, once per promise; devalue-lane-gone.test.ts runs the give-up"
-		},
-		{
-			"id": "packages/core/src/runtime/page-defer.ts > unresolved",
-			"reason": "one coded error made for a promise that can no longer settle, once per promise: constant work"
-		},
-		{
 			"id": "packages/devtools/src/devtools/highlight.ts > highlight > defer:0~248bad",
 			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
 		},
@@ -1171,6 +1155,10 @@
 		{
 			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > #stop",
 			"reason": "closes the run's scope (a timer), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > close",
+			"reason": "closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > finish > task:0",
@@ -4749,6 +4737,22 @@
 			"reason": "browser only: drops the page's read code origins (one write), constant work; proven in packages/core/test/browser/nav-code-origins.test.ts (#1045)"
 		},
 		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > page_promise_unresolved > details",
+			"reason": "a message's wording, read once when the error is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > page_promise_unresolved > text",
+			"reason": "a message's wording, read once when the error is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/page-defer.ts > install_page_defer > live > with_devalue:1~0fffae",
+			"reason": "a streamed resolve whose devalue download failed every try: one settle, once per promise; devalue-lane-gone.test.ts runs the give-up"
+		},
+		{
+			"id": "packages/core/src/runtime/page-defer.ts > unresolved",
+			"reason": "one coded error made for a promise that can no longer settle, once per promise: constant work"
+		},
+		{
 			"id": "packages/core/src/runtime/viewport.ts > Tracker > #hear_swaps > MutationObserver:0~c14ef5",
 			"reason": "browser only: a box-less region's content was swapped; it hands the records to #swapped, constant work"
 		},
@@ -4775,10 +4779,6 @@
 		{
 			"id": "packages/core/src/server/capped-body.ts > read_capped",
 			"reason": "network bound: reads a request body's pieces until the cap, one copy of the bytes; proven in packages/core/test/batch-body-cap.test.ts and packages/federation/test/body-cap.test.ts (#754, #1091)"
-		},
-		{
-			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > close",
-			"reason": "closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #teardown > note_left:1~6e248e",
