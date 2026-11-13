@@ -1479,6 +1479,186 @@
 			"reason": "`built !== STALE`: proved: the STALE check made never true turns the test red, twice",
 			"test": "packages/machine/test/stale-waits.test.ts",
 			"name": "stage().ready"
+		},
+		{
+			"site": "packages/core/src/plugin/css.ts > componentCssHead > catch:0",
+			"reason": "`catch { read = false; // ok: no registry in this realm (bare node, `o…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/component-css-head-once.test.ts",
+			"name": "a second call in one request links nothing its first call linked"
+		},
+		{
+			"site": "packages/core/src/plugin/request-scope.ts > entry_of > abort:0",
+			"reason": "`signal.aborted`: proved: .aborted made always false turns the test red, twice",
+			"test": "packages/core/test/request-scope.test.ts",
+			"name": "of a request whose visitor already left is ended"
+		},
+		{
+			"site": "packages/core/src/plugin/request-scope.ts > end_request_scope > catch:0",
+			"reason": "`catch (error) { cleanup_failed(error); }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/request-scope-failures.test.ts",
+			"name": "a cleanup that throws as the request ends is said, never thrown"
+		},
+		{
+			"site": "packages/core/src/plugin/request-scope.ts > own_response > .catch:0",
+			"reason": "`body.cancel().catch(noop)`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/request-scope-failures.test.ts",
+			"name": "a HEAD answer whose body cannot be cancelled is dropped unread, with nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/plugin/request-scope.ts > own_response > .catch:1",
+			"reason": "`reader.cancel().catch(noop)`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/request-scope-failures.test.ts",
+			"name": "the visitor leaving lets go of a source that cannot be cancelled, with nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/plugin/request-scope.ts > own_response > pull > catch:0",
+			"reason": "`catch (error) { end_request_scope(owner); if (RULES) note_response_en…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/request-scope-failures.test.ts",
+			"name": "a body that breaks mid-stream ends the owner, and the visitor’s read fails with its error"
+		},
+		{
+			"site": "packages/core/src/server/capped-body.ts > read_capped > body:0",
+			"reason": "`request.body === null`: proved: the null-body check made never true turns the test red, twice",
+			"test": "packages/core/test/capped-body-failures.test.ts",
+			"name": "a request with no body is no bytes"
+		},
+		{
+			"site": "packages/core/src/server/capped-body.ts > read_capped > .catch:0",
+			"reason": "`reader.cancel().catch(() => {})`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/capped-body-failures.test.ts",
+			"name": "a body past the cap is too large, even when its source cannot be cancelled"
+		},
+		{
+			"site": "packages/core/src/server/capped-body.ts > read_capped > catch:0",
+			"reason": "`catch { return 'unreadable'; // ok: the caller answers it (a 400) }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/capped-body-failures.test.ts",
+			"name": "a body whose stream breaks is unreadable, never a throw"
+		},
+		{
+			"site": "packages/core/src/server/document-tail.ts > props_preview > catch:0",
+			"reason": "`catch { return ''; // ok: a preview only; props that do not stringify…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/document-tail.test.ts",
+			"name": "hole() records endpoint + sidecar per identity (first wins), rendered last as ONE escaped JSON script"
+		},
+		{
+			"site": "packages/core/src/server/endpoint.ts > configure_islands_endpoint > throw:0",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/islands-endpoint.test.ts",
+			"name": "a second handle naming another endpoint throws in dev, and the first stands"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > keep_serializable > carries > catch:0",
+			"reason": "`catch { return false; // ok: that is the answer: this value does not …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-lane.test.ts",
+			"name": "one non-serializable leaf is left out, never its field or the whole seed (devalue lane)"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > keep_serializable > keep > catch:0",
+			"reason": "`catch { continue; // ok: a getter that throws: devalue could not read…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-leaves.test.ts",
+			"name": "a getter that throws: only that key goes"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:0",
+			"reason": "`catch { // ok: the analysis was wrong about a leaf; devalue below is …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-lane.test.ts",
+			"name": "asked for JSON on a slice JSON cannot carry (a bigint): falls back to devalue, never throws"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:1",
+			"reason": "`catch { // A value devalue cannot carry must not take its neighbours …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-lane.test.ts",
+			"name": "one non-serializable leaf is left out, never its field or the whole seed (devalue lane)"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:2",
+			"reason": "`catch { // ok: kept stays the source }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-leaves.test.ts",
+			"name": "when the copy itself fails, each field that serializes alone still ships with the url"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:3",
+			"reason": "`catch { // (a reducer that throws on the copy, or no copy: each field…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-leaves.test.ts",
+			"name": "when the copy itself fails, each field that serializes alone still ships with the url"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:4",
+			"reason": "`catch { // ok: this field cannot cross, so just it is dropped }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-leaves.test.ts",
+			"name": "when the copy itself fails, each field that serializes alone still ships with the url"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:5",
+			"reason": "`catch { return null; // ok: a reducer threw on the plain base itself;…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-lane.test.ts",
+			"name": "a reducer that throws on the plain base itself: no seed, never a throw (the page still ships)"
+		},
+		{
+			"site": "packages/core/src/server/personal-response.ts > mark_personal > catch:0",
+			"reason": "`catch (error) { warn('personal_response_unmarked', { status: response…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/personal-response.test.ts",
+			"name": "an immutable response is left as it is"
+		},
+		{
+			"site": "packages/core/src/server/props-wire.ts > stringify_props > catch:0",
+			"reason": "`catch (e) { const detail = e instanceof Error ? e.message : String(e)…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/props-wire.test.ts",
+			"name": "a non-serializable prop (a class instance with no codec) throws the teaching error"
+		},
+		{
+			"site": "packages/core/src/server/props-wire.ts > stringify_props > throw:0",
+			"reason": "`throw new OgygiaError('prop_not_serializable', { entry, detail });`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/props-wire.test.ts",
+			"name": "a non-serializable prop (a class instance with no codec) throws the teaching error"
+		},
+		{
+			"site": "packages/core/src/server/region-endpoint.ts > current_request > catch:0",
+			"reason": "`catch { return null; // ok: off-request (prerender, a test), as said …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/batch-hole-slot-prefix.test.ts",
+			"name": "a hole fetched on its own: its ids carry its region id"
+		},
+		{
+			"site": "packages/core/src/server/region-endpoint.ts > reuse_known_region > catch:0",
+			"reason": "`catch { return false; // ok: no request scope (prerender / off-reques…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/property-known-copies.test.ts",
+			"name": "skips nothing off a request (prerender)"
+		},
+		{
+			"site": "packages/core/src/server/remote-seed-gate.ts > collect_remote_seed > reject:0",
+			"reason": "`, () => {}`: proved: the rejection handler removed turns the test red, twice",
+			"test": "packages/core/test/remote-seed-gate.test.ts",
+			"name": "an ERRORED result is omitted, never throws the seed build"
+		},
+		{
+			"site": "packages/core/src/server/render-cache.ts > cached_render > catch:0",
+			"reason": "`catch (error) { report?.('none'); throw error; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/render-cache-claims.test.ts",
+			"name": "a cached hole whose render fails, as null or by throwing, reports none"
+		},
+		{
+			"site": "packages/core/src/server/render-cache.ts > cached_render > throw:0",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/render-cache-claims.test.ts",
+			"name": "a cached hole whose render fails, as null or by throwing, reports none"
+		},
+		{
+			"site": "packages/core/src/server/render-cache.ts > cached_render > stale:0",
+			"reason": "`r !== STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/core/test/render-cache.test.ts",
+			"name": "a flight from before a clear stores nothing: its caller renders again, joined by the next"
+		},
+		{
+			"site": "packages/core/src/server/signing-key.ts > configure_signing_secret > throw:0",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/signing-key.test.ts",
+			"name": "another secret after the key is decided throws in dev, naming fingerprints only"
+		},
+		{
+			"site": "packages/core/src/server/stream-regions.ts > batch_stream > start > .catch:0",
+			"reason": "`render(endpoint, signal).catch(() => null)`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/stream-regions-claims.test.ts",
+			"name": "a call left out or a failed render writes no parcel, and the batch still ends"
 		}
 	],
 	"impossible": [
@@ -2022,17 +2202,11 @@
 		"packages/core/src/plugin/capability.ts > plugin_signer > plain_message > throw:0",
 		"packages/core/src/plugin/capability.ts > plugin_capabilities > refuse > result:0",
 		"packages/core/src/plugin/css.ts > run > import:0",
-		"packages/core/src/plugin/css.ts > componentCssHead > catch:0",
 		"packages/core/src/plugin/facts.ts > current_request > catch:0",
 		"packages/core/src/plugin/reads.ts > observe_reads > fetch:0",
 		"packages/core/src/plugin/reads.ts > carries_cookies > catch:0",
-		"packages/core/src/plugin/request-scope.ts > entry_of > abort:0",
 		"packages/core/src/plugin/request-scope.ts > entry_of > error-event:0",
-		"packages/core/src/plugin/request-scope.ts > end_request_scope > catch:0",
-		"packages/core/src/plugin/request-scope.ts > own_response > .catch:0",
 		"packages/core/src/plugin/request-scope.ts > own_response > stream:0",
-		"packages/core/src/plugin/request-scope.ts > own_response > .catch:1",
-		"packages/core/src/plugin/request-scope.ts > own_response > pull > catch:0",
 		"packages/core/src/plugin/request-scope.ts > own_response > pull > stream:0",
 		"packages/core/src/plugin/request-scope.ts > own_response > pull > stream:1",
 		"packages/core/src/plugin/request-scope.ts > own_response > pull > stream:2",
@@ -2248,50 +2422,26 @@
 		"packages/core/src/script.ts > script > throw:4",
 		"packages/core/src/script.ts > script > throw:5",
 		"packages/core/src/script.ts > script > throw:6",
-		"packages/core/src/server/capped-body.ts > read_capped > body:0",
 		"packages/core/src/server/capped-body.ts > read_capped > stream:0",
-		"packages/core/src/server/capped-body.ts > read_capped > .catch:0",
-		"packages/core/src/server/capped-body.ts > read_capped > catch:0",
 		"packages/core/src/server/dead-kit-resolves.ts > drop_dead_kit_resolves > transform > stream:0",
-		"packages/core/src/server/document-tail.ts > props_preview > catch:0",
-		"packages/core/src/server/endpoint.ts > configure_islands_endpoint > throw:0",
 		"packages/core/src/server/head-presence.ts > with_code_origins > catch:0",
 		"packages/core/src/server/hmac.ts > Hmac > verify > crypto:0",
 		"packages/core/src/server/hmac.ts > Hmac > verify > catch:0",
 		"packages/core/src/server/hmac.ts > hex_equal > crypto:0",
 		"packages/core/src/server/hole-graph.ts > root_absolute > catch:0",
 		"packages/core/src/server/hole-urls.ts > resolve_attr > catch:0",
-		"packages/core/src/server/page-seed.ts > keep_serializable > carries > catch:0",
-		"packages/core/src/server/page-seed.ts > keep_serializable > keep > catch:0",
-		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:0",
-		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:1",
-		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:2",
-		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:3",
-		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:4",
-		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:5",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > stale:0",
-		"packages/core/src/server/personal-response.ts > mark_personal > catch:0",
-		"packages/core/src/server/props-wire.ts > stringify_props > catch:0",
-		"packages/core/src/server/props-wire.ts > stringify_props > throw:0",
-		"packages/core/src/server/region-endpoint.ts > current_request > catch:0",
 		"packages/core/src/server/region-endpoint.ts > region_session > catch:0",
-		"packages/core/src/server/region-endpoint.ts > reuse_known_region > catch:0",
 		"packages/core/src/server/region-endpoint.ts > reuse_known_region > catch:1",
 		"packages/core/src/server/region-endpoint.ts > mint_server_region > throw:0",
 		"packages/core/src/server/region-props.ts > encode_region_props > catch:0",
-		"packages/core/src/server/remote-seed-gate.ts > collect_remote_seed > reject:0",
-		"packages/core/src/server/render-cache.ts > cached_render > catch:0",
-		"packages/core/src/server/render-cache.ts > cached_render > throw:0",
-		"packages/core/src/server/render-cache.ts > cached_render > stale:0",
 		"packages/core/src/server/render-cache.ts > cached_render > abort:0",
 		"packages/core/src/server/render-cache.ts > cached_render > throw:1",
 		"packages/core/src/server/render-page.ts > page_url_of > catch:0",
 		"packages/core/src/server/render-page.ts > prepare_render_page > stale:0",
 		"packages/core/src/server/render-page.ts > render_page_version > catch:0",
 		"packages/core/src/server/render-page.ts > render_page_facts_script > catch:0",
-		"packages/core/src/server/signing-key.ts > configure_signing_secret > throw:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > refused:0",
-		"packages/core/src/server/stream-regions.ts > batch_stream > start > .catch:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > stream:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > refused:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > stream:1",
