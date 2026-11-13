@@ -120,7 +120,7 @@ describe('a stalled batch stream', () => {
 	});
 
 	it('a batch given up while sending is reported missed with no answer status (0)', async () => {
-		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		vi.useFakeTimers({ toFake: FAKED });
 		vi.spyOn(window, 'fetch').mockImplementation(
 			(_url, init) =>
 				new Promise<Response>((_, reject) =>
