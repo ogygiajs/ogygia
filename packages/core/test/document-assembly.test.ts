@@ -30,8 +30,13 @@ describe('locate', () => {
 		const s = locate(in_script);
 		expect(s.head_end).toBe(in_script.indexOf('</title>') + '</title>'.length);
 		expect(s.body_end).toBe(in_script.lastIndexOf('</body></html>'));
+	});
+
+	it('known limit: a </body> in a script AFTER the real end tag is taken for it (read from the back, #1410)', () => {
+		// Kit never writes past `</body>`; walking a multi-MB body forward to rule this out costs
+		// about a thousand times the steps of the reverse scan (the PR's bench numbers).
 		const tail = `${doc('<p>x</p>')}<script>"</body>"</script>`;
-		expect(locate(tail).body_end).toBe(tail.indexOf('</body>'));
+		expect(locate(tail).body_end).toBe(tail.lastIndexOf('</body>'));
 	});
 
 	it('reports -1 for a chunk without the point (streamed head / body chunks)', () => {
@@ -103,16 +108,19 @@ describe('budget on a multi-MB document', () => {
 	// and ropes — nothing here forces a flatten).
 	const big = doc(`<div>${'x'.repeat(2_600_000)}</div>`);
 
-	it('locate touches the string with exactly two bounded scans', () => {
-		const calls: string[] = [];
+	it('locate reads the head forward, never past its end, and the body from the back', () => {
+		const head_close = big.indexOf('</head>');
+		const forward: number[] = [];
+		const back: string[] = [];
 		const index_of = String.prototype.indexOf;
 		const last_index_of = String.prototype.lastIndexOf;
 		String.prototype.indexOf = function (this: string, ...args: [string, number?]) {
-			if (this.length > 1_000_000) calls.push('indexOf');
-			return index_of.apply(this, args);
+			const at = index_of.apply(this, args);
+			if (this.length > 1_000_000) forward.push(at);
+			return at;
 		} as typeof String.prototype.indexOf;
 		String.prototype.lastIndexOf = function (this: string, ...args: [string, number?]) {
-			if (this.length > 1_000_000) calls.push('lastIndexOf');
+			if (this.length > 1_000_000) back.push(args[0]);
 			return last_index_of.apply(this, args);
 		} as typeof String.prototype.lastIndexOf;
 		try {
@@ -121,7 +129,9 @@ describe('budget on a multi-MB document', () => {
 			String.prototype.indexOf = index_of;
 			String.prototype.lastIndexOf = last_index_of;
 		}
-		expect(calls).toEqual(['indexOf', 'lastIndexOf']);
+		expect(forward.length).toBeLessThan(16);
+		for (const at of forward) expect(at).toBeLessThanOrEqual(head_close);
+		expect(back).toEqual(['</body']);
 	});
 
 	it('assemble never calls replace/split/match on the big string', () => {

@@ -17,7 +17,7 @@
  * servers are refused upstream — their module graph is Vite's, not a bundle.
  */
 
-import { next_tag, text_of, value_at, type FoundTag } from '@ogygia/core/internal/server';
+import { head_end, next_tag, value_at, type FoundTag } from '@ogygia/core/internal/server';
 
 export interface StandaloneOptions {
 	/** the report page's own URL (relative hrefs resolve against it) */
@@ -72,13 +72,6 @@ function attr_span(html: string, t: FoundTag, name: string, attr: string): [numb
 	for (let c = html.charCodeAt(from); c === 32 || (c >= 9 && c <= 13); c = html.charCodeAt(from))
 		from--;
 	return [from - attr.length + 1, at + value!.length + (quoted ? 1 : 0)];
-}
-
-/** Where the document's head ends (its `</head` end tag), or -1. */
-function head_end(html: string): number {
-	const head = next_tag(html, 'head', 0);
-	const text = head === null ? null : text_of(html, head, 'head');
-	return text === null ? -1 : head!.end + text.length;
 }
 
 /** `html` with `text` put where its head ends (unchanged when it has no head end). */

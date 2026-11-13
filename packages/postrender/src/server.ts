@@ -25,6 +25,7 @@ import {
 	type ServerPlugin
 } from '@ogygia/core/plugin';
 import { clock, flights, say, STALE, type Flights } from '@ogygia/machine';
+import { head_end } from '@ogygia/core/internal/server';
 import {
 	current_runtime,
 	enter_flight,
@@ -234,8 +235,7 @@ export function postrender_response(
  *  entry written before the field existed) — never a `replace` over a multi-MB page per hit. */
 function served_html(entry: Extract<PostrenderEntry, { kind: 'page' }>, via: string): string {
 	if (via === 'stored') return entry.html;
-	// markup-ok: Kit's document, located as core's document-assembly.ts does (#1410)
-	const at = entry.head_end ?? entry.html.indexOf('</head>');
+	const at = entry.head_end ?? head_end(entry.html);
 	return at === -1
 		? entry.html
 		: entry.html.slice(0, at) + STORED_DOCUMENT_META + entry.html.slice(at);
@@ -411,7 +411,7 @@ async function capture(
 	const entry: PostrenderEntry = {
 		kind: 'page',
 		html: stored_html,
-		head_end: stored_html.indexOf('</head>'), // markup-ok: as document-assembly.ts (#1410)
+		head_end: head_end(stored_html),
 		headers,
 		created,
 		...(has_serve ? { stitch: true } : {})
