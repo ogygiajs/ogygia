@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, expect } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
+import { appears, end_time_hold, hold_time, release_time } from './_waits.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { install as install_morph } from '../../src/runtime/morph.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
@@ -49,6 +50,7 @@ beforeEach(() => {
 	};
 });
 afterEach(async () => {
+	end_time_hold();
 	window.fetch = real_fetch;
 	history.replaceState(null, '', home);
 	// (a fetched page's head brought its runtime stand-in)
@@ -62,11 +64,10 @@ it_with_network_routes(
 		await commands.hold_downloads(HELD);
 		const r = new SpaRouter();
 		r.start();
+		hold_time();
 		const went = r.navigate(new URL(NEXT, home));
 		// the next page is fetched; the navigation waits for its sheet
-		await expect
-			.poll(() => document.head.querySelector(`link[href="${HELD}"]`), { timeout: 2_000 })
-			.not.toBeNull();
+		await appears(`link[href="${HELD}"]`, document.head);
 		expect(r.nav.now.kind).toBe('loading');
 		asked.length = 0;
 		// a remote form on A succeeds: A's data is refreshed in place
@@ -79,6 +80,7 @@ it_with_network_routes(
 		expect((page_state.data as { who?: string }).who).toBe('a');
 		expect(document.querySelector('p')?.textContent).toBe('a');
 		// the navigation still goes in, afterwards
+		release_time();
 		await commands.keep_downloads(HELD);
 		await went;
 		expect(document.title).toBe('page B');

@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, expect } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
-import { appears } from './_waits.ts';
+import { appears, end_time_hold, hold_time, release_time } from './_waits.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
 
@@ -32,6 +32,7 @@ beforeEach(() => {
 		);
 });
 afterEach(async () => {
+	end_time_hold();
 	window.fetch = real_fetch;
 	history.replaceState(null, '', home);
 	await commands.keep_downloads(SHEET);
@@ -43,12 +44,14 @@ it_with_network_routes(
 		await commands.hold_downloads(SHEET);
 		const r = new SpaRouter();
 		const sheet = () => document.head.querySelector(`link[href="${SHEET}"]`);
+		hold_time();
 		const went = r.navigate(new URL('/nav-called-off-next', location.href));
 		// the next page's sheet is in the head, and the navigation waits for it
 		await appears(`link[href="${SHEET}"]`, document.head);
 		expect(r.nav.now.kind).toBe('loading');
 		// back to the page on screen (popstate on the same document): the navigation is called off
 		r.supersede();
+		release_time();
 		await went;
 		expect(document.querySelector('p')?.textContent).not.toBe('next');
 		expect(sheet()).toBeNull();
