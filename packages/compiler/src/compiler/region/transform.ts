@@ -1047,6 +1047,17 @@ class FileCompilation {
 		} else if (wake_val != null) {
 			attrs.set('hydrate', wake_val);
 		}
+		// marks that would be accepted and then do nothing are refused (test/transform.test.ts)
+		if (render_mode === 'static' && wake_val == null) {
+			throw fail(
+				`${said} sets \`${import_keys.render}: 'static'\` alone, which marks nothing: 'static' is how a region renders when nothing else is said. Drop it for a plain import, or add \`${import_keys.wake}\` for an island.`
+			);
+		}
+		if (attrs.has('keep') && (!attrs.has('hydrate') || attrs.get('hydrate') === 'none')) {
+			throw fail(
+				`\`keep\` keeps a waking island alive across navigations, and ${said} makes no waking island (a hole, a lake or a live region has none to keep). Drop \`keep\`, or mark it with \`${import_keys.wake}: 'load'\` (or another wake).`
+			);
+		}
 		if (attrs.has('stitch') && !attrs.has('defer')) {
 			throw fail(
 				`\`stitch\` is only valid with \`${import_keys.render}: 'deferred'\` — it says WHERE a hole fills on artifact serves; there is no hole without 'deferred'.`
