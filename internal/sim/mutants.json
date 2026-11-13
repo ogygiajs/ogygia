@@ -650,7 +650,19 @@
 		"operator": "statement",
 		"from": "if (start !== -1)",
 		"to": "if (start !== -2)",
-		"aim": "rewrite.chunk-split"
+		"aim": "rewrite.chunk-split",
+		"equivalent": "a span whose start is in an earlier chunk has start -1, below the chunk's offset, so the filter after the walk (s.start >= offset) drops it into split as before: nothing it changes reaches the page (survived aimed on gens 24 and 262, 12 seeds each)"
+	},
+	{
+		"id": "rewrite-split-element-forgotten",
+		"file": "packages/rewrite/src/scan.ts",
+		"in": "read",
+		"code": "state.open = open;",
+		"operator": "statement",
+		"from": "state.open = open;",
+		"to": "state.open = null;",
+		"aim": "rewrite.chunk-split",
+		"equivalent": "for now: forgetting the element a chunk ended in renders the matched elements inside it on their own, which the rewrite-rendered oracle names, but the random app never nests a matched element in another (a box holds a region's label only), so no run can see it; it comes back when the app draws nested matches (rewrite-handoff-3)"
 	},
 	{
 		"id": "rewrite-batch-throws",

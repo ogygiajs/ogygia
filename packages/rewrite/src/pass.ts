@@ -626,7 +626,15 @@ export function rewrite_pass(
 				return rewrite_whole(doc, res, 'document', page.csr, page.answer);
 			}
 			if (RULES && html.length > 1 && res.any && buggify.fires('rewrite.chunk-split')) {
-				const mid = html.length >> 1;
+				let mid = html.length >> 1;
+				for (const n of res.any.needles ?? []) {
+					const at = html.indexOf(n);
+					const gt = at === -1 ? -1 : html.indexOf('>', at);
+					if (gt !== -1 && gt + 1 < html.length) {
+						mid = gt + 1;
+						break;
+					}
+				}
 				const a = html.slice(0, mid);
 				const first = (await rewrite_chunk(a, res, { ...page, body: false })) ?? {
 					html: a,
