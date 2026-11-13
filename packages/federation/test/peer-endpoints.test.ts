@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RequestEvent } from '@sveltejs/kit';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 import { decodeText } from '@ogygia/core/plugin/utils';
+import { tags } from '@ogygia/core/internal/server';
 import { federate } from '../src/federate.ts';
 import { set_federation } from '../src/registry.ts';
 import { install_federation, serve_federation } from '../src/serve.ts';
@@ -50,7 +51,10 @@ function shell() {
 
 /** The `endpoint` of each region in `html`, as the browser reads it. */
 const endpoints = (html: string) =>
-	[...html.matchAll(/<ogygia-region\b[^>]*\bendpoint="([^"]*)"/g)].map((m) => decodeText(m[1]));
+	[...tags(html, 'ogygia-region')].flatMap((t) => {
+		const v = t.attr('endpoint');
+		return v === undefined ? [] : [decodeText(v)];
+	});
 
 /** Ask the shell's handle for `url`, as the browser does. */
 const ask = (url: string) => {
@@ -146,6 +150,27 @@ describe("a region of the peer's own inside its fragment", () => {
 			'//evil.example/__ogygia__?id=b'
 		]);
 		expect(asked.some((u) => u.includes('evil'))).toBe(false);
+	});
+
+	it('a region tag is read as the browser reads it: any quoting, a `>` in a value (#1370)', async () => {
+		upstream(
+			`<ogygia-region render='defer' when='load' endpoint='/__ogygia__?id=a'></ogygia-region>` +
+				'<ogygia-region title="a>b" render="defer" when="load" endpoint="/__ogygia__?id=b"></ogygia-region>' +
+				'<ogygia-region render=defer when=load endpoint=/__ogygia__?id=c></ogygia-region>'
+		);
+		const { dash } = shell();
+		const html = ((await dash.widget('holder')) as { html: string }).html;
+		const found = endpoints(html);
+		expect(found).toHaveLength(3);
+		for (const endpoint of found) expect(endpoint.startsWith('/og/frag?')).toBe(true);
+	});
+
+	it('a region tag written in a script or a comment is no tag: left as it came', async () => {
+		const written = '<ogygia-region endpoint="/__ogygia__?id=z">';
+		upstream(`<script>s='${written}'</script><!-- ${written} -->`);
+		const { dash } = shell();
+		const html = ((await dash.widget('holder')) as { html: string }).html;
+		expect(html).toContain(`<script>s='${written}'</script><!-- ${written} -->`);
 	});
 
 	it('the shell forwards only to the peer: a hole naming another path is refused', async () => {
