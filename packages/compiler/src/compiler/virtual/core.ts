@@ -394,6 +394,7 @@ export const router_css: Family = virtual.family({
 			root: app.ctx.root,
 			lib_dir: app.ctx.libDir,
 			is_dev: app.ctx.is_dev,
+			preprocess: app.ctx.preprocess_css,
 			read_file: (p) => app.ctx.read_file(p),
 			resolve: leg.resolve,
 			exports: leg.exports

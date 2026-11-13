@@ -1706,8 +1706,6 @@ const compiler_boundary = {
 
 /** The walk itself: the one place that may read tags by hand. */
 const MARKUP_WALK = /(^|\/)packages\/core\/src\/markup-walk\.ts$/;
-/** Carved out until the compiler's own sweep (#1370) moves its readers onto the walk. */
-const MARKUP_CARVED_OUT = /(^|\/)packages\/compiler\/src\//;
 /** A regex pattern that reads a tag or an attribute: to a tag's end (`[^>]`), an attribute's
  *  quoted value (`="[^"]`), or a tag's name (`<[a-z`, `<\/?(\w`). */
 const READS_MARKUP = [
@@ -1730,7 +1728,7 @@ const one_markup_walk = {
 	},
 	create(context: Context) {
 		const file = (context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/');
-		if (!in_source(context) || MARKUP_WALK.test(file) || MARKUP_CARVED_OUT.test(file)) return {};
+		if (!in_source(context) || MARKUP_WALK.test(file)) return {};
 		const found: Node[] = [];
 		/** A string or template literal's text (a template's holes read as nothing). */
 		const text_of = (n: Node | undefined): string | undefined => {

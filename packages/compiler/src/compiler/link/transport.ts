@@ -1,4 +1,3 @@
-import { OWN_SPECIFIER_SOURCE } from '@ogygia/core/contract';
 import { dedent } from '@ogygia/core/contract';
 import { file_token } from './file-token.ts';
 
@@ -63,38 +62,6 @@ export function kit_transport_module(
 	return ssr
 		? `export { ogygiaServerTransport as transport } from ${JSON.stringify(`${dist_dir}/server/transport.js`)};`
 		: `export { ogygiaTransport as transport } from ${JSON.stringify(`${dist_dir}/transport.js`)};`;
-}
-
-// A held region / transportable value can only reach Kit's `transport` hook through a value the app
-// PRODUCES with a detectable API: `region()`/`<Region>` (a held region in a load/remote), or a content
-// import (`site()`, `remotes()` — content bodies are held regions). Wired classes / portable snippets
-// are already caught by the `wire` mark. A file with none of these can't put a transportable on Kit's
-// wire — so scanning import CLAUSES is complete, not just conservative. Over-inclusion is the safe
-// direction anyway (an unused codec is bytes; a missed one breaks decode). Regexes are module-level.
-// (`ogygia` in an app; `@ogygia/core` in a plugin package's own modules)
-const OGYGIA_WIRE_NAMED = new RegExp(
-	`import\\s+(?:type\\s+)?\\{([\\s\\S]*?)\\}\\s*from\\s*['"]${OWN_SPECIFIER_SOURCE}['"]`,
-	'g'
-);
-const WIRE_API = /\b(?:region|Region|site)\b/;
-const OGYGIA_CONTENT_IMPORT = /from\s*['"]@ogygia\/content(?:\/[a-z-]+)?['"]/;
-const OGYGIA_NS_IMPORT = new RegExp(
-	`import\\s*\\*\\s*as\\s+(\\w+)\\s*from\\s*['"]${OWN_SPECIFIER_SOURCE}['"]`
-);
-const NS_WIRE_USAGE = /\b(\w+)\.(?:region|Region|site)\b/g;
-
-/** True when `src` produces a held region / transportable value that can cross Kit's `transport`. */
-export function source_crosses_wire(src: string): boolean {
-	if (OGYGIA_CONTENT_IMPORT.test(src)) return true;
-	OGYGIA_WIRE_NAMED.lastIndex = 0;
-	let m: RegExpExecArray | null;
-	while ((m = OGYGIA_WIRE_NAMED.exec(src))) if (WIRE_API.test(m[1])) return true;
-	const ns = OGYGIA_NS_IMPORT.exec(src);
-	if (!ns) return false;
-	NS_WIRE_USAGE.lastIndex = 0;
-	let u: RegExpExecArray | null;
-	while ((u = NS_WIRE_USAGE.exec(src))) if (u[1] === ns[1]) return true;
-	return false;
 }
 
 /**
