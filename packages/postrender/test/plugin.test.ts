@@ -49,6 +49,7 @@ describe('postrender() — the vite value', () => {
 			measure: () => {},
 			files: () => {},
 			pageModules: () => {},
+			pageReads: () => {},
 			transform: () => {},
 			exports: { map: () => Promise.resolve(null) },
 			pinnedImports: () => () => false,
