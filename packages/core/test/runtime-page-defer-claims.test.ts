@@ -89,3 +89,43 @@ it('ogygia’s markers win over an app decoder of the same name', () => {
 it('a marker read twice is one promise', () => {
 	expect(create_deferred(6)).toBe(create_deferred(6));
 });
+
+/** A document still loading: its `load` fires when the test says. */
+function loading_document(): { load(): void } {
+	let on_load: (() => void) | undefined;
+	vi.stubGlobal('document', { readyState: 'loading' });
+	vi.stubGlobal('addEventListener', (type: string, fn: () => void) => {
+		if (type === 'load') on_load = fn;
+	});
+	return {
+		load() {
+			vi.stubGlobal('document', { readyState: 'complete' });
+			on_load?.();
+		}
+	};
+}
+
+it('a streamed promise whose resolve never came is rejected once the document has loaded', async () => {
+	const doc = loading_document();
+	try {
+		install_page_defer();
+		const cut = create_deferred(8);
+		const came = create_deferred(9);
+		resolve(9, true, 'here');
+		doc.load();
+		await expect(came).resolves.toBe('here');
+		await expect(cut).rejects.toThrow('page_promise_unresolved');
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});
+
+it('a streamed promise read after the document loaded, with no resolve, is rejected at once', async () => {
+	vi.stubGlobal('document', { readyState: 'complete' });
+	try {
+		install_page_defer();
+		await expect(create_deferred(10)).rejects.toThrow('page_promise_unresolved');
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});

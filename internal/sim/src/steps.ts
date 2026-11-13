@@ -5,8 +5,8 @@
  * - `reached`: the standard sweep (the ledger's `sweep`: palaestra seeds and generated apps' seeds,
  *   src/sweep.ts) reaches it;
  * - `dead`: no code takes it, filed for removal (`issue`);
- * - `covered`: the fake browser cannot reach it (`reason`), and a real test does: `test` (a file
- *   from the repo root) holds a test named `name`, which the check finds.
+ * - `covered`: the sweep cannot reach it, or only by luck (`reason`), and a real test does: `test`
+ *   (a file from the repo root) holds a test named `name`, which the check finds.
  *
  * A step in no bucket fails, so a new step nothing reaches or tests fails the build.
  *
@@ -75,6 +75,27 @@ export interface Accounting {
 	readonly newly_reached: string[];
 }
 
+/** Why a plan no longer reaches `step`: what its run took of that machine instead, and what its
+ *  actions named that their pages no longer had (else the app or its timing moved). */
+function plan_miss(
+	step: string,
+	plan: string,
+	got: ReadonlySet<string>,
+	missed: readonly string[]
+): string {
+	const machine = step.slice(0, step.lastIndexOf(': '));
+	const took = [...got].filter((s) => s.startsWith(`${machine}: `)).sort();
+	return [
+		`its plan no longer reaches it: ${step} (${plan})`,
+		took.length
+			? `Of ${machine} its run took ${took.join(', ')}`
+			: `Its run took no step of ${machine}`,
+		missed.length
+			? `What it named is gone: ${missed.join('; ')}`
+			: 'Every action found what it named: the app or its timing moved, so find a new run for it'
+	].join('. ');
+}
+
 /**
  * Accounts for `all` (every step) with `ledger`. `read` gives a file's text from the repo root
  * (null when it is not there). With `sweep` (the steps a sweep reached), the `reached` bucket is
@@ -88,6 +109,8 @@ export function account(
 		sweep?: ReadonlySet<string>;
 		/** What each of the sweep's plans reached, by its file. */
 		plans?: ReadonlyMap<string, ReadonlySet<string>>;
+		/** What each plan's actions named that their pages no longer had, by its file. */
+		missed?: ReadonlyMap<string, readonly string[]>;
 	}
 ): Accounting {
 	const failures: string[] = [];
@@ -121,7 +144,7 @@ export function account(
 		const got = o.plans?.get(p.plan);
 		if (got !== undefined)
 			for (const s of p.reaches)
-				if (!got.has(s)) failures.push(`its plan no longer reaches it: ${s} (${p.plan})`);
+				if (!got.has(s)) failures.push(plan_miss(s, p.plan, got, o.missed?.get(p.plan) ?? []));
 	}
 	const newly_reached: string[] = [];
 	let accounted: number;

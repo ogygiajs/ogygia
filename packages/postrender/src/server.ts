@@ -171,6 +171,29 @@ function runtime_of(ctx: Ctx): Runtime {
  *  requests (RFC 9110), which is what makes a CDN or browser revalidation of a stored page cost
  *  zero body bytes. Validators live on the ENTRY, never in edge adapters: they are the render's
  *  identity, not a CDN dialect. */
+/** One entity tag of an If-None-Match list (`[W/]"opaque"`), and the comma or end after it. */
+const ENTITY_TAG_RE = /\s*(?:W\/)?"([^"]*)"\s*(?:,|$)/y;
+
+/**
+ * Does an If-None-Match value match the stored `etag`? RFC 9110 §13.1.2: `*` matches any stored
+ * page, and each listed tag is compared WEAKLY (`W/"x"` matches `"x"`: a compressing CDN weakens the
+ * etag the browser then revalidates with). A list that does not read as entity tags matches nothing
+ * (test/property-conditional.test.ts).
+ */
+function none_match(inm: string, etag: string): boolean {
+	if (inm.trim() === '*') return true;
+	const want = etag.startsWith('W/') ? etag.slice(2) : etag;
+	ENTITY_TAG_RE.lastIndex = 0;
+	for (;;) {
+		while (inm[ENTITY_TAG_RE.lastIndex] === ',' || inm[ENTITY_TAG_RE.lastIndex] === ' ')
+			ENTITY_TAG_RE.lastIndex++;
+		if (ENTITY_TAG_RE.lastIndex >= inm.length) return false;
+		const m = ENTITY_TAG_RE.exec(inm);
+		if (!m) return false;
+		if (`"${m[1]}"` === want) return true;
+	}
+}
+
 export function postrender_response(
 	entry: PostrenderEntry,
 	via: 'hit' | 'join' | 'stored',
@@ -187,7 +210,7 @@ export function postrender_response(
 		const inm = request.headers.get('if-none-match');
 		const ims = request.headers.get('if-modified-since');
 		const last_modified = entry.headers['last-modified'];
-		const etag_match = !!etag && !!inm && inm.split(',').some((t) => t.trim() === etag);
+		const etag_match = !!etag && !!inm && none_match(inm, etag);
 		// If-None-Match wins when present (RFC 9110 §13.1.3); IMS compares against store time.
 		const ims_match =
 			!inm && !!ims && !!last_modified && Date.parse(ims) >= Date.parse(last_modified);
@@ -287,9 +310,17 @@ function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): vo
 
 /** What a capture did: stored an entry (with the Response to send), or refused to. A refusal made
  *  after the body was read carries a Response rebuilt from it: the original's body is spent. */
+/** A capture's outcome. Once the body is read, `response` is the page rebuilt from it (the original's
+ *  body is spent), whatever happened next: stored, refused, or `failed` (the error). */
 type Captured =
 	| { stored: true; entry: PostrenderEntry; response: Response }
-	| { stored: false; response: Response | null };
+	| { stored: false; response: Response | null; failed?: unknown };
+
+/** A failed capture, said once per page (the store's own failures are said by the registry). */
+const capture_said = say({ max: 256 });
+function capture_failed(path: string, error: unknown): void {
+	capture_said.once(path, () => warn('postrender_capture_failed', { path }, error));
+}
 
 /** A refusal made before the body was read: the original Response is still whole. */
 const REFUSED: Captured = { stored: false, response: null };
@@ -345,6 +376,25 @@ async function capture(
 			statusText: response.statusText,
 			headers: response.headers
 		});
+	try {
+		return await capture_page(html, answered, content_type, put, ctx, runtime, ttl);
+	} catch (failed) {
+		// (the body is read: the page goes out rebuilt from it, not stored)
+		return { stored: false, response: answered(), failed };
+	}
+}
+
+/** The read page's verdict and store (`capture`, past the body read). */
+async function capture_page(
+	html: string,
+	answered: () => Response,
+	content_type: string,
+	put: (entry: PostrenderEntry) => Promise<boolean>,
+	ctx: Ctx,
+	runtime: Runtime,
+	ttl: number
+): Promise<Captured> {
+	const { path } = ctx;
 	// Belt and braces for streamed pages WITHOUT regions (no page snapshot to probe): Kit's boot
 	// only declares its deferred-map when the page carries pending promises — buffering such a
 	// response bakes ONE settle's inline resolve scripts into the copy. Never store it.
@@ -532,6 +582,12 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			try {
 				const captured = await capture(response, ctx, runtime, obs, ctx.options.ttl, flight);
 				settle(captured.stored ? captured.entry : null);
+				if (!captured.stored && captured.failed !== undefined) {
+					capture_failed(path, captured.failed);
+					// (not stored, as a refusal is not: per-request)
+					stamp_no_store(captured.response ?? response);
+					return captured.response ?? undefined;
+				}
 				ctx.app.devtools(
 					captured.stored
 						? {
@@ -550,9 +606,15 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 							}
 				);
 				if (captured.stored) {
-					return captured.entry.kind === 'page' && captured.entry.stitch
-						? await serve_stitched(captured.entry, 'stored', ctx)
-						: captured.response;
+					if (captured.entry.kind !== 'page' || !captured.entry.stitch) return captured.response;
+					try {
+						return await serve_stitched(captured.entry, 'stored', ctx);
+					} catch (failed) {
+						// (the original's body is spent: the page as read goes out, unstitched, per-request)
+						capture_failed(path, failed);
+						stamp_no_store(captured.response);
+						return captured.response;
+					}
 				}
 				// Refused → per-request forever (until inputs change). Stamp `no-store` when the app set
 				// nothing: the verdict's word replaces blanket CDN rules in BOTH directions (a personal
@@ -560,8 +622,11 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 				// read sends the page rebuilt from it (the original's body is spent).
 				stamp_no_store(captured.response ?? response);
 				if (captured.response) return captured.response;
-			} catch {
+			} catch (failed) {
+				// (a capture that threw before the body was read: the response goes out as it is; every
+				// step after the read hands back the page it read)
 				settle(null);
+				capture_failed(path, failed);
 			}
 		} else if (state.credentials) {
 			// (rendered for this visitor: no shared cache keeps it either)

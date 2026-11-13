@@ -1,0 +1,8 @@
+{
+	"seed": 412,
+	"steps": 1,
+	"plan": {
+		"actions": [{ "kind": "open", "path": "/p2" }],
+		"idle": true
+	}
+}

@@ -23,6 +23,6 @@ test('a live snippet’s lake is left in place by its host’s lift and settled 
 	expect(document.querySelector('[entry="own"] [data-own]')).not.toBeNull();
 	expect(document.querySelector('[entry="frozen"] [data-frozen]')).not.toBeNull();
 	expect(live_lake.innerHTML).toBe(live_html);
-	expect(runtime_session.settled_lakes.has(live_lake)).toBe(true);
+	expect(runtime_session.lake_settled(live_lake)).toBe(true);
 	expect(runtime_session.initialized_lakes.has('live')).toBe(true);
 });

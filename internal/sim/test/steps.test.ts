@@ -119,8 +119,23 @@ describe('steps accounted', () => {
 			sweep,
 			plans: new Map([['internal/sim/sweep-plans/b-c.json', new Set(['m: a -> b'])]])
 		});
+		// (it says which plan, which step, what its run took of that machine instead, and why)
 		expect(lost.failures).toEqual([
-			'its plan no longer reaches it: m: b -> c (internal/sim/sweep-plans/b-c.json)'
+			'its plan no longer reaches it: m: b -> c (internal/sim/sweep-plans/b-c.json). Of m its run took m: a -> b. Every action found what it named: the app or its timing moved, so find a new run for it'
+		]);
+		const gone = account(ALL, planned, {
+			read: with_plan,
+			sweep,
+			plans: new Map([['internal/sim/sweep-plans/b-c.json', new Set<string>()]]),
+			missed: new Map([
+				[
+					'internal/sim/sweep-plans/b-c.json',
+					['action 2 (tab 0: click link #4): link /b is not on the page (picked link /a)']
+				]
+			])
+		});
+		expect(gone.failures).toEqual([
+			'its plan no longer reaches it: m: b -> c (internal/sim/sweep-plans/b-c.json). Its run took no step of m. What it named is gone: action 2 (tab 0: click link #4): link /b is not on the page (picked link /a)'
 		]);
 	});
 });
