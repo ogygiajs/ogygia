@@ -1,0 +1,8 @@
+---
+title: '@ogygia/rewrite'
+summary: Render custom elements, or rewrite the whole page, on the HTML ogygia sends; ogygia puts back what the render moved before anything hydrates.
+---
+
+This page is generated from the package's own `.d.ts` files on every build, so the signatures, descriptions and examples below always match the source.
+
+> MODULE: @ogygia/rewrite

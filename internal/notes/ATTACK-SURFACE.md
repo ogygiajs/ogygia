@@ -40,7 +40,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/runtime/router-nav.ts` | `(module)` | `headers.get('content-disposition')` | 1 |
 | `packages/core/src/runtime/router-nav.ts` | `(module)` | `headers.get('content-type')` | 1 |
 | `packages/core/src/server/capped-body.ts` | `(module)` | `headers.get('content-length')` | 1 |
-| `packages/core/src/server/early-holes-csp.ts` | `add_early_holes_csp` | `headers.get(name)` | 1 |
+| `packages/core/src/server/early-holes-csp.ts` | `(module)` | `headers.get(name)` | 1 |
 | `packages/core/src/server/page-facts.ts` | `(module)` | `headers.get(PAGE_FACTS_ROUTE_HEADER)` | 1 |
 | `packages/core/src/server/region-endpoint.ts` | `region_session` | `cookies.get(session_cookie)` | 1 |
 | `packages/core/src/server/region-endpoint.ts` | `reuse_known_region` | `headers.get('x-ogygia-known')` | 1 |
@@ -229,7 +229,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/postrender/src/adapters/cloudflare-kv.ts` | `get` | `JSON.parse` | 1 |
 | `packages/postrender/src/adapters/upstash.ts` | `get` | `JSON.parse` | 1 |
 | `packages/postrender/src/adapters/valkey.ts` | `get` | `JSON.parse` | 1 |
-| `packages/reshape/src/restore.ts` | `restore` | `JSON.parse` | 3 |
+| `packages/rewrite/src/restore.ts` | `restore` | `JSON.parse` | 3 |
 | `packages/router/src/match.ts` | `safe_decode` | `decodeURIComponent` | 1 |
 | `packages/testing/src/index.ts` | `hydration` | `JSON.parse` | 3 |
 | `packages/tooling/src/e2e/index.ts` | `island_graph` | `JSON.parse` | 1 |
@@ -243,7 +243,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## HTML sinks: markup written into a page as markup
 
-22 entries.
+24 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -267,7 +267,9 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/runtime/html-sink.ts` | `set_inner_html` | `innerHTML =` | 1 |
 | `packages/devtools/src/profiler/ui/ReportBody.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/insights/src/session-insights.ts` | `(module)` | `{@html}` | 1 |
-| `packages/reshape/src/restore.ts` | `restore` | `innerHTML =` | 1 |
+| `packages/rewrite/src/check.ts` | `(module)` | `DOMParser` | 1 |
+| `packages/rewrite/src/check.ts` | `(module)` | `innerHTML =` | 1 |
+| `packages/rewrite/src/restore.ts` | `restore` | `innerHTML =` | 1 |
 | `packages/router/src/RawHtml.svelte` | `(module)` | `{@html}` | 1 |
 
 ## Secrets and keys: environment secrets, MACs, key derivation, signatures

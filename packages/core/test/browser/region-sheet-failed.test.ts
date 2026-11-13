@@ -27,7 +27,7 @@ const sheets = () => document.head.querySelectorAll<HTMLLinkElement>(`link[href=
 let probe: HTMLElement;
 beforeEach(() => {
 	vi.stubEnv('DEV', false);
-	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
 	link_boot();
 	for (const l of sheets()) l.remove();
 	probe = document.createElement('p');

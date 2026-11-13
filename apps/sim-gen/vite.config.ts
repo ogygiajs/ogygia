@@ -5,7 +5,7 @@ import { router } from '@ogygia/router/vite';
 import { flags } from '@ogygia/flags/vite';
 import { postrender } from '@ogygia/postrender/vite';
 import { dataShake } from '@ogygia/data-shake/vite';
-import { reshape } from '@ogygia/reshape/vite';
+import { rewrite } from '@ogygia/rewrite/vite';
 import { defineConfig } from 'vite';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -51,7 +51,7 @@ export default defineConfig({
 		postrender({ default: false }),
 		dataShake(),
 		// (a seed's reshape pass: src/lib/gen/reshape.server.ts)
-		...(plan.reshape ? [reshape()] : []),
+		...(plan.reshape ? [rewrite()] : []),
 		sveltekit()
 	]
 });

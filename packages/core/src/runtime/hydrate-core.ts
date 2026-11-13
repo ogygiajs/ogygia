@@ -443,7 +443,6 @@ class PropMutationGuard {
 		if (value instanceof Map)
 			return this.#guard_map(value as Map<unknown, unknown>, entry, prop_path);
 		if (value instanceof Set) return this.#guard_set(value as Set<unknown>, entry, prop_path);
-		if (value instanceof Date || value instanceof RegExp || value instanceof URL) return value;
 		const proto = Object.getPrototypeOf(value);
 		if (!Array.isArray(value) && proto !== Object.prototype && proto !== null) return value;
 		return new Proxy(value as Record<string | symbol, unknown>, {

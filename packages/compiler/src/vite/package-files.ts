@@ -14,7 +14,7 @@ function read_manifest(dir: string): Record<string, unknown> | null {
 	try {
 		return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
 	} catch {
-		return null; // ok: a dependency not installed under this root declares nothing (the package manager refuses a broken manifest)
+		return null; // ok: no manifest, or one that does not parse, declares nothing
 	}
 }
 
@@ -28,8 +28,13 @@ export function discover_package_files(app_root: string): PackageScan[] {
 	const found: PackageScan[] = [];
 	for (const name of deps) {
 		if (OWN_PACKAGE_NAMES.includes(name)) continue;
-		const pkg_dir = path.join(app_root, 'node_modules', ...name.split('/'));
-		const manifest = read_manifest(pkg_dir);
+		let root: string;
+		try {
+			root = fs.realpathSync(path.join(app_root, 'node_modules', ...name.split('/')));
+		} catch {
+			continue; // ok: a dependency not installed under this root declares nothing
+		}
+		const manifest = read_manifest(root);
 		const declared = (manifest?.ogygia as { files?: unknown } | undefined)?.files;
 		if (declared == null) continue;
 		if (!Array.isArray(declared) || !declared.every((p) => typeof p === 'string')) {
@@ -37,12 +42,6 @@ export function discover_package_files(app_root: string): PackageScan[] {
 				package: name,
 				got: JSON.stringify(declared)
 			});
-		}
-		let root: string;
-		try {
-			root = fs.realpathSync(pkg_dir);
-		} catch {
-			continue; // ok: its manifest was just read, so only a removal mid-scan lands here
 		}
 		const dirs: string[] = [];
 		const files = new Set<string>();

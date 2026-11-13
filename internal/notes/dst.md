@@ -333,7 +333,7 @@ check sees a `<style>` held twice when it does not). Mutation: hydrate-core's he
 place, or the page copy kept, died on gen 262. The order those styles stand in after a return is
 #1107 (`KNOWN`).
 
-A RESHAPE PASS (`gen reshape`, 35% of apps; `@ogygia/reshape`): the app's own pass over the HTML
+A RESHAPE PASS (`gen reshape`, 35% of apps; `@ogygia/rewrite`): the app's own pass over the HTML
 ogygia sends, as a handle in front of ogygia's (`src/lib/gen/reshape.server.ts`, written by
 `app_reshape`), on every document and region answer. Half of the regions (`gen reshape boxes`) hold
 their label in an `<x-gen-box>`, a web component whose server render (the pass, reduced to its
@@ -347,7 +347,7 @@ The pass also fails as an app's does, through buggify points in the app's code: 
 (#1569), so the oracles that judge every page (no 500, no hydration mismatch, the MPA check against
 a fresh load the pass may not have failed on) are what say a failing pass leaves the page whole.
 Gens 24 (trims, links,
-no router), 10 (links, router) and 196 run it. Mutation of `packages/reshape/src/restore.ts` runs
+no router), 10 (links, router) and 196 run it. Mutation of `packages/rewrite/src/restore.ts` runs
 on gens 24 and 10.
 
 ## Tabs behind, and engines without idle callbacks
@@ -438,8 +438,8 @@ EVERY FAILURE SITE ACCOUNTED FOR (`src/failures.ts`, test/failures.test.ts), the
 what can fail. The inventory parses (oxc) every package's `src` (the ledger's `scope`) and finds
 each failure site: a `catch`, a `.catch(` or a two-handler `.then`, a `fetch`, a `!res.ok`, a STALE
 check, an `import()`, a storage call, a `JSON.parse`, a timer, a `new …Observer`, a retry `policy(`,
-an abort, an error event, a stream call, a message, a `throw`, a machine `.move(` (refused when the
-state moved on), an `{ ok: false }` result, a crypto call, a body that may be null (the file's header
+an abort, an error event, a stream call, a message, a `throw`, a machine `.move('from', 'to')`
+(refused when the state moved on; a text edit's or a dependency mark's `.move` is none), an `{ ok: false }` result, a crypto call, a body that may be null (the file's header
 lists what each matches). The scope's `build_time` packages (cli, bake, barrels, config, tooling,
 tsdown-plugin-svelte) no simulator runs: their sites are `covered`, never `fired`. The compiler's
 are fired by the compiler's own simulator (`sim: "compiler"`). Each has a stable id, `file > enclosing function > kind:n` (n counts that kind in that
@@ -458,6 +458,19 @@ a buggify point that reaches it (behind the file's RULES constant), run the swee
 then break the recovery and see a seed fail, twice on the same build (the re-run rule above); the
 mutant goes in mutants.json and its id in `killed_by`. A site that fires but whose broken recovery
 nobody notices wants an oracle or a test first.
+
+THE LEDGER AUTOPILOT (`src/autopilot.ts`, test/autopilot.test.ts) moves baseline sites a real test
+already checks to `covered` in bulk. It puts a probe on each baseline site's recovery path (a catch
+body, a `.catch` or rejection handler, a `!res.ok`, STALE or null-body check when it holds, a throw,
+an `{ ok: false }`), runs a package's tests once per project to learn which tests reach it, takes
+the probes out, then breaks each reached recovery (a catch emptied or made to rethrow, a handler made
+to rethrow, a check never true, a throw removed, a failed result made ok) and reruns only the tests
+that reached it, under a time limit. A reaching test that fails twice on the same mutant (the re-run
+rule) is the site's `covered` test. A site whose mutants all leave its tests green SURVIVED (a test
+runs the path and checks nothing: a buggify or test gap), and one no test reaches is left for a
+buggify point. The source is put back after every pass and checked byte for byte; Ctrl-C puts it
+back too. `node src/autopilot.ts --package core --project node --project browser [--apply]`; its
+map, results (resumable), patch and report go to `--out` (default `.scratch/autopilot/<pkg>`).
 
 MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
 `internal/sim/mutants.json` on main's code, over gens 1 (a Kit mount of a peer with its refused and
