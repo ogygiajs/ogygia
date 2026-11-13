@@ -1040,7 +1040,9 @@ export const handle: Handle = ({ event, resolve }) => mounted.handle({ event, re
  *  (`og-shadow`). Innermost hosts first, matched by depth: a box may hold a box. The pass fails as
  *  an app's does, at the seed's choice (buggify points in the app's code, so the run's coverage
  *  counts them): it throws (`gen.reshape-throws`), takes 3 s (`gen.reshape-slow`), strips ogygia's
- *  marks (`gen.reshape-strips-marks`) or answers the first 60% of its HTML (`gen.reshape-truncates`). */
+ *  marks (`gen.reshape-strips-marks`). ogygia sends a failed answer as it rendered it (#1569), so
+ *  every oracle sees the page whole. (A transform that answers broken HTML of its own is the app's:
+ *  no point draws it.) */
 export function app_reshape(pass: GenReshape | null): string {
 	if (pass === null)
 		return `import type { Handle } from '@sveltejs/kit';
@@ -1106,7 +1108,6 @@ export const transform: reshape.ReshapeTransform = async (html) => {
 \t);
 \tout = render(out, 'x-gen-link', (inner) => \`<a class="gen-link" tabindex="-1"><slot>\${trim(inner)}</slot></a>\`);
 \tif (buggify.fires('gen.reshape-strips-marks')) out = out.replace(/ og-[a-z]+="[^"]*"/g, '');
-\tif (buggify.fires('gen.reshape-truncates')) out = out.slice(0, Math.floor(out.length * 0.6));
 \treturn out;
 };
 

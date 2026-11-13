@@ -335,8 +335,7 @@ in it; with the pass's `trim` it also trims and drops whitespace-only text, as a
 with `link`, an `<x-gen-link>` sits in a page's `<a>` and renders an `<a>` (the stand-in case; the
 outer `<a>` is `data-gen-messy`, the render's own markup). ogygia marks before the pass and restores
 in the browser before anything hydrates, so every oracle sees Svelte's markup where Svelte owns it.
-The pass also fails as an app's does, through buggify points in the app's code: it throws, takes
-3 s, strips ogygia's marks, or answers 60% of its HTML (`gen.reshape-*`). Gens 24 (trims, links,
+Gens 24 (trims, links,
 no router), 10 (links, router) and 196 run it. Mutation of `packages/reshape/src/restore.ts` runs
 on gens 24 and 10.
 
@@ -432,7 +431,8 @@ tsdown-plugin-svelte) no simulator runs: their sites are `covered`, never `fired
 are fired by the compiler's own simulator (`sim: "compiler"`). Each has a stable id, `file > enclosing function > kind:n` (n counts that kind in that
 function), so lines moving above it do not move it; `node src/failures.ts --list` prints them with
 their lines. The ledger `internal/sim/failures.json` puts each in exactly one bucket: `fired` (a
-buggify point, or a sim fault, reaches it; the sweep fails when the point did not fire; `killed_by`
+buggify point, a sim fault, or an app shape (`shape`: a gen stream, as `gen messy` draws a hole whose
+render throws) reaches it; the sweep fails when the point did not fire; `killed_by`
 names the mutant of mutants.json that breaks its recovery and the simulator kills, the proof that a
 broken recovery is noticed), `covered` (a named real test, which the check finds) or `impossible` (a
 rule or type, by its file and name, which the check finds). Sites nobody has bucketed yet are the
@@ -446,8 +446,15 @@ mutant goes in mutants.json and its id in `killed_by`. A site that fires but who
 nobody notices wants an oracle or a test first.
 
 MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
-`internal/sim/mutants.json` on main's code, over gens 188 (an empty island that wakes: it kills the
-repair's `> 0` mutant), 191, 192, 193, 220 (a text-only third party on a page root: it kills
+`internal/sim/mutants.json` on main's code, over gens 10 (the router with a reshape pass: the network
+faults alone kill a navigation that never hands a lost page fetch to the browser, and a hole that
+never fetches again after its retry wait, both by `stuck`), 24 (a reshape pass that trims, with links: it
+kills restore.ts's children not put back and its render left in the light DOM, by `ssr-hydrate`,
+and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest), 121 (a peer at
+two origins: its first replica down (`down`) and no answer asked of the next dies by
+`mpa-equivalence`), 188 (an empty island that wakes: it kills the
+repair's `> 0` mutant), 191 (a hole whose render throws: an error answer swapped in for its
+fallback dies by `html-kept`), 192, 193, 220 (a text-only third party on a page root: it kills
 `align_to`'s last `return true` -> false) and 262 (islands with a `<svelte:head>`, one a third party
 edits: it kills the head mutants), with `--budget-min 60` (no mutant starts after an hour; the last line says
 how many it judged of the list, and when) and uploads it (`dst-mutation`). Each listed mutant names
