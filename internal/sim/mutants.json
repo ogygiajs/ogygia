@@ -316,5 +316,33 @@
 		"from": "> ",
 		"to": ">= ",
 		"equivalent": "stands_at reads only the ticket `v` of what it stands over: at equal tickets the held frame and the painted one give the same order"
+	},
+	{
+		"id": "paint-gate-before-dom-content-loaded",
+		"file": "packages/core/src/runtime/schedule.ts",
+		"in": "dom_content_loaded",
+		"code": "return !!nav && nav.domContentLoadedEventEnd > 0;",
+		"operator": "relational",
+		"from": "> ",
+		"to": ">= "
+	},
+	{
+		"id": "turn-snapshot-kept",
+		"file": "packages/core/src/runtime/schedule.ts",
+		"in": "drain",
+		"code": "stop_snapshot(turn.el);",
+		"operator": "statement",
+		"from": "stop_snapshot(turn.el);",
+		"to": ""
+	},
+	{
+		"id": "head-open-confirmed-twice",
+		"file": "packages/core/src/runtime/hydrate-core.ts",
+		"in": "neutralize_head_hydration_markers",
+		"code": "pending_open = null;",
+		"operator": "statement",
+		"from": "pending_open = null;",
+		"to": "",
+		"equivalent": "a confirmed head-block open left pending only goes into the removal list again at the next top-level empty comment, or is replaced by the next open: removing a comment already removed does nothing"
 	}
 ]
