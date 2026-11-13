@@ -8,6 +8,7 @@ import path from 'node:path';
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
 import { partial_ctx_init } from './_compile-ctx.ts';
+import type { PluginMacro } from '../src/compiler/macros/pipeline.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const HOST = `${dedent`
@@ -27,7 +28,7 @@ const HOST = `${dedent`
 
 let root = '';
 
-function make_compiler() {
+function make_compiler(macros: PluginMacro[] = []) {
 	const program = new Program({ forms: true, router: true });
 	const profiler = {
 		prof: {
@@ -35,8 +36,8 @@ function make_compiler() {
 			transformN: 0,
 			transformHit: 0,
 			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
+			macroMs: 0,
+			macroN: 0,
 			resolveMs: 0,
 			loadMs: 0
 		},
@@ -58,7 +59,8 @@ function make_compiler() {
 				import_keys: normalize_import_keys(undefined),
 				resolve_alias: [],
 				pkg_root: '/nowhere/ogygia',
-				app_shims: {}
+				app_shims: {},
+				macros
 			})
 		)
 	);
@@ -109,4 +111,24 @@ describe('a host a macro, an island and the stamps rewrite', () => {
 			}
 		});
 	}
+});
+
+test('a text-only plugin macro leaves a map that maps nothing, never a wrong place', async () => {
+	const id = path.join(root, 'src/routes/+page.svelte');
+	const grow: PluginMacro = {
+		name: 'grow',
+		handler: (code) => code.replace('import.meta.og.grow()', `'${'x'.repeat(40)}'`)
+	};
+	const src = `${dedent`
+		<script>
+			const a = import.meta.og.grow(); const marker = 'find-me';
+		</script>
+	`}\n`;
+	const res = await make_compiler([grow]).transform_module(src, id, {
+		ssr: true,
+		emitFile: () => 'ref'
+	});
+	expect(res!.code).toContain('x'.repeat(40));
+	const map = new TraceMap(res!.map as never);
+	expect(originalPositionFor(map, position_of(res!.code, `'find-me'`)).line).toBeNull();
 });
