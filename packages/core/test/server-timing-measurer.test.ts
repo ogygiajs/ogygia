@@ -64,4 +64,24 @@ describe('server-timing on a region answer', () => {
 			leave();
 		}
 	});
+
+	it('a plugin that fails to say is no vouching: the answer goes out, untimed', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const leave = register_hooks({
+			measures: () => {
+				throw new Error('a login store that is down');
+			}
+		});
+		try {
+			const res = await handle()({
+				event: event(mint_server_region(ID, { n: 3 })),
+				resolve
+			} as never);
+			expect(res.status).toBe(200);
+			expect(res.headers.get('server-timing')).toBeNull();
+		} finally {
+			leave();
+			warn.mockRestore();
+		}
+	});
 });

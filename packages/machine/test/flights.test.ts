@@ -299,6 +299,12 @@ describe('keyed', () => {
 		expect(() => make({ key: ['a'], ignore: { a: 'twice' } as never, run })).toThrow(MachineError);
 		expect(() => make({ key: ['a'], ignore: { b: ' ' }, run })).toThrow(MachineError);
 		expect(() => make({ run } as never)).toThrow(MachineError);
+		expect(() => flights({ ignore: { a: 'a reason with no key' }, run } as never)).toThrow(
+			MachineError
+		);
+		expect(() => flights({ max: 0, run })).toThrow(MachineError);
+		expect(() => flights({ max: Infinity, run })).toThrow(MachineError);
+		expect(() => flights({ world: {} as never, run })).toThrow(MachineError);
 		expect(make({ key: [], ignore: { a: 'one look-up per owner', b: 'same' }, run })).toBeDefined();
 	});
 
@@ -709,6 +715,24 @@ describe('priority', () => {
 		d.resolve('page');
 		expect(await low).toBe('page');
 		expect(await high).toBe('page');
+	});
+
+	it('a raise listener that is not a function is refused with a code, when it is added', () => {
+		let refused: unknown = null;
+		const pages = flights({
+			name: NAME,
+			run: (_href: string, _signal, f) => {
+				try {
+					f.onRaise('not a function' as never);
+				} catch (error) {
+					refused = error;
+				}
+				return new Promise<string>(() => {});
+			}
+		});
+		void pages.get('/a');
+		expect(refused).toBeInstanceOf(MachineError);
+		pages.drop(() => true);
 	});
 
 	it('a join with a lower or equal priority never lowers it, and is not heard', () => {
