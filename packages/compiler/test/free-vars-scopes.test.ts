@@ -57,7 +57,12 @@ describe('collectCaptureInfo: a scope binds its names before any is read', () =>
 		['{(() => { { var q = 1; } return q; })()}', []],
 		['{(() => { switch (a) { case 1: let s = 1; s; } })()}', ['a']],
 		['{(() => { switch (a) { case 1: let s = 1; } return s; })()}', ['a', 's']],
-		['{(() => { class K {} return K; })()}', []]
+		['{(() => { class K {} return K; })()}', []],
+		['{(() => { class K { static { const q = 1; } } return q; })()}', ['q']],
+		['{(() => { class K { static { var q = 1; } } return q; })()}', ['q']],
+		['{(() => { class K { static { class Q {} } } return Q; })()}', ['Q']],
+		['{(class K { m() { return K; } })}', []],
+		['{(() => { const C = class K {}; return K; })()}', ['K']]
 	])('%s → %j', (markup, want) => {
 		expect(free(markup)).toEqual(want);
 	});
