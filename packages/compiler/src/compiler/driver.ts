@@ -26,6 +26,7 @@ import {
 	routeCsrIsTrue,
 	hasAnyCsrTrueRoute,
 	clean_stale_ogygia_dirs,
+	clear_route_csr_cache,
 	is_route_component,
 	kit_dirs
 } from './kit.ts';
@@ -54,7 +55,8 @@ import { context_string_keys, source_uses_ogygia_context } from './link/context-
 import { collect_flag_sites, FLAGS_SPEC } from './flags.ts';
 import { router_css_roots } from './link/router-css.ts';
 import { source_crosses_wire } from './link/transport.ts';
-import { server_island_ids, PAGE_DATA_READS_TOKEN } from './link/server-manifest.ts';
+import { server_island_ids } from './link/server-manifest.ts';
+import { relocate, type RelocateCx } from './link/relocations.ts';
 import { same_module_path, island_vpaths_affected_by_file } from './dev/hmr.ts';
 import { VirtualTable } from './virtual/resolver.ts';
 import { CORE_VALUE_NAMES } from './virtual/value-names.ts';
@@ -82,6 +84,7 @@ import { strip_bom } from './bom.ts';
 import { RESOLVED, V_RUNTIME_ENTRY, region_family } from './ids.ts';
 import { is_generated_specifier } from './virtual/table.ts';
 import { OgygiaError, warn } from './messages.ts';
+import { new_leg, type BuildLeg } from './leg.ts';
 import type { Program, RegisterResult } from './program.ts';
 import type { CompileCtx } from './ctx.ts';
 
@@ -94,6 +97,52 @@ const RUNTIME_ENTRY_NAME = 'og-runtime';
 /** The bundler's `emitFile` for an entry chunk, by `name` (the output pattern content-hashes it).
  *  Returns the reference id. */
 export type EmitChunk = (chunk: { type: 'chunk'; id: string; name: string }) => string;
+
+/** The app's scan, finished (`Compiler.prescan`): what the build knows before the bundler walks. */
+export interface Scan {
+	/** The resolved runtime feature set, folded into the runtime chunk's name: it busts the immutable
+	 *  URL when the app's features change. Both legs scan the same source, so both name it alike. */
+	readonly feature_hash: string;
+}
+
+/** What one build learned, from its scan to what it emitted: made new when a build begins
+ *  (`Compiler.start_leg`) and never carried into the next one (test/second-build.test.ts). Dev is one
+ *  build for the whole session. */
+interface Build {
+	/** The legs (bundler environments) that started in this build, by environment name. */
+	readonly legs: Map<string, BuildLeg>;
+	/** A leg began this build (`start_leg`): its once-per-build work ran. */
+	begun: boolean;
+	readonly program: Program;
+	readonly transform_cache: Map<string, { code: string; result: unknown }>;
+	/** Every `import.meta.og.$` hoist (tag → factory source). */
+	readonly dollar_hoists: Map<string, string>;
+	/** The finished scan, once `prescan` ran. */
+	scan: Scan | null;
+	/** The server-router component roots, once the scan is complete (build only). */
+	router_css_roots: string[] | null;
+	/** The registry-reach walk's answers: one resolution, read and verdict per module. */
+	readonly resolve_memo: Map<string, string | null>;
+	readonly reach_memo: Map<string, boolean>;
+	readonly specs_memo: Map<string, readonly string[]>;
+	/** Files the island-closure walk has already read (`mark_island_closure`): a closure marked at
+	 *  prescan is never re-walked when a later island shares it. The build's, like the island graph
+	 *  it fills (test/watch-island-closure.test.ts). */
+	readonly island_closure_seen: Set<string>;
+}
+const new_build = (program: Program): Build => ({
+	legs: new Map(),
+	begun: false,
+	program,
+	transform_cache: new Map(),
+	dollar_hoists: new Map(),
+	scan: null,
+	router_css_roots: null,
+	resolve_memo: new Map(),
+	reach_memo: new Map(),
+	specs_memo: new Map(),
+	island_closure_seen: new Set()
+});
 
 /** Shared OGYGIA_PROFILE instrument — the adapter owns the maps/counters; the driver writes into
  *  them so the transform-phase metrics (and the determinism digest source) live with the transform. */
@@ -210,14 +259,79 @@ function warn_undeclared_pkg_marks(id: string): void {
 }
 
 export class Compiler implements CoreApp {
-	readonly program: Program;
-	readonly transform_cache: Map<string, { code: string; result: unknown }> = new Map();
 	readonly profiler: Profiler;
+	/** The build under way (see `Build`). */
+	#build: Build;
+	/** The build's program: registry, graph and the scan's facts. */
+	get program(): Program {
+		return this.#build.program;
+	}
+	get transform_cache(): Map<string, { code: string; result: unknown }> {
+		return this.#build.transform_cache;
+	}
 	/** Every `import.meta.og.$` hoist collected across the build (tag → factory source). Filled by
 	 *  `macros()`; drained by the adapter's fn-manifest emit (dev load leg, renderChunk, writeBundle). */
-	readonly dollar_hoists: Map<string, string> = new Map();
-	/** `prescan()` is once-per-session — guarded so the adapter can call it from any hook. */
-	#scanned = false;
+	get dollar_hoists(): Map<string, string> {
+		return this.#build.dollar_hoists;
+	}
+
+	/**
+	 * Open leg `name` (the bundler environment a build hook runs in; `server` when its output runs in
+	 * Node). A leg that already ran in this build begins the next one (watch, a second `build()` in
+	 * one process): everything the last build learned is dropped. Dev is one build for the session.
+	 * True when this leg begins a build, so the caller runs its once-per-build work; Kit's route
+	 * answers are read afresh from there.
+	 */
+	start_leg(name: string, server: boolean): boolean {
+		if (this.#build.legs.has(name) && this.#ctx.is_build)
+			this.#build = new_build(this.#build.program.fresh());
+		const build = this.#build;
+		if (!build.legs.has(name)) build.legs.set(name, new_leg(name, server));
+		if (build.begun) return false;
+		build.begun = true;
+		clear_route_csr_cache();
+		return true;
+	}
+
+	/**
+	 * The leg a hook runs in: its environment's, else (a hook the bundler calls without one) the one
+	 * leg open now. Refused when that is not one leg (`build_leg_unclear`): two legs open at once
+	 * cannot be told apart. Dev opens an environment's leg on its first use.
+	 */
+	leg(env: { name: string; server: boolean } | null): BuildLeg {
+		const legs = this.#build.legs;
+		if (env) {
+			const leg = legs.get(env.name);
+			if (leg) return leg;
+			if (!this.#ctx.is_build) {
+				const opened = new_leg(env.name, env.server);
+				legs.set(env.name, opened);
+				return opened;
+			}
+			throw new OgygiaError('build_leg_unclear', { leg: env.name, open: 0 });
+		}
+		const open = [...legs.values()].filter((l) => l.life.now.kind === 'open');
+		if (open.length === 1) return open[0];
+		throw new OgygiaError('build_leg_unclear', { leg: '', open: open.length });
+	}
+
+	/** Leg `name` of this build, if it started (a reader that may run outside any leg). */
+	find_leg(name: string): BuildLeg | undefined {
+		return this.#build.legs.get(name);
+	}
+
+	/**
+	 * A leg ends (its bundle is written): `env`'s, else (a hook the bundler calls without one) the one
+	 * leg open now. With two open (a dev server closing: its legs live for the session) there is no
+	 * one leg to end, and none ends. Ending a leg that already ended does nothing (closeBundle may run
+	 * again).
+	 */
+	end_leg(env: string | null): void {
+		const legs = this.#build.legs;
+		const open = [...legs.values()].filter((l) => l.life.now.kind === 'open');
+		const leg = env !== null ? legs.get(env) : open.length === 1 ? open[0] : undefined;
+		if (leg?.life.now.kind === 'open') leg.life.go('closed');
+	}
 
 	/**
 	 * DEV: the server-island ids the last emitted `ogygia:server/server-manifest` carried. A HOST edit
@@ -244,10 +358,10 @@ export class Compiler implements CoreApp {
 	note_server_ids(ids: Set<string>): void {
 		this.#emitted_server_ids = ids;
 	}
-	#ctx: CompileCtx | null = null;
-	/** The resolved compile context (set by `configure`). */
+	readonly #ctx: CompileCtx;
+	/** The resolved compile context (the bundler's resolved config, read once it is resolved). */
 	get ctx(): CompileCtx {
-		return this.#ctx!;
+		return this.#ctx;
 	}
 	/** Every virtual module this session serves (./virtual/table.ts). */
 	readonly #virtuals = new VirtualTable<CoreApp>(
@@ -258,11 +372,11 @@ export class Compiler implements CoreApp {
 	);
 	/** The app's Kit routes directory (a virtual module that reads it reloads on a route change). */
 	routes_dir(): string {
-		return kit_dirs(this.#ctx!.root).routes_dir;
+		return kit_dirs(this.#ctx.root).routes_dir;
 	}
 	/** The plugins listed beside `ogygia()`. */
 	plugins(): CorePlugins {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		return {
 			server: ctx.server_plugins,
 			client: ctx.client_plugins,
@@ -283,14 +397,21 @@ export class Compiler implements CoreApp {
 		return this.#virtuals.bump(part);
 	}
 
-	constructor(program: Program, profiler: Profiler) {
-		this.program = program;
+	/** A compile session, made once the bundler has resolved the build (`ctx`): nothing runs before
+	 *  its context exists. */
+	constructor(program: Program, profiler: Profiler, ctx: CompileCtx) {
+		this.#build = new_build(program);
 		this.profiler = profiler;
+		this.#ctx = ctx;
 	}
 
-	/** Bind the resolved compile context (called once the bundler has resolved the build). */
-	configure(ctx: CompileCtx): void {
-		this.#ctx = ctx;
+	/** A compiler with context `ctx` that carries on this one's build (its program, legs and caches):
+	 *  the next environment of a builder that shares one plugin across them. */
+	with_ctx(ctx: CompileCtx): Compiler {
+		const next = new Compiler(this.program, this.profiler, ctx);
+		next.#build = this.#build;
+		next.#emitted_server_ids = this.#emitted_server_ids;
+		return next;
 	}
 
 	/**
@@ -320,7 +441,7 @@ export class Compiler implements CoreApp {
 	 * edited it). Returns `{ code, touched }`; the caller nulls its own sourcemap when `touched`.
 	 */
 	macros(source: string, id: string): Promise<{ code: string; touched: boolean }> {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		return run_module_macros(
 			source,
 			id,
@@ -393,7 +514,7 @@ export class Compiler implements CoreApp {
 		id: string,
 		opts: { ssr?: boolean; linkVirtual?: boolean } = {}
 	): unknown {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		const { prof, P, outHash } = this.profiler;
 		const ssr = opts.ssr !== false;
 		// Scale: csr=false CLIENT hosts must not statically import portable wrappers (or the
@@ -474,7 +595,7 @@ export class Compiler implements CoreApp {
 	 * on the id + marker; the returned descriptors are the caller's to `register`.
 	 */
 	ts_regions(source: string, id: string): ReturnType<typeof transformTsRegions> {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		return transformTsRegions(source, id, {
 			root: ctx.root,
 			libDir: ctx.libDir,
@@ -492,13 +613,15 @@ export class Compiler implements CoreApp {
 	 * Discover every island up front — walk `src/`, transform each `.svelte` host and mint each
 	 * `.ts`/`.js` region, register the descriptors, then complete `island_graph` TRANSITIVELY and
 	 * finalize the runtime capability marks (so the sticky runtime entry bundles only what the app
-	 * uses, and its immutable chunk name busts on a feature-set change). Once per session, so the
+	 * uses, and its immutable chunk name busts on a feature-set change). Once per build, so the
 	 * adapter can call it from any hook. Populates the `Program`; the fs walk is the only side effect.
 	 */
-	prescan(): void {
-		if (this.#scanned) return;
-		this.#scanned = true;
-		const ctx = this.#ctx!;
+	prescan(): Scan {
+		return (this.#build.scan ??= this.#scan());
+	}
+
+	#scan(): Scan {
+		const ctx = this.#ctx;
 		const { prof, P } = this.profiler;
 		const program = this.program;
 		const { registry, island_graph, transportable_modules, runtime_marks } = program;
@@ -676,15 +799,18 @@ export class Compiler implements CoreApp {
 		runtime_marks.complete = true;
 		// Fold the resolved feature set into the runtime chunk name so it busts when the emitted bytes
 		// change (see `runtime_chunk_filename`). Deterministic across both build legs (same prescan).
-		program.runtime_feature_hash = createHash('sha256')
-			.update(resolveFeatures(runtime_marks).join(','))
-			.digest('hex')
-			.slice(0, 8);
+		return {
+			feature_hash: createHash('sha256')
+				.update(resolveFeatures(runtime_marks).join(','))
+				.digest('hex')
+				.slice(0, 8)
+		};
 	}
 
-	/** Files the island-closure walk has already read (see `mark_island_closure`). Lives for the
-	 *  program, so a closure marked at prescan is never re-walked when a later island shares it. */
-	#island_closure_seen = new Set<string>();
+	/** The scan's feature hash; empty before the scan ran. */
+	get #feature_hash(): string {
+		return this.#build.scan?.feature_hash ?? '';
+	}
 
 	/**
 	 * Mark `componentAbs` and EVERYTHING it imports (transitively) as island code, so the `$app/*`
@@ -711,7 +837,7 @@ export class Compiler implements CoreApp {
 	#closure_added: string[] = [];
 
 	#mark_registered_closures(result: TransformResult): void {
-		if (!this.#ctx!.is_dev) return;
+		if (!this.#ctx.is_dev) return;
 		for (const isl of result.islands ?? []) {
 			if (isl.componentPath)
 				this.#closure_added.push(...this.mark_island_closure(isl.componentPath));
@@ -726,7 +852,7 @@ export class Compiler implements CoreApp {
 	}
 
 	mark_island_closure(componentAbs: string): string[] {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		const { island_graph } = this.program;
 		const aliases = ctx.resolve_alias as readonly FoucAlias[];
 		const added: string[] = [];
@@ -752,8 +878,9 @@ export class Compiler implements CoreApp {
 		};
 		const walk = (abs: string) => {
 			const norm = strip_id(abs);
-			if (this.#island_closure_seen.has(norm)) return;
-			this.#island_closure_seen.add(norm);
+			const seen = this.#build.island_closure_seen;
+			if (seen.has(norm)) return;
+			seen.add(norm);
 			if (!island_graph.has(norm)) {
 				island_graph.add(norm);
 				added.push(norm);
@@ -832,12 +959,12 @@ export class Compiler implements CoreApp {
 	/** The feature-selected runtime chunk name (immutable-cached). Needs prescan to have run for a
 	 *  non-empty feature hash; both build legs prescan the same source → the same name. */
 	runtime_chunk_filename(): string {
-		return this.#ctx!.runtime_chunk_filename(this.program.runtime_feature_hash);
+		return this.#ctx.runtime_chunk_filename(this.#feature_hash);
 	}
 
 	/** Public URL of the runtime chunk (asset prefix + filename — honors a non-root base / assets CDN). */
 	runtime_chunk_url(): string {
-		return this.#ctx!.runtime_chunk_url(this.program.runtime_feature_hash);
+		return this.#ctx.runtime_chunk_url(this.#feature_hash);
 	}
 
 	/**
@@ -848,12 +975,12 @@ export class Compiler implements CoreApp {
 	 * server (the handoff's `entries`) and to the browser (the location maps).
 	 * csr=false hosts omit wrapper imports so this emit owns the module. Idempotent per id.
 	 */
-	#router_css_roots_cache: string[] | null = null;
 	/** The server-router component roots (link/router-css.ts). Build: prescan is complete before any
-	 *  consumer runs — memoized. Dev: modules appear lazily (HMR), recompute per call. */
+	 *  consumer runs — memoized for the build. Dev: modules appear lazily (HMR), recompute per call. */
 	router_css_roots(): string[] {
-		const ctx = this.#ctx!;
-		if (ctx.is_build && this.#router_css_roots_cache) return this.#router_css_roots_cache;
+		const ctx = this.#ctx;
+		const build = this.#build;
+		if (ctx.is_build && build.router_css_roots) return build.router_css_roots;
 		// One path for ALL page modules (`b.pageModules()`) — app source AND declared surfaces: an
 		// importer of a page specifier is detected by the prescan wherever it lives, a named file joins
 		// directly (the profiler's router). The walk's recursion is bounded by prescanned module_specs,
@@ -862,7 +989,7 @@ export class Compiler implements CoreApp {
 			router_css_roots(this.program.router_modules, this.program.module_specs, ctx.libDir)
 		);
 		const sorted = [...roots].sort();
-		if (ctx.is_build) this.#router_css_roots_cache = sorted;
+		if (ctx.is_build) build.router_css_roots = sorted;
 		return sorted;
 	}
 
@@ -890,7 +1017,7 @@ export class Compiler implements CoreApp {
 
 	/** The public URL key a server island's CSS is handed off under (matches `island_url[id]`). */
 	island_public_url(iid: string): string {
-		return this.#ctx!.island_public_url(iid);
+		return this.#ctx.island_public_url(iid);
 	}
 
 	has_hydrate_regions(): boolean {
@@ -910,46 +1037,37 @@ export class Compiler implements CoreApp {
 	 * client-only build) keeps every prescanned island, as before. Returns how many were skipped.
 	 */
 	emit_build_chunks(
+		leg: BuildLeg,
 		emitFile: EmitChunk,
 		{ emitRuntime, loaded = null }: { emitRuntime: boolean; loaded?: Set<string> | null }
 	): number {
-		this.island_entry_refs.clear();
-		this.runtime_entry_ref = null;
 		if (emitRuntime) {
 			// Unresolved virtual id — resolve_id/emit synthesize the feature-selected entry. Named, not
 			// fixed: the bundler hashes its content into the file name (its imports included), and the
 			// server finds that name in the build handoff (its stable name is an identity, not a file).
 			// (named with its features: `og-runtime-<features>.<hash>.js` says which runtime it is)
-			const feat = this.#ctx!.runtime_features(this.program.runtime_feature_hash);
-			this.runtime_entry_ref = emitFile({
+			const feat = this.#ctx.runtime_features(this.#feature_hash);
+			leg.runtime_entry_ref = emitFile({
 				type: 'chunk',
 				id: V_RUNTIME_ENTRY,
 				name: RUNTIME_ENTRY_NAME + (feat ? `-${feat}` : '')
 			});
 		}
-		const { region_kinds, by_id, emitted_island_chunks, registry } = this.program;
+		const { region_kinds, by_id, registry } = this.program;
 		let skipped = 0;
 		for (const [rid, kind] of region_kinds) {
 			if (kind !== 'hydrate') continue;
 			const virtualPath = by_id.get(rid);
 			if (!virtualPath) continue;
-			if (emitted_island_chunks.has(rid)) continue;
+			if (leg.island_entry_refs.has(rid)) continue;
 			if (!island_host_loaded(registry.get(virtualPath)?.hostPath, loaded)) {
 				skipped++;
 				continue;
 			}
-			this.emit_island_entry(emitFile, rid, virtualPath);
+			this.emit_island_entry(leg, emitFile, rid, virtualPath);
 		}
 		return skipped;
 	}
-
-	/** Client-build refs of each emitted island entry (by island id) and of the runtime entry: the
-	 *  bundle end turns them into the hashed file names the handoff maps the stable names to. */
-	readonly island_entry_refs: Map<string, string> = new Map();
-	runtime_entry_ref: string | null = null;
-	/** The location map's served path (`/<appDir>/immutable/og-locations.<hash>.json`), once
-	 *  `location_map` wrote it: the handoff carries it to the server (`locations`). */
-	location_map_url: string | null = null;
 
 	/**
 	 * At the bundle's end (the names are final): each entry's IDENTITY → its LOCATION. `islands` maps
@@ -957,7 +1075,10 @@ export class Compiler implements CoreApp {
 	 * `locations` is what the handoff carries to the server (`entries`): identity → served path.
 	 * `get_file_name` is the bundler's `this.getFileName`.
 	 */
-	entry_locations(get_file_name: (ref: string) => string): {
+	entry_locations(
+		leg: BuildLeg,
+		get_file_name: (ref: string) => string
+	): {
 		islands: Map<string, string>;
 		runtime: string | null;
 		runtime_file: string | null;
@@ -967,7 +1088,7 @@ export class Compiler implements CoreApp {
 		const locations: Record<string, string> = {};
 		const served = (file: string) => (file.startsWith('/') ? file : `/${file}`);
 		// by island id: the bundler emits entries in no stable order, and the handoff is output (#490)
-		const refs = [...this.island_entry_refs].sort(by_key);
+		const refs = [...leg.island_entry_refs].sort(by_key);
 		for (const [rid, ref] of refs) {
 			const file = get_file_name(ref);
 			const identity = this.island_public_url(rid);
@@ -976,8 +1097,8 @@ export class Compiler implements CoreApp {
 		}
 		let runtime: string | null = null;
 		let runtime_file: string | null = null;
-		if (this.runtime_entry_ref) {
-			runtime_file = get_file_name(this.runtime_entry_ref);
+		if (leg.runtime_entry_ref) {
+			runtime_file = get_file_name(leg.runtime_entry_ref);
 			runtime = this.runtime_chunk_url();
 			locations[runtime] = served(runtime_file);
 		}
@@ -986,9 +1107,8 @@ export class Compiler implements CoreApp {
 
 	/** One hydrate island's entry, content-hashed by the bundler (the location maps that name it are
 	 *  written at the bundle's end: `location_maps`). */
-	emit_island_entry(emitFile: EmitChunk, rid: string, virtualPath: string): void {
-		this.program.emitted_island_chunks.add(rid);
-		this.island_entry_refs.set(
+	emit_island_entry(leg: BuildLeg, emitFile: EmitChunk, rid: string, virtualPath: string): void {
+		leg.island_entry_refs.set(
 			rid,
 			emitFile({ type: 'chunk', id: virtualPath, name: ISLAND_ENTRY_NAME_PREFIX + rid })
 		);
@@ -1008,7 +1128,7 @@ export class Compiler implements CoreApp {
 			chunk_name === RUNTIME_ENTRY_NAME ||
 			chunk_name.startsWith(`${RUNTIME_ENTRY_NAME}-`);
 		if (!ours) return null;
-		return `${this.#ctx!.app_dir}/immutable/[name].[hash].js`;
+		return `${this.#ctx.app_dir}/immutable/[name].[hash].js`;
 	}
 
 	/**
@@ -1016,15 +1136,18 @@ export class Compiler implements CoreApp {
 	 * every island entry's identity → its hashed file, content-hashed and at the one fixed name.
 	 * `get_file_name` is the bundler's `this.getFileName`. Empty with no island.
 	 */
-	location_maps(get_file_name: (ref: string) => string): { fileName: string; source: string }[] {
-		const ctx = this.#ctx!;
+	location_maps(
+		leg: BuildLeg,
+		get_file_name: (ref: string) => string
+	): { fileName: string; source: string }[] {
+		const ctx = this.#ctx;
 		const pairs: [string, string][] = [];
-		for (const [rid, ref] of this.island_entry_refs)
+		for (const [rid, ref] of leg.island_entry_refs)
 			pairs.push([ctx.island_chunk_filename(rid), get_file_name(ref)]);
 		const files = location_map_files(ctx.app_dir, pairs, (source) =>
 			createHash('sha256').update(source).digest('hex').slice(0, 12)
 		);
-		this.location_map_url = files.length ? `/${files[0].fileName}` : null;
+		leg.location_map_url = files.length ? `/${files[0].fileName}` : null;
 		return files;
 	}
 
@@ -1040,7 +1163,7 @@ export class Compiler implements CoreApp {
 		id: string,
 		leg: Leg
 	): string | { code: string; moduleSideEffects: false } | Promise<string> | null {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		const program = this.program;
 		const { ssr } = leg;
 
@@ -1113,7 +1236,7 @@ export class Compiler implements CoreApp {
 			) => Promise<{ id: string } | null>;
 		}
 	): Promise<string | { id: string } | null> {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		const { registry, island_graph } = this.program;
 
 		// the declared modules (./virtual/core.ts); an undeclared id in the namespace fails here, and
@@ -1241,7 +1364,7 @@ export class Compiler implements CoreApp {
 			resolve: RegistryResolve;
 		}
 	): Promise<string | null> {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		if (ssr || ctx.is_dev || !ctx.is_build || !importer) return null;
 		if (source.startsWith('\0') || is_generated_specifier(source) || source.startsWith('$app/'))
 			return null;
@@ -1261,7 +1384,7 @@ export class Compiler implements CoreApp {
 	 *  csr=true route (Kit can hydrate that layout: a csr=true child page, or an error render). */
 	#links_client_stub(importer: string): boolean {
 		const importer_abs = strip_id(importer);
-		const routes_dir = kit_dirs(this.#ctx!.root).routes_dir;
+		const routes_dir = kit_dirs(this.#ctx.root).routes_dir;
 		if (!importer_abs.startsWith(routes_dir + path.sep)) return false;
 		const base = path.basename(importer_abs);
 		if (is_route_component(base, 'layout'))
@@ -1271,7 +1394,7 @@ export class Compiler implements CoreApp {
 
 	#is_csr_false_route_host(importer: string): boolean {
 		const importer_abs = strip_id(importer);
-		const routes_dir = kit_dirs(this.#ctx!.root).routes_dir;
+		const routes_dir = kit_dirs(this.#ctx.root).routes_dir;
 		if (!importer_abs.startsWith(routes_dir + path.sep)) return false;
 		const base = path.basename(importer_abs);
 		// a route component (`+page.svelte`, `+page.md`, …) is its own host
@@ -1293,13 +1416,13 @@ export class Compiler implements CoreApp {
 		// One resolution per (importer, specifier) per build: resolution is deterministic within a
 		// build, and every csr=false host and every walked module asks again otherwise.
 		const memo_key = `${strip_id(importer)}\n${source}`;
-		const memo = this.#resolve_memo.get(memo_key);
+		const memos = this.#build.resolve_memo;
+		const memo = memos.get(memo_key);
 		if (memo !== undefined) return memo;
 		const target = await this.#resolve_local_script_uncached(source, importer, resolve);
-		this.#resolve_memo.set(memo_key, target);
+		memos.set(memo_key, target);
 		return target;
 	}
-	#resolve_memo = new Map<string, string | null>();
 	async #resolve_local_script_uncached(
 		source: string,
 		importer: string,
@@ -1343,8 +1466,6 @@ export class Compiler implements CoreApp {
 	async #reaches_registry(file: string, resolve: RegistryResolve): Promise<boolean> {
 		return (await this.#reach(file, resolve, new Map(), [])).reaches;
 	}
-	#reach_memo = new Map<string, boolean>();
-	#specs_memo = new Map<string, readonly string[]>();
 	async #reach(
 		file: string,
 		resolve: RegistryResolve,
@@ -1352,10 +1473,11 @@ export class Compiler implements CoreApp {
 		component: string[]
 	): Promise<{ reaches: boolean; low: number }> {
 		const key = host_key(file);
-		const memo = this.#reach_memo.get(key);
+		const reach_memo = this.#build.reach_memo;
+		const memo = reach_memo.get(key);
 		if (memo !== undefined) return { reaches: memo, low: Infinity };
 		if (this.program.host_index.has(key)) {
-			this.#reach_memo.set(key, true);
+			reach_memo.set(key, true);
 			return { reaches: true, low: Infinity };
 		}
 		const open_depth = open.get(key);
@@ -1379,14 +1501,14 @@ export class Compiler implements CoreApp {
 		}
 		open.delete(key);
 		if (reaches) {
-			this.#reach_memo.set(key, true);
+			reach_memo.set(key, true);
 			component.length = parked + 1;
 			component.pop();
 			return { reaches: true, low: Infinity };
 		}
 		if (low >= depth) {
 			// A finished component rooted here: every file parked above it shares this negative.
-			for (let i = parked; i < component.length; i++) this.#reach_memo.set(component[i], false);
+			for (let i = parked; i < component.length; i++) reach_memo.set(component[i], false);
 			component.length = parked;
 			return { reaches: false, low: Infinity };
 		}
@@ -1395,11 +1517,12 @@ export class Compiler implements CoreApp {
 	}
 	/** A module's static script specifiers, read and parsed once per build. */
 	#script_specs(key: string, file: string): readonly string[] {
-		let specs = this.#specs_memo.get(key);
+		const memos = this.#build.specs_memo;
+		let specs = memos.get(key);
 		if (specs === undefined) {
-			const src = this.#ctx!.read_file(file);
+			const src = this.#ctx.read_file(file);
 			specs = src == null ? [] : (static_script_specs(src, file) ?? []);
-			this.#specs_memo.set(key, specs);
+			memos.set(key, specs);
 		}
 		return specs;
 	}
@@ -1407,7 +1530,7 @@ export class Compiler implements CoreApp {
 	/** The client-leg registry source (link/registry-stub.ts): marks blanked, plain imports kept. A
 	 *  registry that does not parse falls back to the names-only stub. */
 	#registry_client_emit(file: string): string | null {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		const src = ctx.read_file(file);
 		if (src == null) return null;
 		const keys = ctx.import_keys;
@@ -1422,23 +1545,26 @@ export class Compiler implements CoreApp {
 	 * transform (`.svelte`) ▸ ts/js region minting (`.ts/.js`) ▸ the client `$app/*` shim. Registers the
 	 * discovered descriptors into the `Program`, and (client build only) emits the deterministic chunk for
 	 * any hydrate island a library component declares that the prescan couldn't see — via the `emitFile`
-	 * callback (the one Vite primitive threaded in). Returns the Vite transform result, or `null` if the
-	 * module was untouched. `prescan()` runs first so `island_graph` is complete before any module lowers.
+	 * callback (the one Vite primitive threaded in), into `leg` (the leg the transform runs in).
+	 * Returns the Vite transform result, or `null` if the module was untouched. `prescan()` runs first
+	 * so `island_graph` is complete before any module lowers.
 	 */
 	async transform_module(
 		code: string,
 		id: string,
 		{
 			ssr,
+			leg,
 			emitFile
 		}: {
 			ssr: boolean;
+			leg: BuildLeg;
 			emitFile: EmitChunk;
 		}
 	): Promise<{ code: string; map: unknown } | null> {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		const program = this.program;
-		const { registry, island_graph, emitted_island_chunks } = program;
+		const { registry, island_graph } = program;
 		const root = ctx.root;
 		// Every pass below edits by its parser's offsets, and Svelte's parser drops a leading byte-order
 		// mark: take it off here so the offsets and the text agree (./bom.ts). A file no pass touches
@@ -1545,9 +1671,9 @@ export class Compiler implements CoreApp {
 				if (ctx.is_build && !ssr) {
 					for (const isl of result.islands ?? []) {
 						const kind = isl.kind ?? (isl.server ? 'defer' : 'hydrate');
-						if (kind !== 'hydrate' || !isl.virtualPath || emitted_island_chunks.has(isl.id))
+						if (kind !== 'hydrate' || !isl.virtualPath || leg.island_entry_refs.has(isl.id))
 							continue;
-						this.emit_island_entry(emitFile, isl.id, isl.virtualPath);
+						this.emit_island_entry(leg, emitFile, isl.id, isl.virtualPath);
 					}
 				}
 			}
@@ -1655,89 +1781,22 @@ export class Compiler implements CoreApp {
 	}
 
 	/**
-	 * Patch the fn-manifest placeholder in a finished chunk with the collected `og.$` factory
-	 * registrations — every transform has run by renderChunk, so `dollar_hoists` is complete. Registrations
-	 * go through the globalThis bridge the placeholder module installed (rename-proof under minification).
-	 * Returns the patched chunk, or `null` if this chunk carries no placeholder.
+	 * A finished chunk with its relocation tokens replaced from the final records (every transform has
+	 * run by renderChunk, and the graph is complete), each patch counted on the leg
+	 * (link/relocations.ts). `null` when the chunk carries none.
 	 */
-	patch_fn_manifest(code: string): { code: string; map: null } | null {
-		if (!code.includes('/*__OGYGIA_FN_MANIFEST__*/')) return null;
-		const regs = [...this.dollar_hoists.entries()]
-			.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
-			.join('\n');
-		// FUNCTION-form replacement: factory sources legitimately contain `$$` (a literal `$`
-		// before a template hole), which String.replace would collapse in a string replacement.
-		return { code: code.replace('/*__OGYGIA_FN_MANIFEST__*/', () => regs), map: null };
-	}
-
-	/**
-	 * Patch the server manifest's page-data placeholder: per server island (a hole), does its SERVER
-	 * tree — the component and everything it imports, statically or dynamically (a registry's blocks)
-	 * — read `page.data`? The transform recorded each module's reads (`page_keys`, seed shaping); by
-	 * renderChunk the graph is complete. A hole that never reads it never pays the page lookup
-	 * (server/render-page.ts). One walk per hole, sharing what earlier walks proved: a walk that ends
-	 * with no reader proves every module it visited reads nothing. `graph` is the bundler's module info.
-	 */
-	patch_page_data_reads(
+	relocate(
 		code: string,
-		graph: (
-			id: string
-		) => { importedIds: readonly string[]; dynamicallyImportedIds: readonly string[] } | null,
-		module_ids: () => Iterable<string>
+		leg: Pick<BuildLeg, 'server' | 'relocated'>,
+		bundle: Pick<RelocateCx, 'graph' | 'module_ids'>
 	): { code: string; map: null } | null {
-		const at = code.indexOf(PAGE_DATA_READS_TOKEN);
-		if (at === -1) return null;
-		const { page_keys, page_pending, by_id, registry } = this.program;
-		const clean = (id: string) => id.split('?')[0].split('\\').join('/');
-		const reads_itself = (id: string) => {
-			const c = clean(id);
-			const k = page_keys.get(c);
-			return (k !== undefined && (k === 'all' || k.size > 0)) || page_pending.has(c);
-		};
-		// a component path → the graph's id for it (a graph id may carry a query or another separator)
-		const ids_by_path = new Map<string, string>();
-		for (const id of module_ids()) if (!id.startsWith('\0')) ids_by_path.set(clean(id), id);
-		const proven_clean = new Set<string>();
-		const reads = (root: string): boolean => {
-			const seen = new Set<string>([root]);
-			const queue = [root];
-			for (let i = 0; i < queue.length; i++) {
-				const id = queue[i];
-				if (proven_clean.has(id)) continue;
-				if (reads_itself(id)) return true;
-				const info = graph(id);
-				if (!info) continue;
-				for (const next of info.importedIds)
-					if (!seen.has(next)) {
-						seen.add(next);
-						queue.push(next);
-					}
-				for (const next of info.dynamicallyImportedIds)
-					if (!seen.has(next)) {
-						seen.add(next);
-						queue.push(next);
-					}
-			}
-			for (const id of seen) proven_clean.add(id);
-			return false;
-		};
-		const out: Record<string, boolean> = {};
-		for (const [iid, virtual_path] of by_id) {
-			const reg = registry.get(virtual_path);
-			if (!reg?.server) continue;
-			const root = reg.componentPath ? ids_by_path.get(clean(reg.componentPath)) : undefined;
-			// (a component the graph does not know: unknown, so it looks up — a wrong `false` would
-			// render a hole with an empty page.data)
-			out[iid] = root === undefined ? true : reads(root);
-		}
-		// the token sits in a string literal the bundler may have re-quoted: escape for that quote (the
-		// JSON is ids and booleans only — its one special character is `"`)
-		const json = JSON.stringify(out);
-		const literal = code[at - 1] === '"' ? json.split('"').join('\\"') : json;
-		return {
-			code: code.slice(0, at) + literal + code.slice(at + PAGE_DATA_READS_TOKEN.length),
-			map: null
-		};
+		const out = relocate(code, leg.server, leg.relocated, {
+			program: this.program,
+			dollar_hoists: this.dollar_hoists,
+			graph: bundle.graph,
+			module_ids: bundle.module_ids
+		});
+		return out === null ? null : { code: out, map: null };
 	}
 
 	/** True when `file` is a registered island HOST (a component that declares islands). */

@@ -33,6 +33,7 @@
  */
 import type { SeedIndex } from '../seed-refs.ts';
 import { escape_script_text } from '../escape.ts';
+import { server_ports } from '../server-ports.ts';
 import { HOLES_SCRIPT_TYPE } from '../holes-record.ts';
 import { HEAD_OWNERS_ATTR } from '../head-owners.ts';
 import { encode_island_graph } from '../island-graph.ts';
@@ -344,14 +345,13 @@ export class DocumentTail {
 
 type TailReader = () => DocumentTail | null;
 
-let reader: TailReader | null = null;
-
 /** Server (`hooks.ts`) installs a request-scoped reader; `null` uninstalls. */
 export function set_tail_reader(fn: TailReader | null): void {
-	reader = fn;
+	const ports = server_ports();
+	if (ports) ports.tail_reader = fn;
 }
 
 /** The current request's tail, or `null` when this render has none (client, endpoint, test). */
 export function document_tail(): DocumentTail | null {
-	return reader ? reader() : null;
+	return server_ports()?.tail_reader?.() ?? null;
 }

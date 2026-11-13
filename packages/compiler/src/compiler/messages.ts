@@ -723,6 +723,27 @@ export const BUILD_ERRORS = {
 			realm module knows them without running it. This one now returns other names: the
 			generated list is stale. Run \`node packages/core/scripts/virtual-types.ts\`. ${BUG}
 		`
+	},
+	plugin_session_order: {
+		text: (a: { hook: string; state: string }): string =>
+			`The bundler called ogygia's \`${a.hook}\` hook while the plugin was ${a.state}.`,
+		details: (): string => prose`
+			An \`ogygia()\` plugin is made, configured (\`config\`), then resolved
+			(\`configResolved\`) once: its compiler is made from the resolved build. A hook that
+			needs the compiler runs after that, and the build is resolved only once per plugin. A
+			bundler or a tool that calls the hooks in another order meets this. ${BUG}
+		`
+	},
+	build_leg_unclear: {
+		text: (a: { leg: string; open: number }): string =>
+			a.leg
+				? `The bundler called ogygia in environment \`${a.leg}\`, which never started a build.`
+				: `The bundler called ogygia with no environment while ${a.open} environments build.`,
+		details: (): string => prose`
+			Each bundler environment (\`ssr\`, \`client\`) builds its own output, and ogygia keeps what
+			each one emits apart. A call it cannot place in one environment would put one
+			environment's files in the other's output. ${BUG}
+		`
 	}
 };
 
@@ -766,6 +787,37 @@ export const BUILD_WARNINGS = {
 
 			Add \`ogygia.files\` to that package's \`package.json\`: the paths or globs ogygia
 			compiles, like npm's \`files\`.
+		`
+	},
+	runtime_marks_late: {
+		text: (a: { file: string; features: string }): string => prose`
+			${a.file} placed a region that needs the runtime's ${a.features}, but the build had already
+			made its runtime without it: that region will not work in this build. Put the file where
+			the scan reads it: under \`src/\`, or in a package that declares \`"ogygia": { "files":
+			[...] }\`.
+		`,
+		details: (): string => prose`
+			A build picks the runtime's features once, from the regions it knows when the bundler
+			loads the runtime entry. This file was first reached later, while bundling, and one of
+			its regions needs a feature (a lake, a \`keep\`, a held region, a deferred hole, a wake
+			on interaction) the runtime was made without. The region then never wakes or never
+			fills.
+
+			ogygia reads every file under \`src/\` and every declared package file before the
+			bundler starts. Move the file there, or declare it in its package's \`ogygia.files\`.
+		`
+	},
+	relocation_unpatched: {
+		text: (a: { name: string; leg: string }): string => prose`
+			the ${a.name} in the ${a.leg} build was left unpatched: a value the build fills in at the end
+			never reached its chunk, so that part of the output is wrong. Please report it.
+		`,
+		details: (): string => prose`
+			Some values are known only once the bundler has transformed every module: the \`og.$\`
+			functions an app defines, and which server regions read \`page.data\`. The build writes a
+			placeholder for each and fills it in as each chunk is finished. A placeholder was left in
+			the output, or the module that carries it is in the output and none was filled. This is
+			an ogygia bug, or another plugin rewrote the chunk after ogygia filled it.
 		`
 	},
 	island_context_unprovided: {

@@ -44,7 +44,7 @@ const call = async (
 	handle({ event: make_event(path, init), resolve: async () => new Response('no') });
 
 const page = (handle: Handle, render?: typeof globalThis.fetch) =>
-	call(handle, '/__profiler/page?p=/p&runs=1&cold=0', { fetch: render });
+	call(handle, '/__profiler/page?p=/p&runs=1&cold=0', { method: 'POST', fetch: render });
 
 const gate = () => {
 	let open!: () => void;
@@ -75,7 +75,7 @@ describe('the recorder has one owner', () => {
 			return new Response('<html><body>slow</body></html>');
 		}) as typeof fetch);
 		await entered.opened;
-		await call(handle, '/__profiler/reset');
+		await call(handle, '/__profiler/reset', { method: 'POST' });
 		const start = await call(handle, '/__profiler/window/start', { method: 'POST' });
 		expect(start.status).toBe(200);
 		const { id } = await start.json();
@@ -100,7 +100,7 @@ describe('the recorder has one owner', () => {
 			expect(
 				(await call(handle, '/__profiler/window/start', { method: 'POST', headers: key })).status
 			).toBe(200);
-			await call(handle, '/__profiler/reset', { headers: key });
+			await call(handle, '/__profiler/reset', { method: 'POST', headers: key });
 			const timings: string[] = [];
 			// the page's renders go through the app's handle, as Kit's event.fetch does
 			const render = (async (p: string, init?: RequestInit) => {
@@ -115,6 +115,7 @@ describe('the recorder has one owner', () => {
 				return res;
 			}) as typeof fetch;
 			const res = await call(handle, '/__profiler/page?p=/p&runs=1&cold=0', {
+				method: 'POST',
 				headers: key,
 				fetch: render
 			});
