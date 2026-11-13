@@ -98,7 +98,7 @@ export function documentIsCsrTrue(error_render = false): boolean {
 			? error_route_is_csr_true(event.route?.id)
 			: route_is_csr_true(event.route?.id);
 	} catch {
-		return false; // off-request (prerender helper, etc.) → not a Kit-hydrated document
+		return false; // ok: off-request (prerender helper, etc.) → not a Kit-hydrated document
 	}
 }
 
@@ -172,7 +172,7 @@ export function claim_kit_island(entry: string): boolean {
 		seen.add(entry);
 		return true;
 	} catch {
-		return false;
+		return false; // ok: client / no request: nothing to stamp, as said above
 	}
 }
 
@@ -229,7 +229,7 @@ export function claimRuntimeEmit(): boolean {
 		runtime_claimed.set(event, true);
 		return true;
 	} catch {
-		return false;
+		return false; // ok: client / no request: SSR already emitted, as said above
 	}
 }
 
