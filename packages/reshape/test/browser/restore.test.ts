@@ -73,6 +73,21 @@ test('a host that names a shadow sheet the page does not carry is recorded, and 
 	]);
 });
 
+test('a missing shadow sheet named by many hosts is logged once per key, and the log keeps room for what comes after', async () => {
+	(window as { __og_restore_log?: unknown[] }).__og_restore_log = [];
+	await served('<demo-card class="own"> hi </demo-card>'.repeat(60));
+	for (const host of Array.from(document.querySelectorAll('demo-card')))
+		host.setAttribute('og-shadow', 'demo-card.shadow demo-missing.shadow');
+	expect(restore(document)).toBe(60);
+	const log = (window as { __og_restore_log?: { kind: string; key?: string }[] })
+		.__og_restore_log!;
+	expect(log.filter((e) => e.kind === 'sheet')).toHaveLength(1);
+	document.body.insertAdjacentHTML('beforeend', '<demo-late og-h="99"></demo-late>');
+	document.querySelector('demo-late')!.attachShadow({ mode: 'open' });
+	restore(document);
+	expect(log.some((e) => e.kind === 'late')).toBe(true);
+});
+
 test('Svelte’s children put back into a host are known render output (a later morph may remove one)', async () => {
 	await served('<demo-card><i>ok</i> text</demo-card>');
 	restore(document);
