@@ -244,14 +244,14 @@ bench(
 			const hole = create_hole();
 			const answer = create_answer();
 			const wake = create_wake();
-			hole.go('armed', { attempts: 0 });
+			hole.go('armed', { attempts: 0, denied: 0 });
 			hole.scope.defer(leave); // (a schedule's listener)
-			hole.go('fetching', { attempts: 0, revalidate: false });
+			hole.go('fetching', { attempts: 0, denied: 0, revalidate: false });
 			if (i % 3 === 0) {
 				// its fetch failed: it waits, re-arms, and tries again
-				hole.go('retrying', { attempts: 1, revalidate: false });
-				hole.go('armed', { attempts: 1 });
-				hole.go('fetching', { attempts: 1, revalidate: false });
+				hole.go('retrying', { attempts: 1, denied: 0, revalidate: false });
+				hole.go('armed', { attempts: 1, denied: 0 });
+				hole.go('fetching', { attempts: 1, denied: 0, revalidate: false });
 			}
 			if (i % 7 === 0) {
 				hole.go('failed');
