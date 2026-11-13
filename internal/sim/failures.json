@@ -58,6 +58,12 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/server/props-wire.ts > lake_identity > catch:0",
+			"reason": "a lake prop no wire carries makes the fingerprint throw: the lake gets no identity and is known by its entry and place",
+			"test": "packages/core/test/lake-identity.test.ts",
+			"name": "props no wire carries give no identity, so the lake is known by its entry and place"
+		},
+		{
 			"site": "packages/reshape/src/index.ts > handle > throw:0",
 			"reason": "a config error, at the first request: no app the sim generates leaves reshape() out of vite.config",
 			"test": "packages/reshape/test/plugin.test.ts",
