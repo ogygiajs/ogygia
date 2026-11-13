@@ -220,5 +220,41 @@
 		"operator": "statement",
 		"from": "as.replaceWith(real);",
 		"to": "void real;"
+	},
+	{
+		"id": "router-page-lost-not-handed-off",
+		"file": "packages/core/src/runtime/router-nav.ts",
+		"line": 1040,
+		"code": "if (built === null) return hand_off();",
+		"operator": "statement",
+		"from": "return hand_off();",
+		"to": "return;"
+	},
+	{
+		"id": "hole-retry-never-fetches",
+		"file": "packages/core/src/runtime/core.ts",
+		"line": 1677,
+		"code": "return this.#connect(turn);",
+		"operator": "statement",
+		"from": "return this.#connect(turn);",
+		"to": "return;"
+	},
+	{
+		"id": "hole-error-answer-swapped-in",
+		"file": "packages/core/src/runtime/hole-fetch.ts",
+		"line": 88,
+		"code": "if (!res.ok) throw new Error(`status ${res.status}`);",
+		"operator": "statement",
+		"from": "if (!res.ok)",
+		"to": "if (false)"
+	},
+	{
+		"id": "peer-replica-down-not-skipped",
+		"file": "packages/federation/src/peer.ts",
+		"line": 512,
+		"code": "if (res.status >= 500) continue;",
+		"operator": "statement",
+		"from": "continue;",
+		"to": "return null;"
 	}
 ]

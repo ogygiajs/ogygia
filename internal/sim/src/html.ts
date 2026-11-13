@@ -356,6 +356,27 @@ export function reshape_marks_left(root: Element): Lint[] {
 	return out;
 }
 
+/** The body of ogygia's own error answer for a region (a render that threw: a 500). */
+const ERROR_ANSWER = 'Region render failed';
+
+/** A region error answer's body shown in the page: a hole keeps its fallback when its render
+ *  throws, and an error answer is never swapped in (hole-fetch.ts `!res.ok`:
+ *  `hole-error-answer-swapped-in`). */
+export function error_answer_shown(root: Element): Lint[] {
+	const out: Lint[] = [];
+	const walker = root.ownerDocument.createTreeWalker(root, 4);
+	for (let n = walker.nextNode(); n !== null; n = walker.nextNode()) {
+		if (!(n.textContent ?? '').includes(ERROR_ANSWER)) continue;
+		const parts: string[] = [];
+		for (let e = n.parentElement, i = 0; e !== null && i < 4; e = e.parentElement, i++) {
+			const gen = e.getAttribute('data-gen');
+			parts.unshift(e.localName + (gen ? `[data-gen=${gen}]` : ''));
+		}
+		out.push({ rule: 'an error answer shown', where: parts.join(' > '), app: false });
+	}
+	return out;
+}
+
 /** GOOD HTML KEPT: the document a tab shows at rest, whatever built it (navigations, morphs, answers
  *  swapped in), with none of the reshape pass's marks left. A document whose own HTML the network
  *  changed is set aside (`faulted`). */
@@ -364,7 +385,8 @@ export function html_kept(tab: Tab): Broken | null {
 	if (!tab.page.mainFrame.url.startsWith('http') || doc.documentElement === null) return null;
 	const lints = [
 		...content_model(from_dom(doc.documentElement)),
-		...reshape_marks_left(doc.documentElement)
+		...reshape_marks_left(doc.documentElement),
+		...error_answer_shown(doc.documentElement)
 	].map((l) => ({
 		...l,
 		from: new URL(tab.page.mainFrame.url).pathname
