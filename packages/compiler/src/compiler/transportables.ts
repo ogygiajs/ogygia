@@ -215,10 +215,14 @@ interface ClassMember {
  * class loaders, the eager-registration manifest and the `wire` mark, so islands never need a
  * manual `import` of the class. The registration's own question ({@link appendTransportRegistrations}),
  * asked of raw or rewritten source alike, so the two cannot disagree.
+ *
+ * Over-approximates: a module it cannot parse may still define one, so it counts (a miss loses the
+ * loader and the wire mark; an extra loads one module). Test: transportables-prescan.test.ts.
  */
 export function moduleHasTransportable(code: string, id_n: string): boolean {
 	if (!CLASS_KW.test(code) || !code.includes('static')) return false;
-	return exportedWireClasses(code, id_n).length > 0;
+	const body = parse_body(code, id_n);
+	return body === null || exportedWireClassesFromBody(body, code, id_n).length > 0;
 }
 
 /**
