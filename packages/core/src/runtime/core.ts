@@ -668,10 +668,6 @@ class OgygiaRegion extends HTMLElement {
 	/** The frame that paints next: each frame waits for its sheets in a visit of its own, and only
 	 *  the newest paints (./region-machines.ts). */
 	#paint: Paint = create_paint();
-	/** The props of the latest same-module tick that came while its island hydrated: pushed once live. */
-	#live_props: Record<string, unknown> | null = null;
-	/** A static live region's subscription to its address, while it is static. */
-	#live_unsub: (() => void) | null = null;
 	/** Where the HTML a static tick painted itself stands in its address's order (`older_by`): a frame
 	 *  not newer than it is older than what is on screen. */
 	#live_painted: FrameOrder | null = null;
@@ -1951,12 +1947,15 @@ class OgygiaRegion extends HTMLElement {
 		// subscription belongs to `static` (an interactive tick taking over drops it), and entering
 		// `static` disposes an island an interactive tick hydrated.
 		if (!interactive) {
-			if (this.#live.now.kind !== 'static') this.#live.go('static');
+			const now = this.#live.now;
+			const bound = now.kind === 'static' ? now.bound : { address: null };
+			if (now.kind !== 'static') this.#live.go('static', { bound });
 			const frames = slots.frames;
-			if (desc.url && !this.#live_unsub) {
+			if (desc.url && bound.address === null) {
 				// (each frame a turn of its own, the one the store hands over as it binds too)
 				const box = this.#box;
-				const off = frames?.subscribe(frameAddress(desc.url), (f) => {
+				const address = frameAddress(desc.url);
+				const off = frames?.subscribe(address, (f) => {
 					box.post((t) => {
 						if (older_by(f, this.#live_painted) !== null) return;
 						this.#live_painted = stands_at(this.#live_painted, f);
@@ -1964,11 +1963,8 @@ class OgygiaRegion extends HTMLElement {
 					});
 				});
 				if (off) {
-					this.#live_unsub = off;
-					this.#live.scope.defer(() => {
-						off();
-						this.#live_unsub = null;
-					});
+					bound.address = address;
+					this.#live.scope.defer(off);
 				}
 			}
 			// The store's one ordering (`older_by`) decides. A tick stands where its HTML was written at
@@ -2005,7 +2001,7 @@ class OgygiaRegion extends HTMLElement {
 		// Same module, its island still hydrating: its props are pushed once it is live (the latest
 		// tick's), never a second island on the same node.
 		if (s.kind === 'hydrating' && s.module === desc.module) {
-			this.#live_props = desc.props;
+			s.pending.props = desc.props;
 			return;
 		}
 		// Same module, its island's file could not load (said once): the tick's server HTML shows, and
@@ -2016,10 +2012,10 @@ class OgygiaRegion extends HTMLElement {
 		// First tick, the interactive module changed, or it was static: swap + hydrate. (Leaving `live`
 		// disposes its island; leaving `static` drops its subscription; leaving `hydrating` ends that
 		// tick's hydrate before it mounts.)
-		this.#live.go('hydrating', { module: desc.module });
+		const pending: { props: Record<string, unknown> | null } = { props: null };
+		this.#live.go('hydrating', { module: desc.module, pending });
 		const mine = this.#live.now;
 		const painting = this.#paint_next();
-		this.#live_props = null;
 		this.#live_ready = true;
 		// The HTML sink's trust boundary (HOLE-TRUST, ./html-sink.ts): a live tick is rendered
 		// in-process on our server and reaches us through the app's remote transport.
@@ -2033,7 +2029,7 @@ class OgygiaRegion extends HTMLElement {
 		this.replaceChildren(frag);
 		if (HOOK_ANSWER_PLACED) slots.hooks?.answerPlaced?.({ el: this });
 		init_shadow_registries(this);
-		await this.#live_hydrate(desc.props, mine, desc.module, turn);
+		await this.#live_hydrate(desc.props, mine, desc.module, pending, turn);
 	}
 
 	/**
@@ -2060,6 +2056,7 @@ class OgygiaRegion extends HTMLElement {
 		props: Record<string, unknown>,
 		mine: Live['now'],
 		module: string,
+		pending: { props: Record<string, unknown> | null },
 		turn: Turn
 	) {
 		/** Back in its turn after a wait: the region left the page (`STALE`), is on its way out, or
@@ -2105,9 +2102,8 @@ class OgygiaRegion extends HTMLElement {
 					slots.hooks?.regionUnmount?.({ el: this, entry: this.getAttribute('entry') ?? '' });
 				app.dispose();
 			});
-			const pending = this.#live_props;
-			this.#live_props = null;
-			if (pending) app.set_props?.(pending);
+			// (the latest same-module tick that came while it hydrated: its visit's)
+			if (pending.props) app.set_props?.(pending.props);
 			this.setAttribute('data-hydrated', '');
 			this.dispatchEvent(new CustomEvent('ogygia:hydrated', { bubbles: true }));
 			this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));

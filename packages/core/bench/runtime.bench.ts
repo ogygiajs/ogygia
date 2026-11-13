@@ -269,12 +269,12 @@ bench(
 		}
 		for (let i = 0; i < n / 4; i++) {
 			const live = create_live();
-			live.go('static');
+			live.go('static', { bound: { address: 'a' } });
 			live.scope.defer(leave); // (its subscription)
-			live.go('hydrating', { module: 'a' });
+			live.go('hydrating', { module: 'a', pending: { props: null } });
 			live.go('live', { module: 'a', app });
 			live.scope.defer(() => app.dispose());
-			live.go('hydrating', { module: 'b' });
+			live.go('hydrating', { module: 'b', pending: { props: null } });
 			live.go('idle');
 		}
 		// frames that wait for their sheets: a newer one takes over the older one's visit

@@ -192,10 +192,18 @@ export function create_wake(): Wake {
 	return wake_definition.create();
 }
 
+/** A static visit's binding to its frame-store address: set once its subscription is made (the
+ *  visit's scope holds it, so leaving `static` drops it). */
+type LiveBinding = { address: string | null };
+
+/** The props of the latest same-module tick that came while its island hydrated: pushed once it
+ *  is live. */
+type LivePending = { props: Record<string, unknown> | null };
+
 type LiveStates = {
 	idle: {};
-	static: {};
-	hydrating: { module: string };
+	static: { bound: LiveBinding };
+	hydrating: { module: string; pending: LivePending };
 	live: { module: string; app: IslandHandle };
 	failed: { module: string; error: unknown };
 };
@@ -215,8 +223,10 @@ const live_definition = machine<LiveStates>()({
 });
 
 /** A live region, driven by `applyLive`. `idle`: no tick yet, or its island could not hydrate (the
- *  next tick starts over). `static`: the frame store's frames morph into it. `hydrating`: an
- *  interactive tick's HTML is in; its island loads and hydrates. `live`: its island is live; a tick
+ *  next tick starts over). `static`: the frame store's frames morph into it (`bound`: its
+ *  subscription at its address, held by the visit). `hydrating`: an interactive tick's HTML is in;
+ *  its island loads and hydrates (`pending`: the props a same-module tick brought meanwhile, pushed
+ *  once it is live). `live`: its island is live; a tick
  *  of the same module pushes props, and leaving disposes it. `failed`: its island's file could not
  *  load (said once, coded); a tick of the same module shows its HTML and loads nothing, another
  *  module or a static tick starts afresh (#942). */
