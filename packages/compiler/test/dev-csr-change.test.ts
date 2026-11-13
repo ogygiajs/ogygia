@@ -167,7 +167,10 @@ test('deleting the last route file while dev runs leaves no routes, and throws n
 		[`${ROOT}/src/lib/C0.svelte`]: `<p>C0</p>\n`
 	});
 	const { compiler } = dev_compiler(files);
-	await compiler.transform_module(files.read(layout)!, layout, { ssr: true, emitFile: () => '' });
+	await compiler.transform_module(files.read(layout)!, layout, {
+		leg: compiler.leg({ name: 'ssr', server: true }),
+		emitFile: () => ''
+	});
 	files.set(LAYOUT_OPTIONS, null);
 	dev_route_change(compiler, LAYOUT_OPTIONS, 'delete');
 	files.set(layout, null);

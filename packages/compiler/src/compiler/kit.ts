@@ -13,7 +13,7 @@ import { derived, input, queries, type Queries, type Query } from './queries.ts'
 export type FileEvent = 'create' | 'update' | 'delete';
 
 /** Route config is asked for by route file and by the keys the plugins claim. */
-type Keyed = readonly [file: string, keys: readonly string[]];
+export type Keyed = readonly [file: string, keys: readonly string[]];
 const keyed = ([file, keys]: Keyed) => `${file}\0${keys.join(',')}`;
 const own = (k: string) => k;
 
@@ -676,7 +676,6 @@ function route_entries(
 	dir: string
 ): Array<{ name: string; is_dir: boolean; is_file: boolean }> {
 	const out: Array<{ name: string; is_dir: boolean; is_file: boolean }> = [];
-	// a directory that is not there holds no routes (the last route file deleted in dev, #1496)
 	for (const e of r.db.get(r.listing, dir) ?? []) {
 		let is_dir = e.kind === 'dir';
 		let is_file = e.kind === 'file';
