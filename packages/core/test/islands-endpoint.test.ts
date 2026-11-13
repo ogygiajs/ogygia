@@ -92,8 +92,11 @@ describe('the islands endpoint', () => {
 	});
 
 	it('a second copy of the module shares the one endpoint: its handle naming another is a conflict', async () => {
-		const copy =
-			(await import('../src/server/endpoint.ts?copy')) as typeof import('../src/server/endpoint.ts');
+		const second: unknown = await import(
+			// @ts-expect-error: no types for a query specifier
+			'../src/server/endpoint.ts?copy'
+		);
+		const copy = second as typeof import('../src/server/endpoint.ts');
 		expect(copy.configure_islands_endpoint).not.toBe(configure_islands_endpoint);
 		configure_islands_endpoint('/a');
 		expect(() => copy.configure_islands_endpoint(undefined)).toThrow('islands_endpoint_conflict');
