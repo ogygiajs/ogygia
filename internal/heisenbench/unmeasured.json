@@ -4985,11 +4985,11 @@
 			"reason": "CLI tool only: one import of the flag inventory per server, kept once it lands; run by packages/cli/test/mcp-flags-trust.test.ts in a child process"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > prescan > once:1~8ca9a8",
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scan > once:1~8ca9a8",
 			"reason": "build only: one plugin_not_listed warning per unlisted plugin package, once per build"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > prescan > read_for_plugins > some:0~fcb899",
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scan > read_for_plugins > some:0~fcb899",
 			"reason": "build only: a lookup of one prescan hook's imports per prescanned module specifier, a handful of plugins"
 		},
 		{
@@ -5007,10 +5007,6 @@
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > config > handler > map:0~364fcf#3",
 			"reason": "config only, once per Vite config resolve: a map over the listed plugins, a handful"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > transform > transform_module:2~3aec12 > watch",
-			"reason": "dev and build: one addWatchFile per route option file a host's csr reads, constant work"
 		},
 		{
 			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~f1ee24 > prescan",
@@ -5333,7 +5329,7 @@
 			"reason": "once per build: the emitFile callback handed to the compiler, constant work per emitted chunk"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~158889",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~9d84f4",
 			"reason": "once per configResolved: makes the session's compiler (or carries the last one's build), constant work"
 		},
 		{
