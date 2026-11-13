@@ -4,7 +4,7 @@
 // then sat out the scheduler's whole 48 ms snapshot wait (62–84 ms late on a scroll, with nothing
 // ahead of it). Both must hear every change, and one leaving must not silence the other.
 import { expect, test } from 'vitest';
-import { once_on_screen, watch_viewport } from '../../src/runtime/viewport.ts';
+import { on_screen, once_on_screen, watch_viewport } from '../../src/runtime/viewport.ts';
 import { hydrate_turn, register_region, unregister_region } from '../../src/runtime/schedule.ts';
 import { scope } from '@ogygia/machine';
 
@@ -15,6 +15,17 @@ const box = () => {
 	return el;
 };
 const settle = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 50)));
+
+test('an empty region at the fold, a line with no height, still counts as on screen', () => {
+	const line = document.createElement('div');
+	line.style.cssText = 'position:absolute;left:0;top:10px;width:100px;height:0';
+	document.body.append(line);
+	try {
+		expect(on_screen(line)).toBe(true);
+	} finally {
+		line.remove();
+	}
+});
 
 test('two watchers of one element at one margin both hear it; one stopping leaves the other', async () => {
 	const el = box();
