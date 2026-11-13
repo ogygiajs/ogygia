@@ -17,7 +17,7 @@ import { absolutize_hole_html } from '../src/server/hole-urls.ts';
 import { hole_head } from '../src/server/hole-graph.ts';
 import { island_graph_script } from '../src/server/document-tail.ts';
 import { region_css_tags } from '../src/server/html-scan.ts';
-import { next_tag, read_tag, tags, text_of } from '../src/wire-markup.ts';
+import { markup_tokens, next_tag, read_tag, tags, text_of } from '../src/wire-markup.ts';
 import { document, head, hole_answer } from './fixtures.ts';
 import { attr, decode_text, html, trusted_html } from '../src/html.ts';
 
@@ -125,6 +125,22 @@ bench(
 );
 
 // (document()'s title check: a head with none is read to its end)
+// (the profiler's render diff cuts whole documents this way)
+bench(
+	'markup_tokens: a document cut into tags, comments and text',
+	({ html }) => {
+		let n = 0;
+		markup_tokens(html, (kind) => {
+			n += kind;
+		});
+		return n;
+	},
+	{
+		setup: () => ({ html: document(100) }),
+		scale: (_ctx, k) => ({ html: document(100 * k) })
+	}
+);
+
 bench('next_tag: a title in a head that has none', ({ h }) => next_tag(h, 'title', 0) === null, {
 	setup: () => ({ h: head(40).replace(/<title>.*?<\/title>/, '') })
 });
