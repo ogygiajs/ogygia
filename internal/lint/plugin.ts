@@ -302,7 +302,8 @@ const MESSAGE_SILENT =
  * not a body), `.catch(() => {})` (or `=> undefined`, `=> null`, `noop`), and a bare `void <call>()`,
  * whose rejection goes unhandled unless the callee catches it (`void p.catch(report)` is handled).
  * A site that is truly fine carries `// ok: <reason>` on its first or last line (for a catch, also
- * inside its body).
+ * inside its body; for a `void` call, also alone on the line above). A `void` call is one through
+ * an optional chain or a cast too (`void s?.send?.()`); an awaited one (`void (await p())`) is not.
  */
 const no_silent_failures = {
 	meta: {
@@ -314,6 +315,7 @@ const no_silent_failures = {
 	create(context: Context) {
 		if (!in_source(context)) return {};
 		let ok: Set<number> | null = null;
+		let noted: ((node: Node) => boolean) | null = null;
 		const marked = (node: Node): boolean => {
 			const n = node as Located;
 			ok ??= ok_lines(context);
@@ -342,9 +344,21 @@ const no_silent_failures = {
 			},
 			UnaryExpression(node: Node) {
 				if (node.operator !== 'void') return;
-				const arg = node.argument as Node;
+				// (an optional call `s?.send?.()` and a cast `(p() as T)` are calls too; an awaited one,
+				// `void (await p())`, is handled by its await)
+				let arg = node.argument as Node | undefined;
+				while (
+					arg?.type === 'ParenthesizedExpression' ||
+					arg?.type === 'TSAsExpression' ||
+					arg?.type === 'TSNonNullExpression' ||
+					arg?.type === 'ChainExpression'
+				)
+					arg = arg.expression as Node;
 				// (`void p.catch(() => {})` is the `.catch` site's, said once there)
-				if (arg.type === 'CallExpression' && !handled(arg) && !swallowing_chain(arg)) refuse(node);
+				if (arg?.type !== 'CallExpression' || handled(arg) || swallowing_chain(arg)) return;
+				// (a note on the call's own line, or alone on the line above: reason-notes.test.ts)
+				noted ??= reason_notes(context, OK_NOTE);
+				if (!noted(node) && !marked(node)) context.report({ node, message: MESSAGE_SILENT });
 			}
 		};
 	}
@@ -1520,6 +1534,47 @@ const one_hash = {
 	}
 };
 
+// ── ogygia/dispose-by-close ───────────────────────────────────────────────
+// Package source never calls `x[Symbol.dispose]()` / `x[Symbol.asyncDispose]()`: WebKit has neither
+// symbol, so the call is `x[undefined]()` and throws (#1144). A scope closes with `close()`.
+// Defining the method is fine (machine keys it with a fallback symbol): only calls are refused.
+
+const MESSAGE_DISPOSE =
+	'WebKit has no Symbol.dispose / Symbol.asyncDispose, so this call throws there: call `close()` (a scope, a flights) instead.';
+
+const dispose_by_close = {
+	meta: {
+		type: 'problem',
+		docs: { description: 'Owners are closed with close(), never through Symbol.dispose.' }
+	},
+	create(context: Context) {
+		if (!in_source(context)) return {};
+		const is_dispose_symbol = (n: Node | undefined): boolean => {
+			if (n?.type !== 'MemberExpression') return false;
+			const obj = n.object as Node;
+			const prop = n.property as Node;
+			return (
+				obj.type === 'Identifier' &&
+				obj.name === 'Symbol' &&
+				prop.type === 'Identifier' &&
+				(prop.name === 'dispose' || prop.name === 'asyncDispose')
+			);
+		};
+		return {
+			CallExpression(node: Node) {
+				let callee = node.callee as Node;
+				if (callee.type === 'ChainExpression') callee = callee.expression as Node;
+				if (
+					callee.type === 'MemberExpression' &&
+					callee.computed &&
+					is_dispose_symbol(callee.property as Node)
+				)
+					context.report({ node, message: MESSAGE_DISPOSE });
+			}
+		};
+	}
+};
+
 // ── ogygia/compiler-boundary ──────────────────────────────────────────────
 // `@ogygia/compiler` uses core only through `@ogygia/core/contract` (what both share, and core's
 // own files by path); core never uses the compiler. Package source only: tests may reach across.
@@ -1667,6 +1722,7 @@ export default {
 		'prefer-dedent': prefer_dedent,
 		'structured-comments': structured_comments,
 		'compiler-boundary': compiler_boundary,
+		'dispose-by-close': dispose_by_close,
 		ports
 	}
 };

@@ -24,7 +24,10 @@ test('a dropped download is tried again at once, its failure is not kept, and a 
 	try {
 		net.fail = 2;
 		const seen: unknown[] = [];
-		with_devalue(({ parse }) => seen.push(parse('[1]')));
+		with_devalue(
+			({ parse }) => seen.push(parse('[1]')),
+			(error) => seen.push(error)
+		);
 		await vi.advanceTimersByTimeAsync(0);
 		expect(net.asked, 'the failure was not kept: the read asked afresh').toBe(4);
 		expect(seen).toEqual([]);
