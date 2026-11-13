@@ -2942,6 +2942,24 @@
 			"reason": "`catch { continue; // ok: a dangling symlink is no file to list }`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/compiler/test/package-files-edges.test.ts",
 			"name": "a file a glob listed and that is gone before it is read is no file to list"
+		},
+		{
+			"site": "packages/compiler/src/compiler/link/emit-gate.ts > parse_server_handoff > parse:0",
+			"reason": "`return null; // ok: no server leg ran before this one (or it died mid…`: proved: the catch around its caller's read made to throw turns the test red, twice",
+			"test": "packages/compiler/test/emit-gate.test.ts",
+			"name": "reads as none when the server leg died mid-write (a torn handoff)"
+		},
+		{
+			"site": "packages/compiler/src/compiler/exports/index.ts > ExportIndex > resolve > stale:0",
+			"reason": "`got !== STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/compiler/test/exports-index.test.ts",
+			"name": "a file added while a resolution is out: the resolution is asked again, and its answer is a path"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > readFile > catch:0",
+			"reason": "`catch { return null; // ok: null is \"no such file\" (the CSS walk trie…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a markup format's scan reads a file that is not there as null"
 		}
 	],
 	"impossible": [
@@ -3059,7 +3077,6 @@
 		"packages/compiler/src/compiler/driver.ts > Compiler > leg > throw:1",
 		"packages/compiler/src/compiler/driver.ts > Compiler > resolve_id > throw:0",
 		"packages/compiler/src/compiler/driver.ts > Compiler > resolve_local_script_uncached > catch:0",
-		"packages/compiler/src/compiler/exports/index.ts > ExportIndex > resolve > stale:0",
 		"packages/compiler/src/compiler/exports/index.ts > Walk > map > stale:0",
 		"packages/compiler/src/compiler/exports/index.ts > Walk > through > stale:0",
 		"packages/compiler/src/compiler/fouc-css.ts > compileFoucScopedCss > catch:0",
@@ -3071,7 +3088,6 @@
 		"packages/compiler/src/compiler/kit.ts > clean_stale_ogygia_dirs > catch:0",
 		"packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > throw:0",
 		"packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > throw:1",
-		"packages/compiler/src/compiler/link/emit-gate.ts > parse_server_handoff > parse:0",
 		"packages/compiler/src/compiler/link/emit-gate.ts > read_server_handoff > catch:0",
 		"packages/compiler/src/compiler/macros/dollar.ts > misuse > throw:0",
 		"packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > refuse > throw:0",
@@ -3139,7 +3155,6 @@
 		"packages/compiler/src/compiler/virtual/table.ts > value_names > throw:0",
 		"packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > DEV_PAGE_KEYS > .catch:0",
 		"packages/compiler/src/vite/index.ts > bundler_resolve > catch:0",
-		"packages/compiler/src/vite/index.ts > ogygia > readFile > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > resolve > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > arm_keep_client_cleanup > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > configResolved > catch:0",

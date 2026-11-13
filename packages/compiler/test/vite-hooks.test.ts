@@ -1261,6 +1261,22 @@ describe('the build legs', () => {
 		expect(existsSync(handoff())).toBe(false);
 	});
 
+	it("a markup format's scan reads a file that is not there as null", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const read: (string | null)[] = [];
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) =>
+				void b.markup({
+					extensions: ['.svx'],
+					scan: ({ readFile }) => void read.push(readFile(path.join(root, 'src/nope.svx')))
+				})
+		});
+		await begin((await setup('build', { plugins: [plugin] })).p, 'ssr');
+		expect(read).toEqual([null]);
+	});
+
 	it("a markup format's islands are scanned once per build, and in dev before any request", async () => {
 		app();
 		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
