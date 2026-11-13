@@ -179,6 +179,48 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/server/page-stream.ts > say_if_pending > timer:0",
+			"reason": "dev only: the sim runs production builds; proved: the warning's timer removed turns the test red",
+			"test": "packages/core/test/page-stream-request-owned.test.ts",
+			"name": "navigation stream: one coded warning, none after it settles"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > swap_thenables > catch:0",
+			"reason": "a load value nested past 64 levels: no app the sim draws returns one; proved: the deep walk's fallback removed turns the test red",
+			"test": "packages/core/test/page-defer.test.ts",
+			"name": "a promise nested 66 and 300 levels deep is staged, and the seed serializes (#569)"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > settle_into > catch:0",
+			"reason": "a load's promise that rejects: proved: the rejection let through turns the test red",
+			"test": "packages/core/test/page-defer.test.ts",
+			"name": "a REJECTED promise never crashes the render; it revives as a rejected Promise (`:catch`)"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > resolve_script > catch:0",
+			"reason": "a streamed value devalue cannot write: no app the sim draws resolves one; proved: the catch made to throw turns the test red",
+			"test": "packages/core/test/page-defer.test.ts",
+			"name": "a non-serializable resolution degrades to a typed error, never hangs"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > catch:0",
+			"reason": "Kit's own stream breaking before </body>: a server-side break the sim's network does not make; proved: the catch made to throw turns the test red",
+			"test": "packages/core/test/page-stream-claims.test.ts",
+			"name": "a Kit stream that breaks before `</body>` still streams every resolve and closes"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > catch:1",
+			"reason": "as above, the dead tail's read; proved: the catch made to throw turns the test red",
+			"test": "packages/core/test/page-stream-claims.test.ts",
+			"name": "a Kit stream that breaks before `</body>` still streams every resolve and closes"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > catch:0",
+			"reason": "a resolved value whose staging throws: no app the sim draws resolves one; proved: the throw let through turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a value whose staging throws fails its own promise; the rest stream and the stream closes"
+		},
+		{
 			"site": "packages/core/src/early-holes.ts > start_early_holes > .catch:0",
 			"reason": "an early hole's request failing before any runtime takes it over: the sim's oracles read the page's errors, but a runtime always adopts the request first in its runs; proved: the park's catch removed turns the test red (an unhandled rejection)",
 			"test": "packages/core/test/browser/early-holes.test.ts",
@@ -1289,18 +1331,12 @@
 		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:3",
 		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:4",
 		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:5",
-		"packages/core/src/server/page-stream.ts > say_if_pending > timer:0",
-		"packages/core/src/server/page-stream.ts > swap_thenables > catch:0",
 		"packages/core/src/server/page-stream.ts > swap_thenables > throw:0",
 		"packages/core/src/server/page-stream.ts > clone_untracked > throw:0",
 		"packages/core/src/server/page-stream.ts > clone_untracked > throw:1",
-		"packages/core/src/server/page-stream.ts > settle_into > catch:0",
-		"packages/core/src/server/page-stream.ts > resolve_script > catch:0",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > stream:0",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > .catch:0",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > catch:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > catch:1",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > close > stream:0",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > close > catch:0",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > push > stream:0",
@@ -1308,7 +1344,6 @@
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > reject:0",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > stale:0",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > not-ok:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > catch:0",
 		"packages/core/src/server/personal-response.ts > mark_personal > catch:0",
 		"packages/core/src/server/props-wire.ts > stringify_props > catch:0",
 		"packages/core/src/server/props-wire.ts > stringify_props > throw:0",
