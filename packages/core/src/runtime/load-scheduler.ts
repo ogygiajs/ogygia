@@ -2,11 +2,10 @@
  * THE LOAD SCHEDULER — every download ogygia starts on its own goes through one queue.
  *
  * Island code, a hole's HTML, a hole's prefetch, the module warm on hover, the router's page
- * prefetch: each used to pick its own moment, and on a fast-parsing page they all started together,
- * beside the page's own LCP image — a country home page's hero took 2.27 s instead of 1.19 s while
- * 206 island requests (888 KB) shared its bandwidth. Priority hints alone do not fix that (a
- * throttled or priority-blind connection splits bandwidth evenly); waiting for the right moment,
- * and capping how much background work is in flight, does.
+ * prefetch: started together on a fast-parsing page, they share bandwidth with the page's own LCP
+ * image. Priority hints alone do not fix that (a throttled or priority-blind connection splits
+ * bandwidth evenly); waiting for the right moment, and capping how much background work is in
+ * flight, does.
  *
  * Every download carries a CLASS, decided by who is waiting for it:
  *  - `user`        — a visitor's gesture (an `interaction` wake, a click-time navigation, an explicit
@@ -29,6 +28,23 @@
  * flight (load-class.ts): the queued slot then drains at that class (a click on a link whose prefetch
  * still waits). On a Kit-hydrated document Kit's own start sets the pace, so nothing waits on the
  * critical resources there (the window still applies).
+ *
+ * The gate is a machine: `fresh` (no wait yet), `touched` (the visitor clicked or typed before the
+ * wait began: it waits on nothing), `waiting` (its visit owns the cap and the resources' listeners,
+ * gone as it settles), `settled` (open for good, with how it ended: the beacon reads it). A
+ * per-breakpoint preload whose `media` does not match is never waited for (the browser fetches only
+ * the matching one), and a preload counts as arrived once a resource-timing entry exists for its
+ * `href` or any `imagesrcset` candidate.
+ *
+ * The drain is a machine too: `idle`, `draining`, `again` (asked for while one ran: it goes round
+ * once more). One pass goes through the queue by class, then in the order asked, then through the
+ * slots asked for while it ran. A start's holder runs its start-up in the drain's microtask turn, so
+ * classes are read again after a start, and after 16 ms of starts the drain yields a task (no long
+ * task when the gate opens on many islands).
+ *
+ * Tests: test/browser/load-scheduler.test.ts.
+ *
+ * @packageDocumentation
  */
 import { after_document_painted, yield_task } from './schedule.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
@@ -67,22 +83,9 @@ export function viewport_class(el: Element): 'visible' | 'ahead' {
 	return on_screen(el) ? 'visible' : 'ahead';
 }
 
-// ── the critical-resources gate ─────────────────────────────────────────────────────────────────
-
 export type { CriticalOutcome };
 type CriticalReport = { outcome: CriticalOutcome; resources: number; waited_ms: number };
 
-/**
- * The gate, as a machine:
- *
- *   fresh ─ waiting{t0, resources} ─ settled{report}
- *       ╲ touched ───────────────────╱
- *
- * `fresh`: no wait yet. `touched`: the visitor clicked or typed before the wait began, so it waits on
- * nothing. `waiting`: the wait is up; its visit owns the cap and the resources' listeners, so they go
- * as it settles, however it settles. `settled`: open for good, with how it ended (the beacon reads
- * it). One state in place of `input_seen`, `critical_done`, `release_critical` and the report.
- */
 const gate_definition = machine<{
 	fresh: {};
 	touched: {};
@@ -111,10 +114,8 @@ if (typeof document !== 'undefined') {
 		addEventListener(type, on_first_input, { capture: true, passive: true, once: true });
 }
 
-/** The critical wait below, once for the document (a test's reset drops it). */
 const critical = flights({ name: 'critical resources', run: () => until_critical() });
 
-/** The gate is open: the critical wait settled. */
 const critical_done = () => gate.now.kind === 'settled';
 
 /** The critical wait's outcome once it settled (the profiler's beacon reads it), else `null`. */
@@ -123,7 +124,6 @@ export function critical_outcome(): CriticalReport | null {
 	return s.kind === 'settled' ? s.report : null;
 }
 
-/** The wait ends (once: a gate already settled stays as it settled). */
 function settle_critical(outcome: CriticalOutcome): void {
 	const s = gate.now;
 	if (s.kind === 'settled') return;
@@ -142,8 +142,6 @@ function settle_critical(outcome: CriticalOutcome): void {
 	drain();
 }
 
-/** Elements carrying the page's critical resources that have not arrived yet: an eager
- *  `img[fetchpriority=high]` not complete, a `link[rel=preload][fetchpriority=high]` not fetched. */
 function pending_critical(): Element[] {
 	const out: Element[] = [];
 	for (const img of document.querySelectorAll<HTMLImageElement>('img[fetchpriority="high" i]')) {
@@ -153,13 +151,9 @@ function pending_critical(): Element[] {
 	for (const link of document.querySelectorAll<HTMLLinkElement>(
 		'link[rel~="preload"][fetchpriority="high" i]'
 	)) {
-		// one preload per breakpoint: the browser fetches only the one whose `media` matches, and the
-		// others never fire `load` or `error` — waiting on them ran every such page into the cap
 		if (link.media && !matchMedia(link.media).matches) continue;
 		const urls = preload_urls(link);
 		if (!urls.length) continue;
-		// a resource-timing entry exists once the response is complete (an `imagesrcset` preload
-		// fetches one of its candidates: any of them having arrived means it did)
 		if (urls.some((u) => performance.getEntriesByName?.(u).length)) continue;
 		out.push(link);
 	}
@@ -175,7 +169,7 @@ export function preload_urls(link: HTMLLinkElement): string[] {
 	for (const part of set.split(',')) {
 		const candidate = part.trim();
 		let end = 0;
-		while (end < candidate.length && candidate.charCodeAt(end) > 32) end++; // up to the descriptor
+		while (end < candidate.length && candidate.charCodeAt(end) > 32) end++;
 		const url = candidate.slice(0, end);
 		if (!url) continue;
 		try {
@@ -203,7 +197,6 @@ function until_critical(): Promise<void> {
 			s.kind === 'touched' || document.visibilityState === 'hidden' ? [] : pending_critical();
 		if (!waiting.length) return settle_critical('none');
 		gate.go('waiting', { t0: now(), resources: waiting.length });
-		// the wait's cap and its resources' listeners: its visit's, so all go as it settles
 		const wait = gate.scope;
 		wait.timeout(() => settle_critical('cap'), CRITICAL_CAP_MS);
 		let left = waiting.length;
@@ -218,14 +211,9 @@ function until_critical(): Promise<void> {
 	});
 }
 
-// ── the queue ───────────────────────────────────────────────────────────────────────────────────
-
-/** The slots waiting, in the order they were asked for (a pass takes out the ones it started when
- *  it ends; `waiting` counts the rest at any moment). */
 class LoadQueue {
 	readonly slots: LoadSlot[] = [];
 }
-/** The document's one queue (a slot leaves as it starts, or at a test's reset). */
 const Q = new LoadQueue();
 let waiting = 0;
 let in_flight_background = 0;
@@ -270,9 +258,7 @@ export class LoadSlot {
 		this.ready = new Promise<() => void>((r) => (this.#resolve = r));
 		Q.slots.push(this);
 		waiting++;
-		// its element moved on or off screen: its class may have moved with it
 		if (o.el) this.unwatch = watch_viewport(o.el, '0px', drain);
-		// a caller joined the flight at a higher class: still queued, it drains at that class now
 		this.#flight?.onRaise(() => {
 			if (this.queued) drain();
 		});
@@ -327,18 +313,7 @@ function waits_for_critical(kind: LoadKind, cls: LoadClass): boolean {
 	return !(kind === 'content' && cls === 'visible');
 }
 
-/**
- * Starts go out across tasks: a start's holder runs its own start-up synchronously (an island adds
- * its graph links and starts its imports; the first one also the runtime's lazy chunks), so when the
- * gate opened on a page of 21 islands, every one of those ran in the task that opened it — one long
- * task (52 ms on a 4×-throttled runner). After this much work in one task the drain yields.
- */
 const START_BUDGET_MS = 16;
-/**
- * The queue's drain, as a machine: `idle`, `draining`, or `again` (a drain was asked for while one
- * ran: the one running goes round once more, and asks again when it is done). One state in place of
- * `draining` beside `drain_again`.
- */
 const drain_definition = machine<{ idle: {}; draining: {}; again: {} }>()({
 	name: 'load-drain',
 	initial: 'idle',
@@ -356,30 +331,21 @@ function drain(): void {
 	drainer.go('draining');
 	const mine = drainer;
 	void drain_queue().finally(() => {
-		if (drainer !== mine) return; // (a test's reset: a fresh document)
+		if (drainer !== mine) return;
 		const again = drainer.now.kind === 'again';
 		drainer.go('idle');
 		if (again) drain();
 	}); // ok: a drain only hands out slots and yields; it never rejects
 }
 
-/**
- * One pass goes through the queue by class, then in the order asked, and then through the slots
- * asked for while it ran, in the order asked. The queue is kept in the order asked, so reading each
- * class once and putting the slot in its class's list is that order (a sort compared two classes per
- * step, every pass: passes × queue × log queue reads on a page whose downloads each end a pass).
- *
- * @heisenbench linear
- */
+/** @heisenbench linear */
 async function drain_queue(): Promise<void> {
 	let until = now() + START_BUDGET_MS;
 	for (;;) {
-		// (a drain asked for until now is this round)
 		if (drainer.now.kind === 'again') drainer.go('draining');
 		const asked = Q.slots.length;
 		const by_class: LoadSlot[][] = [[], [], [], []];
 		for (let i = 0; i < asked; i++) by_class[3 - PRIORITY[Q.slots[i].cls()]].push(Q.slots[i]);
-		// nothing has run since the classes were read; after a start its holder has, so they are read again
 		let ran = false;
 		let started = false;
 		let yielded = false;
@@ -387,7 +353,7 @@ async function drain_queue(): Promise<void> {
 			const list = r < 4 ? by_class[r] : Q.slots;
 			for (let i = r < 4 ? 0 : asked; i < list.length; i++) {
 				const e = list[i];
-				if (!e.queued) continue; // (the test seam emptied the queue while the pass waited)
+				if (!e.queued) continue;
 				const cls = r < 4 && !ran ? CLASSES[r] : e.cls();
 				if (!critical_done() && waits_for_critical(e.kind, cls)) continue;
 				const background = cls === 'ahead' || cls === 'speculative';
@@ -397,7 +363,6 @@ async function drain_queue(): Promise<void> {
 				waiting--;
 				started = true;
 				e.start(cls, background);
-				// the holder's continuation (its synchronous start-up) runs in this microtask turn
 				await Promise.resolve();
 				ran = true;
 				if (now() >= until) {
@@ -405,7 +370,7 @@ async function drain_queue(): Promise<void> {
 					await yield_task();
 					until = now() + START_BUDGET_MS;
 					yielded = true;
-					break pass; // classes may have moved (scroll, promote) while the page had the thread
+					break pass;
 				}
 			}
 		}
@@ -416,7 +381,6 @@ async function drain_queue(): Promise<void> {
 	}
 }
 
-/** The started slots out of the queue, the rest kept in the order asked. */
 function leave_queue(): void {
 	let w = 0;
 	for (let i = 0; i < Q.slots.length; i++) if (Q.slots[i].queued) Q.slots[w++] = Q.slots[i];

@@ -29,18 +29,28 @@
  * FACETS (note §11): `owner_of` answers who writes INSIDE an element; the same module answers who
  * writes its ATTRIBUTES (`attributes_writer`, `REGION_RENDER_ATTRS`), who ORDERS its children
  * (`order_owner`), and whether a child EXISTS by the render's doing (`render_made`): one element, four
- * facets, one place. The morph's matching, attribute sync and removal all read them.
+ * facets, one place. The morph's matching, attribute sync and removal all read them. An
+ * `<ogygia-region>` in any state has its attributes written by the runtime; a BAKED live region's
+ * children are matched by identity (its content sits among Svelte's `{@html}` anchors).
+ *
+ * The compiler's server-only stamps (compiler/ownership-stamps.ts): `data-og-opaque`, an element
+ * Svelte's hydration never walks inside; `data-og-html`, an element holding an `{@html}` BESIDE other
+ * children, whose child elements may be `{@html}` content and are compared by tag and position only,
+ * unless they sit in a block Svelte's render opened among them (`<!--[` … `<!--]-->`), which is walked.
+ * The nodes ogygia placed are one set per document across bundles (`window.__og_rendered`, which the
+ * inlined restorer fills too).
+ *
+ * `<body>` has two owners: the server writes it page by page, and the scripts living on the page write
+ * it too (a scroll lock, a portal, a toast host). A navigation moves the server's part to the next
+ * page's and leaves the page's part alone. Tests: test/browser/dom-ownership, nested-island-drift,
+ * morph-baked-region-sheet, hole-lifecycle, body-own-children; test/ownership-rendered-shared.
+ *
+ * @packageDocumentation
  */
 import { OG_BAKED, OG_HTML, OG_OPAQUE, OGYGIA_KEEP, OGYGIA_REGION_CSS } from '../wire-markup.ts';
 
 /** The owner of an element, for the writers that consult it. */
 export type Owner = 'foreign' | 'region' | 'page' | 'static' | 'walk';
-
-// The compiler's server-only stamps (compiler/ownership-stamps.ts): `OG_OPAQUE`, an element Svelte's
-// hydration never walks inside; `OG_HTML`, an element holding an `{@html}` BESIDE other children,
-// whose child elements may be `{@html}` content (PROD output opens an `{@html}` block with the same
-// `<!---->` as any separator, so the exact range is not knowable from the DOM: its child elements
-// are compared by tag and position only, never entered).
 
 const REGION = 'ogygia-region';
 const SLOT = 'ogygia-slot';
@@ -77,20 +87,15 @@ export function owner_of(el: Element): Owner {
 	return 'walk';
 }
 
-/**
- * Is `el` inside a block Svelte's render opened among its siblings (`<!--[…-->` … `<!--]-->`): an
- * `{#if}`/`{#each}`/component's own output, such as an island nested inline? An `{@html}` beside
- * siblings is never inside one (it sits between two `<!---->` anchors, read by Svelte's walk as one
- * run), so an element in a block is the render's, walked by position (test:
- * test/browser/nested-island-drift.test.ts, #1425).
- */
+const OPEN_BRACKET = 91;
+
 function in_render_block(el: Element): boolean {
 	let depth = 0;
 	for (let n = el.previousSibling; n; n = n.previousSibling) {
 		if (n.nodeType !== 8) continue;
 		const data = (n as Comment).data;
 		if (data === ']') depth--;
-		else if (data.charCodeAt(0) === 91 /* [ */) depth++;
+		else if (data.charCodeAt(0) === OPEN_BRACKET) depth++;
 		if (depth > 0) return true;
 	}
 	return false;
@@ -126,16 +131,9 @@ export function is_self_owned(el: Element): boolean {
 	return name === 'dialog' || name === 'details' || is_upgraded_ce(el);
 }
 
-// ── FACETS (internal/notes/dom-ownership.md §11) ────────────────────────────────────────────────
-// `owner_of` answers who writes INSIDE an element. Three more questions have one answer each, here:
-// who writes its ATTRIBUTES, who ORDERS its children, and whether a child EXISTS by the render's doing
-// (the render may remove it when it stops producing it) or the element's (never removed).
-
 /** Who writes an element's attributes: its own runtime (an upgraded custom element's host), Svelte's
  *  reactivity (a hydrated region root — but see {@link REGION_RENDER_ATTRS}), or the render. */
 export function attributes_writer(el: Element): 'render' | 'element' | 'region' {
-	// (an `<ogygia-region>` in any state: the runtime writes its state attributes — hydrated, kept,
-	// nested — whether or not it woke yet)
 	if (el.localName === REGION || is_region_owned(el)) return 'region';
 	return is_upgraded_ce(el) ? 'element' : 'render';
 }
@@ -147,9 +145,6 @@ export const REGION_RENDER_ATTRS: readonly string[] = ['endpoint'];
 /** Who orders an element's children: the render (positions are its sequence), or the element itself
  *  (a self-owned element relocates and wraps its light DOM — positions are not the render's). */
 export function order_owner(el: Element): 'render' | 'element' {
-	// (ogygia's own element never rearranges what it holds: a fallback, an answer — the render's order;
-	// but a BAKED live region's content is hosted by Svelte's `{@html}`, whose anchor comments sit among
-	// the answer's nodes: its children are partly another owner's, so it matches by identity)
 	if (el.localName === REGION) return el.hasAttribute(OG_BAKED) ? 'element' : 'render';
 	return is_self_owned(el) ? 'element' : 'render';
 }
@@ -165,9 +160,6 @@ export function slots_light_dom(el: Element): boolean {
 	return el.shadowRoot !== null && is_upgraded_ce(el);
 }
 
-/** The nodes ogygia placed under an element-ordered parent (a morph's claim or insertion, the restore
- *  putting Svelte's children back into a planned host). One per document across bundles: the inlined
- *  restorer fills the same set (`window.__og_rendered`). */
 function rendered(): WeakSet<Node> {
 	const w = globalThis as { __og_rendered?: WeakSet<Node> };
 	return (w.__og_rendered ??= new WeakSet());
@@ -194,16 +186,6 @@ export function render_made(node: Node, render_tags: ReadonlySet<string>): boole
 	return name === REGION || render_tags.has(name) || el.hasAttribute(OGYGIA_REGION_CSS);
 }
 
-// ── `<body>`: two owners (internal/notes/dom-ownership.md) ──────────────────────────────────────
-// The server writes `<body>` page by page; the scripts living on the page write it too: an attribute
-// (a scroll lock, a consent banner's state) and children (a component mounted into the body, such as
-// a popover's portal and the anchor it inserts beside; a toast host; a widget's iframe). A navigation
-// moves the server's part to the next page's and leaves the page's part alone: it removes only what
-// the previous page's SERVER sent. One record per reconciled root: the body's starts when the router
-// starts, which is before any island wakes (the wake gate waits for DOMContentLoaded and a frame),
-// and each navigation renews it; any other root's starts at its first reconcile.
-
-// static: the empty answer, shared and never written
 const NO_TAGS: ReadonlySet<string> = new Set();
 const server_attrs = new WeakMap<Element, ReadonlySet<string>>();
 
