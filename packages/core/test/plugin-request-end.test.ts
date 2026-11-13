@@ -58,6 +58,20 @@ describe('end_request: the work a plugin leaves at the request end', () => {
 		expect(s.seen.finished).toBe(true);
 	});
 
+	it('a platform whose waitUntil refuses the work: the request still ends, and the work runs on by itself', async () => {
+		const s = sender(20);
+		const platform = {
+			context: {
+				waitUntil: () => {
+					throw new Error('waitUntil after the response');
+				}
+			}
+		};
+		const out = await end([s.plugin], platform, new Response('page'));
+		expect(await out!.text()).toBe('page');
+		await vi.waitFor(() => expect(s.seen.finished).toBe(true));
+	});
+
 	it('platform.ctx.waitUntil is the same path', async () => {
 		const s = sender(20);
 		const handed: Promise<unknown>[] = [];

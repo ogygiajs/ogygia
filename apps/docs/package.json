@@ -37,7 +37,7 @@
 		"@ogygia/insights": "workspace:*",
 		"@ogygia/machine": "workspace:*",
 		"@ogygia/postrender": "workspace:*",
-		"@ogygia/reshape": "workspace:*",
+		"@ogygia/rewrite": "workspace:*",
 		"@ogygia/router": "workspace:*",
 		"@ogygia/testing": "workspace:*",
 		"@ogygia/tooling": "workspace:*",

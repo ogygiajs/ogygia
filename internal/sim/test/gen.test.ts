@@ -1,6 +1,6 @@
 // The random app (src/gen.ts): a seed always draws the same app, and what it writes is a page per
 // plan entry and a component per region, each importing its children with their attributes.
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -12,6 +12,8 @@ import {
 	layout_plan,
 	peer_plan,
 	plan,
+	RELEASE,
+	released_plan,
 	router_plan,
 	shape_plan,
 	write,
@@ -19,6 +21,7 @@ import {
 	type GenNode,
 	type GenPage
 } from '../src/gen.ts';
+import { BUILD_IDS, builds_of, output_of, released_app, released_of } from '../src/builds.ts';
 
 const all = (ns: readonly GenNode[]): GenNode[] => ns.flatMap((n) => [n, ...all(n.children)]);
 
@@ -819,7 +822,7 @@ describe('the random app', () => {
 			expect(component).toContain(`<x-gen-box data-n="${n.id}">`);
 			expect(component).toContain('<a data-gen-link data-gen-messy><x-gen-link>');
 			const transform = readFileSync(join(lib, 'reshape.server.ts'), 'utf8');
-			expect(transform).toContain('reshape.handle(transform)');
+			expect(transform).toContain("match: ['x-gen-box', 'x-gen-link'],");
 			expect(transform).toContain(`const TRIM = ${pass!.trim};`);
 			for (const point of ['throws', 'slow', 'strips-marks'])
 				expect(transform).toContain(`buggify.fires('gen.reshape-${point}')`);
@@ -831,11 +834,55 @@ describe('the random app', () => {
 			join(import.meta.dirname, '../../../apps/sim-gen/vite.config.ts'),
 			'utf8'
 		);
-		expect(config).toContain('...(plan.reshape ? [reshape()] : [])');
+		expect(config).toContain('...(plan.reshape ? [rewrite()] : [])');
 		const hooks = readFileSync(
 			join(import.meta.dirname, '../../../apps/sim-gen/src/hooks.server.ts'),
 			'utf8'
 		);
 		expect(hooks).toContain("import { handle as reshaped } from '$lib/gen/reshape.server';");
+	});
+
+	it("upgrades some apps that use only ogygia's own package from a release, from their own stream: plan.json says which, and the app's first build is on it", () => {
+		const drawn = (s: number) => {
+			const reshape = reshape_plan(s);
+			const pages = reshape ? plan(s).map(boxing(s, reshape)) : plan(s);
+			return { pages, reshape, peer: peer_plan(s, pages) };
+		};
+		const seeds = Array.from({ length: 600 }, (_, i) => i + 1);
+		const upgraded = seeds.filter((s) => {
+			const d = drawn(s);
+			return released_plan(s, d.pages, d.peer, d.reshape) !== null;
+		});
+		expect(upgraded.length).toBeGreaterThan(0);
+		for (const s of upgraded) {
+			const d = drawn(s);
+			expect(released_plan(s, d.pages, d.peer, d.reshape)).toBe(RELEASE);
+			expect(d.peer).toBeNull();
+			expect(d.reshape).toBeNull();
+			expect(d.pages.some((p) => p.flagged || p.postrender)).toBe(false);
+			expect(d.pages.flatMap((p) => all(p.roots)).some((n) => n.publish)).toBe(false);
+		}
+		const seed = upgraded[0]!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write(app, drawn(seed).pages, seed, null, null, true, null, RELEASE);
+			const written = JSON.parse(readFileSync(join(app, 'src', 'lib', 'gen', 'plan.json'), 'utf8'));
+			expect(written.released).toBe(RELEASE);
+			expect(released_of(app)).toBe(RELEASE);
+			for (const id of BUILD_IDS) {
+				mkdirSync(join(output_of(app, id, true), 'server'), { recursive: true });
+				writeFileSync(join(output_of(app, id, true), 'server', 'index.js'), '');
+			}
+			expect(builds_of(app)).toEqual([
+				{
+					id: 'v1',
+					output: join(released_app(app), '.svelte-kit', 'sim-builds', 'v1'),
+					released: RELEASE
+				},
+				{ id: 'v2', output: join(app, '.svelte-kit', 'sim-builds', 'v2') }
+			]);
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
 	});
 });

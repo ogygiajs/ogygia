@@ -57,6 +57,22 @@ describe('BuildCache', () => {
 		expect(cache.get('torn')).toBe(null);
 	});
 
+	it('a namespace whose directory cannot be made is no cache, and nothing throws', () => {
+		const root = tmp();
+		fs.writeFileSync(path.join(root, 'taken'), '');
+		__set_build_cache_root(root);
+		const cache = new BuildCache<number>('taken');
+		expect(cache.dir()).toBe(null);
+		expect(cache.get('k')).toBe(null);
+	});
+
+	it('a value it cannot write is not kept, and nothing throws', () => {
+		__set_build_cache_root(tmp());
+		const cache = new BuildCache<bigint>('ns');
+		expect(() => cache.set('k', 1n)).not.toThrow();
+		expect(cache.get('k')).toBe(null);
+	});
+
 	it('a root it cannot create is no cache, and nothing throws', () => {
 		const file = path.join(tmp(), 'a-file');
 		fs.writeFileSync(file, '');

@@ -56,6 +56,19 @@ function fire_resolve(id: number, ok: boolean, value: unknown) {
 	(g[PAGE_DEFER_GLOBAL] as (i: number, o: boolean, e: string) => void)(id, ok, stringify(value));
 }
 
+/** The reasons of every rejection left unhandled while `run` runs. */
+async function unhandled_during(run: () => Promise<void>): Promise<unknown[]> {
+	const reasons: unknown[] = [];
+	const on = (reason: unknown) => void reasons.push(reason);
+	process.on('unhandledRejection', on);
+	try {
+		await run();
+	} finally {
+		process.off('unhandledRejection', on);
+	}
+	return reasons;
+}
+
 /** `leaf` under `levels` plain objects: `{ nest: { nest: … leaf } }`. */
 function nest(leaf: unknown, levels: number): unknown {
 	let v = leaf;
@@ -216,22 +229,22 @@ describe('page-defer codec round-trip', () => {
 
 	it('a REJECTION that races ahead of the seed rejects cleanly (no unhandled-rejection noise)', async () => {
 		install_page_defer();
-		let unhandled = '';
-		const on = (e: PromiseRejectionEvent | { reason?: unknown }) => {
-			unhandled = String(
-				(e as { reason?: { message?: string } }).reason?.message ??
-					(e as PromiseRejectionEvent).reason ??
-					''
-			);
-		};
-		process.on('unhandledRejection', on as (r: unknown) => void);
-		// Reject arrives BEFORE the deferred exists → buffered; create_deferred returns a rejected Promise.
-		fire_resolve(11, false, { message: 'early-boom' });
-		const p = create_deferred(11);
-		await expect(p).rejects.toThrow('early-boom');
-		await new Promise((r) => setTimeout(r, 10)); // let any stray unhandled-rejection fire
-		process.off('unhandledRejection', on as (r: unknown) => void);
-		expect(unhandled).toBe('');
+		const unhandled = await unhandled_during(async () => {
+			fire_resolve(11, false, { message: 'early-boom' });
+			await new Promise((r) => setTimeout(r, 10));
+		});
+		expect(unhandled).toEqual([]);
+		await expect(create_deferred(11)).rejects.toThrow('early-boom');
+	});
+
+	it('a deferred leaf rejected while nobody awaits it makes no unhandled-rejection noise', async () => {
+		install_page_defer();
+		const unhandled = await unhandled_during(async () => {
+			void create_deferred(12);
+			fire_resolve(12, false, { message: 'late-boom' });
+			await new Promise((r) => setTimeout(r, 10));
+		});
+		expect(unhandled).toEqual([]);
 	});
 
 	it('a promise resolving to a value with NESTED promises re-stages and streams them (Kit-style recursion)', async () => {
@@ -323,6 +336,18 @@ describe('page-defer settle path (non-navigate / SPA fallback)', () => {
 			boom: Promise<unknown>;
 		};
 		await expect(revived.boom).rejects.toThrow('DENIED');
+	});
+
+	it('a settled rejection revived where nobody awaits it makes no unhandled-rejection noise', async () => {
+		const seed = stringify(
+			{ boom: new SettledRef(false, { message: 'DENIED' }) },
+			page_seed_reducers
+		);
+		const unhandled = await unhandled_during(async () => {
+			parse(seed, revivers());
+			await new Promise((r) => setTimeout(r, 10));
+		});
+		expect(unhandled).toEqual([]);
 	});
 
 	it('a promise nested 66 and 300 levels deep is settled, and the seed serializes (#569)', async () => {
