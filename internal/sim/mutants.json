@@ -399,7 +399,7 @@
 		"id": "router-build-throw-not-handed-off",
 		"file": "packages/core/src/runtime/router-nav.ts",
 		"in": "navigate",
-		"code": "return hand_off(error); // (its devalue did not load, or another step of it threw)",
+		"code": "return hand_off(error);",
 		"operator": "statement",
 		"from": "return hand_off(error);",
 		"to": "return;",
