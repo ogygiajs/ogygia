@@ -5077,10 +5077,6 @@
 			"reason": "config only, once per Vite config resolve: a map over the listed plugins, a handful"
 		},
 		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~6b3ec1 > prescan",
-			"reason": "build only: a plugin's prescan registration, once per plugin per build, constant work"
-		},
-		{
 			"id": "packages/flags/src/build-messages.ts > FLAGS_BUILD_WARNINGS > flags_manifest_written > details",
 			"reason": "a message's prose for its docs page and build note: constant text, printed once per build"
 		},
@@ -5135,10 +5131,6 @@
 		{
 			"id": "packages/compiler/src/compiler/driver.ts > Compiler > relocate",
 			"reason": "once per finished chunk (renderChunk): builds the relocation context and calls link/relocations.ts relocate, whose own cost is the token scan; a real build runs it"
-		},
-		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > relocate > relocate:3~0b2c47 > public_url",
-			"reason": "one island's public url from the context, constant work, once per island token patched"
 		},
 		{
 			"id": "packages/compiler/src/compiler/driver.ts > Compiler > start_leg",
@@ -5707,6 +5699,14 @@
 		{
 			"id": "packages/core/src/server/props-wire.ts > lake_identity",
 			"reason": "one hole_identity fingerprint of a lake's props per lake render, measured with hole_identity's own bench; lake-identity.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~6b3ec1 > prescan",
+			"reason": "build only: a plugin's prescan registration, once per plugin per build, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > relocate > relocate:3~0b2c47 > public_url",
+			"reason": "one island's public url from the context, constant work, once per island token patched"
 		},
 		{
 			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > page_reads_claimed > text",
