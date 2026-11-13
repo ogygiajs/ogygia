@@ -94,13 +94,50 @@ describe('transformHost — held region in .svelte (region: raw)', () => {
 			/only takes the value 'raw'/
 		);
 	});
+});
 
-	test('a `partial:` key is no region mark: beside a live region import, the host still transforms', () => {
-		const src = `<script>
-			import Card from '$lib/Card.svelte' with { partial: 'load' };
-			import Live from '$lib/Live.svelte' with { region: 'raw' };
-		</script>`;
-		expect(() => transformHost(src, '/app/src/routes/+page.svelte', makeCtx())).not.toThrow();
+describe('an import attribute ogygia does not know, on a component import, fails the build', () => {
+	const host = '/app/src/routes/+page.svelte';
+	const page = (imports: string) => `<script>\n${imports}\n</script>`;
+
+	test('a misspelt key, alone on a .svelte import, is named with the keys there are', () => {
+		const src = page(`import Card from '$lib/Card.svelte' with { wkae: 'load' };`);
+		expect(() => transformHost(src, host, makeCtx())).toThrow(
+			/`wkae`[\s\S]*`wake`[\s\S]*e\/region_attribute_unknown/
+		);
+	});
+
+	test('the retired `partial:` key is one of them, beside a live region import or alone', () => {
+		const beside = page(
+			`import Card from '$lib/Card.svelte' with { partial: 'load' };\nimport Live from '$lib/Live.svelte' with { region: 'raw' };`
+		);
+		expect(() => transformHost(beside, host, makeCtx())).toThrow(/e\/region_attribute_unknown/);
+		const alone = page(`import Card from '$lib/Card.svelte' with { partial: 'load' };`);
+		expect(() => transformHost(alone, host, makeCtx())).toThrow(/e\/region_attribute_unknown/);
+	});
+
+	test('with renamed keys, the default spelling is the unknown one, and the message lists the renamed', () => {
+		const src = page(`import Card from '$lib/Card.svelte' with { wake: 'load' };`);
+		expect(() =>
+			transformHost(src, host, makeCtx({ importKeys: { wake: 'hydrate' } } as never))
+		).toThrow(/`wake`[\s\S]*`hydrate`[\s\S]*e\/region_attribute_unknown/);
+	});
+
+	test('an attribute on an import that is not a component is left alone', () => {
+		const src = page(
+			`import data from './data.json' with { type: 'json' };\nimport Live from '$lib/Live.svelte' with { region: 'raw' };`
+		);
+		expect(() => transformHost(src, host, makeCtx())).not.toThrow();
+	});
+
+	test('in a .ts module too, and a json import there is left alone', () => {
+		const id = '/app/src/lib/cards.ts';
+		expect(() =>
+			transformTsRegions(`import Card from './Card.svelte' with { wkae: 'load' };`, id, makeCtx())
+		).toThrow(/`wkae`[\s\S]*e\/region_attribute_unknown/);
+		expect(
+			transformTsRegions(`import x from './x.json' with { type: 'json' };`, id, makeCtx())
+		).toBe(null);
 	});
 });
 
