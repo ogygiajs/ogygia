@@ -998,7 +998,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// region — the driver owns the naming + dedup; `this.emitFile` is the injected primitive.
 					// Gated on the SERVER leg's real module graph (link/emit-gate.ts): an island whose host
 					// the server bundle never loaded gets no chunk. No handoff → every prescanned island.
-					const loaded = read_server_handoff(kit_dirs(root).out_dir)?.hosts ?? null;
+					const handoff = read_server_handoff(kit_dirs(root).out_dir);
+					const loaded = handoff?.hosts ?? null;
+					// The holes whose styles this leg builds: the server leg's final list when it handed
+					// one off (a host only it reached late included), else this program's own.
+					const server_regions = handoff?.server_regions ?? null;
 					const skipped = compiler.emit_build_chunks(leg, (chunk) => this.emitFile(chunk), {
 						emitRuntime: emit_runtime,
 						loaded
@@ -1020,7 +1024,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// Holes: handed off under the island's public URL key, which `region_css_links` already
 					// resolves through `islandCss()`, so the hole response links it and the client hoists it.
 					const hole_css_by_abs = new Map<string, string>();
-					for (const { iid, abs } of compiler.server_island_css_roots()) {
+					for (const { iid, abs } of server_regions ?? compiler.server_island_css_roots()) {
 						let ref = hole_css_by_abs.get(abs);
 						if (ref === undefined) {
 							const source = await tree_css(abs);
@@ -1089,7 +1093,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						fs.mkdirSync(path.dirname(handoff), { recursive: true });
 						fs.writeFileSync(
 							handoff,
-							server_handoff_json(compiler.ssr_transformed_hosts(), build_secret)
+							server_handoff_json(
+								compiler.ssr_transformed_hosts(),
+								build_secret,
+								compiler.server_island_css_roots()
+							)
 						);
 					} catch (e) {
 						// best effort — without it the client leg emits every prescanned island
