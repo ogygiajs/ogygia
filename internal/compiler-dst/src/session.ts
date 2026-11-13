@@ -17,6 +17,7 @@ import {
 	hasAnyCsrFalseRoute,
 	rootLayoutCsrTrue
 } from '../../../packages/compiler/src/compiler/kit.ts';
+import type { PageReadsSink } from '../../../packages/compiler/src/compiler/ctx.ts';
 import { LIB, ROOT, ROUTES } from './app.ts';
 
 export interface Session {
@@ -32,11 +33,16 @@ export interface Session {
 /** How a session runs: a build (the default), or a dev server. */
 export interface SessionOptions {
 	readonly dev?: boolean;
+	/** The seed-shaping plugin's answers (`pageKeys()`), when the app lists it. */
+	readonly page_reads?: PageReadsSink | null;
 }
 
 /** A compile session on `files`. The fields a prescan + transform read, and an emit config with
  *  fixed stand-ins (no secret, no Kit paths on disk), so the virtual modules load too. */
-export function session(files: Fs, { dev = false }: SessionOptions = {}): Session {
+export function session(
+	files: Fs,
+	{ dev = false, page_reads = null }: SessionOptions = {}
+): Session {
 	const program = new Program({ forms: true, router: true });
 	const ctx = new CompileCtx({
 		root: ROOT,
@@ -64,7 +70,8 @@ export function session(files: Fs, { dev = false }: SessionOptions = {}): Sessio
 		client_binding_stub_file: '/nowhere/ogygia/client-binding-stub.js',
 		app_shims: {},
 		devtools: false,
-		fs: files
+		fs: files,
+		page_reads
 	});
 	const compiler = new Compiler(
 		program,
