@@ -8,7 +8,7 @@ import { Program } from '../src/compiler/program.ts';
 const ENTRY = 'ogygia:region/entry/abc.svelte';
 const WRAPPER = 'ogygia:region/wrapper/abc.svelte';
 
-const run = (id: string, map: unknown | (() => never)) => {
+const run = (id: string, map: unknown) => {
 	const program = new Program({ forms: false, router: false });
 	program.registry.set(ENTRY, { id: 'abc', source: '<p>generated</p>' });
 	const plugin = island_sourcemaps_plugin({

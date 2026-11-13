@@ -169,7 +169,7 @@ export function judge_perf(
 export function perf_watch(): void {
 	type Sent = Record<string, unknown>;
 	const w = window as unknown as {
-		__sim_perf?: (e: Sent) => void;
+		__sim_perf?: (e: Sent) => Promise<void>;
 		__sim_input?: () => void;
 	};
 	// ok: the replay's own binding: it fails only as its page closes, with nothing left to record
