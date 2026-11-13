@@ -14,6 +14,7 @@ import {
 	machine,
 	policy,
 	random,
+	say,
 	type Policy
 } from '@ogygia/machine';
 import type { RequestEvent } from '@sveltejs/kit';
@@ -176,12 +177,25 @@ async function check_deploy(fed: Federation, owed: Owed | null): Promise<Checked
 	}
 }
 
+/** A path the dispatch below would serve: a deferred hole, a thaw, a table page or a widget. */
+const is_federation_path = (path: string): boolean =>
+	path.endsWith(HOLE_PATH) || path.endsWith(THAW_PATH) || path.includes(FRAGMENT_BASE);
+
+/** Says once that a federation path came in before any `federate()` ran, until one does (#1501). */
+const unregistered = say({ max: 1 });
+
 /** Dispatch a federation request, or null if the path is none of ours. */
 export async function serve_federation(event: RequestEvent): Promise<Response | null> {
 	const fed = current_federation();
-	if (!fed) return null;
 	const { url } = event;
 	const path = url.pathname;
+	if (!fed) {
+		// (it falls through, as it always has, but no longer as a bare 404 nobody explains)
+		if (is_federation_path(path))
+			unregistered.once('unregistered', () => warn('federation_unregistered', { path }));
+		return null;
+	}
+	unregistered.ok('unregistered');
 
 	if (path.endsWith(FRAGMENT_ROUTES_PATH)) {
 		void deploy_thaw_check(fed); // ok: a check never rejects (a failed one is tried again later)
@@ -226,7 +240,8 @@ async function serve_expose(fed: Federation, event: RequestEvent): Promise<Respo
 	if (!target) return json_error(400, 'path must start with exactly one "/"');
 
 	const body = await read_capped_body(request, fed.max_body);
-	if (body === null) return json_error(413, 'body too large');
+	if (body === 'too large') return json_error(413, 'body too large');
+	if (body === 'unreadable') return json_error(400, 'the body did not arrive whole');
 
 	// signature gate FIRST (401 before any routing) unless intentionally open
 	let claims: Claims | undefined;
@@ -335,7 +350,7 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 	const target = p.get('target') ?? '';
 	const search = p.get('search') ?? '';
 	// expired, renewal, bad signature: answered as a region hole is (a 403 the runtime renews once)
-	const opened = fed_app()?.capability.open(url, (e) =>
+	const opened = fed_app()?.capability.open(event, (e) =>
 		hole_message(peer_name, kind, target, search, e)
 	);
 	if (!opened) return new Response('forbidden', { status: 403 });
@@ -452,7 +467,8 @@ async function apply_thaw(n: Received): Promise<number> {
 async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Response> {
 	const { request, url } = event;
 	const body = await read_capped_body(request, fed.max_body);
-	if (body === null) return json_error(413, 'body too large');
+	if (body === 'too large') return json_error(413, 'body too large');
+	if (body === 'unreadable') return json_error(400, 'the body did not arrive whole');
 
 	// identify the SENDER by which peer's key verifies (its name prefixes the thawed tags)
 	let sender: (Peer & { keys: readonly string[] }) | null = null;
@@ -477,7 +493,7 @@ async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Respons
 	try {
 		notice = thaw_notice(JSON.parse(new TextDecoder().decode(body ?? new Uint8Array())));
 	} catch {
-		notice = null;
+		notice = null; // ok: not JSON is not the notice's shape: refused just below
 	}
 	// (not the notice's shape: refused, never asked again, never passed on — test/thaw-notice-shape)
 	if (notice === null) return json_error(400, 'bad notice');

@@ -3,7 +3,7 @@
  * `defaults + its own presets`. Split out of the adapter so the plugin file stays lean; these are
  * pure type declarations (the plugin factory in index.ts imports them back).
  */
-import type { ImportKeys } from '../compiler/region/transform.ts';
+import { PRESET_KEYS, type ImportKeys } from '../compiler/region/transform.ts';
 import { OgygiaError, RETIRED_OPTIONS } from '../compiler/messages.ts';
 
 // ── regexes
@@ -149,11 +149,11 @@ export interface OgygiaOptions {
 
 	/**
 	 * Rename the import-attribute keys claimed by the transform.
-	 * Defaults stay `hydrate` / `defer` / `preset`. Escape hatch if another tool already
-	 * uses those names on the same imports.
+	 * Defaults stay `wake` / `fetch` / `render` / `preset` / `region`. Escape hatch if another
+	 * tool already uses those names on the same imports.
 	 *
-	 * Preset **definitions** ({@link OgygiaOptions.presets}) still use canonical `hydrate` /
-	 * `defer` / `margin` / `remount` — only the `with { … }` spellings in source change.
+	 * Preset **definitions** ({@link OgygiaOptions.presets}) still use the standard `render` /
+	 * `wake` / `fetch` / … keys: only the `with { … }` spellings in source change.
 	 */
 	importKeys?: Partial<ImportKeys>;
 
@@ -189,20 +189,6 @@ export function assert_no_legacy_options(options: OgygiaOptions): void {
 		throw new OgygiaError('barrels_option_removed');
 }
 
-// static: the keys a region preset takes
-const REGION_PRESET_KEYS = new Set([
-	'render',
-	'wake',
-	'fetch',
-	'margin',
-	'maxAge',
-	'onExpire',
-	'revalidate',
-	'keep',
-	'stitch',
-	'prefetch'
-]);
-
 /**
  * Config-time region-preset validation — the transform re-checks on USE (with file/line context), but
  * a broken preset nobody references yet should still fail the build, not lurk.
@@ -213,11 +199,11 @@ export function validate_region_presets(presets: Record<string, unknown>): void 
 			throw new OgygiaError('preset_empty', { name });
 		}
 		for (const k of Object.keys(bag)) {
-			if (!REGION_PRESET_KEYS.has(k)) {
+			if (!PRESET_KEYS.has(k)) {
 				throw new OgygiaError('preset_key_unknown', {
 					name,
 					key: k,
-					allowed: [...REGION_PRESET_KEYS].join(', ')
+					allowed: [...PRESET_KEYS].join(', ')
 				});
 			}
 		}

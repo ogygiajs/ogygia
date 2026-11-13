@@ -19,6 +19,18 @@ const BUG = 'An ogygia bug: please report it with the page that shows it.';
 /** The errors: `throw new OgygiaError(code, args)`, or `console.error(new OgygiaError(…), err)` for a
  *  failure that is caught. */
 export const ERRORS = {
+	context_missing: {
+		text: (a: { key: string }): string => prose`
+			context ${a.key} is not set above this component. Call the setter createContext returned
+			in a component above it (in a csr=false layout, for regions), or ask has() first.
+		`,
+		details: (): string => prose`
+			The getter \`createContext\` returns reads a value a component above set with its setter.
+			Nothing above set one. Set it in a layout or a parent component; a value set in a
+			csr=false layout reaches every region on the page. When the value is optional, call
+			\`has()\` (the third item) before \`get()\`.
+		`
+	},
 	request_event_server_only: {
 		text: (): string => 'getRequestEvent is server-only',
 		details: (): string => prose`
@@ -156,6 +168,25 @@ export const ERRORS = {
 		text: (): string =>
 			'a devalue-lane payload was read before devalue loaded (load_devalue() first)',
 		details: (): string => BUG
+	},
+	page_promise_unresolved: {
+		text: (a: { why: 'stream' | 'devalue' | 'answer' }): string =>
+			a.why === 'stream'
+				? 'a streamed page.data promise never got its value: the page loaded without it.'
+				: a.why === 'answer'
+					? "a streamed page.data promise never got its value: the page's data answer ended without it."
+					: "a streamed page.data promise's value came, but the code to read it never loaded.",
+		details: (): string => prose`
+			A promise in \`page.data\` streams into islands: the page carries it pending, and a script
+			later in the same response settles it. Here that can no longer happen, so the promise is
+			rejected with this error and \`{#await}\` shows its catch branch instead of waiting
+			forever. \`why=stream\`: the page finished loading with no value for it (the response was
+			cut short, or something between the server and the browser dropped its end).
+			\`why=devalue\`: the value came, but the browser could not download the code that reads it.
+			\`why=answer\`: on the server, a region rendered outside its page (a hole, a remote call)
+			reads the page's data from Kit's data answer, and that answer ended (it broke, or the
+			request was over) before the promise's value came.
+		`
 	},
 	slot_not_linked: {
 		text: (a: { name: string }): string =>
@@ -435,6 +466,21 @@ export const WARNINGS = {
 			when the data does is easy to spot.
 
 			Equal versions, and answers without a version, keep the one that arrived last.
+		`
+	},
+	region_wake_unknown: {
+		text: (a: { region: string; value: string }): string => prose`
+			region ${a.region}: its wake "${a.value}" is not a trigger, so it wakes on load. Use
+			load, idle, visible, interaction or a media query.
+		`,
+		details: (): string => prose`
+			A region's \`wake\` (or a hole's \`when\`) names when it runs: \`load\`, \`idle\`,
+			\`visible\`, \`interaction\`, or a media query (a \`(\` with a \`)\` after it). This one
+			names none of them: a typo, or a value an app computed at runtime (\`region()\`'s
+			options). The build refuses an unknown value it can see on an import; this one reached
+			the page. The region wakes on load, the one fallback for a value no trigger holds.
+
+			Fix the value where it is made.
 		`
 	},
 	hole_without_address: {
@@ -759,19 +805,53 @@ export const WARNINGS = {
 		`
 	},
 	context_dropped: {
-		text: (a: { key: string }): string =>
-			`context '${a.key}' could not be serialized for islands and was dropped.`,
+		text: (a: { key: string }): string => prose`
+			context ${a.key} could not be serialized for regions and was dropped: regions read
+			undefined. Pass plain data, or a wired class for a value with methods; or set it with {
+			islands: false } if no region reads it.
+		`,
 		details: (): string => prose`
-			Dev only. A context value set above islands could not be serialized, so islands do not see
-			it. Pass plain data, or a wired value.
+			A context value set above regions could not be serialized, so regions in the browser do
+			not see it. Pass plain data. For a value with methods, make it a wired class (\`static
+			wire = import.meta.og.wire(…)\`): every region gets the one live instance. If no region
+			reads the key, set it with \`setContext(key, value, { islands: false })\`.
 		`
 	},
 	context_unserializable: {
 		text: (a: { key: string; path?: string; detail: string }): string =>
-			`context '${a.key}'${a.path ? ` @ ${a.path}` : ''}: ${a.detail}`,
+			`context ${a.key}${a.path ? ` @ ${a.path}` : ''}: ${a.detail}`,
 		details: (): string => prose`
-			Dev only. Part of a context value set above islands does not cross into them: \`path\`
-			names where, \`detail\` what. Pass plain data there.
+			Part of a context value set above regions does not cross into them: \`path\` names where,
+			\`detail\` what. Pass plain data there, or a wired class (\`static wire =
+			import.meta.og.wire(…)\`) for a value with methods.
+		`
+	},
+	context_key_one_off: {
+		text: (a: { key: string }): string => prose`
+			context key ${a.key} is a one-off Symbol(), so it cannot cross into regions: they read
+			undefined in the browser. Key it with a string or Symbol.for('name'); or set it with {
+			islands: false } if no region reads it.
+		`,
+		details: (): string => prose`
+			Each region wakes as its own root in the browser, so it reads context the page carries
+			across. A one-off \`Symbol()\` key has no twin there: nothing in the browser can name it.
+			Use a string key, or \`Symbol.for('name')\`, which the browser rebuilds from its name (or
+			\`createContext\` from \`ogygia\`). If no region reads the key, set it with
+			\`setContext(key, value, { islands: false })\`.
+		`
+	},
+	context_value_function: {
+		text: (a: { key: string }): string => prose`
+			context ${a.key} is a function, so it cannot cross into regions: they read undefined in
+			the browser. Put the methods on a wired class; or set it with { islands: false } if no
+			region reads it.
+		`,
+		details: (): string => prose`
+			A function cannot be serialized into the page, so a region in the browser never sees it.
+			For a value with methods, make it a wired class (\`static wire =
+			import.meta.og.wire(…)\`) and set an instance: every region gets the one live instance.
+			A single server function can be marked with \`import.meta.og.$\`. If no region reads the
+			key, set it with \`setContext(key, value, { islands: false })\`.
 		`
 	},
 	page_seed_ref_missing: {
@@ -782,6 +862,18 @@ export const WARNINGS = {
 		details: (): string => prose`
 			Dev only. An island's props point into \`page.data\`, but the page did not ship that part,
 			so the island reads \`undefined\` there.
+		`
+	},
+	page_payload_unreadable: {
+		text: (a: { what: string }): string => prose`
+			the page's ${a.what} could not be read back, so islands go on without it. The error follows.
+		`,
+		details: (): string => prose`
+			Dev only. The server wrote data into the page for its islands (the page seed, the page
+			facts, the holes record, the context marker, remote functions' data), and the browser could not decode it. The
+			usual cause is a custom type the server's \`transport\` encodes and the browser has no
+			decoder for. Islands then read nothing there. Give the type a decoder in \`transport\`
+			(hooks.ts), or pass plain data.
 		`
 	},
 	store_not_extensible: {
@@ -856,7 +948,8 @@ export const WARNINGS = {
 			`nested island "${a.entry}" is inside another island; it hydrates with its parent (strategy ignored).`,
 		details: (): string => prose`
 			Dev only. An island inside an island hydrates with the outer one, so its own \`wake\` is
-			ignored. Put a lake (\`wake: 'none'\`) between them to give it its own schedule.
+			ignored when it differs from the outer island's. Put a lake (\`wake: 'none'\`) between them
+			to give it its own schedule.
 		`
 	},
 	lake_mounted_without_html: {
@@ -951,6 +1044,28 @@ export const WARNINGS = {
 			puts the answer in the shape its components expect. An element of an answer was built
 			during the parse anyway: the engine built custom elements in a document that has no
 			registry. ${BUG}
+		`
+	},
+	rule_lake_restored: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a hydrate gives back every lake it lifted: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). Before an island hydrates, the server
+			HTML of each region inside it that never wakes (a lake) is lifted out, and after the
+			hydrate it goes back into the lakes the island rendered, the first into the first. The
+			island rendered a different number of lakes than it had, so one lake's content was lost or
+			one lake was left empty. A lake that renders on the server only, or only in the browser
+			(an \`{#if browser}\`), does this; else ${BUG}
+		`
+	},
+	rule_turns_counted: {
+		text: (a: { detail: string }): string =>
+			`rule broken, the hydration scheduler holds every turn it counts: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). Islands that are ready to hydrate wait
+			for a turn, one per task, the ones on screen first. The scheduler keeps a count of the
+			turns waiting and picks the next one from two lists, on screen and not. The count and the
+			lists disagree, so the next pick could find nothing and islands could wait forever. ${BUG}
 		`
 	},
 	rule_head_adopted: {

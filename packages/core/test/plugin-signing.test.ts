@@ -33,8 +33,11 @@ const APP_SIGNER: AppSigner = {
 		renew_window: RENEW_WINDOW_SEC,
 		request: () => null
 	}),
-	deny: (why) => new Response('Forbidden', { status: 403, headers: { 'x-ogygia-deny': why } })
+	deny: (why) => new Response('Forbidden', { status: 403, headers: { 'x-ogygia-deny': why } }),
+	charge: () => null
 };
+/** A request for `url`, as `capability.open` takes it. */
+const at = (url: URL) => ({ url, request: new Request(url) }) as never;
 
 let leaves: Array<() => void> = [];
 afterEach(() => {
@@ -119,8 +122,8 @@ describe('two plugins whose names differ never share a valid signature', () => {
 		const [a, ab] = apps('a', 'a.b');
 		const { exp, sig } = a!.capability.mint((e) => `b.x|${e}`);
 		const url = new URL(`http://app.example.com/peer?exp=${exp}&sig=${sig}`);
-		expect(a!.capability.open(url, (e) => `b.x|${e}`).ok).toBe(true);
-		const opened = ab!.capability.open(url, (e) => `x|${e}`);
+		expect(a!.capability.open(at(url), (e) => `b.x|${e}`).ok).toBe(true);
+		const opened = ab!.capability.open(at(url), (e) => `x|${e}`);
 		expect(opened.ok).toBe(false);
 		if (!opened.ok) expect(opened.response.headers.get('x-ogygia-deny')).toBe('sig');
 	});
