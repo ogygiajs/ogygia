@@ -443,6 +443,7 @@ export function standalone_beacon(): void {
 			if (raw === 'plaintext') i = n;
 			else if (RAW_TEXT.includes(raw)) {
 				// (its text runs to `</name` followed by a space, `/` or `>`)
+				// markup-ok: core's walk, copied (inlined by toString(), it imports nothing; parity test)
 				let close = s.indexOf('</', end);
 				while (close !== -1) {
 					const after = close + 2 + raw.length;
@@ -452,7 +453,7 @@ export function standalone_beacon(): void {
 						(t === undefined || t === '>' || t === '/' || SPACE.includes(t))
 					)
 						break;
-					close = s.indexOf('</', close + 2);
+					close = s.indexOf('</', close + 2); // markup-ok: the copy above
 				}
 				i = close === -1 ? n : close;
 			}
