@@ -82,6 +82,20 @@ export const RESHAPE_WARNINGS = {
 			body), or let it hydrate a declarative root instead of attaching its own in the
 			constructor. Said once per page and element name.
 		`
+	},
+	restore_host_invalid: {
+		text: (a: { host: string }): string =>
+			`<${a.host}> is marked for a restore but cannot have a shadow root; it is left as served.`,
+		details: (): string => prose`
+			The restore attaches a shadow root to each element ogygia marked (\`og-h\`). This one
+			cannot have one: its name is not a valid custom element name in this browser, or it is a
+			built-in element that never takes a root (markup a sanitizer let through can carry the
+			mark). It keeps the server's markup with ogygia's marks taken off, and every other host is
+			still restored.
+
+			Give the element a valid custom element name, or keep \`og-*\` attributes out of markup you
+			did not render through ogygia. Said once per page and element name.
+		`
 	}
 };
 
