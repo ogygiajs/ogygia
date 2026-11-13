@@ -286,13 +286,12 @@ export const page = D;`;
 	});
 });
 
-describe('transformTsRegions — import.meta.og.asRegion (barrel / named in .ts)', () => {
+describe('transformTsRegions — a marked named import (barrel / named in .ts)', () => {
 	const id = '/app/src/lib/registry.ts';
 	const isl0 = (r: ReturnType<typeof transformTsRegions>) => r!.islands[0];
 
 	test('a NAMED barrel import → a mountable held binding (same record as a .ts wake mark)', () => {
-		const src = `import { Header } from '@design/system';
-const HeaderRegion = import.meta.og.asRegion(Header, { wake: 'visible' });
+		const src = `import { Header as HeaderRegion } from '@design/system' with { wake: 'visible' };
 export const registry = [{ name: 'header', component: HeaderRegion }];`;
 		const r = transformTsRegions(src, id, makeCtx());
 		expect(r).not.toBeNull();
@@ -306,13 +305,13 @@ export const registry = [{ name: 'header', component: HeaderRegion }];`;
 		expect(String(isl.source)).toMatch(
 			/import \{ Header as __OgygiaComp_[0-9a-f]+ \} from ["']@design\/system["']/
 		);
-		// the const is rewritten to a hoisted binding import; the macro is gone
+		// the import is rewritten to the binding import, under its local name
 		expect(r!.code).toMatch(
 			new RegExp(
 				`import HeaderRegion from ["']${regionBindingVirtualId(isl.id as string).replace(/\./g, '\\.')}["']`
 			)
 		);
-		expect(r!.code).not.toContain('import.meta.og.asRegion');
+		expect(r!.code).not.toContain('@design/system');
 		// identity keys on source#exportName
 		expect(isl.id).toBe(
 			regionId(
@@ -324,9 +323,8 @@ export const registry = [{ name: 'header', component: HeaderRegion }];`;
 		);
 	});
 
-	test('region: raw via asRegion → a bare held descriptor with the named import', () => {
-		const src = `import { Block } from '@design/system';
-const BlockRegion = import.meta.og.asRegion(Block, { region: 'raw' });
+	test('region: raw on a named import → a bare held descriptor with the named import', () => {
+		const src = `import { Block as BlockRegion } from '@design/system' with { region: 'raw' };
 export const f = () => region(BlockRegion, {});`;
 		const r = transformTsRegions(src, id, makeCtx());
 		const isl = isl0(r);
@@ -338,9 +336,8 @@ export const f = () => region(BlockRegion, {});`;
 		);
 	});
 
-	test('a DEFAULT import works via asRegion in .ts too', () => {
-		const src = `import Card from './Card.svelte';
-const CardRegion = import.meta.og.asRegion(Card, { wake: 'load' });
+	test('a `{ default as X }` import is the default export', () => {
+		const src = `import { default as CardRegion } from './Card.svelte' with { wake: 'load' };
 export const registry = [CardRegion];`;
 		const r = transformTsRegions(src, id, makeCtx());
 		expect(r!.islands).toHaveLength(1);
@@ -350,59 +347,10 @@ export const registry = [CardRegion];`;
 	});
 
 	test('two named exports of one barrel → two distinct islands', () => {
-		const src = `import { Header, Footer } from '@design/system';
-const H = import.meta.og.asRegion(Header, { wake: 'load' });
-const F = import.meta.og.asRegion(Footer, { wake: 'load' });
+		const src = `import { Header as H, Footer as F } from '@design/system' with { wake: 'load' };
 export const registry = [H, F];`;
 		const r = transformTsRegions(src, id, makeCtx());
 		expect(r!.islands).toHaveLength(2);
 		expect(new Set(r!.islands.map((i) => i.id)).size).toBe(2);
-	});
-
-	// ── misuse (loud build errors) ──────────────────────────────────────────────
-	test('first arg not an imported component → error', () => {
-		expect(() =>
-			transformTsRegions(
-				`const X = import.meta.og.asRegion(Nope, { wake: 'load' });`,
-				id,
-				makeCtx()
-			)
-		).toThrow(/not an imported component/);
-	});
-	test('namespace import → error', () => {
-		expect(() =>
-			transformTsRegions(
-				`import * as UI from '@d/s';\nconst X = import.meta.og.asRegion(UI, { wake: 'load' });`,
-				id,
-				makeCtx()
-			)
-		).toThrow(/namespace import/);
-	});
-	test('NOT top-level (nested in a function) → error', () => {
-		expect(() =>
-			transformTsRegions(
-				`import { H } from '@d/s';\nfunction f() { const X = import.meta.og.asRegion(H, { wake: 'load' }); return X; }`,
-				id,
-				makeCtx()
-			)
-		).toThrow(/must be a top-level/);
-	});
-	test('unknown option key → error', () => {
-		expect(() =>
-			transformTsRegions(
-				`import { H } from '@d/s';\nconst X = import.meta.og.asRegion(H, { nope: 'x' });`,
-				id,
-				makeCtx()
-			)
-		).toThrow(/unknown option/);
-	});
-	test('a string shorthand is rejected (options must be an object)', () => {
-		expect(() =>
-			transformTsRegions(
-				`import { H } from '@d/s';\nconst X = import.meta.og.asRegion(H, 'load');`,
-				id,
-				makeCtx()
-			)
-		).toThrow(/needs an options object/);
 	});
 });

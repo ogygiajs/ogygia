@@ -1,6 +1,6 @@
 // A region id is hashed from its identity and, in production, the app's secret (`idSalt`), so ids
 // cannot be computed offline (P1-ID). Both host kinds must salt: a `.svelte` host's region import
-// and a `.ts` module's `asRegion(…)`. The id is checked against `regionId(identity, salt)` itself.
+// and a `.ts` module's marked named import. The id is checked against `regionId(identity, salt)` itself.
 import { describe, expect, it } from 'vitest';
 import path from 'node:path';
 import { dedent } from '@ogygia/core/contract';
@@ -33,8 +33,7 @@ const SVELTE_HOST = dedent`
 `;
 
 const TS_HOST = dedent`
-	import { Counter } from '$lib/Counter.svelte';
-	const C = import.meta.og.asRegion(Counter, { wake: 'load' });
+	import { Counter as C } from '$lib/Counter.svelte' with { wake: 'load' };
 	export { C };
 `;
 
