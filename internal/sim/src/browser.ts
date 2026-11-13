@@ -343,6 +343,8 @@ export class Browsers {
 	}
 
 	readonly #windows = new WeakMap<object, Tab>();
+	/** Each tab's document's layout (its IntersectionObserver frames wait while the tab is hidden). */
+	readonly #layouts = new WeakMap<Tab, { shown(): void }>();
 	/** The last error happy-dom wrote to a tab's page console (why an element's load failed). */
 	readonly #said = new WeakMap<Tab, string>();
 	/** Documents (realms) a script or stylesheet of which failed to load, or a module ogygia says
@@ -432,7 +434,10 @@ export class Browsers {
 			});
 		}
 		// (a layout, and the IntersectionObserver that reads it: happy-dom's never reports)
-		install_layout(window, this.#o.loop, tab.realm);
+		this.#layouts.set(
+			tab,
+			install_layout(window, this.#o.loop, tab.realm, () => tab.hidden)
+		);
 		// (the tab's network, as a browser's `navigator.onLine` reads its own: test/online.node.test.ts)
 		const network = this.#o.network;
 		Object.defineProperty(window.navigator, 'onLine', {
@@ -752,6 +757,7 @@ export class Browsers {
 			if (!hidden) {
 				t.seen.add(t.realm);
 				t.platform?.shown();
+				this.#layouts.get(t)?.shown();
 			}
 		}
 		return was_hidden;

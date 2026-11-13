@@ -305,9 +305,15 @@ type Callback = (entries: object[], observer: object) => void;
 
 /**
  * Gives `window` (a document of realm `realm`) its layout's IntersectionObserver. Its frames are
- * tasks of `realm` on `loop`; a closed window's frame does nothing.
+ * tasks of `realm` on `loop`; a closed window's frame does nothing, and a hidden tab's (`hidden`)
+ * waits until the returned `shown()`.
  */
-export function install_layout(window: object, loop: Loop, realm: string): void {
+export function install_layout(
+	window: object,
+	loop: Loop,
+	realm: string,
+	hidden: () => boolean = () => false
+): { shown(): void } {
 	const w = window as {
 		document: Document;
 		closed: boolean;
@@ -322,13 +328,24 @@ export function install_layout(window: object, loop: Loop, realm: string): void 
 	let dirty = true;
 	/** The layout the last frame made (or a look made, before any frame). */
 	let last_boxes: Map<Element, Box> | null = null;
+	/** A frame owed while the tab was hidden: a browser runs no rendering there, so its observers
+	 *  report nothing until it is shown (test/layout.test.ts). */
+	let parked = false;
 	/** The next frame, once: every observer looks then, from one layout. */
 	const ask_frame = () => {
 		if (frame !== null && !frame.cancelled) return;
+		if (hidden()) {
+			parked = true;
+			return;
+		}
 		const wait = 16 - (loop.now % 16) || 16;
 		frame = loop.add(realm, 'intersection', wait, () => {
 			frame = null;
 			if (w.closed) return;
+			if (hidden()) {
+				parked = true;
+				return;
+			}
 			// (the frame keeps the layout it made, observers or not: test/layout.test.ts)
 			if (dirty) last_boxes = boxes(w.document);
 			dirty = false;
@@ -420,4 +437,12 @@ export function install_layout(window: object, loop: Loop, realm: string): void 
 		writable: true,
 		configurable: true
 	});
+	return {
+		/** The tab is shown again: the frame it owes comes now. */
+		shown() {
+			if (!parked) return;
+			parked = false;
+			ask_frame();
+		}
+	};
 }
