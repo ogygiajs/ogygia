@@ -388,7 +388,7 @@ describe('a barrel’s map, name by name', () => {
 				reached();
 				await gate;
 			}
-			return path.posix.join(path.posix.dirname(importer), spec) + '.ts';
+			return `${path.posix.join(path.posix.dirname(importer), spec)}.ts`;
 		}, shapes);
 		const pending = index.map('/app/lib/index.ts', '$lib', EVERY_BARREL);
 		await at_leaf;
