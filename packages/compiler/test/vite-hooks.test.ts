@@ -1594,7 +1594,7 @@ describe('the dev server', () => {
 		expect(s.invalidated).toContain(helper);
 	});
 
-	it("with a profiler, the dev server answers its source maps, server and browser, and each island's page keys", async () => {
+	it("with a profiler, the dev server answers its source maps, server and browser, and with seed shaping each island's page keys", async () => {
 		const slots = [DEV_MAPS, DEV_CLIENT_MAPS, DEV_PAGE_KEYS];
 		const g = globalThis as Record<symbol, unknown>;
 		const saved = slots.map((s) => g[s]);
@@ -1606,6 +1606,22 @@ describe('the dev server', () => {
 			write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
 			const measuring = definePlugin({ name: 'x-tool', build: (b) => b.measure() });
 			(await setup('serve', { plugins: [measuring] })).p.configureServer(server());
+			expect(slots.map((s) => typeof g[s])).toEqual(['function', 'function', 'undefined']);
+			const reads = {
+				module() {},
+				settle: async () => {},
+				keys: () => null,
+				why: () => null,
+				dev: async () => ({ keys: null, why: [] })
+			};
+			const shaping = definePlugin({
+				name: 'x-tool',
+				build: (b) => {
+					b.measure();
+					b.pageReads(reads);
+				}
+			});
+			(await setup('serve', { plugins: [shaping] })).p.configureServer(server());
 			expect(slots.map((s) => typeof g[s])).toEqual(['function', 'function', 'function']);
 		} finally {
 			slots.forEach((s, i) => (g[s] = saved[i]));
