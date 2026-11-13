@@ -649,6 +649,9 @@ importers:
       '@ogygia/machine':
         specifier: workspace:*
         version: link:../../packages/machine
+      '@ogygia/page-keys':
+        specifier: workspace:*
+        version: link:../../packages/page-keys
       '@ogygia/postrender':
         specifier: workspace:*
         version: link:../../packages/postrender
