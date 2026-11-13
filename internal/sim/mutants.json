@@ -193,5 +193,23 @@
 		"from": "fals",
 		"to": "tru",
 		"equivalent": "RULES only gates a buggify point, and buggify.fires is false unless a simulator installed its hook: on in a build without rules, the point still never fires"
+	},
+	{
+		"id": "reshape-children-not-put-back",
+		"file": "packages/reshape/src/restore.ts",
+		"line": 461,
+		"code": "host.appendChild(c.node);",
+		"operator": "statement",
+		"from": "host.appendChild(c.node);",
+		"to": "void c;"
+	},
+	{
+		"id": "reshape-render-left-in-light-dom",
+		"file": "packages/reshape/src/restore.ts",
+		"line": 454,
+		"code": "if (shadow) shadow.appendChild(n);",
+		"operator": "statement",
+		"from": "shadow.appendChild(n);",
+		"to": "void n;"
 	}
 ]
