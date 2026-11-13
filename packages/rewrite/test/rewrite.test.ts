@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RequestEvent } from '@sveltejs/kit';
-import { RESTORE_CALL, RESTORER_SCRIPT, rewrite_pass, step_of, type Failure } from '../src/pass.ts';
+import {
+	call_render,
+	RESTORE_CALL,
+	RESTORER_SCRIPT,
+	rewrite_pass,
+	step_of,
+	type Failure
+} from '../src/pass.ts';
 import { rewrite } from '../src/index.ts';
 import type {
 	ElementRewrite,
@@ -298,6 +305,47 @@ describe('element rewrites: failures cost only the element', () => {
 		expect(out).toEqual({ html: page, head: '', body: '' });
 		expect(render).toHaveBeenCalledTimes(3);
 		expect(failed).toEqual([]);
+	});
+
+	it('a request cancelled during the first rewrite: the second never renders, and nothing is written', async () => {
+		const ac = new AbortController();
+		const first: ElementRewrite = {
+			match: ['x-faq'],
+			render(els) {
+				ac.abort();
+				return els.map((el) => el.html.replace('<x-faq', '<x-faq data-faq'));
+			}
+		};
+		const second = vi.fn((els: readonly RewriteElement[]) => els.map((e) => fake_scoped(e.html)));
+		const { chunk, failed } = chunked(
+			[first, { match: 'demo-', render: second }],
+			event_of(ac.signal)
+		);
+		const html = doc(island('<x-faq>q</x-faq><demo-card>a</demo-card>'));
+		const out = await chunk(html);
+		expect(out).toEqual({ html, head: '', body: '' });
+		expect(second).not.toHaveBeenCalled();
+		expect(failed).toEqual([]);
+	});
+
+	it('a later chunk of a cancelled request goes out as it came, never rendered', async () => {
+		const ac = new AbortController();
+		const render = vi.fn((els: readonly RewriteElement[]) => els.map((e) => fake_scoped(e.html)));
+		const { chunk, failed } = chunked([{ match: 'demo-', render }], event_of(ac.signal));
+		await chunk(doc('<demo-card>a</demo-card>').replace('</body></html>', ''), { done: false });
+		ac.abort();
+		const later = '<demo-card>b</demo-card></body></html>';
+		expect(await chunk(later)).toEqual({ html: later, head: '', body: '' });
+		expect(render).toHaveBeenCalledTimes(1);
+		expect(failed).toEqual([]);
+	});
+
+	it('rule_rewrite_after_cancel: a render called after the request was cancelled is said with the rule’s code', async () => {
+		const ac = new AbortController();
+		ac.abort();
+		const ctx = { signal: ac.signal } as RewriteContext;
+		await call_render((els) => els.map((e) => e.html), [], ctx);
+		expect(said.map((a) => String(a[0])).join('\n')).toContain('rule_rewrite_after_cancel');
 	});
 
 	it('production says each failure with its code, once per response and element name', async () => {
