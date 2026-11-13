@@ -8,7 +8,7 @@ import { dedent } from '../../../packages/core/src/contract/dedent.ts';
 import { memory_fs } from '../../../packages/compiler/src/compiler/fs.ts';
 import { LIB, ROOT, ROUTES } from '../src/app.ts';
 import { session, transform_module, type Leg, type Session } from '../src/session.ts';
-import { page_reads } from '../../../packages/page-keys/src/index.ts';
+import { page_reads } from '../../../packages/data-shake/src/index.ts';
 
 const PAGE = `${ROUTES}/+page.svelte`;
 

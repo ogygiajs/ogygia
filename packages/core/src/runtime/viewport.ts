@@ -48,8 +48,6 @@ class Tracker {
 
 	constructor(root_margin: string, owner: Scope) {
 		this.owner = owner;
-		// (only browsers observe: where there is none, the first `observe` throws, as the raw
-		// constructor did, and the caller is told rather than left unwoken)
 		this.io = owner.watch(
 			seen.observer((entries) => this.#report(entries), { rootMargin: root_margin })!
 		);
@@ -141,7 +139,6 @@ class Tracker {
 		const pending = swaps.takeRecords();
 		swaps.disconnect();
 		for (const t of this.#swap_targets.keys()) swaps.observe(t, { childList: true });
-		// (later, as the observer would have: this runs inside a #follow)
 		if (pending.length) tasks.micro(() => this.#swapped(pending));
 	}
 
@@ -152,7 +149,6 @@ class Tracker {
 			const part = this.part_of.get(t);
 			if (!part) continue;
 			for (const watched of part) touched.add(watched);
-			// what a watched element rendered left the page (its content was swapped): let it go
 			if (!t.isConnected && !this.heard.has(t)) {
 				for (const watched of Array.from(part)) this.#follow(t, watched, 0, false);
 				continue;
@@ -170,7 +166,6 @@ class Tracker {
 		const on = decide(el, DEPTH, this.read);
 		if (on === undefined || on === this.decided.get(el)) return;
 		this.decided.set(el, on);
-		// (a copy: a watcher may stop while it hears)
 		for (const heard of Array.from(set)) heard(on);
 	}
 }

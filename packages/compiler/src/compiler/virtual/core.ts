@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { cache } from '@ogygia/machine';
-import { kit_dirs, csrTrueRouteIds, errorCsrTrueRouteIds, rootLayoutCsrTrue } from '../kit.ts';
+import { csrTrueRouteIds, errorCsrTrueRouteIds, rootLayoutCsrTrue } from '../kit.ts';
 import {
 	generateHydrateFeaturesSource,
 	generateRuntimeEntrySource,
@@ -327,7 +327,7 @@ export const region_deps: Family<RegionDepsModule> = virtual.family({
 		handoff_problem: 'handoff_problem'
 	},
 	load: ({ ctx }: CoreApp, { ssr }) =>
-		island_deps_module(ssr, ctx.is_dev, path.relative(ctx.root, kit_dirs(ctx.root).out_dir))
+		island_deps_module(ssr, ctx.is_dev, path.relative(ctx.root, ctx.kit_dirs.out_dir))
 });
 
 export const router_css: Family = virtual.family({

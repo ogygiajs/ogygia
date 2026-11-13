@@ -26,7 +26,9 @@ const g = globalThis as Record<string, unknown>;
 const saved = { io: g.IntersectionObserver, scheduler: g.scheduler, document: g.document };
 
 beforeAll(async () => {
-	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+	vi.useFakeTimers({
+		toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'performance']
+	});
 	g.IntersectionObserver = class {
 		constructor(cb: Report) {
 			observers.push(cb);

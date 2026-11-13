@@ -1284,8 +1284,46 @@ export function peer_answers(
 		exchanges.some((e) => e.for === realm && (failed_on_wire(e) || e.tampered));
 	const origin = new URL(tab.page.mainFrame.url).origin;
 	const wrong: string[] = [];
+	// (the peer gave the page whole, well inside the deadline counted from the visitor's own ask: the
+	// app had its page to answer with; a mutant that made every exposed page a redirect, which the
+	// mount then failed on, answered 5xx and survived)
+	const peer_gave = (e: (typeof exchanges)[number], path: string): boolean => {
+		const hops = exchanges.filter(
+			(h) =>
+				h.for === e.from &&
+				h.at >= e.at &&
+				new URL(h.url).pathname.endsWith('/og/fragment/page') &&
+				new URL(h.url).searchParams.get('path') === path.slice(MOUNT.length)
+		);
+		return (
+			hops.length > 0 &&
+			hops.every(
+				(h) =>
+					typeof h.status === 'number' &&
+					h.status < 500 &&
+					!failed_on_wire(h) &&
+					!h.tampered &&
+					h.stalled !== true &&
+					h.ended_at !== undefined &&
+					h.ended_at - e.at < PEER_TIMEOUT_MS
+			)
+		);
+	};
 	for (const e of exchanges.slice(since)) {
 		if (e.for !== undefined || !e.from.startsWith(`${tab.name}#`) || e.method !== 'GET') continue;
+		if (
+			typeof e.status === 'number' &&
+			e.status >= 500 &&
+			!e.cut &&
+			!e.tampered &&
+			!e.redirected &&
+			new URL(e.url).origin === origin &&
+			peer_gave(e, new URL(e.url).pathname)
+		) {
+			const owed = EDGE_OWED.find(([is]) => is(new URL(e.url).pathname));
+			if (owed)
+				wrong.push(`${new URL(e.url).pathname} answered ${e.status}, the peer answered ${owed[1]}`);
+		}
 		if (typeof e.status !== 'number' || e.status >= 500 || e.cut || e.tampered || e.redirected)
 			continue;
 		const url = new URL(e.url);
@@ -1457,6 +1495,33 @@ export function server_rules(world: World): Broken | null {
 	if (said.every((l) => known.some((k) => k.said.test(l))))
 		return { oracle: 'known', detail: known.map((k) => `#${k.issue} (${k.what})`).join(', ') };
 	return { oracle: 'server-rules', detail: said.join('\n') };
+}
+
+/**
+ * A RESHAPED PAGE'S TEXT COMES BACK AS IT WAS: each text a reshape pass's render trimmed (its HTML's
+ * `og-t` marks, `Exchange.restore_owes`) stands in the document at rest with its whitespace, where
+ * the same words stand at all. The MPA check cannot see it: it reads text with its whitespace
+ * collapsed, and its fresh load is reshaped and restored alike (a restore that left the trimmed
+ * text survived). A document the network changed is not judged.
+ */
+export function text_restored(tab: Tab, world: World): Broken | null {
+	const own = world.network.exchanges.find((e) => e.from === tab.realm);
+	if (own?.restore_owes === undefined || document_faulted(world, tab)) return null;
+	if (new URL(own.url).pathname !== new URL(tab.page.mainFrame.url).pathname) return null;
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	const texts: string[] = [];
+	const walk = doc.createTreeWalker(doc.documentElement, 4 /* SHOW_TEXT */);
+	for (let n = walk.nextNode(); n; n = walk.nextNode()) texts.push((n as Text).data);
+	const wrong: string[] = [];
+	for (const was of new Set(own.restore_owes)) {
+		if (was.trim() === '') continue;
+		const same_words = texts.filter((t) => t.trim() === was.trim());
+		if (same_words.length > 0 && !same_words.includes(was))
+			wrong.push(`${JSON.stringify(was)} stands as ${JSON.stringify(same_words[0])}`);
+	}
+	return wrong.length === 0
+		? null
+		: { oracle: 'text-restored', detail: `${tab.page.mainFrame.url}: ${wrong.join('\n')}` };
 }
 
 /** A peer hop's deadline (federation's `timeout` default, which the generated apps keep): an answer

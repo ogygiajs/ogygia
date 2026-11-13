@@ -109,7 +109,7 @@ describe('derive_css_scope_owners', () => {
 	it('walks importers up to route files and reports their top-level scopes', () => {
 		const docs_layout: Mod = { file: '/app/src/routes/(docs)/+layout.svelte' };
 		const css: Mod = { file: '/app/src/app.css', importers: [docs_layout] };
-		const owners = derive_css_scope_owners('/app/src/app.css', '/app', [
+		const owners = derive_css_scope_owners('/app/src/app.css', '/app/src/routes', [
 			graph_of(new Map([['/app/src/app.css', [css]]]))
 		]);
 		expect(owners).toEqual(['(docs)']);
@@ -123,7 +123,7 @@ describe('derive_css_scope_owners', () => {
 			importers: [pg_page, pg_layout]
 		};
 		const css: Mod = { file: '/app/src/lib/playground/thing.css', importers: [lib] };
-		const owners = derive_css_scope_owners('/app/src/lib/playground/thing.css', '/app', [
+		const owners = derive_css_scope_owners('/app/src/lib/playground/thing.css', '/app/src/routes', [
 			graph_of(new Map([['/app/src/lib/playground/thing.css', [css]]]))
 		]);
 		expect(owners).toEqual(['playground']);
@@ -133,7 +133,7 @@ describe('derive_css_scope_owners', () => {
 		const root_layout: Mod = { file: '/app/src/routes/+layout.svelte' };
 		const docs_err: Mod = { file: '/app/src/routes/(docs)/+error.svelte' };
 		const css: Mod = { file: '/app/src/shared.css', importers: [root_layout, docs_err] };
-		const owners = derive_css_scope_owners('/app/src/shared.css', '/app', [
+		const owners = derive_css_scope_owners('/app/src/shared.css', '/app/src/routes', [
 			graph_of(new Map([['/app/src/shared.css', [css]]]))
 		]);
 		expect(owners).toEqual(['', '(docs)']);
@@ -147,7 +147,7 @@ describe('derive_css_scope_owners', () => {
 		};
 		const css: Mod = { file: '/app/src/pg.css', importers: [pg_page] };
 		expect(
-			derive_css_scope_owners('/app/src/pg.css', '/app', [
+			derive_css_scope_owners('/app/src/pg.css', '/app/src/routes', [
 				graph_of(new Map([['/app/src/pg.css', [css]]]))
 			])
 		).toEqual(['playground']);
@@ -156,7 +156,7 @@ describe('derive_css_scope_owners', () => {
 	it('no route owner found → empty (client treats as shared)', () => {
 		const orphan: Mod = { file: '/app/src/lib/orphan.css', importers: [] };
 		expect(
-			derive_css_scope_owners('/app/src/lib/orphan.css', '/app', [
+			derive_css_scope_owners('/app/src/lib/orphan.css', '/app/src/routes', [
 				graph_of(new Map([['/app/src/lib/orphan.css', [orphan]]]))
 			])
 		).toEqual([]);
@@ -168,7 +168,7 @@ describe('derive_css_scope_owners', () => {
 		a.importers = [b];
 		const css: Mod = { file: '/app/src/x.css', importers: [a] };
 		expect(
-			derive_css_scope_owners('/app/src/x.css', '/app', [
+			derive_css_scope_owners('/app/src/x.css', '/app/src/routes', [
 				graph_of(new Map([['/app/src/x.css', [css]]]))
 			])
 		).toEqual([]);

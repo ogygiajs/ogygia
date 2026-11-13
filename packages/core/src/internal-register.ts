@@ -1,7 +1,6 @@
 /**
  * The Region-free slice of `ogygia/internal` that the compiler's INJECTED imports reference — the
- * appended-registration helpers (`__register_transportable` per exported class, `__tag_context` per
- * `createContext`) and the macro runtime (`__og_$` / `__og_store` / `__og_boundary`, emitted by the
+ * appended-registration helper (`__register_transportable` per exported class) and the macro runtime (`__og_$` / `__og_store` / `__og_boundary`, emitted by the
  * `import.meta.og.$` / `.store` passes). The transform drops an import of these into app modules, so
  * this module is dragged into whatever realm those modules run in.
  *
@@ -13,7 +12,6 @@
  * importing this seam is safe in every realm.
  */
 export { __register_transportable } from './live-transport.ts';
-export { __tag_context } from './context-bridge.ts';
 // The server-router CSS registry — imported by the GENERATED `ogygia:server/router-css` (never by
 // user code). Region-free leaf (a WeakMap module), so it keeps this seam safe in every realm.
 export { register_router_css, register_router_css_paths } from './router-css.ts';

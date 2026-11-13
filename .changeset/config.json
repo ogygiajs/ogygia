@@ -22,7 +22,7 @@
 			"@ogygia/barrels",
 			"@ogygia/bake",
 			"@ogygia/insights",
-			"@ogygia/page-keys"
+			"@ogygia/data-shake"
 		]
 	],
 	"format": "auto",
