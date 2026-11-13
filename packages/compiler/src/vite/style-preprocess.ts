@@ -1,14 +1,3 @@
-/**
- * A component source made compilable by `svelte.compile` alone, for the build-time tree-CSS
- * collection (`compileFoucScopedCss`): `<style lang="scss|sass">` compiled to CSS, `<script
- * lang="ts">` stripped of TypeScript. The compiler reads neither dialect; without this step such a
- * component's scoped CSS compiles to nothing (or ships raw and unscoped) and a server-rendered
- * subtree styled that way goes unstyled.
- *
- * Node-only (this is the Vite leg): `sass-embedded` or `sass` is resolved from the APP root, the
- * way vitePreprocess finds it (neither installed → the block is left as is, one warning); TS is
- * stripped with Vite's own transform (oxc on Vite ≥ 8, esbuild before).
- */
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { warn } from '../compiler/messages.ts';
@@ -24,7 +13,6 @@ type Transform = (
 ) => Promise<{ code: string }>;
 
 let sass: Sass | null | undefined;
-/** Said once for the process. */
 const sass_missing = say({ max: 1 });
 let transform: Transform | null | undefined;
 

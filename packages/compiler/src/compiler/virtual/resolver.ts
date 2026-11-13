@@ -182,6 +182,9 @@ export class VirtualTable<A> {
 	/** A resolved id → its module source; `null`: not a module this table loads. Records what the
 	 *  load read (the session's parts, and every query it read), for {@link moved}. */
 	load(id: string, app: A, leg: Leg): string | Promise<string> | null {
+		const browser = { ssr: false, dev: true };
+		const [wrong] = leg.ssr ? [] : this.misplaced([id], browser);
+		if (wrong) check_realm(id, wrong[1], browser);
 		const key = `${leg.ssr ? 'ssr' : 'client'} ${id}`;
 		const { value, reads } = this.#db.watch((cx) =>
 			this.#load(id, tracked(app, this.#parts, cx), leg)

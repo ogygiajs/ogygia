@@ -1,9 +1,3 @@
-/**
- * The island-sourcemap sub-plugin — the irreducibly-Vite half of the sourcemap fix (it needs
- * `this.getCombinedSourcemap`). Split out of the adapter's returned array as a factory taking the
- * two things it reads: the `Program` (for the registry row's generated source) and the adapter's
- * `is_island_path` predicate. Kept in `vite/` because it is a Vite `Plugin`, not a driver phase.
- */
 import path from 'node:path';
 import type { Plugin } from 'vite';
 import { strip_id, type Program } from '../compiler/program.ts';
@@ -28,7 +22,6 @@ export function rewrite_island_sourcemap_sources(
 	const next = sources.map((s) => {
 		if (typeof s !== 'string') return s;
 		if (s === moduleId || is_generated_specifier(s) || s.includes('\0')) return s;
-		// Basename-only (or other relative) .svelte source for this virtual module.
 		if (s.endsWith('.svelte') && !s.includes('/') && !path.isAbsolute(s)) {
 			changed = true;
 			return moduleId;
@@ -51,16 +44,7 @@ export function island_sourcemaps_plugin(deps: {
 		transform(code, id) {
 			const bare = strip_id(id);
 			if (!is_island_path(bare)) return null;
-			// A generated WRAPPER virtual (`ogygia:region/wrapper/<hash>.svelte`) is glue with no source
-			// on disk. vite-plugin-svelte emits a map whose `sources` is the bare `<hash>.svelte` basename
-			// with no `sourcesContent`; Vite then disk-probes it and warns "points to missing source files"
-			// — once per island, on every dev page. Rewriting the sources to the virtual id does NOT stick
-			// (Vite's `combineSourcemaps` re-traces to svelte's basename map) and inlining `sourcesContent`
-			// is lost the same way — so we drop the map for wrappers: Vite skips `injectSourcesContent` when
-			// `mappings` is empty, and a wrapper is generated code no one steps through.
 			if (bare.includes('/wrapper/')) return { code, map: { mappings: '' } };
-			// Other island svelte virtuals (if any): rewrite basename `<hash>.svelte` sources to the full
-			// virtual id and inline the generated source as `sourcesContent`.
 			let map: {
 				version: number;
 				mappings: string;
