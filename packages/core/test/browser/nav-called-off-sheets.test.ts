@@ -4,11 +4,12 @@
 // the next page's sheets must go with the navigation, or they style the page on screen.
 //
 // The sheet loads for real and is held at the network (the `hold_downloads` command), so the
-// navigation is still waiting for it when it is called off.
+// navigation is still waiting for it when it is called off. The page's clock is held meanwhile
+// (`hold_time`): the router's 2 s cap on that wait never runs out on a loaded runner.
 import { afterEach, beforeEach, expect } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
-import { appears, end_time_hold, hold_time, release_time } from './_waits.ts';
+import { end_time_hold, hold_time, in_head, release_time } from './_in-head.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
 
@@ -46,8 +47,9 @@ it_with_network_routes(
 		const sheet = () => document.head.querySelector(`link[href="${SHEET}"]`);
 		hold_time();
 		const went = r.navigate(new URL('/nav-called-off-next', location.href));
-		// the next page's sheet is in the head, and the navigation waits for it
-		await appears(`link[href="${SHEET}"]`, document.head);
+		// the next page's sheet is in the head, and the navigation waits for it (the navigation's code
+		// loads first: on a cold, loaded runner that alone can take seconds)
+		await in_head(`link[href="${SHEET}"]`);
 		expect(r.nav.now.kind).toBe('loading');
 		// back to the page on screen (popstate on the same document): the navigation is called off
 		r.supersede();
