@@ -277,10 +277,6 @@ export const ERRORS = {
 			Pass the row's update time (\`row.updatedAt\`) or a counter that only goes up.
 		`
 	},
-	region_kind_mismatch: {
-		text: (): string => 'region kind claimed a non-region value',
-		details: (): string => BUG
-	},
 	keep_fallback_inline: {
 		text: (): string => prose`
 			keepFallback() ran inside the PAGE render: this server island is nested inside a \`wake\`
