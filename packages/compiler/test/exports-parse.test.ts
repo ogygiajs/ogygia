@@ -169,7 +169,15 @@ describe('analyze_exports — shape + purity', () => {
 		).toBe(true);
 	});
 
+	it('a stray semicolon and a type-only export of a local type keep a barrel pure', () => {
+		expect(analyze_exports(`export { x } from './x';;`, TS)!.pure).toBe(true);
+		expect(
+			analyze_exports(`type T = 1;\nexport { type T };\nexport { x } from './x';`, TS)!.pure
+		).toBe(true);
+	});
+
 	it.each([
+		['export const { a, ...rest } = o;', ['a', 'rest']],
 		['export const a = 1;', ['a']],
 		['export let { a, b: c } = o;', ['a', 'c']],
 		['export const [x, , ...rest] = arr;', ['x', 'rest']],
