@@ -281,7 +281,9 @@ describe('a portable snippet that captures a host store', () => {
 	it.each([
 		['const s = writable(0);', '<b>{s}</b>'],
 		['const s = derived(other, (x) => x);', '<b>{s}</b>'],
-		['const s = make();', '<b>{s}{$s}</b>']
+		['const s = make();', '<b>{s}{$s}</b>'],
+		['const s = toStore(() => 1);', '<b>{s}</b>'],
+		['const s = fromStore(other);', '<b>{s}</b>']
 	])('`%s` used as %s warns that the object cannot cross', (decl, use) => {
 		expect(compile(decl, use)).toMatch(/captures the store\s+`s` as an OBJECT/);
 	});
@@ -290,9 +292,40 @@ describe('a portable snippet that captures a host store', () => {
 		['const s = make();', '<b>{s}</b>'],
 		['let s = $state(0);', '<b>{s}</b>'],
 		['const slots = {}; const all = $$slots;', '<b>{slots.a}</b>'],
-		['const [s] = [writable(0)];', '<b>{s}</b>']
+		['const [s] = [writable(0)];', '<b>{s}</b>'],
+		['const state = make(); let n = $state(0);', '<b>{state}</b>']
 	])('`%s` used as %s does not', (decl, use) => {
 		expect(compile(decl, use)).not.toMatch(/as an OBJECT/);
+	});
+
+	it('warns once per host, though the server and the client leg both transform it', () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			const src = dedent`
+				<script>
+				import Widget from './Widget.svelte' with { wake: 'load' };
+				import { writable } from 'svelte/store';
+				const s = writable(0);
+				</script>
+
+				<Widget>
+					{#snippet children()}
+						<b>{s}</b>
+					{/snippet}
+				</Widget>
+			`;
+			const id = `/app/src/routes/once${Math.random()}/+page.svelte`;
+			transformHost(src, id, { ...ctx(), ssr: true } as Ctx);
+			transformHost(src, id, { ...ctx(), ssr: false } as Ctx);
+			const said =
+				warn.mock.calls
+					.flat()
+					.join('\n')
+					.match(/as an OBJECT/g) ?? [];
+			expect(said).toHaveLength(1);
+		} finally {
+			warn.mockRestore();
+		}
 	});
 
 	it('the frozen-snapshot warning points at the line and column of each $store read', () => {
