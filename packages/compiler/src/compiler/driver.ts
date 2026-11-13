@@ -97,6 +97,13 @@ const RUNTIME_ENTRY_NAME = 'og-runtime';
  *  Returns the reference id. */
 export type EmitChunk = (chunk: { type: 'chunk'; id: string; name: string }) => string;
 
+/** The app's scan, finished (`Compiler.prescan`): what the build knows before the bundler walks. */
+export interface Scan {
+	/** The resolved runtime feature set, folded into the runtime chunk's name: it busts the immutable
+	 *  URL when the app's features change. Both legs scan the same source, so both name it alike. */
+	readonly feature_hash: string;
+}
+
 /** What one build learned, from its scan to what it emitted: made new when a build begins
  *  (`Compiler.start_leg`) and never carried into the next one (test/second-build.test.ts). Dev is one
  *  build for the whole session. */
@@ -109,8 +116,8 @@ interface Build {
 	readonly transform_cache: Map<string, { code: string; result: unknown }>;
 	/** Every `import.meta.og.$` hoist (tag → factory source). */
 	readonly dollar_hoists: Map<string, string>;
-	/** The scan of `src/` ran (`prescan`). */
-	scanned: boolean;
+	/** The finished scan, once `prescan` ran. */
+	scan: Scan | null;
 	/** The server-router component roots, once the scan is complete (build only). */
 	router_css_roots: string[] | null;
 	/** The registry-reach walk's answers: one resolution, read and verdict per module. */
@@ -128,7 +135,7 @@ const new_build = (program: Program): Build => ({
 	program,
 	transform_cache: new Map(),
 	dollar_hoists: new Map(),
-	scanned: false,
+	scan: null,
 	router_css_roots: null,
 	resolve_memo: new Map(),
 	reach_memo: new Map(),
@@ -591,9 +598,11 @@ export class Compiler implements CoreApp {
 	 * uses, and its immutable chunk name busts on a feature-set change). Once per build, so the
 	 * adapter can call it from any hook. Populates the `Program`; the fs walk is the only side effect.
 	 */
-	prescan(): void {
-		if (this.#build.scanned) return;
-		this.#build.scanned = true;
+	prescan(): Scan {
+		return (this.#build.scan ??= this.#scan());
+	}
+
+	#scan(): Scan {
 		const ctx = this.#ctx;
 		const { prof, P } = this.profiler;
 		const program = this.program;
@@ -772,10 +781,17 @@ export class Compiler implements CoreApp {
 		runtime_marks.complete = true;
 		// Fold the resolved feature set into the runtime chunk name so it busts when the emitted bytes
 		// change (see `runtime_chunk_filename`). Deterministic across both build legs (same prescan).
-		program.runtime_feature_hash = createHash('sha256')
-			.update(resolveFeatures(runtime_marks).join(','))
-			.digest('hex')
-			.slice(0, 8);
+		return {
+			feature_hash: createHash('sha256')
+				.update(resolveFeatures(runtime_marks).join(','))
+				.digest('hex')
+				.slice(0, 8)
+		};
+	}
+
+	/** The scan's feature hash; empty before the scan ran. */
+	get #feature_hash(): string {
+		return this.#build.scan?.feature_hash ?? '';
 	}
 
 	/**
@@ -925,12 +941,12 @@ export class Compiler implements CoreApp {
 	/** The feature-selected runtime chunk name (immutable-cached). Needs prescan to have run for a
 	 *  non-empty feature hash; both build legs prescan the same source → the same name. */
 	runtime_chunk_filename(): string {
-		return this.#ctx.runtime_chunk_filename(this.program.runtime_feature_hash);
+		return this.#ctx.runtime_chunk_filename(this.#feature_hash);
 	}
 
 	/** Public URL of the runtime chunk (asset prefix + filename — honors a non-root base / assets CDN). */
 	runtime_chunk_url(): string {
-		return this.#ctx.runtime_chunk_url(this.program.runtime_feature_hash);
+		return this.#ctx.runtime_chunk_url(this.#feature_hash);
 	}
 
 	/**
@@ -1012,7 +1028,7 @@ export class Compiler implements CoreApp {
 			// fixed: the bundler hashes its content into the file name (its imports included), and the
 			// server finds that name in the build handoff (its stable name is an identity, not a file).
 			// (named with its features: `og-runtime-<features>.<hash>.js` says which runtime it is)
-			const feat = this.#ctx.runtime_features(this.program.runtime_feature_hash);
+			const feat = this.#ctx.runtime_features(this.#feature_hash);
 			leg.runtime_entry_ref = emitFile({
 				type: 'chunk',
 				id: V_RUNTIME_ENTRY,

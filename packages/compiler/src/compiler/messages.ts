@@ -772,6 +772,24 @@ export const BUILD_WARNINGS = {
 			compiles, like npm's \`files\`.
 		`
 	},
+	runtime_marks_late: {
+		text: (a: { file: string; features: string }): string => prose`
+			${a.file} placed a region that needs the runtime's ${a.features}, but the build had already
+			made its runtime without it: that region will not work in this build. Put the file where
+			the scan reads it: under \`src/\`, or in a package that declares \`"ogygia": { "files":
+			[...] }\`.
+		`,
+		details: (): string => prose`
+			A build picks the runtime's features once, from the regions it knows when the bundler
+			loads the runtime entry. This file was first reached later, while bundling, and one of
+			its regions needs a feature (a lake, a \`keep\`, a held region, a deferred hole, a wake
+			on interaction) the runtime was made without. The region then never wakes or never
+			fills.
+
+			ogygia reads every file under \`src/\` and every declared package file before the
+			bundler starts. Move the file there, or declare it in its package's \`ogygia.files\`.
+		`
+	},
 	island_context_unprovided: {
 		text: (a: { file: string; key: string }): string => prose`
 			island code ${a.file} reads getContext('${a.key}'), but this app registers no ogygia
