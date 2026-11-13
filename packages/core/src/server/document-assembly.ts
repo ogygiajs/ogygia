@@ -13,20 +13,20 @@
  * Every presence check and dedupe the handle still does runs on the HEAD SLICE alone (see
  * head-presence.ts); the csr fact is a build-time route fact (context.ts), not a scan.
  */
+import { body_end, head_end } from '../markup-walk.ts';
 
 export interface DocumentSpans {
-	/** Index of `</head>` (-1 when this chunk has none — a streamed body chunk). */
+	/** Index of the head's end tag (-1 when this chunk has none — a streamed body chunk). */
 	head_end: number;
-	/** Index of the LAST `</body>` (-1 when this chunk has none — a streamed head/middle chunk). */
+	/** Index of the LAST body end tag (-1 when this chunk has none — a streamed head/middle chunk). */
 	body_end: number;
 }
 
-const HEAD_CLOSE = '</head>';
-const BODY_CLOSE = '</body>';
-
-/** The two injection points, each found with one bounded scan. */
+/** The two injection points, as the browser reads them (any case; never a `</head>` or `</body>` in
+ *  a script's text, a comment or an attribute value): the head's end walked from the front, the
+ *  body's found from the back (markup-walk.ts, test/document-assembly.test.ts). */
 export function locate(html: string): DocumentSpans {
-	return { head_end: html.indexOf(HEAD_CLOSE), body_end: html.lastIndexOf(BODY_CLOSE) };
+	return { head_end: head_end(html), body_end: body_end(html) };
 }
 
 /**

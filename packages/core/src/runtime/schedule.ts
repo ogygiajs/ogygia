@@ -23,6 +23,7 @@
  * first one.
  */
 import { watch_viewport } from './viewport.ts';
+import { watch_turns } from './rules.ts';
 import {
 	clock,
 	flights,
@@ -34,7 +35,10 @@ import {
 	type Stale
 } from '@ogygia/machine';
 
-type Turn = {
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
+
+export type Turn = {
 	el: Element;
 	order: number;
 	/** request order: breaks a tie between two turns of one region */
@@ -55,17 +59,41 @@ const HOLD_FOR_VIEWPORT_MS = 1000;
 // are all pending at once): two heaps by connect order, the turns of regions in the viewport and
 // the rest (a region's report moves its turns across; the entry left behind is skipped), each
 // region's turns, and the turns still waiting for their snapshot, in request order.
-class PendingTurns {
+export class PendingTurns {
 	count = 0;
 	next_seq = 0;
 	readonly heap_vis: Turn[] = [];
 	readonly heap_rest: Turn[] = [];
-	readonly turns_of = new Map<Element, Turn[]>();
+	readonly turns_of: Map<Element, Turn[]> = new Map();
 	readonly unsnapped: Turn[] = [];
 	unsnapped_head = 0;
 }
 /** The document's pending turns (its one scheduler's: a turn leaves at its pick or its region's leaving). */
 const P = new PendingTurns();
+
+/** What the drain's pick rests on (`rule_turns_counted`, #1478): `count` is the turns held, none of
+ *  them taken, each in the heap its snapshot names. Null when it holds. */
+export function turns_counted(p: PendingTurns = P): string | null {
+	const filed = new Set<Turn>([
+		...p.heap_vis.filter((t) => t.vis),
+		...p.heap_rest.filter((t) => !t.vis)
+	]);
+	let held = 0;
+	for (const list of p.turns_of.values())
+		for (const t of list) {
+			held++;
+			const entry = t.el.getAttribute('entry') ?? t.el.tagName;
+			if (t.done) return `a taken turn of ${entry} is still held`;
+			if (!filed.has(t))
+				return `a turn of ${entry} is not in the ${t.vis ? 'viewport' : 'other'} heap its snapshot names`;
+		}
+	return held === p.count
+		? null
+		: `the scheduler counts ${p.count} pending turn(s) and holds ${held}`;
+}
+// (the runtime's rules read it: dev and OGYGIA_RULES=1 builds only, folds out of any other)
+if (RULES) watch_turns(turns_counted);
+
 /**
  * The drain, as a machine:
  *
