@@ -140,6 +140,30 @@ bench(
 	{ setup: () => ({ source: route_page(20) }) }
 );
 
+/** A page whose regions are named exports of one module, in one marked declaration. */
+function named_regions_page(islands: number): string {
+	const names = Array.from({ length: islands }, (_, i) => `Block${i}`);
+	return dedent`
+		<script lang="ts">
+			import { ${names.join(', ')} } from '$lib/blocks' with { wake: 'idle' };
+			let { data } = $props();
+		</script>
+
+		${names.map((n, i) => `<${n} rows={data.blocks[${i}].rows} />`).join('\n')}
+	`;
+}
+
+// One `with` covering every binding: a binding import per name, and one use check over the file.
+bench(
+	'transformHost: named region imports as their count grows',
+	({ source }) =>
+		transformHost(source, '/app/src/routes/catalog/+page.svelte', host_ctx(true))?.code.length,
+	{
+		setup: () => ({ source: named_regions_page(3) }),
+		scale: (_ctx, k) => ({ source: named_regions_page(3 * k) })
+	}
+);
+
 bench(
 	'page data keys: which page.data keys a component reads',
 	({ source }) => page_data_keys_answer(source, '/app/src/lib/Catalog.svelte', 'svelte').keys,

@@ -2837,10 +2837,6 @@
 			"reason": "one declaration against the pinned keys and locals (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~d4dbd6",
-			"reason": "one specifier's local against the asRegion locals (a Set has); proven in packages/barrels/test/as-region.test.ts"
-		},
-		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~e91cb2",
 			"reason": "one attribute key against the app's import keys (a Set has); proven in packages/barrels/test/plugin.test.ts"
 		},
