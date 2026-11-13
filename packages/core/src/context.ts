@@ -98,7 +98,7 @@ export function documentIsCsrTrue(error_render = false): boolean {
 			? error_route_is_csr_true(event.route?.id)
 			: route_is_csr_true(event.route?.id);
 	} catch {
-		return false; // off-request (prerender helper, etc.) → not a Kit-hydrated document
+		return false; // ok: off-request (prerender helper, etc.) → not a Kit-hydrated document
 	}
 }
 
@@ -172,7 +172,7 @@ export function claim_kit_island(entry: string): boolean {
 		seen.add(entry);
 		return true;
 	} catch {
-		return false;
+		return false; // ok: client / no request: nothing to stamp, as said above
 	}
 }
 
@@ -181,7 +181,8 @@ export function claim_kit_island(entry: string): boolean {
  * region's component is server-picked, so its CSS is on no page stylesheet (Kit links CSS from the
  * route's STATIC import graph — it never reads the rendered page). The region wrapper links it from
  * the render pass instead, via `<svelte:head>`; claiming here dedupes so five `Feature` blocks on a
- * page link their shared sheet once. Client / no-request → [] (SSR already linked them).
+ * page link their shared sheet once. No request (the client, or off-request) → `null`, apart from
+ * `[]` (all of them claimed already): test/component-css-head-once.test.ts.
  *
  * `owner` is the head-tag owner of the claiming region (`head_owner`). A sheet already linked under
  * another owner is handed to `shared`: its tag names only the first, so the claimer is listed as
@@ -191,16 +192,15 @@ export function claim_region_css(
 	hrefs: string[],
 	owner = '',
 	shared?: (href: string) => void
-): string[] {
-	if (!hrefs.length) return [];
+): string[] | null {
 	let seen: Map<string, string> | undefined;
 	try {
 		const event = get_request_event() as object;
 		seen = region_css_claimed.get(event);
 		if (!seen) region_css_claimed.set(event, (seen = new Map()));
 	} catch {
-		// ok: no request (the client, or off-request): SSR already linked them
-		return [];
+		// ok: no request (the client, or off-request): nothing to dedupe against, the caller decides
+		return null;
 	}
 	const fresh: string[] = [];
 	for (const h of hrefs) {
@@ -229,7 +229,7 @@ export function claimRuntimeEmit(): boolean {
 		runtime_claimed.set(event, true);
 		return true;
 	} catch {
-		return false;
+		return false; // ok: client / no request: SSR already emitted, as said above
 	}
 }
 

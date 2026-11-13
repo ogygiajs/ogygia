@@ -15,6 +15,16 @@ const SECRET_FIX =
 
 /** The errors: `throw new OgygiaError(code, args)`, or `console.error(new OgygiaError(…))`. */
 export const SERVER_ERRORS = {
+	plugin_capability_message: {
+		text: (a: { name: string }): string =>
+			`the \`${a.name}\` plugin signed or checked a capability message with its plain \`sign\` / \`verify\`.`,
+		details: (): string => prose`
+			A message that starts \`cap|\` is a signed hole's, and a signed hole is opened only through
+			\`app.capability.open\`: it charges the visitor's rate budgets in order (the probe before
+			the signature, the render after), as a region hole does. Mint with \`app.capability.mint\`
+			and open with \`app.capability.open\`, or sign a message that does not start \`cap|\`.
+		`
+	},
 	remote_arg_not_data: {
 		text: (a: { kind: string }): string => prose`
 			a remote function's argument carried an ogygia ${a.kind} value. Arguments sent from the
@@ -177,11 +187,25 @@ export const SERVER_WARNINGS = {
 			render is abandoned while no other is.
 		`
 	},
+	page_promise_pending: {
+		text: (a: { path: string; ms: number }): string =>
+			`a promise in the load data of ${a.path || 'a page'} is still pending after ${a.ms} ms: its response stays open until it settles`,
+		details: (): string => prose`
+			Dev only. A load returned a promise (Kit streaming), and the page's response waits for it:
+			a page load streams its value into islands after the document, a router fetch settles it
+			before the document goes out. There is no deadline: a slow stream is allowed, and the wait
+			ends when the visitor leaves. A promise that never settles keeps the response open (and,
+			on a router fetch, the page unsent) for as long as the visitor stays. Give the work behind
+			it a timeout of its own. Said once per response.
+		`
+	},
 	endpoint_props_decode_failed: {
 		text: (): string => 'region endpoint 403: island module load / props decode failed',
 		details: (): string => prose`
-			Dev only. The islands endpoint could not load the region's module, or could not decode
-			the props in its address, so it refused the request. The error follows the message.
+			The islands endpoint could not load the region's module, or could not decode the props in
+			its address, so it refused the request and the page keeps the region's fallback. The
+			error follows the message, in the server's log only: the visitor's answer says nothing of
+			it.
 		`
 	},
 	endpoint_foreign_key: {

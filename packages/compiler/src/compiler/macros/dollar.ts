@@ -37,6 +37,7 @@ import { match_close } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { og_member } from './wire.ts';
 import { OgygiaError } from '../messages.ts';
+import { free_references, scope_bindings } from '../free-vars.ts';
 
 // ── regexes
 const SERVER_MODULE_RE = /\.server(\.|$|\/)/;
@@ -114,22 +115,25 @@ const KNOWN_GLOBALS = new Set([
 	'arguments'
 ]);
 
+/** Visit every node with the nodes around it, outermost first. */
 function walk(
 	node: Node,
-	visit: (n: Node, parent: Node | null) => void,
-	parent: Node | null = null
+	visit: (n: Node, ancestors: readonly Node[]) => void,
+	ancestors: Node[] = []
 ): void {
-	visit(node, parent);
+	visit(node, ancestors);
+	ancestors.push(node);
 	for (const key in node) {
 		if (key === 'type' || key === 'start' || key === 'end') continue;
 		const child = node[key];
 		if (Array.isArray(child)) {
 			for (const c of child)
-				if (c && typeof c === 'object' && typeof c.type === 'string') walk(c, visit, node);
+				if (c && typeof c === 'object' && typeof c.type === 'string') walk(c, visit, ancestors);
 		} else if (child && typeof child === 'object' && typeof child.type === 'string') {
-			walk(child, visit, node);
+			walk(child, visit, ancestors);
 		}
 	}
+	ancestors.pop();
 }
 
 function line_of(src: string, offset: number): number {
@@ -146,72 +150,24 @@ function misuse(id: string, src: string, offset: number, what: string): never {
 	});
 }
 
-/** Names DECLARED anywhere inside `fn` (params, vars, inner fns, catch, destructuring). */
-function declared_names(fn: Node): Set<string> {
-	const out = new Set<string>();
-	const collect_pattern = (p: Node | null | undefined): void => {
-		if (!p) return;
-		switch (p.type) {
-			case 'Identifier':
-				out.add(p.name);
-				break;
-			case 'ObjectPattern':
-				for (const prop of p.properties ?? []) collect_pattern(prop.value ?? prop.argument);
-				break;
-			case 'ArrayPattern':
-				for (const el of p.elements ?? []) collect_pattern(el);
-				break;
-			case 'AssignmentPattern':
-				collect_pattern(p.left);
-				break;
-			case 'RestElement':
-				collect_pattern(p.argument);
-				break;
-		}
-	};
-	walk(fn, (n) => {
-		if (n.type === 'VariableDeclarator') collect_pattern(n.id);
-		else if (n.type === 'FunctionDeclaration' || n.type === 'ClassDeclaration') {
-			if (n.id?.name) out.add(n.id.name);
-		} else if (n.type === 'CatchClause') collect_pattern(n.param);
-		else if (
-			n.type === 'FunctionExpression' ||
-			n.type === 'ArrowFunctionExpression' ||
-			n.type === 'FunctionDeclaration'
-		) {
-			for (const p of n.params ?? []) collect_pattern(p);
-			if (n.id?.name) out.add(n.id.name);
-		}
-	});
-	for (const p of fn.params ?? []) collect_pattern(p);
-	return out;
+/**
+ * What `fn` reads from outside it, in source order: the one scope analysis (free-vars.ts). A known
+ * global passes through, unless a scope around the mark binds that name (`import { fetch }`): then
+ * it is the module's value, captured like any other (test/og-dollar.test.ts).
+ */
+function captures_of(fn: Node, around: readonly Node[]): string[] {
+	const bound = new Set<string>();
+	for (const scope of around) for (const name of scope_bindings(scope as never)) bound.add(name);
+	return free_references(fn as never).filter((name) => !KNOWN_GLOBALS.has(name) || bound.has(name));
 }
 
-/** Free identifiers of `fn`: referenced, not declared inside, not a known global. Source order. */
-function free_names(fn: Node): string[] {
-	const declared = declared_names(fn);
-	const seen = new Set<string>();
-	const out: string[] = [];
-	walk(fn, (n, parent) => {
-		if (n.type !== 'Identifier') return;
-		const name = n.name as string;
-		if (declared.has(name) || KNOWN_GLOBALS.has(name) || seen.has(name)) return;
-		if (parent) {
-			const pt = parent.type as string;
-			// non-reference positions: member property (a.b), non-shorthand object key, labels,
-			// import/export names, and TS type positions — a `: MyType` reference is not a value
-			// capture (matters once og.$ closures carry TS annotations, in a `lang="ts"` file).
-			if (pt.startsWith('TS')) return;
-			if (pt === 'MemberExpression' && parent.property === n && !parent.computed) return;
-			if ((pt === 'Property' || pt === 'ObjectProperty') && parent.key === n && !parent.shorthand)
-				return;
-			if (pt === 'LabeledStatement' || pt === 'BreakStatement' || pt === 'ContinueStatement')
-				return;
-		}
-		seen.add(name);
-		out.push(name);
+/** Does `fn` hold another `$()` mark? Its text would be hoisted with the mark unrewritten. */
+function holds_mark(fn: Node): boolean {
+	let found = false;
+	walk(fn, (n) => {
+		if (!found && n.type === 'CallExpression' && og_member(n.callee as Node) === '$') found = true;
 	});
-	return out;
+	return found;
 }
 
 /**
@@ -263,6 +219,19 @@ export interface DollarResult {
 	hoists: DollarHoist[];
 }
 
+/** The fn-manifest's entries (tag → factory source), sorted by tag: the manifest is a function of
+ *  the hoists, not of the order modules transformed in (test/standalone-driver.test.ts). */
+export function fn_manifest_entries(hoists: ReadonlyMap<string, string>): Array<[string, string]> {
+	return [...hoists].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+}
+
+/** The fn-manifest as registrations through the bridge the manifest module installs. */
+export function fn_manifest_registrations(hoists: ReadonlyMap<string, string>): string {
+	return fn_manifest_entries(hoists)
+		.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
+		.join('\n');
+}
+
 /**
  * Rewrite every `import.meta.og.$` mark in `src`. Returns the input (same reference, empty
  * hoists) when there is nothing to do. Throws build-error voice on misuse. `rel_id` is the
@@ -284,6 +253,8 @@ export function rewrite_dollar(
 	let seq = 0;
 	let needs_import = false;
 	let needs_boundary_import = false;
+	/** each script region's program: the scope a markup mark sits in */
+	const programs: Node[] = [];
 
 	for (const region of regions) {
 		// Parse as TS (a JS superset), so a `lang="ts"` script's og.$ closures — and any TS type
@@ -292,6 +263,7 @@ export function rewrite_dollar(
 		// hoisted factory text (a JS-mode parse yields no TS nodes to strip, so the types would leak).
 		const { program, ok } = parse_module(region.code, id.endsWith('.svelte') ? `${id}.ts` : id);
 		if (!ok || !program) continue; // mid-edit unparseable: no transform (marker fails loudly at runtime)
+		programs.push(program);
 
 		// SERVER-ONLY imports may never be CAPTURED: on any page that serializes the handle, the
 		// bound value ships into client HTML (a secret leak), and the hoisted factory can't
@@ -313,7 +285,7 @@ export function rewrite_dollar(
 		}
 
 		const claimed = new Set<Node>();
-		walk(program, (n) => {
+		walk(program, (n, ancestors) => {
 			if (n.type === 'CallExpression' && og_member(n.callee as Node) === '$') {
 				const abs = region.offset + n.start;
 				const args = n.arguments as Node[] | undefined;
@@ -337,9 +309,11 @@ export function rewrite_dollar(
 					});
 					return;
 				}
+				if (holds_mark(fn))
+					misuse(id, src, abs, `a $() inside another $() — mark the outer one only`);
 				claimed.add(n);
 				claimed.add(n.callee as Node);
-				const captures = free_names(fn);
+				const captures = captures_of(fn, ancestors);
 				for (const c of captures) {
 					const from = server_only.get(c);
 					if (from) {
@@ -439,7 +413,9 @@ export function rewrite_dollar(
 		while (expr.type === 'ParenthesizedExpression') expr = expr.expression as Node;
 		const expr_text = strip_ts_types(expr, wrapped);
 		if (expr.type === 'ArrowFunctionExpression' || expr.type === 'FunctionExpression') {
-			const captures = free_names(expr);
+			if (holds_mark(expr))
+				misuse(id, src, call.start, `a $() inside another $() — mark the outer one only`);
+			const captures = captures_of(expr, programs);
 			const tag = `${rel_id}#$${seq++}`;
 			const factory = `(${captures.join(', ')}) => (${expr_text})`;
 			hoists.push({ tag, factory_src: factory });

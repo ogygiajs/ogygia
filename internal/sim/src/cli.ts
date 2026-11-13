@@ -46,6 +46,7 @@ import {
 	no_foreign_html,
 	normalize,
 	page_errors,
+	peer_answers,
 	page_rules,
 	regions_show,
 	fallback_stands,
@@ -54,6 +55,8 @@ import {
 	server_rules,
 	styled_regions,
 	stuck,
+	no_viewport_wait,
+	parsed_first,
 	uncaught,
 	type Broken
 } from './oracles.ts';
@@ -153,13 +156,22 @@ function federation(seed: number): { env: Record<string, string>; peers: WorldOp
 		ORIGIN: a.origin,
 		[`${a.name.toUpperCase()}_SIGNING_KEY`]: a.keys.priv
 	});
-	return {
-		env: env_of(apps[0]),
-		peers: apps.slice(1).map((a, i) => ({
-			origin: a.origin,
-			build: { id: a.name, output: PEERS[i].output, env: env_of(a) }
-		}))
-	};
+	const second = GEN_PEER?.origins === 2 ? `https://${PEERS[0].name}2.test` : null;
+	if (second) common[`${PEERS[0].name.toUpperCase()}2_ORIGIN`] = second;
+	const peers = apps.slice(1).map((a, i) => ({
+		origin: a.origin,
+		build: { id: a.name, output: PEERS[i].output, env: env_of(a) }
+	}));
+	if (second)
+		peers.push({
+			origin: second,
+			build: {
+				...peers[0].build,
+				id: `${peers[0].build.id}2`,
+				env: { ...env_of(apps[1]), ORIGIN: second }
+			}
+		});
+	return { env: env_of(apps[0]), peers };
 }
 /** `--plan <file>`: one run of a seed with its workload spelled out (a search's or a shrink's run,
  *  as it wrote it: `{ seed, steps, plan }`). */
@@ -404,6 +416,7 @@ export async function run(
 					page_rules(t, world),
 					leaks.check(t, pressed.get(t.name) === t.documents),
 					live_events(t, world),
+					GEN_PEER ? peer_answers(t, world, since) : null,
 					// (a document loaded behind another tab and never looked at is at rest once the world
 					// is: its islands wake all the same, with no frame to wait for. One that was shown may
 					// have asked for a frame just before it went behind, which waits until it is shown
@@ -422,6 +435,40 @@ export async function run(
 				if (u && !(u.oracle === 'known' && broken.some((k) => k.detail.endsWith(u.detail))))
 					broken.push({ ...u, detail: `after ${what}: ${u.detail}` });
 		};
+		/**
+		 * AT REST, every tab (a faulted one too: a failure must end a wait as surely as an answer):
+		 * no machine left mid-work, and ogygia's rules hold (a crowd's tabs too). Judged at every rest
+		 * an action leaves, not only the run's last: a page left before the end was never judged
+		 * (test/rest-every-action.node.test.ts).
+		 */
+		const owed_at_rest = (t: Tab): Array<Broken | null> => [
+			stuck(t),
+			// (and one nobody has looked at never held its islands for a viewport)
+			no_viewport_wait(t),
+			// (and no document's island load gate opened before it was parsed)
+			parsed_first(t),
+			page_rules(t, world),
+			// (and every region shows something, unless a press made the page the visitor's own)
+			pressed.get(t.name) === t.documents ? null : regions_show(t, world),
+			// (and no hole that wakes on its own still shows its fallback, pressed or not: a press
+			// changes what a region shows, never whether a hole is owed its answer)
+			fallback_stands(t, world),
+			// (and no island that wakes on its own still sleeps: its twin for islands. Not in a
+			// document behind another that was shown before: a frame it asked for then waits)
+			t.hidden && t.seen.has(t.realm) ? null : islands_wake(t, world),
+			// (and every live region was heard announcing the tick it shows, pressed or not: a press
+			// changes a button's own count, which the oracle leaves out, never a tick)
+			live_events(t, world),
+			// (and every region on screen keeps its styles, pressed or not: a soft refresh is a
+			// press, and it must not take a sheet out from under a region it keeps)
+			styled_regions(t, world)
+		];
+		/** Whether an action left the world at rest, and `t`'s document as the run's end judges it:
+		 *  on the network, and untouched by any fault, so nothing it owes waits on a retry's timer (a
+		 *  backoff the end waits out; most pages keep some timer set, so the end's own rule, none set,
+		 *  would judge almost no action). */
+		const resting = (t: Tab): boolean =>
+			world.at_rest() && world.network.online(t.name) && !faulted(world, t);
 		const first = world.tab(v);
 		await world.go(first, 'goto', '/');
 		// (the first document is looked at before the visitor acts: what it said is its own, judged
@@ -452,12 +499,24 @@ export async function run(
 				for (const t of v.tabs)
 					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
 			// (an eager press comes once the next document is in: the marks are that document's)
-			const picks = await act(world, v, a, ORIGIN, () => {
-				for (const t of v.tabs) {
+			const picks = await act(
+				world,
+				v,
+				a,
+				ORIGIN,
+				() => {
+					for (const t of v.tabs) {
+						if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
+						pressed.set(t.name, t.documents);
+					}
+				},
+				// (the pointer woke a region waiting for the visitor: that document is theirs, as a
+				// press's is; gen 56, seed 74, test/hover-own.node.test.ts)
+				(t) => {
 					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
 					pressed.set(t.name, t.documents);
 				}
-			});
+			);
 			// (what it picked, by name: its plan picks the same on a page whose elements moved)
 			if (picks.names.length > 0) actions[actions.length - 1] = { ...a, names: picks.names };
 			for (const m of picks.missed) missed.push(`action ${i + 1} (${describe(a)}): ${m}`);
@@ -467,6 +526,12 @@ export async function run(
 			// tab's document predates: seed 221, /cart-b in another tab)
 			if (presses(a)) for (const t of v.tabs) pressed.set(t.name, t.documents);
 			look(describe(a));
+			for (const t of judged().filter(resting)) {
+				log.note(`${t.name} at rest after ${describe(a)}`);
+				for (const b of owed_at_rest(t))
+					if (b && !(b.oracle === 'known' && broken.some((k) => k.detail.endsWith(b.detail))))
+						broken.push({ ...b, detail: `after ${describe(a)}: at rest: ${b.detail}` });
+			}
 			// (past its horizon the world stops: nothing after it would be a finding about the app)
 			if (world.loop.now >= world.loop.horizon)
 				broken.push({
@@ -492,27 +557,8 @@ export async function run(
 			await world.rest();
 			hear_moves();
 			await at_rest?.(world, v);
-			// AT REST, every tab (a faulted one too: a failure must end a wait as surely as an
-			// answer): no machine left mid-work, and ogygia's rules hold (a crowd's tabs too)
 			for (const t of judged())
-				for (const b of [
-					stuck(t),
-					page_rules(t, world),
-					// (and every region shows something, unless a press made the page the visitor's own)
-					pressed.get(t.name) === t.documents ? null : regions_show(t, world),
-					// (and no hole that wakes on its own still shows its fallback, pressed or not: a press
-					// changes what a region shows, never whether a hole is owed its answer)
-					fallback_stands(t, world),
-					// (and no island that wakes on its own still sleeps: its twin for islands. Not in a
-					// document behind another that was shown before: a frame it asked for then waits)
-					t.hidden && t.seen.has(t.realm) ? null : islands_wake(t, world),
-					// (and every live region was heard announcing the tick it shows, pressed or not: a press
-					// changes a button's own count, which the oracle leaves out, never a tick)
-					live_events(t, world),
-					// (and every region on screen keeps its styles, pressed or not: a soft refresh is a
-					// press, and it must not take a sheet out from under a region it keeps)
-					styled_regions(t, world)
-				])
+				for (const b of owed_at_rest(t))
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
 			for (const t of v.tabs) {
 				// (a document a deploy failed a download of is degraded as a faulted one is: by the host.

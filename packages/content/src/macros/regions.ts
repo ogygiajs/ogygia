@@ -96,7 +96,7 @@ function glob_relative(dir: string, glob: string): string[] {
 			try {
 				return fs.statSync(p).isFile();
 			} catch {
-				return false;
+				return false; // ok: a match gone before it was read is no file
 			}
 		})
 		.sort();

@@ -13,13 +13,15 @@ Everything under `import.meta.og` is a **compile-time construct**. It reads like
 
 ## The family
 
-`ogygia` compiles these three in every app:
+`ogygia` compiles this one in every app:
 
-| Construct                                          | Turns into                                                  |
-| -------------------------------------------------- | ----------------------------------------------------------- |
-| [`asRegion(Comp, options)`](/docs/macros/asregion) | any imported component (named / barrel) marked a **region** |
-| [`wire({ encode, decode })`](/docs/macros/wire)    | the transportable-codec key on a class                      |
-| [`bake(fn)`](/docs/macros/bake)                    | the **result** of running `fn` at build, inlined            |
+| Construct                                       | Turns into                             |
+| ----------------------------------------------- | -------------------------------------- |
+| [`wire({ encode, decode })`](/docs/macros/wire) | the transportable-codec key on a class |
+
+`@ogygia/bake` adds [`bake(fn)`](/docs/macros/bake) when its `bake()` plugin is listed: the **result** of running `fn` at build, inlined.
+
+A region is marked on its import, named or default (`import { Header } from '@company/ui' with { wake: 'load' }`), not with a macro: see [Client islands](/docs/regions/client-islands#named-and-barrel-imports).
 
 [`@ogygia/content`](/docs/content/overview) adds four more when its `content()` plugin is listed. They follow the same rules, and their pages live in the content section:
 

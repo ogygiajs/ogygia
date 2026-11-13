@@ -615,7 +615,8 @@ function sections_of(count: number): { data: Record<string, unknown>; keys: Set<
 
 bench(
 	'settle_deferred: a listing page’s data settled for the router (its promise awaited)',
-	async ({ data }) => ((await settle_deferred(data)) as ListingData).page.items.length,
+	// (the request's owner: the wait is its)
+	async ({ data }) => ((await settle_deferred(data, scope())) as ListingData).page.items.length,
 	{ setup: () => streamed_listing(2500), scale: (_ctx, k) => streamed_listing(250 * k) }
 );
 

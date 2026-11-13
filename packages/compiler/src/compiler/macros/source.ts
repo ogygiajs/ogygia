@@ -14,7 +14,7 @@
  *   • a top-level `export const <name> = import.meta.og.source(fn)` (or `(fn, { key })`);
  *   • 1 or 2 arguments; the first is the function.
  * Anything else — un-exported, nested, bare access, argument-less — is a BUILD ERROR naming the
- * file and line (the wire/asRegion macro laws).
+ * file and line (the wire macro's laws).
  */
 import { og_js_regions, find_og_calls, type JsRegion } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
@@ -25,7 +25,7 @@ import { OgygiaError } from '../messages.ts';
 const EXPORT_CONST_TAIL_RE = /\bexport\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*$/;
 
 const MARKER = 'import.meta.og.source';
-const IMPORT_LINE = `import { __og_source } from 'ogygia/internal';\n`;
+const IMPORT = `import { __og_source } from 'ogygia/internal';`;
 
 type Node = AstNode;
 
@@ -163,8 +163,14 @@ export function rewrite_source(
 	if (!regions) return src;
 
 	const edits: Edit[] = [];
-	for (const region of regions)
-		edits.push(...(ast_edits(src, region, id, rel) ?? scan_edits(src, region, rel)));
+	for (const region of regions) {
+		const own = ast_edits(src, region, id, rel) ?? scan_edits(src, region, rel);
+		// the import opens the first region it serves (a `.svelte` script's body, not the file), on
+		// that region's first line, so no line moves (test/source.test.ts)
+		if (own.length && !edits.length)
+			edits.push({ start: region.offset, end: region.offset, text: IMPORT });
+		edits.push(...own);
+	}
 	if (!edits.length) return src;
 
 	edits.sort((a, b) => a.start - b.start);
@@ -175,5 +181,5 @@ export function rewrite_source(
 		last = e.end;
 	}
 	out += src.slice(last);
-	return IMPORT_LINE + out;
+	return out;
 }

@@ -14,6 +14,8 @@
  */
 import { createInterface } from 'node:readline';
 import { dedent } from '@ogygia/core/plugin/utils';
+// (an error page's words, cut where the browser cuts its tags)
+import { markup_text } from '@ogygia/core/internal/instruments';
 import { createRequire } from 'node:module';
 import { flights, scope, STALE } from '@ogygia/machine';
 import { readdirSync, readFileSync, type Dirent } from 'node:fs';
@@ -24,11 +26,39 @@ import {
 	transformHost,
 	islandVirtualId,
 	wrapperVirtualId,
-	CLIENT_BINDING_STUB,
-	collect_flag_sites,
-	flags_manifest,
-	type FlagSite
+	CLIENT_BINDING_STUB
 } from '@ogygia/compiler';
+
+/** One flag call site, as `@ogygia/flags`' inventory reads it. */
+type FlagSite = { name: string; kind: 'flag'; file: string; line: number };
+/** The flag inventory (`@ogygia/flags/internal/inventory`): the collector the build runs. */
+interface FlagInventory {
+	collect_flag_sites(code: string, id: string, file: string): FlagSite[];
+	flags_manifest(sites: readonly FlagSite[]): { flags: FlagSite[]; names: string[] };
+}
+/** The inventory: loaded from the project this server was started in, never from a directory a
+ *  tool is pointed at (that would run its code, test/mcp-flags-trust.test.ts). Core does not depend
+ *  on the plugin. A failed load is not kept, so installing the plugin needs no restart. */
+const inventory_load = flights({
+	name: 'flag inventory',
+	run: async () => {
+		const from_app = createRequire(path.join(process.cwd(), 'package.json'));
+		return (await import(
+			pathToFileURL(from_app.resolve('@ogygia/flags/internal/inventory')).href
+		)) as FlagInventory;
+	}
+});
+/** The inventory, `null` when the plugin is not installed, or the error that broke its load. */
+async function load_flag_inventory(): Promise<FlagInventory | null | Error> {
+	try {
+		const got = await inventory_load.get();
+		return got === STALE ? null : got; // (nothing drops it, so it is never STALE)
+	} catch (e) {
+		const code = (e as { code?: unknown }).code;
+		if (code === 'MODULE_NOT_FOUND' || code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') return null; // ok: not installed; the tool says so
+		return e instanceof Error ? e : new Error(String(e));
+	}
+}
 import { line } from './messages.ts';
 
 /** The profiler's report reading (`@ogygia/devtools/report`), as these tools use it: loaded from the
@@ -67,7 +97,6 @@ export async function load_profiler_reading(): Promise<ProfilerReading | null> {
 // ── regexes
 const TRAILING_SLASH_RE = /\/$/;
 const HTTP_URL_RE = /^https?:\/\//i;
-const HTML_TAG_G = /<[^>]+>/g;
 const WS_G = /\s+/g;
 const BACKSLASH_G = /\\/g;
 const UNKNOWN_PRESET_RE = /unknown preset/i;
@@ -125,7 +154,7 @@ function parse_marks(source: string): Mark[] {
 	try {
 		ast = parse(source, { modern: true });
 	} catch {
-		return [];
+		return []; // ok: a file Svelte cannot parse has no marks to list (its build says why)
 	}
 	const bodies: Array<Record<string, unknown>> = [];
 	const inst = (ast as { instance?: { content?: { body?: unknown[] } } }).instance;
@@ -1504,7 +1533,7 @@ async function find_local_profiler(base: string, key: string): Promise<string[]>
 			// 404 = no profiler here (bare Kit 404s that path). 200/401/30x = profiler answering.
 			return r.status !== 404 ? origin : null;
 		} catch {
-			return null; // nothing listening / not http — skip
+			return null; // ok: nothing listening, or not http: no profiler on this origin
 		}
 	});
 	return (await Promise.all(probes)).filter((o): o is string => !!o);
@@ -1663,7 +1692,10 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		await load_profiler_reading(); // (an older report's plain fix sum, when the app has the plugin)
 		return text(render_profile(origin, (await res.json()) as ProfileReport));
 	}
-	const body = (await res.text()).replace(HTML_TAG_G, ' ').replace(WS_G, ' ').trim().slice(0, 300);
+	const body = markup_text(await res.text())
+		.replace(WS_G, ' ')
+		.trim()
+		.slice(0, 300);
 	if (res.status === 401 || res.status === 403)
 		return fail(
 			`The profiler on ${origin} is locked. Pass its secret as \`key\` (ask the user for it).`
@@ -1743,7 +1775,7 @@ function walk_svelte(dir: string, out: string[] = [], depth = 0): string[] {
 	try {
 		entries = readdirSync(dir, { withFileTypes: true }) as Dirent[];
 	} catch {
-		return out;
+		return out; // ok: a folder that cannot be read adds no files to the scan
 	}
 	for (const e of entries) {
 		if (e.name.startsWith('.') && e.name !== '.') continue;
@@ -1789,7 +1821,7 @@ function tool_scan(args: Attrs): ToolResult {
 		try {
 			source = readFileSync(f, 'utf8');
 		} catch {
-			continue;
+			continue; // ok: a file gone or unreadable since the walk is left out of the scan
 		}
 		const marks = parse_marks(source);
 		if (!marks.length) continue;
@@ -1894,7 +1926,7 @@ function walk_flag_files(dir: string, out: string[] = [], depth = 0): string[] {
 	try {
 		entries = readdirSync(dir, { withFileTypes: true }) as Dirent[];
 	} catch {
-		return out;
+		return out; // ok: a folder that cannot be read adds no files to the scan
 	}
 	for (const e of entries) {
 		if (e.name.startsWith('.')) continue;
@@ -1910,9 +1942,19 @@ function walk_flag_files(dir: string, out: string[] = [], depth = 0): string[] {
 	return out;
 }
 
-function tool_flags(args: Attrs): ToolResult {
+async function tool_flags(args: Attrs): Promise<ToolResult> {
 	const dir = String(args.dir ?? '.');
 	const root = path.isAbsolute(dir) ? dir : path.resolve(process.cwd(), dir);
+	const inventory = await load_flag_inventory();
+	if (inventory instanceof Error)
+		return fail(
+			`@ogygia/flags is installed in ${process.cwd()} but its inventory failed to load: ${inventory.message}`
+		);
+	if (!inventory)
+		return text(
+			`@ogygia/flags is not installed in ${process.cwd()} (the project this server runs in), so there are no flags to inventory. Flags are defined with \`flag('name', …)\` from '@ogygia/flags'.`
+		);
+	const { collect_flag_sites, flags_manifest } = inventory;
 
 	// The last build's inventory, when this project has one (client build writes it).
 	let manifest: { flags: FlagSite[]; names: string[] } | null = null;
@@ -1921,7 +1963,7 @@ function tool_flags(args: Attrs): ToolResult {
 			readFileSync(path.join(root, 'node_modules', '.ogygia', 'flags-manifest.json'), 'utf8')
 		) as { flags: FlagSite[]; names: string[] };
 	} catch {
-		manifest = null;
+		manifest = null; // ok: no build's flags manifest yet: the scan reads the source alone
 	}
 
 	// Live scan — same collector the build runs (AST-resolved 'ogygia' imports, literal names).
@@ -1932,7 +1974,7 @@ function tool_flags(args: Attrs): ToolResult {
 		try {
 			source = readFileSync(f, 'utf8');
 		} catch {
-			continue;
+			continue; // ok: a file gone or unreadable since the walk is left out of the scan
 		}
 		const rel = path.relative(root, f).replace(BACKSLASH_G, '/');
 		sites.push(...collect_flag_sites(source, rel, rel));
@@ -1992,7 +2034,7 @@ async function tool_fragment(args: Attrs): Promise<ToolResult> {
 				headers: { accept: 'application/json' }
 			});
 		} catch {
-			return null;
+			return null; // ok: shown as "unreachable" in the report below
 		}
 	};
 
@@ -2030,6 +2072,7 @@ async function tool_fragment(args: Attrs): Promise<ToolResult> {
 				`
 				: 'Catalog mounted, zero widgets declared.';
 		} catch {
+			// ok: said in the report: not a widget catalog
 			widgets_block = '__catalog returned non-JSON — not an ogygia widget catalog.';
 		}
 	}
