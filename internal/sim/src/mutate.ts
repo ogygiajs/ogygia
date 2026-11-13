@@ -10,6 +10,10 @@
  *
  *   node src/mutate.ts --mutants <file.json> [--gens 191,192,193] [--palaestra] [--seeds 20]
  *     [--jobs 4] [--sandbox <dir>] [--out <file.jsonl>] [--budget-min <minutes>]
+ *     [--buggify-aim <points>]
+ *
+ * `--buggify-aim` runs every seed, the baseline's too, with only those buggify points on (cli.ts):
+ * a point its app asks rarely proves its recovery this way.
  *
  * One line per mutant goes to `--out` as it is judged (what it was, killed or survived, by what),
  * and at the end the kill rate, how many of the list were judged (a time budget stops it starting
@@ -192,6 +196,9 @@ function arg(flag: string): string | undefined {
 	return at === -1 ? undefined : process.argv[at + 1];
 }
 
+/** The buggify points every seed aims at (`--buggify-aim`), passed on to cli.ts. */
+const AIM = arg('--buggify-aim');
+
 /** A target: a generated app's seed, or the palaestra. */
 type Target = { name: string; gen: number | null };
 
@@ -232,7 +239,7 @@ function run_seeds(
 	rmSync(results, { force: true });
 	sh(
 		sim,
-		`nice -n 10 node --experimental-vm-modules --no-warnings src/cli.ts --app ${app} --runs ${seeds} --from ${from} --steps 30 --jobs ${jobs}`,
+		`nice -n 10 node --experimental-vm-modules --no-warnings src/cli.ts --app ${app} --runs ${seeds} --from ${from} --steps 30 --jobs ${jobs}${AIM ? ` --buggify-aim ${AIM}` : ''}`,
 		log
 	);
 	const out = new Map<string, string[]>();

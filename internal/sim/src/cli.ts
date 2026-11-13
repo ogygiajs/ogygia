@@ -98,6 +98,8 @@ const CROWD = process.argv.includes('--crowd') && !CALM;
 const OBSERVE = arg('--observe');
 /** Buggify points on (`--no-buggify`: off), in a rules build. */
 const BUGGIFY = !process.argv.includes('--no-buggify') && !CALM;
+/** `--buggify-aim <a,b>`: only these points, on in every run, each firing half its calls. */
+const BUGGIFY_AIM = arg('--buggify-aim')?.split(',').filter(Boolean);
 // (`SIM_APP`: a found test's app, set before it imports this module)
 const APP = resolve(
 	arg('--app') ??
@@ -344,7 +346,11 @@ export async function run(
 		supplied: SUPPLIED,
 		instances,
 		skew,
-		buggify: BUGGIFY ? { on: 0.3, fires: 0.2 } : undefined,
+		buggify: !BUGGIFY
+			? undefined
+			: BUGGIFY_AIM
+				? { on: 1, fires: 0.5, aim: BUGGIFY_AIM }
+				: { on: 0.3, fires: 0.2 },
 		// (a plan replays on its own engine; a seed's own workload draws one)
 		...(plan ? { idle: plan.idle ?? true } : {})
 	});
