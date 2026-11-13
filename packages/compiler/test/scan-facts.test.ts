@@ -13,16 +13,7 @@ const facts_arb: fc.Arbitrary<FileFacts | null> = fc.option(
 		crosses_wire: fc.boolean(),
 		transportable: fc.boolean(),
 		specs: fc.array(fc.constantFrom('$lib/a', '@ogygia/router', './b'), { maxLength: 2 }),
-		router: fc.boolean(),
-		flag_sites: fc.array(
-			fc.record({
-				name: fc.constantFrom('nav', 'csr'),
-				kind: fc.constant('flag' as const),
-				file: fc.constant('f.ts'),
-				line: fc.nat(9)
-			}),
-			{ maxLength: 2 }
-		)
+		router: fc.boolean()
 	}),
 	{ nil: null }
 );
@@ -31,8 +22,7 @@ const folds = (s: ScanFacts) => ({
 	transportable: [...s.db.get(s.transportable_modules, 'all')],
 	wire: [...s.db.get(s.wire_crossers, 'all')],
 	router: [...s.db.get(s.router_modules, 'all')],
-	specs: [...s.db.get(s.module_specs, 'all')],
-	flags: s.db.get(s.flag_sites, 'all')
+	specs: [...s.db.get(s.module_specs, 'all')]
 });
 
 describe('scan facts', () => {
@@ -64,8 +54,7 @@ describe('scan facts', () => {
 			crosses_wire: true,
 			transportable: false,
 			specs: ['$lib/a'],
-			router: false,
-			flag_sites: []
+			router: false
 		};
 		s.set('/a/x.ts', facts);
 		folds(s);
@@ -83,12 +72,11 @@ describe('scan facts', () => {
 			crosses_wire: true,
 			transportable: true,
 			specs: [],
-			router: true,
-			flag_sites: []
+			router: true
 		});
 		expect(s.has('/a/x.ts')).toBe(true);
 		s.set('/a/x.ts', null);
 		expect(s.has('/a/x.ts')).toBe(false);
-		expect(folds(s)).toEqual({ transportable: [], wire: [], router: [], specs: [], flags: [] });
+		expect(folds(s)).toEqual({ transportable: [], wire: [], router: [], specs: [] });
 	});
 });

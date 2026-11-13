@@ -20,7 +20,6 @@ import {
 } from './table.ts';
 import { input, type Queries, type QueryCtx, type Reads } from '../queries.ts';
 
-/** A part of the session that is not yet a query: its value is the revision it last moved at. */
 const PART = input<Part, number>(
 	'session part',
 	(part) => part,
@@ -196,7 +195,6 @@ export class VirtualTable<A> {
 		const { value, reads } = this.#db.watch((cx) =>
 			this.#load(id, tracked(app, this.#parts, cx), leg)
 		);
-		// (each read keeps the revision it saw: a change while an async load is in flight names it)
 		if (value === null) this.#reads.delete(key);
 		else this.#reads.set(key, { id, reads });
 		return value;
@@ -320,8 +318,6 @@ export class VirtualTable<A> {
 	}
 }
 
-/** `app` as a module's load sees it: reading a field that is a part reads the part through `cx`. A
- *  method runs on the session itself (its private fields are its own, its queries recorded). */
 function tracked<A>(app: A, parts: Parts<A>, cx: QueryCtx): A {
 	if (typeof app !== 'object' || app === null) return app;
 	return new Proxy(app, {

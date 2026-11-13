@@ -1,19 +1,3 @@
-/**
- * QUERIES: incremental computation. An answer the compiler derives from the app's files is a
- * query: a pure function of other queries, down to INPUTS (a file's text, a directory's listing)
- * that only the outside world changes. The database remembers each answer with the queries it read,
- * so after an input changes it computes again only what read it, and an answer that comes out the
- * same stops there (early cutoff): its readers keep theirs. Nothing is cleared by hand, and a dev
- * session's answers are always the ones a cold start on the same files gives (test/queries.test.ts
- * checks exactly that, over random edits).
- *
- * Revisions: every input change is a new revision. An answer records the revision it last changed
- * at and the one it was last checked at; a read in a later revision checks the answer's
- * dependencies first (in the order they were read: a dependency read after one that changed may not
- * be read at all now), and runs it again only if one of them changed.
- *
- * Internal to the compiler (study G.6): not exported from the package.
- */
 import { cache, type Cache } from '@ogygia/machine';
 
 /** What a query's body reads other queries through. */
@@ -52,7 +36,6 @@ export function derived<A, V>(
 	return { name, kind: 'derived', key, run, equal };
 }
 
-/** A query with its types let go: the database keeps every kind side by side. */
 type Erased = Query<unknown, unknown>;
 const erase = <A, V>(query: Query<A, V>): Erased => query as unknown as Erased;
 
@@ -122,10 +105,28 @@ export interface Queries extends QueryCtx {
 /** What a watched reader read (`watch`), each as it was when read. */
 export type Reads = Frame;
 
-/** Answers a process remembers per database (an evicted one is computed again when next read). */
 const QUERIES_MAX = 100_000;
 
-/** A database of queries. `name` names its store in messages. */
+/**
+ * A database of queries. `name` names its store in messages; `max` is how many answers it
+ * remembers (one let go is computed again when next read).
+ *
+ * An answer the compiler derives from the app's files is a query: a pure function of other
+ * queries, down to INPUTS (a file's text, a directory's listing) that only the outside world
+ * changes. The database remembers each answer with the queries it read, so after an input changes
+ * it computes again only what read it, and an answer that comes out the same stops there (early
+ * cutoff): its readers keep theirs. Nothing is cleared by hand, and a dev session's answers are
+ * always the ones a cold start on the same files gives (test/queries.test.ts checks exactly that,
+ * over random edits).
+ *
+ * Revisions: every input change is a new revision. An answer records the revision it last changed
+ * at and the one it was last checked at; a read in a later revision checks the answer's
+ * dependencies first (in the order they were read: a dependency read after one that changed may not
+ * be read at all now), and runs it again only if one of them changed. The check walks its own
+ * stack, so a chain of answers of any depth never grows the call stack.
+ *
+ * Internal to the compiler: not exported from the package.
+ */
 export function queries(name: string, max: number = QUERIES_MAX): Queries {
 	const table = new Map<Erased, Map<string, Slot>>();
 	let last_query: Erased | undefined;

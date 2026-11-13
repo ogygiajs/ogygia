@@ -34,21 +34,22 @@ function dev_compiler() {
 	write(`${ROOT}/src/routes/+layout.ts`, `export const csr = false;\n`);
 	write(`${ROOT}/src/lib/C0.svelte`, `<p>C0</p>\n`);
 	const program = new Program({ forms: true, router: true });
-	const compiler = new Compiler(program, {
-		prof: {
-			transformMs: 0,
-			transformN: 0,
-			transformHit: 0,
-			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
-			resolveMs: 0,
-			loadMs: 0
+	const compiler = new Compiler(
+		program,
+		{
+			prof: {
+				transformMs: 0,
+				transformN: 0,
+				transformHit: 0,
+				prescanMs: 0,
+				macroMs: 0,
+				macroN: 0,
+				resolveMs: 0,
+				loadMs: 0
+			},
+			P: false,
+			outHash: new Map<string, number>()
 		},
-		P: false,
-		outHash: new Map<string, number>()
-	});
-	compiler.configure(
 		new CompileCtx(
 			partial_ctx_init({
 				root: ROOT,
@@ -73,7 +74,10 @@ function dev_compiler() {
 
 /** The plugin's dev transform hook (vite/index.ts): the transform, then the ids it invalidates. */
 async function dev_transform(compiler: Compiler, file: string, text: string): Promise<string[]> {
-	await compiler.transform_module(text, file, { ssr: true, emitFile: () => '' });
+	await compiler.transform_module(text, file, {
+		leg: compiler.leg({ name: 'ssr', server: true }),
+		emitFile: () => ''
+	});
 	const out: string[] = [];
 	out.push(...compiler.moved());
 	out.push(...compiler.drain_closure_marks());

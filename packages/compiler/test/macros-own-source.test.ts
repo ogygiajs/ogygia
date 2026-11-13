@@ -21,7 +21,7 @@ const RAN = path.join(ROOT, 'ran.txt');
 const NO_PROFILE = { P: false } as unknown as Profiler;
 const ctx = (): MacroPipelineCtx => ({
 	root: ROOT,
-	resolveAlias: [],
+	alias: [],
 	pkgRoot: '/og',
 	dollarHoists: new Map(),
 	ownSource: (id) => !id.includes('/node_modules/') || id.includes('/declared-lib/')

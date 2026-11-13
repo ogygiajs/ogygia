@@ -26,21 +26,22 @@ const IDLE_PAGE = dedent`
 
 function dev_compiler(files: MemoryFs) {
 	const program = new Program({ forms: true, router: true });
-	const compiler = new Compiler(program, {
-		prof: {
-			transformMs: 0,
-			transformN: 0,
-			transformHit: 0,
-			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
-			resolveMs: 0,
-			loadMs: 0
+	const compiler = new Compiler(
+		program,
+		{
+			prof: {
+				transformMs: 0,
+				transformN: 0,
+				transformHit: 0,
+				prescanMs: 0,
+				macroMs: 0,
+				macroN: 0,
+				resolveMs: 0,
+				loadMs: 0
+			},
+			P: false,
+			outHash: new Map<string, number>()
 		},
-		P: false,
-		outHash: new Map<string, number>()
-	});
-	compiler.configure(
 		new CompileCtx(
 			partial_ctx_init({
 				root: ROOT,
@@ -69,7 +70,10 @@ function dev_route_change(compiler: Compiler, file: string, event: FileEvent): s
 }
 
 const transform = (compiler: Compiler, files: MemoryFs) =>
-	compiler.transform_module(files.read(PAGE)!, PAGE, { ssr: true, emitFile: () => '' });
+	compiler.transform_module(files.read(PAGE)!, PAGE, {
+		leg: compiler.leg({ name: 'ssr', server: true }),
+		emitFile: () => ''
+	});
 
 test('a page that becomes csr=false while dev runs is compiled again, with its regions', async () => {
 	const files = memory_fs({ [PAGE]: IDLE_PAGE, [`${ROOT}/src/lib/C0.svelte`]: `<p>C0</p>\n` });
@@ -163,7 +167,10 @@ test('deleting the last route file while dev runs leaves no routes, and throws n
 		[`${ROOT}/src/lib/C0.svelte`]: `<p>C0</p>\n`
 	});
 	const { compiler } = dev_compiler(files);
-	await compiler.transform_module(files.read(layout)!, layout, { ssr: true, emitFile: () => '' });
+	await compiler.transform_module(files.read(layout)!, layout, {
+		leg: compiler.leg({ name: 'ssr', server: true }),
+		emitFile: () => ''
+	});
 	files.set(LAYOUT_OPTIONS, null);
 	dev_route_change(compiler, LAYOUT_OPTIONS, 'delete');
 	files.set(layout, null);
