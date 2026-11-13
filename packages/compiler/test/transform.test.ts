@@ -367,6 +367,32 @@ describe('portable binding rewrite', () => {
 			/dotted tag/
 		);
 	});
+
+	test('a lake placed only as a dotted tag is used, so its import stays a lake', () => {
+		const r = run(wrap(`import L from './L.svelte' with { wake: 'none' };`, '<L.Part />'))!;
+		expect(r.islands.map((i) => i.kind)).toEqual(['lake']);
+	});
+
+	test('a plain import attribute beside a region import is left as written', () => {
+		const json = `import data from './d.json' with { type: 'json' };`;
+		const r = run(wrap(`${LOAD}\n${json}`, '<C n={data} />'))!;
+		expect(r.islands).toHaveLength(1);
+		expect(r.code).toContain(json);
+	});
+
+	test('a host whose <style> is SCSS still has its regions compiled', () => {
+		const r = run(`${wrap(LOAD, '<C />')}\n<style lang="scss">$c: red; .a { color: $c; }</style>`)!;
+		expect(r?.islands).toHaveLength(1);
+	});
+
+	test('island tags nested 26 deep are walked once, not once more per level', () => {
+		const depth = 26;
+		const markup = `${'<B>'.repeat(depth)}<C />${'</B>'.repeat(depth)}`;
+		const t0 = performance.now();
+		const r = run(wrap(`${LOAD}\nimport B from './B.svelte';`, markup))!;
+		expect(r.islands).toHaveLength(1);
+		expect(performance.now() - t0).toBeLessThan(2000);
+	});
 });
 
 describe('defer / server islands', () => {
@@ -731,6 +757,24 @@ describe('errors', () => {
 				() => run(wrap(`import C from './C.svelte' with { ${mark} };`, '<C />')),
 				/`keep`.*waking island/
 			);
+	});
+	test("inline stitch takes the strings 'serve' or 'edge' only", () => {
+		expectThrows(
+			() =>
+				run(
+					wrap(`import C from './C.svelte' with { render: 'deferred', stitch: 'true' };`, '<C />')
+				),
+			/stitch: 'true'.*stitch: 'serve'.*stitch: 'edge'/
+		);
+	});
+	test('a file that names asRegion is read even with no region key in it, and refused', () => {
+		expectThrows(
+			() =>
+				run(
+					wrap(`import H from './H.svelte';\nconst X = import.meta.og.asRegion(H, {});`, '<X />')
+				),
+			/asRegion/
+		);
 	});
 	test("a wake that looks like a call ('visible(200px)') is no media query: refused", () => {
 		expectThrows(
