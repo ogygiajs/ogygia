@@ -7,10 +7,11 @@
 // discarded node (a login dropdown needed two clicks). Now the element keeps the server markup it
 // connected with; on a mismatch the runtime puts it back and hydrates THAT.
 import { beforeEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { userEvent } from 'vitest/browser';
 import { bootDev } from '../../src/runtime/full.ts';
 
-const decode = (key: 'counter_ssr_b64') => decodeURIComponent(escape(atob(inject(key))));
+const decode = (key: 'counter_ssr_b64') => from_b64(inject(key));
 
 /** The foreign edit: every whitespace-only text node inside the sleeping island removed (what the
  *  customer's design-system `clientHydrate` did), plus a stray comment before the first element

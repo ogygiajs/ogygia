@@ -104,7 +104,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 	};
 
 	// 0. head assets an answer carries (`data-og-head`): into the page's head once per key
-	if (root !== document && (root as ParentNode).querySelectorAll) {
+	if (root !== document && 'querySelectorAll' in root) {
 		for (const el of Array.from((root as ParentNode).querySelectorAll('[data-og-head]'))) {
 			const key = el.getAttribute('data-og-head')!;
 			if (head.querySelector(`[data-og-head="${esc(key)}"]`)) el.remove();

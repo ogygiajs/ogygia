@@ -19,7 +19,10 @@ function static_graph(entry: string): Set<string> {
 		const sf = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest);
 		for (const stmt of sf.statements) {
 			let spec: ts.Expression | undefined;
-			if (ts.isImportDeclaration(stmt) && !stmt.importClause?.isTypeOnly)
+			if (
+				ts.isImportDeclaration(stmt) &&
+				stmt.importClause?.phaseModifier !== ts.SyntaxKind.TypeKeyword
+			)
 				spec = stmt.moduleSpecifier;
 			if (ts.isExportDeclaration(stmt) && !stmt.isTypeOnly) spec = stmt.moduleSpecifier;
 			if (spec === undefined || !ts.isStringLiteral(spec) || !spec.text.startsWith('.')) continue;

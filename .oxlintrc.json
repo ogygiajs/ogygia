@@ -3,8 +3,25 @@
 	"plugins": ["typescript", "unicorn", "oxc"],
 	"categories": { "correctness": "error" },
 	"jsPlugins": ["./internal/lint/plugin.ts"],
+	"options": { "typeAware": true },
 	"rules": {
 		"typescript/no-explicit-any": "error",
+		"typescript/no-deprecated": "error",
+		"typescript/await-thenable": "off",
+		"typescript/no-array-delete": "off",
+		"typescript/no-base-to-string": "off",
+		"typescript/no-duplicate-type-constituents": "off",
+		"typescript/no-floating-promises": "off",
+		"typescript/no-for-in-array": "off",
+		"typescript/no-implied-eval": "off",
+		"typescript/no-meaningless-void-operator": "off",
+		"typescript/no-misused-spread": "off",
+		"typescript/no-redundant-type-constituents": "off",
+		"typescript/no-unsafe-unary-minus": "off",
+		"typescript/no-useless-default-assignment": "off",
+		"typescript/require-array-sort-compare": "off",
+		"typescript/restrict-template-expressions": "off",
+		"typescript/unbound-method": "off",
 		"ogygia/no-promise-cache": "error",
 		"ogygia/owned-effects": "error",
 		"ogygia/no-silent-failures": "error",
@@ -71,6 +88,7 @@
 		"svelte/**",
 		"kit/**",
 		".heisenbench/**",
+		"apps/palaestra/e2e/adapters/fixture/**",
 		"packages/*/bench/__heisenbench.d.ts"
 	]
 }

@@ -10,7 +10,7 @@
  * timers die with it when the tab navigates away, as in a browser.
  */
 import { ear } from '@ogygia/tooling/e2e/sim-observe.ts';
-import { Browser, type BrowserPage, type BrowserWindow } from 'happy-dom';
+import { Browser, BrowserErrorCaptureEnum, type BrowserPage, type BrowserWindow } from 'happy-dom';
 import CookieStringUtility from 'happy-dom/lib/cookie/urilities/CookieStringUtility.js';
 import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
 import WindowBrowserContext from 'happy-dom/lib/window/WindowBrowserContext.js';
@@ -191,7 +191,7 @@ export class Browsers {
 		const o = this.#o;
 		const browser = new Browser({
 			settings: {
-				disableErrorCapturing: false,
+				errorCapture: BrowserErrorCaptureEnum.tryAndCatch,
 				// (a simulated page runs the app's own scripts: the trusted code under test)
 				enableJavaScriptEvaluation: true,
 				suppressInsecureJavaScriptEnvironmentWarning: true,

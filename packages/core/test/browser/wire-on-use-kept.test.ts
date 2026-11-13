@@ -6,6 +6,7 @@
 //
 // Its own file: the wire slot is module state shared by a file's tests.
 import { expect, inject, test, vi } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { page } from 'vitest/browser';
 import { writable } from 'svelte/store';
 
@@ -41,7 +42,7 @@ test('a kept island whose next props hold a live value shows them in a build wit
 	const meta = document.createElement('meta');
 	meta.name = 'ogygia-router';
 	document.head.append(meta);
-	const body = decodeURIComponent(escape(atob(inject('label_render_b64'))));
+	const body = from_b64(inject('label_render_b64'));
 	document.body.innerHTML = kept(body, { text: 'one' });
 
 	bootDev();

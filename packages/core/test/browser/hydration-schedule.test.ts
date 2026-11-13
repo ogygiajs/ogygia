@@ -6,11 +6,11 @@
 // in-viewport ones LAST, so viewport-first and document-first disagree. Each island spins ~6 ms at
 // init (Heavy.svelte): the old back-to-back microtask hydration made one ~126 ms task of them.
 import { expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { schedule_idle } from '../../src/runtime/schedule.ts';
 
-const inject_html = (key: 'heavy_schedule_ssr_b64') =>
-	decodeURIComponent(escape(atob(inject(key))));
+const inject_html = (key: 'heavy_schedule_ssr_b64') => from_b64(inject(key));
 
 test('21 load islands: no task ≥ 50 ms, viewport islands first, then document order', async () => {
 	// Warm the module graph first (Svelte's runtime, the fixture, the hydrate core) so the measured

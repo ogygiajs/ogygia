@@ -1228,7 +1228,7 @@ describe('leaks', () => {
 		const { Window } = await import('happy-dom');
 		const w = new Window();
 		const d = w.document as unknown as Document;
-		d.write('<html><head><title>t</title></head><body><p>hi</p></body></html>');
+		d.documentElement.innerHTML = '<head><title>t</title></head><body><p>hi</p></body>';
 		const leaks = new Leaks();
 		const count = () => d.getElementsByTagName('*').length;
 		const tab = {

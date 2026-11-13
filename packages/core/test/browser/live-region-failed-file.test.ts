@@ -4,6 +4,7 @@
 // started over on every tick (hydrating, the import failed, idle): each tick threw the import's error
 // out of `applyLive` (unhandled where nothing awaited it) and asked the server about the file again.
 import { afterEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { observe } from '@ogygia/machine';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset } from '../../src/runtime/frame-store.ts';
@@ -12,7 +13,7 @@ import { _reset } from '../../src/runtime/frame-store.ts';
 const MISSING = '/test/browser/fixtures/NoSuchIsland.svelte';
 /** A module the dev server has. */
 const LABEL = '/test/browser/fixtures/Label.svelte';
-const label_html = () => decodeURIComponent(escape(atob(inject('label_render_b64'))));
+const label_html = () => from_b64(inject('label_render_b64'));
 
 type LiveRegion = HTMLElement & {
 	applyLive(desc: {

@@ -7,6 +7,7 @@
 // empty branch, and Svelte discarded the server DOM — the search bar vanished. The runtime must not
 // hydrate such an island before Kit's page thread exists; its server HTML stays on screen meanwhile.
 import { afterEach, expect, inject, test, vi } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { kit_page_thread } from '../../src/runtime/kit-page-thread.svelte.ts';
 import {
@@ -16,8 +17,7 @@ import {
 } from './_kit-thread.svelte.ts';
 
 const ISLAND = 'ogygia-region[wake="idle"]';
-const inject_html = (key: 'lake_page_reader_ssr_b64') =>
-	decodeURIComponent(escape(atob(inject(key))));
+const inject_html = (key: 'lake_page_reader_ssr_b64') => from_b64(inject(key));
 
 afterEach(() => {
 	unpublish_kit_page();

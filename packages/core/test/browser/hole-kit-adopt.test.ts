@@ -5,10 +5,11 @@
 // island on a csr=true page went empty (dev, timing-dependent). The wrapper's client leg ADOPTS the
 // server element verbatim instead: address and content survive.
 import { afterEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { hydrate, unmount } from 'svelte';
 import HoleKitHost from './fixtures/HoleKitHost.svelte';
 
-const inject_html = (key: 'hole_kit_ssr_b64') => decodeURIComponent(escape(atob(inject(key))));
+const inject_html = (key: 'hole_kit_ssr_b64') => from_b64(inject(key));
 
 afterEach(() => {
 	document.body.innerHTML = '';
