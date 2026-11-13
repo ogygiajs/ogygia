@@ -2450,6 +2450,144 @@
 			"reason": "`catch (err) { const e = err as { code?: string; start?: { line?: numb…`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/barrels/test/left.test.ts",
 			"name": "unparsable: a component the parser cannot read keeps every barrel it imports"
+		},
+		{
+			"site": "packages/compiler/src/compiler/fouc-css.ts > foucRelFromId > catch:0",
+			"reason": "`catch { rel = encoded; // ok: not percent-encoded: the id holds the p…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/fouc-css-ids.test.ts",
+			"name": "%s decodes to %s"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_max_age > throw:0",
+			"reason": "`throw err(names, `\\`remount.maxAge\\` must be a non-negative number (m…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_max_age > throw:1",
+			"reason": "`throw err( names, `unknown remount.maxAge '${raw}'. Use a number (ms)…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_max_age > throw:2",
+			"reason": "`throw err(names, `\\`remount.maxAge\\` must be a number (ms) or duratio…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_cache_ttl_sec > throw:0",
+			"reason": "`throw err(names, `\\`maxAge\\` must be a non-negative number of seconds…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "maxAge %j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_cache_ttl_sec > throw:1",
+			"reason": "`throw err( names, `unknown \\`maxAge\\` '${raw}'. Use seconds (a number…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "maxAge %j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_cache_ttl_sec > throw:2",
+			"reason": "`throw err(names, `\\`maxAge\\` must be a number of seconds or a duratio…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "maxAge %j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:0",
+			"reason": "`throw err( names, `\\`remount.revalidate: true\\` is invalid — use 'loa…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:1",
+			"reason": "`throw err( names, `unknown remount.revalidate '${rev}'. Use false | '…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:2",
+			"reason": "`throw err(names, `unknown remount.onExpire '${oe}'. Use 'empty' | 'fe…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:3",
+			"reason": "`throw err( names, `\\`onExpire: 'fetch'\\` requires \\`revalidate\\` (a s…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:1",
+			"reason": "`throw err( node.name, `\\`render: 'live'\\` region <${node.name}> canno…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/transform-edges.test.ts",
+			"name": "%s is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:2",
+			"reason": "`throw err( node.name, `\\`render: 'live'\\` region <${node.name}> canno…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/transform-edges.test.ts",
+			"name": "%s is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:3",
+			"reason": "`throw err( node.name, `\\`render: 'live'\\` region <${node.name}> canno…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/transform-edges.test.ts",
+			"name": "%s is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:4",
+			"reason": "`throw fail( `preset '${from_preset}': \\`stitch\\` takes \\`true\\` / 'se…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:6",
+			"reason": "`throw fail( `\\`${k}\\` is not allowed inline. Use \\`${import_keys.wake…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/named-region-imports.test.ts",
+			"name": ".svelte: with { %s }"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:13",
+			"reason": "`throw fail( `\\`stitch\\` is only valid with \\`${import_keys.render}: '…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:0",
+			"reason": "`throw new OgygiaError('region_import_invalid', { host: rel_host, name…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/ts-region-imports.test.ts",
+			"name": "%s is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/link/registry-stub.ts > static_script_specs > not-ok:0",
+			"reason": "`!parsed.ok`: proved: the !ok check made never true turns the test red, twice",
+			"test": "packages/compiler/test/registry-stub.test.ts",
+			"name": "unparsable → null"
+		},
+		{
+			"site": "packages/compiler/src/compiler/link/registry-stub.ts > registry_client_source > not-ok:0",
+			"reason": "`!parsed.ok`: proved: the !ok check made never true turns the test red, twice",
+			"test": "packages/compiler/test/registry-stub.test.ts",
+			"name": "a registry with no marks is returned unchanged; an unparsable one is null"
+		},
+		{
+			"site": "packages/compiler/src/compiler/parse/oxc.ts > parse_module > result:0",
+			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
+			"test": "packages/compiler/test/oxc-parse.test.ts",
+			"name": "is null, never a throw, on a syntax error"
+		},
+		{
+			"site": "packages/compiler/src/compiler/parse/oxc.ts > parse_module > catch:0",
+			"reason": "`catch { return { program: null, ok: false, comments: [] }; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/oxc-parse.test.ts",
+			"name": "a source the parser refuses outright (a read that came back null) is a failed parse, never a throw"
+		},
+		{
+			"site": "packages/compiler/src/compiler/parse/oxc.ts > parse_module > result:1",
+			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
+			"test": "packages/compiler/test/oxc-parse.test.ts",
+			"name": "a source the parser refuses outright (a read that came back null) is a failed parse, never a throw"
 		}
 	],
 	"impossible": [
@@ -2570,7 +2708,6 @@
 		"packages/compiler/src/compiler/exports/index.ts > ExportIndex > resolve > stale:0",
 		"packages/compiler/src/compiler/exports/index.ts > Walk > map > stale:0",
 		"packages/compiler/src/compiler/exports/index.ts > Walk > through > stale:0",
-		"packages/compiler/src/compiler/fouc-css.ts > foucRelFromId > catch:0",
 		"packages/compiler/src/compiler/fouc-css.ts > compileFoucScopedCss > catch:0",
 		"packages/compiler/src/compiler/fouc-css.ts > listStaticImports > catch:0",
 		"packages/compiler/src/compiler/fs.ts > read > catch:0",
@@ -2589,8 +2726,6 @@
 		"packages/compiler/src/compiler/link/build-output.ts > emit_island_deps_handoff > catch:1",
 		"packages/compiler/src/compiler/link/emit-gate.ts > parse_server_handoff > parse:0",
 		"packages/compiler/src/compiler/link/emit-gate.ts > read_server_handoff > catch:0",
-		"packages/compiler/src/compiler/link/registry-stub.ts > static_script_specs > not-ok:0",
-		"packages/compiler/src/compiler/link/registry-stub.ts > registry_client_source > not-ok:0",
 		"packages/compiler/src/compiler/macros/dollar.ts > misuse > throw:0",
 		"packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > refuse > throw:0",
 		"packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > throw:0",
@@ -2598,9 +2733,6 @@
 		"packages/compiler/src/compiler/macros/store.ts > misuse > throw:0",
 		"packages/compiler/src/compiler/macros/wire.ts > misuse > throw:0",
 		"packages/compiler/src/compiler/ownership-stamps.ts > opaque_stamp_edits > catch:0",
-		"packages/compiler/src/compiler/parse/oxc.ts > parse_module > result:0",
-		"packages/compiler/src/compiler/parse/oxc.ts > parse_module > catch:0",
-		"packages/compiler/src/compiler/parse/oxc.ts > parse_module > result:1",
 		"packages/compiler/src/compiler/parse/scan.ts > split_first_string > throw:0",
 		"packages/compiler/src/compiler/parse/scan.ts > split_first_string > throw:1",
 		"packages/compiler/src/compiler/parse/scan.ts > split_first_string > throw:2",
@@ -2620,35 +2752,19 @@
 		"packages/compiler/src/compiler/region/transform.ts > normalize_region_value > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > normalize_hydrate_value > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > reject_dynamic_region_imports > walk > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > parse_max_age > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > parse_max_age > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > parse_max_age > throw:2",
-		"packages/compiler/src/compiler/region/transform.ts > parse_cache_ttl_sec > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > parse_cache_ttl_sec > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > parse_cache_ttl_sec > throw:2",
-		"packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:2",
-		"packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:3",
 		"packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:2",
-		"packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:3",
 		"packages/compiler/src/compiler/region/transform.ts > resolve_component_path > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:1",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:2",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:3",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:4",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:5",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:6",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:7",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:8",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:9",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:10",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:11",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:12",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:13",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:14",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:15",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:16",
@@ -2669,7 +2785,6 @@
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:1",
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:2",
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:3",
-		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:1",
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:2",
 		"packages/compiler/src/compiler/transportables.ts > exportedWireClassesFromBody > throw:0",
