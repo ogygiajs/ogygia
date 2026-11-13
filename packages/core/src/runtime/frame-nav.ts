@@ -10,6 +10,7 @@
 // the response, let the rest come in as the server's async settles.
 // ─────────────────────────────────────────────────────────────────────────────
 import {
+	buggify,
 	cache,
 	clock,
 	machine,
@@ -30,6 +31,8 @@ import { slots } from './slots.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 const HOOK_HOLE_ANSWERED =
 	typeof __OGYGIA_HOOK_HOLE_ANSWERED__ !== 'undefined' ? __OGYGIA_HOOK_HOLE_ANSWERED__ : true;
 const HOOK_HOLE_BATCH_MISSED =
@@ -260,6 +263,7 @@ export async function streamFrames(
 				parcels = true;
 				if (p.slot === STREAM_DONE_SLOT) return; // sentinel — batch complete
 				const part = bySig.get(p.slot);
+				if (part && RULES && buggify.fires('batch.part-lost')) continue;
 				if (part) {
 					// (timed BEFORE the write: the write applies the part, and the hole reports its answer then)
 					if (HOOK_HOLE_ANSWERED) {

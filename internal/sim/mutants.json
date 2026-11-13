@@ -316,5 +316,15 @@
 		"from": "> ",
 		"to": ">= ",
 		"equivalent": "stands_at reads only the ticket `v` of what it stands over: at equal tickets the held frame and the painted one give the same order"
+	},
+	{
+		"id": "batch-undelivered-never-released",
+		"file": "packages/core/src/runtime/frame-nav.ts",
+		"in": "streamFrames",
+		"code": "for (const a of reserved) release(a);",
+		"operator": "statement",
+		"from": "for (const a of reserved) release(a);",
+		"to": "void reserved;",
+		"aim": "batch.part-lost"
 	}
 ]
