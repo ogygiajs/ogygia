@@ -1,16 +1,3 @@
-/**
- * Minimal SPA router for ogygia (Astro's ClientRouter equivalent).
- *
- * Intercepts same-origin <a> clicks, fetches the target page, swaps <body>,
- * merges <head>, and updates history. `data-ogygia-keep` keeps matching chrome.
- * Islands on the new page auto-initialise via custom-element connection; old ones
- * auto-unmount via disconnection (except inside persisted subtrees).
- *
- * This module is the router's BOOT half — the listeners, the lifecycle hooks, the link-preload
- * policy, and the pure helpers — and it stays small: the navigation itself (fetch + cache, head
- * merge, body reconcile, seeds, a11y) is ./router-nav.ts, loaded on the first prefetch or
- * intercepted click. A visitor who never leaves the page never downloads it.
- */
 import { flights, random, STALE, type Scope, type Stale } from '@ogygia/machine';
 import { fragment_is_top, fragment_target } from './fragment.ts';
 import { import_again } from './import-again.ts';
@@ -27,7 +14,6 @@ import { report_thrown } from '../report-thrown.ts';
 import { download } from '../policies.ts';
 import { watch_router } from './rules.ts';
 
-// the runtime's rules (./rules.ts): dev, and a build made with OGYGIA_RULES=1; folds out elsewhere
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
@@ -49,12 +35,6 @@ export function anchor_of(event: Event): HTMLAnchorElement | null {
 	return t instanceof Element ? t.closest('a') : null;
 }
 
-/**
- * The anchor a HOVER is about, cheaply: `mouseover` fires for every element the pointer crosses,
- * so the common case — not over a link at all — must cost one `closest('a')` and nothing else.
- * Only when the retargeted `target` is a shadow HOST (the anchor may be inside its shadow tree)
- * is the composed path read.
- */
 function hovered_anchor(event: Event): HTMLAnchorElement | null {
 	const t = event.target;
 	if (!(t instanceof Element)) return null;
@@ -63,11 +43,7 @@ function hovered_anchor(event: Event): HTMLAnchorElement | null {
 	return t.shadowRoot ? anchor_of(event) : null;
 }
 
-// SvelteKit's remote-function client (which ogygia reuses for query/command) patches
-// `history.pushState`/`replaceState` on the instance and warns whenever they are called directly.
-// On csr=false pages ogygia owns navigation — Kit's router is not running — so we update history via
-// the un-patched `History.prototype` methods. Same effect on the history stack, without the spurious
-// "conflict with SvelteKit's router" warning. Captured lazily so a test/SSR without `History` is safe.
+// @why SvelteKit's remote-function client patches `pushState` and `replaceState` on the history instance and warns when they are called (test: test/browser/router-claims.test.ts › the router writes history past a pushState and replaceState patched on the instance)
 const native_push = typeof History !== 'undefined' ? History.prototype.pushState : null;
 const native_replace = typeof History !== 'undefined' ? History.prototype.replaceState : null;
 export const push_state = (state: unknown, url: string): void =>
@@ -76,8 +52,6 @@ export const replace_state = (state: unknown, url?: string): void => {
 	const fn = native_replace ?? history.replaceState;
 	return url === undefined ? fn.call(history, state, '') : fn.call(history, state, '', url);
 };
-
-// ---- navigation lifecycle hooks (for the $app/navigation shim + `ogygia/app`) ----
 
 /** Resolved navigation target (URL + Kit-shaped stubs for params/route). */
 export interface NavTarget {
@@ -108,11 +82,7 @@ export type BeforeNavigateCallback = (nav: BeforeNavigation) => void;
 /** Callback registered with {@link afterNavigate}. */
 export type AfterNavigateCallback = (nav: AfterNavigation) => void;
 
-// In this router a page's "code" is delivered by the HTML body swap (+ island chunks fetched on
-// connect), so BOTH `data-sveltekit-preload-data` and `-code` warm the SAME page-HTML cache. We
-// honour Kit's value grammar + nearest-ancestor inheritance: 'eager' | 'viewport' | 'hover' | 'tap'
-// | 'off'/'false'. An anchor's effective trigger is the MOST-EAGER of the two attributes; an empty
-// value means 'hover' (Kit's default). `-data` is normally hover/tap; `-code` adds eager/viewport.
+// @why Kit's `data-sveltekit-preload-*` grammar: eager, viewport, hover, tap, off or false, inherited from the nearest ancestor, an empty value meaning hover (test: apps/palaestra/e2e/prefetch.spec.ts › eager / hover / click-from-cache / off / tap / viewport all warm (or not) the page-HTML cache)
 const PRELOAD_RANK: Record<string, number> = {
 	eager: 0,
 	viewport: 1,
@@ -121,13 +91,8 @@ const PRELOAD_RANK: Record<string, number> = {
 	off: 4,
 	false: 4
 };
-/** Anchors that can carry a preload policy at all — under (or on) a marked element. The post-nav
- *  scan reads only these; an unmarked anchor has no trigger and was a wasted rank computation. */
 const PRELOAD_MARKED_ANCHORS = `[data-sveltekit-preload-data] a[href], [data-sveltekit-preload-code] a[href], a[href][data-sveltekit-preload-data], a[href][data-sveltekit-preload-code]`;
 
-/** Does the page hold an element the fragment points at? `#top` and an empty `#` mean "the top",
- *  which the browser handles. A fragment that matches nothing is an app-managed one (a table row
- *  keyed by the hash): the browser would scroll to the top for it, so the router takes it over. */
 function hash_target_exists(hash: string): boolean {
 	return fragment_is_top(hash) || !!fragment_target(hash);
 }
@@ -204,22 +169,6 @@ export interface HistoryEntry {
  *  forward step is already on. */
 export type HistoryMove = 'push' | 'replace' | 'pop';
 
-/**
- * THE ROUTER'S HISTORY, one record (#310). The router keeps the visitor's entries it made, each with
- * its address and where its page was left, and reads the rest from it: the page on screen
- * (`current_url`, its document key), the scroll a back or forward step puts back. `history.state`
- * holds only an entry's id. It once kept the same facts in several places (the address bar written
- * before the fetch, `current_url`, `doc_key`, a scroll saved on push only), and they drifted.
- *
- * - An entry is written when a page goes in (the navigation's commit), never before its fetch: a
- *   download or a 204 adds none (#297), and the address bar is the page on screen.
- * - Leaving an entry keeps where its page was, on every move: a click, a back or forward step (#270).
- * - An id this document never made (its state names another document's entry) is not this
- *   document's to show: the browser loads it whole. An entry with no id (the browser's own fragment
- *   jump, an app's own `pushState`) is taken over when the router meets it.
- */
-/** The state of the entry the browser is on, named by `id`: the id goes beside what the app (or
- *  Kit) keeps there, never over it (#375). */
 function named(id: string): Record<string, unknown> {
 	const kept = history.state as unknown;
 	return kept !== null && typeof kept === 'object'
@@ -302,8 +251,6 @@ export class RouterHistory {
 	}
 }
 
-/** Run `fn` once, when the browser is idle or after `cap` ms, whichever is first, unless `page` (a
- *  page visit's scope) ends first. */
 function on_idle(page: Scope, fn: () => void, cap = 1000) {
 	const run = () => {
 		idle();
@@ -314,13 +261,6 @@ function on_idle(page: Scope, fn: () => void, cap = 1000) {
 	const capped = page.timeout(run, cap);
 }
 
-/**
- * THE NAVIGATION (./router-nav.ts), loaded once, on first use. A download that fails is tried again
- * at once, and a failure is never kept: the next prefetch, click or refresh loads it afresh, under a
- * fresh URL (./import-again.ts: the browser keeps the failed one). It once imported the same URL
- * again, which fails at once for the life of the page: links fell back to full loads, and every
- * refresh failed. `loaded_nav` is the synchronous view once it has arrived.
- */
 type Nav = typeof import('./router-nav.ts');
 let loaded_nav: Nav | null = null;
 const load_nav = flights({
@@ -328,10 +268,7 @@ const load_nav = flights({
 	run: import_again(() => import('./router-nav.ts')),
 	retry: download
 });
-/** (Never STALE: nothing drops the navigation's load; a caller treats it as one that failed.) */
 function nav(): Promise<Nav | Stale> {
-	// Link what the navigation chunk uses from this module right where the chunk is loaded
-	// (./slots.ts `BootLink`: it never imports this module, or both would be split out of the runtime).
 	slots.router_link ??= { jump_to_hash, fragment_target };
 	return load_nav.get().then((m) => (m === STALE ? m : (loaded_nav = m)));
 }
@@ -389,7 +326,6 @@ export class SpaRouter {
 
 	afterNavigate(fn: AfterNavigateCallback): () => boolean {
 		this.#after_hooks.add(fn);
-		// $app/navigation's afterNavigate fires immediately on mount too
 		try {
 			fn({
 				from: null,
@@ -445,7 +381,7 @@ export class SpaRouter {
 	}
 
 	bust_page_cache(): void {
-		loaded_nav?.bust_page_cache(); // no navigation loaded yet ⇒ nothing cached
+		loaded_nav?.bust_page_cache();
 	}
 
 	/** The page at `href`, or `null` when there is none to have: the fetch failed (./router-nav.ts
@@ -476,9 +412,6 @@ export class SpaRouter {
 		const from = this.current_url;
 		const move: HistoryMove = opts.pop ? 'pop' : push && !replace ? 'push' : 'replace';
 
-		// Same document, hash-only (or identical URL): never fetch / swap / view-transition — and
-		// never the navigation chunk. (`invalidateAll` is a soft seed refresh — it does not call
-		// navigate.)
 		if (same_document(url, from) && !replace) {
 			if (!this.run_before(from, url, type)) return;
 			this.supersede();
@@ -488,29 +421,17 @@ export class SpaRouter {
 			return;
 		}
 
-		// The guards first: a `beforeNavigate` that cancels means this navigation never starts, so it
-		// must never claim — a claim takes over (and aborts) the navigation already in flight.
 		if (!this.run_before(from, url, type)) return;
 
-		// Claim the address NOW, before the navigation chunk loads: a web-component link re-dispatches
-		// the visitor's click on its inner `<a>` a few ms later, and that second click must see this
-		// navigation in flight (it joins it: `#joins`) instead of starting — and aborting this one
-		// with — a second fetch. (A re-dispatch `document` never hears is heard on the anchor itself:
-		// `#take`.) A claim is a new visit of the navigation: one made while
-		// another is in flight (its chunk still loading, its page still out) takes over from it, so the
-		// newest click wins (#203).
 		this.nav.go('claimed', { href: url.href });
 		const mine = this.nav.now;
 		let n: Nav | Stale;
 		try {
 			n = await nav();
 		} catch {
-			// The navigation code could not load (offline, a deploy removed the chunk): the link must
-			// still work — let the browser navigate.
 			return this.hand_off(url, mine, move);
 		}
 		if (n === STALE) return this.hand_off(url, mine, move);
-		// superseded while the navigation code loaded
 		if (this.nav.now !== mine) return;
 		return n.navigate(this, url, from, opts, mine);
 	}
@@ -536,7 +457,6 @@ export class SpaRouter {
 	}
 
 	invalidateAll(): Promise<void> {
-		// (the page on screen: the address bar may already name the page a navigation still brings)
 		return nav().then((n) => (n === STALE ? undefined : n.invalidate_all(this.current_url)));
 	}
 
@@ -553,7 +473,6 @@ export class SpaRouter {
 	}
 
 	preloadCode(): Promise<void> {
-		// island chunks are code-split & fetched on connect; nothing to warm here.
 		return Promise.resolve();
 	}
 
@@ -573,18 +492,11 @@ export class SpaRouter {
 
 	start(): void {
 		if (this.#started || typeof document === 'undefined') return;
-		// Only activate when the page carries the `ogygia-router` marker (the handle injects it
-		// globally unless `ogygia({ router: false })`).
 		if (!document.querySelector('meta[name="ogygia-router"]')) return;
-		// Gradual migration: the marker is on every ogygia page, but some routes may stay csr=true.
-		// On those pages Kit owns navigation — do not intercept clicks alongside it.
 		if (kit_hydrates_page()) return;
 		this.#started = true;
-		// the entry the browser is on is the router's from now on (its page is the one on screen)
 		this.history.start();
 		if (RULES) watch_router(this);
-		// What the server sent `<body>`, before any island wakes and mounts something into it (a
-		// popover's portal): a navigation replaces the server's part only (ownership.ts).
 		const body = document.body;
 		if (body) record_server_body(body, body, Array.from(body.childNodes));
 
@@ -597,25 +509,19 @@ export class SpaRouter {
 		window.addEventListener('popstate', () => {
 			const url = new URL(location.href);
 			const found = this.history.find(history.state);
-			// An entry of another document: not this document's page to show. It loads whole (#259).
 			if (found === 'foreign') {
 				this.supersede();
 				location.reload();
 				return;
 			}
 			const entry = found ?? this.history.adopt(url);
-			// The page on screen is left: keep where it is, before anything scrolls it (the browser
-			// restores the next entry's scroll after this event, onto the page still on screen).
+			// @why the browser restores the next entry's scroll after `popstate`, onto the page still on screen (test: apps/palaestra/e2e/router-history.spec.ts › #270 Forward after Back lands where the page was left)
 			this.history.leave();
-			// Same document (a fragment step): nothing to fetch or swap, and no jump: the browser
-			// restores the entry's scroll itself, and a jump to a fragment no element has went to the
-			// top (#282). (Back to the page on screen while the next one loads: that load must not land.)
 			if (document_key(url) === this.doc_key) {
 				this.supersede();
 				this.history.commit(url, 'pop', entry);
 				return;
 			}
-			// `popstate` type → the fetch is marked a history restore (x-ogygia-purpose: history).
 			this.navigate(url, { push: false, pop: entry, type: 'popstate' });
 		});
 	}
@@ -625,26 +531,17 @@ export class SpaRouter {
 	#on_click(event: MouseEvent, anchor: HTMLAnchorElement | null): void {
 		const url = this.#should_intercept(event, anchor);
 		if (!url || !anchor) return;
-		// A click that joins a navigation the router already has: one navigation, not a second that
-		// aborts the first, and never the browser's own load of the same address.
 		if (this.#joins(event, anchor, url)) {
 			event.preventDefault();
 			return;
 		}
-		// Same document: a hash jump is the browser's; anything else must never reload —
-		// see `same_document_link` (a real click on the current page refreshes in place).
 		if (same_document(url, new URL(location.href))) {
 			const kind = same_document_link(url, new URL(location.href), this.nav_target);
 			if (kind === 'hash') {
-				// A fragment link. If it names a real element, the browser scrolls there — leave it
-				// (native is direct and correct). If it does NOT (an app-managed fragment, e.g. a
-				// table that opens a row keyed by the hash), the browser would scroll to the TOP of
-				// the page for the unmatched fragment — so take it over: update the URL and fire
-				// hashchange for the app's listeners, without the top jump.
+				// @why the browser scrolls to the top for a fragment no element has (test: apps/palaestra/e2e/router-history.spec.ts › #282 Back between two app-managed fragments keeps the scroll)
 				if (!hash_target_exists(url.hash)) {
 					event.preventDefault();
 					if (location.hash !== url.hash) {
-						// (the address it leaves, read before the entry moves on: #277)
 						const old = location.href;
 						this.history.commit(url, 'push');
 						window.dispatchEvent(
@@ -711,7 +608,7 @@ export class SpaRouter {
 		if (anchor.target && anchor.target !== '_self') return false;
 		if (anchor.hasAttribute('download')) return false;
 		if (anchor.hasAttribute('data-no-spa')) return false;
-		if (reload_opt_out(anchor)) return false; // Kit's `data-sveltekit-reload` grammar
+		if (reload_opt_out(anchor)) return false;
 		const rel = (anchor.getAttribute('rel') || '').split(WS);
 		if (rel.includes('external')) return false;
 		const url = new URL(anchor.href);
@@ -729,7 +626,6 @@ export class SpaRouter {
 			willUnload: false
 		};
 		for (const fn of this.#before_hooks) {
-			// (a hook that throws does not stop the others, or the navigation, and is not dropped)
 			try {
 				fn(nav);
 			} catch (error) {
@@ -755,8 +651,6 @@ export class SpaRouter {
 	}
 
 	#install_prefetch() {
-		// hover -> warm links whose trigger is hover-or-eager (rank <= 2). `mouseover` fires for
-		// every element the pointer crosses: bail on the one `closest('a')` before ranking anything.
 		// oxlint-disable-next-line ogygia/owned-effects -- the router's hover delegation, installed once at start: it lives as long as the document
 		document.addEventListener(
 			'mouseover',
@@ -766,7 +660,6 @@ export class SpaRouter {
 			},
 			{ passive: true }
 		);
-		// tap -> warm on the press (mousedown + touchstart), for links whose trigger is tap-or-eager
 		const on_press = (event: Event) => {
 			const anchor = anchor_of(event);
 			if (anchor && this.#preload_rank(anchor) <= PRELOAD_RANK.tap) this.#warm_anchor(anchor);
@@ -807,9 +700,7 @@ export class SpaRouter {
 			anchor as HTMLAnchorElement
 		);
 		if (!url) return;
-		// Same document — nothing to prefetch (hash links / self links).
 		if (same_document(url, new URL(location.href))) return;
-		// A warm is speculative — marked `prefetch` so the server can treat it as a dry run.
 		if (url.href !== location.href) this.fetch_page(url.href, undefined, 'prefetch');
 	}
 
@@ -943,9 +834,6 @@ export function startRouter(): void {
 export function install(): void {
 	if (typeof document === 'undefined') return;
 	slots.nav = { goto, invalidateAll };
-	// The SPA router's API is the document's navigation handle: island code (the `$app/navigation`
-	// shim, `ogygia/app`, the remote-functions client stub, the lifecycle hooks) reaches it there,
-	// never by importing this module (./nav-handle.ts explains why that matters).
 	publish_nav({
 		goto,
 		invalidate,
@@ -963,8 +851,6 @@ export function install(): void {
 		if (!document.querySelector('meta[name="ogygia-router"]')) return;
 		if (kit_hydrates_page()) return;
 		startRouter();
-		// LIFECYCLE: fire the per-page-view event for the INITIAL load too — one `og:page-load`
-		// listener then covers first paint AND every SPA navigation (Astro's page-load parity).
 		document.dispatchEvent(new Event('og:page-load'));
 	};
 	if (document.readyState === 'loading') {
