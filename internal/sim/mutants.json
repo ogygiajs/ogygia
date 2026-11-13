@@ -259,6 +259,16 @@
 		"to": "return null;"
 	},
 	{
+		"id": "batch-undelivered-never-released",
+		"file": "packages/core/src/runtime/frame-nav.ts",
+		"in": "streamFrames",
+		"code": "for (const a of reserved) release(a);",
+		"operator": "statement",
+		"from": "for (const a of reserved) release(a);",
+		"to": "void reserved;",
+		"aim": "batch.part-lost"
+	},
+	{
 		"id": "hole-answered-left-armed",
 		"file": "packages/core/src/runtime/core.ts",
 		"in": "OgygiaRegion > answered",
