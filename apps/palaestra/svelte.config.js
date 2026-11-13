@@ -16,7 +16,10 @@ const config = {
 		// Kit's own inline-vs-link number, which ogygia's region CSS obeys too: a region sheet under
 		// it ships as `<style data-ogygia-region-css>` instead of a blocking `<link>`. Small on
 		// purpose — only the tiny sheets of e2e/inline-css inline; every other suite keeps its links.
-		inlineStyleThreshold: 400
+		inlineStyleThreshold: 400,
+		// A sim build's version is its id, so a rebuild of the same code is the same world
+		// (internal/sim/test/builds.test.ts); elsewhere Kit's own.
+		version: { name: process.env.VITE_SIM_BUILD }
 	}
 };
 

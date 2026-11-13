@@ -1,8 +1,7 @@
 // A "huge" mixed barrel — the shape a real design system ships: many component re-exports SIDE BY
-// SIDE with plain config objects, utility functions and constants. This is exactly what the
-// import-attribute form (`import X from '…' with { wake }`) can't island (default-only, one file per
-// import). `import.meta.og.asRegion(Comp, timing)` marks any of these named component re-exports as a
-// placed island, while the non-component exports stay ordinary values.
+// SIDE with plain config objects, utility functions and constants. A marked named import
+// (`import { Ticker } from '$lib/barrel' with { wake }`) makes any of these component re-exports a
+// placed island, while the non-component exports stay ordinary values on a plain import line.
 //
 // Tree-shaking canaries live here too: `HeavyUnused` (a component) and `HUGE_UNUSED_CANARY` (a big
 // string) are exported but never used on the test page. If barrel tree-shaking works, neither marker

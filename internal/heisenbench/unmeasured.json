@@ -293,10 +293,6 @@
 			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
 		},
 		{
-			"id": "packages/core/src/runtime/rules.ts > no_hash",
-			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
-		},
-		{
 			"id": "packages/core/src/runtime/rules.ts > no_old_page_open",
 			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
 		},
@@ -326,10 +322,6 @@
 		},
 		{
 			"id": "packages/core/src/runtime/rules.ts > watch_router",
-			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
-		},
-		{
-			"id": "packages/core/src/runtime/rules.ts > watch_router > add:1~d995ad",
 			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
 		},
 		{
@@ -378,10 +370,6 @@
 		},
 		{
 			"id": "packages/tooling/src/e2e/index.ts > rules",
-			"reason": "the e2e harness's end-of-test rules read: Playwright only, runs at the end of every e2e spec"
-		},
-		{
-			"id": "packages/tooling/src/e2e/index.ts > rules > evaluate:0~336849",
 			"reason": "the e2e harness's end-of-test rules read: Playwright only, runs at the end of every e2e spec"
 		},
 		{
@@ -2818,11 +2806,7 @@
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports",
-			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > barrels_left_of",
-			"reason": "one table per environment and stage in ogygia()'s closure, made once (a map lookup); the table itself is benched in packages/core/bench/compiler.bench.ts"
+			"reason": "the app's import keys over ogygia()'s closure (not replayable); proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/named-region.test.ts"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why",
@@ -2831,18 +2815,6 @@
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why > filter:0~cf3029",
 			"reason": "orders at most nine reasons (constant work); the same filter in the table is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad",
-			"reason": "one declaration against the pinned keys and locals (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~d4dbd6",
-			"reason": "one specifier's local against the asRegion locals (a Set has); proven in packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~e91cb2",
-			"reason": "one attribute key against the app's import keys (a Set has); proven in packages/barrels/test/plugin.test.ts"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host",
@@ -3801,10 +3773,6 @@
 			"reason": "reads and counts down the request's known copies (hidden state: the request event's map), constant work per region; proven in packages/core/test/property-known-copies.test.ts and packages/core/test/server-delta-opt-in.test.ts (#846)"
 		},
 		{
-			"id": "packages/tooling/src/e2e/index.ts > extend:0~698079 > <anonymous>~24f7e2",
-			"reason": "the e2e harness's per-test server-rules fixture: Playwright only, reads the suite's server log around each test (#928)"
-		},
-		{
 			"id": "packages/tooling/src/e2e/server-log.ts > server_log",
 			"reason": "the e2e harness: reads the suite's log path from the environment (hidden state), Playwright only (#928)"
 		},
@@ -3891,10 +3859,6 @@
 		{
 			"id": "packages/compiler/src/vite/lazy-files.ts > lazy_files > transform",
 			"reason": "a live Vite transform hook (its this.resolve is the plugin context, not recorded); returns at once for a module without import_again or a file token; proven in packages/compiler/test/lazy-files.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/lazy-files.ts > lazy_files > renderChunk",
-			"reason": "build only: Vite's renderChunk hook over a rendered chunk and its bundle (not cloneable), linear in the chunk's file tokens; proven in packages/compiler/test/lazy-files.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/import-again.ts > import_again > next > catch:0~df975d",
@@ -5005,14 +4969,6 @@
 			"reason": "CLI tool only: one import of the flag inventory per server, kept once it lands; run by packages/cli/test/mcp-flags-trust.test.ts in a child process"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > prescan > once:1~8ca9a8",
-			"reason": "build only: one plugin_not_listed warning per unlisted plugin package, once per build"
-		},
-		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > prescan > read_for_plugins > some:0~fcb899",
-			"reason": "build only: a lookup of one prescan hook's imports per prescanned module specifier, a handful of plugins"
-		},
-		{
 			"id": "packages/compiler/src/compiler/driver.ts > prescan_rel",
 			"reason": "build only: one path relativize per prescanned module a plugin hook claims, constant work"
 		},
@@ -5027,10 +4983,6 @@
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > config > handler > map:0~364fcf#3",
 			"reason": "config only, once per Vite config resolve: a map over the listed plugins, a handful"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > transform > transform_module:2~3aec12 > watch",
-			"reason": "dev and build: one addWatchFile per route option file a host's csr reads, constant work"
 		},
 		{
 			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~f1ee24 > prescan",
@@ -5055,6 +5007,374 @@
 		{
 			"id": "packages/flags/src/vite.ts > inventory > written",
 			"reason": "build only, once per build: writes the flags manifest file, linear in flag sites"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scan > once:1~8ca9a8",
+			"reason": "build only: one plugin_not_listed warning per unlisted plugin package, once per build"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scan > read_for_plugins > some:0~fcb899",
+			"reason": "build only: a lookup of one prescan hook's imports per prescanned module specifier, a handful of plugins"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #emit_late_server_regions",
+			"reason": "once per registration in a build: a loop over the result's islands that emits a server region reached after the leg wrote server-regions (#1420), constant work per island; a real build runs it (test/late-server-regions.test.ts)"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scan > imports_page_spec > some:0~b5645b",
+			"reason": "start-up scan only, once per module, and only when the app names page modules: one includes() per specifier against a short list"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > end_leg",
+			"reason": "once per leg per build (closeBundle): a filter over the open legs (two at most), constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > end_leg > filter:0~ab7572",
+			"reason": "one state read per leg (two at most), constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > find_leg",
+			"reason": "one Map read, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > leg",
+			"reason": "once per build hook: one Map read, or a filter over the open legs (two at most), constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > leg > filter:0~ab7572",
+			"reason": "one state read per leg (two at most), constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > relocate",
+			"reason": "once per finished chunk (renderChunk): builds the relocation context and calls link/relocations.ts relocate, whose own cost is the token scan; a real build runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > relocate > relocate:3~e4b34b > public_url",
+			"reason": "one island's public url from the context, constant work, once per island token patched"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > start_leg",
+			"reason": "once per leg per build (buildStart): one Map write and a flag, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > with_ctx",
+			"reason": "once per environment of a builder that shares one plugin: a new Compiler over the same build, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/leg.ts > new_leg",
+			"reason": "once per leg per build: an object of empty Maps, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/leg.ts > new_leg > barrels_left",
+			"reason": "one Map read (a table made on first use), constant work; the table's own work is measured in the barrel-left bench"
+		},
+		{
+			"id": "packages/compiler/src/compiler/leg.ts > new_leg > barrels_said",
+			"reason": "one Map read, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/emit-gate.ts > parse_server_handoff > filter:0~4b42c1",
+			"reason": "once per server region in the build's server handoff (read once per client build): four typeof checks, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > FILE > value",
+			"reason": "once per chunk that carries the token: a closure over the chunk's file name, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > FILE > value > <anonymous>~397f04",
+			"reason": "one patch's text from the chunk's file name, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > FN_MANIFEST > value",
+			"reason": "once per chunk that carries the token: a closure over the build's fn hoists, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > FN_MANIFEST > value > <anonymous>~787be9",
+			"reason": "the fn manifest's registrations, once per build (fn_manifest_registrations does the work)"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > ISLAND_DEPS > value",
+			"reason": "once per chunk that carries the token: a closure over the chunk graph, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > ISLAND_DEPS > value > <anonymous>~d63cf2",
+			"reason": "one island's dependency list from the finished graph, once per island token in the runtime chunk"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > LATE_SERVER_REGIONS > value",
+			"reason": "once per chunk that carries the token: a closure over the leg's late regions, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > LATE_SERVER_REGIONS > value > <anonymous>~ede5b3",
+			"reason": "the late server regions' loader table, once per build, linear in the late regions (a handful, #1420)"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > LATE_SERVER_REGIONS > value > map:0~45f7e5",
+			"reason": "one table row per late server region, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > LATE_SERVER_REGIONS > value > sort:0~60d5a8",
+			"reason": "one string compare in a sort of the late server regions (a handful), constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > PAGE_DATA_READS > value",
+			"reason": "once per chunk that carries the token: a closure over the program, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > PAGE_DATA_READS > value > <anonymous>~76fd15",
+			"reason": "the page-data reads table, once per build; the per-module key analysis it reads is measured in the page data keys benches"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > PAGE_DATA_READS > value > clean",
+			"reason": "one module id's query and hash stripped, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > PAGE_DATA_READS > value > imports_kit_page",
+			"reason": "one module's import list against Kit's page module ids, constant work per module"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > PAGE_DATA_READS > value > imports_kit_page > some:0~c46626",
+			"reason": "one specifier test, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > PAGE_DATA_READS > value > reads",
+			"reason": "one module's recorded keys from the program, a Map read, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > PAGE_DATA_READS > value > reads_itself",
+			"reason": "one module's plugin answer (reads.keys), constant work per module"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > relocate",
+			"reason": "once per finished chunk (renderChunk): an includes() per relocation token (a fixed table), then the patches; a real build runs it (test/relocations.test.ts)"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > relocate > patch",
+			"reason": "one MagicString overwrite per token found, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > relocations_of",
+			"reason": "a filter of the fixed relocation table, once per chunk, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > relocations_of > filter:0~7b65ad",
+			"reason": "one flag read per relocation of a fixed table, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > server_map",
+			"reason": "once per build: makes the server-manifest relocation for one map, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > server_map > value",
+			"reason": "once per chunk that carries the token: a closure over the program, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > server_map > value > <anonymous>~76fd15",
+			"reason": "one server map's text, once per build (server_manifest_maps does the work)"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > server_map > value > server_manifest_maps:1~948e26",
+			"reason": "one region's loader path from the finished graph, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/relocations.ts > unpatched > filter:0~209606",
+			"reason": "once per build's end: one count read per relocation of a fixed table, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/server-manifest.ts > server_island_ids > map:0~2660cd",
+			"reason": "one region's id, constant work, once per server region per build"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/server-manifest.ts > server_manifest_module > server_manifest_maps:1~a45221",
+			"reason": "dev only: one region's loader path, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/server-manifest.ts > server_regions > sort:0~60d5a8",
+			"reason": "one string compare in the server regions' sort, constant work, once per build"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > as_region_removed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > as_region_removed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > build_leg_unclear > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > build_leg_unclear > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_session_order > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_session_order > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_binding_not_component > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_binding_not_component > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_import_bare > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_import_bare > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_import_namespace > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_import_namespace > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_import_type_only > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_import_type_only > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > relocation_unpatched > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > relocation_unpatched > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > runtime_marks_late > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > runtime_marks_late > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/program.ts > Program > #check_late",
+			"reason": "once per registration after the runtime entry was made: a filter of the features (a fixed, short list), constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/program.ts > Program > #check_late > filter:0~d2085d",
+			"reason": "two Set reads per feature, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/program.ts > Program > fresh",
+			"reason": "once per build: an empty Program, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/marked-imports.ts > check_marked_uses > fail",
+			"reason": "error path only: throws region_binding_not_component once"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > OgygiaError:1~d432b3 > map:0~aec972",
+			"reason": "error path only: one binding's name for the refusal"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/marked-imports.ts > misuse_of > some:0~49a88e",
+			"reason": "error path only: names how a refused binding is used"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/marked-imports.ts > refuse_as_region > walk:1~703860",
+			"reason": "error path only: runs when the source holds 'asRegion' (the removed spelling), to list its replacements"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/marked-imports.ts > refuse_as_region > walk:1~ca52a2",
+			"reason": "error path only: runs when the source holds 'asRegion' (the removed spelling), to list its replacements"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/marked-imports.ts > refuse_as_region > walk:1~ca52a2 > find:0~20e58c",
+			"reason": "error path only: one specifier test while listing an asRegion call's replacement"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > OgygiaError:1~5017d8 > map:0~58bf65",
+			"reason": "error path only: one re-exported name for region_import_invalid"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > map:0~68f2a7",
+			"reason": "one binding's local name per marked import in a .ts module, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > buildStart > emit_build_chunks:1~04e2a4",
+			"reason": "once per build: the emitFile callback handed to the compiler, constant work per emitted chunk"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~9d84f4",
+			"reason": "once per configResolved: makes the session's compiler (or carries the last one's build), constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > env_of",
+			"reason": "once per build hook: reads the hook's environment name and consumer, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > generateBundle > filter:0~3fc070",
+			"reason": "one chunk type test per bundle entry at the build's end, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > generateBundle > location_maps:1~872a42",
+			"reason": "once per island entry: one emitted chunk's file name, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > island_sourcemaps_plugin:0~56b4e5 > program",
+			"reason": "one session read (compiler_of), constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > leg_of",
+			"reason": "once per build hook: env_of plus Compiler.leg, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > renderChunk > relocate:2~332ac3 > facade_file",
+			"reason": "one chunk's facade module's file, read lazily by one relocation, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > renderChunk > relocate:2~332ac3 > file_name",
+			"reason": "one emitted file's name, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > renderChunk > relocate:2~332ac3 > graph",
+			"reason": "the bundler's module graph, read lazily by one relocation, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > renderChunk > relocate:2~332ac3 > module_ids",
+			"reason": "one chunk's module ids, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > writeBundle > entry_locations:1~872a42",
+			"reason": "once per island entry: one emitted chunk's file name, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/session.ts > compiler_of",
+			"reason": "one machine state read, constant work; test/plugin-session.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/vite/session.ts > configured",
+			"reason": "one machine move per config hook, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/session.ts > refuse",
+			"reason": "error path only: throws plugin_session_order"
+		},
+		{
+			"id": "packages/compiler/src/vite/session.ts > resolve",
+			"reason": "one machine move per configResolved, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/page-keys.ts > statement_declares > some:0~af91fc",
+			"reason": "one import specifier's local name against the name looked up, constant work; reached only when a module-level lookup (a typeof window guard) walks to the Program; page-keys.test.ts runs it"
 		}
 	]
 }

@@ -40,6 +40,7 @@ function leg_plugin(ssr: boolean): Plugin {
 
 const env = (name: 'ssr' | 'client') => ({
 	environment: { name, config: { consumer: name === 'ssr' ? 'server' : 'client' } },
+	emitFile: () => 'ref',
 	error: (e: unknown) => {
 		throw e;
 	}
@@ -55,6 +56,7 @@ test("a client chunk holding the server leg's per-build key fails the build, wit
 	try {
 		// the server leg: its key, baked into the server bundle; then its handoff to the client leg
 		const server = leg_plugin(true);
+		await handler(server.buildStart!).call(env('ssr') as never, {} as never);
 		const secret_module = (await handler(server.load!).call(
 			env('ssr') as never,
 			'\0ogygia:server/secret',
@@ -67,6 +69,7 @@ test("a client chunk holding the server leg's per-build key fails the build, wit
 
 		// the client leg: its own instance; a chunk that somehow holds the server's key
 		const client = leg_plugin(false);
+		await handler(client.buildStart!).call(env('client') as never, {} as never);
 		const bundle = {
 			'x.js': {
 				type: 'chunk',

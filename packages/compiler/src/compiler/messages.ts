@@ -244,13 +244,67 @@ export const BUILD_ERRORS = {
 			says what is wrong and what to write.
 		`
 	},
-	as_region_invalid: {
-		text: (a: { host: string; name: string; problem: string }): string =>
-			`${a.host}: import.meta.og.asRegion (${a.name}) — ${a.problem}`,
+	as_region_removed: {
+		text: (a: { host: string; fixes: string }): string =>
+			`${a.host}: import.meta.og.asRegion is gone. Mark the import itself; a named import takes the same options:\n${a.fixes}`,
 		details: (): string => prose`
-			\`import.meta.og.asRegion\` marks a component as a region, like a marked import. It only
-			works on a plain \`const Name = import.meta.og.asRegion(Component, options)\`, with the
-			same options an import's \`with\` clause takes. \`problem\` says what is wrong.
+			\`import.meta.og.asRegion(Component, options)\` was replaced by the import it stood for. A
+			named import carries the mark the same way a default import does:
+			\`import { Search } from 'x' with { wake: 'idle' }\`, aliased with \`as\` when the region
+			had its own name. The message prints the line to write for each call in the file. Put it
+			beside the file's other imports and delete the \`const\`. If the old import is used for
+			nothing else, delete it too.
+		`
+	},
+	region_import_namespace: {
+		text: (a: { host: string; line: number; name: string; spec: string }): string => prose`
+			${a.host}:${a.line} — \`import * as ${a.name} from '${a.spec}'\` carries a region mark. A
+			namespace is not a component. Name the components you place:
+			\`import { Card } from '${a.spec}' with { … }\`.
+		`,
+		details: (): string => prose`
+			A region mark (\`wake\`, \`render\`, \`fetch\`, \`preset\` or \`region\` in the \`with\`
+			clause) makes every name the import binds a region. A namespace import binds an object of
+			exports, not a component, so it cannot be one. Import each component by name instead.
+		`
+	},
+	region_import_bare: {
+		text: (a: { host: string; line: number; spec: string }): string => prose`
+			${a.host}:${a.line} — \`import '${a.spec}'\` carries a region mark but binds no name, so
+			there is nothing to make a region. Bind the component:
+			\`import Card from '${a.spec}' with { … }\`, or drop the \`with\` clause.
+		`,
+		details: (): string => prose`
+			A side-effect import (\`import 'x'\`, or \`import {} from 'x'\`) binds no name. A region
+			mark only means something on a name you place as \`<Name />\` or hand to \`region()\`.
+		`
+	},
+	region_import_type_only: {
+		text: (a: { host: string; line: number; names: string; spec: string }): string => prose`
+			${a.host}:${a.line} — \`${a.names}\` is imported as a type with a region mark. A type is
+			gone at runtime, so it cannot be a region. Import the types on their own line without
+			\`with\`: \`import type { ${a.names} } from '${a.spec}';\`
+		`,
+		details: (): string => prose`
+			\`import type\`, or a \`type\` specifier inside the braces, imports only a type. Types are
+			erased before the code runs, so a region mark on one marks nothing. Keep region marks on
+			value imports of components and import types on a separate line.
+		`
+	},
+	region_binding_not_component: {
+		text: (a: { host: string; at: string; name: string; use: string; fix: string }): string =>
+			prose`
+			${a.host}:${a.at} — \`${a.name}\` comes from a region import, but it is ${a.use} here. A
+			region mark makes every name in its import a component region. If \`${a.name}\` is not a
+			component, import it on its own line without \`with\`: \`${a.fix}\`
+		`,
+		details: (): string => prose`
+			One \`with { … }\` clause covers every name its import binds, so each one becomes a
+			region: a component you place as \`<Name />\` or hand on as a value (\`region(Name)\`, a
+			prop, a registry). Calling it, reading a member off it, spreading it, rendering it as
+			text, \`typeof\`, \`{@render}\`, \`{@html}\`, an action or a transition all mean the
+			name is not a component. Usually a tool merged two imports of one module into one. Split
+			them: the components keep the \`with\` clause, the rest get a plain import line.
 		`
 	},
 	region_children_not_portable: {
@@ -670,6 +724,27 @@ export const BUILD_ERRORS = {
 			realm module knows them without running it. This one now returns other names: the
 			generated list is stale. Run \`node packages/core/scripts/virtual-types.ts\`. ${BUG}
 		`
+	},
+	plugin_session_order: {
+		text: (a: { hook: string; state: string }): string =>
+			`The bundler called ogygia's \`${a.hook}\` hook while the plugin was ${a.state}.`,
+		details: (): string => prose`
+			An \`ogygia()\` plugin is made, configured (\`config\`), then resolved
+			(\`configResolved\`) once: its compiler is made from the resolved build. A hook that
+			needs the compiler runs after that, and the build is resolved only once per plugin. A
+			bundler or a tool that calls the hooks in another order meets this. ${BUG}
+		`
+	},
+	build_leg_unclear: {
+		text: (a: { leg: string; open: number }): string =>
+			a.leg
+				? `The bundler called ogygia in environment \`${a.leg}\`, which never started a build.`
+				: `The bundler called ogygia with no environment while ${a.open} environments build.`,
+		details: (): string => prose`
+			Each bundler environment (\`ssr\`, \`client\`) builds its own output, and ogygia keeps what
+			each one emits apart. A call it cannot place in one environment would put one
+			environment's files in the other's output. ${BUG}
+		`
 	}
 };
 
@@ -713,6 +788,37 @@ export const BUILD_WARNINGS = {
 
 			Add \`ogygia.files\` to that package's \`package.json\`: the paths or globs ogygia
 			compiles, like npm's \`files\`.
+		`
+	},
+	runtime_marks_late: {
+		text: (a: { file: string; features: string }): string => prose`
+			${a.file} placed a region that needs the runtime's ${a.features}, but the build had already
+			made its runtime without it: that region will not work in this build. Put the file where
+			the scan reads it: under \`src/\`, or in a package that declares \`"ogygia": { "files":
+			[...] }\`.
+		`,
+		details: (): string => prose`
+			A build picks the runtime's features once, from the regions it knows when the bundler
+			loads the runtime entry. This file was first reached later, while bundling, and one of
+			its regions needs a feature (a lake, a \`keep\`, a held region, a deferred hole, a wake
+			on interaction) the runtime was made without. The region then never wakes or never
+			fills.
+
+			ogygia reads every file under \`src/\` and every declared package file before the
+			bundler starts. Move the file there, or declare it in its package's \`ogygia.files\`.
+		`
+	},
+	relocation_unpatched: {
+		text: (a: { name: string; leg: string }): string => prose`
+			the ${a.name} in the ${a.leg} build was left unpatched: a value the build fills in at the end
+			never reached its chunk, so that part of the output is wrong. Please report it.
+		`,
+		details: (): string => prose`
+			Some values are known only once the bundler has transformed every module: the \`og.$\`
+			functions an app defines, and which server regions read \`page.data\`. The build writes a
+			placeholder for each and fills it in as each chunk is finished. A placeholder was left in
+			the output, or the module that carries it is in the output and none was filled. This is
+			an ogygia bug, or another plugin rewrote the chunk after ogygia filled it.
 		`
 	},
 	island_context_unprovided: {

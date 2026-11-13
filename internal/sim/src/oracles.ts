@@ -5,7 +5,8 @@
 import { writeFileSync } from 'node:fs';
 import { gate_open_early, own_text, type Tab, type Visitor } from './browser.ts';
 import { boxes, on_screen, type Box } from './layout.ts';
-import { answer_key, FOREIGN_MARK, is_page_path, type World } from './world.ts';
+import { answer_key, FOREIGN_MARK, is_page_path, LOSSY_POINTS, type World } from './world.ts';
+import { EDGE_GONE, EDGE_MOVED } from './gen.ts';
 
 /** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
  *  `-fresh.txt`), to read past its first hunk. */
@@ -618,6 +619,9 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 	// (nor one whose runtime, or another script, failed to load: the runtime may never have run, and
 	// the page stays its server HTML, as runtime_load_failed says; gen 12, seed 22)
 	if (touched && world.browsers.lacks_a_file(tab.realm)) return null;
+	// (nor one whose answers buggify lost: a lost answer goes before its request, so a hole it took
+	// every try of looks never asked; gen 208, seed 120)
+	if (touched && lost_answers(world, tab.realm)) return null;
 	const asked = new Set(
 		mine.filter((e) => e.method === 'GET').map((e) => answer_key(new URL(e.url)))
 	);
@@ -957,9 +961,6 @@ export function error_page(tab: Tab): boolean {
 	);
 }
 
-/** The buggify points that lose an answer on the way, as a dropped request does. */
-const LOSSY_POINTS = ['hole.fetch-lost'];
-
 /** Did buggify lose an answer of `realm`'s on the way? */
 function lost_answers(world: World, realm: string): boolean {
 	const fired = world.fired_in.get(realm);
@@ -1150,6 +1151,45 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 			detail: `${tab.page.mainFrame.url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
 		};
 	return { oracle: 'page-errors', detail: errors.join('\n') };
+}
+
+/** What the app owes each of a peer's edge pages (gen.ts `edges`): the peer's own answer. */
+const EDGE_OWED: ReadonlyArray<[string, string, (status: number) => boolean]> = [
+	[EDGE_GONE, 'its not-found page, a 404', (s) => s === 404],
+	[EDGE_MOVED, 'its redirect', (s) => s >= 300 && s < 400]
+];
+
+/**
+ * A MOUNTED PEER'S PAGE ANSWERS AS THE PEER DID: a page the peer lacks is a 404 in the app, one it
+ * moved is a redirect there, and a page that shows the visitor shows the one the app vouched for
+ * (`sub: 'visitor'`, both mounts' `user`). Read from the tab's requests `since` an exchange and its
+ * document. An answer the network failed, or one whose hop to the peer failed or changed on the
+ * way, is the app's own (a 502 or 504) and is not judged.
+ */
+export function peer_answers(tab: Tab, world: World, since: number): Broken | null {
+	const exchanges = world.network.exchanges;
+	const hop_failed = (realm: string): boolean =>
+		exchanges.some((e) => e.for === realm && (failed_on_wire(e) || e.tampered));
+	const origin = new URL(tab.page.mainFrame.url).origin;
+	const wrong: string[] = [];
+	for (const e of exchanges.slice(since)) {
+		if (e.for !== undefined || !e.from.startsWith(`${tab.name}#`) || e.method !== 'GET') continue;
+		if (typeof e.status !== 'number' || e.status >= 500 || e.cut || e.tampered || e.redirected)
+			continue;
+		const url = new URL(e.url);
+		if (url.origin !== origin) continue;
+		const owed = EDGE_OWED.find(([path]) => path === url.pathname);
+		if (owed && !owed[2](e.status) && !hop_failed(e.from))
+			wrong.push(`${url.pathname} answered ${e.status}, the peer answered ${owed[1]}`);
+	}
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	if (!document_faulted(world, tab))
+		for (const el of doc.querySelectorAll('[data-gen-who]'))
+			if (el.textContent !== 'visitor')
+				wrong.push(`the peer's page shows the visitor "${el.textContent}", the app's is "visitor"`);
+	return wrong.length === 0
+		? null
+		: { oracle: 'peer-answers', detail: `${tab.page.mainFrame.url}: ${wrong.join('\n')}` };
 }
 
 /**

@@ -5,7 +5,8 @@
  *
  *   node src/builds.ts [--app <dir>]
  *
- * The two differ the way two releases do: Kit's version (a new one every build), and code that
+ * The two differ the way two releases do: Kit's version (the build's id, read by the app's config
+ * from `VITE_SIM_BUILD`: a rebuild of the same code is the same world, test/builds.test.ts), and code that
  * reads `import.meta.env.VITE_SIM_BUILD` (palaestra's Counter renders it: its chunk's hash, and
  * its HTML, are the build's own). Without them a run has one build and never deploys.
  */
