@@ -652,7 +652,7 @@ describe('resolveId', () => {
 			return p.resolveId.call(hook_this('client'), './LateIsland.svelte', region, {});
 		};
 		expect(await twin(true)).toBe(
-			region.slice(0, region.lastIndexOf('/') + 1) + 'LateIslandAwait.svelte'
+			`${region.slice(0, region.lastIndexOf('/') + 1)}LateIslandAwait.svelte`
 		);
 		expect(JSON.stringify(await twin(false))).not.toContain('Await.svelte');
 	});
