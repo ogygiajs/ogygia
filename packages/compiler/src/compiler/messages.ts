@@ -754,6 +754,19 @@ export const BUILD_WARNINGS = {
 			bundler starts. Move the file there, or declare it in its package's \`ogygia.files\`.
 		`
 	},
+	relocation_unpatched: {
+		text: (a: { name: string; leg: string }): string => prose`
+			the ${a.name} in the ${a.leg} build was left unpatched: a value the build fills in at the end
+			never reached its chunk, so that part of the output is wrong. Please report it.
+		`,
+		details: (): string => prose`
+			Some values are known only once the bundler has transformed every module: the \`og.$\`
+			functions an app defines, and which server regions read \`page.data\`. The build writes a
+			placeholder for each and fills it in as each chunk is finished. A placeholder was left in
+			the output, or the module that carries it is in the output and none was filled. This is
+			an ogygia bug, or another plugin rewrote the chunk after ogygia filled it.
+		`
+	},
 	island_context_unprovided: {
 		text: (a: { file: string; key: string }): string => prose`
 			island code ${a.file} reads getContext('${a.key}'), but this app registers no ogygia
