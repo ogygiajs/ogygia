@@ -356,6 +356,33 @@ test('folded names come back when the transition is skipped', async () => {
 	await expect.poll(() => here.style.getPropertyValue('view-transition-name')).toBe('row-1');
 });
 
+test('a skipped transition leaves no unhandled rejection on the page', async () => {
+	document.body.innerHTML = '<p>here</p>';
+	pages['/rn-vt-skip-quiet'] = { marker: '', body: '<p>next</p>' };
+	const unhandled: unknown[] = [];
+	const on = (e: PromiseRejectionEvent) => {
+		unhandled.push(e.reason);
+		e.preventDefault();
+	};
+	window.addEventListener('unhandledrejection', on);
+	document.startViewTransition = ((cb: () => void) => {
+		cb();
+		return {
+			ready: Promise.reject(new DOMException('Transition was skipped', 'AbortError')),
+			finished: Promise.resolve(),
+			updateCallbackDone: Promise.resolve(),
+			skipTransition() {}
+		};
+	}) as never;
+	try {
+		await go('/rn-vt-skip-quiet');
+		await new Promise((r) => setTimeout(r, 100));
+	} finally {
+		window.removeEventListener('unhandledrejection', on);
+	}
+	expect(unhandled).toEqual([]);
+});
+
 test('a visitor who asks for reduced motion gets no view transition', async () => {
 	const real_match = window.matchMedia;
 	window.matchMedia = ((q: string) =>

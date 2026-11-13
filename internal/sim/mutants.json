@@ -586,9 +586,9 @@
 		"id": "rewrite-fallback-off",
 		"file": "packages/rewrite/src/pass.ts",
 		"in": "render_one",
-		"code": "return { ok: false, error: message_of(thrown) };",
+		"code": "return { error: message_of(thrown) };",
 		"operator": "statement",
-		"from": "return { ok: false, error: message_of(thrown) };",
+		"from": "return { error: message_of(thrown) };",
 		"to": "throw thrown;",
 		"aim": "gen.reshape-throws"
 	},
@@ -678,10 +678,10 @@
 		"id": "rewrite-marks-lost-kept",
 		"file": "packages/rewrite/src/pass.ts",
 		"in": "judge",
-		"code": "if (!kept.has(id))",
+		"code": "if (!kept.has(id)) return { code: 'rewrite_marks_lost', name, error: 'og-h dropped' };",
 		"operator": "statement",
-		"from": "if (!kept.has(id))",
-		"to": "if (kept.size < 0)"
+		"from": "if (!kept.has(id)) return",
+		"to": "if (kept.size < 0) return"
 	},
 	{
 		"id": "rewrite-ids-not-moved",

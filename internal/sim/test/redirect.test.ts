@@ -24,4 +24,30 @@ describe.skipIf(!built)('redirects', () => {
 			await world.end();
 		}
 	});
+
+	it("a server's own fetch follows a redirect and its answer carries the URL it came from, as Node's fetch does (#1697)", async () => {
+		const world = await World.make({ seed: 1, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const moved = fetch('https://app.test/dashboard');
+			const plain = fetch('https://app.test/dashboard/orders');
+			await world.quiesce();
+			const [a, b] = await Promise.all([moved, plain]);
+			expect([a.status, a.url, a.redirected]).toEqual([
+				200,
+				'https://app.test/dashboard/orders',
+				true
+			]);
+			expect([b.status, b.url, b.redirected]).toEqual([
+				200,
+				'https://app.test/dashboard/orders',
+				false
+			]);
+			const manual = fetch('https://app.test/dashboard', { redirect: 'manual' });
+			await world.quiesce();
+			const c = await manual;
+			expect([c.status, c.url, c.redirected]).toEqual([307, 'https://app.test/dashboard', false]);
+		} finally {
+			await world.end();
+		}
+	});
 });
