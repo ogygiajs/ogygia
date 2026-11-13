@@ -107,11 +107,14 @@ export interface Heard {
 }
 
 /** What a region shows of its own, as text: less a region inside it (its own answer comes on its
- *  own), a button (its own count, the visitor's), and the page's data a soft refresh changes in place
- *  (the random app's `data-gen-page`). */
+ *  own), a button (its own count, the visitor's), the page's data a soft refresh changes in place
+ *  (the random app's `data-gen-page`), and a remote query's line while it waits or after it failed
+ *  (`data-gen-pending`, `data-gen-error`: its answer is a region of its own, gen 650). */
 export function own_text(region: Element): string {
 	const copy = region.cloneNode(true) as Element;
-	for (const el of copy.querySelectorAll('ogygia-region, button, [data-gen-page], script, style'))
+	for (const el of copy.querySelectorAll(
+		'ogygia-region, button, [data-gen-page], [data-gen-pending], [data-gen-error], script, style'
+	))
 		el.remove();
 	return (copy.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
