@@ -1478,8 +1478,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// `remotes`: per island entry, the Kit remote modules in that closure (by the id-hash Kit
 				// mints them with — relative to `process.cwd()`, as Kit's own transform hashes them) —
 				// the handle seeds an SSR-resolved remote only for a page with an island that can call it.
-				// SEED SHAPING: the plugin settles what needs the bundler (a helper in another module that
-				// the page is handed to) before the collector asks it for each module's keys.
 				await page_reads?.settle((s, importer) => this.resolve(s, importer));
 
 				const remote_hash = (id: string) => remote_hash_of(id, process.cwd());
@@ -1500,8 +1498,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					>,
 					[APP_SHIMS['$app/state'], APP_SHIMS['$app/stores']],
 					remote_hash,
-					// SEED SHAPING: the plugin answers, per module, the `page.data` keys it reads; the
-					// collector unions them over each island's closure. No plugin: every reader ships all.
 					page_reads && ((module_id) => page_reads!.keys(module_id)),
 					// WAKE ADVISOR: the collector counts what each island's own components do
 					readFile,
@@ -1516,7 +1512,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							bundle as Record<string, { type: string; moduleIds?: string[]; imports?: string[] }>,
 							(module) => page_reads!.why(module),
 							root,
-							// (the maps key identities; the walk starts at each one's emitted file)
 							(identity) => entries.locations[identity] ?? identity
 						)
 					: {};

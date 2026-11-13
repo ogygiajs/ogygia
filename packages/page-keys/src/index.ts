@@ -1,13 +1,3 @@
-/**
- * `pageKeys()`: seed shaping, listed beside `ogygia()`
- * (`plugins: [ogygia(), pageKeys(), sveltekit()]`).
- *
- * An island that reads `page.data` through `$app/state` / `$app/stores` gets the page seed. Without
- * this plugin that seed is all of `page.data`, and every server hole looks it up. With it, the build
- * reads each module once (./analysis.ts) for the top-level `page.data` keys it can reach; the page
- * ships only the keys its islands read, and a hole whose tree reads none skips the lookup. Any read
- * the analysis cannot pin answers `'unknown'`, and that region gets all of `page.data` as before.
- */
 import { definePlugin, type OgygiaPlugin, type PageReads } from '@ogygia/compiler/vite';
 import {
 	follow_pending_page_calls,
@@ -22,7 +12,15 @@ import {
 
 const SCRIPT_MODULE_RE = /\.(?:[cm]?[jt]sx?)$/;
 
-/** The seed-shaping plugin. */
+/**
+ * Seed shaping, listed beside `ogygia()` (`plugins: [ogygia(), pageKeys(), sveltekit()]`).
+ *
+ * An island that reads `page.data` through `$app/state` / `$app/stores` gets the page seed. Without
+ * this plugin that seed is all of `page.data`, and every server hole looks it up. With it, the build
+ * reads each module once for the top-level `page.data` keys it can reach; the page ships only the
+ * keys its islands read, and a hole whose tree reads none skips the lookup. Any read the analysis
+ * cannot pin answers `'unknown'`, and that region gets all of `page.data` as before.
+ */
 export function pageKeys(): OgygiaPlugin {
 	return definePlugin({
 		name: '@ogygia/page-keys',
@@ -36,11 +34,8 @@ export function pageKeys(): OgygiaPlugin {
  *  own). `read` is the build's file reader, threaded in so this stays testable. */
 export function page_reads(read: (file: string) => string | null = read_file_sync): PageReads {
 	const state = {
-		/** per module, the keys it reads (`'all'`: a read could not be pinned) */
 		page_keys: new Map<string, PageKeys>(),
-		/** per module that answered `'all'`: why, and on which line */
 		page_key_reasons: new Map<string, AllReason>(),
-		/** per module, the `helper(page)` calls into imported helpers that `settle` follows */
 		page_pending: new Map<string, PendingCall[]>()
 	};
 	const kind_of = (id: string): 'svelte' | 'script' =>
@@ -57,7 +52,6 @@ export function page_reads(read: (file: string) => string | null = read_file_syn
 		},
 		settle: (resolve) => follow_pending_page_calls(state, resolve, read),
 		keys(id) {
-			// a helper call not followed yet: what it reads is not known
 			if (state.page_pending.has(id)) return 'unknown';
 			const k = state.page_keys.get(id);
 			return k === undefined ? null : k === 'all' ? 'unknown' : k;
@@ -81,7 +75,6 @@ export function page_reads(read: (file: string) => string | null = read_file_syn
 				if (a.keys === 'all' && a.reason)
 					why.push({ file: f, line: a.reason.line, why: a.reason.why });
 				add(a.keys);
-				// `helper(page)`: what the imported helper reads of it (one level)
 				for (const p of a.pending) {
 					const target = (await resolve(p.specifier, f))?.id;
 					const tcode = target ? read(target) : null;
