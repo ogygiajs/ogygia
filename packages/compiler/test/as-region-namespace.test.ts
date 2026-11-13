@@ -1,5 +1,5 @@
-// `asRegion(X)` keys the region on the import that binds X (`<specifier>#<export>`); a namespace
-// import names no export, so it is refused in both host kinds rather than minting a region for it.
+// A marked import keys the region on the binding it imports (`<specifier>#<export>`); a namespace
+// import names no export, so a mark on one is refused in both host kinds rather than minting a region.
 import { describe, expect, it } from 'vitest';
 import path from 'node:path';
 import { dedent } from '@ogygia/core/contract';
@@ -20,38 +20,39 @@ const CTX = {
 	pathModule: path
 } as Ctx;
 
-const NOT_NAMESPACE = /must be a default or named import, not a namespace import/;
+const NOT_NAMESPACE = /region_import_namespace|A namespace is not a component/;
 
-describe('asRegion over a namespace import is refused', () => {
+describe('a region mark on a namespace import is refused', () => {
 	it('in a .svelte host', () => {
 		const src = dedent`
 			<script>
-			import * as Lib from '$lib/index.ts';
-			const R = import.meta.og.asRegion(Lib, { wake: 'load' });
+			import * as Lib from '$lib/index.ts' with { wake: 'load' };
 			</script>
-			<R />
+			<Lib.Card />
 		`;
 		expect(() => transformHost(src, '/app/src/routes/+page.svelte', CTX)).toThrow(NOT_NAMESPACE);
 	});
 
 	it('in a .ts module', () => {
 		const src = dedent`
-			import * as Lib from '$lib/index.ts';
-			const R = import.meta.og.asRegion(Lib, { wake: 'load' });
-			export { R };
+			import * as Lib from '$lib/index.ts' with { wake: 'load' };
+			export { Lib };
 		`;
 		expect(() => transformTsRegions(src, '/app/src/lib/regions.ts', CTX)).toThrow(NOT_NAMESPACE);
 	});
 
 	it.each([
-		["import { Card } from '$lib/index.ts';", 'Card', /#Card$/],
-		["import { Card as C } from '$lib/index.ts';", 'C', /#Card$/],
-		["import Card from '$lib/Card.svelte';", 'Card', /^src\/lib\/Card\.svelte$/]
+		["import { Card } from '$lib/index.ts' with { wake: 'load' };", 'Card', /#Card$/],
+		["import { Card as C } from '$lib/index.ts' with { wake: 'load' };", 'C', /#Card$/],
+		[
+			"import Card from '$lib/Card.svelte' with { wake: 'load' };",
+			'Card',
+			/^src\/lib\/Card\.svelte$/
+		]
 	])('%s binds the export it names', (imp, local, component) => {
 		const src = dedent`
 			${imp}
-			const R = import.meta.og.asRegion(${local}, { wake: 'load' });
-			export { R };
+			export { ${local} };
 		`;
 		const out = transformTsRegions(src, '/app/src/lib/regions.ts', CTX)!;
 		// identity is `<component>\0<strategy>`
