@@ -357,6 +357,17 @@ export interface FailureLedger {
 	readonly impossible: readonly Impossible[];
 	/** Sites nobody has bucketed yet. It may only shrink. */
 	readonly baseline: readonly string[];
+	/** Points that fire no failure site but a machine's recovery steps (a keep running out early:
+	 *  `kept -> gone`), which the steps ledger accounts for. Every point the source asks is named by a
+	 *  `fired` entry or here: no orphan points. */
+	readonly step_points?: readonly StepPoint[];
+}
+
+export interface StepPoint {
+	readonly point: string;
+	/** The machine steps it leads to, as the steps ledger spells them. */
+	readonly steps: readonly string[];
+	readonly how: string;
 }
 
 export interface FailureAccounting {
@@ -438,6 +449,17 @@ export function account_failures(
 		const text = o.read(i.by);
 		if (text === null) failures.push(`${i.site}: its rule's file is not there: ${i.by}`);
 		else if (!text.includes(i.name)) failures.push(`${i.site}: ${i.by} has no '${i.name}'`);
+	}
+	const named = new Set([
+		...ledger.fired.flatMap((f) => (f.point === undefined ? [] : [f.point])),
+		...(ledger.step_points ?? []).map((p) => p.point)
+	]);
+	for (const p of [...o.points].sort())
+		if (!named.has(p)) failures.push(`an orphan point (no ledger entry names it): ${p}`);
+	for (const p of ledger.step_points ?? []) {
+		if (!o.points.has(p.point))
+			failures.push(`no buggify point '${p.point}' in the packages' source (step_points)`);
+		if (p.steps.length === 0) failures.push(`${p.point}: a step point names its steps`);
 	}
 	if (o.base !== undefined)
 		for (const b of ledger.baseline)
