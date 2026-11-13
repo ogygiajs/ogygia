@@ -2300,6 +2300,54 @@
 			"reason": "`!v.ok`: proved: the !ok check made never true turns the test red, twice",
 			"test": "packages/cli/test/perf.test.ts",
 			"name": "the markdown comment and the terminal summary carry the verdict"
+		},
+		{
+			"site": "packages/bake/src/bake.ts > scan > throw:0",
+			"reason": "`throw new OgygiaError('macro_bake_arity', { file: id, line: line_of(s…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/bake/test/bake.test.ts",
+			"name": "rejects wrong arity"
+		},
+		{
+			"site": "packages/bake/src/bake.ts > scan > throw:1",
+			"reason": "`throw new OgygiaError('macro_bake_not_function', { file: id, line: li…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/bake/test/bake.test.ts",
+			"name": "rejects a non-function argument"
+		},
+		{
+			"site": "packages/bake/src/bake.ts > resolve_file > catch:0",
+			"reason": "`catch { // ok: not this extension; the next is tried }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/bake/test/plugin.test.ts",
+			"name": "bakes the call through the app alias, and the import that fed it leaves the bundle"
+		},
+		{
+			"site": "packages/bake/src/bake.ts > rewrite_bake > catch:0",
+			"reason": "`catch (e) { const msg = e instanceof Error ? e.message : String(e); t…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/bake/test/stress.test.ts",
+			"name": "referencing an undeclared/non-imported name FAILS LOUDLY"
+		},
+		{
+			"site": "packages/bake/src/bake.ts > rewrite_bake > throw:0",
+			"reason": "`throw new OgygiaError('macro_bake_eval_failed', { file: path.basename…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/bake/test/stress.test.ts",
+			"name": "a fn that THROWS at build surfaces as a build error"
+		},
+		{
+			"site": "packages/bake/src/bake.ts > rewrite_bake > catch:1",
+			"reason": "`catch (e) { const msg = e instanceof Error ? e.message : String(e); t…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/bake/test/bake.test.ts",
+			"name": "a non-serializable result is a build error naming the fix"
+		},
+		{
+			"site": "packages/bake/src/bake.ts > rewrite_bake > throw:1",
+			"reason": "`throw new OgygiaError('macro_bake_not_serializable', { file: id, line…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/bake/test/bake.test.ts",
+			"name": "a non-serializable result is a build error naming the fix"
+		},
+		{
+			"site": "packages/barrels/src/svelte.ts > rewrite_svelte > catch:0",
+			"reason": "`catch (err) { const e = err as { code?: string; start?: { line?: numb…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/barrels/test/left.test.ts",
+			"name": "unparsable: a component the parser cannot read keeps every barrel it imports"
 		}
 	],
 	"impossible": [
@@ -2311,9 +2359,6 @@
 		}
 	],
 	"baseline": [
-		"packages/bake/src/bake.ts > scan > throw:0",
-		"packages/bake/src/bake.ts > scan > throw:1",
-		"packages/bake/src/bake.ts > resolve_file > catch:0",
 		"packages/bake/src/bake.ts > resolve_file > catch:1",
 		"packages/bake/src/bake.ts > run > throw:0",
 		"packages/bake/src/bake.ts > run > import:0",
@@ -2321,11 +2366,6 @@
 		"packages/bake/src/bake.ts > evaluate > import:0",
 		"packages/bake/src/bake.ts > evaluate > stale:0",
 		"packages/bake/src/bake.ts > evaluate > throw:0",
-		"packages/bake/src/bake.ts > rewrite_bake > catch:0",
-		"packages/bake/src/bake.ts > rewrite_bake > throw:0",
-		"packages/bake/src/bake.ts > rewrite_bake > catch:1",
-		"packages/bake/src/bake.ts > rewrite_bake > throw:1",
-		"packages/barrels/src/svelte.ts > rewrite_svelte > catch:0",
 		"packages/cli/src/cli.ts > preflight > parse:0",
 		"packages/cli/src/cli.ts > preflight > catch:0",
 		"packages/cli/src/cli.ts > ai_install > catch:0",
