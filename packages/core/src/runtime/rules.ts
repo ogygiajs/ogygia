@@ -9,7 +9,8 @@
  * - `rule_old_page_open`: nothing of a page that was left is still open (its visit's scope closed:
  *   its listeners, timers, streams).
  * - `rule_failure_uncoded`: no failure leaves ogygia without a code: an uncaught ogygia error names
- *   its code's page, and a `STALE` never escapes as a rejection.
+ *   its code's page, nothing thrown in ogygia's own code escapes uncoded (a plain TypeError), and a
+ *   `STALE` never escapes as a rejection.
  * - `rule_parse_upgraded`: a parsed answer is inert (./html-sink.ts, #382): no element of it was
  *   built by a component's constructor before the restore reached it.
  * - `rule_markup_known`: every ogygia marker on the page (`data-ogygia-*`, and `data-og-*` on an
@@ -187,7 +188,23 @@ export function watch_router(router: RouterView): void {
 // ── no failure without a code ──
 
 const CODE_LINK_RE = /ogygiajs\.dev\/e\/[a-z_]+/;
+/** A stack frame's file, in Chromium's, Firefox's and WebKit's spellings alike. */
+const FRAME_URL_RE = /((?:https?|file):\/\/[^\s()@]+?):\d+:\d+/;
 /** (The failures that left ogygia without a code, as found, are `R.uncoded`.) */
+
+/** Where ogygia's own code is served from (`install_rules`): its source folder when this module is
+ *  served as source (dev: each module has a URL of its own), else the chunk it was bundled into. */
+let own_code: string | null = null;
+
+/** The file of the error's top frame that has one (a native frame, say `decodeURIComponent`'s, has
+ *  none), or null. */
+function thrown_at(error: Error): string | null {
+	let stack = error.stack ?? '';
+	// (Chromium's stack starts with the message, which may itself hold a URL)
+	const head = `${error.name}: ${error.message}`;
+	if (stack.startsWith(head)) stack = stack.slice(head.length);
+	return FRAME_URL_RE.exec(stack)?.[1] ?? null;
+}
 
 function failure(reason: unknown): void {
 	if (R.uncoded.length >= 10) return;
@@ -197,8 +214,14 @@ function failure(reason: unknown): void {
 	}
 	const message =
 		reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : '';
-	if (message.startsWith('[ogygia]') && !CODE_LINK_RE.test(message))
-		R.uncoded.push(`an ogygia error with no code: ${message.split('\n')[0].slice(0, 160)}`);
+	const line = message.split('\n')[0].slice(0, 160);
+	if (message.startsWith('[ogygia]')) {
+		if (!CODE_LINK_RE.test(message)) R.uncoded.push(`an ogygia error with no code: ${line}`);
+		return;
+	}
+	// (a failure thrown in ogygia's own code is ogygia's, whatever it says, #1475)
+	if (reason instanceof Error && own_code !== null && thrown_at(reason)?.startsWith(own_code))
+		R.uncoded.push(`a ${reason.name} thrown in ogygia's code, with no code: ${line}`);
 }
 
 const no_failure_uncoded = (): string | null =>
@@ -367,6 +390,8 @@ function check_soon(): void {
 export function install_rules(dev: boolean): void {
 	if (installed || typeof window === 'undefined') return;
 	installed = true;
+	const own = import.meta.url.split(/[?#]/)[0];
+	own_code = own.endsWith('/src/runtime/rules.ts') ? new URL('../', own).href : own;
 	runtime_rules.add('rule_region_mounted_twice', one_mount_per_region);
 	runtime_rules.add('rule_old_page_open', no_old_page_open);
 	runtime_rules.add('rule_failure_uncoded', no_failure_uncoded);
