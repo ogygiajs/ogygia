@@ -1,6 +1,7 @@
 /**
- * Document-scoped runtime session: lake caches, seed flags, kit-page probe, and the page visit.
- * Cleared on SPA body swap via `reset()` so connecting regions never see the previous page.
+ * Document-scoped runtime session: the head's owners, the settled lakes, and the page visit. What
+ * belongs to one page (its lake caches, seed flags, kit-page probe) lives on its visit, and the next
+ * page's swap (`reset()`) ends it, so connecting regions never see the previous page.
  */
 import { scope, type Scope } from '@ogygia/machine';
 import { FROZEN_SELECTOR } from './region-attrs.ts';
@@ -11,7 +12,7 @@ const LAKE_CACHE_MAX = 64;
 
 /** Cached SSR DOM (+ optional SWR endpoint) for `{#if}` remount of hydrate:none regions.
  * Keyed by lake entry id — size is O(unique lakes on the page), not O(toggles).
- * Cleared on SPA body swap via `reset()`. SWR refresh replaces the entry (does not grow). */
+ * The page visit's: gone with it. SWR refresh replaces the entry (does not grow). */
 export type LakeCacheEntry = {
 	frag: Node;
 	endpoint: string;
@@ -79,6 +80,14 @@ export type PageVisit = {
 	 *  (`region_fragment`) for the next hydrate to merge into the page store (seeds.ts). This page's
 	 *  only: the next page's visit starts with none (#269). */
 	readonly facts: string[];
+	/** Its seeds are in the stores (seeds.ts, remote-seeds.ts): read once per page. */
+	readonly seeded: { page: boolean; remote: boolean };
+	/** Kit hydrates this page (kit-boot.ts): asked once, on first need. */
+	kit_page: boolean | undefined;
+	/** Its lakes' cached server DOM, for an `{#if}` remount (./lakes.ts). */
+	readonly lake_cache: Map<string, LakeCacheEntry>;
+	/** The lake ids whose first connect on this page ran (./lakes.ts). */
+	readonly initialized_lakes: Set<string>;
 };
 
 // the runtime's rules (./rules.ts): dev, and a build made with OGYGIA_RULES=1; folds out elsewhere
@@ -86,7 +95,14 @@ const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 function page_visit(): PageVisit {
-	const visit: PageVisit = { scope: scope(), facts: [] };
+	const visit: PageVisit = {
+		scope: scope(),
+		facts: [],
+		seeded: { page: false, remote: false },
+		kit_page: undefined,
+		lake_cache: new Map(),
+		initialized_lakes: new Set()
+	};
 	if (RULES) note_visit(visit, false);
 	return visit;
 }
@@ -240,9 +256,7 @@ export class RuntimeSession {
 		}
 	}
 
-	readonly lake_cache: Map<string, LakeCacheEntry> = new Map<string, LakeCacheEntry>();
 	readonly settled_lakes: WeakSet<Element> = new WeakSet<Element>();
-	readonly initialized_lakes: Set<string> = new Set<string>();
 
 	#visit: PageVisit = page_visit();
 	/** The visit of the page on screen (see {@link PageVisit}). */
@@ -256,29 +270,34 @@ export class RuntimeSession {
 		return page_visit();
 	}
 
-	#remote_seeded = false;
-	#page_seeded = false;
-	#kit_page: boolean | undefined;
+	// (what follows is the page's on screen: its visit's, gone with it)
+
+	get lake_cache(): Map<string, LakeCacheEntry> {
+		return this.#visit.lake_cache;
+	}
+	get initialized_lakes(): Set<string> {
+		return this.#visit.initialized_lakes;
+	}
 
 	get remote_seeded(): boolean {
-		return this.#remote_seeded;
+		return this.#visit.seeded.remote;
 	}
 	mark_remote_seeded(): void {
-		this.#remote_seeded = true;
+		this.#visit.seeded.remote = true;
 	}
 
 	get page_seeded(): boolean {
-		return this.#page_seeded;
+		return this.#visit.seeded.page;
 	}
 	mark_page_seeded(): void {
-		this.#page_seeded = true;
+		this.#visit.seeded.page = true;
 	}
 
-	get kit_page() {
-		return this.#kit_page;
+	get kit_page(): boolean | undefined {
+		return this.#visit.kit_page;
 	}
 	set kit_page(v: boolean | undefined) {
-		this.#kit_page = v;
+		this.#visit.kit_page = v;
 	}
 
 	/** Insert/replace a lake cache entry; evict oldest if over LAKE_CACHE_MAX. */
@@ -307,11 +326,6 @@ export class RuntimeSession {
 		const left = this.#visit;
 		this.#visit = next;
 		if (RULES) note_visit(next, true);
-		this.#kit_page = undefined;
-		this.#remote_seeded = false;
-		this.#page_seeded = false;
-		this.lake_cache.clear();
-		this.initialized_lakes.clear();
 		if (left !== next) left.scope.close();
 	}
 }

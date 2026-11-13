@@ -16,7 +16,6 @@
  */
 import { boot_link, router_link, slots } from './slots.ts';
 import { clock, net } from '@ogygia/machine';
-import { dispose_scope } from '../ref.ts';
 import type { PageGlobals } from '../page-globals.ts';
 import {
 	NO_RECONCILE_SELECTOR,
@@ -950,8 +949,8 @@ export async function navigate(
 		if (reconcile) {
 			// THE nav path: diff the live body toward the parsed one IN PLACE. Matched regions
 			// (same fingerprint) keep their live hydrated node and island state; changed regions
-			// re-mount; shell + keep-chrome (data-ogygia-keep) morph in place. Selective dispose of
-			// only REMOVED regions' hub ids happens inside reconcile_body.
+			// re-mount; shell + keep-chrome (data-ogygia-keep) morph in place. Both paths release
+			// the hub ids nothing on the next page owns, inside the swap.
 			reconcile_body(document.body, doc.body, slots.morph!);
 			built.reconciled = true;
 			adopt_title(doc);
@@ -970,7 +969,6 @@ export async function navigate(
 			swap_body(document.body, doc.body);
 			adopt_title(doc);
 			session().settle_lakes_in(document.body);
-			dispose_scope('page');
 		}
 		// (roots restored in the incoming page adopt their keyed sheets now that they are in this one)
 		(globalThis as PageGlobals).__og_restore_adopt?.();
