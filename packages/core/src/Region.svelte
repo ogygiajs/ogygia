@@ -1021,7 +1021,7 @@
 	/** @param {import('./region.ts').DeferredRegion} f */
 	function identity(f) {
 		try {
-			return `${f.id} ${stringify_devalue(f.props)}`;
+			return `${f.id}\0${stringify_devalue(f.props)}`;
 		} catch {
 			return f.id;
 		}
