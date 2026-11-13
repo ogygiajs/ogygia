@@ -4,6 +4,7 @@
 import { afterEach, expect, inject, vi } from 'vitest';
 import { commands } from 'vitest/browser';
 import { PLAYWRIGHT, it_with_network_routes } from './_browsers.ts';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { from_b64 } from './b64.ts';
 

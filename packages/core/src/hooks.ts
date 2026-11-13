@@ -869,7 +869,6 @@ class OgygiaHandle {
 	}
 
 	constructor(options: OgygiaHandleOptions = {}) {
-		// (the app's own pass is @ogygia/reshape's now; a JS caller still passing it is told where)
 		if ('transform' in options) throw new OgygiaError('handle_transform_moved');
 		// Stored WITHOUT a base prefix. Getting the app's absolute base path inside a hook has no
 		// public, forward-compatible API — `base` from `$app/paths` is deprecated (removed in Kit 3)
@@ -1071,9 +1070,9 @@ class OgygiaHandle {
 						note_cache_control(event.request, headers[key]);
 			};
 			const response = await resolve(event, {
-				transformPageChunk: async ({ html }) =>
+				transformPageChunk: async ({ html, done }) =>
 					this.inject_client_seeds(
-						pass ? await this.#pass_document(pass, html, event, bag) : html,
+						pass ? await this.#pass_document(pass, html, done, event, bag) : html,
 						store?.state,
 						event,
 						bag
@@ -1213,26 +1212,25 @@ class OgygiaHandle {
 		});
 	}
 
-	/**
-	 * THE APP'S OWN PASS ON A DOCUMENT (`HtmlPass`, @ogygia/reshape): the chunk carrying `</head>` (a
-	 * streamed tail chunk passes untouched), with what only ogygia knows about the page. What the pass
-	 * puts in the head and first before `</body>` rides the seed injection's ONE assembly of the
-	 * document (no splice here, which was another full copy the assembly then re-located).
-	 */
 	async #pass_document(
 		pass: HtmlPass,
 		html: string,
+		done: boolean,
 		event: RequestEvent,
 		bag: RequestBag
 	): Promise<string> {
-		if (head_end(html) === -1) return html;
+		const head = head_end(html) !== -1;
+		const end = body_end(html);
 		const out = await pass.document(html, {
-			csr: csr_page_of(html, body_end(html), event, bag),
+			csr: csr_page_of(html, end, event, bag),
 			// (the router morphs a fetched page into the live one: it is rendered as an answer)
-			answer: router_fetched(event)
+			answer: router_fetched(event),
+			head,
+			body: end !== -1,
+			done
 		});
-		bag.transform_head = out.head;
-		bag.transform_body = out.body;
+		if (out.head) bag.transform_head = out.head;
+		if (out.body) bag.transform_body = out.body;
 		return out.html;
 	}
 
@@ -1316,7 +1314,7 @@ class OgygiaHandle {
 			const ordered =
 				head === null
 					? null
-					: with_early_csp(runtime_first(head, null, code_origins(), mark_of(bag)));
+					: with_early_csp(runtime_first(head, null, code_origins(event?.request), mark_of(bag)));
 			return assemble(
 				gate ? gate.html : html,
 				gate ? { head_end: spans.head_end, body_end: spans.body_end + gate.delta } : spans,
@@ -1372,12 +1370,14 @@ class OgygiaHandle {
 			// sole base/assets authority, and every ogygia URL (prod `/${appDir}/…`, dev `/@id/…`) is
 			// baked base-LESS — so an island-LESS page under a non-root `base` loads the runtime too.
 			const runtime_tag =
-				router_enabled && runtime_url && !page_declares_runtime_script(probe)
+				(router_enabled || (!!event && !!facts_of(event.request).codeOrigins?.length)) &&
+				runtime_url &&
+				!page_declares_runtime_script(probe)
 					? runtime_bootstrap(kit_asset)
 					: null;
 			// (with the code origins the plugins and this render named: runtime/code-origins.ts)
 			const ordered = with_early_csp(
-				runtime_first(probe, runtime_tag, code_origins(), mark_of(bag))
+				runtime_first(probe, runtime_tag, code_origins(event?.request), mark_of(bag))
 			);
 			if (ordered !== probe) head_out = ordered;
 			// The DEV bridge is NOT gated on the router — it carries `@vite/client`, and Vite's own

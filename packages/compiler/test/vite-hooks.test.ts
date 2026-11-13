@@ -374,6 +374,13 @@ describe('the config hook', () => {
 });
 
 describe('configResolved', () => {
+	it('an app-dir define that is not JSON keeps the `_app` default, and nothing throws', async () => {
+		app();
+		await expect(
+			setup('build', { resolved: { define: { __SVELTEKIT_APP_DIR__: 'not json' } } })
+		).resolves.toBeTruthy();
+	});
+
 	it('the dev server sweeps a keep-client route a crashed build left', async () => {
 		app();
 		write(path.relative(root, path.join(keep(), '+layout.ts')), '// stale\n');
@@ -1265,6 +1272,22 @@ describe('the build legs', () => {
 		const { environment: _, ...bare } = hook_this('ssr');
 		await p.buildStart.call(bare);
 		expect(existsSync(handoff())).toBe(false);
+	});
+
+	it("a markup format's scan reads a file that is not there as null", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const read: (string | null)[] = [];
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) =>
+				void b.markup({
+					extensions: ['.svx'],
+					scan: ({ readFile }) => void read.push(readFile(path.join(root, 'src/nope.svx')))
+				})
+		});
+		await begin((await setup('build', { plugins: [plugin] })).p, 'ssr');
+		expect(read).toEqual([null]);
 	});
 
 	it("a markup format's islands are scanned once per build, and in dev before any request", async () => {
