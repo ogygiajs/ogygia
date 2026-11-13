@@ -258,3 +258,31 @@ describe('an imported helper handed the page is summarized soundly', () => {
 		).toBe(true);
 	});
 });
+
+/** The page store leaving a module without an import declaration: a barrel's re-export, a dynamic
+ *  `import()`. Whoever reads through it never names `$app/…`, so this module must answer 'all'. */
+const PASSED_ON = [
+	"export { page } from '$app/state';",
+	"export { page as p } from '$app/stores';",
+	"export * from '$app/state';",
+	"export * as app from '$app/state';",
+	"const { page } = await import('$app/state'); use(page.data.b);",
+	"import('$app/stores').then((m) => use(m.page));",
+	dedent`
+		import { page } from '$app/state';
+		export { page as p } from '$app/state';
+		use(page.data.a);
+	`
+];
+
+describe('the page store re-exported or imported dynamically', () => {
+	it.each(PASSED_ON)('%s answers all', (code) => {
+		expect(page_data_keys(code, '/app/src/lib/app.ts', 'script')).toBe('all');
+	});
+
+	it('a re-export of another name from the page module answers null', () => {
+		expect(page_data_keys("export { navigating } from '$app/state';", '/x.ts', 'script')).toBe(
+			null
+		);
+	});
+});
