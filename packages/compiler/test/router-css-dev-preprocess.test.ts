@@ -91,7 +91,7 @@ test("a router page's scss component: dev's router CSS is what the build compile
 				app_shims: {},
 				page_importers: [PAGE_SPEC],
 				// the plugin's preprocessor (vite/index.ts), as the build's CSS walk uses it
-				...({ preprocess_css } as object)
+				preprocess_css
 			})
 		)
 	);

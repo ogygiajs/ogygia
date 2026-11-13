@@ -110,7 +110,8 @@ import { load_kit_dirs } from './kit-dirs.ts';
 import {
 	buildFoucCssModuleSource,
 	collectFoucCssReachable,
-	compileFoucScopedCss,
+	scoped_component_css,
+	type PreprocessCss,
 	foucRelFromId,
 	isFoucCssId,
 	isFoucScopedId,
@@ -307,6 +308,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	// `own`: the root's source when it is not the file on disk (a content module's post-mdsvex Svelte);
 	// the root's own CSS is then the caller's. `skip`: files whose CSS ships some other way.
 	const compiled_css = new Map<string, string | null>();
+	/** The app's CSS preprocessor, for every leg's component CSS (fouc-css.ts `scoped_component_css`). */
+	const preprocess_css: PreprocessCss = (source, abs) =>
+		preprocess_component_for_css(source, abs, root);
 	const tree_css_walk = (
 		ctx: Parameters<typeof bundler_resolve>[0] & { environment: { name: string } }
 	) => {
@@ -334,11 +338,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						src == null
 							? null
 							: e.kind === 'scoped'
-								? compileFoucScopedCss(
-										e.abs,
-										await preprocess_component_for_css(src, e.abs, root),
-										{ keepScript: true }
-									)
+								? await scoped_component_css(e.abs, src, preprocess_css)
 								: CSS_EXT_RE.test(e.abs)
 									? src
 									: null;
@@ -870,6 +870,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						presets,
 						import_keys,
 						resolve_alias,
+						preprocess_css,
 						macros,
 						// (the id prefix, not the native path: every consumer `startsWith`s a module id)
 						pkg_root: CORE_ROOT_ID,
@@ -1258,11 +1259,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// island's) scoped CSS, so an unscoped fallback ships the component's rules global —
 					// `.x { … }` instead of `.x.svelte-<hash>` — and they then match any element anywhere on
 					// the page that reuses the class name (a header lake restyling an unrelated breadcrumb).
-					const code = compileFoucScopedCss(
-						abs,
-						await preprocess_component_for_css(source, abs, root),
-						{ keepScript: true }
-					);
+					const code = await scoped_component_css(abs, source, preprocess_css);
 					return { code, moduleType: 'css' };
 				}
 

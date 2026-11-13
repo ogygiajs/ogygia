@@ -11,6 +11,7 @@ import { islandVirtualId } from './ids.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
 import type { ClientRealmFile, ServerRealm } from './link/caps.ts';
 import type { PluginMacro } from './macros/pipeline.ts';
+import type { PreprocessCss } from './fouc-css.ts';
 import {
 	islandChunkFileName,
 	islandPublicUrl,
@@ -84,6 +85,9 @@ export interface CompileCtxInit {
 	import_keys: ImportKeys;
 	/** Resolved Vite aliases (used by the `bake` macro to bundle the imports a baked fn touches). */
 	resolve_alias: unknown[];
+	/** The plugin's preprocessor for a component's CSS (fouc-css.ts `scoped_component_css`). Absent:
+	 *  a host with no bundler, which compiles the source as it is. */
+	preprocess_css?: PreprocessCss;
 	/** The plugins' `import.meta.og.*` macros (`b.macro`), in plugin order. Optional (default none). */
 	macros?: readonly PluginMacro[];
 	/** ogygia's own package root — the `auto_brand` macro skips ogygia source (it can't self-register). */
@@ -141,6 +145,7 @@ export class CompileCtx {
 	readonly presets: Record<string, unknown>;
 	readonly import_keys: ImportKeys;
 	readonly resolve_alias: unknown[];
+	readonly preprocess_css: PreprocessCss | undefined;
 	readonly macros: readonly PluginMacro[];
 	readonly pkg_root: string;
 	readonly build_secret: string;
@@ -188,6 +193,7 @@ export class CompileCtx {
 		this.presets = init.presets;
 		this.import_keys = init.import_keys;
 		this.resolve_alias = init.resolve_alias;
+		this.preprocess_css = init.preprocess_css;
 		this.macros = init.macros ?? [];
 		this.pkg_root = init.pkg_root;
 		this.build_secret = init.build_secret;
