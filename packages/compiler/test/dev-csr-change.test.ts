@@ -98,6 +98,28 @@ test('a page that becomes csr=true while dev runs is compiled again, and lets it
 	expect(program.registry.size).toBe(0);
 });
 
+test('a page whose csr flips and flips back while dev runs has its regions again', async () => {
+	const files = memory_fs({
+		[PAGE]: IDLE_PAGE,
+		[LAYOUT_OPTIONS]: `export const csr = false;\n`,
+		[`${ROOT}/src/lib/C0.svelte`]: `<p>C0</p>\n`
+	});
+	const { compiler, program } = dev_compiler(files);
+	await transform(compiler, files);
+	expect(program.registry.size).toBeGreaterThan(0);
+
+	files.set(LAYOUT_OPTIONS, null);
+	expect(dev_route_change(compiler)).toContain(PAGE);
+	await transform(compiler, files);
+	expect(program.registry.size).toBe(0);
+
+	// back to the first world, page source unchanged: compiled again, not answered from before
+	files.set(LAYOUT_OPTIONS, `export const csr = false;\n`);
+	expect(dev_route_change(compiler)).toContain(PAGE);
+	await transform(compiler, files);
+	expect(program.registry.size).toBeGreaterThan(0);
+});
+
 test('a route change that leaves a host its csr compiles nothing again', async () => {
 	const files = memory_fs({
 		[PAGE]: IDLE_PAGE,
