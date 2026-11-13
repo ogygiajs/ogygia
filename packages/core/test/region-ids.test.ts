@@ -12,8 +12,17 @@ const region = () => ({}) as Element;
 /** A page with no region left on it. */
 const empty_page = { querySelectorAll: () => [] } as unknown as ParentNode;
 
-/** The ids `region` owns: what its leaving an empty page releases. */
-const owned = (r: Element) => ids_released([r], empty_page);
+/** The ids `region` owns: of these, the ones a page holding it keeps. */
+const owned = (r: Element) => {
+	const ids = ['page:1', 'page:2', 'page:a', 'page:a2', 'page:b'];
+	const released = ids_released(
+		ids,
+		[],
+		{ querySelectorAll: () => [r] } as unknown as ParentNode,
+		{}
+	);
+	return ids.filter((id) => !released.includes(id));
+};
 
 test('the ids resolved during a capture are the region’s, one entry each', () => {
 	const a = region();
@@ -48,4 +57,32 @@ test('the sink is taken down after the capture, even when the island throws', ()
 	).toThrow('boom');
 	expect(resolve_sink).toBeNull();
 	expect(owned(a)).toEqual(['page:1']);
+});
+
+test('a capture inside a capture is its own, and the outer one goes on after it', () => {
+	const a = region();
+	const seed = {};
+	capture_region_ids(a, () => {
+		resolve_sink!('page:a');
+		capture_region_ids(seed, () => resolve_sink!('page:1'));
+		resolve_sink!('page:a2');
+	});
+	expect(owned(a)).toEqual(['page:a', 'page:a2']);
+	expect(ids_released(['page:1', 'page:a'], [], empty_page, seed)).toEqual(['page:a']);
+});
+
+test('a region that left releases what only it owned; the next page keeps its own', () => {
+	const gone = region();
+	const kept = region();
+	const next = {};
+	record_region_id(gone, 'page:a');
+	record_region_id(gone, 'page:b');
+	record_region_id(kept, 'page:b');
+	record_region_id(next, 'page:2');
+	const page = { querySelectorAll: () => [kept] } as unknown as ParentNode;
+	// page:1 nobody owns: the page's own, released with it
+	expect(ids_released(['page:1', 'page:2', 'page:a', 'page:b'], [gone], page, next)).toEqual([
+		'page:1',
+		'page:a'
+	]);
 });
