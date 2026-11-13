@@ -7,7 +7,7 @@
 // scan failed (nothing pre-bundled).
 import { describe, test, expect } from 'vitest';
 import { id_dir, CORE_ROOT_ID, OGYGIA_REGION_MODULES } from '@ogygia/core/contract';
-import { scan_entry_pattern } from '../dist/vite/paths.js';
+import { scan_entry_pattern } from '../src/vite/paths.ts';
 
 describe('own-package ids', () => {
 	test('a Windows root is the forward-slash prefix of the ids inside it', () => {
