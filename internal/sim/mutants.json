@@ -646,7 +646,7 @@
 		"id": "rewrite-split-element-rendered",
 		"file": "packages/rewrite/src/scan.ts",
 		"in": "read",
-		"code": "if (start !== -1) spans.push({ start, end: at.end, name, owned });",
+		"code": "if (start !== -1) spans.push({ start, end: at.end, name, owned, context });",
 		"operator": "statement",
 		"from": "if (start !== -1)",
 		"to": "if (start !== -2)",
@@ -840,7 +840,7 @@
 		"id": "scan-region-never-closed",
 		"file": "packages/rewrite/src/scan.ts",
 		"in": "read",
-		"code": "} else if (name === 'ogygia-region') state.regions.pop();",
+		"code": "if (name === 'ogygia-region') state.regions.pop();",
 		"operator": "statement",
 		"from": "state.regions.pop();",
 		"to": "void state;"
