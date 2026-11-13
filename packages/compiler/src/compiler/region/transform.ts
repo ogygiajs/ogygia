@@ -1289,7 +1289,6 @@ class FileCompilation {
 			if (!info) continue;
 
 			if (!this.#marked_import_referenced(local)) {
-				// Unused marked import — strip entirely (dead code).
 				if (!rewritten_import_nodes.has(info.node)) {
 					imports_to_strip.add(info.node);
 				}
@@ -1305,8 +1304,6 @@ class FileCompilation {
 					held: false
 				});
 			}
-			// A named import's export is what the generators pull (entry/wrapper import `{ Name as … }`),
-			// and identity keys on `source#exportName`; a default import pulls the default (undefined).
 			const named_export = export_names.get(local);
 			const exportName = named_export === 'default' ? undefined : named_export;
 			const comp_rel = this.#component_identity(componentPath);
@@ -1323,7 +1320,6 @@ class FileCompilation {
 					const swr = remount === 'swr';
 					islands_by_id.set(iid, {
 						id: iid,
-						// SWR lakes need a server-renderable entry; cache/empty are wrapper-only.
 						virtualPath: swr ? entryPath : undefined,
 						source: swr ? island_entry_source(componentPath, iid, exportName) : undefined,
 						wrapperPath: wrapPath,
@@ -1336,18 +1332,10 @@ class FileCompilation {
 						identity
 					});
 				}
-				// A lake's inner is client-stubbed on every client leg, so its CSS never rides the
-				// binding — always link it (see binding_rewrite).
 				rewrite_binding(info.node, binding_rewrite(local, bindingPath, componentPath, true));
 				continue;
 			}
 
-			// HELD region (`region: 'raw'`): a marked import handed to `region()`, never placed. Its binding
-			// becomes a metadata descriptor `region()` reads to mint a signed capability (SSR leg carries the
-			// signer; the client leg is metadata-only, so no server code reaches the browser). It bakes no
-			// schedule — the `region()` call sets it (via its `(data) => options` arg). In a `.svelte` host a
-			// `wake:` mark is always a WRAPPER (placed directly or via a portable binding); to bake a schedule
-			// on a held region, mark it in the `.ts` registry / remote where it lives (see transformTsRegions).
 			if (mark.strategy === 'held') {
 				if (!islands_by_id.has(iid)) {
 					islands_by_id.set(
@@ -1372,14 +1360,6 @@ class FileCompilation {
 
 			const is_server = mark.strategy === 'server';
 			const deferred_hydrate = is_server && !!mark.options?.hydrate;
-			// A `wake` island is ALSO holdable: its binding attaches a descriptor onto the wrapper so
-			// `region(C)` respects the baked wake (and portable/dynamic `<C/>` still renders it). Server
-			// (deferred) and lake islands are placement-only. The attach binding is the leg-split module the
-			// host imports (SSR carries the signer; client is metadata) — see `wrapper_attach_binding`.
-			// A `wake` island is ALSO holdable: its binding attaches the descriptor onto the wrapper so
-			// `region(C)` respects the baked wake AND `<C/>` renders it. Server (deferred) islands are
-			// placement-only. The wake record — mountable + holdable — is minted by the ONE shared emitter
-			// `make_wake_island`, so a `.svelte` and a `.ts` `wake:` are byte-identical.
 			const wants_attach = !is_server;
 			if (!islands_by_id.has(iid)) {
 				islands_by_id.set(
@@ -1397,8 +1377,6 @@ class FileCompilation {
 									exportName,
 									ctx.dev ? ctx.devUrlFor(entryPath) : islandPublicUrl(iid, ctx.appDir)
 								),
-								// a hole ships no JS: its client leg adopts server HTML (deferred or frozen)
-								// and never needs the component
 								wrapperClientSource: server_wrapper_source(
 									iid,
 									componentPath,
@@ -1435,13 +1413,10 @@ class FileCompilation {
 				);
 			}
 
-			// SSR / csr=true client: import the attach binding (wake) or the bare wrapper (server/lake).
-			// csr=false client: the stub (binding_rewrite handles that — link_virtual is false there).
 			const rewrite_path = wants_attach && link_virtual ? regionBindingVirtualId(iid) : bindingPath;
 			rewrite_binding(info.node, binding_rewrite(local, rewrite_path, componentPath));
 		}
 
-		// one marked declaration → one binding import per name the file uses, in specifier order
 		for (const [node, lines] of node_rewrites) {
 			s.overwrite(node.start, node.end, lines.join('\n'));
 			rewritten_import_nodes.add(node);
@@ -1452,29 +1427,9 @@ class FileCompilation {
 			s.remove(node.start, node.end);
 		}
 
-		// ── Portable snippets — the compiler's ONE snippet job: LIVE-branding ───────────────────────
-		// A named `{#snippet}` handed to a component that may carry it across an island boundary — a
-		// PLAIN component (which may forward it into an island) or a hydrate ISLAND call site directly —
-		// can't cross as a function. Compile its body into a standalone island ENTRY and rewrite it to
-		// `og_portable(Entry, captures, url)` (see region-snippet.ts): it renders inline in the same graph
-		// AND carries a serializable descriptor, so the crossing swaps in the descriptor and the client
-		// side comes ALIVE. Parameterized snippets cross too — call-time args ride the descriptor's
-		// `__ogArgs` prop. Server/held/lake call sites are excluded (their children can't cross at all);
-		// snippets nested inside another portable snippet ship in the outer entry and are re-processed
-		// when THAT entry is transformed. Everything else (default children, bare content) is the
-		// runtime's job: static freeze or slot adoption.
 		const OG_PORTABLE = '__og_portable';
 		const portable_candidates: Array<{ comp: { start: number; name: string }; snip: SvelteNode }> =
 			[];
-		// SCOPE (load-bearing): branding a snippet at its definition site makes every render of it an
-		// ISOLATED app — `getContext` inside the body can no longer see the surrounding tree. So brand
-		// ONLY where crossing is genuinely required, never where plain Svelte semantics must hold:
-		//  - a PLAIN component site takes 0-ARG snippets only (the may-be-forwarded-into-an-island case;
-		//    parameterized snippets there are internal wiring — think Bits UI passing `{#snippet x(props)}`
-		//    between its own context-coupled components — and MUST stay native);
-		//  - a hydrate-ISLAND call site takes ANY arity (without branding the snippet would freeze wrong);
-		//  - LIBRARY code (node_modules, swept into the transform by the island-graph seam) is never
-		//    branded at all — its snippets were authored against plain Svelte.
 		const portable_allowed = !id.includes('node_modules');
 		const walk_portable = (nodes: SvelteNode[]) => {
 			for (const node of nodes ?? []) {
@@ -1482,12 +1437,6 @@ class FileCompilation {
 					const base_name = String(node.name || '').split('.')[0];
 					const mark = marked_components.get(base_name);
 					const island_site = !!mark && !['lake', 'server', 'held'].includes(mark.strategy);
-					// GENERATED-OUTPUT GUARD (load-bearing): a component imported from one of ogygia's own
-					// virtuals (the client-binding stub, a wrapper/island/region module) means this source
-					// is ALREADY-TRANSFORMED output — its mark was consumed, so it reads as "plain" here.
-					// Branding its snippets would mint a PHANTOM portable island whose registration wipes
-					// the host's real wrapper entries (the csr=false server-island prerender crash). A
-					// re-transform of generated output must never widen the island set.
 					const import_spec = String(imports.get(base_name)?.node?.source?.value ?? '');
 					const from_generated = import_spec.startsWith(OGYGIA_SCHEME);
 					for (const child of node.fragment?.nodes ?? []) {
@@ -1503,10 +1452,6 @@ class FileCompilation {
 		};
 		if (portable_allowed) walk_portable(ast.fragment?.nodes ?? []);
 
-		// Drop snippets nested inside another candidate's body — that content ships in the outer entry and
-		// is re-processed when the entry `.svelte` is transformed, so converting it here would double-edit.
-		// One sweep, not every pair: in start order (ties: the longer first) a candidate sits inside
-		// another exactly when the furthest end reached before it covers its end, or a twin shares its span.
 		const by_start = [...portable_candidates].sort(outer_spans_first);
 		const nested = new Set<(typeof portable_candidates)[number]>();
 		let reach = -Infinity;
@@ -1522,12 +1467,7 @@ class FileCompilation {
 		}
 		const outer_candidates = portable_candidates.filter((c) => !nested.has(c));
 
-		// BLOCK-BOUND names: what a template block declares — `{#each}` items and indexes, `{:then}` /
-		// `{:catch}` values, `{@const}`, snippet parameters, and snippets declared below the root. A
-		// snippet body that reads one of these lives in that block's scope: it can neither move to the
-		// template root (below) nor cross (its entry would see an undefined name), so it stays native.
 		const block_bound = new Set<string>();
-		// the names a pattern binds, never what its defaults read (test/free-vars-patterns.test.ts)
 		const bind_pattern = (n: SvelteNode | SvelteNode[] | null | undefined) => {
 			if (Array.isArray(n)) for (const p of n) pattern_names(p, block_bound);
 			else pattern_names(n, block_bound);
@@ -1546,7 +1486,6 @@ class FileCompilation {
 					bind_pattern(node.parameters);
 					if (!root && node.expression?.name) block_bound.add(node.expression.name);
 				}
-				// a legacy slot prop (`let:item`, `let:item={{ id }}`) binds its children's scope
 				for (const a of node.attributes ?? []) {
 					if (a.type !== 'LetDirective') continue;
 					if (a.expression) bind_pattern(a.expression);
@@ -1557,9 +1496,6 @@ class FileCompilation {
 		};
 		walk_bound(ast.fragment?.nodes ?? [], true);
 
-		// ROOT snippets: declared at the template root, hoisted, in scope everywhere in the host. A live
-		// body that renders one (`{@render banner('top')}`) carries it into its synth — it is neither an
-		// import nor a capture, and left out it was taken for a global (`ReferenceError` at render).
 		const root_snippets = new Map<string, SvelteNode>();
 		for (const n of ast.fragment?.nodes ?? [])
 			if (n.type === 'SnippetBlock' && n.expression?.name) root_snippets.set(n.expression.name, n);
@@ -1568,21 +1504,11 @@ class FileCompilation {
 		const portable_imports: string[] = [];
 		const portable_seen = new Set<string>();
 		let native_seq = 0;
-		// The host's <style> travels into every portable-snippet synth. A snippet body is authored in
-		// the host and, in plain Svelte, wears the host's scope class so the host's scoped rules match
-		// it. Lifted into its own entry, the body would compile with no <style> and so NO scope class,
-		// and the CSS authored for it (`.width-100 { … }`) would match nothing — silently, in prod too.
-		// Copying the host <style> in makes the synth self-consistent: Svelte scopes the body and keeps
-		// exactly the rules the body uses (the rest prune away), under one hash the body carries. The
-		// synth is its own compilation unit, so its hash need not equal the host's — only the body and
-		// the rules that style it must share one, which co-locating them here guarantees.
 		const host_style_src = ast.css ? source.slice(ast.css.start, ast.css.end) : '';
 		for (const { comp, snip } of outer_candidates) {
 			const name = snip.expression.name;
 			const body = snip.body?.nodes ?? [];
 			if (!body.length) continue;
-			// Snippet PARAMETERS are call-time inputs, not captures: the entry receives them as an
-			// `__ogArgs` prop (region-snippet.ts threads call args into it) and re-binds them verbatim.
 			const snip_params = snip.parameters ?? [];
 			const params_src = snip_params.length
 				? source.slice(snip_params[0].start, snip_params[snip_params.length - 1].end)
@@ -1590,17 +1516,8 @@ class FileCompilation {
 			const param_names = new Set<string>();
 			for (const p of snip_params) pattern_names(p, param_names);
 			const { free, mutated, stores } = collectCaptureInfo([snip]);
-			// A body bound to an enclosing block's names stays a plain snippet (see block_bound).
 			if ([...free].some((nm) => block_bound.has(nm) && !param_names.has(nm))) continue;
-			// Only a HOST-state write disqualifies branding (a captured snapshot can't write back). A snippet
-			// mutating its OWN parameter is fine — params ride `__ogArgs`, not a capture — so exclude them,
-			// exactly as the `free` loop below does. Otherwise a snippet that only reassigns its own param was
-			// wrongly left native and failed to cross as a region.
 			if ([...mutated].some((m) => !param_names.has(m))) continue;
-			// The root snippets the body renders, and those they render: copied into the synth whole, their
-			// own free names joining the body's (imports re-imported, host values captured). One that writes
-			// host state or reads a `$store` can't come along (the rewrites below cover the body only), so
-			// the body stays native.
 			const carried: SvelteNode[] = [];
 			const pending = [...free].filter((nm) => root_snippets.has(nm) && !param_names.has(nm));
 			const carried_names = new Set<string>();
@@ -1620,13 +1537,6 @@ class FileCompilation {
 			}
 			if (carry_blocked) continue;
 			for (const nm of carried_names) free.delete(nm);
-			// Store auto-subscriptions (`$country`) read in the body: the `$` sugar is HOST-scoped.
-			// Re-emitted verbatim it names an out-of-scope `$`-identifier in the runes-mode synth
-			// ("illegal variable name" pointing at generated code). Capture the subscription VALUE
-			// instead — the same snapshot law as every other capture: evaluate `$store` at the host,
-			// where it is legal, and rewrite the body's occurrences to the capture's prop name.
-			// ALWAYS warn with a trace: in native Svelte `$store` is live; across a boundary it is a
-			// render-time snapshot — and when the base can't even be verified as a store, say that too.
 			const store_captures: Array<{ prop: string; expr: string }> = [];
 			const store_rewrites: Array<{ start: number; end: number; prop: string }> = [];
 			for (const [nm, sites] of stores) {
@@ -1661,28 +1571,18 @@ class FileCompilation {
 			const seen_imports = new Set<string>();
 			const captures: string[] = [];
 			for (const nm of free) {
-				if (nm.startsWith('$')) continue; // store subscription — captured by VALUE above
-				if (param_names.has(nm)) continue; // a snippet param — rides __ogArgs, never a capture
+				if (nm.startsWith('$')) continue;
+				if (param_names.has(nm)) continue;
 				if (imports.has(nm)) {
-					// An ISLAND placement inside the snippet body must stay an island inside the entry: emit
-					// the ORIGINAL import (keeping its `with { wake: … }` attributes) so the entry's own
-					// transform pass re-marks it and rewrites the placement into a region. A cleaned import
-					// here silently demoted the island to a plain component (no region, no JS, and a
-					// top-level await inside it crashed the sync snippet render).
 					const info = imports.get(nm)!;
 					const text = marked_components.has(nm)
 						? source.slice(info.node.start, info.node.end).trim()
 						: info.cleaned.trim();
-					// Several captured names can resolve to the SAME statement (`{ a, b, c } from './x'`);
-					// that one statement already declares all of them, so emit it ONCE. Pushing it per name
-					// redeclares the identifiers in the synth ("already been declared" build error).
 					if (!seen_imports.has(text)) {
 						seen_imports.add(text);
 						cleaned_imports.push(text);
 					}
 				} else if (host_declared.has(nm)) {
-					// A host-declared STORE captured as an OBJECT: devalue can't serialize its functions —
-					// the island gets a runtime error or a dead copy. Warn with the fix; never gate.
 					if (store_like.has(nm)) {
 						warn_once(`${id}\0${name}\0${nm}\0object`, () =>
 							warn('snippet_captures_store', { host: rel_host, snippet: name, store: nm })
@@ -1696,11 +1596,7 @@ class FileCompilation {
 						cleaned_imports.push(text);
 					}
 				}
-				// else: a global — referenced directly in the entry, needs no wiring.
 			}
-			// Body markup, with each `$store` read span rewritten to its capture prop. The rewritten
-			// text fully determines the store captures (prop names are derived from the spans), so the
-			// identity hash below needs no extra segment for them.
 			const body_start = body[0].start;
 			const body_end = body[body.length - 1].end;
 			let markup: string;
@@ -1716,7 +1612,6 @@ class FileCompilation {
 			} else {
 				markup = source.slice(body_start, body_end);
 			}
-			// (template-root snippets are hoisted: their order in the synth does not matter)
 			const carried_src = carried.map((n) => source.slice(n.start, n.end)).join('\n');
 			const hash = createHash('md5')
 				.update(
@@ -1724,8 +1619,6 @@ class FileCompilation {
 				)
 				.digest('hex')
 				.slice(0, 12);
-			// host identity via #component_identity: a declared-package host keys `<pkg>/<rel>`
-			// (install-independent), everything else stays root-relative — same rule as components.
 			const identity = regionIdentity(`${this.#component_identity(this.#id)}\0psnip:${hash}`, {
 				strategy: 'hydrate'
 			});
@@ -1736,10 +1629,6 @@ class FileCompilation {
 				const prop_names = snip_params.length
 					? ['__ogArgs = []', ...captures, ...store_props]
 					: [...captures, ...store_props];
-				// The body is written at the entry's template root. A `{@const}` is legal directly under
-				// `{#snippet}` but not at a template root (`const_tag_invalid_placement`, a build error
-				// on a customer page), so a body that opens with one keeps its snippet around it — the
-				// same scope it was authored in, rendered once.
 				const wrapped = body.some((n: SvelteNode) => n.type === 'ConstTag');
 				const template =
 					(carried_src ? `${carried_src}\n` : '') +
@@ -1783,28 +1672,12 @@ ${host_style}`;
 			const url = ctx.dev ? ctx.devUrlFor(entryPath) : islandPublicUrl(iid, ctx.appDir);
 			const cap_entries = [...captures, ...store_captures.map((c) => `${c.prop}: ${c.expr}`)];
 			const cap_obj = cap_entries.length ? `{ ${cap_entries.join(', ')} }` : '{}';
-			// SSR renders the entry inline (static import); the csr=false client loads it by url on wake.
-			// Two identical snippets dedupe to one iid → import/preload each entry ONCE (else a duplicate
-			// `__OgPS_<iid>` declaration).
 			const entry_ref = ctx.ssr ? `__OgPS_${iid}` : 'null';
 			if (!portable_seen.has(iid)) {
 				portable_seen.add(iid);
 				if (ctx.ssr)
 					portable_imports.push(`import __OgPS_${iid} from ${JSON.stringify(entryPath)};`);
-				// (No static <head> modulepreload here — that preloaded every portable CANDIDATE in the
-				// host, rendered or not. The no-waterfall hint is emitted RENDER-GATED by Region.svelte
-				// instead: an island whose props carry a portable descriptor preloads its entry + deps
-				// alongside its own facade, so only snippets that actually cross a rendered boundary
-				// cost a fetch.)
 			}
-			// The snippet AS WRITTEN stays: it moves to the template root under a private name (its body
-			// reads only host-level names — block-bound bodies were skipped above — so the root is the same
-			// scope) and keeps rendering IN PLACE wherever the component renders it: the host's context,
-			// its scoped CSS, an island inside it a plain page island. The component receives it branded
-			// (`og_portable`), carrying the descriptor and the portable entry that only a boundary swaps in
-			// (portable-form.ts). Moving (not copying) keeps every edit this pass already made inside the
-			// body. Root, not beside the component: a snippet declared inside ANOTHER component's children
-			// would become a prop of that component.
 			const native_name = `__og_native_${name}_${native_seq++}`;
 			s.move(snip.start, snip.end, source.length);
 			s.overwrite(snip.expression.start, snip.expression.end, native_name);
@@ -1816,8 +1689,6 @@ ${host_style}`;
 			portable_emitted = true;
 		}
 
-		// Instance-script head: the portable helper import. One combined injection so a script-less
-		// host gains exactly ONE synthesized <script>.
 		{
 			let head = '';
 			if (portable_emitted) {
@@ -1836,7 +1707,6 @@ ${host_style}`;
 			}
 		}
 
-		// Snippet-only files that produced no island or portable work are untouched — behave as bailed.
 		if (
 			!has_island_hint &&
 			!portable_emitted &&
@@ -1845,13 +1715,6 @@ ${host_style}`;
 		)
 			return null;
 
-		// THE one wire question a host compilation answers: can this host cross live content into an
-		// island? True for a static placement WITH children (they cross as slot pointers), for a
-		// portable `{#snippet}` synth (a live snippet crossing), and for a hydrate binding with NO
-		// static placement — a value used dynamically (registry export, each/`svelte:component`,
-		// prop hand-off) whose placement sites are compile-invisible, so crossing can't be ruled out.
-		// program.register turns this single flag into the runtime `wire` mark; server/held/lake
-		// marks never cross children this way and stay out of it.
 		const has_dynamic_island_use = [...marked_components].some(
 			([name, m]) => is_wake_island(m) && !this.#static_placed.has(name)
 		);
@@ -1865,7 +1728,6 @@ ${host_style}`;
 	}
 }
 
-/** Span order for the portable-snippet nesting sweep: by start, the longer span first on a tie. */
 function outer_spans_first(a: { snip: SvelteNode }, b: { snip: SvelteNode }): number {
 	return a.snip.start - b.snip.start || b.snip.end - a.snip.end;
 }
