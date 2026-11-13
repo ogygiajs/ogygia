@@ -7,6 +7,7 @@ import { gate_open_early, own_text, type Tab, type Visitor } from './browser.ts'
 import { boxes, on_screen, type Box } from './layout.ts';
 import { answer_key, FOREIGN_MARK, is_page_path, LOSSY_POINTS, type World } from './world.ts';
 import { EDGE_BAD, EDGE_GONE, EDGE_MOVED, MOUNT } from './gen.ts';
+import { written_page } from './happy.ts';
 
 /** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
  *  `-fresh.txt`), to read past its first hunk. */
@@ -112,12 +113,15 @@ export function normalize(root: {
 					)
 			)
 			.map((a) => {
+				// (a kept head node's URL means the file of the page that wrote it, as the router reads
+				// it: #1741, palaestra seed 20004)
+				const from = written_page(el) ?? base;
 				// (one no URL can be made of, a tampered byte in its host, stays as it is: gen 45, seed 32)
 				const address =
 					((tag === 'link' && a.name === 'href') || /^\.\.?\//.test(a.value)) &&
-					URL.canParse(a.value, base);
+					URL.canParse(a.value, from);
 				return address
-					? `${a.name}="${new URL(a.value, base).pathname}"`
+					? `${a.name}="${new URL(a.value, from).pathname}"`
 					: `${a.name}="${a.value}"`;
 			})
 			.sort()
