@@ -1,5 +1,5 @@
 import { boot_link, router_link, slots } from './slots.ts';
-import { clock, net } from '@ogygia/machine';
+import { buggify, clock, net } from '@ogygia/machine';
 import type { PageGlobals } from '../page-globals.ts';
 import {
 	opts_out_of_reconcile,
@@ -68,6 +68,8 @@ const is_stale = (v: unknown): v is Stale => v === boot_link().STALE;
 const jump_to_hash = (hash: string) => router_link().jump_to_hash(hash);
 
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 const HOOK_NAVIGATED =
 	typeof __OGYGIA_HOOK_NAVIGATED__ !== 'undefined' ? __OGYGIA_HOOK_NAVIGATED__ : true;
 const HOOK_NAV_STARTED =
@@ -106,19 +108,24 @@ function known_copies(doc: Document): string[] {
 	return out;
 }
 
-function nav_headers(purpose: NavPurpose = 'nav'): Record<string, string> {
+function known_header(): string {
+	if (!SERVER_DELTA || typeof document === 'undefined') return '';
+	const joined = known_copies(document).join(',');
+	return joined.length <= KNOWN_HEADER_CAP ? joined : '';
+}
+
+function nav_headers(purpose: NavPurpose, known: string): Record<string, string> {
 	// @why `fetch` alone sends `Accept: */*`, and servers route, redirect and pick error pages by Accept (test: test/browser/router-nav-load.test.ts › a page fetch asks as a document navigation does, and names a prefetch or a history restore)
 	const headers: Record<string, string> = { accept: DOCUMENT_ACCEPT, 'x-ogygia-spa': '1' };
 	if (purpose !== 'nav') headers['x-ogygia-purpose'] = purpose;
-	if (!SERVER_DELTA || typeof document === 'undefined') return headers;
-	const live = known_copies(document);
-	if (live.length === 0) return headers;
-	const joined = live.join(',');
-	if (joined.length <= KNOWN_HEADER_CAP) headers['x-ogygia-known'] = joined;
+	if (known !== '') headers['x-ogygia-known'] = known;
 	return headers;
 }
 
-function fold_orphan_vt_names(current: ParentNode, incoming: ParentNode): () => void {
+function fold_orphan_vt_names(
+	current: ParentNode,
+	incoming: ParentNode
+): { fold_incoming: () => void; restore: () => void } {
 	const names_in = (root: ParentNode): Map<string, HTMLElement[]> => {
 		const map = new Map<string, HTMLElement[]>();
 		for (const el of root.querySelectorAll<HTMLElement>('[style*="view-transition-name"]')) {
@@ -143,9 +150,11 @@ function fold_orphan_vt_names(current: ParentNode, incoming: ParentNode): () => 
 		}
 	};
 	fold(cur, inc);
-	fold(inc, cur);
-	return () => {
-		for (const [el, name] of stripped) el.style.setProperty('view-transition-name', name);
+	return {
+		fold_incoming: () => fold(names_in(document.body), cur),
+		restore: () => {
+			for (const [el, name] of stripped) el.style.setProperty('view-transition-name', name);
+		}
 	};
 }
 
@@ -384,15 +393,15 @@ const lent = new WeakMap<HTMLElement | SVGElement, string | null>();
 /** A page as a fetch got it: its HTML and the address it belongs to (where the fetch landed, after
  *  the server's redirects; the requested href when there were none). */
 export type FetchedPage = { html: string; url: string };
-type PageAsk = { href: string; purpose: NavPurpose };
+type PageAsk = { href: string; known: string; purpose: NavPurpose };
 type Fetched = { page: FetchedPage | null; cacheable: boolean };
-type Pages = import('@ogygia/machine').Flights<PageAsk, Fetched, Pick<PageAsk, 'href'>>;
+type Pages = import('@ogygia/machine').Flights<PageAsk, Fetched, Pick<PageAsk, 'href' | 'known'>>;
 let page_flights: Pages | undefined;
 let page_world: import('@ogygia/machine').World | undefined;
 const pages = (): Pages =>
 	(page_flights ??= boot_link().flights.keyed<PageAsk>()({
 		name: 'router pages',
-		key: ['href'],
+		key: ['href', 'known'],
 		ignore: { purpose: 'a navigation joins the prefetch out for its address: how, not what' },
 		run: (ask, signal, flight): Promise<Fetched> => run_page_fetch(ask, signal, flight),
 		world: (page_world = boot_link().world()),
@@ -452,7 +461,7 @@ export async function fetch_page(
 	signal?: AbortSignal,
 	purpose: NavPurpose = 'nav'
 ): Promise<FetchedPage | null> {
-	const ask: PageAsk = { href, purpose };
+	const ask: PageAsk = { href, known: known_header(), purpose };
 	const { PRIORITY } = boot_link();
 	const priority = purpose === 'prefetch' ? PRIORITY.speculative : PRIORITY.user;
 	for (;;) {
@@ -466,14 +475,14 @@ export async function fetch_page(
 }
 
 async function run_page_fetch(
-	{ href, purpose }: PageAsk,
+	{ href, known, purpose }: PageAsk,
 	signal: AbortSignal,
 	flight: import('@ogygia/machine').InFlight
 ): Promise<Fetched> {
 	const go = (priority?: 'high' | 'auto' | 'low') =>
 		net.fetch(href, {
 			signal,
-			headers: nav_headers(purpose),
+			headers: nav_headers(purpose, known),
 			...(priority ? { priority } : {})
 		} as RequestInit);
 	let res: Response;
@@ -613,6 +622,7 @@ export async function navigate(
 	const purpose: NavPurpose = type === 'popstate' ? 'history' : 'nav';
 
 	const build = async ({ signal, discard }: Staging): Promise<Built | null> => {
+		if (RULES && buggify.fires('router.build-throws')) throw new Error('router.build-throws');
 		const page = await fetch_page(url.href, signal, purpose);
 		if (page === null || signal.aborted) return null;
 		const { html } = page;
@@ -727,14 +737,19 @@ export async function navigate(
 	const out: { failed?: { error: unknown } } = {};
 	const swap = () => {
 		try {
+			if (RULES && buggify.fires('router.commit-throws')) throw new Error('router.commit-throws');
 			staged.commit();
 		} catch (error) {
 			out.failed = { error };
 		}
 	};
 	if (built.use_vt && document.startViewTransition) {
-		const restore_vt_names = fold_orphan_vt_names(document.body, built.doc.body);
-		const t = document.startViewTransition(swap);
+		const vt_names = fold_orphan_vt_names(document.body, built.doc.body);
+		const restore_vt_names = vt_names.restore;
+		const t = document.startViewTransition(() => {
+			swap();
+			if (!out.failed) vt_names.fold_incoming();
+		});
 		// @why a skipped view transition rejects `.ready` and `.finished` ("Transition was skipped"), and nothing awaits them (test: test/browser/router-nav-claims.test.ts › folded names come back when the transition is skipped)
 		// oxlint-disable-next-line ogygia/no-silent-failures -- a skipped transition (a rapid next navigation): nothing awaits it
 		t.ready?.catch(() => {});

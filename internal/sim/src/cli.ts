@@ -98,6 +98,8 @@ const CROWD = process.argv.includes('--crowd') && !CALM;
 const OBSERVE = arg('--observe');
 /** Buggify points on (`--no-buggify`: off), in a rules build. */
 const BUGGIFY = !process.argv.includes('--no-buggify') && !CALM;
+/** `--buggify-aim <a,b>`: only these points, on in every run, each firing half its calls. */
+const BUGGIFY_AIM = arg('--buggify-aim')?.split(',').filter(Boolean);
 // (`SIM_APP`: a found test's app, set before it imports this module)
 const APP = resolve(
 	arg('--app') ??
@@ -344,7 +346,11 @@ export async function run(
 		supplied: SUPPLIED,
 		instances,
 		skew,
-		buggify: BUGGIFY ? { on: 0.3, fires: 0.2 } : undefined,
+		buggify: !BUGGIFY
+			? undefined
+			: BUGGIFY_AIM
+				? { on: 1, fires: 0.5, aim: BUGGIFY_AIM }
+				: { on: 0.3, fires: 0.2 },
 		// (a plan replays on its own engine; a seed's own workload draws one)
 		...(plan ? { idle: plan.idle ?? true } : {})
 	});
@@ -419,7 +425,7 @@ export async function run(
 					page_rules(t, world),
 					leaks.check(t, pressed.get(t.name) === t.documents),
 					live_events(t, world),
-					GEN_PEER ? peer_answers(t, world, since) : null,
+					GEN_PEER ? peer_answers(t, world, since, GEN_PEER.mount) : null,
 					// (a document loaded behind another tab and never looked at is at rest once the world
 					// is: its islands wake all the same, with no frame to wait for. One that was shown may
 					// have asked for a frame just before it went behind, which waits until it is shown
@@ -535,6 +541,13 @@ export async function run(
 					if (b && !(b.oracle === 'known' && broken.some((k) => k.detail.endsWith(b.detail))))
 						broken.push({ ...b, detail: `after ${describe(a)}: at rest: ${b.detail}` });
 			}
+			// (a settle that gave up let the loop go on while real work was in flight: from there the run
+			// is not its seed's, so it is said, with what it waited on; #1612)
+			for (const s of world.loop.stalled.splice(0))
+				broken.push({
+					oracle: 'settle-stalled',
+					detail: `at ${s.at} ms, action ${i + 1}: real work still in flight after the settle's wait: ${s.waiting.join(', ')}`
+				});
 			// (past its horizon the world stops: nothing after it would be a finding about the app)
 			if (world.loop.now >= world.loop.horizon)
 				broken.push({

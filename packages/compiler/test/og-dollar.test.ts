@@ -128,6 +128,22 @@ describe('og.$ captures: what the far side would read', () => {
 		).toBe('()');
 	});
 
+	it("a class static block's names stay in the block: a read after the class is captured (#1634)", () => {
+		expect(
+			params(
+				`const tax = 0.2; export const f = import.meta.og.$(() => { class K { static { const tax = 1; } } return tax; });`
+			)
+		).toBe('(tax)');
+	});
+
+	it("a class expression's own name, read inside it, is no capture (#1634)", () => {
+		expect(
+			params(
+				`const K = 1; export const f = import.meta.og.$(() => new (class K { m() { return K; } })());`
+			)
+		).toBe('()');
+	});
+
 	it('import.meta is no capture', () => {
 		expect(params(`export const f = import.meta.og.$(() => import.meta.env.DEV);`)).toBe('()');
 	});

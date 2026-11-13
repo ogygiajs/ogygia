@@ -99,6 +99,13 @@ describe('the walks', () => {
 		await expect(settle_deferred({ cycle, list }, scope())).resolves.toBeDefined();
 	});
 
+	it('a list that holds itself, and nothing else cyclic, ends the staging walk too', () => {
+		const list: unknown[] = [];
+		list.push(list, Promise.resolve('in the list'));
+		const { deferred } = stage_deferred(list, 0);
+		expect(deferred).toHaveLength(1);
+	});
+
 	it('the page seed reducers keep id 0 and a settled leaf, nested rich values and all', () => {
 		const when = new Date('2020-01-02T03:04:05.000Z');
 		const text = stringify(

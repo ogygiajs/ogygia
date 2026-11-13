@@ -170,7 +170,6 @@ export function resolve_kit_paths(root: string): KitPaths {
 	} catch {
 		kit_wire_path = null; // ok: no Kit resolves (a standalone compile): the built-in devalue codec, no transport
 	}
-	// the app's universal hooks (default src/hooks.{ts,js}) for `transport`
 	for (const f of ['hooks.ts', 'hooks.js']) {
 		const abs = path.join(root, 'src', f);
 		if (fs.existsSync(abs)) {
@@ -178,7 +177,6 @@ export function resolve_kit_paths(root: string): KitPaths {
 			break;
 		}
 	}
-	// the app's CLIENT hooks (src/hooks.client.{ts,js}) — run its `init` on boot for csr=false pages.
 	let client_hooks: string | null = null;
 	for (const f of ['hooks.client.ts', 'hooks.client.js']) {
 		const abs = path.join(root, 'src', f);
@@ -209,16 +207,6 @@ export function kit_major(root: string): number | null {
 	}
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Kit's configurable directories — `kit.files.routes` and `kit.outDir`.
-//
-// Everything below that walks the routes tree, and every handoff written under Kit's output dir,
-// resolves through `kit_dirs(root)`, never through a literal `src/routes` / `.svelte-kit`. The
-// Vite plugin fills the cache from the app's svelte.config.js in its `config` hook (see
-// vite/kit-dirs.ts — Node-only, hence not here); an unfilled root answers the defaults, so a
-// standalone (no-Kit) compile and the tests keep working.
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface KitDirs {
 	/** absolute `kit.files.routes` (default `<root>/src/routes`) */
 	routes_dir: string;
@@ -226,8 +214,6 @@ export interface KitDirs {
 	out_dir: string;
 }
 export const DEFAULT_KIT_DIRS = { routes: 'src/routes', out: '.svelte-kit' } as const;
-// (config, not a memo: an evicted root would answer the defaults, so the bound is far past the roots
-// any process configures, one per Vite instance; the owner-scoped fix is tracked in #633)
 const KIT_CONFIG_ROOTS_MAX = 10_000;
 const _kit_dirs = cache<string, KitDirs>({ name: 'kit dirs', max: KIT_CONFIG_ROOTS_MAX });
 
@@ -244,12 +230,6 @@ export function kit_dirs(root: string): KitDirs {
 	);
 }
 
-// Kit's `kit.inlineStyleThreshold` — the ONE number for inline-vs-link CSS. Kit inlines its own
-// route sheets under it as `<style>`; ogygia's region-CSS channel (an island's, a held dual's, a
-// content body's sheets, linked per rendered region) obeys the same number: the build keeps the
-// text of every region CSS asset under the threshold in the island-deps handoff, and the render
-// emits `<style data-ogygia-region-css="href">` instead of a blocking `<link>`. Read from the
-// app's svelte.config.js by the Vite plugin next to `kit_dirs`; `0` (Kit's default) = never inline.
 const _kit_inline_style_threshold = cache<string, number>({
 	name: 'kit inline style threshold',
 	max: KIT_CONFIG_ROOTS_MAX
@@ -263,18 +243,6 @@ export function kit_inline_style_threshold(root: string): number {
 	return _kit_inline_style_threshold.get(root) ?? 0;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// csr detection.
-//
-// When every route NODE is csr=false, Kit skips its client build entirely, so the ogygia runtime chunk
-// is never emitted and the SSR'd `<script src>` 404s. ogygia fixes this transparently: during a build,
-// the plugin injects a URL-less keepalive layout (`src/routes/.ogygia-keep-client/+layout.ts`, a single
-// `csr = true` node) that keeps Kit building the client, then removes it at process exit — nothing is
-// committed and no Kit internal is consulted (see index.ts). `clientBuildWillSkip` (ignoring that
-// injected dir) drives WHEN to inject; `hasAnyCsrFalseRoute` drives the "pure csr=true app ships zero
-// ogygia" runtime gate.
-// ─────────────────────────────────────────────────────────────────────────────
-
 /** Read `export const csr = true|false` from a route options file; `undefined` if unset/absent. */
 export function read_csr(r: Routes, file: string): boolean | undefined {
 	return r.db.get(r.csr_of_file, file);
@@ -283,21 +251,12 @@ export function read_csr(r: Routes, file: string): boolean | undefined {
 function csr_of_text(src: string | null, file: string): boolean | undefined {
 	if (src === null) return undefined; // ok: no such option file on this level
 	if (!src.includes('csr')) return undefined;
-	// parsed, like Kit: text in a comment or a string is no export (test: read-csr-kit.test.ts)
-	const { program, ok } = parse_module(src, file);
-	if (!ok || !program) return undefined; // Kit cannot read it either
+	const { program } = parse_module(src, file);
+	if (!program) return undefined;
 	const value = literal_value(page_option(program, 'csr'));
 	return typeof value === 'boolean' ? value : undefined;
 }
 
-// ── ROUTE CONFIG (the keys plugins claim inside Kit's `config` page option: plugin/routes.ts) ──
-// `export const config = { <key>: <literal> }` in a page/layout module, for each key a plugin claims
-// (`b.routeConfig(key)`). Kit accepts any key inside `config` and merges it itself at run time; ogygia
-// reads the claimed keys at BUILD time, merged the same way, so the server knows a page's value
-// before Kit runs. Nothing is stripped. Read with the compiler's parser, not a pattern: `config` is
-// an object, and a type annotation, `satisfies` or `as const` around it must not hide a key.
-
-/** `x as T` · `x satisfies T` · `<T>x` · `x!` · `(x)` → `x`. */
 function unwrap_expression(node: AstNode | null | undefined): AstNode | null {
 	let n = node ?? null;
 	while (
@@ -312,11 +271,6 @@ function unwrap_expression(node: AstNode | null | undefined): AstNode | null {
 	return n;
 }
 
-/**
- * The value a page option file exports as `name`, the forms Kit reads: `export const|let|var name =
- * …` (any declarator of the statement), or `export { local as name }` of a top-level declaration.
- * Null when there is none, or it comes from another module (`export { name } from …`).
- */
 function page_option(program: AstNode, name: string): AstNode | null {
 	const body: AstNode[] = program.body ?? [];
 	const declared = (local: string): AstNode | null => {
@@ -344,13 +298,11 @@ function page_option(program: AstNode, name: string): AstNode | null {
 	return null;
 }
 
-/** The object literal `export const config = {…}` declares in `program`, or null. */
 function config_object(program: AstNode): AstNode | null {
 	const init = unwrap_expression(page_option(program, 'config'));
 	return init?.type === 'ObjectExpression' ? init : null;
 }
 
-/** A plain literal value (boolean, number, string, null), or `NOT_LITERAL`. */
 const NOT_LITERAL: unique symbol = Symbol('not-literal');
 function literal_value(node: AstNode | null): unknown {
 	const n = unwrap_expression(node);
@@ -400,16 +352,13 @@ const PAGE_SERVER = ['+page.server.js', '+page.server.ts'];
 const LAYOUT_UNIVERSAL = ['+layout.js', '+layout.ts'];
 const LAYOUT_SERVER = ['+layout.server.js', '+layout.server.ts'];
 
-/** A route node's own `csr`, as Kit reads it: the universal module's, else the server module's. */
 function own_csr(r: Routes, dir: string, universal: string[], server: string[]) {
-	let csr; // undefined = not set on this node
+	let csr;
 	for (const f of server) csr = read_csr(r, path.join(dir, f)) ?? csr;
 	for (const f of universal) csr = read_csr(r, path.join(dir, f)) ?? csr;
 	return csr;
 }
 
-// A component route file, as Kit's `analyze` reads one: `+page`, `+layout` or `+error`, a `@`
-// reset on a page or layout (`+page@.svelte`, `+layout@(app).svelte`), any component extension.
 const ROUTE_COMPONENT_RE = /^\+(?:(page|layout)(?:@(.*))?|(error))\.[^.]+$/;
 const SCRIPT_FILE_RE = /\.[cm]?[jt]s$/;
 const ROUTE_MODULE_RE = /^\+(page|layout)(\.server)?\.[jt]s$/;
@@ -433,17 +382,13 @@ export function is_route_component(name: string, kind: 'page' | 'layout'): boole
 }
 
 type RouteNodeKind = 'layout' | 'error' | 'leaf';
-// One of Kit's `PageNode`s: a directory's layout, error page or page.
 interface RouteNode {
 	readonly kind: RouteNodeKind;
 	readonly route: Route;
 	component: string | null;
 	reset: string | undefined;
-	// where Kit takes this node's inherited options from, set the way create_manifest_data sets it
 	parent: RouteNode | null;
-	// a leaf: the layouts it renders in, root first
 	layouts: RouteNode[];
-	// a layout: the leaves that render in it
 	pages: RouteNode[];
 	index: number;
 }
@@ -464,8 +409,6 @@ function route_tree(r: Routes, routesDir: string): RouteTree {
 	return r.db.get(r.route_tree, routesDir);
 }
 
-/** The layouts a node starting at `route` renders in, deepest first, as create_manifest_data walks
- *  them: up the routes, a `@` reset skipping to the route its segment names. */
 function layouts_up(route: Route | null, reset: string | undefined): RouteNode[] {
 	const out: RouteNode[] = [];
 	for (let current = route; current; current = current.parent) {
@@ -512,8 +455,7 @@ function build_route_tree(r: Routes, routesDir: string): RouteTree {
 	};
 	walk(routesDir, '', null);
 	const root = routes[0];
-	root.layout ??= node('layout', root); // Kit's fallback root layout and error page
-	root.error ??= node('error', root);
+	root.layout ??= node('layout', root);
 
 	for (const route of routes) {
 		const leaf = route.leaf;
@@ -538,7 +480,6 @@ function build_route_tree(r: Routes, routesDir: string): RouteTree {
 	return { routes, nodes };
 }
 
-/** A node's csr as Kit's static analysis computes it: its own option, else its parent's. */
 function node_csr(r: Routes, tree: RouteTree, node: RouteNode): boolean | undefined {
 	return r.db.get(r.node_csr, tree.routes[0].dir)[node.index];
 }
@@ -550,7 +491,6 @@ function node_own_csr(r: Routes, node: RouteNode): boolean | undefined {
 	return undefined;
 }
 
-/** The csr a page rendered in `layout` would read from the layouts: for a layout no page uses. */
 function layout_chain_csr(r: Routes, layout: RouteNode): boolean | undefined {
 	let csr;
 	for (const node of [...layouts_up(layout.route.parent, layout.reset).reverse(), layout])
@@ -558,14 +498,11 @@ function layout_chain_csr(r: Routes, layout: RouteNode): boolean | undefined {
 	return csr;
 }
 
-/** The leaves Kit renders a page component for. */
 function page_leaves(tree: RouteTree): RouteNode[] {
 	return tree.nodes.filter((n) => n.kind === 'leaf' && n.component !== null);
 }
 
-/** The node a route component file is: its directory's page or layout. */
 function host_node(r: Routes, hostFile: string, routesDir: string): RouteNode | null {
-	if (!hostFile.startsWith(routesDir)) return null;
 	const kind = route_component(path.basename(hostFile))?.kind;
 	if (kind !== 'page' && kind !== 'layout') return null;
 	const dir = path.dirname(hostFile);
@@ -573,7 +510,6 @@ function host_node(r: Routes, hostFile: string, routesDir: string): RouteNode | 
 	return (kind === 'page' ? route?.leaf : route?.layout) ?? null;
 }
 
-/** A route's Kit `route.id`, group-stripped (`normalize_route_id`). */
 function route_id_of(route: Route, routesDir: string): string {
 	const rel = path.relative(routesDir, route.dir);
 	return normalize_route_id(`/${rel ? rel.split(path.sep).join('/') : ''}`);
@@ -602,19 +538,6 @@ export function rootLayoutCsrTrue(r: Routes, routesDir: string): boolean {
 	return node_csr(r, tree, tree.routes[0].layout!) !== false;
 }
 
-// ── PAGE-CSR invariant (see internal/notes/INVARIANTS.md) ────────────────────────────────────
-// ONE source of truth for csr topology: every `+page.svelte` leaf's Kit-effective csr, computed
-// with Kit's own rule (option-file chain, deepest wins — layout criss-crossing included), walked
-// ONCE per routesDir and memoized. Everything else DERIVES from this map:
-//   · a PAGE host's world = its own entry;
-//   · a LAYOUT host has NO world of its own — it serves the pages at/below its dir
-//     (all csr=true → Kit hydrates everywhere, strip; all csr=false → island world;
-//      mixed → shared world: keep islands, the runtime degrades per document);
-//   · the runtime `csr_true_routes` set = the map's csr=true entries.
-// Judging a layout by its own partial chain is the bug this exists to prevent: `csr = false`
-// declared BELOW the root layout used to flip the root chrome into the strip path while Kit
-// shipped no client for those pages — dead Header/BootEffects.
-/** The worlds of the pages a layout serves: the pages that render in it, resets honoured. */
 function layout_page_worlds(r: Routes, tree: RouteTree, layout: RouteNode) {
 	let any_false = false;
 	let any_true = false;
@@ -640,8 +563,8 @@ export function routeCsrIsFalse(r: Routes, hostFile: string, routesDir: string):
 	const tree = route_tree(r, routesDir);
 	if (node.kind === 'leaf') return node_csr(r, tree, node) === false;
 	const { any_false, any_true } = layout_page_worlds(r, tree, node);
-	if (any_false && !any_true) return true; // every page it serves is csr=false
-	if (any_false || any_true) return false; // mixed (or pure-true) → not the false world
+	if (any_false && !any_true) return true;
+	if (any_true) return false;
 	return layout_chain_csr(r, node) === false;
 }
 
@@ -659,18 +582,11 @@ export function routeCsrIsTrue(r: Routes, hostFile: string, routesDir: string): 
 	const tree = route_tree(r, routesDir);
 	if (node.kind === 'leaf') return node_csr(r, tree, node) !== false;
 	const { any_false, any_true } = layout_page_worlds(r, tree, node);
-	if (any_false) return false; // some page it serves gets no Kit client: never strip its chrome
-	if (any_true) return true; // every page it serves is Kit-hydrated
+	if (any_false) return false;
+	if (any_true) return true;
 	return layout_chain_csr(r, node) !== false;
 }
 
-/**
- * A routes directory's entries with SYMLINKS RESOLVED — Kit parity. Kit discovers routes by name +
- * `statSync` (which follows links), so a symlinked `+layout.ts` or a symlinked route directory is a
- * real node to Kit; a dirent's `isFile()` / `isDirectory()` is false for a link, which made a
- * linked root `+layout.ts` (csr=false) invisible here → "client build stays" predicted while Kit
- * skipped it → the runtime 404'd. (An app sharing routes between two trees links them.)
- */
 function route_entries(
 	r: Routes,
 	dir: string
@@ -716,15 +632,6 @@ export function csrTrueRouteIds(r: Routes, routesDir: string): string[] {
 	return [...ids];
 }
 
-// ── ROUTE CONFIG, per page ────────────────────────────────────────────────────────────────
-// Each page's merged value for every claimed `config` key (see read_route_config above). The plugin
-// applies its own default to a key no level sets. Memoized per routesDir + keys; cleared on a dev
-// route-topology change alongside the csr maps.
-
-/** One page's merged config, claimed keys only, as Kit's `PageNodes.get_config` merges it: the
- *  layouts it renders in, root first, then the page; at each level the universal module, then the
- *  server one (the reverse of `csr`); a later level replaces a key, top level only. A key no level
- *  sets is absent. */
 function page_config(r: Routes, leaf: RouteNode, keys: readonly string[]): Record<string, unknown> {
 	let merged: Record<string, unknown> = {};
 	for (const node of [...leaf.layouts, leaf]) {
@@ -760,9 +667,7 @@ export function hasAnyCsrTrueRoute(r: Routes, routesDir: string): boolean {
 	return r.db.get(r.has_csr_true, routesDir);
 }
 
-// The build-time keepalive route ogygia injects to defeat Kit's skip (see index.ts). It must be
-// invisible to the skip detection itself — otherwise its own csr=true node would mask whether the
-// USER's real routes are all csr=false.
+/** The directory of the build-time keepalive layout; the route tree never walks into it. */
 export const KEEP_CLIENT_DIR = '.ogygia-keep-client';
 
 /**
@@ -787,16 +692,6 @@ export function hasAnyCsrFalseRoute(r: Routes, routesDir: string): boolean {
 	const tree = route_tree(r, routesDir);
 	return page_leaves(tree).some((leaf) => node_csr(r, tree, leaf) === false);
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// keep-client-build injection — the standalone-build fs helpers.
-//
-// All-csr=false apps make Kit skip its ENTIRE client build, so ogygia's runtime is never emitted
-// and islands 404 at runtime. Fix: during a build, inject a URL-less keepalive layout — a single
-// `csr = true` node with no `+page`, so no servable URL — which flips Kit's `skip_client_build`
-// check and lets Kit's OWN client build run (honoring the user's preprocessors, appDir, etc.). It
-// is removed at process exit by the adapter (main thread only).
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** On-disk path of the injected keepalive route for a given app root. */
 export function keep_client_dir(r: string): string {
