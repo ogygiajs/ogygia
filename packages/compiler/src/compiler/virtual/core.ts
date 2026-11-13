@@ -22,7 +22,11 @@ import {
 	transportables_client_module,
 	kit_transport_module
 } from '../link/transport.ts';
-import { server_manifest_module, server_regions_module } from '../link/server-manifest.ts';
+import {
+	server_manifest_module,
+	server_regions_module,
+	server_island_ids
+} from '../link/server-manifest.ts';
 import { registry_stub_names, registry_stub_source } from '../link/registry-stub.ts';
 import { dev_hmr_client_source } from '../dev/dev-hmr.ts';
 import { fn_manifest_registrations } from '../macros/dollar.ts';
@@ -207,7 +211,7 @@ export const runtime_entry: Family = virtual.family({
 		app.prescan();
 		const { ctx } = app;
 		const { code } = generateRuntimeEntrySource(
-			app.program.runtime_marks,
+			app.program.ship_runtime(),
 			ctx.runtime_dir,
 			app.plugins().client
 		);
@@ -545,13 +549,7 @@ export const server_manifest: Family<ServerManifestModule> = virtual.family({
 	load(app: CoreApp, { ssr }) {
 		const { ctx, program } = app;
 		if (ssr) app.prescan();
-		return server_manifest_module(
-			ssr,
-			program,
-			ctx.is_dev,
-			(vp: string) => ctx.dev_url_for(vp),
-			(rid: string) => ctx.island_public_url(rid)
-		);
+		return server_manifest_module(ssr, program, ctx.is_dev, (vp: string) => ctx.dev_url_for(vp));
 	}
 });
 
@@ -560,7 +558,10 @@ export const server_regions: Family<ServerRegionsModule> = virtual.family({
 	id: 'server-regions',
 	load(app: CoreApp, { ssr }) {
 		if (ssr) app.prescan();
-		return server_regions_module(ssr, app.program);
+		const late = ssr && app.ctx.is_build;
+		// a region registered after this is a late one: its loader is its own chunk
+		if (late) app.program.server_regions_written = new Set(server_island_ids(app.program));
+		return server_regions_module(ssr, app.program, late);
 	}
 });
 

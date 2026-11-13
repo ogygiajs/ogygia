@@ -1,9 +1,3 @@
-/**
- * THE FILE SEAM. Every read of an app's files goes through one `Fs` on the `CompileCtx`, so a whole
- * compile can run on files held in memory (the compiler DST harness edits them and compares a dev
- * session with a cold one). `node_fs` is the disk; `memory_fs` is a map. test/fs-seam.test.ts counts
- * the direct `node:fs` calls left in the compiler, each with its reason.
- */
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -14,6 +8,12 @@ export interface FsEntry {
 	readonly kind: 'file' | 'dir' | 'link' | 'other';
 }
 
+/**
+ * THE FILE SEAM. Every read of an app's files goes through one `Fs` on the `CompileCtx`, so a whole
+ * compile can run on files held in memory (the compiler DST harness edits them and compares a dev
+ * session with a cold one). `node_fs` is the disk; `memory_fs` is a map. test/fs-seam.test.ts counts
+ * the direct `node:fs` calls left in the compiler, each with its reason.
+ */
 export interface Fs {
 	/** The file's text (UTF-8, as stored: a byte-order mark is kept), or `null` when it can't be read. */
 	read(abs: string): string | null;

@@ -16,16 +16,20 @@
  * violations surface as build-voice errors naming the file and line. Node-only.
  */
 import fs from 'node:fs';
-import { dedent } from '@ogygia/core/contract';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { uneval } from 'devalue';
-import { og_member } from './wire.ts';
-import { parse_module, type AstNode } from '../parse/oxc.ts';
-import { og_js_regions } from '../parse/scan.ts';
-import { BuildCache } from '../build-cache.ts';
-import { OgygiaError } from '../messages.ts';
+import {
+	BuildCache,
+	dedent,
+	og_js_regions,
+	og_member,
+	parse_module,
+	type AstNode
+} from '@ogygia/compiler';
 import { id64 } from '@ogygia/core/contract';
+import { flights, STALE } from '@ogygia/machine';
+import { OgygiaError } from './messages.ts';
 
 // ── regexes
 const REGEX_SPECIAL_G = /[.*+?^${}()|[\]\\]/g;
@@ -191,7 +195,7 @@ function bake_plugin(
 	entry_code: string,
 	module_dir: string,
 	root: string,
-	aliases: AliasEntry[]
+	aliases: readonly AliasEntry[]
 ) {
 	return {
 		name: 'ogygia-bake-entry',
@@ -249,16 +253,57 @@ function resolve_file(base: string): string | null {
 	return null;
 }
 
+/** A bundle's address by its module and code: identity, so 64 bits (a collision would serve another
+ *  module's baked values, #484). */
+const hash_of = id64;
+
 /**
- * Bundle + execute the eval entry, returning the array of results (one per bake call). Isolated in a
- * fresh module URL each time so Node's ESM cache never serves a stale bake.
+ * One bundle run at a time per bundle: callers of the same bundle (both legs transform one file at
+ * once) share its one write, import and delete. Nothing is kept: a later bake runs again, since its
+ * fn may read what the bundle does not hold (a file, the clock).
+ */
+const runs = flights.keyed<{ hash: string; code: string }>()({
+	key: ['hash'],
+	ignore: { code: 'the bundle code is what its hash names' },
+	keep: 0,
+	run: async ({ hash, code }) => {
+		// The eval bundle is written through the cache interface (`BuildCache('bake').dir()`) — the
+		// same managed directory the git checkouts use — then imported and deleted.
+		const dir = bake_cache.dir();
+		if (!dir)
+			throw new Error(
+				'the build cache (node_modules/.ogygia) is unavailable — cannot stage the bake bundle'
+			);
+		const file = path.join(dir, `${hash}.mjs`);
+		fs.writeFileSync(file, code);
+		try {
+			// The URL is named by the BUNDLE's hash: an edited data module is new code at a new URL, so
+			// Node's module cache never serves the old bake (test/bake.test.ts "bakes fresh").
+			// node:url is a plain static import: keeping it static leaves this the module's ONLY dynamic
+			// import, so Vite's dev `__vite__injectQuery` helper isn't injected twice (a second dynamic
+			// import here → a "'__vite__injectQuery' has already been declared" SyntaxError).
+			const mod = (await import(pathToFileURL(file).href + `?t=${hash}`)) as {
+				__run?: () => Promise<unknown[]>;
+			};
+			if (typeof mod.__run !== 'function')
+				throw new Error('bake eval module produced no __run export');
+			return await mod.__run();
+		} finally {
+			fs.rmSync(file, { force: true });
+		}
+	}
+});
+
+/**
+ * Bundle + execute the eval entry, returning the array of results (one per bake call). Every module
+ * the bundle read from the app goes to `opts.watch`, so an edit to one re-bakes.
  */
 async function evaluate(entry_code: string, id: string, opts: BakeOptions): Promise<unknown[]> {
 	// Bundle through the app's required `vite` peer (Vite 8 bundles with rolldown internally) rather
 	// than a direct `rolldown` dependency of ogygia's own — the plugin below is a plain Rollup/Vite
 	// plugin, so it drops straight into `rollupOptions`. SSR/node build; TS in the eval entry is
 	// handled by Vite's own transform.
-	// The specifier is a VARIABLE (not a literal) so no bundler that bundles the compiler pulls `vite`
+	// The specifier is a VARIABLE (not a literal) so no bundler that bundles this package pulls `vite`
 	// into it: bake loads the app's own Vite at the moment it runs.
 	const vite_spec = 'vite';
 	const { build } = (await import(/* @vite-ignore */ vite_spec)) as typeof import('vite');
@@ -287,56 +332,35 @@ async function evaluate(entry_code: string, id: string, opts: BakeOptions): Prom
 			}
 		}
 	});
-	{
-		const output = Array.isArray(result)
-			? result[0]!.output
-			: (result as { output: Array<{ code: string }> }).output;
-		const code = output[0]!.code;
-		// The eval bundle is written through the cache interface (`BuildCache('bake').dir()`) — the
-		// same managed directory the git checkouts use — then imported and deleted.
-		const dir = bake_cache.dir();
-		if (!dir)
-			throw new Error(
-				'the build cache (node_modules/.ogygia) is unavailable — cannot stage the bake bundle'
-			);
-		const file = path.join(dir, `${opts.hash}.mjs`);
-		fs.writeFileSync(file, code);
-		try {
-			// bake() writes a module and dynamic-imports it. node:url is a plain static import: keeping it
-			// static leaves this the module's ONLY dynamic import, so Vite's
-			// dev `__vite__injectQuery` helper isn't injected twice (a second dynamic import here → a
-			// "'__vite__injectQuery' has already been declared" SyntaxError when the graph loads).
-			const mod = (await import(pathToFileURL(file).href + `?t=${opts.hash}`)) as {
-				__run?: () => Promise<unknown[]>;
-			};
-			if (typeof mod.__run !== 'function')
-				throw new Error('bake eval module produced no __run export');
-			return await mod.__run();
-		} finally {
-			fs.rmSync(file, { force: true });
+	const output = Array.isArray(result)
+		? result[0]!.output
+		: (
+				result as {
+					output: Array<{ code: string; moduleIds?: readonly string[] }>;
+				}
+			).output;
+	const chunk = output[0]!;
+	if (opts.watch)
+		for (const mid of chunk.moduleIds ?? []) {
+			const file = mid.split('?')[0]!;
+			if (path.isAbsolute(file) && !file.includes('/node_modules/')) opts.watch(file);
 		}
-	}
+	const results = await runs.get({
+		hash: hash_of(`${id}\0${chunk.code}`),
+		code: chunk.code
+	});
+	if (results === STALE) throw new Error('the bake run was dropped before it answered');
+	return results;
 }
 
 export type BakeOptions = {
-	/** Content hash of the eval entry — names/isolates the bundle in the cache. */
-	hash: string;
 	/** `resolve.alias` entries so a baked `fn` can import `$lib/…`. */
-	alias: AliasEntry[];
+	alias: readonly AliasEntry[];
 	/** Project root — anchors the `$lib` convention fallback. */
 	root: string;
+	/** Told every app module the bake bundled, so an edit to one runs the bake again. */
+	watch?: (file: string) => void;
 };
-
-/** Does `src` hold a real `import.meta.og.bake(…)` call (not a marker in a string or comment)?
- *  Reads only: nothing is bundled or run. A malformed call counts as a call. */
-export function has_bake_call(src: string, id: string, markupExts: readonly string[]): boolean {
-	if (!src.includes(MARKER)) return false;
-	try {
-		return (scan(src, id, markupExts)?.calls.length ?? 0) > 0;
-	} catch {
-		return true; // ok: scan throws only on a bake call of the wrong shape: still a call
-	}
-}
 
 /**
  * Rewrite every `import.meta.og.bake(fn)` in `src` to its inlined, devalue-serialized result. ASYNC
@@ -346,7 +370,7 @@ export function has_bake_call(src: string, id: string, markupExts: readonly stri
 export async function rewrite_bake(
 	src: string,
 	id: string,
-	opts: Omit<BakeOptions, 'hash'> & { markupExts?: readonly string[] }
+	opts: BakeOptions & { markupExts?: readonly string[] }
 ): Promise<string> {
 	if (!src.includes(MARKER)) return src;
 	const found = scan(src, id, opts.markupExts ?? ['.svelte']);
@@ -370,16 +394,15 @@ export async function rewrite_bake(
 		${run}
 	`}\n`;
 
-	// Content hash: module id + the exact eval entry (imports + fns) → address the bundle & re-bake
-	// only when inputs change.
-	const hash = hash_of(`${id}\0${entry_code}`);
-
 	let results: unknown[];
 	try {
-		results = await evaluate(entry_code, id, { ...opts, hash });
+		results = await evaluate(entry_code, id, opts);
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : String(e);
-		throw new OgygiaError('macro_bake_eval_failed', { file: path.basename(id), reason: msg });
+		throw new OgygiaError('macro_bake_eval_failed', {
+			file: path.basename(id),
+			reason: msg
+		});
 	}
 
 	// Serialize each result; also drop imports that only fed a baked fn (so the computation's
@@ -415,7 +438,3 @@ export async function rewrite_bake(
 	out += src.slice(last);
 	return out;
 }
-
-/** A bundle's address by its inputs: identity, so 64 bits (a collision would serve another module's
- *  baked values, #484). */
-const hash_of = id64;

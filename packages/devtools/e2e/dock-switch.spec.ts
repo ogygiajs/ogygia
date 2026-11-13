@@ -30,7 +30,7 @@ test.beforeAll(async () => {
 	rmSync(join(app, OUT), { recursive: true, force: true });
 	const built = spawnSync('node', ['node_modules/vite/bin/vite.js', 'build'], {
 		cwd: app,
-		env: { ...process.env, LAB_OUT: OUT, OGYGIA_DEVTOOLS: '1' },
+		env: { ...process.env, LAB_OUT: OUT, OGYGIA_DEVTOOLS: '1', OGYGIA_RULES: '1' },
 		stdio: 'inherit'
 	});
 	if (built.status !== 0) throw new Error('the dock-on build of the devtools lab failed');

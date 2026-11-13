@@ -1,13 +1,3 @@
-/**
- * THE SCAN'S FACTS, as queries (./queries.ts). Each scanned file has its facts (what the prescan
- * reads of it: does it cross Kit's wire, define a transportable class, render router pages, call a
- * flag); the app-wide answers the virtual modules bake (the transportable modules, whether anything
- * crosses the wire, the router roots and their import specs, the flag sites) are folds over every
- * scanned file's facts, in scan order. A file's facts are set when the prescan reads it and again
- * when dev transforms it (null when it is deleted); each fold is computed again only when a fact it
- * reads changed, so dev and a cold start give the same answers (test/scan-facts.test.ts).
- */
-import type { FlagSite } from './flags.ts';
 import { derived, input, queries, type Queries, type Query } from './queries.ts';
 
 /** What the scan reads of one file. */
@@ -20,8 +10,6 @@ export interface FileFacts {
 	readonly specs: readonly string[];
 	/** It renders pages outside Kit's routes (`b.pageModules()`): a router CSS root. */
 	readonly router: boolean;
-	/** Its `flag()` calls. */
-	readonly flag_sites: readonly FlagSite[];
 }
 
 const ALL = 'all';
@@ -37,13 +25,21 @@ export interface ScanFacts {
 	readonly wire_crossers: Query<string, ReadonlySet<string>>;
 	readonly router_modules: Query<string, ReadonlySet<string>>;
 	readonly module_specs: Query<string, ReadonlyMap<string, readonly string[]>>;
-	readonly flag_sites: Query<string, readonly FlagSite[]>;
 	/** A file's facts, or none (`null`: it is deleted). A new file goes last in scan order. */
 	set(full: string, facts: FileFacts | null): void;
 	/** Whether the scan read this file. */
 	has(full: string): boolean;
 }
 
+/**
+ * THE SCAN'S FACTS, as queries (./queries.ts). Each scanned file has its facts (what the prescan
+ * reads of it: does it cross Kit's wire, define a transportable class, render router pages); the
+ * app-wide answers the virtual modules bake (the transportable modules, whether anything crosses the
+ * wire, the router roots and their import specs) are folds over every scanned file's facts, in scan
+ * order. A file's facts are set when the prescan reads it and again when dev transforms it (null
+ * when it is deleted); each fold is computed again only when a fact it reads changed, so dev and a
+ * cold start give the same answers (test/scan-facts.test.ts).
+ */
 export function scan_facts(): ScanFacts {
 	const db = queries('scan facts');
 	/** Every file the scan ever read, in the order it first read them. It only grows, so its first
@@ -86,7 +82,6 @@ export function scan_facts(): ScanFacts {
 			(each) =>
 				new Map(each.filter(([, f]) => f.specs.length > 0).map(([file, f]) => [file, f.specs]))
 		),
-		flag_sites: fold('flag sites', (each) => each.flatMap(([, f]) => f.flag_sites)),
 		set(full, next) {
 			if (next !== null && !at.has(full)) {
 				at.add(full);
