@@ -1560,6 +1560,42 @@ describe("a mounted peer's page answers as the peer did", () => {
 		).toBeNull();
 	});
 
+	it("finds one of the peer's own pages answered 5xx though the peer gave it whole and in time (a mutant that made every exposed page a redirect survived)", async () => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/peer/q0' });
+		w.document.write('<html><body><p>500</p></body></html>');
+		const tab = {
+			realm: 'tab-1#1',
+			name: 'tab-1',
+			documents: 1,
+			page: { mainFrame: { url: 'https://app.test/peer/q0', document: w.document } }
+		} as unknown as Parameters<typeof peer_answers>[0];
+		const world = (hop: Record<string, unknown>) =>
+			({
+				fired_in: new Map(),
+				network: {
+					exchanges: [
+						{ id: 1, from: 'tab-1#1', url: 'https://app.test/peer/q0', at: 0, status: 500 },
+						{
+							id: 2,
+							from: 'server-0',
+							for: 'tab-1#1',
+							url: 'https://peer.test/og/fragment/page?path=%2Fq0',
+							at: 10,
+							status: 200,
+							ended_at: 40,
+							...hop
+						}
+					].map((e) => ({ method: 'GET', cut: false, tampered: false, redirected: false, ...e }))
+				}
+			}) as unknown as Parameters<typeof peer_answers>[1];
+		expect(peer_answers(tab, world({}), 0)?.oracle).toBe('peer-answers');
+		// (past the deadline, or held on the way: the app's 5xx is its own)
+		expect(peer_answers(tab, world({ ended_at: 6000 }), 0)).toBeNull();
+		expect(peer_answers(tab, world({ stalled: true }), 0)).toBeNull();
+		expect(peer_answers(tab, world({ status: 503 }), 0)).toBeNull();
+	});
+
 	it("passes one the network failed, or whose hop to the peer failed: the app's answer for it is its own", async () => {
 		expect(await judged('', [['/peer/gone', 'dropped']])).toBeNull();
 		expect(await judged('', [['/peer/gone', 502]])).toBeNull();
