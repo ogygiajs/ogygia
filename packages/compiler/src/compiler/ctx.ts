@@ -11,6 +11,7 @@ import { islandVirtualId } from './ids.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
 import type { ClientRealmFile, ServerRealm } from './link/caps.ts';
 import type { PluginMacro } from './macros/pipeline.ts';
+import type { AppAlias, AppSpecCtx } from './app-spec.ts';
 import {
 	islandChunkFileName,
 	islandPublicUrl,
@@ -141,6 +142,14 @@ export class CompileCtx {
 	readonly presets: Record<string, unknown>;
 	readonly import_keys: ImportKeys;
 	readonly resolve_alias: unknown[];
+	/** What an app import specifier is resolved against (app-spec.ts): the root, `$lib`, the aliases. */
+	get app_spec(): AppSpecCtx {
+		return {
+			root: this.root,
+			libDir: this.libDir,
+			alias: (this.resolve_alias ?? []) as readonly AppAlias[]
+		};
+	}
 	readonly macros: readonly PluginMacro[];
 	readonly pkg_root: string;
 	readonly build_secret: string;

@@ -42,7 +42,8 @@ export interface FileIR {
 	instance_body: SvelteNode[];
 	/** `<script module>` top-level statements. */
 	module_body: SvelteNode[];
-	/** the `<script>` lang attribute (`''` for plain JS) — baked into generated wrapper scripts. */
+	/** the `<script>` lang attribute (`''` for plain JS) — of the host's own synthesized script and
+	 *  its portable snippets (authored markup); never of a shared wrapper. */
 	lang: string;
 	/** posix root-relative host path — the stable prefix of error messages + snippet identities. */
 	rel_host: string;
