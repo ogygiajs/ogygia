@@ -16,6 +16,10 @@
  *
  * An exemption is `{ "id": "packages/core/src/x.ts > fn", "reason": "why nothing can measure it" }`.
  * One whose id names no function any more fails the gate too (./stale.ts).
+ *
+ * `--ids-only` (seconds, run it before sending a PR): steps 2 and 5's inventories only, no bench, test
+ * or replay. Fails on stale exemptions; with `--base`, lists the new functions no exemption names
+ * (each needs a bench, a replayable unit test or an exemption, or the full gate fails on it).
  * Writes to --out (default .heisenbench/unmeasured): gate.md (also the job summary in CI), gate.json
  * (every function with its sources), and what each step produced. Exit 1 when the gate fails.
  */
@@ -35,15 +39,17 @@ import { dirname, join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { heisenbench_dir, bench_packages, link_heisenbench, REPO_ROOT } from './heisenbench.ts';
-import { gone_exemptions, type Exemption } from './stale.ts';
+import { gone_exemptions, unexempted_new_functions, type Exemption } from './stale.ts';
 
 const { values } = parseArgs({
 	options: {
 		base: { type: 'string' },
 		out: { type: 'string' },
-		'no-record': { type: 'boolean' }
+		'no-record': { type: 'boolean' },
+		'ids-only': { type: 'boolean' }
 	}
 });
+const ids_only = values['ids-only'] === true;
 
 const PRELOAD = fileURLToPath(new URL('./preload.ts', import.meta.url));
 const EXEMPT = fileURLToPath(new URL('../unmeasured.json', import.meta.url));
@@ -99,9 +105,35 @@ function renames(rev: string): Map<string, string> {
 	return moved;
 }
 
+/** Heisenbench `inventory` of the package sources at `rev`, read where they sit now (a file git
+ *  sees as moved since `rev` is read at its new path, so a move is not a crop of new functions). */
+function base_inventory_of(rev: string): string {
+	const base_root = mkdtempSync(join(tmpdir(), 'ogygia-base-'));
+	const files = source_files(rev);
+	const tar = execFileSync('git', ['archive', '--format=tar', rev, '--', ...files], {
+		cwd: REPO_ROOT,
+		maxBuffer: 1 << 30
+	});
+	execFileSync('tar', ['-x', '-C', base_root], { input: tar });
+	const moved = renames(rev);
+	const base_files = files.map((f) => {
+		const to = moved.get(f);
+		if (to === undefined) return f;
+		mkdirSync(dirname(join(base_root, to)), { recursive: true });
+		renameSync(join(base_root, f), join(base_root, to));
+		return to;
+	});
+	const base_list = join(out, 'base-files.txt');
+	writeFileSync(base_list, `${base_files.join('\n')}\n`);
+	const base_inventory = join(out, 'base-inventory.json');
+	heisenbench_cli(['inventory', '--list', base_list, '--root', base_root, '--out', base_inventory]);
+	rmSync(base_root, { recursive: true, force: true });
+	return base_inventory;
+}
+
 // 1. what the bench files run
 const reports: string[] = [];
-const benches = bench_packages().flatMap((p) => p.files);
+const benches = ids_only ? [] : bench_packages().flatMap((p) => p.files);
 benches.forEach((file, i) => {
 	const report = join(out, 'bench', `${i}.json`);
 	mkdirSync(join(out, 'bench'), { recursive: true });
@@ -125,11 +157,52 @@ heisenbench_cli([
 	'.',
 	'--out',
 	inventory,
-	'--reports',
-	reports.join(','),
-	'--targets',
-	targets
+	...(ids_only ? [] : ['--reports', reports.join(','), '--targets', targets])
 ]);
+
+// The exemptions that name no function any more (./stale.ts), matched as the Heisenbench
+// checkout's gate matches them
+const { context_path } = (await import(
+	pathToFileURL(join(heisenbench, 'src', 'identity.ts')).href
+)) as { context_path: (id: string) => string };
+const exemptions = (JSON.parse(readFileSync(EXEMPT, 'utf8')) as { exempt: Exemption[] }).exempt;
+type Inventory = { functions: { id: string }[] };
+const read_inventory = (p: string) => JSON.parse(readFileSync(p, 'utf8')) as Inventory;
+const gone = gone_exemptions(exemptions, read_inventory(inventory), context_path);
+const gone_md = gone.length
+	? `
+**${gone.length} exemption${gone.length === 1 ? '' : 's'} naming no function any more.** Take each out of internal/heisenbench/unmeasured.json (its function was renamed, moved or deleted; a renamed one that is still unmeasured gets an exemption under its new id):
+
+${gone.map((e) => `- \`${e.id}\``).join('\n')}
+`
+	: '';
+for (const e of gone) log(`stale exemption: ${e.id}`);
+
+if (ids_only) {
+	const parts = [gone_md || '\nNo stale exemption.\n'];
+	if (values.base) {
+		const fresh = unexempted_new_functions(
+			read_inventory(inventory),
+			read_inventory(base_inventory_of(values.base)),
+			exemptions,
+			context_path
+		);
+		for (const f of fresh) log(`new, no exemption: ${f.id}`);
+		const lines = fresh.length
+			? [
+					`**${fresh.length} new function${fresh.length === 1 ? '' : 's'} no exemption names.** Each needs a bench, a unit test whose inputs replay, or an exemption, or the full gate fails on it:`,
+					'',
+					...fresh.map((f) => `- \`${f.id}\``)
+				]
+			: ['No new function without an exemption.'];
+		parts.push(['', ...lines, ''].join('\n'));
+	}
+	writeFileSync(join(out, 'gate.md'), parts.join(''));
+	log(
+		`ids only: ${gone.length} stale exemption(s); see ${relative(REPO_ROOT, join(out, 'gate.md'))}`
+	);
+	process.exit(gone.length ? 1 : 0);
+}
 
 // 3. the tests, recording the inputs of those functions
 const records = join(out, 'records');
@@ -188,50 +261,10 @@ if (existsSync(skipped)) {
 	writeFileSync(join(out, 'skipped.json'), `${JSON.stringify(ids)}\n`);
 	gate_args.push('--skipped', join(out, 'skipped.json'));
 }
-if (values.base) {
-	const base_root = mkdtempSync(join(tmpdir(), 'ogygia-base-'));
-	const files = source_files(values.base);
-	const tar = execFileSync('git', ['archive', '--format=tar', values.base, '--', ...files], {
-		cwd: REPO_ROOT,
-		maxBuffer: 1 << 30
-	});
-	execFileSync('tar', ['-x', '-C', base_root], { input: tar });
-	// A file moved since the base keeps its functions: the base's copy is read at its new path, so a
-	// move is not a crop of new functions (git's own rename detection decides what moved).
-	const moved = renames(values.base);
-	const base_files = files.map((f) => {
-		const to = moved.get(f);
-		if (to === undefined) return f;
-		mkdirSync(dirname(join(base_root, to)), { recursive: true });
-		renameSync(join(base_root, f), join(base_root, to));
-		return to;
-	});
-	const base_list = join(out, 'base-files.txt');
-	writeFileSync(base_list, `${base_files.join('\n')}\n`);
-	const base_inventory = join(out, 'base-inventory.json');
-	heisenbench_cli(['inventory', '--list', base_list, '--root', base_root, '--out', base_inventory]);
-	gate_args.push('--base-inventory', base_inventory);
-	rmSync(base_root, { recursive: true, force: true });
-}
+if (values.base) gate_args.push('--base-inventory', base_inventory_of(values.base));
 let status = heisenbench_cli(gate_args);
-// An exemption that names no function any more fails the gate (./stale.ts), matched as the
-// Heisenbench checkout's gate matches it
-const { context_path } = (await import(
-	pathToFileURL(join(heisenbench, 'src', 'identity.ts')).href
-)) as { context_path: (id: string) => string };
-const gone = gone_exemptions(
-	(JSON.parse(readFileSync(EXEMPT, 'utf8')) as { exempt: Exemption[] }).exempt,
-	JSON.parse(readFileSync(inventory, 'utf8')) as { functions: { id: string }[] },
-	context_path
-);
 if (gone.length) {
-	const md = `
-**${gone.length} exemption${gone.length === 1 ? '' : 's'} naming no function any more.** Take each out of internal/heisenbench/unmeasured.json (its function was renamed, moved or deleted; a renamed one that is still unmeasured gets an exemption under its new id):
-
-${gone.map((e) => `- \`${e.id}\``).join('\n')}
-`;
-	writeFileSync(join(out, 'gate.md'), md, { flag: 'a' });
-	for (const e of gone) log(`stale exemption: ${e.id}`);
+	writeFileSync(join(out, 'gate.md'), gone_md, { flag: 'a' });
 	status = 1;
 }
 if (process.env.GITHUB_STEP_SUMMARY) {

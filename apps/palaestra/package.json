@@ -12,6 +12,7 @@
 	},
 	"dependencies": {
 		"@ogygia/barrels": "workspace:*",
+		"@ogygia/page-keys": "workspace:*",
 		"devalue": "catalog:",
 		"ogygia": "workspace:*",
 		"repro-hole-css-kit": "workspace:*",
