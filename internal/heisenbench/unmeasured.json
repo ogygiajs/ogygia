@@ -5697,8 +5697,36 @@
 			"reason": "browser only: one pass over the page's frozen regions to rank a lake among those sharing its identity, linear in frozen regions (a handful per page); lake-restore-count.test.ts runs it"
 		},
 		{
-			"id": "packages/core/src/runtime/lakes.ts > restore > map:0~58cb32",
-			"reason": "browser only: one map entry per lifted lake, constant work per lake; lake-restore-count.test.ts runs it"
+			"id": "packages/core/src/runtime/lakes.ts > hold",
+			"reason": "browser only: once per island hydrate, one key per lake the island holds (a handful), nothing moved; lake-restore-count.test.ts runs it (#1675)"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > hold > map:0~d6bede",
+			"reason": "browser only: one key per held lake, constant work per lake; lake-restore-count.test.ts runs it (#1675)"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > hosted_lakes_of",
+			"reason": "browser only: one query of the island's frozen regions per hold and per release, linear in the island's elements; lake-restore-count.test.ts runs it (#1675)"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > hosted_lakes_of > filter:0~14818b",
+			"reason": "browser only: one closest() per frozen region in the island, depth-bounded; lake-restore-count.test.ts runs it (#1675)"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > release",
+			"reason": "browser only: once per island hydrate, settles and remembers each lake it holds (a handful); lake-restore-count.test.ts and lake-settled-on-restore.test.ts run it (#1675)"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > release > map:0~45dbf6",
+			"reason": "browser only: one map entry per held lake, constant work per lake; lake-restore-count.test.ts runs it (#1675)"
+		},
+		{
+			"id": "packages/core/src/runtime/slots.ts > slots > lakes > hold",
+			"reason": "the empty default before the lakes feature installs: returns an empty list, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/slots.ts > slots > lakes > release",
+			"reason": "the empty default before the lakes feature installs: does nothing, constant work"
 		},
 		{
 			"id": "packages/core/src/server/props-wire.ts > lake_identity",
