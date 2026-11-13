@@ -74,16 +74,16 @@ export const ANALYSES: readonly Analysis[] = [
 		name: 'context_mark',
 		predicts: 'whether the app provides ogygia context (the bridge feature)',
 		direction: 'over',
-		fallback: 'none: an unseen provider is a miss',
-		where: { file: 'link/context-detect.ts', symbol: 'source_uses_ogygia_context' },
+		fallback: 'all: a form the walk cannot narrow reaches every export',
+		where: { file: 'link/own-reach.ts', symbol: 'reaches_context' },
 		gap: ORACLE_GAPS
 	},
 	{
 		name: 'crosses_kit_wire',
 		predicts: "whether Kit's transport must carry ogygia codecs",
 		direction: 'over',
-		fallback: 'none: an unseen crossing is a miss',
-		where: { file: 'link/transport.ts', symbol: 'source_crosses_wire' },
+		fallback: 'all: a form the walk cannot narrow reaches every export',
+		where: { file: 'link/own-reach.ts', symbol: 'reaches_wire' },
 		gap: ORACLE_GAPS
 	},
 	{
