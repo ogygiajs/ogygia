@@ -95,8 +95,7 @@ import { assert_no_legacy_options, validate_region_presets, resolve_options } fr
 import {
 	clientBuildWillSkip,
 	hasAnyCsrFalseRoute,
-	is_route_file,
-	clear_route_csr_cache,
+	route_reader,
 	keep_client_dir,
 	inject_keep_client_route,
 	resolve_kit_paths,
@@ -104,6 +103,7 @@ import {
 	kit_dirs,
 	kit_inline_style_threshold
 } from '../compiler/kit.ts';
+import { node_fs } from '../compiler/fs.ts';
 import { load_kit_dirs } from './kit-dirs.ts';
 import {
 	buildFoucCssModuleSource,
@@ -632,7 +632,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						const routes = kit_dirs(r).routes_dir;
 						// `clientBuildWillSkip` ignores our own keepalive dir, so it reflects the user's
 						// real routes: inject only when Kit really would skip, else sweep any stale dir.
-						if (clientBuildWillSkip(routes)) {
+						if (clientBuildWillSkip(route_reader(node_fs), routes)) {
 							inject_keep_client_route(r);
 							arm_keep_client_cleanup(r);
 						} else {
@@ -987,7 +987,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// cms app shipped documents pointing at a runtime chunk that was never emitted).
 					const emit_runtime =
 						!standalone &&
-						(hasAnyCsrFalseRoute(kit_dirs(root).routes_dir) || compiler.has_hydrate_regions());
+						(hasAnyCsrFalseRoute(compiler.ctx.routes, kit_dirs(root).routes_dir) ||
+							compiler.has_hydrate_regions());
 					// The runtime entry (feature-selected) + one deterministic chunk per deduped hydrate
 					// region — the driver owns the naming + dedup; `this.emitFile` is the injected primitive.
 					// Gated on the SERVER leg's real module graph (link/emit-gate.ts): an island whose host
@@ -1063,11 +1064,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// graph, so without invalidation the SERVER leg keeps deciding island-vs-inline from a
 				// STALE set while Kit flips immediately — `<ogygia-region>` shells on a Kit-booted page
 				// with the runtime withheld = dead chrome (hit at a consumer after toggling `csr`).
-				if (is_dev && is_route_file(path.basename(id))) {
-					clear_route_csr_cache();
-					// (a plugin's key inside `export const config` add/flip changes the baked values too)
-					if (vite_server)
-						for (const mid of compiler.changed('routes')) invalidate_module_id(vite_server, mid);
+				if (is_dev) {
+					const ids = compiler.routes_changed(id, change.event);
+					if (vite_server) for (const mid of ids) invalidate_module_id(vite_server, mid);
 				}
 				// Unlink often skips handleHotUpdate; drop islands that still import the deleted file.
 				if (!is_dev || change.event !== 'delete' || !vite_server) return;
@@ -1321,11 +1320,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					emitFile: (chunk) => this.emitFile(chunk),
 					watch: (file) => this.addWatchFile(file)
 				});
-				// DEV: a host edit dropped its server islands from the manifest the handle already
-				// re-imported (empty of them); this transform just registered them again — invalidate the
-				// manifest once more so the NEXT endpoint request sees the ids (driver: server_manifest_stale).
-				if (is_dev && vite_server && compiler.server_manifest_stale())
-					for (const mid of compiler.changed('regions')) invalidate_module_id(vite_server, mid);
+				if (is_dev && vite_server)
+					for (const mid of compiler.moved()) invalidate_module_id(vite_server, mid);
 				// DEV: an island this transform registered (a file added while the server runs) pulled
 				// modules into the island world that the server may already hold transformed for a
 				// non-island importer — with Kit's real `$app/*`, which never boots on a csr=false page.

@@ -8,7 +8,6 @@
  * The transform cache is content-keyed (`hit.code === source`), so a changed source misses and
  * recomputes on its own; the linker's `unregister_host` deliberately does NOT clear it.
  */
-import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { cache, say } from '@ogygia/machine';
@@ -26,9 +25,9 @@ import {
 	routeCsrIsTrue,
 	hasAnyCsrTrueRoute,
 	clean_stale_ogygia_dirs,
-	clear_route_csr_cache,
 	is_route_component,
-	kit_dirs
+	kit_dirs,
+	type FileEvent
 } from './kit.ts';
 import { run_module_macros } from './macros/pipeline.ts';
 import { fn_manifest_entries } from './macros/dollar.ts';
@@ -50,7 +49,6 @@ import { by_key, location_map_files } from './link/location-map.ts';
 import { context_keys, source_uses_ogygia_context } from './link/context-detect.ts';
 import { router_css_roots } from './link/router-css.ts';
 import { source_crosses_wire } from './link/transport.ts';
-import { server_island_ids } from './link/server-manifest.ts';
 import type { SourceMap } from 'magic-string';
 import { relocate, relocations_of, type RelocateCx } from './link/relocations.ts';
 import { same_module_path, island_vpaths_affected_by_file } from './dev/hmr.ts';
@@ -85,6 +83,7 @@ import { is_generated_specifier } from './virtual/table.ts';
 import { OgygiaError, warn } from './messages.ts';
 import { new_leg, type BuildLeg } from './leg.ts';
 import type { Program, RegisterResult } from './program.ts';
+import type { FileFacts } from './scan-facts.ts';
 import type { CompileCtx } from './ctx.ts';
 
 /** A file-local transform result: the Vite `{ code, map }` plus the descriptors the linker registers. */
@@ -134,11 +133,19 @@ interface Build {
 	 *  prescan is never re-walked when a later island shares it. The build's, like the island graph
 	 *  it fills (test/watch-island-closure.test.ts). */
 	readonly island_closure_seen: Set<string>;
+	readonly virtuals: VirtualTable<CoreApp>;
 }
 const new_build = (program: Program): Build => ({
 	legs: new Map(),
 	begun: false,
 	program,
+	virtuals: new VirtualTable<CoreApp>(
+		CORE_VIRTUALS,
+		core_path,
+		CORE_VALUE_NAMES,
+		CORE_PARTS,
+		program.scan.db
+	),
 	transform_cache: new Map(),
 	dollar_hoists: new Map(),
 	scan: null,
@@ -240,6 +247,13 @@ function prescan_rel(
 ): string {
 	return (ctx.pkg_identity(full) ?? path.relative(ctx.root, full)).split(path.sep).join('/');
 }
+function scan_kind(name: string): 'svelte' | 'script' | null {
+	if (name.endsWith('.svelte')) return 'svelte';
+	if (SCAN_SCRIPT_RE.test(name) && !name.endsWith('.d.ts')) return 'script';
+	return null;
+}
+const SCAN_SCRIPT_RE = /\.(?:ts|js|mjs)$/;
+const REMOTE_FILE_RE = /\.remote\.[jt]s$/;
 
 /** First-party packages with a build half an app turns on by listing their plugin: importing one
  *  without the plugin is said once (packages/flags/test/inventory-build.test.ts). */
@@ -302,7 +316,7 @@ export class Compiler implements CoreApp {
 		if (!build.legs.has(name)) build.legs.set(name, new_leg(name, server));
 		if (build.begun) return false;
 		build.begun = true;
-		clear_route_csr_cache();
+		this.#ctx.routes.db.reread();
 		return true;
 	}
 
@@ -347,42 +361,99 @@ export class Compiler implements CoreApp {
 	}
 
 	/**
-	 * DEV: the server-island ids the last emitted `ogygia:server/server-manifest` carried. A HOST edit
-	 * drops its islands' rows (`invalidate_for_file`) and invalidates the manifest; Kit re-imports the
-	 * handle BEFORE the page transform re-registers them, so that manifest is emitted WITHOUT the ids —
-	 * and nothing re-invalidated it afterwards: every hole answered 403 until a restart. The adapter
-	 * asks `server_manifest_stale()` after each transform and invalidates again when a registered
-	 * server id is missing from this set. `null` until the first emit (nothing to compare).
+	 * DEV, after each transform: the virtual modules whose last load read something (the registry,
+	 * the marks, a fold over the files' scan facts) that has since changed, for the adapter to
+	 * invalidate. One rule for every reader: the server manifest emitted while a host's rows were
+	 * dropped for its edit (every hole answered 403 until a restart), the runtime entry chosen before
+	 * a page's first `idle` region (it never woke: test/dev-regions-reload.test.ts), and the wire
+	 * loaders, Kit's codecs and the router CSS roots read before a file's facts changed
+	 * (test/dev-scan-facts.test.ts).
 	 */
-	#emitted_server_ids: Set<string> | null = null;
-
-	/** True (once) when a server island registered since the last manifest emit — re-invalidate it. */
-	server_manifest_stale(): boolean {
-		const emitted = this.#emitted_server_ids;
-		if (!emitted) return false;
-		for (const id of server_island_ids(this.program)) {
-			if (!emitted.has(id)) {
-				this.#emitted_server_ids = null; // the next emit records the fresh set
-				return true;
-			}
-		}
-		return false;
+	moved(): string[] {
+		return this.#virtuals.moved();
 	}
-	note_server_ids(ids: Set<string>): void {
-		this.#emitted_server_ids = ids;
+
+	/** Register a transform's regions; in dev, note whether that moved what `regions` readers read. */
+	#register(result: TransformResult, host: string): void {
+		if (!this.#ctx!.is_dev) return this.program.register(result, host);
+		const before = this.#regions_print(host);
+		this.program.register(result, host);
+		if (this.#regions_print(host) !== before) this.#virtuals.move('regions');
+	}
+
+	/**
+	 * One file's scan facts: what the prescan reads of every file, and the dev transform reads again of
+	 * the file it transforms (a file added or edited while dev runs). Replaces the file's old facts
+	 * (`src` null: a deleted file has none). The marks only grow: a feature too many is safe.
+	 */
+	#scan_facts(full: string, src: string | null, kind: 'svelte' | 'script'): readonly string[] {
+		const ctx = this.#ctx;
+		const { runtime_marks, scan } = this.program;
+		const dev = ctx.is_dev;
+		const marks_before = dev ? JSON.stringify(runtime_marks) : '';
+		let specs: string[] = [];
+
+		if (src === null) scan.set(full, null);
+		else {
+			const remote = kind === 'script' && REMOTE_FILE_RE.test(full);
+			specs = extract_module_specs(src);
+			const page_importers = ctx.page_importers;
+			const facts: FileFacts = {
+				crosses_wire: remote || source_crosses_wire(src),
+				transportable:
+					kind === 'svelte'
+						? svelteModuleHasTransportable(src, full)
+						: moduleHasTransportable(src, full),
+				specs,
+				router:
+					(page_importers.length > 0 && specs.some((s) => page_importers.includes(s))) ||
+					ctx.page_files.includes(full)
+			};
+			scan.set(full, facts);
+			if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
+			if (remote) runtime_marks.remoteSeeds = true;
+			if (facts.transportable) runtime_marks.wire = true;
+		}
+
+		if (dev && JSON.stringify(runtime_marks) !== marks_before) this.#virtuals.move('regions');
+		return specs;
+	}
+
+	/** How the prescan's walk reads `id`: the app's `src/` and the declared package surfaces, minus
+	 *  `node_modules` and generated island dirs beneath them. Null: the walk never reaches it. */
+	#scans(id: string): 'svelte' | 'script' | null {
+		const ctx = this.#ctx!;
+		const kind = scan_kind(id);
+		if (!kind || !path.isAbsolute(id)) return null;
+		const posix_id = id.split(path.sep).join('/');
+		const src_dir = `${path.join(ctx.root, 'src').split(path.sep).join('/')}/`;
+		let rest: string;
+		if (posix_id.startsWith(src_dir)) rest = posix_id.slice(src_dir.length);
+		else if (ctx.in_declared_pkg(posix_id)) {
+			const dir = ctx.pkg_scan.flatMap((p) => p.dirs).find((d) => posix_id.startsWith(`${d}/`));
+			rest = dir === undefined ? '' : posix_id.slice(dir.length + 1);
+		} else return null;
+		const segments = rest.split('/').slice(0, -1);
+		return segments.includes('node_modules') || segments.includes(ISLAND_DIR) ? null : kind;
+	}
+
+	/** The marks and one host's rows, as text (dev only: the change check above). */
+	#regions_print(host: string): string {
+		const { registry, host_index, runtime_marks } = this.program;
+		const rows = [...(host_index.get(host_key(host))?.vpaths ?? [])].sort().map((vpath) => {
+			const e = registry.get(vpath);
+			return [vpath, e?.hostPath, e?.server, e?.source, e?.ssrSource, e?.clientSource];
+		});
+		return JSON.stringify([runtime_marks, rows]);
 	}
 	readonly #ctx: CompileCtx;
 	/** The resolved compile context (the bundler's resolved config, read once it is resolved). */
 	get ctx(): CompileCtx {
 		return this.#ctx;
 	}
-	/** Every virtual module this session serves (./virtual/table.ts). */
-	readonly #virtuals = new VirtualTable<CoreApp>(
-		CORE_VIRTUALS,
-		core_path,
-		CORE_VALUE_NAMES,
-		CORE_PARTS
-	);
+	get #virtuals(): VirtualTable<CoreApp> {
+		return this.#build.virtuals;
+	}
 	/** The app's Kit routes directory (a virtual module that reads it reloads on a route change). */
 	routes_dir(): string {
 		return kit_dirs(this.#ctx.root).routes_dir;
@@ -405,9 +476,74 @@ export class Compiler implements CoreApp {
 		return this.#virtuals.split_realm_imports(code);
 	}
 	/** A dev change to a part of the session: the resolved ids of the virtual modules whose last load
-	 *  read it, for the caller to invalidate. */
+	 *  read it (or anything else that has moved), for the caller to invalidate. */
 	changed(part: Part): string[] {
-		return this.#virtuals.bump(part);
+		this.#virtuals.move(part);
+		return this.#virtuals.moved();
+	}
+
+	/**
+	 * DEV: a file was added, changed or removed. What the route answers read of it is read again
+	 * (`Routes.touch`); when none of that changed, nothing is invalidated. Else the ids to invalidate
+	 * are the virtual modules that read the routes AND every module compiled for a csr world that is
+	 * no longer its own: a host compiled for csr=true has its marks stripped, so a page that became
+	 * csr=false kept no regions until a restart (test/dev-csr-change.test.ts). Its old rows go now;
+	 * its next transform registers anew.
+	 */
+	routes_changed(file: string, event: FileEvent): string[] {
+		if (!this.#ctx.routes.touch(file, event)) return [];
+		const out = new Set(this.changed('routes'));
+		const invalidate = (id: string) => out.add(id);
+		for (const [k, w] of this.#worlds) {
+			if (this.#csr_world(w.id, w.ssr, w.link).key === w.key) continue;
+			this.#worlds.delete(k);
+			if (this.is_registered_host(w.id)) this.invalidate_for_file(w.id, { invalidate });
+			out.add(w.id);
+		}
+		return [...out];
+	}
+
+	/** DEV: each module's csr world as last compiled, by leg and id (`routes_changed`). */
+	readonly #worlds = new Map<
+		string,
+		{ id: string; ssr: boolean; link: boolean | undefined; key: string }
+	>();
+
+	/**
+	 * The csr world a module is compiled for, on one leg: whether it links the real region modules
+	 * (`link_virtual`), its route's csr (`route_csr`), and both as a cache key.
+	 *
+	 * A csr=false CLIENT host does not link the real wrappers (or the hydrate entries they pull in):
+	 * Kit still emits its page node, and sharing that module with the page graph makes Rolldown emit
+	 * thin `og-region.*` facades. SSR links them for the HTML, and a csr=true client links them so Kit
+	 * hydrates the regions as plain components. A csr=false LAYOUT links them too when the app has a
+	 * csr=true route: Kit hydrates that layout under a csr=true child page.
+	 *
+	 * `route_csr`: true for a csr=true route host (its marks are stripped so Kit compiles the
+	 * components inline), false for a csr=false one, undefined for a module that is not a route host
+	 * (its csr is the page that renders it, read at run time by `documentIsCsrTrue`).
+	 */
+	#csr_world(
+		id: string,
+		ssr: boolean,
+		link_override: boolean | undefined
+	): { link_virtual: boolean; route_csr: boolean | undefined; key: string } {
+		const ctx = this.#ctx;
+		const routesDir = kit_dirs(ctx.root).routes_dir;
+		const is_layout_host = is_route_component(path.basename(id), 'layout');
+		const link_virtual =
+			link_override !== undefined
+				? link_override
+				: ssr ||
+					!routeCsrIsFalse(ctx.routes, id, routesDir) ||
+					(is_layout_host && hasAnyCsrTrueRoute(ctx.routes, routesDir));
+		const route_csr = routeCsrIsTrue(ctx.routes, id, routesDir)
+			? true
+			: routeCsrIsFalse(ctx.routes, id, routesDir)
+				? false
+				: undefined;
+		const key = `${link_virtual ? '1' : '0'}\0${route_csr === true ? 't' : route_csr === false ? 'f' : 'n'}`;
+		return { link_virtual, route_csr, key };
 	}
 
 	/** A compile session, made once the bundler has resolved the build (`ctx`): nothing runs before
@@ -423,7 +559,6 @@ export class Compiler implements CoreApp {
 	with_ctx(ctx: CompileCtx): Compiler {
 		const next = new Compiler(this.program, this.profiler, ctx);
 		next.#build = this.#build;
-		next.#emitted_server_ids = this.#emitted_server_ids;
 		return next;
 	}
 
@@ -488,7 +623,7 @@ export class Compiler implements CoreApp {
 			linkVirtual: true
 		}) as TransformResult | null;
 		if (!result || !result.islands?.length) return null;
-		this.program.register(result, filename);
+		this.#register(result, filename);
 		return result.code;
 	}
 
@@ -535,42 +670,14 @@ export class Compiler implements CoreApp {
 		const ctx = this.#ctx;
 		const { prof, P, outHash } = this.profiler;
 		const ssr = opts.ssr !== false;
-		// Scale: csr=false CLIENT hosts must not statically import portable wrappers (or the
-		// hydrate entries those wrappers pull in). Kit still emits those page nodes; sharing
-		// the emitFile module with the page graph forces Rolldown thin `og-region.*`
-		// facades. SSR keeps real wrappers for HTML; csr=true client keeps them so Kit can
-		// hydrate islands as normal components. Hydration always uses `import(entry)`.
-		const routesDir = kit_dirs(ctx.root).routes_dir;
-		// A csr=false LAYOUT can wrap a csr=true child page — there Kit hydrates the layout, so its
-		// chrome islands must be REAL wrappers on the client (Region degrades them inline via
-		// `documentIsCsrTrue`), NOT the thin stub. Only when the app actually has a csr=true route,
-		// and only for `+layout.svelte` hosts (bounded chrome, unlike N page islands).
-		const is_layout_host = is_route_component(path.basename(id), 'layout');
-		const link_virtual =
-			opts.linkVirtual !== undefined
-				? opts.linkVirtual
-				: ssr ||
-					!routeCsrIsFalse(id, routesDir) ||
-					(is_layout_host && hasAnyCsrTrueRoute(routesDir));
-		// Tri-state route csr, threaded into the transform (see transformHost's routeCsr branch):
-		//   true  → csr=true route host: ogygia steps aside — strip the host's island directives to
-		//           plain so Kit compiles + hydrates them inline.
-		//   false → csr=false route host: keep islands (the normal island transform).
-		//   undefined → not a route host (shared lib component): its csr depends on the page that
-		//           renders it, so it keeps its islands.
-		// The inline-vs-island choice itself is decided at RUNTIME by `documentIsCsrTrue` (context.ts) —
-		// one fact read identically on both legs — which replaced the old per-host CSR_TRUE_KEY marker +
-		// csr=false reset cascade. `route_csr` still drives the compile-time strip/link decisions below.
-		const route_csr = routeCsrIsTrue(id, routesDir)
-			? true
-			: routeCsrIsFalse(id, routesDir)
-				? false
-				: undefined;
+		const { link_virtual, route_csr, key } = this.#csr_world(id, ssr, opts.linkVirtual);
+		if (ctx.is_dev)
+			this.#worlds.set(`${ssr ? 's' : 'c'}\0${id}`, { id, ssr, link: opts.linkVirtual, key });
 		// `ssr` joins the key because transformHost output legitimately differs by pass — the client
 		// build side-effect-imports fouc-css for a lake binding (its scoped CSS is on no client chunk),
 		// the SSR build must not. Without `ssr` here a layout+csr=true host (where ssr and client share
 		// `link_virtual`) would reuse the SSR result on the client and drop that CSS link.
-		const cache_key = `${id}\0${ssr ? 's' : 'c'}\0${link_virtual ? '1' : '0'}\0${route_csr === true ? 't' : route_csr === false ? 'f' : 'n'}`;
+		const cache_key = `${id}\0${ssr ? 's' : 'c'}\0${key}`;
 		const hit = this.transform_cache.get(cache_key);
 		if (hit && hit.code === source) {
 			if (P) prof.transformHit++;
@@ -642,20 +749,15 @@ export class Compiler implements CoreApp {
 		const ctx = this.#ctx;
 		const { prof, P } = this.profiler;
 		const program = this.program;
-		const { registry, island_graph, transportable_modules, runtime_marks } = program;
+		const { registry, island_graph, runtime_marks } = program;
 		const root = ctx.root;
 
 		const src_dir = path.join(root, 'src');
 		clean_stale_ogygia_dirs(src_dir);
-		// PAGE MODULES (`b.pageModules({ importers })`): a module importing one of these specifiers renders
-		// pages outside Kit's routes — a router-css root (link/router-css.ts).
-		const page_importers = ctx.page_importers;
-		const imports_page_spec = (specs: string[]): boolean =>
-			page_importers.length > 0 && specs.some((s) => page_importers.includes(s));
 		// PLUGIN READERS (`b.prescan`): each module importing what one asked for is handed to it; a
 		// first-party package imported with its plugin not listed is noted, and said at the end.
 		const unlisted = new Map<string, string>();
-		const read_for_plugins = (full: string, src: string, specs: string[]) => {
+		const read_for_plugins = (full: string, src: string, specs: readonly string[]) => {
 			for (const hook of ctx.prescans)
 				if (specs.some((s) => hook.imports.includes(s)))
 					hook.module({ file: full, rel: prescan_rel(ctx, full), code: src });
@@ -669,64 +771,29 @@ export class Compiler implements CoreApp {
 				warn('region_context_key_one_off', { file: path.relative(root, full), key });
 		};
 		const scan_file = (full: string, name: string) => {
-			if (name.endsWith('.svelte')) {
-				const src = ctx.read_file(full);
-				if (src == null) return;
-				if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
-				say_one_off_keys(full, src, 'svelte');
-				if (!program.crosses_wire && source_crosses_wire(src)) program.crosses_wire = true;
-				{
-					// Router-css closure data: this module's import specs + whether it is a page module.
-					const specs = extract_module_specs(src);
-					if (specs.length) program.module_specs.set(full, specs);
-					if (imports_page_spec(specs)) program.router_modules.add(full);
-					read_for_plugins(full, src, specs);
-				}
-				// A `<script module>` transportable class goes in the manifest too (keyed by the
-				// .svelte path — side-effect-importing the component runs its module registration).
-				if (svelteModuleHasTransportable(src, full)) transportable_modules.add(full);
+			const kind = scan_kind(name);
+			if (!kind) return;
+			const src = ctx.read_file(full);
+			if (src == null) return;
+			say_one_off_keys(full, src, kind);
+			read_for_plugins(full, src, this.#scan_facts(full, src, kind));
+			if (kind === 'svelte') {
 				const result = this.transform(src, full);
 				if (result) program.register(result, full);
-			} else if (
-				(name.endsWith('.ts') || name.endsWith('.js') || name.endsWith('.mjs')) &&
-				!name.endsWith('.d.ts')
-			) {
+			} else {
 				// `.ts` / `.js` region mints (load / remote functions). Discover them up front so a
 				// deferred region's server-manifest entry exists before the endpoint is ever hit —
 				// lazy transform order would otherwise leave the id missing (403 on first fetch).
-				const src = ctx.read_file(full);
-				if (src == null) return;
-				if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
-				say_one_off_keys(full, src, 'script');
-				const remote = name.endsWith('.remote.ts') || name.endsWith('.remote.js');
-				// A remote query's SSR result can only be seeded where the app HAS a remote function.
-				if (remote) runtime_marks.remoteSeeds = true;
-				if (!program.crosses_wire && (remote || source_crosses_wire(src)))
-					program.crosses_wire = true;
-				{
-					// Router-css closure data: this module's import specs + whether it is a page module.
-					const specs = extract_module_specs(src);
-					if (specs.length) program.module_specs.set(full, specs);
-					if (imports_page_spec(specs)) program.router_modules.add(full);
-					read_for_plugins(full, src, specs);
-				}
-				// Transportable classes go into the eager-registration manifest so an island
-				// receiving one as a prop never has to import the class itself.
-				if (moduleHasTransportable(src, full)) transportable_modules.add(full);
 				const result = this.ts_regions(src, full);
 				if (result) program.register(result, full);
 			}
 		};
 		const walk = (dir: string) => {
-			let entries;
-			try {
-				entries = fs.readdirSync(dir, { withFileTypes: true });
-			} catch {
-				return;
-			}
+			const entries = ctx.fs.list(dir);
+			if (entries === null) return;
 			for (const entry of entries) {
 				const full = path.join(dir, entry.name);
-				if (entry.isDirectory()) {
+				if (entry.kind === 'dir') {
 					if (entry.name === 'node_modules' || entry.name === ISLAND_DIR) continue;
 					walk(full);
 				} else {
@@ -753,12 +820,14 @@ export class Compiler implements CoreApp {
 			// Page modules named by path (`b.pageModules({ files })`): roots whatever they import. One the
 			// walks above did not reach still needs its import specs for the closure.
 			for (const f of ctx.page_files) {
-				program.router_modules.add(f);
-				if (!program.module_specs.has(f)) {
-					const src = ctx.read_file(f);
-					const specs = src == null ? [] : extract_module_specs(src);
-					if (specs.length) program.module_specs.set(f, specs);
-				}
+				if (program.scan.has(f)) continue;
+				const src = ctx.read_file(f);
+				program.scan.set(f, {
+					crosses_wire: false,
+					transportable: false,
+					specs: src == null ? [] : extract_module_specs(src),
+					router: true
+				});
 			}
 			if (P) prof.prescanMs += performance.now() - __ps;
 		}
@@ -825,9 +894,6 @@ export class Compiler implements CoreApp {
 			}
 		}
 
-		// A transportable class (`static wire = import.meta.og.wire(…)`) means island props can carry a
-		// live wired object, revived through the wire codec — so this app needs the wire runtime.
-		if (transportable_modules.size > 0) runtime_marks.wire = true;
 		// The page seed and the MPA navigation handle are for island code that reaches Kit's page world
 		// (the closure walk above). Islands the walk never saw count as readers: a federated peer's,
 		// hydrated by this app's runtime against this page, and whatever a plugin's browser half wakes.
@@ -900,20 +966,10 @@ export class Compiler implements CoreApp {
 		const resolve_dep = (spec: string, importerAbs: string): string | null => {
 			const base = resolveFoucImportSpec(spec, importerAbs, ctx.libDir, aliases);
 			if (!base) return null; // a bare package specifier — the lazy resolveId marking is the backstop
-			for (const ext of ISLAND_DEP_EXTS) {
-				try {
-					if (fs.statSync(base + ext).isFile()) return base + ext;
-				} catch {
-					// ok: not this extension; the next is tried
-				}
-			}
+			for (const ext of ISLAND_DEP_EXTS) if (ctx.fs.stat(base + ext) === 'file') return base + ext;
 			for (const ext of ISLAND_DEP_EXTS.slice(1)) {
 				const idx = path.join(base, `index${ext}`);
-				try {
-					if (fs.statSync(idx).isFile()) return idx;
-				} catch {
-					// ok: not an index; the next is tried
-				}
+				if (ctx.fs.stat(idx) === 'file') return idx;
 			}
 			return null;
 		};
@@ -982,11 +1038,7 @@ export class Compiler implements CoreApp {
 			if (!p) return;
 			const abs = strip_id(p);
 			if (!SOURCE_EXT_RE.test(abs)) return; // only what the scanner can parse
-			try {
-				if (fs.statSync(abs).isFile()) out.add(abs);
-			} catch {
-				// ok: a virtual id or a vanished file is not a crawl root
-			}
+			if (this.#ctx.fs.stat(abs) === 'file') out.add(abs);
 		};
 		for (const entry of registry.values()) {
 			if (entry.role !== 'entry' || entry.server) continue;
@@ -1027,7 +1079,12 @@ export class Compiler implements CoreApp {
 		// directly (the profiler's router). The walk's recursion is bounded by prescanned module_specs,
 		// so profiler-router's type-import of `./index.js` dead-ends instead of dragging the host graph in.
 		const roots = new Set(
-			router_css_roots(this.program.router_modules, this.program.module_specs, ctx.libDir)
+			router_css_roots(
+				this.program.router_modules,
+				this.program.module_specs,
+				ctx.libDir,
+				(p) => ctx.fs.stat(p) === 'file'
+			)
 		);
 		const sorted = [...roots].sort();
 		if (ctx.is_build) build.router_css_roots = sorted;
@@ -1443,25 +1500,29 @@ export class Compiler implements CoreApp {
 	 *  csr=true route (Kit can hydrate that layout: a csr=true child page, or an error render). */
 	#links_client_stub(importer: string): boolean {
 		const importer_abs = strip_id(importer);
-		const routes_dir = kit_dirs(this.#ctx.root).routes_dir;
+		const { root, routes } = this.#ctx;
+		const routes_dir = kit_dirs(root).routes_dir;
 		if (!importer_abs.startsWith(routes_dir + path.sep)) return false;
 		const base = path.basename(importer_abs);
 		if (is_route_component(base, 'layout'))
-			return routeCsrIsFalse(importer_abs, routes_dir) && !hasAnyCsrTrueRoute(routes_dir);
-		return is_route_component(base, 'page') && routeCsrIsFalse(importer_abs, routes_dir);
+			return (
+				routeCsrIsFalse(routes, importer_abs, routes_dir) && !hasAnyCsrTrueRoute(routes, routes_dir)
+			);
+		return is_route_component(base, 'page') && routeCsrIsFalse(routes, importer_abs, routes_dir);
 	}
 
 	#is_csr_false_route_host(importer: string): boolean {
 		const importer_abs = strip_id(importer);
-		const routes_dir = kit_dirs(this.#ctx.root).routes_dir;
+		const { root, routes } = this.#ctx;
+		const routes_dir = kit_dirs(root).routes_dir;
 		if (!importer_abs.startsWith(routes_dir + path.sep)) return false;
 		const base = path.basename(importer_abs);
 		// a route component (`+page.svelte`, `+page.md`, …) is its own host
 		if (is_route_component(base, 'page') || is_route_component(base, 'layout'))
-			return routeCsrIsFalse(importer_abs, routes_dir);
+			return routeCsrIsFalse(routes, importer_abs, routes_dir);
 		const m = ROUTE_HOST_FILE_RE.exec(base);
 		if (!m) return false;
-		return routeCsrIsFalse(path.join(importer_abs, '..', `+${m[1]}.svelte`), routes_dir);
+		return routeCsrIsFalse(routes, path.join(importer_abs, '..', `+${m[1]}.svelte`), routes_dir);
 	}
 
 	/** `source` resolved from `importer` to a local `.ts`/`.js` file on disk, or `null` (virtuals,
@@ -1495,7 +1556,7 @@ export class Compiler implements CoreApp {
 		}
 		if (!resolved?.id || resolved.id.startsWith('\0')) return null;
 		const target = strip_id(resolved.id);
-		if (!TS_REGISTRY_EXT_RE.test(target) || !fs.existsSync(target)) return null;
+		if (!TS_REGISTRY_EXT_RE.test(target) || this.#ctx.fs.stat(target) === null) return null;
 		// Kit owns these on the client: a `.remote.ts` becomes Kit's fetch stub there (its imports
 		// never reach the client graph, and Kit keys its metadata on the exact file id), and a
 		// server-only module is refused outright. Neither may fork, and neither leads anywhere.
@@ -1647,6 +1708,10 @@ export class Compiler implements CoreApp {
 		// server leg of a build: this module is in the server bundle's real graph (see
 		// Program.ssr_transformed / link/emit-gate.ts)
 		if (ssr && ctx.is_build) program.ssr_transformed.add(host_key(id_n));
+		if (ctx.is_dev && is_script_request(id)) {
+			const kind = this.#scans(id_n);
+			if (kind) this.#scan_facts(path.normalize(id_n), code, kind);
+		}
 
 		// SEED SHAPING: a module that imports Kit's page store is read ONCE here, on the compiler's
 		// parsers, for the top-level `page.data` keys it can reach (link/page-keys.ts). Recorded by
@@ -1727,7 +1792,7 @@ export class Compiler implements CoreApp {
 			// stayed un-rewritten and exploded at runtime as `undefined.code`).
 			const result = this.transform(out, id_n, { ssr }) as TransformResult | null;
 			if (result) {
-				program.register(result, id_n);
+				this.#register(result, id_n);
 				this.#mark_registered_closures(result);
 				out = result.code;
 				chain.step(result_map(result));
@@ -1782,7 +1847,7 @@ export class Compiler implements CoreApp {
 		if (nm_ts !== null && (nm_ts === false || ctx.in_declared_pkg(id_n)) && !is_island_path(id_n)) {
 			const result = this.ts_regions(out, id_n) as TransformResult | null;
 			if (result) {
-				program.register(result, id_n);
+				this.#register(result, id_n);
 				this.#mark_registered_closures(result);
 				if (ctx.is_build && ssr) this.#emit_late_server_regions(leg, emitFile, result);
 				out = result.code;
@@ -1902,6 +1967,9 @@ export class Compiler implements CoreApp {
 		}
 
 		if (deleted) {
+			const kind = this.#scans(file);
+			if (kind) this.#scan_facts(path.normalize(file), null, kind);
+			for (const id of this.moved()) invalidate(id);
 			// (a copy: the loop deletes from the registry)
 			for (const [vpath, entry] of Array.from(registry.entries())) {
 				if (!same_module_path(entry.componentPath, file)) continue;
@@ -1921,7 +1989,7 @@ export class Compiler implements CoreApp {
 		if (affected.size === 0) return false;
 
 		for (const vpath of affected) invalidate(vpath);
-		for (const id of this.#virtuals.bump('regions')) invalidate(id);
+		for (const id of this.changed('regions')) invalidate(id);
 		return true;
 	}
 }
