@@ -353,6 +353,19 @@ export function standalone_beacon(): void {
 		}
 		return -1;
 	}
+	/** Where the comment or bogus comment at `lt` ends, as the browser ends it: a `<!--` one at
+	 *  `-->` or `--!>`, or at once for `<!-->` and `<!--->`; any other at its first `>`. -1 when
+	 *  the markup ends inside it. */
+	function comment_end(s: string, lt: number): number {
+		if (!s.startsWith('<!--', lt)) return s.indexOf('>', lt) + 1 || -1;
+		if (s[lt + 4] === '>') return lt + 5;
+		if (s.startsWith('->', lt + 4)) return lt + 6;
+		for (let i = s.indexOf('--', lt + 4); i !== -1; i = s.indexOf('--', i + 1)) {
+			if (s[i + 2] === '>') return i + 3;
+			if (s[i + 2] === '!' && s[i + 3] === '>') return i + 4;
+		}
+		return -1;
+	}
 	/** Where the name of the tag at `at` (just past its `<` or `</`) ends. */
 	function tag_name_end(s: string, at: number): number {
 		while (at < s.length && s[at] !== '>' && s[at] !== '/' && !SPACE.includes(s[at])) at++;
@@ -400,7 +413,8 @@ export function standalone_beacon(): void {
 		return out;
 	}
 	/** `s` cut at its tags, as core's `markup_tokens` cuts it: kind (0 text, 1 start tag, 2 end tag,
-	 *  3 a bogus comment), start, end, where a tag's name ends; four numbers per piece. */
+	 *  3 a comment), start, end, where a tag's name ends, and 1 for a raw-text element's text (else
+	 *  0); five numbers per piece. */
 	function pieces(s: string): number[] {
 		const out: number[] = [];
 		const n = s.length;
@@ -419,11 +433,11 @@ export function standalone_beacon(): void {
 				continue;
 			}
 			const ne = kind === 3 ? lt : tag_name_end(s, lt + kind);
-			const end = kind === 3 ? s.indexOf('>', lt) + 1 || -1 : tag_end(s, lt);
+			const end = kind === 3 ? comment_end(s, lt) : tag_end(s, lt);
 			// (the markup ends inside the tag: the rest is text, as core's walk leaves it)
 			if (end === -1) break;
-			if (lt > i) out.push(0, i, lt, i);
-			out.push(kind, lt, end, ne);
+			if (lt > i) out.push(0, i, lt, i, 0);
+			out.push(kind, lt, end, ne, 0);
 			i = end;
 			const raw = kind === 1 ? tag_name(s, lt + 1, ne) : '';
 			if (raw === 'plaintext') i = n;
@@ -442,10 +456,10 @@ export function standalone_beacon(): void {
 				}
 				i = close === -1 ? n : close;
 			}
-			if (i > end) out.push(0, end, i, end);
+			if (i > end) out.push(0, end, i, end, 1);
 			lt = s.indexOf('<', i);
 		}
-		if (i < n) out.push(0, i, n, i);
+		if (i < n) out.push(0, i, n, i, 0);
 		return out;
 	}
 	function attr_changes(a: string, b: string): AttrChange[] | null {
@@ -453,7 +467,7 @@ export function standalone_beacon(): void {
 		const pb = pieces(b);
 		if (pa.length !== pb.length) return null;
 		const out: AttrChange[] = [];
-		for (let k = 0; k < pa.length; k += 4) {
+		for (let k = 0; k < pa.length; k += 5) {
 			const kind = pa[k];
 			if (kind !== pb[k]) return null;
 			if (a.slice(pa[k + 1], pa[k + 2]) === b.slice(pb[k + 1], pb[k + 2])) continue;
@@ -471,21 +485,23 @@ export function standalone_beacon(): void {
 		return out;
 	}
 	function bare(html: string): string {
-		let at = html.indexOf('<!--');
-		if (at !== -1) {
+		if (html.includes('<!--')) {
+			const p = pieces(html);
 			let out = '';
-			let from = 0;
-			while (at !== -1) {
-				out += html.slice(from, at);
-				const end = html.indexOf('-->', at + 4);
-				if (end === -1) {
-					from = html.length;
-					break;
+			for (let k = 0; k < p.length; k += 5) {
+				const start = p[k + 1];
+				if (p[k] === 3 && html.startsWith('<!--', start)) continue;
+				if (p[k] === 0 && p[k + 4] === 0) {
+					// markup-ok: core's without_comments, copied: an unclosed comment runs to the end
+					const open = html.indexOf('<!--', start);
+					if (open !== -1 && open < p[k + 2]) {
+						out += html.slice(start, open);
+						break;
+					}
 				}
-				from = end + 3;
-				at = html.indexOf('<!--', from);
+				out += html.slice(start, p[k + 2]);
 			}
-			html = `${out}${html.slice(from)}`;
+			html = out;
 		}
 		for (const m of [
 			' data-nested=""',
