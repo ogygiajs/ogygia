@@ -242,11 +242,13 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## HTML sinks: markup written into a page as markup
 
-20 entries.
+22 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
+| `packages/compiler/src/compiler/messages.ts` | `BUILD_ERRORS` | `{@html}` | 1 |
 | `packages/compiler/src/compiler/ownership-stamps.ts` | `(module)` | `{@html}` | 1 |
+| `packages/compiler/src/compiler/region/marked-imports.ts` | `misuse_of` | `{@html}` | 1 |
 | `packages/content/src/markdown/region-emit.ts` | `FENCE_EMBED_RE` | `{@html}` | 1 |
 | `packages/content/src/markdown/region-emit.ts` | `try_region_emit` | `{@html}` | 1 |
 | `packages/content/src/markdown/shiki.ts` | `escape_svelte` | `{@html}` | 1 |
