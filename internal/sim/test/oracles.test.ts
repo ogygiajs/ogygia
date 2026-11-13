@@ -966,6 +966,34 @@ describe('page errors', () => {
 		expect(document_faulted(world, t)).toBe(true);
 		expect(faulted(world, t)).toBe(true);
 	});
+
+	it("a mounted peer page that failed only because the peer's first origin was down is no fault: the app owes the next origin's answer (a mutant that never asked it survived)", () => {
+		const world = (hop: Record<string, unknown>) =>
+			({
+				fired_in: new Map(),
+				network: {
+					exchanges: [
+						{ id: 1, from: 'tab-0#2', url: 'https://app.test/peer/q0', status: 502 },
+						{
+							id: 2,
+							from: 'server-1',
+							for: 'tab-0#2',
+							url: 'https://peer.test/og/fragment/page?path=%2Fq0',
+							...hop
+						}
+					].map((e) => ({ method: 'GET', cut: false, tampered: false, redirected: false, ...e }))
+				}
+			}) as unknown as World;
+		const t = {
+			realm: 'tab-0#2',
+			name: 'tab-0',
+			documents: 2,
+			page: { mainFrame: { url: 'https://app.test/peer/q0' } }
+		} as unknown as Parameters<typeof faulted>[1];
+		expect(faulted(world({ status: 503, down: true }), t)).toBe(false);
+		expect(faulted(world({ status: 'dropped' }), t)).toBe(true);
+		expect(faulted(world({ status: 503, down: true, method: 'POST' }), t)).toBe(true);
+	});
 });
 
 describe('leaks', () => {
@@ -1217,7 +1245,8 @@ describe("a mounted peer's page answers as the peer did", () => {
 	const judged = async (
 		body: string,
 		wire: Array<[string, number | 'dropped', string?]> = [],
-		at = '/peer/q0'
+		at = '/',
+		mount: 'router' | 'kit' = 'kit'
 	) => {
 		const { Window } = await import('happy-dom');
 		const w = new Window({ url: `https://app.test${at}` });
@@ -1244,7 +1273,7 @@ describe("a mounted peer's page answers as the peer did", () => {
 				}))
 			}
 		} as unknown as Parameters<typeof peer_answers>[1];
-		return peer_answers(tab, world, 0);
+		return peer_answers(tab, world, 0, mount);
 	};
 
 	it("finds a page the peer lacks answered as found, and one that moved answered where it was (a mutant that lost the peer's status survived)", async () => {
@@ -1252,6 +1281,49 @@ describe("a mounted peer's page answers as the peer did", () => {
 		expect((await judged('', [['/peer/moved', 200]]))?.oracle).toBe('peer-answers');
 		expect(await judged('', [['/peer/gone', 404]])).toBeNull();
 		expect(await judged('', [['/peer/moved', 307]])).toBeNull();
+	});
+
+	it("finds one of the peer's own pages answered as a redirect (a mutant that made every exposed page a redirect survived)", async () => {
+		expect((await judged('', [['/peer/q0', 307]]))?.oracle).toBe('peer-answers');
+		expect((await judged('', [['/peer/q12', 404]]))?.oracle).toBe('peer-answers');
+		expect(await judged('', [['/peer/q0', 200]])).toBeNull();
+		expect(await judged('', [['/peer/q0/deeper', 307]])).toBeNull();
+	});
+
+	it('finds one the peer refuses not answered as refused (a mutant that took a 400 for a redirect, or for no error, survived)', async () => {
+		expect((await judged('', [['/peer/bad', 200]], '/peer/bad'))?.oracle).toBe('peer-answers');
+		expect((await judged('', [['/peer/bad', 303]], '/peer/bad'))?.oracle).toBe('peer-answers');
+		expect(await judged('', [['/peer/bad', 400]], '/peer/bad')).toBeNull();
+	});
+
+	it("finds one of the peer's own pages showing none of it, and a missing one not saying the peer's title (a mutant that made every exposed page an empty redirect, and one that lost the title, survived)", async () => {
+		const page = '<main data-gen="peer-page"><h1>peer /q0</h1></main>';
+		expect((await judged('<p>moved</p>', [['/peer/q0', 200]], '/peer/q0'))?.oracle).toBe(
+			'peer-answers'
+		);
+		expect(await judged(page, [['/peer/q0', 200]], '/peer/q0')).toBeNull();
+		expect(
+			(await judged('<p>This section is unavailable.</p>', [['/peer/gone', 404]], '/peer/gone'))
+				?.oracle
+		).toBe('peer-answers');
+		expect(
+			await judged('<h1>404</h1><p>not found</p>', [['/peer/gone', 404]], '/peer/gone')
+		).toBeNull();
+		// (a server router's mount shows the peer's own not-found page, whatever it says)
+		expect(
+			await judged('<p>router did not match</p>', [['/peer/gone', 404]], '/peer/gone', 'router')
+		).toBeNull();
+		// (its hop to the peer failed: what it shows is the app's own)
+		expect(
+			await judged(
+				'<p>502</p>',
+				[
+					['/og/fragment/page?path=/q0', 'dropped', 'tab-1#1'],
+					['/peer/q0', 502]
+				],
+				'/peer/q0'
+			)
+		).toBeNull();
 	});
 
 	it("passes one the network failed, or whose hop to the peer failed: the app's answer for it is its own", async () => {

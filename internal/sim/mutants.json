@@ -257,5 +257,34 @@
 		"operator": "statement",
 		"from": "continue;",
 		"to": "return null;"
+	},
+	{
+		"id": "hole-answered-left-armed",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > answered",
+		"code": "if (hole === 'armed' || hole === 'retrying' || hole === 'offline' || hole === 'failed')",
+		"operator": "logical",
+		"from": "d' || ho",
+		"to": "d' && ho"
+	},
+	{
+		"id": "hole-armed-while-fetching",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > hole_armed",
+		"code": "if (s.kind === 'fetching') return false;",
+		"operator": "boolean",
+		"from": "false",
+		"to": "true",
+		"equivalent": "a fetch in flight is left only as it ends: a schedule armed in it is dropped with its state, and one that fires first reaches #fetch_html, which starts nothing while a fetch is out at the same address"
+	},
+	{
+		"id": "prefetch-while-fetching",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > prefetch_html",
+		"code": "if (this.#answer.now.kind !== 'none' || this.#hole.now.kind === 'fetching' || !this.isConnected)",
+		"operator": "logical",
+		"from": "' || !",
+		"to": "' && !",
+		"equivalent": "a warm during the hole's own fetch joins that fetch in the frame store (one flight per address), and a warm for a region that left the page is one the store keeps for its return: no request more, no answer different"
 	}
 ]

@@ -80,6 +80,9 @@ export interface Exchange {
 	lost?: boolean;
 	/** Its answer was held 10 to 40 s on the way (a `stall`): its page may have given up on it. */
 	stalled?: boolean;
+	/** Answered 500 or 503 at the edge of a peer's first origin (a `down` fault): the app asks the
+	 *  next origin, which is up, so a GET's failure here is no excuse for what its page shows. */
+	down?: boolean;
 	/** The client address the server saw it from (a server's hop: the document's it was for). */
 	address?: string;
 	/** The build whose server gave the answer the client got (its {@link ANSWERED_BY} header). */
@@ -391,6 +394,7 @@ export class Network {
 			if (!calm && asked !== undefined && this.#downable(target) && this.#on('down', fate)) {
 				const status = fate.chance(0.5) ? 500 : 503;
 				ex.status = status;
+				ex.down = true;
 				loop.add('net', `down ${ex.id}`, this.#latency(fate), () =>
 					resolve(new Response('unavailable', { status }))
 				);

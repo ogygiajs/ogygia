@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { gate_open_early, own_text, type Tab, type Visitor } from './browser.ts';
 import { boxes, on_screen, type Box } from './layout.ts';
 import { answer_key, FOREIGN_MARK, is_page_path, LOSSY_POINTS, type World } from './world.ts';
-import { EDGE_GONE, EDGE_MOVED } from './gen.ts';
+import { EDGE_BAD, EDGE_GONE, EDGE_MOVED, MOUNT } from './gen.ts';
 
 /** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
  *  `-fresh.txt`), to read past its first hunk. */
@@ -1028,7 +1028,9 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 		return true;
 	return world.network.exchanges.slice(since ?? 0).some(
 		(e) =>
-			(mine(e.from) && (failed_on_wire(e) || e.tampered || e.redirected)) ||
+			(mine(e.from) &&
+				(failed_on_wire(e) || e.tampered || e.redirected) &&
+				!failed_over(world, e)) ||
 			// (a server's hop for it changed on the way: what the page was made from. A cut one is
 			// a failure the app must answer well, #937)
 			(e.for !== undefined && mine(e.for) && e.tampered) ||
@@ -1037,7 +1039,24 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 }
 
 /** Whether the network failed exchange `e`: dropped, offline, cut or broken off, or a server error. */
+/**
+ * Whether `e`, a mounted peer page's answer of 500 or more, failed only because a peer's first
+ * origin was `down`: every hop its document's server made that failed was a GET that fault
+ * answered, and nothing else of its own failed. The app owes the next origin's answer (federation's
+ * failover), so it is no excuse (a mutant that never asked the next origin survived).
+ */
+function failed_over(world: World, e: World['network']['exchanges'][number]): boolean {
+	if (typeof e.status !== 'number' || e.status < 500 || e.cut || e.tampered || e.redirected)
+		return false;
+	if (!new URL(e.url).pathname.startsWith(`${MOUNT}/`)) return false;
+	const hops = world.network.exchanges.filter((h) => h.for === e.from);
+	const failed = hops.filter((h) => h.down === true || failed_on_wire(h) || h.tampered);
+	return failed.length > 0 && failed.every((h) => h.down === true && h.method === 'GET');
+}
+
 function failed_on_wire(e: World['network']['exchanges'][number]): boolean {
+	// (a GET a peer's first origin answered `down`: the app owes the visitor its next origin's answer)
+	if (e.down === true && e.method === 'GET') return false;
 	return (
 		e.cut ||
 		e.status === 'dropped' ||
@@ -1168,19 +1187,32 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 }
 
 /** What the app owes each of a peer's edge pages (gen.ts `edges`): the peer's own answer. */
-const EDGE_OWED: ReadonlyArray<[string, string, (status: number) => boolean]> = [
-	[EDGE_GONE, 'its not-found page, a 404', (s) => s === 404],
-	[EDGE_MOVED, 'its redirect', (s) => s >= 300 && s < 400]
+const EDGE_OWED: ReadonlyArray<[(path: string) => boolean, string, (status: number) => boolean]> = [
+	[(p) => p === EDGE_GONE, 'its not-found page, a 404', (s) => s === 404],
+	[(p) => p === EDGE_MOVED, 'its redirect', (s) => s >= 300 && s < 400],
+	[(p) => p === EDGE_BAD, 'its refusal, a 400', (s) => s === 400],
+	[(p) => PEER_PAGE.test(p), 'its page, a 200', (s) => s === 200]
 ];
+/** One of the peer's own pages, as the app mounts it (gen.ts `GenPeer.pages`: `/q<i>`). */
+const PEER_PAGE = new RegExp(`^${MOUNT}/q\\d+$`);
+/** The title the peer's federation gives a path its router does not match (federation's
+ *  `serve_expose`): a Kit mount's error page says it as its message. */
+const PEER_NOT_FOUND = 'not found';
 
 /**
- * A MOUNTED PEER'S PAGE ANSWERS AS THE PEER DID: a page the peer lacks is a 404 in the app, one it
- * moved is a redirect there, and a page that shows the visitor shows the one the app vouched for
- * (`sub: 'visitor'`, both mounts' `user`). Read from the tab's requests `since` an exchange and its
- * document. An answer the network failed, or one whose hop to the peer failed or changed on the
+ * A MOUNTED PEER'S PAGE ANSWERS AS THE PEER DID: a page the peer lacks is a 404 in the app that
+ * says the peer's own title for it, one it moved is a redirect there, one it refuses is a 400, one
+ * of its own pages is a 200 that shows that page, and a page that shows the visitor shows the one
+ * the app vouched for (`sub: 'visitor'`, both mounts' `user`). Read from the tab's requests `since`
+ * an exchange and its document. An answer the network failed, or one whose hop to the peer failed or changed on the
  * way, is the app's own (a 502 or 504) and is not judged.
  */
-export function peer_answers(tab: Tab, world: World, since: number): Broken | null {
+export function peer_answers(
+	tab: Tab,
+	world: World,
+	since: number,
+	mount: 'router' | 'kit' = 'router'
+): Broken | null {
 	const exchanges = world.network.exchanges;
 	const hop_failed = (realm: string): boolean =>
 		exchanges.some((e) => e.for === realm && (failed_on_wire(e) || e.tampered));
@@ -1192,15 +1224,28 @@ export function peer_answers(tab: Tab, world: World, since: number): Broken | nu
 			continue;
 		const url = new URL(e.url);
 		if (url.origin !== origin) continue;
-		const owed = EDGE_OWED.find(([path]) => path === url.pathname);
+		const owed = EDGE_OWED.find(([is]) => is(url.pathname));
 		if (owed && !owed[2](e.status) && !hop_failed(e.from))
 			wrong.push(`${url.pathname} answered ${e.status}, the peer answered ${owed[1]}`);
 	}
 	const doc = tab.page.mainFrame.document as unknown as Document;
-	if (!document_faulted(world, tab))
+	if (!document_faulted(world, tab)) {
 		for (const el of doc.querySelectorAll('[data-gen-who]'))
 			if (el.textContent !== 'visitor')
 				wrong.push(`the peer's page shows the visitor "${el.textContent}", the app's is "visitor"`);
+		// (what the document shows: a page whose hop to the peer failed shows the app's own words)
+		const path = new URL(tab.page.mainFrame.url).pathname;
+		if (!hop_failed(tab.realm) && !error_page(tab)) {
+			if (PEER_PAGE.test(path) && doc.querySelector('[data-gen="peer-page"]') === null)
+				wrong.push(`${path} shows none of the peer's page`);
+			if (
+				mount === 'kit' &&
+				path === EDGE_GONE &&
+				!(doc.documentElement?.textContent ?? '').includes(PEER_NOT_FOUND)
+			)
+				wrong.push(`${path} does not say the peer's "${PEER_NOT_FOUND}"`);
+		}
+	}
 	return wrong.length === 0
 		? null
 		: { oracle: 'peer-answers', detail: `${tab.page.mainFrame.url}: ${wrong.join('\n')}` };

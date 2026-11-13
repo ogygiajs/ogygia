@@ -419,7 +419,7 @@ export async function run(
 					page_rules(t, world),
 					leaks.check(t, pressed.get(t.name) === t.documents),
 					live_events(t, world),
-					GEN_PEER ? peer_answers(t, world, since) : null,
+					GEN_PEER ? peer_answers(t, world, since, GEN_PEER.mount) : null,
 					// (a document loaded behind another tab and never looked at is at rest once the world
 					// is: its islands wake all the same, with no frame to wait for. One that was shown may
 					// have asked for a frame just before it went behind, which waits until it is shown
