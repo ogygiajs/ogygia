@@ -5457,10 +5457,6 @@
 			"reason": "one machine move per configResolved, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/page-keys.ts > statement_declares > some:0~af91fc",
-			"reason": "one import specifier's local name against the name looked up, constant work; reached only when a module-level lookup (a typeof window guard) walks to the Program; page-keys.test.ts runs it"
-		},
-		{
 			"id": "packages/compiler/src/compiler/link/context-detect.ts > context_keys > walk",
 			"reason": "the AST walk that finds context calls and their keys in one module: recursive over the parsed tree (not replayable), linear in its nodes; context-detect tests run it"
 		},

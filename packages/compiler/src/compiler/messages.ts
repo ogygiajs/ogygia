@@ -554,6 +554,16 @@ export const BUILD_ERRORS = {
 			from \`ogygia/vite\` and list \`ogygia()\` first in \`plugins\`.
 		`
 	},
+	plugin_needs_plugin: {
+		text: (a: { plugin: string; needs: string; from: string }): string =>
+			`\`${a.plugin}\` needs \`${a.needs}\` — add \`${a.needs}\` from \`${a.from}\` to \`plugins\` in vite.config.`,
+		details: (): string => prose`
+			This plugin works only beside another one, which the app does not list. Import the
+			plugin it names from its package and list it beside \`ogygia()\`, before
+			\`sveltekit()\`. \`postrender()\` needs \`pageKeys()\`: without it every deferred region
+			looks the page up, and that renders the stored page again on each fetch.
+		`
+	},
 	plugin_factory_not_called: {
 		text: (): string =>
 			'a function is listed in vite.config `plugins` — call the factory: `flags()`, not `flags`.',
@@ -666,6 +676,14 @@ export const BUILD_ERRORS = {
 		details: (): string => prose`
 			Two plugins registered the same \`import.meta.og\` macro. One of them has to use another
 			name.
+		`
+	},
+	page_reads_claimed: {
+		text: (a: { owner: string; plugin: string }): string =>
+			`seed shaping (\`pageReads\`) is claimed by both \`${a.owner}\` and \`${a.plugin}\`.`,
+		details: (): string => prose`
+			Two plugins answer which \`page.data\` keys a module reads. Only one can: list one of them
+			(\`pageKeys()\` from \`@ogygia/page-keys\` is the one ogygia ships).
 		`
 	},
 	page_modules_not_absolute: {

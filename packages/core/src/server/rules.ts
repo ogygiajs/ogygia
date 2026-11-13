@@ -10,6 +10,8 @@
  * - `rule_region_answer_shared`: every region endpoint answer says `Referrer-Policy: no-referrer`
  *   and a `Cache-Control` no shared cache keeps (`no-store` or `private`).
  * - `rule_capability_not_path`: every minted capability URL is a same-origin path.
+ * - `rule_hole_page_read_unpredicted`: a render whose page look-up the build skipped (seed shaping
+ *   said its tree reads no `page.data`) reads no key of it.
  *
  * Each area tells this module what it holds (`note_response_end`) only when rules are on: every call
  * site folds out of a build without them.
@@ -27,7 +29,8 @@ type ServerRule =
 	| 'rule_flight_kept_failure'
 	| 'rule_kept_unkeyed_read'
 	| 'rule_region_answer_shared'
-	| 'rule_capability_not_path';
+	| 'rule_capability_not_path'
+	| 'rule_hole_page_read_unpredicted';
 
 /** The few breaks found so far (10 each, at most). */
 class Breaks {
@@ -35,6 +38,7 @@ class Breaks {
 	readonly answers: string[] = [];
 	/** The first capability URLs minted with more than a path (CAPABILITY-URL, HOLE-TRUST). */
 	readonly mints: string[] = [];
+	readonly hole_reads: string[] = [];
 }
 const B = new Breaks();
 
@@ -73,6 +77,15 @@ export function note_minted_capability(url: string): void {
 	if (url.startsWith('/') && !url.startsWith('//') && !url.startsWith('/\\')) return;
 	// (the address only: the query is the capability)
 	if (B.mints.length < 10) B.mints.push(url.split('?')[0]!);
+	check_soon();
+}
+
+/** A render whose page look-up the build skipped (its tree reads no `page.data`, the seed-shaping
+ *  plugin said) read a key of it: the build's answer was wrong, and the render saw `undefined`. */
+export function note_hole_page_read(path: string, key: string): void {
+	if (!installed) return;
+	const said = `page.data.${key} on ${path}`;
+	if (B.hole_reads.length < 10 && !B.hole_reads.includes(said)) B.hole_reads.push(said);
 	check_soon();
 }
 
@@ -164,6 +177,9 @@ export function install_server_rules(): void {
 		B.answers.length ? B.answers.join('; ') : null
 	);
 	server_rules.add('rule_capability_not_path', () => (B.mints.length ? B.mints.join('; ') : null));
+	server_rules.add('rule_hole_page_read_unpredicted', () =>
+		B.hole_reads.length ? B.hole_reads.join('; ') : null
+	);
 	// a flight's entry moving to `kept` with an error, or a render that read what its key does not
 	// cover, for its answer (flights' machine, @ogygia/machine), and out of it again
 	observe((name, _from, to, machine) => {

@@ -42,6 +42,10 @@ export interface PluginDefinition<Options = unknown> {
 	options?: Options;
 	/** Run before (`'pre'`) or after (`'post'`) the other plugins, in every realm. */
 	enforce?: 'pre' | 'post';
+	/** The plugins this one needs listed beside it: each one's package name, its call and the
+	 *  package to import it from. One the app does not list fails the build
+	 *  (`plugin_needs_plugin`), naming the line to add. */
+	needs?: readonly { name: string; call: string; from: string }[];
 	/** Build-time contributions, with the build context. */
 	build?(b: BuildContext): void;
 }
@@ -189,6 +193,48 @@ export interface BuildContext {
 	 *  page module; `files`: absolute paths that are page modules themselves (compiled ones: app source,
 	 *  or a `files()` / `ogygia.files` surface). */
 	pageModules(modules: { importers?: string[]; files?: string[] }): void;
+	/** SEED SHAPING: this plugin answers which top-level `page.data` keys a module reads
+	 *  (`@ogygia/page-keys`). One plugin at most. Without one, every region that reads the page gets
+	 *  all of `page.data`, and every server hole looks it up. */
+	pageReads(reads: PageReads): void;
+}
+
+/** A specifier resolved from an importer, as the bundler resolves it (null: it does not). */
+export type PageReadsResolve = (
+	specifier: string,
+	importer: string
+) => Promise<{ id: string } | null | undefined>;
+
+/** Why a module answers `'unknown'`: the construct, and its line. */
+export interface PageReadWhy {
+	readonly why: string;
+	readonly line: number | null;
+}
+
+/**
+ * What a seed-shaping plugin answers (handed to {@link BuildContext.pageReads}). Module ids are
+ * query-less, with forward slashes. Core unions the answers over each island's closure and walks
+ * each server hole's graph; `'unknown'` anywhere ships (or looks up) all of `page.data`.
+ */
+export interface PageReads {
+	/** A module the build compiles, in its source form (before ogygia's own rewrites). Build only. */
+	module(id: string, code: string): void;
+	/** Once in the client leg, before core asks `keys`: settle what needs the bundler (a helper in
+	 *  another module that the page is handed to). */
+	settle(resolve: PageReadsResolve): Promise<void>;
+	/** The keys a module reads, `'unknown'`, or null (it was never seen reading the page). */
+	keys(id: string): ReadonlySet<string> | 'unknown' | null;
+	/** Why a module answers `'unknown'` (the build's seed report, the profiler). */
+	why(id: string): PageReadWhy | null;
+	/** Dev, for the profiler: what these files read together (an island's component and the app
+	 *  modules below it), as the build would answer; null when none reads the page. */
+	dev(
+		files: readonly string[],
+		resolve: PageReadsResolve
+	): Promise<{
+		keys: string[] | 'unknown' | null;
+		why: { file: string; line: number | null; why: string }[];
+	}>;
 }
 
 const OGYGIA_VITE_PLUGIN = 'ogygia';
@@ -269,6 +315,8 @@ export interface ResolvedPlugins {
 	page_modules: { importers: string[]; files: string[] };
 	/** stage transforms (`b.transform()`), in plugin order */
 	transforms: StageTransform[];
+	/** the plugin that answers seed shaping (`b.pageReads()`), or null: every region gets all */
+	page_reads: PageReads | null;
 }
 
 /** The live region table (read at call time, so it is complete once the app's islands are known). */
@@ -345,6 +393,14 @@ export function check_plugins(plugins: readonly unknown[]): PluginDefinition[] {
 			}
 		}
 	}
+	for (const plugin of plugins as PluginDefinition[])
+		for (const need of plugin.needs ?? [])
+			if (!seen.has(need.name))
+				throw new OgygiaError('plugin_needs_plugin', {
+					plugin: plugin.name,
+					needs: need.call,
+					from: need.from
+				});
 	return plugins as PluginDefinition[];
 }
 
@@ -464,8 +520,10 @@ export function resolve_plugins(
 		measure: false,
 		files: [],
 		page_modules: { importers: [], files: [] },
-		transforms: []
+		transforms: [],
+		page_reads: null
 	};
+	let page_reads_owner: string | null = null;
 	const config_owner = new Map<string, string>();
 	const macro_owner = new Map<string, string>();
 	const last_macros: ResolvedPlugins['macros'] = [];
@@ -546,6 +604,15 @@ export function resolve_plugins(
 						throw new OgygiaError('page_modules_not_absolute', { plugin: plugin.name, file });
 					if (!out.page_modules.files.includes(file)) out.page_modules.files.push(file);
 				}
+			},
+			pageReads(reads) {
+				if (page_reads_owner !== null)
+					throw new OgygiaError('page_reads_claimed', {
+						owner: page_reads_owner,
+						plugin: plugin.name
+					});
+				page_reads_owner = plugin.name;
+				out.page_reads = reads;
 			}
 		});
 	}
