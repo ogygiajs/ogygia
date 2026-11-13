@@ -21,6 +21,7 @@
  */
 import path from 'node:path';
 import { parse_module } from './parse/oxc.ts';
+import { component_blocks } from './parse/scan.ts';
 import { OgygiaError } from './messages.ts';
 
 const CLASS_KW = /\bclass\b/;
@@ -31,11 +32,7 @@ const CLASS_KW = /\bclass\b/;
 // read as a transportable, or the module gets side-effect-imported into every realm by the eager
 // registration manifest — including a Web Worker that references `self`, which then crashes on SSR.
 const WIRE_STATIC_MEMBER = /\bstatic\s+#?\w+\s*=\s*import\.meta\.og\.wire\b/;
-const MODULE_KW = /\bmodule\b/;
-const CONTEXT_MODULE_ATTR = /context\s*=\s*["']module["']/;
 const SVELTE_EXT = /\.svelte$/;
-/** Every `<script …>…</script>` block (shared `g` regex — reset `lastIndex` per scan). */
-const SCRIPT_BLOCK_G = /<script\b([^>]*)>([\s\S]*?)<\/script>/g;
 
 /** Marker that a module already carries generated registrations (idempotence). */
 const GENERATED_MARK =
@@ -311,17 +308,8 @@ function registrationBlock(rel: string, classes: WireExport[], contexts: string[
  * the component to run that registration on the client.
  */
 function moduleScriptOf(code: string): { body: string; injectAt: number } | null {
-	SCRIPT_BLOCK_G.lastIndex = 0; // shared `g` regex — the early return below leaves it mid-string
-	let m: RegExpExecArray | null;
-	while ((m = SCRIPT_BLOCK_G.exec(code)) !== null) {
-		const attrs = m[1];
-		if (MODULE_KW.test(attrs) || CONTEXT_MODULE_ATTR.test(attrs)) {
-			const bodyStart = m.index + m[0].indexOf('>', 0) + 1;
-			const bodyEnd = SCRIPT_BLOCK_G.lastIndex - '</script>'.length;
-			return { body: code.slice(bodyStart, bodyEnd), injectAt: bodyEnd };
-		}
-	}
-	return null;
+	const mod = component_blocks(code).find((b) => b.kind === 'script' && b.module);
+	return mod ? { body: code.slice(mod.start, mod.end), injectAt: mod.end } : null;
 }
 
 /** True if a `.svelte` file's `<script module>` exports a transportable class. */

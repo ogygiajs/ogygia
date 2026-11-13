@@ -15,6 +15,7 @@
  */
 import { walk } from 'estree-walker';
 import { parse_module } from './parse/oxc.ts';
+import { component_blocks } from './parse/scan.ts';
 
 /** The import a flag site comes through. (Moves into the flags plugin's compile facet once the
  *  compile port lands: internal/notes/packages.md.) */
@@ -39,8 +40,6 @@ type AstNode = {
 const KINDS = new Set(['flag']);
 /** Cheap pre-parse gate — most modules import ogygia for other reasons. */
 const MAYBE_RE = /\bflag\b/;
-/** All `<script …>` blocks of a `.svelte` file (instance AND module — flags can sit in either). */
-const SCRIPT_BLOCK_RE = /<script\b[^>]*>([\s\S]*?)<\/script>/g;
 /** Where every newline of `src` is, in order: one pass, then each line is a binary search. */
 function newlines_of(src: string): number[] {
 	const at: number[] = [];
@@ -128,13 +127,16 @@ export function collect_flag_sites(code: string, id: string, file: string): Flag
 	if (!code.includes('ogygia') || !MAYBE_RE.test(code)) return [];
 	const out: FlagSite[] = [];
 	if (id.endsWith('.svelte')) {
-		SCRIPT_BLOCK_RE.lastIndex = 0;
 		const newlines = newlines_of(code);
-		let m: RegExpExecArray | null;
-		while ((m = SCRIPT_BLOCK_RE.exec(code))) {
-			const body_start = m.index + m[0].indexOf('>') + 1;
-			collect_from_source(m[1], `${id}.ts`, file, line_at(newlines, body_start, 1), out);
-		}
+		for (const b of component_blocks(code))
+			if (b.kind === 'script')
+				collect_from_source(
+					code.slice(b.start, b.end),
+					`${id}.ts`,
+					file,
+					line_at(newlines, b.start, 1),
+					out
+				);
 	} else {
 		collect_from_source(code, id, file, 1, out);
 	}

@@ -14,6 +14,7 @@
  * (critically) survives partial/invalid syntax mid-edit in dev. The git loader proved it; this is
  * that scanner, generalized so all constructs share one code path.
  */
+import { next_any_tag, tag_name, type FoundTag } from '@ogygia/core/contract';
 import { OgygiaError } from '../messages.ts';
 
 // ── regexes
@@ -237,43 +238,57 @@ export function og_js_regions(
 	markup_exts: readonly string[]
 ): JsRegion[] | null {
 	if (is_js_module(id)) return [{ code: src, offset: 0 }];
-	if (is_markup_module(id, markup_exts)) return script_blocks(src);
+	if (is_markup_module(id, markup_exts))
+		return component_blocks(src)
+			.filter((b) => b.kind === 'script')
+			.map((b) => ({ code: src.slice(b.start, b.end), offset: b.start }));
 	return null;
 }
 
-/**
- * Find every `<script …>…</script>` block and return its inner JS + byte offset. A single forward
- * scan (not a regex) so a `</script>` inside a JS string can't end a block early: we only close on a
- * `</script>` found while scanning raw text, and Svelte itself forbids an unescaped `</script>` in
- * script text, so this matches the compiler's own tokenization.
- */
-function script_blocks(src: string): JsRegion[] {
-	const regions: JsRegion[] = [];
-	const lower = src.toLowerCase();
-	let i = 0;
-	for (;;) {
-		const open = lower.indexOf('<script', i);
-		if (open < 0) break;
-		// End of the opening tag — the `>` that closes `<script …>`. Skip `>` inside attribute strings.
-		const gt = tag_end(src, open);
-		if (gt < 0) break;
-		const close = lower.indexOf('</script>', gt + 1);
-		if (close < 0) break;
-		regions.push({ code: src.slice(gt + 1, close), offset: gt + 1 });
-		i = close + '</script>'.length;
-	}
-	return regions;
+/** A `<script>` or `<style>` block of a component's source. */
+export interface ComponentBlock {
+	readonly kind: 'script' | 'style';
+	/** `<script module>` (or Svelte 4's `context="module"`) */
+	readonly module: boolean;
+	/** its `lang` (lower case), or null */
+	readonly lang: string | null;
+	/** the opening tag: its `<` and just past its `>` */
+	readonly open: number;
+	/** its content: from just past the opening tag to the `</` of its end tag */
+	readonly start: number;
+	readonly end: number;
+	/** just past the end tag's `>` */
+	readonly close: number;
+	/** the opening tag as the walk read it (core's `attr_spans` cuts an attribute out of it) */
+	readonly tag: FoundTag;
 }
 
-/** Index of the `>` that ends the tag opened at `open`, honoring quoted attribute values. */
-function tag_end(src: string, open: number): number {
-	for (let i = open; i < src.length; i++) {
-		const c = src[i]!;
-		if (c === '"' || c === "'") {
-			for (i++; i < src.length && src[i] !== c; i++) {}
-			continue;
-		}
-		if (c === '>') return i;
+/**
+ * Every `<script>` and `<style>` block of a component's source, in order, read with core's tag walk
+ * (#1370): a value may hold `>` or the other quote, any quoting and case, a comment holds no block,
+ * and a block's text holds no tag (`<style>` inside a script's string is text). A block whose end
+ * tag never comes is not one (the source ends inside it). test/component-blocks.test.ts.
+ */
+export function component_blocks(src: string): ComponentBlock[] {
+	const blocks: ComponentBlock[] = [];
+	for (let tag = next_any_tag(src, 0); tag !== null; tag = next_any_tag(src, tag.next)) {
+		const kind = tag_name(src, tag);
+		if (kind !== 'script' && kind !== 'style') continue;
+		// (`next`: the `</` of its end tag; the source's length when it never closes)
+		if (tag.next >= src.length) break;
+		const gt = src.indexOf('>', tag.next);
+		const lang = tag.attr('lang');
+		blocks.push({
+			kind,
+			module:
+				kind === 'script' && (tag.attr('module') !== undefined || tag.attr('context') === 'module'),
+			lang: lang ? lang.toLowerCase() : null,
+			open: tag.start,
+			start: tag.end,
+			end: tag.next,
+			close: gt === -1 ? src.length : gt + 1,
+			tag
+		});
 	}
-	return -1;
+	return blocks;
 }

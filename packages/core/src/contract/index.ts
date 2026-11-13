@@ -24,5 +24,7 @@ export type * from './virtual-modules.ts';
 export { DEFAULT_REGION_TTL_SEC } from '../server/endpoint.ts';
 /** The markers the compiler stamps and core reads, from the page markup's vocabulary (#479). */
 export { OG_HTML, OG_OPAQUE } from '../wire-markup.ts';
+/** The tag walk: the compiler reads a component's script and style blocks with it (#1370). */
+export { attr_spans, next_any_tag, tag_name, type FoundTag } from '../markup-walk.ts';
 /** The app secret's checks and the id salt derived from it. */
 export { derive_id_salt, secret_has_min_entropy, MIN_SECRET_BYTES } from '../server/hmac.ts';

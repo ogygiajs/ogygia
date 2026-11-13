@@ -12,12 +12,9 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { warn } from '../compiler/messages.ts';
+import { component_blocks } from '../compiler/parse/scan.ts';
+import { attr_spans } from '@ogygia/core/contract';
 import { say } from '@ogygia/machine';
-
-const STYLE_BLOCK_G = /<style\b([^>]*)>([\s\S]*?)<\/style>/gi;
-const SCRIPT_BLOCK_G = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
-const STYLE_LANG_ATTR = /\blang\s*=\s*["']?(scss|sass)["']?/i;
-const SCRIPT_LANG_TS_ATTR = /\blang\s*=\s*["']?ts["']?/i;
 
 type Sass = { compileString(source: string, options?: Record<string, unknown>): { css: string } };
 type Transform = (
@@ -74,55 +71,57 @@ export async function preprocess_component_for_css(
 	abs: string,
 	root: string
 ): Promise<string> {
-	let out = source;
-	if (STYLE_LANG_ATTR.test(out)) {
-		const compiler = load_sass(root);
-		if (!compiler) {
-			sass_missing.once('sass_missing', () => warn('sass_missing'));
-		} else {
-			out = out.replace(STYLE_BLOCK_G, (whole: string, attrs: string, body: string) => {
-				const lang = STYLE_LANG_ATTR.exec(attrs)?.[1]?.toLowerCase();
-				if (!lang) return whole;
-				try {
-					const { css } = compiler.compileString(body, {
-						syntax: lang === 'sass' ? 'indented' : 'scss',
-						loadPaths: [path.dirname(abs), root, path.join(root, 'node_modules')],
-						quietDeps: true,
-						silenceDeprecations: ['import']
-					});
-					return `<style${attrs.replace(STYLE_LANG_ATTR, '')}>${css}</style>`;
-				} catch (err) {
-					warn('scss_compile_failed', {
-						file: path.relative(root, abs),
-						reason: (err as Error).message
-					});
-					return whole;
-				}
-			});
-		}
-	}
-	if (SCRIPT_LANG_TS_ATTR.test(out)) {
-		const ts = await load_ts_transform();
-		if (ts) {
-			const blocks = [...out.matchAll(SCRIPT_BLOCK_G)];
-			for (const m of blocks) {
-				const [whole, attrs, body] = m;
-				if (!SCRIPT_LANG_TS_ATTR.test(attrs)) continue;
-				try {
-					const { code } = await ts(body, `${abs}.ts`);
-					// `lang="ts"` stays: the stripped script is plain JS (fine as TS), and the markup
-					// may still carry type annotations (`(c: Row) => …`), which Svelte's parser takes
-					// only under a TS script. Without it the compile threw and the CSS fell back to
-					// UNSCOPED bodies, leaking the component's rules across the page.
-					out = out.replace(whole, `<script${attrs}>${code}</script>`);
-				} catch (err) {
-					warn('ts_strip_failed', {
-						file: path.relative(root, abs),
-						reason: (err as Error).message
-					});
-				}
+	const blocks = component_blocks(source);
+	const sassy = (lang: string | null) => lang === 'scss' || lang === 'sass';
+	const sass_compiler = blocks.some((b) => b.kind === 'style' && sassy(b.lang))
+		? load_sass(root)
+		: undefined;
+	if (sass_compiler === null) sass_missing.once('sass_missing', () => warn('sass_missing'));
+	const ts = blocks.some((b) => b.kind === 'script' && b.lang === 'ts')
+		? await load_ts_transform()
+		: null;
+
+	// each block's new text, spliced in source order (the source's own spans: no string search)
+	let out = '';
+	let at = 0;
+	const splice = (start: number, end: number, text: string) => {
+		out += source.slice(at, start) + text;
+		at = end;
+	};
+	for (const b of blocks) {
+		const body = source.slice(b.start, b.end);
+		if (b.kind === 'style' && sass_compiler && sassy(b.lang)) {
+			try {
+				const { css } = sass_compiler.compileString(body, {
+					syntax: b.lang === 'sass' ? 'indented' : 'scss',
+					loadPaths: [path.dirname(abs), root, path.join(root, 'node_modules')],
+					quietDeps: true,
+					silenceDeprecations: ['import']
+				});
+				// the opening tag loses its `lang`: what follows is CSS
+				for (const [s, e] of attr_spans(source, b.tag, 'style', 'lang')) splice(s, e, '');
+				splice(b.start, b.end, css);
+			} catch (err) {
+				warn('scss_compile_failed', {
+					file: path.relative(root, abs),
+					reason: (err as Error).message
+				});
+			}
+		} else if (b.kind === 'script' && ts && b.lang === 'ts') {
+			try {
+				const { code } = await ts(body, `${abs}.ts`);
+				// `lang="ts"` stays: the stripped script is plain JS (fine as TS), and the markup
+				// may still carry type annotations (`(c: Row) => …`), which Svelte's parser takes
+				// only under a TS script. Without it the compile threw and the CSS fell back to
+				// UNSCOPED bodies, leaking the component's rules across the page.
+				splice(b.start, b.end, code);
+			} catch (err) {
+				warn('ts_strip_failed', {
+					file: path.relative(root, abs),
+					reason: (err as Error).message
+				});
 			}
 		}
 	}
-	return out;
+	return at === 0 ? source : out + source.slice(at);
 }
