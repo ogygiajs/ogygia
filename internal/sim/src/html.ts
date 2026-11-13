@@ -308,7 +308,7 @@ export async function html_sent(world: World): Promise<Broken | null> {
 	return detail === null ? null : { oracle: 'html-sent', detail };
 }
 
-/** The reshape pass's marks (@ogygia/reshape: what ogygia puts on the HTML around the app's
+/** The reshape pass's marks (@ogygia/rewrite: what ogygia puts on the HTML around the app's
  *  transform), every one of which the restore takes out before anything hydrates. */
 const RESHAPE_ATTRS: ReadonlySet<string> = new Set([
 	'og-h',

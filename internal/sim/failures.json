@@ -15,7 +15,7 @@
 			"machine",
 			"ogygia",
 			"postrender",
-			"reshape",
+			"rewrite",
 			"router",
 			"testing",
 			"tooling",
@@ -31,10 +31,16 @@
 			"how": "the point's own throw: the receiver applied the send and its reply was lost, so the outbox's policy sends it again and the receiver sees the same work twice"
 		},
 		{
-			"site": "packages/reshape/src/pass.ts > transformed > catch:0",
+			"site": "packages/rewrite/src/pass.ts > render_one > catch:0",
 			"point": "gen.reshape-throws",
-			"how": "the random app's pass throws (a point in its own code): the answer goes out as ogygia rendered it, a document still with the restorer",
-			"killed_by": "reshape-fallback-off"
+			"how": "the random app's render throws (a point in its own code) on the batch and again on each element alone: every element goes out as ogygia rendered it, said with rewrite_element_failed",
+			"killed_by": "rewrite-fallback-off"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_targets > catch:0",
+			"point": "gen.reshape-throws",
+			"how": "the random app's render throws on the batch: it is retried one element at a time",
+			"killed_by": "rewrite-batch-throws"
 		},
 		{
 			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > catch:0",
@@ -424,75 +430,99 @@
 			"name": "props no wire carries give no identity, so the lake is known by its entry and place"
 		},
 		{
-			"site": "packages/reshape/src/index.ts > handle > throw:0",
-			"reason": "a config error, at the first request: no app the sim generates leaves reshape() out of vite.config",
-			"test": "packages/reshape/test/plugin.test.ts",
-			"name": "refuses every request while reshape() is not in vite.config, naming the fix"
+			"site": "packages/rewrite/src/index.ts > rewrite > throw:0",
+			"reason": "a config error, at the first request: no app the sim generates leaves rewrite() out of vite.config",
+			"test": "packages/rewrite/test/plugin.test.ts",
+			"name": "refuses every request while rewrite() is not in vite.config, naming the fix"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore > sheet_for > catch:0",
+			"site": "packages/rewrite/src/index.ts > rewrite > throw:1",
+			"reason": "a wiring error, the same on every request: the sim's app lists its rewrite before ogygia.handle()",
+			"test": "packages/rewrite/test/plugin.test.ts",
+			"name": "listed after ogygia.handle() is refused with rewrite_after_ogygia"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_targets > abort:0",
+			"reason": "a request cancelled while its batch renders: the sim's browsers stay on the page until it loads",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "a cancelled request: the batch is shipped as is, never retried, nothing said"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_targets > abort:1",
+			"reason": "a request cancelled while its elements are retried: the sim's browsers stay on the page until it loads",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "a request cancelled while the elements are retried one at a time: shipped as is, nothing said"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > run_page > catch:0",
+			"reason": "the sim's app has no page rewrite",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "a page function that throws: production sends the document as ogygia rendered it, said as rewrite_page_failed"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > run_page > abort:0",
+			"reason": "the sim's app has no page rewrite",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "a request cancelled while the page function ran: the document goes out as ogygia rendered it"
+		},
+		{
+			"site": "packages/rewrite/src/restore.ts > restore > sheet_for > catch:0",
 			"reason": "an engine without constructable stylesheets: happy-dom has them",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a DOM without adoptable sheets or CSS.escape (jsdom): a <style> per root"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore > watch > observer:0",
+			"site": "packages/rewrite/src/restore.ts > restore > watch > observer:0",
 			"reason": "a Kit-hydrated page (csr=true): the random app is csr=false",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a Kit-hydrated page: a watched host that leaves the document leaves the watch, a moved one stays, and the observer goes with the last one"
 		},
 		{
-			"site": "packages/reshape/src/pass.ts > transformed > throw:0",
-			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
-			"test": "packages/reshape/test/pass-failed.test.ts",
-			"name": "a transform that throws is thrown with reshape_pass_failed"
+			"site": "packages/rewrite/src/pass.ts > page_failed > throw:0",
+			"reason": "dev only, and the sim's app has no page rewrite: production says it instead",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "dev throws it"
 		},
 		{
-			"site": "packages/reshape/src/pass.ts > transformed > throw:1",
-			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
-			"test": "packages/reshape/test/pass-failed.test.ts",
-			"name": "a transform that drops ogygia's marks is thrown with reshape_marks_lost"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > reset > parse:0",
+			"site": "packages/rewrite/src/restore.ts > restore > reset > parse:0",
 			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore > reset > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore > reset > catch:0",
 			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore > original > parse:0",
+			"site": "packages/rewrite/src/restore.ts > restore > original > parse:0",
 			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore > original > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore > original > catch:0",
 			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore > parse:0",
+			"site": "packages/rewrite/src/restore.ts > restore > parse:0",
 			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore > catch:0",
 			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore_adopt > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore_adopt > catch:0",
 			"reason": "a shadow root that refuses a sheet (an engine's own refusal): happy-dom adopts every sheet",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a root that cannot adopt its sheet leaves the others in the answer theirs"
 		},
 		{
@@ -586,15 +616,15 @@
 			"name": "two loads of one file that fail together share one retry, and get one copy of the module"
 		},
 		{
-			"site": "packages/reshape/src/restore-report.ts > report > import:0",
+			"site": "packages/rewrite/src/restore-report.ts > report > import:0",
 			"reason": "the sim never writes a restore mismatch or a late host to the log, so the wording chunk is never asked for; the test's Vite fails that chunk's load, so the real import rejects in 3 engines",
-			"test": "packages/reshape/test/browser-chunk-lost/restore-report.test.ts",
+			"test": "packages/rewrite/test/browser-chunk-lost/restore-report.test.ts",
 			"name": "a restore report whose wording chunk does not load says nothing, throws nothing, and keeps the log"
 		},
 		{
-			"site": "packages/reshape/src/restore-report.ts > report > reject:0",
+			"site": "packages/rewrite/src/restore-report.ts > report > reject:0",
 			"reason": "the import's rejection, as above: with the handler gone the run fails on an unhandled rejection in 3 engines (proved)",
-			"test": "packages/reshape/test/browser-chunk-lost/restore-report.test.ts",
+			"test": "packages/rewrite/test/browser-chunk-lost/restore-report.test.ts",
 			"name": "a restore report whose wording chunk does not load says nothing, throws nothing, and keeps the log"
 		},
 		{

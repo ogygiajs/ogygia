@@ -333,7 +333,7 @@ check sees a `<style>` held twice when it does not). Mutation: hydrate-core's he
 place, or the page copy kept, died on gen 262. The order those styles stand in after a return is
 #1107 (`KNOWN`).
 
-A RESHAPE PASS (`gen reshape`, 35% of apps; `@ogygia/reshape`): the app's own pass over the HTML
+A RESHAPE PASS (`gen reshape`, 35% of apps; `@ogygia/rewrite`): the app's own pass over the HTML
 ogygia sends, as a handle in front of ogygia's (`src/lib/gen/reshape.server.ts`, written by
 `app_reshape`), on every document and region answer. Half of the regions (`gen reshape boxes`) hold
 their label in an `<x-gen-box>`, a web component whose server render (the pass, reduced to its
@@ -347,7 +347,7 @@ The pass also fails as an app's does, through buggify points in the app's code: 
 (#1569), so the oracles that judge every page (no 500, no hydration mismatch, the MPA check against
 a fresh load the pass may not have failed on) are what say a failing pass leaves the page whole.
 Gens 24 (trims, links,
-no router), 10 (links, router) and 196 run it. Mutation of `packages/reshape/src/restore.ts` runs
+no router), 10 (links, router) and 196 run it. Mutation of `packages/rewrite/src/restore.ts` runs
 on gens 24 and 10.
 
 ## Tabs behind, and engines without idle callbacks

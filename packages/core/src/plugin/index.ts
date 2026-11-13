@@ -172,13 +172,14 @@ export type ServerPlugin<Options = undefined, State = undefined> = Partial<Serve
 
 /** An app's own pass over the HTML ogygia sends (`ServerPlugin.pass`). */
 export interface HtmlPass {
-	/** A document: the chunk carrying `</head>` (a streamed tail is never passed). `csr`: Kit
-	 *  hydrates the page; `answer`: the router fetched it, so it is rendered as an answer. Out: the
-	 *  HTML, what goes before `</head>`, and what goes first before `</body>`, in the document's one
-	 *  assembly. */
+	/** A document, one chunk at a time as Kit hands them out, in order. `csr`: Kit hydrates the
+	 *  page; `answer`: the router fetched it, so it is rendered as an answer; `head` / `body`: the
+	 *  chunk carries `</head>` / `</body>`; `done`: the last chunk. Out: the chunk's HTML, what goes
+	 *  before `</head>` (read when `head`), and what goes first before `</body>` (read when `body`),
+	 *  in the document's one assembly. */
 	document(
 		html: string,
-		page: { csr: boolean; answer: boolean }
+		page: { csr: boolean; answer: boolean; head: boolean; body: boolean; done: boolean }
 	): Promise<{ html: string; head: string; body: string }>;
 	/** A region answer (a hole, a batched hole, a lake remount), fully assembled. */
 	region(html: string): Promise<string>;
