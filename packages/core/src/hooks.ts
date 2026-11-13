@@ -1140,13 +1140,9 @@ class OgygiaHandle {
 		// render, whichever door it comes in by)
 		// A batch is at most MAX_BATCH signed endpoints (~8.5kB each): a body past the cap is refused
 		// as soon as it passes it, chunked or not (test/batch-body-cap.test.ts)
-		let body: Uint8Array | null;
-		try {
-			body = await read_capped(event.request, MAX_BATCH_BODY);
-		} catch {
-			return region_response('Bad Request', { status: 400 });
-		}
-		if (body === null) return region_response('Payload Too Large', { status: 413 });
+		const body = await read_capped(event.request, MAX_BATCH_BODY);
+		if (body === 'too large') return region_response('Payload Too Large', { status: 413 });
+		if (body === 'unreadable') return region_response('Bad Request', { status: 400 });
 		let parsed: unknown;
 		try {
 			parsed = JSON.parse(new TextDecoder().decode(body));

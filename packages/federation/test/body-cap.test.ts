@@ -31,12 +31,12 @@ function streamed(sizes: number[]) {
 describe('read_capped_body', () => {
 	it('a chunked body past the cap is refused, read no further than one piece past it', async () => {
 		const { request, seen } = streamed(Array.from({ length: 200 }, () => 64 * 1024));
-		expect(await read_capped_body(request, 1024 * 1024)).toBeNull();
+		expect(await read_capped_body(request, 1024 * 1024)).toBe('too large');
 		// 16 pieces fill the cap; the 17th passes it
 		expect(seen.pulls).toBeLessThanOrEqual(17);
 	});
 
-	it('any chunking: the bytes as sent when within the cap, else null; never a piece past the cap', async () => {
+	it('any chunking: the bytes as sent when within the cap, else too large; never a piece past the cap', async () => {
 		await fc.assert(
 			fc.asyncProperty(
 				fc.array(fc.nat({ max: 300 }), { maxLength: 40 }),
@@ -46,15 +46,15 @@ describe('read_capped_body', () => {
 					const { request, seen } = streamed(sizes);
 					const got = await read_capped_body(request, max);
 					if (total > max) {
-						expect(got).toBeNull();
+						expect(got).toBe('too large');
 						// the pieces up to the one that passed the cap, and no further
 						let sum = 0;
 						let need = 0;
 						while (sum <= max) sum += sizes[need++];
 						expect(seen.pulls).toBeLessThanOrEqual(need + 1);
 					} else {
-						expect(got).not.toBeNull();
-						const bytes = new Uint8Array(got!);
+						expect(got).toBeInstanceOf(Uint8Array);
+						const bytes = new Uint8Array(got as Uint8Array);
 						expect(bytes.byteLength).toBe(total);
 						let at = 0;
 						sizes.forEach((s, i) => {
