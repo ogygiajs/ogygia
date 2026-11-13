@@ -1791,8 +1791,6 @@ export class Compiler implements CoreApp {
 			}
 
 			// Transportable classes: append tag registration for `[ogygia.TRANSPORT]` codecs.
-			// Skip ogygia's own source (workspace dev links it outside node_modules; appending
-			// an `import 'ogygia'` there would create an eval cycle).
 			if (!id_n.startsWith(ctx.pkg_root)) {
 				const registered = appendTransportRegistrations(out, id_n, root);
 				if (registered !== null)
