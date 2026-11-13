@@ -1,6 +1,6 @@
 // The holes record, read back (src/runtime/hole-facts.ts): what the server minted for each hole on a
 // Kit-hydrated document, found by the hole's identity, parsed once per document.
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { RESPONSE_MARK } from '../../src/contract/response-mark.ts';
 import { hole_facts_of } from '../../src/runtime/hole-facts.ts';
 import { OGYGIA_RUNTIME } from '../../src/wire-markup.ts';
@@ -49,6 +49,18 @@ test('an entry without an endpoint, a sidecar that is not a script, a record tha
 	expect(hole_facts_of(doc, 'div')).toEqual({ endpoint: '/e', sidecar: null });
 	expect(hole_facts_of(doc_with('{not json').doc, 'h1')).toBeNull();
 	expect(hole_facts_of(document.implementation.createHTMLDocument(''), 'h1')).toBeNull();
+});
+
+test('a record that is not JSON is said in dev: page_payload_unreadable', () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	try {
+		expect(hole_facts_of(doc_with('{not json').doc, 'h1')).toBeNull();
+		expect(warn.mock.calls.map((c) => c.map(String).join(' ')).join('\n')).toContain(
+			'page_payload_unreadable'
+		);
+	} finally {
+		warn.mockRestore();
+	}
 });
 
 test('the record is parsed once per document', () => {

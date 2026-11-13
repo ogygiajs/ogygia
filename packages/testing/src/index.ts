@@ -239,10 +239,11 @@ export interface OgygiaDriver {
 	 *  Puppeteer's `evaluateOnNewDocument`): ogygia hands it the testing engine once, as the `Ogygia`
 	 *  is made, so make it before the first page load. Without it, the page must load the engine itself */
 	addInitScript?(source: string): Promise<unknown>;
-	/** GET a URL relative to the app (for `profile()`); default: `fetch` inside the page */
+	/** GET a URL relative to the app; default: `fetch` inside the page (no route ogygia calls takes a
+	 *  GET now: `profile()` POSTs) */
 	get?(url: string, headers: Record<string, string>): Promise<{ status: number; body: string }>;
-	/** POST to a URL relative to the app (the server window of `record(…, { server: true })`);
-	 *  default: `fetch` inside the page */
+	/** POST to a URL relative to the app (`profile()`, and the server window of
+	 *  `record(…, { server: true })`); default: `fetch` inside the page */
 	post?(url: string, headers: Record<string, string>): Promise<{ status: number; body: string }>;
 	/** wait `ms` (default: a timer) */
 	wait?(ms: number): Promise<void>;
@@ -502,7 +503,8 @@ export class Ogygia {
 		const fields = opts?.fields?.length
 			? `&fields=${encodeURIComponent(opts.fields.join(','))}`
 			: '';
-		const res = await this.#get(
+		// (a POST: a profile run changes the profiler's state, so its route takes no GET)
+		const res = await this.#post(
 			`${b}/page?p=${encodeURIComponent(path)}&runs=${opts?.runs ?? 3}&format=json${fields}`,
 			{
 				accept: 'application/json',
@@ -574,26 +576,13 @@ export class Ogygia {
 			out.r && typeof out.r === 'object' ? (out.r as { engine?: OgygiaEngine }).engine : undefined;
 		this.#engine = own ?? { version: out.v };
 		if (out.v < TESTING_ENGINE_VERSION) {
-			const at = await this.#in_page(() => location.origin, null).catch(() => '');
+			const at = await this.#in_page(() => location.origin, null).catch(() => ''); // ok: the origin only keys the one-time warning
 			const key = `${at}|${out.v}`;
 			if (warned_engines.get(key)) return out.r;
 			warned_engines.set(key, true);
 			warn('testing_engine_older', { at, version: out.v, expected: TESTING_ENGINE_VERSION });
 		}
 		return out.r;
-	}
-
-	/** GET in the app: the driver's own, else `fetch` inside the page */
-	#get(url: string, headers: Record<string, string>): Promise<{ status: number; body: string }> {
-		const driver = this.#driver;
-		if (driver.get) return driver.get(url, headers);
-		return this.#in_page(
-			async ([u, h]: readonly [string, Record<string, string>]) => {
-				const r = await fetch(u, { headers: h });
-				return { status: r.status, body: await r.text() };
-			},
-			[url, headers] as const
-		);
 	}
 
 	/** POST in the app: the driver's own, else `fetch` inside the page */

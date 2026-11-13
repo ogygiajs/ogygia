@@ -923,6 +923,41 @@ describe('remotes map', () => {
 	});
 });
 
+// THE HANDOFF READ (production server): a handoff it cannot find or read is said, and a read that
+// failed is never kept.
+describe('the virtual module’s handoff read', () => {
+	/** The server module beside its own handoff file (its first candidate), not inlined. */
+	const beside = async () => {
+		const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'og-handoff-')));
+		const file = path.join(dir, 'region-deps.mjs');
+		fs.writeFileSync(file, island_deps_module(true, false, '.no-such-out-dir'));
+		const handoff = path.join(dir, 'og-region-deps.json');
+		return { m: await import(file), handoff };
+	};
+
+	test('no handoff anywhere: its problem names every path it tried', async () => {
+		const { m, handoff } = await beside();
+		expect(m.region_css('/e/a.js')).toEqual([]);
+		const p = m.handoff_problem();
+		expect(p?.kind).toBe('missing');
+		expect(p?.tried).toContain(handoff);
+	});
+
+	test('a handoff that does not parse is said, and not kept: the next read finds the fixed one', async () => {
+		const { m, handoff } = await beside();
+		fs.writeFileSync(handoff, '{ "css": ');
+		expect(m.region_css('/e/a.js')).toEqual([]);
+		expect(m.handoff_problem()?.kind).toBe('unreadable');
+		fs.writeFileSync(handoff, JSON.stringify({ css: { '/e/a.js': ['/a.css'] } }));
+		expect(m.region_css('/e/a.js')).toEqual(['/a.css']);
+		expect(m.handoff_problem()).toBeNull();
+	});
+
+	test('an inlined handoff has no problem', async () => {
+		expect((await with_handoff({})).handoff_problem()).toBeNull();
+	});
+});
+
 // INLINE REGION CSS: the text of region sheets under Kit's `inlineStyleThreshold`, keyed by href.
 describe('collect_inline_css', () => {
 	const bundle = {

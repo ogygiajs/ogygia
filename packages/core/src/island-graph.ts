@@ -61,7 +61,7 @@ export function decode_island_locations(text: string): Map<string, string> {
 	try {
 		wire = JSON.parse(text) as IslandGraphWire;
 	} catch {
-		return out;
+		return out; // ok: a graph only steers preloads; without it each entry loads by its own import
 	}
 	if (!wire || !wire.s || typeof wire.s !== 'object') return out;
 	for (const [entry, src] of Object.entries(wire.s))
@@ -76,7 +76,7 @@ export function decode_island_graph(text: string): Map<string, string[]> {
 	try {
 		wire = JSON.parse(text) as IslandGraphWire;
 	} catch {
-		return out;
+		return out; // ok: a graph only steers preloads; without it each entry loads by its own import
 	}
 	if (!wire || !Array.isArray(wire.h) || !wire.e || typeof wire.e !== 'object') return out;
 	for (const entry of Object.keys(wire.e)) {

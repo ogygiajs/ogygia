@@ -9,7 +9,8 @@
  * - `rule_old_page_open`: nothing of a page that was left is still open (its visit's scope closed:
  *   its listeners, timers, streams).
  * - `rule_failure_uncoded`: no failure leaves ogygia without a code: an uncaught ogygia error names
- *   its code's page, and a `STALE` never escapes as a rejection.
+ *   its code's page, nothing thrown in ogygia's own code escapes uncoded (a plain TypeError), and a
+ *   `STALE` never escapes as a rejection.
  * - `rule_parse_upgraded`: a parsed answer is inert (./html-sink.ts, #382): no element of it was
  *   built by a component's constructor before the restore reached it.
  * - `rule_markup_known`: every ogygia marker on the page (`data-ogygia-*`, and `data-og-*` on an
@@ -25,6 +26,8 @@
  *   `restore` pairs them by position: a count that differs drops a lake's content).
  * - `rule_head_adopted`: the head never gains a `<base>` or a refresh / CSP / cookie meta after the
  *   first document (SPA-HEAD, ./head-deny.ts).
+ * - `rule_turns_counted`: the hydration scheduler's count of pending turns is the turns it holds,
+ *   each in the heap its snapshot names (./schedule.ts `turns_counted`: the drain's pick rests on it).
  * - `rule_seed_key_unshipped`: island code reads no `page.data` key the server had and the shaped
  *   page seed left out (seed shaping, `pageKeys()`; the seed names what it left out in rules builds).
  *
@@ -48,6 +51,7 @@ type RuntimeRule =
 	| 'rule_region_left_busy'
 	| 'rule_head_adopted'
 	| 'rule_lake_restored'
+	| 'rule_turns_counted'
 	| 'rule_seed_key_unshipped';
 
 /** The runtime's rules. */
@@ -191,7 +195,33 @@ export function watch_router(router: RouterView): void {
 // ── no failure without a code ──
 
 const CODE_LINK_RE = /ogygiajs\.dev\/e\/[a-z_]+/;
+/** A stack frame's file, in Chromium's, Firefox's and WebKit's spellings alike. */
+const FRAME_URL_RE = /((?:https?|file):\/\/[^\s()@]+?):\d+:\d+/;
 /** (The failures that left ogygia without a code, as found, are `R.uncoded`.) */
+
+/** Where ogygia's own code is served from (`install_rules`, {@link own_code_of}), or null. */
+let own_code: string | null = null;
+
+/**
+ * The folder ogygia's own code is served from, given this module's URL: core's `src/` when the
+ * module is served as source (dev, the browser tests: each module has a URL of its own). Null in a
+ * bundle: a chunk can hold the app's code beside ours (the runtime entry carries the app's client
+ * plugins), so a frame in it does not say whose code threw (test/browser/rules-uncoded-own-code.test.ts).
+ */
+export function own_code_of(module_url: string): string | null {
+	const own = module_url.split(/[?#]/)[0];
+	return own.endsWith('/src/runtime/rules.ts') ? new URL('../', own).href : null;
+}
+
+/** The file of the error's top frame that has one (a native frame, say `decodeURIComponent`'s, has
+ *  none), or null. */
+function thrown_at(error: Error): string | null {
+	let stack = error.stack ?? '';
+	// (Chromium's stack starts with the message, which may itself hold a URL)
+	const head = `${error.name}: ${error.message}`;
+	if (stack.startsWith(head)) stack = stack.slice(head.length);
+	return FRAME_URL_RE.exec(stack)?.[1] ?? null;
+}
 
 function failure(reason: unknown): void {
 	if (R.uncoded.length >= 10) return;
@@ -201,8 +231,14 @@ function failure(reason: unknown): void {
 	}
 	const message =
 		reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : '';
-	if (message.startsWith('[ogygia]') && !CODE_LINK_RE.test(message))
-		R.uncoded.push(`an ogygia error with no code: ${message.split('\n')[0].slice(0, 160)}`);
+	const line = message.split('\n')[0].slice(0, 160);
+	if (message.startsWith('[ogygia]')) {
+		if (!CODE_LINK_RE.test(message)) R.uncoded.push(`an ogygia error with no code: ${line}`);
+		return;
+	}
+	// (a failure thrown in ogygia's own code is ogygia's, whatever it says, #1475)
+	if (reason instanceof Error && own_code !== null && thrown_at(reason)?.startsWith(own_code))
+		R.uncoded.push(`a ${reason.name} thrown in ogygia's code, with no code: ${line}`);
 }
 
 const no_failure_uncoded = (): string | null =>
@@ -227,6 +263,18 @@ let held_at: ((address: string) => { v: number } | null) | null = null;
 export function watch_frames(peek: (address: string) => { v: number } | null): void {
 	held_at = peek;
 }
+
+// ── the scheduler counts the turns it holds ──
+
+/** The hydration scheduler's own check (./schedule.ts hands it over as it loads). */
+let turns_check: (() => string | null) | null = null;
+
+/** The scheduler is on the page: the rule asks it whether its count holds. */
+export function watch_turns(check: () => string | null): void {
+	turns_check = check;
+}
+
+const turns_counted = (): string | null => (turns_check === null ? null : turns_check());
 
 /** The store handed `region` the answer with ticket `v` at `address` (`painting`: one of its
  *  answers is being painted now). */
@@ -385,6 +433,7 @@ function check_soon(): void {
 export function install_rules(dev: boolean): void {
 	if (installed || typeof window === 'undefined') return;
 	installed = true;
+	own_code = own_code_of(import.meta.url);
 	runtime_rules.add('rule_region_mounted_twice', one_mount_per_region);
 	runtime_rules.add('rule_old_page_open', no_old_page_open);
 	runtime_rules.add('rule_failure_uncoded', no_failure_uncoded);
@@ -393,6 +442,7 @@ export function install_rules(dev: boolean): void {
 	runtime_rules.add('rule_markup_known', markup_known);
 	runtime_rules.add('rule_region_answer_behind', regions_show_their_answers);
 	runtime_rules.add('rule_region_left_busy', regions_left_at_rest);
+	runtime_rules.add('rule_turns_counted', turns_counted);
 	watch_head();
 	(globalThis as PageGlobals).__og_parsed = note_parse;
 	runtime_rules.add('rule_seed_key_unshipped', no_unshipped_read);

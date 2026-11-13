@@ -21,7 +21,7 @@ test('settled before its swap, a lake wakes the regions that waited only after i
 	const s = new RuntimeSession();
 	const a = lake();
 	s.wait_on_lake(a);
-	s.settle_lake(a); // the answer is in hand, the swap not done
+	s.settle_lake_before_swap(a); // the answer is in hand, the swap not done
 	expect(s.lake_settled(a)).toBe(true); // a region connecting now runs
 	expect(s.wake_lake(a)).toBe(true); // after the swap: the waiters wake, once
 	expect(s.wake_lake(a)).toBe(false);
@@ -30,7 +30,7 @@ test('settled before its swap, a lake wakes the regions that waited only after i
 test('a lake nobody waited on wakes nobody after its swap', () => {
 	const s = new RuntimeSession();
 	const a = lake();
-	s.settle_lake(a);
+	s.settle_lake_before_swap(a);
 	expect(s.wake_lake(a)).toBe(false);
 });
 
@@ -38,7 +38,7 @@ test('a lake whose refresh failed for good is settled as it stands', () => {
 	const s = new RuntimeSession();
 	const a = lake();
 	s.wait_on_lake(a);
-	s.settle_lake_now(a);
+	s.settle_lake(a);
 	expect(s.lake_settled(a)).toBe(true);
 	expect(s.wake_lake(a)).toBe(false); // its waiters were woken with it
 });

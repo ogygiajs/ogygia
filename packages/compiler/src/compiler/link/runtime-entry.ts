@@ -1,3 +1,4 @@
+import { dedent } from '@ogygia/core/contract';
 import { client_realms_source, type ClientRealmFile } from './caps.ts';
 
 const HYPHEN = /-/g;
@@ -307,8 +308,24 @@ export function generateHydrateFeaturesSource(
  * - `FRAMES`: the `frames` feature is in the build — some region streams HTML (a deferred hole, a
  *   live region, a lake). Without the frame store a region's fetch has nowhere to land, so the
  *   element's fetch / apply / morph / renew path is dead code then.
+ * - `load_wire_codec`: `null` where the `wire` feature (the codec) is in the build up front, else
+ *   the codec's `import()`, for a wake whose props carry a live value the marks did not predict
+ *   (core runtime/wire-on-use.ts). Generated here, not written in core, so a build with the codec
+ *   has no `import()` of it in the boot's graph: that edge alone splits the boot's shared chunk in
+ *   two (apps/palaestra/e2e/lazy-chunks.spec.ts, the boot-file budget).
+ * @param runtimeDir Absolute directory containing `core.js` + the feature modules.
  */
-export function generateRuntimeFlagsSource(marks: RuntimeMarks, all = false): string {
-	const frames = all || resolveFeatures(marks).includes('frames');
-	return `export const FRAMES = ${frames};\n`;
+export function generateRuntimeFlagsSource(
+	marks: RuntimeMarks,
+	runtimeDir: string,
+	all = false
+): string {
+	const features = resolveFeatures(marks);
+	const frames = all || features.includes('frames');
+	const codec = JSON.stringify(runtime_path(runtimeDir, FEATURES.wire.module));
+	const load_wire_codec = all || features.includes('wire') ? 'null' : `() => import(${codec})`;
+	return `${dedent`
+		export const FRAMES = ${frames};
+		export const load_wire_codec = ${load_wire_codec};
+	`}\n`;
 }

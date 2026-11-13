@@ -24,11 +24,12 @@ const og = () =>
 	(globalThis as unknown as Record<symbol, NavHandle | undefined>)[Symbol.for('ogygia.nav')] ??
 	null;
 
-/** No runtime on this document at all (neither Kit's nor ogygia's): the browser navigates. */
-function browser_goto(
+/** No runtime on this document at all (neither Kit's nor ogygia's): the browser navigates. A URL
+ *  it refuses rejects the promise (async: nothing throws out of the call). */
+async function browser_goto(
 	url: string | URL,
 	opts: { replaceState?: boolean; external?: boolean } = {}
-) {
+): Promise<void> {
 	const target = new URL(url, location.href);
 	if (target.protocol !== 'http:' && target.protocol !== 'https:') {
 		throw new OgygiaError('goto_not_http');
@@ -38,7 +39,6 @@ function browser_goto(
 	}
 	if (opts.replaceState) location.replace(target.href);
 	else location.assign(target.href);
-	return Promise.resolve();
 }
 const NO_UNSUBSCRIBE = () => {};
 

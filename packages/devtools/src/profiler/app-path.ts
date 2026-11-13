@@ -8,7 +8,7 @@ function root_of_app(): string | null {
 			app_root = cwd ? cwd.split('\\').join('/') : null;
 			if (app_root && !app_root.endsWith('/')) app_root = `${app_root}/`;
 		} catch {
-			app_root = null;
+			app_root = null; // ok: no process folder off Node: paths stay absolute
 		}
 	}
 	return app_root;

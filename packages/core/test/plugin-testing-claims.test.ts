@@ -5,6 +5,8 @@ import { startPlugin } from '../src/plugin/testing.ts';
 const HOUR = 3600;
 const DAY = 24 * HOUR;
 const message = (exp: string) => `hole:${exp}`;
+/** A request for `url`, as `capability.open` takes it. */
+const at = (url: URL) => ({ url, request: new Request(url) }) as never;
 
 /** A capability URL minted now by a started plugin, and the plugin's app. */
 function minted() {
@@ -43,12 +45,12 @@ describe('plugin test harness claims', () => {
 		renew.searchParams.set('renew', '1');
 
 		vi.setSystemTime((exp + 7 * DAY) * 1000);
-		const kept = app.capability.open(renew, message);
+		const kept = app.capability.open(at(renew), message);
 		expect(kept.ok).toBe(true);
 		expect(kept.ok && kept.headers['x-ogygia-capability']).toMatch(/^\/hole\?exp=\d+&sig=/);
 
 		vi.setSystemTime((exp + 9 * DAY) * 1000);
-		const late = app.capability.open(renew, message);
+		const late = app.capability.open(at(renew), message);
 		expect(late.ok).toBe(false);
 		expect(!late.ok && late.response.headers.get('x-ogygia-deny')).toBe('renew-window');
 	});
@@ -57,11 +59,11 @@ describe('plugin test harness claims', () => {
 		const { app, url } = minted();
 		const forged = new URL(url);
 		forged.searchParams.set('sig', 'forged');
-		const refused = app.capability.open(forged, message);
+		const refused = app.capability.open(at(forged), message);
 		expect(refused.ok).toBe(false);
 		if (refused.ok) return;
 		expect(refused.response.status).toBe(403);
 		expect(refused.response.headers.get('x-ogygia-deny')).toBe('sig');
-		expect(app.capability.open(url, message).ok).toBe(true);
+		expect(app.capability.open(at(url), message).ok).toBe(true);
 	});
 });
