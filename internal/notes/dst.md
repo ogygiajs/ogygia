@@ -446,7 +446,8 @@ nobody notices wants an oracle or a test first.
 
 MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
 `internal/sim/mutants.json` on main's code, over gens 24 (a reshape pass that trims, with links: it
-kills restore.ts's children not put back and its render left in the light DOM, by `ssr-hydrate`),
+kills restore.ts's children not put back and its render left in the light DOM, by `ssr-hydrate`,
+and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest),
 188 (an empty island that wakes: it kills the
 repair's `> 0` mutant), 191, 192, 193, 220 (a text-only third party on a page root: it kills
 `align_to`'s last `return true` -> false) and 262 (islands with a `<svelte:head>`, one a third party

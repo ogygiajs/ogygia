@@ -211,5 +211,14 @@
 		"operator": "statement",
 		"from": "shadow.appendChild(n);",
 		"to": "void n;"
+	},
+	{
+		"id": "reshape-stand-in-kept",
+		"file": "packages/reshape/src/restore.ts",
+		"line": 243,
+		"code": "as.replaceWith(real);",
+		"operator": "statement",
+		"from": "as.replaceWith(real);",
+		"to": "void real;"
 	}
 ]
