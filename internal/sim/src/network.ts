@@ -15,7 +15,8 @@
  *   quiet that long after its first piece (a stuck connection, an overloaded origin): longer than a
  *   client's own deadline for it;
  * - `down`: a host that has a replica (`downable`: a federation peer served at two origins, the
- *   first) answers 503 at its edge, its server never asked: the app must fail over to the other;
+ *   first) answers 500 or 503 at its edge, its server never asked: the app must fail over to the
+ *   other;
  * - `offline`: a tab's requests fail at once.
  *
  * A fault is on for a run when its class is in the run's swarm (search.ts picks a random subset per
@@ -49,7 +50,7 @@ export interface NetworkOptions {
 	/** The requests a `redirect` fault may send to another origin (default: ogygia's region
 	 *  endpoint, whose HTML a page paints). */
 	redirectable?: (url: URL) => boolean;
-	/** The requests a `down` fault may answer 503 at the edge: a host with a replica (default:
+	/** The requests a `down` fault may answer 500 or 503 at the edge: a host with a replica (default:
 	 *  none). */
 	downable?: (url: URL) => boolean;
 }
@@ -383,9 +384,10 @@ export class Network {
 				return;
 			}
 			if (!calm && this.#downable(target) && this.#on('down', fate)) {
-				ex.status = 503;
+				const status = fate.chance(0.5) ? 500 : 503;
+				ex.status = status;
 				loop.add('net', `down ${ex.id}`, this.#latency(fate), () =>
-					resolve(new Response('service unavailable', { status: 503 }))
+					resolve(new Response('unavailable', { status }))
 				);
 				return;
 			}

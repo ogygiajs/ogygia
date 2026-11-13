@@ -217,11 +217,28 @@ describe('the network', () => {
 		hop('tab-9', 'https://peer.test/og/fragment/page');
 		await loop.run();
 		expect(status).toEqual({
-			'tab-1 https://peer.test/og/fragment/page': 503,
+			'tab-1 https://peer.test/og/fragment/page': expect.any(Number),
 			'tab-1 https://peer2.test/og/fragment/page': 200,
 			'tab-9 https://peer.test/og/fragment/page': 200
 		});
 		expect(asked).not.toContain('tab-1 https://peer.test/og/fragment/page');
+		// (a 500 or a 503, by the request's draw: the edges of `status >= 500` and `< 500` both seen)
+		const seen = new Set<number>();
+		for (let s = 0; s < 40; s++) {
+			const l = new Loop(rng(s));
+			const n = new Network({
+				loop: l,
+				rng: rng(s),
+				faults: new Set(['down']),
+				rates: { down: 1 },
+				downable: () => true
+			});
+			void n
+				.send('tab-1#1', new Request('https://peer.test/x'), async () => new Response('x'))
+				.then((r) => seen.add(r.status));
+			await l.run();
+		}
+		expect([...seen].sort()).toEqual([500, 503]);
 	});
 
 	it('a stalled answer comes 10 to 40 s late, and the exchange says it stalled; a calm one never', async () => {
