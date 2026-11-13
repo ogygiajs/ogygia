@@ -1,24 +1,3 @@
-/**
- * Registration for transportable classes (`static [import.meta.og.wire]` codecs).
- *
- * Registers ONLY exported classes that actually carry a wire codec — NOT every exported class.
- * A plain `export class Foo {}` must never be registered, because the registration appends an
- * `import … from 'ogygia/internal/register'`, and dragging that into an unrelated module (or a
- * workspace package that doesn't even depend on ogygia) breaks its resolution for nothing.
- * Detection is exact, not heuristic: by the time this runs the wire macro has already normalized
- * `static wire = import.meta.og.wire(…)` into `static [Symbol.for('ogygia.wire')] = …`, so a class
- * is transportable iff it has that member (the pre-rewrite call form is matched too, defensively).
- * The macro is name-locked to `static wire`, so there is exactly one shape to find — no aliasing.
- *
- * Tags are root-relative module path + export name: identical in the server build and every
- * island bundle with zero coordination. Registrations import from `ogygia/internal` — a
- * re-export barrel, so tree-shaking keeps island component code out of a tagged `.svelte.ts`
- * state chunk.
- *
- * Found: a top-level `export class X` (declaration or `export { X }`), and a default export of a
- * named class (`export default class X`, `export default X`), tagged `#default`. An anonymous
- * default wire class is the build error `wire_class_anonymous`.
- */
 import path from 'node:path';
 import { parse_module } from './parse/oxc.ts';
 import { component_blocks } from './parse/scan.ts';
@@ -28,34 +7,24 @@ import { splice_text, type Edit } from './splice.ts';
 const CLASS_KW = /\bclass\b/;
 const SVELTE_EXT = /\.svelte$/;
 
-/** Marker that a module already carries generated registrations (idempotence). */
 const GENERATED_MARK =
 	'// ogygia: generated registration (transportable codecs + createContext tags)';
 
-/** Parse a module to its top-level statements once (TS/JS inferred from `id_n`); null on error. */
 function parse_body(code: string, id_n: string): AstNode[] | null {
-	// `parseSync` never throws — syntax errors land in `.errors`, which the real compiler reports.
-	try {
-		const result = parse_module(code, id_n);
-		if (!result.ok || !result.program) return null;
-		return (result.program as { body?: AstNode[] }).body ?? [];
-	} catch {
-		return null; // ok: null is "did not parse"; the registration adds nothing to a module the bundler refuses
-	}
+	const { program } = parse_module(code, id_n);
+	return program ? ((program as { body?: AstNode[] }).body ?? []) : null;
 }
 
-/** An exported wire class: the name its tag carries, and the local binding the registration passes. */
 type WireExport = { tag: string; local: string };
 
-/** Collect the top-level exported classes that carry a wire codec (and only those). */
 function exportedWireClasses(code: string, id_n: string): WireExport[] {
 	const body = parse_body(code, id_n);
 	return body ? exportedWireClassesFromBody(body, code, id_n) : [];
 }
 
 function exportedWireClassesFromBody(body: AstNode[], code: string, id_n: string): WireExport[] {
-	const classNodes = new Map<string, AstNode>(); // every top-level class declaration, by name
-	const exported = new Map<string, string>(); // tag name → local name, for the exported ones
+	const classNodes = new Map<string, AstNode>();
+	const exported = new Map<string, string>();
 	for (const node of body) {
 		if (node.type === 'ClassDeclaration' && node.id) {
 			classNodes.set(node.id.name, node);
@@ -64,20 +33,17 @@ function exportedWireClassesFromBody(body: AstNode[], code: string, id_n: string
 				classNodes.set(node.declaration.id.name, node.declaration as AstNode);
 				exported.set(node.declaration.id.name, node.declaration.id.name);
 			}
-			// `export { Foo, Bar as Baz }` — the LOCAL name must be a class (resolved after the loop).
 			if (!node.source) {
 				for (const spec of node.specifiers ?? []) {
 					if (spec.local?.type === 'Identifier') exported.set(spec.local.name, spec.local.name);
 				}
 			}
 		} else if (node.type === 'ExportDefaultDeclaration') {
-			// `export default class Cart {}` / `export default Cart`: tagged by the export name `default`
 			const decl = node.declaration as AstNode | null | undefined;
 			if (decl?.type === 'ClassDeclaration' && decl.id?.name) {
 				classNodes.set(decl.id.name, decl);
 				exported.set('default', decl.id.name);
 			} else if (decl?.type === 'ClassDeclaration' && classHasWireMember(decl)) {
-				// no binding for the registration to pass (test: og-wire "anonymous default wire class")
 				throw new OgygiaError('wire_class_anonymous', {
 					file: id_n,
 					line: code.slice(0, decl.start ?? 0).split('\n').length
@@ -85,14 +51,12 @@ function exportedWireClassesFromBody(body: AstNode[], code: string, id_n: string
 			} else if (decl?.type === 'Identifier' && decl.name) exported.set('default', decl.name);
 		}
 	}
-	// Only classes that actually carry a wire codec — a plain exported class is not transportable.
 	return [...exported].flatMap(([tag, local]) => {
 		const cls = classNodes.get(local);
 		return cls && classHasWireMember(cls) ? [{ tag, local }] : [];
 	});
 }
 
-/** Minimal shape of the expression nodes the wire checks below walk. */
 interface ExprNode {
 	type?: string;
 	name?: string;
@@ -105,21 +69,15 @@ interface ExprNode {
 	arguments?: { type?: string; value?: unknown }[];
 }
 
-/**
- * A class carrying a wire codec. Post-macro (the usual case here — macros run before this pass):
- * `static [Symbol.for('ogygia.wire')] = …`. Pre-macro, defensively: `static <name> =
- * import.meta.og.wire(…)`. Anything else is a plain class and must NOT be registered.
- */
 function classHasWireMember(cls: AstNode): boolean {
 	const members = (cls.body as { body?: ClassMember[] } | undefined)?.body ?? [];
 	return members.some((m) => {
 		if (m.static !== true) return false;
-		if (m.computed === true && isWireSymbolKey(m.key)) return true; // static [Symbol.for('ogygia.wire')]
-		return isWireMacroCall(m.value); // static wire = import.meta.og.wire(…)
+		if (m.computed === true && isWireSymbolKey(m.key)) return true;
+		return isWireMacroCall(m.value);
 	});
 }
 
-/** `Symbol.for('ogygia.wire')` — the computed key the wire macro emits. */
 function isWireSymbolKey(key: unknown): boolean {
 	const k = key as ExprNode | undefined;
 	if (k?.type !== 'CallExpression') return false;
@@ -132,22 +90,19 @@ function isWireSymbolKey(key: unknown): boolean {
 		return false;
 	}
 	const arg = k.arguments?.[0];
-	return (
-		!!arg && (arg.type === 'StringLiteral' || arg.type === 'Literal') && arg.value === 'ogygia.wire'
-	);
+	return arg?.type === 'Literal' && arg.value === 'ogygia.wire';
 }
 
-/** `import.meta.og.wire(…)` — the raw construct, before the macro rewrites it to the symbol key. */
 function isWireMacroCall(value: unknown): boolean {
 	const v = value as ExprNode | undefined;
 	if (v?.type !== 'CallExpression') return false;
-	const callee = v.callee; // (import.meta.og).wire
+	const callee = v.callee;
 	if (callee?.type !== 'MemberExpression' || callee.computed || callee.property?.name !== 'wire') {
 		return false;
 	}
-	const og = callee.object; // import.meta.og
+	const og = callee.object;
 	if (og?.type !== 'MemberExpression' || og.computed || og.property?.name !== 'og') return false;
-	const meta = og.object; // import.meta
+	const meta = og.object;
 	return (
 		meta?.type === 'MetaProperty' && meta.meta?.name === 'import' && meta.property?.name === 'meta'
 	);
@@ -176,12 +131,6 @@ interface VarDecl {
 	declarations?: { id?: { type?: string; name?: string }; init?: CallInit | null }[];
 }
 
-/**
- * Exported consts whose initializer is a `createContext(...)` call — `export const cart =
- * createContext<Cart>()`. Tagged by `module#export` so a provider and every consumer island agree
- * on the context identity (same alias-proof scheme as `wire`). Covers `createContext(...)` and
- * `<ns>.createContext(...)`.
- */
 function contextExportNamesFromBody(body: AstNode[]): string[] {
 	const names: string[] = [];
 	for (const node of body) {
@@ -234,17 +183,11 @@ export function appendTransportRegistrations(
 	root: string
 ): string | null {
 	if (code.includes(GENERATED_MARK)) return null;
-	// Cheap gates — skip parsing modules that have neither a class nor a createContext call.
-	const maybeClass = CLASS_KW.test(code);
-	const maybeCtx = code.includes('createContext');
-	if (!maybeClass && !maybeCtx) return null;
-
-	// Parse ONCE and feed both detectors (a module with both a class and a createContext used to
-	// parse twice).
+	if (!CLASS_KW.test(code) && !code.includes('createContext')) return null;
 	const body = parse_body(code, id_n);
 	if (!body) return null;
-	const classes = maybeClass ? exportedWireClassesFromBody(body, code, id_n) : [];
-	const contexts = maybeCtx ? contextExportNamesFromBody(body) : [];
+	const classes = exportedWireClassesFromBody(body, code, id_n);
+	const contexts = contextExportNamesFromBody(body);
 	if (classes.length === 0 && contexts.length === 0) return null;
 
 	const rel = path.relative(root, id_n).split('\\').join('/');
@@ -257,11 +200,7 @@ function registrationBlock(rel: string, classes: WireExport[], contexts: string[
 	if (contexts.length) imports.push('__tag_context as __OGC');
 	const lines = [
 		'',
-		'// ogygia: generated registration (transportable codecs + createContext tags)',
-		// A Region-free seam, NOT the `ogygia/internal` barrel: this import lands in every module with
-		// an exported class / createContext, and the barrel re-exports `Region.svelte` (→ `$app/paths` →
-		// `window`). In a bundled build tree-shaking hides that, but Vite DEV serves raw ESM, so a
-		// no-window realm (dev SSR) would crash at module-eval. See internal-register.ts.
+		GENERATED_MARK,
 		`import { ${imports.join(', ')} } from 'ogygia/internal/register';`
 	];
 	for (const { tag, local } of classes)
@@ -270,13 +209,6 @@ function registrationBlock(rel: string, classes: WireExport[], contexts: string[
 	return lines.join('\n');
 }
 
-/**
- * A `.svelte` component can `export class X` from its `<script module>` (instance-`<script>`
- * classes can't be exported, so they never travel). Find the module script and treat its
- * body like any other module: same detection, same registration, injected before the block's
- * closing tag. The class is tagged by the `.svelte` path, and the manifest side-effect-imports
- * the component to run that registration on the client.
- */
 function moduleScriptOf(code: string): { body: string; injectAt: number } | null {
 	const mod = component_blocks(code).find((b) => b.kind === 'script' && b.module);
 	return mod ? { body: code.slice(mod.start, mod.end), injectAt: mod.end } : null;
@@ -287,7 +219,6 @@ export function svelteModuleHasTransportable(code: string, id_n: string): boolea
 	if (!code.includes('module') || !CLASS_KW.test(code)) return false;
 	const mod = moduleScriptOf(code);
 	if (!mod) return false;
-	// Parse the module body as TS (Svelte module scripts allow `lang="ts"`).
 	return moduleHasTransportable(mod.body, id_n.replace(SVELTE_EXT, '.svelte.ts'));
 }
 
