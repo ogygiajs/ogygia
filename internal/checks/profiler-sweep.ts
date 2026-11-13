@@ -31,6 +31,7 @@ for (const r of routes) {
 	const t = Date.now();
 	try {
 		const res = await fetch(`http://127.0.0.1:4181/__profiler/page?p=/${r}&runs=2&format=json`, {
+			method: 'POST',
 			headers: { 'x-profiler-key': 'hell' }
 		});
 		if (!res.ok) {

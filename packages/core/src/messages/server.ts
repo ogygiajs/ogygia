@@ -68,6 +68,21 @@ export const SERVER_ERRORS = {
 			Pass one secret, to the one \`handle()\`, before anything renders.
 		`
 	},
+	islands_endpoint_conflict: {
+		text: (a: { endpoint: string; was: string }): string => prose`
+			handle({ endpoint }) names ${a.endpoint}, but this server already answers holes on
+			${a.was}. ${a.endpoint} stands from here on: pass one endpoint, to the one \`handle()\`.
+		`,
+		details: (): string => prose`
+			A server has one islands endpoint: the path the handle answers holes on, and the path
+			every capability is minted for. Two \`handle()\` calls in one process named different
+			ones, so the later one replaced the first: a handle still answering on the first path no
+			longer gets the holes, and pages rendered before the change name the old path.
+
+			Pass one \`endpoint\`, to the one \`handle()\`. (Not said in dev, where a reload of the
+			hooks runs \`handle()\` again.)
+		`
+	},
 	secret_missing_at_runtime: {
 		text: (): string => prose`
 			OGYGIA_SECRET was set when this app was built but is not set where it runs: region
@@ -116,8 +131,9 @@ export const SERVER_WARNINGS = {
 	region_render_failed: {
 		text: (): string => 'region render failed:',
 		details: (): string => prose`
-			Dev only. A region's server render threw, so the islands endpoint answered 500 and the page
-			keeps the region's fallback. The error follows the message.
+			A region's server render threw, so the islands endpoint answered 500 and the page keeps
+			the region's fallback. The error follows the message, in the server's log only: the
+			visitor's answer says nothing of it.
 		`
 	},
 	rate_limit_shared_address: {
