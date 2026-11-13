@@ -17,7 +17,7 @@
  * long-lived, bundler-agnostic compile session (it imports no Vite) that fuses the file-local
  * front-end — `transform` (host islands), `ts_regions`, `macros`, and `prescan` (whole-app island
  * discovery) — over a `Program` (cross-file linker) and a resolved `CompileCtx`. Any non-Vite host
- * is just a second adapter: build a `CompileCtx`, `configure()` the `Compiler`, and
+ * is just a second adapter: build a `CompileCtx`, make the `Compiler` with it, and
  * feed it source. The Vite plugin (`ogygia/vite`) is the reference adapter that drives it.
  *
  * Exposed to consumers as `ogygia/internal/compiler` (internal, not a stable public API).

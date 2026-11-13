@@ -141,6 +141,7 @@ import { ssr_hosts_handoff_path, parse_ssr_hosts } from '../compiler/link/emit-g
 import { router_css_key } from '../compiler/link/router-css.ts';
 import { Program, strip_id } from '../compiler/program.ts';
 import { Compiler } from '../compiler/driver.ts';
+import { compiler_of, configured, new_session, resolve } from './session.ts';
 import { core_defines } from '../compiler/virtual/core.ts';
 import { CompileCtx, type PackageScan } from '../compiler/ctx.ts';
 import { discover_package_files } from './package-files.ts';
@@ -271,12 +272,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let devtools_effective = false;
 	let devtools_lazy = false;
 
-	// The Program — the first build's cross-file linker / island graph (the compiler makes each later
-	// build its own: `compiler.program`). It owns the descriptor registry + the feature-mark bag
-	// (seeded from the two app-wide config flags), and the behavior over them (register /
-	// unregister_host / note_runtime_mark). Per-instance, never module-global, so Kit's throwaway
-	// plugin instance is a different Program and can't leak into the real build.
-	const first_program = new Program({ forms: continuity_forms, router: router_enabled });
+	// The Program — the cross-file linker / island graph, made with the compiler at each resolve (the
+	// compiler makes each later build of a watch its own: `compiler.program`). It owns the descriptor
+	// registry + the feature-mark bag (seeded from the two app-wide config flags), and the behavior over
+	// them (register / unregister_host / note_runtime_mark). Never module-global, so Kit's throwaway
+	// plugin instance has a different Program and can't leak into the real build.
 	// The feature-selected runtime chunk name lives on the driver as `compiler.runtime_chunk_filename()`
 	// (RUNTIME_HASH ⊕ program.runtime_feature_hash — see CompileCtx.runtime_chunk_filename); buildStart's
 	// emitFile and the runtime-url virtual both read it, so both build legs compute the same immutable name.
@@ -375,7 +375,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		if (!env?.name) return null;
 		return { name: env.name, server: env.name === 'ssr' || env.config?.consumer === 'server' };
 	};
-	const leg_of = (ctx: unknown): BuildLeg => compiler.leg(env_of(ctx));
+	const leg_of = (ctx: unknown): BuildLeg => compiler_of(session, 'leg').leg(env_of(ctx));
 	let vite_server: ViteDevServer | null = null;
 	/** absolute path to Kit's internal wire-protocol module (deep import) */
 	let kit_wire_path: string | null = null;
@@ -432,7 +432,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				(locals.size > 0 && decl.specs.some((s) => locals.has(s.local)));
 		},
 		regions: {
-			names: () => compiler.region_names(),
+			names: () => compiler_of(session, 'regions.names').region_names(),
 			barrelWhy: (file, importers) => barrel_why(file, importers)
 		}
 	};
@@ -443,7 +443,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	const barrel_why = (barrel: string, importers: Iterable<string>): BarrelLeftReason[] => {
 		const ids = [...importers];
 		const found = new Set<BarrelLeftReason>();
-		const client = compiler.find_leg('client');
+		const client = compiler_of(session, 'regions.barrelWhy').find_leg('client');
 		for (const stage of ['source', 'post'] as const)
 			for (const r of client?.barrels_said(stage)?.why(barrel, ids) ?? []) found.add(r);
 		return BARREL_LEFT_REASONS.filter((r) => found.has(r));
@@ -507,9 +507,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 	// The driver — the bundler-agnostic compile session (Program + transform cache + profiler). It holds
 	// the whole file-local + discovery front-end (transform / ts_regions / macros / prescan / emit /
-	// resolve_id / transform_module / …). Its CompileCtx is bound in configResolved once the build is
-	// resolved (root/dev/id_salt known); the hooks then call it and inject the Vite primitives they own.
-	const compiler = new Compiler(first_program, { prof: __prof, P: __P, outHash: __outHash });
+	// resolve_id / transform_module / …). It is made in configResolved with its CompileCtx, once the
+	// build is resolved (root/dev/id_salt known); each hook takes it from the session (./session.ts)
+	// and injects the Vite primitives it owns.
+	const session = new_session();
 
 	// ── keep-client route injection ──────────────────────────────────────────
 	// All-csr=false apps make Kit skip its ENTIRE client build, so ogygia's runtime is never emitted
@@ -553,7 +554,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		}: { deleted?: boolean; server?: ViteDevServer | null } = {}
 	) => {
 		if (!server) return false;
-		return compiler.invalidate_for_file(file, {
+		return compiler_of(session, 'invalidate').invalidate_for_file(file, {
 			deleted,
 			invalidate: (id) => invalidate_module_id(server, id)
 		});
@@ -574,6 +575,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			config: {
 				order: 'pre',
 				async handler(userConfig, env) {
+					configured(session);
 					// Kit's `files.routes` / `outDir` from the app's Kit config — resolved BEFORE anything
 					// below walks the routes tree or picks an output path (compiler/kit.ts `kit_dirs`). An
 					// app building a second route tree from one source configures both. Read off Kit's own
@@ -589,7 +591,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						app_plugins,
 						path.resolve(userConfig.root ?? '.'),
 						env.command === 'serve',
-						(source, filename) => compiler.transform_content_island(source, filename),
+						(source, filename) =>
+							compiler_of(session, 'markup').transform_content_island(source, filename),
 						seams
 					);
 					stage_transforms = resolved.transforms;
@@ -833,48 +836,54 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				({ kit_wire_path, kit_remote_index, universal_hooks, client_hooks, kit_transport_init } =
 					resolve_kit_paths(root));
 
-				// Bind the driver's resolved compile context — now that root/base/libDir/dev + id_salt are
-				// known. Every run_transform runs after this (buildStart prescan / the transform hook), so
-				// the snapshot is complete before the driver is first called.
-				compiler.configure(
-					new CompileCtx({
-						root,
-						base,
-						app_dir,
-						libDir,
-						pkg_scan,
-						page_importers,
-						page_files,
-						measure,
-						server_plugins,
-						client_plugins,
-						route_config,
-						foreign_hydrate,
-						is_dev,
-						id_salt,
-						visibleMargin,
-						presets,
-						import_keys,
-						resolve_alias,
-						macros,
-						// (the id prefix, not the native path: every consumer `startsWith`s a module id)
-						pkg_root: CORE_ROOT_ID,
-						build_secret,
-						rate_limit,
-						session_cookie,
-						region_ttl,
-						renew_window,
-						router_enabled,
-						router_view_transitions,
-						client_hooks,
-						runtime_dir: RUNTIME_DIR,
-						runtime_hash: RUNTIME_HASH,
-						kit_wire_path,
-						client_binding_stub_file: CLIENT_BINDING_STUB_FILE,
-						app_shims: APP_SHIMS,
-						is_build,
-						devtools: devtools_effective
-					})
+				// The driver, made with its resolved compile context — now that root/base/libDir/dev +
+				// id_salt are known. Every hook that calls it runs after this (session.ts refuses one that
+				// does not).
+				const compiler = resolve(
+					session,
+					() =>
+						new Compiler(
+							new Program({ forms: continuity_forms, router: router_enabled }),
+							{ prof: __prof, P: __P, outHash: __outHash },
+							new CompileCtx({
+								root,
+								base,
+								app_dir,
+								libDir,
+								pkg_scan,
+								page_importers,
+								page_files,
+								measure,
+								server_plugins,
+								client_plugins,
+								route_config,
+								foreign_hydrate,
+								is_dev,
+								id_salt,
+								visibleMargin,
+								presets,
+								import_keys,
+								resolve_alias,
+								macros,
+								// (the id prefix, not the native path: every consumer `startsWith`s a module id)
+								pkg_root: CORE_ROOT_ID,
+								build_secret,
+								rate_limit,
+								session_cookie,
+								region_ttl,
+								renew_window,
+								router_enabled,
+								router_view_transitions,
+								client_hooks,
+								runtime_dir: RUNTIME_DIR,
+								runtime_hash: RUNTIME_HASH,
+								kit_wire_path,
+								client_binding_stub_file: CLIENT_BINDING_STUB_FILE,
+								app_shims: APP_SHIMS,
+								is_build,
+								devtools: devtools_effective
+							})
+						)
 				);
 
 				// DEV: hand Vite's dep scanner every island as a crawl ROOT. Under `csr = false` Kit ships
@@ -921,6 +930,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			async buildStart() {
+				const compiler = compiler_of(session, 'buildStart');
 				// SERVER leg of a build: a stale handoff from an earlier build must never gate THIS
 				// build's client leg — remove it here, where the leg is certain (the environment), not in
 				// configResolved, which the client environment runs again AFTER the server leg wrote it.
@@ -1017,6 +1027,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			configureServer(server) {
+				const compiler = compiler_of(session, 'configureServer');
 				vite_server = server;
 				// THE PROFILER IN DEV: Vite runs each server module as its transformed code, so a profile's
 				// lines are that code's; the maps back to the source live in Vite's module graph, not in
@@ -1038,6 +1049,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			watchChange(id, change) {
+				const compiler = compiler_of(session, 'watchChange');
 				// before anything re-emits: a module's parse, and what every export index built from it
 				shapes.invalidate(id, change.event);
 				// A route add/remove/rename or a `csr` export flip changes the csr topology → drop the
@@ -1059,6 +1071,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			buildEnd() {
+				const compiler = compiler_of(session, 'buildEnd');
 				// SERVER leg of a build: hand the real module graph to the client leg (emit gate). The
 				// leg is read off the ENVIRONMENT (Vite's environment API builds `ssr` then `client` in one
 				// app build; `config.build.ssr` is false for both there).
@@ -1089,6 +1102,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				}
 			},
 			handleHotUpdate({ file, server }) {
+				const compiler = compiler_of(session, 'handleHotUpdate');
 				if (!is_dev) return;
 				vite_server = server;
 
@@ -1197,13 +1211,14 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// Everything else — the ogygia virtual-module vocabulary + the island CLIENT graph ($app/*
 				// shims, virtual entry ids, relative-to-host + transitive-dep resolution) — is the driver's,
 				// with Vite's own resolver threaded in for the two branches that need it.
-				return compiler.resolve_id(source, importer, {
+				return compiler_of(session, 'resolveId').resolve_id(source, importer, {
 					ssr,
 					resolve: (s, i, o) => this.resolve(s, i, o)
 				});
 			},
 
 			async load(id, options) {
+				const compiler = compiler_of(session, 'load');
 				// Per-request only. `config.build.ssr` stays set for Kit apps and must NOT decide
 				// client vs server virtuals — that leaked `$app/server` into the browser guard.
 				const ssr = options?.ssr === true;
@@ -1270,6 +1285,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			async transform(code, id, options) {
+				const compiler = compiler_of(session, 'transform');
 				let source = code;
 
 				// KIT-WORLD PAGE THREAD: append the two publish lines to Kit's generated client app
@@ -1312,6 +1328,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			renderChunk(code) {
+				const compiler = compiler_of(session, 'renderChunk');
 				// Patch the fn-manifest placeholder (og.$ factory registrations) once every transform has run.
 				const fn = compiler.patch_fn_manifest(code);
 				// ...and the server manifest's per-hole `page.data` answer, from the finished graph.
@@ -1332,6 +1349,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			// an island entry or the runtime, the app's own naming for every other chunk. (The bundler
 			// files an emitted chunk under the chunk pattern, which carries no name.)
 			outputOptions(output) {
+				const compiler = compiler_of(session, 'outputOptions');
 				// (before the leg starts: rolldown reads its output options first)
 				if (!is_build || (env_of(this)?.server ?? is_ssr)) return null;
 				type Info = { name?: string };
@@ -1347,6 +1365,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			async generateBundle() {
+				const compiler = compiler_of(session, 'generateBundle');
 				if (!is_build) return;
 				const leg = leg_of(this);
 				if (leg.server) return;
@@ -1397,10 +1416,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			// (each build leg's end, and the dev server closing)
 			closeBundle() {
-				compiler.end_leg(leg_of(this).name);
+				compiler_of(session, 'closeBundle').end_leg(leg_of(this).name);
 			},
 
 			async writeBundle(_options, bundle) {
+				const compiler = compiler_of(session, 'writeBundle');
 				const leg = leg_of(this);
 				const server_leg = leg.server;
 				// THE BUNDLE CHECK: no table module of a realm this leg may not hold, however it got in
@@ -1617,7 +1637,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		},
 		// the plugins' `post` stage: on what the region transform made of the module
 		stage_host('post'),
-		island_sourcemaps_plugin({ program: () => compiler.program, is_island_path }),
+		island_sourcemaps_plugin({
+			program: () => compiler_of(session, 'sourcemaps').program,
+			is_island_path
+		}),
 		lazy_files()
 	];
 }
