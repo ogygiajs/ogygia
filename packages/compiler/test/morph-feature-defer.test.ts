@@ -33,3 +33,14 @@ describe('morph feature — deferred holes', () => {
 		expect(resolveFeatures(marks({ router: true }))).toContain('morph');
 	});
 });
+
+describe('the features a region streaming HTML needs', () => {
+	it('a page of lakes streams HTML: it ships the frame store', () => {
+		expect(resolveFeatures(marks({ lakes: true }))).toContain('frames');
+	});
+
+	it('the wire-class loader ships only with a transportable class', () => {
+		expect(resolveFeatures(marks({ wire: true }))).toContain('wire-classes');
+		expect(resolveFeatures(marks({ hydrate: ['load'] }))).not.toContain('wire-classes');
+	});
+});
