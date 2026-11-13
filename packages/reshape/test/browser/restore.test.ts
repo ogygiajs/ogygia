@@ -71,8 +71,7 @@ test('Svelte’s children put back into a host are known render output (a later 
 
 test('a host’s attribute reset (`og-r`) never sets an on* handler or a javascript: URL', async () => {
 	await served('<demo-card class="own"> hi </demo-card>');
-	const host = document.querySelector('demo-card')!;
-	host.setAttribute(
+	document.querySelector('demo-card')!.setAttribute(
 		'og-r',
 		JSON.stringify({
 			onclick: 'window.__og_ran++',
@@ -89,6 +88,7 @@ test('a host’s attribute reset (`og-r`) never sets an on* handler or a javascr
 		})
 	);
 	restore(document);
+	const host = document.querySelector('demo-card')!;
 	expect(host.hasAttribute('onclick')).toBe(false);
 	expect(host.hasAttribute('onfocus')).toBe(false);
 	expect(host.hasAttribute('href')).toBe(false);
@@ -175,9 +175,9 @@ test('a root that cannot adopt its sheet leaves the others in the answer theirs'
 
 test('a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone', async () => {
 	await served('<demo-card class="own" title="served"> hi </demo-card>');
-	const host = document.querySelector('demo-card')!;
-	host.setAttribute('og-r', '{"title": "svelte"');
+	document.querySelector('demo-card')!.setAttribute('og-r', '{"title": "svelte"');
 	expect(restore(document)).toBe(1);
+	const host = document.querySelector('demo-card')!;
 	expect(host.getAttribute('title')).toBe('served');
 	expect(host.hasAttribute('og-r')).toBe(false);
 	expect(host.shadowRoot!.querySelector('b')!.textContent).toBe('Card title');
@@ -659,6 +659,24 @@ test('an answer restored in its inert fragment: a component that attaches its ow
 	const host = document.querySelector('demo-attach-answer')!;
 	expect(host.shadowRoot!.innerHTML).toBe('<i class="own">own</i><slot></slot>');
 	expect(host.innerHTML).toBe(' hi ');
+});
+
+test('a host its component already upgraded (no root of its own yet) keeps its identity and gets the restored root', async () => {
+	customElements.define('demo-lazy', class extends HTMLElement {});
+	const s = await transformMarkup(
+		doc(island('<demo-lazy> hi </demo-lazy>')),
+		attaching_render('demo-lazy'),
+		{ kind: 'document' }
+	);
+	document.body.innerHTML = s.html.slice(
+		s.html.indexOf('<body>') + 6,
+		s.html.lastIndexOf('</body>')
+	);
+	const before = document.querySelector('demo-lazy')!;
+	expect(restore(document)).toBe(1);
+	expect(document.querySelector('demo-lazy')).toBe(before);
+	expect(before.shadowRoot!.querySelector('b')!.textContent).toBe('server');
+	expect(before.innerHTML).toBe(' hi ');
 });
 
 test('putting attributes back never adds an event handler, a srcdoc or a javascript: URL', () => {
