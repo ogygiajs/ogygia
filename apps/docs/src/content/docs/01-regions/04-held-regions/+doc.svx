@@ -84,11 +84,10 @@ export const registry = [
 ];
 ```
 
-For a **named or barrel** import, which `with { … }` cannot reach, the [`asRegion`](/docs/macros/asregion) macro makes the same mountable binding:
+A **named or barrel** import takes the same mark and makes the same mountable binding:
 
 ```ts
-import { Header } from '@company/ui';
-const HeaderRegion = import.meta.og.asRegion(Header, { wake: 'visible' });
+import { Header as HeaderRegion } from '@company/ui' with { wake: 'visible' };
 ```
 
 `with { region: 'raw' }` stays a bare descriptor, which renders only through `region()` and not by direct placement.

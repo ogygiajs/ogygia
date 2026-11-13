@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { try_region_emit, unescape_svelte } from '../src/markdown/region-emit.ts';
+import { component_tag_in, try_region_emit, unescape_svelte } from '../src/markdown/region-emit.ts';
 import { escape_svelte, fence_embed } from '../src/markdown/shiki.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
 
@@ -127,5 +127,36 @@ describe('try_region_emit', () => {
 		);
 		expect(out!.html).toBe('<p>hi</p>');
 		expect(out!.code).toContain('export const metadata = {"title":"X"};');
+	});
+});
+
+// the module script is found as Svelte reads its tag, in any spelling (#1370)
+describe('the module script, in any spelling', () => {
+	for (const open of [
+		'<script context="module">',
+		"<script context='module'>",
+		'<script context=module>',
+		'<script lang="ts" context = "module">',
+		'<script module>',
+		'<script data-note="a>b" module>'
+	])
+		it(`${open} is the module, not the template`, () => {
+			const code = `${open}const tag = '<Widget>';</script><p>prose</p>`;
+			expect(component_tag_in(code)).toBeNull();
+		});
+
+	it('a script that only says module in a value is not the module', () => {
+		// (an instance script stays in the template, so its text is read there)
+		const code = `<script data-note="module">const tag = '<Widget>';</script><p>prose</p>`;
+		expect(component_tag_in(code)).toBe('Widget');
+	});
+
+	it('a browser script is not the module: `type="module"` and `data-module` keep the component path', () => {
+		for (const open of ['<script type="module" src="/x.js">', '<script data-module>'])
+			expect(try_region_emit(`<p>hi</p>\n${open}</script>`, [])).toBeNull();
+	});
+
+	it('a `<script>` written in a comment is no instance script: the page is still a region', () => {
+		expect(try_region_emit('<p>hi</p><!-- <script>x()</script> -->', [])).not.toBeNull();
 	});
 });

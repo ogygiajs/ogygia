@@ -34,13 +34,14 @@ import { render as ssr_render } from 'svelte/server';
 import { BROWSER, DEV } from 'esm-env';
 import { register_kind, mint } from './ref.ts';
 import { kit_render_context, kit_request_event } from './server/kit-context.ts';
-import { is_islands_endpoint } from './server/endpoint.ts';
+import { document_counts, type SlotSeq } from './server/document-counts.ts';
 import { PORTABLE_FORM, with_portable_forms } from './portable-form.ts';
 import { analyze } from './seed-refs.ts';
 import { fnv1a, fnv1a32 } from './contract/hash.ts';
 import { import_entry } from './runtime/entry-locations.ts';
 import { OgygiaError } from './messages/island.ts';
 import { OG_SLOT, OG_STATIC, OGYGIA_REGION_CSS } from './wire-markup.ts';
+import { escape_attr } from './escape.ts';
 
 /**
  * A hand-written SERVER component that renders a bare snippet: svelte has no public API to
@@ -81,7 +82,7 @@ const host_context = (): Map<unknown, unknown> | null => {
 	try {
 		return getAllContexts();
 	} catch {
-		return null;
+		return null; // ok: outside a component's init: no host contexts to take
 	}
 };
 /** context.ts `isInLiveSnippet` reads it: a hole in the body stays deferred (Region.svelte). */
@@ -117,7 +118,16 @@ function make(desc: RegionSnippetDescriptor, live_entry: Component | null = null
 	// capture the marked element's HTML NOW, while it is still in the pre-hydration DOM, so re-creates
 	// re-inject the same markup (a nested `<ogygia-region>` inside re-wakes itself on reconnect).
 	if (desc.m === 'slot') {
-		const el = BROWSER ? document.querySelector(`ogygia-slot[${OG_SLOT}="${desc.id}"]`) : null;
+		// (found by the id's exact text, no selector built from wire data: test slot-id-any-text)
+		let el: Element | null = null;
+		if (BROWSER) {
+			for (const slot of document.getElementsByTagName('ogygia-slot')) {
+				if (slot.getAttribute(OG_SLOT) === desc.id) {
+					el = slot;
+					break;
+				}
+			}
+		}
 		const h = el ? (el as HTMLElement).outerHTML : slot_marker_open(desc.id) + SLOT_MARKER_CLOSE;
 		const slot_snip = createRawSnippet(() => ({
 			render: () => h,
@@ -361,7 +371,7 @@ export function prepare_region_props(input: Record<string, unknown>): Record<str
 /** The SSR marker that fences an island's in-place children so the client can adopt exactly that range.
  *  `display:contents` keeps it layout-neutral. */
 export function slot_marker_open(id: string): string {
-	return `<ogygia-slot ${OG_SLOT}="${id}" style="display:contents">`;
+	return `<ogygia-slot ${OG_SLOT}="${escape_attr(id)}" style="display:contents">`;
 }
 export const SLOT_MARKER_CLOSE = '</ogygia-slot>';
 
@@ -370,33 +380,28 @@ export const SLOT_MARKER_CLOSE = '</ogygia-slot>';
  * byte-identical across requests (a host's post-render cache, a freeze store, an ETag all key on
  * the bytes; a process-wide counter made every page differ from its previous render). Page-unique
  * within one SSR pass is all the id must be — it fences a marker to its payload pointer. A hole
- * response is spliced INTO a page that has its own sequence, so an endpoint render prefixes its
- * ids with its region id and can never collide with the page's. Off-request (a test, a tool, the
- * client) the process counter stands in. The request comes through the kit-context reader the
- * handle installs (no Vite virtual here — this module is imported by plain-Node consumers too).
+ * response is spliced INTO a page that has its own sequence, so a hole's render has a sequence of
+ * its own, prefixed with its region id (`hole_slot_sequence`, in the render's context: the hole being
+ * rendered, not the request, which a batch shares between many holes — test/batch-hole-slot-prefix
+ * .test.ts), and can never collide with the page's. Off-request (a test, a tool, the client) the
+ * process counter stands in. The request comes through the kit-context reader the handle installs
+ * (no Vite virtual here — this module is imported by plain-Node consumers too).
  *
  * COUNTED PER `key` (the island's entry): with async SSR, regions start in the order their data
  * arrives, so ONE counter for the page gave an island in an async branch a different number on each
  * request (and every island after it). Per entry, an island's id moves only against another copy of
  * the SAME island that started in a different order — rare, and still page-unique.
  */
-const slot_seq_by_request = new WeakMap<
-	object,
-	{ prefix: string; n: Map<string, { n: number; tag: string }> }
->();
 let _slot_seq = 0;
-export function next_slot_id(key = ''): string {
-	const event = kit_request_event() as { url?: URL } | null;
-	if (event && typeof event === 'object') {
-		let seq = slot_seq_by_request.get(event);
-		if (!seq) {
-			const url = event.url;
-			const hole =
-				url && is_islands_endpoint(url.pathname)
-					? (url.searchParams.get('id') ?? '').slice(0, 6)
-					: '';
-			slot_seq_by_request.set(event, (seq = { prefix: hole ? `${hole}-` : '', n: new Map() }));
-		}
+export function next_slot_id(key = '', hole?: SlotSeq): string {
+	// (a hole's own sequence; else the document's, whatever event object of the request this runs
+	// under: #1209)
+	let seq = hole;
+	if (!seq) {
+		const counts = document_counts(kit_request_event());
+		if (counts) seq = counts.slots ??= { prefix: '', n: new Map() };
+	}
+	if (seq) {
 		// (each entry's tag hashed once per request: the next copies only count)
 		let c = seq.n.get(key);
 		if (!c) seq.n.set(key, (c = { n: 0, tag: key ? `${fnv1a32(key).toString(36)}-` : '' }));
@@ -404,6 +409,15 @@ export function next_slot_id(key = ''): string {
 	}
 	_slot_seq = (_slot_seq + 1) & 0x7fffffff;
 	return `og${_slot_seq.toString(36)}`;
+}
+
+/** The context key a hole's render carries its slot sequence under (Region reads it). */
+export const HOLE_SLOT_SEQUENCE: unique symbol = Symbol.for('ogygia.slot-sequence');
+
+/** A hole's own slot sequence: its ids carry its region id, so its answer spliced into a page never
+ *  meets the page's ids. */
+export function hole_slot_sequence(region_id: string): SlotSeq {
+	return { prefix: `${region_id.slice(0, 6)}-`, n: new Map() };
 }
 
 /** The serialize-only stand-in for in-place children: a branded value the codec reduces to a `slot`

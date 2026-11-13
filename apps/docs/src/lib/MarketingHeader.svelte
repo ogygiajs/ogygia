@@ -3,9 +3,8 @@
 	// page reads as a marketing page with the full viewport to itself. Docs pages keep DocsShell.
 	import Logo from '$lib/Logo.svelte';
 	// The app's OWN theme switcher (the one DocsShell uses everywhere) — reused, not reinvented. It's a
-	// named barrel export, so asRegion turns it into a load island (writes data-theme + the og-theme key).
-	import { ThemeToggle } from '@ogygia/content';
-	const Theme = import.meta.og.asRegion(ThemeToggle, { wake: 'load' });
+	// named barrel export, marked a load island (writes data-theme + the og-theme key).
+	import { ThemeToggle as Theme } from '@ogygia/content' with { wake: 'load' };
 	// ⌘K search over the docs index — an island so its keybinding + palette come alive here too.
 	import HomeSearch from '$lib/HomeSearch.svelte' with { wake: 'load' };
 </script>

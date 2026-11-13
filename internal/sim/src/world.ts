@@ -15,7 +15,9 @@ import {
 	modules_in_order,
 	navigation_starts,
 	scripts_start_once,
-	whole_text_runs
+	whole_text_runs,
+	window_load_events,
+	disabled_stylesheets
 } from './happy.ts';
 import { Cdn } from './cdn.ts';
 import { Loop } from './loop.ts';
@@ -36,6 +38,15 @@ export const ORIGIN = 'https://app.test';
 
 /** The attribute on every element of HTML another origin answers (`no_foreign_html` looks for it). */
 export const FOREIGN_MARK = 'data-sim-foreign';
+
+/** The buggify points that lose an answer on the way, as a dropped request does. */
+export const LOSSY_POINTS: readonly string[] = ['hole.fetch-lost'];
+
+/** At rest after ticks: how far off a page's next task must be (a frame is 16 ms, a hydrate turn's
+ *  snapshot wait 48; a page's own timers that come back every second or so are not a tick being
+ *  taken in), and how long rest looks for that between ticks before it judges the pages anyway. */
+const PAGE_GAP_MS = 250;
+const BETWEEN_TICKS_MS = 10_000;
 
 /** Whether a request of a tab's is for a page (its Kit data too): not a build's file or Kit's
  *  remote functions (`/_app/`), not a region's answer (ogygia's endpoint, `/__ogygia__`, and
@@ -102,8 +113,16 @@ export interface WorldOptions {
 	/** Other apps at their own origins (federation's peers): each one build, one instance, behind
 	 *  no CDN. The app's servers and the tabs reach them over the network; their content-hashed
 	 *  files answer any origin (`access-control-allow-origin: *`), as a peer's CDN does for the
-	 *  islands another origin's page imports. */
-	peers?: ReadonlyArray<{ readonly origin: string; readonly build: Build }>;
+	 *  islands another origin's page imports. A peer with a `replica` (another origin of its app)
+	 *  may be down: a `down` fault answers it 503 at the edge, and the app fails over. */
+	peers?: ReadonlyArray<{
+		readonly origin: string;
+		readonly build: Build;
+		readonly replica?: string;
+	}>;
+	/** Whether the tabs' engine has `requestIdleCallback`. Default: the seed's draw (stream `idle
+	 *  engine`: 30% of seeds are Safari's, which has none). */
+	idle?: boolean;
 }
 
 /**
@@ -135,6 +154,10 @@ export class World {
 	readonly network: Network;
 	readonly cdn: Cdn;
 	readonly browsers: Browsers;
+	/** Other visitors a crowd brought (workload.ts `crowd`), each with its tab, in order. */
+	readonly crowd: Visitor[] = [];
+	/** Whether the tabs' engine has idle callbacks (`WorldOptions.idle`, or the seed's draw). */
+	readonly idle: boolean;
 	/** Live instances by build id. */
 	readonly servers = new Map<string, ServerInstance[]>();
 	/** Each peer app's instance, by origin. */
@@ -165,9 +188,12 @@ export class World {
 			loop: this.loop,
 			rng: this.rng,
 			faults: o.faults ?? new Set(),
-			rates: o.rates
+			rates: o.rates,
+			downable: (url) => (o.peers ?? []).some((p) => p.replica && p.origin === url.origin)
 		});
 		this.cdn = new Cdn(this.loop);
+		// (whether the engine has idle callbacks: some seeds' engine is Safari's, which has none)
+		this.idle = o.idle ?? !this.rng.fork('idle engine').chance(0.3);
 		this.browsers = new Browsers({
 			loop: this.loop,
 			rng: this.rng,
@@ -176,7 +202,8 @@ export class World {
 			origin: ORIGIN,
 			buggify: (realm, point) => this.#buggify(realm, point),
 			// (the seed's browser engine, as its resource timing reads: most report each status)
-			timeline: this.rng.fork('timeline engine').chance(0.7) ? 'status' : 'start'
+			timeline: this.rng.fork('timeline engine').chance(0.7) ? 'status' : 'start',
+			idle: this.idle
 		});
 		this.live = o.builds[0].id;
 	}
@@ -196,6 +223,8 @@ export class World {
 		}
 		seen.asked++;
 		if (!seen.on) return false;
+		// (a reference load is spared what loses an answer, as the network spares it every fault)
+		if (LOSSY_POINTS.includes(point) && this.network.is_calm(realm)) return false;
 		// (a realm's draws by its name without the document: a reload of a tab is the same stream)
 		const key = realm.replace(/#\d+$/, '');
 		let r = this.#buggify_rng.get(key);
@@ -218,6 +247,8 @@ export class World {
 		documents_by_namespace();
 		history_by_document();
 		navigation_starts();
+		window_load_events();
+		disabled_stylesheets();
 		const w = new World(o);
 		completion_on_the_loop(w.loop);
 		const host = platform({
@@ -647,12 +678,43 @@ export class World {
 		// by its budget, as before; a live answer's pieces are not work in flight, or rest waited
 		// budget after budget, once to the horizon: palaestra seed 20003, test/rest.node.test.ts)
 		// (a quiesce whose next task is past its budget returns without running it: step to it)
-		while (!(await this.quiesce()) && this.loop.next_at <= this.loop.horizon && !this.#wire_quiet())
+		for (;;) {
+			if (await this.quiesce()) return;
+			if (this.loop.next_at > this.loop.horizon) return;
+			if (this.#wire_quiet()) break;
 			await this.loop.step();
+		}
+		// Ticks kept it from rest, and its budget ended wherever it fell: maybe a few ms after a tick
+		// put an island in, still waiting for its hydrate turn (gen 8, seed 72: `waking` at rest). The
+		// pages are judged between ticks: the wire quiet and nothing of a page's due within the gap
+		// (a page whose own timer keeps coming, a clock, is judged after `BETWEEN_TICKS_MS`, as before).
+		// test/rest.node.test.ts
+		const end = this.loop.now + BETWEEN_TICKS_MS;
+		for (;;) {
+			await this.loop.settle();
+			if (this.#wire_quiet() && this.#pages_quiet(PAGE_GAP_MS)) return;
+			if (this.loop.next_at > end || this.loop.next_at > this.loop.horizon) return;
+			await this.loop.step();
+		}
 	}
 
 	#wire_quiet(): boolean {
 		return !this.network.busy();
+	}
+
+	/** No task of a page (any tab's document) due within `gap` ms. */
+	#pages_quiet(gap: number): boolean {
+		const realms = new Set(this.browsers.visitors.flatMap((v) => v.tabs.map((t) => t.realm)));
+		for (const r of realms) if (this.loop.next_of(r) <= this.loop.now + gap) return false;
+		return true;
+	}
+
+	/** When a quiesce last came to rest (virtual ms; -1: never). */
+	#rested_at = -1;
+
+	/** Whether the world is at rest now: a quiesce came to rest, and no time ran since. */
+	at_rest(): boolean {
+		return this.#rested_at === this.loop.now && this.#wire_quiet();
 	}
 
 	/** True when the world came to rest; false when the budget or the horizon ended the wait. */
@@ -665,7 +727,10 @@ export class World {
 			// (nor is a request a server is still working on: its answer is not a task until it
 			// comes, and the server's own timer may be due past the gap, a hole that renders in 3 s;
 			// seed 46, /ooo)
-			if (this.#wire_quiet() && next > this.loop.now + gap) return true;
+			if (this.#wire_quiet() && next > this.loop.now + gap) {
+				this.#rested_at = this.loop.now;
+				return true;
+			}
 			if (next > end || next > this.loop.horizon) return false;
 			await this.loop.step();
 		}

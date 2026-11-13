@@ -2,7 +2,8 @@
 // and only after the cheap ones pass.
 //
 // 1. A cheap path check first: a push that changes only changesets, Markdown outside the docs site,
-//    or workflows other than the ones that run the tests needs nothing more than `ci ok`.
+//    or workflows other than the ones that run the tests needs no test run: `check` only, for
+//    format and lint, which every PR runs whatever it touches (#1531; ci-plan-inputs.ts).
 // 2. Then turbo is asked (`--dry=json`, `--affected` on a pull request, the hashed env each job sets):
 //    - `check`: any package affected;
 //    - `browsers`: the browser test projects (core, content, machine) affected;
@@ -13,7 +14,8 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
-import { is_stacked } from './ci-stack.ts';
+import { cheap_plan, format_lint_inputs } from './ci-plan-inputs.ts';
+import { is_batched, is_stacked } from './ci-stack.ts';
 
 type Slice = {
 	name: string;
@@ -57,11 +59,12 @@ const BROWSER_JOBS = ['firefox', 'webkit', 'firefox-stable'] as const;
 
 const env = process.env;
 const pull_request = env.EVENT === 'pull_request';
+const labels = JSON.parse(env.LABELS || '[]') as string[];
+// (a batched PR's e2e and browser jobs run on its batch, and `ci ok` stays red: ci-stack.ts)
+const batched = pull_request && is_batched(labels);
 // (a stacked PR's e2e and browser jobs run once, on its stack's PR into main: ci-stack.ts)
-const stacked =
-	pull_request &&
-	is_stacked(env.PR_BASE ?? '') &&
-	!(JSON.parse(env.LABELS || '[]') as string[]).includes('ci:full');
+const stacked = pull_request && is_stacked(env.PR_BASE ?? '') && !labels.includes('ci:full');
+const elsewhere = stacked || batched;
 // (the base commit itself: a stacked PR's `base_ref` was seen to read `main` on CI, its base sha
 // was right)
 const base = env.BASE_SHA || (env.BASE_REF ? `origin/${env.BASE_REF}` : 'origin/main');
@@ -71,6 +74,14 @@ const summary: string[] = ['### CI plan', ''];
 function output(name: string, value: unknown): void {
 	out[name] = typeof value === 'string' ? value : JSON.stringify(value);
 }
+
+// (set before any early return: `ci ok` reads it on every path, so a batched PR is never green)
+output('batched', batched ? 'true' : 'false');
+if (batched)
+	summary.push(
+		'Batched (`batched` label): e2e and the opt-in sets run on its ci/integration-* batch; it lands only through that batch, so `ci ok` is red here.',
+		''
+	);
 
 function done(): void {
 	if (env.GITHUB_OUTPUT)
@@ -85,14 +96,14 @@ function done(): void {
 	console.log(out);
 }
 
-function nothing(why: string): void {
-	output('check', 'false');
+function nothing(why: string, format_lint = { check: false, check_hash: '' }): void {
+	output('check', format_lint.check ? 'true' : 'false');
 	output('browsers', []);
 	output('e2e_chromium', []);
 	output('e2e_engines', []);
 	output('size', 'false');
 	output('browsers_hash', '');
-	output('check_hash', '');
+	output('check_hash', format_lint.check_hash);
 	output('size_hash', '');
 	summary.push(`Nothing to run: ${why}.`);
 	done();
@@ -134,6 +145,11 @@ function dry(
 }
 
 /** A short hash of `parts`, in order. */
+/** The top-level entries of the pushed tree, one `git ls-tree` line each. */
+function ls_tree(): string[] {
+	return execFileSync('git', ['ls-tree', 'HEAD'], { encoding: 'utf8' }).split('\n');
+}
+
 function digest(parts: string[]): string {
 	return createHash('sha256').update(parts.join('\n')).digest('hex').slice(0, 16);
 }
@@ -165,17 +181,14 @@ if (pull_request) {
 	changed = execFileSync('git', ['diff', '--name-only', `${base}...HEAD`], { encoding: 'utf8' })
 		.split('\n')
 		.filter(Boolean);
-	const inert = (f: string) =>
-		f.startsWith('.changeset/') ||
-		(f.endsWith('.md') && !f.startsWith('apps/docs/')) ||
-		f === 'LICENSE' ||
-		(f.startsWith('.github/') &&
-			f !== '.github/workflows/e2e.yml' &&
-			f !== '.github/workflows/e2e-slice.yml' &&
-			f !== '.github/scripts/ci-plan.ts');
 	summary.push(`${changed.length} file(s) changed against ${base}.`);
-	if (changed.every(inert)) {
-		nothing('only changesets, Markdown or other workflows changed');
+	if (cheap_plan(changed) === 'check') {
+		// format and lint still read every file (#1531): only the test runs are left out
+		const check_hash = digest(format_lint_inputs(ls_tree()));
+		nothing('only changesets, Markdown or other workflows changed: format and lint only', {
+			check: !passed(`check-pass-${check_hash}`),
+			check_hash
+		});
 		process.exit(0);
 	}
 }
@@ -188,10 +201,8 @@ const checks = dry(['run', 'check', ...root_filters], { OGYGIA_BROWSERS: 'chromi
 const checks_left = checks.filter((t) => t.status !== 'HIT');
 // Format and lint read the whole repo, root files turbo does not hash too (the lint and format
 // config, the workflows): `check` passing is also remembered, under the check tasks' hashes and the
-// root's own tree (every top-level entry but the packages and apps).
-const root_tree = execFileSync('git', ['ls-tree', 'HEAD'], { encoding: 'utf8' })
-	.split('\n')
-	.filter((l) => l && !/\t(packages|apps|internal|\.changeset)$/.test(l));
+// root's own tree (every top-level entry but the packages and apps, internal/ included: #1531).
+const root_tree = format_lint_inputs(ls_tree());
 const check_hash = digest([...root_tree, ...checks.map((t) => `${t.taskId}:${t.hash}`)]);
 const check = checks_left.length > 0 || !passed(`check-pass-${check_hash}`);
 output('check', check ? 'true' : 'false');
@@ -215,7 +226,7 @@ const browsers =
 	browser_tasks.length === 0
 		? []
 		: BROWSER_JOBS.filter((b) => !passed(`browsers-pass-${b}-${browsers_hash}`));
-output('browsers', stacked ? [] : browsers);
+output('browsers', elsewhere ? [] : browsers);
 output('browsers_hash', browsers_hash);
 summary.push(`browsers: ${browsers.join(', ') || 'none'} (inputs ${browsers_hash}).`);
 
@@ -233,8 +244,8 @@ for (const browser of ENGINES)
 			`e2e ${slice.name}, ${browser}: ${e2e.length} task(s), ${left.length} to run${left.length ? ` (${left.map((t) => t.taskId).join(', ')})` : ''}.`
 		);
 	}
-output('e2e_chromium', stacked ? [] : chromium);
-output('e2e_engines', stacked ? [] : engines);
+output('e2e_chromium', elsewhere ? [] : chromium);
+output('e2e_engines', elsewhere ? [] : engines);
 if (stacked)
 	summary.push(
 		`Stacked on \`${env.PR_BASE}\`: no e2e or browser jobs here (they run on the integration PR or the stack's PR into main; \`ci:full\` runs them).`

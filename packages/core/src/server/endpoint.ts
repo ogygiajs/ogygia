@@ -131,10 +131,10 @@ export const REGION_ID_RE: RegExp = /^[0-9a-f]{12}$/;
 
 /**
  * A hole's optional cache `ttl` (max-age seconds) as it rides in the endpoint URL: empty (no-store,
- * the default) or 1–7 digits (up to ~115 days). Charset-gated before HMAC so a forged value can't
- * reach the response header, though the MAC is the real guard.
+ * the default) or 1–7 digits (up to ~115 days), no leading zero. Charset-gated before HMAC so a
+ * forged value can't reach the response header, though the MAC is the real guard.
  */
-export const REGION_TTL_RE: RegExp = /^(|[0-9]{1,7})$/;
+export const REGION_TTL_RE: RegExp = /^(|0|[1-9][0-9]{0,6})$/;
 
 // The per-request gates, as char loops (measured ~2× the anchored patterns above, which stay the
 // documented shape): every hole request runs both before its HMAC.
@@ -144,15 +144,28 @@ export function is_region_id(s: string): boolean {
 	return is_lower_hex(s, 12);
 }
 
-/** {@link REGION_TTL_RE}: empty, or 1–7 ASCII digits. */
+/** {@link REGION_TTL_RE}: empty, or 1–7 ASCII digits, spelled as {@link is_signed_number}. */
 export function is_region_ttl(s: string): boolean {
-	if (s.length > 7) return false;
+	return s === '' || is_signed_number(s, 7);
+}
+
+/**
+ * A number in a signed region URL (`exp`, `ttl`) in its one spelling: 1 to `max` ASCII digits, no
+ * leading zero ("0" itself aside), as ogygia mints it (`String(n)`). Any other spelling of the same
+ * number (`+n`, `0n`, `n.0`, `1e3`, `0x…`) is another URL for one capability, refused as shape
+ * before the MAC (test/capability-canonical-numbers.test.ts).
+ */
+export function is_signed_number(s: string, max: number): boolean {
+	if (s.length === 0 || s.length > max || (s.length > 1 && s.charCodeAt(0) === 48)) return false;
 	for (let i = 0; i < s.length; i++) {
 		const c = s.charCodeAt(i);
 		if (c < 48 || c > 57) return false;
 	}
 	return true;
 }
+
+/** The most digits a capability's `exp` (unix seconds) has: past the year 33658. */
+export const REGION_EXP_DIGITS = 12;
 
 /** Exactly `n` chars of `[0-9a-f]`. */
 export function is_lower_hex(s: string, n: number): boolean {

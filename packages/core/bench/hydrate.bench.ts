@@ -273,6 +273,28 @@ bench(
 	{ setup: () => owned_head(10), scale: (_ctx, k) => owned_head(10 * k) }
 );
 
+// Growth: linear in the head (the page's copy is found by a scan of its elements, then retired).
+bench(
+	'head record: an island’s head block takes the place of the page’s copy (#1107)',
+	({ session }) => {
+		const mark = session.mark_head();
+		island_head_step();
+		session.record_island_head(mark);
+		return document.head.childNodes.length;
+	},
+	{
+		setup: () => {
+			const owned = owned_head(10);
+			// (the server's copy of the island's block, in the middle of the page's head)
+			const middle = document.head.childNodes[Math.floor(document.head.childNodes.length / 2)];
+			for (const n of frag('<meta name="i1"><meta name="i2"><meta name="i3">'))
+				(document.head as unknown as DomNode).insertBefore(n, middle as unknown as DomNode);
+			owned.session.adopt_document_head();
+			return owned;
+		}
+	}
+);
+
 const saved_observer = (globalThis as { MutationObserver?: unknown }).MutationObserver;
 
 // Growth: linear in the head (without MutationObserver the head is copied, then scanned).

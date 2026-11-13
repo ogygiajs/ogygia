@@ -156,7 +156,6 @@ function bag_of(request: Request): Bag {
 		request,
 		ctx: new Map(),
 		page: null,
-		seed_wanted: false,
 		seed_keys: null,
 		seed_asks: request_stats_detailed() ? new Map() : null,
 		remotes_wanted: new Set(),
@@ -165,8 +164,6 @@ function bag_of(request: Request): Bag {
 		deferred: null,
 		defer_next_id: 0,
 		late: null,
-		late_next: 0,
-		late_open: false,
 		seed_reducers: null,
 		facts: facts_of(request)
 	};
@@ -618,7 +615,8 @@ function sections_of(count: number): { data: Record<string, unknown>; keys: Set<
 
 bench(
 	'settle_deferred: a listing page’s data settled for the router (its promise awaited)',
-	async ({ data }) => ((await settle_deferred(data)) as ListingData).page.items.length,
+	// (the request's owner: the wait is its)
+	async ({ data }) => ((await settle_deferred(data, scope())) as ListingData).page.items.length,
 	{ setup: () => streamed_listing(2500), scale: (_ctx, k) => streamed_listing(250 * k) }
 );
 

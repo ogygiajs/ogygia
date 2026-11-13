@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { rolldown, type Plugin } from 'rolldown';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
 import { virtual } from '../src/compiler/virtual/table.ts';
+import { queries } from '../src/compiler/queries.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
 
 const table = new VirtualTable<null>(
@@ -31,7 +32,8 @@ const table = new VirtualTable<null>(
 	],
 	() => '',
 	{ 'ogygia:boot/a': ['alpha'], 'ogygia:boot/b': ['beta'] },
-	{}
+	{},
+	queries('session')
 );
 
 /** The app: two entries sharing one name, each with one of its own, and a lazy third. */

@@ -23,6 +23,7 @@
  * first one.
  */
 import { watch_viewport } from './viewport.ts';
+import { watch_turns } from './rules.ts';
 import {
 	clock,
 	flights,
@@ -34,7 +35,10 @@ import {
 	type Stale
 } from '@ogygia/machine';
 
-type Turn = {
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
+
+export type Turn = {
 	el: Element;
 	order: number;
 	/** request order: breaks a tie between two turns of one region */
@@ -55,17 +59,41 @@ const HOLD_FOR_VIEWPORT_MS = 1000;
 // are all pending at once): two heaps by connect order, the turns of regions in the viewport and
 // the rest (a region's report moves its turns across; the entry left behind is skipped), each
 // region's turns, and the turns still waiting for their snapshot, in request order.
-class PendingTurns {
+export class PendingTurns {
 	count = 0;
 	next_seq = 0;
 	readonly heap_vis: Turn[] = [];
 	readonly heap_rest: Turn[] = [];
-	readonly turns_of = new Map<Element, Turn[]>();
+	readonly turns_of: Map<Element, Turn[]> = new Map();
 	readonly unsnapped: Turn[] = [];
 	unsnapped_head = 0;
 }
 /** The document's pending turns (its one scheduler's: a turn leaves at its pick or its region's leaving). */
 const P = new PendingTurns();
+
+/** What the drain's pick rests on (`rule_turns_counted`, #1478): `count` is the turns held, none of
+ *  them taken, each in the heap its snapshot names. Null when it holds. */
+export function turns_counted(p: PendingTurns = P): string | null {
+	const filed = new Set<Turn>([
+		...p.heap_vis.filter((t) => t.vis),
+		...p.heap_rest.filter((t) => !t.vis)
+	]);
+	let held = 0;
+	for (const list of p.turns_of.values())
+		for (const t of list) {
+			held++;
+			const entry = t.el.getAttribute('entry') ?? t.el.tagName;
+			if (t.done) return `a taken turn of ${entry} is still held`;
+			if (!filed.has(t))
+				return `a turn of ${entry} is not in the ${t.vis ? 'viewport' : 'other'} heap its snapshot names`;
+		}
+	return held === p.count
+		? null
+		: `the scheduler counts ${p.count} pending turn(s) and holds ${held}`;
+}
+// (the runtime's rules read it: dev and OGYGIA_RULES=1 builds only, folds out of any other)
+if (RULES) watch_turns(turns_counted);
+
 /**
  * The drain, as a machine:
  *
@@ -209,17 +237,15 @@ export function yield_task(): Promise<void> {
 export function background_start(fn: () => void): void {
 	// ONE background task drains every start queued meanwhile (a task per island: each hydrate turn
 	// outranked the next island's start, so its import began late); it yields past a time budget
-	B.starts.push(fn);
-	if (!B.armed) {
-		B.armed = true;
-		post_background(drain_background);
-	}
+	// (a drain is out exactly while a start waits: a start leaves only after it ran, so the first
+	// one queued into an empty list is the one that posts it)
+	if (B.starts.push(fn) === 1) post_background(drain_background);
 }
 
-/** The starts queued for the background drain (each leaves as it runs), and whether a drain is out. */
+/** The starts queued for the background drain: each leaves after it ran, so a drain is out exactly
+ *  while one is here (test/schedule-background.test.ts). */
 class BackgroundStarts {
 	readonly starts: (() => void)[] = [];
-	armed = false;
 }
 const B = new BackgroundStarts();
 /** a drain yields to the page after this long, and continues in a new background task */
@@ -236,7 +262,6 @@ function drain_background(): void {
 	} finally {
 		B.starts.splice(0, i);
 		if (B.starts.length) post_background(drain_background);
-		else B.armed = false;
 	}
 }
 
@@ -254,7 +279,7 @@ function post_background(fn: () => void): void {
 			// ok: an invalid-priority throw (an older postTask); the fallback below runs it
 		}
 	}
-	// oxlint-disable-next-line ogygia/owned-effects -- the process's one background drain (`B.armed`), one task: it ends itself, and a start queued in it belongs to whoever queued it
+	// oxlint-disable-next-line ogygia/owned-effects -- the process's one background drain (out while `B.starts` holds one), one task: it ends itself, and a start queued in it belongs to whoever queued it
 	timers.after(fn, 0);
 }
 

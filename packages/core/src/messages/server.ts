@@ -15,6 +15,16 @@ const SECRET_FIX =
 
 /** The errors: `throw new OgygiaError(code, args)`, or `console.error(new OgygiaError(…))`. */
 export const SERVER_ERRORS = {
+	plugin_capability_message: {
+		text: (a: { name: string }): string =>
+			`the \`${a.name}\` plugin signed or checked a capability message with its plain \`sign\` / \`verify\`.`,
+		details: (): string => prose`
+			A message that starts \`cap|\` is a signed hole's, and a signed hole is opened only through
+			\`app.capability.open\`: it charges the visitor's rate budgets in order (the probe before
+			the signature, the render after), as a region hole does. Mint with \`app.capability.mint\`
+			and open with \`app.capability.open\`, or sign a message that does not start \`cap|\`.
+		`
+	},
 	remote_arg_not_data: {
 		text: (a: { kind: string }): string => prose`
 			a remote function's argument carried an ogygia ${a.kind} value. Arguments sent from the
@@ -125,6 +135,24 @@ export const SERVER_ERRORS = {
 
 			Pass plain data, give the class a codec, or move the logic inside the island.
 		`
+	},
+	island_deps_handoff_missing: {
+		text: (a: { kind: string; tried: string; error: string }): string => prose`
+			the client build's handoff (og-region-deps.json) is ${a.kind}${a.error ? ` (${a.error})` : ''}:
+			server-rendered regions go out without their CSS and preloads. Tried: ${a.tried}.
+		`,
+		details: (): string => prose`
+			The client build writes a handoff the server reads as it renders: each island's CSS
+			and code chunks, and what each reads of the page. It is inlined into the server bundle
+			when the build can, and otherwise read from \`og-region-deps.json\` beside the server
+			output. This server found none (\`missing\`), or found one that did not read or parse
+			(\`unreadable\`). Until it has one, a hole renders unstyled, no island code is preloaded
+			and every page ships its whole seed.
+
+			A missing file usually means the deploy dropped it: ship the server output whole, or
+			let the build inline it (an adapter whose file tracing drops runtime reads needs the
+			inlined copy). An unreadable one is tried again on the next request.
+		`
 	}
 };
 
@@ -133,8 +161,9 @@ export const SERVER_WARNINGS = {
 	region_render_failed: {
 		text: (): string => 'region render failed:',
 		details: (): string => prose`
-			Dev only. A region's server render threw, so the islands endpoint answered 500 and the page
-			keeps the region's fallback. The error follows the message.
+			A region's server render threw, so the islands endpoint answered 500 and the page keeps
+			the region's fallback. The error follows the message, in the server's log only: the
+			visitor's answer says nothing of it.
 		`
 	},
 	rate_limit_shared_address: {
@@ -160,11 +189,25 @@ export const SERVER_WARNINGS = {
 			render is abandoned while no other is.
 		`
 	},
+	page_promise_pending: {
+		text: (a: { path: string; ms: number }): string =>
+			`a promise in the load data of ${a.path || 'a page'} is still pending after ${a.ms} ms: its response stays open until it settles`,
+		details: (): string => prose`
+			Dev only. A load returned a promise (Kit streaming), and the page's response waits for it:
+			a page load streams its value into islands after the document, a router fetch settles it
+			before the document goes out. There is no deadline: a slow stream is allowed, and the wait
+			ends when the visitor leaves. A promise that never settles keeps the response open (and,
+			on a router fetch, the page unsent) for as long as the visitor stays. Give the work behind
+			it a timeout of its own. Said once per response.
+		`
+	},
 	endpoint_props_decode_failed: {
 		text: (): string => 'region endpoint 403: island module load / props decode failed',
 		details: (): string => prose`
-			Dev only. The islands endpoint could not load the region's module, or could not decode
-			the props in its address, so it refused the request. The error follows the message.
+			The islands endpoint could not load the region's module, or could not decode the props in
+			its address, so it refused the request and the page keeps the region's fallback. The
+			error follows the message, in the server's log only: the visitor's answer says nothing of
+			it.
 		`
 	},
 	endpoint_foreign_key: {

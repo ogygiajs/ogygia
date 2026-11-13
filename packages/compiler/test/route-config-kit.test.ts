@@ -1,13 +1,10 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-	read_route_config,
-	page_route_config,
-	clear_route_csr_cache
-} from '../src/compiler/kit.ts';
+import { read_route_config, page_route_config, route_reader } from '../src/compiler/kit.ts';
+import { node_fs } from '../src/compiler/fs.ts';
 import {
 	route_config,
 	set_page_route_config,
@@ -19,15 +16,19 @@ import {
 // (`export const config = { postrender: false }`; postrender's key is the example used here).
 //
 // Merged exactly the way Kit merges `config` at run time (layouts root → leaf, then the page; at each
-// level the server module, then the universal one; later wins, top level only). A route that sets
+// level the universal module, then the server one; later wins, top level only). A route that sets
 // nothing carries no value (the plugin's own default applies at run time). Nothing is stripped: Kit
 // accepts any key inside `config`. This suite pins the read, the merge, and the run-time answer.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** The disk, read through a reader of its own per test (a fresh set of answers). */
+let R = route_reader(node_fs);
 const dirs: string[] = [];
+beforeEach(() => {
+	R = route_reader({ ...node_fs });
+});
 afterEach(() => {
 	for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
-	clear_route_csr_cache();
 	clear_route_config();
 });
 
@@ -69,7 +70,7 @@ describe('read_route_config — export shapes', () => {
 				'// export const config = { postrender: true }\nexport const load = () => ({});',
 			'other/+page.ts': 'export const config = { runtime: "edge" };'
 		});
-		const read = (f: string) => read_route_config(join(dir, f), KEYS);
+		const read = (f: string) => read_route_config(R, join(dir, f), KEYS);
 		expect(read('on/+page.ts')).toEqual({ postrender: true });
 		expect(read('off/+page.ts')).toEqual({ postrender: false }); // unclaimed keys stay Kit's
 		expect(read('typed/+page.ts')).toEqual({ postrender: false });
@@ -83,7 +84,7 @@ describe('read_route_config — export shapes', () => {
 
 	it('a claimed key with a computed value is a build error naming the file and key', () => {
 		const dir = routes({ 'a/+page.ts': 'export const config = { postrender: !dev };' });
-		expect(() => read_route_config(join(dir, 'a/+page.ts'), KEYS)).toThrow(
+		expect(() => read_route_config(R, join(dir, 'a/+page.ts'), KEYS)).toThrow(
 			/config\.postrender` must be a literal/
 		);
 	});
@@ -94,7 +95,7 @@ describe('read_route_config — export shapes', () => {
 			export const load = () => ({});
 		`}\n`;
 		const dir = routes({ 'a/+page.ts': src });
-		read_route_config(join(dir, 'a/+page.ts'), KEYS);
+		read_route_config(R, join(dir, 'a/+page.ts'), KEYS);
 		expect(readFileSync(join(dir, 'a/+page.ts'), 'utf8')).toBe(src);
 	});
 });
@@ -109,7 +110,7 @@ describe('page_route_config — Kit’s merge', () => {
 			'docs/draft/+page.svelte': '<h1>draft</h1>',
 			'docs/draft/+page.ts': 'export const config = { postrender: false };' // page wins → false
 		});
-		const config = page_route_config(dir, KEYS);
+		const config = page_route_config(R, dir, KEYS);
 		expect(config).toEqual({
 			'/': {},
 			'/docs': { postrender: true },
@@ -131,7 +132,7 @@ describe('page_route_config — Kit’s merge', () => {
 			'account/public/+page.svelte': '<h1>public</h1>',
 			'account/public/+page.server.ts': 'export const config = { postrender: true };'
 		});
-		const config = page_route_config(dir, KEYS);
+		const config = page_route_config(R, dir, KEYS);
 		expect(config['/account']).toEqual({ postrender: false });
 		expect(config['/account/orders']).toEqual({ postrender: false });
 		expect(config['/account/public']).toEqual({ postrender: true });
@@ -139,7 +140,7 @@ describe('page_route_config — Kit’s merge', () => {
 		expect(effective(config, '/account/orders', true)).toBe(false);
 	});
 
-	it('at one level the universal module beats the server module, as in Kit', () => {
+	it('at one level the server module beats the universal module, as in Kit', () => {
 		const dir = routes({
 			'a/+page.svelte': '<h1>a</h1>',
 			'a/+page.server.ts': 'export const config = { postrender: true };',
@@ -148,9 +149,9 @@ describe('page_route_config — Kit’s merge', () => {
 			'b/+layout.ts': 'export const config = { postrender: true };',
 			'b/+page.svelte': '<h1>b</h1>'
 		});
-		const config = page_route_config(dir, KEYS);
-		expect(config['/a']).toEqual({ postrender: false });
-		expect(config['/b']).toEqual({ postrender: true });
+		const config = page_route_config(R, dir, KEYS);
+		expect(config['/a']).toEqual({ postrender: true });
+		expect(config['/b']).toEqual({ postrender: false });
 	});
 
 	it('the merge is per key: a deeper config without the key keeps the outer value', () => {
@@ -159,7 +160,7 @@ describe('page_route_config — Kit’s merge', () => {
 			'a/+page.svelte': '<h1>a</h1>',
 			'a/+page.ts': "export const config = { runtime: 'edge', other: 2 };"
 		});
-		const config = page_route_config(dir, ['postrender', 'other']);
+		const config = page_route_config(R, dir, ['postrender', 'other']);
 		expect(config['/a']).toEqual({ postrender: false, other: 2 });
 	});
 
@@ -168,7 +169,7 @@ describe('page_route_config — Kit’s merge', () => {
 			'old/+page.server.ts':
 				'export const config = { postrender: true };\nexport const load = () => { throw 1; };'
 		});
-		expect(page_route_config(dir, KEYS)['/old']).toEqual({ postrender: true });
+		expect(page_route_config(R, dir, KEYS)['/old']).toEqual({ postrender: true });
 	});
 
 	it('strips (group) segments so the id matches Kit route.id normalization', () => {
@@ -176,7 +177,7 @@ describe('page_route_config — Kit’s merge', () => {
 			'(app)/dash/+page.svelte': '<h1>dash</h1>',
 			'(app)/dash/+page.ts': 'export const config = { postrender: true };'
 		});
-		const config = page_route_config(dir, KEYS);
+		const config = page_route_config(R, dir, KEYS);
 		expect(config['/dash']).toEqual({ postrender: true });
 		expect(config['/(app)/dash']).toBeUndefined();
 	});
@@ -187,20 +188,20 @@ describe('page_route_config — Kit’s merge', () => {
 			'(app)/dash/+page.svelte': '<h1>dash</h1>',
 			'(app)/dash/+page.ts': 'export const config = { postrender: false };'
 		});
-		set_page_route_config(page_route_config(dir, KEYS));
+		set_page_route_config(page_route_config(R, dir, KEYS));
 		expect(route_config('postrender', '/(app)/dash', '/dash')).toBe(false);
 		expect(route_config('postrender', '/', '/')).toBe(undefined);
 		expect(route_config('postrender', null, '/dash')).toBe(undefined); // no route: never '/'
 	});
 
-	it('a route-file change is seen after the topology cache clears (the dev watcher)', () => {
+	it('a route-file change is seen after its file event (the dev watcher)', () => {
 		const dir = routes({
 			'a/+page.svelte': '<h1>a</h1>',
 			'a/+page.ts': 'export const config = { postrender: true };'
 		});
-		expect(page_route_config(dir, KEYS)['/a']).toEqual({ postrender: true });
+		expect(page_route_config(R, dir, KEYS)['/a']).toEqual({ postrender: true });
 		writeFileSync(join(dir, 'a/+page.ts'), 'export const config = { postrender: false };');
-		clear_route_csr_cache();
-		expect(page_route_config(dir, KEYS)['/a']).toEqual({ postrender: false });
+		expect(R.touch(join(dir, 'a/+page.ts'), 'update')).toBe(true);
+		expect(page_route_config(R, dir, KEYS)['/a']).toEqual({ postrender: false });
 	});
 });

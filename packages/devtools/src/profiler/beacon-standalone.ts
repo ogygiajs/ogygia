@@ -199,8 +199,19 @@ export function standalone_beacon(): void {
 		fetch: 'fetch'
 	};
 
-	const target =
-		document.querySelector('meta[name="ogygia-profiler-beacon"]')?.getAttribute('content') || null;
+	// The target comes only from the head the server wrote, and only on the page's own origin: a
+	// tag elsewhere, or naming another origin, sends nothing (test: beacon-own-origin).
+	const target = ((): string | null => {
+		const raw = document
+			.querySelector('head > meta[name="ogygia-profiler-beacon"]')
+			?.getAttribute('content');
+		if (!raw) return null;
+		try {
+			return new URL(raw, location.href).origin === location.origin ? raw : null;
+		} catch {
+			return null; // ok: an address that does not parse is no target
+		}
+	})();
 	const landing = location.pathname;
 	const r2 = (n: number) => Math.round(n * 100) / 100;
 	const spent = (g[Symbol.for('ogygia.own-cost')] ??= {}) as Record<string, number>;
@@ -274,7 +285,7 @@ export function standalone_beacon(): void {
 		try {
 			return (PerformanceObserver.supportedEntryTypes ?? []).includes(type);
 		} catch {
-			return false;
+			return false; // ok: no PerformanceObserver here: that kind is not measured
 		}
 	};
 	const nav_entry = () => {
@@ -283,7 +294,7 @@ export function standalone_beacon(): void {
 				| PerformanceNavigationTiming
 				| undefined;
 		} catch {
-			return undefined;
+			return undefined; // ok: no navigation timing in this browser: the visit goes without it
 		}
 	};
 	const fp_of = (node: unknown): string | undefined => {
@@ -316,65 +327,156 @@ export function standalone_beacon(): void {
 	};
 	const unquote = (s: string) => s.trim().split('"').join('').split("'").join('');
 
-	function tag_attrs(tag: string): Map<string, string> {
-		const out = new Map<string, string>();
-		let i = 1;
-		while (i < tag.length && tag[i] !== ' ' && tag[i] !== '>' && tag[i] !== '/') i++;
-		while (i < tag.length) {
-			while (
-				i < tag.length &&
-				(tag[i] === ' ' || tag[i] === '\n' || tag[i] === '\t' || tag[i] === '/')
-			)
-				i++;
-			if (i >= tag.length || tag[i] === '>') break;
-			const start = i;
-			while (i < tag.length && tag[i] !== '=' && tag[i] !== ' ' && tag[i] !== '>') i++;
-			const name = tag.slice(start, i);
-			let value = '';
-			if (tag[i] === '=') {
-				i++;
-				const q = tag[i];
-				if (q === '"' || q === "'") {
-					const end = tag.indexOf(q, i + 1);
-					value = tag.slice(i + 1, end === -1 ? tag.length : end);
-					i = end === -1 ? tag.length : end + 1;
-				} else {
-					const s = i;
-					while (i < tag.length && tag[i] !== ' ' && tag[i] !== '>') i++;
-					value = tag.slice(s, i);
-				}
-			}
-			if (name) out.set(name, value);
+	// The tag reading below is core's tag walk (markup-walk.ts) cut down to what `innerHTML` writes
+	// (no comments: `bare` took them out): a `>` inside a quoted value does not end a tag, a raw-text
+	// element's text holds no tag, the first of two same-name attributes wins. Pinned to core's
+	// `attr_changes` over serialized pages by profiler-page-beacon-parity.test.ts.
+	const SPACE = ' \t\n\f\r';
+	const RAW_TEXT = ['script', 'style', 'xmp', 'iframe', 'noembed', 'noframes', 'noscript'];
+	/** Where the start or end tag at `lt` ends: past its first `>` outside a quoted value; -1 when
+	 *  the markup ends inside it. */
+	function tag_end(s: string, lt: number): number {
+		const n = s.length;
+		let k = lt + 1;
+		while (k < n) {
+			const c = s[k];
+			if (c === '>') return k + 1;
+			k++;
+			if (c !== '=') continue;
+			while (k < n && SPACE.includes(s[k])) k++;
+			const q = s[k];
+			if (q === '"' || q === "'") {
+				const e = s.indexOf(q, k + 1);
+				if (e === -1) return -1;
+				k = e + 1;
+			} else while (k < n && s[k] !== '>' && !SPACE.includes(s[k])) k++;
+		}
+		return -1;
+	}
+	/** Where the comment or bogus comment at `lt` ends, as the browser ends it: a `<!--` one at
+	 *  `-->` or `--!>`, or at once for `<!-->` and `<!--->`; any other at its first `>`. -1 when
+	 *  the markup ends inside it. */
+	function comment_end(s: string, lt: number): number {
+		if (!s.startsWith('<!--', lt)) return s.indexOf('>', lt) + 1 || -1;
+		if (s[lt + 4] === '>') return lt + 5;
+		if (s.startsWith('->', lt + 4)) return lt + 6;
+		for (let i = s.indexOf('--', lt + 4); i !== -1; i = s.indexOf('--', i + 1)) {
+			if (s[i + 2] === '>') return i + 3;
+			if (s[i + 2] === '!' && s[i + 3] === '>') return i + 4;
+		}
+		return -1;
+	}
+	/** Where the name of the tag at `at` (just past its `<` or `</`) ends. */
+	function tag_name_end(s: string, at: number): number {
+		while (at < s.length && s[at] !== '>' && s[at] !== '/' && !SPACE.includes(s[at])) at++;
+		return at;
+	}
+	/** `s[from, to)`, a tag or attribute name, as the browser keeps it: ASCII in lower case. */
+	function tag_name(s: string, from: number, to: number): string {
+		let out = '';
+		for (let k = from; k < to; k++) {
+			const c = s.charCodeAt(k);
+			out += c >= 65 && c <= 90 ? String.fromCharCode(c + 32) : s[k];
 		}
 		return out;
 	}
-	function tag_name(tag: string): string {
-		let i = 1;
-		while (i < tag.length && tag[i] !== ' ' && tag[i] !== '>' && tag[i] !== '/' && tag[i] !== '\n')
-			i++;
-		return tag.slice(1, i).toLowerCase();
+	/** The attributes of the start tag `s[lt, end)` whose name ends at `ne`, values as written. */
+	function tag_attrs(s: string, ne: number, end: number): Map<string, string> {
+		const out = new Map<string, string>();
+		let i = ne;
+		for (;;) {
+			while (i < end && (SPACE.includes(s[i]) || s[i] === '/')) i++;
+			if (i >= end || s[i] === '>') break;
+			const start = i++;
+			while (i < end && s[i] !== '=' && s[i] !== '>' && s[i] !== '/' && !SPACE.includes(s[i])) i++;
+			const name = tag_name(s, start, i);
+			let j = i;
+			while (j < end && SPACE.includes(s[j])) j++;
+			let value = '';
+			if (s[j] === '=') {
+				j++;
+				while (j < end && SPACE.includes(s[j])) j++;
+				const q = s[j];
+				if (q === '"' || q === "'") {
+					const e = s.indexOf(q, j + 1);
+					value = s.slice(j + 1, e === -1 ? end : e);
+					i = e === -1 ? end : e + 1;
+				} else {
+					const v = j;
+					while (j < end && s[j] !== '>' && !SPACE.includes(s[j])) j++;
+					value = s.slice(v, j);
+					i = j;
+				}
+			}
+			if (!out.has(name)) out.set(name, value);
+		}
+		return out;
+	}
+	/** `s` cut at its tags, as core's `markup_tokens` cuts it: kind (0 text, 1 start tag, 2 end tag,
+	 *  3 a comment), start, end, where a tag's name ends, and 1 for a raw-text element's text (else
+	 *  0); five numbers per piece. */
+	function pieces(s: string): number[] {
+		const out: number[] = [];
+		const n = s.length;
+		const letter = (x: number) => (x >= 97 && x <= 122) || (x >= 65 && x <= 90);
+		let i = 0;
+		let lt = s.indexOf('<');
+		while (lt !== -1) {
+			const c = s.charCodeAt(lt + 1);
+			let kind = 0;
+			if (letter(c)) kind = 1;
+			else if (c === 47 /* / */ && letter(s.charCodeAt(lt + 2))) kind = 2;
+			else if (c === 33 /* ! */ || c === 63 /* ? */ || (c === 47 && s[lt + 2] !== '>')) kind = 3;
+			// (a `<` that opens nothing is text, and so is `</>`, which the browser drops)
+			if (kind === 0) {
+				lt = s.indexOf('<', lt + 1);
+				continue;
+			}
+			const ne = kind === 3 ? lt : tag_name_end(s, lt + kind);
+			const end = kind === 3 ? comment_end(s, lt) : tag_end(s, lt);
+			// (the markup ends inside the tag: the rest is text, as core's walk leaves it)
+			if (end === -1) break;
+			if (lt > i) out.push(0, i, lt, i, 0);
+			out.push(kind, lt, end, ne, 0);
+			i = end;
+			const raw = kind === 1 ? tag_name(s, lt + 1, ne) : '';
+			if (raw === 'plaintext') i = n;
+			else if (RAW_TEXT.includes(raw)) {
+				// (its text runs to `</name` followed by a space, `/` or `>`)
+				// markup-ok: core's walk, copied (inlined by toString(), it imports nothing; parity test)
+				let close = s.indexOf('</', end);
+				while (close !== -1) {
+					const after = close + 2 + raw.length;
+					const t = s[after];
+					if (
+						tag_name(s, close + 2, after) === raw &&
+						(t === undefined || t === '>' || t === '/' || SPACE.includes(t))
+					)
+						break;
+					close = s.indexOf('</', close + 2); // markup-ok: the copy above
+				}
+				i = close === -1 ? n : close;
+			}
+			if (i > end) out.push(0, end, i, end, 1);
+			lt = s.indexOf('<', i);
+		}
+		if (i < n) out.push(0, i, n, i, 0);
+		return out;
 	}
 	function attr_changes(a: string, b: string): AttrChange[] | null {
+		const pa = pieces(a);
+		const pb = pieces(b);
+		if (pa.length !== pb.length) return null;
 		const out: AttrChange[] = [];
-		let i = 0;
-		let j = 0;
-		while (i < a.length || j < b.length) {
-			const ti = a.indexOf('<', i);
-			const tj = b.indexOf('<', j);
-			if (a.slice(i, ti === -1 ? a.length : ti) !== b.slice(j, tj === -1 ? b.length : tj))
-				return null;
-			if (ti === -1 || tj === -1) return ti === tj ? out : null;
-			const ei = a.indexOf('>', ti);
-			const ej = b.indexOf('>', tj);
-			const x = a.slice(ti, ei === -1 ? a.length : ei + 1);
-			const y = b.slice(tj, ej === -1 ? b.length : ej + 1);
-			i = ti + x.length;
-			j = tj + y.length;
-			if (x === y) continue;
-			const tag = tag_name(x);
-			if (tag !== tag_name(y) || x[1] === '/' || y[1] === '/') return null;
-			const xa = tag_attrs(x);
-			const ya = tag_attrs(y);
+		for (let k = 0; k < pa.length; k += 5) {
+			const kind = pa[k];
+			if (kind !== pb[k]) return null;
+			if (a.slice(pa[k + 1], pa[k + 2]) === b.slice(pb[k + 1], pb[k + 2])) continue;
+			if (kind !== 1) return null;
+			const tag = tag_name(a, pa[k + 1] + 1, pa[k + 3]);
+			if (tag !== tag_name(b, pb[k + 1] + 1, pb[k + 3])) return null;
+			const xa = tag_attrs(a, pa[k + 3], pa[k + 2]);
+			const ya = tag_attrs(b, pb[k + 3], pb[k + 2]);
 			for (const [name, v] of xa)
 				if (ya.get(name) !== v && out.length < 20)
 					out.push({ tag, name, from: v, to: ya.has(name) ? ya.get(name)! : null });
@@ -384,21 +486,23 @@ export function standalone_beacon(): void {
 		return out;
 	}
 	function bare(html: string): string {
-		let at = html.indexOf('<!--');
-		if (at !== -1) {
+		if (html.includes('<!--')) {
+			const p = pieces(html);
 			let out = '';
-			let from = 0;
-			while (at !== -1) {
-				out += html.slice(from, at);
-				const end = html.indexOf('-->', at + 4);
-				if (end === -1) {
-					from = html.length;
-					break;
+			for (let k = 0; k < p.length; k += 5) {
+				const start = p[k + 1];
+				if (p[k] === 3 && html.startsWith('<!--', start)) continue;
+				if (p[k] === 0 && p[k + 4] === 0) {
+					// markup-ok: core's without_comments, copied: an unclosed comment runs to the end
+					const open = html.indexOf('<!--', start);
+					if (open !== -1 && open < p[k + 2]) {
+						out += html.slice(start, open);
+						break;
+					}
 				}
-				from = end + 3;
-				at = html.indexOf('<!--', from);
+				out += html.slice(start, p[k + 2]);
 			}
-			html = `${out}${html.slice(from)}`;
+			html = out;
 		}
 		for (const m of [
 			' data-nested=""',
@@ -1227,7 +1331,7 @@ export function standalone_beacon(): void {
 				...(blocking(r) ? { blocking: true } : {})
 			}));
 		} catch {
-			resources = [];
+			resources = []; // ok: no resource timing in this browser: the visit is sent without it
 		}
 		let fonts: { family: string; display: string; urls: string[] }[] = [];
 		let oversized: Visit[] = [];
@@ -1469,7 +1573,7 @@ export function standalone_beacon(): void {
 		try {
 			trace = await p.stop();
 		} catch {
-			return;
+			return; // ok: the profiler would not stop: the visit is kept without its load trace
 		}
 		if (off || !trace) return;
 		keep_trace({ trace, from: cpu_started_at, to: performance.now(), label: 'page load' });
@@ -1506,7 +1610,7 @@ export function standalone_beacon(): void {
 		try {
 			trace = await p.stop();
 		} catch {
-			return;
+			return; // ok: the profiler would not stop: this interaction goes without a trace
 		}
 		let caught = icpu_caught;
 		if (off || !trace || !caught) return;
@@ -1700,7 +1804,7 @@ export function standalone_beacon(): void {
 				keep_trace({ trace: await p.stop(), from, to: performance.now(), label });
 				return true;
 			} catch {
-				return false;
+				return false; // ok: the caller is told no trace was kept
 			}
 		},
 		keep_traces() {

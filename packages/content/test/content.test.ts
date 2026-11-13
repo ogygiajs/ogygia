@@ -7,6 +7,7 @@ import { withRemotes } from '../src/server.ts';
 import { content_hmr as contentPlugin, invalidateModuleTree } from '../src/vite/hmr.ts';
 import type { ModuleNode, ViteDevServer } from 'vite';
 import { dedent } from '@ogygia/core/plugin/utils';
+import { defineRun } from '@ogygia/machine';
 
 const REGION_BRAND = Symbol.for('ogygia.region');
 
@@ -403,6 +404,27 @@ describe('content graph — relations + backlinks', () => {
 
 	it('a collection with no relations still receives backlinks from others', async () => {
 		expect((await people.get('grace'))!.backlinks?.map((b) => b.id)).toEqual(['setup']);
+	});
+
+	it('a contributor replaced by a dev reload (same size, same stamps) gives its own backlinks, not the old one’s', async () => {
+		const authors = content({
+			schema: v.object({ name: v.string() }),
+			loader: fromArray([{ id: 'linus', data: { name: 'Linus' } }])
+		});
+		const post = (author: string) =>
+			content({
+				schema: v.object({ author: v.string() }),
+				loader: fromArray([{ id: `by-${author}`, data: { author } }]),
+				relations: () => ({ author: authors })
+			});
+		// two runs of the module that defines the posts: the second replaces the first
+		const run_1 = defineRun('/app/src/lib/posts.server.ts');
+		run_1(() => post('linus'))();
+		expect((await authors.get('linus'))!.backlinks?.map((b) => b.id)).toEqual(['by-linus']);
+		const run_2 = defineRun('/app/src/lib/posts.server.ts');
+		run_2(() => post('nobody'))();
+		// (the new posts point elsewhere: linus has no backlink any more)
+		expect((await authors.get('linus'))!.backlinks).toEqual([]);
 	});
 });
 
