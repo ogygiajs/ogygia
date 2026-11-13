@@ -185,14 +185,26 @@ describe('transform_module: seed shaping', () => {
 		</script>
 	`;
 
-	test("a page-store reader's keys are kept by its query-less id, and a dropped helper call clears", async () => {
-		const { program, run } = make();
+	test('each module goes to the seed-shaping plugin by its query-less id, in the source form the transform got', async () => {
+		const seen: Array<[string, string]> = [];
+		const page_reads = {
+			module: (id: string, code: string) => void seen.push([id, code]),
+			keys: () => null
+		};
+		const { run } = make({}, { page_reads });
 		const id = `${ROOT}/src/lib/R.svelte`;
 		await run(reads(true), `${id}?v=1`, true);
-		expect([...(program.page_keys.get(id) as Set<string>)]).toEqual(['user']);
-		expect(program.page_pending.get(id)).toHaveLength(1);
 		await run(reads(false), `${id}?v=2`, true);
-		expect(program.page_pending.get(id)).toBe(undefined);
+		expect(seen).toEqual([
+			[id, reads(true)],
+			[id, reads(false)]
+		]);
+	});
+
+	test('without the plugin a page-store reader compiles as before', async () => {
+		const { run } = make();
+		const out = await run(reads(false), `${ROOT}/src/lib/R.svelte`, true);
+		expect(out === null || typeof out.code === 'string').toBe(true);
 	});
 });
 

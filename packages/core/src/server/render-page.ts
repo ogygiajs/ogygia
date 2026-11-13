@@ -30,6 +30,7 @@ import { look_up_page, type PageFacts } from './page-facts.ts';
 import { merge_seed_ask, shape_page_data, type SeedAsk, type SeedKeys } from './seed-shape.ts';
 import { PAGE_FACTS_SCRIPT_TYPE } from '../page-facts-script.ts';
 import { line } from '../messages/server.ts';
+import { note_hole_page_read } from './rules.ts';
 import { bucket32 } from '../contract/hash.ts';
 import { server_ports } from '../server-ports.ts';
 
@@ -37,6 +38,11 @@ type Transport = Record<
 	string,
 	{ decode: (v: unknown) => unknown; encode: (v: unknown) => unknown }
 >;
+
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
+
+const skipped_look_up = new WeakSet<Request>();
 
 /** Where a dev warning goes (the handle's setting). */
 export function configure_render_page(o: { warn: ((message: string) => void) | null }): void {
@@ -116,6 +122,7 @@ export function prepare_render_page(
 	reads_data: boolean | null
 ): Promise<void> | void {
 	if (!event || !renders_for_a_page(event)) return;
+	if (RULES && reads_data === false) skipped_look_up.add(event.request);
 	if (!(reads_data ?? (event as { isRemoteRequest?: boolean }).isRemoteRequest === true)) return;
 	const page = page_url_of(event);
 	if (page === event.url) return;
@@ -144,8 +151,12 @@ export function render_page(
 		// FOR A PAGE: the Referer's page — its looked-up facts, else its url alone
 		const facts = facts_of(event.request);
 		const warn = server_ports()?.render_page_warn;
-		const data = facts && warn ? watched_data(facts, warn) : (facts?.data ?? {});
 		const url = facts?.url ?? page_url_of(event);
+		const data =
+			facts && warn
+				? watched_data(facts, warn)
+				: (facts?.data ??
+					(RULES && skipped_look_up.has(event.request) ? unpredicted_data(url.pathname) : {}));
 		return {
 			// (its page's url: a read of it is in the render's read set too)
 			get url() {
@@ -191,6 +202,15 @@ const NOT_A_KEY = new Set([
 	'nodeType'
 ]);
 const warned_keys = new WeakMap<PageFacts, Set<string>>();
+
+function unpredicted_data(path: string): Record<string, unknown> {
+	return new Proxy({} as Record<string, unknown>, {
+		get(target, key, receiver) {
+			if (typeof key === 'string' && !NOT_A_KEY.has(key)) note_hole_page_read(path, key);
+			return Reflect.get(target, key, receiver);
+		}
+	});
+}
 
 /**
  * DEV: a render for a page reading a `page.data` key the page's server loads did not produce — most

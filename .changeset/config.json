@@ -21,7 +21,8 @@
 			"@ogygia/machine",
 			"@ogygia/barrels",
 			"@ogygia/bake",
-			"@ogygia/insights"
+			"@ogygia/insights",
+			"@ogygia/page-keys"
 		]
 	],
 	"format": "auto",

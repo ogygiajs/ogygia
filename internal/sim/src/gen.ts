@@ -1050,7 +1050,12 @@ export const handle: Handle = ({ event, resolve }) => mounted.handle({ event, re
  *  its moves: each `<x-gen-box>` renders a tree of its own into its light DOM and moves its children
  *  into a `<slot>` in it (trimming whitespace as a serializer does, with `trim`), each
  *  `<x-gen-link>` renders an `<a>`; on a host ogygia will restore (`og-h`) it writes the plan
- *  (`og-shadow`). Innermost hosts first, matched by depth: a box may hold a box. */
+ *  (`og-shadow`). Innermost hosts first, matched by depth: a box may hold a box. The pass fails as
+ *  an app's does, at the seed's choice (buggify points in the app's code, so the run's coverage
+ *  counts them): it throws (`gen.reshape-throws`), takes 3 s (`gen.reshape-slow`), strips ogygia's
+ *  marks (`gen.reshape-strips-marks`). ogygia sends a failed answer as it rendered it (#1569), so
+ *  every oracle sees the page whole. (A transform that answers broken HTML of its own is the app's:
+ *  no point draws it.) */
 export function app_reshape(pass: GenReshape | null): string {
 	if (pass === null)
 		return `import type { Handle } from '@sveltejs/kit';
@@ -1059,6 +1064,7 @@ export const handle: Handle = ({ event, resolve }) => resolve(event);
 `;
 	return `import type { Handle } from '@sveltejs/kit';
 import * as reshape from '@ogygia/reshape';
+import { buggify } from '@ogygia/machine';
 
 const TRIM = ${pass.trim};
 
@@ -1105,13 +1111,16 @@ function render(html: string, tag: string, tree: (inner: string) => string): str
 \t}
 }
 
-export const transform: reshape.ReshapeTransform = (html) => {
+export const transform: reshape.ReshapeTransform = async (html) => {
+\tif (buggify.fires('gen.reshape-throws')) throw new Error('the reshape pass threw');
+\tif (buggify.fires('gen.reshape-slow')) await new Promise((r) => setTimeout(r, 3000));
 \tlet out = render(
 \t\thtml,
 \t\t'x-gen-box',
 \t\t(inner) => \`<div class="gen-box"><b>box</b><slot>\${trim(inner)}</slot></div><!--gen-box-->\`
 \t);
 \tout = render(out, 'x-gen-link', (inner) => \`<a class="gen-link" tabindex="-1"><slot>\${trim(inner)}</slot></a>\`);
+\tif (buggify.fires('gen.reshape-strips-marks')) out = out.replace(/ og-[a-z]+="[^"]*"/g, '');
 \treturn out;
 };
 

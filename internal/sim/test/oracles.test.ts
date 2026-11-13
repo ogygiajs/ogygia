@@ -223,6 +223,16 @@ describe('normalize', () => {
 		expect(page('<meta name="ogygia-first-load">')).toBe(page(''));
 	});
 
+	it("drops a reshape pass's stand-ins sheet: a page the pass failed on goes out as ogygia rendered it, with none (gen 24, seed 5)", async () => {
+		const { Window } = await import('happy-dom');
+		const page = (head: string) => {
+			const w = new Window();
+			w.document.write(`<html><head><title>t</title>${head}</head><body><p>hi</p></body></html>`);
+			return normalize(w.document as unknown as Document);
+		};
+		expect(page('<style data-og-stand-ins>:where(og-as){display:inline}</style>')).toBe(page(''));
+	});
+
 	it("compares an app web component by its host alone: a server-owned one is the render's on a fresh load and restored in the router's answer (gen 262, seed 3)", async () => {
 		const { Window } = await import('happy-dom');
 		const page = (body: string) => {
