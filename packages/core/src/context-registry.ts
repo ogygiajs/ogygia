@@ -8,15 +8,20 @@
  *
  * Universal-safe by design: the recorder is a slot the SERVER installs (backed by an
  * `AsyncLocalStorage` in `hooks.ts`), so `node:async_hooks` never enters the client bundle — on the
- * client `record_ctx` is a no-op.
+ * client `record_ctx` is a no-op. The ports live in ./server-ports.ts.
  */
-type Recorder = (key: string, value: unknown) => void;
+import { DEV } from 'esm-env';
+import { server_ports } from './server-ports.ts';
+import { key_label, key_name } from './contract/context-key.ts';
+import { is_branded_fn } from './fn-transport.ts';
+import { warn } from './messages/island.ts';
 
-let recorder: Recorder | null = null;
+type Recorder = (name: string, value: unknown) => void;
 
 /** Server (`hooks.ts`) installs a request-scoped recorder. */
 export function set_ctx_recorder(fn: Recorder | null): void {
-	recorder = fn;
+	const ports = server_ports();
+	if (ports) ports.ctx_recorder = fn;
 }
 
 /**
@@ -40,8 +45,16 @@ export interface SetContextOptions {
 }
 
 /** The drop-in `setContext` calls this — server records for the page bridge, client is a no-op.
- *  `opts.islands === false` skips recording: the key stays native-only (never serialized). */
-export function record_ctx(key: string, value: unknown, opts?: SetContextOptions): void {
+ *  `opts.islands === false` skips recording: the key stays native-only (never serialized). A key or
+ *  value that cannot cross is said in dev (a branded `import.meta.og.$` function crosses). */
+export function record_ctx(key: unknown, value: unknown, opts?: SetContextOptions): void {
 	if (opts?.islands === false) return;
-	recorder?.(key, value);
+	const record = server_ports()?.ctx_recorder;
+	if (!record) return;
+	const name = key_name(key);
+	if (name === null) {
+		if (DEV) warn('context_key_one_off', { key: key_label(key) });
+	} else if (typeof value === 'function' && !is_branded_fn(value)) {
+		if (DEV) warn('context_value_function', { key: key_label(key) });
+	} else record(name, value);
 }

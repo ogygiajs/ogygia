@@ -19,6 +19,8 @@ import {
 } from '../src/vite/plugin-api.ts';
 import { EVERY_BARREL } from '../src/compiler/exports/index.ts';
 import { server_plugins_module, route_config_module } from '../src/compiler/link/caps.ts';
+import { route_reader } from '../src/compiler/kit.ts';
+import { node_fs } from '../src/compiler/fs.ts';
 import { defineServer } from '../../core/src/plugin/index.ts';
 import { facts_of, note_per_visitor } from '../../core/src/plugin/facts.ts';
 import { ask, notify, register_hooks } from '../../core/src/plugin/hooks.ts';
@@ -28,6 +30,8 @@ import {
 	route_config,
 	set_page_route_config
 } from '../../core/src/plugin/routes.ts';
+
+const R = route_reader(node_fs);
 import { startPlugin } from '../../core/src/plugin/testing.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
 
@@ -195,6 +199,29 @@ describe('realms, named by the plugin', () => {
 		expect(() => client_hook_names('p', let_hooks)).toThrow(
 			/plugin_client_hooks_unread|cannot read/
 		);
+	});
+	it('macros run in plugin order, a `last` one after every other, whatever its place', () => {
+		const h = (code: string) => code;
+		const out = resolve_plugins(
+			[
+				def({
+					name: '@ogygia/flags',
+					build(b) {
+						b.macro('late', h, { last: true });
+						b.macro('one', h);
+					}
+				}),
+				def({
+					name: '@ogygia/barrels',
+					build(b) {
+						b.macro('two', h);
+					}
+				})
+			],
+			APP,
+			true
+		);
+		expect(out.macros.map((m) => m.name)).toEqual(['one', 'two', 'late']);
 	});
 	it('no realm named, none wired: a package export called `./server` means nothing', () => {
 		const out = resolve_plugins([def({ name: '@ogygia/flags' })], APP, true);
@@ -387,10 +414,10 @@ describe('route config', () => {
 		expect(route_config('postrender', '/bare', '/bare')).toBeUndefined();
 	});
 	it('the virtual module is server-only and empty without claimed keys', () => {
-		expect(route_config_module(false, '/r', ['postrender'])).toBe(
+		expect(route_config_module(false, R, '/r', ['postrender'])).toBe(
 			'export const route_config = {};'
 		);
-		expect(route_config_module(true, '/r', [])).toBe('export const route_config = {};');
+		expect(route_config_module(true, R, '/r', [])).toBe('export const route_config = {};');
 	});
 });
 

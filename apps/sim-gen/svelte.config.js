@@ -6,7 +6,12 @@ const config = {
 	preprocess: [vitePreprocess()],
 	compilerOptions: { experimental: { async: true } },
 	// (remote functions: a held region is a query's answer, a live one a live query's ticks)
-	kit: { adapter: adapter(), experimental: { remoteFunctions: true } }
+	kit: {
+		adapter: adapter(),
+		experimental: { remoteFunctions: true },
+		// (a sim build's version is its id: a rebuild of the same code is the same world, test/builds.test.ts)
+		version: { name: process.env.VITE_SIM_BUILD }
+	}
 };
 
 export default config;

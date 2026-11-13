@@ -215,7 +215,7 @@ decide({ source: openfeature(OpenFeature.getClient()) });
 
 The source resolves **once per request**, over exactly the flags your app declares, and every read after that stays synchronous. From then on a vendor-decided flag and a native one look the same, with the same calls, the same `pick` and the same [federation carry](#one-world-across-teams). Decisions are validated against your declared variants, so a typo at the vendor cannot invent a bucket. If the vendor answers with an error or a variant you did not declare, that flag falls back to its native rule.
 
-A slow vendor is a different matter. The request waits for the source before anything renders, so the source's speed becomes part of your time to first byte, on every request the handle sees, whether or not the page reads a flag. `ofrep()` gives up after 800 ms by default and leaves every flag on its native rule. `openfeature()` and a custom source have no timeout of their own: the request waits for the slowest evaluation. If your provider can stall, give it a deadline, as shown under [A custom source](#sources-reference-a-custom-source).
+A slow vendor is a different matter. The request waits for the source before anything renders, so the source's speed becomes part of your time to first byte, on every request the handle sees, whether or not the page reads a flag. `ofrep()` gives up after 800 ms by default and leaves every flag on its native rule. Every source, `openfeature()` and a custom one included, has a deadline of 1 second: a source that has not answered by then leaves every flag on its native rule for that request, and is said (`flags_source_failed`). Its work is not cancelled. If your provider can stall, give it a shorter deadline of its own, as shown under [A custom source](#sources-reference-a-custom-source).
 
 Without a vendor SDK, you can speak the OpenFeature remote protocol directly:
 
@@ -269,7 +269,7 @@ decide({
 | `context` | `c.visitor`'s keys, with `sub` (else `vid`) as `targetingKey` | Builds the evaluation context from the request. The default sends the visitor the source sees; pass your own to add more.         |
 | `values`  | `false`                                                       | Also asks for each flag's object value (`getObjectValue`) and passes it to `.value(c)`. Without it, vendor payloads never arrive. |
 
-Each request evaluates every registered flag in parallel. A boolean flag asks `getBooleanValue(name, false)`, so a flag the vendor doesn't know stays off, and a variant flag asks `getStringValue(name, control)`, whose answer is the variant name. `values: true` adds one more call per flag. A flag whose evaluation throws falls back to its native rule. There is no timeout.
+Each request evaluates every registered flag in parallel. A boolean flag asks `getBooleanValue(name, false)`, so a flag the vendor doesn't know stays off, and a variant flag asks `getStringValue(name, control)`, whose answer is the variant name. `values: true` adds one more call per flag. A flag whose evaluation throws falls back to its native rule. The evaluations share the 1 second deadline every source has.
 
 ### `ofrep(options)`
 
@@ -414,7 +414,7 @@ routes(table, { visitor: session, flags: [csrMode] });   // decide-but-don't-ren
 
 ## The flag manifest
 
-Every production build writes an inventory of the `flag()` call sites it compiled. The inventory is resolved from the AST, so renamed and namespace imports count, while an unrelated local function named `flag` does not. It is written to:
+Every production build with `flags()` listed beside `ogygia()` writes an inventory of the `flag()` call sites in the app's source (every module that imports `@ogygia/flags`, used or not). Without `flags()`, there is no manifest, and the build warns once (`plugin_not_listed`). The inventory is resolved from the AST, so renamed and namespace imports count, while an unrelated local function named `flag` does not. It is written to:
 
 ```
 node_modules/.ogygia/flags-manifest.json   →  { flags: [{ name, kind, file, line }], names: [...] }

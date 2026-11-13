@@ -2,7 +2,9 @@
 // wrapper (fingerprint, id stamp, receipt tag). What a plugin does with the receipts (postrender's
 // reverse index) is tested in that plugin.
 import { describe, it, expect, afterEach } from 'vitest';
+import { compile } from 'svelte/compiler';
 import { rewrite_source } from '../src/compiler/macros/source.ts';
+import { dedent } from '@ogygia/core/contract';
 import {
 	__og_source,
 	fingerprint_args,
@@ -74,6 +76,61 @@ describe('macros/source — strict position law', () => {
 		expect(() =>
 			rewrite_source(`export const f = import.meta.og.source();\n`, '/app/x.ts', 'x.ts', MARKUP)
 		).toThrow(/args/);
+	});
+
+	it('in a .svelte <script module>, the import goes inside the script, and no line moves', () => {
+		const src = dedent`
+			<script module lang="ts">
+				export const loadDoc = import.meta.og.source(async (slug: string) => slug);
+			</script>
+
+			<p>hi</p>
+		`;
+		const out = rewrite_source(src, '/app/src/lib/Doc.svelte', 'src/lib/Doc.svelte', MARKUP);
+		expect(
+			out.startsWith(`<script module lang="ts">import { __og_source } from 'ogygia/internal';`)
+		).toBe(true);
+		expect(out.split('\n').length).toBe(src.split('\n').length);
+		expect(out.split('\n')[1]).toContain(`__og_source("src/lib/Doc.svelte#loadDoc"`);
+	});
+
+	it('marks in both scripts of a .svelte file share one import, in whichever script comes first', () => {
+		// Svelte hoists an instance script's imports to module scope: a `<script module>` after it
+		// reads the same binding, and a second import of it would be a duplicate declaration
+		for (const [first, second] of [
+			['<script lang="ts">', '<script module lang="ts">'],
+			['<script module lang="ts">', '<script lang="ts">']
+		]) {
+			const src = dedent`
+				${first}
+					export const a = import.meta.og.source(async (n: number) => n);
+				</script>
+				${second}
+					export const b = import.meta.og.source(async (n: number) => n * 2);
+				</script>
+
+				<p>hi</p>
+			`;
+			const out = rewrite_source(src, '/app/src/lib/Doc.svelte', 'src/lib/Doc.svelte', MARKUP);
+			expect(out.split(`import { __og_source }`).length).toBe(2);
+			const { warnings } = compile(out, { generate: 'server', filename: 'Doc.svelte' });
+			expect(warnings).toEqual([]);
+			const client = compile(out, { generate: 'client', filename: 'Doc.svelte' }).js.code;
+			// one module-level import serves both calls
+			expect(client.indexOf(`import { __og_source }`)).toBeLessThan(
+				client.indexOf(`__og_source("src/lib/Doc.svelte#b"`)
+			);
+		}
+	});
+
+	it('in a .ts module, the export stays on its own line', () => {
+		const src = dedent`
+			// cms
+			export const loadDoc = import.meta.og.source(async (slug) => slug);
+		`;
+		const out = rewrite_source(src, '/app/x.ts', 'x.ts', MARKUP);
+		expect(out.split('\n').length).toBe(src.split('\n').length);
+		expect(out.split('\n')[1]).toContain(`__og_source("x.ts#loadDoc"`);
 	});
 });
 

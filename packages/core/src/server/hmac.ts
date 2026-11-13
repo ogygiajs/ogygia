@@ -71,7 +71,7 @@ export class Hmac {
 		try {
 			return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(sig, 'hex'));
 		} catch {
-			return false;
+			return false; // ok: buffers that cannot be compared are not a match (fail closed)
 		}
 	}
 

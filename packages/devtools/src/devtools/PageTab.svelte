@@ -31,7 +31,7 @@
 			s.unscoped = await scan_unscoped(document);
 			styles = s;
 		} catch {
-			styles = null;
+			styles = null; // ok: the styles check failed: its section stays hidden, the tab works without it
 		}
 		styles_busy = false;
 	}
@@ -41,7 +41,7 @@
 		try {
 			cache = await probe_cache(document);
 		} catch {
-			cache = null;
+			cache = null; // ok: the cache probe failed: no cache findings, the tab works without them
 		}
 	}
 	// again after an in-app navigation (a new page, new sheets): keyed on the navigation's time — a
@@ -77,8 +77,6 @@
 	const LABEL_W = 132;
 	const trackW = $derived(Math.max(160, wrapW - LABEL_W - 70));
 
-	// THE READ: measured (the view), not measured (null), or failed (its message, said as a failure:
-	// "not measured" would send the reader to reload, test/devtools-page-tab-read.test.ts)
 	const read = $derived.by(() => {
 		void tick;
 		try {
@@ -159,7 +157,7 @@
 				ups: ups.map((u) => ({ desc: u.description, ms: u.duration }))
 			};
 		} catch {
-			return null;
+			return null; // ok: no navigation timing in this browser: the server's line is left out
 		}
 	})();
 	// the document's vitals (after a navigation the report drops them; they still show, labelled)

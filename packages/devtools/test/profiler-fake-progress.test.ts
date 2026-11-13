@@ -13,7 +13,7 @@ it('a disposed progress bar stops ticking', () => {
 	vi.advanceTimersByTime(1000);
 	const at = p.value;
 	expect(at).toBeGreaterThan(0);
-	(p as unknown as Disposable)[Symbol.dispose]();
+	p.close();
 	expect(vi.getTimerCount()).toBe(0);
 	vi.advanceTimersByTime(5000);
 	expect(p.value).toBe(at);

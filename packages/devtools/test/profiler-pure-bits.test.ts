@@ -47,9 +47,15 @@ describe('contention', () => {
 		expect(c.busy_share).toBe(0.5);
 	});
 
-	it("a request to the islands endpoint under a base is one of the page's holes", () => {
-		const c = contention({ requests: [entry(`/base${islands_endpoint()}`, 0, 10, 0)], windows })!;
-		expect(c.requests[0].kind).toBe('hole');
+	it("a request to the islands endpoint (its one path under the app's base) is one of the page's holes; a page whose path ends the same is not", () => {
+		const c = contention({
+			requests: [
+				entry(islands_endpoint(), 0, 10, 0),
+				entry(`/docs${islands_endpoint()}`, 0, 10, 0)
+			],
+			windows
+		})!;
+		expect(c.requests.map((r) => r.kind)).toEqual(['hole', 'other']);
 	});
 
 	it('counts every request by kind, though the list stops at 40', () => {
