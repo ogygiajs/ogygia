@@ -488,12 +488,24 @@ export async function run(
 				for (const t of v.tabs)
 					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
 			// (an eager press comes once the next document is in: the marks are that document's)
-			const picks = await act(world, v, a, ORIGIN, () => {
-				for (const t of v.tabs) {
+			const picks = await act(
+				world,
+				v,
+				a,
+				ORIGIN,
+				() => {
+					for (const t of v.tabs) {
+						if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
+						pressed.set(t.name, t.documents);
+					}
+				},
+				// (the pointer woke a region waiting for the visitor: that document is theirs, as a
+				// press's is; gen 56, seed 74, test/hover-own.node.test.ts)
+				(t) => {
 					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
 					pressed.set(t.name, t.documents);
 				}
-			});
+			);
 			// (what it picked, by name: its plan picks the same on a page whose elements moved)
 			if (picks.names.length > 0) actions[actions.length - 1] = { ...a, names: picks.names };
 			for (const m of picks.missed) missed.push(`action ${i + 1} (${describe(a)}): ${m}`);

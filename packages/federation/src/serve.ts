@@ -350,7 +350,7 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 	const target = p.get('target') ?? '';
 	const search = p.get('search') ?? '';
 	// expired, renewal, bad signature: answered as a region hole is (a 403 the runtime renews once)
-	const opened = fed_app()?.capability.open(url, (e) =>
+	const opened = fed_app()?.capability.open(event, (e) =>
 		hole_message(peer_name, kind, target, search, e)
 	);
 	if (!opened) return new Response('forbidden', { status: 403 });

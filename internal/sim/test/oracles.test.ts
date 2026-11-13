@@ -141,6 +141,37 @@ describe('normalize', () => {
 		expect(page(' data-og-healed="children"')).toBe(page(''));
 	});
 
+	it('keeps an address no URL can be made of as it is: a tampered byte in a link (gen 45, seed 32)', async () => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/peer/q0' });
+		w.document.write(
+			`<html><head><link rel="stylesheet" href="https://peer.tes�/a.css"></head><body></body></html>`
+		);
+		expect(normalize(w.document as unknown as Document)).toContain(
+			'href="https://peer.tes�/a.css"'
+		);
+	});
+
+	it('reads the base address once: in happy-dom each read walks the document and grows every element (palaestra seed 216 ran out of memory)', async () => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/' });
+		w.document.write(
+			`<html><head><link rel="stylesheet" href="./a.css"></head><body>${'<p class="a" id="b">x</p>'.repeat(50)}</body></html>`
+		);
+		const doc = w.document as unknown as Document;
+		let reads = 0;
+		const root = {
+			documentElement: doc.documentElement,
+			title: doc.title,
+			get baseURI() {
+				reads++;
+				return doc.baseURI;
+			}
+		};
+		normalize(root);
+		expect(reads).toBeLessThanOrEqual(1);
+	});
+
 	it("drops a page store's mark: a stored copy is the render it kept (gen 63, seed 26)", async () => {
 		const { Window } = await import('happy-dom');
 		const page = (head: string) => {
