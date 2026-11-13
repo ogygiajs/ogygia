@@ -14,7 +14,8 @@ const loader = (path: string) =>
 		null,
 		import.meta.url
 	] as const;
-for (const path of ['app/a', 'app/b', 'app/c']) wire_loaders[path] = loader(path);
+for (const path of ['app/a', 'app/b', 'app/c', 'app/d', 'app/e', 'app/f'])
+	wire_loaders[path] = loader(path);
 
 const { wire_classes_for } = await import('../../src/runtime/wire-classes.ts');
 
@@ -56,6 +57,37 @@ test('a class module that fails to download lets the wake go on: its decode then
 	fail = 'app/b';
 	await expect(wire_classes_for(region('app/b'))).resolves.toBeDefined();
 	expect(loaded).toContain('app/b');
+});
+
+test('a class module that failed is not kept: the next wake that needs it loads it afresh', async () => {
+	fail = 'app/f';
+	await wire_classes_for(region('app/f'));
+	const failed = loaded.filter((p) => p === 'app/f').length;
+	fail = null;
+	await wire_classes_for(region('app/f'));
+	expect(loaded.filter((p) => p === 'app/f')).toHaveLength(failed + 1);
+	await wire_classes_for(region('app/f'));
+	expect(loaded.filter((p) => p === 'app/f')).toHaveLength(failed + 1);
+});
+
+test('the context an island reads loads its classes: a provide around it and the page’s context root', async () => {
+	seed('{}');
+	document.dispatchEvent(new Event('og:after-swap'));
+	const provide = document.createElement('ogygia-provide');
+	const payload = document.createElement('script');
+	payload.type = 'application/json';
+	payload.setAttribute('data-ogygia-provide', '');
+	payload.textContent = '[{"v":["app/d#1"]}]';
+	provide.append(payload);
+	const root = document.createElement('script');
+	root.type = 'application/json';
+	root.setAttribute('data-ogygia-provide-page', '');
+	root.textContent = '[{"v":["app/e#1"]}]';
+	document.body.append(root, provide);
+	const island = region('');
+	provide.append(island.parentElement!);
+	await wire_classes_for(island);
+	expect(loaded.sort()).toEqual(['app/d', 'app/e']);
 });
 
 test('the page seed is read again after a navigation swaps the page in', async () => {
