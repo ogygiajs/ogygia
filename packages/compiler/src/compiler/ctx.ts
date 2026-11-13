@@ -12,6 +12,7 @@ import { islandVirtualId } from './ids.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
 import type { ClientRealmFile, ServerRealm } from './link/caps.ts';
 import type { AliasEntry, PluginMacro } from './macros/pipeline.ts';
+import type { AppSpecCtx } from './app-spec.ts';
 import type { PreprocessCss } from './fouc-css.ts';
 
 /** A plugin's reader of the prescan (`b.prescan`): the modules it asked for, as the prescan reads
@@ -168,6 +169,15 @@ export class CompileCtx {
 	readonly presets: Record<string, unknown>;
 	readonly import_keys: ImportKeys;
 	readonly resolve_alias: readonly AliasEntry[];
+	/** What an app import specifier is resolved against (app-spec.ts): the root, `$lib`, the aliases. */
+	get app_spec(): AppSpecCtx {
+		return {
+			root: this.root,
+			libDir: this.libDir,
+			alias: this.resolve_alias,
+			stat: (abs) => this.fs.stat(abs)
+		};
+	}
 	readonly preprocess_css: PreprocessCss | undefined;
 	readonly macros: readonly PluginMacro[];
 	readonly prescans: readonly PrescanHook[];

@@ -4,7 +4,10 @@
  * `hydration_mismatch`…). Svelte keeps the server's value, so nothing on screen shows it: the console
  * line is the only trace. This keeps each one (with the island hydrating at the time) for the devtools
  * and the profiler's browser half. Dev only (production Svelte has no such warnings); the console line
- * itself goes out unchanged. No regex: warnings are rare, read by string search.
+ * itself goes out unchanged. No regex: warnings are rare, read by string search. The page keeps its
+ * first 100 (test/svelte-warnings.test.ts).
+ *
+ * @packageDocumentation
  */
 import { clock, type Scope } from '@ogygia/machine';
 import { OG_FP } from '../wire-markup.ts';
@@ -19,13 +22,10 @@ export interface SvelteWarning {
 
 let tapped = false;
 let hydrating: Element | null = null;
-/** The page's Svelte hydration warnings, as the console tap heard them: the first
- *  {@link WarningLog.MAX}, and who hears each as it comes. */
 class WarningLog {
 	static readonly MAX = 100;
 	readonly kept: SvelteWarning[] = [];
 	readonly listeners: ((w: SvelteWarning) => void)[] = [];
-	/** Keeps `w` and tells the listeners (`false`: the log is full, nothing kept or told). */
 	add(w: SvelteWarning): boolean {
 		if (this.kept.length >= WarningLog.MAX) return false;
 		this.kept.push(w);
@@ -71,13 +71,12 @@ export function parse_svelte_warning(
 	if (rest.startsWith('%c')) rest = rest.slice(2);
 	const line_end = rest.indexOf('\nhttps://');
 	const message = (line_end === -1 ? rest : rest.slice(0, line_end)).trim().slice(0, 400);
-	// the component file it names (an absolute path or URL ending in .svelte)
 	let file: string | undefined;
 	const dot = message.indexOf('.svelte');
 	if (dot !== -1) {
 		let start = dot;
 		while (start > 0 && message.charCodeAt(start - 1) > 32 && message[start - 1] !== '`') start--;
-		// (Svelte breaks its paths with zero-width spaces so the console can wrap them)
+		// @why Svelte breaks its paths with zero-width spaces so the console can wrap them (test: test/svelte-warnings.test.ts › a hydration warning: code, message, the component file)
 		file = message
 			.slice(start, dot + 7)
 			.split('​')

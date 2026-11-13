@@ -125,6 +125,43 @@ test('a plugin whose boot throws is reported, and the boot and the plugins after
 	expect(codes()[0]).toContain('`boot`');
 });
 
+test('the functions subscribers return come back as one, run in plugin order, a throw in one reported and the rest run', () => {
+	const order: string[] = [];
+	const realms: ClientRealm[] = [
+		{ name: 'a', client: { hooks: { regionHydrate: () => () => void order.push('a') } } },
+		{ name: 'none', client: { hooks: { regionHydrate: () => undefined } } },
+		{
+			name: 'bad',
+			client: {
+				hooks: {
+					regionHydrate: () => () => {
+						throw new Error('after failed');
+					}
+				}
+			}
+		},
+		{ name: 'c', client: { hooks: { regionHydrate: () => () => void order.push('c') } } }
+	];
+	boot_client_plugins(realms, false);
+	const hook = slots.hooks?.regionHydrate as (e: unknown) => (() => void) | undefined;
+	const after = hook({});
+	expect(order).toEqual([]);
+	expect(typeof after).toBe('function');
+	after!();
+	expect(order).toEqual(['a', 'c']);
+	expect(codes()).toHaveLength(1);
+	expect(codes()[0]).toContain('client_hook_failed');
+});
+
+test('a hook whose subscribers return nothing gives back nothing to run after', () => {
+	boot_client_plugins(
+		[{ name: 'a', client: { hooks: { regionHydrate: () => undefined } } }],
+		false
+	);
+	const hook = slots.hooks?.regionHydrate as (e: unknown) => unknown;
+	expect(hook({})).toBeUndefined();
+});
+
 test('a hook with no subscriber stays empty', () => {
 	boot_client_plugins([{ name: 'a', client: { boot() {} } }], false);
 	expect(slots.hooks?.navigated).toBeUndefined();
