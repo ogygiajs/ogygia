@@ -317,27 +317,27 @@ describe('keyed', () => {
 	});
 
 	it('a run that gets its own key before it returns joins its own flight (#354)', async () => {
-		let inner: Promise<unknown> | null = null;
+		const inner: Promise<unknown>[] = [];
 		const sync = flights({
 			run: (href: string) => {
-				inner = sync.get(href);
+				inner.push(sync.get(href));
 				return href.length;
 			}
 		});
 		expect(await sync.get('/abc')).toBe(4);
-		expect(await inner).toBe(4);
+		expect(await inner[0]).toBe(4);
 
-		let later: Promise<unknown> | null = null;
+		const later: Promise<unknown>[] = [];
 		const d = deferred<string>();
 		const run = vi.fn((href: string) => {
-			later = pages.get(href);
+			later.push(pages.get(href));
 			return d.promise;
 		});
 		const pages = flights({ run });
 		const outer = pages.get('/a');
 		d.resolve('page');
 		expect(await outer).toBe('page');
-		expect(await later).toBe('page');
+		expect(await later[0]).toBe('page');
 		expect(run).toHaveBeenCalledOnce();
 	});
 
