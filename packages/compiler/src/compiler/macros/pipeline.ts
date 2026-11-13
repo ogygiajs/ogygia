@@ -15,12 +15,12 @@ import { store_edits, auto_brand_edits } from './store.ts';
 import type { StepMap } from '../map-chain.ts';
 import { splice_map, splice_text, type Edit } from '../splice.ts';
 import type { Profiler } from '../driver.ts';
-import type { FoucAlias } from '../fouc-css.ts';
+import type { AppAlias } from '../app-spec.ts';
 import { OgygiaError } from '../messages.ts';
 import { find_og_calls } from '../parse/scan.ts';
 
 /** A resolved Vite alias (`resolve.alias`, normalized to its array form). */
-export type AliasEntry = FoucAlias;
+export type AliasEntry = AppAlias;
 
 /** What a macro knows about the module it rewrites. */
 export interface MacroContext {
