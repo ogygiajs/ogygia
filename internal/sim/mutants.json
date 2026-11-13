@@ -327,5 +327,92 @@
 		"from": "return hand_off(out.failed.error, built.written);",
 		"to": "return;",
 		"aim": "router.commit-throws"
+	},
+	{
+		"id": "hole-answered-left-armed",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > answered",
+		"code": "if (hole === 'armed' || hole === 'retrying' || hole === 'offline' || hole === 'failed')",
+		"operator": "logical",
+		"from": "d' || ho",
+		"to": "d' && ho"
+	},
+	{
+		"id": "hole-armed-while-fetching",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > hole_armed",
+		"code": "if (s.kind === 'fetching') return false;",
+		"operator": "boolean",
+		"from": "false",
+		"to": "true",
+		"equivalent": "a fetch in flight is left only as it ends: a schedule armed in it is dropped with its state, and one that fires first reaches #fetch_html, which starts nothing while a fetch is out at the same address"
+	},
+	{
+		"id": "prefetch-while-fetching",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > prefetch_html",
+		"code": "if (this.#answer.now.kind !== 'none' || this.#hole.now.kind === 'fetching' || !this.isConnected)",
+		"operator": "logical",
+		"from": "' || !",
+		"to": "' && !",
+		"equivalent": "a warm during the hole's own fetch joins that fetch in the frame store (one flight per address), and a warm for a region that left the page is one the store keeps for its return: no request more, no answer different"
+	},
+	{
+		"id": "media-listener-kept",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > on_media",
+		"code": "off();",
+		"operator": "statement",
+		"from": "off();",
+		"to": "",
+		"equivalent": "the listener belongs to the armed state's scope, which the first fire's wake leaves, dropping it; a second change before that starts a background task that sees the armed scope closed and fires nothing"
+	},
+	{
+		"id": "hydrate-stale-while-connected",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > hydrate",
+		"code": "const gone = (back?: unknown) => back === STALE || !this.isConnected || this.#wake.now !== mine;",
+		"operator": "logical",
+		"from": "E || !",
+		"to": "E && !",
+		"equivalent": "a wait gives STALE only once the region's mailbox or its wake visit closed, and both happen only in teardown, which moves the wake to cold: `this.#wake.now !== mine` already says gone"
+	},
+	{
+		"id": "live-held-equal-ticket",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > apply_live",
+		"code": "held && held.v > (this.#live_painted?.v ?? 0) ? held : this.#live_painted,",
+		"operator": "relational",
+		"from": "> ",
+		"to": ">= ",
+		"equivalent": "stands_at reads only the ticket `v` of what it stands over: at equal tickets the held frame and the painted one give the same order"
+	},
+	{
+		"id": "paint-gate-before-dom-content-loaded",
+		"file": "packages/core/src/runtime/schedule.ts",
+		"in": "dom_content_loaded",
+		"code": "return !!nav && nav.domContentLoadedEventEnd > 0;",
+		"operator": "relational",
+		"from": "> ",
+		"to": ">= "
+	},
+	{
+		"id": "turn-snapshot-kept",
+		"file": "packages/core/src/runtime/schedule.ts",
+		"in": "drain",
+		"code": "stop_snapshot(turn.el);",
+		"operator": "statement",
+		"from": "stop_snapshot(turn.el);",
+		"to": ""
+	},
+	{
+		"id": "head-open-confirmed-twice",
+		"file": "packages/core/src/runtime/hydrate-core.ts",
+		"in": "neutralize_head_hydration_markers",
+		"code": "pending_open = null;",
+		"operator": "statement",
+		"from": "pending_open = null;",
+		"to": "",
+		"equivalent": "a confirmed head-block open left pending only goes into the removal list again at the next top-level empty comment, or is replaced by the next open: removing a comment already removed does nothing"
 	}
 ]

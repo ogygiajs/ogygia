@@ -9,7 +9,8 @@ import {
 	kit_inline_style_threshold,
 	set_kit_inline_style_threshold,
 	keep_client_dir,
-	KEEP_CLIENT_DIR
+	KEEP_CLIENT_DIR,
+	resolve_kit_paths
 } from '../src/compiler/kit.ts';
 import { islandDepsHandoffPath, island_deps_module } from '../src/compiler/link/island-deps.ts';
 
@@ -106,6 +107,19 @@ describe('kit.files.routes / kit.outDir', () => {
 		});
 		set_kit_dirs(root, { routes_dir: join(root, 'r'), out_dir: join(root, 'o') });
 		expect(kit_dirs(root).routes_dir).toBe(join(root, 'r'));
+	});
+
+	it('an unread root inlines no region CSS, as Kit inlines none by default', () => {
+		expect(kit_inline_style_threshold('/apps/never-set')).toBe(0);
+	});
+
+	it("the app's universal and client hooks are found as .ts or .js", () => {
+		for (const ext of ['ts', 'js']) {
+			const root = app({ [`src/hooks.${ext}`]: '', [`src/hooks.client.${ext}`]: '' });
+			const paths = resolve_kit_paths(root);
+			expect(paths.universal_hooks).toBe(join(root, `src/hooks.${ext}`));
+			expect(paths.client_hooks).toBe(join(root, `src/hooks.client.${ext}`));
+		}
 	});
 
 	it('a root keeps what was set however many other roots one process configures (it cannot be read again here)', () => {

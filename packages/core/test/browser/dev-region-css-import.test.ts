@@ -162,6 +162,16 @@ test('DEV: a region-css link off the page’s code origins is not imported at bo
 	expect(document.documentElement.hasAttribute('data-og-off-origin-boot')).toBe(false);
 });
 
+test('DEV: a fetched answer’s document-relative region-css href resolves against the document', async () => {
+	document.documentElement.removeAttribute('data-og-dev-css-marker');
+	const dir = location.pathname.replace(FILENAME_TAIL_RE, '');
+	const depth = dir.split('/').filter(Boolean).length;
+	const relative = '../'.repeat(depth) + marker_module('answer').slice(1);
+	await region_fragment(`<link rel="stylesheet" href="${relative}" data-ogygia-region-css><p></p>`)
+		.ready;
+	expect(document.documentElement.getAttribute('data-og-dev-css-marker')).toBe('1');
+});
+
 test('DEV: a fetched answer’s region-css link off the page’s code origins is not imported', async () => {
 	const off = off_origin_module('data-og-off-origin-answer');
 	await region_fragment(`<link rel="modulepreload" href="${off}" data-ogygia-region-css><p></p>`)
