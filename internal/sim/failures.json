@@ -4232,6 +4232,18 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/machine/test/scope.test.ts",
 			"name": "`await using` whose cleanup throws still waits for the async disposals, then throws both together"
+		},
+		{
+			"site": "packages/postrender/src/server.ts > capture > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/postrender/test/plugin.test.ts",
+			"name": "a capture that fails after reading the page sends the page as rendered, and says why it was not stored"
+		},
+		{
+			"site": "packages/postrender/src/server.ts > response > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/postrender/test/plugin.test.ts",
+			"name": "a stored page whose stitch throws sends the page it read, and says why"
 		}
 	],
 	"impossible": [
@@ -5235,11 +5247,9 @@
 		"packages/postrender/src/server.ts > deploy_check > run > throw:0",
 		"packages/postrender/src/server.ts > stamp_no_store > catch:0",
 		"packages/postrender/src/server.ts > dev_postrender_note > catch:0",
-		"packages/postrender/src/server.ts > capture > catch:0",
 		"packages/postrender/src/server.ts > capture_page > catch:0",
 		"packages/postrender/src/server.ts > page > reject:0",
 		"packages/postrender/src/server.ts > page > stale:0",
-		"packages/postrender/src/server.ts > response > catch:0",
 		"packages/postrender/src/server.ts > response > catch:1",
 		"packages/postrender/src/server.ts > invalidate > throw:1",
 		"packages/postrender/src/server.ts > lastBuild > stale:0",
