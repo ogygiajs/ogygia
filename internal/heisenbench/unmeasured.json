@@ -2317,6 +2317,22 @@
 			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
 		},
 		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > reshape_pass_failed > details",
+			"reason": "a message table entry: wording only (#1569)"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > reshape_pass_failed > text",
+			"reason": "a message table entry: wording only (#1569)"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > reshape_marks_lost > details",
+			"reason": "a message table entry: wording only (#1569)"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > reshape_marks_lost > text",
+			"reason": "a message table entry: wording only (#1569)"
+		},
+		{
 			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_late > details",
 			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
 		},
