@@ -35,6 +35,7 @@ import {
 import { OgygiaError } from '../compiler/messages.ts';
 import type { Definers } from './definers.ts';
 import { parse_module, type AstNode } from '../compiler/parse/oxc.ts';
+import type { MacroContext } from '../compiler/macros/pipeline.ts';
 
 /** Where `definePlugin` puts the definition on the Vite plugin it returns. A registered symbol, so a
  *  second copy of ogygia in one app still recognizes the first's plugins. */
@@ -69,16 +70,7 @@ export interface PluginDefinition<Options = unknown> {
  *  string when nothing changed). */
 export type MacroHandler = (code: string, m: MacroContext) => string | Promise<string>;
 
-/** What a macro knows about the module it rewrites. */
-export interface MacroContext {
-	/** The module id, query stripped. */
-	readonly id: string;
-	/** The id relative to the app root, POSIX (a stable identity for stamps). */
-	readonly rel: string;
-	readonly root: string;
-	/** Markup extensions whose `<script>` blocks hold the macro calls (`.svelte`). */
-	readonly markupExts: readonly string[];
-}
+export type { MacroContext };
 
 /** A source format that becomes Svelte only through a preprocessor (markdown → Svelte): how its
  *  islands and its modules' CSS reach the build. */
@@ -184,8 +176,8 @@ export interface BuildContext {
 	 *  regions, so its runtime ships every feature a region in the HTML can need. */
 	foreignHydrate(): void;
 	/** An `import.meta.og.<name>(…)` construct this plugin compiles (`'code'`, `'loader'`). Plugin
-	 *  macros run after core's own (`wire`, `$`, `source`, `store`) and before `bake`, in plugin order;
-	 *  `last`: after every other plugin's (a macro that runs code the others may still rewrite). They
+	 *  macros run after core's own (`wire`, `$`, `source`, `store`), in plugin order; `last`: after
+	 *  every other plugin's (`bake`: it runs code the others may still rewrite). They
 	 *  run on the app's own source only: elsewhere a call fails the build (`macro_outside_app`). */
 	macro(name: string, handler: MacroHandler, options?: { last?: boolean }): void;
 	/** A source format that becomes Svelte through a preprocessor (markdown): register it, get the
@@ -313,7 +305,7 @@ export interface BuildSeams {
 const MACRO_NAME_RE = /^[a-z][A-Za-z0-9]*$/;
 /** core's own `import.meta.og.*` constructs: a plugin may never claim one */
 // static: the macros core defines
-const CORE_MACROS = new Set(['wire', '$', 'source', 'store', 'bake']);
+const CORE_MACROS = new Set(['wire', '$', 'source', 'store']);
 
 function order(plugins: readonly PluginDefinition[]): PluginDefinition[] {
 	return [
