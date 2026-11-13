@@ -309,6 +309,18 @@ describe('warned', () => {
 	});
 });
 
+describe('alive after its owner', () => {
+	it("counts the viewport tracker's swap observer left on a region as #1255's (gen 734, seed 11: it killed every core mutant alike)", async () => {
+		const { Window } = await import('happy-dom');
+		const doc = new Window().document as unknown as Document;
+		expect(known_waste(doc, ['MutationObserver watching <ogygia-region>'])).toEqual({
+			left: [],
+			known: [1255]
+		});
+		expect(known_waste(doc, ['MutationObserver watching <div>']).left).toHaveLength(1);
+	});
+});
+
 describe('watched after its wake', () => {
 	const tab = async (body: string) => {
 		const { Window } = await import('happy-dom');
