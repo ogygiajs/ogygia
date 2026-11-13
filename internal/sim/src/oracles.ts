@@ -48,7 +48,9 @@ export interface Broken {
  *   visit; what the repaired region shows is compared (gen 192, seed 19);
  * - a page store's mark (`<meta name="ogygia-stored">`): the copy came from the store, where the
  *   render that filled it did not say so; the page itself is compared (delivery, as a CDN's
- *   header is).
+ *   header is);
+ * - a reshape pass's first-load mark (`<meta name="ogygia-first-load">`): a document loaded as one
+ *   carries it, the router's answer of the same page never does (delivery too).
  *
  * Kept on purpose: every element, attribute and text a visitor can see or a script can read,
  * including ogygia's region attributes, because a region that differs after a navigation from a
@@ -76,6 +78,15 @@ export function normalize(root: {
 		}
 		if (node.nodeType !== 1) return;
 		const el = node as Element;
+		// (the random app's web components, by their host alone: a server-owned one is the render's
+		// on a fresh load and restored in the router's answer, which its own runtime adopts alike;
+		// the simulator has no such runtime. What hydrates in one is judged by ssr-hydrate and the
+		// reshape check; gen 262, seed 3)
+		if (el.localName === 'x-gen-box' || el.localName === 'x-gen-link') {
+			const n = el.getAttribute('data-n');
+			out.push(`${'  '.repeat(depth)}<${el.localName}${n === null ? '' : ` data-n="${n}"`}>`);
+			return;
+		}
 		const tag = el.tagName.toLowerCase();
 		if (tag === 'script') return;
 		if (tag === 'link' && /\b(modulepreload|preload|prefetch)\b/.test(el.getAttribute('rel') ?? ''))
@@ -86,6 +97,9 @@ export function normalize(root: {
 		// seed 6, the `gen head` drift)
 		if (tag === 'meta' && el.hasAttribute('data-gen-third-party')) return;
 		if (el.matches(STORE_MARK)) return;
+		// (a reshape pass's mark on a document loaded as one, which the router's answer of the same
+		// page never carries: delivery, not the page; gen 10, seed 10)
+		if (el.matches('meta[name="ogygia-first-load"]')) return;
 		const attrs = [...el.attributes]
 			.filter(
 				(a) =>
