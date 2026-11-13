@@ -134,6 +134,91 @@ describe('queries', () => {
 		expect(db.get(w.label, 'd')).toBe('even');
 	});
 
+	test('a chain of answers a hundred thousand deep is checked after an edit without a stack overflow', () => {
+		const depth = 100_000;
+		const db = queries('test', 2 * depth);
+		const cell = input(
+			'cell',
+			(k: string) => k,
+			() => 0
+		);
+		const chain: ReturnType<typeof derived<number, number>> = derived(
+			'chain',
+			(n: number) => String(n),
+			(cx, n: number) => (n === 0 ? cx.get(cell, 'a') : cx.get(chain, n - 1) + 1)
+		);
+		for (let n = 0; n <= depth; n++) db.get(chain, n);
+		db.set(cell, 'a', 5);
+		expect(db.get(chain, depth)).toBe(depth + 5);
+		db.set(cell, 'b', 1);
+		expect(db.get(chain, depth)).toBe(depth + 5);
+	});
+
+	test('a recompute that reads fewer answers than before forgets the rest', () => {
+		const db = queries('test');
+		const cell = input(
+			'cell',
+			(k: string) => k,
+			() => 0
+		);
+		let runs = 0;
+		const pick = derived(
+			'pick',
+			(k: string) => k,
+			(cx, k: string) => {
+				runs++;
+				return cx.get(cell, 'switch') === 0 ? cx.get(cell, 'a') + cx.get(cell, 'b') : -1;
+			}
+		);
+		expect(db.get(pick, 'x')).toBe(0);
+		db.set(cell, 'switch', 1);
+		expect(db.get(pick, 'x')).toBe(-1);
+		db.set(cell, 'b', 7); // read before the switch, not after
+		expect(db.get(pick, 'x')).toBe(-1);
+		expect(runs).toBe(2);
+	});
+
+	test('an answer whose run threw runs again when next read, even if nothing it read moved', () => {
+		const db = queries('test');
+		const cell = input(
+			'cell',
+			(k: string) => k,
+			() => 0
+		);
+		let fail = false;
+		const flaky = derived(
+			'flaky',
+			(k: string) => k,
+			(cx, k: string) => {
+				const v = cx.get(cell, k);
+				if (fail) throw new Error('flaky');
+				return v;
+			}
+		);
+		expect(db.get(flaky, 'a')).toBe(0);
+		fail = true;
+		db.set(cell, 'a', 1);
+		expect(() => db.get(flaky, 'a')).toThrow('flaky');
+		expect(() => db.get(flaky, 'a')).toThrow('flaky');
+		fail = false;
+		expect(db.get(flaky, 'a')).toBe(1);
+		expect(db.holds(flaky, 'a')).toBe(true);
+	});
+
+	test('an answer whose first run threw is not held', () => {
+		const db = queries('test');
+		const boom = derived(
+			'boom',
+			(k: string) => k,
+			(): number => {
+				throw new Error('boom');
+			}
+		);
+		expect(() => db.get(boom, 'a')).toThrow('boom');
+		expect(db.holds(boom, 'a')).toBe(false);
+		expect(db.answers_changed_since(0)).toBe(false);
+	});
+
 	test('same: structure, Maps and Sets in order', () => {
 		expect(same({ a: [1, { b: 2 }] }, { a: [1, { b: 2 }] })).toBe(true);
 		expect(same({ a: 1, b: 2 }, { b: 2, a: 1 })).toBe(false);
