@@ -93,6 +93,12 @@
 			"killed_by": "hole-error-answer-swapped-in"
 		},
 		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > throw:2",
+			"point": "hole.answer-later",
+			"how": "the point itself, on the 429's own throw: the answer comes back later, and fetch_failed waits (the Retry-After, else the backoff) and asks again, never gives up as on a refusal. The sim fires it at most twice in a document (CAPPED_POINTS), so a hole on its fallback at rest is a broken retry. Proved aimed (--buggify-aim hole.answer-later, gens 191 and 10: baselines clean; a 429 read as a refusal dies on gen191:1 by fallback-stands)",
+			"killed_by": "hole-answer-later-treated-as-refused"
+		},
+		{
 			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > throw:0",
 			"point": "batch.fetch-fails",
 			"how": "the point itself: a navigation batch's request fails before it goes out, as a dropped one's does",
@@ -936,7 +942,6 @@
 		"packages/core/src/runtime/hole-fetch.ts > start_hole > fetch:0",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:0",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:1",
-		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:2",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:4",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:5",
 		"packages/core/src/runtime/html-sink.ts > is_allowed_region_endpoint > catch:0",
