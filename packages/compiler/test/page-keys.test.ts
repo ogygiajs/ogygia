@@ -30,6 +30,28 @@ describe('page_data_keys — scripts', () => {
 			)
 		).toBeNull();
 	});
+	it('null for a module that never names the page store, even one that does not parse', () => {
+		expect(ts(`const a = (;`)).toBeNull();
+		expect(svelte(`<script>const a = (;</script>`)).toBeNull();
+	});
+	it('a template call into a helper of the script follows aliases the helper makes', () => {
+		expect(
+			svelte(dedent`
+				<script>
+					import { page } from '$app/state';
+					function show(p) { const q = p; return q.data.b; }
+				</script>
+				{show(page)}
+			`)
+		).toEqual(['b']);
+	});
+	it('a local name that shadows svelte/store get is a plain call that takes the page', () => {
+		expect(
+			ts(
+				`import { get } from 'svelte/store'; import { page } from '$app/stores'; export function f(get) { return get(page).data.b; }`
+			)
+		).toBe('all');
+	});
 	it('$app/state: page.data.key, optional chaining, nested paths keep the top-level key', () => {
 		expect(
 			ts(
