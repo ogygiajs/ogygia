@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
-import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
+import { Compiler, Program, CompileCtx, normalize_import_keys } from '../src/compiler/index.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import type { PluginMacro } from '../src/compiler/macros/pipeline.ts';
 import { dedent } from '@ogygia/core/contract';

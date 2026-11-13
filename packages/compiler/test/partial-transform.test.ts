@@ -5,7 +5,7 @@
 //     placeable via `<svelte:component>` (renders the `<ogygia-region>` shell, JS gated on placement +
 //     schedule) yet still crossable over the wire via `region()`. A superset of the old descriptor. It
 //     keeps the `held:*` identity — distinct from a `.svelte` PLACED island (`hydrate:*`, no endpoint).
-// Both rewrite the host import to the leg-split binding module. Runs against built `../dist`.
+// Both rewrite the host import to the leg-split binding module.
 
 import { describe, test, expect, vi } from 'vitest';
 import {
@@ -14,7 +14,7 @@ import {
 	regionIdentity,
 	regionId,
 	regionBindingVirtualId
-} from '../dist/compiler/region/transform.js';
+} from '../src/compiler/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 const ROOT = '/app';
@@ -352,5 +352,63 @@ export const registry = [H, F];`;
 		const r = transformTsRegions(src, id, makeCtx());
 		expect(r!.islands).toHaveLength(2);
 		expect(new Set(r!.islands.map((i) => i.id)).size).toBe(2);
+	});
+});
+
+describe('transformTsRegions — the module rules', () => {
+	const id = '/app/src/lib/blocks.ts';
+	const ts = (src: string, ctx = makeCtx()) => transformTsRegions(src, id, ctx);
+	const code_of = (fn: () => unknown) => {
+		try {
+			fn();
+		} catch (e) {
+			return (e as { code?: string }).code;
+		}
+		return 'compiled';
+	};
+
+	test("render: 'live' is refused in a .ts module with its own code", () => {
+		expect(
+			code_of(() => ts(`import L from './L.svelte' with { render: 'live' };\nexport const b = L;`))
+		).toBe('held_render_live');
+	});
+
+	test('region beside another key, or render beside a foreign key, is a mixed marker set', () => {
+		for (const attrs of [`region: 'raw', fetch: 'load'`, `render: 'deferred', margin: '1px'`])
+			expect(
+				code_of(() => ts(`import C from './C.svelte' with { ${attrs} };\nexport const b = C;`))
+			).toBe('held_marker_mixed');
+	});
+
+	test("a .ts hole's client wrapper never imports its component or entry", () => {
+		const r = ts(`import D from './D.svelte' with { render: 'deferred' };\nexport const b = D;`)!;
+		const hole = r.islands[0] as { wrapperClientSource: string };
+		expect(hole.wrapperClientSource).not.toContain('__OgygiaEntry');
+		expect(hole.wrapperClientSource).not.toContain('D.svelte');
+	});
+
+	test('a module that does not parse is left to the bundler (null)', () => {
+		expect(
+			ts(`import C from './C.svelte' with { wake: 'load' };\nexport const b = C +;`)
+		).toBeNull();
+	});
+
+	test('a declared package keys its .ts regions by package, not by install path', () => {
+		const src = `import C from './C.svelte' with { wake: 'load' };\nexport const b = C;`;
+		const at = (dir: string) =>
+			transformTsRegions(
+				src,
+				`${dir}/src/blocks.ts`,
+				makeCtx({
+					pkg_identity: (p: string) => (p.startsWith(dir) ? `pkg${p.slice(dir.length)}` : null)
+				})
+			)!.islands[0].id;
+		expect(at('/store/pkg@1/pkg')).toBe(at('/store/pkg@2/pkg'));
+	});
+
+	test("a .ts wake: 'none' is refused: a lake lives in a host", () => {
+		expect(
+			code_of(() => ts(`import C from './C.svelte' with { wake: 'none' };\nexport const b = C;`))
+		).toBe('wake_strategy_unknown');
 	});
 });

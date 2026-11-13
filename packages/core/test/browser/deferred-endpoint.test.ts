@@ -412,6 +412,27 @@ test('a hole answer that was REDIRECTED is refused: the fallback stands, no retr
 	}
 });
 
+test('a hole whose capability is refused (403, not expired) is asked once: no retry would differ', async () => {
+	const endpoint = '/__ogygia__?id=cafebabe0103&props=W3t9XQ&exp=9999999999&sig=stub';
+	document.body.innerHTML = `<ogygia-region render="defer" when="load" endpoint="${endpoint}"><p data-testid="fallback">fallback</p></ogygia-region>`;
+	const calls: string[] = [];
+	const real_fetch = window.fetch;
+	window.fetch = async (input) => {
+		calls.push(String(input));
+		const res = new Response('forbidden', { status: 403 });
+		Object.defineProperty(res, 'url', { value: location.origin + endpoint });
+		return res;
+	};
+	try {
+		bootDev();
+		await new Promise((r) => setTimeout(r, 1500));
+		expect(calls, 'no retry for a refused capability').toHaveLength(1);
+		expect(document.querySelector('[data-testid="fallback"]')).not.toBeNull();
+	} finally {
+		window.fetch = real_fetch;
+	}
+});
+
 test('a hole answer that is a WHOLE DOCUMENT is refused: nothing of it enters the page', async () => {
 	document.body.innerHTML = `<ogygia-region render="defer" when="load" endpoint="${REFUSED_DOCUMENT_ENDPOINT}"><p data-testid="fallback">fallback</p></ogygia-region>`;
 	const region = document.querySelector('ogygia-region')!;

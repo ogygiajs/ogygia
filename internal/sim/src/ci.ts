@@ -140,12 +140,12 @@ export function batch_result(
 	status: number | null,
 	signal: string | null,
 	read: () => string | null
-): BatchOut | { failed: string } {
+): { ran: BatchOut } | { failed: string } {
 	if (status !== 0 && status !== 1)
 		return { failed: `the simulator ended with ${signal ?? `exit code ${status}`}` };
 	const text = read();
 	if (text === null) return { failed: 'the simulator wrote no results' };
-	return JSON.parse(text) as BatchOut;
+	return { ran: JSON.parse(text) as BatchOut };
 }
 
 /** The recovery steps every batch missed: one any batch reached is reached. */
@@ -181,10 +181,11 @@ function batch(from: number):
 		{ cwd: SIM, stdio: ['ignore', 'inherit', 'inherit'] }
 	);
 	if (r.error) return { failed: `the simulator did not start: ${r.error.message}` };
-	const out = batch_result(r.status, r.signal, () =>
+	const result = batch_result(r.status, r.signal, () =>
 		existsSync(file) ? readFileSync(file, 'utf8') : null
 	);
-	if ('failed' in out) return out;
+	if (!('ran' in result)) return result;
+	const out = result.ran;
 	if (out.replay_leaks.length)
 		log(`replay leaks (the simulator's to fix): ${out.replay_leaks.join(', ')}`);
 	return {
