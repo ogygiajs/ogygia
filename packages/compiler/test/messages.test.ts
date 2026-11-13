@@ -168,6 +168,44 @@ describe('the tables', () => {
 	});
 });
 
+describe('a tombstone (a code that only points at a removed spelling) names the release that deletes it', () => {
+	const version = (
+		JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../package.json'), 'utf8')) as {
+			version: string;
+		}
+	).version;
+	const minor = (v: string) => v.split('.').slice(0, 2).map(Number) as [number, number];
+	const before = (a: [number, number], b: [number, number]) =>
+		a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
+
+	it('the 0.14 tombstones go in 0.15', () => {
+		const until = (code: string) => (TABLES[code] as { until?: string } | undefined)?.until;
+		expect({
+			as_region_removed: until('as_region_removed'),
+			barrels_option_removed: until('barrels_option_removed'),
+			handle_transform_moved: until('handle_transform_moved')
+		}).toEqual({
+			as_region_removed: '0.15',
+			barrels_option_removed: '0.15',
+			handle_transform_moved: '0.15'
+		});
+	});
+
+	it('the build breaks once the version reaches a tombstone’s release, so it is deleted then', () => {
+		for (const e of Object.values(TABLES)) {
+			const until = (e as { until?: string }).until;
+			if (until !== undefined) expect(until).toMatch(/^\d+\.\d+$/);
+		}
+		const due = Object.entries(TABLES)
+			.filter(([, e]) => {
+				const until = (e as { until?: string }).until;
+				return until !== undefined && !before(minor(version), minor(until));
+			})
+			.map(([code]) => code);
+		expect(due).toEqual([]);
+	});
+});
+
 describe('prose', () => {
 	it('joins a paragraph into one line, a blank line starts the next, an empty one is dropped', () => {
 		const empty = '';
