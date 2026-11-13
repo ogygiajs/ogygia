@@ -253,4 +253,76 @@ describe('a run over a package', () => {
 		expect(report.unreached).toEqual([`${FILE} > never > catch:0`]);
 		expect(report.unhandled).toEqual([`${FILE} > parse_or_null > parse:0`]);
 	}, 180_000);
+
+	const make_package = (source: string, spec: string): string => {
+		const root = mkdtempSync(join(tmpdir(), 'autopilot-'));
+		dirs.push(root);
+		mkdirSync(join(root, 'packages/fx/src'), { recursive: true });
+		mkdirSync(join(root, 'packages/fx/test'), { recursive: true });
+		writeFileSync(join(root, 'packages/fx/src/a.ts'), source);
+		writeFileSync(join(root, 'packages/fx/test/a.spec.ts'), spec);
+		writeFileSync(
+			join(root, 'packages/fx/vitest.config.ts'),
+			"export default { test: { include: ['test/**/*.spec.ts'], environment: 'node', globals: true } };\n"
+		);
+		return root;
+	};
+	const VITEST = resolve(import.meta.dirname, '../node_modules/.bin/vitest');
+
+	it('maps again when the sites it was asked about change, never reading the others as unreached', async () => {
+		const root = make_package(SOURCE, SPEC);
+		const baseline = site_nodes(FILE, SOURCE).map((s) => s.id);
+		const o = { root, pkg: 'fx', baseline, out: join(root, 'out'), vitest: VITEST };
+		const run = { projects: [null], timeout_ms: 60_000, quiet: true };
+		const first = await autopilot({ ...o, ...run, only: 'guard' });
+		expect(first.proved.map((p) => p.site)).toEqual([`${FILE} > guard > throw:0`]);
+		const all = await autopilot({ ...o, ...run });
+		expect(all.unreached).toEqual([`${FILE} > never > catch:0`]);
+		expect(all.proved.map((p) => p.site)).toContain(`${FILE} > parse_or_null > catch:0`);
+	}, 180_000);
+
+	it('names the test that hung when a run is stopped, never one that passed before it', async () => {
+		const source = dedent`
+			export function retry(n: number, tries: number): number {
+				for (let i = 0; i < tries; i++) {
+					try {
+						if (n < 0) throw new Error('negative');
+						return n;
+					} catch {
+						return -1;
+					}
+				}
+				return 0;
+			}
+		`;
+		const spec = dedent`
+			import { retry } from '../src/a.ts';
+
+			test('a few tries end', () => {
+				retry(-1, 3);
+			});
+
+			test('a negative number gives up at once', () => {
+				expect(retry(-1, Infinity)).toBe(-1);
+			});
+		`;
+		const root = make_package(source, spec);
+		const report = await autopilot({
+			root,
+			pkg: 'fx',
+			baseline: [`${FILE} > retry > catch:0`],
+			out: join(root, 'out'),
+			vitest: VITEST,
+			projects: [null],
+			timeout_ms: 8_000,
+			quiet: true
+		});
+		expect(readFileSync(join(root, 'packages/fx/src/a.ts'), 'utf8')).toBe(source);
+		expect(
+			report.proved.map((p) => [
+				p.name,
+				p.reason.endsWith('hangs the test past the run time limit')
+			])
+		).toEqual([['a negative number gives up at once', true]]);
+	}, 180_000);
 });
