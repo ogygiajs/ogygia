@@ -169,5 +169,6 @@ describe('a fresh program', () => {
 		expect(p.runtime_marks.complete).toBe(false);
 		expect(p.runtime_marks.remoteSeeds).toBe(false);
 		expect(p.crosses_wire).toBe(false);
-		expect(p.island_reads_page).toBe(false);	});
+		expect(p.island_reads_page).toBe(false);
+	});
 });
