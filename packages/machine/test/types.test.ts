@@ -311,7 +311,7 @@ describe('types', () => {
 				if (got === STALE) return;
 				expectTypeOf(got).toEqualTypeOf<[number, number]>();
 			});
-			const asked = await box.ask(() => Promise.all([pages.get('/'), 1]));
+			const asked = await box.ask(() => Promise.all([pages.get('/'), Promise.resolve(1)]));
 			if (asked === STALE) return;
 			expectTypeOf(asked).toEqualTypeOf<[number, number]>();
 

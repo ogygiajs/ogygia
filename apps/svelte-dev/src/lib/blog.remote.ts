@@ -24,6 +24,7 @@ export const post = prerender(
 		if (!entry) return null;
 		// `filePath` lives on the REF (the entry is the heavy face) — recover the date from the catalog.
 		const ref = (await blog.refs()).find((r) => r.id === slug);
+		// oxlint-disable-next-line typescript/await-thenable -- the body is region()'s AwaitableRegion, typed as the public RegionValue; typing it awaitable is a public type change, owner call
 		const body = entry.body ? await entry.body : undefined;
 		return {
 			slug,
