@@ -331,6 +331,26 @@ export async function collectFoucCssReachable(
 	return entries;
 }
 
+/** The plugin's preprocessor for a component's CSS: `<style lang="scss|sass">` to CSS, TypeScript
+ *  stripped from its script (vite/style-preprocess.ts). */
+export type PreprocessCss = (source: string, abs: string) => Promise<string>;
+
+/**
+ * A component's scoped CSS, one rule for every leg (dev router CSS, the build's tree CSS, the fouc
+ * module): preprocessed by `preprocess`, then compiled with its script
+ * (test/router-css-dev-preprocess.test.ts). With no preprocessor (a host with no bundler), the
+ * source as it is.
+ */
+export async function scoped_component_css(
+	abs: string,
+	source: string,
+	preprocess: PreprocessCss | undefined
+): Promise<string> {
+	return preprocess
+		? compileFoucScopedCss(abs, await preprocess(source, abs), { keepScript: true })
+		: compileFoucScopedCss(abs, source);
+}
+
 /**
  * Compile scoped CSS for a `.svelte` file (filename must match SSR for hash stability).
  * @param abs
