@@ -5795,6 +5795,18 @@
 		{
 			"id": "packages/core/src/server/html-scan.ts > kit_boot_script > before",
 			"reason": "the tag walk's stop test, constant work per tag; kit-gate.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/server/early-holes-csp.ts > inline_source",
+			"reason": "one sha256 of an inline script's text, once per script the gate adds (Kit's start script, the early holes script); early-holes-csp.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/server/early-holes-csp.ts > with_early_holes_csp > map:0~0495d5",
+			"reason": "one with_hash call per comma-separated policy in a CSP header, a handful at most; early-holes-csp.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/server/early-holes-csp.ts > with_hash > filter:0~82d7e5",
+			"reason": "the sources to add that a directive lacks, constant work per source (one or two hashes); early-holes-csp.test.ts runs it"
 		}
 	]
 }
