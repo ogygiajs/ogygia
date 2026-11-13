@@ -5,7 +5,7 @@
  * `timeout`), an observer, a retry policy, an abort (`AbortController`, `.aborted`, `'AbortError'`),
  * an error event (`'error'`/`'abort'` listeners, `onerror`), a stream (`getReader`, `enqueue`, a
  * controller's `error`/`close`), a message (`postMessage`, `sendBeacon`, a channel), a `throw` (a
- * failure some caller must handle), a machine `.move(` (refused when the state moved on), an
+ * failure some caller must handle), a machine `.move('from', 'to')` (refused when the state moved on), an
  * `{ ok: false }` result, a crypto call (`crypto.subtle`, `verify`, `timingSafeEqual`) and a body
  * that may be null (`!x.body`, `x.body === null`). Each has a stable id: `file > enclosing function > kind:n` (n counts that kind in that function, in source
  * order). The ledger, `internal/sim/failures.json`, puts each site in exactly one bucket:
@@ -221,7 +221,14 @@ function kind_of(node: Node, parent: Node | null): SiteKind | null {
 			if ((name === 'error' || name === 'close') && object !== null && /controller/i.test(object))
 				return 'stream';
 			if (name === 'postMessage' || name === 'sendBeacon') return 'message';
-			if (name === 'move' && member) return 'refused';
+			if (
+				name === 'move' &&
+				member &&
+				args.length >= 2 &&
+				args[0].type === 'Literal' &&
+				typeof args[0].value === 'string'
+			)
+				return 'refused';
 			if (name === 'timingSafeEqual') return 'crypto';
 			if (name === 'verify' && object !== null && /crypto|subtle|hmac/i.test(object))
 				return 'crypto';

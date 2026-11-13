@@ -438,8 +438,8 @@ EVERY FAILURE SITE ACCOUNTED FOR (`src/failures.ts`, test/failures.test.ts), the
 what can fail. The inventory parses (oxc) every package's `src` (the ledger's `scope`) and finds
 each failure site: a `catch`, a `.catch(` or a two-handler `.then`, a `fetch`, a `!res.ok`, a STALE
 check, an `import()`, a storage call, a `JSON.parse`, a timer, a `new …Observer`, a retry `policy(`,
-an abort, an error event, a stream call, a message, a `throw`, a machine `.move(` (refused when the
-state moved on), an `{ ok: false }` result, a crypto call, a body that may be null (the file's header
+an abort, an error event, a stream call, a message, a `throw`, a machine `.move('from', 'to')`
+(refused when the state moved on; a text edit's or a dependency mark's `.move` is none), an `{ ok: false }` result, a crypto call, a body that may be null (the file's header
 lists what each matches). The scope's `build_time` packages (cli, bake, barrels, config, tooling,
 tsdown-plugin-svelte) no simulator runs: their sites are `covered`, never `fired`. The compiler's
 are fired by the compiler's own simulator (`sim: "compiler"`). Each has a stable id, `file > enclosing function > kind:n` (n counts that kind in that
