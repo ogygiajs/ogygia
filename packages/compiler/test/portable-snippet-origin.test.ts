@@ -261,4 +261,15 @@ describe('portable snippet — the missing-origin case is LOUD, not a silent pha
 			transformHost(entry.source!, entry.virtualPath!, { ...base_ctx, ssr: true })
 		).toThrow(MISSING_ORIGIN_ERROR_RE);
 	});
+
+	it.each(['\0ogygia:region/entry/x.svelte', 'virtual:other/x.svelte', '\0virtual:other/x.svelte'])(
+		'a generated host %j has no directory either',
+		(id) => {
+			const first = transformHost(PLAIN_SITE_PARENT, HOST_ID, { ...base_ctx, ssr: true }) as Result;
+			const [entry] = portable_entries(first);
+			expect(() => transformHost(entry.source!, id, { ...base_ctx, ssr: true })).toThrow(
+				/cannot resolve the relative import '\.\.\/Inner\.svelte' from a generated module/
+			);
+		}
+	);
 });

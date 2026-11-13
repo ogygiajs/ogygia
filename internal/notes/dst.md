@@ -143,8 +143,11 @@ the real-browser tier reruns interesting seeds in Chromium, Firefox and WebKit.
 
 The loop never waits a fixed number of turns. `settle()` turns the host's own loop until
 `process.getActiveResourcesInfo()` shows nothing in flight (no immediate, no file or crypto
-request; the host's own real timers are counted, not waited on). A settle that gives up after
-10,000 turns is counted (`loop.stalls`). Everything else a page waits on is a loop task, so the
+request; the host's own real timers are counted, not waited on). A settle waits up to 10 s of real
+time (`settle_ms`), never a count of turns: 10,000 quick turns were about 145 ms, less than a file
+read on a loaded CI runner, and the run went on without it (#1612). One that gives up is a finding
+(`settle-stalled`, with when and what it waited on): from there the run is not its seed's. An async
+crypto job (`crypto.pbkdf2`) is not in `getActiveResourcesInfo()`, so a settle cannot see it. Everything else a page waits on is a loop task, so the
 world is AT REST when nothing is on the network and nothing is due within 2 s (`World.quiesce`).
 A live answer (a body still coming 30 s after its head, each piece within 2 s of the last) is not
 work in flight: rest waited budget after budget on one, once to the run's horizon (palaestra seed
@@ -460,7 +463,9 @@ edits: it kills the head mutants), 550 (an island with a margin; and seeds 33, 3
 the range, `550+33+36+65+74`: only they open a tab behind, which kills a hidden document read as
 shown) and 734 (a federated app), with `--budget-min 60` (no mutant starts after an hour; the last line says
 how many it judged of the list, and when) and uploads it (`dst-mutation`). Each listed mutant names
-its line's `code`, and goes on the line that holds it, so the list outlives main's lines moving
+its function (`in`, the path a failure site's id names: `Class > method`, `fn > inner`, `(module)`)
+and its line's `code`, never a line number, so the list outlives main's lines moving; when that code
+is on two lines of the function, `nth` (0-based) says which, and one that names none throws
 (`test/mutate.test.ts` checks that every one applies). The always-on job's batch
 log line and summary say both numbers: steps accounted, and the latest finished mutation run's kill
 rate with its date. A mutant no run can tell from the code as it is is written up in the list with
