@@ -3,7 +3,7 @@
 // names in any case, and the first of two same-name attributes wins. The page beacon's copy is held
 // to the same answers (devtools test/profiler-page-beacon-parity.test.ts).
 import { describe, expect, it } from 'vitest';
-import { attr_changes } from '../src/contract/markup-text.ts';
+import { attr_changes, without_comments } from '../src/contract/markup-text.ts';
 
 /** `data-x` written each way the browser reads it as holding `v`. */
 const spellings = (v: string): string[] => [
@@ -57,5 +57,24 @@ describe('attr_changes reads a tag as the browser does', () => {
 				'<script>if(a<b)go(1)</script><i id="2"></i>'
 			)
 		).toEqual([{ tag: 'i', name: 'id', from: '1', to: '2' }]);
+	});
+});
+
+describe('without_comments drops the comments the browser reads, and only those', () => {
+	it('a comment ends where the browser ends it: `-->`, `--!>`, and at once for `<!-->` and `<!--->`', () => {
+		expect(without_comments('<!-- a --!><p>x</p>')).toBe('<p>x</p>');
+		expect(without_comments('<!--><p>x</p>')).toBe('<p>x</p>');
+		expect(without_comments('<!---><p>x</p>')).toBe('<p>x</p>');
+	});
+
+	it('a `<!--` inside a script or a quoted value is not a comment', () => {
+		expect(without_comments('<script>s="<!--"</script><p>y</p><!--z-->')).toBe(
+			'<script>s="<!--"</script><p>y</p>'
+		);
+		expect(without_comments('<a title="<!--">y</a><!--z-->')).toBe('<a title="<!--">y</a>');
+	});
+
+	it('an unclosed comment runs to the end', () => {
+		expect(without_comments('a<!-- open')).toBe('a');
 	});
 });
