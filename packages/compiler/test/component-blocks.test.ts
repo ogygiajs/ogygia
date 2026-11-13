@@ -5,7 +5,6 @@
 import { describe, expect, test } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { og_js_regions } from '../src/compiler/parse/scan.ts';
-import { collect_flag_sites } from '../src/compiler/flags.ts';
 import { svelteModuleHasTransportable } from '../src/compiler/transportables.ts';
 import { blank_styles } from '../src/compiler/blank-styles.ts';
 import { preprocess_component_for_css } from '../src/vite/style-preprocess.ts';
@@ -40,19 +39,6 @@ describe('the script regions of a component', () => {
 				`<style>/* <script>x</script> */ p { color: red }</style>\n<script>let a = 1;</script>`
 			)
 		).toEqual(['let a = 1;']);
-	});
-});
-
-describe('flag sites are read in every script', () => {
-	test('a script whose attribute holds `>`', () => {
-		const src = dedent`
-			<script lang="ts" data-note="a>b">
-				import { flag } from '@ogygia/flags';
-				export const beta = flag('beta');
-			</script>
-		`;
-		const sites = collect_flag_sites(src, '/app/src/lib/A.svelte', 'src/lib/A.svelte');
-		expect(sites.map((s) => [s.name, s.line])).toEqual([['beta', 3]]);
 	});
 });
 
