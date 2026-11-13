@@ -16,11 +16,6 @@ import { on_trigger, WAKE } from '../contract/trigger.ts';
 import { OG_BAKED, OG_FP, OG_HOLE, OG_KEPT, OG_STATIC, OGYGIA_REGION_CSS } from '../wire-markup.ts';
 import { import_again, is_failed_import, on_file_load, on_reload_needed } from './import-again.ts';
 import { browser_offline, no_response } from './network.ts';
-// Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
-// off in a build where no region streams HTML, and the bundler drops the element's fetch / apply /
-// morph / renew path with it — that path works on the element's own state, so it cannot be a
-// feature module of its own, and without the frame store it has nowhere to land anyway. Where the
-// wire codec is not in the build up front, a wake loads it on use (./wire-on-use.ts).
 import { FRAMES } from 'ogygia:boot';
 import { wire_for_wake } from './wire-on-use.ts';
 import { report_thrown } from '../report-thrown.ts';
@@ -145,40 +140,23 @@ import type { ClientRealm } from './client-plugins.ts';
 import { OgygiaError, warn, line } from '../messages/core.ts';
 import { disclose_version } from './disclose-version.ts';
 
-// DEVTOOLS gate — module-local const from the Vite `define` (the proven DCE pattern): when off, every
-// `if (DEVTOOLS) dt_emit({…})` folds to `if (false)` and the whole devtools graph tree-shakes away.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
-// the runtime's rules (./rules.ts): in dev, and in a build made with OGYGIA_RULES=1 (e2e). Every
-// `if (RULES) …` folds out of any other build, and the rules with it.
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
-/** Above this many characters an island keeps no server copy (its hydration falls back to
- *  Svelte's own recovery on a mismatch) — a bound on memory, not a behaviour anyone tunes. */
 const SSR_SNAPSHOT_MAX = 1 << 19;
 
-/** Per-node stash of a nested island's PRISTINE server markup, captured from a fetched fragment WHILE it
- *  is still disconnected — nothing has upgraded it — so the island repairs against its true server bytes
- *  instead of a DOM a swapped-in foreign runtime may have already mutated. See region_fragment. */
 const PRISTINE_SSR = Symbol('ogygia.pristine-ssr');
 type PristineHost = { [PRISTINE_SSR]?: string };
 
-// A real `.css` asset href (vs a dev MODULE url masquerading as a region-css sheet) — see
-// apply_dev_head_region_css.
 const CSS_ASSET_HREF_RE = /\.css(\?|$)/;
 
-/** The island's server markup to hydrate against later (#ssr_html), or `null` when there is
- *  nothing worth keeping: no children, or more than SSR_SNAPSHOT_MAX characters. */
 function snapshot_markup(region: Element): string | null {
 	if (!region.firstChild) return null;
 	const html = region.innerHTML;
 	return html.length > SSR_SNAPSHOT_MAX ? null : html;
 }
 
-/** The same copy for a hole's answer BEFORE it is put in the document: serialized through a
- *  detached box (a fragment has no `innerHTML`; nothing connects, so no element reacts) and the
- *  nodes handed back. Taken after the swap it would be the DOM as the custom elements inside the
- *  answer left it — their connect reactions run at insertion, before any line after it. */
 function fragment_markup(frag: DocumentFragment): string | null {
 	if (!frag.firstChild) return null;
 	const box = document.createElement('div');
@@ -188,73 +166,39 @@ function fragment_markup(frag: DocumentFragment): string | null {
 	return html.length > SSR_SNAPSHOT_MAX ? null : html;
 }
 
-/** Read the identity fields devtools events correlate on, off a region element. Cheap — attributes
- *  already in hand. Only ever called from behind an `if (DEVTOOLS)` guard, so it costs nothing off. */
 function dt_ids(el: Element): { entry?: string; fp?: string } {
 	const entry = el.getAttribute('entry') || undefined;
 	const fp = el.getAttribute(OG_FP) || undefined;
 	return { entry, fp };
 }
 
-/** The monotonic clock, for devtools timings (dead when devtools is off). */
 const now_ms = clock.mono;
 
-/**
- * THE HYDRATE CORE, loaded once, lazily (./hydrate-core.ts): Svelte's `hydrate`, the provider
- * host, the props parse, the page seed, and the HYDRATE-phase features (link/runtime-entry.ts), which
- * it installs as it evaluates. Nothing in this always-on module — nor in any boot-phase feature —
- * imports Svelte: in a real app Svelte's client runtime is ONE shared chunk (~200 KB), and anything in
- * the boot's static graph downloads first in `<head>`, ahead of the page's own LCP image, before a
- * single island needs it. It arrives with this one import instead, when the first island hydrates. A
- * page whose islands all wake on `visible` / `interaction` boots without fetching it at all.
- * `test/runtime-boot-svelte-free.test.ts` pins the invariant over the whole boot graph.
- * `loaded_core` is the synchronous view once it has arrived (a kept island's props absorb runs
- * inside the reconciler, synchronously, and only ever for an island that already hydrated).
- *
- * A download that fails is tried again at once, and a failure is never kept: the next wake loads it
- * afresh, so one dropped request on a flaky network does not leave every island in the tab dead.
- */
 type HydrateCore = typeof import('./hydrate-core.ts');
 let loaded_core: HydrateCore | null = null;
 const import_core = import_again(() => import('./hydrate-core.ts'));
 const hydrate_core = flights({
 	name: 'hydrate core',
 	run: () =>
-		// in a task of its own: the import's synchronous start (the bundler's preload of the chunk's
-		// ~20 dependencies) ran inside the first island's start, one long task with it
 		yield_task()
 			.then(import_core)
 			.then((m) => (loaded_core = m)),
 	retry: download
 });
 
-/** An answer just went in carrying the page facts it rendered with (server/render-page.ts): once
- *  islands are awake (the hydrate core loaded), they join the page store NOW, so a KEPT island reading
- *  those keys shows the new values; before any island woke, the first hydrate absorbs them. */
 function absorb_page_facts_now(): void {
-	// (facts cross in devalue's lane)
 	if (runtime_session.visit.facts.length && loaded_core)
-		// (devalue failed to download: the facts stay queued, and the next wake's load absorbs them)
+		// oxlint-disable-next-line ogygia/no-silent-failures -- devalue's download failed: the facts stay queued, and the next wake's load absorbs them (and says a failure)
 		void load_devalue().then(
 			() => loaded_core?.seed_page_once(),
 			() => {}
-		); // ok: devalue's download failed: the facts stay queued, and the next wake's load absorbs them (and says a failure)
+		);
 }
 
-/** devalue, when this wake's reads need it (./devalue-lane.ts): a devalue-lane script in the
- *  document (a props sidecar, the page seed) or page facts an answer queued. Started beside the
- *  hydrate core, so it adds no hop; a page of JSON-lane scripts never downloads it. */
 function devalue_for_wake(): Promise<unknown> | undefined {
 	if (runtime_session.visit.facts.length || document_needs_devalue()) return load_devalue();
 }
 
-/**
- * The document's `needs_devalue` answer (null: ask). One query of the whole document, not one per
- * wake (that was islands × the page's elements). Asked again only after markup came in: a region
- * connecting (every later render root, a hole answer, a router document, a fragment, carries its
- * sidecars beside its regions), a fetched region's HTML parsed, a router swap. A yes stays yes: devalue
- * is loading from then on.
- */
 let doc_needs_devalue: boolean | null = null;
 let devalue_swap_armed = false;
 function document_needs_devalue(): boolean {
@@ -269,14 +213,10 @@ function document_needs_devalue(): boolean {
 	return doc_needs_devalue;
 }
 
-/** New markup may hold a devalue-lane script: the next wake asks the document again. */
 function devalue_lane_stale(): void {
 	if (doc_needs_devalue === false) doc_needs_devalue = null;
 }
 
-/** What counts as intent for an ON-DEMAND hole (`render: 'deferred'` + `fetch: 'interaction'`).
- *  `pointerover` (not `pointerenter`) so it fires on hover AND bubbles through the boxless
- *  `display: contents` wrapper from a descendant the pointer actually moves over. */
 const ON_DEMAND_EVENTS = [
 	'pointerover',
 	'focusin',
@@ -285,16 +225,8 @@ const ON_DEMAND_EVENTS = [
 	'keydown'
 ] as const;
 const ON_DEMAND_SELECTOR = 'ogygia-region[render="defer"][when="interaction"]';
-/** A visitor's wake with nothing to replay (a hole's on-demand fetch). */
 const NO_REPLAY: Promise<unknown> = Promise.resolve();
 
-/**
- * ON-DEMAND holes, delegated: ONE set of capture listeners on the document for every armed hole
- * (five listeners per hole used to be five hundred on a page of nav-menus). Intent lands anywhere
- * inside a hole; the nearest ARMED hole above the target fires once and is forgotten. Each armed
- * hole is held by its arming (the `armed` state of its fetch): it leaves when that ends, or at its
- * fire.
- */
 const on_demand_armed = registry.keyed<Element, () => void>();
 let on_demand_installed = false;
 function on_demand_event(e: Event): void {
@@ -307,7 +239,6 @@ function on_demand_event(e: Event): void {
 	on_demand_armed.get(region)!();
 }
 function arm_on_demand(region: Element, fire: () => void, owner: Scope): void {
-	// (it fires once: its entry goes first)
 	const forget = on_demand_armed.set(
 		region,
 		() => {
@@ -323,12 +254,8 @@ function arm_on_demand(region: Element, fire: () => void, owner: Scope): void {
 		document.addEventListener(type, on_demand_event, { capture: true, passive: true });
 }
 
-/** Load a hydrate island module from `<ogygia-region entry>` (dev + prod), its whole chunk graph
- *  preloaded in the same task so nothing waits on a discovery waterfall (island-graph-preload.ts), at
- *  the priority its load class downloads at (load-scheduler.ts). */
 const load_island = (entry: string, cls: LoadClass = 'visible') => {
 	preload_island_graph(entry, undefined, fetch_priority_of(cls));
-	// (its location, and the fresh identity if that fails: entry-locations.ts)
 	return import_entry<IslandModule>(entry, island_module_url(entry));
 };
 
@@ -341,10 +268,8 @@ function dom_ready() {
 	);
 }
 
-/** A machine's state, as the schedules armed in it see it: what to run when it is left. */
 type Leaves = { readonly scope: Scope };
 
-/** A live region's tick, as Region.svelte hands it to `applyLive`. */
 type LiveTick = {
 	id: string;
 	module: string;
@@ -353,32 +278,18 @@ type LiveTick = {
 	url?: string;
 	hydrate?: string;
 	hydrateMargin?: string;
-	/** The order its HTML was written at its address with as it was decoded; absent when it never
-	 *  went through the frame store. */
 	written?: FrameOrder | undefined;
 };
 
-/** A download slot (load-scheduler.ts) asked for by a step whose element then left: its turn still
- *  comes, and is handed straight back. */
 const hand_back = (release: () => void): void => release();
 
-/**
- * An island that could not start, said once with its code: a woken island's, or a live region's.
- * The ENTRY FETCH failing (the module never loaded) is told apart from the hydrate throwing (the
- * module loaded, its code ran and failed). A `Failed to fetch dynamically imported module` on the
- * island's own entry is not a hydration problem: in dev it almost always means Vite re-optimized deps
- * and rotated the optimizer hash, so this already-loaded tab is importing dep URLs that no longer
- * exist — a reload picks up the new graph (the dev bridge carries `@vite/client`, so Vite's own
- * full-reload does this on the next signal). (each engine words it its own way: is_failed_import
- * knows them all, WebKit's too, #383)
- */
 function say_island_failed(entry: string | null, err: unknown): void {
 	if (kit_boot_failed(err)) {
-		// ok: said once for the page by the wait that saw it (kit-page-thread.svelte.ts)
 	} else if (is_failed_import(err)) {
 		if (import.meta.env.DEV) {
 			console.error(new OgygiaError('island_load_failed_stale_deps', { entry }), err);
-			if (entry) void recover_from_stale_deps(island_module_url(entry)); // ok: dev only, never rejects (its failure leaves the error above)
+			// oxlint-disable-next-line ogygia/no-silent-failures -- dev only, never rejects (its failure leaves the error above)
+			if (entry) void recover_from_stale_deps(island_module_url(entry));
 		} else {
 			console.error(new OgygiaError('island_load_failed', { entry }), err);
 		}
@@ -387,21 +298,14 @@ function say_island_failed(entry: string | null, err: unknown): void {
 	}
 }
 const nothing = (): void => {};
-/** Whether a wait failed because Kit can no longer start on this page (kit-page-thread.svelte.ts). */
 const kit_boot_failed = (err: unknown): boolean =>
 	(err as { code?: unknown } | null)?.code === 'kit_boot_failed';
 
-/** Where a live snippet's pending hydrate waits on its host region (region-snippet.ts `hold_host`). */
 const SNIPPET_BOOTS = Symbol.for('ogygia.snippet-boots');
-/** A snippet whose entry never arrives must not hold its host's signal forever. */
 const SNIPPET_BOOT_CAP_MS = 10_000;
 
-/** Settle the live snippets a just-hydrated region renders — and the snippets those render, which
- *  register as they boot — or the cap, whichever is first. A failed boot settles too. The wait is
- *  `visit`'s (the wake's): it ends when the region leaves, too. */
 async function snippets_settled(region: Element, visit: Scope): Promise<void> {
 	const host = region as Element & { [SNIPPET_BOOTS]?: Promise<unknown>[] };
-	// (it ends at the cap, or with the visit: either way the race below is over)
 	const wait = visit.child();
 	const cap = new Promise<void>((r) => wait.defer(r));
 	wait.timeout(() => wait.close(), SNIPPET_BOOT_CAP_MS);
@@ -436,10 +340,6 @@ export function region_fragment(html: VerifiedHtml): {
 } {
 	const frag = parse_region_html(html);
 	devalue_lane_stale();
-	// THE PAGE AN ANSWER RENDERED FOR (server/render-page.ts): the `page.data` its islands read, as the
-	// server looked it up. Queued on the page's visit for the hydrate of those islands (seeds.ts),
-	// never left in the DOM, and never handed to the next page (#269). (one per render root: a region
-	// rendered inside a hole carries its own)
 	const { facts: queued, scope: page } = runtime_session.visit;
 	for (const facts of frag.querySelectorAll(PAGE_FACTS_SELECTOR)) {
 		facts.remove();
@@ -449,26 +349,20 @@ export function region_fragment(html: VerifiedHtml): {
 	const pending: Array<Promise<void>> = [];
 	const sheets: Element[] = [];
 	if (links.length && import.meta.env.DEV) {
-		// DEV: there is no linkable CSS asset — Vite serves component CSS only as an importable module
-		// (importing it injects the scoped `<style>`). `islandCss` handed us the region's dev module URL
-		// as the href, so import it here. Same region-css channel as prod, resolved for the dev server;
-		// this is why one mechanism now covers held regions AND server-island holes in both environments.
 		const seen = new Set<string>();
 		for (const link of links) {
 			const href = link.getAttribute('href');
 			link.remove();
 			if (!href) continue;
-			// Document-relative href → resolve against the document, never this module (see
-			// island_module_url: a bare import() of `../../@id/…` lands on `/node_modules/@id/…`).
-			// (an href is markup: imported only from the page's code origins, as an island's own load)
 			const url = code_url(island_module_url(href));
 			if (url === null || seen.has(url)) continue;
 			seen.add(url);
 			pending.push(
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a stylesheet wait only: the swap goes on, and the region's own import says a failure
 				import_code(url).then(
 					() => undefined,
 					() => undefined
-				) // ok: a stylesheet wait only: the swap goes on, and the region's own import says a failure
+				)
 			);
 		}
 	} else if (links.length) {
@@ -478,10 +372,6 @@ export function region_fragment(html: VerifiedHtml): {
 				l as HTMLLinkElement
 			])
 		);
-		// The caller awaits the stylesheet before swapping the HTML in: no flash of unstyled
-		// server-picked content. Its download ends loaded or failed (a broken sheet must not wedge the
-		// paint), and every answer that carries it waits on the SAME download (a frame morph and an
-		// applyLive of one ticket hoist side by side), or a later one paints unstyled mid-download.
 		const until_settled = (sheet: RegionSheet) => sheet.wait('loaded').then(() => undefined);
 		for (const link of links) {
 			const href = link.getAttribute('href');
@@ -491,7 +381,6 @@ export function region_fragment(html: VerifiedHtml): {
 			if (present) {
 				const sheet = sheet_of(present);
 				if (sheet.now.kind === 'loading') pending.push(until_settled(sheet));
-				// failed: it never loads, so ask again, with a fresh link in its place
 				if (sheet.now.kind !== 'failed') {
 					sheets.push(present);
 					continue;
@@ -509,10 +398,6 @@ export function region_fragment(html: VerifiedHtml): {
 			document.head.appendChild(clone);
 		}
 	}
-	// An INLINED region sheet (server/region-css.ts — under Kit's `inlineStyleThreshold` the server
-	// ships `<style data-ogygia-region-css="href">` instead of a link): hoist it into <head> the same
-	// way, once per identity — the href it stands for — against the sheets the page already has in
-	// either shape. Nothing to await: the text is right here.
 	const styles = frag.querySelectorAll(`style[${OGYGIA_REGION_CSS}]`);
 	if (styles.length) {
 		const present = new Map<string, Element>();
@@ -536,42 +421,26 @@ export function region_fragment(html: VerifiedHtml): {
 			sheets.push(el);
 			el.setAttribute(OGYGIA_REGION_CSS, id);
 			el.textContent = style.textContent || '';
-			// At the TOP of <head>, like the router's SPA sheets (router-nav.ts): an island's
-			// `<svelte:head>` hydration reclaims a trailing head-node range, and a sheet appended at
-			// the end can go with it.
 			runtime_session.claim_page_head(el);
 			document.head.insertBefore(el, document.head.firstChild);
 		}
 	}
-	// Cap the wait so a genuinely hung stylesheet eventually paints (unstyled) rather than blocking
-	// forever — generous, because the caller shows a placeholder meanwhile, so a slow-link stylesheet
-	// (seconds on 4G) should still win the race and paint styled. The wait is the page visit's: the
-	// page left, it ends at once (the answer it held is for a page no longer on screen).
 	const ready = pending.length
 		? page
 				.task(
 					() =>
 						new Promise<void>((resolve) => {
 							const cancel = page.timeout(resolve, 5000);
+							// oxlint-disable-next-line ogygia/no-silent-failures -- every pending wait above resolves, failed or not
 							void Promise.all(pending).then(() => {
 								cancel();
 								resolve();
-							}); // ok: every pending import above resolves, failed or not
+							});
 						})
 				)
 				.then(() => undefined)
 		: Promise.resolve();
-	// The app's own pass reshaped the answer (@ogygia/reshape): restored first — before the pristine
-	// copies below, before the morph, before any upgrade (the fragment is inert: nothing upgrades in it)
 	if (HOOK_ANSWER_PARSED) slots.hooks?.answerParsed?.({ fragment: frag });
-	// Pre-capture each nested self-hydrating island's PRISTINE markup while the fragment is still
-	// disconnected. Once inserted, a swapped-in foreign runtime (a web-component upgrade) can reach a raw
-	// custom element inside the island — attaching a shadow, its normalization dropping neighbouring
-	// whitespace text nodes — BEFORE ogygia hydrates the island. The island would then snapshot that
-	// already-mutated DOM at connect, its own drift-check would see a mismatch it did not cause, and it
-	// would discard + re-render (invisible but noisy). Captured here, it repairs against the server's
-	// real bytes. The hole ITSELF already does this (fragment_markup, see #apply); this extends the same
-	// guarantee to the islands nested inside it.
 	for (const el of frag.querySelectorAll('ogygia-region')) {
 		if (el.getAttribute('entry') && !is_deferred(el) && !is_frozen(el)) {
 			(el as unknown as PristineHost)[PRISTINE_SSR] = el.innerHTML;
@@ -587,50 +456,17 @@ export function pristine_ssr_of(el: Element): string | undefined {
 }
 
 class OgygiaRegion extends HTMLElement {
-	/** Its lifetime in the page: detached, connected, scheduled (./region-machines.ts). Each
-	 *  lifetime holds its scope and its mailbox (below). */
 	#region: RegionLife = create_region_life();
-	/** The server-minted `endpoint` of a deferred hole, captured at connect. On a Kit-hydrated
-	 *  (csr=true) document the wrapper's client leg cannot mint (the virtual is stubbed to ''), so
-	 *  Kit's hydration pass reconciles the attribute to '' — after the runtime saw it at parse time.
-	 *  The fetch reads this copy and restores the attribute (lakes, devtools and the router's
-	 *  next-page warm all read the DOM). */
 	#minted_endpoint: string | null = null;
-	/** THE HYDRATION SOURCE OF TRUTH: this island's server markup as it connected (or, for a
-	 *  hydrating hole, as its answer was swapped in). An island can sleep a long time and other
-	 *  scripts edit the page meanwhile; on wake, hydrate-core hydrates against THIS when the live
-	 *  DOM drifted, instead of letting Svelte re-render the island client-side. Dropped once the
-	 *  island is awake. `null` for a nested region (rides its parent) and above SSR_SNAPSHOT_MAX. */
 	#ssr_html: string | null = null;
-	/**
-	 * THE ELEMENT'S LIFETIME IN THE PAGE: made at its connect, closed at its teardown (a move — out and
-	 * back in one task — is no teardown, so it keeps it). What the element holds across its machines'
-	 * visits is this scope's: its sleep in drift-watch.ts, its viewport snapshot for the scheduler,
-	 * its binding to its frame-store address, the frame that replays a visitor's clicks. What one
-	 * visit holds stays on that visit (`m.scope`). Closed before the first connect and after the
-	 * teardown: anything given to it then is let go at once.
-	 */
 	get #life(): Scope {
 		return this.#region.now.life;
 	}
-	/**
-	 * ITS EVENTS, ONE AT A TIME (@ogygia/machine's `mailbox()`, #322): a connect, a schedule firing, a
-	 * frame landing, a live tick, its fetch's end and its retry, its wake's steps — each a turn, in the
-	 * order they came, so no two see each other's half-done step, whichever of its machines they drive.
-	 * Its lifetime's:
-	 * the element leaving drops what is queued, and a step waiting gets `STALE` at once. Every callback
-	 * that comes back to the element later posts here (the box of the lifetime it started in).
-	 */
 	get #box(): Mailbox {
 		return this.#region.now.box;
 	}
-	/** The answer it painted last: what a hole put back on the page shows again when the frame store
-	 *  let it go meanwhile (#336). */
 	#shown: VerifiedHtml | null = null;
-	/** A live region's last tick: what it goes on with when it is put back on the page (#337). */
 	#live_last: LiveTick | null = null;
-	/** While it sleeps with a copy: held in drift-watch.ts's sleeping islands, until it wakes (or
-	 *  leaves the page). */
 	#asleep: Scope | null = null;
 	get #watching(): boolean {
 		return this.#asleep !== null && !this.#asleep.closed;
@@ -643,48 +479,21 @@ class OgygiaRegion extends HTMLElement {
 		this.#asleep?.close();
 		this.#asleep = null;
 	}
-	/** A deferred region's own fetch of its answer: armed, fetching, waiting to retry, given up
-	 *  (./region-machines.ts). Its `armed` state owns the `when` and `prefetch` listeners. */
 	#hole: Hole = create_hole();
-	/** What the hole's answers put on screen: nothing yet, an answer, or the kept fallback. Any
-	 *  answer counts, whoever fetched it (a twin, a batch, a write at its address). */
 	#answer: Answer = create_answer();
-	/** The island's hydration: cold, armed (its schedule's listeners), waking, awake, failed. */
 	#wake: Wake = create_wake();
-	/** when this hole's first fetch started (devtools + profiler: how long its fallback showed) */
 	#fetch_started = 0;
-	/** Frame-store address (endpoint call) this region is bound to. */
 	#frame_address: string | null = null;
-	/** Its subscription at that address (a defer region binds to its address), a child of its
-	 *  lifetime in the page: closing it unsubscribes. */
 	#binding: Scope | null = null;
-	/** A visitor's gesture woke this region (`interaction`, or the capture on a scheduled island): its
-	 *  downloads are the `user` class, and this is what replays their input (the capture's replay half,
-	 *  loading) — its island goes live once it is in, so the input lands AT wake (#260). */
 	#visitor: Promise<unknown> | null = null;
-	/** The hydrated island (hydrate core handle): dispose, and for a kept island, props push. */
 	#app: IslandHandle | null = null;
-	/** Live region (`<ogygia-region live>`): driven imperatively by Region.svelte's applyLive. */
 	#live_ready = false;
-	/** Its mode, tick by tick: static (subscribed to the store), hydrating, live (./region-machines.ts). */
 	#live: Live = create_live();
-	/** The frame that paints next: each frame waits for its sheets in a visit of its own, and only
-	 *  the newest paints (./region-machines.ts). */
 	#paint: Paint = create_paint();
-	/** Where the HTML a static tick painted itself stands in its address's order (`older_by`): a frame
-	 *  not newer than it is older than what is on screen. */
 	#live_painted: FrameOrder | null = null;
-	// The two wake targets, bound once per element (not per connect): `#arm` hands them to a
-	// schedule, and `load` calls them straight — no closure built on the connect path. Each returns
-	// its promise: the interaction feature awaits it to know when the island is live (replay).
-	// ONE hydration in flight per visit: a click that lands while the island's own schedule is already
-	// waking it waits for THAT run (an early return would replay the click before the island is
-	// live). The run is its visit's: a region taken out and put back while it loads starts a visit of
-	// its own, and the old run, out of its visit, stops at its next step.
 	#hydrate_run: { visit: unknown; run: Promise<void> } | null = null;
 	#fire_hydrate = (): Promise<void> => {
 		const held = this.#hydrate_run;
-		// (`waking` is always the held run's: a wake starts only from armed, through here)
 		if (held && (held.visit === this.#wake.now || this.#wake.now.kind === 'waking'))
 			return held.run;
 		const run = this.#box.ask((turn) => this.#hydrate(turn)).then(nothing);
@@ -694,22 +503,12 @@ class OgygiaRegion extends HTMLElement {
 		run.then(ran, ran);
 		return run;
 	};
-	/** A hydration run ended: forget it, unless a newer one took its place. */
 	#hydrate_ran(entry: { visit: unknown; run: Promise<void> }): void {
 		if (this.#hydrate_run === entry) this.#hydrate_run = null;
 	}
 	#fire_server = () => this.#box.post((turn) => this.#server(turn));
 	#fire_prefetch = () => this.#box.post(() => this.#prefetch_html());
 
-	/**
-	 * CONTINUITY: this persisted island is relocating onto `next` (the incoming page's SSR region).
-	 * Push the new page's props into the live app so a `persist`ed component reflects the new route
-	 * (e.g. a player's `track` changes) instead of freezing at first-mount props. Called by the
-	 * router just before `next` is discarded, so its sidecar is found now. A kept island has
-	 * hydrated, so the hydrate core is loaded; props that carry a live value in a build without the
-	 * codec wait for its load, as a wake does (test/browser/wire-on-use-kept.test.ts). A newer page's
-	 * props win over a load still out for older ones.
-	 */
 	absorbKeptProps(next: Element): void {
 		if (!this.#app?.set_props || !loaded_core) return;
 		const sidecar = props_sidecar_of(next);
@@ -724,15 +523,13 @@ class OgygiaRegion extends HTMLElement {
 				if (loaded !== STALE) this.#absorb(sidecar);
 			}, report_thrown);
 	}
-	/** The newest load of the codec a kept island's next props wait for (absorbKeptProps). */
 	#absorbing: Scope | null = null;
 	#absorb(sidecar: HTMLScriptElement | null): void {
 		if (!this.#app?.set_props || !loaded_core) return;
 		try {
 			this.#app.set_props(loaded_core.absorb_region_props(this, sidecar));
-		} catch {
-			// ok: malformed incoming props: the live props it has are kept
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- malformed incoming props: the live props it has are kept
+		} catch {}
 	}
 
 	connectedCallback() {

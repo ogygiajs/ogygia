@@ -330,7 +330,9 @@ describe("a hole's fallback does not stand", () => {
 		/** A script of the document failed to load (its runtime: none of its holes is ever asked). */
 		lacks_a_file = false,
 		/** Buggify lost an answer of the document's on the way (`hole.fetch-lost`). */
-		lost = false
+		lost = false,
+		/** The document's batches (`POST /__ogygia__`): the holes each asked for, and how it went. */
+		batches: Array<{ holes: string[]; status: number | 'dropped'; cut?: boolean }> = []
 	) => {
 		const { Window } = await import('happy-dom');
 		// (the simulator's viewport: src/layout.ts)
@@ -346,16 +348,23 @@ describe("a hole's fallback does not stand", () => {
 			fired_in: new Map(lost ? [['tab-1#1', new Set(['hole.fetch-lost'])]] : []),
 			browsers: { lacks_a_file: () => lacks_a_file },
 			network: {
-				exchanges: wire.map(([url, status], i) => ({
-					id: i + 1,
-					from: 'tab-1#1',
-					method: 'GET',
-					url: `https://app.test${url}`,
-					status,
-					cut: false,
-					tampered: false,
-					redirected: false
-				}))
+				exchanges: [
+					...wire.map(([url, status]) => ({
+						from: 'tab-1#1',
+						method: 'GET',
+						url: `https://app.test${url}`,
+						status,
+						cut: false
+					})),
+					...batches.map((b) => ({
+						from: 'tab-1#1',
+						method: 'POST',
+						url: 'https://app.test/__ogygia__',
+						status: b.status,
+						cut: b.cut ?? false,
+						holes: b.holes
+					}))
+				].map((e, i) => ({ id: i + 1, tampered: false, redirected: false, ...e }))
 			},
 			skewed_for: () => false
 		} as unknown as Parameters<typeof fallback_stands>[1];
@@ -394,6 +403,23 @@ describe("a hole's fallback does not stand", () => {
 	// lost by buggify before a request went out, so the wire never saw it asked
 	it('passes one never seen asked in a document whose answers buggify lost (a lost answer leaves no exchange)', async () => {
 		expect(await at_rest(hole('load', 'data-gen-fallback'), [], false, true)).toBeNull();
+	});
+
+	// frame-nav's release mutant (a batch's undelivered reservations never released) survived gens
+	// 10, 191, 192, 193 and palaestra: every faulted document that sent a batch was set aside
+	it("finds a hole a failed batch asked for that never asked on its own (a batch's unreleased part survived)", async () => {
+		const standing = hole('load', 'data-gen-fallback');
+		const failed = { holes: ['/__ogygia__?id=a'], status: 200, cut: true };
+		const dropped = { holes: ['/__ogygia__?id=a'], status: 'dropped' as const };
+		expect((await at_rest(standing, [], false, false, [failed]))?.oracle).toBe('fallback-stands');
+		expect((await at_rest(standing, [], false, false, [dropped]))?.oracle).toBe('fallback-stands');
+		// (released, it asked on its own, and that failed too: a fault's)
+		const own: [string, 'dropped'] = ['/__ogygia__?id=a&exp=1&sig=s', 'dropped'];
+		expect(await at_rest(standing, [own], false, false, [failed])).toBeNull();
+		// (a whole batch that named it, in a document a fault touched elsewhere: it was answered)
+		const other: [string, 'dropped'] = ['/_app/immutable/x.js', 'dropped'];
+		const whole = { holes: ['/__ogygia__?id=a'], status: 200 };
+		expect(await at_rest(standing, [other], false, false, [whole])).toBeNull();
 	});
 
 	it('passes one that keeps it by design, one waiting for the visitor, and an answered one', async () => {
@@ -873,6 +899,19 @@ describe('page errors', () => {
 		expect(page_errors(tab(said), world('https://app.test/_app/x.js'))?.oracle).toBe('page-errors');
 	});
 
+	// (router.build-throws, aimed on gen 191: the navigation hands off and reports the build's throw,
+	// as report_thrown does any app error; every seed failed on its own point's words)
+	it("a buggify point's own throw, reported by the document it fired in, is the point's", () => {
+		const thrown = ['Error: router.build-throws'];
+		const w = world('none') as unknown as { fired_in: Map<string, Set<string>> };
+		w.fired_in.set('tab-1#6', new Set(['router.build-throws']));
+		const fired = w as unknown as Parameters<typeof page_errors>[1];
+		expect(page_errors(tab(thrown), fired)).toBeNull();
+		// (another point's words, or the same words where it did not fire, are still errors)
+		expect(page_errors(tab(['Error: router.commit-throws']), fired)?.oracle).toBe('page-errors');
+		expect(page_errors(tab(thrown), world('none'))?.oracle).toBe('page-errors');
+	});
+
 	it("a changed byte in a JSON answer may be said as the parser's bare message (palaestra seed 204)", () => {
 		// (a live query's stream: the remote function's client logs the error's message alone, with
 		// no `SyntaxError` before it)
@@ -1217,11 +1256,13 @@ describe("a mounted peer's page answers as the peer did", () => {
 	const judged = async (
 		body: string,
 		wire: Array<[string, number | 'dropped', string?]> = [],
-		at = '/peer/q0'
+		at = '/',
+		mount: 'router' | 'kit' = 'kit'
 	) => {
 		const { Window } = await import('happy-dom');
 		const w = new Window({ url: `https://app.test${at}` });
 		w.document.write(`<html><body>${body}</body></html>`);
+		await w.happyDOM.waitUntilComplete();
 		const tab = {
 			realm: 'tab-1#1',
 			name: 'tab-1',
@@ -1244,7 +1285,7 @@ describe("a mounted peer's page answers as the peer did", () => {
 				}))
 			}
 		} as unknown as Parameters<typeof peer_answers>[1];
-		return peer_answers(tab, world, 0);
+		return peer_answers(tab, world, 0, mount);
 	};
 
 	it("finds a page the peer lacks answered as found, and one that moved answered where it was (a mutant that lost the peer's status survived)", async () => {
@@ -1252,6 +1293,52 @@ describe("a mounted peer's page answers as the peer did", () => {
 		expect((await judged('', [['/peer/moved', 200]]))?.oracle).toBe('peer-answers');
 		expect(await judged('', [['/peer/gone', 404]])).toBeNull();
 		expect(await judged('', [['/peer/moved', 307]])).toBeNull();
+	});
+
+	it("finds one of the peer's own pages answered as a redirect (a mutant that made every exposed page a redirect survived)", async () => {
+		expect((await judged('', [['/peer/q0', 307]]))?.oracle).toBe('peer-answers');
+		expect((await judged('', [['/peer/q12', 404]]))?.oracle).toBe('peer-answers');
+		expect(await judged('', [['/peer/q0', 200]])).toBeNull();
+		expect(await judged('', [['/peer/q0/deeper', 307]])).toBeNull();
+	});
+
+	it('finds one the peer refuses not answered as refused (a mutant that took a 400 for a redirect, or for no error, survived)', async () => {
+		expect((await judged('', [['/peer/bad', 200]], '/peer/bad'))?.oracle).toBe('peer-answers');
+		expect((await judged('', [['/peer/bad', 303]], '/peer/bad'))?.oracle).toBe('peer-answers');
+		expect(await judged('', [['/peer/bad', 400]], '/peer/bad')).toBeNull();
+	});
+
+	it('finds, on a Kit mount, a page the peer lacks saying nothing (a mutant that lost the message survived)', async () => {
+		// (reached by a client navigation: it may be mid-way, and is not judged)
+		expect(await judged('<h1>404</h1><p></p>', [['/p0', 200]], '/peer/gone')).toBeNull();
+		expect((await judged('<h1>404</h1><p></p>', [['/peer/gone', 404]], '/peer/gone'))?.oracle).toBe(
+			'peer-answers'
+		);
+		expect(
+			await judged('<h1>404</h1><p>not found</p>', [['/peer/gone', 404]], '/peer/gone')
+		).toBeNull();
+		expect(
+			await judged(
+				'<h1>404</h1><p>This section is unavailable.</p>',
+				[['/peer/gone', 404]],
+				'/peer/gone'
+			)
+		).toBeNull();
+		// (a server router's mount shows the peer's own not-found page, whatever it says)
+		expect(
+			await judged('<p>router did not match</p>', [['/peer/gone', 404]], '/peer/gone', 'router')
+		).toBeNull();
+		// (its hop to the peer failed: what it shows is the app's own)
+		expect(
+			await judged(
+				'<p>502</p>',
+				[
+					['/og/fragment/page?path=/q0', 'dropped', 'tab-1#1'],
+					['/peer/q0', 502]
+				],
+				'/peer/q0'
+			)
+		).toBeNull();
 	});
 
 	it("passes one the network failed, or whose hop to the peer failed: the app's answer for it is its own", async () => {
