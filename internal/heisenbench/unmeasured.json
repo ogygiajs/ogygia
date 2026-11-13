@@ -4681,10 +4681,6 @@
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
 		{
-			"id": "packages/content/src/bridge.ts > slot:0~67fe91 > make",
-			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
-		},
-		{
 			"id": "packages/core/src/plugin/request-scope.ts > shared:0~5bce76 > make",
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
@@ -4891,6 +4887,18 @@
 		{
 			"id": "packages/devtools/src/devtools/session.ts > start_session > counting > push:0~64a57a > map:0~529f9c",
 			"reason": "browser only: one console.error argument as text, constant work per argument; proven in packages/devtools/test/devtools-session-console.test.ts"
+		},
+		{
+			"id": "packages/content/src/vite/index.ts > markdown_read",
+			"reason": "reads the process-wide markdown bridge slot (hidden state) and notes an early read: one field read and one write, constant work; proven in packages/content/test/content-config-order.test.ts"
+		},
+		{
+			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_ERRORS > content_config_read_first > text",
+			"reason": "a message's one line for the thrown error, built once when content() runs after the svelte config read its markdown settings"
+		},
+		{
+			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_ERRORS > content_config_read_first > details",
+			"reason": "a message's docs paragraph: constant prose, read by the docs build and the error page"
 		}
 	]
 }
