@@ -25,6 +25,9 @@ const FUNCTION_TYPES = new Set([
 	'ArrowFunctionExpression'
 ]);
 
+// static: the loops whose head may declare a block-scoped name
+const LOOP_TYPES = new Set(['ForStatement', 'ForInStatement', 'ForOfStatement']);
+
 // Minimal estree shape for the function-scope handling (no @types/estree dependency).
 interface EsFunction {
 	id?: { name: string } | null;
@@ -141,6 +144,13 @@ function is_reference(
 		case 'FunctionExpression':
 		case 'ArrowFunctionExpression':
 			return key !== 'id' && key !== 'params';
+		case 'ClassDeclaration':
+		case 'ClassExpression':
+			return key !== 'id';
+		// a class member's name: `m() {}`, `x = 1` (unless computed)
+		case 'MethodDefinition':
+		case 'PropertyDefinition':
+			return key !== 'key' || parent.computed;
 		case 'ImportSpecifier':
 		case 'ImportDefaultSpecifier':
 		case 'ImportNamespaceSpecifier':
@@ -182,8 +192,16 @@ function add_expression_refs(expr: SvelteNode, svelte_bound: Set<string>, sink: 
 				if (fn.id && node.type !== 'ArrowFunctionExpression') s.add(fn.id.name);
 				for (const p of fn.params) collect_pattern_names(p, s);
 				scopes.push(s);
-			} else if (node.type === 'BlockStatement' && !FUNCTION_TYPES.has(parent?.type ?? '')) {
+			} else if (
+				(node.type === 'BlockStatement' && !FUNCTION_TYPES.has(parent?.type ?? '')) ||
+				LOOP_TYPES.has(node.type)
+			) {
+				// a block, or a loop head's `let`/`const`: names bound only inside it
 				scopes.push(new Set());
+			} else if (node.type === 'ClassDeclaration') {
+				// binds its name where it stands (a class EXPRESSION's name is bound only inside it)
+				const id = (node as { id?: { name: string } | null }).id;
+				if (id) scopes[scopes.length - 1].add(id.name);
 			} else if (node.type === 'VariableDeclarator') {
 				collect_pattern_names(node.id, scopes[scopes.length - 1]);
 			} else if (node.type === 'CatchClause' && node.param) {
@@ -207,7 +225,10 @@ function add_expression_refs(expr: SvelteNode, svelte_bound: Set<string>, sink: 
 		},
 		leave(node, parent) {
 			if (FUNCTION_TYPES.has(node.type)) scopes.pop();
-			else if (node.type === 'BlockStatement' && !FUNCTION_TYPES.has(parent?.type ?? ''))
+			else if (
+				(node.type === 'BlockStatement' && !FUNCTION_TYPES.has(parent?.type ?? '')) ||
+				LOOP_TYPES.has(node.type)
+			)
 				scopes.pop();
 		}
 	});
@@ -227,18 +248,38 @@ function let_directive_names(node: SvelteNode): Set<string> {
 
 /** Walk attribute expressions of an element/component (not `let:`, which binds). */
 function add_attribute_refs(node: SvelteNode, bound: Set<string>, sink: Sink) {
+	/** An attribute's value: `true` (no value), text with `{…}` parts, or one `{…}`. */
+	const add_value_refs = (value: SvelteNode) => {
+		if (Array.isArray(value)) {
+			for (const part of value) {
+				if (part.type === 'ExpressionTag') add_expression_refs(part.expression, bound, sink);
+			}
+		} else if (value?.type === 'ExpressionTag') {
+			// single-expression attribute: `a={x}` or shorthand `{x}`
+			add_expression_refs(value.expression, bound, sink);
+		}
+	};
+	/** A name the template reads as a variable (`use:act`, `style:color`); its root for `a.b`. */
+	const add_name_ref = (name: string) => {
+		const root = name.split('.')[0];
+		if (root && !bound.has(root)) sink.refs.add(root);
+	};
 	for (const attr of node.attributes ?? []) {
 		switch (attr.type) {
 			case 'Attribute':
-				if (attr.value === true) break; // boolean attribute
-				if (Array.isArray(attr.value)) {
-					for (const part of attr.value) {
-						if (part.type === 'ExpressionTag') add_expression_refs(part.expression, bound, sink);
-					}
-				} else if (attr.value?.type === 'ExpressionTag') {
-					// single-expression attribute: `a={x}` or shorthand `{x}`
-					add_expression_refs(attr.value.expression, bound, sink);
-				}
+				if (attr.value !== true) add_value_refs(attr.value); // `true`: a boolean attribute
+				break;
+			case 'StyleDirective':
+				// `style:color` alone reads `color`; with a value, the value is read
+				if (attr.value === true) add_name_ref(attr.name);
+				else add_value_refs(attr.value);
+				break;
+			case 'UseDirective':
+			case 'TransitionDirective':
+			case 'AnimateDirective':
+				// `use:act={arg}` / `transition:fade` / `animate:flip`: the function itself, then its argument
+				add_name_ref(attr.name);
+				if (attr.expression) add_expression_refs(attr.expression, bound, sink);
 				break;
 			case 'SpreadAttribute':
 				add_expression_refs(attr.expression, bound, sink);
@@ -344,9 +385,12 @@ function walk_template(nodes: SvelteNode[], outer_bound: Set<string>, sink: Sink
 			}
 			case 'Component':
 			case 'SvelteComponent': {
-				// the component name (`Foo` or `Foo.Bar`) references an import/host binding
-				const root = String(node.name || '').split('.')[0];
-				if (root && !bound.has(root)) sink.refs.add(root);
+				// the component: its name (`Foo` / `Foo.Bar`), or `<svelte:component this={…}>`'s expression
+				if (node.type === 'SvelteComponent') add_expression_refs(node.expression, bound, sink);
+				else {
+					const root = String(node.name || '').split('.')[0];
+					if (root && !bound.has(root)) sink.refs.add(root);
+				}
 				add_attribute_refs(node, bound, sink);
 				const el_bound1 = new Set(bound);
 				for (const name of let_directive_names(node)) el_bound1.add(name);

@@ -6,7 +6,7 @@
  *
  * - Time: `Date.now()` is the run's epoch plus virtual time plus the realm's skew (a server's clock
  *   may be off by seconds); `performance.now()` is virtual time since the realm was born, so it never
- *   steps.
+ *   steps. A document's `performance` is its own (./timeline.ts); the host keeps Node's.
  * - Timers, frames (every 16 ms, aligned per realm) and idle callbacks (a quiet moment the seed
  *   picks, with a `timeRemaining` that runs down) are loop tasks of the realm.
  * - Randomness and crypto bytes come from the realm's own stream.
@@ -44,6 +44,10 @@ export interface RealmOptions {
 	/** ms this realm's wall clock is ahead (negative: behind); read at each call when a function
 	 *  (the host realm reads the skew of the server instance whose request is running). */
 	skew?: number | (() => number);
+	/** When the realm's clock starts (`performance.now()` and frame times count from it); none: now.
+	 *  A document's starts with its navigation, before the realm is made (as a browser's
+	 *  `timeOrigin`). */
+	born?: number;
 	/** Hand out Node-shaped timer handles (the host realm, where the servers run). */
 	node?: boolean;
 	/** Whether this realm takes the rare branch `point` now (the world's buggify swarm); none: never. */
@@ -93,7 +97,7 @@ export function platform(
 	const rng = options.rng.fork(name);
 	const skewed = options.skew ?? 0;
 	const skew = (): number => (typeof skewed === 'number' ? skewed : skewed());
-	const born = loop.now;
+	const born = options.born ?? loop.now;
 	let ids = 0;
 	const live = new Map<number, Task>();
 

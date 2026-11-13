@@ -61,7 +61,7 @@ import { rng, type Rng } from './rng.ts';
 import { signature } from './ci.ts';
 import { ddmin, regression_test, slug } from './shrink.ts';
 import type { FaultClass } from './network.ts';
-import type { Visitor } from './browser.ts';
+import type { Tab, Visitor } from './browser.ts';
 import { ORIGIN, World, type Rollover, type WorldOptions } from './world.ts';
 import { builds_of } from './builds.ts';
 import { key_pair } from './keys.ts';
@@ -87,6 +87,9 @@ const REPLAY = !process.argv.includes('--no-replay');
 /** `--calm`: the differential's world (src/differ.ts), one a real browser can play alike: no fault,
  *  no buggify point, one server with a stable secret, one build, and none of `NOT_CALM`'s actions. */
 const CALM = process.argv.includes('--calm');
+/** `--crowd`: the workload may draw a crowd of other visitors (workload.ts `crowd`): server-side
+ *  chaos, their requests among the visitor's. Off, every seed draws as it did before crowds. */
+const CROWD = process.argv.includes('--crowd') && !CALM;
 /** `--observe <dir>`: each run's plan and what the visitor saw after each action
  *  (@ogygia/tooling/e2e/sim-observe.ts) go to `<dir>/<app>-<seed>.sim.json`, for the differential. */
 const OBSERVE = arg('--observe');
@@ -345,6 +348,8 @@ export async function run(
 	const seen: Seen[] = [];
 	try {
 		const v = world.visitor('visitor');
+		/** Every tab the run judges: the visitor's, and a crowd's (workload.ts `crowd`). */
+		const judged = (): Tab[] => [...v.tabs, ...world.crowd.flatMap((c) => c.tabs)];
 		// (the network's exchanges since the last check: a fault among them explains what was said)
 		let since = 0;
 		/** Each document's machine moves read so far (by realm): its log keeps only its last lines,
@@ -352,7 +357,7 @@ export async function run(
 		const moves_read = new Map<string, number>();
 		const hear_moves = (): void => {
 			// (every document's, a left one's too: one replaced inside an action took steps too)
-			const logs: Array<[string, string]> = v.tabs.flatMap((t) =>
+			const logs: Array<[string, string]> = judged().flatMap((t) =>
 				[...t.moves_by].map(([realm, read]): [string, string] => [realm, read()])
 			);
 			// (and each server's, the app's and its peers')
@@ -379,7 +384,7 @@ export async function run(
 						since
 					)
 				);
-			for (const t of v.tabs) {
+			for (const t of judged()) {
 				const doc = t.page.mainFrame.document as unknown as Document;
 				log.note(`${t.name} ${t.page.mainFrame.url} dom ${fingerprint(normalize(doc))}`);
 				for (const line of [...t.errors, ...t.console])
@@ -431,7 +436,8 @@ export async function run(
 							v.tabs.length,
 							PATHS,
 							world.deployed.length < BUILDS.length - 1,
-							plan?.mix
+							plan?.mix,
+							CROWD
 						);
 			// (a calm run leaves out what a real browser cannot play alike: the player does too)
 			if (CALM && NOT_CALM.includes(a.kind)) continue;
@@ -473,15 +479,15 @@ export async function run(
 			while (
 				world.loop.now < until &&
 				world.loop.next_at <= until &&
-				v.tabs.some((t) => t.platform?.pending().includes('timeout'))
+				judged().some((t) => t.platform?.pending().includes('timeout'))
 			)
 				await world.loop.step();
 			await world.rest();
 			hear_moves();
 			await at_rest?.(world, v);
 			// AT REST, every tab (a faulted one too: a failure must end a wait as surely as an
-			// answer): no machine left mid-work, and ogygia's rules hold
-			for (const t of v.tabs)
+			// answer): no machine left mid-work, and ogygia's rules hold (a crowd's tabs too)
+			for (const t of judged())
 				for (const b of [
 					stuck(t),
 					page_rules(t, world),
@@ -532,7 +538,7 @@ export async function run(
 			// changed set aside)
 			const sent = await html_sent(world);
 			if (sent) broken.push(sent);
-			for (const t of v.tabs) {
+			for (const t of judged()) {
 				if (document_faulted(world, t)) continue;
 				const kept = html_kept(t);
 				if (kept) broken.push({ ...kept, detail: `${t.page.mainFrame.url}: ${kept.detail}` });
@@ -1031,6 +1037,13 @@ interface Worker {
 	said: string;
 }
 
+/** A worker's arguments: the batch's own, every one (a worker reads its options as the batch
+ *  does: a list of the ones it needs left out `--paths`, `--name` and `--peers`), the batch's
+ *  working directory its own. test/pool.test.ts. */
+export function worker_args(batch: readonly string[]): string[] {
+	return ['--worker', ...batch];
+}
+
 /** Worker processes, each running one world at a time. */
 class Pool {
 	readonly #queue: Job[] = [];
@@ -1057,14 +1070,7 @@ class Pool {
 	}
 
 	#spawn(): Worker {
-		const passed = [
-			...(arg('--app') !== undefined ? ['--app', APP] : []),
-			...(arg('--hang-ms') !== undefined ? ['--hang-ms', arg('--hang-ms')!] : []),
-			...(BUGGIFY ? [] : ['--no-buggify']),
-			...(CALM ? ['--calm'] : []),
-			...(OBSERVE !== undefined ? ['--observe', OBSERVE] : [])
-		];
-		const child = fork(import.meta.filename, ['--worker', ...passed], {
+		const child = fork(import.meta.filename, worker_args(process.argv.slice(2)), {
 			execArgv: ['--experimental-vm-modules', '--no-warnings'],
 			stdio: ['ignore', 'ignore', 'pipe', 'ipc']
 		});
