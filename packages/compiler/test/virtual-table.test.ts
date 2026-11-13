@@ -105,6 +105,23 @@ describe('the virtual-module table', () => {
 		expect(table.resolve('ogygia:region', server)).toBe(RESOLVED('ogygia:region'));
 	});
 
+	it('refuses a browser-leg load of a server module, by its resolved id, with virtual_wrong_realm; the server leg still loads it', () => {
+		const ctx = { build_secret: 'k'.repeat(64), id_salt: 'salt' } as Partial<CoreApp['ctx']>;
+		for (const id of [
+			'ogygia:server',
+			'ogygia:server/secret',
+			'ogygia:server/sign',
+			'ogygia:server/server-plugins'
+		])
+			expect(() => table.load(RESOLVED(id), app(ctx), leg(false)), id).toThrow(
+				/virtual_wrong_realm/
+			);
+		expect(table.load(RESOLVED('ogygia:server/secret'), app(ctx), leg(true))).toContain(
+			'k'.repeat(64)
+		);
+		expect(table.load(RESOLVED('ogygia:region'), app(ctx), leg(false))).toBeTypeOf('string');
+	});
+
 	it('finds a module a leg’s output may not hold, however it got in', () => {
 		const ids = [RESOLVED('ogygia:server/secret'), RESOLVED('ogygia:boot/runtime-flags'), '/a.js'];
 		expect(table.misplaced(ids, { ssr: false, dev: false })).toEqual([
