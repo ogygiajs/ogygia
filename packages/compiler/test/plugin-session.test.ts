@@ -1,6 +1,6 @@
 // An `ogygia()` plugin's life (src/vite/session.ts): its compiler is made once the bundler resolved
-// the build, with that build's context. A hook that needs it earlier, or a second resolve without a
-// new `config`, is refused with a code, never a read of a context that is not there.
+// the build, with that build's context. A hook that needs it earlier is refused with a code, never a
+// read of a context that is not there; a second resolve without a new `config` keeps the build.
 import { describe, expect, it } from 'vitest';
 import type { Plugin } from 'vite';
 import { compiler_of, configured, new_session, resolve } from '../src/vite/session.ts';

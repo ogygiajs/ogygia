@@ -397,6 +397,15 @@ export class Compiler implements CoreApp {
 		this.#ctx = ctx;
 	}
 
+	/** A compiler with context `ctx` that carries on this one's build (its program, legs and caches):
+	 *  the next environment of a builder that shares one plugin across them. */
+	with_ctx(ctx: CompileCtx): Compiler {
+		const next = new Compiler(this.program, this.profiler, ctx);
+		next.#build = this.#build;
+		next.#emitted_server_ids = this.#emitted_server_ids;
+		return next;
+	}
+
 	/**
 	 * Devtools: the `island id → component name` map, read at call time off the live registry (so a
 	 * dev-server middleware serves a COMPLETE, current map — no stale virtual-module snapshot). Keys

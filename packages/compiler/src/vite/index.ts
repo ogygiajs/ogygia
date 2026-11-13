@@ -839,52 +839,55 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// The driver, made with its resolved compile context — now that root/base/libDir/dev +
 				// id_salt are known. Every hook that calls it runs after this (session.ts refuses one that
 				// does not).
-				const compiler = resolve(
-					session,
-					() =>
-						new Compiler(
-							new Program({ forms: continuity_forms, router: router_enabled }),
-							{ prof: __prof, P: __P, outHash: __outHash },
-							new CompileCtx({
-								root,
-								base,
-								app_dir,
-								libDir,
-								pkg_scan,
-								page_importers,
-								page_files,
-								measure,
-								server_plugins,
-								client_plugins,
-								route_config,
-								foreign_hydrate,
-								is_dev,
-								id_salt,
-								visibleMargin,
-								presets,
-								import_keys,
-								resolve_alias,
-								macros,
-								// (the id prefix, not the native path: every consumer `startsWith`s a module id)
-								pkg_root: CORE_ROOT_ID,
-								build_secret,
-								rate_limit,
-								session_cookie,
-								region_ttl,
-								renew_window,
-								router_enabled,
-								router_view_transitions,
-								client_hooks,
-								runtime_dir: RUNTIME_DIR,
-								runtime_hash: RUNTIME_HASH,
-								kit_wire_path,
-								client_binding_stub_file: CLIENT_BINDING_STUB_FILE,
-								app_shims: APP_SHIMS,
-								is_build,
-								devtools: devtools_effective
-							})
-						)
-				);
+				const compiler = resolve(session, (prev) => {
+					const ctx = new CompileCtx({
+						root,
+						base,
+						app_dir,
+						libDir,
+						pkg_scan,
+						page_importers,
+						page_files,
+						measure,
+						server_plugins,
+						client_plugins,
+						route_config,
+						foreign_hydrate,
+						is_dev,
+						id_salt,
+						visibleMargin,
+						presets,
+						import_keys,
+						resolve_alias,
+						macros,
+						// (the id prefix, not the native path: every consumer `startsWith`s a module id)
+						pkg_root: CORE_ROOT_ID,
+						build_secret,
+						rate_limit,
+						session_cookie,
+						region_ttl,
+						renew_window,
+						router_enabled,
+						router_view_transitions,
+						client_hooks,
+						runtime_dir: RUNTIME_DIR,
+						runtime_hash: RUNTIME_HASH,
+						kit_wire_path,
+						client_binding_stub_file: CLIENT_BINDING_STUB_FILE,
+						app_shims: APP_SHIMS,
+						is_build,
+						devtools: devtools_effective
+					});
+					// (a plugin shared across a builder's environments: this environment's context, the
+					// build the last one began)
+					return prev
+						? prev.with_ctx(ctx)
+						: new Compiler(
+								new Program({ forms: continuity_forms, router: router_enabled }),
+								{ prof: __prof, P: __P, outHash: __outHash },
+								ctx
+							);
+				});
 
 				// DEV: hand Vite's dep scanner every island as a crawl ROOT. Under `csr = false` Kit ships
 				// no client entry and registers only `routes/**/+*` as scan entries, so an island reached
