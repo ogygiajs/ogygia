@@ -11,7 +11,27 @@
 		"typescript/no-array-delete": "off",
 		"typescript/no-base-to-string": "off",
 		"typescript/no-duplicate-type-constituents": "off",
-		"typescript/no-floating-promises": "off",
+		"typescript/no-floating-promises": [
+			"error",
+			{
+				"allowForKnownSafeCalls": [
+					{
+						"from": "package",
+						"package": "node:test",
+						"name": [
+							"test",
+							"it",
+							"describe",
+							"suite",
+							"before",
+							"after",
+							"beforeEach",
+							"afterEach"
+						]
+					}
+				]
+			}
+		],
 		"typescript/no-for-in-array": "off",
 		"typescript/no-implied-eval": "off",
 		"typescript/no-meaningless-void-operator": "off",
