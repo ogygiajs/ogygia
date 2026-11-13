@@ -172,6 +172,7 @@ export function perf_watch(): void {
 		__sim_perf?: (e: Sent) => void;
 		__sim_input?: () => void;
 	};
+	// ok: the replay's own binding: it fails only as its page closes, with nothing left to record
 	const send = (e: Sent) => void w.__sim_perf?.({ ...e, url: location.href });
 	const now = () => new PerformanceMark('sim').startTime;
 	let parsed = false;
@@ -595,7 +596,7 @@ async function play(
 				const text = await context.request
 					.get(e.source)
 					.then((r) => r.text())
-					.catch(() => '');
+					.catch(() => ''); // ok: a source that cannot be fetched is judged by its URL alone
 				owned.set(e.source, /\/og-runtime-/.test(e.source) || text.includes('ogygiajs.dev/e/'));
 			}
 		const { noted, failing } = judge_perf(perf, (u) => owned.get(u) === true);

@@ -22,6 +22,7 @@ import {
 	tag_name,
 	text_of,
 	read_capped,
+	type BodyRefused,
 	type FoundTag
 } from '@ogygia/core/internal/server';
 import { cache } from '@ogygia/machine';
@@ -307,7 +308,7 @@ function claims_of(user_b64: string): { user?: Claims } | null {
 			user: JSON.parse(Buffer.from(user_b64, 'base64').toString()) as Claims
 		};
 	} catch {
-		return null; // signed but unparseable claims = reject
+		return null; // ok: signed but unparseable claims: the caller rejects the request
 	}
 }
 
@@ -508,7 +509,7 @@ function pin_graph(json: string, origin: string): string {
 	try {
 		wire = JSON.parse(json);
 	} catch {
-		return json;
+		return json; // ok: not a graph: peer HTML passes through as it came
 	}
 	// (peer HTML: anything that is not a graph object passes through as it came)
 	if (!wire || typeof wire !== 'object' || Array.isArray(wire)) return json;
@@ -742,11 +743,11 @@ export const json_error = (status: number, error: string): Response =>
 
 /** Read a request body under a cap BEFORE any verification work (an unauthenticated caller must
  *  never stream gigabytes into this process): read no further than the cap, chunked or not
- *  (test/body-cap.test.ts). Returns `null` when over the cap. */
+ *  (test/body-cap.test.ts), or why it was not read (never a throw: test/body-unreadable.test.ts). */
 export async function read_capped_body(
 	request: Request,
 	max: number
-): Promise<Uint8Array<ArrayBuffer> | undefined | null> {
+): Promise<Uint8Array<ArrayBuffer> | undefined | BodyRefused> {
 	if (request.method === 'GET' || request.method === 'HEAD') return undefined;
 	return read_capped(request, max);
 }

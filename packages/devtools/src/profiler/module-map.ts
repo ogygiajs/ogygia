@@ -39,7 +39,7 @@ export function module_lookup(): (url: string, line: number) => string | undefin
 						).chunks
 					};
 				} catch {
-					found = null;
+					found = null; // ok: an unreadable module map: frames are named without it
 				}
 				break;
 			}
@@ -56,7 +56,7 @@ export function module_lookup(): (url: string, line: number) => string | undefin
 			try {
 				file = fileURLToPath(file);
 			} catch {
-				return undefined;
+				return undefined; // ok: not a file URL: no module to name
 			}
 		}
 		// a relative script name (Lambda / Amplify hand V8 those): from the process's folder

@@ -17,7 +17,15 @@
  * servers are refused upstream — their module graph is Vite's, not a bundle.
  */
 
-import { head_end, next_tag, value_at, type FoundTag } from '@ogygia/core/internal/server';
+import {
+	attr_spans,
+	head_end,
+	next_tag,
+	text_of,
+	value_at,
+	type FoundTag
+} from '@ogygia/core/internal/server';
+import { decodeText } from '@ogygia/core/plugin/utils';
 
 export interface StandaloneOptions {
 	/** the report page's own URL (relative hrefs resolve against it) */
@@ -32,7 +40,6 @@ export interface StandaloneOptions {
 const STYLESHEET_REL = /(?:^|[\t\n\f\r ])stylesheet(?:[\t\n\f\r ]|$)/i;
 const MODULEPRELOAD_REL = /(?:^|[\t\n\f\r ])modulepreload(?:[\t\n\f\r ]|$)/i;
 const SCRIPT_CLOSE = '</script>';
-const WS_G = /\s+/g;
 
 /** One rewrite of `html`: `[at, end)` becomes `text`. */
 interface Splice {
@@ -58,20 +65,23 @@ function all_tags(html: string, name: string): FoundTag[] {
 	return out;
 }
 
-/** Where the attribute `attr` of `t` (a `<name …>` tag) is written, name through value (and its
- *  closing quote), or null when it is absent or bare. */
-function attr_span(html: string, t: FoundTag, name: string, attr: string): [number, number] | null {
-	const value = t.attr(attr);
-	const at = value === undefined ? -1 : value_at(html, t, name, attr);
-	if (at === -1) return null;
-	const q = html.charCodeAt(at - 1);
-	const quoted = q === 34 || q === 39;
-	let from = quoted ? at - 2 : at - 1;
-	while (html.charCodeAt(from) !== 61) from--; // back to its `=`
-	from--;
-	for (let c = html.charCodeAt(from); c === 32 || (c >= 9 && c <= 13); c = html.charCodeAt(from))
-		from--;
-	return [from - attr.length + 1, at + value!.length + (quoted ? 1 : 0)];
+/** The value of `attr` on `t` as the browser reads it (entities decoded), or undefined. */
+function read(t: FoundTag, attr: string): string | undefined {
+	const raw = t.attr(attr);
+	return raw === undefined ? undefined : decodeText(raw);
+}
+
+/** The text of `t`, a `<name …>` start tag, between its name and its `>`, with every copy of
+ *  each of `drop` cut out. */
+function attrs_without(html: string, t: FoundTag, name: string, drop: string[]): string {
+	const cut = drop.flatMap((attr) => attr_spans(html, t, name, attr)).sort((a, b) => a[0] - b[0]);
+	let out = '';
+	let pos = t.start + 1 + name.length;
+	for (const [start, end] of cut) {
+		out += html.slice(pos, start);
+		pos = end;
+	}
+	return out + html.slice(pos, t.end - 1); // (`t.end - 1`: its `>`)
 }
 
 /** `html` with `text` put where its head ends (unchanged when it has no head end). */
@@ -141,8 +151,8 @@ export async function build_standalone(html: string, opts: StandaloneOptions): P
 	// 1. stylesheets → <style>
 	const sheets: { t: FoundTag; url: URL }[] = [];
 	for (const t of all_tags(html, 'link')) {
-		if (!STYLESHEET_REL.test(t.attr('rel') ?? '')) continue;
-		const href = t.attr('href');
+		if (!STYLESHEET_REL.test(read(t, 'rel') ?? '')) continue;
+		const href = read(t, 'href');
 		if (href) sheets.push({ t, url: new URL(href, base) });
 	}
 	const styles: Splice[] = [];
@@ -162,20 +172,19 @@ export async function build_standalone(html: string, opts: StandaloneOptions): P
 	html = apply(
 		html,
 		all_tags(html, 'link')
-			.filter((t) => MODULEPRELOAD_REL.test(t.attr('rel') ?? ''))
+			.filter((t) => MODULEPRELOAD_REL.test(read(t, 'rel') ?? ''))
 			.map((t) => ({ at: t.start, end: t.end, text: '' }))
 	);
 	// 3. module scripts with a src (and no text) → inline modules (their imports go through the map)
 	const scripts: { t: FoundTag; attrs: string; url: URL }[] = [];
 	for (const t of all_tags(html, 'script')) {
-		const src = t.attr('src');
-		if (!src || t.attr('type')?.toLowerCase() !== 'module') continue;
+		const src = read(t, 'src');
+		if (!src || read(t, 'type')?.trim().toLowerCase() !== 'module') continue;
 		if (html.slice(t.end, t.end + SCRIPT_CLOSE.length).toLowerCase() !== SCRIPT_CLOSE) continue;
-		// (its other attributes as written: the tag's text without its `type` and `src`)
-		const cut = [attr_span(html, t, 'script', 'type')!, attr_span(html, t, 'script', 'src')!];
-		cut.sort((a, b) => a[0] - b[0]);
-		const attrs = `${html.slice(t.start + 7, cut[0][0])} ${html.slice(cut[0][1], cut[1][0])} ${html.slice(cut[1][1], t.end - 1)}`;
-		scripts.push({ t, attrs: attrs.replace(WS_G, ' ').trim(), url: new URL(src, base) });
+		// (its other attributes as written: every copy of `type` and `src` cut, so no later `src`
+		// makes the inlined module load a file instead of its text)
+		const attrs = attrs_without(html, t, 'script', ['type', 'src']);
+		scripts.push({ t, attrs: attrs.trim(), url: new URL(src, base) });
 	}
 	const inlined: Splice[] = [];
 	for (const s of scripts) {
@@ -197,9 +206,10 @@ export async function build_standalone(html: string, opts: StandaloneOptions): P
 	for (const t of all_tags(html, 'ogygia-region')) {
 		const src = t.attr('src') || undefined;
 		const entry = t.attr('entry') || undefined;
+		// (the splice below is over the value as written; the URL is the one the browser reads)
 		const file = src ?? entry;
 		if (!file) continue;
-		const u = new URL(file, base);
+		const u = new URL(decodeText(file), base);
 		entries.push(u);
 		const key = key_of(u);
 		for (const [attr, value] of [

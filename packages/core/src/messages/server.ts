@@ -68,6 +68,21 @@ export const SERVER_ERRORS = {
 			Pass one secret, to the one \`handle()\`, before anything renders.
 		`
 	},
+	islands_endpoint_conflict: {
+		text: (a: { endpoint: string; was: string }): string => prose`
+			handle({ endpoint }) names ${a.endpoint}, but this server already answers holes on
+			${a.was}. ${a.endpoint} stands from here on: pass one endpoint, to the one \`handle()\`.
+		`,
+		details: (): string => prose`
+			A server has one islands endpoint: the path the handle answers holes on, and the path
+			every capability is minted for. Two \`handle()\` calls in one process named different
+			ones, so the later one replaced the first: a handle still answering on the first path no
+			longer gets the holes, and pages rendered before the change name the old path.
+
+			Pass one \`endpoint\`, to the one \`handle()\`. (Not said in dev, where a reload of the
+			hooks runs \`handle()\` again.)
+		`
+	},
 	secret_missing_at_runtime: {
 		text: (): string => prose`
 			OGYGIA_SECRET was set when this app was built but is not set where it runs: region
@@ -108,6 +123,24 @@ export const SERVER_ERRORS = {
 
 			Pass plain data, give the class a codec, or move the logic inside the island.
 		`
+	},
+	island_deps_handoff_missing: {
+		text: (a: { kind: string; tried: string; error: string }): string => prose`
+			the client build's handoff (og-region-deps.json) is ${a.kind}${a.error ? ` (${a.error})` : ''}:
+			server-rendered regions go out without their CSS and preloads. Tried: ${a.tried}.
+		`,
+		details: (): string => prose`
+			The client build writes a handoff the server reads as it renders: each island's CSS
+			and code chunks, and what each reads of the page. It is inlined into the server bundle
+			when the build can, and otherwise read from \`og-region-deps.json\` beside the server
+			output. This server found none (\`missing\`), or found one that did not read or parse
+			(\`unreadable\`). Until it has one, a hole renders unstyled, no island code is preloaded
+			and every page ships its whole seed.
+
+			A missing file usually means the deploy dropped it: ship the server output whole, or
+			let the build inline it (an adapter whose file tracing drops runtime reads needs the
+			inlined copy). An unreadable one is tried again on the next request.
+		`
 	}
 };
 
@@ -142,6 +175,18 @@ export const SERVER_WARNINGS = {
 			cannot be cancelled) until what it awaits ends. Renders that outlive their deadline usually
 			await an upstream that hangs: give that fetch a timeout of its own. Said once each time a
 			render is abandoned while no other is.
+		`
+	},
+	page_promise_pending: {
+		text: (a: { path: string; ms: number }): string =>
+			`a promise in the load data of ${a.path || 'a page'} is still pending after ${a.ms} ms: its response stays open until it settles`,
+		details: (): string => prose`
+			Dev only. A load returned a promise (Kit streaming), and the page's response waits for it:
+			a page load streams its value into islands after the document, a router fetch settles it
+			before the document goes out. There is no deadline: a slow stream is allowed, and the wait
+			ends when the visitor leaves. A promise that never settles keeps the response open (and,
+			on a router fetch, the page unsent) for as long as the visitor stays. Give the work behind
+			it a timeout of its own. Said once per response.
 		`
 	},
 	endpoint_props_decode_failed: {

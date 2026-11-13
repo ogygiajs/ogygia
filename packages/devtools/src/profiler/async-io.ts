@@ -133,7 +133,7 @@ export class IoRecorder {
 		try {
 			async_hooks = await import('node:async_hooks');
 		} catch {
-			return null;
+			return null; // ok: off Node there is no async_hooks: the report has no I/O timing
 		}
 		return new IoRecorder(async_hooks);
 	}

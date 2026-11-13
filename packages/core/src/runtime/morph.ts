@@ -1,4 +1,5 @@
 import { slots } from './slots.ts';
+import type { PageGlobals, PendingShadow } from '../page-globals.ts';
 import {
 	attributes_writer,
 	is_declared_foreign,
@@ -642,7 +643,7 @@ function sync_form_props(from: Element, to: Element): void {
 
 function clone(node: Node): Node {
 	const copy = owner_document(node).importNode(node, true);
-	if (node.nodeType === ELEMENT && (globalThis as { __og_restore?: unknown }).__og_restore)
+	if (node.nodeType === ELEMENT && (globalThis as PageGlobals).__og_restore)
 		carry_shadows(node as Element, copy as Element);
 	return copy;
 }
@@ -655,7 +656,7 @@ function carry_shadows(src: Element, dst: Element): void {
 		if (!root || root.mode !== 'open' || (d as Element).shadowRoot) continue;
 		const copy = (d as Element).attachShadow({ mode: 'open', delegatesFocus: root.delegatesFocus });
 		if ((copy as ShadowRoot & { customElementRegistry?: unknown }).customElementRegistry === null) {
-			const w = globalThis as { __og_init?: ShadowRoot[] };
+			const w = globalThis as PageGlobals;
 			(w.__og_init ??= []).push(copy);
 		}
 		for (const c of Array.from(root.childNodes)) copy.appendChild(clone(c));
@@ -664,10 +665,10 @@ function carry_shadows(src: Element, dst: Element): void {
 		} catch {
 			// ok: sheets made for another document; the restorer's pending list covers ours
 		}
-		const pending = (root as ShadowRoot & { __og_pending?: CSSStyleSheet[] }).__og_pending;
+		const pending = (root as PendingShadow).__og_pending;
 		if (pending) {
-			(copy as ShadowRoot & { __og_pending?: CSSStyleSheet[] }).__og_pending = pending;
-			const w = globalThis as { __og_adopt?: { shadow: ShadowRoot; sheets: CSSStyleSheet[] }[] };
+			(copy as PendingShadow).__og_pending = pending;
+			const w = globalThis as PageGlobals;
 			(w.__og_adopt ??= []).push({ shadow: copy, sheets: pending });
 		}
 	}
