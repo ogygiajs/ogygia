@@ -26,6 +26,7 @@ import { use_v8_modules } from './modules.ts';
 import { ANSWERED_BY, ELSEWHERE, Network, answering_now, type FaultClass } from './network.ts';
 import { install, platform } from './platform.ts';
 import { rng, type Rng } from './rng.ts';
+import { server_fetch } from './server-fetch.ts';
 import {
 	current_server,
 	own_env,
@@ -296,7 +297,7 @@ export class World {
 		globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
 			const request = new Request(input, init);
 			const from = current_server.getStore()?.name ?? 'server';
-			return w.network.send(from, request, (r) => w.#route(r, from));
+			return server_fetch(request, (r) => w.network.send(from, r, (q) => w.#route(q, from)));
 		};
 		// a page's (or a server's) uncaught error reaches the host process: it is the run's finding,
 		// not the simulator's crash
