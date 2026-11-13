@@ -902,22 +902,15 @@ class FileCompilation {
 		}
 		const said = from_preset ? `preset '${from_preset}'` : 'this import';
 		if (render_mode === 'deferred' && wake_val != null) {
-			if (fetch_val != null) {
-				throw fail(
-					`${said} times a \`${import_keys.render}: 'deferred'\` hole twice, with \`${import_keys.fetch}: '${fetch_val}'\` and \`${import_keys.wake}: '${wake_val}'\`. Keep \`${import_keys.fetch}\`: it says when a hole's HTML arrives.`
-				);
-			}
-			warn_once(`deferred-wake:${rel_host}:${said}:${wake_val}`, () =>
-				warn('hole_wake_deprecated', {
-					host: rel_host,
-					said,
-					render_key: import_keys.render,
-					wake_key: import_keys.wake,
-					fetch_key: import_keys.fetch,
-					value: wake_val
-				})
-			);
-			fetch_val = wake_val;
+			throw new OgygiaError('hole_wake_removed', {
+				host: rel_host,
+				said,
+				render_key: import_keys.render,
+				wake_key: import_keys.wake,
+				fetch_key: import_keys.fetch,
+				wake: wake_val,
+				fetch: fetch_val ?? wake_val
+			});
 		}
 		if (fetch_val != null && render_mode !== 'deferred') {
 			throw fail(
@@ -1897,28 +1890,16 @@ class TsRegionCompilation {
 						});
 			}
 			if (marker.wake != null) {
-				if (marker.fetch != null) {
-					throw new OgygiaError('held_hole_timed_twice', {
-						host: this.#rel_host,
-						render_key: renderKey,
-						fetch_key: fetchKey,
-						wake_key: this.#wakeKey,
-						fetch: marker.fetch,
-						wake: marker.wake
-					});
-				}
-				const wake = marker.wake;
-				warn_once(`deferred-wake:${this.#rel_host}:ts:${wake}`, () =>
-					warn('hole_wake_deprecated', {
-						host: this.#rel_host,
-						render_key: renderKey,
-						wake_key: this.#wakeKey,
-						fetch_key: fetchKey,
-						value: wake
-					})
-				);
+				throw new OgygiaError('hole_wake_removed', {
+					host: this.#rel_host,
+					render_key: renderKey,
+					wake_key: this.#wakeKey,
+					fetch_key: fetchKey,
+					wake: marker.wake,
+					fetch: marker.fetch ?? marker.wake
+				});
 			}
-			const dval = marker.fetch ?? marker.wake ?? 'load';
+			const dval = marker.fetch ?? 'load';
 			let when: string;
 			if (parse_trigger(dval, WAKE)) when = dval;
 			else

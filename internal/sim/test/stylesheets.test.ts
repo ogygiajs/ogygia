@@ -73,4 +73,22 @@ describe('stylesheets of a simulated tab', () => {
 		});
 		expect(asked).toEqual(['/later.css']);
 	});
+
+	// #1702: the router reads `link.disabled` to find Kit's parked sheets and rewrite their relative
+	// hrefs before a navigation moves the address (router-nav.ts own_live_head); happy-dom had no
+	// such property, so the simulator kept them relative where every browser rewrote them.
+	it('a link says it is disabled as the attribute does, and setting it sets the attribute', async () => {
+		const seen: unknown[] = [];
+		await run(
+			'<link rel="stylesheet" href="/parked.css" disabled><link rel="stylesheet" href="/on.css">',
+			(doc) => {
+				const [parked, on] = doc.querySelectorAll('link');
+				seen.push(parked.disabled, on.disabled);
+				on.disabled = true;
+				parked.disabled = false;
+				seen.push(on.hasAttribute('disabled'), parked.hasAttribute('disabled'));
+			}
+		);
+		expect(seen).toEqual([true, false, true, false]);
+	});
 });
