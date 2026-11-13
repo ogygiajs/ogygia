@@ -251,7 +251,7 @@ const browser_tasks = dry([
 				kind: 'browser',
 				engines: ['chromium', 'firefox', 'webkit', 'firefox-stable']
 			},
-			{ suite: 'packages/reshape browser tests', kind: 'browser', engines: ['chromium'] },
+			{ suite: 'packages/rewrite browser tests', kind: 'browser', engines: ['chromium'] },
 			{ suite: 'apps/palaestra e2e', kind: 'e2e', engines: ['chromium', 'firefox', 'webkit'] },
 			{ suite: 'packages/router e2e', kind: 'e2e', engines: ['chromium', 'firefox', 'webkit'] }
 		]
