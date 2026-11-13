@@ -31,7 +31,7 @@ import {
 import { dedent } from '@ogygia/core/contract';
 import { ogygia } from '../src/vite/index.ts';
 import { definePlugin } from '../src/vite/plugin-api.ts';
-import { keep_client_dir, kit_dirs, set_kit_inline_style_threshold } from '../src/compiler/kit.ts';
+import { keep_client_dir } from '../src/compiler/kit.ts';
 import { server_handoff_json, server_handoff_path } from '../src/compiler/link/emit-gate.ts';
 import {
 	foucCssVirtualId,
@@ -42,6 +42,7 @@ import { EVERY_BARREL } from '../src/compiler/exports/index.ts';
 import { remote_hash_of } from '../src/compiler/link/island-deps.ts';
 import { BuildCache, __set_build_cache_root } from '../src/compiler/build-cache.ts';
 import { scan_entry_pattern } from '../src/vite/paths.ts';
+import { load_kit_config } from '../src/vite/kit-dirs.ts';
 import { DEV_CLIENT_MAPS, DEV_MAPS, DEV_PAGE_KEYS } from '../src/vite/dev-maps.ts';
 import type { OgygiaOptions } from '../src/vite/options.ts';
 
@@ -71,6 +72,9 @@ afterEach(() => {
 	if (saved_rules === undefined) delete process.env.OGYGIA_RULES;
 	else process.env.OGYGIA_RULES = saved_rules;
 });
+
+/** Where the keep-client route goes in the app's routes dir. */
+const keep = (routes = 'src/routes') => keep_client_dir(path.join(root, routes));
 
 const write = (rel: string, text: string) => {
 	const abs = path.join(root, rel);
@@ -313,10 +317,10 @@ describe('the config hook', () => {
 	it("a build of an all-csr=false app injects Kit's keep-client route", async () => {
 		app();
 		await setup('build');
-		expect(existsSync(path.join(keep_client_dir(root), '+layout.ts'))).toBe(true);
+		expect(existsSync(path.join(keep(), '+layout.ts'))).toBe(true);
 		// (a layout with no page under it: Kit builds its client, and no URL serves it)
-		expect(readdirSync(keep_client_dir(root), { recursive: true })).toEqual(['+layout.ts']);
-		expect(readFileSync(path.join(keep_client_dir(root), '+layout.ts'), 'utf8')).toMatch(
+		expect(readdirSync(keep(), { recursive: true })).toEqual(['+layout.ts']);
+		expect(readFileSync(path.join(keep(), '+layout.ts'), 'utf8')).toMatch(
 			/^export const csr = true;$/m
 		);
 	});
@@ -334,17 +338,14 @@ describe('the config hook', () => {
 		expect(armed).toHaveLength(1);
 		process.off('exit', armed[0]);
 		(armed[0] as () => void)();
-		expect(existsSync(keep_client_dir(root))).toBe(false);
+		expect(existsSync(keep())).toBe(false);
 	});
 
 	it('a keep-client route left on disk is not one of the routes that decide it', async () => {
 		app();
-		write(
-			path.relative(root, path.join(keep_client_dir(root), '+layout.ts')),
-			'export const csr = true;\n'
-		);
+		write(path.relative(root, path.join(keep(), '+layout.ts')), 'export const csr = true;\n');
 		await setup('build');
-		expect(existsSync(path.join(keep_client_dir(root), '+layout.ts'))).toBe(true);
+		expect(existsSync(path.join(keep(), '+layout.ts'))).toBe(true);
 	});
 
 	it("the keep-client route goes in the routes dir the app's Kit config names", async () => {
@@ -352,32 +353,32 @@ describe('the config hook', () => {
 		write('src/pages/+page.svelte', '<p>page</p>\n');
 		write('src/pages/+layout.ts', 'export const csr = false;\n');
 		await setup('build');
-		expect(keep_client_dir(root).startsWith(path.join(root, 'src/pages'))).toBe(true);
-		expect(existsSync(path.join(keep_client_dir(root), '+layout.ts'))).toBe(true);
+		expect(existsSync(path.join(keep('src/pages'), '+layout.ts'))).toBe(true);
+		expect(existsSync(keep())).toBe(false);
 	});
 
 	it('a build of an app Kit hydrates sweeps a stale keep-client route', async () => {
 		app({ csr: true });
-		write(path.relative(root, path.join(keep_client_dir(root), '+layout.ts')), '// stale\n');
+		write(path.relative(root, path.join(keep(), '+layout.ts')), '// stale\n');
 		await setup('build');
-		expect(existsSync(keep_client_dir(root))).toBe(false);
+		expect(existsSync(keep())).toBe(false);
 	});
 
 	it('the dev server and a standalone build never inject it', async () => {
 		app();
 		await setup('serve');
-		expect(existsSync(keep_client_dir(root))).toBe(false);
+		expect(existsSync(keep())).toBe(false);
 		await setup('build', { options: { standalone: true } });
-		expect(existsSync(keep_client_dir(root))).toBe(false);
+		expect(existsSync(keep())).toBe(false);
 	});
 });
 
 describe('configResolved', () => {
 	it('the dev server sweeps a keep-client route a crashed build left', async () => {
 		app();
-		write(path.relative(root, path.join(keep_client_dir(root), '+layout.ts')), '// stale\n');
+		write(path.relative(root, path.join(keep(), '+layout.ts')), '// stale\n');
 		await setup('serve');
-		expect(existsSync(keep_client_dir(root))).toBe(false);
+		expect(existsSync(keep())).toBe(false);
 	});
 
 	it("dev hands Vite's scanner each island file as an entry, after the app's own, once", async () => {
@@ -1040,7 +1041,19 @@ describe("a plugin's stage transforms and seams", () => {
 });
 
 describe('the build legs', () => {
-	const handoff = () => server_handoff_path(kit_dirs(root).out_dir);
+	const handoff = () => server_handoff_path(path.join(root, '.svelte-kit'));
+
+	it("the plugin keeps its app's Kit config however many other apps were configured since (#633)", async () => {
+		app();
+		write('svelte.config.mjs', "export default { kit: { outDir: 'kit-out' } };\n");
+		const custom = server_handoff_path(path.join(root, 'kit-out'));
+		write(path.relative(root, custom), '["stale"]');
+		const { p } = await setup('build');
+		const others = path.join(root, 'others');
+		for (let i = 0; i <= 10_000; i++) await load_kit_config(path.join(others, String(i)));
+		await p.buildStart.call(hook_this('ssr'));
+		expect(existsSync(custom)).toBe(false);
+	}, 60_000);
 
 	it("the server leg drops an earlier build's handoff, then writes its own", async () => {
 		app();
@@ -1479,10 +1492,10 @@ describe('the build legs', () => {
 					void b.markup({ extensions: ['.svx'], modules: [[doc, readFileSync(doc, 'utf8')]] })
 			})
 		];
+		write('svelte.config.mjs', 'export default { kit: { inlineStyleThreshold: 1000 } };\n');
 		const { p } = await setup('build', { plugins });
 		await begin(p, 'ssr');
 		await p.transform.call(hook_this('ssr'), readFileSync(routes, 'utf8'), routes, { ssr: true });
-		set_kit_inline_style_threshold(root, 1000);
 		const t = hook_this('client');
 		await p.buildStart.call(t);
 		await p.generateBundle.call(t, {}, {});
