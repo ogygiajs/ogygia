@@ -27,6 +27,11 @@
 				"app": "palaestra",
 				"plan": "internal/sim/sweep-plans/palaestra-render-kept-gone.json",
 				"reaches": ["render cache: kept -> gone"]
+			},
+			{
+				"app": 192,
+				"plan": "internal/sim/sweep-plans/gen192-hole-failed-armed.json",
+				"reaches": ["hole: failed -> armed"]
 			}
 		]
 	},
@@ -34,7 +39,6 @@
 		"batch stream: streaming -> cancelled",
 		"batch stream: streaming -> ended",
 		"batch-stream: reading -> reading",
-		"batch-stream: reading -> stalled",
 		"batch-stream: sending -> reading",
 		"build location map: flying -> gone",
 		"build location map: flying -> kept",
@@ -220,6 +224,48 @@
 			"name": "a scheduled region removed for good is detached once"
 		},
 		{
+			"step": "lake: open -> waited",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "a region in an unsettled lake waits; in a settled one it runs"
+		},
+		{
+			"step": "lake: open -> settled",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "a lake nobody waited on wakes nobody after its swap"
+		},
+		{
+			"step": "lake: waited -> settling",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "settled before its swap, a lake wakes the regions that waited only after it"
+		},
+		{
+			"step": "lake: settling -> settled",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "settled before its swap, a lake wakes the regions that waited only after it"
+		},
+		{
+			"step": "lake: waited -> settled",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "a lake whose refresh failed for good is settled as it stands"
+		},
+		{
+			"step": "interaction-arming: armed -> woken",
+			"reason": "new with the interaction arming machine (it replaced a hand-switched state field): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/interaction-delegated.test.ts",
+			"name": "an event inside an armed region wakes THAT region only, once; the pointer warms once"
+		},
+		{
+			"step": "interaction-arming: woken -> over",
+			"reason": "new with the interaction arming machine (it replaced a hand-switched state field): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/interaction-rearm.test.ts",
+			"name": "a capture armed again while the first one’s wake loads catches the next click, and the first leaves it alone"
+		},
+		{
 			"step": "critical resources: kept -> gone",
 			"reason": "a page asks only before the gate settles, and the answer is kept only after it: no later get, no expiry, no max; only reset_load_scheduler() drops it, which a test's reset calls",
 			"test": "packages/core/test/browser/load-scheduler.test.ts",
@@ -386,6 +432,12 @@
 			"reason": "a batch POST whose answer never starts for the stall deadline: one network stall aimed at one request, which the sweep's runs met by luck only, and lost when timings moved",
 			"test": "packages/core/test/browser/frame-stream-stall.test.ts",
 			"name": "an answer that never starts: the stream is given up while sending, and its holes are let go"
+		},
+		{
+			"step": "batch-stream: reading -> stalled",
+			"reason": "a batch answer that goes quiet after its first part for the stall deadline: a midway network stall aimed at one batch POST, which one palaestra seed in 300 met by luck, and none of 800 more once the load timings moved",
+			"test": "packages/core/test/browser/frame-stream-stall.test.ts",
+			"name": "sends one frame and stalls: the hole it carried has it, the others fail and fetch on their own"
 		},
 		{
 			"step": "live-region: failed -> hydrating",

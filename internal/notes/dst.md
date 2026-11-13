@@ -103,12 +103,17 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
 - Its `document.getElementsByTagNameNS` read the document's owner document (it has none) and
   threw: the search from a document reads the document as its own owner
   (`documents_by_namespace`, `test/document.test.ts`).
-- It records no resource timing (its `PerformanceObserver` is the host's, which hears none of a
-  page's downloads), so ogygia's import-again never learned whether a failed chunk's own file came.
-  Each document gets its own timeline and observer (`src/timeline.ts`), fed by its downloads on
-  the simulated network, read the seed's engine's way (`timeline engine`): `status` (Chromium,
-  Firefox: every download an entry with its `responseStatus`, a dropped one 0) or `start` (WebKit:
-  no status, no entry for a dropped download). Observer callbacks are tasks of the document.
+- It hands every window Node's one `performance` (so every tab read the newest document's clock,
+  and the host's entries), records no resource timing and has no navigation entry, and its
+  `PerformanceObserver` is the host's. So ogygia's import-again never learned whether a failed
+  chunk's own file came, its critical wait never read a preload's arrival, and its paint gate
+  never read when DOMContentLoaded ended. Each document gets its own `performance` and observer
+  (`src/timeline.ts`, `test/performance.test.ts`): its clock from its navigation's start, a
+  navigation entry stamped as its parse and events run, user timing, and a resource entry per
+  download once its body came, read the seed's engine's way (`timeline engine`): `status`
+  (Chromium, Firefox: every download an entry with its `responseStatus`, a dropped one 0) or
+  `start` (WebKit: no status, no entry for a dropped download). Observer callbacks are tasks of
+  the document.
 - It loads no image by default: every image read `complete` at once, and the critical wait (an
   incomplete `img[fetchpriority=high]`) was never seen. Images load over the simulated network
   (`enableImageFileLoading`, `test/images.test.ts`); the waste oracle leaves them out, as the
@@ -426,10 +431,19 @@ debugging over the actions (`src/shrink.ts`), several candidates side by side in
 a candidate only while it fails with the same signature (`ci.ts` `signature`). The shrunk run is
 replayed twice (equal traces, or the shrink says so), and its actions, finding and the trace's
 tail are printed. It writes `plans/<name>.min.json` (`--plan <file> --step N` prints the whole
-trace) and `test/found/<name>.test.ts`, a regression test that runs the plan and expects the
-finding gone: it fails while the bug stands, and skips when the app on disk is not the one it was
-found on (a generated app's seed, from its plan.json). Rename it to say the behavior, and put it
-on the finding's `sim/found-<name>` branch.
+trace) and `.scratch/found/<name>.test.ts` (gitignored, with any hand probes), a regression test
+that runs the plan and expects the finding gone: it fails while the bug stands, and skips when the
+app on disk is not the one it was found on (a generated app's seed, from its plan.json). Filed,
+rename it to say the behavior and move it to `test/found/` on the finding's `sim/found-<name>`
+branch: `test/found/` holds only tests put there on purpose.
+
+A plan picks by name: each click, press or hover records what it picked (`names`: a link's
+address, a button's region and text), and its replay picks the same on a page whose elements
+moved; a name its page no longer has falls back to the draw and is said (`missed`). Each request
+draws its fate (delay, drop, cut, stall) from a stream of its own, named by its document, method,
+address (build-specific query values out) and how many times it was asked, so one more request
+never moves another's. A sweep plan that misses its step says what its run took of that machine,
+and what it named that was gone.
 
 ## The real-browser tier
 
