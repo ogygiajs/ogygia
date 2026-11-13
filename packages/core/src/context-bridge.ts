@@ -273,9 +273,3 @@ export function setContext<T>(key: unknown, value: T, opts?: SetContextOptions):
 	record_ctx(key, value, opts);
 	return svelte_set_context(key, value);
 }
-
-/**
- * Kept for ABI: the build still emits a registration call for each `createContext(...)` export (that
- * used to tag keyless handles by `module#export`). Keys are explicit now, so this is a no-op.
- */
-export function __tag_context(): void {}
