@@ -1,4 +1,3 @@
-import { relocate_trailing_empty_comments } from './lake-anchors.ts';
 import { on_schedule } from '../contract/trigger.ts';
 import { clock } from '@ogygia/machine';
 import {
@@ -12,22 +11,22 @@ import {
 	region_remount
 } from './region-attrs.ts';
 import { runtime_session } from './session.ts';
-import { slots, type LakeArm, type LiftedLake } from './slots.ts';
+import { slots, type HeldLake, type LakeArm } from './slots.ts';
 import { warn } from '../messages/core.ts';
-import { OG_LAKE, OG_STATIC } from '../wire-markup.ts';
+import { OG_LAKE } from '../wire-markup.ts';
 import { note_lake_restore } from './rules.ts';
 
 // the runtime's rules (./rules.ts): dev, and a build made with OGYGIA_RULES=1; folds out elsewhere
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
-/** Feature entry: fill the `lakes` slot so core lifts/restores frozen regions. */
+/** Feature entry: fill the `lakes` slot so core holds/releases frozen regions. */
 export function install(): void {
 	slots.lakes = {
 		on_frozen_connect,
 		wait_for_boundary,
-		lift,
-		restore,
+		hold,
+		release,
 		settle_in,
 		mark_frozen_settled,
 		after_html_swap,
@@ -39,19 +38,10 @@ export function settle_in(root: ParentNode): void {
 	runtime_session.settle_lakes_in(root);
 }
 
-// A lake inside a LIVE snippet belongs to the snippet's own hydrate, which runs after the host's (its
-// entry imports) and adopts the lake element as it stands (Region.svelte `lake_adopt`). The host's
-// hydrate never walks into the snippet (it adopts the snippet element), so lifting the lake there only
-// moved its trailing anchors in front of its content, and the snippet's hydrate then mismatched.
-const in_live_snippet = (lake: Element, parent: Element) => {
-	const snippet = lake.parentElement?.closest('ogygia-snippet');
-	return !!snippet && parent.contains(snippet) && !snippet.hasAttribute(OG_STATIC);
-};
-
-/** The lakes `parent`'s own hydrate lifts and restores: nearest region is `parent`, outside live snippets. */
-const lifted_lakes_of = (parent: Element) =>
+/** The lakes `parent`'s own hydrate holds and releases: nearest region is `parent`. */
+const hosted_lakes_of = (parent: Element) =>
 	[...parent.querySelectorAll(FROZEN_SELECTOR)].filter(
-		(l) => l.parentElement?.closest('ogygia-region') === parent && !in_live_snippet(l, parent)
+		(l) => l.parentElement?.closest('ogygia-region') === parent
 	);
 
 const lake_identity_of = (lake: Element) =>
@@ -68,56 +58,40 @@ function lake_key(lake: Element): string {
 	return rank ? `${identity}#${rank}` : identity;
 }
 
-export function lift(parent: Element): LiftedLake[] {
-	const lifted: LiftedLake[] = [];
-	for (const lake of lifted_lakes_of(parent)) {
-		const id = lake_key(lake);
-		const frag = document.createDocumentFragment();
-		while (lake.firstChild) frag.appendChild(lake.firstChild);
-		relocate_trailing_empty_comments(frag, lake);
-		lifted.push({
-			id,
-			frag,
-			endpoint: lake.getAttribute('endpoint') || '',
-			when: lake.getAttribute('when') || 'load',
-			maxAgeMs: region_max_age_ms(lake)
-		});
-	}
-	return lifted;
+/** Each lake `parent`'s hydrate is about to adopt, by its key. Nothing moves. */
+export function hold(parent: Element): HeldLake[] {
+	return hosted_lakes_of(parent).map((lake) => ({ id: lake_key(lake), lake }));
 }
 
-export function restore(parent: Element, lifted: LiftedLake[]): void {
-	const by_key = new Map(lifted.map((l) => [l.id, l]));
-	const pairs: Array<[Element, LiftedLake]> = [];
-	for (const lake of lifted_lakes_of(parent)) {
-		const own = by_key.get(lake_key(lake));
-		if (own) pairs.push([lake, own]);
-	}
-	if (RULES) note_lake_restore(parent, lifted.length, pairs.length);
-	// a live snippet's lakes stayed in place: settled and remembered here all the same, as the host is awake
-	for (const lake of parent.querySelectorAll(FROZEN_SELECTOR)) {
-		if (lake.parentElement?.closest('ogygia-region') !== parent || !in_live_snippet(lake, parent))
-			continue;
+/** After the hydrate: each lake `parent` holds now is settled and remembered, and the regions that
+ *  waited on it run. A lake the hydrate created fresh (Svelte threw the server DOM away) takes the
+ *  content of the one it held under that key. */
+export function release(parent: Element, held: HeldLake[]): void {
+	const by_key = new Map(held.map((h) => [h.id, h.lake]));
+	let found = 0;
+	for (const lake of hosted_lakes_of(parent)) {
 		const id = lake_key(lake);
+		const was = by_key.get(id);
+		if (was) found++;
+		const moved = !!was && was !== lake && !was.isConnected;
 		settle_in(lake);
 		runtime_session.initialized_lakes.add(id);
+		if (moved) {
+			settle_in(was);
+			const endpoint = was.getAttribute('endpoint');
+			if (endpoint && !lake.getAttribute('endpoint')) lake.setAttribute('endpoint', endpoint);
+			while (was.firstChild) lake.appendChild(was.firstChild);
+		}
 		remember(lake, id, {
 			endpoint: lake.getAttribute('endpoint') || '',
 			when: lake.getAttribute('when') || 'load',
 			maxAgeMs: region_max_age_ms(lake)
 		});
-		// not moved, so nothing reconnects: re-enter the regions that waited on this lake
-		for (const r of lake.querySelectorAll('ogygia-region'))
-			(r as HTMLElement & { connectedCallback?(): void }).connectedCallback?.();
+		if (!moved)
+			for (const r of lake.querySelectorAll('ogygia-region'))
+				(r as HTMLElement & { connectedCallback?(): void }).connectedCallback?.();
 	}
-	for (const [lake, { id, frag, endpoint, when, maxAgeMs }] of pairs) {
-		settle_in(lake);
-		settle_in(frag);
-		runtime_session.initialized_lakes.add(id);
-		lake.appendChild(frag);
-		if (endpoint && !lake.getAttribute('endpoint')) lake.setAttribute('endpoint', endpoint);
-		remember(lake, id, { endpoint, when, maxAgeMs });
-	}
+	if (RULES) note_lake_restore(parent, held.length, found);
 }
 
 /** A lake with no AWAKE region host: nothing will ever lift/restore it (that is a host island's

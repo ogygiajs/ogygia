@@ -19,7 +19,7 @@ import { foreign_region_prop_revivers } from './foreign-props.ts';
 import { SEED_REF_KEY, seed_ref_reviver } from '../seed-ref-reviver.ts';
 import { parse_sidecar_text } from './wire-format.ts';
 import { is_deferred, ours_on_kit_document, region_ssr_truncated } from './region-attrs.ts';
-import { boot_link, slots, type LiftedLake } from './slots.ts';
+import { boot_link, slots, type HeldLake } from './slots.ts';
 import { report_thrown } from '../report-thrown.ts';
 import type { HeadMark } from './session.ts';
 import { install_hydrate_features } from 'ogygia:boot';
@@ -362,12 +362,8 @@ export function repair_if_drifted(
 	// sequence_differs. Today ssr_html is the region's own live innerHTML (never serialises a shadow), so
 	// this is belt-and-braces — but it means there is no second, DSD-unaware parse to drift.
 	const content = parse_own_html(ssr_html);
-	// The copy under a region of its own — in the parse fragment's inert document, so the element never
-	// upgrades — lifted by the very routine that lifted the live island (what it leaves in a lake, it
-	// leaves in both).
 	const want = content.ownerDocument.createElement('ogygia-region');
 	want.appendChild(content);
-	slots.lakes.lift(want);
 	if (!sequence_differs(region, want)) return { repaired: false, reason: null, conflict: null };
 	// Name the drift BEFORE repairing (repair rewrites the live sequence). The string is read only by
 	// the DEV console + devtools, so a prod-without-devtools build skips building it (the walk DCEs).
@@ -727,17 +723,14 @@ export function hydrate_island(
 	// island client-side: a flash, DSD/foreign content destroyed, and the tap that woke the
 	// island replayed onto a discarded node (a login dropdown needed two clicks). So, BEFORE the
 	// walk runs (see sequence_differs for why before), the live sequence is compared with the
-	// server's and put back when it drifted; the walk then sees the server's sequence. Measured
-	// on what the walk sees: the lakes lifted (repair_if_drifted empties the copy's the same way).
+	// server's and put back when it drifted; the walk then sees the server's sequence.
 	// The head as it stands before this island renders into it: whatever the hydrate adds is the
 	// island's own (runtime/session.ts — who owns each node in <head>). The step is synchronous, so
 	// nothing else writes the head in between.
 	// (noted as it happens, not by copying the head: a copy per island grew as islands × head; only
 	// where the record is made, a non-Kit document — a csr=true page's head is Kit's)
-	// (made inside the try, so its observer always stops: the lift and the repair below touch only
-	// the region, never the head)
 	let head_mark: HeadMark | null = null;
-	let lifted: LiftedLake[] | null = slots.lakes.lift(region);
+	let held: HeldLake[] | null = slots.lakes.hold(region);
 	const drift =
 		ssr_html !== null && touched && region.isConnected
 			? repair_if_drifted(region, ssr_html)
@@ -875,11 +868,8 @@ export function hydrate_island(
 			if (import.meta.env.DEV) warn('ownership_conflict', { element: drift.conflict }, entry);
 		}
 
-		// Restore each frozen region's SSR DOM AFTER hydrate. An inner waking region whose
-		// `<ogygia-region wake="…">` (re)connects then self-runs — the freeze made its subtree dead
-		// again, so the nearest-boundary rule wakes that inner region.
-		slots.lakes.restore(region, lifted);
-		lifted = null; // ownership transferred
+		slots.lakes.release(region, held);
+		held = null;
 
 		// Region was torn out during hydrate (SWR replaceChildren on an ancestor lake) — drop the
 		// orphan app.
@@ -936,8 +926,7 @@ export function hydrate_island(
 		return out;
 	} finally {
 		head_mark?.stop();
-		// If hydrate threw after lift, put lake DOM back so the page isn't permanently blank.
-		if (lifted) slots.lakes.restore(region, lifted);
+		if (held) slots.lakes.release(region, held);
 	}
 }
 
