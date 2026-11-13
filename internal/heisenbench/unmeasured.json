@@ -293,10 +293,6 @@
 			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
 		},
 		{
-			"id": "packages/core/src/runtime/rules.ts > no_hash",
-			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
-		},
-		{
 			"id": "packages/core/src/runtime/rules.ts > no_old_page_open",
 			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
 		},
@@ -326,10 +322,6 @@
 		},
 		{
 			"id": "packages/core/src/runtime/rules.ts > watch_router",
-			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
-		},
-		{
-			"id": "packages/core/src/runtime/rules.ts > watch_router > add:1~d995ad",
 			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
 		},
 		{
