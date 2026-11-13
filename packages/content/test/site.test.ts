@@ -759,6 +759,18 @@ describe('search — projection', () => {
 		expect(strip_prose(src)).toBe('Heading Some bold and code and a link.');
 	});
 
+	// tags are cut where the browser cuts them (#1370): a `<` that opens no tag is a word's, a `>` in
+	// a quoted value stays inside its tag, a script's text is not prose, inline code is literal text
+	it('strip_prose keeps the words the browser shows, whatever the tags hold', () => {
+		expect(strip_prose('a < b and c > d')).toBe('a < b and c d');
+		expect(strip_prose('<a title="x>y" data-q=\'"\'>go</a> on')).toBe('go on');
+		expect(strip_prose('<p>one</p><script>if (a < b) x()</script><style>p{}</style>two')).toBe(
+			'one two'
+		);
+		expect(strip_prose('use `<script>` here. More text.')).toBe('use script here. More text.');
+		expect(strip_prose('<!-- a <b>note</b> --> kept')).toBe('kept');
+	});
+
 	it('split_sections chunks by heading, aligned to collected headings', () => {
 		const source = dedent`
 				# Install

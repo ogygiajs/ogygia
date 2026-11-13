@@ -79,7 +79,7 @@ export function stream_document(
 	const at = head_end(full_html);
 	const with_boot =
 		at === -1 ? full_html : `${full_html.slice(0, at)}${LATE_BOOT_SCRIPT}${full_html.slice(at)}`;
-	const cut = with_boot.lastIndexOf('</body>');
+	const cut = with_boot.lastIndexOf('</body>'); // markup-ok: as document-assembly.ts (#1410)
 	const head_part = cut === -1 ? with_boot : with_boot.slice(0, cut);
 	const tail_part = cut === -1 ? '' : with_boot.slice(cut);
 	const enc = new TextEncoder();

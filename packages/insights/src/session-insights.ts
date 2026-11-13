@@ -230,7 +230,7 @@ const path_of = (u: string) => {
 		const x = new URL(u);
 		return x.pathname + (x.search.length > 1 ? x.search.slice(0, 40) : '');
 	} catch {
-		return u;
+		return u; // ok: not a URL: shown as given
 	}
 };
 
@@ -239,7 +239,7 @@ function same_origin_get(url: string, page_url: string): boolean {
 	try {
 		return new URL(url).origin === new URL(page_url).origin && !url.includes('/__profiler');
 	} catch {
-		return false;
+		return false; // ok: not a URL: not one the profiler can render
 	}
 }
 
