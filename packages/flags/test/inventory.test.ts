@@ -71,6 +71,22 @@ export const y = flag('static-one');
 			{ name: 'in-svelte', kind: 'flag', file: 'src/C.svelte', line: 4 }
 		]);
 	});
+
+	it('svelte: a script tag in a markup comment or an attribute value is not a script', () => {
+		const src = `<!-- <script>
+	import { flag } from '@ogygia/flags';
+	flag('commented-out');
+</script> -->
+<div title="<script>import { flag } from '@ogygia/flags'; flag('in-attr');</script>"></div>
+<script module data-x="a>b">
+	import { flag } from '@ogygia/flags';
+	export const live = flag('live');
+</script>
+`;
+		expect(collect_flag_sites(src, '/a/C.svelte', 'src/C.svelte')).toEqual([
+			{ name: 'live', kind: 'flag', file: 'src/C.svelte', line: 8 }
+		]);
+	});
 });
 
 describe('flags_manifest', () => {
