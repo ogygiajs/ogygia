@@ -29,7 +29,7 @@ function read_manifest(dir: string): Record<string, unknown> | null {
 	try {
 		return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
 	} catch {
-		return null;
+		return null; // ok: a dependency not installed under this root declares nothing (the package manager refuses a broken manifest)
 	}
 }
 
@@ -58,7 +58,7 @@ export function discover_package_files(app_root: string): PackageScan[] {
 		try {
 			root = fs.realpathSync(pkg_dir);
 		} catch {
-			continue;
+			continue; // ok: its manifest was just read, so only a removal mid-scan lands here
 		}
 		const dirs: string[] = [];
 		const files = new Set<string>();

@@ -1,57 +1,11 @@
-/**
- * Detect whether a source file uses an ogygia **context provider** — `Provide`, the drop-in
- * `setContext`, or `createContext` imported from `'ogygia'`. Drives the `context` runtime mark, which
- * gates the ~4.7 kB cross-island context bridge OUT of apps that never provide context.
- *
- * WHY IMPORT-CLAUSE SCANNING IS SOUND: every entry point to the bridge is an
- * `import { … } from 'ogygia'` (or a namespace import used as `og.setContext(…)`) naming one of the
- * three. A read-only `getContext` needs no bridge, so it's deliberately NOT a trigger. Over-inclusion
- * is the safe direction — a MISSED provider silently drops context inside islands, an extra include is
- * just bytes — so the scan biases to include: any one matching file in `src/` sets the whole-app mark.
- *
- * Regexes are module-level (compiled once); `source_uses_ogygia_context` runs per file in the prescan
- * walk. The `g` regexes are stateful, so each use resets `lastIndex`. (The READER side — `getContext`
- * — instead follows the import binding through the AST, see `context_keys` below; a text
- * scan there would count an unrelated `getContext`.)
- */
 import { parse_roots } from './page-keys.ts';
-import { OWN_PACKAGE_NAMES, OWN_SPECIFIER_SOURCE, key_name } from '@ogygia/core/contract';
+import { OWN_PACKAGE_NAMES, key_name } from '@ogygia/core/contract';
 import type { AstNode } from '../parse/oxc.ts';
 
-/** Loose AST node — the parser hands ESTree-ish objects; positions/back-refs are skipped by the walk. */
 type SvelteNode = AstNode;
 
-// (`ogygia` in an app; `@ogygia/core` in a plugin package's own components)
-const OGYGIA_NAMED_IMPORT = new RegExp(
-	`import\\s+(?:type\\s+)?\\{([\\s\\S]*?)\\}\\s*from\\s*['"]${OWN_SPECIFIER_SOURCE}['"]`,
-	'g'
-);
-const OGYGIA_NS_IMPORT = new RegExp(
-	`import\\s*\\*\\s*as\\s+(\\w+)\\s*from\\s*['"]${OWN_SPECIFIER_SOURCE}['"]`
-);
-const CTX_PROVIDER = /\b(?:Provide|setContext|createContext)\b/;
-const NS_CTX_USAGE = /\b(\w+)\.(?:Provide|setContext|createContext)\b/g;
-
-export function source_uses_ogygia_context(src: string): boolean {
-	OGYGIA_NAMED_IMPORT.lastIndex = 0;
-	let m: RegExpExecArray | null;
-	while ((m = OGYGIA_NAMED_IMPORT.exec(src))) if (CTX_PROVIDER.test(m[1])) return true;
-	// Namespace form (`import * as og from 'ogygia'; og.setContext(…)`) — rare, still covered.
-	const ns = OGYGIA_NS_IMPORT.exec(src);
-	if (!ns) return false;
-	NS_CTX_USAGE.lastIndex = 0;
-	let u: RegExpExecArray | null;
-	while ((u = NS_CTX_USAGE.exec(src))) if (u[1] === ns[1]) return true;
-	return false;
-}
-
-/** Modules whose `getContext` reads the Svelte/ogygia context map (both resolve the same map — ogygia
- *  re-exports Svelte's, and the drop-in is read with the unchanged `getContext`). */
-// static: the modules a context call can come from (Svelte and ogygia's own packages)
-const CTX_MODULES = new Set(['svelte', ...OWN_PACKAGE_NAMES]);
-/** AST back-references / positions the walk must not descend into. */
-// static: the AST node keys the walk never descends into
-const NODE_SKIP = new Set([
+const CTX_MODULES: ReadonlySet<string> = new Set(['svelte', ...OWN_PACKAGE_NAMES]);
+const NODE_SKIP: ReadonlySet<string> = new Set([
 	'start',
 	'end',
 	'loc',
@@ -64,7 +18,6 @@ const NODE_SKIP = new Set([
 	'__key'
 ]);
 
-/** An import/member name node → its string name (`Identifier` or a string `Literal`). */
 function name_of(n: SvelteNode | undefined): string | null {
 	if (!n) return null;
 	if (n.type === 'Identifier') return n.name ?? null;
@@ -72,7 +25,6 @@ function name_of(n: SvelteNode | undefined): string | null {
 	return null;
 }
 
-/** A string-literal argument's value, else null (a dynamic key is deliberately not counted). */
 function literal_string(n: SvelteNode | undefined): string | null {
 	return n && n.type === 'Literal' && typeof n.value === 'string' ? n.value : null;
 }
@@ -139,8 +91,6 @@ export function context_keys(src: string, kind: 'svelte' | 'script'): ContextKey
 	const roots = parse_roots(src, 'ogygia:context-detect', kind);
 	if (!roots) return none;
 
-	// Local bindings resolved to Svelte/ogygia's getContext / setContext, plus namespace imports of a
-	// context module (`import * as x from 'svelte'` → `x.getContext(…)`).
 	const get_locals = new Set<string>();
 	const set_locals = new Set<string>();
 	const own_set_locals = new Set<string>();

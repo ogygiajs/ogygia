@@ -646,6 +646,9 @@ importers:
       '@ogygia/postrender':
         specifier: workspace:*
         version: link:../../packages/postrender
+      '@ogygia/reshape':
+        specifier: workspace:*
+        version: link:../../packages/reshape
       '@ogygia/router':
         specifier: workspace:*
         version: link:../../packages/router

@@ -637,7 +637,7 @@ class OgygiaRegion extends HTMLElement {
 	}
 	#watch(): void {
 		if (this.#watching) return;
-		watch_region((this.#asleep = this.#life.child()));
+		watch_region((this.#asleep = this.#life.child()), this);
 	}
 	#unwatch(): void {
 		this.#asleep?.close();

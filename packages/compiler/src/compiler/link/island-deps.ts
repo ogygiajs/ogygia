@@ -1,9 +1,3 @@
-/**
- * Whole-program island dependency collection — from a finished client bundle, the transitive static
- * import + CSS chains for each `og-region.<id>.js` facade, so SSR can `modulepreload` a hydrate
- * island's hashed dependency chunks (Vite's auto graph does not cover `@vite-ignore` `import(entry)`).
- * Pure over the bundle it is handed. Covered by unit tests.
- */
 import path from 'node:path';
 import { dedent } from '@ogygia/core/contract';
 import { merge_page_keys, type PageKeys } from './page-keys.ts';
@@ -18,12 +12,8 @@ import { is_generated_specifier } from '../virtual/table.ts';
 /** The server module's string slot the client leg writes the deps JSON into (link/relocations.ts). */
 export const ISLAND_DEPS_INLINE_TOKEN = '__OGYGIA_ISLAND_DEPS_INLINE__';
 
-/** Deterministic island facade filename (content-hashed Vite deps are separate). */
 const ISLAND_FACADE_RE = /(?:^|\/)og-region\.[0-9a-f]+\.js$/;
 const LEADING_SLASH = /^\//;
-/** A Kit remote-function module (`*.remote.js` / `.ts`, Kit's `moduleExtensions` defaults), once
- *  its `?query` is stripped. In the CLIENT graph Kit swaps its body for fetching stubs, but the
- *  module keeps its file id — which is how an island's chunk closure names the remotes it can call. */
 const REMOTE_MODULE_RE = /\.remote\.[cm]?[jt]s$/;
 const BACKSLASH_G = /\\/g;
 
@@ -62,6 +52,28 @@ const TRAILING_SLASH_RE = /\/+$/;
  * Used so SSR can `modulepreload` hashed dependency chunks for `hydrate: 'load'` islands
  * (Vite’s auto graph does not apply to `@vite-ignore` `import(entry)`).
  *
+ * @param page_reader_files Source files whose presence in an island's chunk closure means the
+ *   island READS THE PAGE (the `$app/state` / `$app/stores` shims). Per entry, `page[entryUrl]`
+ *   says whether any chunk in its closure bundles one of them — what lets the handle skip the page
+ *   seed on a page whose islands never read it. Absolute paths, either separator.
+ * @param remote_hash Names a bundled module's Kit remote id-hash (`remote_hash_of`), or `null` for
+ *   a module that is no remote file. Per entry, `remotes[entryUrl]` lists every remote module in
+ *   the island's chunk closure, static AND dynamic imports, which is what lets the handle seed a
+ *   remote's SSR result only when some island on the page can call it. Absent → every entry `[]`.
+ * @param page_keys_of SEED SHAPING: the top-level `page.data` keys a bundled module reads
+ *   (link/page-keys.ts, recorded by the transform), `'all'` when its reads could not be pinned,
+ *   `null` for a module that never imports the page. Per entry, `page_keys[entryUrl]` is the union
+ *   over its chunk closure, or `null` (ship all) when any module said `'all'`, or when the closure
+ *   reads the page through a module the transform never saw. Absent → every reader `null`.
+ * @param read_source WAKE ADVISOR: reads a bundled `.svelte` source by id so the collector can
+ *   count what the island's components do. Per entry, `interactivity[entryUrl]` is the union over
+ *   its closure's own components (dependencies and ogygia's wrappers skipped). Absent → no facts.
+ * @param runtime_file The runtime entry chunk's exact file name (compiler
+ *   `runtime_chunk_filename`). Its static imports are recorded under its URL so SSR hints them
+ *   beside the runtime script. Matched exactly, never by pattern. Absent → no runtime entry.
+ * @param entries Which emitted file is which entry. Every map is keyed by an entry's IDENTITY (the
+ *   stable public URL SSR bakes), never by its hashed name. `islands`: hashed file name →
+ *   identity; `runtime`: the runtime's identity. Absent → a facade-named file is its own identity.
  * @internal Exported for unit tests.
  */
 export function collectIslandDepModulepreloads(
@@ -78,51 +90,11 @@ export function collectIslandDepModulepreloads(
 			viteMetadata?: { importedCss?: Set<string> | string[] };
 		}
 	>,
-	/**
-	 * Source files whose presence in an island's chunk closure means the island READS THE PAGE
-	 * (the `$app/state` / `$app/stores` shims). Per entry, `page[entryUrl]` says whether any chunk
-	 * in its closure bundles one of them — what lets the handle skip the page seed on a page whose
-	 * islands never read it. Absolute paths, either separator.
-	 */
 	page_reader_files: readonly string[] = [],
-	/**
-	 * Names a bundled module's Kit remote id-hash (`remote_hash_of`), or `null` for a module that is
-	 * no remote file. Per entry, `remotes[entryUrl]` lists every remote module in the island's chunk
-	 * closure — static AND dynamic imports, since a remote called after an `await import()` is still
-	 * this island's call — which is what lets the handle seed a remote's SSR result only when some
-	 * island on the page can call it (REMOTE SEED ONLY WHEN REACHABLE). Absent → every entry `[]`.
-	 */
 	remote_hash: ((module_id: string) => string | null) | null = null,
-	/**
-	 * SEED SHAPING: the top-level `page.data` keys a bundled module reads (link/page-keys.ts, recorded
-	 * by the transform), `'all'` when its reads could not be pinned, `null` for a module that never
-	 * imports the page. Per entry, `page_keys[entryUrl]` is the union over its chunk closure — the
-	 * keys the handle ships — or `null` (ship all) when any module said `'all'`, or when the closure
-	 * reads the page through a module the transform never saw. Absent → every reader `null`.
-	 */
 	page_keys_of: ((module_id: string) => PageKeys | null) | null = null,
-	/**
-	 * WAKE ADVISOR: reads a bundled `.svelte` source by id so the collector can count what the
-	 * island's components do (handlers, `$state`, `bind:`…). Per entry, `interactivity[entryUrl]`
-	 * is the union over its closure's own components (dependencies and ogygia's wrappers skipped).
-	 * Absent → no facts (the profiler shows none).
-	 */
 	read_source: ((id: string) => string | null) | null = null,
-	/**
-	 * The runtime entry chunk's exact file name (compiler `runtime_chunk_filename`). Its static
-	 * imports are recorded under its URL so SSR hints them beside the runtime script. Matched EXACTLY,
-	 * never by pattern: the name is ours, and a hand-written pattern drifts from it (the `h` suffix a
-	 * `hooks.client` app gets was missed, and such apps shipped the runtime with no preloads).
-	 * Absent (`null`) → no runtime entry.
-	 */
 	runtime_file: string | null = null,
-	/**
-	 * IDENTITY vs LOCATION: which emitted file is which entry. An island entry and the runtime are
-	 * content-hashed files; every map below is keyed by their IDENTITY (the stable public URL SSR bakes,
-	 * `island_public_url` / the runtime's stable URL), never by the hashed name. `islands`: hashed
-	 * file name → identity; `runtime`: the runtime's identity (its file is `runtime_file`). Absent →
-	 * a file under the stable name is its own identity (the shape before hashing, and the unit tests').
-	 */
 	entries: { islands: ReadonlyMap<string, string>; runtime: string | null } | null = null
 ): {
 	js: Record<string, string[]>;
@@ -150,7 +122,6 @@ export function collectIslandDepModulepreloads(
 	const remotes: Record<string, string[]> = {};
 	const interactivity: Record<string, IslandInteractivityFacts> = {};
 	const hazards: Record<string, IslandHazard[]> = {};
-	// (per file, once: the lines, with a label a reader knows — from `src/`, or the site kit's)
 	const hazards_cache = new Map<string, IslandHazard[]>();
 	const hazards_of = (id: string): IslandHazard[] => {
 		if (!read_source) return [];
@@ -176,10 +147,6 @@ export function collectIslandDepModulepreloads(
 		hazards_cache.set(clean, out);
 		return out;
 	};
-	// WAKE ADVISOR FACTS: what the island's own `.svelte` sources do — handlers, `$state`,
-	// `$effect`, `bind:`, `use:` — counted once per file, unioned over the closure. A regex count
-	// on purpose: it needs no parse, it survives every syntax the transform accepts, and an island
-	// with zero of everything is the one fact that matters (a lake wearing an island's wake).
 	const facts_cache = new Map<string, IslandInteractivityFacts | null>();
 	const facts_of = (id: string): IslandInteractivityFacts | null => {
 		if (!read_source) return null;
@@ -194,7 +161,6 @@ export function collectIslandDepModulepreloads(
 	};
 	const norm = (p: string) => p.split('\\').join('/');
 	const readers = new Set(page_reader_files.map(norm));
-	// The keys every module of a chunk reads, unioned; `undefined` = no module in it reads the page.
 	const keys_in = (fileName: string): PageKeys | null | undefined => {
 		if (!page_keys_of) return undefined;
 		let acc: PageKeys | null = null;
@@ -222,9 +188,6 @@ export function collectIslandDepModulepreloads(
 			if (h) acc.add(h);
 		}
 	};
-	// Every EMITTED chunk reachable from `fileName` through static or dynamic imports (the facade
-	// included) — the remotes scan's closure. Wider than the preload walk on purpose: a preload hint
-	// for a dynamic chunk would be waste, a remote called from one is still this island's call.
 	const closure_all = (fileName: string): Set<string> => {
 		const seen = new Set<string>([fileName]);
 		const queue = [fileName];
@@ -256,10 +219,7 @@ export function collectIslandDepModulepreloads(
 		for (const imp of chunk.imports ?? []) {
 			if (seen.has(imp)) continue;
 			seen.add(imp);
-			// Only preload chunks that are actually EMITTED. Rolldown can list a phantom import in a
-			// chunk's `imports` (a shared chunk that was merged/tree-shaken away before write) — the
-			// real facade never imports it. Baking a modulepreload for a non-existent chunk 404s the
-			// prerender. A missing preload only costs a waterfall, so skipping phantoms is safe.
+			// @why rolldown can list a chunk merged away before write in another chunk's `imports` (test: test/island-deps.test.ts › ignores assets; the runtime is recorded only under its EXACT name (a phantom import skipped))
 			const dep = bundle[imp];
 			if (!dep || dep.type !== 'chunk') continue;
 			deps.push(imp.startsWith('/') ? imp : `/${imp}`);
@@ -269,7 +229,6 @@ export function collectIslandDepModulepreloads(
 		return deps;
 	};
 
-	// each island entry's identity (the key of every map), by its emitted file
 	const identity_of = (fileName: string): string | null =>
 		entries
 			? (entries.islands.get(fileName) ?? null)
@@ -284,9 +243,6 @@ export function collectIslandDepModulepreloads(
 		const entryUrl = identity_of(fileName);
 		if (!entryUrl) continue;
 		const seen = new Set<string>([fileName]);
-		// CSS: the facade's own styles + every dep chunk's — this is how a server-picked (held)
-		// component's scoped CSS reaches a page that never imported it (the page's stylesheet set
-		// can't know; the region response carries these hrefs instead).
 		const css_acc = css_of(fileName);
 		const raw = walk(fileName, seen, css_acc);
 		const uniq: string[] = [];
@@ -298,17 +254,7 @@ export function collectIslandDepModulepreloads(
 		}
 		js[entryUrl] = uniq;
 		css[entryUrl] = [...new Set(css_acc)];
-		// The FULL closure — static AND dynamic imports. A `page.data` read (or a remote call) behind
-		// an `await import('./Widget.svelte')` inside island markup runs in the island's own client,
-		// against the island's page shim, so it is the island's read — the same reasoning the remotes
-		// scan (below) already applies. The static preload walk (`seen`, for `js`/`css`) deliberately
-		// stops at dynamic edges — a modulepreload for a conditional chunk is waste — but PAGE READING
-		// and SEEDING must not: a key the dynamic branch reads yet the seed omitted is `undefined` on
-		// the client, the branch renders a different tree, and the island discards its server DOM
-		// (a header search bar that `await import`s a signed-in widget vanished for logged-in users —
-		// the widget read `page.data.locale`, which a static-only walk never pinned into the seed).
 		const full = closure_all(fileName);
-		// Does any chunk in the full closure bundle a page-reading shim?
 		let reads = false;
 		for (const s of full) {
 			if (reads_page(s)) {
@@ -317,8 +263,6 @@ export function collectIslandDepModulepreloads(
 			}
 		}
 		page[entryUrl] = reads;
-		// SEED SHAPING: which `page.data` keys the full closure reads. A reader whose keys no module
-		// recorded (the page reached through a module the transform never saw) ships all.
 		if (reads) {
 			let acc: PageKeys | null = null;
 			let saw_reader = false;
@@ -331,12 +275,9 @@ export function collectIslandDepModulepreloads(
 			}
 			page_keys[entryUrl] = !saw_reader || acc === 'all' || acc === null ? null : [...acc].sort();
 		}
-		// The remotes this island's client code can call: every remote module bundled anywhere in
-		// its closure (static + dynamic). Sorted so the handoff is byte-stable across builds.
 		const found = new Set<string>();
 		for (const s of full) remotes_in(s, found);
 		remotes[entryUrl] = [...found].sort();
-		// the island's own components, over the same closure
 		if (read_source) {
 			let acc: IslandInteractivityFacts | undefined;
 			const seen_files = new Set<string>();
@@ -352,27 +293,18 @@ export function collectIslandDepModulepreloads(
 				}
 			}
 			if (lines.length) hazards[entryUrl] = lines;
-			// (a remote function it calls — a streaming query, a form, a command — changes it after it
-			// wakes with no handler of its own: a live clock, a remote form spread onto <form>)
 			if (acc) interactivity[entryUrl] = { ...acc, remotes: remotes[entryUrl].length };
 		}
 	}
-	// THE RUNTIME's own static imports, keyed by its URL like an island's: the few chunks it shares
-	// with the rest of the app (Vite's preload helper, the modules Kit's client transport also uses).
-	// SSR hints them beside the runtime script (document-tail.ts `runtime_bootstrap_tags`) so they
-	// download with it, not one round trip after it is parsed.
 	if (runtime_file) {
 		const runtime_key = norm(runtime_file).replace(LEADING_SLASH, '');
 		const chunk = bundle[runtime_key];
 		if (chunk && chunk.type === 'chunk') {
-			// (keyed by the runtime's identity, like an island's)
 			js[entries?.runtime ?? `/${runtime_key}`] = [
 				...new Set(walk(runtime_key, new Set([runtime_key]), []))
 			];
 		}
 	}
-	// WHAT IS INSIDE each chunk an island pulls (the profiler's Islands table): the bundler names
-	// shared chunks by hash, so the handoff keeps a readable summary of each one's source modules.
 	const contents: Record<string, string[]> = {};
 	const heavy: Record<string, ChunkHeavy> = {};
 	const summarize = (s: string) => {
@@ -380,7 +312,6 @@ export function collectIslandDepModulepreloads(
 		if (contents[url]) return;
 		const chunk = bundle[s];
 		const ids = chunk?.moduleIds ?? [];
-		// (the bundler's rendered length per module: the heaviest named first)
 		const mods = (chunk as { modules?: Record<string, { renderedLength?: number }> } | undefined)
 			?.modules;
 		const size_of = mods ? (id: string) => mods[id]?.renderedLength ?? 0 : undefined;
@@ -396,13 +327,9 @@ export function collectIslandDepModulepreloads(
 		if (!identity_of(fileName)) continue;
 		for (const s of closure_all(fileName)) summarize(s);
 	}
-	// …and every other chunk the build emitted (Kit's entries, ogygia's own dynamic runtime
-	// chunks): the browser CPU profile sees them all, and a chunk it cannot name reads as app code
 	for (const [key, chunk] of Object.entries(bundle)) {
 		if (chunk.type === 'chunk') summarize(chunk.fileName || key);
 	}
-	// ONE MODULE, TWO COPIES: a package file reached by two paths (its source and its build, two
-	// versions) lands in two chunks — a page loading both downloads it twice (the profiler says so)
 	const dupes = duplicate_modules(
 		Object.entries(bundle)
 			.filter(([, c]) => c.type === 'chunk')
@@ -435,13 +362,11 @@ export function module_origin(id: string): string | undefined {
 	const store = p.lastIndexOf('/.pnpm/');
 	if (store !== -1) {
 		const seg = p.slice(store + 7, p.indexOf('/', store + 7));
-		// `svelte@5.56.8_…peer suffix` or `@scope+name@1.0.0`: the name and version, peers left out
 		const cut = seg.indexOf('_');
 		return (cut === -1 ? seg : seg.slice(0, cut)).split('+').join('/');
 	}
 	const key = module_key(id);
 	if (!key) return undefined;
-	// (the deepest such folder: a package inside an app's own src/ is the package's dist/, not the app's src)
 	let at = -1;
 	let top = '';
 	for (const t of ['/src/', '/dist/', '/esm/', '/build/']) {
@@ -472,7 +397,6 @@ export function module_key(id: string): string | null {
 		pkg = after.slice(0, n).join('/');
 		rest = after.slice(n).join('/');
 	} else {
-		// a workspace package (linked, no node_modules in its path): the folder above its src/dist
 		const at = Math.max(p.lastIndexOf('/src/'), p.lastIndexOf('/dist/'));
 		if (at === -1) return null;
 		pkg = p.slice(p.lastIndexOf('/', at - 1) + 1, at);
@@ -564,10 +488,6 @@ export function summarize_chunk_contents(
 ): string[] {
 	const files: string[] = [];
 	const pkgs: string[] = [];
-	// the rendered bytes behind each listed name (a package sums its modules): with the bundler's
-	// sizes, the heaviest are named first — a 68 KB component used to sit behind "+N more" when six
-	// small files came before it in module order. Names only: the list is a chunk's identity
-	// across builds (sizes change every build).
 	const bytes = new Map<string, number>();
 	const add = (list: string[], v: string, raw: string) => {
 		if (!list.includes(v)) list.push(v);
@@ -578,7 +498,6 @@ export function summarize_chunk_contents(
 	for (const raw of module_ids) {
 		if (!raw || raw.startsWith('\0') || is_generated_specifier(raw)) continue;
 		const id = raw.split('\\').join('/').split('?')[0];
-		// the package is named by the LAST node_modules segment (pnpm nests: .pnpm/x@1/node_modules/x)
 		const nm = id.lastIndexOf('/node_modules/');
 		if (nm !== -1) {
 			const pkg = PKG_IN_PATH_RE.exec(id.slice(nm))?.[1];
@@ -619,7 +538,6 @@ export interface IslandInteractivityFacts {
 }
 
 const OWN_OR_DEP_RE = new RegExp(`/node_modules/|${OWN_FILE_RE.source}`);
-/** the site kit's components (ogygia's content/site): an app's own islands in all but location */
 const SITE_KIT_RE = /\/ogygia\/(?:src|dist)\/content\//;
 const HANDLER_RE = /\son[a-z]+\s*=\s*\{|\son:[a-z]+/g;
 const STATE_RE = /\$state(?:\.raw)?\s*\(/g;
@@ -627,9 +545,7 @@ const EFFECT_RE = /\$effect(?:\.pre)?\s*\(/g;
 const BIND_RE = /\sbind:[a-zA-Z]/g;
 const ACTION_RE = /\suse:[a-zA-Z]/g;
 const AWAIT_RE = /\{\s*(?:#\s*)?await\s/g;
-// shared state another island can change: a context read, or an import of a rune module
-// (`*.svelte.js` / `*.svelte.ts` — where shared `$state` lives). Conservative on purpose: "make it a
-// lake" on an island showing another island's live counter would freeze it
+// oxlint-disable-next-line ogygia/one-markup-walk -- `<[^>]*>` is a TypeScript type argument (`getContext<T>(`), not a tag
 const SHARED_RE = /\bgetContext\s*(?:<[^>]*>\s*)?\(|\bfrom\s*['"][^'"]+\.svelte\.(?:js|ts)['"]/g;
 const count = (src: string, re: RegExp) => (src.match(re) ?? []).length;
 
@@ -670,16 +586,6 @@ export function islandDepsHandoffPath(out_dir: string): string {
 	return path.join(out_dir, 'og-region-deps.json');
 }
 
-/**
- * `ogygia:server/region-deps` emitter — the SSR-render-time reader of the deps handoff.
- * Client: unused (modulepreload is SSR HTML). SSR: read the handoff JSON at *render* time — Kit
- * builds the server bundle before the client, so baking at `load()` would always be empty;
- * prerender/live SSR run after client generateBundle. Resolve via import.meta.url walk (not absolute
- * build-machine paths) so adapters find `output/server/og-region-deps.json` next to the server bundle.
- * `out_dir_rel` — Kit's `outDir` relative to the app root (`.svelte-kit` by default) — is the cwd
- * fallback for adapter-node / preview run from the app root.
- */
-/** A CSS text that would close its own `<style>` cannot be inlined — link it instead. */
 const STYLE_CLOSE_RE = /<\/style/i;
 
 /**
@@ -713,7 +619,6 @@ export function collect_inline_css(
 		if (!asset || asset.source == null) continue;
 		const text =
 			typeof asset.source === 'string' ? asset.source : new TextDecoder().decode(asset.source);
-		// Kit's unit: UTF-16 code units (`String.length`), "smaller than this value" — same rule.
 		if (text.length >= threshold) continue;
 		if (STYLE_CLOSE_RE.test(text)) continue;
 		out[href] = text;
@@ -721,12 +626,22 @@ export function collect_inline_css(
 	return out;
 }
 
+/**
+ * `ogygia:server/region-deps` emitter — the SSR-render-time reader of the deps handoff.
+ * Client: every reader answers none (the SSR HTML carries every hint). Dev: a region's CSS is its
+ * module URL (the client imports it), the page always seeds, remotes are `null` (may call
+ * anything), and an identity is its own location. SSR: read the handoff JSON at *render* time —
+ * Kit builds the server bundle before the client, so baking at `load()` would always be empty;
+ * prerender/live SSR run after client generateBundle. Resolve via import.meta.url walk (not absolute
+ * build-machine paths) so adapters find `output/server/og-region-deps.json` next to the server bundle.
+ * `out_dir_rel` — Kit's `outDir` relative to the app root (`.svelte-kit` by default) — is the cwd
+ * fallback for adapter-node / preview run from the app root.
+ */
 export function island_deps_module(
 	ssr: boolean,
 	is_dev: boolean,
 	out_dir_rel = '.svelte-kit'
 ): string {
-	// CLIENT: nothing to read (the SSR HTML carries every hint): each reader answers "none".
 	if (!ssr)
 		return dedent`
 			export function region_deps(_entry) { return []; }
@@ -748,15 +663,6 @@ export function island_deps_module(
 			export function location_map() { return null; }
 			export function handoff_problem() { return null; }
 		`;
-	// DEV: there is no built CSS asset to link (Vite serves component CSS only as importable
-	// modules). The `entry` a region carries IS its dev module URL (moduleUrl / dev island_url),
-	// so returning it lets the client `import()` it for its CSS side-effect — the same region-css
-	// channel as prod's `<link>`, resolved for dev. `islandDeps` (JS modulepreload) is prod-only.
-	// Content bodies need no dev entry here: a content module is in the SSR module graph, so
-	// Vite dev already injects its scoped CSS (the leak only bites the PROD client build).
-	// DEV always seeds the page (no chunk closure to consult) — the conservative side. Same for the
-	// remotes: `null` = "may call anything" (fail-open). A dev identity is its own location: the dev
-	// server serves the module at the URL the region names.
 	if (is_dev)
 		return dedent`
 			export function region_deps(_entry) { return []; }
@@ -778,7 +684,6 @@ export function island_deps_module(
 			export function location_map() { return null; }
 			export function handoff_problem() { return null; }
 		`;
-	// SERVER: read the handoff at render time (the comments below ride along into the module).
 	const out_dir = JSON.stringify(out_dir_rel);
 	return dedent`
 		import fs from 'node:fs';

@@ -39,7 +39,7 @@ function cache_root(): string | null {
 		fs.mkdirSync(d, { recursive: true });
 		root = d;
 	} catch {
-		root = null;
+		root = null; // ok: a read-only install runs with no cache; the work is redone each build
 	}
 	return root;
 }
@@ -61,7 +61,7 @@ export class BuildCache<T> {
 			fs.mkdirSync(d, { recursive: true });
 			return d;
 		} catch {
-			return null;
+			return null; // ok: no cache directory is a miss; the caller does the work itself
 		}
 	}
 
@@ -71,7 +71,7 @@ export class BuildCache<T> {
 		try {
 			return JSON.parse(fs.readFileSync(path.join(d, `${key}.json`), 'utf8')) as T;
 		} catch {
-			return null;
+			return null; // ok: an absent or torn entry is a miss; the caller recomputes and sets it
 		}
 	}
 

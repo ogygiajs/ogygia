@@ -1,46 +1,18 @@
-/**
- * `ogygia:server/router-css` — how a SERVER-ROUTER page's `<style>` reaches the document.
- *
- * THE GAP: Kit links a route's stylesheets from its file-derived route manifest. `@ogygia/router`
- * routes are VALUES (`r.page(Home)`) rendered through `document()` — no route, so nothing ever
- * emitted or linked their CSS: a router page's scoped `<style>` (and its plain `.css` imports)
- * silently never loaded. (The router fixture app's own rtr components are style-less for exactly this reason.)
- *
- * THE FIX, from existing primitives — no user file is modified, no `r.*` call-site analysis:
- *  1. CLOSURE (build data): a router MODULE is a PAGE MODULE a plugin named (`b.pageModules()`): any
- *     module importing one of its specifiers (`'@ogygia/router'`), or a file it names — wherever it
- *     lives, however many routers it defines, whatever function wraps them. Its transitive `.svelte`
- *     imports (followed through relative/$lib `.ts`/`.js` barrels — build-data resolution, not import
- *     rewriting) are the components any of its routers could render: the ROOTS.
- *  2. EMISSION (client leg, vite/index.ts): each root's whole transitive CSS (its own scoped styles +
- *     every child component's + plain `.css` imports, in cascade order) is compiled and emitted as ONE
- *     dedicated asset — resolved to a handoff `rcss:<rel>` href in writeBundle. A dedicated asset (not
- *     a chunk's `importedCss`) is immune to rolldown's shared-chunk CSS hoisting, which otherwise
- *     scatters a shared child's scoped CSS onto whatever chunk rolldown parks it on — an island's, off
- *     the router's static graph entirely (every profiler page shares Shell → this bites in practice).
- *  3. REGISTRATION (this virtual, SSR): imports each root by absolute path — the same module instance
- *     the router module holds, so identity survives barrels — and registers it in the runtime WeakMap
- *     with a thunk resolving its stylesheet entries (prod: handoff hrefs + `$app/paths` base; dev:
- *     inline CSS compiled here, Kit-style).
- *  4. LINKING (render): the router hands the components it actually renders to `componentCssHead()`
- *     (`ogygia/plugin/css`), which claims through
- *     `claim_region_css` (deduped with held-region links), and hands `document()` the head tags.
- */
 import { dedent } from '@ogygia/core/contract';
 import path from 'node:path';
 import {
 	collectFoucCssReachable,
-	compileFoucScopedCss,
-	resolveFoucImportSpec,
+	scoped_component_css,
+	type PreprocessCss,
 	type WalkResolve
 } from '../fouc-css.ts';
+import { resolve_app_spec, type AppSpecCtx } from '../app-spec.ts';
 import type { ExportIndex } from '../exports/index.ts';
 
 const PATH_SEP = /[/\\]/;
 const SVELTE_RE = /\.svelte$/;
 const BARREL_RE = /\.(?:ts|js|mjs)$/;
 const CSS_EXT_RE = /\.css$/;
-/** Candidate suffixes for an extensionless spec, Vite resolution order-ish. */
 const RESOLVE_SUFFIXES = ['', '.ts', '.js', '.mjs', '.svelte', '/index.ts', '/index.js'];
 
 export const ROUTER_CSS_KEY_PREFIX = 'rcss:';
@@ -54,22 +26,22 @@ export function router_css_key(root: string, abs: string): string {
 
 /**
  * The `.svelte` ROOTS of the app's router modules: BFS from every page module (`b.pageModules()`),
- * through relative/`$lib` `.ts`/`.js` re-exports (barrels — resolved as build
- * DATA, imports untouched), collecting `.svelte` leaves. `module_specs` is the prescan's import-spec
+ * through the app's own `.ts`/`.js` re-exports (barrels — resolved as build DATA by the app spec
+ * rule, imports untouched), collecting `.svelte` leaves. `module_specs` is the prescan's import-spec
  * record (module abs path → its import/export-from specifiers). Sorted for determinism across legs.
  */
 export function router_css_roots(
 	router_modules: ReadonlySet<string>,
 	module_specs: ReadonlyMap<string, readonly string[]>,
-	lib_dir: string,
+	spec_ctx: AppSpecCtx,
 	exists: (p: string) => boolean
 ): string[] {
 	const roots = new Set<string>();
 	const visited = new Set<string>();
 
 	const resolve_spec = (spec: string, importer: string): string | null => {
-		const base = resolveFoucImportSpec(spec.split('?')[0], importer, lib_dir);
-		if (!base) return null; // package import — out of scope (library components use the app-side mark rules)
+		const base = resolve_app_spec(spec.split('?')[0], importer, spec_ctx);
+		if (!base) return null;
 		for (const suffix of RESOLVE_SUFFIXES) {
 			const candidate = path.normalize(base + suffix);
 			if (exists(candidate)) return candidate;
@@ -95,6 +67,15 @@ export function router_css_roots(
 /**
  * Emit the `ogygia:server/router-css` source. Empty (`export {}`) when the app has no router
  * modules — the router's dynamic import of this virtual then registers nothing, zero cost.
+ *
+ * Router routes are values rendered through `document()`, not Kit routes, so Kit never links their
+ * CSS. Each root (`router_css_roots`) is registered with a thunk for its stylesheet entries, and
+ * the router hands the components it renders to `componentCssHead()`, which claims them deduped
+ * with held-region links. Prod: each root is imported by absolute path (the module instance the
+ * router holds) and links the base plus its handoff hrefs. Dev: the compiled CSS is inlined as
+ * `path → entries` data with no component import, keyed by both the root-relative and the
+ * absolute path (svelte's dev filename metadata carries either), so Kit's dev style collector
+ * cannot crawl router trees into other pages.
  */
 export async function router_css_module(
 	roots: readonly string[],
@@ -103,6 +84,8 @@ export async function router_css_module(
 		lib_dir: string;
 		is_dev: boolean;
 		read_file: (p: string) => string | null;
+		/** the plugin's CSS preprocessor: dev compiles a component as the build does */
+		preprocess?: PreprocessCss;
 		/** the bundler's resolver, for the dev tree-CSS walk (compiler/fouc-css.ts) */
 		resolve?: (spec: string, importer: string) => Promise<string | null>;
 		/** `resolve`'s export index */
@@ -114,13 +97,6 @@ export async function router_css_module(
 	const lines: string[] = [`import { register_router_css } from 'ogygia/internal/register';`];
 
 	if (opts.is_dev) {
-		// DEV: no built assets — inline the compiled CSS (what Kit does in dev), registered as pure
-		// `path → entries` DATA. Deliberately IMPORT-FREE (component identity comes from svelte's own
-		// dev filename metadata at lookup): this virtual is reachable from graph territory SvelteKit's
-		// dev "inline all styles" collector can crawl from ANY page (internal.js → hooks → profiler →
-		// router). Component imports here would weld every router page's tree — scoped styles, plain
-		// `.css` imports — into that crawl and leak router stylesheets into unrelated app pages.
-		// Compiled at module-emit time; the plugin invalidates this virtual on css/svelte hot updates.
 		const assignments: string[] = [];
 		for (const abs of roots) {
 			const entries: Array<{ key: string; css: string }> = [];
@@ -135,21 +111,15 @@ export async function router_css_module(
 				if (e.kind === 'scoped') {
 					const source = opts.read_file(e.abs);
 					if (source == null) continue;
-					const css = compileFoucScopedCss(e.abs, source);
+					const css = await scoped_component_css(e.abs, source, opts.preprocess);
 					if (css) entries.push({ key: `rcss-dev:${e_rel}`, css });
 				} else {
-					// Plain stylesheet import: raw file text. Preprocessor dialects (.scss/…) can't be
-					// compiled here — skipped in dev inline (they load normally once built).
 					if (!CSS_EXT_RE.test(e.abs)) continue;
 					const css = opts.read_file(e.abs);
 					if (css) entries.push({ key: `rcss-dev:${e_rel}`, css });
 				}
 			}
 			if (!entries.length) continue;
-			// The lookup key is whatever svelte's dev FILENAME metadata carries, which is whatever id
-			// form vite-plugin-svelte passed to the compiler: ROOT-RELATIVE for in-root files, absolute
-			// for out-of-root ones (the shipped profiler UI). Register the SAME entries array under both
-			// forms so either resolves — one literal, two keys, no duplicated css text.
 			const abs_key = JSON.stringify(posix(abs));
 			const rel = posix(path.relative(opts.root, abs));
 			const keys =
@@ -165,13 +135,7 @@ export async function router_css_module(
 		return `${source}\n`;
 	}
 
-	// PROD: hrefs resolve lazily from the island-deps handoff (written by the client leg, read at
-	// render — Kit is SSR-first, so resolution must not happen at module init). Kit's base is applied
-	// HERE, in generated code: the handoff stores base-less hrefs. It is the configured base itself,
-	// root-absolute — Kit's build define (`$app/paths` no longer exports `base` on Kit 3, and its
-	// `base` was page-relative during SSR on Kit 2: a router navigation carries these links into a
-	// page at another depth). The raw handoff href is the claim key, so a held region linking the
-	// same sheet dedupes against us.
+	// @why `$app/paths` has no `base` on Kit 3, and Kit 2's was page-relative during SSR; Kit's build define is the configured base, root-absolute (test: test/router-css.test.ts › prod: registers each root with a handoff thunk (region_css key + Kit's configured base))
 	lines.push(`import { region_css } from 'ogygia:server/region-deps';`);
 	lines.push(
 		`const base = typeof __SVELTEKIT_PATHS_BASE__ !== 'undefined' ? __SVELTEKIT_PATHS_BASE__ : '';`

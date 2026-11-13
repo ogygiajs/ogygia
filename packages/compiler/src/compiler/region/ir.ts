@@ -1,14 +1,3 @@
-/**
- * The IR — the seam between the region front-end's phases. `analyze` reads a file's AST into a
- * `FileIR` (what the file declares: its imports, region marks, usage findings,
- * csr tri-state); `lower` consumes the `FileIR` and rewrites the source, minting `IslandDescriptor`s.
- * `FileIR` is the ONLY thing that crosses analyze → lower — pure data, no closures — which is what
- * lets the two phases live in separate modules.
- *
- * The Svelte AST is manipulated dynamically throughout the front-end (as it was when the pass was
- * fused), so the node-bearing fields stay loosely typed via `SvelteNode` — the same shape the fused
- * `transformHost` always used.
- */
 import type { ImportKeys } from './transform.ts';
 import type { AstNode } from '../parse/oxc.ts';
 
@@ -42,7 +31,8 @@ export interface FileIR {
 	instance_body: SvelteNode[];
 	/** `<script module>` top-level statements. */
 	module_body: SvelteNode[];
-	/** the `<script>` lang attribute (`''` for plain JS) — baked into generated wrapper scripts. */
+	/** the `<script>` lang attribute (`''` for plain JS) — of the host's own synthesized script and
+	 *  its portable snippets (authored markup); never of a shared wrapper. */
 	lang: string;
 	/** posix root-relative host path — the stable prefix of error messages + snippet identities. */
 	rel_host: string;
