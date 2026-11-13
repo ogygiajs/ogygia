@@ -193,8 +193,9 @@ describe('undeclared-marks warning', () => {
 			P: false,
 			outHash: new Map<string, number>()
 		};
-		const compiler = new Compiler(program, profiler);
-		compiler.configure(
+		const compiler = new Compiler(
+			program,
+			profiler,
 			new CompileCtx({
 				...base_ctx_init,
 				root: '/nowhere-app',

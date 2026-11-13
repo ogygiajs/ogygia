@@ -280,7 +280,7 @@ export class Compiler implements CoreApp {
 	 * answers are read afresh from there.
 	 */
 	start_leg(name: string, server: boolean): boolean {
-		if (this.#build.legs.has(name) && this.#ctx!.is_build)
+		if (this.#build.legs.has(name) && this.#ctx.is_build)
 			this.#build = new_build(this.#build.program.fresh());
 		const build = this.#build;
 		if (!build.legs.has(name)) build.legs.set(name, new_leg(name, server));
@@ -300,7 +300,7 @@ export class Compiler implements CoreApp {
 		if (env) {
 			const leg = legs.get(env.name);
 			if (leg) return leg;
-			if (!this.#ctx!.is_build) {
+			if (!this.#ctx.is_build) {
 				const opened = new_leg(env.name, env.server);
 				legs.set(env.name, opened);
 				return opened;
@@ -355,10 +355,10 @@ export class Compiler implements CoreApp {
 	note_server_ids(ids: Set<string>): void {
 		this.#emitted_server_ids = ids;
 	}
-	#ctx: CompileCtx | null = null;
-	/** The resolved compile context (set by `configure`). */
+	readonly #ctx: CompileCtx;
+	/** The resolved compile context (the bundler's resolved config, read once it is resolved). */
 	get ctx(): CompileCtx {
-		return this.#ctx!;
+		return this.#ctx;
 	}
 	/** Every virtual module this session serves (./virtual/table.ts). */
 	readonly #virtuals = new VirtualTable<CoreApp>(
@@ -369,11 +369,11 @@ export class Compiler implements CoreApp {
 	);
 	/** The app's Kit routes directory (a virtual module that reads it reloads on a route change). */
 	routes_dir(): string {
-		return kit_dirs(this.#ctx!.root).routes_dir;
+		return kit_dirs(this.#ctx.root).routes_dir;
 	}
 	/** The plugins listed beside `ogygia()`. */
 	plugins(): CorePlugins {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		return {
 			server: ctx.server_plugins,
 			client: ctx.client_plugins,
@@ -394,14 +394,21 @@ export class Compiler implements CoreApp {
 		return this.#virtuals.bump(part);
 	}
 
-	constructor(program: Program, profiler: Profiler) {
+	/** A compile session, made once the bundler has resolved the build (`ctx`): nothing runs before
+	 *  its context exists. */
+	constructor(program: Program, profiler: Profiler, ctx: CompileCtx) {
 		this.#build = new_build(program);
 		this.profiler = profiler;
+		this.#ctx = ctx;
 	}
 
-	/** Bind the resolved compile context (called once the bundler has resolved the build). */
-	configure(ctx: CompileCtx): void {
-		this.#ctx = ctx;
+	/** A compiler with context `ctx` that carries on this one's build (its program, legs and caches):
+	 *  the next environment of a builder that shares one plugin across them. */
+	with_ctx(ctx: CompileCtx): Compiler {
+		const next = new Compiler(this.program, this.profiler, ctx);
+		next.#build = this.#build;
+		next.#emitted_server_ids = this.#emitted_server_ids;
+		return next;
 	}
 
 	/**
@@ -435,7 +442,7 @@ export class Compiler implements CoreApp {
 		id: string,
 		watch?: (file: string) => void
 	): Promise<{ code: string; touched: boolean }> {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		return run_module_macros(
 			source,
 			id,
@@ -509,7 +516,7 @@ export class Compiler implements CoreApp {
 		id: string,
 		opts: { ssr?: boolean; linkVirtual?: boolean } = {}
 	): unknown {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		const { prof, P, outHash } = this.profiler;
 		const ssr = opts.ssr !== false;
 		// Scale: csr=false CLIENT hosts must not statically import portable wrappers (or the
@@ -590,7 +597,7 @@ export class Compiler implements CoreApp {
 	 * on the id + marker; the returned descriptors are the caller's to `register`.
 	 */
 	ts_regions(source: string, id: string): ReturnType<typeof transformTsRegions> {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		return transformTsRegions(source, id, {
 			root: ctx.root,
 			libDir: ctx.libDir,
@@ -614,7 +621,7 @@ export class Compiler implements CoreApp {
 	prescan(): void {
 		if (this.#build.scanned) return;
 		this.#build.scanned = true;
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		const { prof, P } = this.profiler;
 		const program = this.program;
 		const { registry, island_graph, transportable_modules, runtime_marks } = program;
@@ -836,7 +843,7 @@ export class Compiler implements CoreApp {
 	#closure_added: string[] = [];
 
 	#mark_registered_closures(result: TransformResult): void {
-		if (!this.#ctx!.is_dev) return;
+		if (!this.#ctx.is_dev) return;
 		for (const isl of result.islands ?? []) {
 			if (isl.componentPath)
 				this.#closure_added.push(...this.mark_island_closure(isl.componentPath));
@@ -851,7 +858,7 @@ export class Compiler implements CoreApp {
 	}
 
 	mark_island_closure(componentAbs: string): string[] {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		const { island_graph } = this.program;
 		const aliases = ctx.resolve_alias;
 		const added: string[] = [];
@@ -958,12 +965,12 @@ export class Compiler implements CoreApp {
 	/** The feature-selected runtime chunk name (immutable-cached). Needs prescan to have run for a
 	 *  non-empty feature hash; both build legs prescan the same source → the same name. */
 	runtime_chunk_filename(): string {
-		return this.#ctx!.runtime_chunk_filename(this.program.runtime_feature_hash);
+		return this.#ctx.runtime_chunk_filename(this.program.runtime_feature_hash);
 	}
 
 	/** Public URL of the runtime chunk (asset prefix + filename — honors a non-root base / assets CDN). */
 	runtime_chunk_url(): string {
-		return this.#ctx!.runtime_chunk_url(this.program.runtime_feature_hash);
+		return this.#ctx.runtime_chunk_url(this.program.runtime_feature_hash);
 	}
 
 	/**
@@ -977,7 +984,7 @@ export class Compiler implements CoreApp {
 	/** The server-router component roots (link/router-css.ts). Build: prescan is complete before any
 	 *  consumer runs — memoized for the build. Dev: modules appear lazily (HMR), recompute per call. */
 	router_css_roots(): string[] {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		const build = this.#build;
 		if (ctx.is_build && build.router_css_roots) return build.router_css_roots;
 		// One path for ALL page modules (`b.pageModules()`) — app source AND declared surfaces: an
@@ -1016,7 +1023,7 @@ export class Compiler implements CoreApp {
 
 	/** The public URL key a server island's CSS is handed off under (matches `island_url[id]`). */
 	island_public_url(iid: string): string {
-		return this.#ctx!.island_public_url(iid);
+		return this.#ctx.island_public_url(iid);
 	}
 
 	has_hydrate_regions(): boolean {
@@ -1045,7 +1052,7 @@ export class Compiler implements CoreApp {
 			// fixed: the bundler hashes its content into the file name (its imports included), and the
 			// server finds that name in the build handoff (its stable name is an identity, not a file).
 			// (named with its features: `og-runtime-<features>.<hash>.js` says which runtime it is)
-			const feat = this.#ctx!.runtime_features(this.program.runtime_feature_hash);
+			const feat = this.#ctx.runtime_features(this.program.runtime_feature_hash);
 			leg.runtime_entry_ref = emitFile({
 				type: 'chunk',
 				id: V_RUNTIME_ENTRY,
@@ -1127,7 +1134,7 @@ export class Compiler implements CoreApp {
 			chunk_name === RUNTIME_ENTRY_NAME ||
 			chunk_name.startsWith(`${RUNTIME_ENTRY_NAME}-`);
 		if (!ours) return null;
-		return `${this.#ctx!.app_dir}/immutable/[name].[hash].js`;
+		return `${this.#ctx.app_dir}/immutable/[name].[hash].js`;
 	}
 
 	/**
@@ -1139,7 +1146,7 @@ export class Compiler implements CoreApp {
 		leg: BuildLeg,
 		get_file_name: (ref: string) => string
 	): { fileName: string; source: string }[] {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		const pairs: [string, string][] = [];
 		for (const [rid, ref] of leg.island_entry_refs)
 			pairs.push([ctx.island_chunk_filename(rid), get_file_name(ref)]);
@@ -1162,7 +1169,7 @@ export class Compiler implements CoreApp {
 		id: string,
 		leg: Leg
 	): string | { code: string; moduleSideEffects: false } | Promise<string> | null {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		const program = this.program;
 		const { ssr } = leg;
 
@@ -1235,7 +1242,7 @@ export class Compiler implements CoreApp {
 			) => Promise<{ id: string } | null>;
 		}
 	): Promise<string | { id: string } | null> {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		const { registry, island_graph } = this.program;
 
 		// the declared modules (./virtual/core.ts); an undeclared id in the namespace fails here, and
@@ -1363,7 +1370,7 @@ export class Compiler implements CoreApp {
 			resolve: RegistryResolve;
 		}
 	): Promise<string | null> {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		if (ssr || ctx.is_dev || !ctx.is_build || !importer) return null;
 		if (source.startsWith('\0') || is_generated_specifier(source) || source.startsWith('$app/'))
 			return null;
@@ -1383,7 +1390,7 @@ export class Compiler implements CoreApp {
 	 *  csr=true route (Kit can hydrate that layout: a csr=true child page, or an error render). */
 	#links_client_stub(importer: string): boolean {
 		const importer_abs = strip_id(importer);
-		const routes_dir = kit_dirs(this.#ctx!.root).routes_dir;
+		const routes_dir = kit_dirs(this.#ctx.root).routes_dir;
 		if (!importer_abs.startsWith(routes_dir + path.sep)) return false;
 		const base = path.basename(importer_abs);
 		if (is_route_component(base, 'layout'))
@@ -1393,7 +1400,7 @@ export class Compiler implements CoreApp {
 
 	#is_csr_false_route_host(importer: string): boolean {
 		const importer_abs = strip_id(importer);
-		const routes_dir = kit_dirs(this.#ctx!.root).routes_dir;
+		const routes_dir = kit_dirs(this.#ctx.root).routes_dir;
 		if (!importer_abs.startsWith(routes_dir + path.sep)) return false;
 		const base = path.basename(importer_abs);
 		// a route component (`+page.svelte`, `+page.md`, …) is its own host
@@ -1519,7 +1526,7 @@ export class Compiler implements CoreApp {
 		const memos = this.#build.specs_memo;
 		let specs = memos.get(key);
 		if (specs === undefined) {
-			const src = this.#ctx!.read_file(file);
+			const src = this.#ctx.read_file(file);
 			specs = src == null ? [] : (static_script_specs(src, file) ?? []);
 			memos.set(key, specs);
 		}
@@ -1529,7 +1536,7 @@ export class Compiler implements CoreApp {
 	/** The client-leg registry source (link/registry-stub.ts): marks blanked, plain imports kept. A
 	 *  registry that does not parse falls back to the names-only stub. */
 	#registry_client_emit(file: string): string | null {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		const src = ctx.read_file(file);
 		if (src == null) return null;
 		const keys = ctx.import_keys;
@@ -1564,7 +1571,7 @@ export class Compiler implements CoreApp {
 			watch?: (file: string) => void;
 		}
 	): Promise<{ code: string; map: unknown } | null> {
-		const ctx = this.#ctx!;
+		const ctx = this.#ctx;
 		const program = this.program;
 		const { registry, island_graph } = program;
 		const root = ctx.root;

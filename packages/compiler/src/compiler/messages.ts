@@ -671,6 +671,16 @@ export const BUILD_ERRORS = {
 			generated list is stale. Run \`node packages/core/scripts/virtual-types.ts\`. ${BUG}
 		`
 	},
+	plugin_session_order: {
+		text: (a: { hook: string; state: string }): string =>
+			`The bundler called ogygia's \`${a.hook}\` hook while the plugin was ${a.state}.`,
+		details: (): string => prose`
+			An \`ogygia()\` plugin is made, configured (\`config\`), then resolved
+			(\`configResolved\`) once: its compiler is made from the resolved build. A hook that
+			needs the compiler runs after that, and the build is resolved only once per plugin. A
+			bundler or a tool that calls the hooks in another order meets this. ${BUG}
+		`
+	},
 	build_leg_unclear: {
 		text: (a: { leg: string; open: number }): string =>
 			a.leg

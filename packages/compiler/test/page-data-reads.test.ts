@@ -2,7 +2,8 @@
 // server/render-page.ts): the server manifest's placeholder is patched, once the graph is complete,
 // with each server island's answer over its component's static AND dynamic imports.
 import { describe, test, expect } from 'vitest';
-import { Compiler, Program } from '../dist/compiler/index.js';
+import { CompileCtx, Compiler, Program, normalize_import_keys } from '../dist/compiler/index.js';
+import { partial_ctx_init } from './_compile-ctx.ts';
 
 // the manifest's placeholder as the server manifest emits it (a string literal no bundler folds)
 const PLACEHOLDER =
@@ -32,7 +33,16 @@ function compiler_with(holes: Record<string, string>, reads: Record<string, Set<
 		P: false,
 		outHash: new Map<string, number>()
 	};
-	return new Compiler(program, profiler);
+	// (the patch reads the program and the graph, never the context)
+	const ctx = new CompileCtx(
+		partial_ctx_init({
+			root: '/app',
+			presets: {},
+			import_keys: normalize_import_keys(undefined),
+			resolve_alias: []
+		})
+	);
+	return new Compiler(program, profiler, ctx);
 }
 
 describe('patch_page_data_reads', () => {

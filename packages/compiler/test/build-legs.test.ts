@@ -36,19 +36,20 @@ const SSR = { name: 'ssr', server: true };
 const CLIENT = { name: 'client', server: false };
 
 function make(is_build: boolean): Compiler {
-	const compiler = new Compiler(new Program({ forms: true, router: true }), {
-		prof: {
-			transformMs: 0,
-			transformN: 0,
-			transformHit: 0,
-			prescanMs: 0,
-			resolveMs: 0,
-			loadMs: 0
-		} as Compiler['profiler']['prof'],
-		P: false,
-		outHash: new Map()
-	});
-	compiler.configure(
+	return new Compiler(
+		new Program({ forms: true, router: true }),
+		{
+			prof: {
+				transformMs: 0,
+				transformN: 0,
+				transformHit: 0,
+				prescanMs: 0,
+				resolveMs: 0,
+				loadMs: 0
+			} as Compiler['profiler']['prof'],
+			P: false,
+			outHash: new Map()
+		},
 		new CompileCtx(
 			partial_ctx_init({
 				root,
@@ -68,7 +69,6 @@ function make(is_build: boolean): Compiler {
 			})
 		)
 	);
-	return compiler;
 }
 
 describe('build legs', () => {
