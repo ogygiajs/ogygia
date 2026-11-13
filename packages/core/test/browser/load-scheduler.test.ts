@@ -9,6 +9,7 @@
 import { expect, test, beforeEach, afterEach } from 'vitest';
 import {
 	BACKGROUND_WINDOW,
+	CRITICAL_CAP_MS,
 	critical_outcome,
 	critical_settled,
 	fetch_priority_of,
@@ -170,6 +171,33 @@ test('an imagesrcset preload (no href) is matched by any of its candidates', () 
 	link.href = '/one.jpg';
 	expect(preload_urls(link)).toEqual([new URL('/one.jpg', document.baseURI).href]);
 	expect(preload_urls(document.createElement('link'))).toEqual([]);
+});
+
+test('a critical image that never arrives holds island code only up to the cap', async () => {
+	pending_hero();
+	const t0 = performance.now();
+	await critical_settled();
+	expect(critical_outcome()?.outcome).toBe('cap');
+	expect(performance.now() - t0).toBeGreaterThanOrEqual(CRITICAL_CAP_MS - 50);
+}, 10_000);
+
+test('a critical preload that already arrived (its timing entry is in) is not waited for', async () => {
+	const href = new URL('/test/browser/fixtures/entry-current.ts?t=critical-arrived', location.href)
+		.href;
+	await fetch(href);
+	await expect.poll(() => performance.getEntriesByName(href).length).toBeGreaterThan(0);
+	const link = document.createElement('link');
+	link.rel = 'preload';
+	link.setAttribute('as', 'fetch');
+	link.setAttribute('fetchpriority', 'high');
+	link.href = href;
+	document.head.appendChild(link);
+	try {
+		await critical_settled();
+		expect(critical_outcome()?.outcome).toBe('none');
+	} finally {
+		link.remove();
+	}
 });
 
 test('no marked resource: code starts right after the paint', async () => {
