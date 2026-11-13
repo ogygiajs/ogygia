@@ -1,13 +1,3 @@
-/**
- * What a region mark on an import may bind, and how a marked binding may be used — one reading for a
- * `.svelte` host and a `.ts` / `.js` module (both are ESTree: Svelte's parser, oxc).
- *
- * A mark (`with { wake | render | fetch | preset | region }`) makes EVERY name its declaration binds
- * a region: a default import, a named import, an aliased one. A shape that binds no component (a
- * namespace, nothing, a type) is refused, and so is a marked name used as anything but a component.
- * `import.meta.og.asRegion` is gone: a call is refused with the import to write instead.
- * Tests: named-region-imports.test.ts, named-region-imports.fuzz.test.ts.
- */
 import type { SvelteNode } from './ir.ts';
 import { OgygiaError } from '../messages.ts';
 
@@ -17,14 +7,12 @@ export interface MarkedBinding {
 	exportName: string;
 }
 
-/** 1-based line of an offset. */
 function line_of(src: string, offset: number): number {
 	let line = 1;
 	for (let i = 0; i < offset; i++) if (src.charCodeAt(i) === 10) line++;
 	return line;
 }
 
-/** 1-based `line:col` of an offset. */
 function line_col(src: string, offset: number): string {
 	let line = 1;
 	let last = -1;
@@ -37,14 +25,12 @@ function line_col(src: string, offset: number): string {
 	return `${line}:${offset - last}`;
 }
 
-/** The export an import specifier reads: `default` for a default import, the imported name else. */
 function export_name_of(spec: SvelteNode): string {
 	if (spec.type === 'ImportDefaultSpecifier') return 'default';
 	const imported = spec.imported;
 	return imported?.type === 'Literal' ? String(imported.value) : String(imported?.name);
 }
 
-/** A specifier as written in a plain import line: `X`, `{ X }`, `{ E as X }`. */
 function binding_text(exportName: string, local: string): string {
 	if (exportName === 'default') return local;
 	return exportName === local ? `{ ${local} }` : `{ ${exportName} as ${local} }`;
@@ -84,7 +70,6 @@ export function marked_import_bindings(
 	return specifiers.map((s) => ({ local: s.local.name as string, exportName: export_name_of(s) }));
 }
 
-/** Is `node` the member expression `import.meta.og.<prop>`? */
 function is_import_meta_og(node: SvelteNode, prop: string): boolean {
 	return (
 		node?.type === 'MemberExpression' &&
@@ -99,11 +84,15 @@ function is_import_meta_og(node: SvelteNode, prop: string): boolean {
 	);
 }
 
-/** Keys that are never children (positions, back links, analysis data). */
-const SKIP_KEYS = new Set(['start', 'end', 'loc', 'range', 'parent', 'metadata']); // static: six AST keys
+const SKIP_KEYS: ReadonlySet<string> = new Set([
+	'start',
+	'end',
+	'loc',
+	'range',
+	'parent',
+	'metadata'
+]);
 
-/** Depth-first, in source order, with the chain of ancestors (nearest last). `visit` returning
- *  `false` skips the node's children. */
 function walk(
 	node: unknown,
 	visit: (node: SvelteNode, ancestors: SvelteNode[]) => boolean | void,
@@ -167,7 +156,6 @@ export function refuse_as_region(roots: unknown[], source: string, host: string)
 	if (fixes.length) throw new OgygiaError('as_region_removed', { host, fixes: fixes.join('\n') });
 }
 
-/** The names bound in a pattern (`a`, `{ a, b: [c] }`, `...d`, `e = 1`). */
 function pattern_names(p: SvelteNode | null | undefined, out: Set<string>): void {
 	if (!p || typeof p !== 'object') return;
 	switch (p.type) {
@@ -192,8 +180,6 @@ function pattern_names(p: SvelteNode | null | undefined, out: Set<string>): void
 	}
 }
 
-/** Every name a file declares other than through an import: a name declared twice may be shadowed
- *  somewhere, so the use check leaves it alone (it never guesses at scope). */
 function declared_names(roots: unknown[]): Set<string> {
 	const out = new Set<string>();
 	for (const root of roots)
@@ -236,9 +222,7 @@ function declared_names(roots: unknown[]): Set<string> {
 	return out;
 }
 
-/** The tags whose `on…` attributes are event handlers (on a component, `on…` is a prop). */
-// static: Svelte's element node types, a fixed list
-const DOM_ELEMENTS = new Set([
+const DOM_ELEMENTS: ReadonlySet<string> = new Set([
 	'RegularElement',
 	'SvelteElement',
 	'SvelteWindow',
@@ -246,17 +230,12 @@ const DOM_ELEMENTS = new Set([
 	'SvelteBody'
 ]);
 
-/** Directives that take a function by name (`use:x`, `transition:x`, …), with how the message says it. */
 const DIRECTIVE_USE: Record<string, string> = {
 	UseDirective: 'used as an action',
 	TransitionDirective: 'used as a transition',
 	AnimateDirective: 'used as an animation'
 };
 
-/**
- * How `node` (an Identifier naming a marked binding) is used, when that use is not a component's:
- * a phrase for the message, or `null` for a component use (a tag, a value handed on).
- */
 function misuse_of(node: SvelteNode, ancestors: SvelteNode[]): string | null {
 	const parent = ancestors[ancestors.length - 1];
 	if (!parent) return null;
@@ -274,7 +253,6 @@ function misuse_of(node: SvelteNode, ancestors: SvelteNode[]): string | null {
 		case 'SpreadAttribute':
 			return 'spread';
 		case 'UnaryExpression':
-			// `void X` keeps an import referenced and `!X` asks whether it is there: neither uses it
 			if (parent.operator === 'void' || parent.operator === '!') return null;
 			return parent.operator === 'typeof' ? 'read with typeof' : `an operand of ${parent.operator}`;
 		case 'UpdateExpression':
@@ -298,7 +276,6 @@ function misuse_of(node: SvelteNode, ancestors: SvelteNode[]): string | null {
 			if (holder?.type === 'Attribute') {
 				if (Array.isArray(holder.value) && holder.value.length > 1)
 					return 'put in an attribute string';
-				// an `on…` attribute is an event handler only on an element; on a component it is a prop
 				const element = ancestors[ancestors.length - 3];
 				if (/^on/i.test(String(holder.name)) && DOM_ELEMENTS.has(String(element?.type)))
 					return 'used as an event handler';
@@ -348,7 +325,6 @@ export function check_marked_uses(
 				fail(name.slice(1), `read as a store (${name})`, n.start);
 			if (!watched.has(name)) return;
 			const parent = ancestors[ancestors.length - 1];
-			// a property name, not a reference: `a.Name`, `{ Name: … }`, `export { x as Name }`
 			if (parent?.type === 'MemberExpression' && parent.property === n && !parent.computed) return;
 			if (
 				(parent?.type === 'Property' || parent?.type === 'MethodDefinition') &&

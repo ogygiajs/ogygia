@@ -1,25 +1,3 @@
-/**
- * `ogygia:server/server-manifest` emitter — the SERVER islands' data the `ogygiaHandle()` handle
- * reads (id → CSS-key url, so a server-picked (held) hole can ship its scoped CSS with its response;
- * names; render identities) and `load_islands()`, the one dynamic import of
- * `ogygia:server/server-regions`, which holds each island's loader. Populated in BOTH dev and build
- * (unlike the client manifest, which dev fills from URLs); the client build gets empty maps. A
- * whole-program emitter: it reads the Program's descriptor registry.
- *
- * A BUILD loads this module early (the handle imports it), before the bundler has reached every
- * host: a server region whose host the start-up scan never saw registers later (#1420). So a build
- * writes each map as a token, filled in from the final registry when its chunk is finished
- * (link/relocations.ts), and a region found after `server-regions` was written gets its loader as
- * its own emitted chunk, named in that module by another token. Dev writes the values: a change
- * there loads the module again.
- *
- * WHY the loaders sit one dynamic import away: Kit links, eagerly, the CSS of every module a page's
- * SERVER graph reaches within one dynamic import (find_deps, `dynamic_import_depth <= 1`). The
- * bundler co-locates this module with whatever shares it (the handle, `region()`), and a page's
- * component imports that chunk statically — so loaders living here put every island of the app one
- * dynamic import from every page, and a Kit-hydrated page linked them all. Behind `load_islands()`
- * they are two away, whatever the chunking (rolldown 1.2.16 regrouped it and exposed exactly this).
- */
 import type { Program, RegistryEntry } from '../program.ts';
 import { V_SERVER_REGIONS } from '../ids.ts';
 import { dedent } from '@ogygia/core/contract';
@@ -57,25 +35,16 @@ export function server_manifest_maps(
 		region_render: {},
 		render_region: {}
 	};
-	/** render id → the server entry that renders it (the smallest id: one answer per build) */
 	const by_render = new Map<string, string>();
 	for (const [iid, virtualPath, reg] of server_regions(program)) {
-		// id → its render identity, signed into every capability minted for it; render identity → an
-		// entry rendering it, for a capability minted by another build (compiler/region/identity.ts)
 		if (reg.renderId) {
 			maps.region_render[iid] = reg.renderId;
 			const seen = by_render.get(reg.renderId);
 			if (seen === undefined || iid < seen) by_render.set(reg.renderId, iid);
 		}
-		// id → its component's name (`SlowHole` from `…/SlowHole.svelte`): the profiler names a hole
-		// request by it (neither URL carries the name: both are keyed by the id)
 		const file = reg.componentPath ?? '';
 		const base = file.slice(file.lastIndexOf('/') + 1);
 		if (base.endsWith('.svelte')) maps.region_name[iid] = base.slice(0, -7);
-		// id → the URL `islandCss()` is keyed by, so the handle can ship a server-picked hole's
-		// CSS with its response (a page that never imported the component still styles it). In a
-		// build that's the hashed client chunk (→ handoff CSS assets); in dev it's the entry's
-		// dev module URL (→ `islandCss` returns it, the client imports it for CSS). Same channel.
 		maps.region_url[iid] = url_for(iid, virtualPath);
 	}
 	for (const [r, iid] of by_render) maps.render_region[r] = iid;
@@ -109,6 +78,7 @@ export function server_manifest_module(
 	const maps = is_dev ? server_manifest_maps(program, (_iid, vp) => devUrlFor(vp)) : null;
 	const value = (name: keyof ServerManifestMaps): string =>
 		maps ? JSON.stringify(maps[name]) : `JSON.parse("${SERVER_MAP_TOKENS[name]}")`;
+	// @why Kit links the CSS of every module a page's server graph reaches within one dynamic import (find_deps, dynamic_import_depth <= 1) (test: test/render-id.test.ts › the islands’ loaders live one dynamic import away (Kit links CSS one import deep))
 	return dedent`
 		export const load_server_regions = () => import(${JSON.stringify(V_SERVER_REGIONS)});
 
