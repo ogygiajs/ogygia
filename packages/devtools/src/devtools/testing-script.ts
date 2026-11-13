@@ -81,7 +81,7 @@ if (typeof window !== 'undefined' && !window.__ogygia_testing) {
 			// (the page owns it: the scope ends once the body is there and the session goes on)
 			const s = scope();
 			s.on(document, 'DOMContentLoaded', () => {
-				s[Symbol.dispose]();
+				s.close();
 				resume_session(saved);
 			});
 		}
