@@ -950,11 +950,12 @@ export const { peer } = federate({
 }
 
 /** The app's server hook beside ogygia's (`src/lib/gen/mount.server.ts`): the peer's pages
- *  mounted under `/peer` by a server router, or nothing. */
+ *  mounted under `/peer` by a server router, or nothing. It imports the federation either way
+ *  (test/gen.test.ts: gen 220 seed 19). */
 function app_mount(peer: GenPeer | null): string {
 	if (peer?.mount !== 'router')
 		return `import type { Handle } from '@sveltejs/kit';
-
+${peer ? `import './federation.server.ts';\n` : ''}
 export const handle: Handle = ({ event, resolve }) => resolve(event);
 `;
 	return `import type { Handle } from '@sveltejs/kit';
