@@ -20,6 +20,20 @@ describe('locate', () => {
 		expect(html.slice(s.body_end, s.body_end + 7)).toBe('</body>');
 	});
 
+	it('finds the points as the browser reads them: any case, never inside a script or comment (#1410)', () => {
+		const upper = '<!doctype html><HTML><HEAD><title>t</title></HEAD ><BODY><p>x</p></BODY></HTML>';
+		const u = locate(upper);
+		expect(upper.slice(u.head_end, u.head_end + 6)).toBe('</HEAD');
+		expect(upper.slice(u.body_end, u.body_end + 7)).toBe('</BODY>');
+		const head = '<script type="application/ld+json">{"a":"</head>"}</script><title>t</title>';
+		const in_script = doc('<p>x</p><!-- </body> -->', head);
+		const s = locate(in_script);
+		expect(s.head_end).toBe(in_script.indexOf('</title>') + '</title>'.length);
+		expect(s.body_end).toBe(in_script.lastIndexOf('</body></html>'));
+		const tail = `${doc('<p>x</p>')}<script>"</body>"</script>`;
+		expect(locate(tail).body_end).toBe(tail.indexOf('</body>'));
+	});
+
 	it('reports -1 for a chunk without the point (streamed head / body chunks)', () => {
 		expect(locate('<html><head><title>t</title></head><body><p>')).toEqual({
 			head_end: 28,
