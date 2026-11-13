@@ -26,6 +26,7 @@
  *   node src/failures.ts --base <rev>          and the baseline may not grow against <rev>
  *   node src/failures.ts --sweep <results>...  and each `fired` point fired in the sweep's results
  *   node src/failures.ts --list                print every site, with its line
+ *   node src/failures.ts --list --packages a,b the sites of other packages (outside the scope)
  *   node src/failures.ts --write-baseline      set the baseline to every site in no bucket
  *
  * test/failures.test.ts.
@@ -485,7 +486,12 @@ function main(): void {
 	const ledger = read_failure_ledger();
 	const all = inventory(ROOT, ledger.scope);
 	if (process.argv.includes('--list')) {
-		for (const s of all) console.log(`${s.file}:${s.line}  ${s.id}`);
+		const named = arg('--packages');
+		const listed =
+			named === undefined
+				? all
+				: inventory(ROOT, { packages: named.split(','), exclude: ledger.scope.exclude });
+		for (const s of listed) console.log(`${s.file}:${s.line}  ${s.id}`);
 		return;
 	}
 	const sites = new Set(all.map((s) => s.id));
