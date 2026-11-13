@@ -106,6 +106,15 @@ export interface GenNode {
 	 *  where Svelte's head hydration would walk into it (the runtime takes every island's head off
 	 *  that walk first). Only one that wakes on its own, in the page's own HTML. */
 	readonly head?: 'own' | 'drift';
+	/** SCREEN (stream `gen screen`): a page's own hole fetched on the visitor's gesture warming ahead
+	 *  on another schedule (`prefetch`), and the margin (`margin`, a `rootMargin`) by which a
+	 *  `visible` island, fetch or prefetch looks past the viewport. What schedules owe at rest is the
+	 *  oracles' (src/oracles.ts `schedules`). */
+	readonly prefetch?: 'load' | 'idle' | 'visible';
+	readonly margin?: string;
+	/** A block this many px tall right before it (`data-gen-lead`): it starts below the fold, within
+	 *  its margin or past it. */
+	readonly lead?: number;
 	readonly children: readonly GenNode[];
 }
 
@@ -120,9 +129,16 @@ export interface GenPage {
 	/** The page opens with a hero image (`fetchpriority="high"`): its critical resource, which island
 	 *  code and background downloads wait for (the load scheduler's critical gate). */
 	readonly hero?: boolean;
+	/** The page ends with a module script of its own (`/late.js`), after ogygia's runtime: the
+	 *  document's DOMContentLoaded waits for its download, so the runtime runs while the document
+	 *  is parsed and not yet loaded (the paint gate's window). */
+	readonly late?: boolean;
 	/** The page's server load reads the app's flag (`gate(event)`): each read is an exposure, which the
 	 *  sink takes in batches (`flags exposures`). */
 	readonly flagged?: boolean;
+	/** A tall block before root `before` (stream `gen screen`), `height` px: what follows it starts
+	 *  below the fold, or within a margin of it. */
+	readonly fold?: { readonly before: number; readonly height: number };
 }
 
 const WAKES: readonly Wake[] = ['load', 'idle', 'visible', 'interaction'];
@@ -292,6 +308,8 @@ export function plan(seed: number): GenPage[] {
 	};
 	// (and whether a page opens with a hero image, from its own)
 	const hr = rng(seed).fork('gen hero');
+	// (and whether it ends with a module of its own, from its own)
+	const lm = rng(seed).fork('gen late module');
 	const switching = switcher(seed);
 	const node = trees(
 		r,
@@ -311,10 +329,89 @@ export function plan(seed: number): GenPage[] {
 		.map((page) => ({ ...page, roots: page.roots.map(messy) }))
 		.map((page) => ({ ...page, roots: page.roots.map(empty) }))
 		.map((page) => (hr.chance(0.4) ? { ...page, hero: true } : page))
+		.map((page) => (lm.chance(0.4) ? { ...page, late: true } : page))
 		.map((page) => ({ ...page, roots: page.roots.map(switching) }))
 		.map(flagging(seed))
 		.map(third_party(seed))
-		.map(heads(seed));
+		.map(heads(seed))
+		.map(screen(seed));
+}
+
+/** Margins a `visible` schedule may look past the viewport by: px, % of the viewport, one side. */
+const MARGINS = ['200px', '600px', '50%', '0px 0px 300px 0px'] as const;
+/** Heights of the block before a region that looks past the viewport (the fold is at 720 px). */
+const LEADS = [760, 900, 1100] as const;
+
+/** A region with a margin is imported by a preset (a margin is never an inline attribute): its name
+ *  and options. The app's config takes every preset its pages name from plan.json's `presets`. */
+function screen_preset(n: GenNode): [string, Record<string, string>] {
+	const m = `m${MARGINS.indexOf(n.margin as (typeof MARGINS)[number])}`;
+	if (n.kind === 'island') return [`visible-${m}`, { wake: 'visible', margin: n.margin! }];
+	const fetch = n.wake ?? 'load';
+	return [
+		`screen-${fetch}${n.prefetch ? `-${n.prefetch}` : ''}-${m}`,
+		{
+			render: 'deferred',
+			...(n.wake ? { fetch: n.wake } : {}),
+			...(n.prefetch ? { prefetch: n.prefetch } : {}),
+			margin: n.margin!
+		}
+	];
+}
+
+/** Every screen preset `pages` name (see {@link screen_preset}). */
+function screen_presets(pages: readonly GenPage[]): Record<string, Record<string, string>> {
+	const out: Record<string, Record<string, string>> = {};
+	const walk = (n: GenNode): void => {
+		if (n.margin && (n.kind === 'island' || n.kind === 'hole') && !n.maxAge) {
+			const [name, options] = screen_preset(n);
+			out[name] = options;
+		}
+		n.children.forEach(walk);
+	};
+	for (const p of pages) p.roots.forEach(walk);
+	return out;
+}
+/** Where the screen decides (its own stream, `gen screen`): some pages put their later regions
+ *  below the fold, some `visible` islands look past it by a margin, and some of a page's own holes
+ *  fetch on the visitor's gesture, warming ahead on another schedule (a hole's `wake` is its fetch).
+ *  Drawn after every other stream: their draws stay as they were. */
+function screen(seed: number): (page: GenPage) => GenPage {
+	const s = rng(seed).fork('gen screen');
+	// (a tall block right before a region that looks past the viewport, from its own stream: what
+	// follows the fold by less than its margin is owed, what follows it by more is not)
+	const l = rng(seed).fork('gen screen lead');
+	const lead = (n: GenNode): GenNode => (l.chance(0.7) ? { ...n, lead: l.pick(LEADS) } : n);
+	const walk = (n: GenNode, root: boolean): GenNode => {
+		const children = n.children.map((c) => walk(c, false));
+		if (n.kind === 'island' && n.wake === 'visible' && s.chance(0.5))
+			return lead({ ...n, children, margin: s.pick(MARGINS) });
+		// (a page's own hole: nested in an island, a hole renders inline; a kept render is a preset's)
+		if (n.kind === 'hole' && root && !n.maxAge && !n.keep && n.fallback) {
+			const wake = s.chance(0.25) ? 'interaction' : n.wake;
+			const prefetch =
+				wake === 'interaction' && s.chance(0.7)
+					? s.pick(['load', 'idle', 'visible'] as const)
+					: undefined;
+			const looks = wake === 'visible' || prefetch === 'visible';
+			const margin = looks && s.chance(0.6) ? s.pick(MARGINS) : undefined;
+			const hole = {
+				...n,
+				children,
+				...(wake ? { wake } : {}),
+				...(prefetch ? { prefetch } : {}),
+				...(margin ? { margin } : {})
+			};
+			return looks ? lead(hole) : hole;
+		}
+		return { ...n, children };
+	};
+	return (page) => {
+		const roots = page.roots.map((n) => walk(n, true));
+		if (roots.length < 2 || !s.chance(0.5)) return { ...page, roots };
+		const fold = { before: s.between(1, roots.length - 1), height: s.pick([500, 700, 900, 1400]) };
+		return { ...page, roots, fold };
+	};
 }
 
 /** Some islands have a `<svelte:head>` of their own (their own stream, `gen head`), and a third
@@ -432,6 +529,15 @@ const PNG = Uint8Array.from(
 export const GET = () =>
 \tnew Response(PNG, {
 \t\theaders: { 'content-type': 'image/png', 'cache-control': 'public, max-age=31536000, immutable' }
+\t});
+`;
+
+/** The page's own module the app serves (`/late.js`, GenPage `late`): empty, loaded over the
+ *  simulated network. */
+const LATE_ROUTE = `// (a page's own deferred module, after ogygia's runtime: DOMContentLoaded waits for it)
+export const GET = () =>
+\tnew Response('export {};\\n', {
+\t\theaders: { 'content-type': 'text/javascript', 'cache-control': 'public, max-age=31536000, immutable' }
 \t});
 `;
 
@@ -565,15 +671,21 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 function attributes(n: GenNode): string {
 	switch (n.kind) {
 		case 'island':
-			return ` with { wake: '${n.wake}' }`;
+			return n.margin
+				? ` with { preset: '${screen_preset(n)[0]}' }`
+				: ` with { wake: '${n.wake}' }`;
 		case 'lake':
 			return ` with { wake: 'none' }`;
-		case 'hole':
+		case 'hole': {
 			// (a kept render is a preset's: apps/sim-gen/vite.config.ts)
 			if (n.maxAge) return ` with { preset: 'hole-${n.maxAge}${n.wake ? `-${n.wake}` : ''}' }`;
-			return n.wake
-				? ` with { render: 'deferred', fetch: '${n.wake}' }`
-				: ` with { render: 'deferred' }`;
+			if (n.margin) return ` with { preset: '${screen_preset(n)[0]}' }`;
+			const own = [
+				...(n.wake ? [`fetch: '${n.wake}'`] : []),
+				...(n.prefetch ? [`prefetch: '${n.prefetch}'`] : [])
+			];
+			return ` with { ${["render: 'deferred'", ...own].join(', ')} }`;
+		}
 		case 'plain':
 			return '';
 		// (the parent imports the region's host: a plain component, or an island)
@@ -591,6 +703,8 @@ function name(n: GenNode): string {
 
 /** Where `n` is used: its tag, with a fallback for a hole that has one. */
 function usage(n: GenNode, indent: string): string {
+	if (n.lead)
+		return `${indent}<div data-gen-lead style="height: ${n.lead}px"></div>\n${usage({ ...n, lead: undefined }, indent)}`;
 	if (n.empty)
 		return [
 			`${indent}<div data-gen-empty>`,
@@ -920,6 +1034,8 @@ export const prerender = false;
 	writeFileSync(join(routes, '+page.svelte'), `<h1>generated app, seed ${seed}</h1>\n`);
 	mkdirSync(join(routes, 'hero.png'), { recursive: true });
 	writeFileSync(join(routes, 'hero.png', '+server.ts'), HERO_ROUTE);
+	mkdirSync(join(routes, 'late.js'), { recursive: true });
+	writeFileSync(join(routes, 'late.js', '+server.ts'), LATE_ROUTE);
 	writeFileSync(join(lib, 'mount.server.ts'), app_mount(peer));
 	writeFileSync(join(lib, 'flags.server.ts'), app_flags(pages));
 	if (peer) {
@@ -997,8 +1113,16 @@ export const actions = m.actions;
 					? ['<img src="/hero.png" fetchpriority="high" alt="" width="1" height="1" />']
 					: []),
 				...(page.flagged ? ['<p data-gen-flag>gate {data.gate}</p>'] : []),
-				...page.roots.map((n) => usage(n, '')),
+				...page.roots.flatMap((n, i) => [
+					...(page.fold?.before === i
+						? [`<div data-gen-fold style="height: ${page.fold.height}px"></div>`]
+						: []),
+					usage(n, '')
+				]),
 				...slots.map(slot_usage),
+				...(page.late
+					? [`{@html '<scr' + 'ipt type="module" src="/late.js"></scr' + 'ipt>'}`]
+					: []),
 				''
 			].join('\n')
 		);
@@ -1006,7 +1130,7 @@ export const actions = m.actions;
 	}
 	writeFileSync(
 		join(lib, 'plan.json'),
-		`${JSON.stringify({ seed, pages, peer, layout, router }, null, '\t')}\n`
+		`${JSON.stringify({ seed, pages, peer, layout, router, presets: screen_presets(pages) }, null, '\t')}\n`
 	);
 }
 

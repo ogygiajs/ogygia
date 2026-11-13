@@ -7,7 +7,8 @@ import {
 	held_twice,
 	known_waste,
 	refused,
-	warned
+	warned,
+	watched_awake
 } from '../src/waste.ts';
 import type { World } from '../src/world.ts';
 
@@ -318,5 +319,47 @@ describe('warned', () => {
 			}) as unknown as Parameters<typeof warned>[0];
 		expect(warned(tab('/detector'))).toEqual(['warn: other']);
 		expect(warned(tab('/data'))).toEqual(said);
+	});
+});
+
+describe('alive after its owner', () => {
+	it("counts the viewport tracker's swap observer left on a region as #1255's (gen 734, seed 11: it killed every core mutant alike)", async () => {
+		const { Window } = await import('happy-dom');
+		const doc = new Window().document as unknown as Document;
+		expect(known_waste(doc, ['MutationObserver watching <ogygia-region>'])).toEqual({
+			left: [],
+			known: [1255]
+		});
+		expect(known_waste(doc, ['MutationObserver watching <div>']).left).toHaveLength(1);
+	});
+});
+
+describe('watched after its wake', () => {
+	const tab = async (body: string) => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/p1' });
+		w.document.write(`<html><body>${body}</body></html>`);
+		const all = [...w.document.querySelectorAll('ogygia-region')] as unknown as Element[];
+		return { observed: () => all } as unknown as Parameters<typeof watched_awake>[0];
+	};
+
+	it('finds a woken island an IntersectionObserver still watches (a mutant that kept the snapshot watching survived)', async () => {
+		expect(
+			watched_awake(
+				await tab(
+					'<ogygia-region entry="/_app/n1.js" wake="load" data-hydrated><p>n1</p></ogygia-region>'
+				)
+			)
+		).toEqual(['<ogygia-region entry="/_app/n1.js" wake="load">']);
+	});
+
+	it('passes an island still asleep, and a hole', async () => {
+		expect(
+			watched_awake(
+				await tab(
+					'<ogygia-region entry="/_app/n1.js" wake="visible"><p>n1</p></ogygia-region><ogygia-region entry="/_app/n2.js" render="defer" wake="load" data-hydrated><p>n2</p></ogygia-region>'
+				)
+			)
+		).toEqual([]);
 	});
 });
