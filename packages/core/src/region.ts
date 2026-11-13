@@ -3,12 +3,10 @@ import { region_snippet } from './region-snippet.ts';
 import { with_portable_forms } from './portable-form.ts';
 import RawHtml from './RawHtml.svelte';
 import { REGION_BRAND } from './region-brand.ts';
-import { kit_page_facts_tail, kit_page_ready, kit_render_context } from './server/kit-context.ts';
+import { held_root_context, kit_page_facts_tail, kit_page_ready } from './server/kit-context.ts';
 import { region_css_tags } from './server/html-scan.ts';
 import { OgygiaError } from './messages/island.ts';
 
-/** context.ts's LAKE key (`isInLake`), by its global name — context.ts reaches virtual modules. */
-const LAKE_SUBTREE_KEY = Symbol.for('ogygia.lake-subtree');
 export { REGION_BRAND };
 
 /** Schedule options for a held region. `wake` = when its JS runs; `margin` = IntersectionObserver
@@ -228,13 +226,12 @@ function make_inline_awaitable(inline: InlineRegion): AwaitableRegion {
 				const { render } = await import('svelte/server');
 				// A fresh root: hand it Kit's `__request__` context — the page of the render
 				// (server/render-page.ts), awaited first: a region a remote call renders reads its page.
-				// Its HTML only ever reaches a page OPAQUE to Kit (baked into a `{@html}`, or morphed in by
-				// the runtime), so it renders as a lake's inside: its islands emit real regions the runtime
-				// wakes, never Kit-inline ones nothing would hydrate (context.ts `isInLake`).
+				// A held region's root: a lake's inside, with no head of its own (`held_root_context`).
 				await kit_page_ready();
-				const context: Map<unknown, unknown> = kit_render_context();
-				context.set(LAKE_SUBTREE_KEY, true);
-				const r = await render(inline.component, { props: inline.props, context });
+				const r = await render(inline.component, {
+					props: inline.props,
+					context: held_root_context()
+				});
 				// Keep nested regions' stylesheets — a body's server-picked blocks emit their region CSS
 				// via head (a `<link>`, or an inline `<style>` under Kit's inlineStyleThreshold), and
 				// dropping either form would ship them unstyled.

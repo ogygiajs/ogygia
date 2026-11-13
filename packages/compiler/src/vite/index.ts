@@ -98,6 +98,7 @@ import { assert_no_legacy_options, validate_region_presets, resolve_options } fr
 import {
 	clientBuildWillSkip,
 	hasAnyCsrFalseRoute,
+	is_route_file,
 	clear_route_csr_cache,
 	keep_client_dir,
 	inject_keep_client_route,
@@ -157,9 +158,6 @@ import { flags_manifest } from '../compiler/flags.ts';
 // when Kit's client boots and NEVER on a csr=false page — the append target for the kit-world page
 // thread (see the transform hook).
 const KIT_CLIENT_APP_RE = /\/generated\/(?:build\/|dev\/)?client(-optimized)?\/app\.js$/;
-// A route host (`+page`/`+layout.svelte`) or option file (`.js`/`.ts`, `.server` too): a dev change
-// to any of these can shift the csr topology OR a plugin's key inside `export const config`.
-const ROUTE_HOST_OR_OPTION_RE = /[\\/]\+(page|layout)(\.server)?\.(svelte|js|ts)$/;
 // Appended INLINE (no extra module): publishes Kit's REAL reactive `page`/`navigating` on the
 // well-known slot the island `$app/*` shims read through (`kit_bridge()` in shims/kit-bridge; the
 // `$page` shim builds its live store from this `page`). Importer is Kit's own entry — never
@@ -1053,7 +1051,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// graph, so without invalidation the SERVER leg keeps deciding island-vs-inline from a
 				// STALE set while Kit flips immediately — `<ogygia-region>` shells on a Kit-booted page
 				// with the runtime withheld = dead chrome (hit at a consumer after toggling `csr`).
-				if (is_dev && ROUTE_HOST_OR_OPTION_RE.test(id)) {
+				if (is_dev && is_route_file(path.basename(id))) {
 					clear_route_csr_cache();
 					// (a plugin's key inside `export const config` add/flip changes the baked values too)
 					if (vite_server)
@@ -1612,7 +1610,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					...(measure ? { page_why, barrels } : {}),
 					content_css,
 					css_inline,
-					fn_manifest: Object.fromEntries(compiler.dollar_hoists),
+					fn_manifest: compiler.fn_manifest(),
 					// identity (the stable URL SSR bakes) → location (the content-hashed file to load)
 					entries: entries.locations,
 					// the same, as one file the browser reads (the runtime's script tag names it)

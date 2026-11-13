@@ -106,7 +106,7 @@ describe('profiler: measures', () => {
 		const mine = await login_flag();
 		const other = await login_flag();
 		expect(await run.measures(event('/__ogygia__', `og_profiler_beacon=${mine.flag}`))).toBe(true);
-		await run.handle(event('/__profiler/logout', `og_profiler=${mine.token}`));
+		await run.handle(event('/__profiler/logout', `og_profiler=${mine.token}`, { method: 'POST' }));
 		expect(await run.measures(event('/__ogygia__', `og_profiler_beacon=${mine.flag}`))).toBe(false);
 		expect(await run.measures(event('/__ogygia__', `og_profiler_beacon=${other.flag}`))).toBe(true);
 	});

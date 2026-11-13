@@ -71,7 +71,7 @@ async function with_store<T>(
 		db.close();
 		return out;
 	} catch {
-		return null;
+		return null; // ok: null is "not stored": callers show it (KeepLocal says it could not keep it)
 	}
 }
 
