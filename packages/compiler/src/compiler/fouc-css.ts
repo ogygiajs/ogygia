@@ -18,6 +18,7 @@ import { compile, parse } from 'svelte/compiler';
 import { walk } from 'estree-walker';
 import { unscoped_marker } from '@ogygia/core/contract';
 import { blank_styles } from './blank-styles.ts';
+import { component_blocks } from './parse/scan.ts';
 import { EVERY_BARREL, ExportIndex, Shapes } from './exports/index.ts';
 import { warn } from './messages.ts';
 import { region_family } from './ids.ts';
@@ -26,9 +27,7 @@ export const FOUC_CSS_PREFIX: string = region_family('fouc_css');
 export const FOUC_SCOPED_PREFIX: string = region_family('fouc_scoped');
 
 const PATH_SEP = /[/\\]/;
-const SCRIPT_TAG = /<script\b[^>]*>[\s\S]*?<\/script>/gi;
 const STYLE_OPEN = /<style\b/i;
-const STYLE_BODY = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
 const STYLE_EXT = /\.(css|scss|sass|less|styl|stylus|pcss)(?:\?|$)/i;
 const SVELTE_EXT = /\.svelte(?:\?|$)/i;
 const IMPORT_SPEC =
@@ -372,7 +371,7 @@ export function compileFoucScopedCss(
 	// (the whole source first even when not preprocessed: stripping the script first made every
 	// template with a `bind:` or a script name throw, and the dev router leg shipped 11 of the
 	// profiler's 37 styled components unscoped)
-	const inputs = opts.keepScript ? [source] : [source, source.replace(SCRIPT_TAG, '')];
+	const inputs = opts.keepScript ? [source] : [source, without_scripts(source)];
 	let err: unknown;
 	for (const input of inputs) {
 		try {
@@ -431,7 +430,23 @@ function unwrap_global(css: string) {
 
 /** @param source */
 function extractRawStyleBodies(source: string) {
-	return unwrap_global([...source.matchAll(STYLE_BODY)].map((m) => m[1]).join('\n'));
+	return unwrap_global(
+		component_blocks(source)
+			.filter((b) => b.kind === 'style')
+			.map((b) => source.slice(b.start, b.end))
+			.join('\n')
+	);
+}
+
+function without_scripts(source: string): string {
+	let out = '';
+	let at = 0;
+	for (const b of component_blocks(source)) {
+		if (b.kind !== 'script') continue;
+		out += source.slice(at, b.open);
+		at = b.close;
+	}
+	return out + source.slice(at);
 }
 
 /**

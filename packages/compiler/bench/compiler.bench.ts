@@ -5,6 +5,8 @@
 import path from 'node:path';
 import { parse } from 'svelte/compiler';
 import { bench } from '@bench/heisenbench/bench';
+import { blank_styles } from '../src/compiler/blank-styles.ts';
+import { component_blocks } from '../src/compiler/parse/scan.ts';
 import { EVERY_BARREL, ExportIndex, Shapes, type Policy } from '../src/compiler/exports/index.ts';
 import { analyze_exports, analyze_imports } from '../src/compiler/exports/parse.ts';
 import { barrel_left_table } from '../src/compiler/exports/left.ts';
@@ -88,6 +90,27 @@ bench(
 	({ source }) =>
 		transformHost(source, '/app/src/routes/catalog/+page.svelte', host_ctx(true))?.code.length,
 	{ setup: () => ({ source: route_page(20) }) }
+);
+
+bench(
+	"component blocks: a page's scripts and styles, read with the tag walk",
+	({ source }) => {
+		const blocks = component_blocks(source);
+		return [blocks.length, blank_styles(source).length];
+	},
+	{
+		setup: () => ({
+			source: dedent`
+				<script module lang="ts">
+					export const prerender = true;
+				</script>
+				<!-- <script>an old script</script> -->
+				${route_page(20)}<style lang="scss" data-note="a>b">
+					main { color: red }
+				</style>
+			`
+		})
+	}
 );
 
 // Growth from a small page: the transform is linear in the island count. It was quadratic while

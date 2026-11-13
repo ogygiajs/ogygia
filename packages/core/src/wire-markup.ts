@@ -80,6 +80,7 @@ export type MarkKey =
 	| 'pageHoles'
 	| 'pageKept'
 	| 'pageNav'
+	| 'pageReadFailed'
 	| 'pageServer'
 	| 'pageSince'
 	| 'pageSinceNote'
@@ -211,6 +212,7 @@ export const OG_PAGE_FINDINGS = 'data-og-page-findings';
 export const OG_PAGE_HOLES = 'data-og-page-holes';
 export const OG_PAGE_KEPT = 'data-og-page-kept';
 export const OG_PAGE_NAV = 'data-og-page-nav';
+export const OG_PAGE_READ_FAILED = 'data-og-page-read-failed';
 export const OG_PAGE_SERVER = 'data-og-page-server';
 export const OG_PAGE_SINCE = 'data-og-page-since';
 export const OG_PAGE_SINCE_NOTE = 'data-og-page-since-note';
@@ -338,6 +340,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	pageHoles: { attr: OG_PAGE_HOLES, by: 'devtools' },
 	pageKept: { attr: OG_PAGE_KEPT, by: 'devtools' },
 	pageNav: { attr: OG_PAGE_NAV, by: 'devtools' },
+	pageReadFailed: { attr: OG_PAGE_READ_FAILED, by: 'devtools' },
 	pageServer: { attr: OG_PAGE_SERVER, by: 'devtools' },
 	pageSince: { attr: OG_PAGE_SINCE, by: 'devtools' },
 	pageSinceNote: { attr: OG_PAGE_SINCE_NOTE, by: 'devtools' },
