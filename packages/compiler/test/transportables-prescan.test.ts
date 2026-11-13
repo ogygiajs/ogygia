@@ -90,3 +90,16 @@ describe('the prescan counts a wire class exactly when the registration register
 		);
 	});
 });
+
+// The raw file the prescan reads is not always what the build compiles (a preprocessor or another
+// plugin may run first). A miss loses the loader and the wire mark; an extra answer loads one module.
+describe('a module the prescan cannot parse', () => {
+	it('counts as one that may define a wire class (#1486)', () => {
+		const src = `export class Cart { static wire = import.meta.og.wire(${CODEC}); }\nconst x = <div />;`;
+		expect(moduleHasTransportable(src, FILE)).toBe(true);
+	});
+
+	it('still needs a class and a static to be counted', () => {
+		expect(moduleHasTransportable('const x = <div />;', FILE)).toBe(false);
+	});
+});
