@@ -461,7 +461,9 @@ nobody notices wants an oracle or a test first.
 
 MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
 `internal/sim/mutants.json` on main's code, over gens 1 (a Kit mount of a peer with its refused and
-missing pages: a 400 taken as no error, and an error that says nothing, die by `peer-answers`), 10
+missing pages: a 400 taken as no error, an error that says nothing, and an exposed page answered as
+a redirect, which the mount then fails on with a 5xx though the peer gave its page whole and in
+time (`Exchange.ended_at`), die by `peer-answers`), 10
 (the router with a reshape pass: the network
 faults alone kill a navigation that never hands a lost page fetch to the browser, and a hole that
 never fetches again after its retry wait, both by `stuck`), 24 (a reshape pass that trims, with links: it

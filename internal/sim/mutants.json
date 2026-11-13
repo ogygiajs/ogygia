@@ -351,6 +351,24 @@
 		"to": "> 500"
 	},
 	{
+		"id": "serve-every-answer-a-redirect",
+		"file": "packages/federation/src/serve.ts",
+		"in": "serve_expose",
+		"code": "if (res.status >= 300 && res.status < 400)",
+		"operator": "logical",
+		"from": "&&",
+		"to": "||"
+	},
+	{
+		"id": "serve-400-a-redirect",
+		"file": "packages/federation/src/serve.ts",
+		"in": "serve_expose",
+		"code": "if (res.status >= 300 && res.status < 400)",
+		"operator": "relational",
+		"from": "< 400",
+		"to": "<= 400"
+	},
+	{
 		"id": "kit-mount-400-no-error",
 		"file": "packages/federation/src/mount.ts",
 		"in": "kit_mount > load",
