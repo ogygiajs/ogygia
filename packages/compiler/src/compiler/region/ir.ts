@@ -1,6 +1,6 @@
 /**
  * The IR — the seam between the region front-end's phases. `analyze` reads a file's AST into a
- * `FileIR` (what the file declares: its imports, region marks, asRegion call sites, usage findings,
+ * `FileIR` (what the file declares: its imports, region marks, usage findings,
  * csr tri-state); `lower` consumes the `FileIR` and rewrites the source, minting `IslandDescriptor`s.
  * `FileIR` is the ONLY thing that crosses analyze → lower — pure data, no closures — which is what
  * lets the two phases live in separate modules.
@@ -15,7 +15,7 @@ import type { AstNode } from '../parse/oxc.ts';
 /** A Svelte / ESTree node as the front-end walks it — dynamic access, loosely typed by design. */
 export type SvelteNode = AstNode;
 
-/** A region mark — the `{ strategy, options }` a `with { … }` clause or `asRegion(…)` resolves to. */
+/** A region mark — the `{ strategy, options }` a `with { … }` clause resolves to. */
 export interface RegionMark {
 	strategy: string;
 	options: Record<string, unknown>;
@@ -23,7 +23,7 @@ export interface RegionMark {
 
 /** One host import the analyze pass indexed: its ImportDeclaration node + the `with {…}`-stripped text. */
 export interface HostImport {
-	/** the ImportDeclaration (or the synthetic one an asRegion call stands for), with its offsets */
+	/** the ImportDeclaration, with its offsets */
 	node: SvelteNode & { start: number; end: number };
 	cleaned: string;
 }
@@ -51,16 +51,12 @@ export interface FileIR {
 	import_keys: ImportKeys;
 	/** localName → { node, cleaned } for every host import. */
 	imports: Map<string, HostImport>;
-	/** localName → the region mark it carries (a `with {…}` import or an asRegion synthetic import). */
+	/** localName → the region mark its `with {…}` import carries. */
 	marked_components: Map<string, RegionMark>;
-	/** ImportDeclaration nodes to remove from the host (unused marked imports / consumed barrels). */
+	/** ImportDeclaration nodes to remove from the host (marked imports the file never uses). */
 	imports_to_strip: Set<{ start: number; end: number }>;
-	/** the asRegion call sites — the local binding, the component local, and the const statement node. */
-	as_regions: Array<{ local: string; compLocal: string; node: { start: number; end: number } }>;
-	/** the asRegion `const` statement nodes (skipped by the stray-asRegion walk + barrel-cleanup). */
-	as_region_nodes: Set<SvelteNode>;
-	/** asRegion local → the barrel export name it pulls (undefined → default import). */
-	synthetic_export: Map<string, string | undefined>;
+	/** marked localName → the export it reads (`'default'`, or a named export's name). */
+	export_names: Map<string, string>;
 	/** a hydrate island with real host children was placed (the app needs the wire slot revivers). */
 	has_island_children: boolean;
 	/** the cheap island-hint gate result (a marker-less snippet-only file is not "hinted"). */

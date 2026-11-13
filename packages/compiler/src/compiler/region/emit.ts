@@ -26,7 +26,7 @@ function render_html_source(moduleUrl: string): string {
 
 /**
  * The component-import line for a generated module — a NAMED export (`import { Header as X } from
- * '@barrel'`, the asRegion/barrel escape hatch) or a plain default (`import X from './X.svelte'`, a
+ * '@barrel'`, a marked named import) or a plain default (`import X from './X.svelte'`, a
  * `.svelte` file or a package default). `exportName` is undefined/`'default'` for the default case.
  */
 export function component_import_line(local: string, spec: string, exportName?: string): string {
@@ -182,7 +182,7 @@ export function make_region_binding(opts: {
 	hydrate?: string;
 	/** rootMargin baked when `hydrate` is `'visible'` */
 	hydrateMargin?: string;
-	/** named export to pull (asRegion/barrel); undefined → default import */
+	/** named export to pull (a marked named import); undefined → default import */
 	exportName?: string;
 	identity: string;
 }): {
@@ -254,7 +254,7 @@ function wrapper_attach_binding(opts: {
 	moduleUrl: string;
 	hydrate: string;
 	hydrateMargin?: string;
-	/** named export to pull (asRegion/barrel); undefined → default import */
+	/** named export to pull (a marked named import); undefined → default import */
 	exportName?: string;
 }) {
 	let meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}`;

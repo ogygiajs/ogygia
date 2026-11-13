@@ -6,7 +6,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-120 entries.
+122 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -28,8 +28,8 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/hooks.ts` | `router_fetched` | `headers.get('x-ogygia-spa')` | 1 |
 | `packages/core/src/plugin/request-scope.ts` | `body_unread` | `headers.get('etag')` | 1 |
 | `packages/core/src/plugin/request-scope.ts` | `body_unread` | `headers.get('if-none-match')` | 1 |
-| `packages/core/src/region-snippet.ts` | `next_slot_id` | `searchParams('id')` | 1 |
 | `packages/core/src/runtime/core.ts` | `#fetch_html` | `searchParams('id')` | 1 |
+| `packages/core/src/runtime/form-continuity.ts` | `region_kind` | `searchParams('id')` | 1 |
 | `packages/core/src/runtime/hole-fetch.ts` | `(module)` | `headers.get('x-ogygia-capability')` | 1 |
 | `packages/core/src/runtime/region-endpoint-url.ts` | `(module)` | `searchParams('exp')` | 1 |
 | `packages/core/src/runtime/region-endpoint-url.ts` | `deny_of` | `headers.get('x-ogygia-deny')` | 1 |
@@ -82,6 +82,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/profiler/index.ts` | `#router` | `searchParams('by')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#router` | `searchParams('next')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#router` | `searchParams(LOGIN_FAILED_PARAM)` | 1 |
+| `packages/devtools/src/profiler/index.ts` | `#run_page` | `headers.get('sec-fetch-site')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#site` | `searchParams('from')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#source` | `searchParams('l')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#source` | `searchParams('p')` | 1 |
@@ -118,12 +119,13 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-encoding')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-length')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('vary')` | 1 |
-| `packages/postrender/src/server.ts` | `(module)` | `headers.get('cache-control')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('content-type')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('if-modified-since')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('if-none-match')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('location')` | 1 |
-| `packages/postrender/src/server.ts` | `dev_postrender_note` | `headers.get('content-type')` | 1 |
+| `packages/postrender/src/server.ts` | `refusal` | `headers.get('cache-control')` | 1 |
+| `packages/postrender/src/server.ts` | `refusal` | `headers.get('content-type')` | 1 |
+| `packages/postrender/src/server.ts` | `refusal` | `headers.get('location')` | 1 |
 | `packages/postrender/src/server.ts` | `stamp_no_store` | `headers.get('cache-control')` | 1 |
 | `packages/postrender/src/server.ts` | `stamp_no_store` | `headers.get('content-type')` | 1 |
 | `packages/router/src/client-api.ts` | `api` | `headers.get('content-type')` | 1 |
@@ -133,7 +135,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-99 entries.
+100 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -145,8 +147,9 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/compiler/src/compiler/build-cache.ts` | `get` | `JSON.parse` | 1 |
 | `packages/compiler/src/compiler/fouc-css.ts` | `foucRelFromId` | `decodeURIComponent` | 1 |
 | `packages/compiler/src/compiler/kit.ts` | `kit_major` | `JSON.parse` | 1 |
-| `packages/compiler/src/compiler/link/emit-gate.ts` | `parse_ssr_hosts` | `JSON.parse` | 1 |
+| `packages/compiler/src/compiler/link/emit-gate.ts` | `parse_server_handoff` | `JSON.parse` | 1 |
 | `packages/compiler/src/compiler/link/island-deps.ts` | `HANDLER_RE` | `JSON.parse` | 2 |
+| `packages/compiler/src/compiler/link/server-manifest.ts` | `(module)` | `JSON.parse` | 1 |
 | `packages/compiler/src/compiler/link/server-manifest.ts` | `PAGE_DATA_READS_PLACEHOLDER` | `JSON.parse` | 2 |
 | `packages/compiler/src/compiler/virtual/core.ts` | `dev_runtime_of` | `JSON.parse` | 1 |
 | `packages/compiler/src/vite/index.ts` | `ogygia` | `JSON.parse` | 1 |
@@ -239,11 +242,13 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## HTML sinks: markup written into a page as markup
 
-20 entries.
+22 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
+| `packages/compiler/src/compiler/messages.ts` | `BUILD_ERRORS` | `{@html}` | 1 |
 | `packages/compiler/src/compiler/ownership-stamps.ts` | `(module)` | `{@html}` | 1 |
+| `packages/compiler/src/compiler/region/marked-imports.ts` | `misuse_of` | `{@html}` | 1 |
 | `packages/content/src/markdown/region-emit.ts` | `FENCE_EMBED_RE` | `{@html}` | 1 |
 | `packages/content/src/markdown/region-emit.ts` | `try_region_emit` | `{@html}` | 1 |
 | `packages/content/src/markdown/shiki.ts` | `escape_svelte` | `{@html}` | 1 |

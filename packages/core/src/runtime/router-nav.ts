@@ -18,7 +18,7 @@ import { boot_link, router_link, slots } from './slots.ts';
 import { clock, net } from '@ogygia/machine';
 import type { PageGlobals } from '../page-globals.ts';
 import {
-	NO_RECONCILE_SELECTOR,
+	opts_out_of_reconcile,
 	reconcile_body,
 	stamp_region_keys,
 	swap_body
@@ -223,26 +223,26 @@ const ATTACHMENT = /^\s*attachment\b/i;
 /** Kit remote-function POSTs live under `…/_app/remote/…` (or custom `appDir`). */
 const REMOTE_MUTATION_PATH = /\/remote(?:\/|$|\?)/;
 
-/** The address the server's head was written for. This module loads before a navigation first moves
- *  the address (the router awaits it before any history write), so it is still the load's. */
-const DOCUMENT_BASE = typeof document === 'undefined' ? '' : document.baseURI;
+/** The address each of the page's live head nodes was written for, noted before the address moves
+ *  (`own_live_head`). A fetched page's nodes need none: they are made absolute (`resolve_head_urls`). */
+const WRITTEN_FOR = new WeakMap<Element, string>();
 
 /** A node's URL attribute as the address it names: resolved against the page the node came from
- *  (the server's head: the address it was written for, not the one a navigation moved to since,
- *  #821; a fetched page's: its own address, set by `resolve_head_urls`). `../a.css` on `/x/y` and
- *  `/a.css` are one file, so one key. Empty when absent. */
+ *  (a live node of the page: the address it was written for, not the one a navigation moved to
+ *  since, #821; a fetched page's: its own address, set by `resolve_head_urls`). The live head's URLs
+ *  are read this way, never rewritten (`own_live_head`). `../a.css` on `/x/y` and `/a.css` are one
+ *  file, so one key. Empty when absent. */
 function url_of(node: Element, attr: string): string {
 	const value = node.getAttribute(attr);
 	if (!value) return '';
-	// (only a node in the live head can be the server's: a fetched page's or a detached one never is)
+	// (the map first: a node never noted, like a fetched page's or one keyed off the page, reads no document)
+	const written = WRITTEN_FOR.get(node);
 	const base =
-		DOCUMENT_BASE !== '' && node.parentNode === document.head && session().page_head.has(node)
-			? DOCUMENT_BASE
-			: node.baseURI;
+		(written !== undefined && node.parentNode === document.head && written) || node.baseURI;
 	try {
 		return new URL(value, base).href;
 	} catch {
-		return value; // (not a URL: compared as written)
+		return value; // ok: not a URL: compared as written
 	}
 }
 
@@ -270,8 +270,34 @@ export function resolve_head_urls(head: HTMLHeadElement, page: URL): void {
 		}
 		for (const attr of HEAD_SRCSET_ATTRS) {
 			const value = el.getAttribute(attr);
-			if (value !== null && value.trim() !== '') el.setAttribute(attr, resolve_srcset(value, page));
+			if (value === null || value.trim() === '') continue;
+			// (only a change is written: a live node's set again would be fetched again)
+			const resolved = resolve_srcset(value, page);
+			if (resolved !== value) el.setAttribute(attr, resolved);
 		}
+	}
+}
+
+/**
+ * The page on screen, `page`, owns its live head nodes' URLs (#821, #1071): each node the page holds
+ * is noted with the address it was written for, while the address is still that one, so the merge
+ * reads it right after the address moves (`url_of`). The URLs stay as written: setting a fetched
+ * node's URL again, even to the same file, fetches it again (a loaded sheet fires `load` again in
+ * all three engines: nav-head-key-depth.test.ts). The one exception is a PARKED sheet (a disabled
+ * stylesheet link): the browser has not fetched it, and fetches it once something turns it on,
+ * under the address of that moment. So it alone is made absolute now.
+ */
+function own_live_head(page: URL): void {
+	const owned = session().page_head;
+	for (const el of document.head.children) {
+		if (!owned.has(el) || WRITTEN_FOR.has(el)) continue; // (not ours, or noted already)
+		WRITTEN_FOR.set(el, page.href);
+		if (el.localName !== 'link' || !(el as HTMLLinkElement).disabled) continue;
+		if (!/(?:^|\s)stylesheet(?:\s|$)/i.test(el.getAttribute('rel') ?? '')) continue;
+		const value = el.getAttribute('href');
+		if (value === null || value.trim() === '') continue;
+		const resolved = page_relative_resolved(value, page);
+		if (resolved !== value) el.setAttribute('href', resolved);
 	}
 }
 
@@ -779,6 +805,9 @@ export async function navigate(
 	// every step below checks it is still `mine`, and its fetch (a task of the visit) is aborted.
 	r.nav.go('loading', { href: url.href });
 	const mine = r.nav.now;
+	// (on a back or forward step the browser has moved the address already: the page on screen is
+	// the router's, not `location`'s)
+	own_live_head(r.current_url);
 	// What this one navigation does is its visit's (`attempt`): leaving it (a newer click, back to
 	// the page on screen, a hand-off) lets it all go. The page it brings has a visit of its own, made
 	// now (runtime/session.ts `PageVisit`): what is started for that page before its swap is that
@@ -829,7 +858,7 @@ export async function navigate(
 			try {
 				dest = new URL(page.url, url);
 			} catch {
-				dest = url;
+				dest = url; // ok: a page URL that does not parse keeps the address asked for
 			}
 		}
 
@@ -916,6 +945,8 @@ export async function navigate(
 		if (soft.now.kind === 'refreshing') soft.go('idle');
 		// the page being left (the router's history moves on below)
 		const left = r.current_url;
+		// (a node the page on screen added while this one loaded)
+		own_live_head(left);
 		// THE ENTRY, written now (#310): a new one (the one left keeps where its page was), the one on
 		// screen at its new address, or the one a back or forward step is on. At the address the page
 		// belongs to: a redirect's intermediate URL is never an entry, as in a browser.
@@ -927,13 +958,15 @@ export async function navigate(
 			RECONCILE_NAV &&
 			!!slots.morph &&
 			!regions_in_shadow() &&
-			!document.body.querySelector(NO_RECONCILE_SELECTOR) &&
-			!doc.body.querySelector(NO_RECONCILE_SELECTOR);
+			!opts_out_of_reconcile(document.body) &&
+			!opts_out_of_reconcile(doc.body);
 		// Pull the a11y announcer out of the body before the reconcile — it isn't in the incoming
 		// HTML, so a body morph would remove it. Re-attached (with the new title) by `announce`.
 		announcer?.remove();
 		// LIFECYCLE (Astro-parity DOM events): last chance to read the OUTGOING page's DOM.
 		document.dispatchEvent(new Event('og:before-swap'));
+		// the next page's sheets were the navigation's: now the page's own, so the merge keeps them
+		for (const sheet of built.sheets) session().claim_page_head(sheet.link);
 		const unlisted = merge_head(doc.head); // keeps our runtime module script alive across swaps
 		// the next page's sheets, loaded while it was built, style it from now on (#267)
 		for (const sheet of built.sheets) apply_sheet(sheet);
@@ -1453,7 +1486,8 @@ function preload_stylesheets(
 				attempt.on(link, 'error', () => resolve(), { once: true });
 			})
 		);
-		session().claim_page_head(link); // the next page's own sheet (runtime/session.ts)
+		// (the navigation's until its commit claims it for the page: a soft refresh of the page on
+		// screen merges only that page's nodes, and took this one out, #1124)
 		document.head.insertBefore(link, head_slot(node, live));
 		live.set(key, link);
 		sheets.push(sheet);

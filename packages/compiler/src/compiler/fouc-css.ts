@@ -13,7 +13,6 @@
  * filename so hashes match SSR.
  */
 
-import fs from 'node:fs';
 import path from 'node:path';
 import { compile, parse } from 'svelte/compiler';
 import { walk } from 'estree-walker';
@@ -129,7 +128,8 @@ export async function buildFoucCssModuleSource(
 export interface CssReachOptions {
 	root: string;
 	libDir: string;
-	readFile?: (p: string) => string | null;
+	/** The app's files (the compiler's: `CompileCtx.read_file`). */
+	readFile: (p: string) => string | null;
 	/** app aliases to follow (`$lib_x/…`, `@scope/pkg/…` → source dirs) — the fallback resolver's */
 	alias?: readonly AppAlias[];
 	/**
@@ -182,15 +182,7 @@ export async function collectFoucCssReachable(
 	entryAbs: string,
 	opts: CssReachOptions
 ): Promise<Array<{ kind: 'scoped' | 'css'; abs: string }>> {
-	const read =
-		opts.readFile ||
-		((p: string) => {
-			try {
-				return fs.readFileSync(p, 'utf8');
-			} catch {
-				return null;
-			}
-		});
+	const read = opts.readFile;
 	const resolve = async (spec: string, importer: string): Promise<string | null> => {
 		if (opts.resolve) {
 			const id = await opts.resolve(spec, importer);

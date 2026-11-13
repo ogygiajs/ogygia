@@ -178,6 +178,17 @@ export const CONTENT_BUILD_ERRORS = {
 			and \`-\`. Rename the preset.
 		`
 	},
+	content_config_read_first: {
+		text: (): string =>
+			'the svelte config read `extensions()` / `preprocess()` before `content({ markdown })` ran, so it compiles no markdown.',
+		details: (): string => prose`
+			The svelte config's \`extensions()\` and \`preprocess()\` read the markdown settings that
+			\`content({ markdown })\` sets in the vite config. Something loaded the svelte config first
+			(often an \`import\` of \`svelte.config.js\` at the top of \`vite.config\`), so it got
+			\`.svelte\` alone and no markdown preprocessor. Load the svelte config after the plugin list
+			is built, or let \`sveltekit()\` load it.
+		`
+	},
 	content_preset_empty: {
 		text: (a: { name: string }): string =>
 			`presets.${a.name} is empty — a preset with nothing is a mistake.`,

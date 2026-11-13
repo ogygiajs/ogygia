@@ -18,7 +18,13 @@ import {
 	type Leg,
 	type ModuleEntry
 } from './table.ts';
-import { world, type World } from '@ogygia/machine';
+import { input, type Queries, type QueryCtx, type Reads } from '../queries.ts';
+
+const PART = input<Part, number>(
+	'session part',
+	(part) => part,
+	() => 0
+);
 
 /** A static named import of a realm module (`import { a, b as c } from 'ogygia:server'`). */
 const REALM_IMPORT_G =
@@ -66,21 +72,23 @@ export class VirtualTable<A> {
 	readonly #names: ValueNames;
 	/** the session's fields → the part each one is */
 	readonly #parts: Parts<A>;
-	/** one stamp per part, moved by a dev change to it */
-	readonly #stamps: World<Part> = world.keyed<Part>();
-	/** resolved id and leg → what that leg's last load read, and when: one id is loaded on both legs
-	 *  and can read different parts on each (bounded by the modules the table serves, twice) */
-	readonly #reads = new Map<string, { id: string; stamp: number; reads: ReadonlySet<Part> }>();
+	/** the session's queries: a load is a reader of them (`watch`), the parts among them */
+	readonly #db: Queries;
+	/** resolved id and leg → what that leg's last load read: one id is loaded on both legs and can
+	 *  read different things on each (bounded by the modules the table serves, twice) */
+	readonly #reads = new Map<string, { id: string; reads: Reads }>();
 
 	constructor(
 		entries: readonly Entry<A>[],
 		core_path: (app: A, module: string) => string,
 		names: ValueNames,
-		parts: Parts<A>
+		parts: Parts<A>,
+		db: Queries
 	) {
 		this.#core_path = core_path;
 		this.#names = names;
 		this.#parts = parts;
+		this.#db = db;
 		for (const e of entries) {
 			// (a constant is a define, not a module: not the table's to resolve)
 			if (e.kind === 'constant') continue;
@@ -180,27 +188,32 @@ export class VirtualTable<A> {
 		return undefined;
 	}
 
-	/** A resolved id → its module source; `null`: not a module this table loads. Records the session
-	 *  parts the load read, for {@link bump}. */
+	/** A resolved id → its module source; `null`: not a module this table loads. Records what the
+	 *  load read (the session's parts, and every query it read), for {@link moved}. */
 	load(id: string, app: A, leg: Leg): string | Promise<string> | null {
-		const reads = new Set<Part>();
 		const key = `${leg.ssr ? 'ssr' : 'client'} ${id}`;
-		// (recorded before it runs: a bump while an async load is in flight names it too)
-		this.#reads.set(key, { id, stamp: this.#stamps.stamp(), reads });
-		const out = this.#load(id, tracked(app, this.#parts, reads), leg);
-		if (out === null) this.#reads.delete(key);
-		return out;
+		const { value, reads } = this.#db.watch((cx) =>
+			this.#load(id, tracked(app, this.#parts, cx), leg)
+		);
+		if (value === null) this.#reads.delete(key);
+		else this.#reads.set(key, { id, reads });
+		return value;
+	}
+
+	/** A dev change to `part` (one not yet a query: the registry, the marks, the routes, ...). */
+	move(part: Part): void {
+		this.#db.set(PART, part, this.#db.revision + 1);
 	}
 
 	/**
-	 * A dev change to `part`: every module whose last load read it, which the caller invalidates.
-	 * Each is named once; its next load records its reads afresh.
+	 * Every module that something its last load read has changed under, which the caller
+	 * invalidates: a part that moved, or a query whose answer is different now. Each is named once;
+	 * its next load records its reads afresh.
 	 */
-	bump(part: Part): string[] {
-		this.#stamps.bump([part]);
+	moved(): string[] {
 		const out = new Set<string>();
-		for (const [key, { id, stamp, reads }] of this.#reads) {
-			if (this.#stamps.fresh(stamp, reads)) continue;
+		for (const [key, { id, reads }] of this.#reads) {
+			if (!this.#db.moved(reads)) continue;
 			out.add(id);
 			this.#reads.delete(key);
 		}
@@ -305,14 +318,12 @@ export class VirtualTable<A> {
 	}
 }
 
-/** `app` as a module's load sees it: reading a field that is a part adds the part to `reads`. A
- *  method runs on the session itself (its private fields are its own). */
-function tracked<A>(app: A, parts: Parts<A>, reads: Set<Part>): A {
+function tracked<A>(app: A, parts: Parts<A>, cx: QueryCtx): A {
 	if (typeof app !== 'object' || app === null) return app;
 	return new Proxy(app, {
 		get(target, key) {
 			const part = typeof key === 'string' ? parts[key as keyof A & string] : undefined;
-			if (part) reads.add(part);
+			if (part) cx.get(PART, part);
 			const v: unknown = Reflect.get(target, key);
 			return typeof v === 'function' ? v.bind(target) : v;
 		}

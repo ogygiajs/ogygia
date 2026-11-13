@@ -35,6 +35,27 @@ describe.skipIf(!built)('a lost answer', () => {
 		}
 	});
 
+	it("loses no answer of a reference load: a calm tab's holes all answer, as the network spares it (gen 208, seed 107: the MPA check's fresh load gave up on a hole the tab had)", async () => {
+		const world = await World.make({
+			seed: 1,
+			builds: [{ id: 'v1', output: OUTPUT }],
+			buggify: { on: 1, fires: 1 }
+		});
+		try {
+			const tab = world.tab(world.visitor('v'));
+			world.network.calm(tab.name);
+			await world.go(tab, 'goto', '/defer-timing');
+			await world.quiesce();
+			await world.loop.run(60_000);
+			await world.quiesce();
+			expect(world.fired_in.get(tab.realm)?.has('hole.fetch-lost') ?? false).toBe(false);
+			const doc = tab.page.mainFrame.document as unknown as Document;
+			expect(doc.querySelector('[data-fallback-idle]')).toBe(null);
+		} finally {
+			await world.end();
+		}
+	});
+
 	it('leaves alone a document whose holes all answered', async () => {
 		const world = await World.make({ seed: 1, builds: [{ id: 'v1', output: OUTPUT }] });
 		try {

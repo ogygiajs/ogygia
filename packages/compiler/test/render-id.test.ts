@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { renderId, regionIdentity, regionId } from '../src/compiler/region/identity.ts';
 import {
 	server_regions_module,
+	server_manifest_maps,
 	server_manifest_module
 } from '../src/compiler/link/server-manifest.ts';
 
@@ -54,41 +55,36 @@ describe('the server manifest maps render identities', () => {
 		}) as never;
 
 	it('each id → its render identity; each render identity → one entry rendering it (the smallest id)', () => {
-		const src = server_manifest_module(
-			true,
+		const maps = server_manifest_maps(
 			program([
 				['bbbbbbbbbbbb', 'r00000000001'],
 				['aaaaaaaaaaaa', 'r00000000001'],
 				['cccccccccccc', 'r00000000002']
 			]),
-			false,
-			() => '',
 			() => ''
 		);
-		expect(src).toContain('"bbbbbbbbbbbb": "r00000000001"');
-		expect(src).toContain('"aaaaaaaaaaaa": "r00000000001"');
-		expect(src).toMatch(
-			/render_region = \{\n\t"r00000000001": "aaaaaaaaaaaa",\n\t"r00000000002": "cccccccccccc"\n\}/
-		);
+		expect(maps.region_render).toEqual({
+			bbbbbbbbbbbb: 'r00000000001',
+			aaaaaaaaaaaa: 'r00000000001',
+			cccccccccccc: 'r00000000002'
+		});
+		expect(maps.render_region).toEqual({
+			r00000000001: 'aaaaaaaaaaaa',
+			r00000000002: 'cccccccccccc'
+		});
 	});
 
 	it('the islands’ loaders live one dynamic import away (Kit links CSS one import deep)', () => {
 		const p = program([['aaaaaaaaaaaa', 'r00000000001']]);
-		const manifest = server_manifest_module(
-			true,
-			p,
-			false,
-			() => '',
-			() => ''
-		);
+		const manifest = server_manifest_module(true, p, false, () => '');
 		expect(manifest).toContain(
 			`export const load_server_regions = () => import("ogygia:server/server-regions");`
 		);
 		expect(manifest).not.toContain('import("virtual:aaaaaaaaaaaa")');
-		expect(server_regions_module(true, p)).toContain(
+		expect(server_regions_module(true, p, false)).toContain(
 			'"aaaaaaaaaaaa": () => import("virtual:aaaaaaaaaaaa")'
 		);
-		expect(server_regions_module(false, p)).toBe('export const regions = {\n\t\n};');
+		expect(server_regions_module(false, p, false)).toBe('export const regions = {\n\t\n};');
 	});
 
 	it('the browser leg carries none of it', () => {
@@ -96,7 +92,6 @@ describe('the server manifest maps render identities', () => {
 			false,
 			program([['aaaaaaaaaaaa', 'r00000000001']]),
 			false,
-			() => '',
 			() => ''
 		);
 		expect(src).toContain('export const region_render = {};');

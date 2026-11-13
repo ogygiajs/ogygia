@@ -26,7 +26,6 @@
  *     (`ogygia/plugin/css`), which claims through
  *     `claim_region_css` (deduped with held-region links), and hands `document()` the head tags.
  */
-import fs from 'node:fs';
 import { dedent } from '@ogygia/core/contract';
 import path from 'node:path';
 import { collectFoucCssReachable, compileFoucScopedCss, type WalkResolve } from '../fouc-css.ts';
@@ -59,13 +58,7 @@ export function router_css_roots(
 	router_modules: ReadonlySet<string>,
 	module_specs: ReadonlyMap<string, readonly string[]>,
 	spec_ctx: AppSpecCtx,
-	exists: (p: string) => boolean = (p) => {
-		try {
-			return fs.statSync(p).isFile();
-		} catch {
-			return false;
-		}
-	}
+	exists: (p: string) => boolean
 ): string[] {
 	const roots = new Set<string>();
 	const visited = new Set<string>();
