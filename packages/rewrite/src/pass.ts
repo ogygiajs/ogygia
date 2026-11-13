@@ -200,18 +200,7 @@ async function call_render(
 ): Promise<unknown> {
 	if (RULES && buggify.fires('rewrite.render-throws'))
 		throw new Error('the render threw (buggify)');
-	const out: unknown = await render(els, ctx);
-	if (!RULES || !Array.isArray(out)) return out;
-	if (buggify.fires('rewrite.render-count')) return out.slice(1);
-	return out.map((r: unknown) => {
-		const html = typeof r === 'string' ? r : (r as { html?: unknown } | null)?.html;
-		if (typeof html !== 'string') return r;
-		let bad = html;
-		if (buggify.fires('rewrite.render-malformed')) bad = `${bad}<div>`;
-		if (buggify.fires('rewrite.render-strips-marks')) bad = bad.replaceAll(' og-h=', ' data-gone=');
-		if (bad === html) return r;
-		return typeof r === 'string' ? bad : { ...(r as object), html: bad };
-	});
+	return render(els, ctx);
 }
 
 function cancelled(ctx: RewriteContext): boolean {
@@ -587,23 +576,6 @@ export function rewrite_pass(
 				const doc = res.buffer.join('');
 				res.buffer = null;
 				return rewrite_whole(doc, res, 'document', page.csr, page.answer);
-			}
-			if (RULES && html.length > 1 && res.any && buggify.fires('rewrite.chunk-split')) {
-				const mid = html.length >> 1;
-				const a = html.slice(0, mid);
-				const first = (await rewrite_chunk(a, res, { ...page, body: false })) ?? {
-					html: a,
-					head: '',
-					body: ''
-				};
-				const b = html.slice(mid);
-				const second = (await rewrite_chunk(b, res, page)) ?? { html: b, head: '', body: '' };
-				if (page.head) res.head_open = false;
-				return {
-					html: `${first.html}${second.html}`,
-					head: `${first.head}${second.head}`,
-					body: second.body
-				};
 			}
 			const out = (res.any ? await rewrite_chunk(html, res, page) : null) ?? {
 				html,

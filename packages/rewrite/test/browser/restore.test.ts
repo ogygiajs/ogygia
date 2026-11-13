@@ -227,11 +227,10 @@ test('a text mark whose original does not parse carries none: the text stays as 
 
 test('every dev check under the root is read and consumed: a restore of a streamed page checks the hosts of every chunk, and a second restore finds nothing (found by the rewrite sim)', () => {
 	(window as { __og_restore_log?: unknown[] }).__og_restore_log = [];
-	document.body.innerHTML =
-		'<demo-card og-h="0" og-shadow="k"><slot><i og-c="0.0">a</i></slot></demo-card>' +
-		check_script({ 0: '<i>a</i>' }) +
-		'<demo-card og-h="1" og-shadow="k"><slot><i og-c="1.0">changed</i></slot></demo-card>' +
-		check_script({ 1: '<i>b</i>' });
+	const one = '<demo-card og-h="0" og-shadow="k"><slot><i og-c="0.0">a</i></slot></demo-card>';
+	const two =
+		'<demo-card og-h="1" og-shadow="k"><slot><i og-c="1.0">changed</i></slot></demo-card>';
+	document.body.innerHTML = `${one}${check_script({ 0: '<i>a</i>' })}${two}${check_script({ 1: '<i>b</i>' })}`;
 	expect(restore(document)).toBe(2);
 	const log = (window as { __og_restore_log?: { kind: string }[] }).__og_restore_log!;
 	expect(log.filter((e) => e.kind === 'mismatch')).toHaveLength(1);

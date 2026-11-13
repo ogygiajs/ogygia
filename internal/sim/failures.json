@@ -43,6 +43,17 @@
 			"killed_by": "rewrite-batch-throws"
 		},
 		{
+			"site": "packages/rewrite/src/pass.ts > call_render > throw:0",
+			"point": "rewrite.render-throws",
+			"how": "the point throws in place of the app's render, on a batch or on one element: the batch is retried one element at a time, and what still fails goes out as ogygia rendered it",
+			"killed_by": "rewrite-fallback-off"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > cancelled > abort:0",
+			"point": "rewrite.signal-fires",
+			"how": "the point reads as the request cancelled mid-batch: the batch goes out as ogygia rendered it, never retried, nothing said"
+		},
+		{
 			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > catch:0",
 			"point": "hole.fetch-lost",
 			"how": "the point throws a failed fetch inside the try, as a dropped request's answer: the catch hands it to fetch_failed (a retry, or the fallback stands)",
@@ -422,18 +433,6 @@
 			"reason": "a wiring error, the same on every request: the sim's app lists its rewrite before ogygia.handle()",
 			"test": "packages/rewrite/test/plugin.test.ts",
 			"name": "listed after ogygia.handle() is refused with rewrite_after_ogygia"
-		},
-		{
-			"site": "packages/rewrite/src/pass.ts > render_targets > abort:0",
-			"reason": "a request cancelled while its batch renders: the sim's browsers stay on the page until it loads",
-			"test": "packages/rewrite/test/rewrite.test.ts",
-			"name": "a cancelled request: the batch is shipped as is, never retried, nothing said"
-		},
-		{
-			"site": "packages/rewrite/src/pass.ts > render_targets > abort:1",
-			"reason": "a request cancelled while its elements are retried: the sim's browsers stay on the page until it loads",
-			"test": "packages/rewrite/test/rewrite.test.ts",
-			"name": "a request cancelled while the elements are retried one at a time: shipped as is, nothing said"
 		},
 		{
 			"site": "packages/rewrite/src/pass.ts > run_page > catch:0",
