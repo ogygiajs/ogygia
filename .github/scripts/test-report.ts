@@ -15,9 +15,19 @@
  *
  *   node .github/scripts/test-report.ts --out apps/docs/static/tests/0.13.1 --index \
  *     [--raw <dir>] [--engines chromium,firefox,webkit] [--e2e <dir of Playwright JSON>] \
- *     [--version x] [--commit sha]
+ *     [--mutation <dir or .jsonl>] [--unmeasured <gate.json>] [--version x] [--commit sha]
  *
  * `--raw` defaults to a fresh directory under the system's temp dir, never the repo.
+ *
+ * The summary's `robustness` (robustness.ts) is counted from the repository as it is checked out.
+ * `--mutation` is a mutation run's output (the dst workflow's `dst-mutation` artifact) and
+ * `--unmeasured` the measurement-source gate's gate.json (the heisenbench workflow's artifact);
+ * without them, the kills and the measured functions are null.
+ *
+ *   node .github/scripts/test-report.ts --robustness-only --out <dir>
+ *
+ * runs no test: it writes `<dir>/robustness.json` (the robustness count and the test-to-source
+ * lines, for this commit) to preview the count without a release.
  *
  * Run from the repo root, after `pnpm run build:lib`. A failing test is a result, not an error:
  * the script exits 0 once the files are written, and 1 only when a run could not be read at all.
@@ -35,6 +45,7 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { collect, type Gate } from './robustness.ts';
 import type { CaseLine } from './vitest-results.ts';
 
 const ROOT = resolve(import.meta.dirname, '..', '..');
@@ -50,7 +61,10 @@ const { values } = parseArgs({
 		index: { type: 'boolean', default: false },
 		'index-only': { type: 'boolean', default: false },
 		raw: { type: 'string' },
-		packages: { type: 'string' }
+		packages: { type: 'string' },
+		'robustness-only': { type: 'boolean', default: false },
+		mutation: { type: 'string' },
+		unmeasured: { type: 'string' }
 	}
 });
 if (!values.out) {
@@ -259,6 +273,72 @@ function e2e_package(root: string): string {
 	return existsSync(join(dir, 'package.json')) ? npm_name(dir) : m[2];
 }
 
+/** Every `.jsonl` under `path` (a mutation run's artifact), or the file itself. */
+function jsonl_texts(path: string): string[] {
+	if (!statSync(path).isDirectory()) return [readFileSync(path, 'utf8')];
+	return readdirSync(path, { recursive: true, encoding: 'utf8' })
+		.filter((f) => f.endsWith('.jsonl'))
+		.sort()
+		.map((f) => readFileSync(join(path, f), 'utf8'));
+}
+
+/** The robustness count of the repository as checked out, with the CI artifacts given. */
+function robustness() {
+	return collect(ROOT, {
+		mutation: values.mutation ? jsonl_texts(resolve(values.mutation)) : [],
+		gate: values.unmeasured
+			? (JSON.parse(readFileSync(resolve(values.unmeasured), 'utf8')) as Gate)
+			: null
+	});
+}
+
+/** The whole repo's test lines over every package's source lines (what `ratio` divides). */
+function repo_lines(): { srcLines: number; testLines: number; ratio: number } {
+	const testLines =
+		lines_in(join(ROOT, 'packages'), test_file) + lines_in(join(ROOT, 'apps'), test_file);
+	const srcLines = readdirSync(join(ROOT, 'packages')).reduce(
+		(n, p) => n + lines_in(join(ROOT, 'packages', p, 'src'), is_source),
+		0
+	);
+	return {
+		srcLines,
+		testLines,
+		ratio: srcLines ? Math.round((testLines / srcLines) * 100) / 100 : 0
+	};
+}
+
+if (values['robustness-only']) {
+	const lines = Object.fromEntries(
+		packages.map((p) => {
+			const dir = join(ROOT, 'packages', p);
+			return [
+				npm_name(dir),
+				{
+					srcLines: lines_in(join(dir, 'src'), is_source),
+					testLines: lines_in(join(dir, 'test'), test_file) + lines_in(join(dir, 'e2e'), test_file)
+				}
+			];
+		})
+	);
+	mkdirSync(OUT, { recursive: true });
+	writeFileSync(
+		join(OUT, 'robustness.json'),
+		`${JSON.stringify(
+			{
+				version: VERSION,
+				commit: COMMIT,
+				date: new Date().toISOString(),
+				lines: { ...repo_lines(), ratioDefinition: RATIO_DEFINITION, packages: lines },
+				robustness: robustness()
+			},
+			null,
+			'\t'
+		)}\n`
+	);
+	console.log(`robustness ${COMMIT.slice(0, 8)} → ${relative(ROOT, join(OUT, 'robustness.json'))}`);
+	process.exit(0);
+}
+
 // ── run ──
 const tmp = join(tmpdir(), `og-test-report-${process.pid}`);
 mkdirSync(tmp, { recursive: true });
@@ -439,15 +519,9 @@ for (const [name, found] of [...by_package].sort(([a], [b]) => a.localeCompare(b
 }
 for (const k of ['lines', 'branches', 'functions', 'statements'] as const)
 	totals.coverage[k] = cov_weight ? Math.round((totals.coverage[k] / cov_weight) * 100) / 100 : 0;
-// (the version's test lines are the whole repo's: an app's e2e suite tests the packages too)
-totals.testLines =
-	lines_in(join(ROOT, 'packages'), test_file) + lines_in(join(ROOT, 'apps'), test_file);
-// (and its source lines every package's, tested by Vitest here or not)
-totals.srcLines = readdirSync(join(ROOT, 'packages')).reduce(
-	(n, p) => n + lines_in(join(ROOT, 'packages', p, 'src'), is_source),
-	0
-);
-totals.ratio = totals.srcLines ? Math.round((totals.testLines / totals.srcLines) * 100) / 100 : 0;
+// (the version's test lines are the whole repo's: an app's e2e suite tests the packages too; its
+// source lines every package's, tested by Vitest here or not)
+Object.assign(totals, repo_lines());
 
 writeFileSync(
 	join(OUT, 'summary.json'),
@@ -459,7 +533,8 @@ writeFileSync(
 			engines: ENGINES,
 			e2e: values.e2e ? true : false,
 			totals,
-			packages: summary_packages
+			packages: summary_packages,
+			robustness: robustness()
 		},
 		null,
 		'\t'
