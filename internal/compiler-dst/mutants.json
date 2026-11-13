@@ -43,5 +43,41 @@
 		"operator": "statement",
 		"from": "invalidate(id);",
 		"to": "void id;"
+	},
+	{
+		"id": "compiler-scan-unreadable-file",
+		"file": "packages/compiler/src/compiler/driver.ts",
+		"in": "Compiler > scan > scan_file",
+		"code": "if (src == null) return;",
+		"operator": "statement",
+		"from": "if (src == null) return;",
+		"to": ""
+	},
+	{
+		"id": "compiler-closure-unreadable-file",
+		"file": "packages/compiler/src/compiler/driver.ts",
+		"in": "Compiler > mark_island_closure > walk",
+		"code": "if (src == null) return;",
+		"operator": "statement",
+		"from": "if (src == null) return;",
+		"to": ""
+	},
+	{
+		"id": "compiler-context-keys-unreadable-file",
+		"file": "packages/compiler/src/compiler/driver.ts",
+		"in": "Compiler > scan",
+		"code": "if (src == null) continue;",
+		"operator": "statement",
+		"from": "if (src == null) continue;",
+		"to": ""
+	},
+	{
+		"id": "compiler-read-file-null-stripped",
+		"file": "packages/compiler/src/compiler/ctx.ts",
+		"in": "CompileCtx > read_file",
+		"code": "return text === null ? null : strip_bom(text);",
+		"operator": "statement",
+		"from": "text === null ? null : strip_bom(text)",
+		"to": "strip_bom(text as string)"
 	}
 ]
