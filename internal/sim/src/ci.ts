@@ -11,7 +11,8 @@
  * GITHUB_REPOSITORY, GITHUB_STEP_SUMMARY, DST_RESULTS (where the results file goes).
  *
  * A GOOD NEIGHBOUR: the runners are shared with CI. Before each batch, at most every 20 minutes,
- * it counts the repository's queued runs; past the limit it waits (5 minutes at a time) and, if the
+ * it counts the repository's queued runs from the last 3 hours (one queued longer is stuck, not
+ * waiting: #1578); past the limit it waits (5 minutes at a time) and, if the
  * queue has not drained by the deadline, stops early. It never starves CI.
  *
  * FILING: a finding's SIGNATURE is its oracle plus what it is about, with the run-specific parts
@@ -62,12 +63,29 @@ function gh(args: string[]): string {
 	return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
-/** Queued workflow runs in the repository now (null when it cannot tell: then it does not wait). */
+/** How long a queued run counts as CI waiting for a runner: one queued longer is stuck, not waiting
+ *  (#1578: ~195 runs GitHub can neither cancel nor delete stayed queued for days). */
+const WAITING_MS = 3 * 3600_000;
+
+/** Of `runs` (queued, newest first), how many are CI waiting for a runner at `now`: created in the
+ *  last WAITING_MS. */
+export function waiting_runs(runs: readonly { created_at: string }[], now: number): number {
+	return runs.filter((r) => now - Date.parse(r.created_at) <= WAITING_MS).length;
+}
+
+/** Queued workflow runs in the repository that wait for a runner now (null when it cannot tell:
+ *  then it does not wait). The newest 100: past the limit either way. */
 function queued(): number | null {
 	try {
-		return Number(
-			gh(['api', `repos/${REPO}/actions/runs?status=queued&per_page=1`, '--jq', '.total_count'])
-		);
+		const runs = JSON.parse(
+			gh([
+				'api',
+				`repos/${REPO}/actions/runs?status=queued&per_page=100`,
+				'--jq',
+				'[.workflow_runs[] | {created_at}]'
+			])
+		) as { created_at: string }[];
+		return waiting_runs(runs, Date.now());
 	} catch {
 		return null; // ok: no token or no network (a local run); the run goes on
 	}

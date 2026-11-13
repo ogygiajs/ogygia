@@ -74,6 +74,15 @@ describe('the server manifest maps render identities', () => {
 		});
 	});
 
+	it('each id → the url its CSS is keyed by, and its component name', () => {
+		const maps = server_manifest_maps(
+			program([['aaaaaaaaaaaa']]),
+			(iid) => `/_app/immutable/og-region.${iid}.js`
+		);
+		expect(maps.region_url).toEqual({ aaaaaaaaaaaa: '/_app/immutable/og-region.aaaaaaaaaaaa.js' });
+		expect(maps.region_name).toEqual({ aaaaaaaaaaaa: 'Hole' });
+	});
+
 	it('the islands’ loaders live one dynamic import away (Kit links CSS one import deep)', () => {
 		const p = program([['aaaaaaaaaaaa', 'r00000000001']]);
 		const manifest = server_manifest_module(true, p, false, () => '');
