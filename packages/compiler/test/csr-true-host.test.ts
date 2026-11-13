@@ -1,7 +1,7 @@
-// A csr=true route host: Kit compiles and hydrates the page, so its own region imports become plain
+// A csr=true route host: Kit compiles and hydrates the page, so its own wake islands become plain
 // imports (`asRegion` is refused, as everywhere). Checked on the compiled text itself, plus a
-// property over generated import blocks: every import that names a region key loses its `with`
-// clause, every other import stays byte for byte, and the output still parses.
+// property over generated import blocks: every wake import loses its `with` clause, every other
+// import stays byte for byte, and the output still parses.
 import { describe, expect, it, vi } from 'vitest';
 import { parse } from 'svelte/compiler';
 import { fc } from '@ogygia/config/sim';
@@ -50,21 +50,22 @@ describe('csr=true host: region imports become plain imports', () => {
 		expect(out!.islands).toEqual([]);
 	});
 
-	it('drops every region key: wake, fetch, render, preset and region', () => {
+	// (a region the server drives stays a region here: csr-true-host-regions.test.ts)
+	it('drops the keys of every wake island: wake, and a preset that wakes', () => {
 		const lines = [
 			`import A from './A.svelte' with { wake: 'visible' };`,
-			`import B from './B.svelte' with { render: 'deferred', fetch: 'idle' };`,
-			`import C from './C.svelte' with { preset: 'below' };`,
-			`import D from './D.ts' with { region: 'held' };`,
-			`import E from './E.svelte' with { wake: 'none' };`
+			`import B from './B.svelte' with { wake: 'idle' };`,
+			`import C from './C.svelte' with { preset: 'below' };`
 		];
-		const out = transformHost(host(lines.join('\n')), HOST, ctx())!;
+		const out = transformHost(
+			host(lines.join('\n')),
+			HOST,
+			ctx({ presets: { below: { wake: 'visible' } } })
+		)!;
 		expect(script_of(out.code).trim().split('\n')).toEqual([
 			`import A from './A.svelte';`,
 			`import B from './B.svelte';`,
-			`import C from './C.svelte';`,
-			`import D from './D.ts';`,
-			`import E from './E.svelte';`
+			`import C from './C.svelte';`
 		]);
 	});
 
@@ -98,7 +99,8 @@ describe('csr=true host: region imports become plain imports', () => {
 			dedent`
 				import Counter from './Counter.svelte';
 				let later;
-				const n = 1, Live = import.meta.og.asRegion(Counter, { wake: 'load' });
+				const n = 1;
+				const Live = import.meta.og.asRegion(Counter, { wake: 'load' });
 			`,
 			'<Live />'
 		);
@@ -147,21 +149,19 @@ describe('csr=true host: region imports become plain imports', () => {
 	});
 });
 
-const REGION_ATTRS = [
-	`wake: 'load'`,
-	`wake: 'none'`,
-	`wake: 'visible'`,
-	`fetch: 'idle'`,
-	`render: 'deferred'`,
-	`preset: 'below'`,
-	`region: 'held'`
-];
+// the keys of a wake island (Kit hydrates it: plain here); a server-driven region stays a region
+// (csr-true-host-regions.test.ts)
+const REGION_ATTRS = [`wake: 'load'`, `wake: 'idle'`, `wake: 'visible'`];
 const OTHER_ATTRS = [`type: 'json'`, `type: 'css'`];
 
 type Imp = { name: string; attrs: string[] };
 const an_import = fc.record({
 	name: fc.constantFrom('A', 'B', 'C', 'Wake', 'Fetch'),
-	attrs: fc.subarray([...REGION_ATTRS, ...OTHER_ATTRS], { maxLength: 3 })
+	// (a region key beside `type` is refused, as in any host: one clause is one or the other)
+	attrs: fc.oneof(
+		fc.subarray(REGION_ATTRS, { maxLength: 3 }),
+		fc.subarray(OTHER_ATTRS, { maxLength: 2 })
+	)
 });
 
 /** One import line; a key may appear once per clause, so the second `wake`/`type` is dropped. */

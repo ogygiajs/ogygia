@@ -41,6 +41,25 @@ export const FEDERATION_ERRORS = {
 
 /** The warnings: `warn(code, args, ...rest)`. */
 export const FEDERATION_WARNINGS = {
+	federation_unregistered: {
+		text: (a: { path: string }): string => prose`
+			federation: ${a.path} came in before this server ran federate(), so it was answered as a
+			path the app does not have (a 404). Import the module that calls federate() from
+			hooks.server.ts.
+		`,
+		details: (): string => prose`
+			The \`federation()\` plugin serves deferred regions (\`/og/frag\`), thaw notices
+			(\`/og/thaw\`) and exposed pages and widgets (\`/og/fragment/*\`) from the app's one
+			\`federate()\` registration. This server got such a request before any \`federate()\`
+			ran in it, so it had nothing to serve it with and the request went on to the app's
+			routes. This happens when \`federate()\` lives in a module only some routes import (a
+			\`+page.server.ts\`): a server that has not served one of those routes yet has no
+			federation.
+
+			Import the module that calls \`federate()\` from \`hooks.server.ts\`, so it runs as the
+			server starts.
+		`
+	},
 	federation_open_without_keys: {
 		text: (): string => prose`
 			federate() exposes a table/widgets but no peer has a \`key\` — every inbound call would be

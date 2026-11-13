@@ -1,6 +1,6 @@
 import { lateChunk as late_chunk, LATE_BOOT_SCRIPT } from '@ogygia/core/plugin';
 import { escapeText as escape_text } from '@ogygia/core/plugin/utils';
-import { cleanup_failed, next_tag, OG_LATE_ERROR, text_of } from '@ogygia/core/internal/server';
+import { body_end, cleanup_failed, head_end, OG_LATE_ERROR } from '@ogygia/core/internal/server';
 import { scope, STALE, type Scope } from '@ogygia/machine';
 
 /** The slot id for the page position (one streamed slot per page in v1). */
@@ -35,13 +35,6 @@ export async function bake_yield(v: unknown): Promise<string> {
  *  never async generators — so this discriminator needs no brand.) */
 export function is_stream_slot(v: unknown): v is (...args: never[]) => AsyncGenerator<unknown> {
 	return Object.prototype.toString.call(v) === '[object AsyncGeneratorFunction]';
-}
-
-/** Where the document's head ends (its `</head` end tag), or -1 when it has none. */
-function head_end(html: string): number {
-	const head = next_tag(html, 'head', 0);
-	const text = head === null ? null : text_of(html, head, 'head');
-	return text === null ? -1 : head!.end + text.length;
 }
 
 const NO_TRANSFORM_RE = /no-transform/i;
@@ -79,7 +72,7 @@ export function stream_document(
 	const at = head_end(full_html);
 	const with_boot =
 		at === -1 ? full_html : `${full_html.slice(0, at)}${LATE_BOOT_SCRIPT}${full_html.slice(at)}`;
-	const cut = with_boot.lastIndexOf('</body>');
+	const cut = body_end(with_boot);
 	const head_part = cut === -1 ? with_boot : with_boot.slice(0, cut);
 	const tail_part = cut === -1 ? '' : with_boot.slice(cut);
 	const enc = new TextEncoder();

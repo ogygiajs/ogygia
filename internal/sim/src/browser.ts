@@ -65,6 +65,9 @@ export interface Tab {
 	/** The realms of its documents that were ever shown (a document loaded behind and never looked
 	 *  at is not among them). */
 	readonly seen: Set<string>;
+	/** The address of its document whose island load gate had opened when DOMContentLoaded fired
+	 *  (oracles.ts `parsed_first`), or null. */
+	early_gate: string | null;
 	/** What the shown document holds now (the leak oracle's sample). */
 	held(): Held;
 	/** The listeners it holds, each as `window|document <type> <its code's hash>` (with
@@ -76,6 +79,8 @@ export interface Tab {
 	/** Observers still observing whose every watched element has left the document (their owner
 	 *  ended and nothing disconnected them), each as `<Name> watching <the first one's tag>`. */
 	orphans(): string[];
+	/** The elements observers of kind `name` (`IntersectionObserver`, ...) observe now. */
+	observed(name: string): Element[];
 	/** When the router swapped the shown document's page (`og:before-swap`, virtual ms): where one
 	 *  visit of the document ends and the next begins. */
 	swaps: number[];
@@ -104,12 +109,22 @@ export interface Heard {
 	readonly shown: string;
 }
 
+/** Has the island load gate (load-scheduler.ts `critical-gate`) gone past the paint, in `moves`
+ *  (a page's `__ogygia_moves()`)? A click only marks it `touched`; `waiting` and `settled` come
+ *  after the document is parsed and painted. */
+export function gate_open_early(moves: string): boolean {
+	return /^critical-gate\S* \S+ -> (waiting|settled)$/m.test(moves);
+}
+
 /** What a region shows of its own, as text: less a region inside it (its own answer comes on its
- *  own), a button (its own count, the visitor's), and the page's data a soft refresh changes in place
- *  (the random app's `data-gen-page`). */
+ *  own), a button (its own count, the visitor's), the page's data a soft refresh changes in place
+ *  (the random app's `data-gen-page`), and a remote query's line while it waits or after it failed
+ *  (`data-gen-pending`, `data-gen-error`: its answer is a region of its own, gen 650). */
 export function own_text(region: Element): string {
 	const copy = region.cloneNode(true) as Element;
-	for (const el of copy.querySelectorAll('ogygia-region, button, [data-gen-page], script, style'))
+	for (const el of copy.querySelectorAll(
+		'ogygia-region, button, [data-gen-page], [data-gen-pending], [data-gen-error], script, style'
+	))
 		el.remove();
 	return (copy.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
@@ -328,6 +343,8 @@ export class Browsers {
 	}
 
 	readonly #windows = new WeakMap<object, Tab>();
+	/** Each tab's document's layout (its IntersectionObserver frames wait while the tab is hidden). */
+	readonly #layouts = new WeakMap<Tab, { shown(): void }>();
 	/** The last error happy-dom wrote to a tab's page console (why an element's load failed). */
 	readonly #said = new WeakMap<Tab, string>();
 	/** Documents (realms) a script or stylesheet of which failed to load, or a module ogygia says
@@ -417,7 +434,10 @@ export class Browsers {
 			});
 		}
 		// (a layout, and the IntersectionObserver that reads it: happy-dom's never reports)
-		install_layout(window, this.#o.loop, tab.realm);
+		this.#layouts.set(
+			tab,
+			install_layout(window, this.#o.loop, tab.realm, () => tab.hidden)
+		);
 		// (the tab's network, as a browser's `navigator.onLine` reads its own: test/online.node.test.ts)
 		const network = this.#o.network;
 		Object.defineProperty(window.navigator, 'onLine', {
@@ -440,6 +460,16 @@ export class Browsers {
 		});
 		const loop = this.#o.loop;
 		window.addEventListener('og:before-swap', () => swaps.push(loop.now), { capture: true });
+		// (the island load gate, as the document is parsed: still shut. Before ogygia's own listener,
+		// which only asks for a frame)
+		window.addEventListener(
+			'DOMContentLoaded',
+			() => {
+				if (gate_open_early(page_window.__ogygia_moves?.() ?? ''))
+					tab.early_gate = window.location.href;
+			},
+			{ capture: true }
+		);
 		// (a region's announcements, as the app hears them: bubbling up to the window, so one sent
 		// without `bubbles` is heard by no one, as in a browser)
 		const heard: Map<Element, Heard[]> = (tab.heard = new Map());
@@ -666,6 +696,14 @@ export class Browsers {
 			}
 			return out.sort();
 		};
+		tab.observed = (name) => {
+			const out = new Set<Element>();
+			for (const o of observing) {
+				const mine = watched.get(o);
+				if (mine?.name === name) for (const t of mine.targets) out.add(t);
+			}
+			return [...out];
+		};
 	}
 
 	/**
@@ -719,6 +757,7 @@ export class Browsers {
 			if (!hidden) {
 				t.seen.add(t.realm);
 				t.platform?.shown();
+				this.#layouts.get(t)?.shown();
 			}
 		}
 		return was_hidden;
@@ -741,10 +780,12 @@ export class Browsers {
 			platform: null,
 			hidden: false,
 			seen: new Set(),
+			early_gate: null,
 			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
 			listening: () => [],
 			watching: () => [],
 			orphans: () => [],
+			observed: () => [],
 			swaps: [],
 			swaps_by: new Map(),
 			heard: new Map(),

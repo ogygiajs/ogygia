@@ -7,6 +7,7 @@
  * the strip with the time each byte left the server and the time the browser had it.
  */
 import {
+	MarkupCursor,
 	next_tag,
 	OG_FP,
 	OGYGIA_HOLES,
@@ -206,42 +207,27 @@ export function byte_strip(html: string): ByteStrip {
 	};
 }
 
-/** Raw-text elements: their contents are text, not elements. A `<template>`'s contents (a
- *  declarative shadow root's too) are not in the document's own elements either. */
-const OPAQUE = ['script', 'style', 'textarea', 'title', 'template', 'noscript'];
-
-/** Every opening tag markup makes from `start` to `end`, once: its name and where its `<` is,
- *  skipping comments and the contents of raw-text elements and templates. `html` lowercased. No regex. */
+/** Every opening tag markup makes from `start` to `end`, once: its name and where its `<` is, read
+ *  by core's tag walk (comments, quoted values and a raw-text element's text hold none). A
+ *  `<template>`'s contents (a declarative shadow root's too) are not in the document's own
+ *  elements: the template is, nested ones inside it are not. `html` lowercased. */
 function walk_tags(
 	html: string,
 	start: number,
 	end: number,
 	on_tag: (tag: string, at: number) => void
 ): void {
-	let i = html.indexOf('<', start);
-	while (i !== -1 && i < end) {
-		const c = html.charCodeAt(i + 1);
-		if (c === 33 && html.startsWith('<!--', i)) {
-			const e = html.indexOf('-->', i + 4);
-			i = e === -1 ? -1 : html.indexOf('<', e + 3);
-			continue;
-		}
-		if (c >= 97 && c <= 122) {
-			let j = i + 1;
-			while (j < end) {
-				const d = html.charCodeAt(j);
-				if (!((d >= 97 && d <= 122) || (d >= 48 && d <= 57) || d === 45)) break;
-				j++;
-			}
-			const tag = html.slice(i + 1, j);
-			on_tag(tag, i);
-			if (OPAQUE.includes(tag)) {
-				const close = html.indexOf(`</${tag}`, j);
-				i = close === -1 ? -1 : html.indexOf('<', close + 2);
-				continue;
-			}
-		}
-		i = html.indexOf('<', i + 1);
+	const part = start === 0 && end === html.length ? html : html.slice(start, end);
+	const at = new MarkupCursor(part);
+	let templates = 0;
+	while (at.next()) {
+		if (at.kind !== 1 && at.kind !== 2) continue;
+		// (a start tag's name follows its `<`, an end tag's its `</`)
+		const name = part.slice(at.start + at.kind, at.ne);
+		if (name === 'template') {
+			if (at.kind === 2) templates = Math.max(0, templates - 1);
+			else if (templates++ === 0) on_tag(name, start + at.start);
+		} else if (at.kind === 1 && templates === 0) on_tag(name, start + at.start);
 	}
 }
 

@@ -63,7 +63,7 @@ export async function probe_cache(doc: Document = document, limit = 40): Promise
 				const res = await tool_fetch(url, { method: 'HEAD', cache: 'no-store' });
 				cache_control = res.headers.get('cache-control');
 			} catch {
-				cache_control = null;
+				cache_control = null; // ok: a failed HEAD reads as no header and counts as short-cached: a known gap
 			}
 			return { url, name, cache_control, bytes: sizes.get(url) ?? 0 };
 		})
