@@ -67,7 +67,7 @@ the first intent: a hover, a focus, a click or a key. A page that never searches
 			Palette = m.default;
 			return true;
 		} catch {
-			return false;
+			return false; // ok: the palette's chunk did not come: the link still goes to the search page
 		}
 	}
 

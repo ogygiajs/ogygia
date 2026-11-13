@@ -57,7 +57,7 @@
 			if (blob.length > SAFE_UNIVERSAL)
 				note = 'Large link — opens in Chrome & Firefox; Safari recipients need the .ogp file.';
 		} catch {
-			err = 'Could not build the link.';
+			err = 'Could not build the link.'; // ok: shown beside the button
 		} finally {
 			busy = false;
 		}
