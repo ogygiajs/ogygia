@@ -1318,10 +1318,12 @@ export function peer_answers(
 			!e.tampered &&
 			!e.redirected &&
 			new URL(e.url).origin === origin &&
-			PEER_PAGE.test(new URL(e.url).pathname) &&
 			peer_gave(e, new URL(e.url).pathname)
-		)
-			wrong.push(`${new URL(e.url).pathname} answered ${e.status}, the peer answered its page`);
+		) {
+			const owed = EDGE_OWED.find(([is]) => is(new URL(e.url).pathname));
+			if (owed)
+				wrong.push(`${new URL(e.url).pathname} answered ${e.status}, the peer answered ${owed[1]}`);
+		}
 		if (typeof e.status !== 'number' || e.status >= 500 || e.cut || e.tampered || e.redirected)
 			continue;
 		const url = new URL(e.url);
