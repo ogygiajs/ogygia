@@ -2013,10 +2013,6 @@
 			"reason": "dev only: a collection's module ran again, so the old collection is disposed; one call, constant work of its own"
 		},
 		{
-			"id": "packages/flags/src/vite.ts > flags > definePlugin:0~de4de4 > build",
-			"reason": "build time: declares the flags definer through the plugin builder (not cloneable), constant work"
-		},
-		{
 			"id": "packages/machine/src/define.ts > defineRun",
 			"reason": "dev only: a module's new run ends the run before it and returns its wrapper (a function, not cloneable), constant work of its own"
 		},
@@ -3801,10 +3797,6 @@
 			"reason": "the sort comparator of a call's parameters (a closure Array.sort calls, not replayable on its own), constant work per pair; frameAddress around it is proven in packages/core/test/frame-address.test.ts (#916)"
 		},
 		{
-			"id": "packages/core/src/kit-paths.ts > app_path",
-			"reason": "reads Kit's build define for paths.base (hidden state: a module constant), one string join, constant work; proven in packages/core/test/capability-relative-paths.test.ts (#925)"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #wake_online",
 			"reason": "browser only, an error path: an island whose code failed offline waits for the window's online event (a live element and window, not cloneable), constant work; proven in packages/core/test/browser/hole-offline.test.ts (#891)"
 		},
@@ -4253,10 +4245,6 @@
 			"reason": "a generator (not recorded): one pattern jump per tag, the tag itself read by read_tag (benched in packages/core/bench/markup.bench.ts, a scan of a whole document too); proven in packages/core/test/wire-markup.test.ts"
 		},
 		{
-			"id": "packages/postrender/src/server.ts > defineServer:0~48ac6f > page > then:1~a1b2d0",
-			"reason": "a failed deploy check let go (the store said its failure, the next request checks again): nothing"
-		},
-		{
 			"id": "packages/postrender/src/server.ts > servable",
 			"reason": "a stored entry's build label against the build's own `$app/env` version and the wall clock (hidden state), two comparisons; run by packages/postrender/test/deploy.test.ts and handle.test.ts"
 		},
@@ -4331,10 +4319,6 @@
 		{
 			"id": "packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > refuse",
 			"reason": "throws the coded build error (not replayable), constant work; proven in packages/core/test/macros-own-source.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > macros > run_module_macros:2~cee8e9 > ownSource",
-			"reason": "forwards to CompileCtx.is_own_source, one call; proven in packages/core/test/macros-own-source.test.ts"
 		},
 		{
 			"id": "packages/compiler/src/compiler/ctx.ts > CompileCtx > is_own_source",
