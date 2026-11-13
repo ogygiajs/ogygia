@@ -39,19 +39,20 @@ beforeAll(() => {
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
 it('a watch rebuild marks the island’s whole closure again (#1448)', () => {
-	const compiler = new Compiler(new Program({ forms: true, router: true }), {
-		prof: {
-			transformMs: 0,
-			transformN: 0,
-			transformHit: 0,
-			prescanMs: 0,
-			resolveMs: 0,
-			loadMs: 0
-		} as Compiler['profiler']['prof'],
-		P: false,
-		outHash: new Map()
-	});
-	compiler.configure(
+	const compiler = new Compiler(
+		new Program({ forms: true, router: true }),
+		{
+			prof: {
+				transformMs: 0,
+				transformN: 0,
+				transformHit: 0,
+				prescanMs: 0,
+				resolveMs: 0,
+				loadMs: 0
+			} as Compiler['profiler']['prof'],
+			P: false,
+			outHash: new Map()
+		},
 		new CompileCtx(
 			partial_ctx_init({
 				root,
