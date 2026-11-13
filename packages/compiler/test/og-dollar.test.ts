@@ -93,6 +93,48 @@ describe('og.$ transform', () => {
 	});
 });
 
+describe('og.$ captures: what the far side would read', () => {
+	const params = (src: string) => run(src).hoists[0]!.factory_src.split(' => (')[0];
+
+	it('a name a block shadows is still captured where the block does not reach', () => {
+		expect(
+			params(
+				`const tax = 0.2; export const f = import.meta.og.$((n) => { if (n) { const tax = 1; } return n * tax; });`
+			)
+		).toBe('(tax)');
+	});
+
+	it("an inner function's parameter shadows only inside that function", () => {
+		expect(
+			params(`const v = 2; export const f = import.meta.og.$((xs) => xs.map((v) => v).concat(v));`)
+		).toBe('(v)');
+	});
+
+	it('a global name the module binds (an import) is captured, never read as the global', () => {
+		expect(
+			params(`import { fetch } from './api'; export const f = import.meta.og.$(() => fetch('/x'));`)
+		).toBe('(fetch)');
+	});
+
+	it('a class method name is no capture', () => {
+		expect(
+			params(
+				`export const f = import.meta.og.$(() => new (class { greet() { return 1; } })().greet());`
+			)
+		).toBe('()');
+	});
+
+	it('import.meta is no capture', () => {
+		expect(params(`export const f = import.meta.og.$(() => import.meta.env.DEV);`)).toBe('()');
+	});
+
+	it('BUILD ERROR: a $() inside another $()', () => {
+		expect(() =>
+			run(`export const f = import.meta.og.$(() => import.meta.og.$(() => 1));`)
+		).toThrow(/inside another/);
+	});
+});
+
 describe('og.$ end-to-end (transform output executed against the real runtime)', () => {
 	it('the rewritten expression returns a live, correctly-bound function', () => {
 		const src = `const tax = 0.19;\nglobalThis.__dollar_out = import.meta.og.$((n) => Math.round(n * (1 + tax)));`;

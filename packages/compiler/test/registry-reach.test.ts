@@ -54,7 +54,6 @@ function make_compiler() {
 		P: false,
 		outHash: new Map<string, number>()
 	};
-	const compiler = new Compiler(program, profiler);
 	const ctx = new CompileCtx(
 		partial_ctx_init({
 			root,
@@ -77,7 +76,7 @@ function make_compiler() {
 		reads.set(abs, (reads.get(abs) ?? 0) + 1);
 		return read_file(abs);
 	};
-	compiler.configure(ctx);
+	const compiler = new Compiler(program, profiler, ctx);
 	return { compiler, reads };
 }
 
