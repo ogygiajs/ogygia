@@ -902,5 +902,23 @@
 		"operator": "statement",
 		"from": "if (RULES && v !== undefined) note_shown(this, v);",
 		"to": ""
+	},
+	{
+		"id": "core-apply-live-sheets",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > apply_live",
+		"code": "use_sheets(this, sheets);",
+		"operator": "statement",
+		"from": "use_sheets(this, sheets);",
+		"to": ""
+	},
+	{
+		"id": "core-apply-live-settle",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > apply_live",
+		"code": "slots.lakes.settle_in(frag);",
+		"operator": "statement",
+		"from": "slots.lakes.settle_in(frag);",
+		"to": ""
 	}
 ]
