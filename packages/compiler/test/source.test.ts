@@ -3,6 +3,7 @@
 // reverse index) is tested in that plugin.
 import { describe, it, expect, afterEach } from 'vitest';
 import { rewrite_source } from '../src/compiler/macros/source.ts';
+import { dedent } from '@ogygia/core/contract';
 import {
 	__og_source,
 	fingerprint_args,
@@ -77,14 +78,13 @@ describe('macros/source — strict position law', () => {
 	});
 
 	it('in a .svelte <script module>, the import goes inside the script, and no line moves', () => {
-		const src = [
-			`<script module lang="ts">`,
-			`\texport const loadDoc = import.meta.og.source(async (slug: string) => slug);`,
-			`</script>`,
-			``,
-			`<p>hi</p>`,
-			``
-		].join('\n');
+		const src = dedent`
+			<script module lang="ts">
+				export const loadDoc = import.meta.og.source(async (slug: string) => slug);
+			</script>
+
+			<p>hi</p>
+		`;
 		const out = rewrite_source(src, '/app/src/lib/Doc.svelte', 'src/lib/Doc.svelte', MARKUP);
 		expect(
 			out.startsWith(`<script module lang="ts">import { __og_source } from 'ogygia/internal';`)
@@ -94,7 +94,10 @@ describe('macros/source — strict position law', () => {
 	});
 
 	it('in a .ts module, the export stays on its own line', () => {
-		const src = `// cms\nexport const loadDoc = import.meta.og.source(async (slug) => slug);\n`;
+		const src = dedent`
+			// cms
+			export const loadDoc = import.meta.og.source(async (slug) => slug);
+		`;
 		const out = rewrite_source(src, '/app/x.ts', 'x.ts', MARKUP);
 		expect(out.split('\n').length).toBe(src.split('\n').length);
 		expect(out.split('\n')[1]).toContain(`__og_source("x.ts#loadDoc"`);
