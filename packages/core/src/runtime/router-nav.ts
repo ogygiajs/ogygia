@@ -511,8 +511,7 @@ async function run_page_fetch(
 			page: { html, url },
 			cacheable: spa_html_cacheable(cc, res.headers.has('set-cookie'))
 		};
-	} catch (err) {
-		if (err && (err as { name?: string }).name === 'AbortError') throw err;
+	} catch {
 		return { page: null, cacheable: false };
 	}
 }
