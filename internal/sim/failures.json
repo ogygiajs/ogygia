@@ -161,6 +161,12 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/server/props-wire.ts > lake_identity > catch:0",
+			"reason": "a lake prop no wire carries makes the fingerprint throw: the lake gets no identity and is known by its entry and place",
+			"test": "packages/core/test/lake-identity.test.ts",
+			"name": "props no wire carries give no identity, so the lake is known by its entry and place"
+		},
+		{
 			"site": "packages/reshape/src/index.ts > handle > throw:0",
 			"reason": "a config error, at the first request: no app the sim generates leaves reshape() out of vite.config",
 			"test": "packages/reshape/test/plugin.test.ts",
@@ -177,6 +183,24 @@
 			"reason": "a Kit-hydrated page (csr=true): the random app is csr=false",
 			"test": "packages/reshape/test/browser/restore.test.ts",
 			"name": "a Kit-hydrated page: a watched host that leaves the document leaves the watch, a moved one stays, and the observer goes with the last one"
+		},
+		{
+			"site": "packages/reshape/src/pass.ts > transformed > catch:0",
+			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
+			"test": "packages/reshape/test/pass-failed.test.ts",
+			"name": "a transform that throws: the page goes out as ogygia rendered it, said once with reshape_pass_failed (gen 10, seed 10)"
+		},
+		{
+			"site": "packages/reshape/src/pass.ts > transformed > throw:0",
+			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
+			"test": "packages/reshape/test/pass-failed.test.ts",
+			"name": "a transform that throws is thrown with reshape_pass_failed"
+		},
+		{
+			"site": "packages/reshape/src/pass.ts > transformed > throw:1",
+			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
+			"test": "packages/reshape/test/pass-failed.test.ts",
+			"name": "a transform that drops ogygia's marks is thrown with reshape_marks_lost"
 		}
 	],
 	"impossible": [],

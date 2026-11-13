@@ -1,36 +1,16 @@
-/**
- * `ogygia:region/registry-stub/…` — keep a REGION REGISTRY out of a csr=false page's client graph.
- *
- * THE LEAK: a `.ts` registry (`import Card from './Card.svelte' with { wake: 'visible' }` × N, the
- * Builder / CMS block-factory shape) is a plain module to Kit. A csr=false route host that imports
- * it pulls every marked component's WRAPPER — and through it the real component, its scoped CSS and
- * its chunk closure — into that page node's client graph. Kit then links `node.stylesheets` for the
- * whole registry on every page the host serves: one large landing page linked 163 stylesheets
- * (337 registry marks) for 21 rendered islands, all render-blocking. The client never runs any of it
- * — a csr=false document ships no Kit client at all; the node's JS exists only so Kit can link CSS.
- *
- * THE RULE: what a page needs is decided at SSR, by the render pass — Region.svelte links the CSS of
- * every region that actually renders (`island_css_html` / `region_css_html`, claimed per request) and
- * preloads its chunk. So on the csr=false CLIENT leg of a BUILD a route host's import of a registry
- * resolves to this stub: a module exporting the same NAMES (as `undefined`) so the bundle links, and
- * nothing else. The registry module itself is untouched — a csr=true page (Kit hydrates it, so it
- * needs the real wrappers) and the island world keep importing the real thing. Dev keeps the graph
- * (Vite serves CSS as modules there; a stub would unstyle the page).
- *
- * PLAIN IMPORTS STAY. A registry also holds PLAIN imports (a heading, a banner wrapper: no `with`).
- * Those render on the server and never pass through Region, so the page node's client graph is the
- * only thing that links their CSS — a names-only stub left them unstyled on every deploy (dev keeps
- * the graph, so it never showed there). The client-leg registry is therefore the registry ITSELF
- * with only its marks blanked ({@link registry_client_source}): every plain import, re-export,
- * barrel and style import keeps its edge, resolved from the registry's own directory (the module id
- * is the real path plus {@link REGISTRY_CLIENT_QUERY}), so Kit links their CSS exactly as before the
- * stub. Their CSS is linked whether they render or not — the price of the graph deciding; marked
- * imports stay out, which is the leak this module exists for.
- */
 import { walk } from 'estree-walker';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { region_family } from '../ids.ts';
 
+/**
+ * `ogygia:region/registry-stub/…`: keeps a region registry (a `.ts` module of marked imports) out
+ * of a csr=false page's client graph. Kit links the CSS of every module that graph reaches, but
+ * what a csr=false page needs is decided at SSR, where Region links the CSS of each region that
+ * renders. So on the csr=false client leg of a build, a route host's import of a registry reads the
+ * registry with only its marks blanked ({@link registry_client_source}): plain imports keep their
+ * edges (they render on the server, and the graph is the only thing that links their CSS). A
+ * csr=true page, the island world and dev keep the real registry.
+ */
 export const REGISTRY_STUB_PREFIX: string = region_family('registry_stub');
 
 /** The query that names a registry's client-leg variant (its marks blanked, everything else kept). */
@@ -53,7 +33,6 @@ type EsNode = AstNode & {
 	end: number;
 };
 
-/** True when `node` is `import.meta.og.<prop>`. */
 function is_og_macro(node: EsNode | undefined, prop: string): boolean {
 	return (
 		node?.type === 'MemberExpression' &&
@@ -87,7 +66,6 @@ export function static_script_specs(source: string, file: string): string[] | nu
 	return specs;
 }
 
-/** `const a = undefined, b = undefined;` for the given locals (empty string for none). */
 function undefined_consts(locals: readonly string[]): string {
 	return locals.length ? `const ${locals.map((l) => `${l} = undefined`).join(', ')};` : '';
 }
@@ -109,8 +87,6 @@ export function registry_client_source(
 	const body = (parsed.program as EsNode).body as EsNode[];
 	const edits: { start: number; end: number; text: string }[] = [];
 
-	// `import.meta.og.regions(glob)` (a held-region registry the compiler expands into marked
-	// imports) → `{}`: every entry it would mint is a mark.
 	walk(parsed.program as never, {
 		enter(n) {
 			const node = n as unknown as EsNode;
@@ -121,7 +97,6 @@ export function registry_client_source(
 		}
 	});
 
-	// a mark covers every name its declaration binds (default or named), so the whole line goes
 	for (const node of body) {
 		if (node.type !== 'ImportDeclaration' || node.importKind === 'type') continue;
 		const marked = ((node.attributes ?? []) as EsNode[]).some((a) =>
