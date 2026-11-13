@@ -1659,6 +1659,42 @@
 			"reason": "`render(endpoint, signal).catch(() => null)`: proved: the .catch removed turns the test red, twice",
 			"test": "packages/core/test/stream-regions-claims.test.ts",
 			"name": "a call left out or a failed render writes no parcel, and the batch still ends"
+		},
+		{
+			"site": "packages/core/src/plugin/capability.ts > plugin_signer > plain_message > throw:0",
+			"reason": "`throw new OgygiaError('plugin_capability_message', { name });`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/plugin-hole-budgets.test.ts",
+			"name": "a plugin's plain sign and verify refuse a capability message"
+		},
+		{
+			"site": "packages/core/src/plugin/capability.ts > plugin_capabilities > refuse > result:0",
+			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
+			"test": "packages/core/test/plugin-capability-key.test.ts",
+			"name": "minted by another deployment is refused as foreign-key, not as a bad signature"
+		},
+		{
+			"site": "packages/core/src/plugin/server.ts > end_request > reject:0",
+			"reason": "`, done_failed`: proved: the rejection handler removed turns the test red, twice",
+			"test": "packages/core/test/plugin-request-end.test.ts",
+			"name": "a done that throws, or work that fails, is said (plugin_hook_failed), with the error"
+		},
+		{
+			"site": "packages/core/src/plugin/server.ts > end_request > catch:0",
+			"reason": "`catch (error) { done_failed(error); }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/plugin-request-end.test.ts",
+			"name": "work that fails never fails the response, and a throwing done does not stop the next"
+		},
+		{
+			"site": "packages/core/src/plugin/server.ts > keep_alive > catch:0",
+			"reason": "`catch { // ok: a platform that refuses it: the work runs on by itself…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/plugin-request-end.test.ts",
+			"name": "outside a request, on a platform without one, or one that refuses it: nothing, and no throw"
+		},
+		{
+			"site": "packages/core/src/server/head-presence.ts > with_code_origins > catch:0",
+			"reason": "`catch { // ok: not a URL: no origin to allow }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/code-origins.test.ts",
+			"name": "as origins, http(s) only, each once"
 		}
 	],
 	"impossible": [
@@ -2199,8 +2235,6 @@
 		"packages/core/src/live-transport.ts > class_for > throw:0",
 		"packages/core/src/live-transport.ts > register_wire_kind > encode > throw:0",
 		"packages/core/src/nested.ts > island_region > catch:0",
-		"packages/core/src/plugin/capability.ts > plugin_signer > plain_message > throw:0",
-		"packages/core/src/plugin/capability.ts > plugin_capabilities > refuse > result:0",
 		"packages/core/src/plugin/css.ts > run > import:0",
 		"packages/core/src/plugin/facts.ts > current_request > catch:0",
 		"packages/core/src/plugin/reads.ts > observe_reads > fetch:0",
@@ -2210,10 +2244,7 @@
 		"packages/core/src/plugin/request-scope.ts > own_response > pull > stream:0",
 		"packages/core/src/plugin/request-scope.ts > own_response > pull > stream:1",
 		"packages/core/src/plugin/request-scope.ts > own_response > pull > stream:2",
-		"packages/core/src/plugin/server.ts > end_request > reject:0",
-		"packages/core/src/plugin/server.ts > end_request > catch:0",
 		"packages/core/src/plugin/server.ts > end_request > catch:1",
-		"packages/core/src/plugin/server.ts > keep_alive > catch:0",
 		"packages/core/src/plugin/testing.ts > verify > crypto:0",
 		"packages/core/src/policies.ts > (module) > policy:0",
 		"packages/core/src/policies.ts > (module) > policy:1",
@@ -2424,7 +2455,6 @@
 		"packages/core/src/script.ts > script > throw:6",
 		"packages/core/src/server/capped-body.ts > read_capped > stream:0",
 		"packages/core/src/server/dead-kit-resolves.ts > drop_dead_kit_resolves > transform > stream:0",
-		"packages/core/src/server/head-presence.ts > with_code_origins > catch:0",
 		"packages/core/src/server/hmac.ts > Hmac > verify > crypto:0",
 		"packages/core/src/server/hmac.ts > Hmac > verify > catch:0",
 		"packages/core/src/server/hmac.ts > hex_equal > crypto:0",
