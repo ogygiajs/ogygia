@@ -952,6 +952,9 @@ importers:
       '@ogygia/compiler':
         specifier: workspace:*
         version: link:../../packages/compiler
+      '@ogygia/page-keys':
+        specifier: workspace:*
+        version: link:../../packages/page-keys
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
