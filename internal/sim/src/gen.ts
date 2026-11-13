@@ -129,6 +129,10 @@ export interface GenPage {
 	/** The page opens with a hero image (`fetchpriority="high"`): its critical resource, which island
 	 *  code and background downloads wait for (the load scheduler's critical gate). */
 	readonly hero?: boolean;
+	/** The page ends with a module script of its own (`/late.js`), after ogygia's runtime: the
+	 *  document's DOMContentLoaded waits for its download, so the runtime runs while the document
+	 *  is parsed and not yet loaded (the paint gate's window). */
+	readonly late?: boolean;
 	/** The page's server load reads the app's flag (`gate(event)`): each read is an exposure, which the
 	 *  sink takes in batches (`flags exposures`). */
 	readonly flagged?: boolean;
@@ -304,6 +308,8 @@ export function plan(seed: number): GenPage[] {
 	};
 	// (and whether a page opens with a hero image, from its own)
 	const hr = rng(seed).fork('gen hero');
+	// (and whether it ends with a module of its own, from its own)
+	const lm = rng(seed).fork('gen late module');
 	const switching = switcher(seed);
 	const node = trees(
 		r,
@@ -323,6 +329,7 @@ export function plan(seed: number): GenPage[] {
 		.map((page) => ({ ...page, roots: page.roots.map(messy) }))
 		.map((page) => ({ ...page, roots: page.roots.map(empty) }))
 		.map((page) => (hr.chance(0.4) ? { ...page, hero: true } : page))
+		.map((page) => (lm.chance(0.4) ? { ...page, late: true } : page))
 		.map((page) => ({ ...page, roots: page.roots.map(switching) }))
 		.map(flagging(seed))
 		.map(third_party(seed))
@@ -522,6 +529,15 @@ const PNG = Uint8Array.from(
 export const GET = () =>
 \tnew Response(PNG, {
 \t\theaders: { 'content-type': 'image/png', 'cache-control': 'public, max-age=31536000, immutable' }
+\t});
+`;
+
+/** The page's own module the app serves (`/late.js`, GenPage `late`): empty, loaded over the
+ *  simulated network. */
+const LATE_ROUTE = `// (a page's own deferred module, after ogygia's runtime: DOMContentLoaded waits for it)
+export const GET = () =>
+\tnew Response('export {};\\n', {
+\t\theaders: { 'content-type': 'text/javascript', 'cache-control': 'public, max-age=31536000, immutable' }
 \t});
 `;
 
@@ -1018,6 +1034,8 @@ export const prerender = false;
 	writeFileSync(join(routes, '+page.svelte'), `<h1>generated app, seed ${seed}</h1>\n`);
 	mkdirSync(join(routes, 'hero.png'), { recursive: true });
 	writeFileSync(join(routes, 'hero.png', '+server.ts'), HERO_ROUTE);
+	mkdirSync(join(routes, 'late.js'), { recursive: true });
+	writeFileSync(join(routes, 'late.js', '+server.ts'), LATE_ROUTE);
 	writeFileSync(join(lib, 'mount.server.ts'), app_mount(peer));
 	writeFileSync(join(lib, 'flags.server.ts'), app_flags(pages));
 	if (peer) {
@@ -1102,6 +1120,9 @@ export const actions = m.actions;
 					usage(n, '')
 				]),
 				...slots.map(slot_usage),
+				...(page.late
+					? [`{@html '<scr' + 'ipt type="module" src="/late.js"></scr' + 'ipt>'}`]
+					: []),
 				''
 			].join('\n')
 		);
