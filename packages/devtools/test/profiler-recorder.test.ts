@@ -215,7 +215,7 @@ describe('the recorder has one owner', () => {
 		const orig = globalThis.fetch;
 		globalThis.fetch = (async () =>
 			new Response('data', { headers: { 'content-length': '4' } })) as typeof fetch;
-		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
 		try {
 			const handle = profiler({ secret: KEY, serverTiming: true });
 			const visitor = async () =>
