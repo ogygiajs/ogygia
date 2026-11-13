@@ -7,6 +7,7 @@ import {
 	account_failures,
 	faults_in,
 	points_in,
+	shapes_in,
 	sites_of,
 	type FailureLedger
 } from '../src/failures.ts';
@@ -155,6 +156,7 @@ const o = {
 	read: (p: string): string | null => files[p] ?? null,
 	points: new Set(['p.lost']),
 	faults: new Set(['drop']),
+	shapes: new Set(['gen messy']),
 	mutants: new Set(['m1'])
 };
 
@@ -237,6 +239,23 @@ describe('failure sites accounted', () => {
 			'an orphan point (no ledger entry names it): p.orphan',
 			"no buggify point 'p.keep' in the packages' source (step_points)"
 		]);
+	});
+
+	it('passes a site an app shape fires (a gen stream), and fails one whose shape gen.ts no longer draws, or that names two ways', () => {
+		const shaped = (shape: string, point?: string) =>
+			account_failures(
+				SITES,
+				ledger({
+					fired: [{ site: 'f > catch:0', shape, point, how: '' }]
+				}),
+				{ ...o, points: new Set(point ? [point] : []) }
+			).failures;
+		expect(shaped('gen messy')).toEqual([]);
+		expect(shaped('gen gone')).toEqual(["f > catch:0: no app shape 'gen gone' in gen.ts"]);
+		expect(shaped('gen messy', 'p.lost')).toEqual([
+			'f > catch:0: a fired site names one point, fault or shape'
+		]);
+		expect(shapes_in("const m = rng(seed).fork('gen messy');")).toEqual(['gen messy']);
 	});
 
 	it('fails a fired site whose point did not fire in the sweep', () => {

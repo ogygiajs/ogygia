@@ -143,8 +143,11 @@ the real-browser tier reruns interesting seeds in Chromium, Firefox and WebKit.
 
 The loop never waits a fixed number of turns. `settle()` turns the host's own loop until
 `process.getActiveResourcesInfo()` shows nothing in flight (no immediate, no file or crypto
-request; the host's own real timers are counted, not waited on). A settle that gives up after
-10,000 turns is counted (`loop.stalls`). Everything else a page waits on is a loop task, so the
+request; the host's own real timers are counted, not waited on). A settle waits up to 10 s of real
+time (`settle_ms`), never a count of turns: 10,000 quick turns were about 145 ms, less than a file
+read on a loaded CI runner, and the run went on without it (#1612). One that gives up is a finding
+(`settle-stalled`, with when and what it waited on): from there the run is not its seed's. An async
+crypto job (`crypto.pbkdf2`) is not in `getActiveResourcesInfo()`, so a settle cannot see it. Everything else a page waits on is a loop task, so the
 world is AT REST when nothing is on the network and nothing is due within 2 s (`World.quiesce`).
 A live answer (a body still coming 30 s after its head, each piece within 2 s of the last) is not
 work in flight: rest waited budget after budget on one, once to the run's horizon (palaestra seed
@@ -431,7 +434,8 @@ tsdown-plugin-svelte) no simulator runs: their sites are `covered`, never `fired
 are fired by the compiler's own simulator (`sim: "compiler"`). Each has a stable id, `file > enclosing function > kind:n` (n counts that kind in that
 function), so lines moving above it do not move it; `node src/failures.ts --list` prints them with
 their lines. The ledger `internal/sim/failures.json` puts each in exactly one bucket: `fired` (a
-buggify point, or a sim fault, reaches it; the sweep fails when the point did not fire; `killed_by`
+buggify point, a sim fault, or an app shape (`shape`: a gen stream, as `gen messy` draws a hole whose
+render throws) reaches it; the sweep fails when the point did not fire; `killed_by`
 names the mutant of mutants.json that breaks its recovery and the simulator kills, the proof that a
 broken recovery is noticed), `covered` (a named real test, which the check finds) or `impossible` (a
 rule or type, by its file and name, which the check finds). Sites nobody has bucketed yet are the
@@ -445,17 +449,23 @@ mutant goes in mutants.json and its id in `killed_by`. A site that fires but who
 nobody notices wants an oracle or a test first.
 
 MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
-`internal/sim/mutants.json` on main's code, over gens 24 (a reshape pass that trims, with links: it
+`internal/sim/mutants.json` on main's code, over gens 10 (the router with a reshape pass: the network
+faults alone kill a navigation that never hands a lost page fetch to the browser, and a hole that
+never fetches again after its retry wait, both by `stuck`), 24 (a reshape pass that trims, with links: it
 kills restore.ts's children not put back and its render left in the light DOM, by `ssr-hydrate`,
-and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest),
-188 (an empty island that wakes: it kills the
-repair's `> 0` mutant), 191, 192, 193, 220 (a text-only third party on a page root: it kills
+and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest), 121 (a peer at
+two origins: its first replica down (`down`) and no answer asked of the next dies by
+`mpa-equivalence`), 188 (an empty island that wakes: it kills the
+repair's `> 0` mutant), 191 (a hole whose render throws: an error answer swapped in for its
+fallback dies by `html-kept`), 192, 193, 220 (a text-only third party on a page root: it kills
 `align_to`'s last `return true` -> false) and 262 (islands with a `<svelte:head>`, one a third party
 edits: it kills the head mutants), 550 (an island with a margin; and seeds 33, 36, 65 and 74 past
 the range, `550+33+36+65+74`: only they open a tab behind, which kills a hidden document read as
 shown) and 734 (a federated app), with `--budget-min 60` (no mutant starts after an hour; the last line says
 how many it judged of the list, and when) and uploads it (`dst-mutation`). Each listed mutant names
-its line's `code`, and goes on the line that holds it, so the list outlives main's lines moving
+its function (`in`, the path a failure site's id names: `Class > method`, `fn > inner`, `(module)`)
+and its line's `code`, never a line number, so the list outlives main's lines moving; when that code
+is on two lines of the function, `nth` (0-based) says which, and one that names none throws
 (`test/mutate.test.ts` checks that every one applies). The always-on job's batch
 log line and summary say both numbers: steps accounted, and the latest finished mutation run's kill
 rate with its date. A mutant no run can tell from the code as it is is written up in the list with
