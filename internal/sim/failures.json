@@ -133,6 +133,30 @@
 			"point": "batch.body-stalls",
 			"how": "the batch's body goes quiet (the point reads as a stall past STALL_MS): the batch ends, and the parts it still owed are released to fetch on their own",
 			"killed_by": "batch-unreleased-body-stalls"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > navigate > build > throw:0",
+			"point": "router.build-throws",
+			"how": "the point itself: a step of the next page's build throws (its devalue did not load, a parse failed)",
+			"killed_by": "router-build-throw-not-handed-off"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > navigate > catch:0",
+			"point": "router.build-throws",
+			"how": "the staged build rejects: the navigation hands off to the browser, which loads the page whole",
+			"killed_by": "router-build-throw-not-handed-off"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > navigate > swap > throw:0",
+			"point": "router.commit-throws",
+			"how": "the point itself: the commit of a built page throws before it changes anything",
+			"killed_by": "router-commit-failed-not-handed-off"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > navigate > swap > catch:0",
+			"point": "router.commit-throws",
+			"how": "a commit that throws is kept as out.failed: what was built is given back, and the navigation hands off to the browser (#276)",
+			"killed_by": "router-commit-failed-not-handed-off"
 		}
 	],
 	"covered": [
@@ -1001,8 +1025,6 @@
 		"packages/core/src/runtime/router-nav.ts > navigate > build > catch:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > build > abort:1",
 		"packages/core/src/runtime/router-nav.ts > navigate > build > abort:2",
-		"packages/core/src/runtime/router-nav.ts > navigate > catch:0",
-		"packages/core/src/runtime/router-nav.ts > navigate > swap > catch:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > .catch:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > reject:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > .catch:1",

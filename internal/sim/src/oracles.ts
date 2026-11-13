@@ -1124,6 +1124,13 @@ export function document_faulted(world: World, tab: Tab): boolean {
 const EXPLAINED =
 	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response|Failed to read the 'on\w+' property| in JSON at position \d+/;
 
+/** Whether `line` is a buggify point's own throw (a point's error says its name), reported by the
+ *  document `realm` it fired in: what the runtime reports of a failure it recovers from. */
+function points_own(world: World, realm: string, line: string): boolean {
+	const fired = world.fired_in.get(realm);
+	return fired !== undefined && [...fired].some((p) => line.includes(`Error: ${p}`));
+}
+
 /** How the browser, or ogygia with its code, says a module or file did not download. */
 const NOT_DOWNLOADED =
 	/ogygiajs\.dev\/e\/|Failed to fetch dynamically imported module|^error: <(script|link)> \S+ failed|Failed to perform request/;
@@ -1160,6 +1167,7 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 			const excused = faulted(world, by) || faulted(world, by, since);
 			return (
 				!(excused && EXPLAINED.test(l)) &&
+				!points_own(world, by.realm, l) &&
 				!element_download_failed(world, by, l) &&
 				!deploy_took(world, by, l)
 			);
