@@ -319,9 +319,17 @@ export class Compiler implements CoreApp {
 		return this.#build.legs.get(name);
 	}
 
-	/** Leg `name` ends (its bundle is written). */
-	end_leg(name: string): void {
-		this.#build.legs.get(name)?.life.go('closed');
+	/**
+	 * A leg ends (its bundle is written): `env`'s, else (a hook the bundler calls without one) the one
+	 * leg open now. With two open (a dev server closing: its legs live for the session) there is no
+	 * one leg to end, and none ends. Ending a leg that already ended does nothing (closeBundle may run
+	 * again).
+	 */
+	end_leg(env: string | null): void {
+		const legs = this.#build.legs;
+		const open = [...legs.values()].filter((l) => l.life.now.kind === 'open');
+		const leg = env !== null ? legs.get(env) : open.length === 1 ? open[0] : undefined;
+		if (leg?.life.now.kind === 'open') leg.life.go('closed');
 	}
 
 	/**
@@ -394,6 +402,15 @@ export class Compiler implements CoreApp {
 		this.#build = new_build(program);
 		this.profiler = profiler;
 		this.#ctx = ctx;
+	}
+
+	/** A compiler with context `ctx` that carries on this one's build (its program, legs and caches):
+	 *  the next environment of a builder that shares one plugin across them. */
+	with_ctx(ctx: CompileCtx): Compiler {
+		const next = new Compiler(this.program, this.profiler, ctx);
+		next.#build = this.#build;
+		next.#emitted_server_ids = this.#emitted_server_ids;
+		return next;
 	}
 
 	/**

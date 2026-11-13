@@ -1,6 +1,6 @@
 // An `ogygia()` plugin's life (src/vite/session.ts): its compiler is made once the bundler resolved
-// the build, with that build's context. A hook that needs it earlier, or a second resolve without a
-// new `config`, is refused with a code, never a read of a context that is not there.
+// the build, with that build's context. A hook that needs it earlier is refused with a code, never a
+// read of a context that is not there; a second resolve without a new `config` keeps the build.
 import { describe, expect, it } from 'vitest';
 import type { Plugin } from 'vite';
 import { compiler_of, configured, new_session, resolve } from '../src/vite/session.ts';
@@ -27,13 +27,25 @@ describe('the plugin session', () => {
 		expect(compiler_of(s, 'transform')).toBe(c);
 	});
 
-	it('a second resolve with no config between is refused; a second build gets its own compiler', () => {
+	it('a plugin shared across environments, resolved again with no config, keeps its build', () => {
+		// (Vite's builder with shared plugins resolves each environment's config with the one
+		// instance: configResolved runs again, its config hook does not)
 		const s = new_session();
 		configured(s);
 		const first = resolve(s, () => fake(1));
-		expect(() => resolve(s, () => fake(2))).toThrow(
-			/`configResolved` hook while the plugin was resolved/
-		);
+		let given: Compiler | null = null;
+		const again = resolve(s, (prev) => {
+			given = prev;
+			return fake(2);
+		});
+		expect(given).toBe(first);
+		expect(compiler_of(s, 'buildStart')).toBe(again);
+	});
+
+	it('a second build (config again) gets its own compiler', () => {
+		const s = new_session();
+		configured(s);
+		const first = resolve(s, () => fake(1));
 		configured(s);
 		expect(() => compiler_of(s, 'buildStart')).toThrow(/plugin_session_order|was configured/);
 		const second = resolve(s, () => fake(2));
