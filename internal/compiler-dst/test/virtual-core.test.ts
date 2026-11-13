@@ -6,6 +6,10 @@
 import { describe, expect, it } from 'vitest';
 import { dedent } from '../../../packages/core/src/contract/dedent.ts';
 import { memory_fs } from '../../../packages/compiler/src/compiler/fs.ts';
+import {
+	SERVER_MAP_TOKENS,
+	server_manifest_maps
+} from '../../../packages/compiler/src/compiler/link/server-manifest.ts';
 import { LIB, ROUTES } from '../src/app.ts';
 import { session, type Leg, type Session } from '../src/session.ts';
 
@@ -62,8 +66,12 @@ describe('a build virtual read from the whole program prescans first', () => {
 	});
 
 	it('the server island the prescan found is in the server manifest', async () => {
-		const out = await load(cold(app()), 'ogygia:server/server-manifest', 'ssr');
-		expect(out).toMatch(/region_url = \{\s*"[0-9a-f]{12}"/);
+		const s = cold(app());
+		const out = await load(s, 'ogygia:server/server-manifest', 'ssr');
+		expect(out).toContain(SERVER_MAP_TOKENS.region_url);
+		const maps = server_manifest_maps(s.compiler.program, (iid) => iid);
+		expect(Object.keys(maps.region_url)).toEqual([expect.stringMatching(/^[0-9a-f]{12}$/)]);
+		expect(Object.values(maps.region_name)).toEqual(['Late']);
 	});
 });
 
@@ -73,8 +81,10 @@ describe('what each mode and leg is told', () => {
 		const bare = { [`${ROUTES}/+page.svelte`]: '<h1>page</h1>\n' };
 		const dev = await load(warm(bare, true), 'ogygia:boot/runtime-flags', 'client');
 		const build = await load(warm(bare), 'ogygia:boot/runtime-flags', 'client');
-		expect(dev).toBe('export const FRAMES = true;\n');
-		expect(build).toBe('export const FRAMES = false;\n');
+		expect(dev).toMatch(/^export const FRAMES = true;\nexport const load_wire_codec = null;\n$/);
+		expect(build).toMatch(
+			/^export const FRAMES = false;\nexport const load_wire_codec = \(\) => import\(/
+		);
 	});
 
 	it('the fn manifest is imported only when a decoder can revive a fn ref', async () => {
