@@ -4953,10 +4953,6 @@
 			"reason": "was rewrite_dollar's (renamed, same work): one prefix test per edit"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/dollar.ts > dollar_edits > walk:1~047999",
-			"reason": "was rewrite_dollar's (renamed, same work): the AST visit per node; dollar_edits itself runs in the dollar macros bench"
-		},
-		{
 			"id": "packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > apply > push:0~63cdc9",
 			"reason": "one splice_map call, measured in the source maps bench"
 		},
@@ -5447,6 +5443,74 @@
 		{
 			"id": "packages/compiler/src/compiler/link/page-keys.ts > statement_declares > some:0~af91fc",
 			"reason": "one import specifier's local name against the name looked up, constant work; reached only when a module-level lookup (a typeof window guard) walks to the Program; page-keys.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/context-detect.ts > context_keys > walk",
+			"reason": "the AST walk that finds context calls and their keys in one module: recursive over the parsed tree (not replayable), linear in its nodes; context-detect tests run it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > region_context_key_one_off > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > region_context_key_one_off > text",
+			"reason": "a warning's wording, constant text"
+		},
+		{
+			"id": "packages/core/src/context-bridge.ts > createContext > defineProperties:1~034356 > [computed] > value",
+			"reason": "the context tuple's iterator: three getters handed out once per destructure, constant work"
+		},
+		{
+			"id": "packages/core/src/context-bridge.ts > createContext > defineProperties:1~034356 > get > value",
+			"reason": "the deprecated callable form's get: one Svelte getContext read (component-init only, not cloneable), constant work"
+		},
+		{
+			"id": "packages/core/src/context-bridge.ts > createContext > has",
+			"reason": "one Svelte hasContext read (component-init only, not cloneable), constant work"
+		},
+		{
+			"id": "packages/core/src/context-bridge.ts > createContext > set",
+			"reason": "one Svelte setContext write (component-init only, not cloneable), constant work"
+		},
+		{
+			"id": "packages/core/src/context-bridge.ts > crossing_values",
+			"reason": "a provider's values keyed by the names they cross under: reads Reflect.ownKeys of the values (hidden state), linear in its keys"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > context_missing > details",
+			"reason": "an error's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > context_missing > text",
+			"reason": "an error's wording, constant text"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > context_key_one_off > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > context_key_one_off > text",
+			"reason": "a warning's wording, constant text"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > context_value_function > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > context_value_function > text",
+			"reason": "a warning's wording, constant text"
+		},
+		{
+			"id": "packages/core/src/nested.ts > nested_wake",
+			"reason": "the schedule of the island around a subtree: one Svelte getContext read or one attribute read (component-init only, hidden state), constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/bottom-chrome.ts > bottom_chrome",
+			"reason": "browser only: reads the page's fixed bottom chrome under the launcher through elementsFromPoint and getComputedStyle, linear in the hit elements' ancestors; docs e2e shellbar-keep.spec.ts proves it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > #resolve_region_mark > map:0~3a7f2a",
+			"reason": "maps a preset's keys to their standard names once per marked import (not replayable inside the file compilation), linear in its keys"
 		}
 	]
 }
