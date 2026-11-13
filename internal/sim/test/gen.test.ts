@@ -189,6 +189,29 @@ describe('the random app', () => {
 		}
 	});
 
+	it('draws a peer at two origins from its own stream, and the app names both, the first first', () => {
+		const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
+		const peers = seeds.map((s) => peer_plan(s, plan(s))).filter((p) => p !== null);
+		expect(peers.some((p) => p.origins === 2)).toBe(true);
+		expect(peers.some((p) => p.origins === 1)).toBe(true);
+		const root = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			for (const n of [1, 2] as const) {
+				const seed = seeds.find((s) => peer_plan(s, plan(s))?.origins === n)!;
+				const app = join(root, `o${n}`);
+				write(app, plan(seed), seed, peer_plan(seed, plan(seed)));
+				const fed = readFileSync(join(app, 'src', 'lib', 'gen', 'federation.server.ts'), 'utf8');
+				if (n === 2)
+					expect(fed).toContain(
+						"origin: [env.PEER_ORIGIN ?? 'https://peer.test', env.PEER2_ORIGIN ?? 'https://peer2.test']"
+					);
+				else expect(fed).toContain("origin: env.PEER_ORIGIN ?? 'https://peer.test',");
+			}
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
 	it("draws a peer's edge pages from their own stream: one it lacks, one that moved, one that shows the visitor, each linked from its pages", () => {
 		const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
 		const peers = seeds.map((s) => peer_plan(s, plan(s))).filter((p) => p !== null);
