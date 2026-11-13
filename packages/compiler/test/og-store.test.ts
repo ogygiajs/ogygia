@@ -93,6 +93,23 @@ describe('og.store transform', () => {
 		expect(warn).not.toHaveBeenCalled();
 		warn.mockRestore();
 	});
+
+	it('a returned name is never judged, only a literal non-store', () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		run(`export const a = import.meta.og.store((s) => { const x = make(s); return x; });`);
+		expect(warn).not.toHaveBeenCalled();
+		run(`export const b = import.meta.og.store((s) => { if (s) return (undefined); return s; });`);
+		expect(warn).toHaveBeenCalledOnce();
+		warn.mockRestore();
+	});
+
+	it('a module that does not parse mid-edit is left as written', () => {
+		const src = dedent`
+			export const a = import.meta.og.store((s) => s);
+			const x = ;
+		`;
+		expect(run(src)).toBe(src);
+	});
 });
 
 describe('__og_store runtime (the corpus C9 round-trip)', () => {
@@ -223,6 +240,24 @@ describe('auto-brand tier (zero-authoring provable factories)', () => {
 		// not exported
 		const priv = `const d = (n) => ({ subscribe: () => {} });`;
 		expect(auto(priv)).toBe(priv);
+	});
+
+	it('only svelte/store’s writable is proof, under any local name', () => {
+		const other = dedent`
+			import { writable } from './my-store';
+			export const a = (n) => writable(n);
+		`;
+		expect(auto(other)).toBe(other);
+		const aliased = dedent`
+			import { writable as w } from 'svelte/store';
+			export const b = (n) => w(n);
+		`;
+		expect(auto(aliased)).toContain(`__og_store("src/lib/s.ts#auto:b", (n) => w(n))`);
+	});
+
+	it('a block body with no return is no proof', () => {
+		const src = `export const a = (n) => { const s = { subscribe: () => {} }; };`;
+		expect(auto(src)).toBe(src);
 	});
 
 	it('nested functions returns do not count as the factory return', () => {

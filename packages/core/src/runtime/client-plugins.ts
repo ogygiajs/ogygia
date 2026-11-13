@@ -1,7 +1,11 @@
 /**
  * The plugins' browser halves, as the runtime calls them (`ogygia/plugin/client`). The boot entry
  * hands them over; every call site sits behind its gate (`__OGYGIA_CLIENT_PLUGINS__` for `boot`, one
- * `__OGYGIA_HOOK_*__` per runtime hook), so a build where no plugin subscribes folds them away.
+ * `__OGYGIA_HOOK_*__` per runtime hook), so a build where no plugin subscribes folds them away
+ * (test/runtime-hooks-fold.test.ts). Every subscriber runs in plugin order, and a throw or a rejected
+ * promise is reported once per plugin and stops nothing else (test/runtime-hooks-compose.test.ts).
+ *
+ * @packageDocumentation
  */
 import type { ClientPlugin } from '../plugin/client.ts';
 import type { RuntimeHookName, RuntimeHooks } from '../contract/runtime-hooks.ts';
@@ -60,10 +64,6 @@ export interface ClientRealm {
 
 type Payload<K extends RuntimeHookName> = Parameters<RuntimeHooks[K]>[0];
 
-/**
- * How the runtime calls into a plugin, for one hook (or `boot`): a throw or a rejected promise is
- * reported once per plugin and stops nothing else (test/runtime-hooks-compose.test.ts).
- */
 function isolated(hook: RuntimeHookName | 'boot'): (plugin: string, run: () => unknown) => unknown {
 	const failed = new Set<string>();
 	const report = (plugin: string, err: unknown) => {
@@ -83,12 +83,6 @@ function isolated(hook: RuntimeHookName | 'boot'): (plugin: string, run: () => u
 	};
 }
 
-/**
- * The hook as the runtime calls it, built once at boot: every subscriber in plugin order, each call
- * wrapped so a throw or a rejected promise is reported once per plugin and stops nothing else.
- * The functions subscribers return (`regionHydrate`'s afters) come back as one, the same way, or
- * undefined. Undefined with no subscriber.
- */
 function joined<K extends RuntimeHookName>(
 	list: readonly ClientRealm[],
 	name: K
