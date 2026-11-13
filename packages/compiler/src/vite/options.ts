@@ -1,12 +1,5 @@
-/**
- * Public options for the `ogygia` Vite plugin — one top-level key per subsystem, each
- * `defaults + its own presets`. Split out of the adapter so the plugin file stays lean; these are
- * pure type declarations (the plugin factory in index.ts imports them back).
- */
 import { PRESET_KEYS, type ImportKeys } from '../compiler/region/transform.ts';
 import { OgygiaError, RETIRED_OPTIONS } from '../compiler/messages.ts';
-
-// ── regexes
 
 /**
  * Named strategy bundle referenced from source via `with { preset: 'name' }`
@@ -233,7 +226,6 @@ export function resolve_options(
 	defaultRegionTtl: number,
 	defaultRenewWindow: number = 8 * 24 * 3600
 ): ResolvedOgygiaConfig {
-	// Region-endpoint rate limit (baked into SSR only via ogygia:server/rate-limit).
 	const rate_limit =
 		options.rateLimit === false
 			? { max: 0, windowMs: 60_000 }
@@ -242,17 +234,8 @@ export function resolve_options(
 					windowMs: Math.max(1, options.rateLimit?.windowMs ?? 60_000)
 				};
 
-	// Cookie name sealed into the region MAC, or '' when unbound (default).
-	const session_cookie =
-		typeof options.sessionCookie === 'string' && options.sessionCookie.length > 0
-			? options.sessionCookie
-			: '';
-
-	// Capability URL TTL (seconds). Clamped to [60, 86400].
+	const session_cookie = typeof options.sessionCookie === 'string' ? options.sessionCookie : '';
 	const region_ttl = Math.min(86400, Math.max(60, Math.floor(options.ttl ?? defaultRegionTtl)));
-
-	// Renewal window (seconds) after a capability expired: `maxPageAge`. `0` = never renew; at most 10
-	// years (the prerender capability life — nothing outlives that).
 	const renew_raw = options.maxPageAge;
 	if (
 		renew_raw !== undefined &&
@@ -261,9 +244,6 @@ export function resolve_options(
 		throw new OgygiaError('max_page_age_invalid', { value: String(renew_raw) });
 	}
 	const renew_window = Math.min(10 * 365 * 24 * 3600, Math.floor(renew_raw ?? defaultRenewWindow));
-
-	// ROUTER config (app-wide, one place). On by default; View Transitions on unless disabled. `false`
-	// tree-shakes the whole feature out. Baked into `ogygia:server/router-config` for the handle.
 	const router_enabled = options.router !== false;
 	const router_view_transitions =
 		options.router === false
@@ -271,17 +251,9 @@ export function resolve_options(
 			: typeof options.router === 'object'
 				? options.router.viewTransitions !== false
 				: true;
-
-	// CONTINUITY rides the router (it snapshots on SPA navigation): router on + `forms` not disabled.
-	// `router: false` takes forms with it — there is no SPA nav to survive.
 	const continuity_forms =
 		router_enabled && (typeof options.router === 'object' ? options.router.forms !== false : true);
-
-	// SERVER-DELTA NAV is opt-in (a new client↔server protocol). Only when the router is on AND the app
-	// explicitly writes `router: { serverDelta: true }`. Off → the client never sends `x-ogygia-known`,
-	// so the server always full-renders (safe fallback). Server-delta needs SPA nav, so router-off ⇒ off.
-	const server_delta =
-		router_enabled && typeof options.router === 'object' && options.router.serverDelta === true;
+	const server_delta = typeof options.router === 'object' && options.router.serverDelta === true;
 
 	return {
 		rate_limit,

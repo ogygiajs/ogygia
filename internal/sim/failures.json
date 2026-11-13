@@ -95,6 +95,18 @@
 	],
 	"covered": [
 		{
+			"site": "packages/compiler/src/vite/paths.ts > runtime_inputs > catch:0",
+			"reason": "an unbuilt runtime directory cannot be read: it adds no input",
+			"test": "packages/compiler/test/runtime-hash.test.ts",
+			"name": "an unbuilt runtime directory adds nothing"
+		},
+		{
+			"site": "packages/compiler/src/vite/paths.ts > content_hash > catch:0",
+			"reason": "an input that cannot be read adds nothing to the hash",
+			"test": "packages/compiler/test/runtime-hash.test.ts",
+			"name": "moves when any input changes; a missing input changes nothing"
+		},
+		{
 			"site": "packages/core/src/server/props-wire.ts > lake_identity > catch:0",
 			"reason": "a lake prop no wire carries makes the fingerprint throw: the lake gets no identity and is known by its entry and place",
 			"test": "packages/core/test/lake-identity.test.ts",
@@ -449,8 +461,6 @@
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > throw:1",
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > catch:2",
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > throw:2",
-		"packages/compiler/src/vite/paths.ts > runtime_content_hash > catch:0",
-		"packages/compiler/src/vite/paths.ts > runtime_content_hash > catch:1",
 		"packages/compiler/src/vite/plugin-api.ts > definePlugin > configResolved > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:1",

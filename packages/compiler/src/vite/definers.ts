@@ -1,12 +1,3 @@
-/**
- * DEFINER CALLS, MARKED (dev). A plugin names the calls that define things for the life of the
- * module that makes them (`b.definers('@ogygia/content', ['content'])`, `['flag']` for flags). In
- * each server module that calls one, a line at the top asks for the module's run (`defineRun(id)`
- * from @ogygia/machine, once per evaluation of the module), and each such call
- * goes through the wrapper it returns, so what the call defines is owned by that run. A module's next
- * run ends its last one: a definition the new code makes again is set again, one deleted from the
- * code is gone. Inert in a build (nothing is marked: definitions live as long as the process).
- */
 import MagicString from 'magic-string';
 import type { Plugin } from 'vite';
 import { parse_module } from '../compiler/parse/oxc.ts';
@@ -19,7 +10,6 @@ const WRAP = '__og_define';
 type Node = { type: string; start: number; end: number; [key: string]: unknown };
 type Named = { name?: string; value?: string };
 
-/** Each node under `node`, depth first. */
 function* nodes(node: unknown): Generator<Node> {
 	if (Array.isArray(node)) {
 		for (const child of node) yield* nodes(child);
@@ -39,7 +29,6 @@ export function mark_definer_calls(
 ): { code: string; map: ReturnType<MagicString['generateMap']> } | null {
 	const { program, ok } = parse_module(code, id);
 	if (!ok) return null;
-	// the local names that are a definer, and the namespaces with the names they define
 	const named = new Set<string>();
 	const namespaces = new Map<string, readonly string[]>();
 	for (const node of nodes(program)) {
