@@ -15,8 +15,18 @@ const OUT = JSON.stringify({ findings: [], steps_per_second: 10, replay_leaks: [
 
 describe('a batch', () => {
 	it('that found nothing or something is read', () => {
-		expect(batch_result(0, null, () => OUT)).toEqual(JSON.parse(OUT));
-		expect(batch_result(1, null, () => OUT)).toEqual(JSON.parse(OUT));
+		expect(batch_result(0, null, () => OUT)).toEqual({ ran: JSON.parse(OUT) });
+		expect(batch_result(1, null, () => OUT)).toEqual({ ran: JSON.parse(OUT) });
+	});
+
+	it('that found something is read, its count of failed seeds no failure of the batch (run 43426260639: `failed: 5` read as a batch that did not run, and nothing was filed)', () => {
+		const found = JSON.stringify({
+			failed: 5,
+			findings: [{ seed: 17, oracle: 'ssr-hydrate', detail: 'x' }],
+			steps_per_second: 10,
+			replay_leaks: [123]
+		});
+		expect(batch_result(1, null, () => found)).toEqual({ ran: JSON.parse(found) });
 	});
 
 	it('that crashed, hung or had no build fails, whatever file is there', () => {
