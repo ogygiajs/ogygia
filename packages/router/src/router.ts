@@ -576,13 +576,17 @@ function canonical_slash(path: string, mode: 'ignore' | 'never' | 'always'): str
 	return null;
 }
 
+/** The action a POST names (`?/name`), or the default when it names none. A name the page has no
+ *  action for is a 404, as in Kit: never the default in its place (test/router-dispatch.test.ts). */
 function pick_action(node: PageDef, url: URL): ((c: Ctx) => unknown) | undefined {
 	const actions = node.actions;
 	if (!actions) return undefined;
 	for (const key of url.searchParams.keys()) {
 		if (key.startsWith('/')) {
-			const named = actions[key.slice(1)];
-			if (named) return named;
+			const name = key.slice(1);
+			return Object.hasOwn(actions, name)
+				? actions[name]
+				: () => error(404, `No action named "${name}"`);
 		}
 	}
 	return actions.default;
