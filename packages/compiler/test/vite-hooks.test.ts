@@ -617,7 +617,7 @@ describe('the dev server', () => {
 		]);
 		const s2 = server();
 		p.handleHotUpdate({ file: dep, server: s2 });
-		expect(s2.sent).not.toMatchObject([{ type: 'custom' }]);
+		expect(s2.sent.filter((m) => (m as { type?: string }).type === 'custom')).toEqual([]);
 	});
 
 	it("a host's edit drops its islands' modules; the server it came from then hears of a deleted entry", async () => {
@@ -657,6 +657,7 @@ describe('the dev server', () => {
 		expect(s.sent).toEqual([{ type: 'full-reload', path: '*' }]);
 		const b = await setup('build');
 		const s2 = server();
+		b.p.configureServer(s2);
 		b.p.watchChange(entry, { event: 'delete' });
 		expect(s2.sent).toEqual([]);
 	});
