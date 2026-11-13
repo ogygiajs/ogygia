@@ -95,16 +95,12 @@ describe('transformHost — held region in .svelte (region: raw)', () => {
 		);
 	});
 
-	// The retired `partial:` key throws a pointer to its replacement — but only when the host also
-	// carries a live region key (the cheap source-scan skips a file whose ONLY marker is retired).
-	test('the retired `partial:` key throws when alongside a live region import', () => {
-		const bad = `<script>
+	test('a `partial:` key is no region mark: beside a live region import, the host still transforms', () => {
+		const src = `<script>
 			import Card from '$lib/Card.svelte' with { partial: 'load' };
 			import Live from '$lib/Live.svelte' with { region: 'raw' };
 		</script>`;
-		expect(() => transformHost(bad, '/app/src/routes/+page.svelte', makeCtx())).toThrow(
-			/`partial` import attribute was retired/
-		);
+		expect(() => transformHost(src, '/app/src/routes/+page.svelte', makeCtx())).not.toThrow();
 	});
 });
 
