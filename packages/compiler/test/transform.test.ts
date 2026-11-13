@@ -6,6 +6,7 @@ import { describe, test, expect, vi } from 'vitest';
 import {
 	transformHost,
 	normalize_import_keys,
+	import_keys_hint,
 	islandPublicUrl,
 	islandChunkFileName,
 	regionIdentity,
@@ -93,6 +94,13 @@ describe('normalize_import_keys', () => {
 	});
 	test('rejects collisions', () => {
 		expect(() => normalize_import_keys({ wake: 'x', render: 'x' })).toThrow(/distinct/);
+	});
+	test('one config object resolves to one key map, and one key map to one hint', () => {
+		const overrides = { wake: 'hydrate' };
+		const keys = normalize_import_keys(overrides);
+		expect(normalize_import_keys(overrides)).toBe(keys);
+		expect(normalize_import_keys()).toBe(normalize_import_keys(null));
+		expect(import_keys_hint(keys)).toBe(import_keys_hint(keys));
 	});
 });
 
