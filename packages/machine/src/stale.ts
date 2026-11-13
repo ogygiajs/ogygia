@@ -24,7 +24,6 @@ export type Fresh<T> = T extends Stale
  * through here. One level deep: objects and nested arrays are not scanned.
  */
 export function whole<T>(value: T): Fresh<T> | Stale {
-	if (value === STALE) return STALE;
 	if (Array.isArray(value))
 		for (let i = 0; i < value.length; i++) if (value[i] === STALE) return STALE;
 	return value as Fresh<T>;
