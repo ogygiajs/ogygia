@@ -81,11 +81,6 @@ export type { TransportCodec } from './live-transport.ts';
 
 // Portable snippets — the compiler rewrites a `{#snippet}` handed to a component into
 
-// Cross-island context — one bridge, plain `getContext`. `<Provide values={obj | array}>` in a
-// (csr=false) layout writes serialized values into the DOM; child islands keep `getContext('key')`
-// unchanged — ogygia seeds each island's context from the DOM at hydrate, so it crosses the root
-// split. Values must be serializable, like island props.
-//
 // `setContext` is the drop-in for existing layouts: swap `from 'svelte'` → `from 'ogygia'` and a
 // plain `setContext('key', value)` bridges to child islands too (one flat page root). `<Provide>` is
 // the scoped/shadowed form; both are read with the same unchanged `getContext('key')`.
