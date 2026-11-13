@@ -226,7 +226,8 @@ async function serve_expose(fed: Federation, event: RequestEvent): Promise<Respo
 	if (!target) return json_error(400, 'path must start with exactly one "/"');
 
 	const body = await read_capped_body(request, fed.max_body);
-	if (body === null) return json_error(413, 'body too large');
+	if (body === 'too large') return json_error(413, 'body too large');
+	if (body === 'unreadable') return json_error(400, 'the body did not arrive whole');
 
 	// signature gate FIRST (401 before any routing) unless intentionally open
 	let claims: Claims | undefined;
@@ -452,7 +453,8 @@ async function apply_thaw(n: Received): Promise<number> {
 async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Response> {
 	const { request, url } = event;
 	const body = await read_capped_body(request, fed.max_body);
-	if (body === null) return json_error(413, 'body too large');
+	if (body === 'too large') return json_error(413, 'body too large');
+	if (body === 'unreadable') return json_error(400, 'the body did not arrive whole');
 
 	// identify the SENDER by which peer's key verifies (its name prefixes the thawed tags)
 	let sender: (Peer & { keys: readonly string[] }) | null = null;
@@ -477,7 +479,7 @@ async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Respons
 	try {
 		notice = thaw_notice(JSON.parse(new TextDecoder().decode(body ?? new Uint8Array())));
 	} catch {
-		notice = null;
+		notice = null; // ok: not JSON is not the notice's shape: refused just below
 	}
 	// (not the notice's shape: refused, never asked again, never passed on — test/thaw-notice-shape)
 	if (notice === null) return json_error(400, 'bad notice');

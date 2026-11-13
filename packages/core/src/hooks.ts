@@ -19,7 +19,7 @@
  * @packageDocumentation
  */
 import { render } from 'svelte/server';
-import { clock, say } from '@ogygia/machine';
+import { clock, say, STALE } from '@ogygia/machine';
 import type { Component } from 'svelte';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { Handle } from './kit-handle.ts';
@@ -50,6 +50,7 @@ import { dev_hmr_url } from './dev-hmr-url.ts';
 import { REGION_BRAND } from './region-brand.ts';
 import { signing_key, configure_signing_secret } from './server/signing-key.ts';
 import { mpaSpeculationRules } from './server/speculation.ts';
+import { fn_manifest_script } from './server/fn-manifest-script.ts';
 import { set_page_route_config } from './plugin/routes.ts';
 import {
 	set_kit_page_reader,
@@ -153,7 +154,6 @@ import {
 	OG_FORMAT,
 	OGYGIA_DEV_HMR,
 	OGYGIA_DEVTOOLS_BOOT,
-	OGYGIA_FNM,
 	OGYGIA_PAGE,
 	OGYGIA_PROVIDE_PAGE,
 	OGYGIA_SPECULATE
@@ -694,7 +694,7 @@ function decode_pathname(pathname: string): string | null {
 	try {
 		return decodeURIComponent(pathname);
 	} catch {
-		return null;
+		return null; // ok: the caller answers 400
 	}
 }
 
@@ -704,7 +704,7 @@ function client_ip(event: RequestEvent): string | null {
 	try {
 		return event.getClientAddress();
 	} catch {
-		return null;
+		return null; // ok: fail closed: the callers answer 429
 	}
 }
 
@@ -1125,7 +1125,8 @@ class OgygiaHandle {
 					response,
 					bag.deferred,
 					bag.defer_next_id,
-					bag.seed_reducers ?? undefined
+					bag.seed_reducers ?? undefined,
+					event.url.pathname
 				);
 			}
 			// A page with no Kit client (csr=false) whose load returned promises nobody seeds (no
@@ -1167,13 +1168,9 @@ class OgygiaHandle {
 		// render, whichever door it comes in by)
 		// A batch is at most MAX_BATCH signed endpoints (~8.5kB each): a body past the cap is refused
 		// as soon as it passes it, chunked or not (test/batch-body-cap.test.ts)
-		let body: Uint8Array | null;
-		try {
-			body = await read_capped(event.request, MAX_BATCH_BODY);
-		} catch {
-			return region_response('Bad Request', { status: 400 });
-		}
-		if (body === null) return region_response('Payload Too Large', { status: 413 });
+		const body = await read_capped(event.request, MAX_BATCH_BODY);
+		if (body === 'too large') return region_response('Payload Too Large', { status: 413 });
+		if (body === 'unreadable') return region_response('Bad Request', { status: 400 });
 		let parsed: unknown;
 		try {
 			parsed = JSON.parse(new TextDecoder().decode(body));
@@ -1217,8 +1214,10 @@ class OgygiaHandle {
 		event: RequestEvent,
 		bag: RequestBag
 	): Promise<string> {
+		// markup-ok: Kit's document, located as document-assembly.ts does (one walk for it: #1410)
 		if (html.indexOf('</head>') === -1) return html;
 		const out = await pass.document(html, {
+			// markup-ok: Kit's document, located as document-assembly.ts does (#1410)
 			csr: csr_page_of(html, html.lastIndexOf('</body>'), event, bag),
 			// (the router morphs a fetched page into the live one: it is rendered as an answer)
 			answer: router_fetched(event)
@@ -1470,8 +1469,14 @@ class OgygiaHandle {
 			bag!.seed_reducers = seed_reducers; // resolve scripts encode with the same transport + defer
 			scripts.push(`<script>${PAGE_DEFER_BOOTSTRAP}</script>`);
 		} else if (has_pending && seed_wanted) {
-			seed_data = await settle_deferred(shaped_data);
-			seed_form = await settle_deferred(page_snap.form);
+			// (data and form settle together, the request's wait: the visitor gone, nobody reads it)
+			const settled = await settle_deferred(
+				[shaped_data, page_snap.form],
+				request_scope(bag!.request),
+				event?.url.pathname
+			);
+			if (settled === STALE) return html;
+			[seed_data, seed_form] = settled as [typeof seed_data, typeof seed_form];
 		}
 
 		// The tail (rendered above, before shaping) goes out after the defer bootstrap, before the seeds.
@@ -1552,10 +1557,7 @@ class OgygiaHandle {
 			// (the manifest is the build's: its script is written once, not per request)
 			let fnm_script = fnm_script_cache.get(fnm);
 			if (fnm_script === undefined) {
-				const entries = Object.entries(fnm)
-					.map(([tag, src]) => `${JSON.stringify(tag)}:(${src})`)
-					.join(',');
-				fnm_script = `<script ${OGYGIA_FNM}>globalThis.__OG_FNM=Object.assign(globalThis.__OG_FNM||{},{${entries}});</script>`;
+				fnm_script = fn_manifest_script(fnm);
 				fnm_script_cache.set(fnm, fnm_script);
 			}
 			scripts.push(fnm_script);
@@ -1729,6 +1731,8 @@ class OgygiaHandle {
 	 * batch path ({@link #render_capability}).
 	 */
 	async #render_component(
+		/** the hole's region id: its answer's slot ids carry it */
+		id: string,
 		load: () => Promise<{ default: unknown }>,
 		props: Record<string, unknown>,
 		/** the hole wakes (its capability's signed `w`): rendered inside an island, as it hydrates */
@@ -1756,7 +1760,7 @@ class OgygiaHandle {
 			const mod = await load();
 			const rendered = render(mod.default as Component<Record<string, unknown>>, {
 				props,
-				context: hole_answer_context(wakes)
+				context: hole_answer_context(wakes, id)
 			});
 			// (with what its islands wrote into the head — their graph and their CSS: the endpoint
 			// ships the body only — server/hole-graph.ts)
@@ -2006,6 +2010,7 @@ class OgygiaHandle {
 		let outcome: 'hit' | 'miss' | 'none' = 'none';
 		if (!r.go('rendering')) return null;
 		const body = await this.#render_component(
+			id,
 			load,
 			props,
 			wakes,
@@ -2162,6 +2167,7 @@ class OgygiaHandle {
 		let outcome: 'hit' | 'miss' | 'none' = 'none';
 		if (!r.go('rendering')) return region_response('Region render failed', { status: 500 });
 		const body = await this.#render_component(
+			id,
 			load,
 			props,
 			wakes,
