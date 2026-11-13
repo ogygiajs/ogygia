@@ -8,6 +8,7 @@
  * so a report can say "ogygia: 4 ms, seed 292 KB, props 131 KB over 21 islands". Core keeps only
  * the record shapes and the emit points.
  */
+import { server_ports } from '../server-ports.ts';
 
 /** One island's row in the report's Islands table. */
 export interface IslandStat {
@@ -165,33 +166,35 @@ export interface RequestStatsSink {
 	detailed(): boolean;
 }
 
-let sink: RequestStatsSink | null = null;
-
 /** The profiler's server realm installs its store here; `null` takes it away. */
 export function set_request_stats_sink(next: RequestStatsSink | null): void {
-	sink = next;
+	const ports = server_ports();
+	if (ports) ports.request_stats_sink = next;
 }
 
+/** The installed sink (../server-ports.ts), or null. */
+const sink = (): RequestStatsSink | null => server_ports()?.request_stats_sink ?? null;
+
 export function request_stats_wanted(): boolean {
-	return sink !== null;
+	return sink() !== null;
 }
 
 export function request_stats_detailed(): boolean {
-	return sink !== null && sink.detailed();
+	return sink()?.detailed() ?? false;
 }
 
 export function record_request_stats(request: Request, s: OgygiaRequestStats): void {
-	sink?.page(request, s);
+	sink()?.page(request, s);
 }
 
 export function record_hole_stats(request: Request, s: HoleRequestStats): void {
-	sink?.hole(request, s);
+	sink()?.hole(request, s);
 }
 
 export function has_batch_hole_listener(): boolean {
-	return sink !== null && sink.wantsBatchHoles();
+	return sink()?.wantsBatchHoles() ?? false;
 }
 
 export function record_batch_hole_stats(request: Request, s: BatchHoleStats): void {
-	sink?.batchHole(request, s);
+	sink()?.batchHole(request, s);
 }
