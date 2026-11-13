@@ -179,6 +179,36 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/runtime/entry-locations.ts > absolute > catch:0",
+			"reason": "an entry or location that is not a URL: every one the runtime writes is; proved: the catch made to throw turns the test red",
+			"test": "packages/core/test/browser/entry-locations.test.ts",
+			"name": "a location that is not a URL is kept as written: it names no file, and nothing is noted"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > run > .catch:1",
+			"reason": "the current map's read dropped at the network: only a page that outlived its build reads it, rarely under a drop; proved: the .catch removed turns the test red",
+			"test": "packages/core/test/browser/entry-location-map-dropped.test.ts",
+			"name": "a map read dropped at the network twice: the recovery waits, asks again, and wakes"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > recover_location > timer:0",
+			"reason": "the rollover's wait between reads of a map that could not be read: as above; proved: the wait removed, and the retry made a stop, each turns the test red",
+			"test": "packages/core/test/browser/entry-location-map-dropped.test.ts",
+			"name": "a map read dropped at the network twice: the recovery waits, asks again, and wakes"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > is_gone > reject:0",
+			"reason": "the HEAD for a failed file dropped at the network: as above; proved: the rejection let through turns the test red",
+			"test": "packages/core/test/browser/entry-location-head-dropped.test.ts",
+			"name": "the HEAD for the failed file gets no answer: the import’s own failure stands at once"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > load_entry > throw:0",
+			"reason": "a recovery that finds no other file: proved: no recovery at all turns entry-location-fallback.test.ts red, and a retry of the very file that failed turns this test red",
+			"test": "packages/core/test/browser/entry-location-head-dropped.test.ts",
+			"name": "the HEAD for the failed file gets no answer: the import’s own failure stands at once"
+		},
+		{
 			"site": "packages/core/src/runtime/import-again.ts > run > throw:0",
 			"reason": "an island file whose module threw (not a download): no app the sim draws ships one; proved: the throw removed (the file waited on and loaded again) turns the test red",
 			"test": "packages/core/test/import-file.test.ts",
@@ -1083,14 +1113,9 @@
 		"packages/core/src/runtime/devalue-lane.ts > with_devalue > reject:0",
 		"packages/core/src/runtime/devalue-lane.ts > with_devalue > stale:0",
 		"packages/core/src/runtime/drift-watch.ts > watch_region > observer:0",
-		"packages/core/src/runtime/entry-locations.ts > absolute > catch:0",
 		"packages/core/src/runtime/entry-locations.ts > pin_region_urls > catch:0",
-		"packages/core/src/runtime/entry-locations.ts > run > .catch:1",
 		"packages/core/src/runtime/entry-locations.ts > current_location > stale:0",
-		"packages/core/src/runtime/entry-locations.ts > is_gone > reject:0",
-		"packages/core/src/runtime/entry-locations.ts > recover_location > timer:0",
 		"packages/core/src/runtime/entry-locations.ts > load_entry > catch:0",
-		"packages/core/src/runtime/entry-locations.ts > load_entry > throw:0",
 		"packages/core/src/runtime/entry-locations.ts > load_entry > reject:0",
 		"packages/core/src/runtime/foreign-props.ts > foreign_region_prop_revivers > OgygiaRef > throw:0",
 		"packages/core/src/runtime/form-continuity.ts > url_of > catch:0",
