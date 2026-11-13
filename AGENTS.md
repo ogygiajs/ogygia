@@ -77,9 +77,25 @@ out loud:
 - a lint rule (one root `.oxlintrc.json`);
 - a test.
 
-Comments say why, in one line, and point at the test or rule that proves it. Bug history belongs in
-the test's name, not in a comment. Public JSDoc stays, because it feeds the API reference and editor
-hovers.
+A comment's why belongs in a test. The aim is never to delete comments; it is to move what each one
+knows into something that fails when that knowledge stops being true. Take the why, write the test
+(or DST seed, rule, lint rule, type) that breaks without it, name the test after the behavior, and
+only then delete the comment, because it has nothing left to say. Deleting a comment without that
+step throws knowledge away. If breaking the behavior turns nothing red, the test comes first.
+
+The only comment that stays is an outside fact no test can hold (a browser quirk, a spec line), as
+one line that names its test: `// @why <fact> (test: file › name)`. Bug history belongs in the
+test's name. Public JSDoc stays, because it feeds the API reference and editor hovers. New code adds
+no other comments (`ogygia/structured-comments`; COMMENTS-ARE-TESTS in
+`internal/notes/INVARIANTS.md`).
+
+A line that lets a check through is a waiver, and a waiver names the rule it waives:
+`// oxlint-disable-next-line ogygia/<rule> -- <reason>` (`@ts-expect-error` and `svelte-ignore`
+likewise). A quiet catch waives `ogygia/no-silent-failures` this way. No custom tags: the older
+`// ok:`, `// wall:` and `// hash:` marks are being moved to directives. Where a type can say it,
+the type is the mark and no comment is needed: a module-level table that never grows is declared
+`ReadonlySet`, `ReadonlyMap` or `readonly T[]`, which TypeScript enforces from every module (this
+replaces `// static:`). `@why` is the only tag, because it records a fact, not a waiver.
 
 ### No silent failures
 

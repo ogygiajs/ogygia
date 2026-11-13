@@ -34,7 +34,7 @@ const literal_of = (file: string) =>
 
 describe('emit_island_deps_handoff', () => {
 	it('writes the handoff and the server copy', () => {
-		emit_island_deps_handoff('/app', JSON_TEXT, out);
+		emit_island_deps_handoff('/app', JSON_TEXT, out, new Map());
 		expect(fs.readFileSync(path.join(out, 'og-region-deps.json'), 'utf8')).toBe(JSON_TEXT);
 		expect(fs.readFileSync(path.join(out, 'output', 'server', 'og-region-deps.json'), 'utf8')).toBe(
 			JSON_TEXT
@@ -44,7 +44,9 @@ describe('emit_island_deps_handoff', () => {
 	it('inlines into every slotted server chunk, nested, in either quote style', () => {
 		const double = write('output/server/index.js', `export const deps = "${TOKEN}";`);
 		const single = write('output/server/chunks/deep/x.js', `export const deps = '${TOKEN}';`);
-		emit_island_deps_handoff('/app', JSON_TEXT, out);
+		const counts = new Map<string, number>();
+		emit_island_deps_handoff('/app', JSON_TEXT, out, counts);
+		expect(counts.get('island deps'), 'each patch is counted on the leg').toBe(2);
 		expect(literal_of(double)).toBe(JSON_TEXT);
 		expect(literal_of(single)).toBe(JSON_TEXT);
 		expect(JSON.parse(literal_of(single))).toEqual(JSON.parse(JSON_TEXT));
@@ -53,14 +55,14 @@ describe('emit_island_deps_handoff', () => {
 	it('leaves chunks without the slot, and other files, as they were', () => {
 		const plain = write('output/server/plain.js', 'export const x = 1;');
 		const map = write('output/server/index.js.map', `{"x":"${TOKEN}"}`);
-		emit_island_deps_handoff('/app', JSON_TEXT, out);
+		emit_island_deps_handoff('/app', JSON_TEXT, out, new Map());
 		expect(fs.readFileSync(plain, 'utf8')).toBe('export const x = 1;');
 		expect(fs.readFileSync(map, 'utf8')).toBe(`{"x":"${TOKEN}"}`);
 	});
 
 	it('with no server output yet, still writes the handoff', () => {
 		const bare = path.join(out, 'nested', 'kit');
-		emit_island_deps_handoff('/app', JSON_TEXT, bare);
+		emit_island_deps_handoff('/app', JSON_TEXT, bare, new Map());
 		expect(fs.readFileSync(path.join(bare, 'og-region-deps.json'), 'utf8')).toBe(JSON_TEXT);
 	});
 });

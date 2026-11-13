@@ -27,6 +27,34 @@ bench(
 	}
 );
 
+/** A script module that reads the page through its own helpers and the store helpers, `k` times
+ *  over, with names shadowed by params, patterns, loops, catch clauses and blocks. */
+function page_helpers_module(k: number): string {
+	const parts = [
+		`import { get, derived } from 'svelte/store';`,
+		`import { page } from '$app/stores';`,
+		`function lang(p) { return p.data.lang; }`,
+		`const title = (p) => p.data.title;`
+	];
+	for (let i = 0; i < k; i++)
+		parts.push(
+			`export const l${i} = lang(get(page));`,
+			`export const t${i} = derived(page, ($page) => title($page) + $page.data.s${i});`,
+			`export function f${i}({ get, b: [lang], ...rest }, title = 1) { return get(page) + lang(page) + title; }`,
+			`export function g${i}(xs) { for (const [get] of xs) get(page); for (let derived = 0; derived < 1; derived++) {} try { lang(get(page)); } catch (title) { title(page); } { const lang = 1; } return 0; }`
+		);
+	return parts.join('\n');
+}
+
+bench(
+	"page data keys: a module's own page helpers and the store helpers, shadowed and not",
+	({ source }) => page_data_keys_answer(source, '/app/src/lib/page-helpers.ts', 'script').keys,
+	{
+		setup: () => ({ source: page_helpers_module(5) }),
+		scale: (_ctx, k) => ({ source: page_helpers_module(5 * k) })
+	}
+);
+
 /** `n` components that read a key each and hand the page to one helper, the helper, and a dev ask. */
 function app(n: number) {
 	const files = new Map<string, string>();

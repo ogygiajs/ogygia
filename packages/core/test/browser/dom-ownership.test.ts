@@ -181,7 +181,7 @@ test('drift-watch: a widget editing inside an opaque subtree does not mark its i
 	region.innerHTML = '<p>t</p><div data-og-opaque><b>w</b></div>';
 	document.body.appendChild(region);
 	const sleep = scope();
-	watch_region(sleep);
+	watch_region(sleep, region);
 	try {
 		region.querySelector('[data-og-opaque]')!.append(document.createElement('i'));
 		expect(region_changed(region)).toBe(false);

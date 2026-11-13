@@ -1,17 +1,6 @@
-/**
- * The generated server modules of the signed-capability family that are code, not data (the virtual
- * table, ../virtual/core.ts, declares them; the data ones are values there): the plugins' server
- * halves, and the route config.
- */
-
-import { page_route_config } from '../kit.ts';
+import { page_route_config, type Routes } from '../kit.ts';
 import { dedent } from '@ogygia/core/contract';
 
-/**
- * `server-plugins` — SERVER only: each plugin's server half, one static import per plugin, in the
- * order the app listed them. The handle runs their stages straight off this list; an app with no
- * plugins gets an empty one (and the client always does).
- */
 /** One plugin's server realm, as the build wires it. */
 export interface ServerRealm {
 	/** the plugin's (package) name */
@@ -44,6 +33,11 @@ export function client_realms_source(clients: readonly ClientRealmFile[]): {
 	};
 }
 
+/**
+ * `server-plugins` — SERVER only: each plugin's server half, one static import per plugin, in the
+ * order the app listed them. The handle runs their stages straight off this list; an app with no
+ * plugins gets an empty one (and the client always does).
+ */
 export function server_plugins_module(ssr: boolean, realms: readonly ServerRealm[]): string {
 	if (!ssr || realms.length === 0) return `export const plugins = [];`;
 	const imports = realms.map((r, i) => `import p${i} from ${JSON.stringify(r.module)};`).join('\n');
@@ -67,9 +61,10 @@ export function server_plugins_module(ssr: boolean, realms: readonly ServerRealm
  *  client, and when no plugin claims a key: the route list never ships to the browser. */
 export function route_config_module(
 	ssr: boolean,
+	routes: Routes,
 	routesDir: string,
 	keys: readonly string[]
 ): string {
 	if (!ssr || keys.length === 0) return `export const route_config = {};`;
-	return `export const route_config = ${JSON.stringify(page_route_config(routesDir, keys))};`;
+	return `export const route_config = ${JSON.stringify(page_route_config(routes, routesDir, keys))};`;
 }

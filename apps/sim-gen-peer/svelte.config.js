@@ -5,7 +5,8 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 const config = {
 	preprocess: [vitePreprocess()],
 	compilerOptions: { experimental: { async: true } },
-	kit: { adapter: adapter() }
+	// (one build, never deployed: its version is fixed, so a rebuild is the same world, test/builds.test.ts)
+	kit: { adapter: adapter(), version: { name: 'peer' } }
 };
 
 export default config;

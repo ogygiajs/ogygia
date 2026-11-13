@@ -14,6 +14,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { dedent } from '../../../packages/core/src/contract/dedent.ts';
 import { rng, type Rng } from './rng.ts';
 
 /** A schedule: one of ogygia's, or a media query (an island wakes while it matches; the sim's and the
@@ -115,7 +116,42 @@ export interface GenNode {
 	/** A block this many px tall right before it (`data-gen-lead`): it starts below the fold, within
 	 *  its margin or past it. */
 	readonly lead?: number;
+	/** RESHAPED (a seed's reshape pass, stream `gen reshape boxes`): the region's label sits in a
+	 *  custom element, `<x-gen-box>`, whose server render (the app's pass) moves its children into a
+	 *  `<slot>` of its own tree; and, with the pass's `link`, an `<x-gen-link>` in a page's `<a>`,
+	 *  whose render is an `<a>` the HTML parser would close the outer one for (a stand-in). ogygia
+	 *  restores Svelte's markup before the region hydrates. The outer `<a>` is `data-gen-messy`: an
+	 *  `<a>` in an `<a>` is the render's own markup, which the stand-in keeps as the render wrote it
+	 *  (gen 24, seed 17: the good-HTML oracle took it for ogygia's). */
+	readonly boxed?: 'box' | 'link';
 	readonly children: readonly GenNode[];
+}
+
+/** A seed's reshape pass (stream `gen reshape`), or null: most apps have none. `trim`: its render
+ *  trims and drops whitespace-only text, as a serializer does; `link`: boxed regions also hold a
+ *  link host whose render is an `<a>`. */
+export interface GenReshape {
+	readonly trim: boolean;
+	readonly link: boolean;
+}
+
+/** Whether a seed's app runs a reshape pass, and its kind (stream `gen reshape`). */
+export function reshape_plan(seed: number): GenReshape | null {
+	const r = rng(seed).fork('gen reshape');
+	if (!r.chance(0.35)) return null;
+	return { trim: r.chance(0.5), link: r.chance(0.5) };
+}
+
+/** Which regions of a reshaped app sit in a custom element (stream `gen reshape boxes`): an empty
+ *  region renders nothing to hold. */
+export function boxing(seed: number, pass: GenReshape): (page: GenPage) => GenPage {
+	const r = rng(seed).fork('gen reshape boxes');
+	const box = (n: GenNode): GenNode => {
+		const children = n.children.map(box);
+		if (n.empty || !r.chance(0.5)) return { ...n, children };
+		return { ...n, children, boxed: pass.link && r.chance(0.5) ? 'link' : 'box' };
+	};
+	return (page) => ({ ...page, roots: page.roots.map(box) });
 }
 
 export interface GenPage {
@@ -600,6 +636,11 @@ export interface GenPeer {
 	/** The app keeps the peer's page documents this many ms (`cache: { ttl }`, served stale while
 	 *  one fetch refreshes them); 0: no cache. */
 	readonly ttl: number;
+	/** Edge pages its pages link to: `/gone` (no route), `/moved` (to `/q0`), `/who` (the visitor).
+	 *  test/gen.test.ts, test/oracles.test.ts `peer_answers`. */
+	readonly edges: { readonly gone: boolean; readonly moved: boolean; readonly who: boolean };
+	/** Origins the peer answers at: 2 is one build at `peer.test` and `peer2.test`. test/gen.test.ts. */
+	readonly origins: 1 | 2;
 }
 
 /** The peer a seed draws for its app of `pages`, or null (most seeds: one app alone). Its own
@@ -656,6 +697,9 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 		return ps.chance(0.25) ? { ...n, children, style: true } : { ...n, children };
 	};
 	const pd = rng(seed).fork('gen peer data');
+	const pe = rng(seed).fork('gen peer edges');
+	const edges = { gone: pe.chance(0.5), moved: pe.chance(0.5), who: pe.chance(0.5) };
+	const origins = rng(seed).fork('gen peer origins').chance(0.4) ? 2 : 1;
 	return {
 		mount,
 		widgets: widgets.map((w) => ({ ...w, children: w.children.map(styled) })),
@@ -663,7 +707,9 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 			.map((p) => ({ ...p, roots: p.roots.map(styled) }))
 			.map((p) => (pd.chance(0.5) ? { ...p, data: true } : p)),
 		slots,
-		ttl
+		ttl,
+		edges,
+		origins
 	};
 }
 
@@ -868,7 +914,17 @@ function component(n: GenNode): string {
 		...(n.changes
 			? ["\t{#if import.meta.env.VITE_SIM_BUILD === 'v2'}<em data-gen-new>new in v2</em>{/if}"]
 			: []),
-		'\t<span>{label}</span>',
+		...(n.boxed
+			? [
+					`\t<x-gen-box data-n="${n.id}">`,
+					'\t\t<span>{label}</span>',
+					`\t\t<i>box n${n.id}</i>`,
+					'\t</x-gen-box>',
+					...(n.boxed === 'link'
+						? [`\t<a data-gen-link data-gen-messy><x-gen-link> go {label} </x-gen-link></a>`]
+						: [])
+				]
+			: ['\t<span>{label}</span>']),
 		...(n.dated ? ['\t<time>{since?.toISOString()}</time>'] : []),
 		...(n.reads ? ['\t<i data-gen-page>{page.data.who}</i>'] : []),
 		...(n.odd ? ['\t<b title={note} data-note={note}>{note}</b>'] : []),
@@ -920,6 +976,9 @@ function switched(n: GenNode, interactive: boolean): string {
 
 /** Where a federated app mounts its peer's pages. */
 export const MOUNT = '/peer';
+/** A peer's edge pages, as the app mounts them (oracles.ts `peer_answers`). */
+export const EDGE_GONE = `${MOUNT}/gone`;
+export const EDGE_MOVED = `${MOUNT}/moved`;
 
 /** A slot's tag on its page: the widget's region, with a placeholder for a deferred one that has
  *  one. */
@@ -936,6 +995,10 @@ function slot_usage(s: GenSlot): string {
 /** The app's federation (`src/lib/gen/federation.server.ts`): one identity, the peer it calls. */
 function app_federation(peer: GenPeer): string {
 	const cache = peer.ttl > 0 ? `, cache: { ttl: ${peer.ttl} }` : '';
+	const origin =
+		peer.origins === 2
+			? `[env.PEER_ORIGIN ?? 'https://peer.test', env.PEER2_ORIGIN ?? 'https://peer2.test']`
+			: `env.PEER_ORIGIN ?? 'https://peer.test'`;
 	return `import { federate } from '@ogygia/federation';
 import { env } from '$env/dynamic/private';
 
@@ -944,17 +1007,18 @@ export const { peer } = federate({
 \tname: 'app',
 \tkey: env.APP_SIGNING_KEY,
 \tvisitor: () => ({ sub: 'visitor' }),
-\tpeers: { peer: { origin: env.PEER_ORIGIN ?? 'https://peer.test', key: env.PEER_PUBLIC_KEY${cache} } }
+\tpeers: { peer: { origin: ${origin}, key: env.PEER_PUBLIC_KEY${cache} } }
 });
 `;
 }
 
 /** The app's server hook beside ogygia's (`src/lib/gen/mount.server.ts`): the peer's pages
- *  mounted under `/peer` by a server router, or nothing. */
+ *  mounted under `/peer` by a server router, or nothing. It imports the federation either way
+ *  (test/gen.test.ts: gen 220 seed 19). */
 function app_mount(peer: GenPeer | null): string {
 	if (peer?.mount !== 'router')
 		return `import type { Handle } from '@sveltejs/kit';
-
+${peer ? `import './federation.server.ts';\n` : ''}
 export const handle: Handle = ({ event, resolve }) => resolve(event);
 `;
 	return `import type { Handle } from '@sveltejs/kit';
@@ -965,6 +1029,80 @@ import { peer } from './federation.server.ts';
 const mounted = routes({ '${MOUNT}/[...rest]': mount(peer) }, { base: '', visitor: () => ({ sub: 'visitor' }) });
 
 export const handle: Handle = ({ event, resolve }) => mounted.handle({ event, resolve });
+`;
+}
+
+/** The app's reshape pass (`src/lib/gen/reshape.server.ts`): a handle in front of ogygia's. Without
+ *  one, a handle that passes every request on. With one, a web-component server render reduced to
+ *  its moves: each `<x-gen-box>` renders a tree of its own into its light DOM and moves its children
+ *  into a `<slot>` in it (trimming whitespace as a serializer does, with `trim`), each
+ *  `<x-gen-link>` renders an `<a>`; on a host ogygia will restore (`og-h`) it writes the plan
+ *  (`og-shadow`). Innermost hosts first, matched by depth: a box may hold a box. */
+export function app_reshape(pass: GenReshape | null): string {
+	if (pass === null)
+		return `import type { Handle } from '@sveltejs/kit';
+
+export const handle: Handle = ({ event, resolve }) => resolve(event);
+`;
+	return `import type { Handle } from '@sveltejs/kit';
+import * as reshape from '@ogygia/reshape';
+
+const TRIM = ${pass.trim};
+
+const trim = (s: string): string =>
+\tTRIM
+\t\t? s
+\t\t\t\t.replace(/>\\s+</g, '><')
+\t\t\t\t.replace(/>\\s+([^<\\s])/g, '> $1')
+\t\t\t\t.replace(/([^>\\s])\\s+</g, '$1 <')
+\t\t: s;
+
+/** Each \`<tag …>inner</tag>\` rendered by \`tree\`, innermost first. */
+function render(html: string, tag: string, tree: (inner: string) => string): string {
+\tconst open_of = \`<\${tag}\`;
+\tconst close_of = \`</\${tag}>\`;
+\tlet out = html;
+\tlet before = out.length;
+\tfor (;;) {
+\t\tconst open = before < 0 ? -1 : out.lastIndexOf(open_of, before);
+\t\tif (open === -1) return out;
+\t\tbefore = open - 1;
+\t\tconst gt = out.indexOf('>', open);
+\t\tlet depth = 1;
+\t\tlet at = gt + 1;
+\t\tlet close = -1;
+\t\twhile (depth > 0) {
+\t\t\tconst o = out.indexOf(open_of, at);
+\t\t\tconst c = out.indexOf(close_of, at);
+\t\t\tif (c === -1) return out;
+\t\t\tif (o !== -1 && o < c) {
+\t\t\t\tdepth++;
+\t\t\t\tat = o + open_of.length;
+\t\t\t} else {
+\t\t\t\tdepth--;
+\t\t\t\tclose = c;
+\t\t\t\tat = c + close_of.length;
+\t\t\t}
+\t\t}
+\t\tconst attrs = out.slice(open + open_of.length, gt);
+\t\tconst inner = out.slice(gt + 1, close);
+\t\tconst planned = attrs.includes(' og-h="');
+\t\tconst host = \`\${attrs}\${planned ? \` og-shadow="\${tag}.shadow"\` : ''} data-rendered="\${tag}"\`;
+\t\tout = \`\${out.slice(0, open)}<\${tag}\${host}>\${tree(inner)}</\${tag}>\${out.slice(close + close_of.length)}\`;
+\t}
+}
+
+export const transform: reshape.ReshapeTransform = (html) => {
+\tlet out = render(
+\t\thtml,
+\t\t'x-gen-box',
+\t\t(inner) => \`<div class="gen-box"><b>box</b><slot>\${trim(inner)}</slot></div><!--gen-box-->\`
+\t);
+\tout = render(out, 'x-gen-link', (inner) => \`<a class="gen-link" tabindex="-1"><slot>\${trim(inner)}</slot></a>\`);
+\treturn out;
+};
+
+export const handle: Handle = reshape.handle(transform);
 `;
 }
 
@@ -993,7 +1131,8 @@ export function write(
 	seed: number,
 	peer: GenPeer | null = null,
 	layout: GenNode | null = null,
-	router = true
+	router = true,
+	reshape: GenReshape | null = null
 ): void {
 	const routes = join(app, 'src', 'routes');
 	const lib = join(app, 'src', 'lib', 'gen');
@@ -1038,6 +1177,7 @@ export const prerender = false;
 	writeFileSync(join(routes, 'late.js', '+server.ts'), LATE_ROUTE);
 	writeFileSync(join(lib, 'mount.server.ts'), app_mount(peer));
 	writeFileSync(join(lib, 'flags.server.ts'), app_flags(pages));
+	writeFileSync(join(lib, 'reshape.server.ts'), app_reshape(reshape));
 	if (peer) {
 		writeFileSync(join(lib, 'federation.server.ts'), app_federation(peer));
 		if (peer.mount === 'kit') {
@@ -1130,7 +1270,7 @@ export const actions = m.actions;
 	}
 	writeFileSync(
 		join(lib, 'plan.json'),
-		`${JSON.stringify({ seed, pages, peer, layout, router, presets: screen_presets(pages) }, null, '\t')}\n`
+		`${JSON.stringify({ seed, pages, peer, layout, router, reshape, presets: screen_presets(pages) }, null, '\t')}\n`
 	);
 }
 
@@ -1140,9 +1280,25 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 	const lib = join(dir, 'src', 'lib', 'gen');
 	rmSync(lib, { recursive: true, force: true });
 	mkdirSync(lib, { recursive: true });
-	const nav = ['/', ...peer.pages.map((p) => MOUNT + p.path)]
+	const edges = (['gone', 'moved', 'who'] as const).filter((e) => peer.edges[e]);
+	const nav = ['/', ...peer.pages.map((p) => MOUNT + p.path), ...edges.map((e) => `${MOUNT}/${e}`)]
 		.map((p) => `<a href="${p}">${p}</a>`)
 		.join(' ');
+	if (peer.edges.who)
+		writeFileSync(
+			join(lib, 'Who.svelte'),
+			`${dedent`
+				<script lang="ts">
+					let { data }: { data: { sub: string } } = $props();
+				</script>
+
+				<nav>${nav}</nav>
+				<main data-gen="peer-page">
+					<h1>peer /who</h1>
+					<p data-gen-who>{data.sub}</p>
+				</main>
+			`}\n`
+		);
 	for (const w of peer.widgets) {
 		writeFileSync(
 			join(lib, `W${w.name}.svelte`),
@@ -1185,8 +1341,10 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 	writeFileSync(
 		join(lib, 'router.ts'),
 		[
-			`import { routes, page } from '@ogygia/router';`,
+			`import { routes, page${peer.edges.moved ? ', redirect' : ''} } from '@ogygia/router';`,
+			...(peer.edges.who ? [`import { user } from '@ogygia/federation';`] : []),
 			...peer.pages.map((_, i) => `import Q${i} from './Q${i}.svelte';`),
+			...(peer.edges.who ? [`import Who from './Who.svelte';`] : []),
 			'',
 			`export const router = routes(`,
 			`\t{`,
@@ -1195,6 +1353,12 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 					? `\t\t'${p.path}': page(Q${i}, { load: () => ({ who: '${p.path.slice(1)} data' }) }),`
 					: `\t\t'${p.path}': page(Q${i}),`
 			),
+			...(peer.edges.moved
+				? [`\t\t'/moved': page(Q0, { load: () => redirect(307, '${MOUNT}/q0') }),`]
+				: []),
+			...(peer.edges.who
+				? [`\t\t'/who': page(Who, { load: (c) => ({ sub: user(c)?.sub ?? '' }) }),`]
+				: []),
 			`\t},`,
 			`\t{ base: '${MOUNT}' }`,
 			`);`,
@@ -1239,15 +1403,17 @@ function main(): void {
 	const app = resolve(
 		arg('--app') ?? fileURLToPath(new URL('../../../apps/sim-gen', import.meta.url))
 	);
-	const pages = plan(seed);
+	const reshape = reshape_plan(seed);
+	const drawn = plan(seed);
+	const pages = reshape ? drawn.map(boxing(seed, reshape)) : drawn;
 	const peer = peer_plan(seed, pages);
 	const layout = layout_plan(seed);
 	const router = router_plan(seed);
-	write(app, pages, seed, peer, layout, router);
+	write(app, pages, seed, peer, layout, router, reshape);
 	const count = (ns: readonly GenNode[]): number =>
 		ns.reduce((s, n) => s + 1 + count(n.children), 0);
 	console.log(
-		`[sim] generated ${pages.length} pages, ${count(pages.flatMap((p) => p.roots))} regions (seed ${seed})${layout ? `, ${count([layout])} in the layout` : ''}${router ? '' : ', no router'} in ${app}`
+		`[sim] generated ${pages.length} pages, ${count(pages.flatMap((p) => p.roots))} regions (seed ${seed})${layout ? `, ${count([layout])} in the layout` : ''}${router ? '' : ', no router'}${reshape ? `, a reshape pass (${reshape.trim ? 'trims' : 'keeps whitespace'}${reshape.link ? ', links' : ''})` : ''} in ${app}`
 	);
 	if (peer) {
 		write_peer(`${app}-peer`, peer, seed);

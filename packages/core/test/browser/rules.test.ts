@@ -167,18 +167,15 @@ test('nothing of an old page open: a visit before the one on screen still open',
 
 test('the address bar and the history model: checked once no navigation is out', () => {
 	const nav = { now: { kind: 'idle' } };
-	const entry = { id: 'doc.1', url: new URL(location.href) };
+	const entry = { id: 'doc.1' };
 	watch_router({ nav, history: { current: entry } });
 	history.replaceState({ ogygia: 'doc.1' }, '');
 	expect(rules()).toEqual([]);
-	entry.url = new URL('/elsewhere', location.href);
+	history.replaceState({ ogygia: 'doc.2' }, '');
 	expect(codes()).toEqual(['rule_address_bar_drift']);
 	nav.now = { kind: 'loading' }; // a navigation out: the bar moves at its commit
 	expect(rules()).toEqual([]);
 	nav.now = { kind: 'idle' };
-	entry.url = new URL(`${location.href}#a-fragment`); // a fragment is the same page
-	expect(rules()).toEqual([]);
-	history.replaceState({ ogygia: 'doc.2' }, '');
 	expect(rules()[0]?.detail).toBe('the address bar is on entry doc.2, the history model on doc.1');
 	history.replaceState(null, ''); // an entry the router has not met: not its yet
 	expect(rules()).toEqual([]);

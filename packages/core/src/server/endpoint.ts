@@ -22,20 +22,28 @@ export const DEFAULT_ISLANDS_ENDPOINT = '/__ogygia__';
 const ENDPOINT_KEY = Symbol.for('ogygia.islands-endpoint');
 const endpoint_slot = globalThis as unknown as Record<symbol, string | undefined>;
 
-/** The islands endpoint path, without the app's base (minted and matched under it: `app_path`). */
+/** The islands endpoint path, without the app's base (minted and matched under it: `app_path`).
+ *  The first read decides it: the default, when no handle named one before. */
 export function islands_endpoint(): string {
-	return endpoint_slot[ENDPOINT_KEY] ?? DEFAULT_ISLANDS_ENDPOINT;
+	return (endpoint_slot[ENDPOINT_KEY] ??= DEFAULT_ISLANDS_ENDPOINT);
 }
 
-/** Set by the handle (`handle({ endpoint })`); the default when none is given. A process has one
- *  endpoint: a second handle naming another is said (`islands_endpoint_conflict`), and the later one
- *  stands, as a dev reload of the hooks wants. */
+/**
+ * Set by the handle (`handle({ endpoint })`); the default when none is given. DECIDED ONCE, as the
+ * signing key is (signing-key.ts): the first configure or read fixes it for the process, every copy
+ * of this module included. A later handle naming another is `islands_endpoint_conflict` (thrown in
+ * dev, said in production) and the decided one stands, so pages already minted and the handle that
+ * answers them never name two paths. A dev reload of the hooks names the same one: nothing to say.
+ */
 export function configure_islands_endpoint(path: string | undefined): void {
 	const next = !path ? DEFAULT_ISLANDS_ENDPOINT : path.startsWith('/') ? path : `/${path}`;
 	const was = endpoint_slot[ENDPOINT_KEY];
-	if (was !== undefined && was !== next && !import.meta.env.DEV)
-		console.error(new OgygiaError('islands_endpoint_conflict', { endpoint: next, was }));
-	endpoint_slot[ENDPOINT_KEY] = next;
+	if (was === undefined) endpoint_slot[ENDPOINT_KEY] = next;
+	else if (was !== next) {
+		const error = new OgygiaError('islands_endpoint_conflict', { endpoint: next, was });
+		if (import.meta.env.DEV) throw error;
+		console.error(error);
+	}
 }
 
 /** Tests: forget the endpoint, as a fresh process has none set. */

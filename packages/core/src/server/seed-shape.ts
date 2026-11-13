@@ -1,6 +1,6 @@
 /**
  * SEED SHAPING — the server half. The build says which top-level `page.data` keys the islands on a
- * page read (link/page-keys.ts → island-deps handoff → Region records per island); the handle
+ * page read (`pageKeys()` from @ogygia/page-keys → island-deps handoff → Region records per island); the handle
  * unions those asks per request and ships only that slice of `page.data` in the page seed.
  *
  * The ask is `'all'` whenever ANY region on the page could not be pinned (a promise `of` whose

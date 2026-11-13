@@ -111,6 +111,23 @@ it("a navigation reads the next document's own page seed, not one its markup car
 	expect((page_seed_of(doc)?.data as { who?: string } | undefined)?.who).toBe('next server');
 });
 
+it("the mark is the head's first runtime script's: a later one, markup's, names none", () => {
+	const OTHER = 'fedcba9876543210fedcba98';
+	runtime_script(document, MARK);
+	const late = document.createElement('script');
+	late.setAttribute('data-ogygia-runtime', '');
+	late.setAttribute(MARK_ATTR, OTHER);
+	late.type = 'application/x-runtime-stand-in';
+	document.head.append(late);
+	placed.push(late);
+	script(document.body, PAGE, page_seed('server'), MARK);
+	script(markup_block(), PAGE, page_seed('markup'), OTHER);
+
+	seed_page_once();
+
+	expect(who()).toBe('server');
+});
+
 it('a document whose head runtime script bears no mark reads no seed', () => {
 	runtime_script(document, null);
 	script(markup_block(), PAGE, page_seed('markup'), null);

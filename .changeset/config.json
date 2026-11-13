@@ -20,6 +20,7 @@
 			"@ogygia/router",
 			"@ogygia/machine",
 			"@ogygia/barrels",
+			"@ogygia/bake",
 			"@ogygia/insights",
 			"@ogygia/page-keys"
 		]

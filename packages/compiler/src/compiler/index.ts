@@ -17,23 +17,21 @@
  * long-lived, bundler-agnostic compile session (it imports no Vite) that fuses the file-local
  * front-end — `transform` (host islands), `ts_regions`, `macros`, and `prescan` (whole-app island
  * discovery) — over a `Program` (cross-file linker) and a resolved `CompileCtx`. Any non-Vite host
- * is just a second adapter: build a `CompileCtx`, `configure()` the `Compiler`, and
+ * is just a second adapter: build a `CompileCtx`, make the `Compiler` with it, and
  * feed it source. The Vite plugin (`ogygia/vite`) is the reference adapter that drives it.
  *
  * Exposed to consumers as `ogygia/internal/compiler` (internal, not a stable public API).
  */
 export * from './region/transform.ts';
 export { parse_module, type AstNode } from './parse/oxc.ts';
-// A module as AST roots, scripts and template (@ogygia/page-keys).
 export { parse_roots } from './parse/roots.ts';
 export * from './fouc-css.ts';
 export * from './free-vars.ts';
 export { Compiler, type Profiler } from './driver.ts';
 export { Program, strip_id, host_key } from './program.ts';
 export { CompileCtx, type CompileCtxInit } from './ctx.ts';
+export { node_fs, memory_fs, type Fs, type FsEntry, type MemoryFs } from './fs.ts';
 export * from './ids.ts';
-// The flag sites a module reads, and the manifest of them (`ogygia mcp`'s flags tool, from @ogygia/cli).
-export { collect_flag_sites, flags_manifest, FLAGS_SPEC, type FlagSite } from './flags.ts';
 // What an import-rewriting plugin reads modules with (@ogygia/barrels).
 export {
 	ExportIndex,
@@ -52,7 +50,8 @@ export { OWN_FILE_RE } from '@ogygia/core/contract';
 // the build's message tables, for the docs' `ogygiajs.dev/e` pages
 export { BUILD_ERRORS, BUILD_WARNINGS } from './messages.ts';
 // The building blocks of an `import.meta.og.*` macro, for first-party plugins' macros (content's
-// `code` / `md` / `loader` / `regions` / `git`): the call scanner, the member matcher, the build cache.
+// `code` / `md` / `loader` / `regions` / `git`, `@ogygia/bake`'s `bake`): the call scanner, the member
+// matcher, the build cache.
 export {
 	find_og_calls,
 	split_first_string,

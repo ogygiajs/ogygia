@@ -1,88 +1,184 @@
-/**
- * The string-aware macro SCANNER — the cheap-bailout front-end for `import.meta.og.*`.
- *
- * Two jobs, no full parse:
- *   • the LEXER (`find_og_calls` / `match_close` / `split_first_string`) locates
- *     `import.meta.og.<path>(…)` CALLS in a module's source with a single left-to-right pass that
- *     skips strings, comments, and regex literals, so a marker inside a doc comment or a string is
- *     never mistaken for a call.
- *   • the EXTRACTOR (`og_js_regions` / `is_js_module` / `is_markup_module`) decides where those
- *     constructs are recognized per file type, and yields the JS slices to analyze.
- *
- * Why not an AST? These rewrites run in the Vite `transform` hook on EVERY module (svelte/ts/js) —
- * a parse per module per construct is the tax we refuse. The scanner is O(n), allocation-light, and
- * (critically) survives partial/invalid syntax mid-edit in dev. The git loader proved it; this is
- * that scanner, generalized so all constructs share one code path.
- */
+import { next_any_tag, tag_name, type FoundTag } from '@ogygia/core/contract';
 import { OgygiaError } from '../messages.ts';
 
-// ── regexes
-const REGEX_FLAG_RE = /[a-z]/i;
 const WS_RE = /\s/;
 const TEMPLATE_INTERPOLATION_RE = /\$\{/;
+const WORD_START_RE = /[A-Za-z_$]|[^\s\p{ASCII}]/u;
+const WORD_RE = /[A-Za-z0-9_$]|[^\s\p{ASCII}]/u;
+const NUMBER_RE = /[0-9A-Za-z_.]/;
+const DIGIT_RE = /[0-9]/;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LEXER — one hand-rolled scanner shared by every compile construct.
-// ─────────────────────────────────────────────────────────────────────────────
+type Leaves = 'value' | 'operand' | 'head';
 
-/** A `/` begins a regex (not division) when the previous significant char is an operator/opener —
- *  always the case for a regex option value (`{ page: /…/ }`, `[/…/, /…/]`). */
-export function regex_context(prev: string): boolean {
-	return prev === '' || '([{,;:=!&|?+-~^<>*%'.includes(prev);
+function word_leaves(word: string): Leaves {
+	switch (word) {
+		case 'if':
+		case 'while':
+		case 'for':
+		case 'with':
+			return 'head';
+		case 'return':
+		case 'typeof':
+		case 'instanceof':
+		case 'in':
+		case 'of':
+		case 'new':
+		case 'delete':
+		case 'void':
+		case 'throw':
+		case 'case':
+		case 'do':
+		case 'else':
+		case 'yield':
+		case 'await':
+			return 'operand';
+		default:
+			return 'value';
+	}
 }
 
-/** Index of the `)` matching the `(` at `open`, skipping strings, comments, and regex literals
- *  (incl. `[…]` char classes, which may hold an unescaped `/`). -1 if unbalanced. */
-export function match_close(src: string, open: number): number {
-	let depth = 0;
-	let prev = '';
-	for (let i = open; i < src.length; i++) {
+type Met = { at: number; kind: 'word'; end: number } | { at: number; kind: 'open' | 'close' };
+const STOP = -1;
+type Visit = (met: Met) => number | void;
+
+function walk(src: string, from: number, visit: Visit): void {
+	const stack: Array<{ c: string; regex_after: boolean }> = [];
+	let value_before = false;
+	let head = false;
+	let dot_before = false;
+	const n = src.length;
+	const template = (at: number): number => {
+		for (let j = at; j < n; j++) {
+			const c = src[j]!;
+			if (c === '\\') j++;
+			else if (c === '`') {
+				value_before = true;
+				return j + 1;
+			} else if (c === '$' && src[j + 1] === '{') {
+				stack.push({ c: '${', regex_after: false });
+				value_before = false;
+				return j + 2;
+			}
+		}
+		return n;
+	};
+	let i = from;
+	while (i < n) {
 		const c = src[i]!;
 		const c2 = src[i + 1];
-		if (c === "'" || c === '"' || c === '`') {
-			const q = c;
-			for (i++; i < src.length; i++) {
-				if (src[i] === '\\') i++;
-				else if (src[i] === q) break;
+		if (c === "'" || c === '"') {
+			let j = i + 1;
+			for (; j < n; j++) {
+				if (src[j] === '\\') j++;
+				else if (src[j] === c || src[j] === '\n') break;
 			}
-			prev = c;
+			i = j + 1;
+			value_before = true;
+			dot_before = head = false;
+			continue;
+		}
+		if (c === '`') {
+			i = template(i + 1);
+			dot_before = head = false;
 			continue;
 		}
 		if (c === '/' && c2 === '/') {
-			for (i += 2; i < src.length && src[i] !== '\n'; i++) {}
+			const nl = src.indexOf('\n', i + 2);
+			i = nl < 0 ? n : nl + 1;
 			continue;
 		}
 		if (c === '/' && c2 === '*') {
-			for (i += 2; i < src.length && !(src[i] === '*' && src[i + 1] === '/'); i++) {}
-			i++;
+			const end = src.indexOf('*/', i + 2);
+			i = end < 0 ? n : end + 2;
 			continue;
 		}
-		if (c === '/' && regex_context(prev)) {
+		if (c === '/' && !value_before) {
+			let j = i + 1;
 			let in_class = false;
-			for (i++; i < src.length; i++) {
-				const r = src[i]!;
-				if (r === '\\') i++;
+			for (; j < n; j++) {
+				const r = src[j]!;
+				if (r === '\\') j++;
+				else if (r === '\n') break;
 				else if (r === '[') in_class = true;
 				else if (r === ']') in_class = false;
 				else if (r === '/' && !in_class) break;
 			}
-			while (i + 1 < src.length && REGEX_FLAG_RE.test(src[i + 1]!)) i++; // regex flags
-			prev = '/';
+			j++;
+			while (j < n && WORD_RE.test(src[j]!)) j++;
+			i = j;
+			value_before = true;
+			dot_before = head = false;
 			continue;
 		}
-		if (c === '(' || c === '{' || c === '[') {
-			depth++;
-			prev = c;
+		if (WORD_START_RE.test(c) || DIGIT_RE.test(c)) {
+			const number = DIGIT_RE.test(c);
+			let j = i + 1;
+			while (j < n && (number ? NUMBER_RE : WORD_RE).test(src[j]!)) j++;
+			const word = src.slice(i, j);
+			const property = dot_before;
+			const resume = number || property ? undefined : visit({ at: i, kind: 'word', end: j });
+			if (resume === STOP) return;
+			if (typeof resume === 'number') {
+				i = resume;
+				value_before = true;
+				dot_before = head = false;
+				continue;
+			}
+			i = j;
+			const leaves = property || number ? 'value' : word_leaves(word);
+			if (!(head && word === 'await')) head = leaves === 'head';
+			value_before = leaves !== 'operand';
+			dot_before = false;
 			continue;
 		}
-		if (c === ')' || c === '}' || c === ']') {
-			if (--depth === 0) return i;
-			prev = c;
+		if (c === '(' || c === '[' || c === '{') {
+			stack.push({ c, regex_after: c === '{' || (c === '(' && head) });
+			if (visit({ at: i, kind: 'open' }) === STOP) return;
+			i++;
+			value_before = dot_before = head = false;
 			continue;
 		}
-		if (!WS_RE.test(c)) prev = c;
+		if (c === ')' || c === ']' || c === '}') {
+			const top = stack.pop();
+			if (c === '}' && top?.c === '${') {
+				i = template(i + 1);
+				dot_before = head = false;
+				continue;
+			}
+			if (visit({ at: i, kind: 'close' }) === STOP) return;
+			i++;
+			value_before = !(top?.regex_after ?? false);
+			dot_before = head = false;
+			continue;
+		}
+		i++;
+		if (WS_RE.test(c)) continue;
+		if ((c === '+' || c === '-') && c2 === c) {
+			i++;
+			if (value_before) continue;
+		}
+		value_before = false;
+		if (c === '.' && c2 === '.' && src[i + 1] === '.') {
+			i += 2;
+			dot_before = false;
+		} else dot_before = c === '.';
+		head = false;
 	}
-	return -1;
+}
+
+/** Index of the `)` matching the `(` at `open`, skipping strings, comments, regex literals (incl.
+ *  `[…]` char classes, which may hold an unescaped `/`) and template text. -1 if unbalanced. */
+export function match_close(src: string, open: number): number {
+	let depth = 0;
+	let found = -1;
+	walk(src, open, (met) => {
+		if (met.kind === 'open') depth++;
+		else if (met.kind === 'close' && --depth === 0) {
+			found = met.at;
+			return STOP;
+		}
+	});
+	return found;
 }
 
 /** One located `import.meta.og.<method>(<args>)` call. `args` is the VERBATIM text between the
@@ -93,70 +189,24 @@ const IDENT = /[A-Za-z0-9_$.]/;
 
 /**
  * Find every `<prefix><method>(…)` call in `src`. `prefix` is the literal namespace head
- * (`import.meta.og.`); `method` is the dotted identifier chain that follows, up to the `(`. Skips
- * strings/comments/regex so a marker in prose is never a false hit. Pure.
+ * (`import.meta.og.`, a word's start); `method` is the dotted identifier chain that follows, up to
+ * the `(`. Only in code (a template's `${…}` included), so a marker in prose is never a hit. Pure.
  */
 export function find_og_calls(src: string, prefix: string): OgCall[] {
 	const calls: OgCall[] = [];
-	const head = prefix[0]!;
-	let prev = '';
-	for (let i = 0; i < src.length; i++) {
-		const c = src[i]!;
-		const c2 = src[i + 1];
-		if (c === "'" || c === '"' || c === '`') {
-			const q = c;
-			for (i++; i < src.length; i++) {
-				if (src[i] === '\\') i++;
-				else if (src[i] === q) break;
-			}
-			prev = c;
-			continue;
-		}
-		if (c === '/' && c2 === '/') {
-			for (i += 2; i < src.length && src[i] !== '\n'; i++) {}
-			continue;
-		}
-		if (c === '/' && c2 === '*') {
-			for (i += 2; i < src.length && !(src[i] === '*' && src[i + 1] === '/'); i++) {}
-			i++;
-			continue;
-		}
-		if (c === '/' && regex_context(prev)) {
-			let in_class = false;
-			for (i++; i < src.length; i++) {
-				const r = src[i]!;
-				if (r === '\\') i++;
-				else if (r === '[') in_class = true;
-				else if (r === ']') in_class = false;
-				else if (r === '/' && !in_class) break;
-			}
-			while (i + 1 < src.length && REGEX_FLAG_RE.test(src[i + 1]!)) i++;
-			prev = '/';
-			continue;
-		}
-		// A marker in CODE context (strings/comments/regex already `continue`d above).
-		if (c === head && src.startsWith(prefix, i)) {
-			let p = i + prefix.length;
-			const name_start = p;
-			while (p < src.length && IDENT.test(src[p]!)) p++;
-			const method = src.slice(name_start, p);
-			let q = p;
-			while (q < src.length && WS_RE.test(src[q]!)) q++;
-			if (method && src[q] === '(') {
-				const close = match_close(src, q);
-				if (close >= 0) {
-					calls.push({ start: i, end: close + 1, method, args: src.slice(q + 1, close) });
-					i = close;
-					prev = ')';
-					continue;
-				}
-			}
-			i = p - 1;
-			prev = 't';
-			continue;
-		}
-		if (!WS_RE.test(c)) prev = c;
-	}
+	walk(src, 0, (met) => {
+		if (met.kind !== 'word' || !src.startsWith(prefix, met.at)) return;
+		let p = met.at + prefix.length;
+		const name_start = p;
+		while (p < src.length && IDENT.test(src[p]!)) p++;
+		const method = src.slice(name_start, p);
+		let q = p;
+		while (q < src.length && WS_RE.test(src[q]!)) q++;
+		const close = method && src[q] === '(' ? match_close(src, q) : -1;
+		if (close < 0) return p;
+		calls.push({ start: met.at, end: close + 1, method, args: src.slice(q + 1, close) });
+		return close + 1;
+	});
 	return calls;
 }
 
@@ -176,37 +226,17 @@ export function split_first_string(args: string, who: string): { value: string; 
 		else if (args[j] === q) break;
 	}
 	const value = args.slice(i + 1, j);
-	// A template literal with interpolation is a runtime value, not a build-time literal.
 	if (q === '`' && TEMPLATE_INTERPOLATION_RE.test(value)) {
 		throw new OgygiaError('call_arg_interpolated', { call: who });
 	}
 	let k = j + 1;
 	while (k < args.length && WS_RE.test(args[k]!)) k++;
-	// After the closing quote the ONLY things that may follow are `,` (the next argument) or the end.
-	// Anything else means the string is part of a larger expression (`"./" + dir`, a tagged template,
-	// a `.concat(…)` call) — a runtime value the build can't resolve. Fail loudly, don't mis-slice.
 	if (k < args.length && args[k] !== ',') {
 		throw new OgygiaError('call_arg_in_expression', { call: who, near: args.slice(i, k + 8) });
 	}
 	if (args[k] === ',') k++;
 	return { value, rest: args.slice(k).trim() };
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// EXTRACTOR — where constructs are recognized, and how each file type yields the JS to analyze.
-//
-// OWNERSHIP. At the Vite-transform layer this handles exactly two shapes — `.svelte` components and
-// JS/TS modules (`.ts`/`.js`/`.mjs`, which covers `.svelte.ts`/`.svelte.js`). Content files
-// (`.svx`/`.md`) are NOT here: they route through the markdown preprocessor (mdsvex → svelte), which
-// owns them — a construct inside a content file is the preprocessor's job, and it can reuse this same
-// extractor. The host set is still passed in (config-driven), so the one caller that owns markup can
-// decide which markup extensions count; the plugin passes `['.svelte']`.
-//
-// Per type the parse strategy differs — so detection stays AST-precise everywhere:
-//   • JS/TS module  → the WHOLE file is one JS region (offset 0).
-//   • `.svelte`     → each `<script>` / `<script module>` block is a JS region at its byte offset.
-// A construct in markup PROSE (not a `<script>`) is never a JS region — that's content, not code.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A slice of JS/TS to analyze, plus where it starts in the original source (for offset mapping). */
 export type JsRegion = { code: string; offset: number };
@@ -237,43 +267,56 @@ export function og_js_regions(
 	markup_exts: readonly string[]
 ): JsRegion[] | null {
 	if (is_js_module(id)) return [{ code: src, offset: 0 }];
-	if (is_markup_module(id, markup_exts)) return script_blocks(src);
+	if (is_markup_module(id, markup_exts))
+		return component_blocks(src)
+			.filter((b) => b.kind === 'script')
+			.map((b) => ({ code: src.slice(b.start, b.end), offset: b.start }));
 	return null;
 }
 
-/**
- * Find every `<script …>…</script>` block and return its inner JS + byte offset. A single forward
- * scan (not a regex) so a `</script>` inside a JS string can't end a block early: we only close on a
- * `</script>` found while scanning raw text, and Svelte itself forbids an unescaped `</script>` in
- * script text, so this matches the compiler's own tokenization.
- */
-function script_blocks(src: string): JsRegion[] {
-	const regions: JsRegion[] = [];
-	const lower = src.toLowerCase();
-	let i = 0;
-	for (;;) {
-		const open = lower.indexOf('<script', i);
-		if (open < 0) break;
-		// End of the opening tag — the `>` that closes `<script …>`. Skip `>` inside attribute strings.
-		const gt = tag_end(src, open);
-		if (gt < 0) break;
-		const close = lower.indexOf('</script>', gt + 1);
-		if (close < 0) break;
-		regions.push({ code: src.slice(gt + 1, close), offset: gt + 1 });
-		i = close + '</script>'.length;
-	}
-	return regions;
+/** A `<script>` or `<style>` block of a component's source. */
+export interface ComponentBlock {
+	readonly kind: 'script' | 'style';
+	/** `<script module>` (or Svelte 4's `context="module"`) */
+	readonly module: boolean;
+	/** its `lang` (lower case), or null */
+	readonly lang: string | null;
+	/** the opening tag: its `<` and just past its `>` */
+	readonly open: number;
+	/** its content: from just past the opening tag to the `</` of its end tag */
+	readonly start: number;
+	readonly end: number;
+	/** just past the end tag's `>` */
+	readonly close: number;
+	/** the opening tag as the walk read it (core's `attr_spans` cuts an attribute out of it) */
+	readonly tag: FoundTag;
 }
 
-/** Index of the `>` that ends the tag opened at `open`, honoring quoted attribute values. */
-function tag_end(src: string, open: number): number {
-	for (let i = open; i < src.length; i++) {
-		const c = src[i]!;
-		if (c === '"' || c === "'") {
-			for (i++; i < src.length && src[i] !== c; i++) {}
-			continue;
-		}
-		if (c === '>') return i;
+/**
+ * Every `<script>` and `<style>` block of a component's source, in order, read with core's tag walk
+ * (#1370): a value may hold `>` or the other quote, any quoting and case, a comment holds no block,
+ * and a block's text holds no tag (`<style>` inside a script's string is text). A block whose end
+ * tag never comes is not one (the source ends inside it). test/component-blocks.test.ts.
+ */
+export function component_blocks(src: string): ComponentBlock[] {
+	const blocks: ComponentBlock[] = [];
+	for (let tag = next_any_tag(src, 0); tag !== null; tag = next_any_tag(src, tag.next)) {
+		const kind = tag_name(src, tag);
+		if (kind !== 'script' && kind !== 'style') continue;
+		if (tag.next >= src.length) break;
+		const gt = src.indexOf('>', tag.next);
+		const lang = tag.attr('lang');
+		blocks.push({
+			kind,
+			module:
+				kind === 'script' && (tag.attr('module') !== undefined || tag.attr('context') === 'module'),
+			lang: lang ? lang.toLowerCase() : null,
+			open: tag.start,
+			start: tag.end,
+			end: tag.next,
+			close: gt === -1 ? src.length : gt + 1,
+			tag
+		});
 	}
-	return -1;
+	return blocks;
 }

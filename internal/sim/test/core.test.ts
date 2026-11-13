@@ -188,6 +188,78 @@ describe('the network', () => {
 		expect(at).toBeLessThanOrEqual(4 * 120);
 	});
 
+	it("a replica that is down answers 503 at its edge, its server never asked; a calm tab's hop, and any other host, never (a peer's failover: no run saw a 5xx)", async () => {
+		const loop = new Loop(rng(7));
+		const net = new Network({
+			loop,
+			rng: rng(7),
+			faults: new Set(['down']),
+			rates: { down: 1 },
+			downable: (url) => url.origin === 'https://peer.test'
+		});
+		net.calm('tab-9');
+		const asked: string[] = [];
+		const status: Record<string, number> = {};
+		// (a server's hop, made while it answers the tab's own request)
+		const hop = (behalf: string, url: string) =>
+			void net
+				.send(`${behalf}#1`, new Request('https://app.test/p'), async () => {
+					const r = await net.send('server', new Request(url), async () => {
+						asked.push(`${behalf} ${url}`);
+						return new Response('x');
+					});
+					status[`${behalf} ${url}`] = r.status;
+					return new Response('page');
+				})
+				.then((r) => r.text());
+		hop('tab-1', 'https://peer.test/og/fragment/page');
+		hop('tab-1', 'https://peer2.test/og/fragment/page');
+		hop('tab-9', 'https://peer.test/og/fragment/page');
+		// (a page's own download from the peer, an island's chunk, is its CDN's: never down; gen 208,
+		// seed 4: every such chunk a 503)
+		let chunk = 0;
+		void net
+			.send(
+				'tab-1#1',
+				new Request('https://peer.test/_app/immutable/x.js'),
+				async () => new Response('x')
+			)
+			.then((r) => (chunk = r.status));
+		await loop.run();
+		expect(chunk).toBe(200);
+		expect(status).toEqual({
+			'tab-1 https://peer.test/og/fragment/page': expect.any(Number),
+			'tab-1 https://peer2.test/og/fragment/page': 200,
+			'tab-9 https://peer.test/og/fragment/page': 200
+		});
+		expect(asked).not.toContain('tab-1 https://peer.test/og/fragment/page');
+		// (a 500 or a 503, by the request's draw: the edges of `status >= 500` and `< 500` both seen)
+		const seen = new Set<number>();
+		for (let s = 0; s < 40; s++) {
+			const l = new Loop(rng(s));
+			const n = new Network({
+				loop: l,
+				rng: rng(s),
+				faults: new Set(['down']),
+				rates: { down: 1 },
+				downable: () => true
+			});
+			void n
+				.send('tab-1#1', new Request('https://app.test/p'), async () => {
+					const r = await n.send(
+						'server',
+						new Request('https://peer.test/x'),
+						async () => new Response('x')
+					);
+					seen.add(r.status);
+					return new Response('page');
+				})
+				.then((r) => r.text());
+			await l.run();
+		}
+		expect([...seen].sort()).toEqual([500, 503]);
+	});
+
 	it('a stalled answer comes 10 to 40 s late, and the exchange says it stalled; a calm one never', async () => {
 		// (a batch's stream gives up after 10 s with no answer, `batch-stream` -> stalled; legs top
 		// out at 3 s, so no run saw it)
