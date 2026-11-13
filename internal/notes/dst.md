@@ -466,7 +466,8 @@ never fetches again after its retry wait, both by `stuck`), 24 (a reshape pass t
 kills restore.ts's children not put back and its render left in the light DOM, by `ssr-hydrate`,
 and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest), 121 (a peer at
 two origins: its first replica down (`down`) and no answer asked of the next dies by
-`mpa-equivalence`), 188 (an empty island that wakes: it kills the
+`mpa-equivalence`, and a widget's, a page's or a hole's failover that keeps a 500, never asks the
+replica, or asks it after an answer, by `peer-failover`), 188 (an empty island that wakes: it kills the
 repair's `> 0` mutant), 191 (a hole whose render throws: an error answer swapped in for its
 fallback dies by `html-kept`), 192, 193, 220 (a text-only third party on a page root: it kills
 `align_to`'s last `return true` -> false) and 262 (islands with a `<svelte:head>`, one a third party
