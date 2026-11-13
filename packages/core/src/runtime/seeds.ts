@@ -32,6 +32,7 @@ import { page_state, set_page, reset_page, type PageSnapshot } from '../shims/pa
 import { kit_bridge } from '../shims/kit-bridge.ts';
 import { install_page_defer, page_defer_revivers } from './page-defer.ts';
 import { transport_decoders } from './app-transport.ts';
+import { capture_region_ids } from './region-ids.ts';
 import { kit_page_thread } from './kit-page-thread.svelte.ts';
 import { boot_link, slots } from './slots.ts';
 import { warn } from '../messages/lazy.ts';
@@ -79,7 +80,11 @@ function parse_page_seed(el: Element): PageSeed | null {
 		// the seed and the streamed resolves revive with the app's transport decoders, so a load's
 		// CUSTOM types round-trip into islands.
 		install_page_defer(transport_decoders);
-		const raw = parse_sidecar_text(el, page_defer_revivers(transport_decoders)) as PageSeed;
+		// (what the seed revives is its page's: a navigation keeps it while that page is on screen)
+		const raw = capture_region_ids(
+			el.ownerDocument,
+			() => parse_sidecar_text(el, page_defer_revivers(transport_decoders)) as PageSeed
+		);
 		if (slots.nav && !DEVTOOLS) el.textContent = '';
 		return raw;
 	} catch {
