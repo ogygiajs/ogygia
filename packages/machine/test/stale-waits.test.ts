@@ -97,7 +97,7 @@ describe('a stale part makes the whole wait stale (#378)', () => {
 
 describe('only one level deep, only arrays', () => {
 	it('an array with no STALE comes through as it is', async () => {
-		const v = await scope().task(() => Promise.all([1, later(2)]));
+		const v = await scope().task(() => Promise.all([Promise.resolve(1), later(2)]));
 		expect(v).toEqual([1, 2]);
 	});
 
