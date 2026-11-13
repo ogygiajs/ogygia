@@ -1,9 +1,9 @@
 <script lang="ts">
-	// `orphanCtx` is never provided anywhere. get() must return the default, never crash, even with
+	// `orphan` is never provided anywhere. The read must return the default, never crash, even with
 	// no <ogygia-context> above this island in the DOM.
-	import { orphanCtx } from '$lib/room-context.svelte.js';
+	import { readOrphan } from '$lib/room-context.svelte.js';
 
-	const v = orphanCtx.get();
+	const v = readOrphan();
 </script>
 
 <span class="island" data-ctx-orphan>{v}</span>

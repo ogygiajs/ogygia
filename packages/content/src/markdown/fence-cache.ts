@@ -13,9 +13,6 @@
 import { __set_build_cache_root } from '@ogygia/compiler';
 import { RegionStore, type SerializedRegion } from '../region-store.ts';
 
-/** @deprecated Old name — a fence's cached form IS a {@link SerializedRegion}. */
-export type FenceRegion = SerializedRegion;
-
 /** Bump when the renderer's OUTPUT SHAPE changes without any input changing (rare). */
 const store = new RegionStore('fences', '1');
 

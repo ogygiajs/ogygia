@@ -972,6 +972,9 @@ function component(n: GenNode): string {
 			? [
 					`\t<x-gen-box data-n="${n.id}">`,
 					'\t\t<span>{label}</span>',
+					// (text with runs of whitespace at its edges, which a trimming pass changes and the
+					// restore puts back: oracles.ts `text_restored`)
+					"\t\t<b data-gen-pad>{'  pad  '}</b>",
 					`\t\t<i>box n${n.id}</i>`,
 					'\t</x-gen-box>',
 					...(n.boxed === 'link'

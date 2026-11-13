@@ -1,5 +1,5 @@
 // Every module the build transforms passes through the transportable checks, so a module that cannot
-// hold a wire class or a createContext export is answered from its text, never parsed or scanned.
+// hold a wire class is answered from its text, never parsed or scanned.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const calls = vi.hoisted(() => ({ parse: 0, scan: 0 }));
@@ -38,18 +38,20 @@ beforeEach(() => {
 });
 
 describe('a module that cannot hold a transportable is never parsed', () => {
-	it('no `class` and no `createContext`: the registration does not parse', () => {
+	it('no `class`: the registration does not parse', () => {
 		expect(appendTransportRegistrations('export const n = 1;', '/app/src/m.ts', '/app')).toBe(null);
 		expect(calls.parse).toBe(0);
 	});
 
-	it('a `createContext` alone is parsed', () => {
-		appendTransportRegistrations(
-			"import { createContext } from 'svelte';\nexport const c = createContext();",
-			'/app/src/m.ts',
-			'/app'
-		);
-		expect(calls.parse).toBe(1);
+	it('a `createContext` alone is not parsed: a context registers nothing', () => {
+		expect(
+			appendTransportRegistrations(
+				"import { createContext } from 'ogygia';\nexport const c = createContext('c');",
+				'/app/src/m.ts',
+				'/app'
+			)
+		).toBe(null);
+		expect(calls.parse).toBe(0);
 	});
 
 	it('a class with no `static`: the eager manifest does not parse', () => {

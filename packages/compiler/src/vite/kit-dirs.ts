@@ -1,12 +1,7 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import {
-	set_kit_dirs,
-	set_kit_inline_style_threshold,
-	type KitDirs,
-	DEFAULT_KIT_DIRS
-} from '../compiler/kit.ts';
+import { type KitConfig, type KitDirs, DEFAULT_KIT_DIRS } from '../compiler/kit.ts';
 import { warn } from '../compiler/messages.ts';
 
 const CONFIG_FILES = ['svelte.config.js', 'svelte.config.mjs'];
@@ -54,20 +49,19 @@ async function kit_options_from_file(root: string): Promise<KitOptions | null> {
 	}
 }
 
-/** Resolve `{ routes_dir, out_dir }` for `root` from its Kit config (defaults when absent or
- *  unreadable) and cache it for the compiler. `plugins`: the Vite config's plugin list. */
-export async function load_kit_dirs(root: string, plugins?: PluginOption): Promise<KitDirs> {
+/** Read `root`'s Kit config (defaults when absent or unreadable): its dirs and inline-style
+ *  threshold, for the plugin that asked to hold. `plugins`: the Vite config's plugin list. */
+export async function load_kit_config(root: string, plugins?: PluginOption): Promise<KitConfig> {
 	const kit: KitOptions =
 		(await kit_options_from_plugins(plugins)) ?? (await kit_options_from_file(root)) ?? {};
 	const dirs: KitDirs = {
 		routes_dir: path.resolve(root, kit.files?.routes ?? DEFAULT_KIT_DIRS.routes),
 		out_dir: path.resolve(root, kit.outDir ?? DEFAULT_KIT_DIRS.out)
 	};
-	set_kit_dirs(root, dirs);
 	const threshold = kit.inlineStyleThreshold;
-	set_kit_inline_style_threshold(
-		root,
-		typeof threshold === 'number' && Number.isFinite(threshold) && threshold > 0 ? threshold : 0
-	);
-	return dirs;
+	return {
+		dirs,
+		inline_style_threshold:
+			typeof threshold === 'number' && Number.isFinite(threshold) && threshold > 0 ? threshold : 0
+	};
 }
