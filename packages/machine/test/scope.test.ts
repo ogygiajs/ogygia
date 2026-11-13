@@ -494,6 +494,41 @@ describe('watch and adopt', () => {
 		expect(done).toBe(true);
 	});
 
+	it('`await using` whose cleanup throws still waits for the async disposals, then throws both together', async () => {
+		const s = scope();
+		let done = false;
+		s.adopt({
+			[ASYNC_DISPOSE]: async () => {
+				await wait(5);
+				done = true;
+				throw new Error('async broke');
+			}
+		});
+		s.defer(() => {
+			throw new Error('sync broke');
+		});
+		const error = await s[ASYNC_DISPOSE]().then(
+			() => null,
+			(e: unknown) => e
+		);
+		expect(done).toBe(true);
+		expect(error).toBeInstanceOf(AggregateError);
+		expect((error as AggregateError).errors.map((e: Error) => e.message).sort()).toEqual([
+			'async broke',
+			'sync broke'
+		]);
+	});
+
+	it('a task whose work closes its own scope and then fails is STALE, its failure never unhandled', async () => {
+		const s = scope();
+		const out = s.task(() => {
+			s.close();
+			return Promise.reject(new Error('failed after closing'));
+		});
+		expect(await out).toBe(STALE);
+		await macrotask();
+	});
+
 	it('`await using` gets the errors of an async disposal; a plain close reports them', async () => {
 		const failing = () => ({
 			[ASYNC_DISPOSE]: async () => {
