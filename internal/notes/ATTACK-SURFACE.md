@@ -6,7 +6,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-120 entries.
+122 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -28,8 +28,8 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/hooks.ts` | `router_fetched` | `headers.get('x-ogygia-spa')` | 1 |
 | `packages/core/src/plugin/request-scope.ts` | `body_unread` | `headers.get('etag')` | 1 |
 | `packages/core/src/plugin/request-scope.ts` | `body_unread` | `headers.get('if-none-match')` | 1 |
-| `packages/core/src/region-snippet.ts` | `next_slot_id` | `searchParams('id')` | 1 |
 | `packages/core/src/runtime/core.ts` | `#fetch_html` | `searchParams('id')` | 1 |
+| `packages/core/src/runtime/form-continuity.ts` | `region_kind` | `searchParams('id')` | 1 |
 | `packages/core/src/runtime/hole-fetch.ts` | `(module)` | `headers.get('x-ogygia-capability')` | 1 |
 | `packages/core/src/runtime/region-endpoint-url.ts` | `(module)` | `searchParams('exp')` | 1 |
 | `packages/core/src/runtime/region-endpoint-url.ts` | `deny_of` | `headers.get('x-ogygia-deny')` | 1 |
@@ -82,6 +82,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/profiler/index.ts` | `#router` | `searchParams('by')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#router` | `searchParams('next')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#router` | `searchParams(LOGIN_FAILED_PARAM)` | 1 |
+| `packages/devtools/src/profiler/index.ts` | `#run_page` | `headers.get('sec-fetch-site')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#site` | `searchParams('from')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#source` | `searchParams('l')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#source` | `searchParams('p')` | 1 |
@@ -118,12 +119,13 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-encoding')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-length')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('vary')` | 1 |
-| `packages/postrender/src/server.ts` | `(module)` | `headers.get('cache-control')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('content-type')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('if-modified-since')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('if-none-match')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('location')` | 1 |
-| `packages/postrender/src/server.ts` | `dev_postrender_note` | `headers.get('content-type')` | 1 |
+| `packages/postrender/src/server.ts` | `refusal` | `headers.get('cache-control')` | 1 |
+| `packages/postrender/src/server.ts` | `refusal` | `headers.get('content-type')` | 1 |
+| `packages/postrender/src/server.ts` | `refusal` | `headers.get('location')` | 1 |
 | `packages/postrender/src/server.ts` | `stamp_no_store` | `headers.get('cache-control')` | 1 |
 | `packages/postrender/src/server.ts` | `stamp_no_store` | `headers.get('content-type')` | 1 |
 | `packages/router/src/client-api.ts` | `api` | `headers.get('content-type')` | 1 |
@@ -133,7 +135,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-102 entries.
+99 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -162,9 +164,6 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/runtime/hole-facts.ts` | `parse_record` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/kit-page-thread.svelte.ts` | `kit_boot_imports` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/page-defer.ts` | `(module)` | `devalue parse` | 1 |
-| `packages/core/src/runtime/router-nav.ts` | `reset_focus` | `decodeURIComponent` | 1 |
-| `packages/core/src/runtime/router.ts` | `hash_target_exists` | `decodeURIComponent` | 1 |
-| `packages/core/src/runtime/router.ts` | `jump_to_hash` | `decodeURIComponent` | 1 |
 | `packages/core/src/runtime/wire-format.ts` | `(module)` | `devalue parse` | 1 |
 | `packages/core/src/runtime/wire-format.ts` | `(module)` | `JSON.parse` | 1 |
 | `packages/core/src/server/page-facts.ts` | `(module)` | `decodeURIComponent` | 1 |

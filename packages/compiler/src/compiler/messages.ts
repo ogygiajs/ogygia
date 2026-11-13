@@ -84,6 +84,18 @@ export const BUILD_ERRORS = {
 			\`problem\` names what was written instead. Move the call into that member.
 		`
 	},
+	wire_class_anonymous: {
+		text: (a: { file: string; line: number }): string => prose`
+			${a.file}:${a.line} — an anonymous \`export default class\` has a wire codec. Give the
+			class a name (\`export default class Cart\`) so the build can register it.
+		`,
+		details: (): string => prose`
+			A class with a wire codec is registered while its module compiles: the build appends a
+			call that hands the class to ogygia, tagged by its module and export name. An anonymous
+			\`export default class { … }\` has no binding that call can name, so its instances could
+			not cross into an island. Name the class; the export stays the default one.
+		`
+	},
 	macro_source_misuse: {
 		text: (a: { file: string; line: number; problem: string }): string => prose`
 			${a.file}:${a.line} — ${a.problem}. import.meta.og.source is legal in exactly one
@@ -109,6 +121,16 @@ export const BUILD_ERRORS = {
 			An installed file outside that list that uses one fails the build, and nothing in it
 			runs. If the package is meant to ship ogygia code, add the file (or a glob for it) to
 			that package's \`"ogygia.files"\`; otherwise it should not use the macro.
+		`
+	},
+	macro_needs_plugin: {
+		text: (a: { file: string; macro: string; package: string; plugin: string }): string =>
+			`${a.file} — import.meta.og.${a.macro}() needs the \`${a.plugin}\` plugin from \`${a.package}\`, listed beside ogygia().`,
+		details: (): string => prose`
+			This \`import.meta.og.*\` macro is compiled by a plugin, and that plugin is not in the
+			app's Vite plugins. Without it the call would reach the browser or the server as is, and
+			fail there. Install the package and list its plugin beside \`ogygia()\` in vite.config
+			\`plugins\` (before \`sveltekit()\`).
 		`
 	},
 	macro_bake_arity: {
