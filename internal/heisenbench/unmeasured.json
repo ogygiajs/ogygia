@@ -5789,6 +5789,10 @@
 			"reason": "once per Kit-hydrated document: rewrites one expression in Kit's start script, linear in that script; kit-gate.test.ts runs it"
 		},
 		{
+			"id": "packages/core/src/server/html-scan.ts > kit_boot_script",
+			"reason": "once per Kit-hydrated document: finds Kit's start script with one backward tag walk from the end, linear in the tail it reads; kit-gate.test.ts runs it"
+		},
+		{
 			"id": "packages/core/src/server/html-scan.ts > kit_boot_script > before",
 			"reason": "the tag walk's stop test, constant work per tag; kit-gate.test.ts runs it"
 		}
