@@ -1732,7 +1732,6 @@ function outer_spans_first(a: { snip: SvelteNode }, b: { snip: SvelteNode }): nu
 	return a.snip.start - b.snip.start || b.snip.end - a.snip.end;
 }
 
-/** An import / re-export declaration's attributes (`with { a: 'x', "b": 'y' }`) as a key→value map. */
 function import_attrs_of(node: SvelteNode): Map<string, string> {
 	const attrs = new Map<string, string>();
 	for (const a of node.attributes ?? []) {
@@ -1767,13 +1766,6 @@ export function transformTsRegions(
 	return new TsRegionCompilation(source, id, ctx).run();
 }
 
-/**
- * `TsRegionCompilation` — the per-file compilation unit for a `.ts`/`.js` region module (a held
- * registry / remote). A `.ts` module has no template, so every mark mints a HELD binding (mountable +
- * crossable) through the SAME emitters the `.svelte` host uses. Ephemeral state lives on `this`;
- * `run()` is the single pass — scan `with { … }` imports and rewrite each name one binds to its
- * binding import. A fresh instance per file, like {@link FileCompilation}.
- */
 class TsRegionCompilation {
 	#source;
 	#id;
@@ -1797,7 +1789,6 @@ class TsRegionCompilation {
 		this.#rel_host = path.relative(this.#root, id).split(PATH_SEP).join('/');
 	}
 
-	/** Root-relative posix path (see FileCompilation#posix_rel). */
 	#posix_rel(abs: string) {
 		return path.relative(this.#root, abs).split(PATH_SEP).join('/');
 	}
@@ -1807,9 +1798,6 @@ class TsRegionCompilation {
 		return resolve_app_spec(spec, this.#id, this.#ctx) ?? spec;
 	}
 
-	/** Region-identity path — filesystem components key on their posix path; a package spec is its
-	 *  own. Declared-package files key `<pkg-name>/<rel>` (install-independent — see
-	 *  FileCompilation#component_identity); duck-typed like wrapperPathFor, host ctxs may lack it. */
 	#component_identity(p: string) {
 		if (!path.isAbsolute(p)) return p;
 		const ctx = this.#ctx;
@@ -1824,12 +1812,6 @@ class TsRegionCompilation {
 			: wrapperVirtualId(wid);
 	}
 
-	// The ONE `.ts`/`.js` region emitter — one call per name a marked import binds. A
-	// `region: 'raw'` marker → a bare held descriptor; a `wake:` marker → a MOUNTABLE held island (the
-	// same `make_wake_island` record the `.svelte` host uses; `held: true` so it also crosses the wire).
-	// Its identity stays `held:*` — distinct from a `.svelte` PLACED island (`hydrate:*`, no endpoint).
-	// Returns `{ iid, record }` for the caller to register + rewrite. `exportName` is undefined for a
-	// default import, the barrel export name for a named one.
 	#emit_ts_region(
 		componentPath: string,
 		marker: { region?: string; wake?: string; render?: string; fetch?: string },
@@ -1837,12 +1819,6 @@ class TsRegionCompilation {
 	): { iid: string; record: object; importFrom: string } {
 		const comp_rel = this.#component_identity(componentPath);
 		const id_base = exportName && exportName !== 'default' ? `${comp_rel}#${exportName}` : comp_rel;
-		// `render: 'deferred'` (+ `fetch`, its timing) — a SERVER island (a content hole fetched from the
-		// endpoint on that timing). Mirrors the `.svelte` deferred path (resolve_region_mark's server
-		// block + the inline server record), so a `.svelte` and a `.ts` deferred import are byte-identical.
-		// The rewritten import points at the WRAPPER (not a held binding): placed as `<C {...}/>` it emits
-		// the hole; its `ogygiaFallback` slot is preserved (the router supplies it). `render: 'live'` stays
-		// .svelte-only.
 		const fetchKey = this.#import_keys.fetch;
 		const renderKey = this.#import_keys.render;
 		if (marker.fetch != null && marker.render == null) {
@@ -1864,8 +1840,6 @@ class TsRegionCompilation {
 							value: marker.render
 						});
 			}
-			// the old `wake` timing still times the hole, with a warning naming its replacement (as the
-			// `.svelte` path does); both at once is a contradiction
 			if (marker.wake != null) {
 				if (marker.fetch != null) {
 					throw new OgygiaError('held_hole_timed_twice', {
@@ -1906,7 +1880,7 @@ class TsRegionCompilation {
 			const wrapPath = this.#wrapper_path_for(iid);
 			return {
 				iid,
-				importFrom: wrapPath, // placed as `<C/>`, the wrapper emits the deferred hole
+				importFrom: wrapPath,
 				record: {
 					id: iid,
 					virtualPath: entryPath,
@@ -1919,7 +1893,6 @@ class TsRegionCompilation {
 						exportName,
 						this.#ctx.dev ? this.#ctx.devUrlFor(entryPath) : islandPublicUrl(iid, this.#ctx.appDir)
 					),
-					// (a hole ships no JS — see the placed-hole record)
 					wrapperClientSource: server_wrapper_source(
 						iid,
 						componentPath,
@@ -2002,8 +1975,6 @@ class TsRegionCompilation {
 		const wakeKey = this.#wakeKey;
 		const renderKey = import_keys.render;
 		const fetchKey = import_keys.fetch;
-		// cheap bail — a region key in an attribute bag (`with`, or a dynamic import's legacy `assert`,
-		// which is refused below) OR the retired `import.meta.og.asRegion(…)` (refused below).
 		if (
 			!source.includes('asRegion') &&
 			(!import_keys_hint(import_keys).test(source) ||
@@ -2016,13 +1987,9 @@ class TsRegionCompilation {
 		const s = new MagicString(source);
 		const islands_by_id = new Map();
 		let matched = false;
-		// The one AST of this module. A module that does not parse is left to the bundler, which names
-		// the syntax error; an import that is only text (a string, a template, a comment) is never a
-		// statement here (test: ts-region-imports.test.ts).
 		const { program, ok } = parse_module(source, id);
 		if (!ok || !program) return null;
 		const body = (program.body ?? []) as SvelteNode[];
-		// a dynamic import() with a region key is refused, as in a host
 		reject_dynamic_region_imports(body, import_keys, rel_host);
 		refuse_as_region(body, source, rel_host);
 		const marked = new Map<string, { node: SvelteNode; exportName: string }>();
@@ -2039,7 +2006,6 @@ class TsRegionCompilation {
 			const has_wake = attrs.has(wakeKey);
 			const has_fetch = attrs.has(fetchKey);
 			if (!has_render && !has_region && !has_wake && !has_fetch) continue;
-			// a re-export carries no binding of this module's own to make a region
 			if (node.type !== 'ImportDeclaration')
 				throw new OgygiaError('region_import_invalid', {
 					host: rel_host,
@@ -2050,13 +2016,9 @@ class TsRegionCompilation {
 							.join(', ') || String(node.source?.value ?? '?'),
 					problem: `a re-export cannot carry a region mark. Import it with the mark, then export the binding: \`import { X } from '…' with { … }; export { X };\``
 				});
-			// every name the declaration binds is a region (a namespace, nothing, a type: refused)
 			const bindings = marked_import_bindings(node, source, rel_host);
 			const local = bindings.map((b) => b.local).join(', ');
 			const spec = String(node.source.value);
-			// `region` and a bare `wake` are exclusive; `render: 'deferred'` pairs with `fetch` (its timing).
-			// A lone `fetch` and the retired `render` + `wake` reach #emit_ts_region, which names the
-			// spelling to write; anything else is a mismatched marker set.
 			const bad_combo =
 				(has_region && attrs.size > 1) ||
 				(has_render &&
@@ -2101,7 +2063,6 @@ class TsRegionCompilation {
 			s.overwrite(node.start, node.end, lines.join('\n'));
 			matched = true;
 		}
-		// every marked name is a component: handed on as a value, never called or read into
 		check_marked_uses(body, marked, source, rel_host);
 
 		if (!matched) return null;
@@ -2110,11 +2071,6 @@ class TsRegionCompilation {
 			code: s.toString(),
 			map: s.generateMap({ hires: true, source: id, includeContent: true }),
 			islands,
-			// A `.ts`/`.js` mint has no markup — every minted WAKE island is a VALUE placed at
-			// compile-invisible sites (the registry/factory pattern), so children can cross there and
-			// the wire revivers must ship. `strategy` is the discriminator: wake mints carry their wake
-			// value; deferred mints say 'server' (isolation — children never cross); raw/held bindings
-			// carry none (data-minting); 'none' is a lake (static HTML). Those keep lean apps lean.
 			hasWireCrossing: islands.some(
 				(i) => typeof i.strategy === 'string' && i.strategy !== 'server' && i.strategy !== 'none'
 			)
