@@ -57,7 +57,7 @@ export class ValkeyStore implements PostrenderStore {
 		try {
 			return JSON.parse(raw);
 		} catch {
-			return null;
+			return null; // ok: an entry that does not parse is a miss: the page renders again
 		}
 	}
 
