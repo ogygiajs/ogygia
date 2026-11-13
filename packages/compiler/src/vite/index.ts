@@ -92,7 +92,7 @@ import {
 import MagicString from 'magic-string';
 import { definers_plugin } from './definers.ts';
 import type { ClientRealmFile, ServerRealm } from '../compiler/link/caps.ts';
-import { assert_no_legacy_options, validate_region_presets, resolve_options } from './options.ts';
+import { assert_known_options, validate_region_presets, resolve_options } from './options.ts';
 import {
 	clientBuildWillSkip,
 	hasAnyCsrFalseRoute,
@@ -197,7 +197,7 @@ function bundler_resolve(ctx: {
 export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	const standalone = options.standalone === true;
 
-	assert_no_legacy_options(options);
+	assert_known_options(options);
 
 	const visibleMargin = options.visible?.margin;
 	const presets = options.presets || {};
