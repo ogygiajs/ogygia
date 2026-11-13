@@ -29,6 +29,7 @@ import {
 } from '../link/server-manifest.ts';
 import { registry_stub_names, registry_stub_source } from '../link/registry-stub.ts';
 import { dev_hmr_client_source } from '../dev/dev-hmr.ts';
+import { fn_manifest_registrations } from '../macros/dollar.ts';
 import { PROFILER_MAPS_PLACEHOLDER, REGION_FAMILY } from '../ids.ts';
 import type { CompileCtx } from '../ctx.ts';
 import type { ClientRealmFile, ServerRealm } from '../link/caps.ts';
@@ -202,10 +203,7 @@ export const fn_manifest: Family = virtual.family({
 			globalThis.__og_reg_fn = __register_fn;
 		`}\n`;
 		if (!app.ctx.is_dev) return `${bridge}/*__OGYGIA_FN_MANIFEST__*/`;
-		const hoists = [...app.dollar_hoists.entries()]
-			.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
-			.join('\n');
-		return `${bridge}${hoists}`;
+		return `${bridge}${fn_manifest_registrations(app.dollar_hoists)}`;
 	}
 });
 
@@ -229,12 +227,13 @@ export const runtime_entry: Family = virtual.family({
 export const runtime_flags: Family<RuntimeFlagsModule> = virtual.family({
 	realm: 'boot',
 	id: 'runtime-flags',
-	exports: { FRAMES: 'FRAMES' },
+	exports: { FRAMES: 'FRAMES', load_wire_codec: 'load_wire_codec' },
 	load(app: CoreApp) {
+		const { ctx } = app;
 		// Dev runs the kitchen-sink boot: every flag on, like every feature.
-		if (!app.ctx.is_build) return generateRuntimeFlagsSource({}, true);
+		if (!ctx.is_build) return generateRuntimeFlagsSource({}, ctx.runtime_dir, true);
 		app.prescan();
-		return generateRuntimeFlagsSource(app.program.runtime_marks);
+		return generateRuntimeFlagsSource(app.program.runtime_marks, ctx.runtime_dir);
 	}
 });
 
