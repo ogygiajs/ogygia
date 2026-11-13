@@ -104,10 +104,12 @@ export function restore(root: Document | DocumentFragment | Element, lite?: numb
 	};
 
 	// 0. head assets an answer carries (`data-og-head`): into the page's head once per key
-	if (root !== document && (root as ParentNode).querySelectorAll) {
-		for (const el of Array.from((root as ParentNode).querySelectorAll('[data-og-head]'))) {
-			const key = el.getAttribute('data-og-head')!;
-			if (head.querySelector(`[data-og-head="${esc(key)}"]`)) el.remove();
+	const from: ParentNode | null = root === document ? document.body : (root as ParentNode);
+	if (from?.querySelectorAll) {
+		for (const el of Array.from(from.querySelectorAll('[data-og-head],style[data-og-stand-ins]'))) {
+			const key = el.getAttribute('data-og-head');
+			const sel = key === null ? 'style[data-og-stand-ins]' : `[data-og-head="${esc(key)}"]`;
+			if (head.querySelector(sel)) el.remove();
 			else head.appendChild(el);
 		}
 	}
@@ -248,14 +250,13 @@ export function restore(root: Document | DocumentFragment | Element, lite?: numb
 	// dev: each planned host's original children (the server sends them only in dev), to compare each
 	// restored host against — the transform is judged on what hydration will actually see
 	let check: Record<string, string> | null = null;
-	const check_el = (root as ParentNode).querySelector(
-		'script[type="application/ogygia-restore-check"]'
-	);
-	if (check_el) {
+	for (const check_el of Array.from(
+		(root as ParentNode).querySelectorAll('script[type="application/ogygia-restore-check"]')
+	)) {
 		try {
-			check = JSON.parse(check_el.textContent || '{}');
+			check = Object.assign(check ?? {}, JSON.parse(check_el.textContent || '{}'));
 		} catch {
-			check = null; // ok: a check that does not parse checks nothing; the restore itself goes on
+			check ??= null; // ok: a check that does not parse checks nothing; the restore itself goes on
 		}
 		check_el.remove();
 	}
