@@ -125,6 +125,10 @@ export function error_route_is_csr_true(id: string | null | undefined): boolean 
 	return error_csr_true_routes.has(normalize_route_id(id));
 }
 
+// The head claims below are per render root, by its event, not per request: a held region's root
+// (a load's, a remote call's) keeps only its sheets, so a claim it made would be lost to the page.
+// What the document counts as a whole is the request's (server/document-counts.ts).
+
 /** Per-request: only one `data-ogygia-runtime` script should be emitted (the first island). */
 const runtime_claimed = new WeakMap<object, true>();
 
