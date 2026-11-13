@@ -1,24 +1,18 @@
-/**
- * The module-macro pipeline — the ordered `import.meta.og.*` passes that run BEFORE either branch
- * (island transform / svelte compile / ts-region minting) sees a module: `wire`, `$`, `store`,
- * auto-branding, then the plugins' macros. Each pass is a no-op unless its exact marker is present, is
- * extension-aware, and (where it matters) AST-precise. Pulled out of the Vite adapter so the whole
- * macro leg is one call (`Compiler.macros`) the driver owns. Pure over `(source, id, ctx)` apart from the `dollarHoists` map it fills and the profiler
- * timing it records; returns `{ code, touched }` (the caller invalidates its own sourcemap on touch).
- */
 import path from 'node:path';
 import { noop } from '@ogygia/machine';
-import { rewrite_wire } from './wire.ts';
-import { rewrite_dollar } from './dollar.ts';
-import { rewrite_source } from './source.ts';
-import { rewrite_store, auto_brand_stores } from './store.ts';
+import { wire_edits } from './wire.ts';
+import { dollar_edits } from './dollar.ts';
+import { source_edits } from './source.ts';
+import { store_edits, auto_brand_edits } from './store.ts';
+import type { StepMap } from '../map-chain.ts';
+import { splice_map, splice_text, type Edit } from '../splice.ts';
 import type { Profiler } from '../driver.ts';
-import type { FoucAlias } from '../fouc-css.ts';
+import type { AppAlias } from '../app-spec.ts';
 import { OgygiaError } from '../messages.ts';
 import { find_og_calls } from '../parse/scan.ts';
 
 /** A resolved Vite alias (`resolve.alias`, normalized to its array form). */
-export type AliasEntry = FoucAlias;
+export type AliasEntry = AppAlias;
 
 /** What a macro knows about the module it rewrites. */
 export interface MacroContext {
@@ -41,11 +35,8 @@ export interface PluginMacro {
 	handler: (code: string, m: MacroContext) => string | Promise<string>;
 }
 
-// ── regexes
 const EXPORT_CONST_RE = /export\s+const/;
 
-/** The `import.meta.og.*` macros a first-party plugin compiles: its package, and what to list. */
-// static: the first-party plugins' macros
 const MACRO_PACKAGES: Readonly<Record<string, { package: string; plugin: string }>> = {
 	code: { package: '@ogygia/content', plugin: 'content()' },
 	md: { package: '@ogygia/content', plugin: 'content()' },
@@ -54,7 +45,6 @@ const MACRO_PACKAGES: Readonly<Record<string, { package: string; plugin: string 
 	bake: { package: '@ogygia/bake', plugin: 'bake()' }
 };
 
-/** Does `code` really call `import.meta.og.<name>(…)` (a marker in a string or comment is no call)? */
 function calls_macro(code: string, name: string): boolean {
 	return find_og_calls(code, 'import.meta.og.').some(
 		(c) => c.method === name || c.method.startsWith(`${name}.`)
@@ -90,84 +80,52 @@ export async function run_module_macros(
 	id: string,
 	ctx: MacroPipelineCtx,
 	profiler: Profiler
-): Promise<{ code: string; touched: boolean }> {
+): Promise<{ code: string; touched: boolean; maps: StepMap[] }> {
 	let out = source;
 	let touched = false;
-	// (an installed file a package did not declare: a macro that WOULD rewrite it fails the build;
-	// a marker it only names, in a string or a comment, rewrites nothing; test/macros-own-source.test.ts)
+	const maps: StepMap[] = [];
+	const apply = (edits: readonly Edit[]): boolean => {
+		const next = splice_text(out, edits);
+		if (next === out) return false;
+		const before = out;
+		maps.push(() => splice_map(before, edits, id));
+		out = next;
+		touched = true;
+		return true;
+	};
 	const own = ctx.ownSource(id.split('?')[0]!);
 	const refuse = (macro: string): never => {
 		throw new OgygiaError('macro_outside_app', { file: id.split('?')[0]!, macro });
 	};
 
-	// `import.meta.og.wire` — the transportable-codec key, rewritten to `Symbol.for('ogygia.wire')`
-	// BEFORE either branch (island transform / svelte compile / ts region minting) sees the code,
-	// so the class body's computed key is a real symbol expression by compile time. Extension-aware
-	// and AST-precise (see og-wire.ts); a no-op unless the marker is actually present.
 	if (out.includes('import.meta.og.wire')) {
-		const rewritten = rewrite_wire(out, id, CONSTRUCT_MARKUP_EXTS);
-		if (rewritten !== out) {
-			if (!own) refuse('wire');
-			out = rewritten;
-			touched = true;
-		}
+		if (apply(wire_edits(out, id, CONSTRUCT_MARKUP_EXTS)) && !own) refuse('wire');
 	}
 
-	// `import.meta.og.$(fn)` — hoist a function so its VALUE crosses a boundary as a fn
-	// ref (og-dollar.ts). Exact marker ('.$state' can never match) + AST verification.
 	if (out.includes('import.meta.og.$')) {
 		const rel_dollar = path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
-		const res = rewrite_dollar(out, id, rel_dollar, CONSTRUCT_MARKUP_EXTS);
-		if (res.code !== out) {
+		const res = dollar_edits(out, id, rel_dollar, CONSTRUCT_MARKUP_EXTS);
+		if (apply(res.edits)) {
 			if (!own) refuse('$');
-			out = res.code;
-			touched = true;
 			for (const h of res.hoists) ctx.dollarHoists.set(h.tag, h.factory_src);
 		}
 	}
 
-	// `import.meta.og.source(fn)` — declared data sources for the postrender reverse index:
-	// stamps `file#export`, rewrites to `__og_source('id', fn)` + injects the runtime wrapper.
-	// AST-precise, strict-position (macros/source.ts); a no-op unless the marker is present.
 	if (out.includes('import.meta.og.source')) {
 		const rel_source = path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
-		const rewritten = rewrite_source(out, id, rel_source, CONSTRUCT_MARKUP_EXTS);
-		if (rewritten !== out) {
-			if (!own) refuse('source');
-			out = rewritten;
-			touched = true;
-		}
+		if (apply(source_edits(out, id, rel_source, CONSTRUCT_MARKUP_EXTS)) && !own) refuse('source');
 	}
 
-	// `import.meta.og.store(factory)` — assert a store factory: registered under a build
-	// tag at module load, products branded (og-store.ts).
 	if (out.includes('import.meta.og.store')) {
 		const rel_store = path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
-		const rewritten = rewrite_store(out, id, rel_store, CONSTRUCT_MARKUP_EXTS);
-		if (rewritten !== out) {
-			if (!own) refuse('store');
-			out = rewritten;
-			touched = true;
-		}
+		if (apply(store_edits(out, id, rel_store, CONSTRUCT_MARKUP_EXTS)) && !own) refuse('store');
 	}
 
-	// AUTO-BRAND provable store factories (export const x = (seed) => store-shape) so the
-	// registered-factory tier needs zero authoring for the common shapes. App source only —
-	// never node_modules (their factories can't self-register on the client anyway).
 	if (!id.includes('node_modules') && !id.startsWith(ctx.pkgRoot) && EXPORT_CONST_RE.test(out)) {
 		const rel_auto = path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
-		const branded = auto_brand_stores(out, id, rel_auto, CONSTRUCT_MARKUP_EXTS);
-		if (branded !== out) {
-			out = branded;
-			touched = true;
-		}
+		apply(auto_brand_edits(out, id, rel_auto, CONSTRUCT_MARKUP_EXTS));
 	}
 
-	// The PLUGINS' macros (`b.macro`: content's `code` / `md` / `loader` / `regions`), in plugin
-	// order — each called only when its marker is present. Before the island transform, so whatever a
-	// macro injects (a region value, region imports) flows through it like hand-written code.
-	// Only on the app's own source: elsewhere a handler never runs (it may read files or run code,
-	// #761), and a real call fails the build (test/macros-own-source.test.ts).
 	if (ctx.macros?.length) {
 		let rel: string | undefined;
 		for (const macro of ctx.macros) {
@@ -193,12 +151,11 @@ export async function run_module_macros(
 			if (rewritten !== out) {
 				out = rewritten;
 				touched = true;
+				maps.push(null);
 			}
 		}
 	}
 
-	// A first-party plugin's macro with its plugin not listed fails the build naming the package,
-	// never a bare TypeError at run time (test/macros-need-plugin.test.ts).
 	if (out.includes('import.meta.og.')) {
 		for (const call of find_og_calls(out, 'import.meta.og.')) {
 			const name = call.method.split('.')[0]!;
@@ -214,5 +171,5 @@ export async function run_module_macros(
 		}
 	}
 
-	return { code: out, touched };
+	return { code: out, touched, maps };
 }

@@ -4,7 +4,7 @@
  * halves, and the route config.
  */
 
-import { page_route_config } from '../kit.ts';
+import { page_route_config, type Routes } from '../kit.ts';
 import { dedent } from '@ogygia/core/contract';
 
 /**
@@ -67,9 +67,10 @@ export function server_plugins_module(ssr: boolean, realms: readonly ServerRealm
  *  client, and when no plugin claims a key: the route list never ships to the browser. */
 export function route_config_module(
 	ssr: boolean,
+	routes: Routes,
 	routesDir: string,
 	keys: readonly string[]
 ): string {
 	if (!ssr || keys.length === 0) return `export const route_config = {};`;
-	return `export const route_config = ${JSON.stringify(page_route_config(routesDir, keys))};`;
+	return `export const route_config = ${JSON.stringify(page_route_config(routes, routesDir, keys))};`;
 }

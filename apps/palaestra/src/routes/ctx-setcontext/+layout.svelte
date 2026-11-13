@@ -16,7 +16,7 @@
 
 	// NON-serializable values a real layout sets (x.svelte does both): a function and a live store.
 	// These can't bridge to islands, but the drop-in setContext must NOT crash the page — they are
-	// silently dropped from the marker while the serializable keys above still cross.
+	// dropped from the marker (said in dev, with a code) while the serializable keys above still cross.
 	setContext('trackPageView', () => {});
 	setContext('appStore', writable({ count: 0 }));
 </script>

@@ -1,20 +1,17 @@
 <script lang="ts">
-	import { Provide } from 'ogygia';
 	import CtxCount from './CtxCount.svelte' with { wake: 'load' };
 	import CtxAdd from './CtxAdd.svelte' with { wake: 'load' };
-	import { Cart, cartCtx } from './cart-store.svelte.ts';
+	import { Cart, setCart } from './cart-store.svelte.ts';
 
-	// One live cart, provided to the subtree. Neither island below receives it as a prop —
-	// they call cartCtx.get() and reach this same instance across the island boundary.
-	const cart = new Cart();
+	// One live cart, set once. Neither island below receives it as a prop —
+	// they call getCart() and reach this same instance across the island boundary.
+	setCart(new Cart());
 </script>
 
-<Provide values={[cartCtx(cart)]}>
-	<div class="ctx-demo-row">
-		<div class="ctx-demo"><CtxCount /></div>
-		<div class="ctx-demo"><CtxAdd /></div>
-	</div>
-</Provide>
+<div class="ctx-demo-row">
+	<div class="ctx-demo"><CtxCount /></div>
+	<div class="ctx-demo"><CtxAdd /></div>
+</div>
 
 <style>
 	.ctx-demo-row {

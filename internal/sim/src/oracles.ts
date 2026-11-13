@@ -5,7 +5,7 @@
 import { writeFileSync } from 'node:fs';
 import { gate_open_early, own_text, type Tab, type Visitor } from './browser.ts';
 import { boxes, on_screen, type Box } from './layout.ts';
-import { answer_key, FOREIGN_MARK, is_page_path, type World } from './world.ts';
+import { answer_key, FOREIGN_MARK, is_page_path, LOSSY_POINTS, type World } from './world.ts';
 import { EDGE_GONE, EDGE_MOVED } from './gen.ts';
 
 /** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
@@ -619,6 +619,9 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 	// (nor one whose runtime, or another script, failed to load: the runtime may never have run, and
 	// the page stays its server HTML, as runtime_load_failed says; gen 12, seed 22)
 	if (touched && world.browsers.lacks_a_file(tab.realm)) return null;
+	// (nor one whose answers buggify lost: a lost answer goes before its request, so a hole it took
+	// every try of looks never asked; gen 208, seed 120)
+	if (touched && lost_answers(world, tab.realm)) return null;
 	const asked = new Set(
 		mine.filter((e) => e.method === 'GET').map((e) => answer_key(new URL(e.url)))
 	);
@@ -957,9 +960,6 @@ export function error_page(tab: Tab): boolean {
 		(doc.body?.childNodes.length ?? 0) === 0
 	);
 }
-
-/** The buggify points that lose an answer on the way, as a dropped request does. */
-const LOSSY_POINTS = ['hole.fetch-lost'];
 
 /** Did buggify lose an answer of `realm`'s on the way? */
 function lost_answers(world: World, realm: string): boolean {

@@ -8,11 +8,23 @@ const NESTED_KEY = Symbol.for('ogygia.nested-island');
  * degrade). `false` = a LAKE resets its subtree to "dead", so an island inside the lake self-
  * hydrates again (the nearest-boundary rule — DESIGN.md).
  */
-export function setNested(value = true): void {
+export function setNested(value = true, wake?: () => string): void {
 	setContext(NESTED_KEY, value);
+	if (wake) setContext(NESTED_WAKE_KEY, wake);
 }
 
 const ISLAND_REGION_KEY = Symbol.for('ogygia.island-region');
+const NESTED_WAKE_KEY = Symbol.for('ogygia.nested-wake');
+
+/**
+ * The schedule the island around this subtree wakes on: its wrapper's (server render, or a client
+ * render inside a wrapper), else the hydrated island element's `wake`. Null when it is not known.
+ */
+export function nested_wake(): string | null {
+	const wake = getContext(NESTED_WAKE_KEY) as (() => string) | undefined;
+	if (wake) return wake();
+	return island_region()?.getAttribute('wake') ?? null;
+}
 
 /** The context an island is hydrated with: a copy of `base` (a `<Provide>` above it), marked
  *  "inside an island" — what a wrapper's `setNested()` gave its children, with no wrapper in the

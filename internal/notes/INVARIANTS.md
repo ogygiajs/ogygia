@@ -241,9 +241,9 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 - Read `export const csr` ad hoc anywhere else — go through `page_worlds()` / the exported kit.ts helpers (one walk, one truth).
 - Strip a layout when ANY page below it is csr=false.
-- Skip `clear_route_csr_cache()` on dev route-topology changes — the watcher covers `+page/+layout(.server).(svelte|js|ts)`.
+- Read a route file around `ctx.routes` (its `text`, `listing` and `at` inputs): an answer that reads the disk itself is not told of the dev watcher's file events (`Routes.touch`), so it goes stale.
 
-**Enforced by:** `packages/compiler/test/route-csr.test.ts` (declaration forms × chain shapes × layout folds × cache, plus the transform strip/keep seam), `apps/palaestra/e2e/deep-csr.spec.ts` (real build of internal/repro-deep-csr, browser truth in both worlds).
+**Enforced by:** `packages/compiler/test/route-csr.test.ts` (declaration forms × chain shapes × layout folds × file events, plus the transform strip/keep seam), `packages/compiler/test/queries.test.ts` (dev answers after random edits equal a cold reader's), `packages/compiler/test/fs-seam.test.ts` (no direct disk read left), `apps/palaestra/e2e/deep-csr.spec.ts` (real build of internal/repro-deep-csr, browser truth in both worlds).
 
 ---
 
