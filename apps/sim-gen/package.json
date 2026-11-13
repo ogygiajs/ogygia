@@ -12,6 +12,7 @@
 		"@ogygia/federation": "workspace:*",
 		"@ogygia/flags": "workspace:*",
 		"@ogygia/machine": "workspace:*",
+		"@ogygia/page-keys": "workspace:*",
 		"@ogygia/postrender": "workspace:*",
 		"@ogygia/reshape": "workspace:*",
 		"@ogygia/router": "workspace:*",

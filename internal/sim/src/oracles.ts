@@ -438,6 +438,48 @@ async function load_fresh(
 }
 
 /**
+ * `seen`, the view of `doc`, with a peer's replicas read as one origin (`replicas`: each replica's
+ * origin to its first origin's; one build answers at both). A page the replica answered while the
+ * first origin was down names the replica's files (gen 23, seed 22), and a region's sheet its
+ * answer lifted into the head stands beside the same file linked at the first origin: ogygia keeps
+ * one sheet per address, and two origins are two addresses (gen 121, seed 11). Each such lifted
+ * sheet is left out once. test/oracles.test.ts.
+ */
+export function replicas_as_one(
+	doc: Document,
+	seen: string,
+	replicas: ReadonlyMap<string, string>
+): string {
+	if (replicas.size === 0) return seen;
+	const one = (s: string): string => {
+		for (const [replica, origin] of replicas) s = s.replaceAll(replica, origin);
+		return s;
+	};
+	let out = one(seen);
+	const sheets = [...doc.querySelectorAll('link[rel~="stylesheet"]')];
+	const lifted = (l: Element): boolean =>
+		l.hasAttribute('data-ogygia-region-css') && l.parentElement === doc.head;
+	const first = new Map<string, string>();
+	for (const l of [...sheets.filter((l) => !lifted(l)), ...sheets.filter(lifted)]) {
+		const href = l.getAttribute('href') ?? '';
+		const at = first.get(one(href));
+		if (at === undefined) {
+			first.set(one(href), href);
+			continue;
+		}
+		if (at === href || !lifted(l)) continue;
+		const line = one(normalize({ documentElement: l, title: '', baseURI: doc.baseURI }))
+			.split('\n')
+			.at(-1)!;
+		const lines = out.split('\n');
+		const i = lines.findIndex((x) => x.trim() === line.trim());
+		if (i !== -1) lines.splice(i, 1);
+		out = lines.join('\n');
+	}
+	return out;
+}
+
+/**
  * MPA EQUIVALENCE, the core promise: after any sequence of actions, what a tab shows equals a fresh
  * hard load of its URL by a visitor with the same cookies, once both are at rest. Checked in a new
  * browser (its own module instances and caches) with the tab's cookies copied in. `view` is what
@@ -451,6 +493,8 @@ export async function mpa_equivalent(
 ): Promise<Broken | null> {
 	const url = tab.page.mainFrame.url;
 	if (!url.startsWith('http')) return null;
+	const raw = view;
+	view = (doc) => replicas_as_one(doc, raw(doc), world.replicas);
 	let shown = view(tab.page.mainFrame.document as unknown as Document);
 	// (a page a build a deploy replaced answered is compared with a fresh load from that build: an
 	// old page is the old release's, whole)
@@ -1031,7 +1075,9 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 		return true;
 	return world.network.exchanges.slice(since ?? 0).some(
 		(e) =>
-			(mine(e.from) && (failed_on_wire(e) || e.tampered || e.redirected)) ||
+			(mine(e.from) &&
+				(failed_on_wire(e) || e.tampered || e.redirected) &&
+				!failed_over(world, e)) ||
 			// (a server's hop for it changed on the way: what the page was made from. A cut one is
 			// a failure the app must answer well, #937)
 			(e.for !== undefined && mine(e.for) && e.tampered) ||
@@ -1046,8 +1092,29 @@ function batch_came_whole(e: World['network']['exchanges'][number]): boolean {
 	return e.status === 200 && !failed_on_wire(e) && !e.stalled && !e.tampered && !e.redirected;
 }
 
+/**
+ * Whether `e`, a document's own page answered 500 or more (a mounted peer page, a page with a
+ * peer's widget), failed only because a peer's first origin was `down`: every hop its server made
+ * for it that failed was a GET that fault answered. The app owes the next origin's answer (federation's
+ * failover), so it is no excuse (a mutant that never asked the next origin survived).
+ */
+function failed_over(world: World, e: World['network']['exchanges'][number]): boolean {
+	if (typeof e.status !== 'number' || e.status < 500 || e.cut || e.tampered || e.redirected)
+		return false;
+	// (the document's own page: a hole's or a widget's answer of its is judged by its own hops)
+	if (world.network.exchanges.find((x) => x.from === e.from) !== e) return false;
+	const hops = world.network.exchanges.filter((h) => h.for === e.from);
+	// (a stalled hop is held past the peer's timeout: the app's 504 for it is its own, gen 23, seed 80)
+	const failed = hops.filter(
+		(h) => h.down === true || failed_on_wire(h) || h.tampered || h.stalled === true
+	);
+	return failed.length > 0 && failed.every((h) => h.down === true && h.method === 'GET');
+}
+
 /** Whether the network failed exchange `e`: dropped, offline, cut or broken off, or a server error. */
 function failed_on_wire(e: World['network']['exchanges'][number]): boolean {
+	// (a GET a peer's first origin answered `down`: the app owes the visitor its next origin's answer)
+	if (e.down === true && e.method === 'GET') return false;
 	return (
 		e.cut ||
 		e.status === 'dropped' ||
@@ -1242,6 +1309,14 @@ export function peer_answers(
 			new URL(own.url).pathname === path &&
 			doc.readyState === 'complete';
 		if (loaded && !hop_failed(tab.realm) && !error_page(tab)) {
+			// (a page the app answered 200: its own 504, the peer's body past its timeout, shows the
+			// app's words, not the peer's; gen 23, seed 38)
+			if (
+				PEER_PAGE.test(path) &&
+				own.status === 200 &&
+				doc.querySelector('[data-gen="peer-page"]') === null
+			)
+				wrong.push(`${path} shows none of the peer's page`);
 			const text = doc.documentElement?.textContent ?? '';
 			if (mount === 'kit' && path === EDGE_GONE && !PEER_GONE_SAID.some((s) => text.includes(s)))
 				wrong.push(`${path} says neither the peer's title nor the app's word for a missing page`);
@@ -1382,6 +1457,62 @@ export function server_rules(world: World): Broken | null {
 	if (said.every((l) => known.some((k) => k.said.test(l))))
 		return { oracle: 'known', detail: known.map((k) => `#${k.issue} (${k.what})`).join(', ') };
 	return { oracle: 'server-rules', detail: said.join('\n') };
+}
+
+/** A peer hop's deadline (federation's `timeout` default, which the generated apps keep): an answer
+ *  the delay fault brought later is no answer, and the replica is asked (gen 121, seed 6). */
+const PEER_TIMEOUT_MS = 5000;
+
+/**
+ * A PEER FAILS OVER, AND ONLY THEN: a server's GET to a peer's first origin that the `down` fault
+ * answered is asked again of its replica (federation's failover: a 500 kept as the answer
+ * survived), and the replica is asked only after the first origin gave nothing (asking every
+ * origin survived): down, failed on the wire, stalled, or past the peer's timeout. Read from the
+ * hops (`for` a document) `since` an exchange. A hop whose document's own request ended is not
+ * judged: an ended request asks nothing more.
+ */
+export function peer_fails_over(world: World, since: number): Broken | null {
+	const replicas = world.replicas;
+	if (replicas.size === 0) return null;
+	const first_of = new Map([...replicas].map(([r, o]) => [o, r]));
+	const all = world.network.exchanges;
+	const hops = all.slice(since).filter((e) => e.for !== undefined && e.method === 'GET');
+	const ended = (realm: string): boolean =>
+		all.some(
+			(e) =>
+				e.from === realm &&
+				(e.cut || e.lost === true || e.status === 'aborted' || e.status === 'dropped')
+		);
+	// (a first origin's answer that gave the app nothing it could use: the replica is owed)
+	const gave_nothing = (p: (typeof all)[number], asked_at: number): boolean =>
+		p.down === true ||
+		failed_on_wire(p) ||
+		p.stalled === true ||
+		typeof p.status !== 'number' ||
+		asked_at - p.at >= PEER_TIMEOUT_MS;
+	const wrong: string[] = [];
+	for (const h of hops) {
+		const u = new URL(h.url);
+		if (ended(h.for!)) continue;
+		const replica = first_of.get(u.origin);
+		if (replica !== undefined) {
+			const there = `${replica}${u.pathname}${u.search}`;
+			if (h.down === true && !hops.some((n) => n.for === h.for && n.url === there && n.at >= h.at))
+				wrong.push(`${h.url}: its first origin was down, and its replica was not asked`);
+			continue;
+		}
+		const first = replicas.get(u.origin);
+		if (first === undefined) continue;
+		// (each ask of the replica follows an ask of the first origin that gave nothing; with two
+		// reads of one address at once, any of them: gen 121, seed 103)
+		const here = `${first}${u.pathname}${u.search}`;
+		const before = all.filter((p) => p.for === h.for && p.url === here && p.at <= h.at);
+		if (before.length > 0 && !before.some((p) => gave_nothing(p, h.at)))
+			wrong.push(
+				`${h.url}: asked though its first origin answered (${before.map((p) => `#${p.id} ${p.status} at ${p.at}`).join(', ')}; this at ${h.at})`
+			);
+	}
+	return wrong.length === 0 ? null : { oracle: 'peer-failover', detail: wrong.join('\n') };
 }
 
 /** A shared cache never hands one visitor's personal bytes to another (cdn.ts records each hit

@@ -168,6 +168,12 @@ export class World {
 	readonly servers = new Map<string, ServerInstance[]>();
 	/** Each peer app's instance, by origin. */
 	readonly peers = new Map<string, ServerInstance>();
+	/** Each peer replica's origin, to its first origin's: one build at both (`WorldOptions.peers`). */
+	get replicas(): ReadonlyMap<string, string> {
+		return new Map(
+			(this.#o.peers ?? []).flatMap((p) => (p.replica ? [[p.replica, p.origin] as const] : []))
+		);
+	}
 	/** Errors no page or server caught, as the host process heard them. */
 	readonly uncaught: string[] = [];
 	/** The server rules a server said broken (`<instance> <code> <detail>`): ogygia's server rules

@@ -22,7 +22,7 @@
 		"test:e2e": "node packages/tooling/src/e2e/run.ts",
 		"test:e2e:fast": "E2E_NO_BUILD=1 node packages/tooling/src/e2e/run.ts",
 		"test:e2e:serial": "turbo run e2e --concurrency=1",
-		"check": "turbo run check --filter=./packages/* --filter=./packages/*/e2e/* --filter=./apps/*",
+		"check": "turbo run check --filter=./packages/* --filter=./packages/*/e2e/* --filter=./apps/* --filter=./internal/compiler-dst",
 		"test:adapters": "pnpm --filter palaestra e2e adapters",
 		"demo:esi": "node packages/postrender/e2e/demo-esi.ts",
 		"bundle-size": "node apps/palaestra/e2e/bundle-size.ts",

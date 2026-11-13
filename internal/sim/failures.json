@@ -190,6 +190,18 @@
 	],
 	"covered": [
 		{
+			"site": "packages/compiler/src/vite/paths.ts > runtime_inputs > catch:0",
+			"reason": "an unbuilt runtime directory cannot be read: it adds no input",
+			"test": "packages/compiler/test/runtime-hash.test.ts",
+			"name": "an unbuilt runtime directory adds nothing"
+		},
+		{
+			"site": "packages/compiler/src/vite/paths.ts > content_hash > catch:0",
+			"reason": "an input that cannot be read adds nothing to the hash",
+			"test": "packages/compiler/test/runtime-hash.test.ts",
+			"name": "moves when any input changes; a missing input changes nothing"
+		},
+		{
 			"site": "packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:4",
 			"reason": "a config error, at config time: a plugin listed without a plugin it needs (postrender() without pageKeys())",
 			"test": "packages/compiler/test/plugins.test.ts",
@@ -2158,6 +2170,96 @@
 			"name": "a schema error on the first read: fixed at the source, the next read loads"
 		},
 		{
+			"site": "packages/content/src/server.ts > collection_of > throw:0",
+			"reason": "`throw new OgygiaError('content_with_remotes_not_collection');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/remotes.test.ts",
+			"name": "a value that is not a content() handle is refused with its code"
+		},
+		{
+			"site": "packages/content/src/site/components/tab-groups.svelte.ts > tab_group > value > catch:0",
+			"reason": "`catch { // ok: no storage (private mode); the choice is kept in memor…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/tab-groups.test.ts",
+			"name": "with storage blocked, choosing and restoring still work in memory"
+		},
+		{
+			"site": "packages/content/src/site/components/tab-groups.svelte.ts > hydrate_group > catch:0",
+			"reason": "`catch { // ok: no storage (private mode); the fallback is chosen }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/tab-groups.test.ts",
+			"name": "with storage blocked, choosing and restoring still work in memory"
+		},
+		{
+			"site": "packages/content/src/site/fields.ts > schema > validate > catch:0",
+			"reason": "`catch (e) { return { issues: [{ message: e instanceof Error ? e.messa…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/fields.test.ts",
+			"name": "a page with no title is an issue, not a throw"
+		},
+		{
+			"site": "packages/content/src/site/fields.ts > (module) > throw:0",
+			"reason": "`throw new Error('frontmatter needs a non-empty `title`');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/fields.test.ts",
+			"name": "a page with no title is an issue, not a throw"
+		},
+		{
+			"site": "packages/content/src/site/outline.ts > OutlineImpl > weave > catch:0",
+			"reason": "`catch (error) { if (!good || !at) throw error; this.#failed.set(key, …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "an entry the outline places nowhere: the nav stays, an error says why, the fix applies"
+		},
+		{
+			"site": "packages/content/src/site/outline.ts > OutlineImpl > weave > throw:0",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/convention.test.ts",
+			"name": "duplicate numbers in a directory fail the read, named"
+		},
+		{
+			"site": "packages/content/src/site/outline.ts > materialize > throw:0",
+			"reason": "`throw new Error(`[ogygia/pharos] outline could not be built:\\n - ${er…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "an entry the outline places nowhere: the nav stays, an error says why, the fix applies"
+		},
+		{
+			"site": "packages/content/src/site/search-client.ts > SearchClient > constructor > stale:0",
+			"reason": "`s === STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "the index fails to load: the queries waiting on it, and every query after, are rejected"
+		},
+		{
+			"site": "packages/content/src/site/search-client.ts > SearchClient > constructor > throw:0",
+			"reason": "`throw this.#error();`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "the index fails to load: the queries waiting on it, and every query after, are rejected"
+		},
+		{
+			"site": "packages/content/src/site/search-worker.ts > index_now > stale:0",
+			"reason": "`index === STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "a newer load replaces the index a waiting query was going to read: it is answered from the new one"
+		},
+		{
+			"site": "packages/content/src/site/search-worker.ts > onmessage > catch:0",
+			"reason": "`catch (err) { (self as unknown as Port).postMessage({ type: 'error', …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "the index failed to build: a query is answered `error` with ITS id"
+		},
+		{
+			"site": "packages/content/src/site/search-worker.ts > onmessage > catch:1",
+			"reason": "`catch (err) { // @why a failed query is answered with its id, or it w…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "the index failed to build: a query is answered `error` with ITS id"
+		},
+		{
+			"site": "packages/content/src/site/site.ts > OgygiaSite > load > throw:0",
+			"reason": "`throw new OgygiaError( 'content_check_failed', format_findings(slug, …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/site.test.ts",
+			"name": "checks in load throw on an error finding (build/dev failure)"
+		},
+		{
+			"site": "packages/content/src/site/site.ts > OgygiaSite > deriveCtx > catch:0",
+			"reason": "`catch (e) { console.error(new OgygiaError('content_site_context_faile…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/site-context.test.ts",
+			"name": "serves the public projection and reports content_site_context_failed with the thrown error"
+		},
+		{
 			"site": "packages/tooling/src/e2e/browsers.ts > console_text > .catch:0",
 			"reason": "`a .evaluate((v) => (v instanceof Error ? `${v.name}: ${v.message}` : …`: proved: the .catch removed turns the test red, twice",
 			"test": "packages/tooling/test/e2e-browsers.test.ts",
@@ -2610,8 +2712,6 @@
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > throw:1",
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > catch:2",
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > throw:2",
-		"packages/compiler/src/vite/paths.ts > runtime_content_hash > catch:0",
-		"packages/compiler/src/vite/paths.ts > runtime_content_hash > catch:1",
 		"packages/compiler/src/vite/plugin-api.ts > definePlugin > configResolved > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:1",
@@ -2728,25 +2828,15 @@
 		"packages/content/src/schema.ts > parseSchema > catch:0",
 		"packages/content/src/schema.ts > parseSchema > throw:1",
 		"packages/content/src/schema.ts > parseSchema > throw:2",
-		"packages/content/src/server.ts > collection_of > throw:0",
 		"packages/content/src/server.ts > withRemotes > list > throw:0",
-		"packages/content/src/site/components/tab-groups.svelte.ts > tab_group > value > catch:0",
-		"packages/content/src/site/components/tab-groups.svelte.ts > hydrate_group > catch:0",
 		"packages/content/src/site/dimensions.ts > Dimensions > constructor > throw:0",
 		"packages/content/src/site/dimensions.ts > Dimensions > constructor > throw:1",
 		"packages/content/src/site/dimensions.ts > Dimensions > outline_for > stale:0",
-		"packages/content/src/site/fields.ts > schema > validate > catch:0",
-		"packages/content/src/site/fields.ts > (module) > throw:0",
 		"packages/content/src/site/fields.ts > (module) > throw:1",
 		"packages/content/src/site/fields.ts > (module) > throw:2",
 		"packages/content/src/site/fields.ts > (module) > throw:3",
 		"packages/content/src/site/outline.ts > OutlineImpl > ready > stale:0",
-		"packages/content/src/site/outline.ts > OutlineImpl > weave > catch:0",
-		"packages/content/src/site/outline.ts > OutlineImpl > weave > throw:0",
 		"packages/content/src/site/outline.ts > materialize > groups_of > stale:0",
-		"packages/content/src/site/outline.ts > materialize > throw:0",
-		"packages/content/src/site/search-client.ts > SearchClient > constructor > stale:0",
-		"packages/content/src/site/search-client.ts > SearchClient > constructor > throw:0",
 		"packages/content/src/site/search-client.ts > SearchClient > constructor > .catch:0",
 		"packages/content/src/site/search-client.ts > SearchClient > constructor > onmessage > refused:0",
 		"packages/content/src/site/search-client.ts > SearchClient > constructor > error-event:0",
@@ -2755,20 +2845,15 @@
 		"packages/content/src/site/search-worker.ts > run > fetch:0",
 		"packages/content/src/site/search-worker.ts > run > not-ok:0",
 		"packages/content/src/site/search-worker.ts > run > throw:0",
-		"packages/content/src/site/search-worker.ts > index_now > stale:0",
 		"packages/content/src/site/search-worker.ts > onmessage > message:0",
-		"packages/content/src/site/search-worker.ts > onmessage > catch:0",
 		"packages/content/src/site/search-worker.ts > onmessage > message:1",
 		"packages/content/src/site/search-worker.ts > onmessage > message:2",
-		"packages/content/src/site/search-worker.ts > onmessage > catch:1",
 		"packages/content/src/site/search-worker.ts > onmessage > message:3",
 		"packages/content/src/site/search.ts > load_orama > import:0",
 		"packages/content/src/site/search.ts > load_orama > catch:0",
 		"packages/content/src/site/search.ts > load_orama > throw:0",
 		"packages/content/src/site/search.ts > create_search > search > stale:0",
 		"packages/content/src/site/search.ts > create_search > search > stale:1",
-		"packages/content/src/site/site.ts > OgygiaSite > load > throw:0",
-		"packages/content/src/site/site.ts > OgygiaSite > deriveCtx > catch:0",
 		"packages/content/src/source.ts > glob > throw:0",
 		"packages/content/src/source.ts > glob > throw:1",
 		"packages/content/src/vite/hmr.ts > content_hmr > configureServer > schedule > timer:0",

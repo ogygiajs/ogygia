@@ -53,6 +53,7 @@ import {
 	islands_wake,
 	live_events,
 	server_rules,
+	peer_fails_over,
 	styled_regions,
 	stuck,
 	no_viewport_wait,
@@ -439,8 +440,9 @@ export async function run(
 				t.console.length = 0;
 				t.said_by.clear();
 			}
+			const hops_from = since;
 			since = world.network.exchanges.length;
-			for (const u of [uncaught(world), server_rules(world)])
+			for (const u of [uncaught(world), server_rules(world), peer_fails_over(world, hops_from)])
 				if (u && !(u.oracle === 'known' && broken.some((k) => k.detail.endsWith(u.detail))))
 					broken.push({ ...u, detail: `after ${what}: ${u.detail}` });
 		};
