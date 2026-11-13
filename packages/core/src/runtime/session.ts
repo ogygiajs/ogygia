@@ -3,11 +3,12 @@
  * belongs to one page (its lake caches, seed flags, kit-page probe) lives on its visit, and the next
  * page's swap (`reset()`) ends it, so connecting regions never see the previous page.
  */
-import { scope, type Scope } from '@ogygia/machine';
+import { cache, machine, scope, type Cache, type Scope } from '@ogygia/machine';
 import { FROZEN_SELECTOR } from './region-attrs.ts';
 import { note_visit } from './rules.ts';
 
-/** Soft cap on lake cache entries (unique lake ids). Evict oldest insertion on overflow. */
+/** Cap on lake cache entries (unique lake ids): past it, the one cached or refreshed longest ago
+ *  goes (a read is a `peek`, never a use). */
 const LAKE_CACHE_MAX = 64;
 
 /** Cached SSR DOM (+ optional SWR endpoint) for `{#if}` remount of hydrate:none regions.
@@ -22,6 +23,24 @@ export type LakeCacheEntry = {
 	/** Client TTL in ms; `0` = no expiry. */
 	maxAgeMs: number;
 };
+
+/**
+ * A LAKE'S CONTENT, as the regions authored in it see it. `open`: its content is not in yet, and no
+ * region waits. `waited`: not in, and regions connected in it wait. `settling`: in (the swap that
+ * brought it is about to land), the ones that waited are not woken yet: woken before the swap, they
+ * would run with no content. `settled`: in, and nobody waits.
+ */
+const LAKE = machine<{ open: {}; waited: {}; settling: {}; settled: {} }>()({
+	name: 'lake',
+	initial: 'open',
+	steps: {
+		open: ['waited', 'settled'],
+		waited: ['settling', 'settled'],
+		settling: ['settled'],
+		settled: []
+	}
+});
+type LakeMachine = ReturnType<typeof LAKE.create>;
 
 /**
  * WHO OWNS EACH NODE IN `<head>` — the rule every head write and removal follows.
@@ -85,7 +104,7 @@ export type PageVisit = {
 	/** Kit hydrates this page (kit-boot.ts): asked once, on first need. */
 	kit_page: boolean | undefined;
 	/** Its lakes' cached server DOM, for an `{#if}` remount (./lakes.ts). */
-	readonly lake_cache: Map<string, LakeCacheEntry>;
+	readonly lake_cache: Cache<string, LakeCacheEntry>;
 	/** The lake ids whose first connect on this page ran (./lakes.ts). */
 	readonly initialized_lakes: Set<string>;
 };
@@ -95,12 +114,13 @@ const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 function page_visit(): PageVisit {
+	const owner = scope();
 	const visit: PageVisit = {
-		scope: scope(),
+		scope: owner,
 		facts: [],
 		seeded: { page: false, remote: false },
 		kit_page: undefined,
-		lake_cache: new Map(),
+		lake_cache: cache<string, LakeCacheEntry>({ name: 'lake cache', max: LAKE_CACHE_MAX, owner }),
 		initialized_lakes: new Set()
 	};
 	if (RULES) note_visit(visit, false);
@@ -256,7 +276,48 @@ export class RuntimeSession {
 		}
 	}
 
-	readonly settled_lakes: WeakSet<Element> = new WeakSet<Element>();
+	/** Each lake element's {@link LAKE} machine, made the first time it is asked about. */
+	#lakes = new WeakMap<Element, LakeMachine>();
+	#lake(el: Element): LakeMachine {
+		let m = this.#lakes.get(el);
+		if (m === undefined) this.#lakes.set(el, (m = LAKE.create()));
+		return m;
+	}
+
+	/** May the regions authored in this lake run (its content is in, or it never gets any)? */
+	lake_settled(el: Element): boolean {
+		const kind = this.#lakes.get(el)?.now.kind;
+		return kind === 'settled' || kind === 'settling';
+	}
+
+	/** The lake's content is in: the regions that connect in it from now on run. Ones that already
+	 *  waited are woken by {@link wake_lake} after the swap that brings their content. */
+	settle_lake(el: Element): void {
+		const m = this.#lake(el);
+		if (m.now.kind === 'open') m.go('settled');
+		else if (m.now.kind === 'waited') m.go('settling');
+	}
+
+	/** A region in an unsettled lake waits on it: `true` when it must (the lake is not settled). */
+	wait_on_lake(el: Element): boolean {
+		const m = this.#lake(el);
+		if (m.now.kind === 'open') m.go('waited');
+		return m.now.kind === 'waited';
+	}
+
+	/** After the lake's swap: `true` when regions waited on it and are to be woken now. */
+	wake_lake(el: Element): boolean {
+		const m = this.#lakes.get(el);
+		if (m === undefined || (m.now.kind !== 'settling' && m.now.kind !== 'waited')) return false;
+		m.go('settled');
+		return true;
+	}
+
+	/** The lake gives up on new content (its refresh failed for good): settled as it stands. */
+	settle_lake_now(el: Element): void {
+		const m = this.#lake(el);
+		if (m.now.kind !== 'settled') m.go('settled');
+	}
 
 	#visit: PageVisit = page_visit();
 	/** The visit of the page on screen (see {@link PageVisit}). */
@@ -272,7 +333,7 @@ export class RuntimeSession {
 
 	// (what follows is the page's on screen: its visit's, gone with it)
 
-	get lake_cache(): Map<string, LakeCacheEntry> {
+	get lake_cache(): Cache<string, LakeCacheEntry> {
 		return this.#visit.lake_cache;
 	}
 	get initialized_lakes(): Set<string> {
@@ -300,24 +361,9 @@ export class RuntimeSession {
 		this.#visit.kit_page = v;
 	}
 
-	/** Insert/replace a lake cache entry; evict oldest if over LAKE_CACHE_MAX. */
-	set_lake_cache(id: string, entry: LakeCacheEntry): void {
-		if (this.lake_cache.has(id)) this.lake_cache.delete(id);
-		this.lake_cache.set(id, entry);
-		while (this.lake_cache.size > LAKE_CACHE_MAX) {
-			const oldest = this.lake_cache.keys().next().value;
-			if (oldest == null) break;
-			this.lake_cache.delete(oldest);
-		}
-	}
-
 	settle_lakes_in(root: ParentNode): void {
-		if (root instanceof Element && root.matches?.(FROZEN_SELECTOR)) {
-			this.settled_lakes.add(root);
-		}
-		for (const lake of root.querySelectorAll(FROZEN_SELECTOR)) {
-			this.settled_lakes.add(lake);
-		}
+		if (root instanceof Element && root.matches?.(FROZEN_SELECTOR)) this.settle_lake(root);
+		for (const lake of root.querySelectorAll(FROZEN_SELECTOR)) this.settle_lake(lake);
 	}
 
 	/** The next page takes over (its visit, made by its navigation; a new one when none is given),

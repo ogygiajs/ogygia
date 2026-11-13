@@ -9,7 +9,7 @@ function used(session: RuntimeSession): void {
 	session.mark_page_seeded();
 	session.mark_remote_seeded();
 	session.kit_page = true;
-	session.set_lake_cache('lake', entry);
+	session.lake_cache.set('lake', entry);
 	session.initialized_lakes.add('lake');
 }
 
@@ -52,4 +52,26 @@ test('the visit that ends closes its scope', () => {
 	const left = session.visit;
 	session.reset();
 	expect(left.scope.signal.aborted).toBe(true);
+});
+
+test('past 64 lakes the one cached or refreshed longest ago goes; reading one keeps nothing', () => {
+	const session = new RuntimeSession();
+	for (let i = 0; i < 64; i++) session.lake_cache.set(`lake-${i}`, entry);
+	session.lake_cache.peek('lake-0'); // a read: not a use
+	session.lake_cache.set('lake-1', entry); // a refresh: the newest now
+	session.lake_cache.set('lake-64', entry);
+	expect(session.lake_cache.has('lake-0')).toBe(false);
+	expect(session.lake_cache.has('lake-1')).toBe(true);
+	session.lake_cache.set('lake-65', entry);
+	expect(session.lake_cache.has('lake-2')).toBe(false);
+	expect(session.lake_cache.size).toBe(64);
+});
+
+test("the page's lake cache ends with its visit", () => {
+	const session = new RuntimeSession();
+	const cached = session.lake_cache;
+	cached.set('lake', entry);
+	session.reset();
+	expect(cached.size).toBe(0);
+	expect(cached.set('lake', entry)).toBe(false);
 });
