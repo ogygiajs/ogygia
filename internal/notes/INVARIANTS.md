@@ -283,7 +283,7 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 **Do not:** Delete a comment whose why has no test yet (flip the code; if nothing turns red, write the test first). Reword an old comment instead of moving it. Add a free comment to new code. Write a `@why` that names no test, or a test that does not exist.
 
-**Enforced by:** `internal/lint/structured-comments.test.ts > free comments and block comments are reported; tool directives pass`, `internal/lint/structured-comments.test.ts > a @why passes only above its statement and when its test exists`. The root `.oxlintrc.json` makes the rule an error for each package that has reached zero (`packages/compiler/src` first); elsewhere `internal/checks/new-comments.ts` refuses new ones while the sweep goes on.
+**Enforced by:** `internal/lint/structured-comments.test.ts > free comments and block comments are reported; tool directives pass`, `internal/lint/structured-comments.test.ts > a @why passes only above its statement and when its test exists`. The rule is an error in `.oxlintrc.json` for each package that has reached zero (the compiler first); elsewhere `internal/checks/new-comments.ts` refuses new ones while the sweep goes on.
 
 ---
 
