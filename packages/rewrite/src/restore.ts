@@ -225,6 +225,18 @@ export function restore(root: Document | DocumentFragment | Element, lite?: numb
 		return out;
 	};
 
+	const unmark = (host: Element, k: string) => {
+		const tag = `${k}.`;
+		for (const el of Array.from(host.querySelectorAll('[og-c]')))
+			if (el.getAttribute('og-c')!.startsWith(tag)) {
+				el.removeAttribute('og-c');
+				el.removeAttribute('og-r');
+			}
+		for (const mark of comments(host, `og-c ${tag}`)) mark.remove();
+		for (const mark of comments(host, `og-t ${tag}`)) mark.remove();
+		for (const name of ['og-h', 'og-shadow', 'og-keep', 'og-r']) host.removeAttribute(name);
+	};
+
 	// Only the tags the server pass writes as stand-ins (./reversible.ts `implied_close`, kept
 	// equal by test/browser/restore.test.ts › "the restorer swaps back every tag …"), no on*
 	// attributes: test/browser/restore.test.ts › "a stand-in becomes only a tag the server pass …".
@@ -359,7 +371,12 @@ export function restore(root: Document | DocumentFragment | Element, lite?: numb
 
 	/** What went wrong, kept for whoever reads it later (the devtools, the profiler's beacon): the
 	 *  restorer runs while the page parses — before any listener of theirs exists. */
-	const log = (kind: 'late' | 'mismatch' | 'sheet', host: Element, diff?: string, key?: string) => {
+	const log = (
+		kind: 'late' | 'mismatch' | 'sheet' | 'invalid',
+		host: Element,
+		diff?: string,
+		key?: string
+	) => {
 		const list = (W.__og_restore_log ??= []);
 		if (list.length >= 50) return;
 		if (key && list.some((e) => e.kind === 'sheet' && e.key === key)) return;
@@ -429,9 +446,15 @@ export function restore(root: Document | DocumentFragment | Element, lite?: numb
 		const host = late ? served : (declarative(served) ?? served);
 		const k = host.getAttribute('og-h')!;
 		const keys = (host.getAttribute('og-shadow') ?? '').split(' ').filter(Boolean);
-		const shadow: ShadowRoot | null = late
-			? null
-			: (host.shadowRoot ?? host.attachShadow({ mode: 'open' }));
+		let shadow: ShadowRoot | null = null;
+		if (!late)
+			try {
+				shadow = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
+			} catch {
+				unmark(host, k);
+				log('invalid', host);
+				continue;
+			}
 		const registry = shadow as (ShadowRoot & { customElementRegistry?: unknown }) | null;
 		if (live && registry?.customElementRegistry === null)
 			(

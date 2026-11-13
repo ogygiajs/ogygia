@@ -596,6 +596,12 @@
 			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
 		},
 		{
+			"site": "packages/rewrite/src/restore.ts > restore > catch:1",
+			"reason": "a marked host that cannot have a shadow root (a built-in element or a name the engine refuses): the server marks only valid custom elements, so only markup a sanitizer let through carries one",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
+			"name": "a host that cannot have a shadow root is skipped and said; the hosts after it are restored"
+		},
+		{
 			"site": "packages/rewrite/src/restore.ts > restore_adopt > catch:0",
 			"reason": "a shadow root that refuses a sheet (an engine's own refusal): happy-dom adopts every sheet",
 			"test": "packages/rewrite/test/browser/restore.test.ts",

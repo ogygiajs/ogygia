@@ -5967,6 +5967,14 @@
 		{
 			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts > filter:0~deb9e1",
 			"reason": "dev builds only: compares the facts' few keys with the page's, for a warning; proven in packages/core/test/browser/page-facts-visit.test.ts"
+		},
+		{
+			"id": "packages/rewrite/src/messages.ts > REWRITE_WARNINGS > restore_host_invalid > details",
+			"reason": "a message table entry: wording only (#1687)"
+		},
+		{
+			"id": "packages/rewrite/src/messages.ts > REWRITE_WARNINGS > restore_host_invalid > text",
+			"reason": "a message table entry: wording only (#1687)"
 		}
 	]
 }
