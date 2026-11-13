@@ -113,7 +113,7 @@ export async function replayed_once(page: Page): Promise<boolean> {
 		.then(
 			() => true,
 			() => false
-		);
+		); // ok: not replayed within the wait is the answer the caller checks
 }
 
 /** Every island graph script in a page's HTML, merged: entry → the chunks its code needs

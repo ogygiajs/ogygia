@@ -1,5 +1,76 @@
-import { machine, type Machine, type MachineGraph } from '@ogygia/machine';
+import {
+	machine,
+	mailbox,
+	scope,
+	type Mailbox,
+	type Machine,
+	type MachineGraph,
+	type Scope
+} from '@ogygia/machine';
 import type { IslandHandle } from './hydrate-core.ts';
+
+/** What a region element holds for one lifetime in the page: the scope everything it holds across
+ *  its machines' visits is given to, and the mailbox its events take turns in (open while it is). */
+type Lifetime = { life: Scope; box: Mailbox };
+
+type RegionStates = {
+	detached: Lifetime;
+	connected: Lifetime;
+	scheduled: Lifetime;
+};
+
+const region_steps = {
+	detached: ['connected'],
+	connected: ['scheduled', 'detached'],
+	scheduled: ['connected', 'detached']
+} as const;
+
+const region_definition = machine<RegionStates>()({
+	name: 'region-life',
+	initial: 'detached',
+	steps: region_steps
+});
+
+const NOT_CONNECTED = scope();
+NOT_CONNECTED.close();
+/** A region out of the page holds nothing: anything given to its lifetime is let go at once, every
+ *  post to its mailbox is dropped and every wait in it is `STALE`. */
+const DETACHED: Lifetime = { life: NOT_CONNECTED, box: mailbox(NOT_CONNECTED) };
+
+/**
+ * A region element's lifetime in the page (core.ts). `detached`: before its first connect, and
+ * after it left the page (its lifetime closed). `connected`: in the page, a lifetime of its own (a
+ * move, out and back in one task, is no removal: it keeps it). `scheduled`: its connect armed its
+ * schedule (or found its answer), so a connect again stops there; a fetch that failed goes back to
+ * `connected` for its retry to connect afresh.
+ */
+export type RegionLife = Machine<RegionStates, typeof region_steps>;
+
+/** The region life machine as data. */
+export function region_life_graph(): MachineGraph {
+	return region_definition.graph();
+}
+
+/** A region element's life machine, detached. */
+export function create_region_life(): RegionLife {
+	return region_definition.create(DETACHED);
+}
+
+/** A new lifetime in the page: its scope and its mailbox. */
+export function new_lifetime(): Lifetime {
+	const life = scope();
+	return { life, box: mailbox(life) };
+}
+
+/** The lifetime ended: what `detached` holds. */
+export function detached(): Lifetime {
+	return DETACHED;
+}
+
+/** The lifetime a state holds, as data for the next one (a state's value carries its `kind`). */
+export function lifetime_of(now: Lifetime): Lifetime {
+	return { life: now.life, box: now.box };
+}
 
 type HoleStates = {
 	idle: {};
@@ -121,10 +192,18 @@ export function create_wake(): Wake {
 	return wake_definition.create();
 }
 
+/** A static visit's binding to its frame-store address: set once its subscription is made (the
+ *  visit's scope holds it, so leaving `static` drops it). */
+type LiveBinding = { address: string | null };
+
+/** The props of the latest same-module tick that came while its island hydrated: pushed once it
+ *  is live. */
+type LivePending = { props: Record<string, unknown> | null };
+
 type LiveStates = {
 	idle: {};
-	static: {};
-	hydrating: { module: string };
+	static: { bound: LiveBinding };
+	hydrating: { module: string; pending: LivePending };
 	live: { module: string; app: IslandHandle };
 	failed: { module: string; error: unknown };
 };
@@ -144,8 +223,10 @@ const live_definition = machine<LiveStates>()({
 });
 
 /** A live region, driven by `applyLive`. `idle`: no tick yet, or its island could not hydrate (the
- *  next tick starts over). `static`: the frame store's frames morph into it. `hydrating`: an
- *  interactive tick's HTML is in; its island loads and hydrates. `live`: its island is live; a tick
+ *  next tick starts over). `static`: the frame store's frames morph into it (`bound`: its
+ *  subscription at its address, held by the visit). `hydrating`: an interactive tick's HTML is in;
+ *  its island loads and hydrates (`pending`: the props a same-module tick brought meanwhile, pushed
+ *  once it is live). `live`: its island is live; a tick
  *  of the same module pushes props, and leaving disposes it. `failed`: its island's file could not
  *  load (said once, coded); a tick of the same module shows its HTML and loads nothing, another
  *  module or a static tick starts afresh (#942). */
@@ -180,4 +261,31 @@ export type Paint = Machine<PaintStates, typeof paint_steps>;
 /** A region's paint machine: which frame (a hole's answer, a static live tick) paints next. */
 export function create_paint(): Paint {
 	return paint_definition.create();
+}
+
+/** Where a region element's machines are, by machine name. (Its answer has no rest: a region put
+ *  back keeps what it showed.) */
+export type RegionMachinesNow = {
+	hole: Hole['now']['kind'];
+	wake: Wake['now']['kind'];
+	'live-region': Live['now']['kind'];
+	'region-paint': Paint['now']['kind'];
+};
+
+/** Where each rests: off the page, a region's machines are here (core.ts `#teardown` puts them
+ *  there; the rule `rule_region_left_busy` holds it). */
+export const REGION_REST: Readonly<RegionMachinesNow> = {
+	hole: 'idle',
+	wake: 'cold',
+	'live-region': 'idle',
+	'region-paint': 'idle'
+};
+
+/** The machines in `now` not at rest, each as `name state` (the rule's detail). */
+export function busy_machines(now: RegionMachinesNow): string[] {
+	const busy: string[] = [];
+	for (const name of Object.keys(REGION_REST) as Array<keyof RegionMachinesNow>) {
+		if (now[name] !== REGION_REST[name]) busy.push(`${name} ${now[name]}`);
+	}
+	return busy;
 }

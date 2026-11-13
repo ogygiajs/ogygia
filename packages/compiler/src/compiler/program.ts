@@ -102,10 +102,6 @@ export class Program {
 	readonly host_index: Map<string, HostIndexEntry> = new Map();
 	/** region id → hosts still claiming it (cross-host dedupe: don't drop shared wrappers) */
 	readonly id_hosts: Map<string, Set<string>> = new Map();
-	/** Client-leg: hydrate island ids whose deterministic chunk has been emitFile'd (dedup across the
-	 *  buildStart prescan emit AND the transform-time emit that catches islands prescan can't see —
-	 *  those declared inside LIBRARY components, where the host lives outside the app's `src`). */
-	readonly emitted_island_chunks: Set<string> = new Set();
 	/** BUILD, server leg: every module id Vite actually transformed (`host_key`-normalised) — the
 	 *  server bundle's real graph. Handed to the client leg, which emits island chunks only for
 	 *  islands whose HOST is in it: the prescan registers every marked import under `src/`, but a
@@ -122,9 +118,6 @@ export class Program {
 	 *  component closure from (see link/router-css.ts). Filled during the prescan walk. */
 	readonly router_modules: Set<string> = new Set();
 	readonly module_specs: Map<string, string[]> = new Map();
-	/** flag()/experiment() call sites the prescan OBSERVED (modules importing 'ogygia' only) —
-	 *  written to node_modules/.ogygia/flags-manifest.json at build for CI flag-debt diffs. */
-	readonly flag_sites: import('./flags.ts').FlagSite[] = [];
 	/** SEED SHAPING: per module (query-less id, forward slashes), the top-level `page.data` keys its
 	 *  code reads — `'all'` when a read could not be pinned to a literal key. Recorded by the driver's
 	 *  transform for every module that imports Kit's page store (link/page-keys.ts); the client

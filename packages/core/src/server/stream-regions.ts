@@ -4,6 +4,7 @@ import { OG_LEN, OGYGIA_SLOT } from '../wire-markup.ts';
 const STREAM_DONE_SLOT = '__ogygia_done__';
 
 function has_template_close(html: string): boolean {
+	// markup-ok: a false yes only frames the answer by length, which is always safe
 	for (let i = html.indexOf('</'); i !== -1; i = html.indexOf('</', i + 2)) {
 		if (html.length - i < 10) return false;
 		if (html.slice(i + 2, i + 10).toLowerCase() === 'template') return true;

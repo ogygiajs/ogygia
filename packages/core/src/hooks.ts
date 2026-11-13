@@ -19,7 +19,7 @@
  * @packageDocumentation
  */
 import { render } from 'svelte/server';
-import { clock, say } from '@ogygia/machine';
+import { clock, say, STALE } from '@ogygia/machine';
 import type { Component } from 'svelte';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { Handle } from './kit-handle.ts';
@@ -43,12 +43,14 @@ import {
 	route_config,
 	runtime_url,
 	devtools_boot_url,
-	server_plugins
+	server_plugins,
+	handoff_problem
 } from 'ogygia:server';
 import { dev_hmr_url } from './dev-hmr-url.ts';
 import { REGION_BRAND } from './region-brand.ts';
 import { signing_key, configure_signing_secret } from './server/signing-key.ts';
 import { mpaSpeculationRules } from './server/speculation.ts';
+import { fn_manifest_script } from './server/fn-manifest-script.ts';
 import { set_page_route_config } from './plugin/routes.ts';
 import {
 	set_kit_page_reader,
@@ -69,6 +71,7 @@ import {
 	render_page_version
 } from './server/render-page.ts';
 import { absolutize_hole_html } from './server/hole-urls.ts';
+import { read_capped } from './server/capped-body.ts';
 import { KEEP_FALLBACK_HTML, is_keep_fallback } from './keep-fallback.ts';
 import { set_source_recorder } from './source.ts';
 import { building, dev } from '$app/env';
@@ -118,10 +121,13 @@ import {
 	capability_query,
 	configure_islands_endpoint,
 	islands_endpoint,
+	is_islands_endpoint,
 	MAX_REGION_PROPS_LEN,
 	REGION_CAPABILITY_VERSION,
 	is_region_id,
-	is_region_ttl
+	is_region_ttl,
+	is_signed_number,
+	REGION_EXP_DIGITS
 } from './server/endpoint.ts';
 import { batch_stream } from './server/stream-regions.ts';
 import {
@@ -148,11 +154,11 @@ import {
 	OG_FORMAT,
 	OGYGIA_DEV_HMR,
 	OGYGIA_DEVTOOLS_BOOT,
-	OGYGIA_FNM,
 	OGYGIA_PAGE,
 	OGYGIA_PROVIDE_PAGE,
 	OGYGIA_SPECULATE
 } from './wire-markup.ts';
+import { body_end, head_end } from './markup-walk.ts';
 import {
 	stage_deferred,
 	settle_deferred,
@@ -168,7 +174,7 @@ import {
 } from './runtime/concurrency.ts';
 import { stringify } from 'devalue';
 import { serialize_provided_context } from './context-bridge.ts';
-import { escape_script_text } from './escape.ts';
+import { escape_amp_quot, escape_script_text } from './escape.ts';
 import { hole_copy_key } from './contract/hash.ts';
 import { set_ctx_recorder } from './context-registry.ts';
 import {
@@ -277,6 +283,8 @@ const dt_now = clock.mono;
 //          and records it here; the seed below merges it in. That's how `$page.data` works in islands.
 //   deferred — page.data/form promises staged for STREAMING (real browser loads only). Set during
 //          the render; `handle` streams a resolve script per promise after the doc ships.
+/** An open late-region scope: the regions not yet drained, and the next slot id (`r<n>`). */
+type LateCapture = { regions: LateRegion[]; next: number };
 type RequestBag = {
 	/** The request this bag is for: its response's mark is keyed on it (server/response-mark.ts). */
 	request: Request;
@@ -285,11 +293,10 @@ type RequestBag = {
 	/** The `load` hole endpoints this page's head started early (early-holes.ts): its response's
 	 *  policy then needs the early start's hash. */
 	early_holes?: string[];
-	/** Some region on the page reads `$page` on the client (Region.svelte × `islandReadsPage`), so
-	 *  the `application/ogygia-page` seed must ship. The snapshot itself is recorded regardless. */
-	seed_wanted: boolean;
 	/** SEED SHAPING: the union of the regions' asks — the `page.data` keys to ship, or `'all'`
-	 *  (some region's reads could not be pinned). `null` until a region asks (then `seed_wanted`). */
+	 *  (some region's reads could not be pinned). `null` until a region reads `$page` on the client
+	 *  (Region.svelte × `islandReadsPage`): not null, the `application/ogygia-page` seed must ship.
+	 *  The snapshot itself is recorded regardless. */
 	seed_keys: import('./server/seed-shape.ts').SeedKeys | null;
 	/** each region's own ask, by entry — the seed explainer's "who reads what" (detail only) */
 	seed_asks: Map<string, SeedAsk> | null;
@@ -308,13 +315,11 @@ type RequestBag = {
 	deferred: Deferred[] | null;
 	/** Next free defer id after data+form staging — re-staging (nested promises) continues from here. */
 	defer_next_id: number;
-	/** LATE REGIONS registered during the render (`<Region of={promise}>` on a streamed router
-	 *  page) — the router drains these into completion-order template chunks. */
-	late: LateRegion[] | null;
-	late_next: number;
-	/** The router's streamed document opened the late scope (`open_late_scope`): only then does a
-	 *  promise `of` register — nothing else would ever fill its slot. */
-	late_open: boolean;
+	/** LATE REGIONS (`<Region of={promise}>` on a streamed router page): null until the router's
+	 *  streamed document opens the scope (`open_late_scope`), since nothing else would ever fill a
+	 *  slot. Open, it holds the regions registered and not yet drained (the router drains them into
+	 *  completion-order template chunks, again while it bakes) and the next slot id. */
+	late: LateCapture | null;
 	/** devalue reducers for streamed resolve scripts (app transport encoders + defer marker). */
 	seed_reducers: Record<string, (v: unknown) => unknown> | null;
 	/** the document carries Kit's client bootstrap (`__sveltekit_*` defined): Kit's streamed resolve
@@ -354,7 +359,8 @@ set_ctx_recorder((key, value) => {
 // THE SERVER ROUTER'S DOCUMENT asks too: a router page (the profiler's own, an app's) is answered
 // before a Kit page bag exists, so its regions' asks are collected here, off the same `Request` (the
 // one stable identity, and no second ALS). The document reads them back and seeds like a Kit page.
-const doc_asks = new WeakMap<Request, { wanted: boolean; keys: SeedKeys | null }>();
+// (the asks' keys, `null` until one asks: present once the document opened its ask scope)
+const doc_asks = new WeakMap<Request, SeedKeys | null>();
 const request_of = () =>
 	(try_get_request_store() as { event?: RequestEvent } | undefined)?.event?.request;
 // THE NAMES OF A RENDER (ref.ts RefNames): every ref one request mints is named by it, off the same
@@ -369,16 +375,16 @@ set_ref_names_reader(() => {
 });
 set_ask_scope_opener(() => {
 	const request = request_of();
-	if (request && !bags.has(request) && !doc_asks.has(request))
-		doc_asks.set(request, { wanted: false, keys: null });
+	if (request && !bags.has(request) && !doc_asks.has(request)) doc_asks.set(request, null);
 });
 // the regions' asks so far, for the server router's document (it builds its own seed)
 set_seed_ask_reader(() => {
 	const bag = bag_of();
-	if (bag) return { wanted: bag.seed_wanted, keys: bag.seed_keys };
+	if (bag) return { wanted: bag.seed_keys !== null, keys: bag.seed_keys };
 	const request = request_of();
-	const d = request ? doc_asks.get(request) : undefined;
-	return d ? { wanted: d.wanted, keys: d.keys } : undefined;
+	if (!request || !doc_asks.has(request)) return undefined;
+	const keys = doc_asks.get(request) ?? null;
+	return { wanted: keys !== null, keys };
 });
 set_page_recorder((snapshot, seed, remotes, entry) => {
 	// a render FOR a page (a hole, a remote call): its islands' asks are the render-page model's —
@@ -389,11 +395,8 @@ set_page_recorder((snapshot, seed, remotes, entry) => {
 	if (!bag) {
 		// a router document's render: only the asks matter (it builds its own seed from its snapshot)
 		const request = request_of();
-		const d = request ? doc_asks.get(request) : undefined;
-		if (d && seed !== false) {
-			d.wanted = true;
-			d.keys = merge_seed_ask(d.keys, seed);
-		}
+		if (request && doc_asks.has(request) && seed !== false)
+			doc_asks.set(request, merge_seed_ask(doc_asks.get(request) ?? null, seed));
 		return;
 	}
 	// MERGE: the routeless document root records url/params/route from the router's seed first;
@@ -401,10 +404,7 @@ set_page_recorder((snapshot, seed, remotes, entry) => {
 	bag.page = { ...bag.page, ...snapshot };
 	// SEED ONLY WHEN READ, AND ONLY WHAT IS READ: one island whose client code reads `$page` is
 	// enough to ship the seed; the union of the islands' key asks decides how much of `page.data`.
-	if (seed !== false) {
-		bag.seed_wanted = true;
-		bag.seed_keys = merge_seed_ask(bag.seed_keys, seed);
-	}
+	if (seed !== false) bag.seed_keys = merge_seed_ask(bag.seed_keys, seed);
 	// the profiler's seed explainer: who asked for what (detail only — a Map write per region)
 	if (bag.seed_asks && entry && seed !== false) bag.seed_asks.set(entry, seed);
 	// REMOTE SEED ONLY WHEN REACHABLE: union the remotes this region's client can call; one
@@ -469,23 +469,24 @@ set_kit_page_reader(() => {
 	);
 });
 // LATE REGIONS: a promise `of` registers per request; the id keys the region's slot wrapper AND
-// its later template chunk. The taker DRAINS (the router reads once, post-render).
+// its later template chunk. The taker DRAINS and leaves the scope open (the router drains again while
+// it bakes, so a late region inside a late region still lands).
 set_late_scope_opener(() => {
 	const bag = bag_of();
-	if (bag) bag.late_open = true;
+	if (bag) bag.late ??= { regions: [], next: 0 };
 });
 set_late_recorder((promise) => {
-	const bag = bag_of();
-	if (!bag?.late_open) return null;
-	const id = `r${bag.late_next++}`;
-	(bag.late ??= []).push({ id, promise });
+	const late = bag_of()?.late;
+	if (!late) return null;
+	const id = `r${late.next++}`;
+	late.regions.push({ id, promise });
 	return id;
 });
 set_late_taker(() => {
-	const bag = bag_of();
-	if (!bag?.late?.length) return null;
-	const list = bag.late;
-	bag.late = null;
+	const late = bag_of()?.late;
+	if (!late?.regions.length) return null;
+	const list = late.regions;
+	late.regions = [];
 	return list;
 });
 // FACTS (plugin/facts.ts): the region-endpoint mint (prerender-grade holes in a storable render)
@@ -507,13 +508,21 @@ set_page_route_config(route_config);
 // the plugins of the run before leave first.
 // Their `app.sign` / `app.verify` use the region key, read at first use (an env the host fills after
 // module eval still counts). Their `app.capability` lives and renews by the app's own hole lifetime,
-// and a refused one is answered like a refused region request.
+// and a refused one is answered like a refused region request. Opening one pays the region budgets of
+// the handle serving the request (PROBE-THEN-RENDER); a request no handle of ours serves pays a 429.
+const hole_budgets = new WeakMap<Request, OgygiaHandle>();
 const plugins = start_app_plugins(server_plugins, {
 	sign: (message) => sign(signing_key().secret, message),
 	verify: (message, signature) => verify(signing_key().secret, message, signature),
 	fingerprint: () => signing_key().fp,
 	lifetime: app_lifetime,
-	deny: region_denied
+	deny: region_denied,
+	charge(event, step) {
+		const served_by = hole_budgets.get(event.request);
+		return served_by
+			? served_by.charge_hole(event, step)
+			: region_response('Too Many Requests', { status: 429 });
+	}
 });
 // DEVTOOLS: per-request event buffers, keyed off the request bag by a side WeakMap so RequestBag stays
 // pristine (and free) when devtools is off. GC'd with the bag; never a global ring (which would mix
@@ -539,8 +548,8 @@ function dt_record(bag: RequestBag | undefined, input: DevtoolsEventInput): void
 // transform outside it, passes its bag to `dt_record` directly)
 if (DEVTOOLS) set_server_devtools_recorder((input) => dt_record(bag_of(), input));
 
-/** Cap on a batch POST body before `request.json()` buffers it. 32 endpoints × ~8.5kB (props cap
- *  8192 + URL overhead) ≈ 270kB; 512kB leaves margin. Rejected up front via `content-length`. */
+/** Cap on a batch POST body. 32 endpoints × ~8.5kB (props cap 8192 + URL overhead) ≈ 270kB;
+ *  512kB leaves margin. Read no further than the cap (server/capped-body.ts). */
 const MAX_BATCH_BODY = 512 * 1024;
 
 /** Abort waiting on slow region SSR (work may continue — see INVARIANTS · RENDER-TIMEOUT): the
@@ -686,7 +695,7 @@ function decode_pathname(pathname: string): string | null {
 	try {
 		return decodeURIComponent(pathname);
 	} catch {
-		return null;
+		return null; // ok: the caller answers 400
 	}
 }
 
@@ -696,7 +705,7 @@ function client_ip(event: RequestEvent): string | null {
 	try {
 		return event.getClientAddress();
 	} catch {
-		return null;
+		return null; // ok: fail closed: the callers answer 429
 	}
 }
 
@@ -730,7 +739,6 @@ function emit_ogygia_script(subtype: string, escaped_payload: string, marker = '
 	return `<script type="application/ogygia-${subtype}"${marker ? ` ${marker}` : ''}>${escaped_payload}</script>`;
 }
 
-const DOUBLE_QUOTE_G = /"/g;
 /** Stamped into the head of a csr=true document: the runtime reads it (`kit_hydrates_page`)
  *  instead of scanning the page's inline scripts for Kit's bootstrap. */
 const CSR_META = '<meta name="ogygia-csr" content="true">';
@@ -827,6 +835,26 @@ class OgygiaHandle {
 	readonly probe_rate: RateLimiter;
 	/** a render budget spent by a proxy's address, said once (#894) */
 	readonly #shared_address = say({ max: 1 });
+	/** The client build's handoff problem, said once while it lasts (production: dev reads none). */
+	readonly #handoff_said = say({ max: 2 });
+
+	#check_handoff(): void {
+		const p = handoff_problem();
+		if (!p) {
+			this.#handoff_said.ok('missing');
+			this.#handoff_said.ok('unreadable');
+			return;
+		}
+		this.#handoff_said.once(p.kind, () =>
+			console.error(
+				new OgygiaError('island_deps_handoff_missing', {
+					kind: p.kind,
+					tried: p.tried.join(', '),
+					error: p.error ?? ''
+				})
+			)
+		);
+	}
 
 	constructor(options: OgygiaHandleOptions = {}) {
 		// (the app's own pass is @ogygia/reshape's now; a JS caller still passing it is told where)
@@ -875,7 +903,26 @@ class OgygiaHandle {
 	// THE REQUEST'S OWNER (plugin/request-scope.ts) is made here, outermost, so every plugin's hook
 	// and the core run under it, and ends with the response (its body read or cancelled) or when the
 	// visitor leaves, whichever is first.
-	handle: Handle = owned(around(plugins, (input) => this.#core(input)));
+	readonly #handle: Handle = owned(around(plugins, (input) => this.#core(input)));
+	// (whose budgets a plugin's signed hole in this request pays, `charge_hole`; no plugins, no hole)
+	handle: Handle =
+		plugins.length === 0
+			? this.#handle
+			: (input) => {
+					hole_budgets.set(input.event.request, this);
+					return this.#handle(input);
+				};
+
+	/** A plugin's signed hole (plugin/capability.ts `open`) pays this handle's region budgets, in
+	 *  the region hole's order: `probe` before any HMAC, `render` once the signature checks. */
+	charge_hole(event: RequestEvent, step: 'probe' | 'render'): Response | null {
+		const ip = client_ip(event);
+		// (fail closed, as a region hole does: one shared bucket for unknown addresses is a DoS vector)
+		if (!ip) return region_response('Too Many Requests', { status: 429 });
+		if (step === 'probe')
+			return this.probe_rate.limited(ip) ? over_budget(this.probe_rate, ip) : null;
+		return this.#render_over(ip) ? over_budget(this.render_rate, ip) : null;
+	}
 
 	#core: Handle = async ({ event, resolve }) => {
 		const path = decode_pathname(event.url.pathname);
@@ -887,6 +934,7 @@ class OgygiaHandle {
 		// the region endpoint (deferred/live holes, the per-visitor leg of a cached page) all see what
 		// it set up (flags prime their source here). Its `done` stage runs at the request's end, always
 		// (flags drain exposures: the serverless-safe tail). No plugins: straight through, no wrapper.
+		if (!import.meta.env.DEV) this.#check_handoff();
 		const facts = facts_of(event.request);
 		if (plugins.length === 0) return this.#route(event, resolve, path, NO_CTXS, facts);
 		const ctxs = request_contexts(plugins, event, path, facts, (endpoint) =>
@@ -919,11 +967,9 @@ class OgygiaHandle {
 		ctxs: readonly RequestContext<unknown, unknown>[],
 		facts: RequestFacts
 	): Promise<Response> {
-		// Compare against the DECODED request pathname so the percent-encoded UTF-8 the browser
-		// sends matches our raw-emoji literal regardless of how Kit hands us the URL. Suffix match
-		// (not `===`) so it works under any `paths.base` without needing the base at all: the request
-		// arrives at `<base>/__ogygia__`, and the endpoint is a leading-slash, clash-safe path.
-		if (!path.endsWith(this.#endpoint)) {
+		// The endpoint's one path under the app's base, the path minted: a page whose path only ends
+		// the same is a page (test/islands-endpoint.test.ts)
+		if (!is_islands_endpoint(path)) {
 			// PAGE FACTS (server/page-facts.ts): a render outside its page looks the page up through
 			// Kit's own data request. Nothing renders here: no bag, no store. The answer names the
 			// route and params Kit matched, which the data alone does not carry.
@@ -964,7 +1010,6 @@ class OgygiaHandle {
 			const bag: RequestBag = {
 				ctx: new Map(),
 				page: null,
-				seed_wanted: false,
 				seed_keys: null,
 				seed_asks: request_stats_detailed() ? new Map() : null,
 				remotes_wanted: new Set(),
@@ -973,8 +1018,6 @@ class OgygiaHandle {
 				deferred: null,
 				defer_next_id: 0,
 				late: null,
-				late_next: 0,
-				late_open: false,
 				seed_reducers: null,
 				facts,
 				request: event.request
@@ -1082,7 +1125,8 @@ class OgygiaHandle {
 					response,
 					bag.deferred,
 					bag.defer_next_id,
-					bag.seed_reducers ?? undefined
+					bag.seed_reducers ?? undefined,
+					event.url.pathname
 				);
 			}
 			// A page with no Kit client (csr=false) whose load returned promises nobody seeds (no
@@ -1122,18 +1166,14 @@ class OgygiaHandle {
 		if (!ip) return region_response('Too Many Requests', { status: 429 });
 		// (each hole is charged as its own GET would be, in #render_capability: one budget unit, one
 		// render, whichever door it comes in by)
-		// A batch is at most MAX_BATCH signed endpoints (~8.5kB each), so a well-formed body is a few
-		// hundred kB. `request.json()` buffers the WHOLE body before we can slice to 32 — reject an
-		// oversized body up front (O(1) header check) so a single padded POST can't force a large
-		// buffer. Platform adapters cap the body too, but this makes the bound explicit and covers
-		// adapters that don't. (Chunked uploads without content-length still rely on the platform cap.)
-		const content_length = Number(event.request.headers.get('content-length'));
-		if (Number.isFinite(content_length) && content_length > MAX_BATCH_BODY) {
-			return region_response('Payload Too Large', { status: 413 });
-		}
+		// A batch is at most MAX_BATCH signed endpoints (~8.5kB each): a body past the cap is refused
+		// as soon as it passes it, chunked or not (test/batch-body-cap.test.ts)
+		const body = await read_capped(event.request, MAX_BATCH_BODY);
+		if (body === 'too large') return region_response('Payload Too Large', { status: 413 });
+		if (body === 'unreadable') return region_response('Bad Request', { status: 400 });
 		let parsed: unknown;
 		try {
-			parsed = await event.request.json();
+			parsed = JSON.parse(new TextDecoder().decode(body));
 		} catch {
 			return region_response('Bad Request', { status: 400 });
 		}
@@ -1174,9 +1214,9 @@ class OgygiaHandle {
 		event: RequestEvent,
 		bag: RequestBag
 	): Promise<string> {
-		if (html.indexOf('</head>') === -1) return html;
+		if (head_end(html) === -1) return html;
 		const out = await pass.document(html, {
-			csr: csr_page_of(html, html.lastIndexOf('</body>'), event, bag),
+			csr: csr_page_of(html, body_end(html), event, bag),
 			// (the router morphs a fetched page into the live one: it is rendered as an answer)
 			answer: router_fetched(event)
 		});
@@ -1331,7 +1371,7 @@ class OgygiaHandle {
 				// a changed stylesheet joins this page only when the plugin derives the same scope
 				// among its owners — two route-group sub-apps never paint each other in dev.
 				const scope = (event?.route.id ?? '').split('/').filter(Boolean)[0] ?? '';
-				head_inject = `${head_inject}<meta name="ogygia-dev-scope" content="${scope.replace(DOUBLE_QUOTE_G, '')}">`;
+				head_inject = `${head_inject}<meta name="ogygia-dev-scope" content="${escape_amp_quot(scope)}">`;
 			}
 		}
 
@@ -1363,7 +1403,7 @@ class OgygiaHandle {
 		const page_snap = bag!.page!;
 		// SEED ONLY WHEN READ (the rule is spelled out at the seed payload below): no reader → no
 		// seed → the sidecars serialize self-contained, and nothing below stages or settles.
-		const seed_wanted = bag!.seed_wanted;
+		const seed_wanted = bag!.seed_keys !== null;
 		// THE DOCUMENT TAIL (server/document-tail.ts): the regions' module-preload hints, then their
 		// props sidecars — after the content, before the seeds. Rendered ONCE, now that the request
 		// knows whether the seed ships: only then does a sidecar serialize relative to it (seed-refs.ts)
@@ -1427,8 +1467,14 @@ class OgygiaHandle {
 			bag!.seed_reducers = seed_reducers; // resolve scripts encode with the same transport + defer
 			scripts.push(`<script>${PAGE_DEFER_BOOTSTRAP}</script>`);
 		} else if (has_pending && seed_wanted) {
-			seed_data = await settle_deferred(shaped_data);
-			seed_form = await settle_deferred(page_snap.form);
+			// (data and form settle together, the request's wait: the visitor gone, nobody reads it)
+			const settled = await settle_deferred(
+				[shaped_data, page_snap.form],
+				request_scope(bag!.request),
+				event?.url.pathname
+			);
+			if (settled === STALE) return html;
+			[seed_data, seed_form] = settled as [typeof seed_data, typeof seed_form];
 		}
 
 		// The tail (rendered above, before shaping) goes out after the defer bootstrap, before the seeds.
@@ -1509,10 +1555,7 @@ class OgygiaHandle {
 			// (the manifest is the build's: its script is written once, not per request)
 			let fnm_script = fnm_script_cache.get(fnm);
 			if (fnm_script === undefined) {
-				const entries = Object.entries(fnm)
-					.map(([tag, src]) => `${JSON.stringify(tag)}:(${src})`)
-					.join(',');
-				fnm_script = `<script ${OGYGIA_FNM}>globalThis.__OG_FNM=Object.assign(globalThis.__OG_FNM||{},{${entries}});</script>`;
+				fnm_script = fn_manifest_script(fnm);
 				fnm_script_cache.set(fnm, fnm_script);
 			}
 			scripts.push(fnm_script);
@@ -1686,6 +1729,8 @@ class OgygiaHandle {
 	 * batch path ({@link #render_capability}).
 	 */
 	async #render_component(
+		/** the hole's region id: its answer's slot ids carry it */
+		id: string,
 		load: () => Promise<{ default: unknown }>,
 		props: Record<string, unknown>,
 		/** the hole wakes (its capability's signed `w`): rendered inside an island, as it hydrates */
@@ -1713,7 +1758,7 @@ class OgygiaHandle {
 			const mod = await load();
 			const rendered = render(mod.default as Component<Record<string, unknown>>, {
 				props,
-				context: hole_answer_context(wakes)
+				context: hole_answer_context(wakes, id)
 			});
 			// (with what its islands wrote into the head — their graph and their CSS: the endpoint
 			// ships the body only — server/hole-graph.ts)
@@ -1766,9 +1811,9 @@ class OgygiaHandle {
 				told_abandoned.add(e as Error);
 				warn('region_render_abandoned', { ms: RENDER_TIMEOUT_MS });
 			}
-			// The response is an opaque 500 ("Region render failed"); the reason belongs in the dev
-			// terminal — a hole that throws only on the dev server is otherwise a blind hunt.
-			if (import.meta.env.DEV) warn('region_render_failed', e);
+			// The response is an opaque 500 ("Region render failed"); the reason belongs in the
+			// server's log, in production as in dev (test/hole-throw-said.test.ts)
+			warn('region_render_failed', e);
 			return null;
 		}
 	}
@@ -1813,7 +1858,8 @@ class OgygiaHandle {
 	/**
 	 * Every check a capability passes BEFORE any HMAC (P5-HMAC-CPU), in order: charset/length (ids
 	 * are 12-hex from the transform; `ttl` is signed, but charset-gated here so a forged value never
-	 * reaches a response header), expiry (a renewal instead needs one inside the renew window: a URL
+	 * reaches a response header; `exp` and `ttl` in their one spelling, server/endpoint.ts
+	 * `is_signed_number`), expiry (a renewal instead needs one inside the renew window: a URL
 	 * that has not expired never renews), and the signing key it names. Null when it passes, else why
 	 * it is refused.
 	 */
@@ -1823,6 +1869,7 @@ class OgygiaHandle {
 			(cap.render !== '' && !is_region_id(cap.render)) ||
 			cap.payload.length > MAX_REGION_PROPS_LEN ||
 			!is_region_ttl(cap.ttl) ||
+			!is_signed_number(cap.exp, REGION_EXP_DIGITS) ||
 			(cap.v !== '' && cap.v !== REGION_CAPABILITY_VERSION) ||
 			(cap.wakes !== '' && cap.wakes !== '1')
 		)
@@ -1890,7 +1937,9 @@ class OgygiaHandle {
 				[REF_WIRE_KEY]: ref_reviver(false)
 			} as Parameters<typeof devalue.parse>[1]);
 		} catch (e) {
-			if (import.meta.env.DEV) warn('endpoint_props_decode_failed', e);
+			// in production as in dev: reached only with a capability this key signed, and the
+			// answer stays opaque (test/hole-props-decode-said.test.ts)
+			warn('endpoint_props_decode_failed', e);
 			return null;
 		}
 		if (props === null || typeof props !== 'object' || Array.isArray(props)) return null;
@@ -1961,6 +2010,7 @@ class OgygiaHandle {
 		let outcome: 'hit' | 'miss' | 'none' = 'none';
 		if (!r.go('rendering')) return null;
 		const body = await this.#render_component(
+			id,
 			load,
 			props,
 			wakes,
@@ -2117,6 +2167,7 @@ class OgygiaHandle {
 		let outcome: 'hit' | 'miss' | 'none' = 'none';
 		if (!r.go('rendering')) return region_response('Region render failed', { status: 500 });
 		const body = await this.#render_component(
+			id,
 			load,
 			props,
 			wakes,

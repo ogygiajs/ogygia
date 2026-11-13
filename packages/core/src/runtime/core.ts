@@ -3,9 +3,7 @@ import {
 	buggify,
 	clock,
 	flights,
-	mailbox,
 	registry,
-	scope,
 	STALE,
 	tasks,
 	type Mailbox,
@@ -14,14 +12,18 @@ import {
 	type Turn
 } from '@ogygia/machine';
 import { frameAddress, older_by, stands_at, type FrameOrder } from '../frame.ts';
+import { on_trigger, WAKE } from '../contract/trigger.ts';
 import { OG_BAKED, OG_FP, OG_HOLE, OG_KEPT, OG_STATIC, OGYGIA_REGION_CSS } from '../wire-markup.ts';
 import { import_again, is_failed_import, on_file_load, on_reload_needed } from './import-again.ts';
 import { browser_offline, no_response } from './network.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
 // off in a build where no region streams HTML, and the bundler drops the element's fetch / apply /
 // morph / renew path with it — that path works on the element's own state, so it cannot be a
-// feature module of its own, and without the frame store it has nowhere to land anyway.
+// feature module of its own, and without the frame store it has nowhere to land anyway. Where the
+// wire codec is not in the build up front, a wake loads it on use (./wire-on-use.ts).
 import { FRAMES } from 'ogygia:boot';
+import { wire_for_wake } from './wire-on-use.ts';
+import { report_thrown } from '../report-thrown.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
 import {
 	init_shadow_registries,
@@ -29,12 +31,7 @@ import {
 	vouch_remote_answer,
 	type VerifiedHtml
 } from './html-sink.ts';
-import {
-	mark_region_changed,
-	region_changed,
-	unwatch_region,
-	watch_region
-} from './drift-watch.ts';
+import { mark_region_changed, region_changed, watch_region } from './drift-watch.ts';
 import { runtime_session } from './session.ts';
 import {
 	capability_expired,
@@ -67,13 +64,20 @@ import { slots, type FrameOps } from './slots.ts';
 import {
 	create_answer,
 	create_hole,
+	busy_machines,
 	create_live,
 	create_paint,
+	create_region_life,
 	create_wake,
+	detached,
+	lifetime_of,
+	new_lifetime,
 	type Answer,
 	type Hole,
 	type Live,
 	type Paint,
+	type RegionLife,
+	type RegionMachinesNow,
 	type Wake
 } from './region-machines.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
@@ -81,6 +85,7 @@ import { download, region_fetch, region_rate_limited } from '../policies.ts';
 import {
 	install_rules,
 	note_handed,
+	note_left,
 	note_mount,
 	note_shown,
 	note_turn,
@@ -111,7 +116,7 @@ import { fetch_priority_of, LoadSlot, viewport_class, type LoadClass } from './l
 import { PRIORITY } from './load-class.ts';
 import type { FrameFetcher } from './frame-store.ts';
 import { connected_regions } from './connected.ts';
-import { restore_props_sidecar } from './sidecar.ts';
+import { props_sidecar_of, restore_props_sidecar } from './sidecar.ts';
 import { hole_facts_of } from './hole-facts.ts';
 import { set_hydrating, tap_svelte_warnings, on_svelte_warning } from './svelte-warnings.ts';
 import type { IslandHandle, IslandModule } from './hydrate-core.ts';
@@ -338,13 +343,6 @@ function dom_ready() {
 
 /** A machine's state, as the schedules armed in it see it: what to run when it is left. */
 type Leaves = { readonly scope: Scope };
-
-/** What a region element holds before its first connect and after it left the page: nothing.
- *  Anything given to it is let go at once. */
-const NOT_CONNECTED = scope();
-NOT_CONNECTED.close();
-/** Its mailbox then: closed (every post dropped, every wait `STALE`). */
-const CLOSED_BOX: Mailbox = mailbox(NOT_CONNECTED);
 
 /** A live region's tick, as Region.svelte hands it to `applyLive`. */
 type LiveTick = {
@@ -589,7 +587,9 @@ export function pristine_ssr_of(el: Element): string | undefined {
 }
 
 class OgygiaRegion extends HTMLElement {
-	#scheduled = false;
+	/** Its lifetime in the page: detached, connected, scheduled (./region-machines.ts). Each
+	 *  lifetime holds its scope and its mailbox (below). */
+	#region: RegionLife = create_region_life();
 	/** The server-minted `endpoint` of a deferred hole, captured at connect. On a Kit-hydrated
 	 *  (csr=true) document the wrapper's client leg cannot mint (the virtual is stubbed to ''), so
 	 *  Kit's hydration pass reconciles the attribute to '' — after the runtime saw it at parse time.
@@ -610,9 +610,9 @@ class OgygiaRegion extends HTMLElement {
 	 * visit holds stays on that visit (`m.scope`). Closed before the first connect and after the
 	 * teardown: anything given to it then is let go at once.
 	 */
-	#life: Scope = NOT_CONNECTED;
-	/** Its entry in the connected regions (connected.ts) for this lifetime: its removal. */
-	#counted: (() => void) | null = null;
+	get #life(): Scope {
+		return this.#region.now.life;
+	}
 	/**
 	 * ITS EVENTS, ONE AT A TIME (@ogygia/machine's `mailbox()`, #322): a connect, a schedule firing, a
 	 * frame landing, a live tick, its fetch's end and its retry, its wake's steps — each a turn, in the
@@ -621,15 +621,15 @@ class OgygiaRegion extends HTMLElement {
 	 * the element leaving drops what is queued, and a step waiting gets `STALE` at once. Every callback
 	 * that comes back to the element later posts here (the box of the lifetime it started in).
 	 */
-	#box: Mailbox = CLOSED_BOX;
+	get #box(): Mailbox {
+		return this.#region.now.box;
+	}
 	/** The answer it painted last: what a hole put back on the page shows again when the frame store
 	 *  let it go meanwhile (#336). */
 	#shown: VerifiedHtml | null = null;
-	/** Frames its binding was handed (a binding that replays one counts it at once). */
-	#frames_in = 0;
 	/** A live region's last tick: what it goes on with when it is put back on the page (#337). */
 	#live_last: LiveTick | null = null;
-	/** While it sleeps with a copy: counted in drift-watch.ts's sleeping islands, until it wakes (or
+	/** While it sleeps with a copy: held in drift-watch.ts's sleeping islands, until it wakes (or
 	 *  leaves the page). */
 	#asleep: Scope | null = null;
 	get #watching(): boolean {
@@ -637,9 +637,7 @@ class OgygiaRegion extends HTMLElement {
 	}
 	#watch(): void {
 		if (this.#watching) return;
-		this.#asleep = this.#life.child();
-		watch_region();
-		this.#asleep.defer(unwatch_region);
+		watch_region((this.#asleep = this.#life.child()));
 	}
 	#unwatch(): void {
 		this.#asleep?.close();
@@ -666,8 +664,6 @@ class OgygiaRegion extends HTMLElement {
 	#visitor: Promise<unknown> | null = null;
 	/** The hydrated island (hydrate core handle): dispose, and for a kept island, props push. */
 	#app: IslandHandle | null = null;
-	/** Disconnected, teardown waiting a microtask: a reconnect before it is a move. */
-	#leaving = false;
 	/** Live region (`<ogygia-region live>`): driven imperatively by Region.svelte's applyLive. */
 	#live_ready = false;
 	/** Its mode, tick by tick: static (subscribed to the store), hydrating, live (./region-machines.ts). */
@@ -675,10 +671,6 @@ class OgygiaRegion extends HTMLElement {
 	/** The frame that paints next: each frame waits for its sheets in a visit of its own, and only
 	 *  the newest paints (./region-machines.ts). */
 	#paint: Paint = create_paint();
-	/** The props of the latest same-module tick that came while its island hydrated: pushed once live. */
-	#live_props: Record<string, unknown> | null = null;
-	/** A static live region's subscription to its address, while it is static. */
-	#live_unsub: (() => void) | null = null;
 	/** Where the HTML a static tick painted itself stands in its address's order (`older_by`): a frame
 	 *  not newer than it is older than what is on screen. */
 	#live_painted: FrameOrder | null = null;
@@ -713,13 +705,31 @@ class OgygiaRegion extends HTMLElement {
 	 * CONTINUITY: this persisted island is relocating onto `next` (the incoming page's SSR region).
 	 * Push the new page's props into the live app so a `persist`ed component reflects the new route
 	 * (e.g. a player's `track` changes) instead of freezing at first-mount props. Called by the
-	 * router just before `next` is discarded. Synchronous by contract — a kept island has hydrated,
-	 * so the hydrate core is loaded.
+	 * router just before `next` is discarded, so its sidecar is found now. A kept island has
+	 * hydrated, so the hydrate core is loaded; props that carry a live value in a build without the
+	 * codec wait for its load, as a wake does (test/browser/wire-on-use-kept.test.ts). A newer page's
+	 * props win over a load still out for older ones.
 	 */
 	absorbKeptProps(next: Element): void {
 		if (!this.#app?.set_props || !loaded_core) return;
+		const sidecar = props_sidecar_of(next);
+		const codec = wire_for_wake(next);
+		this.#absorbing?.close();
+		this.#absorbing = null;
+		if (codec === undefined) return this.#absorb(sidecar);
+		const waiting = (this.#absorbing = this.#life.child());
+		waiting
+			.task(() => codec)
+			.then((loaded) => {
+				if (loaded !== STALE) this.#absorb(sidecar);
+			}, report_thrown);
+	}
+	/** The newest load of the codec a kept island's next props wait for (absorbKeptProps). */
+	#absorbing: Scope | null = null;
+	#absorb(sidecar: HTMLScriptElement | null): void {
+		if (!this.#app?.set_props || !loaded_core) return;
 		try {
-			this.#app.set_props(loaded_core.absorb_region_props(this, next));
+			this.#app.set_props(loaded_core.absorb_region_props(this, sidecar));
 		} catch {
 			// ok: malformed incoming props: the live props it has are kept
 		}
@@ -728,13 +738,11 @@ class OgygiaRegion extends HTMLElement {
 	connectedCallback() {
 		// its lifetime in the page starts, and its mailbox with it (a move, or a connect called again,
 		// keeps the ones it has; a connect called on an element out of the page starts none)
-		if (this.#life.closed && this.isConnected) {
-			this.#life = scope();
-			this.#box = mailbox(this.#life);
+		if (this.isConnected && this.#region.now.kind === 'detached') {
+			this.#region.go('connected', new_lifetime());
+			// the navigation's shadow-root check counts these (connected.ts): once per lifetime, held by it
+			connected_regions.add(this, this.#life);
 		}
-		// the navigation's shadow-root check counts these (connected.ts): once per lifetime, held by it
-		if (!this.#counted && !this.#life.closed)
-			this.#counted = connected_regions.add(this, this.#life);
 		devalue_lane_stale(); // (its sidecar may have come in with it)
 		// its relative URLs, against the address it entered at — they are read again after any
 		// navigation, when `location` is another page (entry-locations.ts)
@@ -778,7 +786,7 @@ class OgygiaRegion extends HTMLElement {
 		// A frozen region (lake) settles through the lakes feature; the arm hooks it needs are built
 		// only for one (five closures per region at upgrade was the cost of building them for all).
 		if (is_frozen(this) && slots.lakes.on_frozen_connect(this, this.#lake_arm())) return;
-		if (this.#scheduled) return;
+		if (this.#region.now.kind === 'scheduled') return;
 		// Region rule (DESIGN.md): a nested region rides its awake ancestor's hydration — its SSR DOM
 		// is already inside that parent, so self-running would double-hydrate. Two exceptions self-run:
 		// a DEFERRED region (its HTML is remote, never in the parent's DOM), and a region inside an
@@ -847,7 +855,7 @@ class OgygiaRegion extends HTMLElement {
 		// schedule, as under the nested rule above: a host woken by a press may never wake
 		// (e2e/hole-in-lake.spec.ts, #948)
 		if (!deferred && slots.lakes.wait_for_boundary(this, boundary)) return;
-		this.#scheduled = true;
+		this.#region.move('connected', 'scheduled', lifetime_of(this.#region.now));
 		// A hole that had its answer, put back on the page: its schedule is spent (#336)
 		if (deferred && this.#answer.now.kind !== 'none') {
 			this.#put_back();
@@ -888,10 +896,10 @@ class OgygiaRegion extends HTMLElement {
 		// frame instead of paying the origin round trip. Never `interaction` (that is `when`'s job:
 		// arming it here would replace the hole's own on-demand fire) and never the same schedule
 		// as `when` (nothing to gain) — the compiler refuses both; the guard keeps a hand-written
-		// attribute harmless.
+		// attribute harmless. Its `visible` reads the region's `margin` as `when`'s does (`#on_visible`).
 		const prefetch = this.getAttribute('prefetch');
 		if (prefetch && prefetch !== when && prefetch !== 'interaction') {
-			this.#arm(prefetch, this.#fire_prefetch, this.getAttribute('margin') || undefined);
+			this.#arm(prefetch, this.#fire_prefetch);
 		}
 	}
 
@@ -917,10 +925,9 @@ class OgygiaRegion extends HTMLElement {
 	#put_back(): void {
 		const endpoint = this.#endpoint();
 		if (!endpoint || this.#bound()) return;
-		const handed = this.#frames_in;
-		this.#bind(endpoint);
+		const replayed = this.#bind(endpoint);
 		const shown = this.#shown;
-		if (this.#frames_in === handed && shown !== null && this.#answer.now.kind === 'answered')
+		if (!replayed && shown !== null && this.#answer.now.kind === 'answered')
 			this.#box.post((turn) => this.#apply(shown, turn));
 	}
 
@@ -1063,24 +1070,37 @@ class OgygiaRegion extends HTMLElement {
 		// starts nothing (#335).
 		const armed = owner.scope;
 		const start = () => background_start(() => void (armed.closed || fire()));
-		if (when === 'idle') this.#on_idle(fire, owner);
-		else if (when === 'visible') this.#on_visible(start, visible_margin, owner);
-		else if (when === 'load') start();
-		else if (when === 'interaction') {
-			// (by the machine it drives, not by the region: a hole's island that wakes on a visitor is
-			// the island's wake, whatever the hole's own `when` was — #338)
-			if (owner === this.#hole) {
-				// a visitor's gesture: this region's downloads are the `user` class from here on
-				arm_on_demand(
-					this,
-					() => {
-						this.#visitor = NO_REPLAY; // (a hole's answer: nothing of the visitor's to replay)
-						return fire();
-					},
-					owner.scope
-				);
-			} else this.#on_interaction(fire);
-		} else this.#on_media(when, start, owner); // a media query string
+		const trigger = on_trigger(
+			when,
+			WAKE,
+			{
+				idle: (f) => this.#on_idle(f, owner),
+				visible: () => this.#on_visible(start, visible_margin, owner),
+				load: start,
+				media: (query) => this.#on_media(query, start, owner),
+				interaction: (f) => {
+					// (by the machine it drives, not by the region: a hole's island that wakes on a
+					// visitor is the island's wake, whatever the hole's own `when` was — #338)
+					if (owner === this.#hole) {
+						// a visitor's gesture: this region's downloads are the `user` class from here on
+						arm_on_demand(
+							this,
+							() => {
+								this.#visitor = NO_REPLAY; // (a hole's answer: nothing of the visitor's to replay)
+								return f();
+							},
+							owner.scope
+						);
+					} else this.#on_interaction(f);
+				}
+			},
+			fire
+		);
+		if (!trigger)
+			warn('region_wake_unknown', {
+				region: this.getAttribute('entry') || this.getAttribute(OG_HOLE) || 'ogygia-region',
+				value: when
+			});
 	}
 
 	/**
@@ -1173,11 +1193,12 @@ class OgygiaRegion extends HTMLElement {
 	 * — from its own fetch, a twin's, a navigation batch stream, or a mutation. subscribe() replays
 	 * current content immediately, so a late-mounting twin catches up free. A re-minted endpoint (new
 	 * props, new page facts) moves the binding to its new address, and a fetch out at the old one is
-	 * left: its answer is for a call this hole no longer is. Returns the address.
+	 * left: its answer is for a call this hole no longer is. Returns whether the store handed it a
+	 * frame as it bound (already bound there: it hands nothing).
 	 */
-	#bind(endpoint: string): string {
+	#bind(endpoint: string): boolean {
 		const address = frameAddress(endpoint);
-		if (this.#bound() && this.#frame_address === address) return address;
+		if (this.#bound() && this.#frame_address === address) return false;
 		if (this.#hole.now.kind === 'fetching') this.#hole.go('idle');
 		// (one binding at a time, for the element's lifetime in the page: its end unbinds)
 		this.#binding?.close();
@@ -1189,8 +1210,10 @@ class OgygiaRegion extends HTMLElement {
 		});
 		// (each frame a turn of its own: one the store hands over while this turn binds lands after it)
 		const box = this.#box;
+		// (subscribe hands the frame the store holds before it returns: a frame in by then is that one)
+		let replayed = false;
 		const off = slots.frames?.subscribe(address, (f) => {
-			this.#frames_in++;
+			replayed = true;
 			if (RULES) note_handed(this, address, f.v, () => this.#paint.now.kind === 'painting');
 			box.post((turn) => {
 				if (RULES) note_turn(this);
@@ -1198,7 +1221,7 @@ class OgygiaRegion extends HTMLElement {
 			});
 		});
 		if (off) binding.defer(off);
-		return address;
+		return replayed;
 	}
 
 	/** Bound to a frame-store address now. */
@@ -1225,10 +1248,9 @@ class OgygiaRegion extends HTMLElement {
 		// (no region streams HTML in this build: no hole to fetch — runtime-flags `FRAMES`)
 		if (!FRAMES) return;
 		const endpoint = this.#endpoint();
-		const handed = this.#frames_in;
-		if (endpoint) this.#bind(endpoint);
 		// (the store had its frame: its turn is next, and it is the answer — nothing to fetch)
-		const run = this.#frames_in === handed ? this.#fetch_html(turn) : undefined;
+		const replayed = endpoint ? this.#bind(endpoint) : false;
+		const run = replayed ? undefined : this.#fetch_html(turn);
 		// (nothing to fetch — it has its answer, or no endpoint: its schedule is spent all the same)
 		if (this.#hole.now.kind === 'armed') this.#hole.go('idle');
 		return run;
@@ -1274,6 +1296,16 @@ class OgygiaRegion extends HTMLElement {
 	 *  already started (a listener of this paint wrote one). */
 	#painted(painting: Paint['now']): void {
 		if (this.#paint.now === painting) this.#paint.go('idle');
+	}
+
+	/** Where each of this region's machines is now, by name (for the rule on a region that left). */
+	#machines(): RegionMachinesNow {
+		return {
+			hole: this.#hole.now.kind,
+			wake: this.#wake.now.kind,
+			'live-region': this.#live.now.kind,
+			'region-paint': this.#paint.now.kind
+		};
 	}
 
 	/**
@@ -1467,7 +1499,8 @@ class OgygiaRegion extends HTMLElement {
 		if (!this.#fetch_started) this.#fetch_started = clock.mono();
 		// Bind if we haven't (SWR/lake remount reaches #fetch_html without going through #server);
 		// a re-minted hole (a refreshed region: new props, new page facts) answers at its NEW address.
-		const address = this.#bind(endpoint);
+		this.#bind(endpoint);
+		const address = frameAddress(endpoint);
 		const s = this.#hole.now;
 		const attempts = s.kind === 'armed' || s.kind === 'retrying' ? s.attempts : 0;
 		this.#hole.go('fetching', { attempts, revalidate });
@@ -1516,16 +1549,13 @@ class OgygiaRegion extends HTMLElement {
 			await frames.join(endpoint);
 		const cls = () => (this.#visitor ? 'user' : viewport_class(this));
 		const fetcher = this.#frame_fetcher(endpoint, revalidate, cls);
-		// (joining a warm out for the address: it is raised to this hole's class)
-		const run = () =>
-			frames.ensure(address, fetcher, { force: revalidate, signal, priority: PRIORITY[cls()] });
-		try {
-			return await run();
-		} catch (err) {
-			// the batch it joined did not carry it: its own fetch, now (not a failure, no retry wait)
-			if ((err as { name?: string })?.name !== 'OgygiaBatchMiss' || signal.aborted) throw err;
-			return await run();
-		}
+		// (joining a warm out for the address: it is raised to this hole's class; a batch that did
+		// not carry it is no failure: the store asks again, and its own fetch runs)
+		return frames.ensure(address, fetcher, {
+			force: revalidate,
+			signal,
+			priority: PRIORITY[cls()]
+		});
 	}
 
 	/**
@@ -1609,8 +1639,8 @@ class OgygiaRegion extends HTMLElement {
 				attempt: attempts,
 				final
 			});
-		// Allow connectedCallback / a delayed retry to schedule again.
-		this.#scheduled = false;
+		// a connect again (its retry, or a reconnect) schedules afresh
+		this.#region.move('scheduled', 'connected', lifetime_of(this.#region.now));
 		if (!final) {
 			// (an answer already stands: a refresh that failed is not tried again)
 			if (this.#answer.now.kind !== 'none') {
@@ -1687,7 +1717,6 @@ class OgygiaRegion extends HTMLElement {
 	}
 
 	#on_media(q: string, fire: () => unknown, owner: Leaves) {
-		if (!q) return void fire(); // ok: a wake; its hydrate says its own failure
 		const mql = matchMedia(q);
 		if (mql.matches) return void fire(); // ok: a wake; its hydrate says its own failure
 		const off = owner.scope.on(mql, 'change', (e) => {
@@ -1758,6 +1787,7 @@ class OgygiaRegion extends HTMLElement {
 						load_island(entry, cls()),
 						hydrate_core.get(),
 						slots.wire_classes?.(this),
+						wire_for_wake(this),
 						devalue_for_wake()
 					])
 				);
@@ -1936,12 +1966,15 @@ class OgygiaRegion extends HTMLElement {
 		// subscription belongs to `static` (an interactive tick taking over drops it), and entering
 		// `static` disposes an island an interactive tick hydrated.
 		if (!interactive) {
-			if (this.#live.now.kind !== 'static') this.#live.go('static');
+			const now = this.#live.now;
+			const bound = now.kind === 'static' ? now.bound : { address: null };
+			if (now.kind !== 'static') this.#live.go('static', { bound });
 			const frames = slots.frames;
-			if (desc.url && !this.#live_unsub) {
+			if (desc.url && bound.address === null) {
 				// (each frame a turn of its own, the one the store hands over as it binds too)
 				const box = this.#box;
-				const off = frames?.subscribe(frameAddress(desc.url), (f) => {
+				const address = frameAddress(desc.url);
+				const off = frames?.subscribe(address, (f) => {
 					box.post((t) => {
 						if (older_by(f, this.#live_painted) !== null) return;
 						this.#live_painted = stands_at(this.#live_painted, f);
@@ -1949,11 +1982,8 @@ class OgygiaRegion extends HTMLElement {
 					});
 				});
 				if (off) {
-					this.#live_unsub = off;
-					this.#live.scope.defer(() => {
-						off();
-						this.#live_unsub = null;
-					});
+					bound.address = address;
+					this.#live.scope.defer(off);
 				}
 			}
 			// The store's one ordering (`older_by`) decides. A tick stands where its HTML was written at
@@ -1990,7 +2020,7 @@ class OgygiaRegion extends HTMLElement {
 		// Same module, its island still hydrating: its props are pushed once it is live (the latest
 		// tick's), never a second island on the same node.
 		if (s.kind === 'hydrating' && s.module === desc.module) {
-			this.#live_props = desc.props;
+			s.pending.props = desc.props;
 			return;
 		}
 		// Same module, its island's file could not load (said once): the tick's server HTML shows, and
@@ -2001,10 +2031,10 @@ class OgygiaRegion extends HTMLElement {
 		// First tick, the interactive module changed, or it was static: swap + hydrate. (Leaving `live`
 		// disposes its island; leaving `static` drops its subscription; leaving `hydrating` ends that
 		// tick's hydrate before it mounts.)
-		this.#live.go('hydrating', { module: desc.module });
+		const pending: { props: Record<string, unknown> | null } = { props: null };
+		this.#live.go('hydrating', { module: desc.module, pending });
 		const mine = this.#live.now;
 		const painting = this.#paint_next();
-		this.#live_props = null;
 		this.#live_ready = true;
 		// The HTML sink's trust boundary (HOLE-TRUST, ./html-sink.ts): a live tick is rendered
 		// in-process on our server and reaches us through the app's remote transport.
@@ -2018,7 +2048,7 @@ class OgygiaRegion extends HTMLElement {
 		this.replaceChildren(frag);
 		if (HOOK_ANSWER_PLACED) slots.hooks?.answerPlaced?.({ el: this });
 		init_shadow_registries(this);
-		await this.#live_hydrate(desc.props, mine, desc.module, turn);
+		await this.#live_hydrate(desc.props, mine, desc.module, pending, turn);
 	}
 
 	/**
@@ -2045,6 +2075,7 @@ class OgygiaRegion extends HTMLElement {
 		props: Record<string, unknown>,
 		mine: Live['now'],
 		module: string,
+		pending: { props: Record<string, unknown> | null },
 		turn: Turn
 	) {
 		/** Back in its turn after a wait: the region left the page (`STALE`), is on its way out, or
@@ -2090,9 +2121,8 @@ class OgygiaRegion extends HTMLElement {
 					slots.hooks?.regionUnmount?.({ el: this, entry: this.getAttribute('entry') ?? '' });
 				app.dispose();
 			});
-			const pending = this.#live_props;
-			this.#live_props = null;
-			if (pending) app.set_props?.(pending);
+			// (the latest same-module tick that came while it hydrated: its visit's)
+			if (pending.props) app.set_props?.(pending.props);
 			this.setAttribute('data-hydrated', '');
 			this.dispatchEvent(new CustomEvent('ogygia:hydrated', { bubbles: true }));
 			this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
@@ -2112,22 +2142,18 @@ class OgygiaRegion extends HTMLElement {
 	 * disconnects and reconnects it in one task. Tearing down there aborted a hole's in-flight
 	 * fetch, re-armed its wake and fetched it again; disposed a woken island and woke it again. The
 	 * teardown waits a microtask and runs only if the element is still out of the document. The
-	 * reconnect itself runs as any connect: a region already scheduled stops at `#scheduled`, and one
-	 * that was not (a nested island a lake lifted out and put back, now under a frozen boundary)
-	 * decides afresh where it stands.
+	 * reconnect itself runs as any connect: a region already `scheduled` stops there, and one that
+	 * was not (a nested island a lake lifted out and put back, now under a frozen boundary) decides
+	 * afresh where it stands. (Several leaves in one task end one lifetime: the first teardown
+	 * detaches it, and the others find it detached.)
 	 */
 	disconnectedCallback() {
-		if (this.#leaving) return;
-		this.#leaving = true;
 		tasks.micro(() => {
-			this.#leaving = false;
-			if (!this.isConnected) this.#teardown();
+			if (!this.isConnected && this.#region.now.kind !== 'detached') this.#teardown();
 		});
 	}
 
 	#teardown() {
-		this.#counted?.();
-		this.#counted = null;
 		unregister_region(this);
 		// out of the document nothing watches it: a copy it keeps is compared if it wakes again (its
 		// sleep ends with its lifetime, below)
@@ -2144,18 +2170,22 @@ class OgygiaRegion extends HTMLElement {
 		// stays: a region put back keeps what it showed.
 		if (this.#hole.now.kind !== 'idle') this.#hole.go('idle');
 		if (this.#wake.now.kind !== 'cold') this.#wake.go('cold');
-		// Its lifetime in the page ends: its sleep, its viewport snapshot, its binding to the store,
-		// a replay still waiting for its frame, and its mailbox (what is queued is dropped; a step
-		// that waits gets STALE).
+		// A frame still waiting for its sheets never paints now (its wait comes back STALE): its paint
+		// visit ends here, with the region's lifetime, not at each wait (#1132).
+		if (this.#paint.now.kind !== 'idle') this.#paint.go('idle');
+		// (every region machine is at rest now: the rule holds it there, ./rules.ts `note_left`)
+		if (RULES) note_left(this, () => busy_machines(this.#machines()));
+		// Its lifetime in the page ends: its count among the connected regions, its sleep, its
+		// viewport snapshot, its binding to the store, a replay still waiting for its frame, and its
+		// mailbox (what is queued is dropped; a step that waits gets STALE). A connect again starts
+		// afresh.
 		this.#life.close();
-		this.#life = NOT_CONNECTED;
-		this.#box = CLOSED_BOX;
+		this.#region.go('detached', detached());
 		if (this.#app) {
 			this.#app.dispose();
 			this.#app = null;
 			if (RULES) note_unmount(this);
 		}
-		this.#scheduled = false;
 	}
 }
 

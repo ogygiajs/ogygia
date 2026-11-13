@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { cache } from '@ogygia/machine';
+import { cache, say } from '@ogygia/machine';
 import { fnv1a32 } from '@ogygia/core/contract';
 import {
 	transformHost,
@@ -30,14 +30,10 @@ import {
 	kit_dirs
 } from './kit.ts';
 import { run_module_macros } from './macros/pipeline.ts';
+import { fn_manifest_entries, fn_manifest_registrations } from './macros/dollar.ts';
 import { is_script_request } from './script-request.ts';
 import { resolveFeatures } from './link/runtime-entry.ts';
-import {
-	resolveFoucImportSpec,
-	FOUC_CSS_PREFIX,
-	FOUC_SCOPED_PREFIX,
-	type FoucAlias
-} from './fouc-css.ts';
+import { resolveFoucImportSpec, FOUC_CSS_PREFIX, FOUC_SCOPED_PREFIX } from './fouc-css.ts';
 import {
 	moduleHasTransportable,
 	svelteModuleHasTransportable,
@@ -51,7 +47,6 @@ import {
 } from './region/emit.ts';
 import { by_key, location_map_files } from './link/location-map.ts';
 import { context_string_keys, source_uses_ogygia_context } from './link/context-detect.ts';
-import { collect_flag_sites, FLAGS_SPEC } from './flags.ts';
 import { router_css_roots } from './link/router-css.ts';
 import { source_crosses_wire } from './link/transport.ts';
 import { server_island_ids, PAGE_DATA_READS_TOKEN } from './link/server-manifest.ts';
@@ -95,6 +90,20 @@ const RUNTIME_ENTRY_NAME = 'og-runtime';
  *  Returns the reference id. */
 export type EmitChunk = (chunk: { type: 'chunk'; id: string; name: string }) => string;
 
+/** What one client build emitted and wrote: it begins with the build and is never carried into the
+ *  next one. */
+interface ClientBuild {
+	/** each emitted island entry's ref, by island id (one emit per island per build) */
+	readonly island_entry_refs: Map<string, string>;
+	runtime_entry_ref: string | null;
+	location_map_url: string | null;
+}
+const new_client_build = (): ClientBuild => ({
+	island_entry_refs: new Map(),
+	runtime_entry_ref: null,
+	location_map_url: null
+});
+
 /** Shared OGYGIA_PROFILE instrument — the adapter owns the maps/counters; the driver writes into
  *  them so the transform-phase metrics (and the determinism digest source) live with the transform. */
 export interface Profiler {
@@ -103,8 +112,9 @@ export interface Profiler {
 		transformN: number;
 		transformHit: number;
 		prescanMs: number;
-		bakeMs: number;
-		bakeN: number;
+		/** time in plugin macros (`b.macro`), and how many calls */
+		macroMs: number;
+		macroN: number;
 		resolveMs: number;
 		loadMs: number;
 	};
@@ -163,6 +173,8 @@ const MODULE_SPEC_RE =
 	/(?:^|[\n;])\s*(?:import|export)\b[^;'"()]*?from\s*['"]([^'"]+)['"]|(?:^|[\n;])\s*import\s*['"]([^'"]+)['"]/g;
 /** Where Kit's `$app` alias points (Kit 2 and 3: `resolve.alias` `$app` → `<kit>/src/runtime/app`). */
 const KIT_RUNTIME_APP = '/@sveltejs/kit/src/runtime/app/';
+/** Kit's page modules, where the alias sends `$app/state` and `$app/stores`. */
+const KIT_PAGE_MODULE_RE = /\/@sveltejs\/kit\/src\/runtime\/app\/(?:state|stores)(?:[/.]|$)/;
 /**
  * The island shim for an `$app/*` import, by specifier or by where Kit's alias sent it: Vite's alias
  * plugin runs before any plugin's resolveId, so an import the transform did not rewrite (a module
@@ -178,13 +190,20 @@ export function app_shim_for(source: string, shims: Record<string, string>): str
 	else if (name.endsWith('.js')) name = name.slice(0, -'.js'.length);
 	return shims[`$app/${name}`] ?? null;
 }
-/** Manifest path for a flag site: package-relative for declared surfaces, root-relative else. */
-function flag_site_file(
+/** A prescanned module's identity: package-relative in declared files, root-relative else. */
+function prescan_rel(
 	ctx: { pkg_identity(p: string): string | null; root: string },
 	full: string
 ): string {
 	return (ctx.pkg_identity(full) ?? path.relative(ctx.root, full)).split(path.sep).join('/');
 }
+
+/** First-party packages with a build half an app turns on by listing their plugin: importing one
+ *  without the plugin is said once (packages/flags/test/inventory-build.test.ts). */
+// static: the first-party plugins whose package an app's modules import
+const PLUGIN_PACKAGES: Readonly<Record<string, string>> = { '@ogygia/flags': 'flags()' };
+/** Each unlisted package is said once per process (Kit builds two legs in one). */
+const unlisted_said = say();
 function extract_module_specs(src: string): string[] {
 	MODULE_SPEC_RE.lastIndex = 0;
 	const specs: string[] = [];
@@ -314,23 +333,28 @@ export class Compiler implements CoreApp {
 	}
 
 	/**
-	 * Run the module-macro passes (`wire`/`$`/`source`/`store`/auto-brand, the plugins' macros, then
-	 * `bake`) over one module — the leg that must land before the island transform / svelte compile /
+	 * Run the module-macro passes (`wire`/`$`/`source`/`store`/auto-brand, then the plugins' macros)
+	 * over one module — the leg that must land before the island transform / svelte compile /
 	 * ts-region minting sees it. `source` is the CURRENT text (a plugin's pre-transform may already have
 	 * edited it). Returns `{ code, touched }`; the caller nulls its own sourcemap when `touched`.
 	 */
-	macros(source: string, id: string): Promise<{ code: string; touched: boolean }> {
+	macros(
+		source: string,
+		id: string,
+		watch?: (file: string) => void
+	): Promise<{ code: string; touched: boolean }> {
 		const ctx = this.#ctx!;
 		return run_module_macros(
 			source,
 			id,
 			{
 				root: ctx.root,
-				resolveAlias: ctx.resolve_alias,
+				alias: ctx.resolve_alias,
 				pkgRoot: ctx.pkg_root,
 				dollarHoists: this.dollar_hoists,
 				macros: ctx.macros,
-				ownSource: (file) => ctx.is_own_source(file)
+				ownSource: (file) => ctx.is_own_source(file),
+				watch
 			},
 			this.profiler
 		);
@@ -511,6 +535,17 @@ export class Compiler implements CoreApp {
 		const page_importers = ctx.page_importers;
 		const imports_page_spec = (specs: string[]): boolean =>
 			page_importers.length > 0 && specs.some((s) => page_importers.includes(s));
+		// PLUGIN READERS (`b.prescan`): each module importing what one asked for is handed to it; a
+		// first-party package imported with its plugin not listed is noted, and said at the end.
+		const unlisted = new Map<string, string>();
+		const read_for_plugins = (full: string, src: string, specs: string[]) => {
+			for (const hook of ctx.prescans)
+				if (specs.some((s) => hook.imports.includes(s)))
+					hook.module({ file: full, rel: prescan_rel(ctx, full), code: src });
+			for (const s of specs)
+				if (Object.hasOwn(PLUGIN_PACKAGES, s) && !ctx.plugins.includes(s) && !unlisted.has(s))
+					unlisted.set(s, prescan_rel(ctx, full));
+		};
 		const scan_file = (full: string, name: string) => {
 			if (name.endsWith('.svelte')) {
 				const src = ctx.read_file(full);
@@ -522,8 +557,7 @@ export class Compiler implements CoreApp {
 					const specs = extract_module_specs(src);
 					if (specs.length) program.module_specs.set(full, specs);
 					if (imports_page_spec(specs)) program.router_modules.add(full);
-					if (specs.includes(FLAGS_SPEC))
-						program.flag_sites.push(...collect_flag_sites(src, full, flag_site_file(ctx, full)));
+					read_for_plugins(full, src, specs);
 				}
 				// A `<script module>` transportable class goes in the manifest too (keyed by the
 				// .svelte path — side-effect-importing the component runs its module registration).
@@ -550,8 +584,7 @@ export class Compiler implements CoreApp {
 					const specs = extract_module_specs(src);
 					if (specs.length) program.module_specs.set(full, specs);
 					if (imports_page_spec(specs)) program.router_modules.add(full);
-					if (specs.includes(FLAGS_SPEC))
-						program.flag_sites.push(...collect_flag_sites(src, full, flag_site_file(ctx, full)));
+					read_for_plugins(full, src, specs);
 				}
 				// Transportable classes go into the eager-registration manifest so an island
 				// receiving one as a prop never has to import the class itself.
@@ -605,6 +638,10 @@ export class Compiler implements CoreApp {
 			}
 			if (P) prof.prescanMs += performance.now() - __ps;
 		}
+		for (const [pkg, file] of unlisted)
+			unlisted_said.once(pkg, () =>
+				warn('plugin_not_listed', { package: pkg, plugin: PLUGIN_PACKAGES[pkg]!, file })
+			);
 
 		// Complete `island_graph` TRANSITIVELY, before the bundler resolves a single module. `walk`
 		// above registered each island's OWN component; this marks everything those components import
@@ -728,7 +765,7 @@ export class Compiler implements CoreApp {
 	mark_island_closure(componentAbs: string): string[] {
 		const ctx = this.#ctx!;
 		const { island_graph } = this.program;
-		const aliases = ctx.resolve_alias as readonly FoucAlias[];
+		const aliases = ctx.resolve_alias;
 		const added: string[] = [];
 		const resolve_dep = (spec: string, importerAbs: string): string | null => {
 			const base = resolveFoucImportSpec(spec, importerAbs, ctx.libDir, aliases);
@@ -913,27 +950,26 @@ export class Compiler implements CoreApp {
 		emitFile: EmitChunk,
 		{ emitRuntime, loaded = null }: { emitRuntime: boolean; loaded?: Set<string> | null }
 	): number {
-		this.island_entry_refs.clear();
-		this.runtime_entry_ref = null;
+		const build = (this.#build = new_client_build());
 		if (emitRuntime) {
 			// Unresolved virtual id — resolve_id/emit synthesize the feature-selected entry. Named, not
 			// fixed: the bundler hashes its content into the file name (its imports included), and the
 			// server finds that name in the build handoff (its stable name is an identity, not a file).
 			// (named with its features: `og-runtime-<features>.<hash>.js` says which runtime it is)
 			const feat = this.#ctx!.runtime_features(this.program.runtime_feature_hash);
-			this.runtime_entry_ref = emitFile({
+			build.runtime_entry_ref = emitFile({
 				type: 'chunk',
 				id: V_RUNTIME_ENTRY,
 				name: RUNTIME_ENTRY_NAME + (feat ? `-${feat}` : '')
 			});
 		}
-		const { region_kinds, by_id, emitted_island_chunks, registry } = this.program;
+		const { region_kinds, by_id, registry } = this.program;
 		let skipped = 0;
 		for (const [rid, kind] of region_kinds) {
 			if (kind !== 'hydrate') continue;
 			const virtualPath = by_id.get(rid);
 			if (!virtualPath) continue;
-			if (emitted_island_chunks.has(rid)) continue;
+			if (build.island_entry_refs.has(rid)) continue;
 			if (!island_host_loaded(registry.get(virtualPath)?.hostPath, loaded)) {
 				skipped++;
 				continue;
@@ -943,13 +979,21 @@ export class Compiler implements CoreApp {
 		return skipped;
 	}
 
-	/** Client-build refs of each emitted island entry (by island id) and of the runtime entry: the
-	 *  bundle end turns them into the hashed file names the handoff maps the stable names to. */
-	readonly island_entry_refs: Map<string, string> = new Map();
-	runtime_entry_ref: string | null = null;
+	/** The client build under way: made new by each `emit_build_chunks` (a build's start), so a second
+	 *  build in one process (watch) starts from nothing (test/entry-locations.test.ts › a second build
+	 *  in one process). */
+	#build: ClientBuild = new_client_build();
+	/** Client-build refs of each emitted island entry (by island id; an island is emitted once per
+	 *  build): the bundle end turns them into the hashed file names the handoff maps the stable names
+	 *  to. */
+	get island_entry_refs(): Map<string, string> {
+		return this.#build.island_entry_refs;
+	}
 	/** The location map's served path (`/<appDir>/immutable/og-locations.<hash>.json`), once
-	 *  `location_map` wrote it: the handoff carries it to the server (`locations`). */
-	location_map_url: string | null = null;
+	 *  `location_map` wrote it in this build: the handoff carries it to the server (`locations`). */
+	get location_map_url(): string | null {
+		return this.#build.location_map_url;
+	}
 
 	/**
 	 * At the bundle's end (the names are final): each entry's IDENTITY → its LOCATION. `islands` maps
@@ -976,8 +1020,8 @@ export class Compiler implements CoreApp {
 		}
 		let runtime: string | null = null;
 		let runtime_file: string | null = null;
-		if (this.runtime_entry_ref) {
-			runtime_file = get_file_name(this.runtime_entry_ref);
+		if (this.#build.runtime_entry_ref) {
+			runtime_file = get_file_name(this.#build.runtime_entry_ref);
 			runtime = this.runtime_chunk_url();
 			locations[runtime] = served(runtime_file);
 		}
@@ -987,8 +1031,7 @@ export class Compiler implements CoreApp {
 	/** One hydrate island's entry, content-hashed by the bundler (the location maps that name it are
 	 *  written at the bundle's end: `location_maps`). */
 	emit_island_entry(emitFile: EmitChunk, rid: string, virtualPath: string): void {
-		this.program.emitted_island_chunks.add(rid);
-		this.island_entry_refs.set(
+		this.#build.island_entry_refs.set(
 			rid,
 			emitFile({ type: 'chunk', id: virtualPath, name: ISLAND_ENTRY_NAME_PREFIX + rid })
 		);
@@ -1024,7 +1067,7 @@ export class Compiler implements CoreApp {
 		const files = location_map_files(ctx.app_dir, pairs, (source) =>
 			createHash('sha256').update(source).digest('hex').slice(0, 12)
 		);
-		this.location_map_url = files.length ? `/${files[0].fileName}` : null;
+		this.#build.location_map_url = files.length ? `/${files[0].fileName}` : null;
 		return files;
 	}
 
@@ -1430,15 +1473,18 @@ export class Compiler implements CoreApp {
 		id: string,
 		{
 			ssr,
-			emitFile
+			emitFile,
+			watch
 		}: {
 			ssr: boolean;
 			emitFile: EmitChunk;
+			/** The bundler's watch for this module: a macro names the files it read. */
+			watch?: (file: string) => void;
 		}
 	): Promise<{ code: string; map: unknown } | null> {
 		const ctx = this.#ctx!;
 		const program = this.program;
-		const { registry, island_graph, emitted_island_chunks } = program;
+		const { registry, island_graph } = program;
 		const root = ctx.root;
 		// Every pass below edits by its parser's offsets, and Svelte's parser drops a leading byte-order
 		// mark: take it off here so the offsets and the text agree (./bom.ts). A file no pass touches
@@ -1490,12 +1536,13 @@ export class Compiler implements CoreApp {
 		let map: unknown = null;
 		let touched = false;
 
-		// The `import.meta.og.*` module macros — `wire`/`$`/`source`/`store`/auto-brand, the plugins'
-		// macros, then `bake` — all landing BEFORE either branch (island transform / svelte compile / ts
-		// region minting) sees the code, so a computed codec key is a real symbol, a hoisted fn is
-		// a ref, a baked call is plain data, and an inlined snippet flows through as a region. Each
-		// pass is a no-op unless its exact marker is present. Fills `dollar_hoists` + records bake timing.
-		const macroed = await this.macros(out, id_n);
+		// The `import.meta.og.*` module macros — `wire`/`$`/`source`/`store`/auto-brand, then the
+		// plugins' macros (`bake` last) — all landing BEFORE either branch (island transform / svelte
+		// compile / ts region minting) sees the code, so a computed codec key is a real symbol, a
+		// hoisted fn is a ref, a baked call is plain data, and an inlined snippet flows through as a
+		// region. Each pass is a no-op unless its exact marker is present. Fills `dollar_hoists` +
+		// records plugin macro timing.
+		const macroed = await this.macros(out, id_n, watch);
 		if (macroed.touched) {
 			out = macroed.code;
 			map = null; // any macro rewrite invalidates a prior sourcemap
@@ -1545,7 +1592,7 @@ export class Compiler implements CoreApp {
 				if (ctx.is_build && !ssr) {
 					for (const isl of result.islands ?? []) {
 						const kind = isl.kind ?? (isl.server ? 'defer' : 'hydrate');
-						if (kind !== 'hydrate' || !isl.virtualPath || emitted_island_chunks.has(isl.id))
+						if (kind !== 'hydrate' || !isl.virtualPath || this.island_entry_refs.has(isl.id))
 							continue;
 						this.emit_island_entry(emitFile, isl.id, isl.virtualPath);
 					}
@@ -1654,6 +1701,11 @@ export class Compiler implements CoreApp {
 		return touched ? { code: out, map } : null;
 	}
 
+	/** The fn-manifest for the build handoff (tag → factory source), sorted by tag. */
+	fn_manifest(): Record<string, string> {
+		return Object.fromEntries(fn_manifest_entries(this.dollar_hoists));
+	}
+
 	/**
 	 * Patch the fn-manifest placeholder in a finished chunk with the collected `og.$` factory
 	 * registrations — every transform has run by renderChunk, so `dollar_hoists` is complete. Registrations
@@ -1662,9 +1714,7 @@ export class Compiler implements CoreApp {
 	 */
 	patch_fn_manifest(code: string): { code: string; map: null } | null {
 		if (!code.includes('/*__OGYGIA_FN_MANIFEST__*/')) return null;
-		const regs = [...this.dollar_hoists.entries()]
-			.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
-			.join('\n');
+		const regs = fn_manifest_registrations(this.dollar_hoists);
 		// FUNCTION-form replacement: factory sources legitimately contain `$$` (a literal `$`
 		// before a template hole), which String.replace would collapse in a string replacement.
 		return { code: code.replace('/*__OGYGIA_FN_MANIFEST__*/', () => regs), map: null };
@@ -1689,10 +1739,20 @@ export class Compiler implements CoreApp {
 		if (at === -1) return null;
 		const { page_keys, page_pending, by_id, registry } = this.program;
 		const clean = (id: string) => id.split('?')[0].split('\\').join('/');
-		const reads_itself = (id: string) => {
+		const imports_kit_page = (ids: readonly string[]) =>
+			ids.some((d) => KIT_PAGE_MODULE_RE.test(clean(d)));
+		const reads_itself = (id: string, info: ReturnType<typeof graph>) => {
 			const c = clean(id);
 			const k = page_keys.get(c);
-			return (k !== undefined && (k === 'all' || k.size > 0)) || page_pending.has(c);
+			if (k !== undefined) return k === 'all' || k.size > 0 || page_pending.has(c);
+			if (page_pending.has(c)) return true;
+			// Kit's page module is what is read: its own halves (`state/server.js`) are not a reader
+			if (KIT_PAGE_MODULE_RE.test(c)) return false;
+			// a page reader seed shaping could not read (a barrel, `getStores()`, an `import()`): unknown
+			return (
+				!!info &&
+				(imports_kit_page(info.importedIds) || imports_kit_page(info.dynamicallyImportedIds))
+			);
 		};
 		// a component path → the graph's id for it (a graph id may carry a query or another separator)
 		const ids_by_path = new Map<string, string>();
@@ -1704,8 +1764,8 @@ export class Compiler implements CoreApp {
 			for (let i = 0; i < queue.length; i++) {
 				const id = queue[i];
 				if (proven_clean.has(id)) continue;
-				if (reads_itself(id)) return true;
 				const info = graph(id);
+				if (reads_itself(id, info)) return true;
 				if (!info) continue;
 				for (const next of info.importedIds)
 					if (!seen.has(next)) {

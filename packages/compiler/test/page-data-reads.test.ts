@@ -24,8 +24,8 @@ function compiler_with(holes: Record<string, string>, reads: Record<string, Set<
 			transformN: 0,
 			transformHit: 0,
 			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
+			macroMs: 0,
+			macroN: 0,
 			resolveMs: 0,
 			loadMs: 0
 		},
@@ -79,5 +79,73 @@ describe('patch_page_data_reads', () => {
 
 	test('a chunk without the placeholder is left alone', () => {
 		expect(compiler_with({}, {}).patch_page_data_reads('export {}', info, ids)).toBeNull();
+	});
+});
+
+// A module that imports Kit's page and recorded no keys is a reader seed shaping could not read:
+// a `$lib` barrel that re-exports `page`, a `getStores()` call, an `import('$app/state')`. The
+// hole looks up, as an island ships all of `page.data` for a reader it saw no keys for.
+describe('patch_page_data_reads: a page reader seed shaping could not read', () => {
+	const KIT_STATE = '/app/node_modules/@sveltejs/kit/src/runtime/app/state/index.js';
+	const KIT_STORES = '/app/node_modules/@sveltejs/kit/src/runtime/app/stores.js';
+	const graph: Record<string, { importedIds: string[]; dynamicallyImportedIds: string[] }> = {
+		'/app/Hole.svelte': { importedIds: ['/app/lib/stores.ts'], dynamicallyImportedIds: [] },
+		'/app/lib/stores.ts': { importedIds: [KIT_STATE], dynamicallyImportedIds: [] },
+		'/app/Stores.svelte': { importedIds: [KIT_STORES], dynamicallyImportedIds: [] },
+		'/app/Lazy.svelte': { importedIds: [], dynamicallyImportedIds: [KIT_STATE] },
+		'/app/UrlOnly.svelte': { importedIds: [KIT_STATE], dynamicallyImportedIds: [] },
+		[KIT_STATE]: { importedIds: [], dynamicallyImportedIds: [] },
+		[KIT_STORES]: { importedIds: [], dynamicallyImportedIds: [] }
+	};
+	const info = (id: string) => graph[id] ?? null;
+	const ids = () => Object.keys(graph);
+
+	test('a hole reading the page through a $lib re-export looks up page.data', () => {
+		const c = compiler_with({ aaaaaaaaaaaa: '/app/Hole.svelte' }, {});
+		expect(value_of(c.patch_page_data_reads(PLACEHOLDER, info, ids)!.code)).toEqual({
+			aaaaaaaaaaaa: true
+		});
+	});
+
+	test('a hole reading $app/stores, or importing $app/state on demand, looks up page.data', () => {
+		const c = compiler_with(
+			{ bbbbbbbbbbbb: '/app/Stores.svelte', cccccccccccc: '/app/Lazy.svelte' },
+			{}
+		);
+		expect(value_of(c.patch_page_data_reads(PLACEHOLDER, info, ids)!.code)).toEqual({
+			bbbbbbbbbbbb: true,
+			cccccccccccc: true
+		});
+	});
+
+	test("Kit's page module importing its own halves is not a reader of the page", () => {
+		const KIT_STATE_SERVER = '/app/node_modules/@sveltejs/kit/src/runtime/app/state/server.js';
+		const kit_graph: Record<string, { importedIds: string[]; dynamicallyImportedIds: string[] }> = {
+			...graph,
+			[KIT_STATE]: { importedIds: [KIT_STATE_SERVER], dynamicallyImportedIds: [] },
+			[KIT_STATE_SERVER]: { importedIds: [], dynamicallyImportedIds: [] }
+		};
+		const c = compiler_with(
+			{ eeeeeeeeeeee: '/app/UrlOnly.svelte' },
+			{ '/app/UrlOnly.svelte': new Set() }
+		);
+		const out = c.patch_page_data_reads(
+			PLACEHOLDER,
+			(id) => kit_graph[id] ?? null,
+			() => Object.keys(kit_graph)
+		);
+		expect(value_of(out!.code)).toEqual({ eeeeeeeeeeee: false });
+	});
+
+	test('a page reader whose keys were read (none of page.data) does not', () => {
+		const c = compiler_with(
+			{ dddddddddddd: '/app/UrlOnly.svelte' },
+			{
+				'/app/UrlOnly.svelte': new Set()
+			}
+		);
+		expect(value_of(c.patch_page_data_reads(PLACEHOLDER, info, ids)!.code)).toEqual({
+			dddddddddddd: false
+		});
 	});
 });

@@ -426,8 +426,8 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 				transformN: 0,
 				transformHit: 0,
 				prescanMs: 0,
-				bakeMs: 0,
-				bakeN: 0,
+				macroMs: 0,
+				macroN: 0,
 				resolveMs: 0,
 				loadMs: 0
 			},
@@ -566,6 +566,16 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 			expect(identity).toMatch(/^\.\.\/ogygia\/og-region\.[0-9a-f]{12}\.js$/);
 			expect(hashed).toMatch(/^\.\/chunks\/ref\d\.js$/);
 		}
+	});
+	it('a second build in one process (watch) emits every island again and maps them all', () => {
+		const compiler = make();
+		compiler.emit_build_chunks(fake_emit().emit, { emitRuntime: true });
+		compiler.location_maps((ref: string) => `_app/immutable/chunks/${ref}.js`);
+		const again = fake_emit();
+		compiler.emit_build_chunks(again.emit, { emitRuntime: true });
+		expect(again.emitted.filter((c) => c.name!.startsWith('og-region.')).length).toBe(2);
+		const files = compiler.location_maps((ref: string) => `_app/immutable/chunks/${ref}.js`);
+		expect(Object.keys(JSON.parse(files[0].source) as object)).toHaveLength(2);
 	});
 	it('no runtime emitted → no runtime location; a second emit starts clean', () => {
 		const compiler = make();
