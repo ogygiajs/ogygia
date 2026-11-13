@@ -167,7 +167,12 @@ export class CompileCtx {
 	readonly resolve_alias: readonly AliasEntry[];
 	/** What an app import specifier is resolved against (app-spec.ts): the root, `$lib`, the aliases. */
 	get app_spec(): AppSpecCtx {
-		return { root: this.root, libDir: this.libDir, alias: this.resolve_alias };
+		return {
+			root: this.root,
+			libDir: this.libDir,
+			alias: this.resolve_alias,
+			stat: (abs) => this.fs.stat(abs)
+		};
 	}
 	readonly macros: readonly PluginMacro[];
 	readonly prescans: readonly PrescanHook[];

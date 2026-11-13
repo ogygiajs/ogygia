@@ -701,6 +701,7 @@ export class Compiler implements CoreApp {
 			idSalt: ctx.id_salt,
 			pkg_identity: (abs: string) => ctx.pkg_identity(abs),
 			alias: ctx.app_spec.alias,
+			stat: ctx.app_spec.stat,
 			linkVirtualIsland: link_virtual,
 			clientBindingStub: CLIENT_BINDING_STUB,
 			routeCsr: route_csr,
@@ -733,7 +734,8 @@ export class Compiler implements CoreApp {
 			importKeys: ctx.import_keys,
 			idSalt: ctx.id_salt,
 			pkg_identity: (abs: string) => ctx.pkg_identity(abs),
-			alias: ctx.app_spec.alias
+			alias: ctx.app_spec.alias,
+			stat: ctx.app_spec.stat
 		});
 	}
 

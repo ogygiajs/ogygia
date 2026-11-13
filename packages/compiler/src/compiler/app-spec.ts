@@ -1,10 +1,3 @@
-/**
- * Where an app's import specifier points, as the bundler resolves it, without the bundler: the one
- * rule for the region identity (a component imported any way is one region:
- * test/region-identity-canonical.test.ts) and for the CSS walks (fouc, router CSS, the island
- * closure).
- */
-import fs from 'node:fs';
 import path from 'node:path';
 
 /** An app alias, as Vite's `resolve.alias` lists it (Kit's `$lib` and `kit.alias` among them). */
@@ -17,6 +10,8 @@ export interface AppSpecCtx {
 	readonly root: string;
 	readonly libDir: string;
 	readonly alias?: readonly AppAlias[];
+	/** The compiler's file system (`CompileCtx.fs.stat`). Absent: a root-absolute path is a file-system path. */
+	readonly stat?: (abs: string) => 'file' | 'dir' | null;
 }
 
 /**
@@ -32,7 +27,7 @@ export function resolve_app_spec(spec: string, importer: string, ctx: AppSpecCtx
 	if (spec.startsWith('/')) {
 		if (spec.startsWith(`${ctx.root}/`) || !ctx.root) return path.normalize(spec);
 		const top = spec.slice(1).split('/')[0];
-		return top && fs.existsSync(path.join(ctx.root, top))
+		return top && ctx.stat?.(path.join(ctx.root, top)) != null
 			? path.join(ctx.root, spec)
 			: path.normalize(spec);
 	}

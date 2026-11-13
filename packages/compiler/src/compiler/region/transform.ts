@@ -8,7 +8,7 @@ import { foucCssVirtualId } from '../fouc-css.ts';
 import { collectCaptureInfo, collect_pattern_names as pattern_names } from '../free-vars.ts';
 import { parse_module } from '../parse/oxc.ts';
 import { strategyKey, regionIdentity, regionId } from './identity.ts';
-import { resolve_app_spec, type AppAlias } from '../app-spec.ts';
+import { resolve_app_spec, type AppAlias, type AppSpecCtx } from '../app-spec.ts';
 import { parse_trigger, SCHEDULE, WAKE } from '@ogygia/core/contract';
 import { regionBindingVirtualId, region_family, wrapperVirtualId } from '../ids.ts';
 import { OGYGIA_SCHEME } from '../virtual/table.ts';
@@ -62,8 +62,8 @@ interface HostCtx {
 	/** Install-independent identity (`<pkg-name>/<rel>`) for files under a declared `ogygia.files`
 	 *  package — `null`/absent falls back to root-relative (see CompileCtx.pkg_identity). */
 	pkg_identity?: (abs: string) => string | null;
-	/** The app's aliases (app-spec.ts): an aliased component is the file it names. Absent: none. */
 	alias?: readonly AppAlias[];
+	stat?: AppSpecCtx['stat'];
 	/** SvelteKit `appDir` (default `_app`) — where island chunks are emitted + served (base-less; Kit's
 	 *  `asset()` adds `base`/assets at render). */
 	appDir?: string;
@@ -99,8 +99,8 @@ interface TsRegionCtx {
 	visibleMargin?: string;
 	/** Guarded (typeof) — install-independent identity for declared `ogygia.files` package files. */
 	pkg_identity?: (abs: string) => string | null;
-	/** The app's aliases (app-spec.ts). Absent: none. */
 	alias?: readonly AppAlias[];
+	stat?: AppSpecCtx['stat'];
 }
 
 /** An error-raising callback the region-option parsers use (thrown by the caller). */
@@ -751,8 +751,6 @@ function resolve_component_path(spec: string, host_id: string, ctx: HostCtx) {
 	if (spec.startsWith('.') && VIRTUAL_HOST_RE.test(host_id)) {
 		throw new OgygiaError('generated_module_relative_import', { host: host_id, specifier: spec });
 	}
-	// The file it names, however it is named (app-spec.ts); a package specifier is its own identity,
-	// re-emitted verbatim into generated modules.
 	return resolve_app_spec(spec, host_id, ctx) ?? spec;
 }
 
@@ -2234,8 +2232,6 @@ class TsRegionCompilation {
 		return path.relative(this.#root, abs).split(PATH_SEP).join('/');
 	}
 
-	/** Same rule as transformHost's resolve_component_path (app-spec.ts): the file a specifier names;
-	 *  a package specifier is kept verbatim and re-emitted for Vite to resolve. */
 	#resolve_spec(spec: string) {
 		if (typeof spec !== 'string' || !spec.trim()) return null;
 		return resolve_app_spec(spec, this.#id, this.#ctx) ?? spec;
