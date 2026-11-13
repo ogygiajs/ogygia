@@ -10,7 +10,7 @@ import { test, check, sleep } from '@ogygia/tooling/e2e';
 test.describe('.ts registry wake binding placed via <svelte:component> (mountable) + raw via region()', () => {
 	test.use({ viewport: { width: 900, height: 700 } });
 
-	test('raw held binding + mountable wake binding + asRegion(named barrel), side by side', async ({
+	test('raw held binding + mountable wake binding + a marked named barrel import, side by side', async ({
 		page
 	}) => {
 		const errs: string[] = [];
@@ -64,18 +64,18 @@ test.describe('.ts registry wake binding placed via <svelte:component> (mountabl
 			(await widget.textContent())!
 		);
 
-		// ── asRegion() of a NAMED barrel import, in the .ts file, placed via <svelte:component> ──
+		// ── a marked NAMED barrel import, in the .ts file, placed via <svelte:component> ──
 		const asr = page.locator('[data-ticker] button').first();
 		await asr.waitFor();
 		check(
-			'ts-registry: asRegion(named barrel) SSR prop (start=10)',
+			'ts-registry: marked named barrel import SSR prop (start=10)',
 			(await asr.textContent())!.includes('ticks 10')
 		);
 		await asr.scrollIntoViewIfNeeded();
 		await sleep(300);
 		await asr.click();
 		check(
-			'ts-registry: asRegion(named barrel) in a .ts file hydrated + interactive',
+			'ts-registry: marked named barrel import in a .ts file hydrated + interactive',
 			(await asr.textContent())!.includes('ticks 11'),
 			(await asr.textContent())!
 		);

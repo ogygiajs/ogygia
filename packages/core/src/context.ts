@@ -9,7 +9,7 @@ import {
 import { kit_hydrates_page } from './runtime/kit-boot.ts';
 
 // The nested-island mark (same `Symbol.for` rule as the keys below) is a leaf: nested.ts says why.
-export { setNested, isNested } from './nested.ts';
+export { setNested, isNested, nested_wake } from './nested.ts';
 
 // Context key marking "this subtree is OPAQUE to Kit" — a lake's inside (a `wake: 'none'` region), or
 // any render whose HTML only ever lands in an opaque region (a held region's: a hole's answer, a baked

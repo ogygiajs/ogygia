@@ -36,11 +36,7 @@ import {
 import { island_sourcemaps_plugin } from './sourcemaps.ts';
 import { lazy_files } from './lazy-files.ts';
 import { install_dev_client_maps, install_dev_maps, install_dev_page_keys } from './dev-maps.ts';
-import {
-	is_island_path,
-	normalize_import_keys,
-	asRegionLocals
-} from '../compiler/region/transform.ts';
+import { is_island_path, normalize_import_keys } from '../compiler/region/transform.ts';
 
 export {
 	normalize_import_keys,
@@ -65,6 +61,7 @@ export type {
 	BuildContext,
 	MacroHandler,
 	MacroContext,
+	PrescanHook,
 	MarkupSource,
 	MarkupRegions,
 	TransformStage,
@@ -98,8 +95,7 @@ import { assert_no_legacy_options, validate_region_presets, resolve_options } fr
 import {
 	clientBuildWillSkip,
 	hasAnyCsrFalseRoute,
-	is_route_file,
-	clear_route_csr_cache,
+	route_reader,
 	keep_client_dir,
 	inject_keep_client_route,
 	resolve_kit_paths,
@@ -107,6 +103,7 @@ import {
 	kit_dirs,
 	kit_inline_style_threshold
 } from '../compiler/kit.ts';
+import { node_fs } from '../compiler/fs.ts';
 import { load_kit_dirs } from './kit-dirs.ts';
 import {
 	buildFoucCssModuleSource,
@@ -121,7 +118,7 @@ import {
 	type WalkResolve
 } from '../compiler/fouc-css.ts';
 import { ExportIndex, Shapes } from '../compiler/exports/index.ts';
-import { barrel_left_table, type BarrelLeftTable } from '../compiler/exports/left.ts';
+import type { BuildLeg } from '../compiler/leg.ts';
 import { strip_bom } from '../compiler/bom.ts';
 
 import { preprocess_component_for_css } from './style-preprocess.ts';
@@ -138,6 +135,7 @@ import {
 } from '../compiler/link/island-deps.ts';
 import { report_seed_shaping } from '../compiler/link/build-output.ts';
 import { follow_pending_page_calls } from '../compiler/link/page-keys.ts';
+import { unpatched } from '../compiler/link/relocations.ts';
 import { emit_island_deps_handoff, refuse_client_secrets } from '../compiler/link/build-output.ts';
 import {
 	server_handoff_path,
@@ -147,11 +145,11 @@ import {
 import { router_css_key } from '../compiler/link/router-css.ts';
 import { Program, strip_id } from '../compiler/program.ts';
 import { Compiler } from '../compiler/driver.ts';
+import { compiler_of, configured, new_session, resolve } from './session.ts';
 import { core_defines } from '../compiler/virtual/core.ts';
 import { CompileCtx, type PackageScan } from '../compiler/ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
-import { flags_manifest } from '../compiler/flags.ts';
 
 // Kit's generated CLIENT app entry — Kit 2 dev serves `generated/client/app.js` and the build inputs
 // `generated/client-optimized/app.js`; Kit 3 nests both under `generated/dev/` and `generated/build/`
@@ -237,6 +235,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let route_config: string[] = [];
 	let foreign_hydrate = false;
 	let macros: ResolvedPlugins['macros'] = [];
+	let prescans: ResolvedPlugins['prescans'] = [];
+	/** the names of the plugins listed beside ogygia() */
+	let listed_plugins: string[] = [];
 	let stage_transforms: ResolvedPlugins['transforms'] = [];
 	let markup: ResolvedPlugins['markup'] = [];
 	let definers: ResolvedPlugins['definers'] = [];
@@ -274,15 +275,13 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let devtools_effective = false;
 	let devtools_lazy = false;
 
-	// The Program — this plugin instance's cross-file linker / island graph. It owns the descriptor
-	// registry + the feature-mark bag (seeded from the two app-wide config flags), and the behavior
-	// over them (register / unregister_host / note_runtime_mark). Per-instance, never module-global,
-	// so Kit's throwaway plugin instance is a different Program and can't leak into the real build.
-	// The adapter binds local aliases to its Maps (same objects) + methods so the hooks read like before.
-	const program = new Program({ forms: continuity_forms, router: router_enabled });
-	const { registry } = program;
+	// The Program — the cross-file linker / island graph, made with the compiler at each resolve (the
+	// compiler makes each later build of a watch its own: `compiler.program`). It owns the descriptor
+	// registry + the feature-mark bag (seeded from the two app-wide config flags), and the behavior over
+	// them (register / unregister_host / note_runtime_mark). Never module-global, so Kit's throwaway
+	// plugin instance has a different Program and can't leak into the real build.
 	// The feature-selected runtime chunk name lives on the driver as `compiler.runtime_chunk_filename()`
-	// (RUNTIME_HASH ⊕ program.runtime_feature_hash — see CompileCtx.runtime_chunk_filename); buildStart's
+	// (RUNTIME_HASH ⊕ the scan's feature_hash — see CompileCtx.runtime_chunk_filename); buildStart's
 	// emitFile and the runtime-url virtual both read it, so both build legs compute the same immutable name.
 
 	// HMAC key for signing region capability URLs (defer / remount:swr). Default: a fresh
@@ -294,8 +293,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	 *  builds would disagree). Empty when unset (dev + default per-build signing). */
 	let id_salt = '';
 
-	/** content_css_key → emitted CSS asset referenceId (client leg). Resolved to hrefs in writeBundle. */
-	const content_css_refs = new Map();
 	// THE CSS OF A SUBTREE NO CLIENT CHUNK CARRIES. Three kinds of root render without a client chunk
 	// of their own, so no page stylesheet carries their CSS or their children's: a router page (a
 	// runtime value, not a Kit route), a server-only hole (`render: 'deferred'` with no client chunk),
@@ -308,14 +305,15 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	// template (`$store`) and falls back to UNSCOPED bodies, leaking a component's CSS across the
 	// document. A plain `.css` import ships verbatim; a preprocessor dialect file (.scss/…) is skipped.
 	// `own`: the root's source when it is not the file on disk (a content module's post-mdsvex Svelte);
-	// the root's own CSS is then the caller's. `skip`: files whose CSS ships some other way.
-	const compiled_css = new Map<string, string | null>();
+	// the root's own CSS is then the caller's. `skip`: files whose CSS ships some other way. Each
+	// file's CSS compiles once per leg (`BuildLeg.compiled_css`).
 	/** The app's CSS preprocessor, for every leg's component CSS (fouc-css.ts `scoped_component_css`). */
 	const preprocess_css: PreprocessCss = (source, abs) =>
 		preprocess_component_for_css(source, abs, root);
 	const tree_css_walk = (
 		ctx: Parameters<typeof bundler_resolve>[0] & { environment: { name: string } }
 	) => {
+		const { compiled_css } = leg_of(ctx);
 		const walk_resolve = bundler_resolve(ctx);
 		const exports = css_walk_index(ctx.environment.name);
 		return async (
@@ -351,11 +349,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			return parts.join('\n');
 		};
 	};
-	/** router-css `rcss:<rel>` key → emitted CSS asset referenceId (client leg). A server router page
-	 *  component's whole-tree scoped CSS, compiled + emitted as a dedicated asset (link/router-css.ts). */
-	const router_css_refs = new Map<string, string>();
-	/** server-island id → emitted tree-CSS asset referenceId (client leg). Resolved in writeBundle. */
-	const hole_css_refs = new Map<string, string>();
 	// tag → self-contained factory source from og.$ rewrites (served by the fn-manifest virtual so
 	// client bundles can register factories pre-hydration; the payload-source fallback covers bundles
 	// that miss it) now lives on the driver as `compiler.dollar_hoists` — the macro leg fills it.
@@ -369,23 +362,23 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	/** the app compiles with Svelte's async mode (vite-plugin-svelte's resolved options): Region
 	 *  imports the awaiting LateIsland (late-island.ts) */
 	let svelte_async = false;
-	/** Resolved `resolve.alias` entries — passed to bake()'s rolldown eval so `$lib` etc. resolve. */
+	/** Resolved `resolve.alias` entries — an island's closure walk, and every plugin macro (bake()'s
+	 *  eval bundle resolves `$lib` with them). */
 	let resolve_alias: { find: string | RegExp; replacement: string }[] = [];
 	let is_build = false;
 	let is_ssr = false;
 	/** The leg a build hook runs in: the hook's ENVIRONMENT — Vite's environment API builds `ssr` and
 	 *  `client` in one app build (Kit 3), where `config.build.ssr` is false for both, so the client's
 	 *  work (the runtime chunk, the islands, their names) ran in the server leg too and landed in the
-	 *  server output — every island 404'd. Else the build's own flag (one build per leg). The last
-	 *  environment `buildStart` saw stands in for a hook the bundler calls without one. */
-	let last_leg_server: boolean | null = null;
-	const server_leg_of = (ctx: unknown): boolean => {
+	 *  server output — every island 404'd. A hook the bundler calls without one runs in the one leg
+	 *  open (driver `Compiler.leg`; two open is refused). */
+	const env_of = (ctx: unknown): { name: string; server: boolean } | null => {
 		const env = (ctx as { environment?: { name?: string; config?: { consumer?: string } } } | null)
 			?.environment;
-		if (env) return env.name === 'ssr' || env.config?.consumer === 'server';
-		return last_leg_server ?? is_ssr;
+		if (!env?.name) return null;
+		return { name: env.name, server: env.name === 'ssr' || env.config?.consumer === 'server' };
 	};
-	let content_scanned = false;
+	const leg_of = (ctx: unknown): BuildLeg => compiler_of(session, 'leg').leg(env_of(ctx));
 	let vite_server: ViteDevServer | null = null;
 	/** absolute path to Kit's internal wire-protocol module (deep import) */
 	let kit_wire_path: string | null = null;
@@ -434,34 +427,26 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				return index.map(file, spec, policy, t);
 			}
 		},
-		pinned_imports(code) {
+		// a region's identity is on its marked import alone (default or named), so the code is not read
+		pinned_imports() {
 			const keys = new Set(Object.values(import_keys));
-			const locals = asRegionLocals(code);
-			return (decl) =>
-				decl.attribute_keys.some((k) => keys.has(k)) ||
-				(locals.size > 0 && decl.specs.some((s) => locals.has(s.local)));
+			return (decl) => decl.attribute_keys.some((k) => keys.has(k));
 		},
 		regions: {
-			names: () => compiler.region_names(),
+			names: () => compiler_of(session, 'regions.names').region_names(),
 			barrelWhy: (file, importers) => barrel_why(file, importers)
 		}
 	};
 	// Why a barrel stayed (`t.emit`), per environment and stage (a stage's run forgets only its own
 	// earlier word on the module): what the findings read back for a barrel an island still imports
-	// whole. Cleared at each build leg's end and when the dev server closes.
-	const barrels_left = new Map<string, BarrelLeftTable>();
-	const barrels_left_of = (environment: string, stage: TransformStage): BarrelLeftTable => {
-		const key = `${environment}:${stage}`;
-		let table = barrels_left.get(key);
-		if (table === undefined) barrels_left.set(key, (table = barrel_left_table()));
-		return table;
-	};
+	// whole. Each leg keeps its own (`BuildLeg.barrels_left`), dropped with its build.
 	/** Why the browser's `barrel` stayed, by every stage. */
 	const barrel_why = (barrel: string, importers: Iterable<string>): BarrelLeftReason[] => {
 		const ids = [...importers];
 		const found = new Set<BarrelLeftReason>();
+		const client = compiler_of(session, 'regions.barrelWhy').find_leg('client');
 		for (const stage of ['source', 'post'] as const)
-			for (const r of barrels_left.get(`client:${stage}`)?.why(barrel, ids) ?? []) found.add(r);
+			for (const r of client?.barrels_said(stage)?.why(barrel, ids) ?? []) found.add(r);
 		return BARREL_LEFT_REASONS.filter((r) => found.has(r));
 	};
 	// A stage's host: runs the plugins' transforms of `stage` over one MagicString of the module, so
@@ -472,7 +457,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		async transform(raw, id) {
 			const mine = stage_transforms.filter((s) => s.stage === stage && (s.filter?.(id) ?? true));
 			if (mine.length === 0) return null;
-			const left = barrels_left_of(this.environment.name, stage);
+			const left = leg_of(this).barrels_left(stage);
 			left.forget(id);
 			// edits land by parser offsets: no byte-order mark in front of them (compiler/bom.ts)
 			const code = strip_bom(raw);
@@ -513,8 +498,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		transformN: 0,
 		transformHit: 0,
 		prescanMs: 0,
-		bakeMs: 0,
-		bakeN: 0,
+		macroMs: 0,
+		macroN: 0,
 		resolveMs: 0,
 		loadMs: 0
 	};
@@ -523,9 +508,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 	// The driver — the bundler-agnostic compile session (Program + transform cache + profiler). It holds
 	// the whole file-local + discovery front-end (transform / ts_regions / macros / prescan / emit /
-	// resolve_id / transform_module / …). Its CompileCtx is bound in configResolved once the build is
-	// resolved (root/dev/id_salt known); the hooks then call it and inject the Vite primitives they own.
-	const compiler = new Compiler(program, { prof: __prof, P: __P, outHash: __outHash });
+	// resolve_id / transform_module / …). It is made in configResolved with its CompileCtx, once the
+	// build is resolved (root/dev/id_salt known); each hook takes it from the session (./session.ts)
+	// and injects the Vite primitives it owns.
+	const session = new_session();
 
 	// ── keep-client route injection ──────────────────────────────────────────
 	// All-csr=false apps make Kit skip its ENTIRE client build, so ogygia's runtime is never emitted
@@ -569,7 +555,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		}: { deleted?: boolean; server?: ViteDevServer | null } = {}
 	) => {
 		if (!server) return false;
-		return compiler.invalidate_for_file(file, {
+		return compiler_of(session, 'invalidate').invalidate_for_file(file, {
 			deleted,
 			invalidate: (id) => invalidate_module_id(server, id)
 		});
@@ -590,6 +576,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			config: {
 				order: 'pre',
 				async handler(userConfig, env) {
+					configured(session);
 					// Kit's `files.routes` / `outDir` from the app's Kit config — resolved BEFORE anything
 					// below walks the routes tree or picks an output path (compiler/kit.ts `kit_dirs`). An
 					// app building a second route tree from one source configures both. Read off Kit's own
@@ -605,7 +592,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						app_plugins,
 						path.resolve(userConfig.root ?? '.'),
 						env.command === 'serve',
-						(source, filename) => compiler.transform_content_island(source, filename),
+						(source, filename) =>
+							compiler_of(session, 'markup').transform_content_island(source, filename),
 						seams
 					);
 					stage_transforms = resolved.transforms;
@@ -616,9 +604,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						route_config,
 						foreign_hydrate,
 						macros,
+						prescans,
 						markup,
 						definers
 					} = resolved);
+					listed_plugins = app_plugins.map((p) => p.name);
 					measure = resolved.measure;
 					devtools_effective = resolved.events !== false;
 					devtools_lazy = resolved.events !== false && resolved.events.lazy;
@@ -642,7 +632,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						const routes = kit_dirs(r).routes_dir;
 						// `clientBuildWillSkip` ignores our own keepalive dir, so it reflects the user's
 						// real routes: inject only when Kit really would skip, else sweep any stale dir.
-						if (clientBuildWillSkip(routes)) {
+						if (clientBuildWillSkip(route_reader(node_fs), routes)) {
 							inject_keep_client_route(r);
 							arm_keep_client_cleanup(r);
 						} else {
@@ -799,7 +789,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						// ok: a define that is not JSON keeps the `_app` default
 					}
 				}
-				// Normalize resolve.alias (array or object form) to `{ find, replacement }[]` for bake().
+				// Normalize resolve.alias (array or object form) to `{ find, replacement }[]`.
 				const ra = config.resolve?.alias ?? [];
 				resolve_alias = Array.isArray(ra)
 					? ra.map((a) => ({ find: a.find, replacement: a.replacement }))
@@ -849,11 +839,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				({ kit_wire_path, kit_remote_index, universal_hooks, client_hooks, kit_transport_init } =
 					resolve_kit_paths(root));
 
-				// Bind the driver's resolved compile context — now that root/base/libDir/dev + id_salt are
-				// known. Every run_transform runs after this (buildStart prescan / the transform hook), so
-				// the snapshot is complete before the driver is first called.
-				compiler.configure(
-					new CompileCtx({
+				// The driver, made with its resolved compile context — now that root/base/libDir/dev +
+				// id_salt are known. Every hook that calls it runs after this (session.ts refuses one that
+				// does not).
+				const compiler = resolve(session, (prev) => {
+					const ctx = new CompileCtx({
 						root,
 						base,
 						app_dir,
@@ -874,6 +864,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						resolve_alias,
 						preprocess_css,
 						macros,
+						prescans,
+						plugins: listed_plugins,
 						// (the id prefix, not the native path: every consumer `startsWith`s a module id)
 						pkg_root: CORE_ROOT_ID,
 						build_secret,
@@ -891,8 +883,17 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						app_shims: APP_SHIMS,
 						is_build,
 						devtools: devtools_effective
-					})
-				);
+					});
+					// (a plugin shared across a builder's environments: this environment's context, the
+					// build the last one began)
+					return prev
+						? prev.with_ctx(ctx)
+						: new Compiler(
+								new Program({ forms: continuity_forms, router: router_enabled }),
+								{ prof: __prof, P: __P, outHash: __outHash },
+								ctx
+							);
+				});
 
 				// DEV: hand Vite's dep scanner every island as a crawl ROOT. Under `csr = false` Kit ships
 				// no client entry and registers only `routes/**/+*` as scan entries, so an island reached
@@ -938,11 +939,15 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			async buildStart() {
+				const compiler = compiler_of(session, 'buildStart');
 				// SERVER leg of a build: a stale handoff from an earlier build must never gate THIS
 				// build's client leg — remove it here, where the leg is certain (the environment), not in
 				// configResolved, which the client environment runs again AFTER the server leg wrote it.
-				const server_leg = server_leg_of(this);
-				last_leg_server = server_leg;
+				// (no environment: the build's own flag, one build per leg)
+				const env = env_of(this) ?? { name: is_ssr ? 'ssr' : 'client', server: is_ssr };
+				const begins = compiler.start_leg(env.name, env.server);
+				const leg = compiler.leg(env);
+				const server_leg = leg.server;
 				if (is_build && server_leg)
 					fs.rmSync(server_handoff_path(kit_dirs(root).out_dir), { force: true });
 				// CLIENT build (Kit-driven): emit the runtime chunk. Kit builds the SERVER bundle FIRST,
@@ -965,9 +970,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// made content deferred holes flaky in dev (they worked only when the page-SSR registration
 				// happened to win the race). A markup `scan` walks the markdown corpus and registers
 				// every island before the first request, so the manifest is complete when any endpoint is
-				// hit. Idempotent via `content_scanned`; a no-op for apps without a content preprocessor.
-				if (!content_scanned) {
-					content_scanned = true;
+				// hit. Once per build: the leg that begins one (a second build in one process, watch,
+				// scans again); a no-op for apps without a content preprocessor.
+				if (begins) {
 					compiler.prescan();
 					for (const source of markup) await source.scan?.({ root, readFile });
 				}
@@ -983,49 +988,53 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// cms app shipped documents pointing at a runtime chunk that was never emitted).
 					const emit_runtime =
 						!standalone &&
-						(hasAnyCsrFalseRoute(kit_dirs(root).routes_dir) || compiler.has_hydrate_regions());
+						(hasAnyCsrFalseRoute(compiler.ctx.routes, kit_dirs(root).routes_dir) ||
+							compiler.has_hydrate_regions());
 					// The runtime entry (feature-selected) + one deterministic chunk per deduped hydrate
 					// region — the driver owns the naming + dedup; `this.emitFile` is the injected primitive.
 					// Gated on the SERVER leg's real module graph (link/emit-gate.ts): an island whose host
 					// the server bundle never loaded gets no chunk. No handoff → every prescanned island.
-					const loaded = read_server_handoff(kit_dirs(root).out_dir)?.hosts ?? null;
-					const skipped = compiler.emit_build_chunks((chunk) => this.emitFile(chunk), {
+					const handoff = read_server_handoff(kit_dirs(root).out_dir);
+					const loaded = handoff?.hosts ?? null;
+					// The holes whose styles this leg builds: the server leg's final list when it handed
+					// one off (a host only it reached late included), else this program's own.
+					const server_regions = handoff?.server_regions ?? null;
+					const skipped = compiler.emit_build_chunks(leg, (chunk) => this.emitFile(chunk), {
 						emitRuntime: emit_runtime,
 						loaded
 					});
 					if (skipped && isMainThread)
 						console.log(line('island_chunks_not_emitted', { count: skipped }));
-					compiled_css.clear();
 					const tree_css = tree_css_walk(this);
-					// Router pages: resolved to a handoff `rcss:<rel>` href in writeBundle, linked at SSR by
+					// Router pages: a server router page component's whole-tree scoped CSS as one asset,
+					// resolved to a handoff `rcss:<rel>` href in writeBundle, linked at SSR by
 					// `ogygia:server/router-css` (link/router-css.ts).
-					router_css_refs.clear();
 					for (const abs of compiler.router_css_roots()) {
 						const source = await tree_css(abs);
 						if (source)
-							router_css_refs.set(
+							leg.router_css_refs.set(
 								router_css_key(root, abs),
 								this.emitFile({ type: 'asset', name: 'og-rcss.css', source })
 							);
 					}
 					// Holes: handed off under the island's public URL key, which `region_css_links` already
 					// resolves through `islandCss()`, so the hole response links it and the client hoists it.
-					hole_css_refs.clear();
 					const hole_css_by_abs = new Map<string, string>();
-					for (const { iid, abs } of compiler.server_island_css_roots()) {
+					for (const { iid, abs } of server_regions ?? compiler.server_island_css_roots()) {
 						let ref = hole_css_by_abs.get(abs);
 						if (ref === undefined) {
 							const source = await tree_css(abs);
 							ref = source ? this.emitFile({ type: 'asset', name: 'og-hole.css', source }) : '';
 							hole_css_by_abs.set(abs, ref);
 						}
-						if (ref) hole_css_refs.set(iid, ref);
+						if (ref) leg.hole_css_refs.set(iid, ref);
 					}
 					// (content modules: generateBundle, once the client graph is known)
 				}
 			},
 
 			configureServer(server) {
+				const compiler = compiler_of(session, 'configureServer');
 				vite_server = server;
 				// THE PROFILER IN DEV: Vite runs each server module as its transformed code, so a profile's
 				// lines are that code's; the maps back to the source live in Vite's module graph, not in
@@ -1037,13 +1046,17 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// ...and which page.data keys each island's code reads (the build's seed answer)
 					install_dev_page_keys(
 						server,
-						(iid) => program.registry.get(program.by_id.get(iid) ?? '')?.componentPath,
+						(iid) => {
+							const { registry, by_id } = compiler.program;
+							return registry.get(by_id.get(iid) ?? '')?.componentPath;
+						},
 						root
 					);
 				}
 			},
 
 			watchChange(id, change) {
+				const compiler = compiler_of(session, 'watchChange');
 				// before anything re-emits: a module's parse, and what every export index built from it
 				shapes.invalidate(id, change.event);
 				// A route add/remove/rename or a `csr` export flip changes the csr topology → drop the
@@ -1052,11 +1065,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// graph, so without invalidation the SERVER leg keeps deciding island-vs-inline from a
 				// STALE set while Kit flips immediately — `<ogygia-region>` shells on a Kit-booted page
 				// with the runtime withheld = dead chrome (hit at a consumer after toggling `csr`).
-				if (is_dev && is_route_file(path.basename(id))) {
-					clear_route_csr_cache();
-					// (a plugin's key inside `export const config` add/flip changes the baked values too)
-					if (vite_server)
-						for (const mid of compiler.changed('routes')) invalidate_module_id(vite_server, mid);
+				if (is_dev) {
+					const ids = compiler.routes_changed(id, change.event);
+					if (vite_server) for (const mid of ids) invalidate_module_id(vite_server, mid);
 				}
 				// Unlink often skips handleHotUpdate; drop islands that still import the deleted file.
 				if (!is_dev || change.event !== 'delete' || !vite_server) return;
@@ -1065,17 +1076,22 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			buildEnd() {
+				const compiler = compiler_of(session, 'buildEnd');
 				// SERVER leg of a build: hand the real module graph to the client leg (emit gate). The
 				// leg is read off the ENVIRONMENT (Vite's environment API builds `ssr` then `client` in one
 				// app build; `config.build.ssr` is false for both there).
-				const server_leg = server_leg_of(this);
+				const server_leg = leg_of(this).server;
 				if (is_build && server_leg && !standalone) {
 					try {
 						const handoff = server_handoff_path(kit_dirs(root).out_dir);
 						fs.mkdirSync(path.dirname(handoff), { recursive: true });
 						fs.writeFileSync(
 							handoff,
-							server_handoff_json(compiler.ssr_transformed_hosts(), build_secret)
+							server_handoff_json(
+								compiler.ssr_transformed_hosts(),
+								build_secret,
+								compiler.server_island_css_roots()
+							)
 						);
 					} catch (e) {
 						// best effort — without it the client leg emits every prescanned island
@@ -1098,6 +1114,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				}
 			},
 			handleHotUpdate({ file, server }) {
+				const compiler = compiler_of(session, 'handleHotUpdate');
 				if (!is_dev) return;
 				vite_server = server;
 
@@ -1150,7 +1167,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// id, so Vite's moduleGraph must be cleared or it keeps serving the old import.
 				const deleted = !fs.existsSync(strip_id(file));
 				const host_changed = !deleted && compiler.is_registered_host(file);
-				const entry_changed = !deleted && needs_island_entry_full_reload(file, registry.values());
+				const entry_changed =
+					!deleted && needs_island_entry_full_reload(file, compiler.program.registry.values());
 				if (host_changed || deleted) {
 					invalidate_islands_for_file(file, { deleted, server });
 				}
@@ -1164,7 +1182,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				return [];
 			},
 
-			async resolveId(source, importer, options) {
+			async resolveId(source, importer) {
 				// ogygia's OWN injected imports (`ogygia/internal` / `…/server`, written by the transform into
 				// a host or a generated island module) resolve to ogygia's own files DIRECTLY (see
 				// OGYGIA_INJECTED_FILES) — never via `this.resolve` (unreliable off a synthetic importer, can
@@ -1180,7 +1198,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					if (awaiting) return awaiting;
 				}
 
-				const ssr = options?.ssr === true;
+				const ssr = leg_of(this).server;
 
 				// CLIENT build: Kit's client remote runtime needs `app` (never boots under csr=false).
 				// Plan A: reuse Kit's OWN remote primitives, redirecting `__sveltekit/remote` at Kit's
@@ -1205,16 +1223,17 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// Everything else — the ogygia virtual-module vocabulary + the island CLIENT graph ($app/*
 				// shims, virtual entry ids, relative-to-host + transitive-dep resolution) — is the driver's,
 				// with Vite's own resolver threaded in for the two branches that need it.
-				return compiler.resolve_id(source, importer, {
+				return compiler_of(session, 'resolveId').resolve_id(source, importer, {
 					ssr,
 					resolve: (s, i, o) => this.resolve(s, i, o)
 				});
 			},
 
-			async load(id, options) {
-				// Per-request only. `config.build.ssr` stays set for Kit apps and must NOT decide
-				// client vs server virtuals — that leaked `$app/server` into the browser guard.
-				const ssr = options?.ssr === true;
+			async load(id) {
+				const compiler = compiler_of(session, 'load');
+				// The request's leg (its environment), never `config.build.ssr`: that stays set for Kit
+				// apps and leaked `$app/server` into the browser guard.
+				const ssr = leg_of(this).server;
 
 				const fouc_bare = id.startsWith('\0') ? id.slice(1) : id;
 				if (isFoucCssId(fouc_bare)) {
@@ -1273,14 +1292,16 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				});
 			},
 
-			async transform(code, id, options) {
+			async transform(code, id) {
+				const compiler = compiler_of(session, 'transform');
 				let source = code;
 
 				// KIT-WORLD PAGE THREAD: append the two publish lines to Kit's generated client app
 				// entry (see KIT_PAGE_THREAD above), and the version it discloses. Client leg only — the
 				// SSR graph renders islands against Kit's real modules already, and this file is
 				// client-world by construction.
-				if (!options?.ssr && KIT_CLIENT_APP_RE.test(id)) {
+				const leg = leg_of(this);
+				if (!leg.server && KIT_CLIENT_APP_RE.test(id)) {
 					source += KIT_PAGE_THREAD + KIT_DISCLOSE_VERSION;
 				}
 				// a realm module's names, imported from the entries that have them (the graph a page
@@ -1292,14 +1313,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// the transform-time island entry) is threaded in. The driver's result is
 				// bundler-neutral (`map: unknown`); cast it to Vite's transform shape at this boundary.
 				const result = await compiler.transform_module(source, id, {
-					ssr: options?.ssr === true,
-					emitFile: (chunk) => this.emitFile(chunk)
+					leg,
+					emitFile: (chunk) => this.emitFile(chunk),
+					watch: (file) => this.addWatchFile(file)
 				});
-				// DEV: a host edit dropped its server islands from the manifest the handle already
-				// re-imported (empty of them); this transform just registered them again — invalidate the
-				// manifest once more so the NEXT endpoint request sees the ids (driver: server_manifest_stale).
-				if (is_dev && vite_server && compiler.server_manifest_stale())
-					for (const mid of compiler.changed('regions')) invalidate_module_id(vite_server, mid);
+				if (is_dev && vite_server)
+					for (const mid of compiler.moved()) invalidate_module_id(vite_server, mid);
 				// DEV: an island this transform registered (a file added while the server runs) pulled
 				// modules into the island world that the server may already hold transformed for a
 				// non-island importer — with Kit's real `$app/*`, which never boots on a csr=false page.
@@ -1314,17 +1333,23 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				return source === code ? null : { code: source, map: null };
 			},
 
-			renderChunk(code) {
-				// Patch the fn-manifest placeholder (og.$ factory registrations) once every transform has run.
-				const fn = compiler.patch_fn_manifest(code);
-				// ...and the server manifest's per-hole `page.data` answer, from the finished graph.
-				if (!server_leg_of(this)) return fn;
-				const page = compiler.patch_page_data_reads(
-					fn?.code ?? code,
-					(id) => this.getModuleInfo(id),
-					() => this.getModuleIds()
-				);
-				return page ?? fn;
+			renderChunk(code, chunk, _options, meta) {
+				// the values known only once every transform has run (link/relocations.ts)
+				let facades: Map<string, string> | null = null;
+				return compiler_of(session, 'renderChunk').relocate(code, leg_of(this), {
+					chunk_file: chunk.fileName,
+					file_name: (ref) => this.getFileName(ref),
+					facade_file: (id) => {
+						if (facades === null) {
+							facades = new Map();
+							for (const c of Object.values(meta.chunks))
+								if (c.facadeModuleId) facades.set(c.facadeModuleId, c.fileName);
+						}
+						return facades.get(id);
+					},
+					graph: (id) => this.getModuleInfo(id),
+					module_ids: () => this.getModuleIds()
+				});
 			},
 
 			// THE LOCATION MAPS (client build, generateBundle below): each island entry is content-hashed;
@@ -1335,7 +1360,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			// an island entry or the runtime, the app's own naming for every other chunk. (The bundler
 			// files an emitted chunk under the chunk pattern, which carries no name.)
 			outputOptions(output) {
-				if (!is_build || server_leg_of(this)) return null;
+				const compiler = compiler_of(session, 'outputOptions');
+				// (before the leg starts: rolldown reads its output options first)
+				if (!is_build || (env_of(this)?.server ?? is_ssr)) return null;
 				type Info = { name?: string };
 				type Names = string | ((info: Info) => string) | undefined;
 				const ours = (fallback: Names, dflt: string) => (info: Info) =>
@@ -1348,9 +1375,15 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				} as typeof output;
 			},
 
-			async generateBundle() {
-				if (!is_build || server_leg_of(this)) return;
-				for (const file of compiler.location_maps((ref) => this.getFileName(ref)))
+			async generateBundle(_options, bundle) {
+				const compiler = compiler_of(session, 'generateBundle');
+				if (!is_build) return;
+				const leg = leg_of(this);
+				const chunks = Object.values(bundle).filter((item) => item.type === 'chunk');
+				for (const r of unpatched(leg.server, leg.relocated, chunks))
+					warn('relocation_unpatched', { name: r.name, leg: leg.name });
+				if (leg.server) return;
+				for (const file of compiler.location_maps(leg, (ref) => this.getFileName(ref)))
 					this.emitFile({ type: 'asset', fileName: file.fileName, source: file.source });
 				// CONTENT MODULES (the third root of `tree_css_walk`): Region.svelte links each one's asset
 				// via the handoff (writeBundle maps content_css_key → the emitted `.css` by referenceId).
@@ -1363,7 +1396,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// scanner captured, so Svelte resolves `:global` (a raw `:global` would crash the CSS
 				// minifier) and mints the SAME scoped hash the SSR'd HTML carries (default `cssHash` =
 				// hash of the CSS; `.svx` bodies use plain `<style>`, so vitePreprocess is a no-op).
-				content_css_refs.clear();
 				const modules = markup.flatMap((m) => (m.modules ? [...m.modules] : []));
 				if (!modules.length) return;
 				const client = new Set<string>();
@@ -1386,7 +1418,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						const tree = await tree_css(abs, { own: source, skip: (p) => client.has(p) });
 						const css = [own, tree].filter(Boolean).join('\n');
 						if (css)
-							content_css_refs.set(
+							leg.content_css_refs.set(
 								content_css_key(abs),
 								this.emitFile({ type: 'asset', name: 'og-content.css', source: css })
 							);
@@ -1396,13 +1428,15 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				}
 			},
 
-			// (each build leg's end, and the dev server closing: its word on barrels is done)
+			// (each build leg's end, and the dev server closing)
 			closeBundle() {
-				barrels_left.clear();
+				compiler_of(session, 'closeBundle').end_leg(env_of(this)?.name ?? null);
 			},
 
 			async writeBundle(_options, bundle) {
-				const server_leg = server_leg_of(this);
+				const compiler = compiler_of(session, 'writeBundle');
+				const leg = leg_of(this);
+				const server_leg = leg.server;
 				// THE BUNDLE CHECK: no table module of a realm this leg may not hold, however it got in
 				// (a re-export past the resolve check included)
 				if (is_build) {
@@ -1435,23 +1469,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					process.env.OGYGIA_SECRET?.trim() ?? ''
 				]);
 
-				// FLAG MANIFEST — the inventory the prescan OBSERVED (AST-resolved flag()/experiment()
-				// call sites in modules importing 'ogygia'). Written once per build for CI flag-debt
-				// diffs; the client leg runs last, so the file reflects the completed build.
-				if (program.flag_sites.length && isMainThread) {
-					try {
-						const dir = path.join(root, 'node_modules', '.ogygia');
-						fs.mkdirSync(dir, { recursive: true });
-						const manifest = flags_manifest(program.flag_sites);
-						fs.writeFileSync(
-							path.join(dir, 'flags-manifest.json'),
-							`${JSON.stringify(manifest, null, '\t')}\n`
-						);
-						console.log(line('flags_manifest_written', { count: manifest.names.length }));
-					} catch {
-						// ok: a read-only file system never fails the build over an inventory
-					}
-				}
+				const program = compiler.program;
+				// The plugins' prescan readers: the client leg runs last, so what they saw is the
+				// completed build (`flags()` writes its flag inventory here).
+				if (isMainThread) for (const hook of prescans) hook.written?.();
 
 				// `page`: per island entry, whether its chunk closure bundles the `$app/state` /
 				// `$app/stores` shim — the handle seeds `page.data` only for islands that read it.
@@ -1467,7 +1488,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const remote_hash = (id: string) => remote_hash_of(id, process.cwd());
 				// IDENTITY → LOCATION: the entries' final (content-hashed) names. Every map the collector
 				// builds is keyed by identity; the server resolves a location through `entries`.
-				const entries = compiler.entry_locations((ref) => this.getFileName(ref));
+				const entries = compiler.entry_locations(leg, (ref) => this.getFileName(ref));
 				const map = collectIslandDepModulepreloads(
 					bundle as Record<
 						string,
@@ -1512,7 +1533,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// at SSR. A dedicated asset (not a chunk's importedCss) is immune to rolldown's shared-chunk
 				// CSS hoisting — every profiler page shares Shell, which otherwise scatters onto whichever
 				// chunk rolldown parks it on (an island's, off the router's static graph entirely).
-				for (const [key, ref] of router_css_refs) {
+				for (const [key, ref] of leg.router_css_refs) {
 					try {
 						const file = this.getFileName(ref);
 						map.css[key] = [file.startsWith('/') ? file : `/${file}`];
@@ -1524,7 +1545,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// Server-island CSS handoff: island id → its tree-CSS asset, keyed by the island's public
 				// URL (`island_url[id]` in the server manifest) so `region_css_links(id)` finds it through
 				// the same `islandCss()` lookup a hydrating island's chunk CSS uses.
-				for (const [iid, ref] of hole_css_refs) {
+				for (const [iid, ref] of leg.hole_css_refs) {
 					try {
 						const file = this.getFileName(ref);
 						const key = compiler.island_public_url(iid);
@@ -1540,7 +1561,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// to the hashed filename now that the bundle is finalized. Same key the preprocessor baked
 				// as `__ogygia_css`, so the body region resolves it at SSR.
 				const content_css: Record<string, string[]> = {};
-				for (const [key, ref] of content_css_refs) {
+				for (const [key, ref] of leg.content_css_refs) {
 					try {
 						const file = this.getFileName(ref);
 						content_css[key] = [file.startsWith('/') ? file : `/${file}`];
@@ -1611,14 +1632,17 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// identity (the stable URL SSR bakes) → location (the content-hashed file to load)
 					entries: entries.locations,
 					// the same, as one file the browser reads (the runtime's script tag names it)
-					locations: compiler.location_map_url
+					locations: leg.location_map_url
 				});
-				emit_island_deps_handoff(root, json, kit_dirs(root).out_dir);
+				emit_island_deps_handoff(root, json, kit_dirs(root).out_dir, leg.relocated);
 			}
 		},
 		// the plugins' `post` stage: on what the region transform made of the module
 		stage_host('post'),
-		island_sourcemaps_plugin({ program, is_island_path }),
+		island_sourcemaps_plugin({
+			program: () => compiler_of(session, 'sourcemaps').program,
+			is_island_path
+		}),
 		lazy_files()
 	];
 }

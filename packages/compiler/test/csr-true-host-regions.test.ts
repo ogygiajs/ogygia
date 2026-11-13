@@ -1,5 +1,5 @@
 // A csr=true route host keeps the regions the server drives (a deferred hole, a held region, a lake,
-// and the same through asRegion) exactly as a shared component does; only a wake island becomes the
+// and the same on a named import) exactly as a shared component does; only a wake island becomes the
 // plain component Kit hydrates. The browser half: apps/palaestra/e2e/csr-true-regions.spec.ts.
 import { describe, expect, it } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
@@ -38,23 +38,11 @@ const SERVER_DRIVEN: Array<[string, string, string]> = [
 		`import W from './W.svelte' with { region: 'raw' };\nexport const regions = { W };`,
 		''
 	],
+	['a named-import hole', `import { W } from './parts' with { render: 'deferred' };`, '<W />'],
+	['a named-import lake', `import { W } from './parts' with { wake: 'none' };`, '<W />'],
 	[
-		'an asRegion hole',
-		`import W from './W.svelte';\nconst D = import.meta.og.asRegion(W, { render: 'deferred' });`,
-		'<D />'
-	],
-	[
-		'an asRegion lake',
-		`import W from './W.svelte';\nconst D = import.meta.og.asRegion(W, { wake: 'none' });`,
-		'<D />'
-	],
-	[
-		'an asRegion held region',
-		dedent`
-			import W from './W.svelte';
-			const D = import.meta.og.asRegion(W, { region: 'raw' });
-			export const regions = { D };
-		`,
+		'a named-import held region',
+		`import { W } from './parts' with { region: 'raw' };\nexport const regions = { W };`,
 		''
 	]
 ];
@@ -84,16 +72,10 @@ describe('a csr=true route host hands its wake islands to Kit as plain component
 		expect(page.islands.map((i) => i.strategy)).toEqual(['server']);
 	});
 
-	it('turns a wake asRegion into the component', () => {
-		const src = host(
-			dedent`
-				import C from './C.svelte';
-				const Live = import.meta.og.asRegion(C, { wake: 'visible' });
-			`,
-			'<Live />'
-		);
+	it('drops a wake named import’s attributes', () => {
+		const src = host(`import { C } from './parts' with { wake: 'visible' };`, '<C />');
 		const page = transformHost(src, HOST, ctx(true))!;
-		expect(page.code).toContain('const Live = C;');
+		expect(page.code).toContain(`import { C } from './parts';`);
 		expect(page.islands).toEqual([]);
 	});
 });
