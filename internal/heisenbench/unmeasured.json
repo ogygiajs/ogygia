@@ -465,14 +465,6 @@
 			"reason": "browser only: the dock's teardown (its observer off, the Svelte app unmounted), once per dock; proven in packages/devtools/e2e/dock-switch.spec.ts"
 		},
 		{
-			"id": "packages/devtools/src/devtools/session.ts > start_session > counting",
-			"reason": "browser only: the recording's console.error wrapper, one line counted (200 at most) and passed on, constant work per call; proven in packages/devtools/test/devtools-session-console.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/devtools/session.ts > start_session > counting > push:0~64a57a > map:0~529f9c",
-			"reason": "browser only: one console.error argument as text, constant work per argument; proven in packages/devtools/test/devtools-session-console.test.ts"
-		},
-		{
 			"id": "packages/devtools/src/devtools/session.ts > start_session > defer:0",
 			"reason": "browser only: a recording's watchers coming off (PerformanceObservers, a MutationObserver, listeners), once per recording; proven in packages/devtools/e2e/devtools.spec.ts"
 		},
@@ -4697,8 +4689,16 @@
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
 		{
-			"id": "packages/content/src/bridge.ts > slot:0~67fe91 > make",
-			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+			"id": "packages/content/src/vite/index.ts > markdown_read",
+			"reason": "reads the process-wide markdown bridge slot (hidden state) and notes an early read: one field read and one write, constant work; proven in packages/content/test/content-config-order.test.ts"
+		},
+		{
+			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_ERRORS > content_config_read_first > text",
+			"reason": "a message's one line for the thrown error, built once when content() runs after the svelte config read its markdown settings"
+		},
+		{
+			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_ERRORS > content_config_read_first > details",
+			"reason": "a message's docs paragraph: constant prose, read by the docs build and the error page"
 		},
 		{
 			"id": "packages/core/src/plugin/request-scope.ts > shared:0~5bce76 > make",
@@ -4835,6 +4835,14 @@
 		{
 			"id": "packages/core/src/runtime/form-continuity.ts > arm_form_restore > read_names",
 			"reason": "browser only: one query of the page's regions, then region_names; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > start_session > counting",
+			"reason": "browser only: the recording's console.error wrapper, one line counted (200 at most) and passed on, constant work per call; proven in packages/devtools/test/devtools-session-console.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > start_session > counting > push:0~64a57a > map:0~529f9c",
+			"reason": "browser only: one console.error argument as text, constant work per argument; proven in packages/devtools/test/devtools-session-console.test.ts"
 		},
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > page_payload_unreadable > details",
