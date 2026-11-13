@@ -1953,6 +1953,168 @@
 			"reason": "`render(h.endpoint).catch(() => null)`: proved: the .catch removed turns the test red, twice",
 			"test": "packages/postrender/test/postrender.test.ts",
 			"name": "FAIL-OPEN: a null/throwing render keeps that hole verbatim, others still splice"
+		},
+		{
+			"site": "packages/router/src/client-api.ts > api > call > not-ok:0",
+			"reason": "`!res.ok`: proved: the !ok check made never true turns the test red, twice",
+			"test": "packages/router/test/router-api-client.test.ts",
+			"name": "a schema 400 throws ApiError carrying the issues body"
+		},
+		{
+			"site": "packages/router/src/client-api.ts > api > call > .catch:0",
+			"reason": "`res.json().catch(() => undefined)`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/router/test/router-api-client.test.ts",
+			"name": "a 200 whose JSON body does not parse rejects, it does not resolve undefined"
+		},
+		{
+			"site": "packages/router/src/client-api.ts > api > call > throw:0",
+			"reason": "`throw new ApiError(res.status, body);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/router-api-client.test.ts",
+			"name": "a schema 400 throws ApiError carrying the issues body"
+		},
+		{
+			"site": "packages/router/src/define.ts > memo_of > run > catch:0",
+			"reason": "`catch (error) { return { ok: false, error }; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/router/test/router-define.test.ts",
+			"name": "a failed load is the request’s failure: the next call in it gets the same, without a run"
+		},
+		{
+			"site": "packages/router/src/define.ts > memo_of > run > result:0",
+			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
+			"test": "packages/router/test/router-define.test.ts",
+			"name": "a failed load is the request’s failure: the next call in it gets the same, without a run"
+		},
+		{
+			"site": "packages/router/src/define.ts > load > stale:0",
+			"reason": "`v === STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/router/test/router-define.test.ts",
+			"name": "refuses a load asked for after its request ended, with the reason the request ended"
+		},
+		{
+			"site": "packages/router/src/match.ts > compile > throw:0",
+			"reason": "`throw new Error( `[@ogygia/router] route pattern must start with \"/\":…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/router-match.test.ts",
+			"name": "rejects malformed patterns loudly"
+		},
+		{
+			"site": "packages/router/src/match.ts > compile > throw:1",
+			"reason": "`throw new Error( `[@ogygia/router] a [...rest] segment must be last: …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/router-match.test.ts",
+			"name": "rejects malformed patterns loudly"
+		},
+		{
+			"site": "packages/router/src/match.ts > compile > throw:2",
+			"reason": "`throw new Error(`[@ogygia/router] malformed segment ${JSON.stringify(…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/router-match.test.ts",
+			"name": "rejects a segment with a stray bracket left after its valid [param] groups"
+		},
+		{
+			"site": "packages/router/src/match.ts > fill > throw:0",
+			"reason": "`throw new Error( `[@ogygia/router] the rest param \"${name}\" has an em…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/property-fill-match.test.ts",
+			"name": "whatever the params, the filled path stays on the origin it is read against, or is refused"
+		},
+		{
+			"site": "packages/router/src/match.ts > fill > throw:1",
+			"reason": "`throw new Error( `[@ogygia/router] the segment \"${seg}\" fills empty, …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/property-fill-match.test.ts",
+			"name": "whatever the params, the filled path stays on the origin it is read against, or is refused"
+		},
+		{
+			"site": "packages/router/src/match.ts > fill > throw:2",
+			"reason": "`throw new Error( `[@ogygia/router] the segment \"${seg}\" fills as ${JS…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/property-fill-match.test.ts",
+			"name": "gives back the params as filled, or refuses them"
+		},
+		{
+			"site": "packages/router/src/match.ts > safe_decode > catch:0",
+			"reason": "`catch { return s; // ok: a malformed escape matches as it was written…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/router/test/router-match.test.ts",
+			"name": "hands back a param with a malformed %xx as it was, instead of throwing"
+		},
+		{
+			"site": "packages/router/src/respond.ts > redirect > throw:0",
+			"reason": "`throw { [REDIRECT]: true, status, location: String(location) } satisf…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/router-dispatch.test.ts",
+			"name": "redirect() → a redirect response"
+		},
+		{
+			"site": "packages/router/src/respond.ts > error > throw:0",
+			"reason": "`throw { [HTTP_ERROR]: true, status, message: message ?? 'Error' } sat…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/router-dispatch.test.ts",
+			"name": "error() from an endpoint → JSON error"
+		},
+		{
+			"site": "packages/router/src/router.ts > routes > throw:0",
+			"reason": "`throw new Error( `[@ogygia/router] two different layouts share the na…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/router/test/router-dispatch.test.ts",
+			"name": "two different layouts with the same name throw when the table is built"
+		},
+		{
+			"site": "packages/router/src/router.ts > routes > dispatch > catch:0",
+			"reason": "`catch (thrown) { return with_collected(await handle_thrown(thrown, le…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/router/test/router-dispatch.test.ts",
+			"name": "redirect() → a redirect response"
+		},
+		{
+			"site": "packages/router/src/stream.ts > stream_document > .catch:0",
+			"reason": "`rest.return(undefined).catch(cleanup_failed)`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/router/test/router-stream-cancel.test.ts",
+			"name": "a page generator: request_cleanup_failed, with the error"
+		},
+		{
+			"site": "packages/router/src/stream.ts > stream_document > start > catch:0",
+			"reason": "`catch (e) { if (owner.closed) return; controller.enqueue(enc.encode(l…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/router/test/router-stream.test.ts",
+			"name": "puts the error card of a throwing chunk source in the slot it was given"
+		},
+		{
+			"site": "packages/router/src/stream.ts > late_region_chunks > reject:0",
+			"reason": "`, (e: unknown) => ({ id, html: error_card_html(e) })`: proved: the rejection handler removed turns the test red, twice",
+			"test": "packages/router/test/router-allow-visitor-late.test.ts",
+			"name": "a rejected one streams its error card once, and the rest still come"
+		},
+		{
+			"site": "packages/router/src/stream.ts > end_all > .catch:0",
+			"reason": "`s.return(undefined).catch(cleanup_failed)`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/router/test/router-stream-cancel.test.ts",
+			"name": "a source a merged stream holds: request_cleanup_failed, with the error"
+		},
+		{
+			"site": "packages/testing/src/index.ts > Ogygia > record > throw:0",
+			"reason": "`throw new Error( 'record(…, { blockNavigation: true }) needs a driver…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/testing/test/testing-primitives.test.ts",
+			"name": "record({ blockNavigation }): the driver holds the loads back and the page lists them"
+		},
+		{
+			"site": "packages/testing/src/index.ts > Ogygia > record > catch:1",
+			"reason": "`catch (e) { failed = true; failure = e; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/testing/test/testing-primitives.test.ts",
+			"name": "record(): a page that left for another document says so, with the actions’ own error as the cause"
+		},
+		{
+			"site": "packages/testing/src/index.ts > Ogygia > record > .catch:1",
+			"reason": "`owner[Symbol.asyncDispose]().catch((error: unknown) => { undo_errors.…`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/testing/test/testing-primitives.test.ts",
+			"name": "record(): actions that fail, then an undo that fails too: the actions’ error is the one thrown"
+		},
+		{
+			"site": "packages/testing/src/index.ts > Ogygia > record > throw:2",
+			"reason": "`throw new Error( `the recording was lost: the page went to another do…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/testing/test/testing-primitives.test.ts",
+			"name": "record(): a page that left for another document says so, with the actions’ own error as the cause"
+		},
+		{
+			"site": "packages/testing/src/index.ts > Ogygia > record > throw:3",
+			"reason": "`throw failure;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/testing/test/testing-primitives.test.ts",
+			"name": "record(): the actions’ error still surfaces when the page stayed"
+		},
+		{
+			"site": "packages/testing/src/index.ts > toMeetBudget > not-ok:0",
+			"reason": "`!l.ok`: proved: the !ok check made never true turns the test red, twice",
+			"test": "packages/testing/test/testing-primitives.test.ts",
+			"name": "a line with nothing measured fails, and says so"
 		}
 	],
 	"impossible": [
@@ -3311,54 +3473,28 @@
 		"packages/postrender/src/server.ts > response > catch:1",
 		"packages/postrender/src/server.ts > invalidate > throw:1",
 		"packages/postrender/src/server.ts > lastBuild > stale:0",
-		"packages/router/src/client-api.ts > api > call > not-ok:0",
-		"packages/router/src/client-api.ts > api > call > .catch:0",
-		"packages/router/src/client-api.ts > api > call > throw:0",
-		"packages/router/src/define.ts > memo_of > run > catch:0",
-		"packages/router/src/define.ts > memo_of > run > result:0",
-		"packages/router/src/define.ts > load > stale:0",
-		"packages/router/src/match.ts > compile > throw:0",
-		"packages/router/src/match.ts > compile > throw:1",
-		"packages/router/src/match.ts > compile > throw:2",
-		"packages/router/src/match.ts > fill > throw:0",
-		"packages/router/src/match.ts > fill > throw:1",
-		"packages/router/src/match.ts > fill > throw:2",
-		"packages/router/src/match.ts > safe_decode > catch:0",
-		"packages/router/src/respond.ts > redirect > throw:0",
-		"packages/router/src/respond.ts > error > throw:0",
-		"packages/router/src/router.ts > routes > throw:0",
 		"packages/router/src/router.ts > routes > dispatch > unmatched > catch:0",
 		"packages/router/src/router.ts > routes > dispatch > unmatched > throw:0",
-		"packages/router/src/router.ts > routes > dispatch > catch:0",
 		"packages/router/src/router.ts > routes > handle_thrown > throw:0",
 		"packages/router/src/router.ts > routes > $infer > throw:0",
 		"packages/router/src/router.ts > run_endpoint > catch:0",
 		"packages/router/src/stream.ts > bake_yield > throw:0",
 		"packages/router/src/stream.ts > bake_yield > throw:1",
-		"packages/router/src/stream.ts > stream_document > .catch:0",
 		"packages/router/src/stream.ts > stream_document > start > stream:0",
 		"packages/router/src/stream.ts > stream_document > start > stale:0",
 		"packages/router/src/stream.ts > stream_document > start > stream:1",
-		"packages/router/src/stream.ts > stream_document > start > catch:0",
 		"packages/router/src/stream.ts > stream_document > start > stream:2",
 		"packages/router/src/stream.ts > stream_document > start > stream:3",
 		"packages/router/src/stream.ts > stream_document > start > stream:4",
-		"packages/router/src/stream.ts > late_region_chunks > reject:0",
-		"packages/router/src/stream.ts > end_all > .catch:0",
 		"packages/testing/src/client.ts > boot > lend > import:0",
 		"packages/testing/src/index.ts > Ogygia > constructor > .catch:0",
 		"packages/testing/src/index.ts > Ogygia > page > throw:0",
 		"packages/testing/src/index.ts > Ogygia > record > parse:0",
 		"packages/testing/src/index.ts > Ogygia > record > .catch:0",
-		"packages/testing/src/index.ts > Ogygia > record > throw:0",
 		"packages/testing/src/index.ts > Ogygia > record > catch:0",
-		"packages/testing/src/index.ts > Ogygia > record > catch:1",
-		"packages/testing/src/index.ts > Ogygia > record > .catch:1",
 		"packages/testing/src/index.ts > Ogygia > record > throw:1",
 		"packages/testing/src/index.ts > Ogygia > record > parse:1",
 		"packages/testing/src/index.ts > Ogygia > record > .catch:2",
-		"packages/testing/src/index.ts > Ogygia > record > throw:2",
-		"packages/testing/src/index.ts > Ogygia > record > throw:3",
 		"packages/testing/src/index.ts > Ogygia > profile > throw:0",
 		"packages/testing/src/index.ts > Ogygia > profile > parse:0",
 		"packages/testing/src/index.ts > Ogygia > wait > timer:0",
@@ -3366,7 +3502,6 @@
 		"packages/testing/src/index.ts > Ogygia > call > .catch:0",
 		"packages/testing/src/index.ts > Ogygia > post > fetch:0",
 		"packages/testing/src/index.ts > playwrightDriver > blockNavigation > .catch:0",
-		"packages/testing/src/index.ts > toMeetBudget > not-ok:0",
 		"packages/tooling/src/e2e/browsers.ts > console_text > .catch:0",
 		"packages/tooling/src/e2e/build.ts > build_app > throw:0",
 		"packages/tooling/src/e2e/build.ts > global_build > throw:0",
