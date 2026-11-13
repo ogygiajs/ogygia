@@ -1,54 +1,27 @@
 import { walk } from 'estree-walker';
 import type { SvelteNode } from './region/ir.ts';
 
-/**
- * Free-variable analysis over a Svelte 5 template subtree.
- *
- * Given an array of top-level template nodes (a hoisted island subtree), returns
- * the set of identifier names that are referenced inside the subtree but bound
- * OUTSIDE it (host `<script>` vars, outer `{#each}` locals, component imports,
- * globals...), PLUS the set of those free names that are the TARGET of a mutation
- * (assignment / update / compound-assign / destructuring-assignment / `bind:`).
- * Identifiers bound *within* the subtree (snippet params, each locals, `{@const}`,
- * `{#await}` value/error, `let:` directives, and JS-level function params) are
- * excluded from both sets.
- *
- * The mutation set powers a build-time guard: captured host state crosses the
- * boundary as a serialized SNAPSHOT, so writing to it inside an island updates
- * nothing. The transform turns a mutated capture into a precise error.
- */
-
-// static: the AST node types that open a function scope
-const FUNCTION_TYPES = new Set([
+const FUNCTION_TYPES: ReadonlySet<string> = new Set([
 	'FunctionDeclaration',
 	'FunctionExpression',
 	'ArrowFunctionExpression'
 ]);
 
-// static: the loops whose head may declare a block-scoped name
-const LOOP_TYPES = new Set(['ForStatement', 'ForInStatement', 'ForOfStatement']);
+const LOOP_TYPES: ReadonlySet<string> = new Set([
+	'ForStatement',
+	'ForInStatement',
+	'ForOfStatement'
+]);
 
-// Minimal estree shape for the function-scope handling (no @types/estree dependency).
 interface EsFunction {
 	id?: { name: string } | null;
 	params: SvelteNode[];
 }
-/** The estree node `estree-walker` walks (its own type, without depending on @types/estree). */
 type WalkNode = Parameters<typeof walk>[0];
 
-/** Accumulators threaded through the whole analysis. */
 interface Sink {
-	/** free references (reads) */
 	refs: Set<string>;
-	/** free names written to (assignment / update / bind target root) */
 	mutated: Set<string>;
-	/**
-	 * Free `$`-prefixed references (store auto-subscriptions like `$country`, plus the
-	 * `$$props` family), with every occurrence's source offsets. The sugar is host-scoped:
-	 * emitted verbatim into a synth entry it names an out-of-scope `$`-identifier, which
-	 * runes mode rejects — the transform captures the subscription VALUE and rewrites these
-	 * exact spans to the capture's prop name instead.
-	 */
 	stores: Map<string, Array<{ start: number; end: number }>>;
 }
 
@@ -74,8 +47,6 @@ export function collect_pattern_names(node: SvelteNode | null | undefined, out: 
 		case 'RestElement':
 			collect_pattern_names(node.argument, out);
 			break;
-		// a legacy `let:x={{ a }}` / `let:x={[a]}`: Svelte's parser gives the directive the
-		// EXPRESSION form of the pattern (portable-snippet-scope.test.ts)
 		case 'ObjectExpression':
 			for (const prop of node.properties) {
 				if (prop.type === 'SpreadElement') collect_pattern_names(prop.argument, out);
@@ -94,18 +65,12 @@ export function collect_pattern_names(node: SvelteNode | null | undefined, out: 
 	}
 }
 
-/** The leftmost identifier name of a member chain (`a.b.c` -> `a`), or null. */
 function member_root(node: SvelteNode): string | null {
 	let cur = node;
 	while (cur && cur.type === 'MemberExpression') cur = cur.object;
 	return cur && cur.type === 'Identifier' ? cur.name : null;
 }
 
-/**
- * Collect the ROOT identifier names written by an assignment/update target — an
- * Identifier (`x = …`), a MemberExpression (`x.a = …` -> `x`), or a destructuring
- * pattern (`[x] = …`, `({ x } = …)`, defaults, rests, nested member targets).
- */
 function collect_write_roots(target: SvelteNode, roots: Set<string>) {
 	if (!target) return;
 	switch (target.type) {
@@ -135,7 +100,6 @@ function collect_write_roots(target: SvelteNode, roots: Set<string>) {
 	}
 }
 
-/** Is this Identifier node a *reference* (a read) rather than a binding/property name? */
 function is_reference(
 	node: SvelteNode,
 	parent: SvelteNode | null,
@@ -143,31 +107,14 @@ function is_reference(
 ) {
 	if (!parent) return true;
 	switch (parent.type) {
-		// obj.prop -> `prop` is not a reference (unless computed)
 		case 'MemberExpression':
-			if (key === 'property' && !parent.computed) return false;
-			return true;
-		// { prop: value } -> `prop` key is not a reference (unless computed/shorthand handled below)
+			return key !== 'property' || parent.computed;
 		case 'Property':
-			if (key === 'key' && !parent.computed) {
-				// shorthand { x } -> key === value === same node, still a reference read
-				return parent.shorthand;
-			}
-			return true;
-		// binding ids are not references
-		case 'VariableDeclarator':
-			return key !== 'id';
-		case 'FunctionDeclaration':
-		case 'FunctionExpression':
-		case 'ArrowFunctionExpression':
-			return key !== 'id' && key !== 'params';
-		case 'ClassDeclaration':
-		case 'ClassExpression':
-			return key !== 'id';
-		// a class member's name: `m() {}`, `x = 1` (unless computed)
 		case 'MethodDefinition':
 		case 'PropertyDefinition':
 			return key !== 'key' || parent.computed;
+		case 'ClassExpression':
+			return key !== 'id';
 		case 'ImportSpecifier':
 		case 'ImportDefaultSpecifier':
 		case 'ImportNamespaceSpecifier':
@@ -176,22 +123,13 @@ function is_reference(
 		case 'BreakStatement':
 		case 'ContinueStatement':
 			return key !== 'label';
-		case 'CatchClause':
-			return key !== 'param';
-		// `import.meta`: no names, a meta property
 		case 'MetaProperty':
 			return false;
 		default:
-			// a TS type position (`x: T`, `<T>`) names no value; `x as T` / `x!` still read `x`
 			return !parent.type.startsWith('TS') || key === 'expression';
 	}
 }
 
-/**
- * Walk one estree expression, adding any free references (not bound by inner
- * JS function scopes and not in `svelte_bound`) into `sink.refs`, and any free
- * assignment/update targets into `sink.mutated`.
- */
 function add_expression_refs(expr: SvelteNode, svelte_bound: Set<string>, sink: Sink) {
 	if (!expr) return;
 	const scopes: Set<string>[] = [new Set()];
@@ -207,12 +145,9 @@ function add_expression_refs(expr: SvelteNode, svelte_bound: Set<string>, sink: 
 	};
 	walk(expr as WalkNode, {
 		enter(node, parent, key) {
-			if (opens_scope(node, parent)) {
-				// every name the scope binds, before any is read (a function declared below its call,
-				// a `var` in a nested block)
+			if (SCOPE_TYPES.has(node.type)) {
 				scopes.push(scope_bindings(node));
 			} else if (node.type === 'ClassDeclaration') {
-				// binds its name where it stands (a class EXPRESSION's name is bound only inside it)
 				const id = (node as { id?: { name: string } | null }).id;
 				if (id) scopes[scopes.length - 1].add(id.name);
 			} else if (node.type === 'VariableDeclarator') {
@@ -224,7 +159,6 @@ function add_expression_refs(expr: SvelteNode, svelte_bound: Set<string>, sink: 
 			} else if (node.type === 'Identifier' && is_reference(node, parent, key)) {
 				if (!has(node.name)) {
 					sink.refs.add(node.name);
-					// (Svelte's parse carries offsets on every node; estree's type does not declare them)
 					const at = node as typeof node & { start?: number; end?: number };
 					if (node.name.startsWith('$') && at.start != null && at.end != null) {
 						let sites = sink.stores.get(node.name);
@@ -234,13 +168,12 @@ function add_expression_refs(expr: SvelteNode, svelte_bound: Set<string>, sink: 
 				}
 			}
 		},
-		leave(node, parent) {
-			if (opens_scope(node, parent)) scopes.pop();
+		leave(node) {
+			if (SCOPE_TYPES.has(node.type)) scopes.pop();
 		}
 	});
 }
 
-/** The names `stmts` declare for their own block: `let` / `const`, classes, functions, imports. */
 function lexical_names(stmts: SvelteNode[] | undefined, out: Set<string>) {
 	for (const stmt of stmts ?? []) {
 		const s =
@@ -256,17 +189,14 @@ function lexical_names(stmts: SvelteNode[] | undefined, out: Set<string>) {
 	}
 }
 
-/** Every `var` under `node`, through blocks but never into a nested function: they bind to it. */
 function var_names(node: SvelteNode | null | undefined, out: Set<string>) {
 	if (!node) return;
-	// a `var` stands only where a statement does, so only statements are entered
 	switch (node.type) {
 		case 'VariableDeclaration':
 			if (node.kind === 'var') for (const d of node.declarations) collect_pattern_names(d.id, out);
 			break;
 		case 'Program':
 		case 'BlockStatement':
-		case 'StaticBlock':
 			for (const s of node.body) var_names(s, out);
 			break;
 		case 'ExportNamedDeclaration':
@@ -302,14 +232,7 @@ function var_names(node: SvelteNode | null | undefined, out: Set<string>) {
 	}
 }
 
-/** Does `node` open a scope of its own (a function's body block shares the function's)? */
-function opens_scope(node: { type: string }, parent: { type: string } | null): boolean {
-	if (!SCOPE_TYPES.has(node.type)) return false;
-	return node.type !== 'BlockStatement' || !FUNCTION_TYPES.has(parent?.type ?? '');
-}
-
-// static: the AST node types that may open a scope (a block only when it is no function's body)
-const SCOPE_TYPES = new Set([
+const SCOPE_TYPES: ReadonlySet<string> = new Set([
 	...FUNCTION_TYPES,
 	...LOOP_TYPES,
 	'CatchClause',
@@ -357,8 +280,6 @@ export function free_references(expr: SvelteNode): string[] {
 	return [...sink.refs];
 }
 
-/** A template binder's pattern (`{#each … as p}`, a snippet parameter, `{@const p = …}`): its names
- *  are bound, and its defaults and computed keys are READ, in `bound` (test/free-vars-patterns.test.ts). */
 function add_pattern_refs(pattern: SvelteNode | null | undefined, bound: Set<string>, sink: Sink) {
 	if (!pattern) return;
 	switch (pattern.type) {
@@ -384,7 +305,6 @@ function add_pattern_refs(pattern: SvelteNode | null | undefined, bound: Set<str
 	}
 }
 
-/** Names introduced by `let:` directives on an element/component. */
 function let_directive_names(node: SvelteNode): Set<string> {
 	const names = new Set<string>();
 	for (const attr of node.attributes ?? []) {
@@ -396,20 +316,16 @@ function let_directive_names(node: SvelteNode): Set<string> {
 	return names;
 }
 
-/** Walk attribute expressions of an element/component (not `let:`, which binds). */
 function add_attribute_refs(node: SvelteNode, bound: Set<string>, sink: Sink) {
-	/** An attribute's value: `true` (no value), text with `{…}` parts, or one `{…}`. */
 	const add_value_refs = (value: SvelteNode) => {
 		if (Array.isArray(value)) {
 			for (const part of value) {
 				if (part.type === 'ExpressionTag') add_expression_refs(part.expression, bound, sink);
 			}
 		} else if (value?.type === 'ExpressionTag') {
-			// single-expression attribute: `a={x}` or shorthand `{x}`
 			add_expression_refs(value.expression, bound, sink);
 		}
 	};
-	/** A name the template reads as a variable (`use:act`, `style:color`); its root for `a.b`. */
 	const add_name_ref = (name: string) => {
 		const root = name.split('.')[0];
 		if (root && !bound.has(root)) sink.refs.add(root);
@@ -417,17 +333,15 @@ function add_attribute_refs(node: SvelteNode, bound: Set<string>, sink: Sink) {
 	for (const attr of node.attributes ?? []) {
 		switch (attr.type) {
 			case 'Attribute':
-				if (attr.value !== true) add_value_refs(attr.value); // `true`: a boolean attribute
+				add_value_refs(attr.value);
 				break;
 			case 'StyleDirective':
-				// `style:color` alone reads `color`; with a value, the value is read
 				if (attr.value === true) add_name_ref(attr.name);
 				else add_value_refs(attr.value);
 				break;
 			case 'UseDirective':
 			case 'TransitionDirective':
 			case 'AnimateDirective':
-				// `use:act={arg}` / `transition:fade` / `animate:flip`: the function itself, then its argument
 				add_name_ref(attr.name);
 				if (attr.expression) add_expression_refs(attr.expression, bound, sink);
 				break;
@@ -435,11 +349,9 @@ function add_attribute_refs(node: SvelteNode, bound: Set<string>, sink: Sink) {
 				add_expression_refs(attr.expression, bound, sink);
 				break;
 			case 'LetDirective':
-				add_pattern_refs(attr.expression, bound, sink); // binds; reads only its defaults
+				add_pattern_refs(attr.expression, bound, sink);
 				break;
 			case 'BindDirective':
-				// `bind:value={target}` READS and WRITES `target`. Record the write-root so a
-				// `bind:` into a captured host snapshot is caught (it would update nothing).
 				if (attr.expression) {
 					add_expression_refs(attr.expression, bound, sink);
 					const root =
@@ -450,13 +362,11 @@ function add_attribute_refs(node: SvelteNode, bound: Set<string>, sink: Sink) {
 				}
 				break;
 			default:
-				// On/Class/Style/Transition/Animate/Use/In/Out directives
 				if (attr.expression) add_expression_refs(attr.expression, bound, sink);
 		}
 	}
 }
 
-/** Collect snippet names + const-declared names defined at this fragment level. */
 function sibling_bindings(nodes: SvelteNode[]) {
 	const names = new Set<string>();
 	for (const n of nodes) {
@@ -472,11 +382,6 @@ function fragment_nodes(fragment: SvelteNode): SvelteNode[] {
 	return fragment?.nodes ?? [];
 }
 
-/**
- * @param nodes top-level nodes of the subtree
- * @param outer_bound names bound outside (usually empty at entry)
- * @param sink accumulates free references + mutations
- */
 function walk_template(nodes: SvelteNode[], outer_bound: Set<string>, sink: Sink) {
 	const bound = new Set(outer_bound);
 	for (const name of sibling_bindings(nodes)) bound.add(name);
@@ -546,7 +451,6 @@ function walk_template(nodes: SvelteNode[], outer_bound: Set<string>, sink: Sink
 			}
 			case 'Component':
 			case 'SvelteComponent': {
-				// the component: its name (`Foo` / `Foo.Bar`), or `<svelte:component this={…}>`'s expression
 				if (node.type === 'SvelteComponent') add_expression_refs(node.expression, bound, sink);
 				else {
 					const root = String(node.name || '').split('.')[0];
@@ -565,7 +469,7 @@ function walk_template(nodes: SvelteNode[], outer_bound: Set<string>, sink: Sink
 			case 'SvelteBoundary':
 			case 'SlotElement':
 			case 'TitleElement': {
-				if (node.tag) add_expression_refs(node.tag, bound, sink); // <svelte:element this={tag}>
+				if (node.tag) add_expression_refs(node.tag, bound, sink);
 				add_attribute_refs(node, bound, sink);
 				const el_bound = new Set(bound);
 				for (const name of let_directive_names(node)) el_bound.add(name);
