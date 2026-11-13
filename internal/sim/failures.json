@@ -825,6 +825,12 @@
 			"reason": "an app's hooks.client init that throws: proved: the failure left uncaught turns the test red, twice",
 			"test": "packages/core/test/browser/client-hooks.test.ts",
 			"name": "a failing init is caught, not thrown — it never blocks the page"
+		},
+		{
+			"site": "packages/core/src/runtime/nav-hooks.ts > bind_to_component > catch:0",
+			"reason": "beforeNavigate/afterNavigate called outside a component: proved: Svelte's refusal thrown on turns the test red, twice",
+			"test": "packages/core/test/browser/nav-hooks.test.ts",
+			"name": "outside a component the registration stands, and its unsubscribe is handed back"
 		}
 	],
 	"impossible": [
@@ -1531,7 +1537,6 @@
 		"packages/core/src/runtime/nav-handle.ts > invalidate_all > stale:0",
 		"packages/core/src/runtime/nav-handle.ts > mpa_nav > goto > throw:0",
 		"packages/core/src/runtime/nav-handle.ts > mpa_nav > goto > throw:1",
-		"packages/core/src/runtime/nav-hooks.ts > bind_to_component > catch:0",
 		"packages/core/src/runtime/page-defer.ts > create_deferred > .catch:0",
 		"packages/core/src/runtime/page-defer.ts > settle > .catch:0",
 		"packages/core/src/runtime/page-defer.ts > install_page_defer > live > catch:0",
@@ -1642,7 +1647,6 @@
 		"packages/core/src/server/stream-regions.ts > batch_stream > refused:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > .catch:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > stream:0",
-		"packages/core/src/server/stream-regions.ts > batch_stream > start > stale:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > refused:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > stream:1",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > stream:2",
