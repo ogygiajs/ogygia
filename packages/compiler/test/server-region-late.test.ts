@@ -61,7 +61,15 @@ function late_app(): void {
 	);
 	write(
 		'lib/Slow.svelte',
-		'<p>slow</p>\n\n<style>\n\tp {\n\t\tcolor: rebeccapurple;\n\t}\n</style>\n'
+		dedent`
+			<p>slow</p>
+
+			<style>
+				p {
+					color: rebeccapurple;
+				}
+			</style>
+		`
 	);
 	const svelte_dir = path.dirname(createRequire(import.meta.url).resolve('svelte/package.json'));
 	fs.mkdirSync(path.join(root, 'node_modules'), { recursive: true });
