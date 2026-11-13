@@ -104,11 +104,14 @@ const RUNTIME_POINTS = [
 	'batch.fetch-fails',
 	'batch.refused',
 	'batch.body-breaks',
-	'batch.body-stalls'
+	'batch.body-stalls',
+	'router.build-throws',
+	'router.commit-throws'
 ];
 // (the router's batch reader is a chunk the boot loads on use: named here so the build holds it)
 const RUNTIME_POINTS_ENTRY = `${RUNTIME_ENTRY}${dedent`
 	export { streamFrames } from ${JSON.stringify(`${SRC}runtime/frame-nav.ts`)};
+	export { navigate } from ${JSON.stringify(`${SRC}runtime/router-nav.ts`)};
 `}\n`;
 const SERVER_POINTS = [
 	'flights.not-kept',
