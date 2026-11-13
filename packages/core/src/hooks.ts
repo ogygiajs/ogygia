@@ -19,7 +19,7 @@
  * @packageDocumentation
  */
 import { render } from 'svelte/server';
-import { clock, say, STALE } from '@ogygia/machine';
+import { clock, say, slot as shared, STALE } from '@ogygia/machine';
 import type { Component } from 'svelte';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { Handle } from './kit-handle.ts';
@@ -510,7 +510,11 @@ set_page_route_config(route_config);
 // module eval still counts). Their `app.capability` lives and renews by the app's own hole lifetime,
 // and a refused one is answered like a refused region request. Opening one pays the region budgets of
 // the handle serving the request (PROBE-THEN-RENDER); a request no handle of ours serves pays a 429.
-const hole_budgets = new WeakMap<Request, OgygiaHandle>();
+const hole_budgets = shared<WeakMap<Request, Pick<OgygiaHandle, 'charge_hole'>>>({
+	name: 'ogygia.hole-budgets',
+	version: 1,
+	make: () => new WeakMap()
+});
 const plugins = start_app_plugins(server_plugins, {
 	sign: (message) => sign(signing_key().secret, message),
 	verify: (message, signature) => verify(signing_key().secret, message, signature),

@@ -1,22 +1,3 @@
-/**
- * PRELOAD AN ISLAND'S GRAPH AT WAKE — the runtime half of the island graph (../island-graph.ts).
- *
- * The page carries, as data, the chunks each island entry needs. When an island starts to load (its
- * wake, after the wake gate; a hover or router warm), `preload_island_graph(entry)` inserts one
- * `<link rel="modulepreload">` per chunk not yet linked, in the same task as the entry's `import()`.
- * The browser then fetches the entry and its whole graph at once — no waterfall of discovering each
- * import after the last one parsed — and only for islands that actually start.
- *
- * The graph is read lazily from every `script[data-ogygia-graph]` in the document (the document
- * tail, a head copy a self-contained render emitted, the body a router swap brought in), each script
- * once. Chunks are content-hashed URLs and entries are identities (their files, content-hashed too,
- * resolve through runtime/entry-locations.ts), so a list read on one page is never wrong on the
- * next: nothing to invalidate. A router warm reads the NEXT page's graph out of its fetched HTML
- * (`register_island_graph`) before that page is in the DOM. Tests: test/browser/island-graph-preload,
- * preload-priority and code-origins.
- *
- * @packageDocumentation
- */
 import { decode_island_graph, decode_island_locations } from '../island-graph.ts';
 import { OGYGIA_GRAPH, OGYGIA_GRAPH_PRELOAD } from '../wire-markup.ts';
 import { note_entry_location } from './entry-locations.ts';

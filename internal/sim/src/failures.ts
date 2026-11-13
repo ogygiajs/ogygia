@@ -325,6 +325,9 @@ export interface Fired {
 	readonly point?: string;
 	/** Or the sim fault that does. */
 	readonly fault?: string;
+	/** Or the random app's shape that does (a gen stream, as gen.ts forks it: `gen messy` draws a hole
+	 *  whose render throws, whose answer is a 500). */
+	readonly shape?: string;
 	/** Which simulator fires it: the app simulator (internal/sim, the default) or the compiler's
 	 *  (a dev session's edits, fs and watcher faults, against a cold build). */
 	readonly sim?: 'app' | 'compiler';
@@ -397,6 +400,8 @@ export function account_failures(
 		faults: ReadonlySet<string>;
 		/** The mutants the daily run judges (mutants.json, not `equivalent`). */
 		mutants: ReadonlySet<string>;
+		/** The random app's shapes: the streams gen.ts forks (`gen messy`, …). */
+		shapes: ReadonlySet<string>;
 		base?: ReadonlySet<string>;
 		fired?: ReadonlySet<string>;
 	}
@@ -426,8 +431,10 @@ export function account_failures(
 		const pkg = /^packages\/([^/]+)\//.exec(f.site)?.[1];
 		if (pkg !== undefined && build_time.has(pkg))
 			failures.push(`${f.site}: a build-time package's site is covered by a test, never fired`);
-		if ((f.point === undefined) === (f.fault === undefined))
-			failures.push(`${f.site}: a fired site names one point or one fault`);
+		const by = [f.point, f.fault, f.shape].filter((x) => x !== undefined).length;
+		if (by !== 1) failures.push(`${f.site}: a fired site names one point, fault or shape`);
+		else if (f.shape !== undefined && !o.shapes.has(f.shape))
+			failures.push(`${f.site}: no app shape '${f.shape}' in gen.ts`);
 		else if (f.point !== undefined && !o.points.has(f.point))
 			failures.push(`${f.site}: no buggify point '${f.point}' in the packages' source`);
 		else if (f.fault !== undefined && (f.sim ?? 'app') === 'app' && !o.faults.has(f.fault))
@@ -477,6 +484,11 @@ export function account_failures(
 /** The buggify points `source` asks: each `fires('<point>')`. */
 export function points_in(source: string): string[] {
 	return [...source.matchAll(/\bfires\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]);
+}
+
+/** The random app's shapes: each stream gen.ts forks, `.fork('gen …')`. */
+export function shapes_in(gen_source: string): string[] {
+	return [...gen_source.matchAll(/\.fork\('(gen [^']+)'\)/g)].map((m) => m[1]);
 }
 
 /** The sim's fault classes, from network.ts's `FaultClass` union. */
@@ -593,6 +605,7 @@ export function check_failures(
 		points,
 		faults: new Set(faults_in(readFileSync(join(ROOT, 'internal/sim/src/network.ts'), 'utf8'))),
 		mutants: new Set(mutants),
+		shapes: new Set(shapes_in(readFileSync(join(ROOT, 'internal/sim/src/gen.ts'), 'utf8'))),
 		...o
 	});
 }
