@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('ogygia:server/router-config', () => ({ router_enabled: false, view_transitions: false }));
 
 const { handle } = await import('../src/hooks.ts');
-const { facts_of, set_current_request } = await import('../src/plugin/facts.ts');
+const { facts_of } = await import('../src/plugin/facts.ts');
 
 const DOC =
 	'<!doctype html><html><head><title>t</title></head><body><ogygia-region entry="https://peer.test/_app/ogygia/og-region.js" wake="load"><p>peer</p></ogygia-region></body></html>';
@@ -25,7 +25,6 @@ async function serve(learned: string[] | null): Promise<string> {
 			locals: {}
 		} as never,
 		resolve: async (event, opts) => {
-			set_current_request(() => event.request);
 			if (learned) facts_of(event.request).codeOrigins = learned;
 			html = (await opts!.transformPageChunk!({ html: DOC, done: true })) ?? '';
 			return new Response(html, { headers: { 'content-type': 'text/html' } });
