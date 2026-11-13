@@ -583,6 +583,27 @@ export function router_plan(seed: number): boolean {
 	return !rng(seed).fork('gen router').chance(0.25);
 }
 
+/** The ogygia release a generated app may be upgraded from (`released_plan`). */
+export const RELEASE = '0.12.3';
+
+/** The release a seed's app is upgraded from mid-session, or null (stream `gen released`): an app
+ *  that uses only ogygia's own package (no peer, no reshape pass, no flag, no stored page, no
+ *  command that publishes) has its first build on that release and its second on this tree, as an app upgrading
+ *  ogygia deploys it (src/builds.ts). A rolling deploy then answers the new release's pages from the
+ *  old release's servers for a while. */
+export function released_plan(
+	seed: number,
+	pages: readonly GenPage[],
+	peer: GenPeer | null,
+	reshape: GenReshape | null
+): string | null {
+	const publishes = (ns: readonly GenNode[]): boolean =>
+		ns.some((n) => n.publish === true || publishes(n.children));
+	const later = (p: GenPage) => p.flagged || p.postrender || publishes(p.roots);
+	if (peer !== null || reshape !== null || pages.some(later)) return null;
+	return rng(seed).fork('gen released').chance(0.3) ? RELEASE : null;
+}
+
 /** The first id of the layout's regions: never one of the pages' (the peer's start at 1000). */
 export const LAYOUT_FIRST = 500;
 
@@ -1066,7 +1087,7 @@ export function app_reshape(pass: GenReshape | null): string {
 export const handle: Handle = ({ event, resolve }) => resolve(event);
 `;
 	return `import type { Handle } from '@sveltejs/kit';
-import * as reshape from '@ogygia/reshape';
+import { rewrite } from '@ogygia/rewrite';
 import { buggify } from '@ogygia/machine';
 
 const TRIM = ${pass.trim};
@@ -1114,9 +1135,7 @@ function render(html: string, tag: string, tree: (inner: string) => string): str
 \t}
 }
 
-export const transform: reshape.ReshapeTransform = async (html) => {
-\tif (buggify.fires('gen.reshape-throws')) throw new Error('the reshape pass threw');
-\tif (buggify.fires('gen.reshape-slow')) await new Promise((r) => setTimeout(r, 3000));
+function render_one(html: string): string {
 \tlet out = render(
 \t\thtml,
 \t\t'x-gen-box',
@@ -1125,9 +1144,16 @@ export const transform: reshape.ReshapeTransform = async (html) => {
 \tout = render(out, 'x-gen-link', (inner) => \`<a class="gen-link" tabindex="-1"><slot>\${trim(inner)}</slot></a>\`);
 \tif (buggify.fires('gen.reshape-strips-marks')) out = out.replace(/ og-[a-z]+="[^"]*"/g, '');
 \treturn out;
-};
+}
 
-export const handle: Handle = reshape.handle(transform);
+export const handle: Handle = rewrite({
+\tmatch: ['x-gen-box', 'x-gen-link'],
+\tasync render(elements) {
+\t\tif (buggify.fires('gen.reshape-throws')) throw new Error('the rewrite threw');
+\t\tif (buggify.fires('gen.reshape-slow')) await new Promise((r) => setTimeout(r, 3000));
+\t\treturn elements.map((el) => render_one(el.html));
+\t}
+});
 `;
 }
 
@@ -1157,7 +1183,8 @@ export function write(
 	peer: GenPeer | null = null,
 	layout: GenNode | null = null,
 	router = true,
-	reshape: GenReshape | null = null
+	reshape: GenReshape | null = null,
+	released: string | null = null
 ): void {
 	const routes = join(app, 'src', 'routes');
 	const lib = join(app, 'src', 'lib', 'gen');
@@ -1295,7 +1322,7 @@ export const actions = m.actions;
 	}
 	writeFileSync(
 		join(lib, 'plan.json'),
-		`${JSON.stringify({ seed, pages, peer, layout, router, reshape, presets: screen_presets(pages) }, null, '\t')}\n`
+		`${JSON.stringify({ seed, pages, peer, layout, router, reshape, released, presets: screen_presets(pages) }, null, '\t')}\n`
 	);
 }
 
@@ -1437,11 +1464,12 @@ function main(): void {
 	const peer = peer_plan(seed, pages);
 	const layout = layout_plan(seed);
 	const router = router_plan(seed);
-	write(app, pages, seed, peer, layout, router, reshape);
+	const released = released_plan(seed, pages, peer, reshape);
+	write(app, pages, seed, peer, layout, router, reshape, released);
 	const count = (ns: readonly GenNode[]): number =>
 		ns.reduce((s, n) => s + 1 + count(n.children), 0);
 	console.log(
-		`[sim] generated ${pages.length} pages, ${count(pages.flatMap((p) => p.roots))} regions (seed ${seed})${layout ? `, ${count([layout])} in the layout` : ''}${router ? '' : ', no router'}${reshape ? `, a reshape pass (${reshape.trim ? 'trims' : 'keeps whitespace'}${reshape.link ? ', links' : ''})` : ''} in ${app}`
+		`[sim] generated ${pages.length} pages, ${count(pages.flatMap((p) => p.roots))} regions (seed ${seed})${layout ? `, ${count([layout])} in the layout` : ''}${router ? '' : ', no router'}${reshape ? `, a reshape pass (${reshape.trim ? 'trims' : 'keeps whitespace'}${reshape.link ? ', links' : ''})` : ''}${released ? `, upgraded from ${released}` : ''} in ${app}`
 	);
 	if (peer) {
 		write_peer(`${app}-peer`, peer, seed);
