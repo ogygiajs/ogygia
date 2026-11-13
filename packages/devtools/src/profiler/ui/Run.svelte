@@ -5,7 +5,7 @@
 	import RunView from './RunView.svelte' with { wake: 'load' };
 	import type { ProfilerRoutes } from '../profiler-router.ts';
 	let { data }: ProfilerRoutes['/run'] = $props();
-	const { base, path, runs, format, against } = $derived(data);
+	const { base, path, runs, format, start, against } = $derived(data);
 </script>
 
 <Shell {base}>
@@ -15,5 +15,5 @@
 			? ', then downloading the .ogp'
 			: ''}. This runs the page {runs}× for a steady median — hold on.
 	</p>
-	<RunView {base} {path} {runs} {format} {against} />
+	<RunView {base} {path} {runs} {format} {start} {against} />
 </Shell>

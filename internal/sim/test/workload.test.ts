@@ -8,6 +8,7 @@ import {
 	ACTION_KINDS,
 	describe as say,
 	next_action,
+	pick,
 	user_click,
 	type Action
 } from '../src/workload.ts';
@@ -86,6 +87,32 @@ describe('the workload', () => {
 		);
 	});
 
+	it('a crowd of 2 to 6 other visitors opens a page within a second, only in a run that has crowds', () => {
+		const draw = (crowds: boolean) => {
+			const r = rng(23);
+			return Array.from({ length: 3000 }, () =>
+				next_action(r, 1, ['/', '/a'], false, undefined, crowds)
+			);
+		};
+		const without = draw(false);
+		expect(without.some((a) => a.kind === 'crowd')).toBe(false);
+		// (a run without crowds draws as it did before crowds were there)
+		const r = rng(23);
+		expect(without).toEqual(Array.from({ length: 3000 }, () => next_action(r, 1, ['/', '/a'])));
+		const crowds = draw(true).filter((a) => a.kind === 'crowd');
+		expect(crowds.length).toBeGreaterThan(0);
+		for (const a of crowds) {
+			if (a.kind !== 'crowd') continue;
+			expect(['/', '/a']).toContain(a.path);
+			expect(a.n).toBeGreaterThanOrEqual(2);
+			expect(a.n).toBeLessThanOrEqual(6);
+			expect(a.spread).toBeLessThanOrEqual(1000);
+		}
+		expect(say({ kind: 'crowd', path: '/a', n: 3, spread: 200 })).toBe(
+			'a crowd of 3 visitors opens /a within 200 ms'
+		);
+	});
+
 	it("a visitor's click is a pointer's: down, up, then the click, as a browser sends them", () => {
 		const window = new Window();
 		const button = window.document.createElement('button');
@@ -95,6 +122,44 @@ describe('the workload', () => {
 			window.document.addEventListener(type, (e) => heard.push(e.type), { capture: true });
 		user_click(button as unknown as Element);
 		expect(heard).toEqual(['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']);
+		window.close();
+	});
+
+	it('a planned pick finds what it named on a page whose elements moved, and says when it is gone', () => {
+		const window = new Window({ url: 'https://app.test/' });
+		const page = (html: string) => {
+			window.document.body.innerHTML = html;
+			return [
+				...window.document.querySelectorAll('a[href], ogygia-region button')
+			] as unknown as Element[];
+		};
+		// (a run picks by its draw, and names what it picked)
+		const first = page('<a href="/a">a</a><a href="/b">b</a><a href="/b">b again</a>');
+		const drawn = pick(first, 2, undefined);
+		expect(drawn.name).toBe('link /b @1');
+		expect(drawn.missed).toBe(false);
+		// (its plan, replayed on a page with one more link before it: the same link, by its name)
+		const moved = page(
+			'<a href="/new">n</a><a href="/a">a</a><a href="/b">b</a><a href="/b">b2</a>'
+		);
+		const again = pick(moved, 2, drawn.name);
+		expect(again.el.textContent).toBe('b2');
+		expect(again.missed).toBe(false);
+		// (a button by its region and text)
+		const buttons = page(
+			'<ogygia-region entry="Cart"><button>add</button><button>remove</button></ogygia-region>'
+		);
+		expect(pick(buttons, 1, undefined).name).toBe('button Cart "remove"');
+		expect(pick(buttons, 0, 'button Cart "remove"').el.textContent).toBe('remove');
+		// (a region's entry by its file, without the build's hash: the next build names it the same)
+		const hashed = page(
+			'<ogygia-region entry="/_app/ogygia/og-region.0f905d6bd24b.js"><button>go</button></ogygia-region>'
+		);
+		expect(pick(hashed, 0, undefined).name).toBe('button og-region "go"');
+		// (what it named is gone: its draw picks, and the pick says it missed)
+		const gone = pick(first, 0, 'link /gone');
+		expect(gone.missed).toBe(true);
+		expect(gone.name).toBe('link /a');
 		window.close();
 	});
 });

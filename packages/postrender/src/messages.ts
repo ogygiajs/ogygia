@@ -97,6 +97,20 @@ export const POSTRENDER_WARNINGS = {
 			Check the store's connection and credentials.
 		`
 	},
+	postrender_capture_failed: {
+		text: (a: { path: string }): string => prose`
+			postrender: storing ${a.path} failed; the page went out as rendered, not stored —
+		`,
+		details: (): string => prose`
+			Postrender reads each storable page to store it (its stitched holes rewritten, its
+			headers made). That step threw for this page (the error follows the message). The
+			visitor got the page as the app rendered it, marked \`no-store\`, and nothing was
+			stored: the next request renders it again. Said once per page.
+
+			The error names what failed: often a stitched hole whose \`endpoint\` is not a URL, or
+			an edge adapter that threw.
+		`
+	},
 	postrender_fanout_failed: {
 		text: (a: { label: string; what: string }): string => `postrender.${a.label}: ${a.what} —`,
 		details: (): string => prose`
