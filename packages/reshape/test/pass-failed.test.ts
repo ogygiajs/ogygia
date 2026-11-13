@@ -1,24 +1,15 @@
 /**
- * The app's pass failing, said with a code of reshape's own (#1569): a transform that throws, and
- * one that drops ogygia's marks from a host ogygia will restore. What happens to the page is
- * unchanged here; the codes make the failure visible.
+ * The app's pass failing (#1569): a transform that throws, and one that drops ogygia's marks from a
+ * host ogygia will restore. In production the answer it ran on goes out as ogygia rendered it,
+ * before the pass, and the failure is said once with its code; in dev it is thrown with the code,
+ * so the developer sees the broken pass at once.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RequestEvent } from '@sveltejs/kit';
-import { startPlugin } from '@ogygia/core/plugin/testing';
-import server from '../src/server.ts';
-import { handle, type ReshapeTransform } from '../src/index.ts';
+import { reshape_pass } from '../src/pass.ts';
+import type { ReshapeTransform } from '../src/index.ts';
 
-const ok = async () => new Response('ok');
-
-/** The pass for one request that `transform` wraps. */
-async function pass_of(transform: ReshapeTransform) {
-	startPlugin(server, { name: '@ogygia/reshape' });
-	const request = new Request('http://x/');
-	const event = { request, url: new URL(request.url) } as RequestEvent;
-	await handle(transform)({ event, resolve: ok });
-	return server.pass!(event)!;
-}
+const event = { request: new Request('http://x/'), url: new URL('http://x/') } as RequestEvent;
 
 const island = (inner: string) =>
 	`<ogygia-region entry="./a.js" data-og-fp="f1">${inner}</ogygia-region>`;
@@ -26,49 +17,74 @@ const doc = (body: string) =>
 	`<!doctype html><html><head><title>t</title></head><body>${body}</body></html>`;
 /** A host ogygia will restore: a custom element in an island's markup. */
 const page = doc(island('<demo-card class="own"><i>ok</i></demo-card>'));
+const answer = '<demo-card><i>ok</i></demo-card>';
 
 /** A render that writes the plan on every host it was given, as reshape asks. */
 const renders: ReshapeTransform = (html) =>
 	html.replace(/<demo-card( og-h="\d+")/g, '<demo-card$1 og-shadow="demo-card.shadow"');
 /** A render that drops every `og-*` attribute: ogygia can restore nothing it marked. */
 const strips: ReshapeTransform = (html) => html.replace(/ og-[a-z]+="[^"]*"/g, '');
+const boom = new Error('boom');
+const throws: ReshapeTransform = () => {
+	throw boom;
+};
 
-let warns: unknown[][];
+let said: unknown[][];
 beforeEach(() => {
-	warns = [];
-	vi.spyOn(console, 'warn').mockImplementation((...a: unknown[]) => {
-		warns.push(a);
-	});
+	said = [];
+	const keep = (...a: unknown[]) => {
+		said.push(a);
+	};
+	vi.spyOn(console, 'warn').mockImplementation(keep);
+	vi.spyOn(console, 'error').mockImplementation(keep);
 });
 afterEach(() => vi.restoreAllMocks());
-const said = (code: string) => warns.filter((a) => a.some((x) => String(x).includes(code)));
+const told = (code: string) => said.filter((a) => a.some((x) => String(x).includes(code)));
 
-describe("the app's pass failing", () => {
-	it('a transform that throws is said with reshape_pass_failed, and its error still goes up (gen 10, seed 10)', async () => {
-		const boom = new Error('boom');
-		const pass = await pass_of(() => {
-			throw boom;
-		});
-		await expect(pass.document(page, { csr: false, answer: false })).rejects.toBe(boom);
-		await expect(pass.region('<demo-card><i>ok</i></demo-card>')).rejects.toBe(boom);
-		expect(said('reshape_pass_failed')).toHaveLength(2);
+describe("production: the app's pass failing", () => {
+	it('a transform that throws: the page goes out as ogygia rendered it, said once with reshape_pass_failed (gen 10, seed 10)', async () => {
+		const pass = reshape_pass(throws, event, { dev: false });
+		const out = await pass.document(page, { csr: false, answer: false });
+		expect(out).toEqual({ html: page, head: '', body: '' });
+		expect(await pass.region(answer)).toBe(answer);
+		expect(told('reshape_pass_failed')).toHaveLength(2);
 	});
 
-	it("a transform that drops ogygia's marks from a host it will restore is said with reshape_marks_lost (gen 10, seed 5)", async () => {
-		const pass = await pass_of(strips);
-		await pass.document(page, { csr: false, answer: false });
-		await pass.region('<demo-card><i>ok</i></demo-card>');
-		expect(said('reshape_marks_lost')).toHaveLength(2);
+	it("a transform that drops ogygia's marks: the answer goes out as ogygia rendered it, said once with reshape_marks_lost (gen 10, seed 5)", async () => {
+		const pass = reshape_pass(strips, event, { dev: false });
+		const out = await pass.document(page, { csr: false, answer: false });
+		expect(out).toEqual({ html: page, head: '', body: '' });
+		expect(await pass.region(answer)).toBe(answer);
+		expect(told('reshape_marks_lost')).toHaveLength(2);
 	});
 
-	it('a transform that keeps the marks, or has no host to keep them on, says nothing', async () => {
-		const pass = await pass_of(renders);
-		await pass.document(page, { csr: false, answer: false });
-		await pass.region('<demo-card><i>ok</i></demo-card>');
-		await pass.region('<p>no custom element</p>');
-		const plain = await pass_of(strips);
+	it('a transform that keeps the marks, or has no host to keep them on, is used and says nothing', async () => {
+		const pass = reshape_pass(renders, event, { dev: false });
+		const out = await pass.document(page, { csr: false, answer: false });
+		expect(out.html).toContain('og-shadow="demo-card.shadow"');
+		expect(await pass.region(answer)).toContain('og-shadow="demo-card.shadow"');
+		const plain = reshape_pass(strips, event, { dev: false });
 		await plain.document(doc('<p>no custom element</p>'), { csr: false, answer: false });
-		expect(said('reshape_marks_lost')).toHaveLength(0);
-		expect(said('reshape_pass_failed')).toHaveLength(0);
+		expect(await plain.region('<p>no custom element</p>')).toBe('<p>no custom element</p>');
+		expect(told('reshape_marks_lost')).toHaveLength(0);
+		expect(told('reshape_pass_failed')).toHaveLength(0);
+	});
+});
+
+describe("dev: the app's pass failing", () => {
+	it('a transform that throws is thrown with reshape_pass_failed', async () => {
+		const pass = reshape_pass(throws, event, { dev: true });
+		await expect(pass.document(page, { csr: false, answer: false })).rejects.toThrow(
+			/reshape_pass_failed/
+		);
+		await expect(pass.region(answer)).rejects.toThrow(/reshape_pass_failed/);
+	});
+
+	it("a transform that drops ogygia's marks is thrown with reshape_marks_lost", async () => {
+		const pass = reshape_pass(strips, event, { dev: true });
+		await expect(pass.document(page, { csr: false, answer: false })).rejects.toThrow(
+			/reshape_marks_lost/
+		);
+		await expect(pass.region(answer)).rejects.toThrow(/reshape_marks_lost/);
 	});
 });
