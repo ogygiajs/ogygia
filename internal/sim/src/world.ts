@@ -406,6 +406,18 @@ export class World {
 		return this.#page_build.get(realm) ?? this.live;
 	}
 
+	/** The build that answered each realm's first page request: the one whose runtime it runs. */
+	readonly #document_build = new Map<string, string>();
+
+	/** Whether a document runs an earlier ogygia release's runtime (its first page came from a build
+	 *  on {@link Build.released}): what it does is that release's, which this tree cannot change, so
+	 *  a run judges only the documents this tree's runtime runs, the ones meeting the release's
+	 *  answers among them. */
+	on_release(realm: string): boolean {
+		const id = this.#document_build.get(realm);
+		return id !== undefined && this.#o.builds.some((b) => b.id === id && b.released !== undefined);
+	}
+
 	/** The build that answered each of `realm`'s requests, by {@link answer_key}, its latest answer's:
 	 *  a hole a page asks for after a deploy is the new release's, and a file the old build gave in a
 	 *  rolling deploy's window is the old build's (gen 88, seed 88020; test/deploy.node.test.ts). */
@@ -560,7 +572,10 @@ export class World {
 		const page = this.#pinned === null && is_page_path(decodeURIComponent(url.pathname));
 		const answered = (response: Response): Response => {
 			const by = response.headers.get(ANSWERED_BY);
-			if (page && by !== null) this.#page_build.set(from, by);
+			if (page && by !== null) {
+				this.#page_build.set(from, by);
+				if (!this.#document_build.has(from)) this.#document_build.set(from, by);
+			}
 			return response;
 		};
 		return cdn
