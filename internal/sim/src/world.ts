@@ -104,8 +104,9 @@ export interface WorldOptions {
 	rollover?: Rollover;
 	/** BUGGIFY (@ogygia/machine `buggify`, in rules builds): each point's chance to be on for this
 	 *  run (a swarm: a run tries some rare branches hard and leaves the rest alone), and an on
-	 *  point's chance to fire at each call. Default: off. */
-	buggify?: { readonly on: number; readonly fires: number };
+	 *  point's chance to fire at each call. `aim`: only these points, each on for every run (a
+	 *  point its app asks rarely, aimed at to prove its recovery). Default: off. */
+	buggify?: { readonly on: number; readonly fires: number; readonly aim?: readonly string[] };
 	/** The app's `OGYGIA_SECRET`, the same for every build (a stable signing key). Unset, each build
 	 *  signs with its own key, and a page of one build gets its holes refused by another's servers
 	 *  (`x-ogygia-deny: foreign-key`, as ogygia's `secret_missing` warns). */
@@ -218,7 +219,8 @@ export class World {
 		if (o === undefined) return false;
 		let seen = this.buggified.get(point);
 		if (seen === undefined) {
-			seen = { on: this.rng.fork(`buggify swarm ${point}`).chance(o.on), asked: 0, fired: 0 };
+			const swarm = this.rng.fork(`buggify swarm ${point}`).chance(o.on);
+			seen = { on: o.aim ? o.aim.includes(point) : swarm, asked: 0, fired: 0 };
 			this.buggified.set(point, seen);
 		}
 		seen.asked++;

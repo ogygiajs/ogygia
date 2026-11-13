@@ -91,6 +91,72 @@
 			"shape": "gen messy",
 			"how": "the refusal of that 500 (status N): fetch_failed retries, then the fallback stands",
 			"killed_by": "hole-error-answer-swapped-in"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > throw:0",
+			"point": "batch.fetch-fails",
+			"how": "the point itself: a navigation batch's request fails before it goes out, as a dropped one's does",
+			"killed_by": "batch-unreleased-fetch-fails"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > fetch:0",
+			"point": "batch.fetch-fails",
+			"how": "the batch's request fails (the point throws where net.fetch would): every hole it reserved is released in the finally and fetches on its own",
+			"killed_by": "batch-unreleased-fetch-fails"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > catch:0",
+			"point": "batch.fetch-fails",
+			"how": "the catch of that failed request returns: the finally releases every reservation, and each hole fetches on its own",
+			"killed_by": "batch-unreleased-fetch-fails"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > not-ok:0",
+			"point": "batch.refused",
+			"how": "the batch is answered 503 (the point swaps the answer, as a busy server would): nothing is read, and the finally releases every reservation",
+			"killed_by": "batch-unreleased-refused"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > throw:1",
+			"point": "batch.body-breaks",
+			"how": "the point itself: a read of the batch's body fails, as a body that broke off does",
+			"killed_by": "batch-unreleased-body-breaks"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > catch:1",
+			"point": "batch.body-breaks",
+			"how": "the body broke off mid-batch: the catch returns, and the parts it still owed are released to fetch on their own",
+			"killed_by": "batch-unreleased-body-breaks"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > stale:2",
+			"point": "batch.body-stalls",
+			"how": "the batch's body goes quiet (the point reads as a stall past STALL_MS): the batch ends, and the parts it still owed are released to fetch on their own",
+			"killed_by": "batch-unreleased-body-stalls"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > navigate > build > throw:0",
+			"point": "router.build-throws",
+			"how": "the point itself: a step of the next page's build throws (its devalue did not load, a parse failed)",
+			"killed_by": "router-build-throw-not-handed-off"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > navigate > catch:0",
+			"point": "router.build-throws",
+			"how": "the staged build rejects: the navigation hands off to the browser, which loads the page whole",
+			"killed_by": "router-build-throw-not-handed-off"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > navigate > swap > throw:0",
+			"point": "router.commit-throws",
+			"how": "the point itself: the commit of a built page throws before it changes anything",
+			"killed_by": "router-commit-failed-not-handed-off"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > navigate > swap > catch:0",
+			"point": "router.commit-throws",
+			"how": "a commit that throws is kept as out.failed: what was built is given back, and the navigation hands off to the browser (#276)",
+			"killed_by": "router-commit-failed-not-handed-off"
 		}
 	],
 	"covered": [
@@ -135,6 +201,48 @@
 			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
 			"test": "packages/reshape/test/pass-failed.test.ts",
 			"name": "a transform that drops ogygia's marks is thrown with reshape_marks_lost"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > reset > parse:0",
+			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > reset > catch:0",
+			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > original > parse:0",
+			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > original > catch:0",
+			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > parse:0",
+			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > catch:0",
+			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore_adopt > catch:0",
+			"reason": "a shadow root that refuses a sheet (an engine's own refusal): happy-dom adopts every sheet",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a root that cannot adopt its sheet leaves the others in the answer theirs"
 		},
 		{
 			"site": "packages/core/src/server/page-facts.ts > read_first_line > catch:0",
@@ -827,16 +935,11 @@
 		"packages/core/src/runtime/foreign-props.ts > foreign_region_prop_revivers > OgygiaRef > throw:0",
 		"packages/core/src/runtime/form-continuity.ts > url_of > catch:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > stale:0",
-		"packages/core/src/runtime/frame-nav.ts > streamFrames > fetch:0",
-		"packages/core/src/runtime/frame-nav.ts > streamFrames > catch:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > stale:1",
-		"packages/core/src/runtime/frame-nav.ts > streamFrames > not-ok:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > body:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > .catch:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > stream:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > .catch:1",
-		"packages/core/src/runtime/frame-nav.ts > streamFrames > catch:1",
-		"packages/core/src/runtime/frame-nav.ts > streamFrames > stale:2",
 		"packages/core/src/runtime/frame-store.ts > fetch_frame > abort:0",
 		"packages/core/src/runtime/frame-store.ts > write > refused:0",
 		"packages/core/src/runtime/frame-store.ts > reserve > stale:0",
@@ -922,8 +1025,6 @@
 		"packages/core/src/runtime/router-nav.ts > navigate > build > catch:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > build > abort:1",
 		"packages/core/src/runtime/router-nav.ts > navigate > build > abort:2",
-		"packages/core/src/runtime/router-nav.ts > navigate > catch:0",
-		"packages/core/src/runtime/router-nav.ts > navigate > swap > catch:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > .catch:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > reject:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > .catch:1",
@@ -1813,13 +1914,6 @@
 		"packages/postrender/src/stitch.ts > stitch_html > .catch:0",
 		"packages/reshape/src/restore-report.ts > report > reject:0",
 		"packages/reshape/src/restore-report.ts > report > import:0",
-		"packages/reshape/src/restore.ts > restore > reset > parse:0",
-		"packages/reshape/src/restore.ts > restore > reset > catch:0",
-		"packages/reshape/src/restore.ts > restore > original > parse:0",
-		"packages/reshape/src/restore.ts > restore > original > catch:0",
-		"packages/reshape/src/restore.ts > restore > parse:0",
-		"packages/reshape/src/restore.ts > restore > catch:0",
-		"packages/reshape/src/restore.ts > restore_adopt > catch:0",
 		"packages/router/src/client-api.ts > api > call > not-ok:0",
 		"packages/router/src/client-api.ts > api > call > .catch:0",
 		"packages/router/src/client-api.ts > api > call > throw:0",
@@ -1951,6 +2045,12 @@
 			"point": "flights.not-kept",
 			"steps": ["render cache: flying -> gone", "router pages: flying -> gone"],
 			"how": "an answer is not kept, as one too heavy for max: the next caller runs the work again (any flights)"
+		},
+		{
+			"point": "batch.part-lost",
+			"steps": ["frame-part: promised -> missed"],
+			"how": "a navigation batch's parcel for a hole is lost (as a body cut short would): its reservation is missed when the batch ends, and the hole fetches on its own. Batches are rare in a random run, so its kill is proved aimed (--buggify-aim batch.part-lost, gen 191: unreleased, the hole stands on its fallback and its binder is stuck)",
+			"killed_by": "batch-undelivered-never-released"
 		}
 	]
 }

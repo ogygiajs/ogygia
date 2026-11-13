@@ -11,6 +11,10 @@
  *
  *   node src/mutate.ts --mutants <file.json> [--gens 191,192,550+33+36] [--palaestra] [--seeds 20]
  *     [--jobs 4] [--sandbox <dir>] [--out <file.jsonl>] [--budget-min <minutes>]
+ *     [--buggify-aim <points>]
+ *
+ * `--buggify-aim` runs every seed, the baseline's too, with only those buggify points on (cli.ts):
+ * a point its app asks rarely proves its recovery this way.
  *
  * One line per mutant goes to `--out` as it is judged (what it was, killed or survived, by what),
  * and at the end the kill rate, how many of the list were judged (a time budget stops it starting
@@ -52,6 +56,9 @@ export interface Mutant {
 	/** Why no run can tell it from the code as it is (it is never run, and stays out of the kill
 	 *  rate): written up once, so a list keeps it without it counting as a survivor. */
 	readonly equivalent?: string;
+	/** The buggify points its recovery is proved under (`--buggify-aim`): it runs only in a run
+	 *  aimed at exactly these, and a run without an aim leaves it out. */
+	readonly aim?: string;
 }
 
 /** The mutants a run builds and runs, and the ones written up as {@link Mutant.equivalent}. */
@@ -212,6 +219,9 @@ function arg(flag: string): string | undefined {
 	return at === -1 ? undefined : process.argv[at + 1];
 }
 
+/** The buggify points every seed aims at (`--buggify-aim`), passed on to cli.ts. */
+const AIM = arg('--buggify-aim');
+
 /** A target: a generated app's seed, or the palaestra, and the seeds it runs past the run's own
  *  range (`extra`). */
 export type Target = { name: string; gen: number | null; extra: number[] };
@@ -279,7 +289,7 @@ function run_seeds(
 		rmSync(results, { force: true });
 		sh(
 			sim,
-			`nice -n 10 node --experimental-vm-modules --no-warnings src/cli.ts --app ${app} --runs ${runs} --from ${from} --steps 30 --jobs ${jobs}`,
+			`nice -n 10 node --experimental-vm-modules --no-warnings src/cli.ts --app ${app} --runs ${runs} --from ${from} --steps 30 --jobs ${jobs}${AIM ? ` --buggify-aim ${AIM}` : ''}`,
 			log
 		);
 		if (!existsSync(results)) continue;
@@ -317,7 +327,7 @@ function main(): void {
 		throw new Error(
 			'--mutants <file.json>: a list of { file, in, code, nth?, operator, from?, to? }'
 		);
-	const mutants = JSON.parse(readFileSync(list, 'utf8')) as Mutant[];
+	const mutants = (JSON.parse(readFileSync(list, 'utf8')) as Mutant[]).filter((m) => m.aim === AIM);
 	const run_on = targets(arg('--gens') ?? '191,192,193', process.argv.includes('--palaestra'));
 	const seeds = Number(arg('--seeds') ?? 20);
 	const jobs = Number(arg('--jobs') ?? 4);
