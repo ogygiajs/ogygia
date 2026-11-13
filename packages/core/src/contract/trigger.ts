@@ -20,8 +20,10 @@ export const SCHEDULE: readonly TriggerKeyword[] = ['load', 'idle', 'visible'];
 /** A wake's (and a hole's swap's) keywords: a schedule's, and `interaction`. */
 export const WAKE: readonly TriggerKeyword[] = ['load', 'idle', 'visible', 'interaction'];
 
-/** What may stand outside a media query's conditions: its words, commas and spaces. */
-const MEDIA_WORDS_RE = /^(?:[\s,]|\b(?:and|or|not|only|all|screen|print)\b)*$/i;
+/** What may stand outside a media query's conditions: its words (every media type CSS accepts,
+ *  the deprecated ones that never match too), commas and spaces. */
+const MEDIA_WORDS_RE =
+	/^(?:[\s,]|\b(?:and|or|not|only|all|screen|print|speech|tty|tv|projection|handheld|braille|embossed|aural)\b)*$/i;
 /** A name character: one directly before a top-level `(` makes it a call, not a condition. */
 const NAME_CHAR_RE = /[\w-]/;
 
