@@ -221,28 +221,53 @@ export function match_one(c: CompiledPattern, pathname: string): PathMatch | nul
 }
 
 const fill_token = /\[(\.\.\.)?\[?([a-zA-Z_$][\w$]*)\]?\]/g;
+/** A segment that is one `[[optional]]` or `[...rest]` token and nothing else. */
+const DROPPABLE_SEGMENT_RE = /^\[(?:\.\.\.[a-zA-Z_$][\w$]*|\[[a-zA-Z_$][\w$]*\])\]$/;
 
-/** Fills a pattern's `[param]`, `[[optional]]` and `[...rest]` tokens from `params`, URL-encoded;
- *  a missing one becomes empty. Throws on a value that would fill a whole segment with `.` or `..`:
- *  every URL parser drops that segment, so the URL would name another route (`%2e` is read as a
- *  dot too). Test: test/property-fill-match.test.ts. */
+/** Fills a pattern's `[param]`, `[[optional]]` and `[...rest]` tokens from `params`, URL-encoded
+ *  as Kit's `resolve()` writes them: a rest value keeps its `/` (each segment encoded), and an
+ *  empty optional or rest param that is a whole segment drops that segment. A missing `[param]`
+ *  becomes empty. Throws on a value that would fill a whole segment with `.` or `..`: every URL
+ *  parser drops that segment, so the URL would name another route (`%2e` is read as a dot too).
+ *  Throws on an empty segment too, other than a dropped one or the last: a rest value with an
+ *  empty piece (a leading, trailing or doubled `/`), or a param that fills its segment empty,
+ *  would build `//host` (a URL of another origin) or a path that routes elsewhere.
+ *  Tests: test/property-fill-match.test.ts, test/router-match.test.ts. */
 export function fill(pattern: string, params: Record<string, string | number>): string {
 	// (segment by segment: a token never spans a `/`, and a segment is a dot segment whatever filled
-	// it, one token, several, or a token beside a literal dot)
-	return pattern
-		.split('/')
-		.map((seg) => {
-			const out = seg.replace(fill_token, (_m, _rest, name: string) => {
-				const val = params[name];
-				return val == null ? '' : encodeURIComponent(String(val));
-			});
-			if (out !== seg && (out === '.' || out === '..'))
+	// it, one token, several, a token beside a literal dot, or one piece of a rest value)
+	const segs: string[] = [];
+	const parts = pattern.split('/');
+	for (let i = 0; i < parts.length; i++) {
+		const seg = parts[i];
+		const out = seg.replace(fill_token, (_m, rest: string | undefined, name: string) => {
+			const val = params[name] == null ? '' : String(params[name]);
+			if (!rest) return encodeURIComponent(val);
+			const pieces = val.split('/');
+			// (an empty piece is an empty segment: a leading one builds `//host`, a URL of another
+			// origin, and any other names a path Kit routes elsewhere)
+			if (val !== '' && pieces.includes(''))
 				throw new Error(
-					`[@ogygia/router] the segment "${seg}" fills as ${JSON.stringify(out)}, a dot segment a URL drops: it would name another route than ${pattern}`
+					`[@ogygia/router] the rest param "${name}" has an empty segment (${JSON.stringify(val)}): it would name another URL than ${pattern}`
 				);
-			return out;
-		})
-		.join('/');
+			return pieces.map(encodeURIComponent).join('/');
+		});
+		if (out === '' && DROPPABLE_SEGMENT_RE.test(seg)) continue;
+		// (any param that fills its segment empty, but the last: an empty first one starts the path
+		// with `//`, a URL of another origin, and one between builds a path Kit routes elsewhere)
+		if (out === '' && seg !== '' && i < parts.length - 1)
+			throw new Error(
+				`[@ogygia/router] the segment "${seg}" fills empty, an empty segment: it would name another URL than ${pattern}`
+			);
+		if (out !== seg && out.split('/').some((p) => p === '.' || p === '..'))
+			throw new Error(
+				`[@ogygia/router] the segment "${seg}" fills as ${JSON.stringify(out)}, a dot segment a URL drops: it would name another route than ${pattern}`
+			);
+		segs.push(out);
+	}
+	const filled = segs.join('/');
+	// (a pattern that was only dropped segments is the root)
+	return filled === '' && pattern !== '' ? '/' : filled;
 }
 
 const MAX_PATH = 8192;
@@ -261,6 +286,6 @@ function safe_decode(s: string): string {
 	try {
 		return decodeURIComponent(s);
 	} catch {
-		return s;
+		return s; // ok: a malformed escape matches as it was written
 	}
 }

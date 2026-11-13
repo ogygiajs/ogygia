@@ -24,6 +24,7 @@ import WindowBrowserContext from 'happy-dom/lib/window/WindowBrowserContext.js';
 import HappyEventTarget from 'happy-dom/lib/event/EventTarget.js';
 import EventPhaseEnum from 'happy-dom/lib/event/EventPhaseEnum.js';
 import type { Loop, Task } from './loop.ts';
+import { stamp } from './timeline.ts';
 
 /**
  * A parsed document (`DOMParser`, a `<template>`'s content) is inert, as in a browser: it has no
@@ -142,6 +143,54 @@ export function documents_by_namespace(): void {
 }
 
 /**
+ * A stylesheet link with a `disabled` attribute fetches nothing, and removing the attribute fetches
+ * it, as the HTML spec's fetch setup of a stylesheet link says. happy-dom fetched it anyway: every
+ * stylesheet Kit inlines it also lists as `<link rel="stylesheet" disabled>` (for its router), so
+ * the simulator asked for each on every page and no browser did (the differential). A disabled
+ * link connects, or has its `rel` or `href` set, with its evaluation off (happy-dom's stylesheet
+ * load reads that before its first await). Idempotent. test/stylesheets.test.ts.
+ */
+export function disabled_stylesheets(): void {
+	const proto = HTMLLinkElement.prototype as unknown as Record<symbol | string, unknown>;
+	if (proto.__disabled) return;
+	proto.__disabled = true;
+	type Link = Record<symbol, unknown> & {
+		hasAttribute(name: string): boolean;
+		getAttributeNode(name: string): unknown;
+	};
+	const off = (link: Link): boolean =>
+		link.hasAttribute('disabled') && link[PropertySymbol.disableEvaluation] !== true;
+	const set = proto[PropertySymbol.onSetAttribute] as (this: Link, ...a: unknown[]) => unknown;
+	for (const key of [PropertySymbol.connectedToDocument, PropertySymbol.onSetAttribute]) {
+		const real = proto[key] as (this: Link, ...a: unknown[]) => unknown;
+		proto[key] = function (this: Link, ...a: unknown[]) {
+			if (!off(this)) return real.apply(this, a);
+			this[PropertySymbol.disableEvaluation] = true;
+			try {
+				return real.apply(this, a);
+			} finally {
+				this[PropertySymbol.disableEvaluation] = false;
+			}
+		};
+	}
+	const remove = proto[PropertySymbol.onRemoveAttribute] as (this: Link, a: unknown) => unknown;
+	proto[PropertySymbol.onRemoveAttribute] = function (this: Link, removed: unknown) {
+		const out = remove.call(this, removed);
+		const href = this.getAttributeNode('href');
+		if ((removed as Record<symbol, unknown>)[PropertySymbol.name] !== 'disabled' || href === null)
+			return out;
+		// (happy-dom's load as on an `href` set, its mutation record held back: none was made)
+		this[PropertySymbol.reportMutation] = () => {};
+		try {
+			set.call(this, href, href);
+		} finally {
+			delete this[PropertySymbol.reportMutation];
+		}
+		return out;
+	};
+}
+
+/**
  * A run of text is one text node, as a browser's parser makes it. happy-dom's parser hands a bare
  * `>` in text (`() => x`) to a text node of its own, so the run became two nodes, and Svelte,
  * hydrating the server's one text, found a node left over (seed 477). A run the parser goes on
@@ -208,12 +257,15 @@ function content_loaded(
 ): void {
 	const doc = window.document;
 	doc[PropertySymbol.readyState] = 'interactive';
+	stamp(window, 'domInteractive');
 	doc.dispatchEvent(new window.Event('readystatechange'));
 	void Promise.all(modules.map((m) => m.done)).then(() =>
 		window.setTimeout(() => {
 			try {
+				stamp(window, 'domContentLoadedEventStart');
 				doc.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
 			} finally {
+				stamp(window, 'domContentLoadedEventEnd');
 				window[PropertySymbol.readyStateManager].endTask(holding);
 			}
 		}, 0)
@@ -479,14 +531,23 @@ export function restore_history(frame: object, saved: SavedHistory): void {
 	saved.items.forEach((item, i) => (item[DOC] = saved.docs[i]));
 }
 
-/** What a page's main frame does as one of its navigations starts (`go`: the navigation). */
-type Starts = (frame: object, go: () => Promise<unknown>) => Promise<unknown>;
+/** What a page's main frame does as one of its navigations starts (`go`: the navigation; `type`:
+ *  how its document is reached, as its navigation timing names it). */
+type Starts = (
+	frame: object,
+	go: () => Promise<unknown>,
+	type: 'navigate' | 'reload' | 'back_forward'
+) => Promise<unknown>;
 const STARTS = new WeakMap<object, Starts>();
 
 /** `page`'s main frame's navigations start through `starts` (`navigation_starts`). */
 export function on_navigation_start(page: object, starts: Starts): void {
 	STARTS.set(page, starts);
 }
+
+/** How long a browser waits for a document's answer before it gives up: the network stack's own
+ *  deadline (Chromium's is 5 minutes), not happy-dom's 30 s. */
+const NAVIGATION_DEADLINE_MS = 300_000;
 
 /**
  * Every hard navigation of a page starts in happy-dom's navigator, whoever asked (the visitor, the
@@ -508,7 +569,11 @@ export function navigation_starts(): void {
 		'reload'
 	] as const) {
 		const real = nav[step] as (this: unknown, o: { frame: Frame }) => Promise<unknown>;
-		nav[step] = function (this: unknown, o: { frame: Frame }) {
+		nav[step] = function (this: unknown, o: { frame: Frame; goToOptions?: object }) {
+			// (happy-dom calls a navigation off after 30 s; a browser waits for the network's own
+			// deadline, minutes: test/page-abort.node.test.ts)
+			if (step === 'navigate')
+				o = { ...o, goToOptions: { timeout: NAVIGATION_DEADLINE_MS, ...o.goToOptions } };
 			const page = (o.frame as unknown as { page: { mainFrame: unknown } }).page;
 			const starts = starting === 0 && page.mainFrame === o.frame ? STARTS.get(page) : undefined;
 			const go = () => {
@@ -519,7 +584,8 @@ export function navigation_starts(): void {
 					starting--;
 				}
 			};
-			return starts ? starts(o.frame, go) : go();
+			const type = step === 'navigate' ? 'navigate' : step === 'reload' ? 'reload' : 'back_forward';
+			return starts ? starts(o.frame, go, type) : go();
 		};
 	}
 }
@@ -606,7 +672,11 @@ export function window_load_events(): void {
 			event[PropertySymbol.dispatching] === true
 		)
 			return real.call(this, e);
+		// (its navigation timing: the document is complete as load starts)
+		stamp(this, 'domComplete');
+		stamp(this, 'loadEventStart');
 		const kept = at_window(this, event);
+		stamp(this, 'loadEventEnd');
 		const show = new this.Event('pageshow') as Ev;
 		Object.defineProperty(show, 'persisted', { value: false });
 		show[PropertySymbol.dispatching] = true;

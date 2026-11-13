@@ -84,9 +84,18 @@ export interface ProfilerDeps {
 	replay(id: string | undefined, c: Ctx): Promise<Response>;
 	/** DEV ONLY: a few lines of a local source file around a line (the row's source peek). */
 	source(c: Ctx): Promise<Response>;
-	run_page(
-		c: Ctx
-	): Response | { base: string; path: string; runs: number; format: string; against?: string };
+	/** `start`: the run starts on its own (the visitor came from the profiler, or typed the address);
+	 *  else it waits for a click */
+	run_page(c: Ctx):
+		| Response
+		| {
+				base: string;
+				path: string;
+				runs: number;
+				format: string;
+				start: boolean;
+				against?: string;
+		  };
 	record_page(c: Ctx): Promise<Response>;
 	reset(c: Ctx): Response;
 	/** A tiny live-status poll for the sidebar (and, later, a hosted dashboard): is a recording
@@ -165,8 +174,8 @@ type ProfilerPage<Load, Actions = unknown> = PageDef<readonly [], Load, Actions,
 export function build_profiler_router(d: ProfilerDeps): Router<{
 	readonly '/': ProfilerPage<(c: Ctx) => ReturnType<ProfilerDeps['dashboard']>>;
 	readonly '/run': ProfilerPage<(c: Ctx) => ReturnType<ProfilerDeps['run_page']>>;
-	readonly '/page': { readonly GET: CtxFn<Promise<Response>> };
-	readonly '/reset': { readonly GET: CtxFn<Response> };
+	readonly '/page': { readonly POST: CtxFn<Promise<Response>> };
+	readonly '/reset': { readonly POST: CtxFn<Response> };
 	readonly '/status.json': { readonly GET: CtxFn<Response> };
 	readonly '/beacon': { readonly POST: CtxFn<Promise<Response>> };
 	readonly '/window/start': { readonly POST: CtxFn<Promise<Response>> };
@@ -175,7 +184,7 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 		(c: Ctx) => ReturnType<ProfilerDeps['login_props']>,
 		{ default: CtxFn<Promise<Response>> }
 	>;
-	readonly '/logout': { readonly GET: CtxFn<Promise<Response>> };
+	readonly '/logout': { readonly POST: CtxFn<Promise<Response>> };
 	readonly '/view': ProfilerPage<() => { base: string }, { default: CtxFn<Promise<Response>> }>;
 	readonly '/reports.json': { readonly GET: CtxFn<Promise<Response>> };
 	readonly '/report/[id]': ProfilerPage<
@@ -204,7 +213,7 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 	readonly '/report/[id].ogp': { readonly POST: CtxFn<Promise<Response>> };
 	readonly '/report/[id]/raw': { readonly GET: CtxFn<Promise<Response>> };
 	readonly '/compare/[a]/[b]': ProfilerPage<(c: Ctx) => ReturnType<ProfilerDeps['compare']>>;
-	readonly '/replay/[id]': { readonly GET: CtxFn<Promise<Response>> };
+	readonly '/replay/[id]': { readonly POST: CtxFn<Promise<Response>> };
 	readonly '/site': ProfilerPage<(c: Ctx) => ReturnType<ProfilerDeps['site']>>;
 	readonly '/source': { readonly GET: CtxFn<Promise<Response>> };
 }> {
@@ -212,8 +221,10 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 		{
 			'/': page(Dashboard, { load: (c) => d.dashboard(c) }),
 			'/run': page(Run, { load: (c) => d.run_page(c) }),
-			'/page': { GET: (c) => d.record_page(c) },
-			'/reset': { GET: (c) => d.reset(c) },
+			// (a state change is a POST, never a GET: a link on another site makes a GET, and the
+			// session cookie rides it; test: profiler-routes › the profiler routes that change state)
+			'/page': { POST: (c) => d.record_page(c) },
+			'/reset': { POST: (c) => d.reset(c) },
 			'/status.json': { GET: (c) => c.json(d.status(c)) },
 			'/beacon': { POST: (c) => d.beacon(c) },
 			'/window/start': { POST: (c) => d.window_start(c) },
@@ -222,7 +233,7 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 				load: (c) => d.login_props(c),
 				actions: { default: (c) => d.login(c) }
 			}),
-			'/logout': { GET: (c) => d.logout(c) },
+			'/logout': { POST: (c) => d.logout(c) },
 			'/view': page(Upload, {
 				load: () => ({ base: d.base }),
 				actions: { default: (c) => d.upload(c) }
@@ -257,7 +268,7 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 				GET: (c) => report_or_404(d, c.params.id, d.report_raw)
 			},
 			'/compare/[a]/[b]': page(Compare, { load: (c) => d.compare(c.params.a, c.params.b) }),
-			'/replay/[id]': { GET: (c) => d.replay(c.params.id, c) },
+			'/replay/[id]': { POST: (c) => d.replay(c.params.id, c) },
 			'/site': page(Site, { load: (c) => d.site(c) }),
 			'/source': { GET: (c) => d.source(c) }
 		},

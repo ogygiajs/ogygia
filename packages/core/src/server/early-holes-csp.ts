@@ -14,11 +14,12 @@
  */
 import { createHash } from 'node:crypto';
 import { EARLY_HOLES_TAG } from '../early-holes-head.ts';
-import { next_tag, value_at } from '../wire-markup.ts';
+import { next_tag, text_of, value_at } from '../wire-markup.ts';
 
 /** The text between a tag's `<script…>` and `</script>`: what a CSP hash covers. */
 export function script_text(tag: string): string {
-	return tag.slice(tag.indexOf('>') + 1, tag.lastIndexOf('</script>'));
+	const script = next_tag(tag, 'script', 0);
+	return (script && text_of(tag, script, 'script')) ?? '';
 }
 
 /** The script's hash source, as a policy lists it: of the exact text the head carries, once. */

@@ -8,7 +8,11 @@ import type { Tab, Visitor } from './browser.ts';
 import type { Rng } from './rng.ts';
 import type { World } from './world.ts';
 
-export type Action =
+/** An action, and what its run picked by name (`pick`): a plan's replay picks the same, by name,
+ *  on a page whose elements moved. */
+export type Action = Drawn & { readonly names?: readonly string[] };
+
+type Drawn =
 	| { kind: 'click'; tab: number; nth: number }
 	| { kind: 'press'; tab: number; nth: number }
 	| { kind: 'goto'; tab: number; path: string }
@@ -35,6 +39,10 @@ export type Action =
 	/** Press button `nth`, then the same one again `after` ms later: two refreshes or two commands
 	 *  under way at once. */
 	| { kind: 'twice'; tab: number; nth: number; after: number }
+	/** `n` other visitors (each a browser, cookies and client address of its own) open `path`, their
+	 *  arrivals spread over `spread` ms: their requests reach the servers among each other's and the
+	 *  visitor's. Their tabs stay (`World.crowd`), judged as the visitor's are. */
+	| { kind: 'crowd'; path: string; n: number; spread: number }
 	| {
 			kind: 'outage';
 			tab: number;
@@ -73,6 +81,8 @@ export function describe(a: Action): string {
 			return `tab ${a.tab}: go to ${a.path}, press button #${a.nth} ${a.after} ms in`;
 		case 'twice':
 			return `tab ${a.tab}: press button #${a.nth}, then again ${a.after} ms later`;
+		case 'crowd':
+			return `a crowd of ${a.n} visitors opens ${a.path} within ${a.spread} ms`;
 		case 'outage':
 			return `tab ${a.tab}: ${a.during === 'wait' ? 'an outage' : `${a.during} #${a.nth}, then an outage`} ${a.after} ms in, for ${a.lasts} ms`;
 		default:
@@ -130,18 +140,29 @@ export const ACTION_KINDS: readonly Action['kind'][] = [
 ];
 
 /** The seed's next action for a world with `tabs` tabs (`deploys`: a deploy may be drawn; the
- *  operator's, not a visitor's, and as rare as one in a session should be), weighed by `mix`. */
+ *  operator's, not a visitor's, and as rare as one in a session should be), weighed by `mix`.
+ *  `crowds`: a crowd of other visitors may be drawn (a run without draws as it did before). */
 export function next_action(
 	rng: Rng,
 	tabs: number,
 	paths: readonly string[],
 	deploys = false,
-	mix?: Mix
+	mix?: Mix,
+	crowds = false
 ): Action {
 	const tab = rng.int(Math.max(1, tabs));
-	return rng.weighted<Action>(
-		choices(rng, tab, tabs, paths, deploys).map(([a, w]) => [a, w * (mix?.[a.kind] ?? 1)])
-	);
+	const all = choices(rng, tab, tabs, paths, deploys);
+	if (crowds)
+		all.push([
+			{
+				kind: 'crowd',
+				path: rng.pick(paths),
+				n: rng.between(2, 6),
+				spread: rng.pick([0, 50, 200, 1000])
+			},
+			1
+		]);
+	return rng.weighted<Action>(all.map(([a, w]) => [a, w * (mix?.[a.kind] ?? 1)]));
 }
 
 /** Every action the next could be, with its weight (each drawn in full: the draws stay the same
@@ -225,11 +246,60 @@ export function user_click(el: Element): void {
 	(el as HTMLElement).click();
 }
 
+/** What a visitor acts on, by name: a link by its address, a button by its region and text, a region
+ *  by its entry; `@k` when k others before it on the page have the same name. */
+function name_of(el: Element, found: readonly Element[]): string {
+	const plain = (e: Element): string => {
+		const href = e.getAttribute('href');
+		if (href !== null) return `link ${href}`;
+		// (a region's entry by its file, without the build's hash: the next build names it the same)
+		const entry = (e.closest('ogygia-region')?.getAttribute('entry') ?? '?')
+			.replace(/^.*\//, '')
+			.replace(/\.[0-9a-f]{8,}\.js$/, '');
+		if (e.localName === 'ogygia-region') return `region ${entry}`;
+		return `${e.localName} ${entry} "${(e.textContent ?? '').trim().slice(0, 40)}"`;
+	};
+	const name = plain(el);
+	const before = found.slice(0, found.indexOf(el)).filter((e) => plain(e) === name).length;
+	return before === 0 ? name : `${name} @${before}`;
+}
+
+/**
+ * Picks what an action acts on from `found` (not empty): the one `given` names (a plan's, recorded
+ * when its run picked), so a plan replays on a page whose elements moved; else, or when nothing on
+ * the page has that name (`missed`), the run's draw `nth`. Its `name` is what a plan records.
+ */
+export function pick<T extends Element>(
+	found: readonly T[],
+	nth: number,
+	given: string | undefined
+): { el: T; name: string; missed: boolean } {
+	const named = given === undefined ? undefined : found.find((e) => name_of(e, found) === given);
+	const el = named ?? found[nth % found.length];
+	return { el, name: name_of(el, found), missed: given !== undefined && named === undefined };
+}
+
+/** An action's picks, in order: what its plan named (`given`), what it picked (`names`), and each
+ *  name the page no longer had (`missed`). */
+export interface Picks {
+	readonly given?: readonly string[];
+	readonly names: string[];
+	readonly missed: string[];
+}
+
+function picked<T extends Element>(picks: Picks, found: readonly T[], nth: number): T {
+	const given = picks.given?.[picks.names.length];
+	const p = pick(found, nth, given);
+	picks.names.push(p.name);
+	if (p.missed) picks.missed.push(`${given} is not on the page (picked ${p.name})`);
+	return p.el;
+}
+
 /** Clicks link `nth` (of the tab's links, wrapping); false when it has none. */
-function click(world: World, tab: Tab, nth: number, origin: string): boolean {
+function click(world: World, tab: Tab, nth: number, origin: string, picks: Picks): boolean {
 	const found = links(tab, origin);
 	if (found.length === 0) return false;
-	const link = found[nth % found.length];
+	const link = picked(picks, found, nth);
 	// (the trace names the link, so a shrunk repro can click it by its address)
 	world.loop.note(`${tab.name} clicks ${link.getAttribute('href')}`);
 	user_click(link);
@@ -237,10 +307,10 @@ function click(world: World, tab: Tab, nth: number, origin: string): boolean {
 }
 
 /** Presses button `nth` in the tab's regions (wrapping); false when it has none. */
-function press(world: World, tab: Tab, nth: number): boolean {
+function press(world: World, tab: Tab, nth: number, picks: Picks): boolean {
 	const found = buttons(tab);
 	if (found.length === 0) return false;
-	const button = found[nth % found.length];
+	const button = picked(picks, found, nth);
 	const region = button.closest('ogygia-region');
 	// (the trace names the button by its region and text, so a shrunk repro can find it)
 	world.loop.note(
@@ -260,7 +330,24 @@ export async function act(
 	a: Action,
 	origin: string,
 	/** Called just before an `eager` press, in the document it presses in. */
-	pressing: () => void = () => {}
+	pressing: () => void = () => {},
+	/** Called when the visitor's pointer woke a region that waits for their interaction: what the
+	 *  tab's document shows from then on is the visitor's doing, as a press's is. */
+	own: (tab: Tab) => void = () => {}
+): Promise<Picks> {
+	const picks: Picks = { given: a.names, names: [], missed: [] };
+	await act_on(world, visitor, a, origin, pressing, own, picks);
+	return picks;
+}
+
+async function act_on(
+	world: World,
+	visitor: Visitor,
+	a: Action,
+	origin: string,
+	pressing: () => void,
+	own: (tab: Tab) => void,
+	picks: Picks
 ): Promise<void> {
 	const tab = 'tab' in a ? visitor.tabs[a.tab % Math.max(1, visitor.tabs.length)] : undefined;
 	// (the visitor looks at the tab they act in: the others go behind it; the network is not a look)
@@ -275,15 +362,15 @@ export async function act(
 		await world.loop.run(LOOK_MS);
 	switch (a.kind) {
 		case 'click':
-			if (tab !== undefined && click(world, tab, a.nth, origin)) await world.quiesce();
+			if (tab !== undefined && click(world, tab, a.nth, origin, picks)) await world.quiesce();
 			return;
 		case 'press':
-			if (tab !== undefined && press(world, tab, a.nth)) await world.quiesce();
+			if (tab !== undefined && press(world, tab, a.nth, picks)) await world.quiesce();
 			return;
 		case 'outage': {
 			if (tab === undefined) return;
-			if (a.during === 'click') click(world, tab, a.nth, origin);
-			else if (a.during === 'press') press(world, tab, a.nth);
+			if (a.during === 'click') click(world, tab, a.nth, origin, picks);
+			else if (a.during === 'press') press(world, tab, a.nth, picks);
 			await world.loop.run(a.after);
 			world.loop.note(`${tab.name} goes offline`);
 			world.network.offline(tab.name, true);
@@ -294,7 +381,7 @@ export async function act(
 			return;
 		}
 		case 'away':
-			if (tab === undefined || !click(world, tab, a.nth, origin)) return;
+			if (tab === undefined || !click(world, tab, a.nth, origin, picks)) return;
 			await world.quiesce();
 			await world.loop.run(a.ms);
 			await world.go(tab, 'back');
@@ -304,10 +391,20 @@ export async function act(
 			const doc = tab.page.mainFrame.document as unknown as Document;
 			const found = [...links(tab, origin), ...doc.querySelectorAll('ogygia-region')];
 			if (found.length === 0) return;
-			const target = found[a.nth % found.length];
+			const target = picked(picks, found, a.nth);
 			world.loop.note(
 				`${tab.name} points at ${target.getAttribute('href') ?? target.getAttribute('entry') ?? target.tagName}`
 			);
+			// (a region that waits for the visitor, or one inside it: the pointer is its interaction)
+			for (
+				let r = target.closest('ogygia-region');
+				r;
+				r = r.parentElement?.closest('ogygia-region') ?? null
+			)
+				if ((r.getAttribute('when') ?? r.getAttribute('wake')) === 'interaction') {
+					own(tab);
+					break;
+				}
 			const view = tab.page.mainFrame.window as unknown as Window & typeof globalThis;
 			for (const type of ['pointerover', 'mouseover'])
 				target.dispatchEvent(
@@ -320,22 +417,22 @@ export async function act(
 			return;
 		}
 		case 'hurry':
-			if (tab === undefined || !click(world, tab, a.nth, origin)) return;
+			if (tab === undefined || !click(world, tab, a.nth, origin, picks)) return;
 			await world.loop.run(a.after);
-			click(world, tab, a.next, origin);
+			click(world, tab, a.next, origin, picks);
 			await world.quiesce();
 			return;
 		case 'eager':
 			if (tab === undefined) return;
 			await world.start(tab, 'goto', a.path, a.after);
 			if (buttons(tab).length > 0) pressing();
-			press(world, tab, a.nth);
+			press(world, tab, a.nth, picks);
 			await world.quiesce();
 			return;
 		case 'twice':
-			if (tab === undefined || !press(world, tab, a.nth)) return;
+			if (tab === undefined || !press(world, tab, a.nth, picks)) return;
 			await world.loop.run(a.after);
-			press(world, tab, a.nth);
+			press(world, tab, a.nth, picks);
 			await world.quiesce();
 			return;
 		case 'goto':
@@ -369,6 +466,20 @@ export async function act(
 			return;
 		case 'deploy':
 			if (await world.deploy_next()) await world.quiesce(1000);
+			return;
+		case 'crowd':
+			for (let k = 0; k < a.n; k++) {
+				const n = world.crowd.length + 1;
+				const other = world.visitor(`crowd-${n}`);
+				world.crowd.push(other);
+				const t = world.tab(other);
+				world.network.address(t.name, `10.0.${1 + Math.floor(n / 250)}.${1 + (n % 250)}`);
+				const at = a.n > 1 ? Math.round((a.spread * k) / (a.n - 1)) : 0;
+				world.loop.add('crowd', `${t.name} (crowd-${n}) opens ${a.path}`, at, () => {
+					void world.browsers.navigate(t, 'goto', a.path);
+				});
+			}
+			await world.quiesce();
 			return;
 	}
 }

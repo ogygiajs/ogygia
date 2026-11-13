@@ -429,15 +429,20 @@ class Walk<Caller> {
 		return built;
 	}
 
-	/** Every non-default name `export * from target` contributes, mapped to its leaf. */
+	/** Every non-default name `export * from target` contributes, mapped to its leaf. A star walk
+	 *  visits each module once, as the spec's `GetExportedNames` does (`seen`): a module already on
+	 *  it adds nothing (test: exports-index `a ring of impure modules`). */
 	async #star_names(
 		target: string,
 		parent: ExportMap,
-		path: Path<Caller>
+		path: Path<Caller>,
+		seen: Set<string> = new Set([parent.id])
 	): Promise<Map<string, Leaf> | null> {
+		const out = new Map<string, Leaf>();
+		if (seen.has(target)) return out;
+		seen.add(target);
 		const shape = this.#index.shapes.get(target);
 		if (!shape) return null;
-		const out = new Map<string, Leaf>();
 		if (shape.pure) {
 			const inner = await this.#through(target, parent, path);
 			if (!inner) return null;
@@ -466,7 +471,7 @@ class Walk<Caller> {
 					continue;
 				}
 				parent.deps.add(t);
-				const names = await this.#star_names(t, parent, path);
+				const names = await this.#star_names(t, parent, path, seen);
 				if (!names) {
 					parent.opaque = true;
 					continue;

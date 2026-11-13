@@ -165,6 +165,7 @@ export function analyze_exports(code: string, id: string): ModuleShape | null {
 
 	const exports: ExportRecord[] = [];
 	const own = new Set<string>();
+	const exported_namespaces = new Set<string>();
 	let pure = true;
 
 	for (const node of body) {
@@ -208,9 +209,10 @@ export function analyze_exports(code: string, id: string): ModuleShape | null {
 					// declared here → own.
 					const b = bound.get(local);
 					if (b) {
-						if (b.kind === 'namespace')
+						if (b.kind === 'namespace') {
+							exported_namespaces.add(local);
 							exports.push({ kind: 'star_ns', exported, source: b.source });
-						else
+						} else
 							exports.push({
 								kind: 'reexport',
 								exported,
@@ -253,6 +255,14 @@ export function analyze_exports(code: string, id: string): ModuleShape | null {
 				if (node.type === 'EmptyStatement') continue;
 				pure = false;
 		}
+	}
+	// an import kept for what loading it does (a bare `import './theme.css'`, a namespace nothing
+	// exports) runs through the barrel alone: dropping the barrel would drop it
+	for (const d of imports) {
+		if (d.type_only) continue;
+		if (d.side_effect) pure = false;
+		for (const s of d.specs)
+			if (s.kind === 'namespace' && !exported_namespaces.has(s.local)) pure = false;
 	}
 	return { imports, exports, pure, own };
 }
