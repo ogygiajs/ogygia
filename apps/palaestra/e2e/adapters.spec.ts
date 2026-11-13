@@ -403,7 +403,7 @@ test.describe('adapters: an all-csr=false islands app works end to end on every 
 
 			const built = run('node', ['node_modules/vite/bin/vite.js', 'build'], {
 				cwd: APP,
-				env: { ...process.env, OGYGIA_E2E_ADAPTER: a.buildAs ?? a.name }
+				env: { ...process.env, OGYGIA_E2E_ADAPTER: a.buildAs ?? a.name, OGYGIA_RULES: '1' }
 			});
 			expect(built, 'vite build succeeded').toBe(true);
 

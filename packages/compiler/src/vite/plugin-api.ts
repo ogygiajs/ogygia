@@ -155,9 +155,9 @@ export interface BuildContext {
 	/** The app's export index (`compiler/exports/`), for a transform that follows names through
 	 *  barrels. */
 	readonly exports: ExportsSeam;
-	/** For a module's code: the imports that carry a region's identity (a region mark, or a binding
-	 *  that `import.meta.og.asRegion(X)` reads). A transform that rewrites imports leaves them as
-	 *  written, so the region the prescan keys on the raw import is the region the transform sees. */
+	/** For a module's code: the imports that carry a region's identity (a region mark, on a default
+	 *  or a named import). A transform that rewrites imports leaves them as written, so the region
+	 *  the prescan keys on the raw import is the region the transform sees. */
 	pinnedImports(code: string): (decl: PinnedDecl) => boolean;
 	/** The app's regions as the build knows them now, for a tool that names or weighs them. */
 	readonly regions: RegionsSeam;

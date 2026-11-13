@@ -95,8 +95,8 @@ function undefined_consts(locals: readonly string[]): string {
 /**
  * The registry's source with its MARKS blanked and everything else kept, or `null` when it does not
  * parse (the caller falls back to the names-only stub). A mark is an import whose `with { … }`
- * carries a region key (`region_keys`: the app's wake / render / region / preset names), or a
- * component handed to `import.meta.og.asRegion(…)`. Each blanked binding becomes
+ * carries a region key (`region_keys`: the app's wake / render / region / preset names), default
+ * or named. Each blanked binding becomes
  * `const X = undefined` so the module still links; the client leg never runs it anyway.
  */
 export function registry_client_source(
@@ -109,57 +109,27 @@ export function registry_client_source(
 	const body = (parsed.program as EsNode).body as EsNode[];
 	const edits: { start: number; end: number; text: string }[] = [];
 
-	// `import.meta.og.asRegion(Comp, …)` → `undefined`; its component import is a mark too.
 	// `import.meta.og.regions(glob)` (a held-region registry the compiler expands into marked
 	// imports) → `{}`: every entry it would mint is a mark.
-	const as_region_args = new Set<string>();
 	walk(parsed.program as never, {
 		enter(n) {
 			const node = n as unknown as EsNode;
 			if (node.type !== 'CallExpression') return;
-			if (is_og_macro(node.callee, 'regions')) {
-				edits.push({ start: node.start, end: node.end, text: '({})' });
-				this.skip();
-				return;
-			}
-			if (!is_og_macro(node.callee, 'asRegion')) return;
-			const arg = node.arguments?.[0];
-			if (arg?.type === 'Identifier') as_region_args.add(arg.name);
-			edits.push({ start: node.start, end: node.end, text: 'undefined' });
+			if (!is_og_macro(node.callee, 'regions')) return;
+			edits.push({ start: node.start, end: node.end, text: '({})' });
 			this.skip();
 		}
 	});
 
+	// a mark covers every name its declaration binds (default or named), so the whole line goes
 	for (const node of body) {
 		if (node.type !== 'ImportDeclaration' || node.importKind === 'type') continue;
-		const specifiers = (node.specifiers ?? []) as EsNode[];
 		const marked = ((node.attributes ?? []) as EsNode[]).some((a) =>
 			region_keys.has(a.key?.name ?? a.key?.value)
 		);
-		const dropped = specifiers.filter(
-			(s) => marked || (s.importKind !== 'type' && as_region_args.has(s.local.name))
-		);
-		if (!dropped.length) continue;
-		const kept = specifiers.filter((s) => !dropped.includes(s));
-		const consts = undefined_consts(dropped.map((s) => s.local.name));
-		if (!kept.length) {
-			edits.push({ start: node.start, end: node.end, text: consts });
-			continue;
-		}
-		// Some specifiers stay (a barrel import handing one name to asRegion, others plain).
-		const head = kept
-			.filter((s) => s.type !== 'ImportSpecifier')
-			.map((s) => source.slice(s.start, s.end));
-		const named = kept
-			.filter((s) => s.type === 'ImportSpecifier')
-			.map((s) => source.slice(s.start, s.end));
-		if (named.length) head.push(`{ ${named.join(', ')} }`);
-		const spec = source.slice(node.source.start, node.source.end);
-		edits.push({
-			start: node.start,
-			end: node.end,
-			text: `import ${head.join(', ')} from ${spec}; ${consts}`
-		});
+		if (!marked) continue;
+		const locals = ((node.specifiers ?? []) as EsNode[]).map((s) => s.local.name as string);
+		edits.push({ start: node.start, end: node.end, text: undefined_consts(locals) });
 	}
 
 	if (!edits.length) return source;

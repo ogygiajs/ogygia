@@ -219,7 +219,12 @@ function apply_url_switch(): void {
 		const want = switch_in_url(url);
 		if (want === null) return;
 		write_switch(want);
-		history.replaceState(history.state, '', without_switch(url).href);
+		const nav = (
+			globalThis as Record<symbol, { replace_address?: (url: URL) => void } | undefined>
+		)[Symbol.for('ogygia.nav')];
+		const address = without_switch(url);
+		if (nav?.replace_address) nav.replace_address(address);
+		else history.replaceState(history.state, '', address.href);
 	} catch {
 		// ok: no URL or history (an embedded frame): the cookie alone
 	}
