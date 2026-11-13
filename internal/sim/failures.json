@@ -179,6 +179,12 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > not-ok:0",
+			"reason": "a streamed load promise that rejects: proved: the failure streamed as a value (ok true) turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a promise that rejects streams as a failure, with its error, never as a value"
+		},
+		{
 			"site": "packages/core/src/server/page-stream.ts > say_if_pending > timer:0",
 			"reason": "dev only: the sim runs production builds; proved: the warning's timer removed turns the test red",
 			"test": "packages/core/test/page-stream-request-owned.test.ts",
@@ -1343,7 +1349,6 @@
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > push > catch:0",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > reject:0",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > stale:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > not-ok:0",
 		"packages/core/src/server/personal-response.ts > mark_personal > catch:0",
 		"packages/core/src/server/props-wire.ts > stringify_props > catch:0",
 		"packages/core/src/server/props-wire.ts > stringify_props > throw:0",
