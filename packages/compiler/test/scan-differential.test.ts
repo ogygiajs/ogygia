@@ -70,7 +70,23 @@ const piece: fc.Arbitrary<string> = fc.oneof(
 		`const o = { a: 1, 'b)': 2 };`,
 		`const sp = [...import.meta.og.code('s'), ...xs];`,
 		`const ch = a?.b / 2;`,
-		`const fl = .5 / 2;`
+		`const fl = .5 / 2;`,
+		// a division after each kind of value, a regex after each kind of opener
+		`const d4 = 'a' / 2 / "b";`,
+		`const d5 = /a/gi / 2 / 1;`,
+		`const d6 = \`t\` / 2 / 1;`,
+		`const d7 = x.return / 2 / y.typeof;`,
+		`let i = 0; const d8 = i++ / 2 / i--;`,
+		`const d9 = 10 / 2 / 1e3;`,
+		`{ } /'/.test(a);`,
+		`while (a) /'/.test(b);`,
+		`for (const x of y) /'/.test(x);`,
+		`switch (a) { case /'/: break; }`,
+		`const r3 = a ? /'/ : /"/;`,
+		`const r4 = [/'/, /"/];`,
+		`const r5 = !/'/.test(a) && /"/.test(b);`,
+		`const r6 = ++/'/.lastIndex;`,
+		`const q = "/'";`
 	),
 	fc.constant(`const z = 'x';`)
 );
@@ -120,8 +136,10 @@ describe('find_og_calls keeps its place (#1441)', () => {
 describe('find_og_calls finds what a parser finds', () => {
 	it('in any program of these pieces', () => {
 		fc.assert(
-			fc.property(fc.array(piece, { maxLength: 6 }), (pieces) => {
-				const code = pieces.join('\n');
+			// (on one line, a slash read the wrong way runs on into the next piece instead of stopping
+			// at the line's end, so every misread hides a later call)
+			fc.property(fc.array(piece, { maxLength: 6 }), fc.constantFrom('\n', ' '), (pieces, sep) => {
+				const code = pieces.join(sep);
 				expect(scanned(code)).toEqual(oxc_calls(code));
 			})
 		);
