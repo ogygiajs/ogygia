@@ -1,13 +1,3 @@
-/**
- * The `Compiler` — the driver / long-lived compile session. It holds the `Program` (cross-file
- * linker), the resolved `CompileCtx`, and the per-file transform cache, and exposes the file-local
- * front-end as one call: `transform(source, id)` → parse ▸ analyze ▸ lower ▸ emit (today fused inside
- * `transformHost`), memoized. It is bundler-agnostic by construction — it imports no Vite; the adapter
- * drives it.
- *
- * The transform cache is content-keyed (`hit.code === source`), so a changed source misses and
- * recomputes on its own; the linker's `unregister_host` deliberately does NOT clear it.
- */
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { cache, say } from '@ogygia/machine';
@@ -87,14 +77,12 @@ import type { Program, RegisterResult } from './program.ts';
 import type { FileFacts } from './scan-facts.ts';
 import type { CompileCtx } from './ctx.ts';
 
-/** A file-local transform result: the Vite `{ code, map }` plus the descriptors the linker registers. */
 type TransformResult = RegisterResult & { code: string; map: unknown };
 
 function result_map(result: TransformResult): StepMap {
 	const map = result.map;
 	return map ? () => map as SourceMapInput : null;
 }
-/** The chunk names our content-hashed entries are emitted under (`entry_file_pattern` keys on them). */
 const ISLAND_ENTRY_NAME_PREFIX = 'og-region.';
 const RUNTIME_ENTRY_NAME = 'og-runtime';
 const LATE_SERVER_REGION_NAME = 'og-server-region';
@@ -110,29 +98,17 @@ export interface Scan {
 	readonly feature_hash: string;
 }
 
-/** What one build learned, from its scan to what it emitted: made new when a build begins
- *  (`Compiler.start_leg`) and never carried into the next one (test/second-build.test.ts). Dev is one
- *  build for the whole session. */
 interface Build {
-	/** The legs (bundler environments) that started in this build, by environment name. */
 	readonly legs: Map<string, BuildLeg>;
-	/** A leg began this build (`start_leg`): its once-per-build work ran. */
 	begun: boolean;
 	readonly program: Program;
 	readonly transform_cache: Map<string, { code: string; result: unknown }>;
-	/** Every `import.meta.og.$` hoist (tag → factory source). */
 	readonly dollar_hoists: Map<string, string>;
-	/** The finished scan, once `prescan` ran. */
 	scan: Scan | null;
-	/** The server-router component roots, once the scan is complete (build only). */
 	router_css_roots: string[] | null;
-	/** The registry-reach walk's answers: one resolution, read and verdict per module. */
 	readonly resolve_memo: Map<string, string | null>;
 	readonly reach_memo: Map<string, boolean>;
 	readonly specs_memo: Map<string, readonly string[]>;
-	/** Files the island-closure walk has already read (`mark_island_closure`): a closure marked at
-	 *  prescan is never re-walked when a later island shares it. The build's, like the island graph
-	 *  it fills (test/watch-island-closure.test.ts). */
 	readonly island_closure_seen: Set<string>;
 	readonly virtuals: VirtualTable<CoreApp>;
 }
@@ -177,38 +153,23 @@ export interface Profiler {
 
 const LEADING_SLASH = /^\//;
 const COMPONENT_EXT_RE = /\.(svelte|js|ts)$/;
-/** A Kit route option module (`+page.ts`, `+layout.js`, …) — the page node's own client modules
- *  beside its component (kit.ts `is_route_component`). */
 const ROUTE_HOST_FILE_RE = /^\+(page|layout)\.(ts|js|mjs)$/;
-/** The real binding modules a host imports for a marked region (ids.ts `regionBindingVirtualId`,
- *  `wrapperVirtualId`). */
 const REGION_BINDING_PREFIX = region_family('binding');
 const WRAPPER_PREFIX = region_family('wrapper');
-/** A `.ts`/`.js` module that can be a region registry (a minted `.ts` region host). */
 const TS_REGISTRY_EXT_RE = /\.(ts|js|mjs)$/;
-/** A Svelte rune module (`.svelte.ts` / `.svelte.js`). */
 const SVELTE_RUNE_MODULE_RE = /\.svelte\.(ts|js)$/;
-/** The plugin-context resolver the client-leg registry decision walks import edges with. */
 type RegistryResolve = (
 	source: string,
 	importer: string,
 	opts: { skipSelf: boolean }
 ) => Promise<{ id: string } | null>;
-/** A script module the seed-shaping analysis parses with oxc (`.svelte.ts` included). */
 const SCRIPT_MODULE_RE = /\.(?:[cm]?[jt]sx?)$/;
 const SOURCE_EXT_RE = /\.(svelte|ts|js|mjs|cjs)$/;
 const SERVER_MODULE_EXT_RE = /\.(server|remote)\.(ts|js|mjs)$/;
 const SERVER_DIR_RE = /\/(src\/lib\/server|server)\//;
-/** Static import / export-from / `import()` specifiers, for the island-graph dep walk (shared `g`
- *  regex — `walk_dep` resets `lastIndex` before each scan). */
 const IMPORT_SPEC_G =
 	/\bfrom\s*['"]([^'"\n]+)['"]|\bimport\s*['"]([^'"\n]+)['"]|\bimport\s*\(\s*['"]([^'"\n]+)['"]/g;
-// THE PAGE MARK (link/runtime-entry.ts `page`), from the island-closure walk: which imports island
-// code can make without reaching Kit's page world. Everything else under `$app/`, any package but
-// Svelte, and anything the walk cannot resolve or read counts as a reader: over-inclusion ships the
-// page seed's runtime for nothing, a miss would leave an island's `page.data` empty.
-// static: the two `$app/` modules that never read Kit's page
-const PAGE_FREE_APP_MODULES = new Set(['$app/environment', '$app/paths']);
+const PAGE_FREE_APP_MODULES: ReadonlySet<string> = new Set(['$app/environment', '$app/paths']);
 const ASSET_EXTS =
 	'css|scss|sass|less|styl|pcss|postcss|json|svg|png|jpe?g|gif|webp|avif|ico|bmp|woff2?|ttf|otf|eot|txt|wasm|mp4|webm|mp3|wav';
 const ASSET_EXT_RE = new RegExp(`\\.(?:${ASSET_EXTS})$`, 'i');
@@ -216,15 +177,18 @@ const PAGE_FREE_UNRESOLVED_RE = new RegExp(
 	`^svelte(?:\\/[\\w/-]+)?$|\\.(?:${ASSET_EXTS})(?:\\?[^/]*)?$`,
 	'i'
 );
-/** The extensions an extension-less island import may resolve to (bare, then index files). */
-const ISLAND_DEP_EXTS = ['', '.svelte', '.ts', '.js', '.svelte.ts', '.svelte.js', '.mjs'];
+const ISLAND_DEP_EXTS: readonly string[] = [
+	'',
+	'.svelte',
+	'.ts',
+	'.js',
+	'.svelte.ts',
+	'.svelte.js',
+	'.mjs'
+];
 
-// Import/export-from specifier extraction for the router-css closure (link/router-css.ts). A cheap
-// regex over raw source — a stray match in a comment/string just fails to resolve later, harmless.
-// Runs once per file in the prescan walk; module-level so it compiles once.
 const MODULE_SPEC_RE =
 	/(?:^|[\n;])\s*(?:import|export)\b[^;'"()]*?from\s*['"]([^'"]+)['"]|(?:^|[\n;])\s*import\s*['"]([^'"]+)['"]/g;
-/** Where Kit's `$app` alias points (Kit 2 and 3: `resolve.alias` `$app` → `<kit>/src/runtime/app`). */
 const KIT_RUNTIME_APP = '/@sveltejs/kit/src/runtime/app/';
 /**
  * The island shim for an `$app/*` import, by specifier or by where Kit's alias sent it: Vite's alias
@@ -241,7 +205,6 @@ export function app_shim_for(source: string, shims: Record<string, string>): str
 	else if (name.endsWith('.js')) name = name.slice(0, -'.js'.length);
 	return shims[`$app/${name}`] ?? null;
 }
-/** A prescanned module's identity: package-relative in declared files, root-relative else. */
 function prescan_rel(
 	ctx: { pkg_identity(p: string): string | null; root: string },
 	full: string
@@ -256,26 +219,12 @@ function scan_kind(name: string): 'svelte' | 'script' | null {
 const SCAN_SCRIPT_RE = /\.(?:ts|js|mjs)$/;
 const REMOTE_FILE_RE = /\.remote\.[jt]s$/;
 
-/** First-party packages with a build half an app turns on by listing their plugin: importing one
- *  without the plugin is said once (packages/flags/test/inventory-build.test.ts). */
-// static: the first-party plugins whose package an app's modules import
 const PLUGIN_PACKAGES: Readonly<Record<string, string>> = { '@ogygia/flags': 'flags()' };
-/** Each unlisted package is said once per process (Kit builds two legs in one). */
 const unlisted_said = say();
 function extract_module_specs(src: string): string[] {
-	MODULE_SPEC_RE.lastIndex = 0;
-	const specs: string[] = [];
-	let m: RegExpExecArray | null;
-	while ((m = MODULE_SPEC_RE.exec(src))) specs.push(m[1] ?? m[2]);
-	return specs;
+	return [...src.matchAll(MODULE_SPEC_RE)].map((m) => m[1] ?? m[2]);
 }
 
-// one shared FNV-1a-32 (contract/hash.ts is the pure, import-anywhere home)
-const fnv = fnv1a32;
-
-/** Once per module id: a dependency file carries ogygia marks but its package declares no
- *  `ogygia.files` — the marks are then silently inert (a `with { }` attribute is valid syntax,
- *  it just never rewrites), which is the worst way to fail. Say it loudly, once. */
 const warned_undeclared = cache<string, true>({
 	name: 'warned undeclared package marks',
 	max: 10_000
@@ -630,11 +579,6 @@ export class Compiler implements CoreApp {
 	}
 
 	/**
-	 * Lower one file: run the fused parse ▸ analyze ▸ lower ▸ emit front-end and register nothing —
-	 * the caller registers the returned descriptors into the `Program`. Memoized per
-	 * `(id, ssr, linkVirtual, routeCsr)`, content-gated on the source.
-	 */
-	/**
 	 * The REAL source file a module derives from. A real file is its own origin. A generated entry
 	 * (a portable-snippet synth, re-processed under its `ogygia:region/entry/<iid>.svelte` id)
 	 * resolves through the registry's `hostPath` — transitively, so an entry minted while re-processing
@@ -650,8 +594,6 @@ export class Compiler implements CoreApp {
 			return n.startsWith('/@id/') ? n.slice(5) : n;
 		};
 		let cur = bare(id);
-		// No depth ceiling — snippet-in-snippet nests as deep as an app cares to go. The only thing to
-		// guard against is a registry cycle, and a visited set does that exactly.
 		const seen = new Set<string>([cur]);
 		for (;;) {
 			const host = registry.get(cur)?.hostPath;
@@ -664,6 +606,10 @@ export class Compiler implements CoreApp {
 		return cur;
 	}
 
+	/**
+	 * Lower one file and register nothing: the caller registers the returned descriptors into the
+	 * `Program`. Memoized per id, leg and csr world, and only while the source is the same.
+	 */
 	transform(
 		source: string,
 		id: string,
@@ -675,10 +621,6 @@ export class Compiler implements CoreApp {
 		const { link_virtual, route_csr, key } = this.#csr_world(id, ssr, opts.linkVirtual);
 		if (ctx.is_dev)
 			this.#worlds.set(`${ssr ? 's' : 'c'}\0${id}`, { id, ssr, link: opts.linkVirtual, key });
-		// `ssr` joins the key because transformHost output legitimately differs by pass — the client
-		// build side-effect-imports fouc-css for a lake binding (its scoped CSS is on no client chunk),
-		// the SSR build must not. Without `ssr` here a layout+csr=true host (where ssr and client share
-		// `link_virtual`) would reuse the SSR result on the client and drop that CSS link.
 		const cache_key = `${id}\0${ssr ? 's' : 'c'}\0${key}`;
 		const hit = this.transform_cache.get(cache_key);
 		if (hit && hit.code === source) {
@@ -711,7 +653,10 @@ export class Compiler implements CoreApp {
 		if (P) {
 			prof.transformMs += performance.now() - th0;
 			prof.transformN++;
-			outHash.set(cache_key, fnv(JSON.stringify((result as { code?: unknown })?.code ?? result)));
+			outHash.set(
+				cache_key,
+				fnv1a32(JSON.stringify((result as { code?: unknown })?.code ?? result))
+			);
 		}
 		this.transform_cache.set(cache_key, { code: source, result });
 		return result;
@@ -760,8 +705,6 @@ export class Compiler implements CoreApp {
 
 		const src_dir = path.join(root, 'src');
 		clean_stale_ogygia_dirs(src_dir);
-		// PLUGIN READERS (`b.prescan`): each module importing what one asked for is handed to it; a
-		// first-party package imported with its plugin not listed is noted, and said at the end.
 		const unlisted = new Map<string, string>();
 		const read_for_plugins = (full: string, src: string, specs: readonly string[]) => {
 			for (const hook of ctx.prescans)
@@ -787,9 +730,6 @@ export class Compiler implements CoreApp {
 				const result = this.transform(src, full);
 				if (result) program.register(result, full);
 			} else {
-				// `.ts` / `.js` region mints (load / remote functions). Discover them up front so a
-				// deferred region's server-manifest entry exists before the endpoint is ever hit —
-				// lazy transform order would otherwise leave the id missing (403 on first fetch).
 				const result = this.ts_regions(src, full);
 				if (result) program.register(result, full);
 			}
@@ -810,21 +750,10 @@ export class Compiler implements CoreApp {
 		{
 			const __ps = P ? performance.now() : 0;
 			walk(src_dir);
-			// Extra island roots beyond the app's src (e.g. the profiler UI, `ogygia({ profiler: true })`):
-			// server-only library components whose client hydrate chunks only build if the prescan — which
-			// runs in both build legs — registers them here. Same `walk`, so same iid ⇒ the SSR shell's
-			// `entry` matches the chunk this emits.
-			// Declared compile surfaces beyond src (`"ogygia": { "files": […] }` in a DEP's
-			// package.json; ogygia's own profiler UI rides the same rail as an internal entry):
-			// the same walk/scan as app src, so a library island gets everything an app island gets
-			// (feature marks, deferred manifests, wired classes, router-css specs) and both build
-			// legs mint the same iids. Only DECLARED packages, only their DECLARED paths.
 			for (const p of ctx.pkg_scan) {
 				for (const d of p.dirs) walk(d);
 				for (const f of p.files) scan_file(f, f.slice(f.lastIndexOf('/') + 1));
 			}
-			// Page modules named by path (`b.pageModules({ files })`): roots whatever they import. One the
-			// walks above did not reach still needs its import specs for the closure.
 			for (const f of ctx.page_files) {
 				if (program.scan.has(f)) continue;
 				const src = ctx.read_file(f);
@@ -842,18 +771,6 @@ export class Compiler implements CoreApp {
 				warn('plugin_not_listed', { package: pkg, plugin: PLUGIN_PACKAGES[pkg]!, file })
 			);
 
-		// Complete `island_graph` TRANSITIVELY, before the bundler resolves a single module. `walk`
-		// above registered each island's OWN component; this marks everything those components import
-		// (and what THOSE import, …) as island code too — so the `$app/*` shim decision is DETERMINISTIC
-		// rather than a build-order race. Without it, a component shared between an island and a
-		// non-island route is marked lazily during Rolldown's own walk: if its `$app/*` (or its
-		// transform) resolves before the island path marks it, it keeps Kit's real client store — which
-		// under `csr = false` is never populated → `page.url` undefined → the island crashes at hydrate.
-		// (This is the race the `?og-region` module-id fork tried to fix; that fork broke Svelte's
-		// scoped-CSS emission, so membership rides OUTSIDE the module id here — the walk only READS.)
-		//
-		// PERF: strictly O(reachable modules) — see `mark_island_closure`: one shared `seen` set for
-		// the life of the program, so each file is read and scanned exactly once, never re-descended.
 		{
 			const __ws = P ? performance.now() : 0;
 			for (const entry of registry.values()) {
@@ -862,19 +779,6 @@ export class Compiler implements CoreApp {
 			if (P) prof.prescanMs += performance.now() - __ws;
 		}
 
-		// CONTEXT-BOUNDARY diagnostic: an island (or a component inside it — the whole island closure) that
-		// READS a string-keyed `getContext(…)` for a key nothing in the island's own code SETS, while this
-		// app registers NO ogygia context provider. On a csr=false page the page/layout `<script>` never
-		// runs on the client, so a value set with Svelte's own `setContext` in a page/layout is gone by the
-		// time the island hydrates in isolation — the island reads `undefined`, renders a different tree,
-		// and Svelte silently discards its server DOM on hydration (`data-og-recovered`). Naming it here
-		// turns that silent discard into a build-time pointer at the fix.
-		//
-		// Precision: gated to "no ogygia bridge at all" (`!runtime_marks.context`) so it never false-warns
-		// an app that DOES bridge (there a matching provided key resolves); and a key the island's OWN code
-		// both sets and reads (a component library using context WITHIN one hydration root) is subtracted
-		// out, since that needs no bridge. The runtime recovery diagnostic covers the partial-bridge case.
-		// Reads are cache hits — the closure walk already read these files.
 		if (!runtime_marks.context) {
 			const reads: { file: string; keys: string[] }[] = [];
 			const island_set = new Set<string>();
@@ -891,7 +795,7 @@ export class Compiler implements CoreApp {
 			}
 			for (const { file, keys } of reads) {
 				for (const key of keys) {
-					if (island_set.has(key)) continue; // the island provides it itself, within one root
+					if (island_set.has(key)) continue;
 					warn('island_context_unprovided', {
 						file: path.relative(root, file),
 						key: key_label(key_of(key))
@@ -900,18 +804,10 @@ export class Compiler implements CoreApp {
 			}
 		}
 
-		// The page seed and the MPA navigation handle are for island code that reaches Kit's page world
-		// (the closure walk above). Islands the walk never saw count as readers: a federated peer's,
-		// hydrated by this app's runtime against this page, and whatever a plugin's browser half wakes.
-		// A federated app's page carries a peer's regions, whatever its own are (`foreign`).
 		runtime_marks.foreign = ctx.foreign_hydrate;
 		runtime_marks.page =
 			program.island_reads_page || runtime_marks.foreign || ctx.client_plugins.length > 0;
-		// prescan walked every host — the capability marks are now COMPLETE, so the generated sticky
-		// runtime entry can bundle only the features this app uses (else it stays kitchen-sink).
 		runtime_marks.complete = true;
-		// Fold the resolved feature set into the runtime chunk name so it busts when the emitted bytes
-		// change (see `runtime_chunk_filename`). Deterministic across both build legs (same prescan).
 		return {
 			feature_hash: createHash('sha256')
 				.update(resolveFeatures(runtime_marks).join(','))
@@ -925,24 +821,6 @@ export class Compiler implements CoreApp {
 		return this.#build.scan?.feature_hash ?? '';
 	}
 
-	/**
-	 * Mark `componentAbs` and EVERYTHING it imports (transitively) as island code, so the `$app/*`
-	 * shim decision for each of those modules is DETERMINISTIC — before the bundler resolves a single
-	 * one of them. A module shared between an island and a non-island route is otherwise marked lazily
-	 * during the bundler's own walk: if its `$app/*` resolves before the island path reaches it, it
-	 * keeps Kit's real client store — which under `csr = false` is never populated → `page.url`
-	 * undefined, `page.data` empty → the island crashes or reads nothing at hydrate. Shimming it is
-	 * right in both worlds: on a Kit-booted document the shim reads Kit's real page (the kit-page
-	 * thread). (The `?og-region` module-id fork was tried and reverted — it broke Svelte's scoped-CSS
-	 * emission; membership rides OUTSIDE the module id here, the walk only READS.)
-	 *
-	 * Follows relative, `$lib` AND the app's aliases (`kit.alias` / `resolve.alias` — a customer's
-	 * `$lib_x/utils/boot` import was where the walk used to stop, and its `$app/state` went to whichever
-	 * page loaded first). Bare package specifiers stop it; the lazy resolveId marking stays their
-	 * backstop. Called at prescan for every island, and again in dev for an island registered by a
-	 * later transform (a file added while the server runs). Returns the modules marked for the first
-	 * time by this call, so a dev caller can drop their cached transforms.
-	 */
 	/** DEV: modules `mark_island_closure` marked for the first time AFTER prescan — an island a later
 	 *  transform registered (a file added while the server runs). Each may already sit in the dev
 	 *  server's module graph, transformed with Kit's real `$app/*` for a non-island importer; the
@@ -964,6 +842,11 @@ export class Compiler implements CoreApp {
 		return out;
 	}
 
+	/**
+	 * Mark `componentAbs` and everything it imports through relative paths and the app's aliases as
+	 * island code, before the bundler resolves any of it; a bare package specifier stops the walk.
+	 * Returns the modules marked for the first time by this call.
+	 */
 	mark_island_closure(componentAbs: string): string[] {
 		const ctx = this.#ctx;
 		const { island_graph } = this.program;
@@ -971,7 +854,7 @@ export class Compiler implements CoreApp {
 		const added: string[] = [];
 		const resolve_dep = (spec: string, importerAbs: string): string | null => {
 			const base = resolve_app_spec(spec, importerAbs, spec_ctx);
-			if (!base) return null; // a bare package specifier — the lazy resolveId marking is the backstop
+			if (!base) return null;
 			for (const ext of ISLAND_DEP_EXTS) if (ctx.fs.stat(base + ext) === 'file') return base + ext;
 			for (const ext of ISLAND_DEP_EXTS.slice(1)) {
 				const idx = path.join(base, `index${ext}`);
@@ -989,15 +872,12 @@ export class Compiler implements CoreApp {
 				added.push(norm);
 			}
 			if (!SOURCE_EXT_RE.test(norm)) {
-				// a module this walk does not read (markdown, a JSX file): it may read the page
 				if (!ASSET_EXT_RE.test(norm)) this.program.island_reads_page = true;
 				return;
 			}
 			const src = ctx.read_file(norm);
 			if (src == null) return;
-			IMPORT_SPEC_G.lastIndex = 0;
-			let m: RegExpExecArray | null;
-			while ((m = IMPORT_SPEC_G.exec(src))) {
+			for (const m of src.matchAll(IMPORT_SPEC_G)) {
 				const spec = m[1] || m[2] || m[3];
 				if (!spec || spec[0] === '\0') continue;
 				if (spec.startsWith('$app/')) {
@@ -1007,7 +887,6 @@ export class Compiler implements CoreApp {
 				if (spec.startsWith('$env/') || is_generated_specifier(spec)) continue;
 				const dep = resolve_dep(spec, norm);
 				if (dep) walk(dep);
-				// A package or an import this walk cannot resolve may read the page; Svelte and assets cannot.
 				else if (!PAGE_FREE_UNRESOLVED_RE.test(spec)) this.program.island_reads_page = true;
 			}
 		};
@@ -1043,7 +922,7 @@ export class Compiler implements CoreApp {
 		const add = (p: string | null | undefined) => {
 			if (!p) return;
 			const abs = strip_id(p);
-			if (!SOURCE_EXT_RE.test(abs)) return; // only what the scanner can parse
+			if (!SOURCE_EXT_RE.test(abs)) return;
 			if (this.#ctx.fs.stat(abs) === 'file') out.add(abs);
 		};
 		for (const entry of registry.values()) {
@@ -1066,24 +945,12 @@ export class Compiler implements CoreApp {
 		return this.#ctx.runtime_chunk_url(this.#feature_hash);
 	}
 
-	/**
-	 * Client-build chunk emit (via the injected `emitFile`): the feature-selected runtime entry (when
-	 * `emitRuntime`), then one chunk per deduped HYDRATE region id. IDENTITY vs LOCATION: SSR bakes the
-	 * stable name (`island_public_url`) as the region's identity; the file the browser loads is named
-	 * by its content (the bundler hashes it), and the bundle end hands the stable → hashed map to the
-	 * server (the handoff's `entries`) and to the browser (the location maps).
-	 * csr=false hosts omit wrapper imports so this emit owns the module. Idempotent per id.
-	 */
 	/** The server-router component roots (link/router-css.ts). Build: prescan is complete before any
 	 *  consumer runs — memoized for the build. Dev: modules appear lazily (HMR), recompute per call. */
 	router_css_roots(): string[] {
 		const ctx = this.#ctx;
 		const build = this.#build;
 		if (ctx.is_build && build.router_css_roots) return build.router_css_roots;
-		// One path for ALL page modules (`b.pageModules()`) — app source AND declared surfaces: an
-		// importer of a page specifier is detected by the prescan wherever it lives, a named file joins
-		// directly (the profiler's router). The walk's recursion is bounded by prescanned module_specs,
-		// so profiler-router's type-import of `./index.js` dead-ends instead of dragging the host graph in.
 		const roots = new Set(
 			router_css_roots(
 				this.program.router_modules,
@@ -1097,10 +964,6 @@ export class Compiler implements CoreApp {
 		return sorted;
 	}
 
-	/** Does the program hold ANY hydrate island? The runtime-emission gate needs this because
-	 *  `hasAnyCsrFalseRoute` only inspects Kit PAGE leaves — an app whose islands live solely in
-	 *  router-rendered components (a pure-router / fragment-only service has ZERO `+page` files)
-	 *  answers "no csr=false page" while its documents still `<script src>` the runtime. */
 	/**
 	 * Server-only islands — `render: 'deferred'` with no client chunk — and the component file each
 	 * renders. Nothing on any page links such a component's CSS (Kit collects stylesheets from the
@@ -1124,6 +987,7 @@ export class Compiler implements CoreApp {
 		return this.#ctx.island_public_url(iid);
 	}
 
+	/** Whether the program holds any hydrate region, wherever it is placed (a Kit page or not). */
 	has_hydrate_regions(): boolean {
 		for (const kind of this.program.region_kinds.values()) if (kind === 'hydrate') return true;
 		return false;
@@ -1834,13 +1698,6 @@ export class Compiler implements CoreApp {
 			id_n.endsWith('.ts') || id_n.endsWith('.js') || id_n.endsWith('.mjs')
 				? id_n.includes('/node_modules/')
 				: null;
-		// A dependency's `.ts`/`.js` with marks but NO `ogygia.files` declaration would die
-		// SILENTLY (the import attribute is valid syntax, it just never rewrites) — say so.
-		// (ogygia's OWN modules are exempt: in an installed consumer they live in node_modules and
-		// flow through the SSR pipeline (noExternal), and compiler/emit sources legitimately CONTAIN
-		// `with { wake` as strings — the hint sniff would warn-spam on every build.) The sniff is only
-		// the cheap filter: a plugin package's docs comment, generated-code string or error message
-		// that mentions `with { wake }` is no mark, so the parse decides.
 		if (
 			nm_ts === true &&
 			!id_n.startsWith(ctx.pkg_root) &&
