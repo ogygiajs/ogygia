@@ -108,7 +108,7 @@ describe('a report carried with the request', () => {
 	it('a dump with a `__proto__` or `constructor` key at any depth is opened as data, or refused', async () => {
 		const made = profiler({ secret: SECRET });
 		const rec = await made({
-			event: make_event('/__profiler/page?p=/p&runs=1&cold=0', { headers: KEY }),
+			event: make_event('/__profiler/page?p=/p&runs=1&cold=0', { method: 'POST', headers: KEY }),
 			resolve: async () => new Response('<html></html>')
 		});
 		const id = rec.headers.get('location')!.split('/').pop()!;
