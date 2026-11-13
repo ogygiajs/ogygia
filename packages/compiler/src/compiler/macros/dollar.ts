@@ -171,41 +171,120 @@ function holds_mark(fn: Node): boolean {
 	return found;
 }
 
-/**
- * The moved factory text is a RAW source slice, so in a `<script lang="ts">` (or `.ts`) file it still
- * carries TS type annotations — and it lands in a PLAIN-JS registration script (`data-ogygia-fnm`) +
- * the fn-manifest module. `(n: number) => …` there is a syntax error. Blank every TS-only span inside
- * `fn` (type annotations, generics, `as`/`satisfies`/`!`) with spaces — length-preserving, so the
- * captured-name offsets and the surrounding slice stay valid. This is the same technique as
- * ts-blank-space, scoped to the one hoisted function.
- */
-function strip_ts_types(fn: Node, region_code: string): string {
+const ERASED_NODES: ReadonlySet<string> = new Set([
+	'TSTypeAnnotation',
+	'TSTypeParameterDeclaration',
+	'TSTypeParameterInstantiation',
+	'TSTypeAliasDeclaration',
+	'TSInterfaceDeclaration',
+	'TSDeclareFunction',
+	'TSAbstractMethodDefinition',
+	'TSAbstractPropertyDefinition',
+	'TSAbstractAccessorProperty',
+	'TSIndexSignature'
+]);
+
+const TYPE_AROUND_EXPRESSION: ReadonlySet<string> = new Set([
+	'TSAsExpression',
+	'TSSatisfiesExpression',
+	'TSNonNullExpression',
+	'TSInstantiationExpression',
+	'TSTypeAssertion'
+]);
+
+const RUNTIME_TS: ReadonlyMap<string, string> = new Map([
+	['TSEnumDeclaration', 'an enum'],
+	['TSParameterProperty', 'a parameter property']
+]);
+
+const CLASS_MEMBERS: ReadonlySet<string> = new Set([
+	'PropertyDefinition',
+	'MethodDefinition',
+	'AccessorProperty'
+]);
+
+const MEMBER_MODIFIER_RE =
+	/(?<![\w$@.])(?:public|private|protected|readonly|override|declare)(?![\w$])/g;
+const ABSTRACT_RE = /(?<![\w$@.])abstract(?![\w$])/g;
+
+function type_only_namespace(n: Node): boolean {
+	if (n.declare === true) return true;
+	const body = n.body as Node | null | undefined;
+	if (!body) return true;
+	if (body.type === 'TSModuleDeclaration') return type_only_namespace(body);
+	return ((body.body ?? []) as Node[]).every((s) => {
+		const d = (s.type === 'ExportNamedDeclaration' ? s.declaration : s) as Node | null;
+		if (!d) return false;
+		if (d.type === 'TSModuleDeclaration') return type_only_namespace(d);
+		return ERASED_NODES.has(d.type as string) || d.declare === true;
+	});
+}
+
+function strip_ts_types(
+	fn: Node,
+	code: string,
+	refuse: (at: number, problem: string) => never
+): string {
 	const base = fn.start as number;
-	const chars = region_code.slice(base, fn.end as number).split('');
+	const chars = code.slice(base, fn.end as number).split('');
 	const blank = (s: number, e: number): void => {
 		for (let i = s - base; i < e - base; i++) if (i >= 0 && i < chars.length) chars[i] = ' ';
 	};
-	walk(fn, (n) => {
+	const blank_mark = (from: number, mark: string, to: number): void => {
+		const at = code.indexOf(mark, from);
+		if (at >= 0 && at < to) blank(at, at + 1);
+	};
+	const blank_words = (re: RegExp, from: number, to: number): void => {
+		for (const m of code.slice(from, to).matchAll(re))
+			blank(from + m.index, from + m.index + m[0].length);
+	};
+	const visit = (n: Node): void => {
 		const t = n.type as string;
-		// `: Type` on params / vars / arrow return, and `<T>` generics — the whole node is TS-only.
-		if (
-			t === 'TSTypeAnnotation' ||
-			t === 'TSTypeParameterDeclaration' ||
-			t === 'TSTypeParameterInstantiation'
-		) {
-			blank(n.start as number, n.end as number);
-		} else if (
-			// `expr as Type` / `expr satisfies Type` / `expr!` / `expr<T>` — keep the expression, blank
-			// only the TS suffix after it.
-			t === 'TSAsExpression' ||
-			t === 'TSSatisfiesExpression' ||
-			t === 'TSNonNullExpression' ||
-			t === 'TSInstantiationExpression'
-		) {
-			const expr = (n as { expression?: Node }).expression;
-			if (expr) blank(expr.end as number, n.end as number);
+		if (n.declare === true || ERASED_NODES.has(t)) return blank(n.start, n.end);
+		if (t === 'TSModuleDeclaration') {
+			if (!type_only_namespace(n))
+				refuse(n.start, `a namespace with values has runtime meaning, so $() cannot erase it`);
+			return blank(n.start, n.end);
 		}
-	});
+		const runtime = RUNTIME_TS.get(t);
+		if (runtime) refuse(n.start, `${runtime} has runtime meaning, so $() cannot erase it`);
+		if (TYPE_AROUND_EXPRESSION.has(t)) {
+			const expr = n.expression as Node;
+			blank(n.start, expr.start);
+			blank(expr.end, n.end);
+		}
+		if (t === 'Identifier' && n.optional === true)
+			blank_mark(n.start + (n.name as string).length, '?', n.end);
+		if (t === 'VariableDeclarator' && n.definite === true)
+			blank_mark((n.id as Node).start + ((n.id as Node).name as string).length, '!', n.end);
+		if (CLASS_MEMBERS.has(t)) {
+			const key = n.key as Node;
+			blank_words(MEMBER_MODIFIER_RE, n.start, key.start);
+			const value = n.value as Node | null | undefined;
+			if (n.optional === true) blank_mark(key.end, '?', value?.start ?? n.end);
+			if (n.definite === true) blank_mark(key.end, '!', n.end);
+		}
+		if (t === 'ClassDeclaration' || t === 'ClassExpression') {
+			if (n.abstract === true) blank_words(ABSTRACT_RE, n.start, code.indexOf('class', n.start));
+			const impl = (n.implements ?? []) as Node[];
+			if (impl.length)
+				blank(code.lastIndexOf('implements', impl[0]!.start), impl[impl.length - 1]!.end);
+		}
+		const params = n.params as Node[] | undefined;
+		if (params?.[0]?.type === 'Identifier' && params[0].name === 'this')
+			blank(params[0].start, params[1]?.start ?? params[0].end);
+		for (const key in n) {
+			if (key === 'type' || key === 'start' || key === 'end') continue;
+			const child = n[key];
+			if (Array.isArray(child)) {
+				for (const c of child)
+					if (c && typeof c === 'object' && typeof c.type === 'string') visit(c);
+			} else if (child && typeof child === 'object' && typeof child.type === 'string') {
+				visit(child);
+			}
+		}
+	};
+	visit(fn);
 	return chars.join('');
 }
 
@@ -296,6 +375,8 @@ export function dollar_edits(
 		}
 
 		const claimed = new Set<Node>();
+		const refuse_at = (at: number, problem: string): never =>
+			misuse(id, src, region.offset + at, problem);
 		walk(program, (n, ancestors) => {
 			if (n.type === 'CallExpression' && og_member(n.callee as Node) === '$') {
 				const abs = region.offset + n.start;
@@ -310,7 +391,7 @@ export function dollar_edits(
 					// legal value passes through untouched (mark-don't-wrap; passports already ride it).
 					claimed.add(n);
 					claimed.add(n.callee as Node);
-					const expr_text = strip_ts_types(fn, region.code);
+					const expr_text = strip_ts_types(fn, region.code, refuse_at);
 					const site = `${rel_id}:${line_of(src, abs)}`;
 					needs_boundary_import = true;
 					edits.push({
@@ -336,7 +417,7 @@ export function dollar_edits(
 						);
 					}
 				}
-				const fn_text = strip_ts_types(fn, region.code);
+				const fn_text = strip_ts_types(fn, region.code, refuse_at);
 				const tag = `${rel_id}#$${seq++}`;
 				// factory: captures become params SHADOWING the outer names, so the moved text's
 				// references bind to them — self-contained by construction.
@@ -422,7 +503,9 @@ export function dollar_edits(
 		const stmt = (program.body?.[0] ?? {}) as Node;
 		let expr = (stmt.expression ?? {}) as Node;
 		while (expr.type === 'ParenthesizedExpression') expr = expr.expression as Node;
-		const expr_text = strip_ts_types(expr, wrapped);
+		const expr_text = strip_ts_types(expr, wrapped, (_at, problem) =>
+			misuse(id, src, call.start, problem)
+		);
 		if (expr.type === 'ArrowFunctionExpression' || expr.type === 'FunctionExpression') {
 			if (holds_mark(expr))
 				misuse(id, src, call.start, `a $() inside another $() — mark the outer one only`);
