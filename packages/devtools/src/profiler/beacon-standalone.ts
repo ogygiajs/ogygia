@@ -285,7 +285,7 @@ export function standalone_beacon(): void {
 		try {
 			return (PerformanceObserver.supportedEntryTypes ?? []).includes(type);
 		} catch {
-			return false;
+			return false; // ok: no PerformanceObserver here: that kind is not measured
 		}
 	};
 	const nav_entry = () => {
@@ -294,7 +294,7 @@ export function standalone_beacon(): void {
 				| PerformanceNavigationTiming
 				| undefined;
 		} catch {
-			return undefined;
+			return undefined; // ok: no navigation timing in this browser: the visit goes without it
 		}
 	};
 	const fp_of = (node: unknown): string | undefined => {
@@ -1331,7 +1331,7 @@ export function standalone_beacon(): void {
 				...(blocking(r) ? { blocking: true } : {})
 			}));
 		} catch {
-			resources = [];
+			resources = []; // ok: no resource timing in this browser: the visit is sent without it
 		}
 		let fonts: { family: string; display: string; urls: string[] }[] = [];
 		let oversized: Visit[] = [];
@@ -1573,7 +1573,7 @@ export function standalone_beacon(): void {
 		try {
 			trace = await p.stop();
 		} catch {
-			return;
+			return; // ok: the profiler would not stop: the visit is kept without its load trace
 		}
 		if (off || !trace) return;
 		keep_trace({ trace, from: cpu_started_at, to: performance.now(), label: 'page load' });
@@ -1610,7 +1610,7 @@ export function standalone_beacon(): void {
 		try {
 			trace = await p.stop();
 		} catch {
-			return;
+			return; // ok: the profiler would not stop: this interaction goes without a trace
 		}
 		let caught = icpu_caught;
 		if (off || !trace || !caught) return;
@@ -1804,7 +1804,7 @@ export function standalone_beacon(): void {
 				keep_trace({ trace: await p.stop(), from, to: performance.now(), label });
 				return true;
 			} catch {
-				return false;
+				return false; // ok: the caller is told no trace was kept
 			}
 		},
 		keep_traces() {
