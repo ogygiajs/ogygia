@@ -123,6 +123,26 @@ describe('a page-facts data request', () => {
 	});
 });
 
+describe('a page whose headers cannot change', () => {
+	it('with server delta on, the page goes out as the platform made it, without the vary', async () => {
+		const flag = globalThis as { __OGYGIA_SERVER_DELTA__?: boolean };
+		flag.__OGYGIA_SERVER_DELTA__ = true;
+		try {
+			const answer = new Response('page', { headers: { 'content-type': 'text/html' } });
+			Object.defineProperty(answer.headers, 'append', {
+				value: () => {
+					throw new TypeError('immutable');
+				}
+			});
+			const res = await handle()({ event: event('/a'), resolve: async () => answer } as never);
+			expect(res.status).toBe(200);
+			expect(res.headers.get('vary')).toBeNull();
+		} finally {
+			delete flag.__OGYGIA_SERVER_DELTA__;
+		}
+	});
+});
+
 describe('options the handle refuses', () => {
 	it('`transform` is told where it moved', () => {
 		expect(() => handle({ transform: () => '' } as never)).toThrow(
