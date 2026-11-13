@@ -74,7 +74,7 @@ export async function page_json(cpu_fns = 15): Promise<{
 			| undefined;
 		route = nav?.serverTiming?.find((s) => s.name === 'og-route')?.description || null;
 	} catch {
-		route = null;
+		route = null; // ok: no navigation timing in this browser: the route goes unnamed
 	}
 	return {
 		url: location.pathname,

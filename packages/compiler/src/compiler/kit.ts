@@ -165,13 +165,6 @@ export function kit_inline_style_threshold(root: string): number {
 // ogygia" runtime gate.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CSR_EXPORT = /export\s+const\s+csr(?:\s*:\s*boolean)?\s*=\s*(true|false)/;
-// Comment strippers for the csr reader: a COMMENTED-OUT `export const csr` must never win the
-// first-match read. Block comments, plus WHOLE-LINE `//` only (a partial-line
-// `//` is left so it can't eat a `://` inside a string; a trailing comment can't flip the reading).
-const BLOCK_COMMENT_G = /\/\*[\s\S]*?\*\//g;
-const LINE_COMMENT_G = /^[ \t]*\/\/.*$/gm;
-
 /** Each option file's `csr`, read once until a route file changes (`clear_route_csr_cache`): every
  *  transform asks for its route's chain of option files, cache hits included, and each read was a
  *  file read (or an ENOENT throw) per directory level. */
@@ -189,19 +182,18 @@ export function read_csr(file: string): boolean | undefined {
 }
 
 function read_csr_uncached(file: string): boolean | undefined {
+	let src: string;
 	try {
-		let src = fs.readFileSync(file, 'utf-8');
-		// Strip comments so a COMMENTED-OUT `export const csr = …` never wins the (first-match) regex —
-		// e.g. a stale `// export const csr = true` above a real `export const csr = false` would
-		// otherwise read `true` and make ogygia strip islands from a page Kit renders csr=false. Block
-		// comments, plus WHOLE-LINE `//` comments only (a partial-line `//` is left so it can't eat a
-		// `://` inside a string; a trailing comment can't flip the reading — the real export matches first).
-		src = src.replace(BLOCK_COMMENT_G, '').replace(LINE_COMMENT_G, '');
-		const m = CSR_EXPORT.exec(src);
-		return m ? m[1] === 'true' : undefined;
+		src = fs.readFileSync(file, 'utf-8');
 	} catch {
-		return undefined;
+		return undefined; // ok: no such option file on this level
 	}
+	if (!src.includes('csr')) return undefined;
+	// parsed, like Kit: text in a comment or a string is no export (test: read-csr-kit.test.ts)
+	const { program, ok } = parse_module(src, file);
+	if (!ok || !program) return undefined; // Kit cannot read it either
+	const value = literal_value(page_option(program, 'csr'));
+	return typeof value === 'boolean' ? value : undefined;
 }
 
 // ── ROUTE CONFIG (the keys plugins claim inside Kit's `config` page option: plugin/routes.ts) ──
@@ -232,19 +224,42 @@ function unwrap_expression(node: AstNode | null | undefined): AstNode | null {
 	return n;
 }
 
-/** The object literal `export const config = {…}` declares in `program`, or null. */
-function config_object(program: AstNode): AstNode | null {
-	for (const statement of program.body ?? []) {
+/**
+ * The value a page option file exports as `name`, the forms Kit reads: `export const|let|var name =
+ * …` (any declarator of the statement), or `export { local as name }` of a top-level declaration.
+ * Null when there is none, or it comes from another module (`export { name } from …`).
+ */
+function page_option(program: AstNode, name: string): AstNode | null {
+	const body: AstNode[] = program.body ?? [];
+	const declared = (local: string): AstNode | null => {
+		for (const statement of body) {
+			const declaration =
+				statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement;
+			if (declaration?.type !== 'VariableDeclaration') continue;
+			for (const d of declaration.declarations ?? [])
+				if (d.id?.type === 'Identifier' && d.id.name === local) return d.init ?? null;
+		}
+		return null;
+	};
+	const name_of = (n: AstNode | null | undefined) =>
+		n?.type === 'Identifier' ? n.name : typeof n?.value === 'string' ? n.value : null;
+	for (const statement of body) {
 		if (statement.type !== 'ExportNamedDeclaration') continue;
-		const declaration = statement.declaration;
-		if (declaration?.type !== 'VariableDeclaration') continue;
-		for (const d of declaration.declarations ?? []) {
-			if (d.id?.type !== 'Identifier' || d.id.name !== 'config') continue;
-			const init = unwrap_expression(d.init);
-			return init?.type === 'ObjectExpression' ? init : null;
+		for (const d of statement.declaration?.declarations ?? [])
+			if (d.id?.type === 'Identifier' && d.id.name === name) return d.init ?? null;
+		for (const s of statement.specifiers ?? []) {
+			if (name_of(s.exported) !== name) continue;
+			const local = name_of(s.local);
+			return statement.source || local === null ? null : declared(local);
 		}
 	}
 	return null;
+}
+
+/** The object literal `export const config = {…}` declares in `program`, or null. */
+function config_object(program: AstNode): AstNode | null {
+	const init = unwrap_expression(page_option(program, 'config'));
+	return init?.type === 'ObjectExpression' ? init : null;
 }
 
 /** A plain literal value (boolean, number, string, null), or `NOT_LITERAL`. */
@@ -299,8 +314,18 @@ function read_route_config_uncached(
 const CONFIG_FILES_PAGE = ['+page.server.js', '+page.server.ts', '+page.js', '+page.ts'];
 const CONFIG_FILES_LAYOUT = ['+layout.server.js', '+layout.server.ts', '+layout.js', '+layout.ts'];
 
-const OPTION_FILES_PAGE = ['+page.js', '+page.ts', '+page.server.js', '+page.server.ts'];
-const OPTION_FILES_LAYOUT = ['+layout.js', '+layout.ts', '+layout.server.js', '+layout.server.ts'];
+const PAGE_UNIVERSAL = ['+page.js', '+page.ts'];
+const PAGE_SERVER = ['+page.server.js', '+page.server.ts'];
+const LAYOUT_UNIVERSAL = ['+layout.js', '+layout.ts'];
+const LAYOUT_SERVER = ['+layout.server.js', '+layout.server.ts'];
+
+/** A route node's own `csr`, as Kit reads it: the universal module's, else the server module's. */
+function own_csr(dir: string, universal: string[], server: string[]) {
+	let csr; // undefined = not set on this node
+	for (const f of server) csr = read_csr(path.join(dir, f)) ?? csr;
+	for (const f of universal) csr = read_csr(path.join(dir, f)) ?? csr;
+	return csr;
+}
 
 const SCRIPT_FILE_RE = /\.[cm]?[jt]s$/;
 
@@ -330,18 +355,9 @@ function own_chain_csr_false(hostFile: string, routesDir: string, layouts_only =
 		cur = path.join(cur, p);
 		chain.push(cur);
 	}
-	for (const d of chain) {
-		for (const f of OPTION_FILES_LAYOUT) {
-			const v = read_csr(path.join(d, f));
-			if (v !== undefined) csr = v;
-		}
-	}
-	if (!layouts_only && is_route_component(path.basename(hostFile), 'page')) {
-		for (const f of OPTION_FILES_PAGE) {
-			const v = read_csr(path.join(dir, f));
-			if (v !== undefined) csr = v;
-		}
-	}
+	for (const d of chain) csr = own_csr(d, LAYOUT_UNIVERSAL, LAYOUT_SERVER) ?? csr;
+	if (!layouts_only && is_route_component(path.basename(hostFile), 'page'))
+		csr = own_csr(dir, PAGE_UNIVERSAL, PAGE_SERVER) ?? csr;
 	return csr === false;
 }
 
@@ -627,25 +643,6 @@ export function clear_route_csr_cache(): void {
 // invisible to the skip detection itself — otherwise its own csr=true node would mask whether the
 // USER's real routes are all csr=false.
 export const KEEP_CLIENT_DIR = '.ogygia-keep-client';
-
-const PAGE_UNIVERSAL = ['+page.js', '+page.ts'];
-const PAGE_SERVER = ['+page.server.js', '+page.server.ts'];
-const LAYOUT_UNIVERSAL = ['+layout.js', '+layout.ts'];
-const LAYOUT_SERVER = ['+layout.server.js', '+layout.server.ts'];
-
-/** A node's OWN csr (server module then universal wins), independent of the layout chain. */
-function own_csr(dir: string, universal: string[], server: string[]) {
-	let csr; // undefined = not set on this node
-	for (const f of server) {
-		const v = read_csr(path.join(dir, f));
-		if (v !== undefined) csr = v;
-	}
-	for (const f of universal) {
-		const v = read_csr(path.join(dir, f));
-		if (v !== undefined) csr = v;
-	}
-	return csr;
-}
 
 /**
  * Collects every route node's EFFECTIVE csr the way Kit does — a node exists per `+page` and per

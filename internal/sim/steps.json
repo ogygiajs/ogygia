@@ -27,6 +27,11 @@
 				"app": "palaestra",
 				"plan": "internal/sim/sweep-plans/palaestra-render-kept-gone.json",
 				"reaches": ["render cache: kept -> gone"]
+			},
+			{
+				"app": 192,
+				"plan": "internal/sim/sweep-plans/gen192-hole-failed-armed.json",
+				"reaches": ["hole: failed -> armed"]
 			}
 		]
 	},
@@ -34,7 +39,6 @@
 		"batch stream: streaming -> cancelled",
 		"batch stream: streaming -> ended",
 		"batch-stream: reading -> reading",
-		"batch-stream: reading -> stalled",
 		"batch-stream: sending -> reading",
 		"build location map: flying -> gone",
 		"build location map: flying -> kept",
@@ -189,6 +193,48 @@
 		"wire class: kept -> gone"
 	],
 	"covered": [
+		{
+			"step": "region-life: detached -> connected",
+			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/region-life.test.ts",
+			"name": "a region connects, schedules, and a move keeps its lifetime"
+		},
+		{
+			"step": "region-life: connected -> scheduled",
+			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/region-life.test.ts",
+			"name": "a region connects, schedules, and a move keeps its lifetime"
+		},
+		{
+			"step": "region-life: connected -> detached",
+			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/region-life.test.ts",
+			"name": "a live region that never scheduled leaves from connected"
+		},
+		{
+			"step": "region-life: scheduled -> connected",
+			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/region-life.test.ts",
+			"name": "a hole whose fetch failed connects afresh for its retry"
+		},
+		{
+			"step": "region-life: scheduled -> detached",
+			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/region-life.test.ts",
+			"name": "a scheduled region removed for good is detached once"
+		},
+		{
+			"step": "frame-part: promised -> landed",
+			"reason": "a navigation's hole batch reserves the next page's addresses; whether the sweep's navigations land a part before its hole binds is timing the ledger does not pin",
+			"test": "packages/core/test/frame-store.test.ts",
+			"name": "ensure() JOINS a reservation instead of fetching; write() fulfils it"
+		},
+		{
+			"step": "frame-part: promised -> missed",
+			"reason": "a batch that ends without a part it reserved: the simulated server always carries every part it is asked for",
+			"test": "packages/core/test/frame-store.test.ts",
+			"name": "release() misses an undelivered reservation, so the binder that joined it fetches on its own"
+		},
 		{
 			"step": "lake: open -> waited",
 			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
@@ -404,6 +450,12 @@
 			"reason": "a batch POST whose answer never starts for the stall deadline: one network stall aimed at one request, which the sweep's runs met by luck only, and lost when timings moved",
 			"test": "packages/core/test/browser/frame-stream-stall.test.ts",
 			"name": "an answer that never starts: the stream is given up while sending, and its holes are let go"
+		},
+		{
+			"step": "batch-stream: reading -> stalled",
+			"reason": "a batch answer that goes quiet after its first part for the stall deadline: a midway network stall aimed at one batch POST, which one palaestra seed in 300 met by luck, and none of 800 more once the load timings moved",
+			"test": "packages/core/test/browser/frame-stream-stall.test.ts",
+			"name": "sends one frame and stalls: the hole it carried has it, the others fail and fetch on their own"
 		},
 		{
 			"step": "live-region: failed -> hydrating",

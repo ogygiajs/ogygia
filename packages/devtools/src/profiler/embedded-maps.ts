@@ -143,7 +143,7 @@ function cwd(): string | undefined {
 	try {
 		return process.cwd().split('\\').join('/');
 	} catch {
-		return undefined;
+		return undefined; // ok: no process folder off Node: paths stay as the maps give them
 	}
 }
 
@@ -161,7 +161,7 @@ function source_index(): Map<string, string> | undefined {
 			try {
 				map = JSON.parse(raw);
 			} catch {
-				continue;
+				continue; // ok: an unreadable map: its files go without sources, the others keep theirs
 			}
 			// (a browser chunk's sources are relative to the client output: `client/…` under output/)
 			const dir =

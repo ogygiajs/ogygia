@@ -384,7 +384,8 @@ export const region_deps: Family<RegionDepsModule> = virtual.family({
 		region_remotes: 'region_remotes',
 		fn_manifest: 'fn_manifest',
 		entry_location: 'entry_location',
-		location_map: 'location_map'
+		location_map: 'location_map',
+		handoff_problem: 'handoff_problem'
 	},
 	load: ({ ctx }: CoreApp, { ssr }) =>
 		island_deps_module(ssr, ctx.is_dev, path.relative(ctx.root, kit_dirs(ctx.root).out_dir))
