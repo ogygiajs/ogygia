@@ -55,7 +55,8 @@ import { context_string_keys, source_uses_ogygia_context } from './link/context-
 import { collect_flag_sites, FLAGS_SPEC } from './flags.ts';
 import { router_css_roots } from './link/router-css.ts';
 import { source_crosses_wire } from './link/transport.ts';
-import { server_island_ids, PAGE_DATA_READS_TOKEN } from './link/server-manifest.ts';
+import { server_island_ids } from './link/server-manifest.ts';
+import { relocate, type RelocateCx } from './link/relocations.ts';
 import { same_module_path, island_vpaths_affected_by_file } from './dev/hmr.ts';
 import { VirtualTable } from './virtual/resolver.ts';
 import { CORE_VALUE_NAMES } from './virtual/value-names.ts';
@@ -1780,89 +1781,22 @@ export class Compiler implements CoreApp {
 	}
 
 	/**
-	 * Patch the fn-manifest placeholder in a finished chunk with the collected `og.$` factory
-	 * registrations — every transform has run by renderChunk, so `dollar_hoists` is complete. Registrations
-	 * go through the globalThis bridge the placeholder module installed (rename-proof under minification).
-	 * Returns the patched chunk, or `null` if this chunk carries no placeholder.
+	 * A finished chunk with its relocation tokens replaced from the final records (every transform has
+	 * run by renderChunk, and the graph is complete), each patch counted on the leg
+	 * (link/relocations.ts). `null` when the chunk carries none.
 	 */
-	patch_fn_manifest(code: string): { code: string; map: null } | null {
-		if (!code.includes('/*__OGYGIA_FN_MANIFEST__*/')) return null;
-		const regs = [...this.dollar_hoists.entries()]
-			.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
-			.join('\n');
-		// FUNCTION-form replacement: factory sources legitimately contain `$$` (a literal `$`
-		// before a template hole), which String.replace would collapse in a string replacement.
-		return { code: code.replace('/*__OGYGIA_FN_MANIFEST__*/', () => regs), map: null };
-	}
-
-	/**
-	 * Patch the server manifest's page-data placeholder: per server island (a hole), does its SERVER
-	 * tree — the component and everything it imports, statically or dynamically (a registry's blocks)
-	 * — read `page.data`? The transform recorded each module's reads (`page_keys`, seed shaping); by
-	 * renderChunk the graph is complete. A hole that never reads it never pays the page lookup
-	 * (server/render-page.ts). One walk per hole, sharing what earlier walks proved: a walk that ends
-	 * with no reader proves every module it visited reads nothing. `graph` is the bundler's module info.
-	 */
-	patch_page_data_reads(
+	relocate(
 		code: string,
-		graph: (
-			id: string
-		) => { importedIds: readonly string[]; dynamicallyImportedIds: readonly string[] } | null,
-		module_ids: () => Iterable<string>
+		leg: Pick<BuildLeg, 'server' | 'relocated'>,
+		bundle: Pick<RelocateCx, 'graph' | 'module_ids'>
 	): { code: string; map: null } | null {
-		const at = code.indexOf(PAGE_DATA_READS_TOKEN);
-		if (at === -1) return null;
-		const { page_keys, page_pending, by_id, registry } = this.program;
-		const clean = (id: string) => id.split('?')[0].split('\\').join('/');
-		const reads_itself = (id: string) => {
-			const c = clean(id);
-			const k = page_keys.get(c);
-			return (k !== undefined && (k === 'all' || k.size > 0)) || page_pending.has(c);
-		};
-		// a component path → the graph's id for it (a graph id may carry a query or another separator)
-		const ids_by_path = new Map<string, string>();
-		for (const id of module_ids()) if (!id.startsWith('\0')) ids_by_path.set(clean(id), id);
-		const proven_clean = new Set<string>();
-		const reads = (root: string): boolean => {
-			const seen = new Set<string>([root]);
-			const queue = [root];
-			for (let i = 0; i < queue.length; i++) {
-				const id = queue[i];
-				if (proven_clean.has(id)) continue;
-				if (reads_itself(id)) return true;
-				const info = graph(id);
-				if (!info) continue;
-				for (const next of info.importedIds)
-					if (!seen.has(next)) {
-						seen.add(next);
-						queue.push(next);
-					}
-				for (const next of info.dynamicallyImportedIds)
-					if (!seen.has(next)) {
-						seen.add(next);
-						queue.push(next);
-					}
-			}
-			for (const id of seen) proven_clean.add(id);
-			return false;
-		};
-		const out: Record<string, boolean> = {};
-		for (const [iid, virtual_path] of by_id) {
-			const reg = registry.get(virtual_path);
-			if (!reg?.server) continue;
-			const root = reg.componentPath ? ids_by_path.get(clean(reg.componentPath)) : undefined;
-			// (a component the graph does not know: unknown, so it looks up — a wrong `false` would
-			// render a hole with an empty page.data)
-			out[iid] = root === undefined ? true : reads(root);
-		}
-		// the token sits in a string literal the bundler may have re-quoted: escape for that quote (the
-		// JSON is ids and booleans only — its one special character is `"`)
-		const json = JSON.stringify(out);
-		const literal = code[at - 1] === '"' ? json.split('"').join('\\"') : json;
-		return {
-			code: code.slice(0, at) + literal + code.slice(at + PAGE_DATA_READS_TOKEN.length),
-			map: null
-		};
+		const out = relocate(code, leg.server, leg.relocated, {
+			program: this.program,
+			dollar_hoists: this.dollar_hoists,
+			graph: bundle.graph,
+			module_ids: bundle.module_ids
+		});
+		return out === null ? null : { code: out, map: null };
 	}
 
 	/** True when `file` is a registered island HOST (a component that declares islands). */
