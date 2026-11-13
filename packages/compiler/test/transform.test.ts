@@ -699,6 +699,29 @@ describe('errors', () => {
 			/unknown wake strategy/
 		);
 	});
+	test("render: 'static' alone marks nothing: the build says so, never leaves the attribute in", () => {
+		expectThrows(
+			() => run(wrap(`import C from './C.svelte' with { render: 'static' };`, '<C />')),
+			/render: 'static'.*marks nothing/
+		);
+	});
+	test('keep on a hole, a lake or a live region (no island to keep) is refused, not dropped', () => {
+		for (const mark of [
+			`render: 'deferred', keep: 'k'`,
+			`wake: 'none', keep: 'k'`,
+			`render: 'live', keep: 'k'`
+		])
+			expectThrows(
+				() => run(wrap(`import C from './C.svelte' with { ${mark} };`, '<C />')),
+				/`keep`.*waking island/
+			);
+	});
+	test("a wake that looks like a call ('visible(200px)') is no media query: refused", () => {
+		expectThrows(
+			() => run(wrap(`import C from './C.svelte' with { wake: 'visible(200px)' };`, '<C />')),
+			/unknown wake strategy 'visible\(200px\)'/
+		);
+	});
 	test('dynamic import with region keys', () => {
 		expectThrows(
 			() =>
