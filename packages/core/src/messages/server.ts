@@ -15,6 +15,16 @@ const SECRET_FIX =
 
 /** The errors: `throw new OgygiaError(code, args)`, or `console.error(new OgygiaError(…))`. */
 export const SERVER_ERRORS = {
+	plugin_capability_message: {
+		text: (a: { name: string }): string =>
+			`the \`${a.name}\` plugin signed or checked a capability message with its plain \`sign\` / \`verify\`.`,
+		details: (): string => prose`
+			A message that starts \`cap|\` is a signed hole's, and a signed hole is opened only through
+			\`app.capability.open\`: it charges the visitor's rate budgets in order (the probe before
+			the signature, the render after), as a region hole does. Mint with \`app.capability.mint\`
+			and open with \`app.capability.open\`, or sign a message that does not start \`cap|\`.
+		`
+	},
 	remote_arg_not_data: {
 		text: (a: { kind: string }): string => prose`
 			a remote function's argument carried an ogygia ${a.kind} value. Arguments sent from the

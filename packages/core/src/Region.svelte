@@ -557,7 +557,8 @@
 	// fp the SPA nav's x-ogygia-known lists, not taken by an earlier twin). Emit the region's identifying
 	// attrs + props script but NO component content — the reconciler keeps the live node (same
 	// data-key). Safe: nothing is reused on a full load / non-SPA request, or without serverDelta. (A
-	// derived made in the server render runs once, so each region takes at most one copy.)
+	// derived made in the server render runs once, so each region takes at most one copy:
+	// test/server-delta-once.test.ts.)
 	const island_skip = $derived(
 		is_island &&
 			!island_inline &&
