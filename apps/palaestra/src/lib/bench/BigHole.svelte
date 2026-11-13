@@ -7,7 +7,7 @@
 	// 2 KB of HTML per card.
 	let { cards = 125, tag = 'hole' }: { cards?: number; tag?: string; ogygiaFallback?: Snippet } =
 		$props();
-	const rows = Array.from({ length: cards }, (_, c) => c);
+	const rows = $derived(Array.from({ length: cards }, (_, c) => c));
 	const items = Array.from({ length: 10 }, (_, i) => i);
 	const script_for = (t: string) =>
 		`<script>window.__big_hole_${t} = (window.__big_hole_${t} || 0) + 1${'<'}/script>`;
