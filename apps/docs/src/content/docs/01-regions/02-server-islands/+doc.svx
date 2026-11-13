@@ -50,7 +50,7 @@ A deferred region fetches on its `fetch` schedule, which uses the same timing wo
 </script>
 ```
 
-`fetch` decides when the HTML arrives, and `wake` decides when an island's JavaScript runs. A hole has no JavaScript, so it takes `fetch` and not `wake`. The old pairing of `render: 'deferred'` with `wake` is deprecated: it still times the hole, and the build warns with the `fetch` to write instead.
+`fetch` decides when the HTML arrives, and `wake` decides when an island's JavaScript runs. A hole has no JavaScript, so it takes `fetch` and not `wake`. Pairing `render: 'deferred'` with `wake` fails the build, with the `fetch` to write instead.
 
 With `fetch: 'interaction'` the hole is **on demand**. This suits content that is large, rendered on the server and only needed once the visitor reaches for it, such as the third and fourth levels of a nav menu, a filter panel or a details drawer. The fallback is what the page shows in the meantime, which for a menu would be its first two levels. The trigger is the first hover, focus or touch inside the region. Hover is detected with `pointerover`, which fires before any click and bubbles up from whichever child the pointer moves over, so it works even though the hole's wrapper has no box of its own. As a result the HTML is usually there before the visitor opens anything, and it is **morphed** in rather than swapped, so a menu that is already open stays open and focus stays where it is.
 

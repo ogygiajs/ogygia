@@ -2341,14 +2341,6 @@
 			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
 		},
 		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_sheet_missing > details",
-			"reason": "a message table entry: wording only (#1673)"
-		},
-		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_sheet_missing > text",
-			"reason": "a message table entry: wording only (#1673)"
-		},
-		{
 			"id": "packages/reshape/src/restore-report.ts > report",
 			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
 		},
@@ -2819,10 +2811,6 @@
 		{
 			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
 			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/vite/kit-dirs.ts > load_kit_config",
-			"reason": "config time, once per Vite config: imports the app's svelte.config (async, file system: not replayable); proven in packages/compiler/test/kit-dirs.test.ts"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > exports > map",
@@ -5289,6 +5277,14 @@
 			"reason": "a message table entry: wording only"
 		},
 		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > hole_wake_removed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > hole_wake_removed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
 			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > as_region_removed > text",
 			"reason": "a message table entry: wording only"
 		},
@@ -5791,6 +5787,18 @@
 		{
 			"id": "packages/core/src/server/seed-shape.ts > unshipped_keys > filter:0~f1a081",
 			"reason": "dev and rules builds only: one set lookup per page.data key, constant work per key; proven in packages/core/test/seed-shaping-oracle.test.ts"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_sheet_missing > details",
+			"reason": "a message table entry: wording only (#1673)"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_sheet_missing > text",
+			"reason": "a message table entry: wording only (#1673)"
+		},
+		{
+			"id": "packages/compiler/src/vite/kit-dirs.ts > load_kit_config",
+			"reason": "config time, once per Vite config: imports the app's svelte.config (async, file system: not replayable); proven in packages/compiler/test/kit-dirs.test.ts"
 		},
 		{
 			"id": "packages/data-shake/src/vite.ts > dataShake",

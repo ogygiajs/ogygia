@@ -183,11 +183,13 @@ describe('a tombstone (a code that only points at a removed spelling) names the 
 		expect({
 			as_region_removed: until('as_region_removed'),
 			barrels_option_removed: until('barrels_option_removed'),
-			handle_transform_moved: until('handle_transform_moved')
+			handle_transform_moved: until('handle_transform_moved'),
+			hole_wake_removed: until('hole_wake_removed')
 		}).toEqual({
 			as_region_removed: '0.15',
 			barrels_option_removed: '0.15',
-			handle_transform_moved: '0.15'
+			handle_transform_moved: '0.15',
+			hole_wake_removed: '0.15'
 		});
 	});
 
