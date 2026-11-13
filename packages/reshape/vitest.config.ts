@@ -18,7 +18,7 @@ export default defineConfig({
 				test: {
 					name: 'node',
 					include: ['test/**/*.test.ts'],
-					exclude: ['test/browser/**', '**/node_modules/**'],
+					exclude: ['test/browser/**', 'test/browser-chunk-lost/**', '**/node_modules/**'],
 					environment: 'node'
 				}
 			},
@@ -28,6 +28,28 @@ export default defineConfig({
 					name: 'browser',
 					include: ['test/browser/**/*.test.ts'],
 					browser: { enabled: true, headless: true, ...browsers }
+				}
+			},
+			{
+				extends: true,
+				plugins: [
+					{
+						name: 'messages-chunk-lost',
+						load(id) {
+							if (id.endsWith('/reshape/src/messages.ts'))
+								throw new Error('the messages chunk did not load');
+						}
+					}
+				],
+				test: {
+					name: 'browser-chunk-lost',
+					include: ['test/browser-chunk-lost/**/*.test.ts'],
+					browser: {
+						enabled: true,
+						headless: true,
+						...browsers,
+						instances: browsers.instances.map((i) => ({ ...i }))
+					}
 				}
 			}
 		]

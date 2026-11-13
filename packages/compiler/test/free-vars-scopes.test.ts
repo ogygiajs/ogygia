@@ -57,7 +57,12 @@ describe('collectCaptureInfo: a scope binds its names before any is read', () =>
 		['{(() => { { var q = 1; } return q; })()}', []],
 		['{(() => { switch (a) { case 1: let s = 1; s; } })()}', ['a']],
 		['{(() => { switch (a) { case 1: let s = 1; } return s; })()}', ['a', 's']],
-		['{(() => { class K {} return K; })()}', []]
+		['{(() => { class K {} return K; })()}', []],
+		['{(() => { class K { static { const q = 1; } } return q; })()}', ['q']],
+		['{(() => { class K { static { var q = 1; } } return q; })()}', ['q']],
+		['{(() => { class K { static { class Q {} } } return Q; })()}', ['Q']],
+		['{(class K { m() { return K; } })}', []],
+		['{(() => { const C = class K {}; return K; })()}', ['K']]
 	])('%s → %j', (markup, want) => {
 		expect(free(markup)).toEqual(want);
 	});
@@ -118,6 +123,10 @@ describe('collectCaptureInfo: the template binds and reads', () => {
 		['<C let:item>{item}</C>', ['C']],
 		['<C let:item={[a, ...rest]}>{a}{rest}</C>', ['C']],
 		['<C let:item={[a = 1]}>{a}</C>', ['C']],
+		['<C let:item={[a = d]}>{a}</C>', ['C', 'd']],
+		['<C let:item={{ x: [b = d] }}>{b}</C>', ['C', 'd']],
+		['<C let:item={{ [k]: v }}>{v}</C>', ['C', 'k']],
+		['<C let:item={[a = a]}>{a}</C>', ['C']],
 		['<svelte:fragment let:item>{item}</svelte:fragment>', []],
 		['{#each xs as x, i (i)}{x}{/each}', ['xs']],
 		['{#each xs as x (k)}{x}{/each}', ['k', 'xs']],

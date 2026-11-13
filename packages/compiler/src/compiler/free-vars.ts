@@ -113,8 +113,6 @@ function is_reference(
 		case 'MethodDefinition':
 		case 'PropertyDefinition':
 			return key !== 'key' || parent.computed;
-		case 'ClassExpression':
-			return key !== 'id';
 		case 'ImportSpecifier':
 		case 'ImportDefaultSpecifier':
 		case 'ImportNamespaceSpecifier':
@@ -147,11 +145,6 @@ function add_expression_refs(expr: SvelteNode, svelte_bound: Set<string>, sink: 
 		enter(node, parent, key) {
 			if (SCOPE_TYPES.has(node.type)) {
 				scopes.push(scope_bindings(node));
-			} else if (node.type === 'ClassDeclaration') {
-				const id = (node as { id?: { name: string } | null }).id;
-				if (id) scopes[scopes.length - 1].add(id.name);
-			} else if (node.type === 'VariableDeclarator') {
-				collect_pattern_names(node.id, scopes[scopes.length - 1]);
 			} else if (node.type === 'AssignmentExpression') {
 				record_writes(node.left);
 			} else if (node.type === 'UpdateExpression') {
@@ -197,6 +190,7 @@ function var_names(node: SvelteNode | null | undefined, out: Set<string>) {
 			break;
 		case 'Program':
 		case 'BlockStatement':
+		case 'StaticBlock':
 			for (const s of node.body) var_names(s, out);
 			break;
 		case 'ExportNamedDeclaration':
@@ -238,14 +232,16 @@ const SCOPE_TYPES: ReadonlySet<string> = new Set([
 	'CatchClause',
 	'SwitchStatement',
 	'Program',
-	'BlockStatement'
+	'BlockStatement',
+	'StaticBlock',
+	'ClassExpression'
 ]);
 
 /**
  * The names a scope binds for its whole extent, hoisting included: a function its parameters, its
  * own name and every `var`, `let`, `const`, class and function its body declares; a block, a
- * `switch` or a program what it declares (a program also its imports and `var`s); a loop its head's
- * declarations; a catch clause its parameter (test/og-dollar.test.ts, test/free-vars-patterns.test.ts).
+ * `switch` or a program what it declares (a program and a class static block also their `var`s, a
+ * program its imports); a class expression its own name; a loop its head's declarations; a catch clause its parameter (test/og-dollar.test.ts, test/free-vars-patterns.test.ts).
  */
 export function scope_bindings(node: SvelteNode): Set<string> {
 	const out = new Set<string>();
@@ -258,7 +254,9 @@ export function scope_bindings(node: SvelteNode): Set<string> {
 			var_names(fn.body, out);
 		}
 	} else if (node.type === 'BlockStatement') lexical_names(node.body, out);
-	else if (node.type === 'Program') {
+	else if (node.type === 'ClassExpression') {
+		if (node.id) out.add(node.id.name);
+	} else if (node.type === 'Program' || node.type === 'StaticBlock') {
 		lexical_names(node.body, out);
 		var_names(node, out);
 	} else if (node.type === 'SwitchStatement')
@@ -284,12 +282,15 @@ function add_pattern_refs(pattern: SvelteNode | null | undefined, bound: Set<str
 	if (!pattern) return;
 	switch (pattern.type) {
 		case 'AssignmentPattern':
+		case 'AssignmentExpression':
 			add_expression_refs(pattern.right, bound, sink);
 			add_pattern_refs(pattern.left, bound, sink);
 			break;
 		case 'ObjectPattern':
+		case 'ObjectExpression':
 			for (const prop of pattern.properties) {
-				if (prop.type === 'RestElement') add_pattern_refs(prop.argument, bound, sink);
+				if (prop.type === 'RestElement' || prop.type === 'SpreadElement')
+					add_pattern_refs(prop.argument, bound, sink);
 				else {
 					if (prop.computed) add_expression_refs(prop.key, bound, sink);
 					add_pattern_refs(prop.value, bound, sink);
@@ -297,9 +298,11 @@ function add_pattern_refs(pattern: SvelteNode | null | undefined, bound: Set<str
 			}
 			break;
 		case 'ArrayPattern':
+		case 'ArrayExpression':
 			for (const el of pattern.elements) add_pattern_refs(el, bound, sink);
 			break;
 		case 'RestElement':
+		case 'SpreadElement':
 			add_pattern_refs(pattern.argument, bound, sink);
 			break;
 	}
@@ -348,9 +351,12 @@ function add_attribute_refs(node: SvelteNode, bound: Set<string>, sink: Sink) {
 			case 'SpreadAttribute':
 				add_expression_refs(attr.expression, bound, sink);
 				break;
-			case 'LetDirective':
-				add_pattern_refs(attr.expression, bound, sink);
+			case 'LetDirective': {
+				const own = new Set(bound);
+				collect_pattern_names(attr.expression, own);
+				add_pattern_refs(attr.expression, own, sink);
 				break;
+			}
 			case 'BindDirective':
 				if (attr.expression) {
 					add_expression_refs(attr.expression, bound, sink);
