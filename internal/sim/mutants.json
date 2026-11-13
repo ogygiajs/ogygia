@@ -426,16 +426,6 @@
 		"equivalent": "the listener belongs to the armed state's scope, which the first fire's wake leaves, dropping it; a second change before that starts a background task that sees the armed scope closed and fires nothing"
 	},
 	{
-		"id": "hydrate-stale-while-connected",
-		"file": "packages/core/src/runtime/core.ts",
-		"in": "OgygiaRegion > hydrate",
-		"code": "const gone = (back?: unknown) => back === STALE || !this.isConnected || this.#wake.now !== mine;",
-		"operator": "logical",
-		"from": "E || !",
-		"to": "E && !",
-		"equivalent": "a wait gives STALE only once the region's mailbox or its wake visit closed, and both happen only in teardown, which moves the wake to cold: `this.#wake.now !== mine` already says gone"
-	},
-	{
 		"id": "live-held-equal-ticket",
 		"file": "packages/core/src/runtime/core.ts",
 		"in": "OgygiaRegion > apply_live",

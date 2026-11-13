@@ -131,6 +131,18 @@ describe('core’s boot modules', () => {
 		fs.rmSync(pkg, { recursive: true });
 	});
 
+	it('installs every hydrate feature in dev from the runtime directory as given when its package.json is not JSON', () => {
+		const pkg = fs.mkdtempSync(path.join(os.tmpdir(), 'og-devrt-'));
+		fs.writeFileSync(path.join(pkg, 'package.json'), '{ "exports": ');
+		const code = load(
+			'ogygia:boot/hydrate-features',
+			app({ ctx: { ...DEV, runtime_dir: path.join(pkg, 'dist/runtime') } })
+		)!;
+		expect(code).toContain(`"${path.join(pkg, 'dist/runtime')}/`);
+		expect(code).toContain('.js";');
+		fs.rmSync(pkg, { recursive: true });
+	});
+
 	it('imports the og.$ manifest in a build only when a decoder can revive a fn ref (wire, context, Kit transport)', () => {
 		const with_ = (program: Record<string, unknown>) =>
 			load('ogygia:boot/hydrate-features', app({ ctx: BUILD, program }))!.includes('fn-manifest');
