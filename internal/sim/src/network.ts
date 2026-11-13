@@ -495,6 +495,12 @@ export class Network {
 		const loop = this.#loop;
 		let to!: ReadableStreamDefaultController<Uint8Array>;
 		let ended = false;
+		/** The body is over (whole, cut, called off or left): off the wire, so its document is not
+		 *  busy with it (test/core.test.ts, "off the wire"). */
+		const end = (): void => {
+			ended = true;
+			this.#on_wire.delete(ex);
+		};
 		const opened = loop.now;
 		let last = loop.now;
 		let piece = 0;
@@ -524,7 +530,7 @@ export class Network {
 			else ex.cut = true;
 			send('cut', () => {
 				to.error(new TypeError(`network error: ${why}`));
-				ended = true;
+				end();
 				done(false);
 			});
 			hang_up();
@@ -543,7 +549,7 @@ export class Network {
 					if (cut) return stop('the stream was cut');
 					return send('end', () => {
 						to.close();
-						ended = true;
+						end();
 						done(true);
 					});
 				}
@@ -570,7 +576,7 @@ export class Network {
 				to = controller;
 			},
 			cancel: () => {
-				ended = true;
+				end();
 				hang_up();
 				void source.cancel().catch(() => {});
 			}
@@ -579,7 +585,7 @@ export class Network {
 			'abort',
 			() => {
 				if (ended) return;
-				ended = true;
+				end();
 				try {
 					to.error(signal.reason ?? new DOMException('aborted', 'AbortError'));
 				} catch {
@@ -594,7 +600,7 @@ export class Network {
 		this.#on_wire.set(ex, (why) => {
 			if (ended) return;
 			if (why === 'offline') return stop(why, true);
-			ended = true;
+			end();
 			hang_up();
 			void source.cancel().catch(() => {});
 		});

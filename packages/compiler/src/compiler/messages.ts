@@ -123,6 +123,16 @@ export const BUILD_ERRORS = {
 			that package's \`"ogygia.files"\`; otherwise it should not use the macro.
 		`
 	},
+	macro_needs_plugin: {
+		text: (a: { file: string; macro: string; package: string; plugin: string }): string =>
+			`${a.file} — import.meta.og.${a.macro}() needs the \`${a.plugin}\` plugin from \`${a.package}\`, listed beside ogygia().`,
+		details: (): string => prose`
+			This \`import.meta.og.*\` macro is compiled by a plugin, and that plugin is not in the
+			app's Vite plugins. Without it the call would reach the browser or the server as is, and
+			fail there. Install the package and list its plugin beside \`ogygia()\` in vite.config
+			\`plugins\` (before \`sveltekit()\`).
+		`
+	},
 	macro_bake_arity: {
 		text: (a: { file: string; line: number }): string =>
 			`${a.file}:${a.line} — import.meta.og.bake(fn) takes exactly one argument (a function).`,
