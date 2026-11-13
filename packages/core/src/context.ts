@@ -20,6 +20,9 @@ export { setNested, isNested } from './nested.ts';
 // the document is Kit-hydrated. Region reads this to switch its csr=true inline degradation off; the
 // runtime mirrors it with `inside_opaque` (region-attrs.ts).
 const LAKE_KEY = Symbol.for('ogygia.lake-subtree');
+/** A held region's render root: its head ships nothing but its region-CSS links (set by
+ *  server/kit-context.ts `held_root_context`, by this global name). */
+const HEADLESS_ROOT_KEY = Symbol.for('ogygia.headless-root');
 
 /** Mark the current subtree as opaque to Kit — a lake's inside (LakeBoundary). */
 export function setInLake(): void {
@@ -125,6 +128,10 @@ export function error_route_is_csr_true(id: string | null | undefined): boolean 
 	return error_csr_true_routes.has(normalize_route_id(id));
 }
 
+// The head claims below are per render root, by its event, not per request: a held region's root
+// (a load's, a remote call's) keeps only its sheets, so a claim it made would be lost to the page.
+// What the document counts as a whole is the request's (server/document-counts.ts).
+
 /** Per-request: only one `data-ogygia-runtime` script should be emitted (the first island). */
 const runtime_claimed = new WeakMap<object, true>();
 
@@ -174,7 +181,8 @@ export function claim_kit_island(entry: string): boolean {
  * region's component is server-picked, so its CSS is on no page stylesheet (Kit links CSS from the
  * route's STATIC import graph — it never reads the rendered page). The region wrapper links it from
  * the render pass instead, via `<svelte:head>`; claiming here dedupes so five `Feature` blocks on a
- * page link their shared sheet once. Client / no-request → [] (SSR already linked them).
+ * page link their shared sheet once. No request (the client, or off-request) → `null`, apart from
+ * `[]` (all of them claimed already): test/component-css-head-once.test.ts.
  *
  * `owner` is the head-tag owner of the claiming region (`head_owner`). A sheet already linked under
  * another owner is handed to `shared`: its tag names only the first, so the claimer is listed as
@@ -184,16 +192,15 @@ export function claim_region_css(
 	hrefs: string[],
 	owner = '',
 	shared?: (href: string) => void
-): string[] {
-	if (!hrefs.length) return [];
+): string[] | null {
 	let seen: Map<string, string> | undefined;
 	try {
 		const event = get_request_event() as object;
 		seen = region_css_claimed.get(event);
 		if (!seen) region_css_claimed.set(event, (seen = new Map()));
 	} catch {
-		// ok: no request (the client, or off-request): SSR already linked them
-		return [];
+		// ok: no request (the client, or off-request): nothing to dedupe against, the caller decides
+		return null;
 	}
 	const fresh: string[] = [];
 	for (const h of hrefs) {
@@ -210,9 +217,12 @@ export function claim_region_css(
  * Claim the single runtime-script slot for this SSR request. An island/server placement emits the
  * runtime bootstrap so it hydrates even with the router off; when the router is on, the handle
  * injects the same script into `<head>` (presence-checked) on pages that have no island to emit it.
- * Client / no-request → false (SSR already emitted).
+ * Client / no-request → false (SSR already emitted). A held region's render root (its head dropped
+ * but for its region-CSS links: server/kit-context.ts `held_root_context`) never takes it: the
+ * page's placement of the region does.
  */
 export function claimRuntimeEmit(): boolean {
+	if (getContext(HEADLESS_ROOT_KEY) === true) return false;
 	try {
 		const event = get_request_event() as object;
 		if (runtime_claimed.has(event)) return false;

@@ -393,6 +393,33 @@ describe('pages — a thrown error finds its boundary', () => {
 		expect(html).toContain('500 down {"s":1,"p":1}');
 	});
 
+	it('an error page does not run the load that failed again', async () => {
+		let runs = 0;
+		const app = await branch({
+			inner_load: async () => {
+				runs++;
+				error(500, 'down');
+			}
+		});
+		await (await app.fetch(get('/p')))!.text();
+		expect(runs).toBe(1);
+	});
+
+	it('a flaky load that would pass a second time still names its own layer as the failed one', async () => {
+		let runs = 0;
+		const app = await branch({
+			inner_load: async () => {
+				if (runs++ === 0) error(500, 'flaky');
+				return {};
+			}
+		});
+		const res = (await app.fetch(get('/p')))!;
+		const html = await res.text();
+		expect(res.status).toBe(500);
+		expect(html).not.toContain('data-inner');
+		expect(html).toContain('500 flaky');
+	});
+
 	it('a layout load that throws synchronously is found as the failed layer too', async () => {
 		const app = await branch({ inner_load: () => error(500, 'sync') });
 		const html = await (await app.fetch(get('/p')))!.text();
