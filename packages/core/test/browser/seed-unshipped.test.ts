@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 /** A next document whose server seed ships `data` and names `left` as left out. */
-function next_document(data: Record<string, unknown>, left: string[] | null) {
+function next_document(data: Record<string, unknown>, left: string[] | string | null) {
 	const doc = document.implementation.createHTMLDocument('next');
 	const runtime = doc.createElement('script');
 	runtime.setAttribute('data-ogygia-runtime', '');
@@ -28,7 +28,11 @@ function next_document(data: Record<string, unknown>, left: string[] | null) {
 	seed.type = 'application/ogygia-page';
 	seed.setAttribute('data-og-format', 'json');
 	seed.setAttribute('data-og-mark', MARK);
-	if (left) seed.setAttribute('data-ogygia-page-unshipped', JSON.stringify(left));
+	if (left)
+		seed.setAttribute(
+			'data-ogygia-page-unshipped',
+			typeof left === 'string' ? left : JSON.stringify(left)
+		);
 	seed.textContent = JSON.stringify({ data });
 	doc.body.append(seed);
 	return doc;
@@ -46,6 +50,16 @@ it('a read of a key the shaped seed left out is told; a shipped or unknown key i
 	expect(heard).toEqual(['secret']);
 	// the object is still the seed's: its own keys, nothing added
 	expect(Object.keys(data)).toEqual(['kept']);
+});
+
+it('a left-out list that does not parse names nothing: the seed still reads, and nothing is told', () => {
+	const data = page_seed_of(next_document({ kept: 1 }, '["secret'))!.data as Record<
+		string,
+		unknown
+	>;
+	expect(data.kept).toBe(1);
+	expect(data.secret).toBeUndefined();
+	expect(heard).toEqual([]);
 });
 
 it('a seed shipped whole names nothing, and nothing is told', () => {

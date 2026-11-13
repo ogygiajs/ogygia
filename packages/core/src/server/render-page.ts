@@ -39,12 +39,9 @@ type Transport = Record<
 	{ decode: (v: unknown) => unknown; encode: (v: unknown) => unknown }
 >;
 
-// the server's rules (./rules.ts): dev and OGYGIA_RULES=1 builds only, folds out of any other
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
-/** Rules only: requests that skipped the page look-up because the build said their tree reads no
- *  `page.data` (the seed-shaping plugin's answer). A read of it there breaks a rule. */
 const skipped_look_up = new WeakSet<Request>();
 
 /** Where a dev warning goes (the handle's setting). */
@@ -206,8 +203,6 @@ const NOT_A_KEY = new Set([
 ]);
 const warned_keys = new WeakMap<PageFacts, Set<string>>();
 
-/** Rules only: the empty `page.data` of a render whose look-up the build skipped. A key read from it
- *  is one the build said this tree never reads (`rule_hole_page_read_unpredicted`). */
 function unpredicted_data(path: string): Record<string, unknown> {
 	return new Proxy({} as Record<string, unknown>, {
 		get(target, key, receiver) {

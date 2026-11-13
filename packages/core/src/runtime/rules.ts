@@ -346,10 +346,6 @@ function note_parse(fragment: DocumentFragment): void {
 const no_parse_upgraded = (): string | null =>
 	R.parsed_built.length === 0 ? null : R.parsed_built.join('; ');
 
-// ── every page.data key read was shipped ──
-
-/** The rule's ear on the page seed (./seeds.ts calls it): island code read a `page.data` key the
- *  server had and the shaped seed left out. */
 function note_unshipped_read(key: string): void {
 	const said = `page.data.${key} on ${location.pathname}`;
 	if (R.unshipped_reads.length < 10 && !R.unshipped_reads.includes(said))

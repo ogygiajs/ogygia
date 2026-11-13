@@ -38,7 +38,6 @@ class Breaks {
 	readonly answers: string[] = [];
 	/** The first capability URLs minted with more than a path (CAPABILITY-URL, HOLE-TRUST). */
 	readonly mints: string[] = [];
-	/** The first `page.data` keys read in a render whose look-up the build skipped (SEED SHAPING). */
 	readonly hole_reads: string[] = [];
 }
 const B = new Breaks();

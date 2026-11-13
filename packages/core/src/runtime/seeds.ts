@@ -47,7 +47,6 @@ const server_channel = (doc: Document, selector: string) =>
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
-// the runtime's rules (./rules.ts): in dev and OGYGIA_RULES=1 builds only; folds out of any other
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
@@ -98,8 +97,6 @@ function parse_page_seed(el: Element): PageSeed | null {
 	}
 }
 
-/** Rules only: the seed's `page.data` tells the rules (`rule_seed_key_unshipped`, ./rules.ts) when
- *  island code reads a key the server had and the shaped seed left out (its attribute names them). */
 function watch_unshipped(raw: PageSeed | null, attr: string | null): void {
 	if (!raw || !attr || raw.data === null || typeof raw.data !== 'object') return;
 	let left: Set<string>;

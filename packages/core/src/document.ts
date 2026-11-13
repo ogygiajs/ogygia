@@ -39,7 +39,6 @@ import { kit_render_context, type KitPage } from './server/kit-context.ts';
 import { open_ask_scope, read_seed_ask, record_page } from './page-seed-registry.ts';
 import { shape_page_data, unshipped_attr } from './server/seed-shape.ts';
 
-// the rules (./rules.ts): dev and OGYGIA_RULES=1 builds only, folds out of any other
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
