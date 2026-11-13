@@ -72,14 +72,14 @@ export async function read_hole(
 		const fresh = res.ok ? res.headers.get('x-ogygia-capability') : null;
 		if (fresh && is_allowed_region_endpoint(fresh)) opts.renewed?.(fresh);
 	}
-	if (!is_same_origin_response(res)) throw new Error('cross-origin redirect');
 	// THE ANSWER MUST BE THE REGION'S. ogygia's handle answers a region request in place — a
-	// fragment, a 204, an error status — and never redirects; a redirected response, or a body that
-	// is a whole document, means a handle in front of `ogygia.handle()` took the request (an auth
-	// wall, a locale bounce, a 404 handler) and the browser followed it. Swapping that in put a site's
-	// account page — scripts, skeletons, a second header — into every hole of its header for
-	// signed-in visitors. Refused: the fallback stands.
-	if (is_redirected_answer(res)) throw new RegionAnswerRefused('redirected', res.url);
+	// fragment, a 204, an error status — and never redirects; a redirected response (to this origin
+	// or another, #1482), or a body that is a whole document, means a handle in front of
+	// `ogygia.handle()` took the request (an auth wall, a locale bounce, a 404 handler) and the
+	// browser followed it. Swapping that in put a site's account page — scripts, skeletons, a second
+	// header — into every hole of its header for signed-in visitors. Refused: the fallback stands.
+	if (is_redirected_answer(res) || !is_same_origin_response(res))
+		throw new RegionAnswerRefused('redirected', res.url);
 	// A refused capability is deterministic (its key, its MAC, its id): no retry would differ.
 	if (res.status === 403)
 		throw new RegionAnswerRefused('forbidden', res.url || endpoint, deny_of(res, endpoint));
