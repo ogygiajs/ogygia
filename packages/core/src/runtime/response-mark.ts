@@ -3,13 +3,14 @@
  * of a document is the server's only when it bears the mark the document's head runtime script
  * bears. A document with no mark there has no side channel of the server's. Every reader of a
  * document-level channel finds it here (lazy chunks through the boot registry, runtime/slots.ts
- * `BootLink`). test/browser/side-channel-seeds.test.ts.
+ * `BootLink`). The mark is the head's first runtime script's. test/browser/side-channel-seeds.test.ts.
+ *
+ * @packageDocumentation
  */
 import { RESPONSE_MARK } from '../contract/response-mark.ts';
 import { OGYGIA_RUNTIME } from '../wire-markup.ts';
 import { CODE_ORIGINS_ATTR, forget_code_origins } from './code-origins.ts';
 
-/** `doc`'s mark: its head's first runtime script's. */
 const mark_of = (doc: Document) =>
 	doc.head?.querySelector(`script[${OGYGIA_RUNTIME}]`)?.getAttribute(RESPONSE_MARK);
 
@@ -26,8 +27,6 @@ export function server_channel(doc: Document, selector: string): Element | null 
 	return server_channels(doc, selector)[0] ?? null;
 }
 
-/** What the server writes on the head runtime script for its response: the mark, and the extra
- *  origins island code may load from (./code-origins.ts). */
 const RESPONSE_FACTS = [RESPONSE_MARK, CODE_ORIGINS_ATTR] as const;
 
 /**

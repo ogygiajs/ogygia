@@ -1,10 +1,8 @@
 /**
- * The realm-named specifiers (`ogygia:<realm>/<id>`). Import-free: `@ogygia/compiler/ids` reaches it,
- * and that subpath loads in the browser (the devtools profiler), where the compiler's messages and
- * core's node-only contract must not follow.
+ * Where a virtual module may run, named in its specifier (`ogygia:<realm>/<id>`): `server` (Node,
+ * per request), `boot` (the browser runtime), `region` (inside region chunks, rendered on the
+ * server too), `dev` (the dev server only).
  */
-
-/** Where a virtual module may run. */
 export type Realm = 'server' | 'boot' | 'region' | 'dev';
 
 /** The prefix every realm-named specifier starts with. */
