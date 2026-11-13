@@ -134,6 +134,45 @@ describe('queries', () => {
 		expect(db.get(w.label, 'd')).toBe('even');
 	});
 
+	test('the bound never lets an input go while an answer read it: reread sees the change (#1545)', () => {
+		const w = world();
+		const db = queries('test', 2);
+		db.get(w.parity, 'a');
+		db.get(w.cell, 'z');
+		db.get(w.cell, 'y');
+		w.cells.set('a', 1);
+		expect(db.reread()).toBe(true);
+		expect(db.get(w.parity, 'a')).toBe(1);
+	});
+
+	test('the bound never lets an input go while an answer read it: refresh says it changed (#1545)', () => {
+		const w = world();
+		const db = queries('test', 2);
+		db.get(w.parity, 'a');
+		db.get(w.cell, 'z');
+		db.get(w.cell, 'y');
+		w.cells.set('a', 1);
+		expect(db.refresh(w.cell, 'a')).toBe(true);
+		expect(db.get(w.parity, 'a')).toBe(1);
+	});
+
+	test('an input given its value only by set keeps it past the bound (#1545)', () => {
+		const db = queries('test', 2);
+		const facts = input(
+			'facts',
+			(k: string) => k,
+			() => 0
+		);
+		const double = derived(
+			'double',
+			(k: string) => k,
+			(cx, k: string) => cx.get(facts, k) * 2
+		);
+		db.set(facts, 'a', 21);
+		for (const k of ['b', 'c', 'd']) db.get(double, k);
+		expect(db.get(double, 'a')).toBe(42);
+	});
+
 	test('a chain of answers a hundred thousand deep is checked after an edit without a stack overflow', () => {
 		const depth = 100_000;
 		const db = queries('test', 2 * depth);
