@@ -1,5 +1,32 @@
 [
 	{
+		"id": "compiler-island-scan-unsorted",
+		"file": "packages/compiler/src/compiler/driver.ts",
+		"in": "Compiler > island_scan_entries",
+		"code": "return [...out].sort();",
+		"operator": "statement",
+		"from": ".sort()",
+		"to": ""
+	},
+	{
+		"id": "compiler-server-island-css-unsorted",
+		"file": "packages/compiler/src/compiler/driver.ts",
+		"in": "Compiler > server_island_css_roots",
+		"code": "return out.sort((a, b) => (a.iid < b.iid ? -1 : a.iid > b.iid ? 1 : 0));",
+		"operator": "statement",
+		"from": "out.sort((a, b) => (a.iid < b.iid ? -1 : a.iid > b.iid ? 1 : 0))",
+		"to": "out"
+	},
+	{
+		"id": "compiler-ssr-hosts-unsorted",
+		"file": "packages/compiler/src/compiler/driver.ts",
+		"in": "Compiler > ssr_transformed_hosts",
+		"code": "return [...this.program.ssr_transformed].sort();",
+		"operator": "statement",
+		"from": ".sort()",
+		"to": ""
+	},
+	{
 		"id": "compiler-affected-not-invalidated",
 		"file": "packages/compiler/src/compiler/driver.ts",
 		"in": "Compiler > invalidate_for_file",

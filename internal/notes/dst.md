@@ -606,10 +606,12 @@ failing test in the compiler (the first: #1358).
 Mutation: `internal/compiler-dst/mutants.json`, judged by `src/mutate.ts --compiler-dst` (the
 simulator compiles the package sources, so nothing is built; a test that fails twice on the mutant
 and never on the baseline kills it), daily beside the sim's list. Its first kills are dev's
-invalidation (`invalidate_for_file`'s affected files and changed regions). Survived (gaps): dropping
-the `sort()` of the driver's lists (`island_scan_entries`, `router_css_roots`,
-`server_island_css_roots`, `ssr_transformed_hosts`, `entry_locations`, `regions_print`): the order
-oracle shuffles only the listing and transform order; and `routes_changed` keeping a route world.
+invalidation (`invalidate_for_file`'s affected files and changed regions), and the driver's lists a
+build reads in order (`island_scan_entries`, `server_island_css_roots`, `ssr_transformed_hosts`):
+the snapshot holds them unsorted (`lists`), so the order oracle sees a list that follows the
+listing or transform order. Survived (gaps): `router_css_roots` unsorted (the drawn apps have no
+router pages), `entry_locations` (needs a bundle's end), `regions_print` (dev's change check),
+`routes_changed` keeping a route world, and `moved()` not invalidated.
 
 Dev matches a cold start (`src/dev.ts`, `test/dev-cold.test.ts`): a dev server held in memory runs
 the plugin's hooks for each file event in Vite's order (`watchChange`, `handleHotUpdate`, the
