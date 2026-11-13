@@ -4,7 +4,7 @@
 // dropped them. The island the hole held then woke to a page.data without the keys it reads.
 //
 // Its own file: whether devalue is loaded is module state shared by a file's tests.
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { stringify } from 'devalue';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { devalue } from '../../src/runtime/devalue-lane.ts';
@@ -27,4 +27,25 @@ test('facts a hole brought before devalue loaded join page.data once it has, nev
 	await boot_link().load_devalue();
 	seed_page_once();
 	expect((page_state.data as { who?: string }).who).toBe('hole');
+});
+
+test('facts that do not parse are skipped, the readable ones still join, and dev says why', async () => {
+	await boot_link().load_devalue();
+	seed_page_once();
+	const said = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	try {
+		region_fragment(
+			'<script type="application/ogygia-page-facts">{not devalue\x3C/script><p>mangled</p>'
+		);
+		region_fragment(
+			`<script type="application/ogygia-page-facts">${stringify({ who: 'readable' })}\x3C/script><p>hole</p>`
+		);
+		seed_page_once();
+		expect((page_state.data as { who?: string }).who).toBe('readable');
+		expect(said.mock.calls.map((c) => c.map(String).join(' ')).join('\n')).toContain(
+			'page_payload_unreadable'
+		);
+	} finally {
+		said.mockRestore();
+	}
 });

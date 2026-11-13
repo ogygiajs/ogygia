@@ -272,6 +272,12 @@
 			"name": "a plugin that needs another fails the build while the app does not list it, naming the line to add"
 		},
 		{
+			"site": "packages/core/src/runtime/seeds.ts > merge_page_facts > catch:0",
+			"reason": "a page-facts script that does not parse (the server writes it, so only a mangled answer): it is skipped, the readable ones still join, and dev says page_payload_unreadable",
+			"test": "packages/core/test/browser/page-facts-before-devalue.test.ts",
+			"name": "facts that do not parse are skipped, the readable ones still join, and dev says why"
+		},
+		{
 			"site": "packages/core/src/runtime/seeds.ts > watch_unshipped > parse:0",
 			"reason": "rules builds only: a left-out list that does not parse (the server writes it, so only a mangled document)",
 			"test": "packages/core/test/browser/seed-unshipped.test.ts",
@@ -4054,7 +4060,6 @@
 		"packages/core/src/runtime/schedule.ts > drain_after > timer:0",
 		"packages/core/src/runtime/seeds.ts > parse_page_seed > catch:0",
 		"packages/core/src/runtime/seeds.ts > apply_page_seed > catch:0",
-		"packages/core/src/runtime/seeds.ts > absorb_page_facts > catch:0",
 		"packages/core/src/runtime/session.ts > RuntimeSession > mark_head > observer:0",
 		"packages/core/src/runtime/speculate-hint.ts > speculate_url > catch:0",
 		"packages/core/src/runtime/stale-deps.ts > confirm_and_reload > fetch:0",
