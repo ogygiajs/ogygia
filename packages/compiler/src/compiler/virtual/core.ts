@@ -227,12 +227,13 @@ export const runtime_entry: Family = virtual.family({
 export const runtime_flags: Family<RuntimeFlagsModule> = virtual.family({
 	realm: 'boot',
 	id: 'runtime-flags',
-	exports: { FRAMES: 'FRAMES' },
+	exports: { FRAMES: 'FRAMES', load_wire_codec: 'load_wire_codec' },
 	load(app: CoreApp) {
+		const { ctx } = app;
 		// Dev runs the kitchen-sink boot: every flag on, like every feature.
-		if (!app.ctx.is_build) return generateRuntimeFlagsSource({}, true);
+		if (!ctx.is_build) return generateRuntimeFlagsSource({}, ctx.runtime_dir, true);
 		app.prescan();
-		return generateRuntimeFlagsSource(app.program.runtime_marks);
+		return generateRuntimeFlagsSource(app.program.runtime_marks, ctx.runtime_dir);
 	}
 });
 
@@ -381,7 +382,8 @@ export const region_deps: Family<RegionDepsModule> = virtual.family({
 		region_remotes: 'region_remotes',
 		fn_manifest: 'fn_manifest',
 		entry_location: 'entry_location',
-		location_map: 'location_map'
+		location_map: 'location_map',
+		handoff_problem: 'handoff_problem'
 	},
 	load: ({ ctx }: CoreApp, { ssr }) =>
 		island_deps_module(ssr, ctx.is_dev, path.relative(ctx.root, kit_dirs(ctx.root).out_dir))

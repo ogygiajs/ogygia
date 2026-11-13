@@ -58,6 +58,7 @@ function main(): void {
 	const failed: string[] = [];
 	// (each saved plan of the app just built, replayed: the same run every time)
 	const by_plan = new Map<string, Set<string>>();
+	const missed = new Map<string, string[]>();
 	const replay = (app: string, of: 'palaestra' | number): void => {
 		for (const p of (sw.plans ?? []).filter((x) => x.app === of)) {
 			const results = join(SIM, 'results.json');
@@ -74,6 +75,8 @@ function main(): void {
 			copyFileSync(results, kept);
 			files.push(kept);
 			by_plan.set(p.plan, new Set(reached_in(kept)));
+			const r = JSON.parse(readFileSync(kept, 'utf8')) as { missed?: string[] };
+			missed.set(p.plan, r.missed ?? []);
 		}
 	};
 	const pal = run('../../apps/palaestra', sw.palaestra.runs, sw.palaestra.steps, 'palaestra');
@@ -112,7 +115,8 @@ function main(): void {
 	const a = account(all, ledger, {
 		read: (p) => (existsSync(join(ROOT, p)) ? readFileSync(join(ROOT, p), 'utf8') : null),
 		sweep: reached,
-		plans: by_plan
+		plans: by_plan,
+		missed
 	});
 	if (process.argv.includes('--write')) {
 		const r = [...all].filter((s) => reached.has(s)).sort();

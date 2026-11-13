@@ -3,6 +3,7 @@
 import { parse } from 'devalue';
 import { transport, encoders, decoders } from 'ogygia:region';
 import { query_responses, prerender_responses, query_map, live_query_map } from './remote-cache.ts';
+import { warn } from '../../messages/island.ts';
 
 export { query_responses, prerender_responses, query_map, live_query_map };
 
@@ -43,7 +44,8 @@ export function seed_query_responses(text: string): void {
 	} | null;
 	try {
 		data = parse(text, app.decoders) as typeof data;
-	} catch {
+	} catch (e) {
+		if (import.meta.env.DEV) warn('page_payload_unreadable', { what: 'remote data' }, e);
 		return;
 	}
 	if (!data) return;
