@@ -3446,6 +3446,24 @@
 			"reason": "`if (back === STALE) return;`: proved: the STALE check made never true turns the test red, twice",
 			"test": "packages/core/test/browser/hole-offline.test.ts",
 			"name": "a hole waiting for the network that leaves the page stays at rest: it arms for nothing, and the network coming back asks nothing"
+		},
+		{
+			"site": "packages/compiler/src/compiler/virtual/core.ts > dev_runtime_of > parse:0",
+			"reason": "`catch { out = null; // ok: an unreadable package keeps `runtime_dir` }`: proved: the catch around the parse made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/virtual-core.test.ts",
+			"name": "installs every hydrate feature in dev from the runtime directory as given when its package.json is not JSON"
+		},
+		{
+			"site": "packages/compiler/src/compiler/virtual/core.ts > dev_runtime_of > catch:0",
+			"reason": "`catch { out = null; // ok: an unreadable package keeps `runtime_dir` }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/virtual-core.test.ts",
+			"name": "installs every hydrate feature in dev, from the runtime the app resolves (a workspace’s .ts source)"
+		},
+		{
+			"site": "packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > DEV_PAGE_KEYS > .catch:0",
+			"reason": "`server.pluginContainer .resolveId(specifier, importer, { ssr: true })…`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/compiler/test/dev-maps.test.ts",
+			"name": "a helper the dev server cannot resolve is not followed, and the island still gets its keys"
 		}
 	],
 	"impossible": [
@@ -3460,6 +3478,12 @@
 			"why": "timingSafeEqual throws only on buffers of different lengths. verify refuses any signature that is not 64 lowercase hex before the compare, so both buffers are always the 32 bytes of a SHA-256; the test holds that precheck.",
 			"by": "packages/core/test/quiet-failures.test.ts",
 			"name": "a signature that is not 64 lowercase hex is refused before any compare"
+		},
+		{
+			"site": "packages/compiler/src/vite/style-preprocess.ts > load_ts_transform > import:0",
+			"why": "the import of vite runs only inside the ogygia Vite plugin (vite/index.ts hands each component to preprocess_component_for_css), and vite is a required peer of @ogygia/compiler: a process running the plugin has vite to import.",
+			"by": "packages/compiler/package.json",
+			"name": "\"vite\": \"catalog:peers\""
 		}
 	],
 	"baseline": [
@@ -3631,15 +3655,12 @@
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:3",
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:1",
 		"packages/compiler/src/compiler/transportables.ts > exportedWireClassesFromBody > throw:0",
-		"packages/compiler/src/compiler/virtual/core.ts > dev_runtime_of > parse:0",
-		"packages/compiler/src/compiler/virtual/core.ts > dev_runtime_of > catch:0",
 		"packages/compiler/src/compiler/virtual/resolver.ts > check_realm > throw:0",
 		"packages/compiler/src/compiler/virtual/resolver.ts > VirtualTable > constructor > throw:0",
 		"packages/compiler/src/compiler/virtual/resolver.ts > VirtualTable > constructor > throw:1",
 		"packages/compiler/src/compiler/virtual/resolver.ts > VirtualTable > resolve > throw:0",
 		"packages/compiler/src/compiler/virtual/resolver.ts > VirtualTable > load > throw:0",
 		"packages/compiler/src/compiler/virtual/table.ts > value_names > throw:0",
-		"packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > DEV_PAGE_KEYS > .catch:0",
 		"packages/compiler/src/vite/index.ts > bundler_resolve > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > resolve > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > arm_keep_client_cleanup > catch:0",
@@ -3685,7 +3706,6 @@
 		"packages/compiler/src/vite/session.ts > refuse > throw:0",
 		"packages/compiler/src/vite/sourcemaps.ts > island_sourcemaps_plugin > transform > catch:0",
 		"packages/compiler/src/vite/style-preprocess.ts > load_sass > catch:0",
-		"packages/compiler/src/vite/style-preprocess.ts > load_ts_transform > import:0",
 		"packages/config/src/sim.ts > macrotask > message:0",
 		"packages/config/src/sim.ts > macrotask > message:1",
 		"packages/config/src/sim.ts > env_number > throw:0",
