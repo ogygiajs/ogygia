@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	apply_mutant,
 	clone_command,
+	confirmed,
 	package_of,
 	runnable,
 	tally,
@@ -146,6 +147,18 @@ describe('a mutation run', () => {
 			at: '2026-11-12T10:00:00.000Z'
 		});
 		expect(tally([], 5, 'x').rate).toBe(0);
+	});
+
+	it('keeps a kill only when a second run of its seed finds the same again (gen 734, seed 12: a chunk 404 three mutants "died" by, that no second run found)', () => {
+		const again = (found: Record<string, string[]>) => (target: string, seed: number) =>
+			found[`${target}:${seed}`] ?? [];
+		const by = ['gen734:12 page-errors aaa', 'gen734:3 stuck bbb'];
+		expect(confirmed(by, again({}))).toEqual([]);
+		expect(confirmed(by, again({ 'gen734:3': ['stuck bbb'] }))).toEqual(['gen734:3 stuck bbb']);
+		// (a build that failed is no seed's finding: it stands)
+		expect(confirmed(['the package build failed'], again({}))).toEqual([
+			'the package build failed'
+		]);
 	});
 
 	it('sets apart a mutant written up as equivalent: never run, said with its reason, out of the rate', () => {
