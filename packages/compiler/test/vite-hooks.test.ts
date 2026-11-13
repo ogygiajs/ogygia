@@ -42,6 +42,7 @@ import { EVERY_BARREL } from '../src/compiler/exports/index.ts';
 import { remote_hash_of } from '../src/compiler/link/island-deps.ts';
 import { BuildCache, __set_build_cache_root } from '../src/compiler/build-cache.ts';
 import { scan_entry_pattern } from '../src/vite/paths.ts';
+import { load_kit_dirs } from '../src/vite/kit-dirs.ts';
 import { DEV_CLIENT_MAPS, DEV_MAPS, DEV_PAGE_KEYS } from '../src/vite/dev-maps.ts';
 import type { OgygiaOptions } from '../src/vite/options.ts';
 
@@ -1041,6 +1042,18 @@ describe("a plugin's stage transforms and seams", () => {
 
 describe('the build legs', () => {
 	const handoff = () => server_handoff_path(kit_dirs(root).out_dir);
+
+	it("the plugin keeps its app's Kit config however many other apps were configured since (#633)", async () => {
+		app();
+		write('svelte.config.mjs', "export default { kit: { outDir: 'kit-out' } };\n");
+		const custom = server_handoff_path(path.join(root, 'kit-out'));
+		write(path.relative(root, custom), '["stale"]');
+		const { p } = await setup('build');
+		const others = path.join(root, 'others');
+		for (let i = 0; i <= 10_000; i++) await load_kit_dirs(path.join(others, String(i)));
+		await p.buildStart.call(hook_this('ssr'));
+		expect(existsSync(custom)).toBe(false);
+	}, 60_000);
 
 	it("the server leg drops an earlier build's handoff, then writes its own", async () => {
 		app();
