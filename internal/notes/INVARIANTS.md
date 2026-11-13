@@ -275,6 +275,18 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 ---
 
+## COMMENTS-ARE-TESTS — a comment's why lives in a test, not in prose
+
+**What:** Package source holds no free comments. What a comment knows (a rule, a reason, a past bug) is moved into something that fails when it stops being true: a test named after the behavior, a DST seed, a rule, a lint rule or a type. Only then is the comment deleted. What stays: JSDoc on exports (it feeds the API reference and hovers), tool directives with a reason, and `// @why <outside fact> (test: file › name)`, one line, for a fact no test can hold, naming the test that pins it.
+
+**Why:** A comment goes stale without anyone noticing; a test fails out loud. Deleting a comment without moving its why throws the knowledge away, so deletion is never the aim, only the last step.
+
+**Do not:** Delete a comment whose why has no test yet (flip the code; if nothing turns red, write the test first). Reword an old comment instead of moving it. Add a free comment to new code. Write a `@why` that names no test, or a test that does not exist.
+
+**Enforced by:** `internal/lint/structured-comments.test.ts > free comments and block comments are reported; tool directives pass`, `internal/lint/structured-comments.test.ts > a @why passes only above its statement and when its test exists`
+
+---
+
 ## Related docs
 
 - Product vocabulary: [`DESIGN.md`](./DESIGN.md)
