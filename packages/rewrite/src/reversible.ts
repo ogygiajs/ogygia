@@ -408,6 +408,23 @@ function implied_close(stack: Stack<{ name: string }>, name: string): number {
 	return -1;
 }
 
+/** The page's open elements around a matched element, as the parser keeps them: what
+ *  {@link settle} needs (its `context`) to know a render's tag the page would restructure. */
+export type PageTags = Stack<{ name: string }>;
+
+/** A start tag of the page: the parser's implied closes, then the element opened. */
+export function page_open(tags: PageTags, name: string, self: boolean): void {
+	const close = implied_close(tags, name);
+	if (close === DROP) return;
+	if (close !== -1) cut(tags, close);
+	if (!VOID.has(name) && !self) push(tags, { name });
+}
+
+/** An end tag of the page. */
+export function page_close(tags: PageTags, name: string): void {
+	pop_to(tags, name);
+}
+
 /** An end tag: close up to the innermost element of that name (a stand-in answers to its real tag,
  *  whose end tag the settle pass rewrites). */
 function pop_to(stack: Stack<{ name: string; as?: string }>, name: string): void {
@@ -846,7 +863,11 @@ function rewrite_start(
 	return s + html.slice(at, close) + add + html.slice(close, tok.end);
 }
 
-export function settle(html: string, record: MarkRecord, opts: { dev?: boolean } = {}): Settled {
+export function settle(
+	html: string,
+	record: MarkRecord,
+	opts: { dev?: boolean; context?: readonly string[] } = {}
+): Settled {
 	// pass 1: the planned hosts the transform gave a plan — only the tags carrying `og-shadow`, found
 	// by one forward indexOf walk (no second tokenization; never a per-tag search, which is quadratic
 	// in the gap to the next mark)
@@ -875,6 +896,16 @@ export function settle(html: string, record: MarkRecord, opts: { dev?: boolean }
 	const out: string[] = [];
 	let pos = 0;
 	const stack: Stack = [];
+	for (const name of opts.context ?? [])
+		push(stack, {
+			name,
+			host: -1,
+			next: 0,
+			owned: false,
+			under: -1,
+			introduced: false,
+			foreign: false
+		});
 	const head: string[] = [];
 	const head_keys = new Set<string>();
 	let head_cut: { start: number; name: string; depth: number; key: string } | null = null;
