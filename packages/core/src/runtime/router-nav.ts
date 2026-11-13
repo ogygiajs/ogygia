@@ -934,6 +934,8 @@ export async function navigate(
 		announcer?.remove();
 		// LIFECYCLE (Astro-parity DOM events): last chance to read the OUTGOING page's DOM.
 		document.dispatchEvent(new Event('og:before-swap'));
+		// the next page's sheets were the navigation's: now the page's own, so the merge keeps them
+		for (const sheet of built.sheets) session().claim_page_head(sheet.link);
 		const unlisted = merge_head(doc.head); // keeps our runtime module script alive across swaps
 		// the next page's sheets, loaded while it was built, style it from now on (#267)
 		for (const sheet of built.sheets) apply_sheet(sheet);
@@ -1453,7 +1455,8 @@ function preload_stylesheets(
 				attempt.on(link, 'error', () => resolve(), { once: true });
 			})
 		);
-		session().claim_page_head(link); // the next page's own sheet (runtime/session.ts)
+		// (the navigation's until its commit claims it for the page: a soft refresh of the page on
+		// screen merges only that page's nodes, and took this one out, #1124)
 		document.head.insertBefore(link, head_slot(node, live));
 		live.set(key, link);
 		sheets.push(sheet);
