@@ -74,6 +74,35 @@ test('a comment claiming ownership is no pass: one owned by a scope lives in its
 	);
 });
 
+test('a fixed table is marked by its readonly type: ReadonlySet, ReadonlyMap, a readonly array, as const', () => {
+	assert.deepEqual(
+		names(
+			dedent`
+				export const KEYS: ReadonlySet<string> = new Set(["a", "b"]);
+				const LIMITS: ReadonlyMap<string, number> = new Map([["a", 1]]);
+				const ORDER: readonly string[] = [];
+				const LIST: ReadonlyArray<string> = [];
+				const PAIRS = new Map([["a", 1]]) as ReadonlyMap<string, number>;
+				const NONE = [] as const;
+				const OPEN: Set<string> = new Set();
+			`
+		),
+		['7:OPEN:Set']
+	);
+});
+
+test('a readonly-typed table the module grows is an error too, by its write', () => {
+	assert.deepEqual(
+		names(
+			dedent`
+				const KEYS: ReadonlySet<string> = new Set(["a"]);
+				function later(k) { (KEYS as Set<string>).add(k); KEYS.add(k); }
+			`
+		),
+		['2:KEYS:static-grown']
+	);
+});
+
 test('a static table that the module grows is an error, by its write', () => {
 	const found = find_unowned(
 		'x.ts',
@@ -170,7 +199,7 @@ test('a literal max: Infinity is refused anywhere in the module (no bound is no 
 test('each finding says the fix', () => {
 	const [f] = find_unowned('x.ts', 'const seen = new Map();');
 	assert.match(f!.fix, /cache\(\)/);
-	assert.match(f!.fix, /\/\/ static:/);
+	assert.match(f!.fix, /ReadonlySet/);
 	assert.match(f!.fix, /owner/);
 	assert.doesNotMatch(f!.fix, /\/\/ owned:/);
 });
