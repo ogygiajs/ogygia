@@ -37,7 +37,7 @@ describe('a nested island whose schedule is ignored is said; one its parent keep
 	it('a `load` island the runtime mounts inside a hydrated `load` island (a sheet opened later): no warning', () => {
 		const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		const element = { getAttribute: (name: string) => (name === 'wake' ? 'load' : null) };
-		void render(NestScheduleHost as never, {
+		void render(NestScheduleHost as unknown as Component<Record<string, unknown>>, {
 			props: { idle: false },
 			context: nested_context(null, element as unknown as Element)
 		}).body;
