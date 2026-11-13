@@ -45,7 +45,7 @@ async function built(minify: boolean): Promise<Record<string, Given>> {
 						chunk_file: chunk.fileName,
 						facade_file: (id) => facades.get(id)
 					} as RelocateCx);
-					return s && { code: s.toString(), map: s.generateMap({ hires: true }) };
+					return s && { code: s.s.toString(), map: s.s.generateMap({ hires: true }) };
 				}
 			}
 		]

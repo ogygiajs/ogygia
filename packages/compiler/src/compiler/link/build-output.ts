@@ -134,7 +134,7 @@ export function emit_island_deps_handoff(
 					continue;
 				}
 				const patched = relocate(code, WRITTEN_RELOCATIONS, counts, cx);
-				if (patched) fs.writeFileSync(full, patched.toString());
+				if (patched) fs.writeFileSync(full, patched.s.toString());
 			}
 		};
 		patch_server(server_dir);

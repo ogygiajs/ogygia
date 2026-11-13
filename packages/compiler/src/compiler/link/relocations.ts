@@ -85,6 +85,9 @@ export interface Relocation<Cx = RelocateCx> {
 	readonly pattern?: RegExp;
 	/** Only a server leg's chunks carry it. */
 	readonly server_only: boolean;
+	/** A chunk it patched hands on a map of the patch. Left out: the chunk's map passes as it was
+	 *  given, as these patches always did (one map through every pass is report step 13). */
+	readonly mapped?: true;
 	/** The resolved id of the virtual module that writes the token where the token cannot be shaken
 	 *  out of its chunk (a statement of a module with side effects); `null` for an export the bundler
 	 *  may drop when nothing reads it. */
@@ -236,6 +239,7 @@ export const FILE: Relocation = {
 	token: FILE_TOKEN_MARK,
 	pattern: FILE_TOKEN_RE,
 	server_only: false,
+	mapped: true,
 	carrier: null,
 	value(cx) {
 		return (_quote, hex) => {
@@ -287,21 +291,24 @@ export const relocations_of = (server: boolean): readonly Relocation[] =>
 
 /**
  * Replace every token of `table` in a finished chunk (each found in the chunk as it was given),
- * counting each patch into `counts` (by name). `null` when the chunk carries none.
+ * counting each patch into `counts` (by name). `null` when the chunk carries none. `mapped`: a
+ * `mapped` relocation patched it.
  */
 export function relocate<Cx>(
 	code: string,
 	table: readonly Relocation<Cx>[],
 	counts: Map<string, number>,
 	cx: Cx
-): MagicString | null {
+): { s: MagicString; mapped: boolean } | null {
 	let s: MagicString | null = null;
+	let mapped = false;
 	for (const r of table) {
 		if (!code.includes(r.token)) continue;
 		const value = r.value(cx);
 		let n = 0;
 		const patch = (start: number, end: number, text: string) => {
 			s ??= new MagicString(code);
+			mapped ||= r.mapped === true;
 			if (text) s.overwrite(start, end, text);
 			else s.remove(start, end);
 			n++;
@@ -318,7 +325,7 @@ export function relocate<Cx>(
 				patch(at, at + r.token.length, value(code[at - 1] ?? '', ''));
 		if (n) counts.set(r.name, (counts.get(r.name) ?? 0) + n);
 	}
-	return s;
+	return s === null ? null : { s, mapped };
 }
 
 /** A relocation a leg's output left unpatched: a chunk still holds its token, or the bundle holds

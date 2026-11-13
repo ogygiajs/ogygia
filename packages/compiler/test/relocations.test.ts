@@ -23,7 +23,7 @@ const FN = '/*__OGYGIA_FN_MANIFEST__*/';
 
 /** A leg's relocations over a chunk: its patched text, or null. */
 const relocate = (code: string, server: boolean, counts: Map<string, number>, c: RelocateCx) =>
-	relocate_table(code, relocations_of(server), counts, c)?.toString() ?? null;
+	relocate_table(code, relocations_of(server), counts, c)?.s.toString() ?? null;
 
 function cx(hoists: Record<string, string> = {}): RelocateCx {
 	return {
@@ -95,9 +95,12 @@ describe('relocate', () => {
 		expect(relocate(`f(${token})`, false, new Map(), cx())).toBe('f("./lazy-x1.js")');
 	});
 
-	test('the patched chunk has a map back to the chunk it was given', () => {
-		const s = relocate_table(`a;${FN}b;`, relocations_of(false), new Map(), cx({ t: 'x' }));
-		expect(s!.generateMap({ hires: true }).mappings).not.toBe('');
+	test("only a mapped relocation's patch hands on a map (the others keep the chunk's as given)", () => {
+		const table = relocations_of(false);
+		const fn = relocate_table(`a;${FN}b;`, table, new Map(), cx({ t: 'x' }));
+		expect(fn!.mapped).toBe(false);
+		const file = relocate_table(`f(${file_token('/app/src/lazy.ts')})`, table, new Map(), cx());
+		expect(file!.mapped).toBe(true);
 	});
 });
 
@@ -111,7 +114,7 @@ describe('written relocations', () => {
 				WRITTEN_RELOCATIONS,
 				counts,
 				{ island_deps: deps }
-			)!.toString();
+			)!.s.toString();
 			expect(new Function(`${out.replace('export const d =', 'return')}`)()).toBe(deps);
 		}
 		expect(counts.get('island deps')).toBe(2);

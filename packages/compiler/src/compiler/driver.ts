@@ -1811,9 +1811,9 @@ export class Compiler implements CoreApp {
 		code: string,
 		leg: Pick<BuildLeg, 'server' | 'relocated' | 'late_server_regions'>,
 		bundle: Pick<RelocateCx, 'graph' | 'module_ids' | 'chunk_file' | 'file_name' | 'facade_file'>
-	): { code: string; map: SourceMap } | null {
+	): { code: string; map: SourceMap | null } | null {
 		const ctx = this.#ctx;
-		const s = relocate(code, relocations_of(leg.server), leg.relocated, {
+		const out = relocate(code, relocations_of(leg.server), leg.relocated, {
 			program: this.program,
 			dollar_hoists: this.dollar_hoists,
 			public_url: (iid) => ctx.island_public_url(iid),
@@ -1824,7 +1824,9 @@ export class Compiler implements CoreApp {
 			graph: bundle.graph,
 			module_ids: bundle.module_ids
 		});
-		return s === null ? null : { code: s.toString(), map: s.generateMap({ hires: true }) };
+		if (out === null) return null;
+		const { s, mapped } = out;
+		return { code: s.toString(), map: mapped ? s.generateMap({ hires: true }) : null };
 	}
 
 	/** True when `file` is a registered island HOST (a component that declares islands). */
