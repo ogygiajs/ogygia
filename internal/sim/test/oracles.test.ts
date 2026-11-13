@@ -330,7 +330,9 @@ describe("a hole's fallback does not stand", () => {
 		/** A script of the document failed to load (its runtime: none of its holes is ever asked). */
 		lacks_a_file = false,
 		/** Buggify lost an answer of the document's on the way (`hole.fetch-lost`). */
-		lost = false
+		lost = false,
+		/** The document's batches (`POST /__ogygia__`): the holes each asked for, and how it went. */
+		batches: Array<{ holes: string[]; status: number | 'dropped'; cut?: boolean }> = []
 	) => {
 		const { Window } = await import('happy-dom');
 		// (the simulator's viewport: src/layout.ts)
@@ -346,16 +348,23 @@ describe("a hole's fallback does not stand", () => {
 			fired_in: new Map(lost ? [['tab-1#1', new Set(['hole.fetch-lost'])]] : []),
 			browsers: { lacks_a_file: () => lacks_a_file },
 			network: {
-				exchanges: wire.map(([url, status], i) => ({
-					id: i + 1,
-					from: 'tab-1#1',
-					method: 'GET',
-					url: `https://app.test${url}`,
-					status,
-					cut: false,
-					tampered: false,
-					redirected: false
-				}))
+				exchanges: [
+					...wire.map(([url, status]) => ({
+						from: 'tab-1#1',
+						method: 'GET',
+						url: `https://app.test${url}`,
+						status,
+						cut: false
+					})),
+					...batches.map((b) => ({
+						from: 'tab-1#1',
+						method: 'POST',
+						url: 'https://app.test/__ogygia__',
+						status: b.status,
+						cut: b.cut ?? false,
+						holes: b.holes
+					}))
+				].map((e, i) => ({ id: i + 1, tampered: false, redirected: false, ...e }))
 			},
 			skewed_for: () => false
 		} as unknown as Parameters<typeof fallback_stands>[1];
@@ -394,6 +403,23 @@ describe("a hole's fallback does not stand", () => {
 	// lost by buggify before a request went out, so the wire never saw it asked
 	it('passes one never seen asked in a document whose answers buggify lost (a lost answer leaves no exchange)', async () => {
 		expect(await at_rest(hole('load', 'data-gen-fallback'), [], false, true)).toBeNull();
+	});
+
+	// frame-nav's release mutant (a batch's undelivered reservations never released) survived gens
+	// 10, 191, 192, 193 and palaestra: every faulted document that sent a batch was set aside
+	it("finds a hole a failed batch asked for that never asked on its own (a batch's unreleased part survived)", async () => {
+		const standing = hole('load', 'data-gen-fallback');
+		const failed = { holes: ['/__ogygia__?id=a'], status: 200, cut: true };
+		const dropped = { holes: ['/__ogygia__?id=a'], status: 'dropped' as const };
+		expect((await at_rest(standing, [], false, false, [failed]))?.oracle).toBe('fallback-stands');
+		expect((await at_rest(standing, [], false, false, [dropped]))?.oracle).toBe('fallback-stands');
+		// (released, it asked on its own, and that failed too: a fault's)
+		const own: [string, 'dropped'] = ['/__ogygia__?id=a&exp=1&sig=s', 'dropped'];
+		expect(await at_rest(standing, [own], false, false, [failed])).toBeNull();
+		// (a whole batch that named it, in a document a fault touched elsewhere: it was answered)
+		const other: [string, 'dropped'] = ['/_app/immutable/x.js', 'dropped'];
+		const whole = { holes: ['/__ogygia__?id=a'], status: 200 };
+		expect(await at_rest(standing, [other], false, false, [whole])).toBeNull();
 	});
 
 	it('passes one that keeps it by design, one waiting for the visitor, and an answered one', async () => {
