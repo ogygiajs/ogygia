@@ -264,6 +264,11 @@ export class Program {
 		// file's stale entry is harmless (never queried again). HMR correctness is preserved.
 	}
 
+	/** BUILD, server leg: the server regions `ogygia:server/server-regions` was written with, each
+	 *  `() => import(<its entry>)`. A region found later gets its loader as its own emitted chunk
+	 *  (driver `emit_late_server_regions`, test/server-region-late.test.ts). Null: not written yet. */
+	server_regions_written: ReadonlySet<string> | null = null;
+
 	/** Replace this host's claims; shared ids keep one registry entry (path+strategy dedupe). */
 	register(result: RegisterResult, hostId: string): void {
 		const { registry, island_graph, by_id, region_kinds, host_index, id_hosts } = this;

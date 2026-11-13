@@ -62,8 +62,12 @@ describe('the page-data reads relocation', () => {
 	};
 	const info = (id: string) => graph[id] ?? null;
 	const ids = () => Object.keys(graph);
-	const bundle = { graph: info, module_ids: ids };
-	const server_leg = () => ({ server: true, relocated: new Map<string, number>() });
+	const bundle = { graph: info, module_ids: ids, chunk_file: 'manifest.js', file_name: String };
+	const server_leg = () => ({
+		server: true,
+		relocated: new Map<string, number>(),
+		late_server_regions: new Map<string, string>()
+	});
 
 	test('a reader anywhere in the tree (a dynamic import too) → true; none (a cycle too) → false', () => {
 		const c = compiler_with(
@@ -109,8 +113,17 @@ describe('the page-data relocation: a page reader seed shaping could not read', 
 		[KIT_STATE]: { importedIds: [], dynamicallyImportedIds: [] },
 		[KIT_STORES]: { importedIds: [], dynamicallyImportedIds: [] }
 	};
-	const bundle = { graph: (id: string) => graph[id] ?? null, module_ids: () => Object.keys(graph) };
-	const server_leg = () => ({ server: true, relocated: new Map<string, number>() });
+	const bundle = {
+		graph: (id: string) => graph[id] ?? null,
+		module_ids: () => Object.keys(graph),
+		chunk_file: 'manifest.js',
+		file_name: String
+	};
+	const server_leg = () => ({
+		server: true,
+		relocated: new Map<string, number>(),
+		late_server_regions: new Map<string, string>()
+	});
 
 	test('a hole reading the page through a $lib re-export looks up page.data', () => {
 		const c = compiler_with({ aaaaaaaaaaaa: '/app/Hole.svelte' }, {});
@@ -142,6 +155,7 @@ describe('the page-data relocation: a page reader seed shaping could not read', 
 			{ '/app/UrlOnly.svelte': new Set() }
 		);
 		const out = c.relocate(PLACEHOLDER, server_leg(), {
+			...bundle,
 			graph: (id) => kit_graph[id] ?? null,
 			module_ids: () => Object.keys(kit_graph)
 		});
