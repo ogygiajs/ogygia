@@ -84,3 +84,5 @@ const own: Own = /* @__PURE__ */ define_messages(
 export const OgygiaError: Own['OgygiaError'] = own.OgygiaError;
 export const warn: Own['warn'] = own.warn;
 export const line: Own['line'] = own.line;
+// the build's own (the `/e` pages list every table)
+export { FLAGS_BUILD_ERRORS, FLAGS_BUILD_WARNINGS } from './build-messages.ts';

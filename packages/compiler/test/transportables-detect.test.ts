@@ -112,8 +112,11 @@ describe('createContext exports are tagged', () => {
 
 describe('moduleHasTransportable: the eager manifest signal', () => {
 	it.each([
-		[`export class C { static [k] = 1; }`, true],
-		[`class C { static [k] = 1; }`, true],
+		// the registration's question (#1312): a computed static that is not the wire codec, or a class
+		// not exported, registers nothing
+		[`export class C { static [k] = 1; }`, false],
+		[`class C { static [k] = 1; }`, false],
+		[`export class C { static [Symbol.for('ogygia.wire')] = ${CODEC}; }`, true],
 		[`export class C { static wire = import.meta.og.wire(${CODEC}); }`, true],
 		[`export class C { [k] = 1; static x = 1; }`, false],
 		[`export class C { static k = 1; }`, false],
@@ -122,7 +125,8 @@ describe('moduleHasTransportable: the eager manifest signal', () => {
 		[`export const x = { static: true, class: 1 };`, false],
 		[`export class C {`, false],
 		[`class C { static x = 1; }`, false],
-		[`class C { static [k] = 1; }\nconst = ;`, false]
+		// unparsable: the safe answer (#1486)
+		[`class C { static [k] = 1; }\nconst = ;`, true]
 	])('`%s` → %s', (src, want) => {
 		expect(moduleHasTransportable(src, '/app/src/lib/m.ts')).toBe(want);
 	});
