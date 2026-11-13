@@ -31,6 +31,7 @@ function ensure_ctx_kinds(): void {
 }
 import { boundary_problems } from './boundary.ts';
 import { record_ctx, type SetContextOptions } from './context-registry.ts';
+import { crossing_values, key_label, key_name, key_of } from './context-key.ts';
 import { boot_link } from './runtime/slots.ts';
 import { OGYGIA_PROVIDE, OGYGIA_PROVIDE_PAGE } from './wire-markup.ts';
 import { escape_script_text } from './escape.ts';
@@ -44,10 +45,12 @@ const PROVIDE_FAMILIES = new Set(['wire', 'store', 'snippet', 'fn', 'derived']);
 // static: the value families the bridge carries
 const BRIDGE_FAMILIES = new Set(['wire', 'store', 'fn', 'derived']);
 
-/** Serialize a context value for the DOM — same codec as island props (one hub key). */
-export function serialize_context(value: unknown): string {
+/** Serialize a `<Provide>`'s values for the DOM — same codec as island props (one hub key). */
+export function serialize_context(values: object): string {
 	ensure_ctx_kinds();
-	return escape_script_text(stringify(value, { [REF_WIRE_KEY]: ref_reducer(PROVIDE_FAMILIES) }));
+	return escape_script_text(
+		stringify(crossing_values(values), { [REF_WIRE_KEY]: ref_reducer(PROVIDE_FAMILIES) })
+	);
 }
 
 /**
@@ -112,13 +115,14 @@ function warn_ctx_size(map: Map<string, unknown>, total: number): void {
 	sizes.sort((a, b) => b[1] - a[1]);
 	const top = sizes
 		.slice(0, 3)
-		.map(([k, n]) => `'${k}' ~${(n / 1024).toFixed(1)}kB`)
+		.map(([k, n]) => `${key_label(key_of(k))} ~${(n / 1024).toFixed(1)}kB`)
 		.join(', ');
 	warn('context_marker_large', { size: (total / 1024).toFixed(1), top });
 }
 
 /** DEV: explain a dropped (or degraded-but-bridged) context key via the classifier. */
-function warn_boundary(key: string, value: unknown, dropped: boolean): void {
+function warn_boundary(name: string, value: unknown, dropped: boolean): void {
+	const key = key_label(key_of(name));
 	const problems = boundary_problems(value, key);
 	if (dropped && problems.length === 0) {
 		warn('context_dropped', { key });
@@ -161,14 +165,19 @@ function parse_ctx(text: string | null | undefined): Record<string, unknown> | u
  * neither exists (the common case: nothing to seed, no cost). Same decode codec as island props (a
  * `[ogygia.wire]` value revives to its one live instance).
  */
-export function collect_provided_context(start: Element | null): Map<string, unknown> | undefined {
+export function collect_provided_context(
+	start: Element | null
+): Map<string | symbol, unknown> | undefined {
 	let el: Element | null = start;
-	let map: Map<string, unknown> | undefined;
+	let map: Map<string | symbol, unknown> | undefined;
 	const fold = (values: Record<string, unknown> | undefined) => {
 		if (!values) return;
 		map ??= new Map();
 		// Nearest wins: the scoped walk sees the closest provider FIRST, and the page root LAST.
-		for (const k in values) if (!map.has(k)) map.set(k, values[k]);
+		for (const name in values) {
+			const key = key_of(name);
+			if (!map.has(key)) map.set(key, values[name]);
+		}
 	};
 	while (el) {
 		if (el.tagName === 'OGYGIA-PROVIDE') {
@@ -239,8 +248,8 @@ export function createContext<T>(key: string, defaultValue?: T): Context<T> {
  * It does exactly what Svelte's does (sets context for same-root descendants + the SSR-nested tree),
  * AND on the server records the value so the handle can emit one page-level marker every island seeds
  * from — closing the gap where a plain `setContext` shows up on the server but is gone on the client
- * (child islands are separate hydration roots). Only string keys bridge (they must serialize and be
- * read by `getContext('key')`); a symbol key is Svelte-only, same-root, no bridge.
+ * (child islands are separate hydration roots). A string key and a shared `Symbol.for(name)` key
+ * bridge; a one-off `Symbol()` key has no twin in the browser and stays same-root.
  *
  * GRANULARITY: the optional third argument is the explicit marker — `{ islands: false }` keeps a key
  * host-native (same-root context works, nothing serializes). The default bridges: a missing key in an
@@ -251,13 +260,10 @@ export function createContext<T>(key: string, defaultValue?: T): Context<T> {
  * `<Provide>`, which wraps its subtree and beats the root on the same key.
  */
 export function setContext<T>(key: unknown, value: T, opts?: SetContextOptions): T {
-	// Only string keys can bridge (islands read `getContext('key')`), and a function value can never
-	// serialize — record neither. Native setContext still runs, so same-root reads are unchanged; a
-	// store or class instance is recorded but dropped later by `serialize_provided_context` if it can't
-	// serialize, so it never crashes the page.
 	// a BARE function can never serialize — but an og.$-branded one is a transportable fn ref
-	if (typeof key === 'string' && (typeof value !== 'function' || is_branded_fn(value)))
-		record_ctx(key, value, opts);
+	const name = key_name(key);
+	if (name !== null && (typeof value !== 'function' || is_branded_fn(value)))
+		record_ctx(name, value, opts);
 	return svelte_set_context(key, value);
 }
 
