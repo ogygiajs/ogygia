@@ -66,7 +66,7 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 		try {
 			return JSON.parse(localStorage.getItem(LS_KEY) || '{}') || {};
 		} catch {
-			return {};
+			return {}; // ok: storage blocked or the saved layout is unreadable: the default layout
 		}
 	}
 	const saved = load_layout();
