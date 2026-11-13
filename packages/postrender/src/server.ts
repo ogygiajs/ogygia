@@ -310,9 +310,17 @@ function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): vo
 
 /** What a capture did: stored an entry (with the Response to send), or refused to. A refusal made
  *  after the body was read carries a Response rebuilt from it: the original's body is spent. */
+/** A capture's outcome. Once the body is read, `response` is the page rebuilt from it (the original's
+ *  body is spent), whatever happened next: stored, refused, or `failed` (the error). */
 type Captured =
 	| { stored: true; entry: PostrenderEntry; response: Response }
-	| { stored: false; response: Response | null };
+	| { stored: false; response: Response | null; failed?: unknown };
+
+/** A failed capture, said once per page (the store's own failures are said by the registry). */
+const capture_said = say({ max: 256 });
+function capture_failed(path: string, error: unknown): void {
+	capture_said.once(path, () => warn('postrender_capture_failed', { path }, error));
+}
 
 /** A refusal made before the body was read: the original Response is still whole. */
 const REFUSED: Captured = { stored: false, response: null };
@@ -368,6 +376,25 @@ async function capture(
 			statusText: response.statusText,
 			headers: response.headers
 		});
+	try {
+		return await capture_page(html, answered, content_type, put, ctx, runtime, ttl);
+	} catch (failed) {
+		// (the body is read: the page goes out rebuilt from it, not stored)
+		return { stored: false, response: answered(), failed };
+	}
+}
+
+/** The read page's verdict and store (`capture`, past the body read). */
+async function capture_page(
+	html: string,
+	answered: () => Response,
+	content_type: string,
+	put: (entry: PostrenderEntry) => Promise<boolean>,
+	ctx: Ctx,
+	runtime: Runtime,
+	ttl: number
+): Promise<Captured> {
+	const { path } = ctx;
 	// Belt and braces for streamed pages WITHOUT regions (no page snapshot to probe): Kit's boot
 	// only declares its deferred-map when the page carries pending promises — buffering such a
 	// response bakes ONE settle's inline resolve scripts into the copy. Never store it.
@@ -555,6 +582,12 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			try {
 				const captured = await capture(response, ctx, runtime, obs, ctx.options.ttl, flight);
 				settle(captured.stored ? captured.entry : null);
+				if (!captured.stored && captured.failed !== undefined) {
+					capture_failed(path, captured.failed);
+					// (not stored, as a refusal is not: per-request)
+					stamp_no_store(captured.response ?? response);
+					return captured.response ?? undefined;
+				}
 				ctx.app.devtools(
 					captured.stored
 						? {
@@ -573,9 +606,15 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 							}
 				);
 				if (captured.stored) {
-					return captured.entry.kind === 'page' && captured.entry.stitch
-						? await serve_stitched(captured.entry, 'stored', ctx)
-						: captured.response;
+					if (captured.entry.kind !== 'page' || !captured.entry.stitch) return captured.response;
+					try {
+						return await serve_stitched(captured.entry, 'stored', ctx);
+					} catch (failed) {
+						// (the original's body is spent: the page as read goes out, unstitched, per-request)
+						capture_failed(path, failed);
+						stamp_no_store(captured.response);
+						return captured.response;
+					}
 				}
 				// Refused → per-request forever (until inputs change). Stamp `no-store` when the app set
 				// nothing: the verdict's word replaces blanket CDN rules in BOTH directions (a personal
@@ -583,8 +622,11 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 				// read sends the page rebuilt from it (the original's body is spent).
 				stamp_no_store(captured.response ?? response);
 				if (captured.response) return captured.response;
-			} catch {
+			} catch (failed) {
+				// (a capture that threw before the body was read: the response goes out as it is; every
+				// step after the read hands back the page it read)
 				settle(null);
+				capture_failed(path, failed);
 			}
 		} else if (state.credentials) {
 			// (rendered for this visitor: no shared cache keeps it either)

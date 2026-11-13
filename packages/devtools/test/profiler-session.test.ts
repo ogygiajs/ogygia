@@ -142,6 +142,29 @@ describe('the run page, from the dashboard form', () => {
 			expect((await run(event(`/__profiler/run?p=${p}`, cookie, token))).status).toBe(400);
 		}
 	});
+
+	// a link on another site opens the run page with the session cookie: the run (a state change,
+	// #1168) waits for the visitor's click; from the profiler's own pages, or a typed address, it starts
+	it('opened from another site, the run waits for a click', async () => {
+		const { run, token } = await setup();
+		const cookie = `og_profiler=${token}`;
+		const from = async (site: string | null) =>
+			(
+				await run(
+					event(
+						'/__profiler/run?p=/x&runs=50',
+						cookie,
+						token,
+						site ? { headers: { 'sec-fetch-site': site } } : {}
+					)
+				)
+			).text();
+		expect(await from('cross-site')).toContain('data-run-start');
+		expect(await from('same-site')).toContain('data-run-start');
+		expect(await from('same-origin')).not.toContain('data-run-start');
+		expect(await from('none')).not.toContain('data-run-start');
+		expect(await from(null)).not.toContain('data-run-start');
+	});
 });
 
 describe('describe_cookie_diagnosis', () => {

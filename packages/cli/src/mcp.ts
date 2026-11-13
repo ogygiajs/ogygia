@@ -1640,7 +1640,7 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		const headers: Record<string, string> = { accept: 'application/json' };
 		if (key) headers['x-profiler-key'] = key;
 		// N heavy renders can be slow — give it room, but never hang forever.
-		return fetch_timeout(rec, { headers }, 90_000);
+		return fetch_timeout(rec, { method: 'POST', headers }, 90_000);
 	};
 
 	let res: Response;
@@ -1666,7 +1666,7 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		try {
 			const reset = new URL(`${origin + profiler_base}/reset`);
 			const reset_h: Record<string, string> = key ? { 'x-profiler-key': key } : {};
-			await fetch_timeout(reset, { redirect: 'manual', headers: reset_h }, 5000);
+			await fetch_timeout(reset, { method: 'POST', redirect: 'manual', headers: reset_h }, 5000);
 			res = await record_once();
 		} catch {
 			// ok: falls through to the 409 message below, which says what to do

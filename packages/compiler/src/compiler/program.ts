@@ -104,10 +104,6 @@ export class Program {
 	readonly host_index: Map<string, HostIndexEntry> = new Map();
 	/** region id → hosts still claiming it (cross-host dedupe: don't drop shared wrappers) */
 	readonly id_hosts: Map<string, Set<string>> = new Map();
-	/** Client-leg: hydrate island ids whose deterministic chunk has been emitFile'd (dedup across the
-	 *  buildStart prescan emit AND the transform-time emit that catches islands prescan can't see —
-	 *  those declared inside LIBRARY components, where the host lives outside the app's `src`). */
-	readonly emitted_island_chunks: Set<string> = new Set();
 	/** BUILD, server leg: every module id Vite actually transformed (`host_key`-normalised) — the
 	 *  server bundle's real graph. Handed to the client leg, which emits island chunks only for
 	 *  islands whose HOST is in it: the prescan registers every marked import under `src/`, but a
