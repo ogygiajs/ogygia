@@ -189,6 +189,23 @@ describe('the random app', () => {
 		}
 	});
 
+	it('a federated app registers its federation from its hook, so a server that never served the mount still answers its holes (gen 220 seed 19)', () => {
+		const root = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
+			for (const mount of ['router', 'kit'] as const) {
+				const seed = seeds.find((s) => peer_plan(s, plan(s))?.mount === mount)!;
+				const app = join(root, mount);
+				write(app, plan(seed), seed, peer_plan(seed, plan(seed)));
+				expect(readFileSync(join(app, 'src', 'lib', 'gen', 'mount.server.ts'), 'utf8')).toMatch(
+					/^import .*'\.\/federation\.server\.ts';$/m
+				);
+			}
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
 	it("draws live regions that switch, from their own stream: ticks cycle through the region's own module, another interactive one and a static one", () => {
 		const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
 		const lives = seeds.flatMap((s) =>
