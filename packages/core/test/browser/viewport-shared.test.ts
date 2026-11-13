@@ -143,3 +143,77 @@ test('a child pushed out of the ones that stand for a box-less region is let go,
 		region.remove();
 	}
 });
+
+/** What each swap observer (a `MutationObserver`) observes now: its targets since its last
+ *  `disconnect()`. Restored by the returned function. */
+function spy_mutation_targets(): { targets: () => Element[]; restore: () => void } {
+	const by = new Map<MutationObserver, Set<Element>>();
+	const observe = MutationObserver.prototype.observe;
+	const disconnect = MutationObserver.prototype.disconnect;
+	MutationObserver.prototype.observe = function (
+		this: MutationObserver,
+		t: Node,
+		o?: MutationObserverInit
+	) {
+		let set = by.get(this);
+		if (!set) by.set(this, (set = new Set()));
+		set.add(t as Element);
+		return observe.call(this, t, o);
+	};
+	MutationObserver.prototype.disconnect = function (this: MutationObserver) {
+		by.delete(this);
+		return disconnect.call(this);
+	};
+	return {
+		targets: () => [...by.values()].flatMap((set) => [...set]),
+		restore: () => {
+			MutationObserver.prototype.observe = observe;
+			MutationObserver.prototype.disconnect = disconnect;
+		}
+	};
+}
+
+test('a box-less region the tracker lets go is no longer observed for swaps (#1255)', async () => {
+	const spy = spy_mutation_targets();
+	const region = document.createElement('div');
+	region.style.display = 'contents';
+	region.innerHTML = '<p style="margin:0">rendered</p>';
+	document.body.append(region);
+	try {
+		const stop = watch_viewport(region, '7px', () => {});
+		await settle();
+		expect(spy.targets(), 'its content swaps are heard while it is watched').toContain(region);
+		// the region leaves the page and its watch stops (a router navigation took it off)
+		region.remove();
+		stop();
+		await settle();
+		expect(spy.targets(), 'let go: the swap observer holds it no more').not.toContain(region);
+	} finally {
+		spy.restore();
+	}
+});
+
+test('a box-less child swapped out of a box-less region is no longer observed for swaps (#1255)', async () => {
+	const spy = spy_mutation_targets();
+	const region = document.createElement('div');
+	region.style.display = 'contents';
+	region.innerHTML = '<div style="display:contents"><p style="margin:0">inner</p></div>';
+	document.body.append(region);
+	const inner = region.firstElementChild!;
+	try {
+		const stop = watch_viewport(region, '9px', () => {});
+		await settle();
+		expect(spy.targets(), 'the box-less child it renders is followed too').toContain(inner);
+		// its answer swaps in: the box-less child is gone, a plain one stands for it now
+		region.innerHTML = '<p style="margin:0">swapped</p>';
+		await settle();
+		expect(spy.targets(), 'still watched: the region itself').toContain(region);
+		expect(spy.targets(), 'the child that left is held no more').not.toContain(inner);
+		stop();
+		await settle();
+		expect(spy.targets(), 'nothing is held after the last watcher stops').toEqual([]);
+	} finally {
+		spy.restore();
+		region.remove();
+	}
+});

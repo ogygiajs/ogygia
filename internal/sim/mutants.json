@@ -97,5 +97,101 @@
 		"operator": "statement",
 		"from": "head_mark = kit_hydrates_page() ? null : boot_link().runtime_session.mark_head();",
 		"to": ""
+	},
+	{
+		"id": "paint-gate-loading-passes",
+		"file": "packages/core/src/runtime/schedule.ts",
+		"line": 306,
+		"code": "if (document.readyState === 'loading') return false;",
+		"operator": "boolean",
+		"from": "false",
+		"to": "true",
+		"equivalent": "the gate is never asked while the document is loading: ogygia's runtime is a module script, and a parser-inserted module script runs only once parsing is done (readyState 'interactive')"
+	},
+	{
+		"id": "viewport-hold-at-zero",
+		"file": "packages/core/src/runtime/schedule.ts",
+		"line": 457,
+		"code": "if (left > 0) return drain_after(left);",
+		"operator": "relational",
+		"from": "> ",
+		"to": ">= ",
+		"equivalent": "at exactly 0 left the hold waits 1 ms more (drain_after's floor) and then picks the same turn; a turn that comes in that ms is an on-screen one, which viewport-first lets go first anyway"
+	},
+	{
+		"id": "snapshot-registered-twice",
+		"file": "packages/core/src/runtime/schedule.ts",
+		"line": 326,
+		"code": "if (snapshot_of.has(el) || owner.closed) return;",
+		"operator": "logical",
+		"from": "||",
+		"to": "&&",
+		"equivalent": "a region is registered at most once while its snapshot stands (a connect once per #scheduled, which only teardown clears after unregistering; the phase-2 wake once per cold wake, and only for a hole), and with its owner closed the snapshot the mutant starts is stopped at once by the closed scope's defer"
+	},
+	{
+		"id": "visible-margin-dropped",
+		"file": "packages/core/src/runtime/core.ts",
+		"line": 1700,
+		"code": "const rootMargin = root_margin || this.getAttribute('margin') || '0px';",
+		"operator": "logical",
+		"from": "n || t",
+		"to": "n && t"
+	},
+	{
+		"id": "peer-body-rewrite-inverted",
+		"file": "packages/federation/src/peer.ts",
+		"line": 434,
+		"code": "return body === doc.body ? doc : { ...doc, body };",
+		"operator": "equality",
+		"from": "dy =",
+		"to": "dy !"
+	},
+	{
+		"id": "fragment-body-tag-missed",
+		"file": "packages/federation/src/wire.ts",
+		"line": 668,
+		"code": "if (html.slice(i + 2, i + 6).toLowerCase() === 'body') {",
+		"operator": "equality",
+		"from": "() =",
+		"to": "() !"
+	},
+	{
+		"id": "fragment-body-tag-end-narrowed",
+		"file": "packages/federation/src/wire.ts",
+		"line": 671,
+		"code": "if (c === 62 || c === 47 || c === 32 || (c >= 9 && c <= 13)) return i;",
+		"operator": "logical",
+		"from": "||",
+		"to": "&&"
+	},
+	{
+		"id": "federation-rules-gate-inverted",
+		"file": "packages/federation/src/peer.ts",
+		"line": 49,
+		"code": "import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);",
+		"operator": "equality",
+		"from": "__ !",
+		"to": "__ =",
+		"equivalent": "RULES only gates a buggify point, and buggify.fires is false unless a simulator installed its hook: off in a rules build, it only takes a fault the simulator injects away"
+	},
+	{
+		"id": "federation-rules-gate-and",
+		"file": "packages/federation/src/peer.ts",
+		"line": 49,
+		"code": "import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);",
+		"operator": "logical",
+		"from": "||",
+		"to": "&&",
+		"equivalent": "RULES only gates a buggify point, and buggify.fires is false unless a simulator installed its hook: off in a rules build, it only takes a fault the simulator injects away"
+	},
+	{
+		"id": "federation-rules-gate-on",
+		"file": "packages/federation/src/peer.ts",
+		"line": 49,
+		"code": "import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);",
+		"operator": "boolean",
+		"from": "fals",
+		"to": "tru",
+		"equivalent": "RULES only gates a buggify point, and buggify.fires is false unless a simulator installed its hook: on in a build without rules, the point still never fires"
 	}
 ]

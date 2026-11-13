@@ -92,7 +92,7 @@ function read_timings(): Record<string, number> {
 	try {
 		return JSON.parse(readFileSync(TIMINGS, 'utf8'));
 	} catch {
-		return {};
+		return {}; // ok: no timings yet (a first run): the shards split by count
 	}
 }
 

@@ -138,7 +138,11 @@ import {
 import { report_seed_shaping } from '../compiler/link/build-output.ts';
 import { follow_pending_page_calls } from '../compiler/link/page-keys.ts';
 import { emit_island_deps_handoff, refuse_client_secrets } from '../compiler/link/build-output.ts';
-import { ssr_hosts_handoff_path, parse_ssr_hosts } from '../compiler/link/emit-gate.ts';
+import {
+	server_handoff_path,
+	server_handoff_json,
+	read_server_handoff
+} from '../compiler/link/emit-gate.ts';
 import { router_css_key } from '../compiler/link/router-css.ts';
 import { Program, strip_id } from '../compiler/program.ts';
 import { Compiler } from '../compiler/driver.ts';
@@ -939,7 +943,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const server_leg = server_leg_of(this);
 				last_leg_server = server_leg;
 				if (is_build && server_leg)
-					fs.rmSync(ssr_hosts_handoff_path(kit_dirs(root).out_dir), { force: true });
+					fs.rmSync(server_handoff_path(kit_dirs(root).out_dir), { force: true });
 				// CLIENT build (Kit-driven): emit the runtime chunk. Kit builds the SERVER bundle FIRST,
 				// then the client, so the server can't learn a hash the LATER client build produces — a
 				// forward handoff is impossible. Instead the filename is a deterministic SOURCE-content
@@ -984,14 +988,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// region — the driver owns the naming + dedup; `this.emitFile` is the injected primitive.
 					// Gated on the SERVER leg's real module graph (link/emit-gate.ts): an island whose host
 					// the server bundle never loaded gets no chunk. No handoff → every prescanned island.
-					let loaded: Set<string> | null = null;
-					try {
-						loaded = parse_ssr_hosts(
-							fs.readFileSync(ssr_hosts_handoff_path(kit_dirs(root).out_dir), 'utf8')
-						);
-					} catch {
-						// ok: no server-leg handoff (a standalone or client-only build)
-					}
+					const loaded = read_server_handoff(kit_dirs(root).out_dir)?.hosts ?? null;
 					const skipped = compiler.emit_build_chunks((chunk) => this.emitFile(chunk), {
 						emitRuntime: emit_runtime,
 						loaded
@@ -1075,9 +1072,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const server_leg = server_leg_of(this);
 				if (is_build && server_leg && !standalone) {
 					try {
-						const handoff = ssr_hosts_handoff_path(kit_dirs(root).out_dir);
+						const handoff = server_handoff_path(kit_dirs(root).out_dir);
 						fs.mkdirSync(path.dirname(handoff), { recursive: true });
-						fs.writeFileSync(handoff, JSON.stringify(compiler.ssr_transformed_hosts()));
+						fs.writeFileSync(
+							handoff,
+							server_handoff_json(compiler.ssr_transformed_hosts(), build_secret)
+						);
 					} catch (e) {
 						// best effort — without it the client leg emits every prescanned island
 						if (isMainThread) warn('island_handoff_write_failed', e);
@@ -1432,9 +1432,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// By `writeBundle` the bundle reflects the files actually on disk.
 				if (!is_build || server_leg) return;
 
-				// SECRET-SPLIT on the finished client bundle: no signing secret, no signing module
+				// SECRET-SPLIT on the finished client bundle: no signing secret, no signing module. The key
+				// is the one the SERVER leg baked, from its handoff: under Kit 2 that leg ran its own
+				// plugin instance, whose per-build random this one never saw.
 				refuse_client_secrets(bundle as Record<string, unknown>, [
-					build_secret,
+					read_server_handoff(kit_dirs(root).out_dir)?.build_key ?? build_secret,
 					process.env.OGYGIA_SECRET?.trim() ?? ''
 				]);
 
@@ -1610,7 +1612,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					...(measure ? { page_why, barrels } : {}),
 					content_css,
 					css_inline,
-					fn_manifest: Object.fromEntries(compiler.dollar_hoists),
+					fn_manifest: compiler.fn_manifest(),
 					// identity (the stable URL SSR bakes) → location (the content-hashed file to load)
 					entries: entries.locations,
 					// the same, as one file the browser reads (the runtime's script tag names it)
