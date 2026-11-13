@@ -4791,6 +4791,166 @@
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > text",
 			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/bake/src/bake.ts > call:0~16f6c5 > run",
+			"reason": "build only: one bake call's evaluation in the build's Node, once per call site per build; its cost is the app's own function"
+		},
+		{
+			"id": "packages/bake/src/index.ts > bake",
+			"reason": "the plugin's factory, once per config load: builds one plugin record, constant work"
+		},
+		{
+			"id": "packages/bake/src/index.ts > bake > definePlugin:0~13f695 > build",
+			"reason": "the plugin's build hook, once per build: registers one macro, constant work"
+		},
+		{
+			"id": "packages/bake/src/index.ts > bake > definePlugin:0~13f695 > build > macro:1~62246b",
+			"reason": "build only: the bake macro over one call site, delegating to bake.ts (its run measured by the bake tests), once per call site"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_arity > details",
+			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_arity > text",
+			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_eval_failed > details",
+			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_eval_failed > text",
+			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_not_function > details",
+			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_not_function > text",
+			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_not_serializable > details",
+			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
+		},
+		{
+			"id": "packages/bake/src/messages.ts > BAKE_ERRORS > macro_bake_not_serializable > text",
+			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
+		},
+		{
+			"id": "packages/cli/src/mcp.ts > load_flag_inventory",
+			"reason": "CLI tool only: one import of the flag inventory per server, kept once it lands; run by packages/cli/test/mcp-flags-trust.test.ts in a child process"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > fn_manifest",
+			"reason": "build only, once per build: the sorted fn-manifest for the handoff, linear in og.$ factories (fn_manifest_entries)"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > patch_page_data_reads > imports_kit_page",
+			"reason": "build only, once per module a hole's walk visits that seed shaping did not read: a scan of its import ids; run by packages/compiler/test/page-data-reads.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > patch_page_data_reads > imports_kit_page > some:0~c46626",
+			"reason": "build only: one regex test per import id of a visited module; run by packages/compiler/test/page-data-reads.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > prescan > once:1~8ca9a8",
+			"reason": "build only: one plugin_not_listed warning per unlisted plugin package, once per build"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > prescan > read_for_plugins > some:0~fcb899",
+			"reason": "build only: a lookup of one prescan hook's imports per prescanned module specifier, a handful of plugins"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > prescan_rel",
+			"reason": "build only: one path relativize per prescanned module a plugin hook claims, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/kit.ts > page_config",
+			"reason": "build and dev: one page's merged route config, cached per page by the `page config` cache; linear in its layouts, read from disk through read_route_config"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/emit-gate.ts > parse_server_handoff > filter:0~295567",
+			"reason": "build only, once per build: a filter over the server handoff's keys, a handful of entries"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/dollar.ts > fn_manifest_entries > sort:0~f5ce9e",
+			"reason": "build only, once per build: the sort comparator over og.$ factory tags, n log n in factories"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/pipeline.ts > calls_macro > some:0~cc31b7",
+			"reason": "build and dev: one marker test per registered macro on a module, a handful of macros"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > some:0~60af93",
+			"reason": "build and dev: one test per registered macro whether it runs last, a handful of macros"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > macro_needs_plugin > details",
+			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > server_region_late > details",
+			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > server_region_late > text",
+			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > plugin_not_listed > details",
+			"reason": "a message's prose for its docs page and build warning: constant text, printed once per unlisted plugin"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > plugin_not_listed > text",
+			"reason": "a message's one line for the build warning: a template over its detail, printed once per unlisted plugin"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > #kit_only",
+			"reason": "build and dev: a csr=true route host's Kit-only rewrite, one MagicString pass linear in its marks, once per host per leg (cached by transform_cache); run by packages/compiler/test/csr-true-host-regions.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > config > handler > map:0~364fcf#3",
+			"reason": "config only, once per Vite config resolve: a map over the listed plugins, a handful"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > transform > transform_module:2~3aec12 > watch",
+			"reason": "dev and build: one addWatchFile per route option file a host's csr reads, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~f1ee24 > prescan",
+			"reason": "build only: a plugin's prescan registration, once per plugin per build, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/wire-on-use.ts > flights:0~0390da > run",
+			"reason": "browser only, a build without the codec: one codec import per page, on the first wake whose props carry a live value; run by packages/core/test/browser/wire-on-use.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/wire-on-use.ts > flights:0~0390da > run > then:0~717e69",
+			"reason": "browser only: the codec's install once it lands, once per page; run by packages/core/test/browser/wire-on-use.test.ts"
+		},
+		{
+			"id": "packages/flags/src/build-messages.ts > FLAGS_BUILD_WARNINGS > flags_manifest_written > details",
+			"reason": "a message's prose for its docs page and build note: constant text, printed once per build"
+		},
+		{
+			"id": "packages/flags/src/build-messages.ts > FLAGS_BUILD_WARNINGS > flags_manifest_written > text",
+			"reason": "a message's one line for the build note: a template over its detail, printed once per build"
+		},
+		{
+			"id": "packages/flags/src/vite.ts > inventory",
+			"reason": "the plugin's factory, once per config load: builds one plugin record, constant work"
+		},
+		{
+			"id": "packages/flags/src/vite.ts > inventory > module",
+			"reason": "build only: the inventory's prescan hook over one module that imports @ogygia/flags, delegating to collect_flag_sites (measured on its own)"
+		},
+		{
+			"id": "packages/flags/src/vite.ts > inventory > written",
+			"reason": "build only, once per build: writes the flags manifest file, linear in flag sites"
 		}
 	]
 }
