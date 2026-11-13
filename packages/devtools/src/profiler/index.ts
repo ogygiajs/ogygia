@@ -150,6 +150,7 @@ import { module_imports, route_imports } from './route-imports.ts';
 import { app_relative } from './app-path.ts';
 import { fnv1a32 } from '@ogygia/core/plugin/utils';
 import {
+	head_end,
 	mark_personal,
 	MIN_SECRET_BYTES,
 	RateLimiter,
@@ -7092,10 +7093,7 @@ class Profiler {
 			beacon_tag
 				? resolve(event, {
 						transformPageChunk: ({ html }) => {
-							// no regex per chunk: the head's close by search (lowercase first, the rare uppercase after)
-							// markup-ok: Kit's document, located as core's document-assembly.ts does (#1410)
-							let at = html.indexOf('</head>');
-							if (at === -1) at = html.indexOf('</HEAD>'); // markup-ok: as above (#1410)
+							const at = head_end(html);
 							return at === -1 ? html : html.slice(0, at) + beacon_tag + html.slice(at);
 						}
 					})
