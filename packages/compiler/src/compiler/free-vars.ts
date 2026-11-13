@@ -282,12 +282,15 @@ function add_pattern_refs(pattern: SvelteNode | null | undefined, bound: Set<str
 	if (!pattern) return;
 	switch (pattern.type) {
 		case 'AssignmentPattern':
+		case 'AssignmentExpression':
 			add_expression_refs(pattern.right, bound, sink);
 			add_pattern_refs(pattern.left, bound, sink);
 			break;
 		case 'ObjectPattern':
+		case 'ObjectExpression':
 			for (const prop of pattern.properties) {
-				if (prop.type === 'RestElement') add_pattern_refs(prop.argument, bound, sink);
+				if (prop.type === 'RestElement' || prop.type === 'SpreadElement')
+					add_pattern_refs(prop.argument, bound, sink);
 				else {
 					if (prop.computed) add_expression_refs(prop.key, bound, sink);
 					add_pattern_refs(prop.value, bound, sink);
@@ -295,9 +298,11 @@ function add_pattern_refs(pattern: SvelteNode | null | undefined, bound: Set<str
 			}
 			break;
 		case 'ArrayPattern':
+		case 'ArrayExpression':
 			for (const el of pattern.elements) add_pattern_refs(el, bound, sink);
 			break;
 		case 'RestElement':
+		case 'SpreadElement':
 			add_pattern_refs(pattern.argument, bound, sink);
 			break;
 	}
@@ -346,9 +351,12 @@ function add_attribute_refs(node: SvelteNode, bound: Set<string>, sink: Sink) {
 			case 'SpreadAttribute':
 				add_expression_refs(attr.expression, bound, sink);
 				break;
-			case 'LetDirective':
-				add_pattern_refs(attr.expression, bound, sink);
+			case 'LetDirective': {
+				const own = new Set(bound);
+				collect_pattern_names(attr.expression, own);
+				add_pattern_refs(attr.expression, own, sink);
 				break;
+			}
 			case 'BindDirective':
 				if (attr.expression) {
 					add_expression_refs(attr.expression, bound, sink);
