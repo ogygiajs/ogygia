@@ -199,7 +199,7 @@ test('a literal max: Infinity is refused anywhere in the module (no bound is no 
 test('each finding says the fix', () => {
 	const [f] = find_unowned('x.ts', 'const seen = new Map();');
 	assert.match(f!.fix, /cache\(\)/);
-	assert.match(f!.fix, /\/\/ static:/);
+	assert.match(f!.fix, /ReadonlySet/);
 	assert.match(f!.fix, /owner/);
 	assert.doesNotMatch(f!.fix, /\/\/ owned:/);
 });
