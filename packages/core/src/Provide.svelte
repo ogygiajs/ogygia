@@ -17,8 +17,6 @@
 		children?: Snippet;
 	} = $props();
 
-	// clsx-like: an object is used as-is; an array is flattened + merged left→right (falsy entries
-	// skipped, later keys win).
 	// A provider's values are fixed for its lifetime — resolved once (server pass).
 	// svelte-ignore state_referenced_locally
 	const resolved = Array.isArray(values)
