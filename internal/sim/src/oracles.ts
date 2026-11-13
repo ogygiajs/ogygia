@@ -35,11 +35,6 @@ export interface Broken {
  * - a URL as written (`./a.css` and `/a.css` load the same file; Kit writes relative paths into a
  *   prerendered page): a `<link>`'s `href`, and any attribute starting `./` or `../`, as the path
  *   it resolves to;
- * - where a loaded stylesheet link's build file sits under the page's path (`/lab/_app/x.css` and
- *   `/_app/x.css` read `/_app/x.css`): the router keeps a page's loaded sheet as its page wrote it,
- *   since setting its URL again fetches it again (#1071, #1086), so a page-relative one kept across a
- *   move to another depth reads another path against the new address while the file it loaded is
- *   the same. A parked (disabled) sheet is not loaded yet and is compared as it resolves;
  * - what a client navigation adds by design: the router's live-region announcer
  *   (`[data-ogygia-announcer]`, as Kit's own router adds one), and the reconciler's morph key on a
  *   region (`data-key`);
@@ -81,6 +76,10 @@ export function normalize(root: {
 		if (tag === 'link' && /\b(modulepreload|preload|prefetch)\b/.test(el.getAttribute('rel') ?? ''))
 			return;
 		if (el.hasAttribute('data-ogygia-announcer')) return;
+		// (a third party's own head element, which a client navigation keeps, as it keeps what any
+		// script put in the head, and a fresh load of a page without that script never has: gen 262,
+		// seed 6, the `gen head` drift)
+		if (tag === 'meta' && el.hasAttribute('data-gen-third-party')) return;
 		if (el.matches(STORE_MARK)) return;
 		const attrs = [...el.attributes]
 			.filter(
@@ -91,16 +90,11 @@ export function normalize(root: {
 						(a.name === 'data-key' || a.name === 'data-revalidated' || a.name === 'data-og-healed')
 					)
 			)
-			.map((a) => {
-				if (!((tag === 'link' && a.name === 'href') || /^\.\.?\//.test(a.value)))
-					return `${a.name}="${a.value}"`;
-				const path = new URL(a.value, root.baseURI ?? 'https://app.test/').pathname;
-				const loaded_sheet =
-					tag === 'link' &&
-					/\bstylesheet\b/.test(el.getAttribute('rel') ?? '') &&
-					!el.hasAttribute('disabled');
-				return `${a.name}="${loaded_sheet ? path.replace(/^\/(?:[^/]+\/)*(?=_app\/)/, '/') : path}"`;
-			})
+			.map((a) =>
+				(tag === 'link' && a.name === 'href') || /^\.\.?\//.test(a.value)
+					? `${a.name}="${new URL(a.value, root.baseURI ?? 'https://app.test/').pathname}"`
+					: `${a.name}="${a.value}"`
+			)
 			.sort()
 			.join(' ');
 		out.push(`${'  '.repeat(depth)}<${tag}${attrs ? ` ${attrs}` : ''}>`);
@@ -147,59 +141,30 @@ export const KNOWN: ReadonlyArray<{
 	seen?(world: World, tab: Tab): boolean;
 }> = [
 	{
-		issue: 1039,
-		what: "a held region's stylesheet stays inside the next page's held region after a navigation",
-		// (a region sheet link right inside a baked held region, on one side only: gen 194, seed 72;
-		// each such link set aside)
-		applies: (shown, fresh) => baked_sheets(shown).join('\n') !== baked_sheets(fresh).join('\n'),
+		issue: 1107,
+		what: "islands' <svelte:head> styles stand in <head> in the order the islands woke",
+		// (the same island head styles on both sides, in another order: gen 262, seed 25; each set
+		// aside, with its text line)
+		applies: (shown, fresh) => {
+			const a = island_head_styles(shown);
+			const b = island_head_styles(fresh);
+			return a.join() !== b.join() && [...a].sort().join() === [...b].sort().join();
+		},
 		forgive: (s) => {
 			const out = s.split('\n');
-			for (const i of baked_sheet_lines(s).reverse()) out.splice(i, 1);
+			for (let i = out.length - 1; i >= 0; i--)
+				if (ISLAND_HEAD_STYLE.test(out[i])) out.splice(i, 2);
 			return out.join('\n');
 		}
-	},
-	{
-		issue: 1067,
-		what: "a kept island keeps the last page's data-og-fp after a client navigation",
-		// (a kept region's opening line, its fingerprint set aside: palaestra /props-tail, /formkeep)
-		applies: (shown, fresh) => kept_fps(shown).join('\n') !== kept_fps(fresh).join('\n'),
-		forgive: (s) =>
-			s
-				.split('\n')
-				.map((l) => (KEPT_REGION.test(l) ? l.replace(/ data-og-fp="[^"]*"/, '') : l))
-				.join('\n')
 	}
 ];
 
-/** The opening line of a region the router keeps across navigations (`keep`). */
-const KEPT_REGION = /^ *<ogygia-region [^>]*data-ogygia-keep=/;
+/** A generated island's own `<svelte:head>` style, as a normalized line (src/gen.ts `head`). */
+const ISLAND_HEAD_STYLE = /^ *<style data-gen-head="(n\d+)">$/;
 
-/** Each kept region's `data-og-fp`. */
-function kept_fps(s: string): string[] {
-	return s
-		.split('\n')
-		.filter((l) => KEPT_REGION.test(l))
-		.map((l) => / data-og-fp="([^"]*)"/.exec(l)?.[1] ?? '');
-}
-
-/** The lines (by number) of region sheet links right inside a baked held region. */
-function baked_sheet_lines(s: string): number[] {
-	const lines = s.split('\n');
-	const out: number[] = [];
-	for (let i = 1; i < lines.length; i++) {
-		if (!/^ *<link [^>]*data-ogygia-region-css/.test(lines[i])) continue;
-		const indent = /^ */.exec(lines[i])![0].length;
-		let p = i - 1;
-		while (p >= 0 && /^ */.exec(lines[p])![0].length >= indent) p--;
-		if (p >= 0 && /^ *<ogygia-region [^>]*data-og-baked/.test(lines[p])) out.push(i);
-	}
-	return out;
-}
-
-/** The region sheet links right inside a baked held region, each with its region's line. */
-function baked_sheets(s: string): string[] {
-	const lines = s.split('\n');
-	return baked_sheet_lines(s).map((i) => lines[i].trim());
+/** The island head styles a normalized DOM holds, in its order. */
+function island_head_styles(s: string): string[] {
+	return s.split('\n').flatMap((l) => ISLAND_HEAD_STYLE.exec(l)?.[1] ?? []);
 }
 
 /**
@@ -610,6 +575,9 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 	const touched = faulted(world, tab);
 	const mine = world.network.exchanges.filter((e) => e.from === tab.realm);
 	if (touched && mine.some((e) => e.method === 'POST')) return null;
+	// (nor one whose runtime, or another script, failed to load: the runtime may never have run, and
+	// the page stays its server HTML, as runtime_load_failed says; gen 12, seed 22)
+	if (touched && world.browsers.lacks_a_file(tab.realm)) return null;
 	const asked = new Set(
 		mine.filter((e) => e.method === 'GET').map((e) => answer_key(new URL(e.url)))
 	);
@@ -637,6 +605,72 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 	return {
 		oracle: 'fallback-stands',
 		detail: `${url}: ${left.map((r) => r.querySelector('[data-gen-fallback]')!.textContent).join(', ')}`
+	};
+}
+
+/**
+ * AN ISLAND THAT WAKES ON ITS OWN IS AWAKE: at rest, no island region (it names its `entry`) whose
+ * `wake` is `load` or `idle` is still asleep (no `data-hydrated`): its wake was owed. Its twin for
+ * holes is {@link fallback_stands}; the MPA check cannot see it (the fresh load runs the same code
+ * and sleeps there too). Set aside: a document a fault touched (its code may have failed to
+ * download) unless only an outage did (the network came back, and it wakes again), and one a
+ * deploy failed a download of.
+ */
+export function islands_wake(tab: Tab, world: World): Broken | null {
+	const url = tab.page.mainFrame.url;
+	if (!url.startsWith('http') || world.skewed_for(tab.realm)) return null;
+	if (faulted(world, tab) && !outage_only(world, tab)) return null;
+	// (its document's files still coming is work in flight, not an island asleep: a stalled runtime
+	// chunk outlasted the action's quiesce; seed 97, test/hidden-tab.node.test.ts)
+	if (world.network.busy_for(tab.realm)) return null;
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	// (an island inside one still waiting for the visitor or the screen waits with it, and one in a
+	// lake waits for the island around the lake, which a held region's baked markup never is: gen
+	// 262, an island in a lake in a page-hosted held region, e2e/hole-in-lake.spec.ts)
+	const waits = (r: Element): boolean => {
+		let in_lake = false;
+		for (
+			let a = r.parentElement?.closest('ogygia-region');
+			a;
+			a = a.parentElement?.closest('ogygia-region')
+		) {
+			if (a.hasAttribute('data-hydrated')) {
+				in_lake = false;
+				continue;
+			}
+			const wake = a.getAttribute('wake');
+			if (wake === 'none') in_lake = true;
+			else if (wake !== null && !/^(load|idle)$/.test(wake)) return true;
+		}
+		return in_lake;
+	};
+	const asleep = [...doc.querySelectorAll('ogygia-region[entry]')].filter(
+		(r) =>
+			/^(load|idle)$/.test(r.getAttribute('wake') ?? '') &&
+			!r.hasAttribute('data-hydrated') &&
+			!waits(r)
+	);
+	if (asleep.length === 0) return null;
+	const open = (r: Element) =>
+		`<${r.localName}${[...r.attributes]
+			.filter((a) => a.name !== 'endpoint' && a.name !== 'data-ogygia-props')
+			.map((a) => ` ${a.name}="${a.value}"`)
+			.join('')}>`;
+	// (each with the regions around it, innermost first, and what it shows)
+	const around = (r: Element): string => {
+		const out: string[] = [];
+		for (
+			let a = r.parentElement?.closest('ogygia-region');
+			a;
+			a = a.parentElement?.closest('ogygia-region')
+		)
+			out.push(open(a));
+		return out.length ? `\n  in ${out.join('\n  in ')}` : '';
+	};
+	const shows = (r: Element) => ` showing "${(r.textContent ?? '').trim().slice(0, 60)}"`;
+	return {
+		oracle: 'islands-wake',
+		detail: `${url}: ${asleep.map((r) => `${open(r)}${shows(r)}${around(r)}`).join('\n')}`
 	};
 }
 
@@ -1003,8 +1037,8 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 		}
 	);
 	if (errors.length === 0) return null;
-	const known = KNOWN_SAID.filter((k) => errors.some((l) => k.said.test(l)));
-	if (errors.every((l) => known.some((k) => k.said.test(l))))
+	const { left, known } = known_said(errors);
+	if (left.length === 0)
 		return {
 			oracle: 'known',
 			detail: `${tab.page.mainFrame.url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
@@ -1078,12 +1112,28 @@ export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegE
 		said: /^unhandled: \{"message":"Bad Request"\}$/
 	},
 	{
-		issue: 1050,
-		what: 'a hole nested in an island is imported as a module after a client navigation',
-		// (the hole's id as a module URL: `/<12 hex>?og-retry=1`; palaestra /prefetch -> /nested)
-		said: /chunk_reload_needed\?url=https%3A%2F%2F[^%]+%2F[0-9a-f]{12}(%3F|$)/
+		issue: 1079,
+		what: "Svelte's async mode reads a remote query's derived after its effect ended",
+		// (a plain Kit app warns it too; the stale read it warns of gave palaestra's PendingGreeting
+		// `undefined`, seeds 20257 and a plain Kit app's 124)
+		said: /svelte\.dev\/e\/derived_inert|^unhandled: TypeError: Cannot read properties of undefined \(reading 'greeting'\)/
+	},
+	{
+		issue: 1158,
+		what: 'a hole batch called off while its body comes rejects with nobody listening',
+		// (the reason the network gives a request its page called off: browser.ts `call_off`)
+		said: /^unhandled: AbortError: The operation was aborted\.$/
 	}
 ];
+
+/** `lines` less what a filed bug explains (`KNOWN_SAID`), and which bugs did. */
+export function known_said(lines: readonly string[]): {
+	left: string[];
+	known: { issue: number; what: string }[];
+} {
+	const known = KNOWN_SAID.filter((k) => lines.some((l) => k.said.test(l)));
+	return { left: lines.filter((l) => !known.some((k) => k.said.test(l))), known };
+}
 
 /**
  * No error escaped every page and server to the host process (beyond a network failure's own
@@ -1096,8 +1146,8 @@ export function uncaught(world: World): Broken | null {
 	world.uncaught.length = 0;
 	if (left.length === 0) return null;
 	// (a filed bug's words reach the host too: seed 265, #817's from a press)
-	const known = KNOWN_SAID.filter((k) => left.some((l) => k.said.test(l)));
-	if (left.every((l) => known.some((k) => k.said.test(l))))
+	const { left: unknown, known } = known_said(left);
+	if (unknown.length === 0)
 		return { oracle: 'known', detail: known.map((k) => `#${k.issue} (${k.what})`).join(', ') };
 	return { oracle: 'uncaught', detail: left.join('\n') };
 }

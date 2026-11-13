@@ -21,7 +21,7 @@
  * them (`@ogygia/tooling/e2e/sim-replay.ts`).
  */
 import type { Tab } from './browser.ts';
-import type { Broken } from './oracles.ts';
+import { known_said, type Broken } from './oracles.ts';
 import { answer_key, is_page_path, type World } from './world.ts';
 
 /** An image's path: the document's image cache keeps one it loaded. */
@@ -56,16 +56,37 @@ export function asked_twice(
 		const since = Math.max(...swaps.filter((s) => s < t));
 		return next === t || fetched.some((f) => f > since && f <= t);
 	};
+	/** A hole answer whose last ask the page gave up on (stalled, cut, lost, changed), by key: when it
+	 *  was asked, and whether a router visit's batch asked it. The next ask of it is its recovery,
+	 *  the same ask (test/waste.test.ts). */
+	const given_up = new Map<string, { at: number; nav: boolean }>();
+	/** An ask of hole answer `k` at `at` (a recovery takes the given-up ask's place). */
+	const ask = (k: string, at: number, by_visit: boolean): void => {
+		const was = given_up.get(k);
+		given_up.delete(k);
+		const t = was?.at ?? at;
+		holes.set(k, [...(holes.get(k) ?? []), t]);
+		if (was?.nav ?? by_visit) nav.add(`${k} ${t}`);
+	};
 	for (const [i, e] of world.network.exchanges.entries()) {
 		if (i >= until) break;
 		if (e.from !== realm || e.status !== 200) continue;
 		// (a stalled answer the page may have given up on: asking again is its recovery)
-		if (e.cut || e.lost === true || e.tampered || e.duplicated || e.stalled === true) continue;
+		if (e.cut || e.lost === true || e.tampered || e.duplicated || e.stalled === true) {
+			if (e.duplicated) continue;
+			const keys =
+				e.method === 'POST'
+					? (e.holes ?? [])
+					: new URL(e.url).pathname === '/__ogygia__'
+						? [answer_key(new URL(e.url))]
+						: [];
+			const by_visit = e.method === 'POST' && visits(e.at);
+			for (const k of keys) if (!given_up.has(k)) given_up.set(k, { at: e.at, nav: by_visit });
+			continue;
+		}
 		if (e.method === 'POST') {
-			for (const k of e.holes ?? []) {
-				holes.set(k, [...(holes.get(k) ?? []), e.at]);
-				if (visits(e.at)) nav.add(`${k} ${e.at}`);
-			}
+			const by_visit = visits(e.at);
+			for (const k of e.holes ?? []) ask(k, e.at, by_visit);
 			continue;
 		}
 		if (e.method !== 'GET') continue;
@@ -73,8 +94,7 @@ export function asked_twice(
 		const path = decodeURIComponent(url.pathname);
 		if (path.startsWith('/_app/immutable/') || is_page_path(path) || IMAGE.test(path)) continue;
 		if (path === '/__ogygia__') {
-			const k = answer_key(url);
-			holes.set(k, [...(holes.get(k) ?? []), e.at]);
+			ask(answer_key(url), e.at, false);
 			continue;
 		}
 		const visit = path.startsWith('/_app/remote/') ? swaps.filter((t) => t <= e.at).length : 0;
@@ -237,19 +257,23 @@ export function waste(world: World, tab: Tab): Broken | null {
 	if (!tab.page.mainFrame.url.startsWith('http')) return null;
 	const held = known_waste(doc, held_twice(doc));
 	const asked = known_waste(doc, refused(world, tab.realm));
+	const said = known_said(warned(tab));
 	const found = [
 		...asked.left.map((k) => `refused: ${k}`),
 		...held.left.map((k) => `held twice: ${k}`),
 		...tab.orphans().map((o) => `alive after its owner: ${o}`),
-		...warned(tab).map((l) => `said: ${l.split('\n')[0].slice(0, 200)}`)
+		...said.left.map((l) => `said: ${l.split('\n')[0].slice(0, 200)}`)
 	];
 	if (found.length > 0)
 		return { oracle: 'waste', detail: `${tab.page.mainFrame.url}: ${found.join('\n')}` };
-	const known = [...new Set([...held.known, ...asked.known])];
+	const known = [
+		...new Set([...held.known, ...asked.known].map((i) => KNOWN_WASTE.find((k) => k.issue === i)!)),
+		...said.known
+	];
 	return known.length === 0
 		? null
 		: {
 				oracle: 'known',
-				detail: `${tab.page.mainFrame.url}: ${known.map((i) => `#${i} (${KNOWN_WASTE.find((k) => k.issue === i)!.what})`).join(', ')}`
+				detail: `${tab.page.mainFrame.url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
 			};
 }

@@ -241,6 +241,31 @@ function ok_lines(context: Context): Set<number> {
 	return lines;
 }
 
+type PlacedComment = {
+	value: string;
+	loc: { start: { line: number; column: number }; end: { line: number } };
+};
+
+/**
+ * What a reason note (`// <tag>: <why>`, matched by `note`) excuses: a node on the note's own line,
+ * and on the line below a note that stands alone on its line. A note trailing a statement is that
+ * statement's, never the next one's (#1033, internal/lint/reason-notes.test.ts).
+ */
+function reason_notes(context: Context, note: RegExp): (node: Node) => boolean {
+	const source = (
+		context as { sourceCode?: { getAllComments?: () => PlacedComment[]; lines?: string[] } }
+	).sourceCode;
+	const lines = new Set<number>();
+	for (const c of source?.getAllComments?.() ?? []) {
+		if (!note.test(c.value)) continue;
+		const { line, column } = c.loc.start;
+		lines.add(line);
+		if ((source?.lines?.[line - 1] ?? '').slice(0, column).trim() === '')
+			lines.add(c.loc.end.line + 1);
+	}
+	return (node) => lines.has((node as Located).loc.start.line);
+}
+
 /** A handler that does nothing with the failure: `() => {}`, `() => undefined`, `() => null`,
  *  `() => void 0`, or a function named `noop`. */
 function swallows(handler: unknown): boolean {
@@ -277,7 +302,8 @@ const MESSAGE_SILENT =
  * not a body), `.catch(() => {})` (or `=> undefined`, `=> null`, `noop`), and a bare `void <call>()`,
  * whose rejection goes unhandled unless the callee catches it (`void p.catch(report)` is handled).
  * A site that is truly fine carries `// ok: <reason>` on its first or last line (for a catch, also
- * inside its body).
+ * inside its body; for a `void` call, also alone on the line above). A `void` call is one through
+ * an optional chain or a cast too (`void s?.send?.()`); an awaited one (`void (await p())`) is not.
  */
 const no_silent_failures = {
 	meta: {
@@ -289,6 +315,7 @@ const no_silent_failures = {
 	create(context: Context) {
 		if (!in_source(context)) return {};
 		let ok: Set<number> | null = null;
+		let noted: ((node: Node) => boolean) | null = null;
 		const marked = (node: Node): boolean => {
 			const n = node as Located;
 			ok ??= ok_lines(context);
@@ -317,9 +344,21 @@ const no_silent_failures = {
 			},
 			UnaryExpression(node: Node) {
 				if (node.operator !== 'void') return;
-				const arg = node.argument as Node;
+				// (an optional call `s?.send?.()` and a cast `(p() as T)` are calls too; an awaited one,
+				// `void (await p())`, is handled by its await)
+				let arg = node.argument as Node | undefined;
+				while (
+					arg?.type === 'ParenthesizedExpression' ||
+					arg?.type === 'TSAsExpression' ||
+					arg?.type === 'TSNonNullExpression' ||
+					arg?.type === 'ChainExpression'
+				)
+					arg = arg.expression as Node;
 				// (`void p.catch(() => {})` is the `.catch` site's, said once there)
-				if (arg.type === 'CallExpression' && !handled(arg) && !swallowing_chain(arg)) refuse(node);
+				if (arg?.type !== 'CallExpression' || handled(arg) || swallowing_chain(arg)) return;
+				// (a note on the call's own line, or alone on the line above: reason-notes.test.ts)
+				noted ??= reason_notes(context, OK_NOTE);
+				if (!noted(node) && !marked(node)) context.report({ node, message: MESSAGE_SILENT });
 			}
 		};
 	}
@@ -1334,7 +1373,8 @@ const prefer_dedent = {
  * network (`net`), what is on screen (`seen`) and storage (`storage`). It grew out of
  * `ogygia/wall-clock`, which it replaces: `Date.now()` is `clock.wall()`.
  *
- * A raw call that must stay says why on its line or the line before: `// port-ok: <why>`. Code that
+ * A raw call that must stay says why on its line, or alone on the line before: `// port-ok: <why>`
+ * (`reason_notes`). Code that
  * runs at build time (the compiler, Vite plugins, the CLI, test tooling) is not part of a running
  * app and is not simulated: `.oxlintrc.json` turns the rule off there.
  */
@@ -1379,7 +1419,7 @@ const PORTS_FILE = /(^|\/)packages\/machine\/src\/ports(\.ts$|\/)/;
 const IN_PACKAGE_SOURCE = /(^|\/)packages\/[^/]+\/src\//;
 
 const port_message = (raw: string, port: string): string =>
-	`${raw} is nondeterministic: go through the port, ${port} from @ogygia/machine (a simulated run owns it), or say why it stays raw with \`// port-ok: <why>\` on its line or the line before.`;
+	`${raw} is nondeterministic: go through the port, ${port} from @ogygia/machine (a simulated run owns it), or say why it stays raw with \`// port-ok: <why>\` on its line, or alone on the line before.`;
 
 const ports = {
 	meta: {
@@ -1455,18 +1495,8 @@ const ports = {
 			},
 			'Program:exit'() {
 				if (!found.length) return;
-				const comments =
-					(
-						context as { sourceCode?: { getAllComments?: () => Comment[] } }
-					).sourceCode?.getAllComments?.() ?? [];
-				const marked = new Set<number>();
-				for (const c of comments)
-					if (/^\s*port-ok:\s*\S/.test(c.value)) marked.add(c.loc.start.line);
-				for (const f of found) {
-					const line = (f.node as Located).loc.start.line;
-					if (marked.has(line) || marked.has(line - 1)) continue;
-					context.report(f);
-				}
+				const excused = reason_notes(context, /^\s*port-ok:\s*\S/);
+				for (const f of found) if (!excused(f.node)) context.report(f);
 			}
 		};
 	}
@@ -1475,7 +1505,7 @@ const ports = {
 /**
  * `ogygia/one-hash` (#484): a content hash is core's `contract/hash.ts` (`id64` for identity, where a
  * collision serves the wrong thing; `bucket32` for spreading). The FNV-1a offset basis anywhere else
- * is a copy, and says why it must be one with `// hash: <why>` on its line or the line before (a
+ * is a copy, and says why it must be one with `// hash: <why>` on its line, or alone on the line before (a
  * seeded hash, one over bytes, a client island's own copy).
  */
 const FNV_BASIS = 0x811c9dc5;
@@ -1497,17 +1527,49 @@ const one_hash = {
 			},
 			'Program:exit'() {
 				if (!found.length) return;
-				const comments =
-					(
-						context as { sourceCode?: { getAllComments?: () => Comment[] } }
-					).sourceCode?.getAllComments?.() ?? [];
-				const marked = new Set<number>();
-				for (const c of comments) if (/^\s*hash:\s*\S/.test(c.value)) marked.add(c.loc.start.line);
-				for (const n of found) {
-					const line = (n as Located).loc.start.line;
-					if (!marked.has(line) && !marked.has(line - 1))
-						context.report({ node: n, message: MESSAGE_HASH });
-				}
+				const excused = reason_notes(context, /^\s*hash:\s*\S/);
+				for (const n of found) if (!excused(n)) context.report({ node: n, message: MESSAGE_HASH });
+			}
+		};
+	}
+};
+
+// ── ogygia/dispose-by-close ───────────────────────────────────────────────
+// Package source never calls `x[Symbol.dispose]()` / `x[Symbol.asyncDispose]()`: WebKit has neither
+// symbol, so the call is `x[undefined]()` and throws (#1144). A scope closes with `close()`.
+// Defining the method is fine (machine keys it with a fallback symbol): only calls are refused.
+
+const MESSAGE_DISPOSE =
+	'WebKit has no Symbol.dispose / Symbol.asyncDispose, so this call throws there: call `close()` (a scope, a flights) instead.';
+
+const dispose_by_close = {
+	meta: {
+		type: 'problem',
+		docs: { description: 'Owners are closed with close(), never through Symbol.dispose.' }
+	},
+	create(context: Context) {
+		if (!in_source(context)) return {};
+		const is_dispose_symbol = (n: Node | undefined): boolean => {
+			if (n?.type !== 'MemberExpression') return false;
+			const obj = n.object as Node;
+			const prop = n.property as Node;
+			return (
+				obj.type === 'Identifier' &&
+				obj.name === 'Symbol' &&
+				prop.type === 'Identifier' &&
+				(prop.name === 'dispose' || prop.name === 'asyncDispose')
+			);
+		};
+		return {
+			CallExpression(node: Node) {
+				let callee = node.callee as Node;
+				if (callee.type === 'ChainExpression') callee = callee.expression as Node;
+				if (
+					callee.type === 'MemberExpression' &&
+					callee.computed &&
+					is_dispose_symbol(callee.property as Node)
+				)
+					context.report({ node, message: MESSAGE_DISPOSE });
 			}
 		};
 	}
@@ -1589,6 +1651,7 @@ export default {
 		'prefer-dedent': prefer_dedent,
 		'structured-comments': structured_comments,
 		'compiler-boundary': compiler_boundary,
+		'dispose-by-close': dispose_by_close,
 		ports
 	}
 };

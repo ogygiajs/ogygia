@@ -409,6 +409,17 @@ describe('pages — a thrown error finds its boundary', () => {
 		expect(html).toContain('400 bad');
 	});
 
+	it('a POST to a named action the page does not have answers 404 and runs no action (the default included)', async () => {
+		let ran = 0;
+		const app = await branch({ action: () => void ran++ });
+		const res = (await app.fetch(req('/p?/delete', { method: 'POST', body: new FormData() })))!;
+		expect(res.status).toBe(404);
+		expect(ran).toBe(0);
+		// (the default still answers a POST that names none)
+		await app.fetch(req('/p', { method: 'POST', body: new FormData() }));
+		expect(ran).toBe(1);
+	});
+
 	it('with no error page anywhere, a page’s error answers JSON', async () => {
 		const app = await branch({ page_load: async () => error(404, 'gone'), boundaries: false });
 		const res = (await app.fetch(get('/p')))!;

@@ -9,15 +9,24 @@
  * Each document is its own realm in the loop (`tab-2#3`: tab 2's third document), so a document's
  * timers die with it when the tab navigates away, as in a browser.
  */
+import { ear } from '@ogygia/tooling/e2e/sim-observe.ts';
 import { Browser, type BrowserPage, type BrowserWindow } from 'happy-dom';
 import CookieStringUtility from 'happy-dom/lib/cookie/urilities/CookieStringUtility.js';
 import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
 import WindowBrowserContext from 'happy-dom/lib/window/WindowBrowserContext.js';
+import { on_navigation_start, restore_history, save_history, type SavedHistory } from './happy.ts';
 import type { Loop } from './loop.ts';
 import type { Network } from './network.ts';
 import { install, message_channel, platform, site, SITES, type RealmOptions } from './platform.ts';
 import { hash, type Rng } from './rng.ts';
-import { install_timeline, record_download, type Engine } from './timeline.ts';
+import {
+	install_timeline,
+	record_download,
+	stamp,
+	type Engine,
+	type NavigationType
+} from './timeline.ts';
+import { install_layout, VIEWPORT } from './layout.ts';
 
 /** `SIM_STACKS=1`: a page's uncaught error carries its stack (to triage a seed). */
 const STACKS = process.env.SIM_STACKS === '1';
@@ -32,11 +41,17 @@ export interface Tab {
 	realm: string;
 	/** Documents it has shown (and navigations called off before theirs came: each took a realm). */
 	documents: number;
-	/** Hard navigations it started: only the latest is still going (`navigate`). */
+	/** Navigations it started, the visitor's or the page's: only the latest is still going. */
 	navigations: number;
 	/** A navigation started and its document has not come yet: its requests are realm
 	 *  `#documents + 1`'s. */
 	awaiting: boolean;
+	/** The tab's history as it was before that navigation started (`awaiting`): what calling it
+	 *  off puts back. */
+	before: SavedHistory | null;
+	/** The latest navigation: when it started (virtual ms) and how its document is reached. Its
+	 *  document's clock and navigation timing start there (./timeline.ts). */
+	started: { at: number; type: NavigationType } | null;
 	/** What the page reported: uncaught errors, failed scripts, console errors. */
 	readonly errors: string[];
 	readonly console: string[];
@@ -44,6 +59,12 @@ export interface Tab {
 	readonly said_by: Map<string, string>;
 	/** The document's simulated platform (its outstanding timers, for the leak oracle). */
 	platform: ReturnType<typeof platform> | null;
+	/** Behind another of its visitor's tabs (`Browsers.focus`): its document's `visibilityState` is
+	 *  `hidden`, and its animation frames wait until it is shown, as a browser's do. */
+	hidden: boolean;
+	/** The realms of its documents that were ever shown (a document loaded behind and never looked
+	 *  at is not among them). */
+	readonly seen: Set<string>;
 	/** What the shown document holds now (the leak oracle's sample). */
 	held(): Held;
 	/** The listeners it holds, each as `window|document <type> <its code's hash>` (with
@@ -66,6 +87,9 @@ export interface Tab {
 	/** What each region of the shown document announced (`ogygia:hydrated`, `ogygia:live`), as a
 	 *  listener of the app's on the document hears it: bubbling, never capturing. */
 	heard: Map<Element, Heard[]>;
+	/** What the tab's documents heard of their lifecycle and ogygia's events, in order (the
+	 *  differential's `ear`, @ogygia/tooling/e2e/sim-observe.ts): read and emptied by a look. */
+	readonly lifecycle: string[];
 }
 
 /** A region event a document's listener heard, and what the region showed once it was sent. */
@@ -122,6 +146,9 @@ export interface BrowsersOptions {
 	buggify?: (realm: string, point: string) => boolean;
 	/** How each document's resource timing reads (./timeline.ts). Default `status`. */
 	timeline?: Engine;
+	/** Whether the engine has `requestIdleCallback` (Safari ships none: code that waits for an idle
+	 *  moment takes its own fallback there). Default true. */
+	idle?: boolean;
 }
 
 export class Browsers {
@@ -158,6 +185,8 @@ export class Browsers {
 				enableCSSFileLoading: true,
 				// (and images: one not yet come is not `complete`, which the critical wait reads)
 				enableImageFileLoading: true,
+				// (the real-browser player's, which the layout reads too: a media query, innerWidth)
+				viewport: { width: VIEWPORT.w, height: VIEWPORT.h, devicePixelRatio: 1 },
 				navigator: {
 					userAgent: 'Mozilla/5.0 (ogygia-sim) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
 				},
@@ -178,6 +207,7 @@ export class Browsers {
 								Response: typeof Response;
 								Headers: typeof Headers;
 								TypeError: typeof TypeError;
+								DOMException: typeof DOMException;
 							};
 							let url = new URL(request.url);
 							let method = request.method;
@@ -195,6 +225,18 @@ export class Browsers {
 								if (timed)
 									record_download(timed, o.timeline ?? 'status', request.url, status, started);
 							};
+							// the page's signal, on the wire: a fetch the page calls off is called off there, as
+							// a browser's is (happy-dom's signal never reached the network: a hole its region let
+							// go downloaded its answer anyway; test/page-abort.node.test.ts)
+							const page_signal = request.signal ?? null;
+							const line = new AbortController();
+							// (the page's realm's AbortError, which a body read passes on as it is)
+							const call_off = () => {
+								o.loop.note(`${from} calls off ${url.pathname}${url.search.slice(0, 24)}`);
+								line.abort(new W.DOMException('The operation was aborted.', 'AbortError'));
+							};
+							if (page_signal?.aborted) call_off();
+							else page_signal?.addEventListener('abort', call_off, { once: true });
 							// a browser follows a redirect itself (happy-dom hands an intercepted answer back as
 							// it is): each leg is a request on the network, with its cookies, and the answer
 							// carries the URL it came from (a document's address is that URL)
@@ -219,12 +261,22 @@ export class Browsers {
 										new URL((window as unknown as { location: { href: string } }).location.href)
 											.origin
 									);
-								const sent = new Request(url, { method, headers, body });
+								const sent = new Request(url, { method, headers, body, signal: line.signal });
+								// (the entry lands once the last leg's body has come, or broke off: a
+								// redirect's leg is no download of its own)
+								let last = false;
+								let came: number | null = null;
+								const ended = (_whole: boolean, status: number) => {
+									came = status;
+									if (last) timing(status);
+								};
 								let answer: Response;
 								try {
-									answer = await o.network.send(from, sent, (r) => o.route(r, from));
+									answer = await o.network.send(from, sent, (r) => o.route(r, from), ended);
 								} catch (error) {
 									timing(null);
+									if (line.signal.aborted)
+										throw new W.DOMException('The operation was aborted.', 'AbortError');
 									throw new W.TypeError(error instanceof Error ? error.message : String(error));
 								}
 								for (const c of answer.headers.getSetCookie()) {
@@ -258,7 +310,8 @@ export class Browsers {
 									headers: out
 								}) as Response & { url: string; redirected: boolean };
 								Object.assign(response, { url: url.href, redirected: hops > 0 });
-								timing(answer.status);
+								last = true;
+								if (came !== null) timing(came);
 								return response as never;
 							}
 						}
@@ -304,15 +357,44 @@ export class Browsers {
 		this.#leave(tab);
 		tab.documents++;
 		tab.awaiting = false;
+		tab.before = null;
 		tab.realm = `${tab.name}#${tab.documents}`;
+		const started = tab.started ?? { at: this.#o.loop.now, type: 'navigate' as const };
+		tab.started = null;
 		const options: RealmOptions = {
 			name: tab.realm,
 			loop: this.#o.loop,
 			rng: this.#o.rng,
-			buggify: this.#o.buggify
+			buggify: this.#o.buggify,
+			born: started.at,
+			hidden: () => tab.hidden
 		};
 		const p = platform(options);
+		// (the document's own performance, its clock the realm's; before `install`, which sets the
+		// `now` of the window's performance: its own, no longer the host's one object)
+		install_timeline(window, {
+			now: p.performance!.now,
+			origin: p.Date.now() - p.performance!.now(),
+			url: window.location.href,
+			type: started.type
+		});
+		// (its response came: the document's parse starts now)
+		stamp(window, 'responseStart');
+		stamp(window, 'responseEnd');
 		install(window, p);
+		if (!tab.hidden) tab.seen.add(tab.realm);
+		// (a tab behind another says so, as a browser's does: `Browsers.focus`)
+		for (const [key, value] of [
+			['visibilityState', () => (tab.hidden ? 'hidden' : 'visible')],
+			['hidden', () => tab.hidden]
+		] as const)
+			Object.defineProperty(window.document, key, { get: value, configurable: true });
+		// (an engine with no idle callbacks: Safari)
+		if (this.#o.idle === false) {
+			const w = window as unknown as Record<string, unknown>;
+			delete w.requestIdleCallback;
+			delete w.cancelIdleCallback;
+		}
 		if ((window as unknown as { MessageChannel?: unknown }).MessageChannel === undefined)
 			Object.defineProperty(window, 'MessageChannel', {
 				value: message_channel(this.#o.loop, tab.realm),
@@ -334,7 +416,8 @@ export class Browsers {
 				configurable: true
 			});
 		}
-		install_timeline(window);
+		// (a layout, and the IntersectionObserver that reads it: happy-dom's never reports)
+		install_layout(window, this.#o.loop, tab.realm);
 		// (the tab's network, as a browser's `navigator.onLine` reads its own: test/online.node.test.ts)
 		const network = this.#o.network;
 		Object.defineProperty(window.navigator, 'onLine', {
@@ -373,6 +456,12 @@ export class Browsers {
 		};
 		window.addEventListener('ogygia:hydrated', hear as never);
 		window.addEventListener('ogygia:live', hear as never);
+		// (the differential's ear, as the real-browser player's init script: test/differ.test.ts)
+		Object.defineProperty(window, '__sim_heard', {
+			value: (line: string) => tab.lifecycle.push(line),
+			configurable: true
+		});
+		ear(window);
 		this.#count_held(window, tab);
 		const w = window as unknown as {
 			addEventListener(
@@ -612,6 +701,29 @@ export class Browsers {
 	}
 
 	/** Opens a tab for `v` (blank until it goes somewhere). */
+	/**
+	 * The visitor looks at `tab`: it is shown, and each other tab of theirs goes behind it (one window,
+	 * tabs in a row). A tab whose visibility changed hears `visibilitychange`; one shown again gets the
+	 * animation frames it asked for while hidden. Whether `tab` was hidden.
+	 */
+	focus(v: Visitor, tab: Tab): boolean {
+		const was_hidden = tab.hidden;
+		for (const t of v.tabs) {
+			const hidden = t !== tab;
+			if (t.hidden === hidden) continue;
+			t.hidden = hidden;
+			this.#o.loop.note(`${t.name} ${hidden ? 'hidden' : 'shown'}`);
+			const doc = t.page.mainFrame.document as unknown as Document;
+			const view = doc.defaultView as (Window & typeof globalThis) | null;
+			if (view) doc.dispatchEvent(new view.Event('visibilitychange'));
+			if (!hidden) {
+				t.seen.add(t.realm);
+				t.platform?.shown();
+			}
+		}
+		return was_hidden;
+	}
+
 	open(v: Visitor): Tab {
 		const name = `tab-${++this.#tabs}`;
 		const page = v.browser.newPage();
@@ -622,9 +734,13 @@ export class Browsers {
 			documents: 0,
 			navigations: 0,
 			awaiting: false,
+			before: null,
+			started: null,
 			errors: [],
 			console: [],
 			platform: null,
+			hidden: false,
+			seen: new Set(),
 			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
 			listening: () => [],
 			watching: () => [],
@@ -632,6 +748,7 @@ export class Browsers {
 			swaps: [],
 			swaps_by: new Map(),
 			heard: new Map(),
+			lifecycle: [],
 			moves_by: new Map(),
 			said_by: new Map()
 		};
@@ -646,6 +763,7 @@ export class Browsers {
 		}
 		v.tabs.push(tab);
 		this.#windows.set(page.mainFrame.window, tab);
+		on_navigation_start(page, (frame, go, type) => this.#start(tab, frame, go, type));
 		// (happy-dom reports a failed script or stylesheet here, then fires `error` on its element:
 		// the element's listener, in #arrive, says it with this text)
 		const pc = page.console as unknown as Record<string, (...a: unknown[]) => void>;
@@ -664,15 +782,6 @@ export class Browsers {
 	 */
 	navigate(tab: Tab, how: 'goto' | 'back' | 'forward' | 'reload', path = '/'): Promise<void> {
 		const page = tab.page;
-		// a navigation whose document has not come yet is called off by this one, as a browser does:
-		// its document never comes (happy-dom wrote it over the newer page once its stalled body
-		// ended, under its own URL; palaestra seed 122), and its requests' realm is never shown
-		if (tab.awaiting) {
-			tab.documents++;
-			this.#o.network.leave(`${tab.name}#${tab.documents}`);
-		}
-		tab.awaiting = true;
-		const mine = ++tab.navigations;
 		const go =
 			how === 'goto'
 				? page.goto(new URL(path, this.#o.origin).href)
@@ -682,17 +791,57 @@ export class Browsers {
 						? page.goForward()
 						: page.reload();
 		// (one called off says nothing: the visitor called it off)
-		const latest = () => tab.navigations === mine;
+		const mine = tab.navigations;
 		return go.then(
-			() => {
-				if (latest()) tab.awaiting = false;
-			},
+			() => {},
 			(error: unknown) => {
-				if (!latest()) return;
-				tab.awaiting = false;
+				if (tab.navigations !== mine) return;
 				tab.errors.push(`navigation: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		);
+	}
+
+	/**
+	 * A navigation of `tab`'s main frame starts (`go`), the visitor's or the page's. One whose
+	 * document has not come yet is called off by it, as a browser does: its document never comes
+	 * (happy-dom wrote it over the newer page once its stalled body ended, under its own URL;
+	 * palaestra seed 122), its requests' realm is never shown, and it never was an entry: happy-dom
+	 * adds a navigation's entry as it starts, a browser once its document comes, so the history is
+	 * put back as it was before it, and a back goes back from the page on screen (palaestra seed
+	 * 20958: the router handed a click to the browser, and the visitor went back meanwhile).
+	 */
+	#start(
+		tab: Tab,
+		frame: object,
+		go: () => Promise<unknown>,
+		type: NavigationType
+	): Promise<unknown> {
+		tab.started = { at: this.#o.loop.now, type };
+		if (tab.awaiting && tab.before !== null) {
+			tab.documents++;
+			this.#o.network.leave(`${tab.name}#${tab.documents}`);
+			restore_history(frame, tab.before);
+		}
+		tab.awaiting = false;
+		tab.before = null;
+		const before = save_history(frame);
+		const window = () => (frame as { window: unknown }).window;
+		const shown = window();
+		const mine = ++tab.navigations;
+		const going = go();
+		// (a new document is on its way when the frame's window was replaced: a step within the
+		// document, a fragment or a `pushState` entry, replaces none)
+		if (window() !== shown) {
+			tab.awaiting = true;
+			tab.before = before;
+		}
+		const end = () => {
+			if (tab.navigations !== mine) return;
+			tab.awaiting = false;
+			tab.before = null;
+		};
+		void going.then(end, end);
+		return going;
 	}
 
 	/** The tab leaves the document it shows (it moves on, or closes): a browser unloads it, so its
