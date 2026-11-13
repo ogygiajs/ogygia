@@ -7,7 +7,7 @@
  */
 import type { RequestEvent } from '@sveltejs/kit';
 import type { Simplify } from './view.ts';
-import { json_response, redirect_response } from './respond.ts';
+import { json_response, redirect_response, text_response } from './respond.ts';
 
 /** The visitor's identity — plain claims (`sub`, roles, whatever the app's session carries). A
  *  logged-out visitor has no `sub`: `anonymousVisitor()` gives `vid`, a random id from a cookie. */
@@ -109,11 +109,7 @@ export function make_ctx(
 		event,
 		json: (data, init) => json_response(data, init),
 		redirect: (location, status = 303) => redirect_response(status, location),
-		text: (body, init) =>
-			new Response(body, {
-				...init,
-				headers: { 'content-type': 'text/plain; charset=utf-8', ...init?.headers }
-			}),
+		text: (body, init) => text_response(body, init),
 		href,
 		state: {}
 	};

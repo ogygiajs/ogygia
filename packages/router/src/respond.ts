@@ -42,11 +42,29 @@ export const is_http_error = (x: unknown): x is HttpError =>
 export const is_action_failure = (x: unknown): x is ActionFailure =>
 	typeof x === 'object' && x !== null && ACTION_FAILURE in x;
 
+function with_defaults(
+	init: ResponseInit | undefined,
+	defaults: ReadonlyArray<readonly [string, string]>
+): ResponseInit {
+	const headers = new Headers(init?.headers);
+	for (const [name, value] of defaults) if (!headers.has(name)) headers.set(name, value);
+	return { ...init, headers };
+}
+
+const JSON_DEFAULTS: ReadonlyArray<readonly [string, string]> = [
+	['content-type', 'application/json'],
+	['cache-control', 'no-store']
+];
+const TEXT_DEFAULTS: ReadonlyArray<readonly [string, string]> = [
+	['content-type', 'text/plain; charset=utf-8']
+];
+
 export function json_response(data: unknown, init?: ResponseInit): Response {
-	return new Response(JSON.stringify(data), {
-		...init,
-		headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...init?.headers }
-	});
+	return new Response(JSON.stringify(data), with_defaults(init, JSON_DEFAULTS));
+}
+
+export function text_response(body: string, init?: ResponseInit): Response {
+	return new Response(body, with_defaults(init, TEXT_DEFAULTS));
 }
 
 export function redirect_response(status: number, location: string): Response {
