@@ -12,8 +12,10 @@
 		"ogygia/no-string-concat": "error",
 		"ogygia/prefer-dedent": "error",
 		"ogygia/html-sink": "error",
+		"ogygia/one-markup-walk": "error",
 		"ogygia/one-hash": "error",
 		"ogygia/compiler-boundary": "error",
+		"ogygia/dispose-by-close": "error",
 		"ogygia/ports": "error"
 	},
 	"overrides": [
@@ -40,6 +42,20 @@
 				"packages/core/src/runtime/beacon.ts"
 			],
 			"rules": { "ogygia/ports": "off" }
+		},
+		{
+			"files": [
+				"packages/compiler/src/**",
+				"packages/cli/src/**",
+				"packages/tooling/src/**",
+				"packages/config/src/**",
+				"packages/testing/src/index.ts",
+				"packages/barrels/src/**",
+				"packages/tsdown-plugin-svelte/src/**",
+				"packages/*/src/vite/**",
+				"packages/*/src/compiler/**"
+			],
+			"rules": { "ogygia/dispose-by-close": "off" }
 		}
 	],
 	"ignorePatterns": [

@@ -98,7 +98,7 @@
 			};
 			report = { a: dump.analysis, meta: dump.meta, extras: dump.extras };
 		} catch {
-			error = 'Wrong password, or the link is corrupted.';
+			error = 'Wrong password, or the link is corrupted.'; // ok: shown on the page
 		} finally {
 			busy = false;
 		}

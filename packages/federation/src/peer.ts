@@ -18,7 +18,12 @@ import {
 import { error, isHttpError as is_http_error } from '@ogygia/router';
 import type { RegionValue } from '@ogygia/core';
 import { htmlRegion as og_html_region } from '@ogygia/core/plugin';
-import { current_request_scope, OG_FRAGMENT_FAILED } from '@ogygia/core/internal/server';
+import {
+	current_request_scope,
+	next_tag,
+	OG_FRAGMENT_FAILED,
+	value_at
+} from '@ogygia/core/internal/server';
 import { decodeText, escapeAttr } from '@ogygia/core/plugin/utils';
 import { fed_app } from './app.ts';
 import { warn } from './messages.ts';
@@ -29,6 +34,8 @@ import {
 	FRAGMENT_ROUTES_PATH,
 	FRAGMENT_BASE,
 	OFF_SITE_PATH_RE,
+	fragment_document,
+	widget_document,
 	type Claims,
 	type FragmentDocument,
 	type WidgetDocument
@@ -42,9 +49,9 @@ const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 const HOST_UNSAFE_G = /[^a-zA-Z0-9_-]/g;
-/** A region element's opening tag, and the `endpoint` in it. */
-const REGION_OPEN_RE = /<ogygia-region\b[^>]*>/g;
-const ENDPOINT_ATTR_RE = /(\sendpoint=")([^"]*)(")/;
+/** A region element's tag name, and a cheap test for whether `html` may hold one. */
+const REGION = 'ogygia-region';
+const REGION_NEEDLE = /<ogygia-region/i;
 
 /** A failed hop, said once with its code: an answer that can't be used (an error status, or not its
  *  JSON document: `federation_peer_answer_invalid`), or no answer at all (`federation_peer_unreachable`).
@@ -234,21 +241,22 @@ export class PeerHandle implements Peer {
 			}
 			if (res.status < 500 || i === origins.length - 1) break;
 		}
-		const doc = await this.#answer<WidgetDocument>(res, 'widget', { error: last_err, signal });
+		const doc = await this.#answer(res, 'widget', { error: last_err, signal });
 		return { ...doc, html: this.#own_endpoints(doc.html) };
 	}
 
 	/** Every hop's answer, read as the JSON document it should be. No answer at all (down,
 	 *  unreachable, past the timeout) or one that can't be used (an error status, or a body that does
-	 *  not parse: a byte changed on the way, a proxy's error page) is said with its code and thrown as
-	 *  a {@link HopFailed}; a hop the asking request ended itself throws its own error, unsaid. A
-	 *  page's 404 is a document: the peer's own not-found page. test/peer-answer-invalid.test.ts
-	 *  (#929, #931), test/peer-unreachable.test.ts (#933). */
-	async #answer<T>(
+	 *  not parse, or parses as another shape: a byte changed on the way, a proxy's error page or
+	 *  JSON) is said with its code and thrown as a {@link HopFailed}; a hop the asking request ended
+	 *  itself throws its own error, unsaid. A page's 404 is a document: the peer's own not-found page.
+	 *  test/peer-answer-invalid.test.ts (#929, #931), test/peer-unreachable.test.ts (#933),
+	 *  test/property-peer-answer.test.ts (#1103). */
+	async #answer<K extends 'page' | 'widget'>(
 		res: Response | undefined,
-		kind: 'page' | 'widget',
+		kind: K,
 		none: { error: unknown; signal?: AbortSignal }
-	): Promise<T> {
+	): Promise<K extends 'page' ? FragmentDocument : WidgetDocument> {
 		if (!res) {
 			if (none.signal?.aborted)
 				throw none.error instanceof Error ? none.error : new Error(String(none.error));
@@ -263,13 +271,19 @@ export class PeerHandle implements Peer {
 			throw new HopFailed(`answered ${what}`, res.status);
 		}
 		const text = await res.text();
+		let doc: FragmentDocument | WidgetDocument | null;
 		try {
-			return JSON.parse(text) as T;
+			const parsed: unknown = JSON.parse(text);
+			doc = kind === 'page' ? fragment_document(parsed) : widget_document(parsed);
 		} catch {
+			doc = null; // ok: not JSON is not the document either, said just below
+		}
+		if (doc === null) {
 			const what = 'something that is not its JSON document';
 			warn('federation_peer_answer_invalid', { peer: this.name, url, what });
 			throw new HopFailed('answered no document', res.status);
 		}
+		return doc as K extends 'page' ? FragmentDocument : WidgetDocument;
 	}
 
 	async page(path: string, dials: RemoteDials & { search?: string } = {}): Promise<RegionValue> {
@@ -381,7 +395,7 @@ export class PeerHandle implements Peer {
 		}
 		let doc: FragmentDocument;
 		try {
-			doc = await this.#answer<FragmentDocument>(res, 'page', { error: last_err, signal });
+			doc = await this.#answer(res, 'page', { error: last_err, signal });
 		} catch (e) {
 			if (e instanceof HopFailed) error(e.status, e.message);
 			throw e;
@@ -428,17 +442,25 @@ export class PeerHandle implements Peer {
 	 * Test: test/peer-endpoints.test.ts (#910).
 	 */
 	#own_endpoints(html: string): string {
-		if (!html.includes('<ogygia-region')) return html;
-		return html.replace(REGION_OPEN_RE, (tag) =>
-			tag.replace(ENDPOINT_ATTR_RE, (whole, open: string, value: string, close: string) => {
-				const target = this.#own_target(decodeText(value));
-				const url =
-					target === null
-						? ''
-						: hole_url({ peer: this.name, kind: 'endpoint', target, search: '' });
-				return url ? open + escapeAttr(url) + close : whole;
-			})
-		);
+		if (!REGION_NEEDLE.test(html)) return html;
+		let out = '';
+		let kept = 0;
+		for (let t = next_tag(html, REGION, 0); t !== null; t = next_tag(html, REGION, t.next)) {
+			const value = t.attr('endpoint');
+			if (!value) continue;
+			const at = value_at(html, t, REGION, 'endpoint');
+			const target = at === -1 ? null : this.#own_target(decodeText(value));
+			if (target === null) continue;
+			const url = hole_url({ peer: this.name, kind: 'endpoint', target, search: '' });
+			if (!url) continue;
+			// (the new value is written in double quotes whatever quoted the old one: `escapeAttr`
+			// escapes for those, and a path may hold a `'`)
+			const q = html.charCodeAt(at - 1);
+			const quoted = q === 34 || q === 39 ? 1 : 0;
+			out = `${out}${html.slice(kept, at - quoted)}"${escapeAttr(url)}"`;
+			kept = at + value.length + quoted;
+		}
+		return kept === 0 ? html : `${out}${html.slice(kept)}`;
 	}
 
 	/** The path and query `url` names on one of this peer's origins (a relative one, on its first),

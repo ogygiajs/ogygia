@@ -32,10 +32,10 @@ test('the mpa-nav feature publishes the MPA handle; the router feature replaces 
 			document.head.querySelector('script[data-ogygia-speculate-hint]')?.textContent
 		).toContain('/next-page');
 	}
-	// goto keeps the router's contract: same-origin only unless `external`.
-	expect(() => (mpa.goto as (u: string) => void)('https://elsewhere.example/x')).toThrow(
-		/same-origin/
-	);
+	// goto keeps the router's contract: same-origin only unless `external` (a refused URL rejects)
+	await expect(
+		(mpa.goto as (u: string) => Promise<void>)('https://elsewhere.example/x')
+	).rejects.toThrow(/same-origin/);
 
 	// The router feature installs: its SPA API becomes the handle.
 	router.install();

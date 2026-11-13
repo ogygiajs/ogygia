@@ -17,7 +17,7 @@
  * Each call owns its timers and its listener on `signal` (a scope): they are let go the moment the
  * call settles, whichever way.
  */
-import { clock, queue, scope, type Queue, type Scope } from '@ogygia/machine';
+import { clock, queue, scope, type Place, type Queue, type Scope } from '@ogygia/machine';
 
 export interface GateOptions {
 	/** The call answers within this long: the wait for a slot and the run together. */
@@ -46,7 +46,7 @@ export class ConcurrencyGate {
 		this.#slots = queue<Waiter>({
 			name: 'render gate',
 			max: this.#limit,
-			start: (w) => w.enter(),
+			start: (w, place) => w.enter(place),
 			stale: (w) => w.gone(),
 			now: clock.mono
 		});
@@ -58,11 +58,10 @@ export class ConcurrencyGate {
 		const deadline = deadline_ms === undefined ? Infinity : clock.mono() + deadline_ms;
 		const call = scope();
 		try {
-			await this.#enter(deadline, signal, call);
-			const slots = this.#slots;
+			const slot = await this.#enter(deadline, signal, call);
 			// (handed a slot in the same step the signal aborted: the slot goes on, the body never starts)
 			if (signal?.aborted) {
-				slots.release();
+				slot.release();
 				throw signal.reason;
 			}
 			let body: Promise<T>;
@@ -77,7 +76,7 @@ export class ConcurrencyGate {
 			const end = () => {
 				if (holds) {
 					holds = false;
-					slots.release();
+					slot.release();
 				} else this.#abandoned--;
 			};
 			body.then(end, end);
@@ -86,7 +85,7 @@ export class ConcurrencyGate {
 				if (!holds) return;
 				holds = false;
 				this.#abandoned++;
-				slots.release();
+				slot.release();
 			});
 		} finally {
 			call.close();
@@ -111,13 +110,13 @@ export class ConcurrencyGate {
 	/** A slot: at once when one is free, else in turn (or the deadline passes, or the signal aborts,
 	 *  first). A waiter that gives up leaves the queue at once: with every slot held by bodies that
 	 *  never end, nothing else would drop it, and the queue would grow by the request rate. */
-	#enter(deadline: number, signal: AbortSignal | undefined, call: Scope): Promise<void> {
+	#enter(deadline: number, signal: AbortSignal | undefined, call: Scope): Promise<Place> {
 		return new Promise((resolve, reject) => {
 			let entered = false;
 			const waiter: Waiter = {
-				enter: () => {
+				enter: (place) => {
 					entered = true;
-					resolve();
+					resolve(place);
 				},
 				gone: () => reject(signal?.aborted ? signal.reason : new Error(WAIT_TIMEOUT))
 			};
@@ -134,7 +133,7 @@ export class ConcurrencyGate {
 }
 
 /** A call waiting for a slot: `enter` once handed one, `gone` once it gave up. */
-type Waiter = { enter: () => void; gone: () => void };
+type Waiter = { enter: (place: Place) => void; gone: () => void };
 
 /** Whether `error` is a call's run timeout: its body ran past the deadline and was abandoned. */
 export function is_run_timeout(error: unknown): boolean {
