@@ -26,11 +26,39 @@ import {
 	transformHost,
 	islandVirtualId,
 	wrapperVirtualId,
-	CLIENT_BINDING_STUB,
-	collect_flag_sites,
-	flags_manifest,
-	type FlagSite
+	CLIENT_BINDING_STUB
 } from '@ogygia/compiler';
+
+/** One flag call site, as `@ogygia/flags`' inventory reads it. */
+type FlagSite = { name: string; kind: 'flag'; file: string; line: number };
+/** The flag inventory (`@ogygia/flags/internal/inventory`): the collector the build runs. */
+interface FlagInventory {
+	collect_flag_sites(code: string, id: string, file: string): FlagSite[];
+	flags_manifest(sites: readonly FlagSite[]): { flags: FlagSite[]; names: string[] };
+}
+/** The inventory: loaded from the project this server was started in, never from a directory a
+ *  tool is pointed at (that would run its code, test/mcp-flags-trust.test.ts). Core does not depend
+ *  on the plugin. A failed load is not kept, so installing the plugin needs no restart. */
+const inventory_load = flights({
+	name: 'flag inventory',
+	run: async () => {
+		const from_app = createRequire(path.join(process.cwd(), 'package.json'));
+		return (await import(
+			pathToFileURL(from_app.resolve('@ogygia/flags/internal/inventory')).href
+		)) as FlagInventory;
+	}
+});
+/** The inventory, `null` when the plugin is not installed, or the error that broke its load. */
+async function load_flag_inventory(): Promise<FlagInventory | null | Error> {
+	try {
+		const got = await inventory_load.get();
+		return got === STALE ? null : got; // (nothing drops it, so it is never STALE)
+	} catch (e) {
+		const code = (e as { code?: unknown }).code;
+		if (code === 'MODULE_NOT_FOUND' || code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') return null; // ok: not installed; the tool says so
+		return e instanceof Error ? e : new Error(String(e));
+	}
+}
 import { line } from './messages.ts';
 
 /** The profiler's report reading (`@ogygia/devtools/report`), as these tools use it: loaded from the
@@ -1914,9 +1942,19 @@ function walk_flag_files(dir: string, out: string[] = [], depth = 0): string[] {
 	return out;
 }
 
-function tool_flags(args: Attrs): ToolResult {
+async function tool_flags(args: Attrs): Promise<ToolResult> {
 	const dir = String(args.dir ?? '.');
 	const root = path.isAbsolute(dir) ? dir : path.resolve(process.cwd(), dir);
+	const inventory = await load_flag_inventory();
+	if (inventory instanceof Error)
+		return fail(
+			`@ogygia/flags is installed in ${process.cwd()} but its inventory failed to load: ${inventory.message}`
+		);
+	if (!inventory)
+		return text(
+			`@ogygia/flags is not installed in ${process.cwd()} (the project this server runs in), so there are no flags to inventory. Flags are defined with \`flag('name', …)\` from '@ogygia/flags'.`
+		);
+	const { collect_flag_sites, flags_manifest } = inventory;
 
 	// The last build's inventory, when this project has one (client build writes it).
 	let manifest: { flags: FlagSite[]; names: string[] } | null = null;
