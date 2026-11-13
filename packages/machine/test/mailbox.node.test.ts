@@ -8,6 +8,12 @@ describe('a mailbox in a Node process', () => {
 	it('a posted handler that rejects later is an unhandled rejection, as a direct call’s would be', () => {
 		const file = fileURLToPath(new URL('./fixtures/mailbox-unheard-throw.ts', import.meta.url));
 		const out = execFileSync(process.execPath, [file], { encoding: 'utf8', timeout: 20_000 });
-		expect(out.trim()).toBe('unheard: late');
+		expect(out.trim().split('\n')[0]).toBe('unheard: late');
+	});
+
+	it('a posted handler that rejects later still ends its turn: the next one runs', () => {
+		const file = fileURLToPath(new URL('./fixtures/mailbox-unheard-throw.ts', import.meta.url));
+		const out = execFileSync(process.execPath, [file], { encoding: 'utf8', timeout: 20_000 });
+		expect(out.trim().split('\n')).toContain('next: ran');
 	});
 });
