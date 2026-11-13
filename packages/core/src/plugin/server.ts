@@ -54,9 +54,9 @@ export function start_plugins(
 			current: current_facts,
 			perVisitor: note_per_visitor,
 			observeReads: (event) => observe_reads(event, facts_of(event.request).reads),
-			sign: own.sign,
-			verify: own.verify,
-			capability: plugin_capabilities(own),
+			sign: own.plain.sign,
+			verify: own.plain.verify,
+			capability: plugin_capabilities(own.capabilities),
 			devtools: record_server_event,
 			keepAlive: keep_alive,
 			warn(message) {

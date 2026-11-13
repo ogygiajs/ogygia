@@ -102,6 +102,14 @@ describe('byte strip', () => {
 		expect(s.unsized_images).toEqual(['/real.png']);
 	});
 
+	it('counts the elements as the browser makes them: none from a quoted `<`, a comment ends at `<!-->`, a nested template is one (#1370)', () => {
+		expect(byte_strip('<p title="<b>">y</p><!--><i>z</i><em>w</em>').elements?.total).toBe(3);
+		expect(
+			byte_strip('<template><template><b>x</b></template><u>y</u></template><s>z</s>').elements
+				?.total
+		).toBe(2);
+	});
+
 	it('reads the page seed’s text the way the byte strip finds the seed script', () => {
 		expect(page_seed(doc)).toBe('{"data":{"a":1}}');
 		expect(
@@ -455,6 +463,26 @@ describe('dom diff + shift boxes', () => {
 		const big = html_diff(`<p>${'a '.repeat(3000)}</p>`, `<p>${'b '.repeat(3000)}</p>`);
 		expect(big.truncated).toBe(true);
 		expect(big.ops.map((o) => o.kind)).toEqual(['same', 'del', 'add', 'same']);
+	});
+
+	// a tag is a token whole, as the browser reads it (#1370): a `<` or `>` in a value, a comment or
+	// a script's text does not cut it
+	it('tokenizes a tag whole whatever its values hold, in any quoting', () => {
+		for (const v of ['x>y', 'a<b', "say 'hi'", 'say "hi"', '&quot;&gt;'])
+			for (const q of ['"', "'", ''])
+				if (!(q && v.includes(q)) && !(q === '' && /[\s"'<>=`]/.test(v))) {
+					const tag = `<a title=${q}${v}${q} data-x>`;
+					expect(tokenize_html(`${tag}go</a>`), tag).toEqual([tag, 'go', '</a>']);
+				}
+		expect(tokenize_html('<script>if(a<b)go()</script><p>1 < 2</p>')).toEqual([
+			'<script>',
+			'if(a<b)go()',
+			'</script>',
+			'<p>',
+			'1 < 2',
+			'</p>'
+		]);
+		expect(tokenize_html('<!-- <b>x</b> --><i>')).toEqual(['<!-- <b>x</b> -->', '<i>']);
 	});
 
 	it('shift boxes normalize to the viewport, biggest first, skipping shifts with no rect', () => {
