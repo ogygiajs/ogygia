@@ -18,6 +18,9 @@ import vm from 'node:vm';
 import Module from 'happy-dom/lib/module/ECMAScriptModule.js';
 import Compiler from 'happy-dom/lib/module/ECMAScriptModuleCompiler.js';
 import ModuleFactory from 'happy-dom/lib/module/ModuleFactory.js';
+import ModuleURLUtility from 'happy-dom/lib/module/ModuleURLUtility.js';
+import UnresolvedModule from 'happy-dom/lib/module/UnresolvedModule.js';
+import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
 
 type Window = object & { fetch(url: string): Promise<Response>; location: { href: string } };
 
@@ -28,6 +31,9 @@ interface Loader {
 	/** Puts a module whose download failed elsewhere (happy-dom's own fetch) into the map, failed: a
 	 *  browser keeps it failed for the document's life, so a later import fails too. */
 	fail(url: string, error: unknown): void;
+	/** The source of a module in the map (come, or on its way), or undefined: happy-dom's own
+	 *  fetch of a module the map already has takes it from here, not from the network. */
+	source(url: string): Promise<string> | undefined;
 }
 
 const LOADER = Symbol('ogygia.sim.modules');
@@ -87,10 +93,53 @@ function make_loader(window: Window): Loader {
 			throw error;
 		}
 	};
+	/** Sources happy-dom compiled (a `modulepreload`, a module script, a classic `import()`), and the
+	 *  ones an import waits for while happy-dom still downloads them. */
+	const compiled = new Map<string, string>();
+	const awaited = new Map<string, (code: string) => void>();
+	/** Each module's source, as the map got it (`Loader.source`). */
+	const sources = new Map<string, Promise<string>>();
+	/** ONE MODULE MAP PER DOCUMENT: happy-dom's own download of `url` under way (a modulepreload,
+	 *  the document's module script) is the map's entry, so an import waits for it rather than ask
+	 *  the network again (test/modules.test.ts). Its source, once its module compiles; undefined
+	 *  when happy-dom has not asked for it. */
+	const downloading = (url: string): Promise<string> | undefined => {
+		const map = (window as unknown as Record<symbol, { esm: Map<string, unknown> } | undefined>)[
+			PropertySymbol.modules
+		]?.esm;
+		const entry = map?.get(url);
+		if (entry === undefined) return undefined;
+		const known = compiled.get(url);
+		if (known !== undefined) return Promise.resolve(known);
+		return new Promise<string>((resolve, reject) => {
+			const compile = () => {
+				const now = compiled.get(url);
+				if (now !== undefined) return resolve(now);
+				awaited.set(url, resolve);
+				// (downloaded, not compiled yet: its preload compiles it, which hands the source here)
+				void (map!.get(url) as { preload?: () => Promise<void> }).preload?.();
+			};
+			if (entry instanceof UnresolvedModule)
+				entry.addResolveListener(compile, (error: unknown) => {
+					if (typeof error === 'object' && error !== null) unfetched.add(error);
+					reject(error);
+				});
+			else compile();
+		});
+	};
 	const load = (url: string, code?: string): Promise<vm.Module> => {
+		if (code !== undefined) {
+			compiled.set(url, code);
+			awaited.get(url)?.(code);
+			awaited.delete(url);
+		}
 		let m = modules.get(url);
 		if (m === undefined) {
-			m = (code !== undefined ? Promise.resolve(code) : fetch_code(url)).then((c) => make(url, c));
+			const source =
+				code !== undefined ? Promise.resolve(code) : (downloading(url) ?? fetch_code(url));
+			source.catch(() => {});
+			sources.set(url, source);
+			m = source.then((c) => make(url, c));
 			// (a module that fails to load or parse fails its importers, who report it as a page
 			// does; the cached promise itself is not an unhandled rejection of the host)
 			m.catch(() => {});
@@ -152,7 +201,8 @@ function make_loader(window: Window): Loader {
 			const m = Promise.reject(error);
 			m.catch(() => {});
 			modules.set(url, m);
-		}
+		},
+		source: (url) => sources.get(url)
 	};
 }
 
@@ -219,6 +269,9 @@ export function use_v8_modules(): void {
 	// (one module map per document: a file happy-dom failed to download, for a classic script's
 	// `import()` or a `modulepreload`, stays failed for the document's own imports too, as in a
 	// browser; test/modules.test.ts)
+	// (and the other way round: a module the map already has, imported by a module, is the one
+	// happy-dom's factory hands a `modulepreload` or a script, its source the map's, never a second
+	// download; test/modules.test.ts)
 	const get_module = factory.getModule as (...a: unknown[]) => Promise<unknown>;
 	factory.getModule = async function (
 		this: { window: Window; parentURL: URL | string },
@@ -226,6 +279,34 @@ export function use_v8_modules(): void {
 		options?: { with?: { type?: string } },
 		...rest: unknown[]
 	) {
+		const esm = (options?.with?.type ?? 'esm') === 'esm';
+		const window = this.window as never;
+		const href = esm ? ModuleURLUtility.getURL(window, this.parentURL, url).href : '';
+		const own = (this.window as unknown as Record<symbol, { esm: Map<string, unknown> }>)[
+			PropertySymbol.modules
+		].esm;
+		const source = esm && !own.has(href) ? loader_of(this.window).source(href) : undefined;
+		if (source !== undefined) {
+			const waiting = new UnresolvedModule({ window, url: new URL(href) });
+			own.set(href, waiting);
+			let code: string;
+			try {
+				code = await source;
+			} catch (error) {
+				waiting.resolve(error as Error);
+				throw error;
+			}
+			const made = new Module({
+				window,
+				url: new URL(href),
+				source: code,
+				sourceURL: href,
+				factory: new ModuleFactory(window, new URL(href))
+			});
+			own.set(href, made);
+			waiting.resolve();
+			return made;
+		}
 		try {
 			return await get_module.call(this, url, options, ...rest);
 		} catch (error) {

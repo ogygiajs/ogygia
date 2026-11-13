@@ -1,4 +1,5 @@
 import { boot_link } from './slots.ts';
+import { OgygiaError } from '../messages/lazy.ts';
 import {
 	PAGE_DEFER_KEY,
 	PAGE_SETTLED_KEY,
@@ -20,6 +21,10 @@ interface Registry {
 	settled?: Map<number, { ok: boolean; value: unknown }>;
 	revivers?: Record<string, (payload: never) => unknown>;
 	t?: Record<number, number>;
+	/** resolves that came and are still on their way in (devalue loading) */
+	arriving?: Set<number>;
+	/** the document has loaded: every resolve script it holds has run */
+	loaded?: boolean;
 }
 
 function reg(): Registry {
@@ -64,11 +69,29 @@ export function create_deferred(id: number): Promise<unknown> {
 	});
 	promise.catch(() => {}); // ok: the same promise is handed back, and its `{#await}` sees the rejection; no unhandled-rejection noise if a rejected leaf goes un-awaited
 	deferreds.set(id, { promise, resolve, reject });
+	if (r.loaded && !r.arriving?.has(id)) settle(id, false, unresolved('stream'));
 	return promise;
+}
+
+/** Why a streamed promise settles with no resolve: the document loaded without one (`stream`), or
+ *  its resolve came and devalue's download never did (`devalue`). */
+function unresolved(why: 'stream' | 'devalue'): Error {
+	return new OgygiaError('page_promise_unresolved', { why });
+}
+
+/** The document has loaded: every resolve script it holds has run, so a promise with none queued
+ *  or on its way in will never get one. */
+function document_loaded(): void {
+	const r = reg();
+	r.loaded = true;
+	// (settle deletes from the map it walks: a Map's for…of sees each key once all the same)
+	for (const id of r.deferreds?.keys() ?? [])
+		if (!r.arriving?.has(id)) settle(id, false, unresolved('stream'));
 }
 
 function settle(id: number, ok: boolean, value: unknown): void {
 	const r = reg();
+	r.arriving?.delete(id);
 	const d = r.deferreds?.get(id);
 	if (d) {
 		r.deferreds!.delete(id);
@@ -90,21 +113,31 @@ export function install_page_defer(
 	const r = reg();
 	if (r.live) return;
 	r.revivers = page_defer_revivers(extra_revivers);
-	r.live = (id, ok, encoded) =>
-		boot_link().with_devalue(({ parse }) => {
-			let value: unknown = null;
-			try {
-				value = parse(encoded, r.revivers as Parameters<typeof parse>[1]);
-			} catch {
-				// ok: a mangled chunk resolves to null, never hangs the `{#await}`
-			}
-			settle(id, ok, value);
-		});
+	r.live = (id, ok, encoded) => {
+		(r.arriving ??= new Set()).add(id);
+		boot_link().with_devalue(
+			({ parse }) => {
+				let value: unknown = null;
+				try {
+					value = parse(encoded, r.revivers as Parameters<typeof parse>[1]);
+				} catch {
+					// ok: a mangled chunk resolves to null, never hangs the `{#await}`
+				}
+				settle(id, ok, value);
+			},
+			() => settle(id, false, unresolved('devalue'))
+		);
+	};
 	const queued = r.q;
 	r.q = [];
 	if (queued) for (const [id, ok, encoded] of queued) r.live(id, ok, encoded);
 	const g = globalThis as unknown as Record<string, unknown>;
 	g[PAGE_DEFER_GLOBAL] ??= (id: number, ok: boolean, encoded: string) => r.live!(id, ok, encoded);
+	// (off a document, a test or the server: nothing says when the resolves are done)
+	if (typeof document === 'undefined') return;
+	if (document.readyState === 'complete') document_loaded();
+	// oxlint-disable-next-line ogygia/owned-effects -- the document's own load, once: the registry is the document's and outlives every visit
+	else addEventListener('load', document_loaded, { once: true });
 }
 
 /** devalue reviver map for the page seed. A DEFER marker becomes a pending Promise (streaming path); a
