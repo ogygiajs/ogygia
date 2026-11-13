@@ -1191,13 +1191,14 @@ class FileCompilation {
 
 			const inline = new Map();
 			for (const a of attr_list) inline.set(a.key.name ?? a.key.value, String(a.value.value));
-			refuse_unknown_attributes(
-				String(node.source.value),
-				inline.keys(),
-				import_keys,
-				rel_host,
-				node.specifiers.map((sp: SvelteNode) => sp.local.name).join(', ')
-			);
+			if (!inline.has(import_keys.preset))
+				refuse_unknown_attributes(
+					String(node.source.value),
+					inline.keys(),
+					import_keys,
+					rel_host,
+					node.specifiers.map((sp: SvelteNode) => sp.local.name).join(', ')
+				);
 			if (!region_keys.some((k) => inline.has(k))) continue;
 			const bindings = marked_import_bindings(node, source, rel_host);
 			const names = bindings.map((b) => b.local).join(', ');
