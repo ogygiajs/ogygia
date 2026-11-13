@@ -414,7 +414,7 @@ routes(table, { visitor: session, flags: [csrMode] });   // decide-but-don't-ren
 
 ## The flag manifest
 
-Every production build writes an inventory of the `flag()` call sites it compiled. The inventory is resolved from the AST, so renamed and namespace imports count, while an unrelated local function named `flag` does not. It is written to:
+Every production build with `flags()` listed beside `ogygia()` writes an inventory of the `flag()` call sites in the app's source (every module that imports `@ogygia/flags`, used or not). Without `flags()`, there is no manifest, and the build warns once (`plugin_not_listed`). The inventory is resolved from the AST, so renamed and namespace imports count, while an unrelated local function named `flag` does not. It is written to:
 
 ```
 node_modules/.ogygia/flags-manifest.json   →  { flags: [{ name, kind, file, line }], names: [...] }

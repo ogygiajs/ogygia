@@ -20,16 +20,17 @@ function make_compiler() {
 			transformN: 0,
 			transformHit: 0,
 			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
+			macroMs: 0,
+			macroN: 0,
 			resolveMs: 0,
 			loadMs: 0
 		},
 		P: false,
 		outHash: new Map<string, number>()
 	};
-	const compiler = new Compiler(program, profiler);
-	compiler.configure(
+	const compiler = new Compiler(
+		program,
+		profiler,
 		new CompileCtx(
 			partial_ctx_init({
 				root: ROOT,
@@ -117,6 +118,30 @@ describe('standalone driver (no Vite)', () => {
 		expect(out.touched).toBe(true);
 		expect(out.code).not.toContain('import.meta.og.$'); // the marker is gone
 		expect(compiler.dollar_hoists.size).toBeGreaterThan(0); // the factory was captured for the fn-manifest
+	});
+
+	test('the fn-manifest is the same bytes whatever order the modules transformed in', async () => {
+		const mod = (n: number) => `export const f${n} = import.meta.og.$(() => ${n});\n`;
+		const manifest = async (order: number[]) => {
+			const { compiler } = make_compiler();
+			for (const n of order) await compiler.macros(mod(n), `${ROOT}/src/lib/m${n}.ts`);
+			const leg = {
+				server: false,
+				relocated: new Map<string, number>(),
+				late_server_regions: new Map<string, string>()
+			};
+			const bundle = {
+				graph: () => null,
+				module_ids: () => [],
+				chunk_file: 'fn-manifest.js',
+				file_name: String,
+				facade_file: () => undefined
+			};
+			return compiler.relocate('/*__OGYGIA_FN_MANIFEST__*/', leg, bundle)?.code;
+		};
+		const forward = await manifest([1, 2, 3]);
+		expect(forward).toContain('__og_reg_fn');
+		expect(await manifest([3, 1, 2])).toBe(forward);
 	});
 
 	test('Compiler.macros is inert on a module with no markers', async () => {

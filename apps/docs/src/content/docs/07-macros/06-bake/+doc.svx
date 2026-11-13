@@ -19,6 +19,28 @@ const nav = import.meta.og.bake(() => buildNav());
 
 This is useful for anything expensive that never changes between requests, such as a nav tree computed from a corpus, a config object assembled from several files, or an RSS payload. You compute it once when you build instead of on every request or in the browser.
 
+## Set it up
+
+`bake` comes with its own package, `@ogygia/bake`. List its plugin beside `ogygia()`, and add its types:
+
+```ts
+// vite.config.ts
+import { ogygia } from 'ogygia/vite';
+import { bake } from '@ogygia/bake';
+
+export default defineConfig({
+	plugins: [ogygia(), bake(), sveltekit()]
+});
+```
+
+```ts
+// src/app.d.ts
+/// <reference types="ogygia/types" />
+/// <reference types="@ogygia/bake/types" />
+```
+
+Without `bake()` in the list, a call to `import.meta.og.bake` fails the build with `macro_needs_plugin`, which names the package to install. The macro runs after every other plugin's macro, and only in the app's own source (and the files a package lists in `"ogygia.files"`).
+
 ## How it runs
 
 At build time the macro bundles `fn` together with the imports it uses, executes that bundle in Node, serializes the result with [devalue](https://github.com/Rich-Harris/devalue), and inlines it. Because devalue is the serializer, the result can be much more than JSON: `Date`, `Map`, `Set`, `RegExp`, `BigInt`, typed arrays and circular structures all survive.
