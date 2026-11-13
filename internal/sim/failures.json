@@ -2108,6 +2108,54 @@
 			"reason": "`!l.ok`: proved: the !ok check made never true turns the test red, twice",
 			"test": "packages/testing/test/testing-primitives.test.ts",
 			"name": "a line with nothing measured fails, and says so"
+		},
+		{
+			"site": "packages/content/src/collection-base.ts > Collection > reload > catch:0",
+			"reason": "`catch (err) { if (!lenient) throw err; refused.push(err); const kept …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "one bad update (a field the schema refuses) does not stop the ones after it"
+		},
+		{
+			"site": "packages/content/src/collection-base.ts > Collection > reload > throw:0",
+			"reason": "`throw err;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "a schema error on the first read: fixed at the source, the next read loads"
+		},
+		{
+			"site": "packages/content/src/collection-base.ts > Collection > follow > catch:0",
+			"reason": "`catch (err) { // The connection stays open for the next read (this.#c…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "a reconnect whose read fails waits and tries again on the same connection"
+		},
+		{
+			"site": "packages/content/src/collection-base.ts > Collection > follow > catch:2",
+			"reason": "`catch (err) { if (!following()) return; this.#connection = null; cons…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "a dropped connection is opened again, and what changed meanwhile is read"
+		},
+		{
+			"site": "packages/content/src/convention.ts > compile_format > throw:0",
+			"reason": "`throw new OgygiaError('content_dated_format_invalid', { format });`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/convention-dated.test.ts",
+			"name": "throws on a format missing a token"
+		},
+		{
+			"site": "packages/content/src/folder.ts > folder > throw:0",
+			"reason": "`throw new OgygiaError('content_folder_unexpected_file', { key, page: …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/sources.test.ts",
+			"name": "a file that is neither a page nor a sidecar fails at construction"
+		},
+		{
+			"site": "packages/content/src/folder.ts > folder > verify > throw:0",
+			"reason": "`throw new OgygiaError('content_folder_invalid', { issues: errors.join…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/convention.test.ts",
+			"name": "duplicate numbers in a directory fail the read, named"
+		},
+		{
+			"site": "packages/content/src/schema.ts > parseSchema > throw:0",
+			"reason": "`throw new OgygiaError('content_schema_failed', { label, issues: msgs …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "a schema error on the first read: fixed at the source, the next read loads"
 		}
 	],
 	"impossible": [
@@ -2464,19 +2512,12 @@
 		"packages/content/src/collection-base.ts > Collection > stop_following > .catch:0",
 		"packages/content/src/collection-base.ts > Collection > normalizeRef > throw:0",
 		"packages/content/src/collection-base.ts > Collection > normalizeRef > throw:1",
-		"packages/content/src/collection-base.ts > Collection > reload > catch:0",
-		"packages/content/src/collection-base.ts > Collection > reload > throw:0",
 		"packages/content/src/collection-base.ts > Collection > reloadIds > catch:0",
-		"packages/content/src/collection-base.ts > Collection > follow > catch:0",
 		"packages/content/src/collection-base.ts > Collection > follow > catch:1",
-		"packages/content/src/collection-base.ts > Collection > follow > catch:2",
 		"packages/content/src/collection-base.ts > Collection > connect > .catch:0",
 		"packages/content/src/collection-base.ts > Collection > reconnect > timer:0",
 		"packages/content/src/collection-base.ts > Collection > reconnect > .catch:0",
-		"packages/content/src/convention.ts > compile_format > throw:0",
-		"packages/content/src/folder.ts > folder > throw:0",
 		"packages/content/src/folder.ts > folder > meta > stale:0",
-		"packages/content/src/folder.ts > folder > verify > throw:0",
 		"packages/content/src/folder.ts > folder > throw:1",
 		"packages/content/src/folder.ts > folder > throw:2",
 		"packages/content/src/formats.ts > as_object > throw:0",
@@ -2515,7 +2556,6 @@
 		"packages/content/src/markdown/shiki.ts > get_highlighter > stale:0",
 		"packages/content/src/markdown/shiki.ts > highlight > throw:0",
 		"packages/content/src/markdown/shiki.ts > highlight > stale:0",
-		"packages/content/src/schema.ts > parseSchema > throw:0",
 		"packages/content/src/schema.ts > parseSchema > catch:0",
 		"packages/content/src/schema.ts > parseSchema > throw:1",
 		"packages/content/src/schema.ts > parseSchema > throw:2",
