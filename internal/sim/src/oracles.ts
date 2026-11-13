@@ -4,6 +4,7 @@
  */
 import { writeFileSync } from 'node:fs';
 import { own_text, type Tab, type Visitor } from './browser.ts';
+import { boxes, on_screen, type Box } from './layout.ts';
 import { answer_key, FOREIGN_MARK, is_page_path, type World } from './world.ts';
 
 /** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
@@ -570,13 +571,45 @@ export function regions_show(tab: Tab, world: World): Broken | null {
 	return { oracle: 'empty-region', detail: `${url}: ${left.map(open).join('\n')}` };
 }
 
+/** Whether a region's schedule is owed by now: see {@link schedules}. */
+type Due = (el: Element, when: string | null, margin: string | null) => boolean;
+
 /**
- * A HOLE'S FALLBACK DOES NOT STAND: at rest, no deferred region that wakes on its own (`load`,
- * `idle`) still shows the generated app's fallback (`data-gen-fallback`) in a document no fault or
- * deploy touched: its answer was owed. The MPA check cannot see it (the fresh load runs the same code
- * and stands there too: a mutant whose holes never fetched survived it). Set aside: a fallback the
- * app keeps on purpose (`keepFallback()`, marked `data-gen-kept`), and holes that wait for the
- * visitor or the screen.
+ * WHAT A SCHEDULE OWES AT REST, in `tab`'s document as it stands: whether a region's schedule (core's
+ * trigger vocabulary: `load`, `idle`, `visible`, `interaction` or a media query) has fired once the
+ * world is at rest. `load` and `idle` always, and so does none named or a value core does not hold
+ * (it runs on load). `visible` when the region is on screen in the simulator's layout, the viewport
+ * grown by its `margin` (src/layout.ts, the layout its observer reported), in a shown document: a
+ * browser renders no frame for a tab behind another, so its observer reports nothing there. A media
+ * query when it matches. `interaction` never: only the visitor fires it. A mutant that dropped a
+ * region's margin survived every other oracle (core.ts `#on_visible`, the hole's `prefetch`).
+ */
+function schedules(tab: Tab, doc: Document): Due {
+	let at: Map<Element, Box> | null = null;
+	const view = doc.defaultView as unknown as {
+		matchMedia?(q: string): { matches: boolean };
+	} | null;
+	return (el, when, margin) => {
+		if (when === 'interaction') return false;
+		if (when === 'visible')
+			return !tab.hidden && on_screen((at ??= boxes(doc)), el, margin || undefined);
+		// (a media query: a `(` with a `)` after it, as core reads one)
+		const open = when?.indexOf('(') ?? -1;
+		if (when && open !== -1 && when.indexOf(')', open) !== -1)
+			return view?.matchMedia?.(when).matches === true;
+		return true;
+	};
+}
+
+/**
+ * A HOLE'S FALLBACK DOES NOT STAND: at rest, no deferred region whose `when` is owed by now (see
+ * {@link schedules}: `load`, `idle`, `visible` on screen with its margin, a matching media query)
+ * still shows the generated app's fallback (`data-gen-fallback`) in a document no fault or deploy
+ * touched: its answer was owed. The MPA check cannot see it (the fresh load runs the same code and
+ * stands there too: a mutant whose holes never fetched survived it). Its `prefetch` is owed the
+ * same way: a hole whose warm schedule is owed and that never answered asked its endpoint. Set
+ * aside: a fallback the app keeps on purpose (`keepFallback()`, marked `data-gen-kept`), and holes
+ * that wait for the visitor or the screen.
  */
 export function fallback_stands(tab: Tab, world: World): Broken | null {
 	const url = tab.page.mainFrame.url;
@@ -591,14 +624,33 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 		mine.filter((e) => e.method === 'GET').map((e) => answer_key(new URL(e.url)))
 	);
 	const doc = tab.page.mainFrame.document as unknown as Document;
-	const standing = [...doc.querySelectorAll('ogygia-region[render="defer"]')].filter((r) => {
-		if (!/^(load|idle|)$/.test(r.getAttribute('when') ?? '')) return false;
-		const fallback = r.querySelector(':scope > [data-gen-fallback]');
-		if (fallback === null || fallback.hasAttribute('data-gen-kept')) return false;
-		if (!touched) return true;
+	const due = schedules(tab, doc);
+	const never_asked = (r: Element) => {
 		const endpoint = r.getAttribute('endpoint');
 		return endpoint !== null && !asked.has(answer_key(new URL(endpoint, url)));
+	};
+	const holes = [...doc.querySelectorAll('ogygia-region[render="defer"]')];
+	const standing = holes.filter((r) => {
+		if (!due(r, r.getAttribute('when'), r.getAttribute('margin'))) return false;
+		const fallback = r.querySelector(':scope > [data-gen-fallback]');
+		if (fallback === null || fallback.hasAttribute('data-gen-kept')) return false;
+		return !touched || never_asked(r);
 	});
+	// (a warm owed and never sent: its hole still waits for its own schedule, on its fallback, and
+	// nothing asked its endpoint; a batch's body is not seen, so a document that sent one is let be)
+	const cold = mine.some((e) => e.method === 'POST')
+		? []
+		: holes.filter((r) => {
+				const prefetch = r.getAttribute('prefetch');
+				if (!prefetch || !due(r, prefetch, r.getAttribute('margin'))) return false;
+				const fallback = r.querySelector(':scope > [data-gen-fallback]');
+				return fallback !== null && !standing.includes(r) && never_asked(r);
+			});
+	if (cold.length > 0)
+		return {
+			oracle: 'fallback-stands',
+			detail: `${url}: never warmed: ${cold.map((r) => `${r.querySelector('[data-gen-fallback]')!.textContent} (prefetch "${r.getAttribute('prefetch')}"${r.hasAttribute('margin') ? `, margin "${r.getAttribute('margin')}"` : ''})`).join(', ')}`
+		};
 	if (standing.length === 0) return null;
 	// (a region a filed bug leaves empty stands on its fallback for the same reason: #910's hole asks
 	// the app's endpoint, which refuses it)
@@ -619,7 +671,9 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 
 /**
  * AN ISLAND THAT WAKES ON ITS OWN IS AWAKE: at rest, no island region (it names its `entry`) whose
- * `wake` is `load` or `idle` is still asleep (no `data-hydrated`): its wake was owed. Its twin for
+ * `wake` is owed by now is still asleep (no `data-hydrated`): `load`, `idle`, `visible` on screen
+ * with its margin, a matching media query ({@link schedules}; a hole's once its `when` is owed too).
+ * Its twin for
  * holes is {@link fallback_stands}; the MPA check cannot see it (the fresh load runs the same code
  * and sleeps there too). Set aside: a document a fault touched (its code may have failed to
  * download) unless only an outage did (the network came back, and it wakes again), and one a
@@ -633,6 +687,16 @@ export function islands_wake(tab: Tab, world: World): Broken | null {
 	// chunk outlasted the action's quiesce; seed 97, test/hidden-tab.node.test.ts)
 	if (world.network.busy_for(tab.realm)) return null;
 	const doc = tab.page.mainFrame.document as unknown as Document;
+	const due = schedules(tab, doc);
+	// (a hole's island is owed its wake once its own answer was: its `when`, then its `wake`, with
+	// the hydrate margin core reads first)
+	const owed = (r: Element): boolean => {
+		const wake = r.getAttribute('wake');
+		if (wake === null || wake === 'none') return false;
+		if (r.getAttribute('render') !== 'defer') return due(r, wake, r.getAttribute('margin'));
+		const margin = r.getAttribute('hydrate-margin') || r.getAttribute('margin');
+		return due(r, r.getAttribute('when'), r.getAttribute('margin')) && due(r, wake, margin);
+	};
 	// (an island inside one still waiting for the visitor or the screen waits with it, and one in a
 	// lake waits for the island around the lake, which a held region's baked markup never is: gen
 	// 262, an island in a lake in a page-hosted held region, e2e/hole-in-lake.spec.ts)
@@ -649,15 +713,12 @@ export function islands_wake(tab: Tab, world: World): Broken | null {
 			}
 			const wake = a.getAttribute('wake');
 			if (wake === 'none') in_lake = true;
-			else if (wake !== null && !/^(load|idle)$/.test(wake)) return true;
+			else if (wake !== null && !owed(a)) return true;
 		}
 		return in_lake;
 	};
 	const asleep = [...doc.querySelectorAll('ogygia-region[entry]')].filter(
-		(r) =>
-			/^(load|idle)$/.test(r.getAttribute('wake') ?? '') &&
-			!r.hasAttribute('data-hydrated') &&
-			!waits(r)
+		(r) => owed(r) && !r.hasAttribute('data-hydrated') && !waits(r)
 	);
 	if (asleep.length === 0) return null;
 	const open = (r: Element) =>
