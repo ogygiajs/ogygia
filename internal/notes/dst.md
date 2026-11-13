@@ -524,6 +524,46 @@ server's clock). A difference every browser shows alike is the simulator's (`sim
 first list); one only some show is `engines` (an engine's way, or timing). dst.yml's `differ` job
 runs 12 seeds a day (a new range each day) in all three and puts the report in its summary.
 
+## The compiler
+
+`internal/compiler-dst` simulates the compiler, not the browser. An app is drawn by fast-check
+(`src/app.ts`: a route tree, each node's csr in its universal or server option file, library
+components importing each other, wake marks) and held in memory: the compiler reads it through its
+file seam (`CompileCtx.fs`, `memory_fs`). `src/session.ts` compiles it with no Vite (prescan, then
+every module for both legs) and `snapshot()` is everything it decided: registry, island closure,
+region kinds, runtime marks, route worlds, each transform's output.
+
+Oracles: two cold compiles agree; directory listing order and transform order change nothing
+(`src/order.ts`). `DST_RUNS=3000 pnpm test` for a long search. Each finding becomes an issue and a
+failing test in the compiler (the first: #1358).
+
+Dev matches a cold start (`src/dev.ts`, `test/dev-cold.test.ts`): a dev server held in memory runs
+the plugin's hooks for each file event in Vite's order (`watchChange`, `handleHotUpdate`, the
+transform hook) and plays Vite's part with a module cache: a page load walks the module graph from
+the components and the table modules, through the plugin's `resolveId`, `load` and `transform`, and
+a cached module is served again until something invalidates it (Vite re-runs no plugin for a
+file's importers). After random edits (files added, changed, deleted, one at a time, in a seeded
+order), what dev serves, and its registry, marks and route worlds, must equal a fresh dev server on
+the final files. Dev may hold more of two grow-only facts (`GROW_ONLY`: the island graph and the
+runtime marks: a superset is safe), never less. A filed bug the model works around is in `KNOWN`
+(`DST_KNOWN=` turns them off): it makes the model do what the fix will make the plugin do, so a
+search goes on past it.
+
+Topology (`src/topology.ts`, `test/topology.test.ts`): Kit 2 (a session per leg) and Kit 3 (one
+session, both legs) serve each leg the same modules and emit the same chunks, and one build with its
+modules requested in a seeded order serves the same bytes (found #1399). The app's marks cover
+islands of every wake, lakes, server islands (with a fetch timing) and `region: 'raw'`.
+
+Sound analyses (`src/reads.ts`, `test/sound.test.ts`): a component drawn from `page.data` read
+shapes (members, literals, destructuring, aliases, helpers, `$derived`, markup, the `$app/stores`
+store, spreads, computed keys), rendered by Svelte on the server with `page.data` a recording
+Proxy: every key it read is within what seed shaping predicted (`'all'` predicts every key). A shape
+a filed bug explains (#1317: a page as a parameter default) is not drawn while it is in `KNOWN`.
+
+Next, from the compiler study (section G.4): watch (a second build in one session: compiler 5's
+F1 work, #1386), metamorphic edits (renames, comments, an unused import), more analyses under the
+soundness oracle (hole reads, wire crossing), and wider apps (remotes, wire classes, router pages).
+
 ## Findings
 
 A real bug gets a GitHub issue (labels `bug`, `dst`) and a failing test on its own branch
