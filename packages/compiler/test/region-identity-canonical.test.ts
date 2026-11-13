@@ -2,7 +2,7 @@
 // the same component the same way (region/identity.ts), so each way an app can name that file must
 // give one id and one wrapper: `$lib/…`, a relative path, a root-absolute `/src/…` (Vite resolves it
 // under the app root), an app alias; and a host whose script is `lang="ts"` beside one that is not.
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -28,7 +28,8 @@ const ctx = (ssr: boolean) =>
 		devUrlFor: (p: string) => `/@id/${p}`,
 		visibleMargin: '0px',
 		presets: {},
-		alias: [{ find: '$widgets', replacement: `${LIB}/widgets` }]
+		alias: [{ find: '$widgets', replacement: `${LIB}/widgets` }],
+		stat: (abs: string) => (existsSync(abs) ? 'dir' : null)
 	}) as Parameters<typeof transformHost>[2];
 
 /** The one region a host marking `spec` registers, on `leg`. */
