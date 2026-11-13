@@ -42,7 +42,7 @@ export class UpstashStore implements PostrenderStore {
 		try {
 			return JSON.parse(raw);
 		} catch {
-			return null;
+			return null; // ok: an entry that does not parse is a miss: the page renders again
 		}
 	}
 
@@ -104,7 +104,7 @@ export class UpstashStore implements PostrenderStore {
 			throw new OgygiaError('postrender_adapter_request_failed', {
 				what: 'upstash command',
 				status: res.status,
-				body: await res.text().catch(() => '')
+				body: await res.text().catch(() => '') // ok: the failure is thrown just here; its body is only detail
 			});
 		}
 		return ((await res.json()) as { result: T }).result;

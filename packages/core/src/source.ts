@@ -88,7 +88,7 @@ export function fingerprint_args(args: unknown[]): string {
 	try {
 		return fnv1a(JSON.stringify(canonical(args)));
 	} catch {
-		return 'opaque';
+		return 'opaque'; // ok: args that do not stringify share one tag: an evict drops them all, never too few
 	}
 }
 

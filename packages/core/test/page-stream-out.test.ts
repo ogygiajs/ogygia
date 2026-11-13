@@ -76,3 +76,56 @@ it('a value whose staging throws fails its own promise; the rest stream and the 
 	expect(unhandled).toEqual([]);
 	request.close();
 });
+
+it('a nested promise streams with its parent, and the stream closes only once it settled', async () => {
+	const request = scope();
+	let inner!: (v: string) => void;
+	const res = stream_page_deferred(
+		request,
+		kit_document(),
+		[{ id: 0, promise: Promise.resolve({ more: new Promise<string>((r) => (inner = r)) }) }],
+		1
+	);
+	setTimeout(() => inner('deep'), 20);
+	const body = await read_all(res, 2000);
+	expect(body).toMatch(/__ogygia_page_resolve\(0,true,[\s\S]*__ogygia_page_resolve\(1,true,/);
+	expect(body).toContain('deep');
+	request.close();
+});
+
+it('the request ending drops what is still out: a value that settles after is never staged', async () => {
+	const request = scope();
+	let late!: (v: unknown) => void;
+	let walked = false;
+	stream_page_deferred(
+		request,
+		kit_document(),
+		[{ id: 0, promise: new Promise((r) => (late = r)) }],
+		1
+	);
+	request.close();
+	late({
+		get seen() {
+			walked = true;
+			return 1;
+		}
+	});
+	await new Promise((r) => setTimeout(r, 20));
+	expect(walked).toBe(false);
+	expect(unhandled).toEqual([]);
+});
+
+it('the request ending before a promise is streamed still handles its rejection', async () => {
+	const request = scope();
+	let fail!: (e: unknown) => void;
+	stream_page_deferred(
+		request,
+		kit_document(),
+		[{ id: 0, promise: new Promise((_, reject) => (fail = reject)) }],
+		1
+	);
+	request.close();
+	fail(new Error('a load promise that failed'));
+	await new Promise((r) => setTimeout(r, 20));
+	expect(unhandled).toEqual([]);
+});
