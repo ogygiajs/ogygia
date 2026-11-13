@@ -123,7 +123,8 @@ describe('the page-data relocation: a page reader seed shaping could not read', 
 		graph: (id: string) => graph[id] ?? null,
 		module_ids: () => Object.keys(graph),
 		chunk_file: 'manifest.js',
-		file_name: String
+		file_name: String,
+		facade_file: () => undefined
 	};
 	const server_leg = () => ({
 		server: true,
