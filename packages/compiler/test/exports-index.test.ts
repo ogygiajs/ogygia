@@ -280,9 +280,9 @@ describe('a barrel’s map, name by name', () => {
 
 	it('an explicit export wins over a star, two stars with different leaves make a name ambiguous, and a star never brings default', async () => {
 		const map = await map_of({
-			'/app/lib/index.ts': `export { x } from './own';\nexport * from './a';\nexport * from './b';`,
+			'/app/lib/index.ts': `export { x } from './own'; export * from './a'; export * from './b';`,
 			'/app/lib/own.ts': 'export const x = 0;',
-			'/app/lib/a.ts': 'export const x = 1;\nexport const y = 1;\nexport default 1;',
+			'/app/lib/a.ts': 'export const x = 1; export const y = 1; export default 1;',
 			'/app/lib/b.ts': 'export const y = 2;'
 		});
 		expect(map.entries.get('x')).toEqual({ id: '/app/lib/own.ts', name: 'x' });

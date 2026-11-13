@@ -172,7 +172,7 @@ describe('analyze_exports — shape + purity', () => {
 	it('a stray semicolon and a type-only export of a local type keep a barrel pure', () => {
 		expect(analyze_exports(`export { x } from './x';;`, TS)!.pure).toBe(true);
 		expect(
-			analyze_exports(`type T = 1;\nexport { type T };\nexport { x } from './x';`, TS)!.pure
+			analyze_exports(`type T = 1; export { type T }; export { x } from './x';`, TS)!.pure
 		).toBe(true);
 	});
 
