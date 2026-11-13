@@ -10,7 +10,6 @@ import type { PageGlobals } from '@ogygia/core/plugin/client';
 let reported = 0;
 /** The element names a late restore was said for on this page (once each, the latest 1024). */
 const late_said = say();
-/** The `og-shadow` keys a missing sheet was said for on this page (once each, the latest 1024). */
 const sheet_said = say();
 
 function report(): void {
