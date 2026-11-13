@@ -16,7 +16,7 @@ import {
 // (`export const config = { postrender: false }`; postrender's key is the example used here).
 //
 // Merged exactly the way Kit merges `config` at run time (layouts root → leaf, then the page; at each
-// level the server module, then the universal one; later wins, top level only). A route that sets
+// level the universal module, then the server one; later wins, top level only). A route that sets
 // nothing carries no value (the plugin's own default applies at run time). Nothing is stripped: Kit
 // accepts any key inside `config`. This suite pins the read, the merge, and the run-time answer.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ describe('page_route_config — Kit’s merge', () => {
 		expect(effective(config, '/account/orders', true)).toBe(false);
 	});
 
-	it('at one level the universal module beats the server module, as in Kit', () => {
+	it('at one level the server module beats the universal module, as in Kit', () => {
 		const dir = routes({
 			'a/+page.svelte': '<h1>a</h1>',
 			'a/+page.server.ts': 'export const config = { postrender: true };',
@@ -147,8 +147,8 @@ describe('page_route_config — Kit’s merge', () => {
 			'b/+page.svelte': '<h1>b</h1>'
 		});
 		const config = page_route_config(R, dir, KEYS);
-		expect(config['/a']).toEqual({ postrender: false });
-		expect(config['/b']).toEqual({ postrender: true });
+		expect(config['/a']).toEqual({ postrender: true });
+		expect(config['/b']).toEqual({ postrender: false });
 	});
 
 	it('the merge is per key: a deeper config without the key keeps the outer value', () => {

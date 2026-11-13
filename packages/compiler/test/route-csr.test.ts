@@ -128,6 +128,33 @@ describe('page world — option-file chain, deepest wins', () => {
 		expect(routeCsrIsTrue(R, at(routes, 'admin/+page.svelte'), routes)).toBe(true);
 	});
 
+	it.each([
+		['+layout.server.ts', '+layout.ts'],
+		['+page.server.ts', '+page.ts']
+	])(
+		'a universal csr = true beats a server csr = false on one node, like Kit (%s, %s)',
+		(server, universal) => {
+			const routes = tree({
+				[server]: 'export const csr = false;\n',
+				[universal]: 'export const csr = true;\n',
+				'+page.svelte': '<h1>home</h1>'
+			});
+			expect(routeCsrIsFalse(R, at(routes, '+page.svelte'), routes)).toBe(false);
+			expect(routeCsrIsTrue(R, at(routes, '+page.svelte'), routes)).toBe(true);
+			expect(csrTrueRouteIds(R, routes)).toEqual(['/']);
+		}
+	);
+
+	it('a universal csr = false beats a server csr = true on one node, like Kit', () => {
+		const routes = tree({
+			'+layout.server.ts': 'export const csr = true;\n',
+			'+layout.ts': 'export const csr = false;\n',
+			'+page.svelte': '<h1>home</h1>'
+		});
+		expect(routeCsrIsFalse(R, at(routes, '+page.svelte'), routes)).toBe(true);
+		expect(rootLayoutCsrTrue(R, routes)).toBe(false);
+	});
+
 	it('group-segment option files participate in the chain', () => {
 		const routes = tree({
 			'(app)/+layout.ts': 'export const csr = false;\n',

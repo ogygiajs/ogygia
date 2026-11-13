@@ -142,7 +142,8 @@ function parse_ctx(text: string | null | undefined): Record<string, unknown> | u
 		return batch(() =>
 			parse(text, { [REF_WIRE_KEY]: ref_reviver(true) } as Parameters<typeof parse>[1])
 		) as Record<string, unknown>;
-	} catch {
+	} catch (e) {
+		if (DEV) warn('page_payload_unreadable', { what: 'context marker' }, e);
 		return undefined;
 	}
 }
