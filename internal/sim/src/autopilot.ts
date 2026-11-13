@@ -396,6 +396,8 @@ export interface AutopilotReport {
 	readonly unhandled: string[];
 	/** Sites left out (`--skip`) or not judged yet (`--limit`, `--only`). */
 	readonly skipped: string[];
+	/** Sites a mutant killed whose failing tests' names the ledger could not find in their files. */
+	readonly unnamed: { readonly site: string; readonly tests: readonly string[] }[];
 }
 
 export interface AutopilotOptions {
@@ -540,13 +542,41 @@ async function run_vitest(
 
 interface Judged {
 	readonly site: string;
-	readonly verdict: 'proved' | 'survived' | 'no-mutant';
+	/** `unnamed`: a mutant killed it, but no failing test's name is in its file (the ledger could not
+	 *  find it): never a survivor. */
+	readonly verdict: 'proved' | 'survived' | 'no-mutant' | 'unnamed';
+	/** For `unnamed`: the tests that failed, by their full names. */
+	readonly tests?: readonly string[];
 	readonly proof?: Proof;
 	readonly operators?: readonly string[];
 }
 
 const has_name = (text: string, name: string): boolean =>
 	text.includes(`'${name}'`) || text.includes(`"${name}"`) || text.includes(`\`${name}\``);
+
+const STRINGS = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\$]|\\.|\$(?!\{))*)`/g;
+const EACH_MARK = /%[sdifjoOc#%]|\$[A-Za-z_][\w.]*/;
+
+/** The name a test has in its file (`text`), as the ledger's check finds it: `name` itself, or the
+ *  each template (`'%j gives %d'`, `'$a is $b'`) a parameterized test's `name` was made from. Null
+ *  when neither is there. */
+export function test_name_in(text: string, name: string): string | null {
+	if (has_name(text, name)) return name;
+	for (const m of text.matchAll(STRINGS)) {
+		const literal = m[1] ?? m[2] ?? m[3];
+		if (!EACH_MARK.test(literal)) continue;
+		let pattern = '';
+		let at = 0;
+		for (const mark of literal.matchAll(new RegExp(EACH_MARK.source, 'g'))) {
+			pattern += literal.slice(at, mark.index).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			pattern += mark[0] === '%%' ? '%' : '[\\s\\S]*?';
+			at = mark.index + mark[0].length;
+		}
+		pattern += literal.slice(at).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		if (new RegExp(`^${pattern}$`).test(name) && has_name(text, literal)) return literal;
+	}
+	return null;
+}
 
 /** Runs the autopilot over one package. */
 export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
@@ -655,10 +685,12 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 		const proved: Proof[] = [];
 		const survived: Survivor[] = [];
 		const unreached: string[] = [];
+		const unnamed: AutopilotReport['unnamed'] = [];
 		for (const s of wanted) {
 			const j = judged.get(s.id);
 			if (reach[s.id] === undefined) unreached.push(s.id);
 			else if (j?.verdict === 'proved' && j.proof) proved.push(j.proof);
+			else if (j?.verdict === 'unnamed') unnamed.push({ site: s.id, tests: j.tests ?? [] });
 			else if (j?.verdict === 'survived')
 				survived.push({
 					site: s.id,
@@ -673,7 +705,8 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 			survived,
 			unreached,
 			unhandled,
-			skipped
+			skipped,
+			unnamed
 		};
 		writeFileSync(join(o.out, 'patch.json'), `${JSON.stringify(proved, null, '\t')}\n`);
 		writeFileSync(join(o.out, 'report.json'), `${JSON.stringify(report, null, '\t')}\n`);
@@ -696,6 +729,7 @@ async function judge(
 ): Promise<Judged> {
 	const abs = join(o.root, s.file);
 	const tried: string[] = [];
+	const unnamed: string[] = [];
 	for (const m of mutants_of(s)) {
 		const text = apply_edits(source, m.edits);
 		if (!parses(s.file, text)) continue;
@@ -736,20 +770,32 @@ async function judge(
 		const both = first
 			.filter((t) => again.some((a) => a.test === t.test && a.full === t.full))
 			.sort((a, b) => Number(a.hung) - Number(b.hung));
-		const named = both.find((t) => has_name(readFileSync(join(o.root, t.test), 'utf8'), t.name));
-		if (named === undefined) continue;
-		const red = named.hung ? 'hangs the test past the run time limit' : 'turns the test red';
+		let named: { t: (typeof both)[number]; name: string } | null = null;
+		for (const t of both) {
+			const name = test_name_in(readFileSync(join(o.root, t.test), 'utf8'), t.name);
+			if (name !== null) {
+				named = { t, name };
+				break;
+			}
+		}
+		if (named === null) {
+			if (both.length > 0) unnamed.push(...both.map((t) => `${t.test} › ${t.full}`));
+			continue;
+		}
+		const red = named.t.hung ? 'hangs the test past the run time limit' : 'turns the test red';
 		return {
 			site: s.id,
 			verdict: 'proved',
 			proof: {
 				site: s.id,
 				reason: `a test reaches its recovery path; proved by the autopilot: ${m.says} ${red}`,
-				test: named.test,
+				test: named.t.test,
 				name: named.name
 			}
 		};
 	}
+	if (unnamed.length > 0)
+		return { site: s.id, verdict: 'unnamed', operators: tried, tests: [...new Set(unnamed)] };
 	return {
 		site: s.id,
 		verdict: tried.length === 0 ? 'no-mutant' : 'survived',
@@ -763,7 +809,7 @@ export function report_md(r: AutopilotReport): string {
 	return [
 		`# Autopilot: packages/${r.package}`,
 		'',
-		`Baseline sites: ${r.baseline}. Proved: ${r.proved.length}. Survived: ${r.survived.length}. Unreached: ${r.unreached.length}. No operator: ${r.unhandled.length}. Skipped: ${r.skipped.length}.`,
+		`Baseline sites: ${r.baseline}. Proved: ${r.proved.length}. Survived: ${r.survived.length}. Killed but unnamed: ${r.unnamed.length}. Unreached: ${r.unreached.length}. No operator: ${r.unhandled.length}. Skipped: ${r.skipped.length}.`,
 		'',
 		'## Proved (baseline to covered)',
 		'',
@@ -780,6 +826,10 @@ export function report_md(r: AutopilotReport): string {
 						.join('; ')}${s.tests.length > 3 ? `; +${s.tests.length - 3}` : ''}`
 			)
 			.join('\n'),
+		'',
+		'## Killed, but no failing test has a name the ledger finds',
+		'',
+		r.unnamed.map((u) => `- \`${u.site}\`: ${u.tests.slice(0, 3).join('; ')}`).join('\n'),
 		'',
 		'## Unreached (no test runs the recovery path)',
 		'',
@@ -855,7 +905,7 @@ async function main(): Promise<void> {
 		remap: process.argv.includes('--remap')
 	});
 	console.log(
-		`packages/${pkg}: ${report.baseline} in the baseline; proved ${report.proved.length}, survived ${report.survived.length}, unreached ${report.unreached.length}, no operator ${report.unhandled.length}, skipped ${report.skipped.length} (${out})`
+		`packages/${pkg}: ${report.baseline} in the baseline; proved ${report.proved.length}, survived ${report.survived.length}, unnamed ${report.unnamed.length}, unreached ${report.unreached.length}, no operator ${report.unhandled.length}, skipped ${report.skipped.length} (${out})`
 	);
 	if (process.argv.includes('--apply')) {
 		const next = merge_patch(read_failure_ledger(), report.proved);
