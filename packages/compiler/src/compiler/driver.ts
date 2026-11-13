@@ -84,7 +84,6 @@ import { is_generated_specifier } from './virtual/table.ts';
 import { OgygiaError, warn } from './messages.ts';
 import type { Program, RegisterResult } from './program.ts';
 import type { FileFacts } from './scan-facts.ts';
-import type { Query } from './queries.ts';
 import type { CompileCtx } from './ctx.ts';
 
 /** A file-local transform result: the Vite `{ code, map }` plus the descriptors the linker registers. */
@@ -229,21 +228,17 @@ export class Compiler implements CoreApp {
 	/** `prescan()` is once-per-session — guarded so the adapter can call it from any hook. */
 	#scanned = false;
 
-	/** DEV: the parts a transform changed since the last `moved()`. */
-	readonly #moved = new Set<Part>();
-
 	/**
-	 * DEV, after each transform: the virtual modules whose last load read a part (the registry, the
-	 * marks, a file's scan facts) that the transform has since changed, for the adapter to invalidate.
-	 * One rule for every reader: the server manifest emitted while a host's rows were dropped for its
-	 * edit (every hole answered 403 until a restart), the runtime entry chosen before a page's first
-	 * `idle` region (it never woke: test/dev-regions-reload.test.ts), and the wire loaders, Kit's
-	 * codecs and the router CSS roots read before a file's facts changed (test/dev-scan-facts.test.ts).
+	 * DEV, after each transform: the virtual modules whose last load read something (the registry,
+	 * the marks, a fold over the files' scan facts) that has since changed, for the adapter to
+	 * invalidate. One rule for every reader: the server manifest emitted while a host's rows were
+	 * dropped for its edit (every hole answered 403 until a restart), the runtime entry chosen before
+	 * a page's first `idle` region (it never woke: test/dev-regions-reload.test.ts), and the wire
+	 * loaders, Kit's codecs and the router CSS roots read before a file's facts changed
+	 * (test/dev-scan-facts.test.ts).
 	 */
 	moved(): string[] {
-		const ids = [...this.#moved].flatMap((part) => this.#virtuals.bump(part));
-		this.#moved.clear();
-		return ids;
+		return this.#virtuals.moved();
 	}
 
 	/** Register a transform's regions; in dev, note whether that moved what `regions` readers read. */
@@ -251,7 +246,7 @@ export class Compiler implements CoreApp {
 		if (!this.#ctx!.is_dev) return this.program.register(result, host);
 		const before = this.#regions_print(host);
 		this.program.register(result, host);
-		if (this.#regions_print(host) !== before) this.#moved.add('regions');
+		if (this.#regions_print(host) !== before) this.#virtuals.move('regions');
 	}
 
 	/**
@@ -264,7 +259,6 @@ export class Compiler implements CoreApp {
 		const { runtime_marks, scan } = this.program;
 		const dev = ctx.is_dev;
 		const marks_before = dev ? JSON.stringify(runtime_marks) : '';
-		const since = scan.db.revision;
 
 		if (src === null) scan.set(full, null);
 		else {
@@ -299,15 +293,8 @@ export class Compiler implements CoreApp {
 			if (facts.transportable) runtime_marks.wire = true;
 		}
 
-		if (!dev) return;
-		const changed = (q: Query<string, unknown>) => scan.db.changed_since(q, 'all', since);
-		if (
-			JSON.stringify(runtime_marks) !== marks_before ||
-			changed(scan.wire_crossers) ||
-			changed(scan.transportable_modules)
-		)
-			this.#moved.add('regions');
-		if (changed(scan.module_specs) || changed(scan.router_modules)) this.#moved.add('styles');
+		// (a fold that changed moves its own readers: `moved()`; the marks are not a query yet)
+		if (dev && JSON.stringify(runtime_marks) !== marks_before) this.#virtuals.move('regions');
 	}
 
 	/** How the prescan's walk reads `id`: the app's `src/` and the declared package surfaces, minus
@@ -342,13 +329,9 @@ export class Compiler implements CoreApp {
 	get ctx(): CompileCtx {
 		return this.#ctx!;
 	}
-	/** Every virtual module this session serves (./virtual/table.ts). */
-	readonly #virtuals = new VirtualTable<CoreApp>(
-		CORE_VIRTUALS,
-		core_path,
-		CORE_VALUE_NAMES,
-		CORE_PARTS
-	);
+	/** Every virtual module this session serves (./virtual/table.ts), each load a reader of the
+	 *  program's queries. */
+	readonly #virtuals: VirtualTable<CoreApp>;
 	/** The app's Kit routes directory (a virtual module that reads it reloads on a route change). */
 	routes_dir(): string {
 		return kit_dirs(this.#ctx!.root).routes_dir;
@@ -371,9 +354,10 @@ export class Compiler implements CoreApp {
 		return this.#virtuals.split_realm_imports(code);
 	}
 	/** A dev change to a part of the session: the resolved ids of the virtual modules whose last load
-	 *  read it, for the caller to invalidate. */
+	 *  read it (or anything else that has moved), for the caller to invalidate. */
 	changed(part: Part): string[] {
-		return this.#virtuals.bump(part);
+		this.#virtuals.move(part);
+		return this.#virtuals.moved();
 	}
 
 	/**
@@ -386,7 +370,7 @@ export class Compiler implements CoreApp {
 	 */
 	routes_changed(file: string, event: FileEvent): string[] {
 		if (!this.#ctx!.routes.touch(file, event)) return [];
-		const out = new Set(this.#virtuals.bump('routes'));
+		const out = new Set(this.changed('routes'));
 		const invalidate = (id: string) => out.add(id);
 		for (const [k, w] of this.#worlds) {
 			if (this.#csr_world(w.id, w.ssr, w.link).key === w.key) continue;
@@ -451,6 +435,13 @@ export class Compiler implements CoreApp {
 	constructor(program: Program, profiler: Profiler) {
 		this.program = program;
 		this.profiler = profiler;
+		this.#virtuals = new VirtualTable<CoreApp>(
+			CORE_VIRTUALS,
+			core_path,
+			CORE_VALUE_NAMES,
+			CORE_PARTS,
+			program.scan.db
+		);
 	}
 
 	/** Bind the resolved compile context (called once the bundler has resolved the build). */
@@ -1895,7 +1886,7 @@ export class Compiler implements CoreApp {
 		if (affected.size === 0) return false;
 
 		for (const vpath of affected) invalidate(vpath);
-		for (const id of this.#virtuals.bump('regions')) invalidate(id);
+		for (const id of this.changed('regions')) invalidate(id);
 		return true;
 	}
 }
