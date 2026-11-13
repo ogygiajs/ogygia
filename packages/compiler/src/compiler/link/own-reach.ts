@@ -18,14 +18,10 @@ import type { AstNode } from '../parse/oxc.ts';
 /** `all`: the module can reach any of ogygia's exports. */
 export type OwnReach = { names: Set<string>; all: boolean; content: boolean };
 
-// static: a file that never names one of these specifiers reaches neither package (pre-filter)
 const NAMES_A_PACKAGE = /['"`](?:ogygia|@ogygia\/core|@ogygia\/content)\b/;
 
-// static: the exports that provide cross-island context
-const CONTEXT_PROVIDERS = ['Provide', 'setContext', 'createContext'];
-// static: the exports that make a value Kit's transport must carry (a held region; content bodies are
-// held regions too). Wired classes and portable snippets come in through the `wire` mark instead.
-const WIRE_PRODUCERS = ['region', 'Region', 'site'];
+const CONTEXT_PROVIDERS: readonly string[] = ['Provide', 'setContext', 'createContext'];
+const WIRE_PRODUCERS: readonly string[] = ['region', 'Region', 'site'];
 
 /** The module provides cross-island context (the `context` mark). */
 export function reaches_context(r: OwnReach): boolean {

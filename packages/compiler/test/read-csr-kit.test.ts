@@ -1,3 +1,4 @@
+// oracle: route_csr
 // A route option file's `csr`, read the way Kit reads it. Kit decides with a parser
 // (`statically_analyse_page_options`) and, at run time, the module's value. A pattern read disagreed
 // with both on code an app can write (`export let`, several declarators, `export { }`, a string
@@ -8,7 +9,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fc } from '@ogygia/config/sim';
-import { clear_route_csr_cache, read_csr } from '../src/compiler/kit.ts';
+import { node_fs } from '../src/compiler/fs.ts';
+import { read_csr, route_reader } from '../src/compiler/kit.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'og-read-csr-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -16,8 +18,8 @@ let n = 0;
 function read(src: string): boolean | undefined {
 	const file = join(dir, `o${n++}.ts`);
 	writeFileSync(file, src);
-	clear_route_csr_cache();
-	return read_csr(file);
+	// (a fresh reader each time: its caches start empty)
+	return read_csr(route_reader(node_fs), file);
 }
 
 describe('read_csr reads csr like Kit', () => {

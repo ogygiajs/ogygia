@@ -31,7 +31,10 @@ function reg(): Registry {
 	return (g[PAGE_DEFER_REGISTRY_KEY] ??= {});
 }
 
+/** The Error a rejected streamed value is: the server's (sent as data, made an Error here), or
+ *  ogygia's own coded one as it is (#1504). */
 function to_error(value: unknown): Error {
+	if (value instanceof Error) return value;
 	const msg =
 		value && typeof value === 'object' && 'message' in value
 			? String((value as { message: unknown }).message)

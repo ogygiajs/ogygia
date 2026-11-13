@@ -9,15 +9,18 @@ import { EVERY_BARREL, ExportIndex, Shapes, type Policy } from '../src/compiler/
 import { analyze_exports, analyze_imports } from '../src/compiler/exports/parse.ts';
 import { barrel_left_table } from '../src/compiler/exports/left.ts';
 import { BARREL_LEFT_REASONS } from '@ogygia/core/contract';
-import { collect_flag_sites } from '../src/compiler/flags.ts';
 import { collectFreeIdentifiers } from '../src/compiler/free-vars.ts';
 import { own_reach, reaches_context, reaches_wire } from '../src/compiler/link/own-reach.ts';
 import { page_data_keys_answer } from '../src/compiler/link/page-keys.ts';
+import { rewrite_dollar } from '../src/compiler/macros/dollar.ts';
 import { auto_brand_stores, rewrite_store } from '../src/compiler/macros/store.ts';
+import { find_og_calls } from '../src/compiler/parse/scan.ts';
 import { run_module_macros } from '../src/compiler/macros/pipeline.ts';
 import { stamp_opaque } from '../src/compiler/ownership-stamps.ts';
 import { transformHost } from '../src/compiler/region/transform.ts';
 import { mark_definer_calls } from '../src/vite/definers.ts';
+import { MapChain } from '../src/compiler/map-chain.ts';
+import { splice_map, splice_text, type Edit } from '../src/compiler/splice.ts';
 import { HOST_CTX_DEFAULTS } from '../test/_host-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 
@@ -105,7 +108,7 @@ bench(
 	async ({ app, foreign, missing }) => {
 		const ctx = (own: boolean) => ({
 			root: '/app',
-			resolveAlias: [],
+			alias: [],
 			pkgRoot: '/og',
 			dollarHoists: new Map<string, string>(),
 			macros: [{ name: 'code', handler: (code: string) => code.split('og.code').join('og_code') }],
@@ -142,6 +145,30 @@ bench(
 	{ setup: () => ({ source: route_page(20) }) }
 );
 
+/** A page whose regions are named exports of one module, in one marked declaration. */
+function named_regions_page(islands: number): string {
+	const names = Array.from({ length: islands }, (_, i) => `Block${i}`);
+	return dedent`
+		<script lang="ts">
+			import { ${names.join(', ')} } from '$lib/blocks' with { wake: 'idle' };
+			let { data } = $props();
+		</script>
+
+		${names.map((n, i) => `<${n} rows={data.blocks[${i}].rows} />`).join('\n')}
+	`;
+}
+
+// One `with` covering every binding: a binding import per name, and one use check over the file.
+bench(
+	'transformHost: named region imports as their count grows',
+	({ source }) =>
+		transformHost(source, '/app/src/routes/catalog/+page.svelte', host_ctx(true))?.code.length,
+	{
+		setup: () => ({ source: named_regions_page(3) }),
+		scale: (_ctx, k) => ({ source: named_regions_page(3 * k) })
+	}
+);
+
 bench(
 	'page data keys: which page.data keys a component reads',
 	({ source }) => page_data_keys_answer(source, '/app/src/lib/Catalog.svelte', 'svelte').keys,
@@ -159,6 +186,71 @@ bench(
 					{#each page.data.list as item}<p>{item.name} {page.data.user?.name}</p>{/each}
 				`}\n`
 			};
+		}
+	}
+);
+
+/** A script module that reads the page through its own helpers and the store helpers, `k` times
+ *  over, with names shadowed by params, patterns, loops, catch clauses and blocks. */
+function page_helpers_module(k: number): string {
+	const parts = [
+		`import { get, derived } from 'svelte/store';`,
+		`import { page } from '$app/stores';`,
+		`function lang(p) { return p.data.lang; }`,
+		`const title = (p) => p.data.title;`
+	];
+	for (let i = 0; i < k; i++)
+		parts.push(
+			`export const l${i} = lang(get(page));`,
+			`export const t${i} = derived(page, ($page) => title($page) + $page.data.s${i});`,
+			`export function f${i}({ get, b: [lang], ...rest }, title = 1) { return get(page) + lang(page) + title; }`,
+			`export function g${i}(xs) { for (const [get] of xs) get(page); for (let derived = 0; derived < 1; derived++) {} try { lang(get(page)); } catch (title) { title(page); } { const lang = 1; } return 0; }`
+		);
+	return parts.join('\n');
+}
+
+bench(
+	"page data keys: a module's own page helpers and the store helpers, shadowed and not",
+	({ source }) => page_data_keys_answer(source, '/app/src/lib/page-helpers.ts', 'script').keys,
+	{
+		setup: () => ({ source: page_helpers_module(5) }),
+		scale: (_ctx, k) => ({ source: page_helpers_module(5 * k) })
+	}
+);
+
+/** A module with `k` `$()` marks that capture module values, a shadowed global among them. */
+function dollar_module(k: number): string {
+	const parts = [`import { fetch } from './net.ts';`, `const tax = 0.19;`];
+	for (let i = 0; i < k; i++)
+		parts.push(
+			`const rate${i} = ${i};`,
+			`export const f${i} = import.meta.og.$((n) => Math.round(n * (1 + tax + rate${i})) + fetch(String(n)));`
+		);
+	return parts.join('\n');
+}
+
+bench(
+	'dollar macros: the marks of a module, each with its captures',
+	({ source }) =>
+		rewrite_dollar(source, '/app/src/lib/fns.ts', 'src/lib/fns.ts', SVELTE).hoists.length,
+	{
+		setup: () => ({ source: dollar_module(10) }),
+		scale: (_ctx, k) => ({ source: dollar_module(10 * k) })
+	}
+);
+
+bench(
+	'macro scanner: calls among templates, regexes after keywords, and comments',
+	({ source }) => find_og_calls(source, 'import.meta.og.').length,
+	{
+		setup: () => {
+			const lines: string[] = [];
+			for (let i = 0; i < 40; i++)
+				lines.push(
+					`const t${i} = \`a \${b${i}} \${\`'\`}\`; function r${i}(s) { if (s) return /'/.test(s); return typeof /"/; } // import.meta.og.no(${i})`,
+					`export const c${i} = import.meta.og.code('./x${i}.ts');`
+				);
+			return { source: `${lines.join('\n')}\n` };
 		}
 	}
 );
@@ -260,31 +352,6 @@ bench(
 			}
 			return { source: src };
 		}
-	}
-);
-
-/** A module declaring `flags` flags, each among a few lines of other code. */
-function flags_module(flags: number): string {
-	let src = `${dedent`
-		import { flag } from '@ogygia/flags';
-		import { format } from '$lib/format';
-	`}\n\n`;
-	for (let i = 0; i < flags; i++)
-		src = `${dedent`
-			${src}export const flag${i} = flag('flag-${i}', { a: 50, b: 50 });
-			export const label${i} = format('label ${i}');
-		`}\n\n`;
-	return src;
-}
-
-// Growth: the inventory is linear in the module's size. It was quadratic while each flag's line
-// was counted from the top of the file.
-bench(
-	'flag inventory: the flag calls of a module as it grows',
-	({ source }) => collect_flag_sites(source, '/app/src/lib/flags.ts', 'src/lib/flags.ts').length,
-	{
-		setup: () => ({ source: flags_module(20) }),
-		scale: (_ctx, k) => ({ source: flags_module(20 * k) })
 	}
 );
 
@@ -454,5 +521,44 @@ bench(
 	{
 		setup: () => ({ code: definers_module(4) }),
 		scale: (_ctx, k) => ({ code: definers_module(4 * k) })
+	}
+);
+
+/** `k` lines, each with a mark three passes rewrite in turn (a replacement, an insert, a removal). */
+function marked_lines(k: number): string {
+	return Array.from(
+		{ length: k },
+		(_, i) => `export const v${i} = import.meta.og.mark(${i}); // note ${i}`
+	).join('\n');
+}
+
+/** The edits of one pass: at each match of `find`, `text` in its place. */
+function pass_edits(src: string, find: string, text: string): Edit[] {
+	const edits: Edit[] = [];
+	for (let at = src.indexOf(find); at !== -1; at = src.indexOf(find, at + find.length))
+		edits.push({ start: at, end: at + find.length, text });
+	return edits;
+}
+
+bench(
+	"source maps: a module's passes spliced, each mapped, composed into one map",
+	({ src }) => {
+		const chain = new MapChain();
+		let out = src;
+		for (const [find, text] of [
+			['import.meta.og.mark', '__og_mark'],
+			['export const', 'export /* branded */ const'],
+			[' // note', '']
+		] as const) {
+			const before = out;
+			const edits = pass_edits(before, find, text);
+			out = splice_text(before, edits);
+			chain.step(() => splice_map(before, edits, '/app/src/lib/m.ts'));
+		}
+		return chain.result('/app/src/lib/m.ts').mappings.length;
+	},
+	{
+		setup: () => ({ src: marked_lines(20) }),
+		scale: (_ctx, k) => ({ src: marked_lines(20 * k) })
 	}
 );
