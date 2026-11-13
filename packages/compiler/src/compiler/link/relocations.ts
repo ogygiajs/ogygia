@@ -14,6 +14,7 @@ import {
 	PAGE_DATA_READS_TOKEN,
 	SERVER_MAP_TOKENS,
 	server_manifest_maps,
+	server_regions,
 	type ServerManifestMaps
 } from './server-manifest.ts';
 import type { Program } from '../program.ts';
@@ -84,7 +85,7 @@ const PAGE_DATA_READS: Relocation = {
 	server_only: true,
 	carrier: null,
 	value(cx) {
-		const { page_keys, page_pending, by_id, registry } = cx.program;
+		const { page_keys, page_pending } = cx.program;
 		const clean = (id: string) => id.split('?')[0].split('\\').join('/');
 		const reads_itself = (id: string) => {
 			const c = clean(id);
@@ -119,9 +120,7 @@ const PAGE_DATA_READS: Relocation = {
 			return false;
 		};
 		const out: Record<string, boolean> = {};
-		for (const [iid, virtual_path] of by_id) {
-			const reg = registry.get(virtual_path);
-			if (!reg?.server) continue;
+		for (const [iid, , reg] of server_regions(cx.program)) {
 			const root = reg.componentPath ? ids_by_path.get(clean(reg.componentPath)) : undefined;
 			// (a component the graph does not know: unknown, so it looks up: a wrong `false` would
 			// render a hole with an empty page.data)
@@ -175,7 +174,9 @@ const LATE_SERVER_REGIONS: Relocation = {
 	carrier: null,
 	value(cx) {
 		const from = path.posix.dirname(cx.chunk_file);
-		const loaders = [...cx.late_server_regions].map(([iid, ref]) => {
+		// (sorted by id, as every server region list: test/server-manifest-late-order.test.ts)
+		const late = [...cx.late_server_regions].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+		const loaders = late.map(([iid, ref]) => {
 			const rel = path.posix.relative(from, cx.file_name(ref));
 			const spec = rel.startsWith('.') ? rel : `./${rel}`;
 			return `${JSON.stringify(iid)}: () => import(${JSON.stringify(spec)})`;
