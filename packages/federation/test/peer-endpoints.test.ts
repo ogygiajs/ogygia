@@ -189,4 +189,12 @@ describe("a region of the peer's own inside its fragment", () => {
 		expect(html).toContain(`data-note='${decoy}'`);
 		expect(endpoints(html)[0]!.startsWith('/og/frag?')).toBe(true);
 	});
+
+	it('a region tag written in a script or a comment is no tag: left as it came', async () => {
+		const written = '<ogygia-region endpoint="/__ogygia__?id=z">';
+		upstream(`<script>s='${written}'</script><!-- ${written} -->`);
+		const { dash } = shell();
+		const html = ((await dash.widget('holder')) as { html: string }).html;
+		expect(html).toContain(`<script>s='${written}'</script><!-- ${written} -->`);
+	});
 });
