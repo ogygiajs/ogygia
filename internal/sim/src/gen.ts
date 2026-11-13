@@ -603,6 +603,9 @@ export interface GenPeer {
 	/** The edge pages its pages link to: `/gone`, one it lacks (its not-found page, a 404);
 	 *  `/moved`, one that redirects to `/q0`; `/who`, one that shows the visitor the app vouched for. */
 	readonly edges: { readonly gone: boolean; readonly moved: boolean; readonly who: boolean };
+	/** The origins the peer answers at: 2, the same build at `peer.test` and `peer2.test`, which the
+	 *  app reads from the second when a read of the first fails (cli.ts serves both). */
+	readonly origins: 1 | 2;
 }
 
 /** The peer a seed draws for its app of `pages`, or null (most seeds: one app alone). Its own
@@ -662,6 +665,7 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 	// (and its edge pages, from their own stream)
 	const pe = rng(seed).fork('gen peer edges');
 	const edges = { gone: pe.chance(0.5), moved: pe.chance(0.5), who: pe.chance(0.5) };
+	const origins = rng(seed).fork('gen peer origins').chance(0.4) ? 2 : 1;
 	return {
 		mount,
 		widgets: widgets.map((w) => ({ ...w, children: w.children.map(styled) })),
@@ -670,7 +674,8 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 			.map((p) => (pd.chance(0.5) ? { ...p, data: true } : p)),
 		slots,
 		ttl,
-		edges
+		edges,
+		origins
 	};
 }
 
@@ -946,6 +951,10 @@ function slot_usage(s: GenSlot): string {
 /** The app's federation (`src/lib/gen/federation.server.ts`): one identity, the peer it calls. */
 function app_federation(peer: GenPeer): string {
 	const cache = peer.ttl > 0 ? `, cache: { ttl: ${peer.ttl} }` : '';
+	const origin =
+		peer.origins === 2
+			? `[env.PEER_ORIGIN ?? 'https://peer.test', env.PEER2_ORIGIN ?? 'https://peer2.test']`
+			: `env.PEER_ORIGIN ?? 'https://peer.test'`;
 	return `import { federate } from '@ogygia/federation';
 import { env } from '$env/dynamic/private';
 
@@ -954,7 +963,7 @@ export const { peer } = federate({
 \tname: 'app',
 \tkey: env.APP_SIGNING_KEY,
 \tvisitor: () => ({ sub: 'visitor' }),
-\tpeers: { peer: { origin: env.PEER_ORIGIN ?? 'https://peer.test', key: env.PEER_PUBLIC_KEY${cache} } }
+\tpeers: { peer: { origin: ${origin}, key: env.PEER_PUBLIC_KEY${cache} } }
 });
 `;
 }
