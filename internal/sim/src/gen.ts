@@ -16,7 +16,8 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rng, type Rng } from './rng.ts';
 
-type Wake = 'load' | 'idle' | 'visible' | 'interaction';
+/** A region's wake: a keyword, or a media query (stream `gen screen`). */
+type Wake = 'load' | 'idle' | 'visible' | 'interaction' | `(${string})`;
 
 /** One region (or plain markup) of a generated page. */
 export interface GenNode {
@@ -103,6 +104,13 @@ export interface GenNode {
 	 *  where Svelte's head hydration would walk into it (the runtime takes every island's head off
 	 *  that walk first). Only one that wakes on its own, in the page's own HTML. */
 	readonly head?: 'own' | 'drift';
+	/** SCREEN (stream `gen screen`): a page's own hole fetched on a schedule of its own (`fetch`,
+	 *  else on load), one fetched on the visitor's gesture warming ahead on another (`prefetch`), and
+	 *  the margin (`margin`, a `rootMargin`) by which a `visible` island, fetch or prefetch looks
+	 *  past the viewport. What schedules owe at rest is the oracles' (src/oracles.ts `schedules`). */
+	readonly fetch?: 'visible' | 'interaction';
+	readonly prefetch?: 'load' | 'idle' | 'visible';
+	readonly margin?: string;
 	readonly children: readonly GenNode[];
 }
 
@@ -120,6 +128,9 @@ export interface GenPage {
 	/** The page's server load reads the app's flag (`gate(event)`): each read is an exposure, which the
 	 *  sink takes in batches (`flags exposures`). */
 	readonly flagged?: boolean;
+	/** A tall block before root `before` (stream `gen screen`), `height` px: what follows it starts
+	 *  below the fold, or within a margin of it. */
+	readonly fold?: { readonly before: number; readonly height: number };
 }
 
 const WAKES: readonly Wake[] = ['load', 'idle', 'visible', 'interaction'];
@@ -284,7 +295,57 @@ export function plan(seed: number): GenPage[] {
 		.map((page) => ({ ...page, roots: page.roots.map(switching) }))
 		.map(flagging(seed))
 		.map(third_party(seed))
-		.map(heads(seed));
+		.map(heads(seed))
+		.map(screen(seed));
+}
+
+/** Margins a `visible` schedule may look past the viewport by: px, % of the viewport, one side. */
+const MARGINS = ['200px', '600px', '50%', '0px 0px 300px 0px'] as const;
+/** Media queries a wake may wait for: one the 1280 px viewport matches, one it never does. */
+const MEDIA = ['(min-width: 800px)', '(max-width: 600px)'] as const;
+
+/** Where the screen decides (its own stream, `gen screen`): some pages put their later regions
+ *  below the fold, some `visible` islands look past it by a margin, some islands wake on a media
+ *  query, and some of a page's own holes fetch when seen or on the visitor's gesture, warming ahead
+ *  on another schedule. Drawn after every other stream: their draws stay as they were. */
+function screen(seed: number): (page: GenPage) => GenPage {
+	const s = rng(seed).fork('gen screen');
+	const walk = (n: GenNode, root: boolean): GenNode => {
+		const children = n.children.map((c) => walk(c, false));
+		if (n.kind === 'island' && !n.head && !n.thirdParty) {
+			if (s.chance(0.1)) return { ...n, children, wake: s.pick(MEDIA) };
+			if (n.wake === 'visible' && s.chance(0.5)) return { ...n, children, margin: s.pick(MARGINS) };
+		}
+		// (a page's own hole: nested in an island, a hole renders inline; a kept render is a preset's)
+		if (n.kind === 'hole' && root && !n.maxAge && !n.keep && n.fallback) {
+			const fetch = s.weighted<GenNode['fetch'] | 'load'>([
+				['load', 6],
+				['visible', 2.5],
+				['interaction', 1.5]
+			]);
+			if (fetch === 'load') return { ...n, children };
+			const prefetch =
+				fetch === 'interaction' && s.chance(0.7)
+					? s.pick(['load', 'idle', 'visible'] as const)
+					: undefined;
+			const looks = fetch === 'visible' || prefetch === 'visible';
+			const margin = looks && s.chance(0.6) ? s.pick(MARGINS) : undefined;
+			return {
+				...n,
+				children,
+				fetch,
+				...(prefetch ? { prefetch } : {}),
+				...(margin ? { margin } : {})
+			};
+		}
+		return { ...n, children };
+	};
+	return (page) => {
+		const roots = page.roots.map((n) => walk(n, true));
+		if (roots.length < 2 || !s.chance(0.5)) return { ...page, roots };
+		const fold = { before: s.between(1, roots.length - 1), height: s.pick([500, 700, 900, 1400]) };
+		return { ...page, roots, fold };
+	};
 }
 
 /** Some islands have a `<svelte:head>` of their own (their own stream, `gen head`), and a third
@@ -535,15 +596,20 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 function attributes(n: GenNode): string {
 	switch (n.kind) {
 		case 'island':
-			return ` with { wake: '${n.wake}' }`;
+			return ` with { wake: '${n.wake}'${n.margin ? `, margin: '${n.margin}'` : ''} }`;
 		case 'lake':
 			return ` with { wake: 'none' }`;
-		case 'hole':
+		case 'hole': {
 			// (a kept render is a preset's: apps/sim-gen/vite.config.ts)
 			if (n.maxAge) return ` with { preset: 'hole-${n.maxAge}${n.wake ? `-${n.wake}` : ''}' }`;
-			return n.wake
-				? ` with { render: 'deferred', wake: '${n.wake}' }`
-				: ` with { render: 'deferred' }`;
+			const own = [
+				...(n.fetch ? [`fetch: '${n.fetch}'`] : []),
+				...(n.prefetch ? [`prefetch: '${n.prefetch}'`] : []),
+				...(n.margin ? [`margin: '${n.margin}'`] : []),
+				...(n.wake ? [`wake: '${n.wake}'`] : [])
+			];
+			return ` with { ${["render: 'deferred'", ...own].join(', ')} }`;
+		}
 		case 'plain':
 			return '';
 		// (the parent imports the region's host: a plain component, or an island)
@@ -967,7 +1033,12 @@ export const actions = m.actions;
 					? ['<img src="/hero.png" fetchpriority="high" alt="" width="1" height="1" />']
 					: []),
 				...(page.flagged ? ['<p data-gen-flag>gate {data.gate}</p>'] : []),
-				...page.roots.map((n) => usage(n, '')),
+				...page.roots.flatMap((n, i) => [
+					...(page.fold?.before === i
+						? [`<div data-gen-fold style="height: ${page.fold.height}px"></div>`]
+						: []),
+					usage(n, '')
+				]),
 				...slots.map(slot_usage),
 				''
 			].join('\n')
