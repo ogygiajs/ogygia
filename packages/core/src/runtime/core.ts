@@ -1296,8 +1296,6 @@ class OgygiaRegion extends HTMLElement {
 
 	async #hydrate(turn: Turn) {
 		const from = this.#wake.now.kind;
-		// (`cold` is let through so the machine refuses it out loud: every fire runs in `armed`,
-		// test/machine-steps.test.ts)
 		if (this.#app || (from !== 'cold' && from !== 'armed')) return;
 		this.#wake.go('waking');
 		const mine = this.#wake.now;
@@ -1475,7 +1473,6 @@ class OgygiaRegion extends HTMLElement {
 
 	#live_put_back(turn: Turn): Promise<void> | undefined {
 		const last = this.#live_last;
-		// (still in its mode — a move — it has nothing to catch up on)
 		if (last === null || this.#live.now.kind !== 'idle') return;
 		return this.#apply_live(last, turn);
 	}
@@ -1653,8 +1650,6 @@ class OgygiaRegion extends HTMLElement {
 
 function apply_dev_head_region_css(): void {
 	if (!import.meta.env.DEV || typeof document === 'undefined') return;
-	// (after parse: the runtime bootstrap is the first node in `<head>`, so the region links below it
-	// are not parsed yet at boot)
 	// oxlint-disable-next-line ogygia/no-silent-failures -- dom_ready never rejects, and the work in it catches
 	void dom_ready().then(() => {
 		const seen = new Set<string>();
