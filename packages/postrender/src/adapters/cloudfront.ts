@@ -110,7 +110,7 @@ export class CloudFrontEdge implements EdgeAdapter {
 			throw new OgygiaError('postrender_adapter_request_failed', {
 				what: 'cloudfront invalidation',
 				status: res.status,
-				body: await res.text().catch(() => '')
+				body: await res.text().catch(() => '') // ok: the failure is thrown just here; its body is only detail
 			});
 		}
 	}

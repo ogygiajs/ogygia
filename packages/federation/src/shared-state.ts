@@ -46,7 +46,7 @@ function read_seed(name: string): unknown | undefined {
 	try {
 		return JSON.parse(el.textContent);
 	} catch {
-		return undefined;
+		return undefined; // ok: not a state this server wrote (it writes JSON): read as none, as a missing one is
 	}
 }
 
