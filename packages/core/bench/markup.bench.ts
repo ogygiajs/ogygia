@@ -155,7 +155,7 @@ bench(
 	}
 );
 
-bench('next_tag: a title in a head that has none',({ h }) => next_tag(h, 'title', 0) === null, {
+bench('next_tag: a title in a head that has none', ({ h }) => next_tag(h, 'title', 0) === null, {
 	setup: () => ({ h: head(40).replace(/<title>.*?<\/title>/, '') })
 });
 
