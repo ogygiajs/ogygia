@@ -88,3 +88,5 @@ internal/repro-ogygia-footer/
 /internal/sim/results.json
 /internal/sim/dst-results.json
 /internal/sim/plans/
+# a shrink's regression test and hand probes: test/found holds only tests put there on purpose
+/internal/sim/.scratch/

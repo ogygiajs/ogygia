@@ -281,20 +281,38 @@ function stamp_no_store(response: Response): void {
 	}
 }
 
+/** A permanent redirect: stored as its status and location, never its body. */
+const permanent_redirect = (response: Response): 301 | 308 | null =>
+	response.status === 301 || response.status === 308 ? response.status : null;
+
+/**
+ * THE VERDICT before the body is read: why this response stays per-request, or null when it may be
+ * stored. `capture` stores by it and the dev note teaches by it, so the two never disagree
+ * (test/dev-note.test.ts). The checks that need the body stay in `capture`.
+ */
+function refusal(response: Response, facts: Ctx['facts'], obs: Observation): string | null {
+	// personalization observed (a cookie, header, locals or flag read, or a cookie write)
+	if (obs.disqualified_by) return obs.disqualified_by;
+	if (obs.wrote_cookie) return 'a cookie write';
+	if (permanent_redirect(response) !== null)
+		return response.headers.get('location') ? null : 'a redirect with no location';
+	if (response.status !== 200) return `status ${response.status}`;
+	if (response.headers.has('set-cookie')) return 'a set-cookie response header';
+	if (!(response.headers.get('content-type') ?? '').includes('text/html'))
+		return 'a non-html response';
+	const app_cc = response.headers.get('cache-control') ?? '';
+	if (app_cc.includes('private') || app_cc.includes('no-store'))
+		return `the app's cache-control (${app_cc})`;
+	if (facts.streamed) return 'streamed load promises'; // always per-request
+	return null;
+}
+
 /** DEV teaching leg: the verdict runs but never stores/serves. Eligible → a `would-store`
  *  header to read in the network panel; refused → ONE console note per path naming the read. */
 const dev_noted_paths = say({ max: 500 });
 function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): void {
-	const refusal =
-		obs.disqualified_by ??
-		(obs.wrote_cookie ? 'a cookie write' : null) ??
-		(response.status !== 200 ? `status ${response.status}` : null) ??
-		(response.headers.has('set-cookie') ? 'a set-cookie response header' : null) ??
-		(!(response.headers.get('content-type') ?? '').includes('text/html')
-			? 'a non-html response'
-			: null) ??
-		(ctx.facts.streamed ? 'streamed load promises' : null);
-	if (!refusal) {
+	const why = refusal(response, ctx.facts, obs);
+	if (why === null) {
 		try {
 			response.headers.set(VIA_HEADER, 'would-store');
 		} catch {
@@ -304,15 +322,23 @@ function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): vo
 	}
 	// (once per path, for the latest 500 paths: a dev session's pages)
 	dev_noted_paths.once(ctx.path, () =>
-		warn('postrender_stays_per_request', { path: ctx.path, refusal })
+		warn('postrender_stays_per_request', { path: ctx.path, refusal: why })
 	);
 }
 
 /** What a capture did: stored an entry (with the Response to send), or refused to. A refusal made
  *  after the body was read carries a Response rebuilt from it: the original's body is spent. */
+/** A capture's outcome. Once the body is read, `response` is the page rebuilt from it (the original's
+ *  body is spent), whatever happened next: stored, refused, or `failed` (the error). */
 type Captured =
 	| { stored: true; entry: PostrenderEntry; response: Response }
-	| { stored: false; response: Response | null };
+	| { stored: false; response: Response | null; failed?: unknown };
+
+/** A failed capture, said once per page (the store's own failures are said by the registry). */
+const capture_said = say({ max: 256 });
+function capture_failed(path: string, error: unknown): void {
+	capture_said.once(path, () => warn('postrender_capture_failed', { path }, error));
+}
 
 /** A refusal made before the body was read: the original Response is still whole. */
 const REFUSED: Captured = { stored: false, response: null };
@@ -338,28 +364,21 @@ async function capture(
 	 *  build: it is served to this build only ({@link servable}). */
 	const put = (entry: PostrenderEntry): Promise<boolean> =>
 		store_render(runtime, path, { ...entry, build: version }, { ttl, tags }, flight);
-	// Personalization observed (cookie/header/locals/flag read, or a cookie write) → per-request.
-	if (obs.disqualified_by || obs.wrote_cookie) return REFUSED;
+	if (refusal(response, facts, obs) !== null) return REFUSED;
 	// Permanent redirects are the hottest cheap wins (canonical 301s) — store status + location.
-	if (response.status === 301 || response.status === 308) {
-		const location = response.headers.get('location');
-		if (!location) return REFUSED;
+	const redirect = permanent_redirect(response);
+	const location = response.headers.get('location');
+	if (redirect !== null && location) {
 		const entry: PostrenderEntry = {
 			kind: 'redirect',
-			status: response.status,
+			status: redirect,
 			location,
 			created: clock.wall() // wall: stored, read by every instance
 		};
 		if (!(await put(entry))) return REFUSED;
 		return { stored: true, entry, response };
 	}
-	if (response.status !== 200) return REFUSED;
-	if (response.headers.has('set-cookie')) return REFUSED;
 	const content_type = response.headers.get('content-type') ?? '';
-	if (!content_type.includes('text/html')) return REFUSED;
-	const app_cc = response.headers.get('cache-control') ?? '';
-	if (app_cc.includes('private') || app_cc.includes('no-store')) return REFUSED;
-	if (facts.streamed) return REFUSED; // streamed page — always per-request
 	const html = await response.text();
 	/** The page as Kit answered it, again (its body was read above). */
 	const answered = (): Response =>
@@ -368,6 +387,25 @@ async function capture(
 			statusText: response.statusText,
 			headers: response.headers
 		});
+	try {
+		return await capture_page(html, answered, content_type, put, ctx, runtime, ttl);
+	} catch (failed) {
+		// (the body is read: the page goes out rebuilt from it, not stored)
+		return { stored: false, response: answered(), failed };
+	}
+}
+
+/** The read page's verdict and store (`capture`, past the body read). */
+async function capture_page(
+	html: string,
+	answered: () => Response,
+	content_type: string,
+	put: (entry: PostrenderEntry) => Promise<boolean>,
+	ctx: Ctx,
+	runtime: Runtime,
+	ttl: number
+): Promise<Captured> {
+	const { path } = ctx;
 	// Belt and braces for streamed pages WITHOUT regions (no page snapshot to probe): Kit's boot
 	// only declares its deferred-map when the page carries pending promises — buffering such a
 	// response bakes ONE settle's inline resolve scripts into the copy. Never store it.
@@ -555,6 +593,12 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			try {
 				const captured = await capture(response, ctx, runtime, obs, ctx.options.ttl, flight);
 				settle(captured.stored ? captured.entry : null);
+				if (!captured.stored && captured.failed !== undefined) {
+					capture_failed(path, captured.failed);
+					// (not stored, as a refusal is not: per-request)
+					stamp_no_store(captured.response ?? response);
+					return captured.response ?? undefined;
+				}
 				ctx.app.devtools(
 					captured.stored
 						? {
@@ -573,9 +617,15 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 							}
 				);
 				if (captured.stored) {
-					return captured.entry.kind === 'page' && captured.entry.stitch
-						? await serve_stitched(captured.entry, 'stored', ctx)
-						: captured.response;
+					if (captured.entry.kind !== 'page' || !captured.entry.stitch) return captured.response;
+					try {
+						return await serve_stitched(captured.entry, 'stored', ctx);
+					} catch (failed) {
+						// (the original's body is spent: the page as read goes out, unstitched, per-request)
+						capture_failed(path, failed);
+						stamp_no_store(captured.response);
+						return captured.response;
+					}
 				}
 				// Refused → per-request forever (until inputs change). Stamp `no-store` when the app set
 				// nothing: the verdict's word replaces blanket CDN rules in BOTH directions (a personal
@@ -583,8 +633,11 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 				// read sends the page rebuilt from it (the original's body is spent).
 				stamp_no_store(captured.response ?? response);
 				if (captured.response) return captured.response;
-			} catch {
+			} catch (failed) {
+				// (a capture that threw before the body was read: the response goes out as it is; every
+				// step after the read hands back the page it read)
 				settle(null);
+				capture_failed(path, failed);
 			}
 		} else if (state.credentials) {
 			// (rendered for this visitor: no shared cache keeps it either)
