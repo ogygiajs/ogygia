@@ -39,7 +39,7 @@ function tree(files: Record<string, string>): string {
 		mkdirSync(path.dirname(abs), { recursive: true });
 		writeFileSync(abs, src);
 	}
-	R = route_reader({ ...node_fs }); // a fresh set of answers per tree
+	R = route_reader({ ...node_fs });
 	return routes;
 }
 const OFF = 'export const csr = false;\n';
