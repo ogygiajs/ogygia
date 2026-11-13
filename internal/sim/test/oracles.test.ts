@@ -7,6 +7,7 @@ import { World } from '../src/world.ts';
 import { user_click } from '../src/workload.ts';
 import type { Heard } from '../src/browser.ts';
 import { waste } from '../src/waste.ts';
+import { owed_text } from '../src/network.ts';
 import {
 	document_faulted,
 	fallback_stands,
@@ -27,6 +28,7 @@ import {
 	peer_answers,
 	peer_fails_over,
 	reshaped_live,
+	text_restored,
 	page_rules,
 	regions_show,
 	replicas_as_one,
@@ -1100,6 +1102,50 @@ describe('page errors', () => {
 			redirected: false
 		});
 		expect(faulted(hole, t)).toBe(true);
+	});
+});
+
+describe("a reshaped page's text comes back as it was", () => {
+	const judged = async (body: string, owes: string[] | undefined) => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/p0' });
+		w.document.write(`<html><body>${body}</body></html>`);
+		const tab = {
+			realm: 'tab-0#1',
+			name: 'tab-0',
+			page: { mainFrame: { url: 'https://app.test/p0', document: w.document } }
+		} as unknown as Parameters<typeof text_restored>[0];
+		const world = {
+			network: {
+				exchanges: [
+					{
+						id: 1,
+						from: 'tab-0#1',
+						method: 'GET',
+						url: 'https://app.test/p0',
+						status: 200,
+						cut: false,
+						tampered: false,
+						restore_owes: owes
+					}
+				]
+			}
+		} as unknown as World;
+		return text_restored(tab, world);
+	};
+
+	it('reads the originals off the marks', () => {
+		expect(owed_text('<p><!--og-t 1.0 "\\n  r3\\n"-->r3</p><!--og-t 1.1-->')).toEqual(['\n  r3\n']);
+		expect(owed_text('<p>none</p>')).toBeUndefined();
+	});
+
+	it('finds trimmed text left trimmed (a restore that never put its text back survived), and passes it put back or changed since', async () => {
+		expect((await judged('<x-gen-box><b> pad </b></x-gen-box>', ['  pad  ']))?.oracle).toBe(
+			'text-restored'
+		);
+		expect(await judged('<x-gen-box><b>  pad  </b></x-gen-box>', ['  pad  '])).toBeNull();
+		expect(await judged('<x-gen-box><b>r4</b></x-gen-box>', ['  pad  '])).toBeNull();
+		expect(await judged('<x-gen-box> r3 </x-gen-box>', undefined)).toBeNull();
 	});
 });
 
