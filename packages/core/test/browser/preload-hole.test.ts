@@ -67,3 +67,26 @@ test('a region whose address is another origin is not preloaded: no request goes
 	await new Promise((r) => setTimeout(r, 100));
 	expect(calls).toEqual([]);
 });
+
+test('a preload whose fetch fails is quiet: no unhandled rejection reaches the page', async () => {
+	const ENDPOINT = '/__ogygia__?id=preload00005&props=W3t9XQ&exp=9999999999&sig=stub';
+	const unhandled: unknown[] = [];
+	const on = (e: PromiseRejectionEvent) => {
+		unhandled.push(e.reason);
+		e.preventDefault();
+	};
+	window.addEventListener('unhandledrejection', on);
+	let asked = 0;
+	window.fetch = async () => {
+		asked++;
+		throw new TypeError('Failed to fetch');
+	};
+	try {
+		preload(region_value(ENDPOINT));
+		await expect.poll(() => asked, { timeout: 5_000 }).toBeGreaterThan(0);
+		await new Promise((r) => setTimeout(r, 100));
+	} finally {
+		window.removeEventListener('unhandledrejection', on);
+	}
+	expect(unhandled).toEqual([]);
+});

@@ -15,6 +15,15 @@ describe('parse_module', () => {
 		expect(parse_module(`const a = (;`, '/a/b.ts')).toMatchObject({ program: null, ok: false });
 	});
 
+	it('a source the parser refuses outright (a read that came back null) is a failed parse, never a throw', async () => {
+		const { parse_module } = await import('../src/compiler/parse/oxc.ts');
+		expect(parse_module(null as unknown as string, '/a/b.ts')).toEqual({
+			program: null,
+			ok: false,
+			comments: []
+		});
+	});
+
 	it('a module that imports the parser without parsing never loads vite', async () => {
 		vi.resetModules();
 		vi.doMock('vite', () => {

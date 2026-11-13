@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { browser_runs, playwright_run, stub_aliases } from '@ogygia/config/vitest';
+import { browser_runs, playwright_run, sim_define, stub_aliases } from '@ogygia/config/vitest';
 import { heisenbench_record } from '../../internal/heisenbench/src/record.ts';
 import type { BrowserCommand, BrowserCommandContext } from 'vitest/node';
 import type {} from '@vitest/browser-playwright';
@@ -112,6 +112,7 @@ export default defineConfig({
 	// heisenbench_record(): nothing, unless the measurement-source gate records the tests' inputs
 	// (internal/heisenbench/src/record.ts)
 	plugins: [svelte(), ...heisenbench_record()],
+	define: sim_define(process.env),
 	// The browser tests' dependencies, bundled before the first test file loads: found during the
 	// run, Vite bundles again and changes the URLs a test file still imports.
 	optimizeDeps: { include: ['devalue', 'esm-env', 'fast-check'] },

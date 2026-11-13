@@ -333,7 +333,7 @@ check sees a `<style>` held twice when it does not). Mutation: hydrate-core's he
 place, or the page copy kept, died on gen 262. The order those styles stand in after a return is
 #1107 (`KNOWN`).
 
-A RESHAPE PASS (`gen reshape`, 35% of apps; `@ogygia/reshape`): the app's own pass over the HTML
+A RESHAPE PASS (`gen reshape`, 35% of apps; `@ogygia/rewrite`): the app's own pass over the HTML
 ogygia sends, as a handle in front of ogygia's (`src/lib/gen/reshape.server.ts`, written by
 `app_reshape`), on every document and region answer. Half of the regions (`gen reshape boxes`) hold
 their label in an `<x-gen-box>`, a web component whose server render (the pass, reduced to its
@@ -347,7 +347,7 @@ The pass also fails as an app's does, through buggify points in the app's code: 
 (#1569), so the oracles that judge every page (no 500, no hydration mismatch, the MPA check against
 a fresh load the pass may not have failed on) are what say a failing pass leaves the page whole.
 Gens 24 (trims, links,
-no router), 10 (links, router) and 196 run it. Mutation of `packages/reshape/src/restore.ts` runs
+no router), 10 (links, router) and 196 run it. Mutation of `packages/rewrite/src/restore.ts` runs
 on gens 24 and 10.
 
 ## Tabs behind, and engines without idle callbacks
@@ -438,8 +438,8 @@ EVERY FAILURE SITE ACCOUNTED FOR (`src/failures.ts`, test/failures.test.ts), the
 what can fail. The inventory parses (oxc) every package's `src` (the ledger's `scope`) and finds
 each failure site: a `catch`, a `.catch(` or a two-handler `.then`, a `fetch`, a `!res.ok`, a STALE
 check, an `import()`, a storage call, a `JSON.parse`, a timer, a `new …Observer`, a retry `policy(`,
-an abort, an error event, a stream call, a message, a `throw`, a machine `.move(` (refused when the
-state moved on), an `{ ok: false }` result, a crypto call, a body that may be null (the file's header
+an abort, an error event, a stream call, a message, a `throw`, a machine `.move('from', 'to')`
+(refused when the state moved on; a text edit's or a dependency mark's `.move` is none), an `{ ok: false }` result, a crypto call, a body that may be null (the file's header
 lists what each matches). The scope's `build_time` packages (cli, bake, barrels, config, tooling,
 tsdown-plugin-svelte) no simulator runs: their sites are `covered`, never `fired`. The compiler's
 are fired by the compiler's own simulator (`sim: "compiler"`). Each has a stable id, `file > enclosing function > kind:n` (n counts that kind in that
