@@ -539,9 +539,8 @@ function route_entries(
 	dir: string
 ): Array<{ name: string; is_dir: boolean; is_file: boolean }> {
 	const out: Array<{ name: string; is_dir: boolean; is_file: boolean }> = [];
-	const entries = r.db.get(r.listing, dir);
-	if (entries === null) throw new Error(`ENOENT: no such directory, scandir '${dir}'`);
-	for (const e of entries) {
+	// a directory that is not there holds no routes (the last route file deleted in dev, #1496)
+	for (const e of r.db.get(r.listing, dir) ?? []) {
 		let is_dir = e.kind === 'dir';
 		let is_file = e.kind === 'file';
 		if (!is_dir && !is_file) {
@@ -766,7 +765,6 @@ function collectNodeEffectiveCsr(r: Routes, routesDir: string) {
  * toward injecting a keepalive Kit didn't need — a harmless extra client build, never a 404.
  */
 export function clientBuildWillSkip(r: Routes, routesDir: string): boolean {
-	if (r.db.get(r.at, routesDir) === null) return false;
 	const nodes = collectNodeEffectiveCsr(r, routesDir);
 	if (nodes.length === 0) return false;
 	return nodes.every((csr) => csr === false);
@@ -777,7 +775,6 @@ export function clientBuildWillSkip(r: Routes, routesDir: string): boolean {
  * ogygia runtime at all — Kit hydrates everything itself — so the runtime chunk is skipped entirely.
  */
 export function hasAnyCsrFalseRoute(r: Routes, routesDir: string): boolean {
-	if (r.db.get(r.at, routesDir) === null) return false;
 	return pageLeaves(r, routesDir).some((page_file) => routeCsrIsFalse(r, page_file, routesDir));
 }
 
