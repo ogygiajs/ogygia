@@ -13,8 +13,8 @@
  */
 import { cache, machine } from '@ogygia/machine';
 import { element_address, resolve_address } from './interaction.ts';
-// (the pure signature, not reconcile.ts's `region_signature`: that module is the lazy nav chunk)
-import { signature_of } from '../contract/hash.ts';
+// (not reconcile.ts's `region_signature` nor ./hash.ts: both stay out of the boot)
+import { signature_of } from '../contract/signature.ts';
 import { slots } from './slots.ts';
 import { OGYGIA_NO_KEEP } from '../wire-markup.ts';
 
