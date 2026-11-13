@@ -122,6 +122,22 @@ describe('page mark', () => {
 		expect(marks_for(script(`\timport { thing } from './missing';`)).page).toBe(true);
 	});
 
+	test('`$env` and generated modules read no page, and the walk follows them no further', () => {
+		const marks = marks_for(
+			script(`\timport { PUBLIC_X } from '$env/static/public';
+	import gen from 'virtual:thing';
+	import ogy from 'ogygia:thing';`)
+		);
+		expect(marks.page).toBe(false);
+	});
+
+	test('a directory import is followed into its index file, so it is not an unresolved one', () => {
+		const marks = marks_for(script(`\timport { n } from './helpers';`), {
+			'src/lib/helpers/index.ts': `export const n = 1;\n`
+		});
+		expect(marks.page).toBe(false);
+	});
+
 	test('a module the walk does not read (markdown) fails open', () => {
 		const marks = marks_for(script(`\timport Doc from './doc.md';`), {
 			'src/lib/doc.md': `# hi\n`
