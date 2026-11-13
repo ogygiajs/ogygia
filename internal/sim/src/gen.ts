@@ -600,6 +600,11 @@ export interface GenPeer {
 	/** The app keeps the peer's page documents this many ms (`cache: { ttl }`, served stale while
 	 *  one fetch refreshes them); 0: no cache. */
 	readonly ttl: number;
+	/** Edge pages its pages link to: `/gone` (no route), `/moved` (to `/q0`), `/who` (the visitor).
+	 *  test/gen.test.ts, test/oracles.test.ts `peer_answers`. */
+	readonly edges: { readonly gone: boolean; readonly moved: boolean; readonly who: boolean };
+	/** Origins the peer answers at: 2 is one build at `peer.test` and `peer2.test`. test/gen.test.ts. */
+	readonly origins: 1 | 2;
 }
 
 /** The peer a seed draws for its app of `pages`, or null (most seeds: one app alone). Its own
@@ -656,6 +661,9 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 		return ps.chance(0.25) ? { ...n, children, style: true } : { ...n, children };
 	};
 	const pd = rng(seed).fork('gen peer data');
+	const pe = rng(seed).fork('gen peer edges');
+	const edges = { gone: pe.chance(0.5), moved: pe.chance(0.5), who: pe.chance(0.5) };
+	const origins = rng(seed).fork('gen peer origins').chance(0.4) ? 2 : 1;
 	return {
 		mount,
 		widgets: widgets.map((w) => ({ ...w, children: w.children.map(styled) })),
@@ -663,7 +671,9 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 			.map((p) => ({ ...p, roots: p.roots.map(styled) }))
 			.map((p) => (pd.chance(0.5) ? { ...p, data: true } : p)),
 		slots,
-		ttl
+		ttl,
+		edges,
+		origins
 	};
 }
 
@@ -920,6 +930,9 @@ function switched(n: GenNode, interactive: boolean): string {
 
 /** Where a federated app mounts its peer's pages. */
 export const MOUNT = '/peer';
+/** A peer's edge pages, as the app mounts them (oracles.ts `peer_answers`). */
+export const EDGE_GONE = `${MOUNT}/gone`;
+export const EDGE_MOVED = `${MOUNT}/moved`;
 
 /** A slot's tag on its page: the widget's region, with a placeholder for a deferred one that has
  *  one. */
@@ -936,6 +949,10 @@ function slot_usage(s: GenSlot): string {
 /** The app's federation (`src/lib/gen/federation.server.ts`): one identity, the peer it calls. */
 function app_federation(peer: GenPeer): string {
 	const cache = peer.ttl > 0 ? `, cache: { ttl: ${peer.ttl} }` : '';
+	const origin =
+		peer.origins === 2
+			? `[env.PEER_ORIGIN ?? 'https://peer.test', env.PEER2_ORIGIN ?? 'https://peer2.test']`
+			: `env.PEER_ORIGIN ?? 'https://peer.test'`;
 	return `import { federate } from '@ogygia/federation';
 import { env } from '$env/dynamic/private';
 
@@ -944,7 +961,7 @@ export const { peer } = federate({
 \tname: 'app',
 \tkey: env.APP_SIGNING_KEY,
 \tvisitor: () => ({ sub: 'visitor' }),
-\tpeers: { peer: { origin: env.PEER_ORIGIN ?? 'https://peer.test', key: env.PEER_PUBLIC_KEY${cache} } }
+\tpeers: { peer: { origin: ${origin}, key: env.PEER_PUBLIC_KEY${cache} } }
 });
 `;
 }
@@ -1141,9 +1158,26 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 	const lib = join(dir, 'src', 'lib', 'gen');
 	rmSync(lib, { recursive: true, force: true });
 	mkdirSync(lib, { recursive: true });
-	const nav = ['/', ...peer.pages.map((p) => MOUNT + p.path)]
+	const edges = (['gone', 'moved', 'who'] as const).filter((e) => peer.edges[e]);
+	const nav = ['/', ...peer.pages.map((p) => MOUNT + p.path), ...edges.map((e) => `${MOUNT}/${e}`)]
 		.map((p) => `<a href="${p}">${p}</a>`)
 		.join(' ');
+	if (peer.edges.who)
+		writeFileSync(
+			join(lib, 'Who.svelte'),
+			[
+				'<script lang="ts">',
+				'\tlet { data }: { data: { sub: string } } = $props();',
+				'</script>',
+				'',
+				`<nav>${nav}</nav>`,
+				'<main data-gen="peer-page">',
+				'\t<h1>peer /who</h1>',
+				'\t<p data-gen-who>{data.sub}</p>',
+				'</main>',
+				''
+			].join('\n')
+		);
 	for (const w of peer.widgets) {
 		writeFileSync(
 			join(lib, `W${w.name}.svelte`),
@@ -1186,8 +1220,10 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 	writeFileSync(
 		join(lib, 'router.ts'),
 		[
-			`import { routes, page } from '@ogygia/router';`,
+			`import { routes, page${peer.edges.moved ? ', redirect' : ''} } from '@ogygia/router';`,
+			...(peer.edges.who ? [`import { user } from '@ogygia/federation';`] : []),
 			...peer.pages.map((_, i) => `import Q${i} from './Q${i}.svelte';`),
+			...(peer.edges.who ? [`import Who from './Who.svelte';`] : []),
 			'',
 			`export const router = routes(`,
 			`\t{`,
@@ -1196,6 +1232,12 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 					? `\t\t'${p.path}': page(Q${i}, { load: () => ({ who: '${p.path.slice(1)} data' }) }),`
 					: `\t\t'${p.path}': page(Q${i}),`
 			),
+			...(peer.edges.moved
+				? [`\t\t'/moved': page(Q0, { load: () => redirect(307, '${MOUNT}/q0') }),`]
+				: []),
+			...(peer.edges.who
+				? [`\t\t'/who': page(Who, { load: (c) => ({ sub: user(c)?.sub ?? '' }) }),`]
+				: []),
 			`\t},`,
 			`\t{ base: '${MOUNT}' }`,
 			`);`,
