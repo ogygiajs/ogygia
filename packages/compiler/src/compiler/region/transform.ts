@@ -2233,8 +2233,6 @@ class FileCompilation {
 			const params_src = snip_params.length
 				? source.slice(snip_params[0].start, snip_params[snip_params.length - 1].end)
 				: '';
-			// the names the parameters bind; what their defaults and computed keys read is free, read
-			// with the body (test/free-vars-patterns.test.ts)
 			const param_names = new Set<string>();
 			for (const p of snip_params) pattern_names(p, param_names);
 			const { free, mutated, stores } = collectCaptureInfo([snip]);
