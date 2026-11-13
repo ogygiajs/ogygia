@@ -79,8 +79,7 @@ test('a missing shadow sheet named by many hosts is logged once per key, and the
 	for (const host of Array.from(document.querySelectorAll('demo-card')))
 		host.setAttribute('og-shadow', 'demo-card.shadow demo-missing.shadow');
 	expect(restore(document)).toBe(60);
-	const log = (window as { __og_restore_log?: { kind: string; key?: string }[] })
-		.__og_restore_log!;
+	const log = (window as { __og_restore_log?: { kind: string; key?: string }[] }).__og_restore_log!;
 	expect(log.filter((e) => e.kind === 'sheet')).toHaveLength(1);
 	document.body.insertAdjacentHTML('beforeend', '<demo-late og-h="99"></demo-late>');
 	document.querySelector('demo-late')!.attachShadow({ mode: 'open' });

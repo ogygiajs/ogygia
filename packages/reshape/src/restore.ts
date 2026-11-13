@@ -359,6 +359,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 	const log = (kind: 'late' | 'mismatch' | 'sheet', host: Element, diff?: string, key?: string) => {
 		const list = (W.__og_restore_log ??= []);
 		if (list.length >= 50) return;
+		if (key && list.some((e) => e.kind === 'sheet' && e.key === key)) return;
 		const island = host.closest('ogygia-region')?.getAttribute('data-og-fp') ?? undefined;
 		list.push({
 			kind,
