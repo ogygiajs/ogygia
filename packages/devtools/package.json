@@ -138,7 +138,6 @@
 		"@neodrag/svelte": "catalog:",
 		"@ogygia/insights": "workspace:^",
 		"@ogygia/machine": "workspace:^",
-		"@ogygia/rewrite": "workspace:^",
 		"@ogygia/router": "workspace:^",
 		"devalue": "catalog:"
 	},

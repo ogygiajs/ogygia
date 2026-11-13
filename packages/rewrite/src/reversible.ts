@@ -87,7 +87,7 @@ function read_name(html: string, from: number): number {
 
 /** A tag name, lower-cased only when it has an upper-case letter (the common case allocates nothing
  *  beyond the slice). */
-function tag_name(html: string, from: number, to: number): string {
+export function tag_name(html: string, from: number, to: number): string {
 	const name = html.slice(from, to);
 	for (let k = from; k < to; k++) {
 		const c = html.charCodeAt(k);
@@ -436,6 +436,16 @@ function region_kind(attrs: Attr[]): 'island' | 'lake' | 'hole' {
 	return 'island';
 }
 
+/** The kind of the `<ogygia-region>` whose name ends at `name_end`. */
+export function region_at(html: string, name_end: number): 'island' | 'lake' | 'hole' {
+	return region_kind(parse_attrs(html, name_end));
+}
+
+/** Is `name` (lower-case) a custom element's name outside svg and math, and not ogygia's own? */
+export function custom_name(name: string): boolean {
+	return is_custom(name, false);
+}
+
 /** Text the serializer could change: whitespace-only, or with leading / trailing whitespace. */
 function trimmable(s: string): boolean {
 	if (!s.length) return false;
@@ -504,7 +514,9 @@ const attr_map = (attrs: Attr[]): Record<string, string> => {
  * fallback twice, and its tabs kept a second copy of a document listener). A first pass, so the
  * marking pass knows a host's plan before it reaches the host's children.
  */
-function plan_hosts(html: string, kind: TransformKind, csr: boolean, answer: boolean): boolean[] {
+function plan_hosts(html: string, o: MarkOptions): boolean[] {
+	const kind: TransformKind = o.doc ? 'document' : 'region';
+	const csr = o.csr;
 	const planned: boolean[] = [];
 	const stack: Stack<{ name: string; host: number; owned: boolean; foreign: boolean }> = [];
 	let in_body = kind !== 'document';
@@ -518,7 +530,7 @@ function plan_hosts(html: string, kind: TransformKind, csr: boolean, answer: boo
 			const parent = stack[stack.length - 1];
 			const foreign = name === 'svg' || name === 'math' || !!parent?.foreign;
 			let owned =
-				(name === 'body' && kind === 'document' && csr) || (parent ? parent.owned : false);
+				(name === 'body' && kind === 'document' && csr) || (parent ? parent.owned : o.owned);
 			// a hole: ogygia swaps its inside rather than hydrating it — not Svelte-owned, but reached into
 			let swapped = false;
 			if (name === 'ogygia-region') {
@@ -529,10 +541,10 @@ function plan_hosts(html: string, kind: TransformKind, csr: boolean, answer: boo
 			let host = -1;
 			if (in_body && is_custom(name, foreign)) {
 				host = planned.length;
-				planned.push(answer || kind !== 'document' || owned);
+				planned.push(o.all || owned);
 			}
 			// markup ogygia hydrates (Svelte-owned) or swaps (a hole) starts here: every host above it gets the plan
-			if ((owned || swapped) && !(parent ? parent.owned : false))
+			if ((owned || swapped) && !(parent ? parent.owned : o.owned))
 				for (const f of stack) if (f.host !== -1) planned[f.host] = true;
 			if (!(VOID.has(name) || (tok.self && foreign))) push(stack, { name, host, owned, foreign });
 		} else if (tok.t === 'end') {
@@ -569,7 +581,34 @@ export function mark(
 	answer = false
 ): { html: string; record: MarkRecord } | null {
 	if (!has_custom_element(html, kind === 'document')) return null;
-	const planned = plan_hosts(html, kind, csr, answer);
+	return mark_with(html, {
+		doc: kind === 'document',
+		csr,
+		all: answer || kind !== 'document',
+		owned: false
+	});
+}
+
+/** How {@link mark_with} reads the markup it marks. */
+export interface MarkOptions {
+	/** a whole document: custom elements count from `<body` on, and `csr` makes the body Svelte's */
+	doc: boolean;
+	csr: boolean;
+	/** every host gets a plan (an answer) */
+	all: boolean;
+	/** the markup sits inside Svelte-owned markup (an element cut out of a page at that point) */
+	owned: boolean;
+}
+
+/** {@link mark} with the reading spelled out: for one element cut out of a page, where the page
+ *  around it decides whether it sits in Svelte-owned markup. */
+export function mark_with(
+	html: string,
+	o: MarkOptions
+): { html: string; record: MarkRecord } | null {
+	const kind: TransformKind = o.doc ? 'document' : 'region';
+	const csr = o.csr;
+	const planned = plan_hosts(html, o);
 	if (!planned.length) return null;
 	const out: string[] = [];
 	let pos = 0;
@@ -603,7 +642,7 @@ export function mark(
 					: (NO_ATTRS as Attr[]);
 			// (a Kit-hydrated document: Svelte owns its whole body, lakes and holes aside)
 			let owned =
-				(name === 'body' && kind === 'document' && csr) || (parent ? parent.owned : false);
+				(name === 'body' && kind === 'document' && csr) || (parent ? parent.owned : o.owned);
 			if (name === 'ogygia-region') owned = region_kind(attrs) === 'island';
 			// the child tag: this element is child i of the custom element above it (a declarative
 			// shadow template is not a child once parsed: it becomes the host's shadow root)
@@ -705,6 +744,41 @@ export function mark(
 	if (!hosts.size) return null;
 	out.push(html.slice(pos));
 	return { html: out.join(''), record: { kind, source: html, hosts } };
+}
+
+/** Does `html` close everything it opens, and nothing it did not? A render's result is spliced into
+ *  the page in place of its element: an unclosed tag, comment or raw-text element there would take
+ *  in the rest of the page, and a stray end tag would close an element of the page around it. */
+export function closes_all(html: string): boolean {
+	const stack: Stack<{ name: string; foreign: boolean }> = [];
+	for (const at = new MarkupCursor(html); at.next();) {
+		if (at.kind === 1) {
+			const name = tag_name(html, at.start + 1, at.ne);
+			const close = implied_close(stack, name);
+			if (close === DROP) continue;
+			if (close !== -1) cut(stack, close);
+			const parent = stack[stack.length - 1];
+			const foreign = name === 'svg' || name === 'math' || !!parent?.foreign;
+			const self = html.charCodeAt(at.end - 2) === 47;
+			if (!(VOID.has(name) || (self && foreign))) push(stack, { name, foreign });
+		} else if (at.kind === 2) {
+			const name = tag_name(html, at.start + 2, at.ne);
+			let k = stack.length - 1;
+			while (k >= 0 && stack[k].name !== name) k--;
+			if (k === -1) return false;
+			cut(stack, k);
+		} else if (at.kind === 0 && !at.raw && at.end === html.length && opens_at_end(html, at.start))
+			return false;
+	}
+	return stack.length === 0;
+}
+
+function opens_at_end(html: string, from: number): boolean {
+	for (let lt = html.indexOf('<', from); lt !== -1; lt = html.indexOf('<', lt + 1)) {
+		const c = html.charCodeAt(lt + 1);
+		if (is_alpha(c) || c === 33 || c === 47 || c === 63) return true;
+	}
+	return false;
 }
 
 // ─── settle ────────────────────────────────────────────────────────────────────────────────────────
@@ -1042,7 +1116,7 @@ function read_id(s: string, at: number): { id: number; end: number } | null {
 }
 
 /** Rewrite every host id in ogygia's marks through `map` (ids it lacks stay). */
-function remap(html: string, map: (id: number) => number | undefined): string {
+export function remap(html: string, map: (id: number) => number | undefined): string {
 	// ONE forward walk over `og-` (a search per prefix at every step is quadratic when one prefix is
 	// rare or absent), then what follows says which mark it is: `og-h="` / `og-u="` / `og-c="`, or the
 	// comments `<!--og-c ` / `<!--og-t `. The input itself comes back when no id moves.
@@ -1051,13 +1125,10 @@ function remap(html: string, map: (id: number) => number | undefined): string {
 	for (let a = html.indexOf('og-'); a !== -1; a = html.indexOf('og-', a + 3)) {
 		const c = html.charCodeAt(a + 3);
 		let id_at = -1;
-		if (
-			(c === 104 || c === 117 || c === 99) &&
-			html.charCodeAt(a + 4) === 61 &&
-			html.charCodeAt(a + 5) === 34
-		)
-			id_at = a + 6;
-		else if (
+		if ((c === 104 || c === 117 || c === 99) && html.charCodeAt(a + 4) === 61) {
+			const q = html.charCodeAt(a + 5);
+			id_at = q === 34 || q === 39 ? a + 6 : a + 5;
+		} else if (
 			(c === 99 || c === 116) &&
 			html.charCodeAt(a + 4) === 32 &&
 			html.startsWith('<!--', a - 4)
@@ -1075,27 +1146,37 @@ function remap(html: string, map: (id: number) => number | undefined): string {
 	return pos === 0 ? html : out + html.slice(pos);
 }
 
-/**
- * STABLE MARKS FOR A CACHING TRANSFORM. ogygia numbers hosts across the whole document, so the same
- * block carries other ids on another page, and a render cache keyed on its markup never hits.
- * `localizeMarks(block)` renumbers the block's marks from 0 (in order of appearance): cache on the
- * result, then `back(rendered)` puts the document's ids back on whatever the render returned.
- *
- * ```ts
- * const local = localizeMarks(block);
- * const rendered = cache.get(local.html) ?? cache.set(local.html, await render(local.html));
- * return local.back(rendered);
- * ```
- */
-export function localizeMarks(html: string): { html: string; back: (rendered: string) => string } {
+/** An element's marks renumbered from 0 in order of appearance, so the same element has the same
+ *  bytes wherever it sits; `back` puts the ids it had on whatever a render returns. */
+export function localize_marks(html: string): {
+	html: string;
+	back: (rendered: string) => string;
+} {
 	const to_local = new Map<number, number>();
+	let moved = false;
 	const local = remap(html, (id) => {
 		let l = to_local.get(id);
 		if (l === undefined) to_local.set(id, (l = to_local.size));
+		if (l !== id) moved = true;
 		return l;
 	});
-	const to_doc = new Map([...to_local].map(([d, l]) => [l, d]));
+	if (!moved) return { html, back: same };
+	const to_doc = new Map<number, number>();
+	for (const [d, l] of to_local) to_doc.set(l, d);
 	return { html: local, back: (rendered) => remap(rendered, (id) => to_doc.get(id)) };
+}
+
+const same = (html: string): string => html;
+
+/** The ids of the hosts ogygia restores (`og-h`) in `html`, quoted any way a serializer writes them. */
+export function restored_ids(html: string): Set<number> {
+	const out = new Set<number>();
+	for (let a = html.indexOf('og-h='); a !== -1; a = html.indexOf('og-h=', a + 5)) {
+		const q = html.charCodeAt(a + 5);
+		const r = read_id(html, q === 34 || q === 39 ? a + 6 : a + 5);
+		if (r) out.add(r.id);
+	}
+	return out;
 }
 
 /**

@@ -74,6 +74,8 @@
 		"@typescript/native": "catalog:tsgo",
 		"@vitest/browser": "catalog:",
 		"@vitest/browser-playwright": "catalog:",
+		"happy-dom": "catalog:sim",
+		"rolldown": "catalog:",
 		"svelte": "catalog:",
 		"tsdown": "catalog:",
 		"typescript": "catalog:",

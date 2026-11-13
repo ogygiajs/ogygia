@@ -1,10 +1,10 @@
 /**
- * EVERY MESSAGE THE RESHAPE PACKAGE PRINTS, in one place: its code, its wording, what to do about it
+ * EVERY MESSAGE THE REWRITE PACKAGE PRINTS, in one place: its code, its wording, what to do about it
  * (core's `@ogygia/core/internal/messages` says how the system works).
  *
- *   throw new OgygiaError('reshape_plugin_missing');
+ *   throw new OgygiaError('rewrite_plugin_missing');
  *
- * The pass runs in the app's server, so the wording is only passed in dev and while prerendering: a
+ * A rewrite runs in the app's server, so the wording is only passed in dev and while prerendering: a
  * production server prints the code's page alone.
  */
 import {
@@ -16,81 +16,118 @@ import {
 import { BROWSER, DEV } from 'esm-env';
 
 /** The errors: `throw new OgygiaError(code, args)`. */
-export const RESHAPE_ERRORS = {
-	reshape_plugin_missing: {
+export const REWRITE_ERRORS = {
+	rewrite_plugin_missing: {
 		text: (): string => prose`
-			reshape.handle(transform) runs, but reshape() is not in vite.config: list it beside
-			ogygia() in \`plugins\`.
+			a rewrite() handle runs, but rewrite() is not in vite.config: list it beside ogygia() in
+			\`plugins\`.
 		`,
 		details: (): string => prose`
-			\`reshape.handle()\` hands the app's transform to ogygia, and the reshape plugin is what
-			runs it (it marks the HTML before the transform and records what it moved after). Without
-			the plugin the transform would never run, so every request fails instead.
+			A rewrite from \`@ogygia/rewrite\` is a Kit handle, and the rewrite plugin is what runs it:
+			it marks the HTML before your render and puts back what the render moved before anything
+			hydrates. Without the plugin your render would never run, so every request fails instead.
 
-			List \`reshape()\` (from \`@ogygia/rewrite/vite\`) beside \`ogygia()\` in the \`plugins\` of
-			vite.config.
+			List \`rewrite()\` (from \`@ogygia/rewrite/vite\`) beside \`ogygia()\` in the \`plugins\` of
+			vite.config. It takes no options.
 		`
 	},
-	reshape_pass_failed: {
+	rewrite_after_ogygia: {
+		text: (): string => prose`
+			a rewrite() handle runs after ogygia.handle(): put it before ogygia.handle() in
+			sequence().
+		`,
+		details: (): string => prose`
+			ogygia reads the request's rewrites when its own handle starts, so a rewrite placed after
+			it would never run on this response. Rewrites run in the order they are listed, all before
+			ogygia:
+
+			\`sequence(first, second, ogygia.handle())\`
+		`
+	},
+	rewrite_page_failed: {
 		text: (a: { kind: string; error: string }): string =>
-			`the reshape transform threw on a ${a.kind}: ${a.error}`,
+			`the page rewrite failed on a ${a.kind}: ${a.error}`,
 		details: (): string => prose`
-			The function given to \`reshape.handle()\` threw while it rendered a document or a region
-			answer. In production that answer goes out as ogygia rendered it, before the transform,
-			and this is said once for it; in dev it is thrown, so a broken transform shows at once.
+			The \`page\` function given to \`rewrite()\` threw, or dropped ogygia's \`og-h\` marks from a
+			host ogygia restores. In production that document or answer goes out as ogygia rendered it,
+			and this is said once for it; in dev it is thrown, so a broken rewrite shows at once.
 
-			Make the transform catch what its renderer throws and answer the HTML it was given.
-		`
-	},
-	reshape_marks_lost: {
-		text: (a: { kind: string; lost: number }): string =>
-			`the reshape transform dropped ogygia's marks from ${a.lost} host(s) it restores, in a ${a.kind}.`,
-		details: (): string => prose`
-			ogygia marks each custom element it will restore (\`og-h\`) before the transform, and puts
-			Svelte's markup back in the browser before anything hydrates. A transform that drops those
-			attributes (a serializer that keeps only known attributes, a sanitizer) leaves nothing to
-			restore by: Svelte would hydrate the transform's markup, mismatch and mount the region
-			again. In production that answer goes out as ogygia rendered it, before the transform, and
-			this is said once for it; in dev it is thrown.
-
-			Carry every \`og-*\` attribute and comment along wherever the transform moves a node.
+			Make the function catch what its renderer throws, and carry every \`og-*\` attribute and
+			comment along wherever it moves a node.
 		`
 	},
 	restore_markup_broken: {
-		text: (a: { diff: string }): string => `the transform broke hydration markup: ${a.diff}`,
+		text: (a: { diff: string }): string => `the rewrite broke hydration markup: ${a.diff}`,
 		details: (): string => prose`
-			A transform rewrote a restored region's markup so that its hydration markers no longer
-			match. \`diff\` names the first difference. (The restore runs as a self-contained script,
-			so it prints this code's link itself.)
+			A rewrite changed a restored region's markup so that its hydration markers no longer match.
+			\`diff\` names the first difference. (The restore runs as a self-contained script, so it
+			prints this code's link itself.)
 		`
 	}
 };
 
 /** The warnings: `warn(code, args, ...rest)`. */
-export const RESHAPE_WARNINGS = {
+export const REWRITE_WARNINGS = {
+	rewrite_element_failed: {
+		text: (a: { name: string; error: string }): string =>
+			`the rewrite could not render <${a.name}>: ${a.error}. It went out as ogygia rendered it.`,
+		details: (): string => prose`
+			Your \`render\` threw, returned the wrong number of results, or returned something that is
+			not HTML closing everything it opens. ogygia called it again for each element alone; this
+			one still failed, so it went out as ogygia rendered it and renders in the browser. The rest
+			of the page is not affected. Said once per response and element name, in every build.
+
+			Make \`render\` return one result per element it was given, in order, each one HTML that
+			closes what it opens.
+		`
+	},
+	rewrite_marks_lost: {
+		text: (a: { name: string }): string =>
+			`the rewrite's render of <${a.name}> dropped ogygia's marks; it went out as ogygia rendered it.`,
+		details: (): string => prose`
+			ogygia marks each custom element it will restore (\`og-h\`) before your render, and puts
+			Svelte's markup back in the browser before anything hydrates. This render dropped the mark
+			(a serializer that keeps only known attributes, a sanitizer), which leaves nothing to
+			restore by: Svelte would hydrate the render's markup, mismatch and mount the region again.
+			So the element went out as ogygia rendered it. Said once per response and element name.
+
+			Carry every \`og-*\` attribute and comment along wherever the render moves a node.
+		`
+	},
+	rewrite_element_split: {
+		text: (a: { name: string }): string =>
+			`<${a.name}> did not close before its chunk of the page ended; it went out unrendered.`,
+		details: (): string => prose`
+			The page streams, and a matched element started in one chunk and ends in a later one (an
+			\`{#await}\` inside it). Rendering it would mean holding the chunk until it closes, so it
+			goes out as ogygia rendered it and renders in the browser. Said in dev, once per response.
+
+			Keep streamed blocks out of matched elements, or put the element inside the streamed block.
+		`
+	},
 	restore_late: {
 		text: (a: { host: string }): string =>
 			`<${a.host}> was upgraded before the restore reached it; its own root is kept and the server's copy of its render dropped.`,
 		details: (): string => prose`
-			A custom element of a reversible transform (an \`og-h\` host) already had a shadow root when
-			the restore reached it: a component runtime upgraded it first. The restore keeps the root
-			the component made, puts its light DOM back into Svelte's form (its children, its
-			attributes) and drops the server's rendered copy, which would otherwise show a second time
-			through the slot. Until the component renders, that part of the page is empty.
+			A custom element ogygia restores (an \`og-h\` host) already had a shadow root when the
+			restore reached it: a component runtime upgraded it first. The restore keeps the root the
+			component made, puts its light DOM back into Svelte's form (its children, its attributes)
+			and drops the server's rendered copy, which would otherwise show a second time through the
+			slot. Until the component renders, that part of the page is empty.
 
-			Load the component runtime after ogygia's restore (the pass inlines it at the end of the
-			body), or let it hydrate a declarative root instead of attaching its own in the
+			Load the component runtime after ogygia's restore (it is inlined after the elements it
+			restores), or let it hydrate a declarative root instead of attaching its own in the
 			constructor. Said once per page and element name.
 		`
 	}
 };
 
-type Own = MessagesOf<typeof RESHAPE_ERRORS, typeof RESHAPE_WARNINGS>;
+type Own = MessagesOf<typeof REWRITE_ERRORS, typeof REWRITE_WARNINGS>;
 // (the tables reach a dev build and the server's — a prerender words them too; a production browser
 // bundle drops them)
 const own: Own = /* @__PURE__ */ define_messages(
-	DEV || !BROWSER ? RESHAPE_ERRORS : null,
-	DEV || !BROWSER ? RESHAPE_WARNINGS : null,
+	DEV || !BROWSER ? REWRITE_ERRORS : null,
+	DEV || !BROWSER ? REWRITE_WARNINGS : null,
 	dev_or_prerender
 );
 /** `throw new OgygiaError(code, args)`; `warn(code, args, ...rest)` logs; `line(code, args)` is the

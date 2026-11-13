@@ -28,7 +28,7 @@
 import type { PageGlobals, PendingShadow, WaitingShadow } from '@ogygia/core/plugin/client';
 
 /* oxlint-disable ogygia/markup-from-vocabulary -- restore() ships as its own source (restore.toString()): it may name nothing outside itself, so it spells its markers */
-export function restore(root: Document | DocumentFragment | Element): number {
+export function restore(root: Document | DocumentFragment | Element, lite?: number): number {
 	const doc: Document = (root as Node).ownerDocument ?? (root as Document);
 	const head = document.head;
 	const W = window as PageGlobals & {
@@ -118,7 +118,8 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		const sel = `template[data-og-head="${esc(key)}"]`;
 		// (an incoming page carries its sheets in its own head until the swap)
 		const tpl = ((doc !== document && doc.head?.querySelector(sel)) ||
-			head.querySelector(sel)) as HTMLTemplateElement | null;
+			head.querySelector(sel) ||
+			doc.querySelector(sel)) as HTMLTemplateElement | null;
 		if (!tpl) return null;
 		const css = tpl.content.textContent ?? '';
 		let sheet: CSSStyleSheet | null = null;
@@ -375,7 +376,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 	// …in the root, and in every open shadow root already there (a declarative one the page shipped:
 	// `querySelectorAll` never enters them), deeper roots after the ones holding them
 	const scopes: ParentNode[] = [root as ParentNode];
-	for (let q = 0; q < scopes.length; q++) {
+	for (let q = lite ? 1 : 0; q < scopes.length; q++) {
 		const walk = doc.createTreeWalker(scopes[q] as Node, 1 /* SHOW_ELEMENT */);
 		for (let n = walk.nextNode(); n; n = walk.nextNode()) {
 			const sr = (n as Element).shadowRoot;

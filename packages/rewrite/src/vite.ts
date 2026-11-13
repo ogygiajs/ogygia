@@ -1,11 +1,11 @@
 /**
- * `reshape()` — the reshape plugin, listed beside `ogygia()` in vite.config `plugins`. Turns on the
- * support for the app's own pass over the HTML ogygia sends (`reshape.handle(transform)`): its
- * server realm runs the pass, its browser realm puts back what the pass moved.
+ * `rewrite()`: the rewrite plugin, listed beside `ogygia()` in vite.config `plugins`. No options. It
+ * turns on what a `rewrite()` handle needs: its server realm runs the rewrites, its browser realm
+ * puts back what they moved.
  */
 import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
 
-export function reshape(): OgygiaPlugin {
+export function rewrite(): OgygiaPlugin {
 	return definePlugin({
 		name: '@ogygia/rewrite',
 		server: import.meta.resolve('./server.ts'),

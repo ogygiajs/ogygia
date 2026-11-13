@@ -1,77 +1,98 @@
 /**
- * `@ogygia/rewrite` — an app's own pass over the HTML ogygia sends (a web-component server render, a
- * translation proxy), and the markup helpers around it. Kit-free at runtime, so the helpers run
- * anywhere: the non-SvelteKit half of a monorepo, a vitest corpus in jsdom.
- *
- * - `handle(transform)`: the pass, as a Kit handle in front of ogygia's
- *   (`sequence(reshape.handle(transform), ogygia.handle())`, with `reshape()` in vite.config).
- * - `scanRegions` / `liftRegions` / `restoreRegions`: find every region in a document, or lift them
- *   out around a foreign SSR pass and splice them back.
- * - `transformMarkup`: the server round trip of the pass — mark, the transform, settle — for a test
- *   that runs an app's transform over harvested markup; `checkScript(settled.check)` is the dev
- *   check's payload to put in front of it (with `{ dev: true }`), so `restore` checks each host.
- * - `localizeMarks`: stable mark ids for a transform that caches its renders by markup.
- * - `restore`: the browser half, on a parsed document or fragment — what the pass inlines in every
- *   page it runs on.
+ * `@ogygia/rewrite`: an app's own render over the HTML ogygia sends (a web-component server render, a
+ * translation proxy), as a Kit handle listed before `ogygia.handle()`. ogygia marks the HTML before
+ * the render and puts back what the render moved in Svelte's markup before anything hydrates.
  */
-import type { Handle } from '@ogygia/core/plugin';
+import type { RequestEvent } from '@sveltejs/kit';
+import { check, check_event } from './check.ts';
 import { OgygiaError } from './messages.ts';
-import { slot, type ReshapeTransform } from './requests.ts';
+import { step_of } from './pass.ts';
+import { slot } from './requests.ts';
+import type {
+	CheckOptions,
+	ElementRewrite,
+	PageRewrite,
+	Rewrite,
+	RewriteContext,
+	WholePageRewrite
+} from './types.ts';
 
-export type { ReshapeTransform };
+export type {
+	CheckOptions,
+	ElementRewrite,
+	PageRewrite,
+	Rewrite,
+	RewriteCheck,
+	RewriteContext,
+	RewriteElement,
+	RewriteKind,
+	RewriteResult,
+	RewriteSheet,
+	WholePageRewrite
+} from './types.ts';
 
 /**
- * The app's own pass over the HTML ogygia sends, as a Kit handle. Put it before ogygia's, and list
- * `reshape()` (from `@ogygia/rewrite/vite`) beside `ogygia()` in vite.config:
+ * A rewrite of the HTML ogygia sends, as a Kit handle. List it before `ogygia.handle()`, and
+ * `rewrite()` (from `@ogygia/rewrite/vite`) beside `ogygia()` in vite.config:
  *
  * ```ts
  * // src/hooks.server.ts
  * import { sequence } from '@sveltejs/kit/hooks';
  * import * as ogygia from 'ogygia/server';
- * import * as reshape from '@ogygia/rewrite';
- * export const handle = sequence(reshape.handle(render), ogygia.handle());
+ * import { rewrite } from '@ogygia/rewrite';
+ *
+ * const components = rewrite({
+ * 	match: 'x-',
+ * 	async render(elements, ctx) {
+ * 		return elements.map((el) => ({ html: renderElement(el.html), sheets: [] }));
+ * 	}
+ * });
+ * export const handle = sequence(components, ogygia.handle());
  * ```
  *
- * @param transform - Post-processes the HTML ogygia sends — every document (the chunk carrying
- * `</head>`; a streamed tail passes untouched) and every region answer (a hole, a lake remount) — e.g.
- * a web-component server render. `html` in, `html` out, may be async; it is on the response path, so
- * keep it fast. Its type is `ReshapeTransform`, for a transform written in a module of its own.
+ * - `{ match, render }`: the outermost elements `match` picks go to `render`, one call per chunk of
+ *   the page (and per region answer), which returns one `{ html, sheets }` per element. A failed
+ *   batch is retried one element at a time; an element that still fails goes out as ogygia rendered
+ *   it, said with its code. Each sheet goes out once per key: into the head, or inline at its first
+ *   use once the head has gone.
+ * - `{ page }`: the whole document or region answer. The document is held until its last chunk.
+ *   The value also has `.html(str)`, the page function on a plain string.
  *
- * It may reshape Svelte-owned markup. ogygia marks the HTML before the call and restores in the
- * browser, before anything hydrates, what the transform moved:
- * - a custom element marked `og-h` is one ogygia restores (in Svelte-owned markup, above it, or in a
- *   region answer). To reshape it, render its plan: its slot positions as `<slot>` elements wrapping
- *   the moved children, `og-shadow="key …"` (the keyed sheets for its shadow root), and optionally
- *   `og-keep="attr …"` (attributes you added that survive the restore; never per-render state). One
- *   without `og-shadow` is left exactly as Svelte wrote it.
- * - `<template data-og-head="key">css</template>` is a shadow sheet; `<style>` / `<link>` with
- *   `data-og-head="key"` apply to the page. Both go into `<head>`, once per key.
- * - everything else `og-*` is ogygia's: carry it along wherever you move a node; it is gone from the
- *   final DOM.
+ * An element `render` gets with `restored: true` is one ogygia puts back for Svelte: render its plan
+ * (its children inside `<slot>` wrappers, `og-shadow="key …"` naming its shadow sheets, optionally
+ * `og-keep="attr …"`), and carry every other `og-*` mark along wherever you move a node.
+ *
+ * Several rewrites run in the order they are listed, on one marking of the HTML: a later one sees an
+ * earlier one's output. `.check(html, { kind, csr })` runs the whole round trip on one piece of
+ * markup, for a test.
  */
-export function handle(transform: ReshapeTransform): Handle {
-	return ({ event, resolve }) => {
-		// (without the plugin nothing would run the transform: say so on every request instead)
-		if (!slot.live) throw new OgygiaError('reshape_plugin_missing');
-		slot.by_request.set(event.request, transform);
-		return resolve(event);
-	};
+export function rewrite(definition: ElementRewrite): Rewrite;
+export function rewrite(definition: PageRewrite): WholePageRewrite;
+export function rewrite(definition: ElementRewrite | PageRewrite): Rewrite | WholePageRewrite {
+	const step = step_of(definition);
+	const handle: Rewrite = Object.assign(
+		(({ event, resolve }) => {
+			if (!slot.live) throw new OgygiaError('rewrite_plugin_missing');
+			if (slot.started.has(event.request)) throw new OgygiaError('rewrite_after_ogygia');
+			const steps = slot.by_request.get(event.request);
+			if (steps) steps.push(step);
+			else slot.by_request.set(event.request, [step]);
+			return resolve(event);
+		}) as Rewrite,
+		{ check: (html: string, options?: CheckOptions) => check([step], html, options) }
+	);
+	const page = step.page;
+	if (page === null) return handle;
+	return Object.assign(handle, {
+		html: async (html: string, ctx: Partial<RewriteContext> = {}) => {
+			const event: RequestEvent = ctx.event ?? check_event();
+			return page(html, {
+				kind: ctx.kind ?? 'document',
+				csr: ctx.csr ?? false,
+				url: ctx.url ?? event.url,
+				event,
+				signal: ctx.signal ?? event.request.signal
+			});
+		}
+	});
 }
-
-export {
-	scanRegions,
-	liftRegions,
-	restoreRegions,
-	type RegionKind,
-	type RegionSpan,
-	type LiftedRegion,
-	type LiftResult
-} from './split-regions.ts';
-export {
-	transformMarkup,
-	localizeMarks,
-	check_script as checkScript,
-	type Settled,
-	type TransformKind
-} from './reversible.ts';
-export { restore } from './restore.ts';

@@ -36,7 +36,7 @@ export default defineConfig({
 					{
 						name: 'messages-chunk-lost',
 						load(id) {
-							if (id.endsWith('/reshape/src/messages.ts'))
+							if (id.endsWith('/rewrite/src/messages.ts'))
 								throw new Error('the messages chunk did not load');
 						}
 					}

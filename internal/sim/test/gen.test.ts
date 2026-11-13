@@ -819,7 +819,7 @@ describe('the random app', () => {
 			expect(component).toContain(`<x-gen-box data-n="${n.id}">`);
 			expect(component).toContain('<a data-gen-link data-gen-messy><x-gen-link>');
 			const transform = readFileSync(join(lib, 'reshape.server.ts'), 'utf8');
-			expect(transform).toContain('reshape.handle(transform)');
+			expect(transform).toContain("match: ['x-gen-box', 'x-gen-link'],");
 			expect(transform).toContain(`const TRIM = ${pass!.trim};`);
 			for (const point of ['throws', 'slow', 'strips-marks'])
 				expect(transform).toContain(`buggify.fires('gen.reshape-${point}')`);
@@ -831,7 +831,7 @@ describe('the random app', () => {
 			join(import.meta.dirname, '../../../apps/sim-gen/vite.config.ts'),
 			'utf8'
 		);
-		expect(config).toContain('...(plan.reshape ? [reshape()] : [])');
+		expect(config).toContain('...(plan.reshape ? [rewrite()] : [])');
 		const hooks = readFileSync(
 			join(import.meta.dirname, '../../../apps/sim-gen/src/hooks.server.ts'),
 			'utf8'

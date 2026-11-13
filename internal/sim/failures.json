@@ -15,7 +15,7 @@
 			"machine",
 			"ogygia",
 			"postrender",
-			"reshape",
+			"rewrite",
 			"router",
 			"testing",
 			"tooling",
@@ -31,10 +31,16 @@
 			"how": "the point's own throw: the receiver applied the send and its reply was lost, so the outbox's policy sends it again and the receiver sees the same work twice"
 		},
 		{
-			"site": "packages/rewrite/src/pass.ts > transformed > catch:0",
+			"site": "packages/rewrite/src/pass.ts > render_one > catch:0",
 			"point": "gen.reshape-throws",
-			"how": "the random app's pass throws (a point in its own code): the answer goes out as ogygia rendered it, a document still with the restorer",
-			"killed_by": "reshape-fallback-off"
+			"how": "the random app's render throws (a point in its own code) on the batch and again on each element alone: every element goes out as ogygia rendered it, said with rewrite_element_failed",
+			"killed_by": "rewrite-fallback-off"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_targets > catch:0",
+			"point": "gen.reshape-throws",
+			"how": "the random app's render throws on the batch: it is retried one element at a time",
+			"killed_by": "rewrite-batch-throws"
 		},
 		{
 			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > catch:0",
@@ -406,10 +412,40 @@
 			"name": "props no wire carries give no identity, so the lake is known by its entry and place"
 		},
 		{
-			"site": "packages/rewrite/src/index.ts > handle > throw:0",
-			"reason": "a config error, at the first request: no app the sim generates leaves reshape() out of vite.config",
+			"site": "packages/rewrite/src/index.ts > rewrite > throw:0",
+			"reason": "a config error, at the first request: no app the sim generates leaves rewrite() out of vite.config",
 			"test": "packages/rewrite/test/plugin.test.ts",
-			"name": "refuses every request while reshape() is not in vite.config, naming the fix"
+			"name": "refuses every request while rewrite() is not in vite.config, naming the fix"
+		},
+		{
+			"site": "packages/rewrite/src/index.ts > rewrite > throw:1",
+			"reason": "a wiring error, the same on every request: the sim's app lists its rewrite before ogygia.handle()",
+			"test": "packages/rewrite/test/plugin.test.ts",
+			"name": "listed after ogygia.handle() is refused with rewrite_after_ogygia"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_targets > abort:0",
+			"reason": "a request cancelled while its batch renders: the sim's browsers stay on the page until it loads",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "a cancelled request: the batch is shipped as is, never retried, nothing said"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_targets > abort:1",
+			"reason": "a request cancelled while its elements are retried: the sim's browsers stay on the page until it loads",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "a request cancelled while the elements are retried one at a time: shipped as is, nothing said"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > run_page > catch:0",
+			"reason": "the sim's app has no page rewrite",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "a page function that throws: production sends the document as ogygia rendered it, said as rewrite_page_failed"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > run_page > abort:0",
+			"reason": "the sim's app has no page rewrite",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "a request cancelled while the page function ran: the document goes out as ogygia rendered it"
 		},
 		{
 			"site": "packages/rewrite/src/restore.ts > restore > sheet_for > catch:0",
@@ -424,16 +460,10 @@
 			"name": "a Kit-hydrated page: a watched host that leaves the document leaves the watch, a moved one stays, and the observer goes with the last one"
 		},
 		{
-			"site": "packages/rewrite/src/pass.ts > transformed > throw:0",
-			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
-			"test": "packages/rewrite/test/pass-failed.test.ts",
-			"name": "a transform that throws is thrown with reshape_pass_failed"
-		},
-		{
-			"site": "packages/rewrite/src/pass.ts > transformed > throw:1",
-			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
-			"test": "packages/rewrite/test/pass-failed.test.ts",
-			"name": "a transform that drops ogygia's marks is thrown with reshape_marks_lost"
+			"site": "packages/rewrite/src/pass.ts > page_failed > throw:0",
+			"reason": "dev only, and the sim's app has no page rewrite: production says it instead",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "dev throws it"
 		},
 		{
 			"site": "packages/rewrite/src/restore.ts > restore > reset > parse:0",

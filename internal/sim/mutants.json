@@ -529,21 +529,39 @@
 		"aim": "batch.part-lost"
 	},
 	{
-		"id": "reshape-fallback-without-restorer",
+		"id": "rewrite-restorer-left-out",
 		"file": "packages/rewrite/src/pass.ts",
-		"in": "reshape_pass > document",
-		"code": "if (out === null) return { html, head: '', body: RESTORER_SCRIPT };",
+		"in": "restore_script",
+		"code": "return RESTORER_SCRIPT;",
 		"operator": "statement",
-		"from": "body: RESTORER_SCRIPT };",
-		"to": "body: '' };"
+		"from": "return RESTORER_SCRIPT;",
+		"to": "return '';"
 	},
 	{
-		"id": "reshape-fallback-off",
+		"id": "rewrite-fallback-off",
 		"file": "packages/rewrite/src/pass.ts",
-		"in": "reshape_pass > document",
-		"code": "if (out === null) return { html, head: '', body: RESTORER_SCRIPT };",
+		"in": "render_one",
+		"code": "return { error: message_of(thrown) };",
 		"operator": "statement",
-		"from": "if (out === null) return { html, head: '', body: RESTORER_SCRIPT };",
-		"to": "if (out === null) throw new Error('the pass failed');"
+		"from": "return { error: message_of(thrown) };",
+		"to": "throw thrown;"
+	},
+	{
+		"id": "rewrite-batch-throws",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "render_targets",
+		"code": "results = null;",
+		"operator": "statement",
+		"from": "results = null;",
+		"to": "throw new Error('the batch failed');"
+	},
+	{
+		"id": "rewrite-marks-lost-kept",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "judge",
+		"code": "if (!kept.has(id)) return { code: 'rewrite_marks_lost', name, error: 'og-h dropped' };",
+		"operator": "statement",
+		"from": "if (!kept.has(id)) return",
+		"to": "if (kept.size < 0) return"
 	}
 ]

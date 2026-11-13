@@ -17,7 +17,7 @@ const SHEETS: Record<string, string> = {
 	'demo-nav.shadow': ':host{display:block}nav{display:flex;gap:8px}'
 };
 
-export function scoped_render(html: string): string {
+function scoped_parts(html: string): { html: string; used: Set<string> } {
 	const used = new Set<string>();
 	let out = render(html, 'demo-card', used, (inner) => {
 		const trimmed = inner
@@ -43,10 +43,19 @@ export function scoped_render(html: string): string {
 		(inner) =>
 			`<nav class="web sc-demo-nav" c-id="9.0"><b class="sc-demo-nav" c-id="9.1">menu</b><slot class="sc-demo-nav sc-demo-nav-s">${inner}</slot></nav>`
 	);
-	const sheets = [...used]
-		.map((k) => `<template data-og-head="${k}">${SHEETS[k]}</template>`)
-		.join('');
-	return sheets + out;
+	return { html: out, used };
+}
+
+/** The lab's render of one element, as a rewrite returns it: its HTML and the sheets it names. */
+export function scoped_element(html: string): {
+	html: string;
+	sheets: { key: string; css: string; scope: 'shadow' }[];
+} {
+	const r = scoped_parts(html);
+	return {
+		html: r.html,
+		sheets: [...r.used].map((key) => ({ key, css: SHEETS[key], scope: 'shadow' }))
+	};
 }
 
 function render(

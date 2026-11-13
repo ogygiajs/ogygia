@@ -147,7 +147,13 @@ test('a moved file adds only the lines it changed on the way, not every line it 
 		const B = 'packages/moved/src/a.ts';
 		mkdirSync(dirname(join(r.dir, B)), { recursive: true });
 		git(r.dir, 'mv', A, B);
-		writeFileSync(join(r.dir, B), `${old}\nexport const c = 3;\n`);
+		writeFileSync(
+			join(r.dir, B),
+			`${dedent`
+				${old}
+				export const c = 3;
+			`}\n`
+		);
 		git(r.dir, 'add', '-A');
 		git(r.dir, 'commit', '-qm', 'move');
 		assert.deepEqual([...(added_lines(r.dir, r.base).get(B) ?? [])], [4]);

@@ -40,8 +40,8 @@ export function report_restores(): void {
 	const w = window as PageGlobals;
 	const run = w.__og_restore;
 	if (run)
-		w.__og_restore = (root) => {
-			const restored = run(root);
+		w.__og_restore = (root, lite) => {
+			const restored = run(root, lite);
 			report();
 			return restored;
 		};

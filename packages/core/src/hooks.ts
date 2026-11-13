@@ -1067,9 +1067,9 @@ class OgygiaHandle {
 						note_cache_control(event.request, headers[key]);
 			};
 			const response = await resolve(event, {
-				transformPageChunk: async ({ html }) =>
+				transformPageChunk: async ({ html, done }) =>
 					this.inject_client_seeds(
-						pass ? await this.#pass_document(pass, html, event, bag) : html,
+						pass ? await this.#pass_document(pass, html, done, event, bag) : html,
 						store?.state,
 						event,
 						bag
@@ -1210,26 +1210,25 @@ class OgygiaHandle {
 		});
 	}
 
-	/**
-	 * THE APP'S OWN PASS ON A DOCUMENT (`HtmlPass`, @ogygia/rewrite): the chunk carrying `</head>` (a
-	 * streamed tail chunk passes untouched), with what only ogygia knows about the page. What the pass
-	 * puts in the head and first before `</body>` rides the seed injection's ONE assembly of the
-	 * document (no splice here, which was another full copy the assembly then re-located).
-	 */
 	async #pass_document(
 		pass: HtmlPass,
 		html: string,
+		done: boolean,
 		event: RequestEvent,
 		bag: RequestBag
 	): Promise<string> {
-		if (head_end(html) === -1) return html;
+		const head = head_end(html) !== -1;
+		const end = body_end(html);
 		const out = await pass.document(html, {
-			csr: csr_page_of(html, body_end(html), event, bag),
+			csr: csr_page_of(html, end, event, bag),
 			// (the router morphs a fetched page into the live one: it is rendered as an answer)
-			answer: router_fetched(event)
+			answer: router_fetched(event),
+			head,
+			body: end !== -1,
+			done
 		});
-		bag.transform_head = out.head;
-		bag.transform_body = out.body;
+		if (out.head) bag.transform_head = out.head;
+		if (out.body) bag.transform_body = out.body;
 		return out.html;
 	}
 

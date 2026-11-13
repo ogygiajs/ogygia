@@ -19,7 +19,7 @@ import * as federation from '@ogygia/federation/internal/messages';
 import * as flags from '@ogygia/flags/internal/messages';
 import * as machine from '@ogygia/machine';
 import * as postrender from '@ogygia/postrender/internal/messages';
-import * as reshape from '@ogygia/rewrite/internal/messages';
+import * as rewrite from '@ogygia/rewrite/internal/messages';
 import * as testing from '@ogygia/testing/internal/messages';
 import * as cli from '@ogygia/cli/internal/messages';
 
@@ -58,8 +58,8 @@ const TABLES: Array<[Kind, Table]> = [
 	['warning', machine.MACHINE_WARNINGS],
 	['error', postrender.POSTRENDER_ERRORS],
 	['warning', postrender.POSTRENDER_WARNINGS],
-	['error', reshape.RESHAPE_ERRORS],
-	['warning', reshape.RESHAPE_WARNINGS],
+	['error', rewrite.REWRITE_ERRORS],
+	['warning', rewrite.REWRITE_WARNINGS],
 	['error', testing.TESTING_ERRORS],
 	['warning', testing.TESTING_WARNINGS],
 	['error', cli.CLI_ERRORS],
