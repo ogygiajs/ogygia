@@ -5815,6 +5815,14 @@
 		{
 			"id": "packages/core/src/server/early-holes-csp.ts > with_hash > filter:0~82d7e5",
 			"reason": "the sources to add that a directive lacks, constant work per source (one or two hashes); early-holes-csp.test.ts runs it"
+		},
+		{
+			"id": "packages/config/src/sim.ts > sim_params",
+			"reason": "the simulation harness: reads two knobs once per property, constant work; proven in packages/core/test/property-seeded.test.ts"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > sim_define",
+			"reason": "test config: picks four knobs from the environment when a vitest config loads, constant work; proven in packages/core/test/property-seeded.test.ts"
 		}
 	]
 }
