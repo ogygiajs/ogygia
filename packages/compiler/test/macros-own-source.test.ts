@@ -50,6 +50,24 @@ describe('module macros: the app’s own source only', () => {
 		expect(out).toEqual({ code: src, touched: false });
 	});
 
+	it('a plugin macro in an installed file fails the build, and its handler never runs', async () => {
+		const ran: string[] = [];
+		const with_macro: MacroPipelineCtx = {
+			...ctx(),
+			macros: [{ name: 'code', handler: (code, m) => (ran.push(m.id), code.replace('x', 'y')) }]
+		};
+		await expect(
+			run_module_macros(`export const s = import.meta.og.code('x');`, DEP, with_macro, NO_PROFILE)
+		).rejects.toThrow(/macro_outside_app/);
+		// (a marker in a string only: no call, so nothing to refuse, and still nothing runs)
+		const named = `export const t = 'import.meta.og.code(…)';`;
+		expect(await run_module_macros(named, DEP, with_macro, NO_PROFILE)).toEqual({
+			code: named,
+			touched: false
+		});
+		expect(ran).toEqual([]);
+	});
+
 	it('a file a package declares in ogygia.files, and the app’s own, are rewritten', async () => {
 		for (const id of [DECLARED, APP]) {
 			const out = await run_module_macros(WIRE, id, ctx(), NO_PROFILE);
