@@ -197,3 +197,24 @@ test('DEV: a region-css link to a real .css asset stays a link', async () => {
 	expect(asset.isConnected).toBe(true);
 	asset.remove();
 });
+
+test('DEV: a region-css link parsed after the runtime booted is imported once the document is parsed', async () => {
+	document.head.querySelectorAll('link[data-ogygia-region-css]').forEach((n) => n.remove());
+	document.documentElement.removeAttribute('data-og-dev-css-marker');
+	// the runtime's bootstrap is the first node in <head>: it boots while the rest is still parsing
+	Object.defineProperty(document, 'readyState', { configurable: true, get: () => 'loading' });
+	try {
+		bootDev();
+		await new Promise((r) => setTimeout(r, 50));
+		css_link(marker_module('parsed-late'));
+	} finally {
+		delete (document as { readyState?: unknown }).readyState;
+	}
+	document.dispatchEvent(new Event('DOMContentLoaded'));
+	await expect
+		.poll(() => document.documentElement.getAttribute('data-og-dev-css-marker'), {
+			timeout: 10_000
+		})
+		.toBe('1');
+	expect(document.head.querySelectorAll('link[data-ogygia-region-css]').length).toBe(0);
+});
