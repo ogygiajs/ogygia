@@ -1,7 +1,8 @@
 // A HOLE WHOSE ANSWER IS REFUSED is refused for good: no retry would differ, so it asks once, keeps
-// its fallback, and says why. A 403 (its capability's key, MAC or id did not check) says the
-// server's reason (`region_answer_denied`); a whole document (a handle in front of ogygia's answered)
-// says what answered (`region_answer_redirected`).
+// its fallback, and says why. A 403 says the server's reason (`region_answer_denied`); a whole
+// document (a handle in front of ogygia's answered) says what answered (`region_answer_redirected`).
+// A 403 about the server rather than the request (`sig`, `shape`, `foreign-key`: a rolling deploy's
+// server of another build) is asked once more first (#1752).
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset } from '../../src/runtime/frame-store.ts';

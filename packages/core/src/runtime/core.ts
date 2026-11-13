@@ -32,6 +32,7 @@ import {
 	capability_expired,
 	is_allowed_region_endpoint,
 	island_module_url,
+	OTHER_BUILD_DENIALS,
 	RegionAnswerLater,
 	RegionAnswerRefused
 } from './region-endpoint-url.ts';
@@ -76,7 +77,7 @@ import {
 	type Wake
 } from './region-machines.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
-import { download, region_fetch, region_rate_limited } from '../policies.ts';
+import { download, region_fetch, region_other_build, region_rate_limited } from '../policies.ts';
 import {
 	install_rules,
 	note_handed,
@@ -1160,9 +1161,12 @@ class OgygiaRegion extends HTMLElement {
 	): Promise<void> {
 		const refused = err instanceof RegionAnswerRefused;
 		const deny = refused && err.reason === 'forbidden' ? err.deny || 'no reason given' : undefined;
+		const other_build = deny !== undefined && OTHER_BUILD_DENIALS.has(deny.split(':', 1)[0]);
+		const tries = other_build ? region_other_build : region_fetch;
 		const offline = !refused && this.isConnected && no_response(err) && browser_offline();
-		const final = !offline && (refused || !this.isConnected || attempts >= region_fetch.attempts);
-		if (import.meta.env.DEV || final) {
+		const final =
+			!offline && ((refused && !other_build) || !this.isConnected || attempts >= tries.attempts);
+		if (final || (import.meta.env.DEV && !other_build)) {
 			if (deny !== undefined) {
 				warn('region_answer_denied', { endpoint, deny });
 			} else if (refused) {
@@ -1242,7 +1246,7 @@ class OgygiaRegion extends HTMLElement {
 			const later = err instanceof RegionAnswerLater ? err.wait_ms : null;
 			const wait =
 				later === null
-					? backoffAfter(region_fetch, attempts)
+					? backoffAfter(tries, attempts)
 					: Math.min(later, backoffAfter(region_rate_limited, attempts));
 			const waited = await turn.wait(
 				retrying.task(() => new Promise<void>((resolve) => retrying.timeout(resolve, wait)))
