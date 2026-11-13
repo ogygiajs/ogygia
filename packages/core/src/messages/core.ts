@@ -1080,11 +1080,11 @@ export const WARNINGS = {
 		text: (a: { detail: string }): string =>
 			`rule broken, island code reads only the page.data keys the page shipped: ${a.detail}`,
 		details: (): string => prose`
-			Dev and e2e builds only (a rule ogygia checks on itself). With \`pageKeys()\` listed, the
+			Dev and e2e builds only (a rule ogygia checks on itself). With \`dataShake()\` listed, the
 			build reads each island's code for the \`page.data\` keys it reaches, and the page seed
 			ships only those. Island code read a key the server had and the seed left out, so it saw
 			\`undefined\`. A read the analysis missed: please report it with the island's code.
-			Removing \`pageKeys()\` ships all of \`page.data\` again.
+			Removing \`dataShake()\` ships all of \`page.data\` again.
 		`
 	}
 };

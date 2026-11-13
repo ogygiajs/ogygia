@@ -9,7 +9,7 @@
 	},
 	"dependencies": {
 		"@ogygia/compiler": "workspace:*",
-		"@ogygia/page-keys": "workspace:*"
+		"@ogygia/data-shake": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",

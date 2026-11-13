@@ -1,14 +1,14 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { ogygia } from 'ogygia/vite';
 import { barrels } from '@ogygia/barrels';
-import { pageKeys } from '@ogygia/page-keys';
+import { dataShake } from '@ogygia/data-shake/vite';
 import { defineConfig } from 'vite';
 
 // THE PALAESTRA: core's e2e fixture app (its suite: e2e/, `pnpm turbo run e2e --filter=palaestra`).
-// It lists no plugin but barrels() and pageKeys() on purpose: every other plugin's pages live in that
+// It lists no plugin but barrels() and dataShake() on purpose: every other plugin's pages live in that
 // plugin's own fixture app (packages/<plugin>/e2e/app), so a plugin change never reruns this suite.
 // barrels() is an exception because it rewrites the source every core fixture is compiled from;
-// pageKeys() because it shapes the page seed every core fixture's islands read (e2e/seed-shape.spec.ts).
+// dataShake() because it shapes the page seed every core fixture's islands read (e2e/seed-shape.spec.ts).
 export default defineConfig({
 	// The e2e suite builds this app (adapter-vercel writes `.vercel/output`, a copy of the server's whole
 	// dependency tree), then starts dev servers in the same folder. Vite's watcher skips only
@@ -50,7 +50,7 @@ export default defineConfig({
 		// /ts-registry fixtures are that shape; with this on, the build is the test.
 		barrels(),
 		// Seed shaping: each page ships only the page.data keys its islands read.
-		pageKeys(),
+		dataShake(),
 		sveltekit()
 	]
 });

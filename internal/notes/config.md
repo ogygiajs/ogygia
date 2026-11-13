@@ -97,16 +97,16 @@ those states **unrepresentable**: a `regions.presets` entry is typed as island a
 else; a `content.presets` entry as content vocabulary; `router` has no presets slot at all. Types
 do the sealing; the runtime keeps only the genuinely dynamic seals:
 
-| leak                                                           | seal                                                                                                                                                                                               |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| use site names an unknown preset                               | build-voice error listing that subsystem's preset names                                                                                                                                            |
-| unknown key in any bag                                         | config-load error — each subsystem's vocabulary is closed (typed AND runtime-checked; types don't protect dynamic configs)                                                                         |
-| dynamic preset name (`preset: someVar`)                        | error — literal only, the standing macro-argument law                                                                                                                                              |
-| one file globbed by two collections carrying different presets | NOT an error — each gets its own module variant (`?og_preset=`), by construction (v3.1)                                                                                                            |
-| a loader-macro glob matches zero files                         | loud warning (the folder() brace-glob dev bug is the precedent: silence ships broken)                                                                                                              |
-| empty preset                                                   | config-load error (a bundle with nothing is a mistake)                                                                                                                                             |
-| legacy spellings                                               | rename map with pointed errors, never silent aliasing                                                                                                                                              |
-| config in a second home                                        | not representable — `ogygia.extensions()` / `ogygia.preprocess()` / `handle()` stay value-free and must behave identically with or without plugin config (svelte-check path guarantees this today) |
+| leak                                                           | seal                                                                                                                                                |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| use site names an unknown preset                               | build-voice error listing that subsystem's preset names                                                                                             |
+| unknown key in any bag                                         | config-load error — each subsystem's vocabulary is closed (typed AND runtime-checked; types don't protect dynamic configs)                          |
+| dynamic preset name (`preset: someVar`)                        | error — literal only, the standing macro-argument law                                                                                               |
+| one file globbed by two collections carrying different presets | NOT an error — each gets its own module variant (`?og_preset=`), by construction (v3.1)                                                             |
+| a loader-macro glob matches zero files                         | loud warning (the folder() brace-glob dev bug is the precedent: silence ships broken)                                                               |
+| empty preset                                                   | config-load error (a bundle with nothing is a mistake)                                                                                              |
+| legacy spellings                                               | rename map with pointed errors, never silent aliasing                                                                                               |
+| config in a second home                                        | not representable — `handle()` stays value-free and must behave identically with or without plugin config (svelte-check path guarantees this today) |
 
 Resolution: depth-2 replace (subsystem key → setting key; inner bags replace whole, no deep concat
 of transformer arrays): inline option → preset → subsystem default → built-in.

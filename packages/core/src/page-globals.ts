@@ -7,10 +7,12 @@
 
 /** What the restorer recorded about one host. */
 export interface RestoreLogEntry {
-	kind: 'late' | 'mismatch';
+	kind: 'late' | 'mismatch' | 'sheet';
 	host: string;
 	t: number;
 	diff?: string;
+	/** `sheet`: the `og-shadow` key the page carries no sheet for. */
+	key?: string;
 	island?: string;
 }
 
