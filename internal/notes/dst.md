@@ -431,10 +431,19 @@ debugging over the actions (`src/shrink.ts`), several candidates side by side in
 a candidate only while it fails with the same signature (`ci.ts` `signature`). The shrunk run is
 replayed twice (equal traces, or the shrink says so), and its actions, finding and the trace's
 tail are printed. It writes `plans/<name>.min.json` (`--plan <file> --step N` prints the whole
-trace) and `test/found/<name>.test.ts`, a regression test that runs the plan and expects the
-finding gone: it fails while the bug stands, and skips when the app on disk is not the one it was
-found on (a generated app's seed, from its plan.json). Rename it to say the behavior, and put it
-on the finding's `sim/found-<name>` branch.
+trace) and `.scratch/found/<name>.test.ts` (gitignored, with any hand probes), a regression test
+that runs the plan and expects the finding gone: it fails while the bug stands, and skips when the
+app on disk is not the one it was found on (a generated app's seed, from its plan.json). Filed,
+rename it to say the behavior and move it to `test/found/` on the finding's `sim/found-<name>`
+branch: `test/found/` holds only tests put there on purpose.
+
+A plan picks by name: each click, press or hover records what it picked (`names`: a link's
+address, a button's region and text), and its replay picks the same on a page whose elements
+moved; a name its page no longer has falls back to the draw and is said (`missed`). Each request
+draws its fate (delay, drop, cut, stall) from a stream of its own, named by its document, method,
+address (build-specific query values out) and how many times it was asked, so one more request
+never moves another's. A sweep plan that misses its step says what its run took of that machine,
+and what it named that was gone.
 
 ## The real-browser tier
 

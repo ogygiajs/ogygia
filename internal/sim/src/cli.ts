@@ -233,6 +233,9 @@ export interface RunResult {
 	readonly idle: boolean;
 	/** What the visitor saw after each action (`--observe`), else empty. */
 	readonly seen: readonly Seen[];
+	/** Each thing a planned action named that its page no longer had, `action <n>: ...`: a plan
+	 *  that misses its step says why (src/sweep.ts). */
+	readonly missed: readonly string[];
 }
 
 /** A request of tab `tab` (0 is the first) the network dropped or cut: the `nth` (from 0) of the
@@ -335,6 +338,7 @@ export async function run(
 		`servers: ${instances}, clocks up to ${skew} ms apart, ${secret ? 'a stable secret' : 'no secret'}`
 	);
 	const actions: Action[] = [];
+	const missed: string[] = [];
 	const broken: Broken[] = [];
 	/** The document each tab had when it was last pressed in (by tab name). */
 	const pressed = new Map<string, number>();
@@ -448,12 +452,15 @@ export async function run(
 				for (const t of v.tabs)
 					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
 			// (an eager press comes once the next document is in: the marks are that document's)
-			await act(world, v, a, ORIGIN, () => {
+			const picks = await act(world, v, a, ORIGIN, () => {
 				for (const t of v.tabs) {
 					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
 					pressed.set(t.name, t.documents);
 				}
 			});
+			// (what it picked, by name: its plan picks the same on a page whose elements moved)
+			if (picks.names.length > 0) actions[actions.length - 1] = { ...a, names: picks.names };
+			for (const m of picks.missed) missed.push(`action ${i + 1} (${describe(a)}): ${m}`);
 			// (a press changes an island's state: the document shows the visitor's own state from then
 			// on, kept across client navigations, which no fresh load has; its next document is clean.
 			// And it may change the server's (a cart, a counter a command bumps), which every other
@@ -561,7 +568,8 @@ export async function run(
 			coverage: { steps: steps_taken, points: Object.fromEntries(world.buggified) },
 			wire: wire_faults(world),
 			idle: world.idle,
-			seen
+			seen,
+			missed
 		};
 	} finally {
 		await world.end();
@@ -794,7 +802,8 @@ const KNOWN_TOO = process.argv.includes('--known');
  * Shrinks a failing run to the fewest actions that fail the same way (src/shrink.ts), replays the
  * shrunk run twice (its traces must be equal), prints its actions, its finding and its trace's
  * tail, and writes its plan (`plans/<name>.min.json`, for `--plan`) and its regression test
- * (`test/found/<name>.test.ts`, which fails while the bug stands).
+ * (`.scratch/found/<name>.test.ts`, which fails while the bug stands; filed, it moves to test/found
+ * on a sim/found-* branch).
  */
 async function shrink(file: string): Promise<void> {
 	const given = JSON.parse(readFileSync(file, 'utf8')) as {
@@ -857,7 +866,9 @@ async function shrink(file: string): Promise<void> {
 	const plan_file = join(PLANS, `${name}.min.json`);
 	writeFileSync(plan_file, plan_json(seed, min, a.result));
 	const gen = GEN?.seed ?? null;
-	const test_file = join(import.meta.dirname, '..', 'test', 'found', `${name}.test.ts`);
+	// (in the gitignored scratch: test/found holds only tests put there on purpose, on a sim/found-*
+	// branch, src/ci.ts)
+	const test_file = join(import.meta.dirname, '..', '.scratch', 'found', `${name}.test.ts`);
 	mkdirSync(join(test_file, '..'), { recursive: true });
 	if (!existsSync(test_file))
 		writeFileSync(
@@ -979,6 +990,8 @@ async function main(): Promise<void> {
 		steps_per_second: Math.round((steps / elapsed) * 1000),
 		actions_per_second: Math.round((actions / elapsed) * 10000) / 10,
 		coverage,
+		/** Each thing a planned action named that its page no longer had (a `--plan` run's). */
+		missed: results.filter((_, i) => !REPLAY || i % 2 === 0).flatMap((r) => r.missed),
 		seeds_failed: results
 			.filter((r, i) => r.broken.length && (!REPLAY || i % 2 === 0))
 			.map((r) => ({ seed: r.seed, oracles: r.broken.map((b) => b.oracle) })),
@@ -1116,7 +1129,8 @@ class Pool {
 				coverage: { steps: {}, points: {} },
 				wire: [],
 				idle: job.plan?.idle ?? true,
-				seen: []
+				seen: [],
+				missed: []
 			}
 		});
 		const done = (message: { result?: RunResult; error?: string; hung?: string }) => {
