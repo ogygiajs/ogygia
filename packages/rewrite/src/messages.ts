@@ -97,6 +97,16 @@ export const REWRITE_WARNINGS = {
 			Keep streamed blocks out of matched elements, or put the element inside the streamed block.
 		`
 	},
+	rule_rewrite_after_cancel: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a cancelled request's rewrite stops: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). Once the request is cancelled (the
+			visitor left, the connection closed), its rewrites stop: no render is called, no result is
+			written into the page, and no failure is said, since nobody receives the page. One went on:
+			that is a bug in ogygia, please report it.
+		`
+	},
 	restore_late: {
 		text: (a: { host: string }): string =>
 			`<${a.host}> was upgraded before the restore reached it; its own root is kept and the server's copy of its render dropped.`,
