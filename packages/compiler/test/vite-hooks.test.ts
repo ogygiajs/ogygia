@@ -8,6 +8,7 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	readdirSync,
 	readFileSync,
 	realpathSync,
 	rmSync,
@@ -27,6 +28,7 @@ import {
 	foucScopedVirtualId,
 	FOUC_CSS_PREFIX
 } from '../src/compiler/fouc-css.ts';
+import { EVERY_BARREL } from '../src/compiler/exports/index.ts';
 import type { OgygiaOptions } from '../src/vite/options.ts';
 
 type Command = 'build' | 'serve';
@@ -108,6 +110,8 @@ interface Setup {
 	given: Loose;
 	/** the resolved config `configResolved` saw (and may have written into) */
 	resolved: Loose;
+	/** a plugin's stage host (`ogygia:source`, `ogygia:post`), from the same `ogygia()` */
+	stage: (name: 'source' | 'post') => Hooks;
 }
 
 /** The plugin, through `config` and `configResolved`, as Vite runs them for `command`. */
@@ -119,7 +123,8 @@ async function setup(
 		resolved = {}
 	}: { options?: OgygiaOptions; plugins?: unknown[]; resolved?: Record<string, unknown> } = {}
 ): Promise<Setup> {
-	const p = ogygia(options).find((x) => x.name === 'ogygia') as Hooks;
+	const list = ogygia(options);
+	const p = list.find((x) => x.name === 'ogygia') as Hooks;
 	const mode = command === 'serve' ? 'development' : 'production';
 	const t = hook_this('ssr');
 	const given = await p.config.handler.call(t, { root, plugins }, { command, mode });
@@ -138,7 +143,8 @@ async function setup(
 		...resolved
 	};
 	p.configResolved.call(t, config);
-	return { p, given, resolved: config };
+	const stage = (name: 'source' | 'post') => list.find((x) => x.name === `ogygia:${name}`) as Hooks;
+	return { p, given, resolved: config, stage };
 }
 
 async function begin(p: Hooks, ...legs: Leg[]): Promise<Hooks> {
@@ -185,6 +191,17 @@ describe('the config hook', () => {
 		expect((await setup('serve')).given.define.__OGYGIA_CLIENT_PLUGINS__).toBe('false');
 	});
 
+	it('a standalone build runs none of the ogygia plugins listed beside it', async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		let built = 0;
+		const listed = definePlugin({ name: 'x-tool', build: () => void built++ });
+		await setup('build', { plugins: [listed] });
+		expect(built).toBe(1);
+		await setup('build', { plugins: [listed], options: { standalone: true } });
+		expect(built).toBe(1);
+	});
+
 	it("core's events compile in when a plugin asks, lazily when it asks for lazy", async () => {
 		app();
 		const off = (await setup('serve')).given.define;
@@ -223,6 +240,27 @@ describe('the config hook', () => {
 		app();
 		await setup('build');
 		expect(existsSync(path.join(keep_client_dir(root), '+layout.ts'))).toBe(true);
+		// (a layout with no page under it: Kit builds its client, and no URL serves it)
+		expect(readdirSync(keep_client_dir(root), { recursive: true })).toEqual(['+layout.ts']);
+		expect(readFileSync(path.join(keep_client_dir(root), '+layout.ts'), 'utf8')).toMatch(
+			/^export const csr = true;$/m
+		);
+	});
+
+	it('the keep-client route goes at process exit, armed once however often Vite configures', async () => {
+		app();
+		const before = new Set(process.listeners('exit'));
+		const { p } = await setup('build');
+		await p.config.handler.call(
+			hook_this('ssr'),
+			{ root },
+			{ command: 'build', mode: 'production' }
+		);
+		const armed = process.listeners('exit').filter((l) => !before.has(l));
+		expect(armed).toHaveLength(1);
+		process.off('exit', armed[0]);
+		(armed[0] as () => void)();
+		expect(existsSync(keep_client_dir(root))).toBe(false);
 	});
 
 	it('a build of an app Kit hydrates sweeps a stale keep-client route', async () => {
@@ -324,6 +362,34 @@ describe('the signing secret', () => {
 		expect(process.env.OGYGIA_SECRET).toBe(STRONG);
 	});
 
+	it('region ids are salted from the secret alone, so every build of one secret mints the same ids', async () => {
+		app();
+		const host = path.join(root, 'src/routes/+page.svelte');
+		const compiled = async () =>
+			(
+				await (
+					await begin((await setup('build')).p, 'ssr')
+				).transform.call(hook_this('ssr'), readFileSync(host, 'utf8'), host, { ssr: true })
+			).code as string;
+		const unsalted = await compiled();
+		process.env.OGYGIA_SECRET = STRONG;
+		const salted = await compiled();
+		expect(await compiled()).toBe(salted);
+		expect(salted).not.toBe(unsalted);
+	});
+
+	it('each build bakes a fresh key of its own into the server', async () => {
+		app();
+		const key = async () =>
+			/build_key = "([0-9a-f]{64})"/.exec(
+				(await load(await begin((await setup('build')).p, 'ssr'), 'ogygia:server/secret', 'ssr')) ??
+					''
+			)?.[1];
+		const [a, b] = [await key(), await key()];
+		expect(a).toBeDefined();
+		expect(a).not.toBe(b);
+	});
+
 	it('a secret already in the environment wins over the .env file', async () => {
 		app();
 		write('.env', 'OGYGIA_SECRET=short\n');
@@ -421,6 +487,53 @@ describe('transform', () => {
 		);
 	});
 
+	it("the page Kit's entry publishes carries Kit's own navigating and navigation, never $app/stores", async () => {
+		app();
+		const p = await begin((await setup('build')).p, 'ssr', 'client');
+		const { code } = await p.transform.call(hook_this('client'), 'export {};\n', KIT_APP, {
+			ssr: false
+		});
+		const published = code.slice(code.indexOf("Symbol.for('ogygia.kit-page')"));
+		expect(code).toMatch(/import \{[^}]*\bnavigating as (\w+)[^}]*\} from '\$app\/state'/);
+		expect(code).toMatch(/import \* as \w+ from '\$app\/navigation'/);
+		expect(published).toMatch(/navigating: \w+/);
+		expect(published).toMatch(/navigation: \w+/);
+		expect(code).not.toContain('$app/stores');
+	});
+
+	it("Kit's client app entry is found under Kit 2's and Kit 3's generated dirs, dev and build", async () => {
+		app();
+		const p = await begin((await setup('build')).p, 'ssr', 'client');
+		const threaded = async (id: string) =>
+			(
+				(await p.transform.call(hook_this('client'), 'export {};\n', id, { ssr: false })) as {
+					code: string;
+				} | null
+			)?.code.includes("Symbol.for('ogygia.kit-page')") ?? false;
+		for (const dir of ['client', 'client-optimized', 'dev/client', 'build/client'])
+			expect(await threaded(`/x/out/generated/${dir}/app.js`), dir).toBe(true);
+		for (const id of ['/x/out/generated/server/app.js', '/x/out/generated/client/other.js'])
+			expect(await threaded(id), id).toBe(false);
+	});
+
+	it("a hook's leg is its environment: a server consumer is the server whatever its name, and ssr is", async () => {
+		app();
+		const { p } = await setup('serve');
+		const in_env = (name: string, consumer?: string) => ({
+			...hook_this('client'),
+			environment: { name, config: consumer ? { consumer } : {} }
+		});
+		const threaded = async (t: unknown) =>
+			(
+				(await p.transform.call(t, 'export {};\n', KIT_APP, { ssr: false })) as {
+					code: string;
+				} | null
+			)?.code.includes("Symbol.for('ogygia.kit-page')") ?? false;
+		expect(await threaded(in_env('edge', 'server'))).toBe(false);
+		expect(await threaded(in_env('ssr'))).toBe(false);
+		expect(await threaded(in_env('client', 'client'))).toBe(true);
+	});
+
 	it('a host is compiled for the leg asked', async () => {
 		app();
 		const { p } = await setup('serve');
@@ -451,6 +564,187 @@ describe('transform', () => {
 		const client = hook_this('client');
 		await p.transform.call(client, src, host, { ssr: false });
 		expect(client.emitted.map((c) => c.type)).toEqual(['chunk']);
+	});
+});
+
+describe("a plugin's stage transforms and seams", () => {
+	type Ctx = import('../src/vite/plugin-api.ts').TransformContext;
+	type Seams = import('../src/vite/plugin-api.ts').BuildContext;
+
+	/** A plugin whose `source` and `post` transforms are `on`'s, and the build it was handed. */
+	function tool(on: { source?: (t: Ctx) => void; post?: (t: Ctx) => void }) {
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const seen: { b?: Seams } = {};
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) => {
+				seen.b = b;
+				for (const stage of ['source', 'post'] as const) {
+					const run = on[stage];
+					if (run) b.transform({ stage, transform: run });
+				}
+			}
+		});
+		return { plugin, seen };
+	}
+
+	it('a region mark pins an import, whatever names it takes; any other attribute does not', async () => {
+		app();
+		const { plugin, seen } = tool({});
+		await setup('build', { plugins: [plugin], options: { importKeys: { wake: 'awake' } } });
+		const pinned = seen.b!.pinnedImports('');
+		expect(pinned({ attribute_keys: ['awake'], specs: [{ local: 'A' }] })).toBe(true);
+		expect(pinned({ attribute_keys: ['type'], specs: [] })).toBe(false);
+		expect(pinned({ attribute_keys: ['wake'], specs: [] })).toBe(false);
+	});
+
+	it("a stage sees the module with no byte-order mark, and its edits land at the code's offsets", async () => {
+		app();
+		let seen_code = '';
+		const { plugin } = tool({
+			source: (t) => {
+				seen_code = t.code;
+				t.edit.overwrite(0, 3, 'let');
+			}
+		});
+		const { stage } = await setup('serve', { plugins: [plugin] });
+		const out = await stage('source').transform.call(
+			hook_this('client'),
+			'\uFEFFvar x = 1;\n',
+			'/r/a.ts'
+		);
+		expect(seen_code).toBe('var x = 1;\n');
+		expect(out.code).toBe('let x = 1;\n');
+	});
+
+	it('every transform of a stage edits the code the stage received, and the stage gives one result and one map', async () => {
+		app();
+		write('node_modules/x-two/package.json', JSON.stringify({ name: 'x-two' }));
+		const { plugin } = tool({ source: (t) => void t.edit.overwrite(0, 3, 'let') });
+		const second = definePlugin({
+			name: 'x-two',
+			build: (b) =>
+				b.transform({ stage: 'source', transform: (t) => void t.edit.overwrite(4, 5, 'y') })
+		});
+		const { stage } = await setup('serve', { plugins: [plugin, second] });
+		const out = await stage('source').transform.call(
+			hook_this('client'),
+			'var x = 1;\n',
+			'/r/a.ts'
+		);
+		expect(out.code).toBe('let y = 1;\n');
+		expect(out.map.mappings).not.toBe('');
+	});
+
+	it("a barrel's export map is the environment's: each resolves its names as its own modules do", async () => {
+		app();
+		write('src/lib/index.ts', "﻿export { x } from './a';\n");
+		write('src/lib/a.client.ts', 'export const x = 1;\n');
+		write('src/lib/a.server.ts', 'export const x = 2;\n');
+		const barrel = path.join(root, 'src/lib/index.ts');
+		const maps: Record<string, unknown> = {};
+		const { plugin, seen } = tool({
+			source: async (t) => {
+				const map = await seen.b!.exports.map(barrel, '$lib', EVERY_BARREL, t);
+				maps[t.environment] = map?.entries.get('x');
+			}
+		});
+		const { stage } = await setup('serve', { plugins: [plugin] });
+		for (const leg of ['client', 'ssr'] as const)
+			await stage('source').transform.call(
+				{
+					...hook_this(leg),
+					addWatchFile: () => {},
+					resolve: async (spec: string) =>
+						spec === './a'
+							? { id: path.join(root, `src/lib/a.${leg === 'ssr' ? 'server' : 'client'}.ts`) }
+							: null
+				},
+				'x;\n',
+				'/r/a.ts'
+			);
+		expect(maps.client).toMatchObject({ id: path.join(root, 'src/lib/a.client.ts'), name: 'x' });
+		expect(maps.ssr).toMatchObject({ id: path.join(root, 'src/lib/a.server.ts'), name: 'x' });
+	});
+
+	it('a stage resolves past this plugin, as a forward-slash id; an external or a throw is null', async () => {
+		app();
+		const got: Array<string | null> = [];
+		const { plugin } = tool({
+			source: async (t) => {
+				for (const spec of ['win', 'ext', 'boom']) got.push(await t.resolve(spec, '/r/a.ts'));
+			}
+		});
+		const { stage } = await setup('serve', { plugins: [plugin] });
+		const asked: unknown[] = [];
+		const t = {
+			...hook_this('client'),
+			addWatchFile: () => {},
+			resolve: async (spec: string, _importer: string, o?: { skipSelf?: boolean }) => {
+				asked.push(o?.skipSelf);
+				if (spec === 'boom') throw new Error('unresolvable');
+				return spec === 'win' ? { id: 'C:\\r\\win.ts' } : { id: '/r/ext.ts', external: true };
+			}
+		};
+		await stage('source').transform.call(t, 'x;\n', '/r/a.ts');
+		expect(got).toEqual(['C:/r/win.ts', null, null]);
+		expect(asked).toEqual([true, true, true]);
+	});
+
+	it("why a barrel stayed, by both stages, in the findings' order; a stage's rerun forgets its own word", async () => {
+		app();
+		let say_source = true;
+		const left = (reason: 'pinned' | 'impure'): Parameters<Ctx['emit']>[0] => ({
+			domain: 'compile',
+			name: 'compile.barrel.left',
+			barrel: '/r/b.ts',
+			names: ['x'],
+			reason
+		});
+		const { plugin, seen } = tool({
+			source: (t) => {
+				if (say_source) t.emit(left('pinned'));
+			},
+			post: (t) => t.emit(left('impure'))
+		});
+		const { p, stage } = await setup('build', { plugins: [plugin] });
+		await begin(p, 'client', 'ssr');
+		const run = async (name: 'source' | 'post', leg: Leg = 'client') =>
+			stage(name).transform.call({ ...hook_this(leg), addWatchFile: () => {} }, 'x;\n', '/r/a.ts');
+		await run('source');
+		await run('post');
+		expect(seen.b!.regions.barrelWhy('/r/b.ts', ['/r/a.ts'])).toEqual(['impure', 'pinned']);
+		say_source = false;
+		await run('source');
+		expect(seen.b!.regions.barrelWhy('/r/b.ts', ['/r/a.ts'])).toEqual(['impure']);
+		// (the browser's word only: the server's bundle is not what a page downloads)
+		say_source = true;
+		await run('source', 'ssr');
+		expect(seen.b!.regions.barrelWhy('/r/b.ts', ['/r/a.ts'])).toEqual(['impure']);
+	});
+
+	it('a stage transform runs only on the modules its filter takes', async () => {
+		app();
+		const { plugin, seen } = tool({});
+		const { stage } = await setup('serve', { plugins: [plugin] });
+		seen.b!.transform({
+			stage: 'source',
+			filter: (id) => id.endsWith('.ts'),
+			transform: (t) => void t.edit.prepend('// x\n')
+		});
+		const run = (id: string) =>
+			stage('source').transform.call(
+				{ ...hook_this('client'), addWatchFile: () => {} },
+				'x;\n',
+				id
+			);
+		expect((await run('/r/a.ts'))?.code).toBe(
+			`${dedent`
+			// x
+			x;
+		`}\n`
+		);
+		expect(await run('/r/a.js')).toBe(null);
 	});
 });
 
@@ -579,6 +873,81 @@ describe('the build legs', () => {
 		expect(fanouts('/b.js')).toEqual([6]);
 	});
 
+	it("a content module's asset: its own style from its source, then what no client chunk ships, as the bundler resolves it", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		write(
+			'src/lib/A.svelte',
+			dedent`
+				<script lang="ts">
+					import { writable } from 'svelte/store';
+					const n = writable<number>(1);
+				</script>
+				<p class="a">{$n}</p>
+				<style lang="scss">$b: blue; .a { color: $b; }</style>
+			`
+		);
+		write('src/lib/Shipped.svelte', '<p class="s">s</p><style>.s { color: teal; }</style>\n');
+		write('src/lib/plain.css', '.plain { color: navy; }\n');
+		write('src/lib/dialect.scss', '$c: red; .dialect { color: $c; }\n');
+		write('src/lib/ext.css', '.ext { color: gray; }\n');
+		write('src/lib/pkg.css', '.pkg { color: olive; }\n');
+		const source = dedent`
+			<script>
+				import A from '$lib/A.svelte';
+				import Shipped from '$lib/Shipped.svelte';
+				import '$lib/plain.css';
+				import '$lib/dialect.scss';
+				import 'x-ext/ext.css';
+				import 'x-pkg/pkg.css';
+				import 'x-boom/boom.css';
+			</script>
+			<h1 class="own">t</h1>
+			<style>.own { color: red; }</style>
+			<A /><Shipped />
+		`;
+		const doc = write(
+			'src/routes/doc.svx',
+			source.replace('.own { color: red; }', '.disk { color: green; }')
+		);
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) => void b.markup({ extensions: ['.svx'], modules: [[doc, source]] })
+		});
+		const { p } = await setup('build', { plugins: [plugin] });
+		const client = hook_this('client');
+		await p.buildStart.call(client);
+		const asked: unknown[] = [];
+		const t = {
+			...client,
+			getModuleIds: () => [path.join(root, 'src/lib/Shipped.svelte')][Symbol.iterator](),
+			resolve: async (spec: string, importer?: string, o?: { skipSelf?: boolean }) => {
+				asked.push(o?.skipSelf);
+				if (spec === 'x-boom/boom.css') throw new Error('unresolvable');
+				if (spec === 'x-ext/ext.css')
+					return { id: path.join(root, 'src/lib/ext.css'), external: true };
+				// (past this plugin, a package's file; through it, the name this plugin would answer)
+				if (spec === 'x-pkg/pkg.css')
+					return { id: o?.skipSelf ? path.join(root, 'src/lib/pkg.css') : '\0x-pkg' };
+				return client.resolve(spec, importer);
+			}
+		};
+		client.emitted.length = 0;
+		await p.generateBundle.call(t, {}, {});
+		const assets = client.emitted.filter((c) => c.name === 'og-content.css');
+		expect(assets).toHaveLength(1);
+		const css = String(assets[0].source);
+		const at = (s: string) => css.indexOf(s);
+		expect(at('.own')).toBeGreaterThan(-1);
+		expect(css.split('.own').length - 1).toBe(1);
+		expect(at('.a')).toBeGreaterThan(at('.own'));
+		expect(css).toMatch(/\.a\.svelte-\w+ \{\s*color: blue;/);
+		expect(at('.plain')).toBeGreaterThan(at('.a'));
+		expect(at('.pkg')).toBeGreaterThan(at('.plain'));
+		for (const gone of ['green', 'teal', 'dialect', 'gray']) expect(css, gone).not.toContain(gone);
+		expect(new Set(asked)).toEqual(new Set([true]));
+	});
+
 	it('a server module in the browser bundle fails the build', async () => {
 		app();
 		const p = await begin((await setup('build')).p, 'ssr', 'client');
@@ -645,6 +1014,20 @@ describe('the dev server', () => {
 		expect(s2.sent.filter((m) => (m as { type?: string }).type === 'custom')).toEqual([]);
 	});
 
+	it("every stylesheet kind the browser's bridge can join goes out as a scoped join, and only those", async () => {
+		const { dev_hmr_client_source } = await import('../src/compiler/dev/dev-hmr.ts');
+		const glob = /import\.meta\.glob\("\/src\/\*\*\/\*\.\{([^}]+)\}"/.exec(dev_hmr_client_source());
+		const kinds = glob![1].split(',');
+		app();
+		const { p } = await setup('serve');
+		for (const ext of [...kinds, 'pcss', 'svelte']) {
+			const s = server();
+			p.handleHotUpdate({ file: write(`src/lib/k.${ext}`, '\n'), server: s });
+			const joins = s.sent.filter((m) => (m as { event?: string }).event === 'ogygia:css');
+			expect(joins.length, ext).toBe(kinds.includes(ext) ? 1 : 0);
+		}
+	});
+
 	it("a host's edit drops its islands' modules; the server it came from then hears of a deleted entry", async () => {
 		app();
 		const { p } = await setup('serve');
@@ -658,6 +1041,27 @@ describe('the dev server', () => {
 		s.sent.length = 0;
 		p.watchChange(path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
 		expect(s.sent).toEqual([{ type: 'full-reload', path: '*' }]);
+	});
+
+	it("two ogygia() instances share no program: what one served, the other never heard of (Kit's throwaway config)", async () => {
+		app();
+		const served = (await setup('serve')).p;
+		const throwaway = (await setup('serve')).p;
+		const island = write('src/lib/Late.svelte', '<p>late</p>\n');
+		const host = write(
+			'src/routes/late/+page.svelte',
+			dedent`
+				<script>
+					import Late from '$lib/Late.svelte' with { wake: 'visible' };
+				</script>
+				<Late />
+			`
+		);
+		await served.transform.call(hook_this('ssr'), readFileSync(host, 'utf8'), host, { ssr: true });
+		const s = server();
+		expect(throwaway.handleHotUpdate({ file: island, server: s })).toBe(undefined);
+		expect(s.sent).toEqual([]);
+		expect(served.handleHotUpdate({ file: island, server: server() })).toEqual([]);
 	});
 
 	it('a build never answers a hot update', async () => {
