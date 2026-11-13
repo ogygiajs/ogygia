@@ -1,4 +1,4 @@
-import { markup_tokens, read_tag, tag_name } from '../markup-walk.ts';
+import { MarkupCursor, markup_tokens, read_tag, tag_name } from '../markup-walk.ts';
 import { OG_KEPT } from '../wire-markup.ts';
 
 /** One attribute that differs between the server's markup and the island's after hydrate. */
@@ -66,18 +66,23 @@ export function without_runtime_marks(html: string): string {
 	return html;
 }
 
-/** `html` with every `<!-- … -->` removed; an unclosed comment runs to the end. */
+/** `html` with every `<!--` comment removed, as core's tag walk reads one (it ends at `-->` or
+ *  `--!>`, or at once for `<!-->`; a `<!--` in a script's text or a quoted value is none); an
+ *  unclosed comment runs to the end. */
 export function without_comments(html: string): string {
-	let at = html.indexOf('<!--');
-	if (at === -1) return html;
+	if (!html.includes('<!--')) return html;
 	let out = '';
-	let from = 0;
-	while (at !== -1) {
-		out += html.slice(from, at);
-		const end = html.indexOf('-->', at + 4);
-		if (end === -1) return out;
-		from = end + 3;
-		at = html.indexOf('<!--', from);
+	const at = new MarkupCursor(html);
+	while (at.next()) {
+		if (at.kind === 3 && html.startsWith('<!--', at.start)) continue;
+		if (at.kind === 0 && !at.raw) {
+			// (the walk reads any `<!--` it reaches as a comment: one left in text is one the markup
+			// ends inside, which runs to the end)
+			// markup-ok: the walk's own tail, cut where its unclosed comment opens
+			const open = html.indexOf('<!--', at.start);
+			if (open !== -1 && open < at.end) return out + html.slice(at.start, open);
+		}
+		out += html.slice(at.start, at.end);
 	}
-	return `${out}${html.slice(from)}`;
+	return out;
 }
