@@ -1,24 +1,16 @@
-/**
- * The one parser the `import.meta.og.*` transforms use. It must (a) parse TypeScript — the constructs
- * live in `.ts`/`.svelte.ts` and `<script lang="ts">` — and (b) preserve BYTE OFFSETS against the
- * original source, because every transform splices by span. That rules out `parseAst` (rollup's
- * parser: no TS) and type-stripping (shifts offsets).
- *
- * The parser comes from the app's required `vite` peer: Vite 8 re-exports the TS-capable oxc parser
- * as `parseSync` (byte-identical to `rolldown/utils`' — verified), so ogygia carries no `rolldown`
- * dependency of its own for this. NOT a shaky choice: `parseAst` is the rollup-compat parser (throws
- * on TS); `parseSync` is the oxc parser. One import, one decision.
- */
 import { createRequire } from 'node:module';
 
 /**
- * An AST node as the compiler's passes read it: oxc's ESTree and Svelte's template AST, walked generically and read by field
- * name. Kept loose on purpose: the walkers index arbitrary fields (`node[key]`), and some passes accept
- * node shapes beyond oxc's (store.ts also matches Babel's `StringLiteral` / `ObjectProperty`), which a
- * precise ESTree union would rule out. The one loose node type every pass shares.
+ * An AST node as the compiler's passes read it: oxc's ESTree and Svelte's template AST, walked
+ * generically and read by field name. Kept loose on purpose: the walkers index arbitrary fields
+ * (`node[key]`), and some passes accept node shapes beyond oxc's (store.ts also matches Babel's
+ * `StringLiteral` / `ObjectProperty`), which a precise ESTree union would rule out.
  */
-// oxlint-disable-next-line typescript/no-explicit-any
-export type AstNode = Record<string, any>;
+export type AstNode = Record<
+	string,
+	// oxlint-disable-next-line typescript/no-explicit-any -- every pass reads fields by name across oxc's and Svelte's node shapes
+	any
+>;
 type Node = AstNode;
 
 export type Comment = { start: number; end: number };
@@ -30,14 +22,11 @@ export type RawParse = (
 	code: string
 ) => { program?: Node; errors?: unknown[]; comments?: Comment[] };
 
-// Loaded on the first parse, not imported: a module that reaches this file without parsing (a server
-// runtime path) never loads Vite. The VARIABLE specifier keeps a bundler from pulling `vite` in.
 let node_parse_sync: RawParse | undefined;
 function raw_parse(id: string, code: string) {
 	if (!node_parse_sync) {
 		const require = createRequire(import.meta.url);
-		// Vite re-exports the SAME oxc parser as `rolldown/utils` (byte-identical AST — verified), so
-		// this reads through the app's required `vite` peer instead of a direct `rolldown` dependency.
+		// @why a bundler follows a literal require() specifier; a variable one keeps vite out of a bundle that never parses (test: test/oxc-parse.test.ts › a module that imports the parser without parsing never loads vite)
 		const vite_spec = 'vite';
 		node_parse_sync = (require(vite_spec) as { parseSync: RawParse }).parseSync;
 	}

@@ -8,17 +8,19 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fc } from '@ogygia/config/sim';
 import {
-	clear_route_csr_cache,
 	clientBuildWillSkip,
 	csrTrueRouteIds,
 	errorCsrTrueRouteIds,
 	hasAnyCsrFalseRoute,
 	is_route_component,
-	is_route_file,
 	page_route_config,
+	route_reader,
 	routeCsrIsFalse,
 	routeCsrIsTrue
 } from '../src/compiler/kit.ts';
+import { node_fs } from '../src/compiler/fs.ts';
+
+let R = route_reader(node_fs);
 
 const made: string[] = [];
 afterAll(() => {
@@ -37,7 +39,7 @@ function tree(files: Record<string, string>): string {
 		mkdirSync(path.dirname(abs), { recursive: true });
 		writeFileSync(abs, src);
 	}
-	clear_route_csr_cache();
+	R = route_reader({ ...node_fs });
 	return routes;
 }
 const OFF = 'export const csr = false;\n';
@@ -61,21 +63,15 @@ describe('a route file with a layout reset is a route component', () => {
 	);
 });
 
-describe('a dev edit to a route file clears the route answers', () => {
-	it.each([
-		'+page.svelte',
-		'+page@.svelte',
-		'+page.md',
-		'+layout@(app).svelte',
-		'+error.svelte',
-		'+page.ts',
-		'+page.server.js',
-		'+layout.server.ts'
-	])('%s is a route file', (name) => {
-		expect(is_route_file(name)).toBe(true);
-	});
-	it.each(['+server.ts', 'Page.svelte', 'page.ts', '+page.d.ts'])('%s is not', (name) => {
-		expect(is_route_file(name)).toBe(false);
+describe('a dev edit to a route file changes the route answers', () => {
+	it.each(['+page.svelte', '+page@.svelte', '+page.md'])('a new %s is a new route', (name) => {
+		const routes = tree({ 'a/+page.svelte': '<h1>a</h1>' });
+		expect(csrTrueRouteIds(R, routes)).toEqual(['/a']);
+		const abs = path.join(routes, 'b', name);
+		mkdirSync(path.dirname(abs), { recursive: true });
+		writeFileSync(abs, '<h1>b</h1>');
+		expect(R.touch(abs, 'create')).toBe(true);
+		expect(csrTrueRouteIds(R, routes).sort()).toEqual(['/a', '/b']);
 	});
 });
 
@@ -89,14 +85,14 @@ describe('a page with a layout reset', () => {
 			'b/+page.svelte': '<h1>b</h1>',
 			'b/+page.ts': ON
 		});
-		expect(csrTrueRouteIds(routes).sort()).toEqual(['/a', '/b']);
-		expect(routeCsrIsTrue(path.join(routes, 'a/+page@.svelte'), routes)).toBe(true);
+		expect(csrTrueRouteIds(R, routes).sort()).toEqual(['/a', '/b']);
+		expect(routeCsrIsTrue(R, path.join(routes, 'a/+page@.svelte'), routes)).toBe(true);
 	});
 
 	it('a csr = false `+page@.svelte` is a csr=false route', () => {
 		const routes = tree({ 'a/+page@.svelte': '<h1>a</h1>', 'a/+page.ts': OFF });
-		expect(hasAnyCsrFalseRoute(routes)).toBe(true);
-		expect(routeCsrIsFalse(path.join(routes, 'a/+page@.svelte'), routes)).toBe(true);
+		expect(hasAnyCsrFalseRoute(R, routes)).toBe(true);
+		expect(routeCsrIsFalse(R, path.join(routes, 'a/+page@.svelte'), routes)).toBe(true);
 	});
 
 	it('skips the options of the layouts between it and the reset target', () => {
@@ -106,11 +102,11 @@ describe('a page with a layout reset', () => {
 			'a/+page.svelte': '<h1>a</h1>',
 			'a/b/+page@.svelte': '<h1>b</h1>'
 		});
-		expect(csrTrueRouteIds(routes)).toEqual(['/a/b']);
+		expect(csrTrueRouteIds(R, routes)).toEqual(['/a/b']);
 		// the error page of /a/b renders with the root layout alone
-		expect(errorCsrTrueRouteIds(routes).sort()).toEqual(['/a/b']);
+		expect(errorCsrTrueRouteIds(R, routes).sort()).toEqual(['/a/b']);
 		// the layout at a/ serves /a only, which is csr=false: its islands stay
-		expect(routeCsrIsFalse(path.join(routes, 'a/+layout.svelte'), routes)).toBe(true);
+		expect(routeCsrIsFalse(R, path.join(routes, 'a/+layout.svelte'), routes)).toBe(true);
 	});
 
 	it('resets to a named ancestor segment, groups included', () => {
@@ -119,7 +115,9 @@ describe('a page with a layout reset', () => {
 			'(app)/x/+layout.ts': ON,
 			'(app)/x/y/+page@(app).svelte': '<h1>y</h1>'
 		});
-		expect(routeCsrIsFalse(path.join(routes, '(app)/x/y/+page@(app).svelte'), routes)).toBe(true);
+		expect(routeCsrIsFalse(R, path.join(routes, '(app)/x/y/+page@(app).svelte'), routes)).toBe(
+			true
+		);
 	});
 
 	it('takes route config from the layouts it uses only', () => {
@@ -128,7 +126,7 @@ describe('a page with a layout reset', () => {
 			'a/+page.svelte': '<h1>a</h1>',
 			'a/b/+page@.svelte': '<h1>b</h1>'
 		});
-		const config = page_route_config(routes, ['postrender']);
+		const config = page_route_config(R, routes, ['postrender']);
 		expect(config['/a']).toEqual({ postrender: false });
 		expect(config['/a/b']).toEqual({});
 	});
@@ -141,8 +139,8 @@ describe('a layout with a layout reset', () => {
 			'a/b/+layout@.svelte': '<slot />',
 			'a/b/+page.svelte': '<h1>b</h1>'
 		});
-		expect(csrTrueRouteIds(routes)).toEqual(['/a/b']);
-		expect(routeCsrIsTrue(path.join(routes, 'a/b/+layout@.svelte'), routes)).toBe(true);
+		expect(csrTrueRouteIds(R, routes)).toEqual(['/a/b']);
+		expect(routeCsrIsTrue(R, path.join(routes, 'a/b/+layout@.svelte'), routes)).toBe(true);
 	});
 });
 
@@ -284,7 +282,7 @@ describe.skipIf(!kit_manifest)('the route tree against Kit’s, over generated r
 					if (leaf_csr !== false) want_true.push(`/${id}`);
 					const host = path.join(root, route.leaf.component);
 					expect(
-						routeCsrIsFalse(host, routes),
+						routeCsrIsFalse(R, host, routes),
 						`${route.leaf.component}\n${JSON.stringify(files)}`
 					).toBe(leaf_csr === false);
 					const layouts = route.page.layouts.filter((i): i is number => i !== undefined);
@@ -292,11 +290,13 @@ describe.skipIf(!kit_manifest)('the route tree against Kit’s, over generated r
 					if (csr_of(deepest?.page_options ?? null) !== false) want_error_true.push(`/${id}`);
 				}
 				const files_json = JSON.stringify(files);
-				expect(csrTrueRouteIds(routes).sort(), files_json).toEqual([...new Set(want_true)].sort());
-				expect(errorCsrTrueRouteIds(routes).sort(), files_json).toEqual(
+				expect(csrTrueRouteIds(R, routes).sort(), files_json).toEqual(
+					[...new Set(want_true)].sort()
+				);
+				expect(errorCsrTrueRouteIds(R, routes).sort(), files_json).toEqual(
 					[...new Set(want_error_true)].sort()
 				);
-				expect(clientBuildWillSkip(routes), files_json).toBe(
+				expect(clientBuildWillSkip(R, routes), files_json).toBe(
 					kit.nodes.every((n) => csr_of(n.page_options) === false)
 				);
 			}),
@@ -330,7 +330,7 @@ describe.skipIf(!kit_manifest)('the route tree against Kit’s, over generated r
 						const m = POSTRENDER_RE.exec(files[path.relative(routes_rel, file)] ?? '');
 						return { config: m ? { postrender: m[1] === 'true' } : undefined };
 					};
-					const ours = page_route_config(routes, ['postrender']);
+					const ours = page_route_config(R, routes, ['postrender']);
 					for (const route of kit.routes) {
 						if (!route.page || !route.leaf) continue;
 						const nodes = [

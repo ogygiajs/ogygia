@@ -6,11 +6,8 @@ import { describe, test, expect, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
-import {
-	generateRuntimeFlagsSource,
-	resolveFeatures
-} from '../dist/compiler/link/runtime-entry.js';
+import { Compiler, Program, CompileCtx, normalize_import_keys } from '../src/compiler/index.ts';
+import { generateRuntimeFlagsSource, resolveFeatures } from '../src/compiler/link/runtime-entry.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 
@@ -45,16 +42,17 @@ function marks_for(island: string, extra: Record<string, string> = {}, init: obj
 			transformN: 0,
 			transformHit: 0,
 			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
+			macroMs: 0,
+			macroN: 0,
 			resolveMs: 0,
 			loadMs: 0
 		},
 		P: false,
 		outHash: new Map<string, number>()
 	};
-	const compiler = new Compiler(program, profiler);
-	compiler.configure(
+	const compiler = new Compiler(
+		program,
+		profiler,
 		new CompileCtx(
 			partial_ctx_init({
 				root,

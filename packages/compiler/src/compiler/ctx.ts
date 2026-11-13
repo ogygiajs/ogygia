@@ -5,16 +5,33 @@
  * of the driver's session; the `Compiler` carries it into `transform()` so that phase never reaches
  * back into the Vite adapter — which is what keeps the driver bundler-agnostic.
  */
-import fs from 'node:fs';
 import { strip_bom } from './bom.ts';
+import { node_fs, type Fs } from './fs.ts';
+import { route_reader, type Routes } from './kit.ts';
 import { islandVirtualId } from './ids.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
 import type { ClientRealmFile, ServerRealm } from './link/caps.ts';
-import type { PluginMacro } from './macros/pipeline.ts';
+import type { AliasEntry, PluginMacro } from './macros/pipeline.ts';
+import type { AppSpecCtx } from './app-spec.ts';
+import type { PreprocessCss } from './fouc-css.ts';
 
-/** The part of a seed-shaping plugin the transform calls (the whole of it: vite/plugin-api.ts `PageReads`). */
+/** The part of a seed-shaping plugin the compiler calls (the whole of it: vite/plugin-api.ts
+ *  `PageReads`): each module the transform reads, and each module's answer when chunks are finished. */
 export interface PageReadsSink {
 	module(id: string, code: string): void;
+	keys(id: string): ReadonlySet<string> | 'unknown' | null;
+}
+
+/** A plugin's reader of the prescan (`b.prescan`): the modules it asked for, as the prescan reads
+ *  them, and the end of a build. */
+export interface PrescanHook {
+	/** Only modules that import one of these specifiers are handed over. */
+	readonly imports: readonly string[];
+	/** One module the prescan read: its absolute path, its identity (package-relative in a package's
+	 *  declared files, else relative to the app root; POSIX), its source. */
+	module(m: { readonly file: string; readonly rel: string; readonly code: string }): void;
+	/** A `vite build` wrote its client output (the last leg, on the main thread). */
+	written?(): void;
 }
 import {
 	islandChunkFileName,
@@ -87,13 +104,20 @@ export interface CompileCtxInit {
 	visibleMargin: string | undefined;
 	presets: Record<string, unknown>;
 	import_keys: ImportKeys;
-	/** Resolved Vite aliases (used by the `bake` macro to bundle the imports a baked fn touches). */
-	resolve_alias: unknown[];
+	/** Resolved Vite aliases (an island's closure walk; every plugin macro gets them). */
+	resolve_alias: readonly AliasEntry[];
+	/** The plugin's preprocessor for a component's CSS (fouc-css.ts `scoped_component_css`). Absent:
+	 *  a host with no bundler, which compiles the source as it is. */
+	preprocess_css?: PreprocessCss;
 	/** The plugins' `import.meta.og.*` macros (`b.macro`), in plugin order. Optional (default none). */
 	macros?: readonly PluginMacro[];
 	/** The plugin that reads which `page.data` keys a module reads (`b.pageReads`), handed each
 	 *  module the build compiles. Optional (default none: every region gets all of `page.data`). */
 	page_reads?: PageReadsSink | null;
+	/** The plugins' prescan readers (`b.prescan`), in plugin order. Optional (default none). */
+	prescans?: readonly PrescanHook[];
+	/** The names of the plugins listed beside `ogygia()` (`'@ogygia/flags'`). Optional (default none). */
+	plugins?: readonly string[];
 	/** ogygia's own package root — the `auto_brand` macro skips ogygia source (it can't self-register). */
 	pkg_root: string;
 
@@ -128,9 +152,15 @@ export interface CompileCtxInit {
 	/** Core's event emits compiled in (a plugin's `b.events()`: devtools). Bakes the standalone dock
 	 *  boot for csr=true pages into `ogygia:server/devtools-boot-url`. */
 	devtools: boolean;
+	/** Where the app's files are read from (./fs.ts). Optional (default the disk). */
+	fs?: Fs;
 }
 
 export class CompileCtx {
+	/** Every read of the app's files goes through here (./fs.ts). */
+	readonly fs: Fs;
+	/** Kit's route worlds and route config, read through `fs` (one cache set per file system). */
+	readonly routes: Routes;
 	readonly root: string;
 	readonly base: string;
 	readonly app_dir: string;
@@ -148,9 +178,21 @@ export class CompileCtx {
 	readonly visibleMargin: string | undefined;
 	readonly presets: Record<string, unknown>;
 	readonly import_keys: ImportKeys;
-	readonly resolve_alias: unknown[];
+	readonly resolve_alias: readonly AliasEntry[];
+	/** What an app import specifier is resolved against (app-spec.ts): the root, `$lib`, the aliases. */
+	get app_spec(): AppSpecCtx {
+		return {
+			root: this.root,
+			libDir: this.libDir,
+			alias: this.resolve_alias,
+			stat: (abs) => this.fs.stat(abs)
+		};
+	}
+	readonly preprocess_css: PreprocessCss | undefined;
 	readonly macros: readonly PluginMacro[];
 	readonly page_reads: PageReadsSink | null;
+	readonly prescans: readonly PrescanHook[];
+	readonly plugins: readonly string[];
 	readonly pkg_root: string;
 	readonly build_secret: string;
 	readonly rate_limit: { max: number; windowMs: number };
@@ -179,6 +221,8 @@ export class CompileCtx {
 	readonly #pkg_roots: Array<{ root: string; name: string }>;
 
 	constructor(init: CompileCtxInit) {
+		this.fs = init.fs ?? node_fs;
+		this.routes = route_reader(this.fs);
 		this.root = init.root;
 		this.base = init.base;
 		this.app_dir = init.app_dir;
@@ -197,8 +241,11 @@ export class CompileCtx {
 		this.presets = init.presets;
 		this.import_keys = init.import_keys;
 		this.resolve_alias = init.resolve_alias;
+		this.preprocess_css = init.preprocess_css;
 		this.macros = init.macros ?? [];
 		this.page_reads = init.page_reads ?? null;
+		this.prescans = init.prescans ?? [];
+		this.plugins = init.plugins ?? [];
 		this.pkg_root = init.pkg_root;
 		this.build_secret = init.build_secret;
 		this.rate_limit = init.rate_limit;
@@ -290,8 +337,8 @@ export class CompileCtx {
 
 	/** The runtime's STABLE name (`RUNTIME_HASH` ⊕ its features): its identity — the key the handoff
 	 *  maps to the content-hashed file the page loads (a name, not a file). Computed here
-	 *  (not the caller) so both build legs name it identically. `program_feature_hash` is
-	 *  `Program.runtime_feature_hash`, threaded in by the caller so this stays a pure naming function. */
+	 *  (not the caller) so both build legs name it identically. `program_feature_hash` is the scan's
+	 *  `Scan.feature_hash`, threaded in by the caller so this stays a pure naming function. */
 	runtime_chunk_filename(program_feature_hash: string): string {
 		const feat = this.runtime_features(program_feature_hash);
 		return `${this.app_dir}/${STABLE_NAME_DIR}/og-runtime.${this.runtime_hash}${feat ? `-${feat}` : ''}.js`;
@@ -315,12 +362,8 @@ export class CompileCtx {
 
 	/** Read a file as UTF-8, or `null` if it can't be read (the transform tolerates missing deps). */
 	read_file(abs: string): string | null {
-		try {
-			// (a byte-order mark would shift every parser offset against the raw text: ./bom.ts)
-			return strip_bom(fs.readFileSync(abs, 'utf-8'));
-		} catch {
-			return null;
-		}
+		const text = this.fs.read(abs);
+		return text === null ? null : strip_bom(text);
 	}
 
 	/** Virtual island ENTRY module id for an island id. */

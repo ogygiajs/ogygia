@@ -31,4 +31,27 @@ describe('report_seed_shaping', () => {
 			'c.js': [{ file: 'src/lib/C.svelte', line: 3, why: '`page.data` is passed on' }]
 		});
 	});
+
+	it("an island keyed by its identity is blamed through its emitted file's closure", () => {
+		const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+		const why = report_seed_shaping(
+			{ page: { '/og-region.a.js': true }, page_keys: { '/og-region.a.js': null } },
+			{
+				'og-region.a-1f2e.js': {
+					type: 'chunk',
+					moduleIds: ['/app/src/lib/A.svelte'],
+					imports: ['shared.js']
+				},
+				'shared.js': { type: 'chunk', moduleIds: ['/app/src/lib/helper.ts'] }
+			},
+			(module) =>
+				new Map([['/app/src/lib/helper.ts', { why: 'spread', line: 7 }]]).get(module) ?? null,
+			'/app',
+			(identity) => (identity === '/og-region.a.js' ? '/og-region.a-1f2e.js' : identity)
+		);
+		log.mockRestore();
+		expect(why).toEqual({
+			'/og-region.a.js': [{ file: 'src/lib/helper.ts', line: 7, why: 'spread' }]
+		});
+	});
 });

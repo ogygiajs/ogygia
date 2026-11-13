@@ -119,6 +119,7 @@ test.describe('dev: an installed (not linked) ogygia runs as one copy in the bro
 		for (const dep of [
 			'svelte',
 			'@sveltejs',
+			'@jridgewell',
 			'vite',
 			'devalue',
 			'esm-env',

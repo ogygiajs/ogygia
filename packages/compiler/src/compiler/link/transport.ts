@@ -1,4 +1,3 @@
-import { OWN_SPECIFIER_SOURCE } from '@ogygia/core/contract';
 import { dedent } from '@ogygia/core/contract';
 import { file_token } from './file-token.ts';
 
@@ -18,8 +17,6 @@ export function transport_module(
 			export const decoders = {};
 		`;
 	}
-	// THE app codec, built once: every ogygia reader (page seed, remote seed, Kit's remote functions
-	// through the client stub) takes `encoders`/`decoders` from here.
 	const src = dedent`
 		import * as hooks from ${JSON.stringify(universal_hooks)};
 
@@ -65,38 +62,6 @@ export function kit_transport_module(
 		: `export { ogygiaTransport as transport } from ${JSON.stringify(`${dist_dir}/transport.js`)};`;
 }
 
-// A held region / transportable value can only reach Kit's `transport` hook through a value the app
-// PRODUCES with a detectable API: `region()`/`<Region>` (a held region in a load/remote), or a content
-// import (`site()`, `remotes()` — content bodies are held regions). Wired classes / portable snippets
-// are already caught by the `wire` mark. A file with none of these can't put a transportable on Kit's
-// wire — so scanning import CLAUSES is complete, not just conservative. Over-inclusion is the safe
-// direction anyway (an unused codec is bytes; a missed one breaks decode). Regexes are module-level.
-// (`ogygia` in an app; `@ogygia/core` in a plugin package's own modules)
-const OGYGIA_WIRE_NAMED = new RegExp(
-	`import\\s+(?:type\\s+)?\\{([\\s\\S]*?)\\}\\s*from\\s*['"]${OWN_SPECIFIER_SOURCE}['"]`,
-	'g'
-);
-const WIRE_API = /\b(?:region|Region|site)\b/;
-const OGYGIA_CONTENT_IMPORT = /from\s*['"]@ogygia\/content(?:\/[a-z-]+)?['"]/;
-const OGYGIA_NS_IMPORT = new RegExp(
-	`import\\s*\\*\\s*as\\s+(\\w+)\\s*from\\s*['"]${OWN_SPECIFIER_SOURCE}['"]`
-);
-const NS_WIRE_USAGE = /\b(\w+)\.(?:region|Region|site)\b/g;
-
-/** True when `src` produces a held region / transportable value that can cross Kit's `transport`. */
-export function source_crosses_wire(src: string): boolean {
-	if (OGYGIA_CONTENT_IMPORT.test(src)) return true;
-	OGYGIA_WIRE_NAMED.lastIndex = 0;
-	let m: RegExpExecArray | null;
-	while ((m = OGYGIA_WIRE_NAMED.exec(src))) if (WIRE_API.test(m[1])) return true;
-	const ns = OGYGIA_NS_IMPORT.exec(src);
-	if (!ns) return false;
-	NS_WIRE_USAGE.lastIndex = 0;
-	let u: RegExpExecArray | null;
-	while ((u = NS_WIRE_USAGE.exec(src))) if (u[1] === ns[1]) return true;
-	return false;
-}
-
 /**
  * `ogygia:region/transportables` emitter — where the `[ogygia.wire]` codecs come from, so an island
  * receiving a transportable prop never has to import the class itself. Per leg:
@@ -120,12 +85,16 @@ export function transportables_server_module(modules: Iterable<string>): string 
 	`;
 }
 
-/** The CLIENT leg of {@link transportables_server_module}'s module; `rel` makes a tag path. */
+/**
+ * The CLIENT leg of {@link transportables_server_module}'s module; `rel` makes a tag path.
+ *
+ * @param crosses_wire the app sends wired values through Kit's `transport` (remote functions,
+ *   loads): those decode synchronously, whenever they arrive, so every class must be in before any
+ *   island wakes (`wire_all`)
+ */
 export function transportables_client_module(
 	modules: Iterable<string>,
 	rel: (abs: string) => string,
-	/** the app sends wired values through Kit's `transport` (remote functions, loads): those decode
-	 *  synchronously, whenever they arrive — every class must be in before any island wakes */
 	crosses_wire = false
 ): string {
 	const entries: string[] = [];

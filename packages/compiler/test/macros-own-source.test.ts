@@ -21,7 +21,7 @@ const RAN = path.join(ROOT, 'ran.txt');
 const NO_PROFILE = { P: false } as unknown as Profiler;
 const ctx = (): MacroPipelineCtx => ({
 	root: ROOT,
-	resolveAlias: [],
+	alias: [],
 	pkgRoot: '/og',
 	dollarHoists: new Map(),
 	ownSource: (id) => !id.includes('/node_modules/') || id.includes('/declared-lib/')
@@ -38,16 +38,35 @@ describe('module macros: the app’s own source only', () => {
 		expect(fs.existsSync(RAN)).toBe(false);
 	});
 
-	it('any other macro in an installed file fails the same way', async () => {
-		await expect(run_module_macros(WIRE, DEP, ctx(), NO_PROFILE)).rejects.toThrow(
+	it.each([
+		['wire', WIRE],
+		['$', `export const f = import.meta.og.$(() => 1);`],
+		['source', `export const f = import.meta.og.source(async () => 1);`],
+		['store', `export const s = import.meta.og.store((v) => ({ subscribe: () => {}, v }));`]
+	])('the %s macro in an installed file fails the same way', async (_name, src) => {
+		await expect(run_module_macros(src, DEP, ctx(), NO_PROFILE)).rejects.toThrow(
 			/macro_outside_app/
 		);
+	});
+
+	it('a store-shaped export is auto-branded in app source only, never in an installed file or ogygia', async () => {
+		const src = `export const createX = (seed) => ({ subscribe: () => {}, seed });`;
+		expect((await run_module_macros(src, APP, ctx(), NO_PROFILE)).code).toContain('__og_store(');
+		expect(await run_module_macros(src, DEP, ctx(), NO_PROFILE)).toEqual({
+			code: src,
+			touched: false,
+			maps: []
+		});
+		const og = path.join(ROOT, 'og', 'store.ts');
+		expect(
+			await run_module_macros(src, og, { ...ctx(), pkgRoot: path.join(ROOT, 'og') }, NO_PROFILE)
+		).toEqual({ code: src, touched: false, maps: [] });
 	});
 
 	it('a marker named only in a string or a comment of an installed file is left alone', async () => {
 		const src = `// import.meta.og.bake(() => 1)\nexport const t = 'use import.meta.og.wire(…) or import.meta.og.bake(fn)';`;
 		const out = await run_module_macros(src, DEP, ctx(), NO_PROFILE);
-		expect(out).toEqual({ code: src, touched: false });
+		expect(out).toEqual({ code: src, touched: false, maps: [] });
 	});
 
 	it('a plugin macro in an installed file fails the build, and its handler never runs', async () => {
@@ -63,7 +82,8 @@ describe('module macros: the app’s own source only', () => {
 		const named = `export const t = 'import.meta.og.code(…)';`;
 		expect(await run_module_macros(named, DEP, with_macro, NO_PROFILE)).toEqual({
 			code: named,
-			touched: false
+			touched: false,
+			maps: []
 		});
 		expect(ran).toEqual([]);
 	});

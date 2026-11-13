@@ -12,4 +12,4 @@ export default defineConfig({
 });
 ```
 
-Options: `packages`, `force`, `keep`, `importers`, `followPackages`, `report`, `debug`. Imports that carry a region (a `with { wake }` mark, or a binding `asRegion` reads) are never rewritten. See the [API reference](https://ogygiajs.dev/docs/reference/api#barrels).
+Options: `packages`, `force`, `keep`, `importers`, `followPackages`, `report`, `debug`. Imports that carry a region (a `with { wake }` mark, on a default or a named import) are never rewritten. See the [API reference](https://ogygiajs.dev/docs/reference/api#barrels).

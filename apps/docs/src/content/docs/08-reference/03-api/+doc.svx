@@ -24,7 +24,7 @@ This is the runtime surface. You can import the namespace (`import * as ogygia f
 | `script`        | function   | An inline `<script>` string: a self-contained function (`run`), or JSON / JSON-LD / an import map / speculation rules, with typed attributes. See [Pre-hydration scripts](#ogygia-pre-hydration-scripts).                        |
 | `preload`       | function   | Warm the HTML of a deferred/live region now, before its binder wakes: `preload(region(…))`. See [held regions](/docs/regions/held-regions).                                                                                      |
 | `preference`    | function   | A persisted, site-wide client choice that flips a CSS state with no shipped JS beyond one pre-paint script: the theme / code-language / tabs primitive.                                                                          |
-| `createContext` | function   | Typed sugar over a string context key: `createContext('key')`, callable for a `<Provide>` entry, `.get()` to read. See [state & context](/docs/data-state/state-context).                                                        |
+| `createContext` | function   | Svelte's `[get, set, has]` with a key that crosses into regions: `const [getX, setX] = createContext<T>('name')`, keyed by `Symbol.for(name)`. See [state & context](/docs/data-state/state-context).                            |
 | `Provide`       | component  | Provide context values to islands below it across the DOM: `<Provide values={[ctx(v)]}>`.                                                                                                                                        |
 | `setContext`    | function   | Drop-in for the `setContext` of Svelte, which also bridges string-keyed values to child islands (the flat page root).                                                                                                            |
 | `hydratedBy`    | function   | Which schedule woke this hydration root (for example `'interaction'`). Call it during setup, like `getContext`.                                                                                                                  |
@@ -169,7 +169,7 @@ What it does and does not do:
 - **Dependencies are opt-in** through `packages`, because Vite pre-bundles bare imports in dev, and a leaf import that skips the optimizer while another importer gets the pre-bundled copy produces two instances of one module. List a package when you know it is safe (for example an ESM component library that is excluded from `optimizeDeps`).
 - **Nested barrels, `export *` fan-outs, rename chains and `import … ; export { … }` bindings** are followed to the real leaf. A name that two `export *` statements disagree on, a name the barrel does not export, and a name behind something that cannot be parsed (JSON, CommonJS, a `?raw` import) stay on the barrel import.
 - **Import attributes and `type` modifiers are carried over** (`with { type: 'json' }`, `import { type T }`), and sourcemaps are emitted.
-- **Regions are left untouched.** An import that carries region marks (`with { wake }`, `render`, `preset`, `region`, or the app's `importKeys`) is never rewritten, so a marked import means exactly what it meant before. A barrel binding is marked through `asRegion` or a mark in the barrel, and an import whose binding feeds `import.meta.og.asRegion(X)` is also left alone, because the region is keyed on that import.
+- **Regions are left untouched.** An import that carries region marks (`with { wake }`, `render`, `preset`, `region`, or the app's `importKeys`) is never rewritten, default or named, so a marked import means exactly what it meant before: the region is keyed on that import.
 - `import * as ns from 'barrel'`, `import 'barrel'` and dynamic imports are left as written.
 
 Options: `packages`, `force`, `keep` (matchers: a package name or specifier prefix, a `*` glob, a regex, or a function of the resolved id), `importers: { include, exclude }` (which files are rewritten; default project files), `followPackages` (walk `export *` into dependencies while mapping a barrel; default `true`), `report` (the end-of-build report: `true` = the eight biggest barrels and a count of the rest, `'all'` = every barrel, `false` = silent), `debug` (log every rewrite).
@@ -184,6 +184,15 @@ export default defineConfig({ plugins: [ogygia(), pageKeys(), sveltekit()] });
 ```
 
 An island that reads `page.data` through `$app/state` or `$app/stores` gets the page seed. Without `pageKeys()` that seed is all of `page.data`, and every [server island](/docs/regions/server-islands) looks the page up. With it, the build reads each module that imports the page for the top-level `page.data` keys it reaches, and a page ships only the keys its islands read (see [page data](/docs/data-state/page-data)). A server island whose code reads none of `page.data` skips the lookup. A read the build cannot pin to a literal key gives that island all of `page.data`, and the build's seed report names the file and line.
+
+### `bake()`
+
+`import.meta.og.bake(fn)` is a plugin, `bake()` from `@ogygia/bake`, listed beside `ogygia()`. Without it, a call fails the build with `macro_needs_plugin`. Its types come from `/// <reference types="@ogygia/bake/types" />`. See [bake](/docs/macros/bake).
+
+```ts
+import { bake } from '@ogygia/bake';
+export default defineConfig({ plugins: [ogygia(), bake(), sveltekit()] });
+```
 
 ### `presets`
 

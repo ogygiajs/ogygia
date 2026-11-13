@@ -258,3 +258,170 @@ describe('the export index: one graph, a policy per caller', () => {
 		expect(after.opaque).toBe(true);
 	});
 });
+
+describe('a barrel’s map, name by name', () => {
+	const map_of = async (files: Record<string, string>, id = '/app/lib/index.ts') =>
+		(await graph(files).index.map(id, '$lib', EVERY_BARREL))!;
+
+	it('a star into a module that does not parse leaves the map opaque', async () => {
+		const map = await map_of({
+			'/app/lib/index.ts': `export * from './broken';\nexport { l } from './leaf';`,
+			'/app/lib/broken.ts': 'export const = ;',
+			'/app/lib/leaf.ts': 'export const l = 1;'
+		});
+		expect(map.opaque).toBe(true);
+		expect(map.entries.get('l')).toEqual({ id: '/app/lib/leaf.ts', name: 'l' });
+	});
+
+	it('an id with a query is never a barrel', async () => {
+		const g = graph({ '/app/lib/index.ts': `export { l } from './leaf';` });
+		expect(await g.index.map('/app/lib/index.ts?raw', '$lib', EVERY_BARREL)).toBeNull();
+	});
+
+	it('an explicit export wins over a star, two stars with different leaves make a name ambiguous, and a star never brings default', async () => {
+		const map = await map_of({
+			'/app/lib/index.ts': `export { x } from './own'; export * from './a'; export * from './b';`,
+			'/app/lib/own.ts': 'export const x = 0;',
+			'/app/lib/a.ts': 'export const x = 1; export const y = 1; export default 1;',
+			'/app/lib/b.ts': 'export const y = 2;'
+		});
+		expect(map.entries.get('x')).toEqual({ id: '/app/lib/own.ts', name: 'x' });
+		expect(map.entries.get('y')).toBe('ambiguous');
+		expect(map.entries.has('default')).toBe(false);
+	});
+
+	it('a re-export of a query import (?raw) stays on the barrel', async () => {
+		const map = await map_of({
+			'/app/lib/index.ts': `export { default as css } from './x.css?raw';`,
+			'/app/lib/x.css?raw': '.a {}'
+		});
+		expect(map.entries.has('css')).toBe(false);
+		expect(map.opaque).toBe(true);
+	});
+
+	it('a name ambiguous inside a nested barrel stays on the barrel', async () => {
+		const map = await map_of({
+			'/app/lib/index.ts': `export { y } from './mid';`,
+			'/app/lib/mid.ts': `export * from './a';\nexport * from './b';`,
+			'/app/lib/a.ts': 'export const y = 1;',
+			'/app/lib/b.ts': 'export const y = 2;'
+		});
+		expect(map.entries.has('y')).toBe(false);
+	});
+
+	it('an impure nested module is a leaf in its own right (its code must run for the name)', async () => {
+		const map = await map_of({
+			'/app/lib/index.ts': `export { x } from './a';`,
+			'/app/lib/a.ts': `console.log(1);\nexport { x } from './x';`,
+			'/app/lib/x.ts': 'export const x = 1;'
+		});
+		expect(map.entries.get('x')).toEqual({ id: '/app/lib/a.ts', name: 'x' });
+	});
+
+	it('a ring of pure barrels is cached only once the walk that owns it closes it', async () => {
+		const g = graph({
+			'/app/lib/a.ts': `export * from './b';\nexport { x } from './x';`,
+			'/app/lib/b.ts': `export * from './a';\nexport { y } from './y';`,
+			'/app/lib/x.ts': 'export const x = 1;',
+			'/app/lib/y.ts': 'export const y = 1;'
+		});
+		const a = (await g.index.map('/app/lib/a.ts', '$lib', EVERY_BARREL))!;
+		expect([...a.entries.keys()].sort()).toEqual(['x', 'y']);
+		const b = (await g.index.map('/app/lib/b.ts', '$lib', EVERY_BARREL))!;
+		expect([...b.entries.keys()].sort()).toEqual(['x', 'y']);
+	});
+
+	it('a barrel built beside another build of its neighbour is served once, then rebuilt through the finished neighbour', async () => {
+		const g = graph({
+			'/app/lib/one.ts': `export { l } from './mid';`,
+			'/app/lib/two.ts': `export { l } from './mid';`,
+			'/app/lib/mid.ts': `export { l } from './leaf';`,
+			'/app/lib/leaf.ts': 'export const l = 1;'
+		});
+		await Promise.all([
+			g.index.map('/app/lib/one.ts', '$lib', EVERY_BARREL),
+			g.index.map('/app/lib/two.ts', '$lib', EVERY_BARREL)
+		]);
+		for (const id of ['/app/lib/one.ts', '/app/lib/two.ts'])
+			expect((await g.index.map(id, '$lib', EVERY_BARREL))!.entries.get('l'), id).toEqual({
+				id: '/app/lib/leaf.ts',
+				name: 'l'
+			});
+	});
+
+	it('an edit during a build makes its caller build again from the file as it is now', async () => {
+		const g = graph({
+			'/app/lib/index.ts': `export { l } from './mid';`,
+			'/app/lib/mid.ts': `export { l } from './leaf';`,
+			'/app/lib/leaf.ts': 'export const l = 1;'
+		});
+		const pending = g.index.map('/app/lib/index.ts', '$lib', EVERY_BARREL);
+		await Promise.resolve();
+		g.files['/app/lib/index.ts'] = `export { l as k } from './mid';`;
+		g.shapes.invalidate('/app/lib/index.ts', 'update');
+		g.files['/app/lib/mid.ts'] = `export { l } from './leaf';\nexport { l as m } from './leaf';`;
+		g.shapes.invalidate('/app/lib/mid.ts', 'update');
+		const map = (await pending)!;
+		expect(map.entries.has('k'), 'built from the edited barrel').toBe(true);
+		expect(map.provisional, 'the nested build it lost is served once').toBe(true);
+		await g.index.map('/app/lib/index.ts', '$lib', EVERY_BARREL);
+		const again = (await g.index.map('/app/lib/index.ts', '$lib', EVERY_BARREL))!;
+		const mid = (await g.index.map('/app/lib/mid.ts', '$lib', EVERY_BARREL))!;
+		expect([again.provisional, [...mid.entries.keys()]]).toEqual([false, ['l', 'm']]);
+		expect(again.entries.get('k')).toEqual({ id: '/app/lib/leaf.ts', name: 'l' });
+	});
+
+	it('an edit under a nested barrel during its build leaves the outer map served once, not kept', async () => {
+		const files: Record<string, string> = {
+			'/app/lib/index.ts': `export { l } from './mid';`,
+			'/app/lib/mid.ts': `export { l } from './leaf'; export { k } from './k';`,
+			'/app/lib/leaf.ts': 'export const l = 1;',
+			'/app/lib/k.ts': 'export const k = 1;'
+		};
+		let reached!: () => void;
+		const at_leaf = new Promise<void>((r) => (reached = r));
+		let release!: () => void;
+		const gate = new Promise<void>((r) => (release = r));
+		const shapes = new Shapes((id) => files[id] ?? null);
+		const index = new ExportIndex<void>(async (spec, importer) => {
+			if (spec === './k') {
+				reached();
+				await gate;
+			}
+			return `${path.posix.join(path.posix.dirname(importer), spec)}.ts`;
+		}, shapes);
+		const pending = index.map('/app/lib/index.ts', '$lib', EVERY_BARREL);
+		await at_leaf;
+		shapes.invalidate('/app/lib/leaf.ts', 'update');
+		release();
+		expect((await pending)!.provisional).toBe(true);
+		const again = (await index.map('/app/lib/index.ts', '$lib', EVERY_BARREL))!;
+		expect(again.entries.get('l')).toEqual({ id: '/app/lib/leaf.ts', name: 'l' });
+	});
+
+	it('an edit to a module a star reached drops the barrel’s map', async () => {
+		const g = graph({
+			'/app/lib/index.ts': `export * from './a';`,
+			'/app/lib/a.ts': 'export const x = 1;'
+		});
+		await g.index.map('/app/lib/index.ts', '$lib', EVERY_BARREL);
+		g.files['/app/lib/a.ts'] = 'export const z = 1;';
+		g.shapes.invalidate('/app/lib/a.ts', 'update');
+		const after = (await g.index.map('/app/lib/index.ts', '$lib', EVERY_BARREL))!;
+		expect([...after.entries.keys()]).toEqual(['z']);
+	});
+
+	it('an edit reported with forward slashes reaches ids a resolver spelled with backslashes', async () => {
+		const files: Record<string, string> = {
+			'C:\\app\\index.ts': `export * from './a';`,
+			'C:\\app\\a.ts': 'export const x = 1;'
+		};
+		const shapes = new Shapes((id) => files[id] ?? null);
+		const index = new ExportIndex<void>(async () => 'C:\\app\\a.ts', shapes);
+		await index.map('C:\\app\\index.ts', '$lib', EVERY_BARREL);
+		files['C:\\app\\a.ts'] = 'export const z = 1;';
+		shapes.invalidate('C:/app/a.ts', 'update');
+		const after = (await index.map('C:\\app\\index.ts', '$lib', EVERY_BARREL))!;
+		expect([...after.entries.keys()]).toEqual(['z']);
+	});
+});

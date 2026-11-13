@@ -9,6 +9,7 @@ import { parse, stringify } from 'devalue';
 import { DeferRef, defer_reducer } from '../src/server/page-stream.ts';
 import { link_boot } from '../src/runtime/boot-link.ts';
 import { load_devalue } from '../src/runtime/devalue-lane.ts';
+import { slots } from '../src/runtime/slots.ts';
 import {
 	create_deferred,
 	install_page_defer,
@@ -90,6 +91,77 @@ it('a marker read twice is one promise', () => {
 	expect(create_deferred(6)).toBe(create_deferred(6));
 });
 
+it('a value that came twice for one id keeps the first: a streamed promise settles once', async () => {
+	install_page_defer();
+	resolve(7, true, 'first');
+	resolve(7, true, 'second');
+	await new Promise((done) => setTimeout(done, 0));
+	await expect(create_deferred(7)).resolves.toBe('first');
+});
+
+/** devalue held back: each read waits until the test lets it in, or says it never came. */
+function devalue_held(): { arrive(): void; never(): void; [Symbol.dispose](): void } {
+	const real = slots.boot!;
+	const reads: Array<{ fn: (d: typeof import('devalue')) => void; gone: (e: unknown) => void }> =
+		[];
+	slots.boot = { ...real, with_devalue: (fn, gone) => void reads.push({ fn, gone }) };
+	return {
+		arrive: () => {
+			for (const r of reads.splice(0)) r.fn({ parse, stringify } as typeof import('devalue'));
+		},
+		never: () => {
+			for (const r of reads.splice(0)) r.gone(new Error('download failed'));
+		},
+		[Symbol.dispose]: () => void (slots.boot = real)
+	};
+}
+
+it('a value still on its way in when the document loads settles with that value, not as missing', async () => {
+	const doc = loading_document();
+	using devalue = devalue_held();
+	try {
+		install_page_defer();
+		const p = create_deferred(20);
+		resolve(20, true, 'late');
+		doc.load();
+		devalue.arrive();
+		await expect(p).resolves.toBe('late');
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});
+
+it('a marker first read after the document loaded, its value still on its way in, gets that value', async () => {
+	vi.stubGlobal('document', { readyState: 'complete' });
+	using devalue = devalue_held();
+	try {
+		install_page_defer();
+		resolve(21, true, 'late');
+		const p = create_deferred(21);
+		devalue.arrive();
+		await expect(p).resolves.toBe('late');
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});
+
+it('a value whose devalue download never came rejects with the coded error, saying so', async () => {
+	using devalue = devalue_held();
+	install_page_defer();
+	const p = create_deferred(22);
+	resolve(22, true, 'lost');
+	devalue.never();
+	const settled = await Promise.race([
+		p.then(
+			() => 'resolved',
+			(e: unknown) => e
+		),
+		new Promise((done) => setTimeout(() => done('still pending'), 50))
+	]);
+	expect(settled).toMatchObject({ code: 'page_promise_unresolved' });
+	expect(String((settled as Error).message)).toContain('the code to read it never loaded');
+});
+
 /** A document still loading: its `load` fires when the test says. */
 function loading_document(): { load(): void } {
 	let on_load: (() => void) | undefined;
@@ -158,6 +230,19 @@ it('a streamed promise read after the document loaded, with no resolve, is rejec
 	try {
 		install_page_defer();
 		await expect(create_deferred(10)).rejects.toThrow('page_promise_unresolved');
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});
+
+it('a streamed promise that never got its value rejects with the coded error, not a copy of its message (#1504)', async () => {
+	vi.stubGlobal('document', { readyState: 'complete' });
+	try {
+		install_page_defer();
+		await expect(create_deferred(11)).rejects.toMatchObject({
+			name: 'OgygiaError',
+			code: 'page_promise_unresolved'
+		});
 	} finally {
 		vi.unstubAllGlobals();
 	}

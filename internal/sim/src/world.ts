@@ -39,6 +39,9 @@ export const ORIGIN = 'https://app.test';
 /** The attribute on every element of HTML another origin answers (`no_foreign_html` looks for it). */
 export const FOREIGN_MARK = 'data-sim-foreign';
 
+/** The buggify points that lose an answer on the way, as a dropped request does. */
+export const LOSSY_POINTS: readonly string[] = ['hole.fetch-lost'];
+
 /** At rest after ticks: how far off a page's next task must be (a frame is 16 ms, a hydrate turn's
  *  snapshot wait 48; a page's own timers that come back every second or so are not a tick being
  *  taken in), and how long rest looks for that between ticks before it judges the pages anyway. */
@@ -110,8 +113,13 @@ export interface WorldOptions {
 	/** Other apps at their own origins (federation's peers): each one build, one instance, behind
 	 *  no CDN. The app's servers and the tabs reach them over the network; their content-hashed
 	 *  files answer any origin (`access-control-allow-origin: *`), as a peer's CDN does for the
-	 *  islands another origin's page imports. */
-	peers?: ReadonlyArray<{ readonly origin: string; readonly build: Build }>;
+	 *  islands another origin's page imports. A peer with a `replica` (another origin of its app)
+	 *  may be down: a `down` fault answers it 503 at the edge, and the app fails over. */
+	peers?: ReadonlyArray<{
+		readonly origin: string;
+		readonly build: Build;
+		readonly replica?: string;
+	}>;
 	/** Whether the tabs' engine has `requestIdleCallback`. Default: the seed's draw (stream `idle
 	 *  engine`: 30% of seeds are Safari's, which has none). */
 	idle?: boolean;
@@ -180,7 +188,8 @@ export class World {
 			loop: this.loop,
 			rng: this.rng,
 			faults: o.faults ?? new Set(),
-			rates: o.rates
+			rates: o.rates,
+			downable: (url) => (o.peers ?? []).some((p) => p.replica && p.origin === url.origin)
 		});
 		this.cdn = new Cdn(this.loop);
 		// (whether the engine has idle callbacks: some seeds' engine is Safari's, which has none)
@@ -214,6 +223,8 @@ export class World {
 		}
 		seen.asked++;
 		if (!seen.on) return false;
+		// (a reference load is spared what loses an answer, as the network spares it every fault)
+		if (LOSSY_POINTS.includes(point) && this.network.is_calm(realm)) return false;
 		// (a realm's draws by its name without the document: a reload of a tab is the same stream)
 		const key = realm.replace(/#\d+$/, '');
 		let r = this.#buggify_rng.get(key);

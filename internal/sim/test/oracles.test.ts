@@ -24,6 +24,7 @@ import {
 	parsed_first,
 	live_regions_out,
 	page_errors,
+	peer_answers,
 	reshaped_live,
 	page_rules,
 	regions_show,
@@ -182,6 +183,30 @@ describe('normalize', () => {
 		expect(page('<meta name="ogygia-stored" content="hit">')).toBe(page(''));
 	});
 
+	it("drops a reshape pass's first-load mark: a document loaded as one has it, the router's answer of the same page never does (gen 10, seed 10)", async () => {
+		const { Window } = await import('happy-dom');
+		const page = (head: string) => {
+			const w = new Window();
+			w.document.write(`<html><head><title>t</title>${head}</head><body><p>hi</p></body></html>`);
+			return normalize(w.document as unknown as Document);
+		};
+		expect(page('<meta name="ogygia-first-load">')).toBe(page(''));
+	});
+
+	it("compares an app web component by its host alone: a server-owned one is the render's on a fresh load and restored in the router's answer (gen 262, seed 3)", async () => {
+		const { Window } = await import('happy-dom');
+		const page = (body: string) => {
+			const w = new Window();
+			w.document.write(`<html><head><title>t</title></head><body>${body}</body></html>`);
+			return normalize(w.document as unknown as Document);
+		};
+		const restored = '<x-gen-box data-n="16"><span>n16</span><i>box n16</i></x-gen-box>';
+		const rendered =
+			'<x-gen-box data-n="16" data-rendered="x-gen-box"><div class="gen-box"><b>box</b><slot><span>n16</span></slot></div></x-gen-box>';
+		expect(page(rendered)).toBe(page(restored));
+		expect(page('<x-gen-box data-n="1"></x-gen-box>')).not.toBe(page(restored));
+	});
+
 	it("takes the region sheets answers lifted into the head in any order, and the page's own in theirs (gen 143, seed 143019)", async () => {
 		const { Window } = await import('happy-dom');
 		const page = (...hrefs: string[]) => {
@@ -303,7 +328,9 @@ describe("a hole's fallback does not stand", () => {
 		body: string,
 		wire: Array<[string, number | 'dropped']> = [],
 		/** A script of the document failed to load (its runtime: none of its holes is ever asked). */
-		lacks_a_file = false
+		lacks_a_file = false,
+		/** Buggify lost an answer of the document's on the way (`hole.fetch-lost`). */
+		lost = false
 	) => {
 		const { Window } = await import('happy-dom');
 		// (the simulator's viewport: src/layout.ts)
@@ -316,7 +343,7 @@ describe("a hole's fallback does not stand", () => {
 			page: { mainFrame: { url: 'https://app.test/p1', document: w.document } }
 		} as unknown as Parameters<typeof fallback_stands>[0];
 		const world = {
-			fired_in: new Map(),
+			fired_in: new Map(lost ? [['tab-1#1', new Set(['hole.fetch-lost'])]] : []),
 			browsers: { lacks_a_file: () => lacks_a_file },
 			network: {
 				exchanges: wire.map(([url, status], i) => ({
@@ -361,6 +388,12 @@ describe("a hole's fallback does not stand", () => {
 	it('passes one never asked for in a document whose runtime failed to load', async () => {
 		const chunk: [string, 'dropped'] = ['/_app/immutable/chunks/x.js', 'dropped'];
 		expect(await at_rest(hole('load', 'data-gen-fallback'), [chunk], true)).toBeNull();
+	});
+
+	// generated app 208, seed 120: a nested hole of a hidden tab's peer page, its three tries each
+	// lost by buggify before a request went out, so the wire never saw it asked
+	it('passes one never seen asked in a document whose answers buggify lost (a lost answer leaves no exchange)', async () => {
+		expect(await at_rest(hole('load', 'data-gen-fallback'), [], false, true)).toBeNull();
 	});
 
 	it('passes one that keeps it by design, one waiting for the visitor, and an answered one', async () => {
@@ -1176,5 +1209,64 @@ describe('a document nobody has looked at', () => {
 	it('leaves out a document that was shown, or is shown now: it had a viewport to wait for', () => {
 		expect(no_viewport_wait(tab(waited, { seen: true }))).toBeNull();
 		expect(no_viewport_wait(tab(waited, { hidden: false }))).toBeNull();
+	});
+});
+
+describe("a mounted peer's page answers as the peer did", () => {
+	/** `wire`: the tab's requests and the server's hops for its document, each `[url, status, for?]`. */
+	const judged = async (
+		body: string,
+		wire: Array<[string, number | 'dropped', string?]> = [],
+		at = '/peer/q0'
+	) => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: `https://app.test${at}` });
+		w.document.write(`<html><body>${body}</body></html>`);
+		const tab = {
+			realm: 'tab-1#1',
+			name: 'tab-1',
+			documents: 1,
+			page: { mainFrame: { url: `https://app.test${at}`, document: w.document } }
+		} as unknown as Parameters<typeof peer_answers>[0];
+		const world = {
+			fired_in: new Map(),
+			network: {
+				exchanges: wire.map(([url, status, hop], i) => ({
+					id: i + 1,
+					from: hop === undefined ? 'tab-1#1' : 'server-0',
+					...(hop === undefined ? {} : { for: hop }),
+					method: 'GET',
+					url: hop === undefined ? `https://app.test${url}` : `https://peer.test${url}`,
+					status,
+					cut: false,
+					tampered: false,
+					redirected: false
+				}))
+			}
+		} as unknown as Parameters<typeof peer_answers>[1];
+		return peer_answers(tab, world, 0);
+	};
+
+	it("finds a page the peer lacks answered as found, and one that moved answered where it was (a mutant that lost the peer's status survived)", async () => {
+		expect((await judged('', [['/peer/gone', 200]]))?.oracle).toBe('peer-answers');
+		expect((await judged('', [['/peer/moved', 200]]))?.oracle).toBe('peer-answers');
+		expect(await judged('', [['/peer/gone', 404]])).toBeNull();
+		expect(await judged('', [['/peer/moved', 307]])).toBeNull();
+	});
+
+	it("passes one the network failed, or whose hop to the peer failed: the app's answer for it is its own", async () => {
+		expect(await judged('', [['/peer/gone', 'dropped']])).toBeNull();
+		expect(await judged('', [['/peer/gone', 502]])).toBeNull();
+		expect(
+			await judged('', [
+				['/og/fragment/page?path=/gone', 'dropped', 'tab-1#1'],
+				['/peer/gone', 200]
+			])
+		).toBeNull();
+	});
+
+	it("finds a peer's page that shows another visitor than the app's (a mutant that dropped the claims survived), and passes the app's", async () => {
+		expect((await judged('<p data-gen-who></p>', [], '/peer/who'))?.oracle).toBe('peer-answers');
+		expect(await judged('<p data-gen-who>visitor</p>', [], '/peer/who')).toBeNull();
 	});
 });
