@@ -65,6 +65,7 @@ export type {
 	BuildContext,
 	MacroHandler,
 	MacroContext,
+	PrescanHook,
 	MarkupSource,
 	MarkupRegions,
 	TransformStage,
@@ -152,7 +153,6 @@ import { core_defines } from '../compiler/virtual/core.ts';
 import { CompileCtx, type PackageScan } from '../compiler/ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
-import { flags_manifest } from '../compiler/flags.ts';
 
 // Kit's generated CLIENT app entry — Kit 2 dev serves `generated/client/app.js` and the build inputs
 // `generated/client-optimized/app.js`; Kit 3 nests both under `generated/dev/` and `generated/build/`
@@ -238,6 +238,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let route_config: string[] = [];
 	let foreign_hydrate = false;
 	let macros: ResolvedPlugins['macros'] = [];
+	let prescans: ResolvedPlugins['prescans'] = [];
+	/** the names of the plugins listed beside ogygia() */
+	let listed_plugins: string[] = [];
 	let stage_transforms: ResolvedPlugins['transforms'] = [];
 	let markup: ResolvedPlugins['markup'] = [];
 	let definers: ResolvedPlugins['definers'] = [];
@@ -363,7 +366,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	/** the app compiles with Svelte's async mode (vite-plugin-svelte's resolved options): Region
 	 *  imports the awaiting LateIsland (late-island.ts) */
 	let svelte_async = false;
-	/** Resolved `resolve.alias` entries — passed to bake()'s rolldown eval so `$lib` etc. resolve. */
+	/** Resolved `resolve.alias` entries — an island's closure walk, and every plugin macro (bake()'s
+	 *  eval bundle resolves `$lib` with them). */
 	let resolve_alias: { find: string | RegExp; replacement: string }[] = [];
 	let is_build = false;
 	let is_ssr = false;
@@ -500,8 +504,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		transformN: 0,
 		transformHit: 0,
 		prescanMs: 0,
-		bakeMs: 0,
-		bakeN: 0,
+		macroMs: 0,
+		macroN: 0,
 		resolveMs: 0,
 		loadMs: 0
 	};
@@ -606,9 +610,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						route_config,
 						foreign_hydrate,
 						macros,
+						prescans,
 						markup,
 						definers
 					} = resolved);
+					listed_plugins = app_plugins.map((p) => p.name);
 					measure = resolved.measure;
 					devtools_effective = resolved.events !== false;
 					devtools_lazy = resolved.events !== false && resolved.events.lazy;
@@ -789,7 +795,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						// ok: a define that is not JSON keeps the `_app` default
 					}
 				}
-				// Normalize resolve.alias (array or object form) to `{ find, replacement }[]` for bake().
+				// Normalize resolve.alias (array or object form) to `{ find, replacement }[]`.
 				const ra = config.resolve?.alias ?? [];
 				resolve_alias = Array.isArray(ra)
 					? ra.map((a) => ({ find: a.find, replacement: a.replacement }))
@@ -863,6 +869,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						import_keys,
 						resolve_alias,
 						macros,
+						prescans,
+						plugins: listed_plugins,
 						// (the id prefix, not the native path: every consumer `startsWith`s a module id)
 						pkg_root: CORE_ROOT_ID,
 						build_secret,
@@ -1316,7 +1324,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const result = await compiler.transform_module(source, id, {
 					ssr: options?.ssr === true,
 					leg: leg_of(this),
-					emitFile: (chunk) => this.emitFile(chunk)
+					emitFile: (chunk) => this.emitFile(chunk),
+					watch: (file) => this.addWatchFile(file)
 				});
 				// DEV: a host edit dropped its server islands from the manifest the handle already
 				// re-imported (empty of them); this transform just registered them again — invalidate the
@@ -1473,24 +1482,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					process.env.OGYGIA_SECRET?.trim() ?? ''
 				]);
 
-				// FLAG MANIFEST — the inventory the prescan OBSERVED (AST-resolved flag()/experiment()
-				// call sites in modules importing 'ogygia'). Written once per build for CI flag-debt
-				// diffs; the client leg runs last, so the file reflects the completed build.
 				const program = compiler.program;
-				if (program.flag_sites.length && isMainThread) {
-					try {
-						const dir = path.join(root, 'node_modules', '.ogygia');
-						fs.mkdirSync(dir, { recursive: true });
-						const manifest = flags_manifest(program.flag_sites);
-						fs.writeFileSync(
-							path.join(dir, 'flags-manifest.json'),
-							`${JSON.stringify(manifest, null, '\t')}\n`
-						);
-						console.log(line('flags_manifest_written', { count: manifest.names.length }));
-					} catch {
-						// ok: a read-only file system never fails the build over an inventory
-					}
-				}
+				// The plugins' prescan readers: the client leg runs last, so what they saw is the
+				// completed build (`flags()` writes its flag inventory here).
+				if (isMainThread) for (const hook of prescans) hook.written?.();
 
 				// `page`: per island entry, whether its chunk closure bundles the `$app/state` /
 				// `$app/stores` shim — the handle seeds `page.data` only for islands that read it.

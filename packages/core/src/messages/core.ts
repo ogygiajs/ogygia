@@ -1011,6 +1011,16 @@ export const WARNINGS = {
 			(an \`{#if browser}\`), does this; else ${BUG}
 		`
 	},
+	rule_turns_counted: {
+		text: (a: { detail: string }): string =>
+			`rule broken, the hydration scheduler holds every turn it counts: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). Islands that are ready to hydrate wait
+			for a turn, one per task, the ones on screen first. The scheduler keeps a count of the
+			turns waiting and picks the next one from two lists, on screen and not. The count and the
+			lists disagree, so the next pick could find nothing and islands could wait forever. ${BUG}
+		`
+	},
 	rule_head_adopted: {
 		text: (a: { detail: string }): string =>
 			`rule broken, the head gains no <base> or refresh, CSP or cookie meta: ${a.detail}`,
