@@ -16,6 +16,7 @@ import path from 'node:path';
 import { renderId } from './region/identity.ts';
 import { resolveFeatures, type FeatureId, type RuntimeMarks } from './link/runtime-entry.ts';
 import { warn } from './messages.ts';
+import { same_module_path } from './dev/hmr.ts';
 import { scan_facts, type ScanFacts } from './scan-facts.ts';
 
 /** Strip a `?query` off a module id (host vs component vs Vite watch paths). */
