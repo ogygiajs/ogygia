@@ -189,6 +189,38 @@ describe('the random app', () => {
 		}
 	});
 
+	it("draws a peer's edge pages from their own stream: one it lacks, one that moved, one that shows the visitor, each linked from its pages", () => {
+		const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
+		const peers = seeds.map((s) => peer_plan(s, plan(s))).filter((p) => p !== null);
+		for (const edge of ['gone', 'moved', 'who'] as const) {
+			expect(peers.some((p) => p.edges[edge])).toBe(true);
+			expect(peers.some((p) => !p.edges[edge])).toBe(true);
+		}
+		const root = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			for (const edge of ['gone', 'moved', 'who'] as const) {
+				const seed = seeds.find((s) => peer_plan(s, plan(s))?.edges[edge])!;
+				const peer = peer_plan(seed, plan(seed))!;
+				const dir = join(root, `${edge}-peer`);
+				write_peer(dir, peer, seed);
+				const lib = (f: string) => readFileSync(join(dir, 'src', 'lib', 'gen', f), 'utf8');
+				expect(lib('Q0.svelte')).toContain(`<a href="/peer/${edge}">`);
+				const router = lib('router.ts');
+				if (edge === 'gone') expect(router).not.toContain(`'/gone'`);
+				if (edge === 'moved')
+					expect(router).toContain(`'/moved': page(Q0, { load: () => redirect(307, '/peer/q0') })`);
+				if (edge === 'who') {
+					expect(router).toContain(
+						`'/who': page(Who, { load: (c) => ({ sub: user(c)?.sub ?? '' }) })`
+					);
+					expect(lib('Who.svelte')).toContain('<p data-gen-who>{data.sub}</p>');
+				}
+			}
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
 	it('a federated app registers its federation from its hook, so a server that never served the mount still answers its holes (gen 220 seed 19)', () => {
 		const root = mkdtempSync(join(tmpdir(), 'sim-gen-'));
 		try {
