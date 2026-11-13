@@ -16,7 +16,8 @@
 		"ogygia/one-hash": "error",
 		"ogygia/compiler-boundary": "error",
 		"ogygia/dispose-by-close": "error",
-		"ogygia/ports": "error"
+		"ogygia/ports": "error",
+		"ogygia/tests-read-source": "error"
 	},
 	"overrides": [
 		{
@@ -56,6 +57,10 @@
 				"packages/*/src/compiler/**"
 			],
 			"rules": { "ogygia/dispose-by-close": "off" }
+		},
+		{
+			"files": ["packages/core/test/wire-markup.test.ts"],
+			"rules": { "ogygia/tests-read-source": "off" }
 		}
 	],
 	"ignorePatterns": [

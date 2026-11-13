@@ -1,18 +1,3 @@
-/**
- * The one seam between the always-on {@link ./core.js core} and the optional feature modules.
- *
- * `core` (and `router`) never statically import a feature impl — that would defeat the per-app
- * tree-shaking the generated runtime entry relies on. Instead each feature's `install()` fills its
- * typed slot here, and core reads the slot. Slots that core calls unconditionally (`lakes`,
- * `forms`) carry a no-op default so the feature can be absent; the rest are `null` until
- * a feature provides them and are read with optional chaining.
- *
- * This is the single wiring mechanism — there is no service locator and no per-feature setter. A
- * link a lazy chunk reads before its boot filled it throws `slot_not_linked`, and the registry
- * imports no messages module, since every chunk imports it (test/slots-linked.test.ts).
- *
- * @packageDocumentation
- */
 import type { Scope, Stale } from '@ogygia/machine';
 import type { FrameOrder } from '../frame.ts';
 import type { FrameFetcher, StoredFrame } from './frame-store.ts';

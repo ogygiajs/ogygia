@@ -107,3 +107,32 @@ test('after its island file could not load, a tick of another module starts afre
 	expect(steps).toContain('failed -> hydrating');
 	expect(live.querySelector('[data-testid="label"]')?.textContent).toBe('found');
 });
+
+test('a live region whose island file could not load, taken off the page, goes back to rest', async () => {
+	const live = document.createElement('ogygia-region') as LiveRegion;
+	live.setAttribute('live', '');
+	document.body.append(live);
+	bootDev();
+
+	const steps: string[] = [];
+	const off = observe((name, from, to) => {
+		if (name === 'live-region') steps.push(`${from?.kind} -> ${to?.kind}`);
+	});
+	const real_error = console.error;
+	console.error = () => {};
+	try {
+		await live.applyLive({
+			id: 'live-leaves',
+			module: MISSING,
+			props: { text: 'missing' },
+			html: label_html().replace('one', 'missing'),
+			hydrate: 'load'
+		});
+		await expect.poll(() => steps.at(-1)).toBe('hydrating -> failed');
+		live.remove();
+		await expect.poll(() => steps.at(-1)).toBe('failed -> idle');
+	} finally {
+		console.error = real_error;
+		off();
+	}
+});
