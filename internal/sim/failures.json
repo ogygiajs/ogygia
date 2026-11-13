@@ -1415,7 +1415,7 @@
 			"name": "a step that throws is said once, and the others still run"
 		},
 		{
-			"site": "packages/machine/src/stale.ts > whole > stale:1",
+			"site": "packages/machine/src/stale.ts > whole > stale:0",
 			"reason": "`value[i] === STALE`: proved: the STALE check made never true turns the test red, twice",
 			"test": "packages/machine/test/stale-waits.test.ts",
 			"name": "scope.task"
