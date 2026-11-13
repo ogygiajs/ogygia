@@ -158,7 +158,7 @@ test.describe('profiler on a serverless host', () => {
 			AWS_LAMBDA_FUNCTION_MEMORY_SIZE: '1024'
 		});
 		const t = Date.now();
-		const res = await request.get(`${ORIGIN}/__profiler/page?p=/hell&runs=50&format=keep`, {
+		const res = await request.post(`${ORIGIN}/__profiler/page?p=/hell&runs=50&format=keep`, {
 			timeout: 60_000
 		});
 		const ms = Date.now() - t;
@@ -178,7 +178,7 @@ test.describe('profiler on a serverless host', () => {
 	}) => {
 		needs_js_self_profiling(page);
 		await fresh_instance();
-		const rec = await page.request.get(`${ORIGIN}/__profiler/page?p=/hell&runs=2`, {
+		const rec = await page.request.post(`${ORIGIN}/__profiler/page?p=/hell&runs=2`, {
 			maxRedirects: 0,
 			timeout: 120_000
 		});

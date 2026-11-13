@@ -6,7 +6,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-120 entries.
+121 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -82,6 +82,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/profiler/index.ts` | `#router` | `searchParams('by')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#router` | `searchParams('next')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#router` | `searchParams(LOGIN_FAILED_PARAM)` | 1 |
+| `packages/devtools/src/profiler/index.ts` | `#run_page` | `headers.get('sec-fetch-site')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#site` | `searchParams('from')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#source` | `searchParams('l')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#source` | `searchParams('p')` | 1 |
