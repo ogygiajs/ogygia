@@ -222,7 +222,9 @@ function kind_of(node: Node, parent: Node | null): SiteKind | null {
 				return 'stream';
 			if (name === 'postMessage' || name === 'sendBeacon') return 'message';
 			if (name === 'move' && member) return 'refused';
-			if (name === 'verify' || name === 'timingSafeEqual') return 'crypto';
+			if (name === 'timingSafeEqual') return 'crypto';
+			if (name === 'verify' && object !== null && /crypto|subtle|hmac/i.test(object))
+				return 'crypto';
 			if (member) {
 				const o = callee.object as Node;
 				if (o.type === 'MemberExpression' && (o.property as Node).name === 'subtle')
