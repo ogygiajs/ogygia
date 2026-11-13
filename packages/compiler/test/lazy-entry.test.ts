@@ -25,7 +25,8 @@ const record = () =>
 		strategy: 'visible',
 		options: { margin: '200px' },
 		hostPath: '/app/src/routes/+page.svelte',
-		identity: 'x'
+		identity: 'x',
+		lang: ' lang="ts"'
 	});
 
 describe('wake island — the wrapper is leg-split, the client leg is lazy', () => {
@@ -39,8 +40,7 @@ describe('wake island — the wrapper is leg-split, the client leg is lazy', () 
 		expect(r.wrapperClientSource).not.toContain('ogygia:region/entry/abc123.js');
 		expect(r.wrapperClientSource).toContain('__component={__OgygiaEntry} __load={__OgygiaLoad}');
 		expect(r.wrapperClientSource).toContain('__entry={"/_app/immutable/og-region.abc123.js"}');
-		// generated JavaScript, the same for every host (test/region-identity-canonical.test.ts)
-		expect(r.wrapperClientSource).toContain('<script>');
+		expect(r.wrapperClientSource).toContain('<script lang="ts">');
 		// the SSR wrapper is unchanged: it renders, so it imports the entry and the component
 		expect(r.wrapperSource).toContain('import __OgygiaEntry from "ogygia:region/entry/abc123.js";');
 		expect(r.wrapperSource).toContain('Block.svelte');
@@ -82,7 +82,8 @@ describe('wake island — the wrapper is leg-split, the client leg is lazy', () 
 			'ogygia:region/lazy/i.js',
 			'load',
 			{ keep: 'nav' },
-			'/e.js'
+			'/e.js',
+			''
 		);
 		expect(client).toContain('__keep={"nav"}');
 		expect(client).toContain('__mode="island" load');

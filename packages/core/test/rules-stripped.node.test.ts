@@ -19,6 +19,9 @@ const RUNTIME_RULES = [
 	'rule_address_bar_drift',
 	'rule_old_page_open',
 	'rule_failure_uncoded',
+	'rule_turns_counted',
+	// (the scheduler's own check, beside its code: ../src/runtime/schedule.ts)
+	'pending turn(s) and holds',
 	'__ogygia_rules'
 ];
 /** What the server's rules say (their codes are in the server's message table, which ships with

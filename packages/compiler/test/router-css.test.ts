@@ -18,7 +18,6 @@ import {
 
 const ROOT = '/app';
 const LIB = '/app/src/lib';
-const SPECS = { root: ROOT, libDir: LIB };
 
 /** In-memory module graph: path → import specs; `.svelte`/`.ts` existence from the map's keys. */
 function graph(files: Record<string, string[]>) {
@@ -34,7 +33,7 @@ describe('router_css_roots — the component closure of router modules', () => {
 			'/app/src/routes/x/Shell.svelte': [],
 			'/app/src/lib/Home.svelte': []
 		});
-		const roots = router_css_roots(new Set(['/app/src/routes/x/+server.ts']), specs, SPECS, exists);
+		const roots = router_css_roots(new Set(['/app/src/routes/x/+server.ts']), specs, LIB, exists);
 		expect(roots).toEqual(['/app/src/lib/Home.svelte', '/app/src/routes/x/Shell.svelte']);
 	});
 
@@ -46,7 +45,7 @@ describe('router_css_roots — the component closure of router modules', () => {
 			'/app/src/pages/deep/index.ts': ['./Docs.svelte'],
 			'/app/src/pages/deep/Docs.svelte': []
 		});
-		const roots = router_css_roots(new Set(['/app/src/app.ts']), specs, SPECS, exists);
+		const roots = router_css_roots(new Set(['/app/src/app.ts']), specs, LIB, exists);
 		expect(roots).toEqual(['/app/src/pages/Home.svelte', '/app/src/pages/deep/Docs.svelte']);
 	});
 
@@ -56,7 +55,7 @@ describe('router_css_roots — the component closure of router modules', () => {
 			'/app/src/components/index.ts': ['./Card.svelte'],
 			'/app/src/components/Card.svelte': []
 		});
-		const roots = router_css_roots(new Set(['/app/src/r.ts']), specs, SPECS, exists);
+		const roots = router_css_roots(new Set(['/app/src/r.ts']), specs, LIB, exists);
 		expect(roots).toEqual(['/app/src/components/Card.svelte']);
 	});
 
@@ -66,13 +65,13 @@ describe('router_css_roots — the component closure of router modules', () => {
 			'/app/src/b.ts': ['./a.ts', './X.svelte'],
 			'/app/src/X.svelte': []
 		});
-		const roots = router_css_roots(new Set(['/app/src/a.ts']), specs, SPECS, exists);
+		const roots = router_css_roots(new Set(['/app/src/a.ts']), specs, LIB, exists);
 		expect(roots).toEqual(['/app/src/X.svelte']);
 	});
 
 	it('no router modules → no roots', () => {
 		const { specs, exists } = graph({ '/app/src/a.ts': ['./X.svelte'], '/app/src/X.svelte': [] });
-		expect(router_css_roots(new Set(), specs, SPECS, exists)).toEqual([]);
+		expect(router_css_roots(new Set(), specs, LIB, exists)).toEqual([]);
 	});
 });
 
