@@ -762,6 +762,23 @@ test('a host that cannot have a shadow root is skipped and said; the hosts after
 	);
 });
 
+test('a host with an attribute name only the HTML parser accepts (`=eq`) is restored, and so is every host after it', () => {
+	document.head.insertAdjacentHTML('beforeend', SHEET);
+	const host = (attrs: string) =>
+		`<x-widget og-h="0" og-shadow="demo-card.shadow" ${attrs}><b>server</b><slot><!--og-c 0.0 t--> hi </slot></x-widget>`;
+	document.body.innerHTML = host('@click="go" [prop]="x" =eq="y"') + host('data-n="2"');
+	restore(document);
+	const hosts = Array.from(document.querySelectorAll('x-widget'));
+	expect(hosts.length).toBe(2);
+	for (const h of hosts) {
+		expect(h.shadowRoot, 'restored').not.toBeNull();
+		expect(h.hasAttribute('og-h'), 'its mark gone').toBe(false);
+	}
+	expect(hosts[0].getAttribute('@click')).toBe('go');
+	expect(hosts[0].getAttribute('[prop]')).toBe('x');
+	expect(hosts[0].getAttribute('=eq')).toBe('y');
+});
+
 test('putting attributes back never adds an event handler, a srcdoc or a javascript: URL', () => {
 	const w = window as { __og_ran?: number };
 	w.__og_ran = 0;

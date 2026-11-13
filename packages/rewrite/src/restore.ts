@@ -431,7 +431,7 @@ export function restore(root: Document | DocumentFragment | Element, lite?: numb
 		)
 			return null;
 		const fresh = doc.adoptNode(made);
-		for (const a of Array.from(served.attributes)) fresh.setAttribute(a.name, a.value);
+		for (const a of Array.from(served.attributes)) fresh.setAttributeNode(a.cloneNode() as Attr);
 		while (served.firstChild) fresh.appendChild(served.firstChild);
 		served.replaceWith(fresh);
 		return fresh;
