@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { transformHost, islandId, wrapperVirtualId } from '../dist/compiler/region/transform.js';
-import { rewrite_lake_import_to_placeholder } from '../dist/vite/index.js';
-import { RateLimiter } from '../../core/dist/server/rate-limit.js';
-import { sign, verify, region_mac_message } from '../../core/dist/server/hmac.js';
+import { transformHost, islandId, wrapperVirtualId } from '../src/compiler/region/transform.ts';
+import { rewrite_lake_import_to_placeholder } from '../src/vite/index.ts';
+import { RateLimiter } from '../../core/src/server/rate-limit.ts';
+import { sign, verify, region_mac_message } from '../../core/src/server/hmac.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 
@@ -254,7 +254,7 @@ describe('audit fixes — rate limiter', () => {
 
 describe('audit fixes — concurrency gate', () => {
 	it('never exceeds max concurrent runners', async () => {
-		const { ConcurrencyGate } = await import('../../core/dist/runtime/concurrency.js');
+		const { ConcurrencyGate } = await import('../../core/src/runtime/concurrency.ts');
 		const g = new ConcurrencyGate(2);
 		let peak = 0;
 		const tasks = Array.from({ length: 8 }, () =>
@@ -270,7 +270,7 @@ describe('audit fixes — concurrency gate', () => {
 
 describe('audit fixes — head_node_key', () => {
 	it('keys link/meta without full outerHTML when possible', async () => {
-		const { head_node_key } = await import('../../core/dist/runtime/router-nav.js');
+		const { head_node_key } = await import('../../core/src/runtime/router-nav.ts');
 		const attr = (map: Record<string, string>) => (n: string) => map[n] ?? null;
 		const link = {
 			tagName: 'LINK',
@@ -290,7 +290,7 @@ describe('audit fixes — head_node_key', () => {
 
 	it('keys Kit FOUC and Vite HMR styles by role, not content length', async () => {
 		const { head_node_key, keep_head_node_across_spa } =
-			await import('../../core/dist/runtime/router-nav.js');
+			await import('../../core/src/runtime/router-nav.ts');
 		const fouc = {
 			tagName: 'STYLE',
 			getAttribute: (n: string) => (n === 'data-sveltekit' ? '' : null),
@@ -328,7 +328,7 @@ describe('audit fixes — head_node_key', () => {
 
 describe('audit fixes — spa cache policy', () => {
 	it('refuses private/no-store/no-cache and Set-Cookie', async () => {
-		const { spa_html_cacheable } = await import('../../core/dist/runtime/spa-cacheable.js');
+		const { spa_html_cacheable } = await import('../../core/src/runtime/spa-cacheable.ts');
 		expect(spa_html_cacheable('public, max-age=60', false)).toBe(true);
 		expect(spa_html_cacheable('private, max-age=60', false)).toBe(false);
 		expect(spa_html_cacheable('no-store', false)).toBe(false);
@@ -339,7 +339,7 @@ describe('audit fixes — spa cache policy', () => {
 
 describe('audit fixes — page seed serialize', () => {
 	it('escapes lt and falls back when data is non-serializable', async () => {
-		const { PageSeed } = await import('../../core/dist/server/page-seed.js');
+		const { PageSeed } = await import('../../core/src/server/page-seed.ts');
 		const ok = PageSeed.serialize({
 			url: { href: 'http://x/' },
 			params: {},
@@ -367,7 +367,7 @@ describe('audit fixes — page seed serialize', () => {
 describe('audit fixes — remote clear', () => {
 	it('clear_remote_seeds leaves live/query instance maps intact', async () => {
 		const { query_responses, prerender_responses, clear_remote_seeds, query_map, live_query_map } =
-			await import('../../core/dist/shims/kit-remote/remote-cache.js');
+			await import('../../core/src/shims/kit-remote/remote-cache.ts');
 		query_responses['a'] = { v: 1 };
 		prerender_responses['b'] = { v: 2 };
 		query_map.set('q', new Map());
@@ -382,9 +382,9 @@ describe('audit fixes — remote clear', () => {
 	});
 
 	it('remote_cache is shared via globalThis across re-imports', async () => {
-		const a = await import('../../core/dist/shims/kit-remote/remote-cache.js');
+		const a = await import('../../core/src/shims/kit-remote/remote-cache.ts');
 		a.live_query_map.set('shared', new Map());
-		const file = new URL('../../core/dist/shims/kit-remote/remote-cache.js', import.meta.url);
+		const file = new URL('../../core/src/shims/kit-remote/remote-cache.ts', import.meta.url);
 		const b = await import(/* @vite-ignore */ `${file.href}?t=${Date.now()}`);
 		// Same module URL may cache; assert the global singleton identity directly.
 		expect(a.remote_cache).toBe(b.remote_cache);
@@ -418,7 +418,7 @@ describe('audit fixes — session-bound MAC', () => {
 describe('audit fixes — region endpoint allowlist', () => {
 	it('allows same-origin relative and absolute; rejects cross-origin', async () => {
 		const { is_allowed_region_endpoint, is_same_origin_response } =
-			await import('../../core/dist/runtime/region-endpoint-url.js');
+			await import('../../core/src/runtime/region-endpoint-url.ts');
 		const origin = 'https://app.example';
 		expect(is_allowed_region_endpoint('/__ogygia__?id=abc', origin)).toBe(true);
 		expect(is_allowed_region_endpoint('https://app.example/__ogygia__?id=1', origin)).toBe(true);
@@ -434,7 +434,7 @@ describe('audit fixes — region endpoint allowlist', () => {
 	});
 
 	it('resolves relative island entries against the document (not runtime module)', async () => {
-		const { island_module_url } = await import('../../core/dist/runtime/region-endpoint-url.js');
+		const { island_module_url } = await import('../../core/src/runtime/region-endpoint-url.ts');
 		const nested = 'https://example.com/playground/strategies';
 		expect(island_module_url('/_app/immutable/og-region.abc.js')).toBe(
 			'/_app/immutable/og-region.abc.js'
@@ -452,7 +452,7 @@ describe('audit fixes — region endpoint allowlist', () => {
 describe('audit fixes — region id charset + default TTL constant', () => {
 	it('exports DEFAULT_REGION_TTL_SEC and REGION_ID_RE', async () => {
 		const { DEFAULT_REGION_TTL_SEC, REGION_ID_RE } =
-			await import('../../core/dist/server/endpoint.js');
+			await import('../../core/src/server/endpoint.ts');
 		expect(DEFAULT_REGION_TTL_SEC).toBe(3600);
 		expect(REGION_ID_RE.test('abcdef012345')).toBe(true);
 		expect(REGION_ID_RE.test('__proto__')).toBe(false);

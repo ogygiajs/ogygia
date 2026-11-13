@@ -149,20 +149,20 @@
 	{
 		"id": "fragment-body-tag-missed",
 		"file": "packages/federation/src/wire.ts",
-		"line": 668,
-		"code": "if (html.slice(i + 2, i + 6).toLowerCase() === 'body') {",
+		"line": 719,
+		"code": "const close = body_tag === null ? -1 : body_end(html);",
 		"operator": "equality",
-		"from": "() =",
-		"to": "() !"
+		"from": "===",
+		"to": "!=="
 	},
 	{
-		"id": "fragment-body-tag-end-narrowed",
-		"file": "packages/federation/src/wire.ts",
-		"line": 671,
-		"code": "if (c === 62 || c === 47 || c === 32 || (c >= 9 && c <= 13)) return i;",
-		"operator": "logical",
-		"from": "||",
-		"to": "&&"
+		"id": "hidden-document-reads-shown",
+		"file": "packages/core/src/runtime/schedule.ts",
+		"line": 470,
+		"code": "const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';",
+		"operator": "equality",
+		"from": "!",
+		"to": "="
 	},
 	{
 		"id": "federation-rules-gate-inverted",
