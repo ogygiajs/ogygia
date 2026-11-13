@@ -1,3 +1,4 @@
+// oracle: transportable
 // The prescan's question, "does this module define a wire class?", must have the answer the
 // registration gives when it appends `__register_transportable` for the module. A class the prescan
 // misses gets no loader and no eager import, and the `wire` mark stays off: it fails to decode in
