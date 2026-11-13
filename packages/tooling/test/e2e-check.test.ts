@@ -43,7 +43,7 @@ it('a page where ogygia booted without its rules fails the rules check, naming w
 		const out = r.stdout + r.stderr;
 		expect(r.status, out).toBe(1);
 		expect(out).toMatch(/1 failed/);
-		expect(out).toMatch(/2 passed/);
+		expect(out).toMatch(/3 passed/);
 		expect(out).toContain('ogygia booted, built without its rules');
 		expect(out).toContain('built without its rules (OGYGIA_RULES=1)');
 	} finally {
