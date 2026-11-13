@@ -76,7 +76,7 @@ it('with no region above to wait for, the hold ends a frame after the put-back a
 
 it('a region above that never wakes (its code failed) holds the page for SCROLL_HOLD_MS at most', async () => {
 	page();
-	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
 	const visit = scope();
 	try {
 		hold_scroll({ x: 0, y: 1200 }, visit);
