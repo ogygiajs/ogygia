@@ -5,7 +5,11 @@
  */
 import { describe, it, expect } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
-import { rewrite_dollar } from '../src/compiler/macros/dollar.ts';
+import {
+	fn_manifest_entries,
+	fn_manifest_registrations,
+	rewrite_dollar
+} from '../src/compiler/macros/dollar.ts';
 import { __register_fn, fn_handle } from '../../core/src/fn-transport.ts';
 
 const SVELTE = ['.svelte'];
@@ -166,6 +170,11 @@ describe('og.$ server-only capture rejection', () => {
 		expect(() => run(b)).toThrow(/server-only module '\$app\/server'/);
 	});
 
+	it('BUILD ERROR: capturing a $env/dynamic/private import', () => {
+		const src = `import { env } from '$env/dynamic/private';\nconst f = import.meta.og.$(() => env.KEY);`;
+		expect(() => run(src)).toThrow(/captures `env` from the server-only module/);
+	});
+
 	it('public env and normal imports still capture fine', () => {
 		const src = `import { PUB } from '$env/static/public';\nconst f = import.meta.og.$(() => PUB);`;
 		expect(run(src).hoists).toHaveLength(1);
@@ -219,6 +228,160 @@ describe('og.$ in TEMPLATE expressions (props in markup)', () => {
 		const { code } = rewrite_dollar(src, 'src/routes/p.svelte', 'src/routes/p.svelte', SVELTE);
 		expect(code).toContain(`store={__og_boundary((s), "src/routes/p.svelte:5")}`);
 		expect(code).toContain(`import { __og_$, __og_boundary } from 'ogygia/internal';`);
+	});
+
+	it('a markup mark with no <script> to take its import fails the build', () => {
+		const src = `<Island fmt={import.meta.og.$((n) => n)} />`;
+		expect(() => rewrite_dollar(src, 'src/routes/p.svelte', 'src/routes/p.svelte', SVELTE)).toThrow(
+			/needs a <script> block/
+		);
+	});
+
+	it('a markup mark with no argument, or one that does not parse, fails the build', () => {
+		const tpl = (prop: string) => dedent`
+			<script>
+				const r = 1;
+			</script>
+			<Island fmt={${prop}} />
+		`;
+		const at = (prop: string) => () =>
+			rewrite_dollar(tpl(prop), 'src/routes/p.svelte', 'src/routes/p.svelte', SVELTE);
+		expect(at('import.meta.og.$()')).toThrow(/exactly one argument/);
+		expect(at('import.meta.og.$((n) => )')).toThrow(/does not parse/);
+	});
+
+	it('a markup mark inside another markup mark fails the build', () => {
+		const src = dedent`
+			<script>
+				const r = 1;
+			</script>
+			<Island fmt={import.meta.og.$(() => import.meta.og.$(() => r))} />
+		`;
+		expect(() => rewrite_dollar(src, 'src/routes/p.svelte', 'src/routes/p.svelte', SVELTE)).toThrow(
+			/inside another \$\(\)/
+		);
+	});
+
+	it('a script mark that opens a call is rewritten once, by the script pass', () => {
+		const src = dedent`
+			<script>
+				const r = 1;
+				register(import.meta.og.$(() => r));
+			</script>
+			<p>x</p>
+		`;
+		const { hoists } = rewrite_dollar(src, 'src/routes/p.svelte', 'src/routes/p.svelte', SVELTE);
+		expect(hoists.map((h) => h.tag)).toEqual(['src/routes/p.svelte#$0']);
+	});
+
+	it('markup that names the marker outside an expression, or a longer member, is left alone', () => {
+		const src = dedent`
+			<script>
+				const r = 1;
+			</script>
+			<p>use import.meta.og.$(fn) in a prop</p>
+			<p>{import.meta.og.$x(r)}</p>
+		`;
+		const { code } = rewrite_dollar(src, 'src/routes/p.svelte', 'src/routes/p.svelte', SVELTE);
+		expect(code).toBe(src);
+	});
+});
+
+describe('og.$ module shape', () => {
+	it('the injected import keeps every line where it was', () => {
+		const src = dedent`
+			const a = 1;
+			export const f = import.meta.og.$(() => a);
+			export const g = 2;
+		`;
+		const { code } = run(src);
+		expect(code.split('\n').length).toBe(src.split('\n').length);
+		expect(code.split('\n')[1]).toContain('__og_$(');
+	});
+
+	it('a module that does not parse mid-edit is left as written', () => {
+		const src = dedent`
+			export const f = import.meta.og.$((n) => n);
+			const x = ;
+		`;
+		expect(run(src)).toEqual({ code: src, hoists: [] });
+	});
+
+	it('every platform global a body reads passes through uncaptured', () => {
+		const globals = [
+			'undefined',
+			'NaN',
+			'Infinity',
+			'globalThis',
+			'console',
+			'Math',
+			'JSON',
+			'Date',
+			'RegExp',
+			'Error',
+			'TypeError',
+			'RangeError',
+			'Object',
+			'Array',
+			'String',
+			'Number',
+			'Boolean',
+			'Symbol',
+			'BigInt',
+			'Map',
+			'Set',
+			'WeakMap',
+			'WeakSet',
+			'Promise',
+			'Proxy',
+			'Reflect',
+			'ArrayBuffer',
+			'Uint8Array',
+			'TextEncoder',
+			'TextDecoder',
+			'URL',
+			'URLSearchParams',
+			'fetch',
+			'Request',
+			'Response',
+			'Headers',
+			'FormData',
+			'AbortController',
+			'structuredClone',
+			'queueMicrotask',
+			'setTimeout',
+			'clearTimeout',
+			'setInterval',
+			'clearInterval',
+			'crypto',
+			'performance',
+			'atob',
+			'btoa',
+			'isNaN',
+			'isFinite',
+			'parseInt',
+			'parseFloat',
+			'encodeURIComponent',
+			'decodeURIComponent',
+			'window',
+			'document',
+			'navigator',
+			'location'
+		];
+		const src = `export const f = import.meta.og.$(function () { return [${globals.join(', ')}, arguments]; });`;
+		expect(run(src).hoists[0]!.factory_src.startsWith('() =>')).toBe(true);
+	});
+});
+
+describe('og.$ fn manifest', () => {
+	it('is the same whatever order the modules transformed in', () => {
+		const a = new Map([
+			['src/b.ts#$0', '() => (2)'],
+			['src/a.ts#$0', '() => (1)']
+		]);
+		const b = new Map([...a].reverse());
+		expect(fn_manifest_registrations(a)).toBe(fn_manifest_registrations(b));
+		expect(fn_manifest_entries(a).map(([tag]) => tag)).toEqual(['src/a.ts#$0', 'src/b.ts#$0']);
 	});
 });
 
