@@ -226,6 +226,34 @@ describe('realms, named by the plugin', () => {
 		expect(client_hook_names('p', sat)).toEqual(['holeFailed']);
 		expect(() => client_hook_names('p', cycle)).toThrow(/plugin_client_hooks_unread|cannot read/);
 	});
+	it('a macro or a route config key two plugins both claim is refused, naming the first', () => {
+		const both = (build: (b: BuildContext) => void) => () =>
+			resolve_plugins(
+				[def({ name: '@ogygia/flags', build }), def({ name: '@ogygia/barrels', build })],
+				APP,
+				true
+			);
+		expect(both((b) => b.macro('shared', (c: string) => c))).toThrow(/plugin_macro_claimed/);
+		expect(both((b) => b.routeConfig('shared'))).toThrow(/route_config_key_claimed/);
+	});
+	it('without ogygia() a plugin reading the region table is told so', () => {
+		for (const read of [
+			(b: BuildContext) => b.regions.names(),
+			(b: BuildContext) => b.regions.barrelWhy('x', [])
+		])
+			expect(() =>
+				resolve_plugins([def({ name: '@ogygia/flags', build: (b) => void read(b) })], APP, true)
+			).toThrow(/no region table without ogygia\(\)/);
+	});
+	it('a client realm that does not parse, or whose defineClient spreads, cannot be read', () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'og-client-unread-'));
+		const broken = path.join(dir, 'broken.ts');
+		fs.writeFileSync(broken, `export default defineClient({ hooks: {\n`);
+		const spread = path.join(dir, 'spread.ts');
+		fs.writeFileSync(spread, `export default defineClient({ ...base, hooks: {} });\n`);
+		expect(() => client_hook_names('p', broken)).toThrow(/plugin_client_hooks_unread|cannot read/);
+		expect(() => client_hook_names('p', spread)).toThrow(/plugin_client_hooks_unread|cannot read/);
+	});
 	it('a plugin may not name a macro core defines (`wire`, `$`, `source`, `store`)', () => {
 		for (const name of ['wire', '$', 'source', 'store'])
 			expect(() =>

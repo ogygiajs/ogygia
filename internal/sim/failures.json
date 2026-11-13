@@ -2572,12 +2572,6 @@
 			"name": "a registry with no marks is returned unchanged; an unparsable one is null"
 		},
 		{
-			"site": "packages/compiler/src/compiler/parse/oxc.ts > parse_module > result:0",
-			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
-			"test": "packages/compiler/test/oxc-parse.test.ts",
-			"name": "is null, never a throw, on a syntax error"
-		},
-		{
 			"site": "packages/compiler/src/compiler/parse/oxc.ts > parse_module > catch:0",
 			"reason": "`catch { return { program: null, ok: false, comments: [] }; }`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/compiler/test/oxc-parse.test.ts",
@@ -2698,12 +2692,6 @@
 			"name": "Html is made only by its own module"
 		},
 		{
-			"site": "packages/core/src/transport.ts > encode_region > throw:0",
-			"reason": "`throw new OgygiaError('held_region_plain_import');`: proved: the throw removed turns the test red, twice",
-			"test": "packages/core/test/refusals.test.ts",
-			"name": "a plain inline region nothing awaited, made to cross"
-		},
-		{
 			"site": "packages/core/src/contract/switch.ts > testing_lean > catch:0",
 			"reason": "`catch { return false; // ok: off the browser, or cookies blocked: not…`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/core/test/quiet-failures.test.ts",
@@ -2774,6 +2762,78 @@
 			"reason": "`catch { // ok: a platform that refuses it: the work runs on by itself…`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/core/test/plugin-request-end.test.ts",
 			"name": "a platform whose waitUntil refuses the work: the request still ends, and the work runs on by itself"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > normalize_import_keys_uncached > throw:0",
+			"reason": "`throw new OgygiaError('import_key_invalid', { role, got: String(JSON.…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/region-mark-refusals.test.ts",
+			"name": "an import key that is no JavaScript name"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:2",
+			"reason": "`throw fail( `\\`${import_keys.preset}\\` must be the only import attrib…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/region-mark-refusals.test.ts",
+			"name": "a preset beside another attribute"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:2",
+			"reason": "`throw new OgygiaError('region_import_no_specifier', { host: rel_host,…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/region-mark-refusals.test.ts",
+			"name": "a marked import with no specifier in a .ts module"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > names > throw:0",
+			"reason": "`throw new Error('resolve_plugins: no region table without ogygia()');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "without ogygia() a plugin reading the region table is told so"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > barrelWhy > throw:0",
+			"reason": "`throw new Error('resolve_plugins: no region table without ogygia()');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "without ogygia() a plugin reading the region table is told so"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:0",
+			"reason": "`throw unread();`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a client realm that does not parse, or whose defineClient spreads, cannot be read"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:2",
+			"reason": "`throw unread();`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a client realm that does not parse, or whose defineClient spreads, cannot be read"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > routeConfig > throw:1",
+			"reason": "`throw new OgygiaError('route_config_key_claimed', { key, owner, plugi…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a macro or a route config key two plugins both claim is refused, naming the first"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > macro > throw:1",
+			"reason": "`throw new OgygiaError('plugin_macro_claimed', { name, owner, plugin: …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a macro or a route config key two plugins both claim is refused, naming the first"
+		},
+		{
+			"site": "packages/compiler/src/compiler/queries.ts > queries > set_input > throw:0",
+			"reason": "`throw new Error(`query ${query.name} is not an input`);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/queries.test.ts",
+			"name": "an answer, not an input, cannot be set"
+		},
+		{
+			"site": "packages/compiler/src/compiler/queries.ts > queries > moved > catch:0",
+			"reason": "`catch { return true; // ok: an answer that now throws has changed; it…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/queries.test.ts",
+			"name": "an answer that now throws has moved, for a watcher and for answers_changed_since"
+		},
+		{
+			"site": "packages/compiler/src/compiler/queries.ts > queries > answers_changed_since > catch:0",
+			"reason": "`catch { return true; // ok: an answer that now throws has changed; it…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/queries.test.ts",
+			"name": "an answer that now throws has moved, for a watcher and for answers_changed_since"
 		}
 	],
 	"impossible": [
@@ -2925,21 +2985,18 @@
 		"packages/compiler/src/compiler/macros/store.ts > misuse > throw:0",
 		"packages/compiler/src/compiler/macros/wire.ts > misuse > throw:0",
 		"packages/compiler/src/compiler/ownership-stamps.ts > opaque_stamp_edits > catch:0",
+		"packages/compiler/src/compiler/parse/oxc.ts > parse_module > result:0",
 		"packages/compiler/src/compiler/parse/scan.ts > split_first_string > throw:0",
 		"packages/compiler/src/compiler/parse/scan.ts > split_first_string > throw:1",
 		"packages/compiler/src/compiler/parse/scan.ts > split_first_string > throw:2",
 		"packages/compiler/src/compiler/queries.ts > queries > compute > throw:0",
 		"packages/compiler/src/compiler/queries.ts > queries > compute > catch:0",
 		"packages/compiler/src/compiler/queries.ts > queries > compute > throw:1",
-		"packages/compiler/src/compiler/queries.ts > queries > set_input > throw:0",
-		"packages/compiler/src/compiler/queries.ts > queries > moved > catch:0",
-		"packages/compiler/src/compiler/queries.ts > queries > answers_changed_since > catch:0",
 		"packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:0",
 		"packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:1",
 		"packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:2",
 		"packages/compiler/src/compiler/region/marked-imports.ts > refuse_as_region > throw:0",
 		"packages/compiler/src/compiler/region/marked-imports.ts > check_marked_uses > fail > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > normalize_import_keys_uncached > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > normalize_import_keys_uncached > throw:1",
 		"packages/compiler/src/compiler/region/transform.ts > normalize_region_value > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > normalize_hydrate_value > throw:0",
@@ -2948,7 +3005,6 @@
 		"packages/compiler/src/compiler/region/transform.ts > resolve_component_path > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:2",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:3",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:5",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:7",
@@ -2978,7 +3034,6 @@
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:2",
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:3",
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:2",
 		"packages/compiler/src/compiler/transportables.ts > exportedWireClassesFromBody > throw:0",
 		"packages/compiler/src/compiler/virtual/core.ts > dev_runtime_of > parse:0",
 		"packages/compiler/src/compiler/virtual/core.ts > dev_runtime_of > catch:0",
@@ -3023,26 +3078,20 @@
 		"packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:1",
 		"packages/compiler/src/vite/plugin-api.ts > pinned_imports > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > names > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > barrelWhy > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:1",
 		"packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:2",
 		"packages/compiler/src/vite/plugin-api.ts > check_plugins > catch:0",
 		"packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:3",
 		"packages/compiler/src/vite/plugin-api.ts > realm_path > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:1",
-		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:2",
 		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:3",
 		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:4",
 		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:5",
 		"packages/compiler/src/vite/plugin-api.ts > package_resolves > catch:0",
 		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > routeConfig > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > routeConfig > throw:1",
 		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > macro > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > macro > throw:1",
 		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > pageModules > throw:0",
 		"packages/compiler/src/vite/session.ts > refuse > throw:0",
 		"packages/compiler/src/vite/sourcemaps.ts > island_sourcemaps_plugin > transform > catch:0",
@@ -3438,6 +3487,7 @@
 		"packages/core/src/shims/page-store.svelte.ts > PageState > set > catch:0",
 		"packages/core/src/source.ts > record_source_read > catch:0",
 		"packages/core/src/tool-fetches.ts > tool_fetch > fetch:0",
+		"packages/core/src/transport.ts > encode_region > throw:0",
 		"packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > read > catch:0",
 		"packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > writeBundle > catch:0",
 		"packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > handler > catch:0",
