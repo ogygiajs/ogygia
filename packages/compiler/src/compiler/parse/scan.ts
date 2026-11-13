@@ -1,34 +1,12 @@
-/**
- * The string-aware macro SCANNER — the cheap-bailout front-end for `import.meta.og.*`.
- *
- * Two jobs, no full parse:
- *   • the LEXER (`find_og_calls` / `match_close` / `split_first_string`) locates
- *     `import.meta.og.<path>(…)` CALLS in a module's source with a single left-to-right pass that
- *     skips strings, comments, and regex literals, so a marker inside a doc comment or a string is
- *     never mistaken for a call.
- *   • the EXTRACTOR (`og_js_regions` / `is_js_module` / `is_markup_module`) decides where those
- *     constructs are recognized per file type, and yields the JS slices to analyze.
- *
- * Why not an AST? These rewrites run in the Vite `transform` hook on EVERY module (svelte/ts/js) —
- * a parse per module per construct is the tax we refuse. The scanner is O(n), allocation-light, and
- * (critically) survives partial/invalid syntax mid-edit in dev. The git loader proved it; this is
- * that scanner, generalized so all constructs share one code path.
- */
+import { next_any_tag, tag_name, type FoundTag } from '@ogygia/core/contract';
 import { OgygiaError } from '../messages.ts';
 
-// ── regexes
 const WS_RE = /\s/;
 const TEMPLATE_INTERPOLATION_RE = /\$\{/;
-// (outside strings, a non-ASCII code unit that is not a space can only be part of a name; a
-// surrogate half included, so `𝒳` is one)
 const WORD_START_RE = /[A-Za-z_$]|[^\s\p{ASCII}]/u;
 const WORD_RE = /[A-Za-z0-9_$]|[^\s\p{ASCII}]/u;
 const NUMBER_RE = /[0-9A-Za-z_.]/;
 const DIGIT_RE = /[0-9]/;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// LEXER — one hand-rolled walk shared by every compile construct.
-// ─────────────────────────────────────────────────────────────────────────────
 
 type Leaves = 'value' | 'operand' | 'head';
 
@@ -59,29 +37,16 @@ function word_leaves(word: string): Leaves {
 	}
 }
 
-/** What the walk met in code: a word (`end` is past it), or a bracket. */
 type Met = { at: number; kind: 'word'; end: number } | { at: number; kind: 'open' | 'close' };
-/** A visitor's answer: go on (nothing), stop the walk, or the index past a value it took. */
 const STOP = -1;
 type Visit = (met: Met) => number | void;
 
-/**
- * Walk the JS in `src` from `from`, calling `visit` at each word and each bracket in CODE: never
- * inside a string, a comment, a regex literal or a template's text (a template's `${…}` is code
- * again, at any depth). A `/` divides or opens a regex as a parser decides it, by what came before:
- * a value (a name, a literal, a `)`, a `]`, a postfix `++`) divides; an operator, an opener, a
- * keyword that wants a value, a statement head's `)` or a block's `}` opens a regex. Unterminated
- * input (an edit in progress) runs to the end; it never throws. (test/scan-differential.test.ts
- * holds it to oxc.)
- */
 function walk(src: string, from: number, visit: Visit): void {
-	// each open bracket (`${` for a template's), and whether a `/` after its close opens a regex
 	const stack: Array<{ c: string; regex_after: boolean }> = [];
 	let value_before = false;
-	let head = false; // the last word was a statement head
-	let dot_before = false; // the next word is a property name
+	let head = false;
+	let dot_before = false;
 	const n = src.length;
-	/** Through template text from `at`: past the closing backtick, or into a `${`. */
 	const template = (at: number): number => {
 		for (let j = at; j < n; j++) {
 			const c = src[j]!;
@@ -139,7 +104,7 @@ function walk(src: string, from: number, visit: Visit): void {
 				else if (r === '/' && !in_class) break;
 			}
 			j++;
-			while (j < n && WORD_RE.test(src[j]!)) j++; // its flags
+			while (j < n && WORD_RE.test(src[j]!)) j++;
 			i = j;
 			value_before = true;
 			dot_before = head = false;
@@ -160,7 +125,6 @@ function walk(src: string, from: number, visit: Visit): void {
 				continue;
 			}
 			i = j;
-			// (`for await (…)` keeps its head)
 			const leaves = property || number ? 'value' : word_leaves(word);
 			if (!(head && word === 'await')) head = leaves === 'head';
 			value_before = leaves !== 'operand';
@@ -189,13 +153,11 @@ function walk(src: string, from: number, visit: Visit): void {
 		}
 		i++;
 		if (WS_RE.test(c)) continue;
-		// a postfix `++`/`--` leaves a value (`i++ / 2` divides); a prefix one wants one
 		if ((c === '+' || c === '-') && c2 === c) {
 			i++;
 			if (value_before) continue;
 		}
 		value_before = false;
-		// a spread `...` wants a value; a single `.` makes the next word a property name
 		if (c === '.' && c2 === '.' && src[i + 1] === '.') {
 			i += 2;
 			dot_before = false;
@@ -264,37 +226,17 @@ export function split_first_string(args: string, who: string): { value: string; 
 		else if (args[j] === q) break;
 	}
 	const value = args.slice(i + 1, j);
-	// A template literal with interpolation is a runtime value, not a build-time literal.
 	if (q === '`' && TEMPLATE_INTERPOLATION_RE.test(value)) {
 		throw new OgygiaError('call_arg_interpolated', { call: who });
 	}
 	let k = j + 1;
 	while (k < args.length && WS_RE.test(args[k]!)) k++;
-	// After the closing quote the ONLY things that may follow are `,` (the next argument) or the end.
-	// Anything else means the string is part of a larger expression (`"./" + dir`, a tagged template,
-	// a `.concat(…)` call) — a runtime value the build can't resolve. Fail loudly, don't mis-slice.
 	if (k < args.length && args[k] !== ',') {
 		throw new OgygiaError('call_arg_in_expression', { call: who, near: args.slice(i, k + 8) });
 	}
 	if (args[k] === ',') k++;
 	return { value, rest: args.slice(k).trim() };
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// EXTRACTOR — where constructs are recognized, and how each file type yields the JS to analyze.
-//
-// OWNERSHIP. At the Vite-transform layer this handles exactly two shapes — `.svelte` components and
-// JS/TS modules (`.ts`/`.js`/`.mjs`, which covers `.svelte.ts`/`.svelte.js`). Content files
-// (`.svx`/`.md`) are NOT here: they route through the markdown preprocessor (mdsvex → svelte), which
-// owns them — a construct inside a content file is the preprocessor's job, and it can reuse this same
-// extractor. The host set is still passed in (config-driven), so the one caller that owns markup can
-// decide which markup extensions count; the plugin passes `['.svelte']`.
-//
-// Per type the parse strategy differs — so detection stays AST-precise everywhere:
-//   • JS/TS module  → the WHOLE file is one JS region (offset 0).
-//   • `.svelte`     → each `<script>` / `<script module>` block is a JS region at its byte offset.
-// A construct in markup PROSE (not a `<script>`) is never a JS region — that's content, not code.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A slice of JS/TS to analyze, plus where it starts in the original source (for offset mapping). */
 export type JsRegion = { code: string; offset: number };
@@ -325,43 +267,56 @@ export function og_js_regions(
 	markup_exts: readonly string[]
 ): JsRegion[] | null {
 	if (is_js_module(id)) return [{ code: src, offset: 0 }];
-	if (is_markup_module(id, markup_exts)) return script_blocks(src);
+	if (is_markup_module(id, markup_exts))
+		return component_blocks(src)
+			.filter((b) => b.kind === 'script')
+			.map((b) => ({ code: src.slice(b.start, b.end), offset: b.start }));
 	return null;
 }
 
-/**
- * Find every `<script …>…</script>` block and return its inner JS + byte offset. A single forward
- * scan (not a regex) so a `</script>` inside a JS string can't end a block early: we only close on a
- * `</script>` found while scanning raw text, and Svelte itself forbids an unescaped `</script>` in
- * script text, so this matches the compiler's own tokenization.
- */
-function script_blocks(src: string): JsRegion[] {
-	const regions: JsRegion[] = [];
-	const lower = src.toLowerCase();
-	let i = 0;
-	for (;;) {
-		const open = lower.indexOf('<script', i);
-		if (open < 0) break;
-		// End of the opening tag — the `>` that closes `<script …>`. Skip `>` inside attribute strings.
-		const gt = tag_end(src, open);
-		if (gt < 0) break;
-		const close = lower.indexOf('</script>', gt + 1);
-		if (close < 0) break;
-		regions.push({ code: src.slice(gt + 1, close), offset: gt + 1 });
-		i = close + '</script>'.length;
-	}
-	return regions;
+/** A `<script>` or `<style>` block of a component's source. */
+export interface ComponentBlock {
+	readonly kind: 'script' | 'style';
+	/** `<script module>` (or Svelte 4's `context="module"`) */
+	readonly module: boolean;
+	/** its `lang` (lower case), or null */
+	readonly lang: string | null;
+	/** the opening tag: its `<` and just past its `>` */
+	readonly open: number;
+	/** its content: from just past the opening tag to the `</` of its end tag */
+	readonly start: number;
+	readonly end: number;
+	/** just past the end tag's `>` */
+	readonly close: number;
+	/** the opening tag as the walk read it (core's `attr_spans` cuts an attribute out of it) */
+	readonly tag: FoundTag;
 }
 
-/** Index of the `>` that ends the tag opened at `open`, honoring quoted attribute values. */
-function tag_end(src: string, open: number): number {
-	for (let i = open; i < src.length; i++) {
-		const c = src[i]!;
-		if (c === '"' || c === "'") {
-			for (i++; i < src.length && src[i] !== c; i++) {}
-			continue;
-		}
-		if (c === '>') return i;
+/**
+ * Every `<script>` and `<style>` block of a component's source, in order, read with core's tag walk
+ * (#1370): a value may hold `>` or the other quote, any quoting and case, a comment holds no block,
+ * and a block's text holds no tag (`<style>` inside a script's string is text). A block whose end
+ * tag never comes is not one (the source ends inside it). test/component-blocks.test.ts.
+ */
+export function component_blocks(src: string): ComponentBlock[] {
+	const blocks: ComponentBlock[] = [];
+	for (let tag = next_any_tag(src, 0); tag !== null; tag = next_any_tag(src, tag.next)) {
+		const kind = tag_name(src, tag);
+		if (kind !== 'script' && kind !== 'style') continue;
+		if (tag.next >= src.length) break;
+		const gt = src.indexOf('>', tag.next);
+		const lang = tag.attr('lang');
+		blocks.push({
+			kind,
+			module:
+				kind === 'script' && (tag.attr('module') !== undefined || tag.attr('context') === 'module'),
+			lang: lang ? lang.toLowerCase() : null,
+			open: tag.start,
+			start: tag.end,
+			end: tag.next,
+			close: gt === -1 ? src.length : gt + 1,
+			tag
+		});
 	}
-	return -1;
+	return blocks;
 }

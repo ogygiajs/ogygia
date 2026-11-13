@@ -4,10 +4,10 @@ import {
 	needs_island_entry_full_reload,
 	same_module_path,
 	island_vpaths_affected_by_file
-} from '../dist/compiler/dev/hmr.js';
-import { dev_hmr_client_source } from '../dist/compiler/dev/dev-hmr.js';
-import { derive_css_scope_owners } from '../dist/compiler/dev/css-scope.js';
-import { rewrite_island_sourcemap_sources } from '../dist/vite/sourcemaps.js';
+} from '../src/compiler/dev/hmr.ts';
+import { dev_hmr_client_source } from '../src/compiler/dev/dev-hmr.ts';
+import { derive_css_scope_owners } from '../src/compiler/dev/css-scope.ts';
+import { rewrite_island_sourcemap_sources } from '../src/vite/sourcemaps.ts';
 
 describe('needs_csr_false_full_reload', () => {
 	it('reloads host route shells (SSR-only under csr=false)', () => {
@@ -137,6 +137,20 @@ describe('derive_css_scope_owners', () => {
 			graph_of(new Map([['/app/src/shared.css', [css]]]))
 		]);
 		expect(owners).toEqual(['', '(docs)']);
+	});
+
+	it("a route file is an owner: the walk does not climb to its importers' scopes", () => {
+		const docs_page: Mod = { file: '/app/src/routes/(docs)/+page.svelte' };
+		const pg_page: Mod = {
+			file: '/app/src/routes/playground/+page.svelte',
+			importers: [docs_page]
+		};
+		const css: Mod = { file: '/app/src/pg.css', importers: [pg_page] };
+		expect(
+			derive_css_scope_owners('/app/src/pg.css', '/app', [
+				graph_of(new Map([['/app/src/pg.css', [css]]]))
+			])
+		).toEqual(['playground']);
 	});
 
 	it('no route owner found → empty (client treats as shared)', () => {

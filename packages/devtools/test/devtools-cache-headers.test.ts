@@ -179,4 +179,26 @@ describe('probe_cache', () => {
 		const [p] = await probe_cache(document);
 		expect(p.bytes).toBe(5000);
 	});
+
+	it('a probe that failed says nothing about the file: it is left out, never "no cache-control"', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => {
+				throw new TypeError('Failed to fetch');
+			})
+		);
+		const probes = await probe_cache(document);
+		expect(probes).toEqual([]);
+		expect(cache_findings(probes)).toEqual([]);
+	});
+
+	it('a refused probe (a 405 for HEAD) says nothing about the file either', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(null, { status: 405 }))
+		);
+		const probes = await probe_cache(document);
+		expect(probes).toEqual([]);
+		expect(cache_findings(probes)).toEqual([]);
+	});
 });

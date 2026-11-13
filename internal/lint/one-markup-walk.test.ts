@@ -68,15 +68,15 @@ const h = html.indexOf('</head>'); // markup-ok: a stated reason
 
 test('a regex or an indexOf over tags or attributes in package source is reported', () => {
 	assert.deepEqual(reported('packages/x/src/a.ts', BAD), [3, 4, 5, 6, 7, 8, 9, 10]);
+	assert.deepEqual(reported('packages/compiler/src/a.ts', BAD), [3, 4, 5, 6, 7, 8, 9, 10]);
 });
 
 test('an escaper, a prefilter, a bare `<`, and a site that says why are not', () => {
 	assert.deepEqual(reported('packages/x/src/a.ts', FINE), []);
 });
 
-test('the walk itself, the compiler (until its own sweep), and code outside package source are not linted', () => {
+test('the walk itself and code outside package source are not linted', () => {
 	assert.deepEqual(reported('packages/core/src/markup-walk.ts', BAD), []);
-	assert.deepEqual(reported('packages/compiler/src/a.ts', BAD), []);
 	assert.deepEqual(reported('packages/x/test/a.test.ts', BAD), []);
 	assert.deepEqual(reported('internal/html-fuzz/src/a.ts', BAD), []);
 });
