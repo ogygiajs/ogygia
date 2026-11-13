@@ -7,6 +7,7 @@
  * timing it records; returns `{ code, touched }` (the caller invalidates its own sourcemap on touch).
  */
 import path from 'node:path';
+import { noop } from '@ogygia/machine';
 import { rewrite_wire } from './wire.ts';
 import { rewrite_dollar } from './dollar.ts';
 import { rewrite_source } from './source.ts';
@@ -30,6 +31,8 @@ export interface MacroContext {
 	readonly alias: readonly AliasEntry[];
 	/** Markup extensions whose `<script>` blocks hold the macro calls (`.svelte`). */
 	readonly markupExts: readonly string[];
+	/** Name a file the rewrite read: an edit to it transforms this module again (dev). */
+	watch(file: string): void;
 }
 
 /** A plugin's `import.meta.og.<name>` macro (registered with `b.macro`). */
@@ -73,6 +76,8 @@ export interface MacroPipelineCtx {
 	/** Is `id` the app's own source, or a file a package declares in `ogygia.files`? Only those may
 	 *  use a macro: anywhere else one fails the build (`macro_outside_app`), and no handler runs. */
 	ownSource: (id: string) => boolean;
+	/** The bundler's watch for the module being rewritten (Vite's `addWatchFile`); none outside one. */
+	watch?: (file: string) => void;
 }
 
 /**
@@ -178,7 +183,8 @@ export async function run_module_macros(
 				rel,
 				root: ctx.root,
 				alias: ctx.alias,
-				markupExts: CONSTRUCT_MARKUP_EXTS
+				markupExts: CONSTRUCT_MARKUP_EXTS,
+				watch: ctx.watch ?? noop
 			});
 			if (profiler.P) {
 				profiler.prof.macroMs += performance.now() - started;

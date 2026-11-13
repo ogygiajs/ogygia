@@ -59,6 +59,7 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
+		"@ogygia/machine": "workspace:^",
 		"devalue": "catalog:"
 	},
 	"devDependencies": {

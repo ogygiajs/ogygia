@@ -1304,7 +1304,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// bundler-neutral (`map: unknown`); cast it to Vite's transform shape at this boundary.
 				const result = await compiler.transform_module(source, id, {
 					ssr: options?.ssr === true,
-					emitFile: (chunk) => this.emitFile(chunk)
+					emitFile: (chunk) => this.emitFile(chunk),
+					watch: (file) => this.addWatchFile(file)
 				});
 				// DEV: a host edit dropped its server islands from the manifest the handle already
 				// re-imported (empty of them); this transform just registered them again — invalidate the

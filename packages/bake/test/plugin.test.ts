@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build, type PluginOption, type Rollup } from 'vite';
+import { build, type Plugin, type PluginOption, type Rollup } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { ogygia } from '@ogygia/compiler/vite';
 import { __set_build_cache_root, dedent } from '@ogygia/compiler';
@@ -70,6 +70,27 @@ describe('bake() beside ogygia()', () => {
 		expect(chunk.code).toContain('new Date(0)');
 		expect(chunk.code).not.toContain('import.meta.og.bake');
 		expect(chunk.code).not.toContain('__baked_at_run_time');
+	});
+
+	it('the module a bake bundled is a watch file of the build, so an edit to it re-bakes', async () => {
+		const dir = app();
+		const watched: string[] = [];
+		// Rolldown has no getWatchFiles(): spy on the transform context ogygia() is handed
+		const plugins = ([ogygia()] as PluginOption[]).flat(Infinity as 1) as Plugin[];
+		for (const p of plugins) {
+			const hook = p.transform;
+			if (typeof hook !== 'function') continue;
+			p.transform = function (this: Rollup.TransformPluginContext, ...args) {
+				const spied = Object.create(this) as Rollup.TransformPluginContext;
+				spied.addWatchFile = (file) => {
+					watched.push(file.split('?')[0]!);
+					this.addWatchFile(file);
+				};
+				return hook.apply(spied, args);
+			} as typeof hook;
+		}
+		await run(dir, [...plugins, bake()]);
+		expect(watched).toContain(path.join(dir, 'src', 'lib', 'nav.ts'));
 	});
 
 	it('without bake() the build fails with macro_needs_plugin, and nothing runs', async () => {
