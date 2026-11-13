@@ -6,14 +6,13 @@
 	import CtxWriter from '$lib/CtxWriter.svelte' with { wake: 'load' };
 	import CtxReader from '$lib/CtxReader.svelte' with { wake: 'load' };
 	import { SharedCounter } from '$lib/counter-object.svelte.js';
-	import { roomCtx } from '$lib/room-context.svelte.js';
 
 	const counter = new SharedCounter('nav', 3);
 </script>
 
 <h1 data-static-shell>Context after SPA nav</h1>
 
-<Provide values={[roomCtx(counter)]}>
+<Provide values={{ room: counter }}>
 	<CtxWriter />
 	<CtxReader label="nav" />
 </Provide>

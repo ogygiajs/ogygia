@@ -17,7 +17,7 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { warn } from '../messages/server.ts';
 import { slot as shared } from '@ogygia/machine';
-import { current_facts } from './facts.ts';
+import { current_facts, facts_of } from './facts.ts';
 
 /** The shared hooks. Each is optional on a plugin; the signature is the contract. */
 export interface ServerHooks {
@@ -54,8 +54,8 @@ export function register_hooks(impl: object): () => void {
 }
 
 /** Every implementation's `codeOrigins`, in plugin order (a failing one is logged and adds none),
- *  then the running request's own (`facts.codeOrigins`). */
-export function code_origins(): string[] {
+ *  then the request's own (`facts.codeOrigins`): `request`'s, else the running request's. */
+export function code_origins(request?: Request): string[] {
 	const out: string[] = [];
 	for (const impl of implementations) {
 		const fn = impl.codeOrigins;
@@ -66,7 +66,7 @@ export function code_origins(): string[] {
 			warn('plugin_hook_failed', { name: 'codeOrigins' }, e);
 		}
 	}
-	const learned = current_facts()?.codeOrigins;
+	const learned = (request ? facts_of(request) : current_facts())?.codeOrigins;
 	if (learned) out.push(...learned);
 	return out;
 }

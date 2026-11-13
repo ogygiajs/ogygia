@@ -77,6 +77,36 @@ describe('queries', () => {
 		expect(w.runs.get('label a')).toBe(1);
 	});
 
+	test('an answer, not an input, cannot be set', () => {
+		const w = world();
+		const db = queries('test');
+		expect(() => db.set(w.parity as never, 'a', 1)).toThrow(/query parity is not an input/);
+	});
+
+	test('an answer that now throws has moved, for a watcher and for answers_changed_since', () => {
+		const cells = new Map<string, number>();
+		const cell = input(
+			'cell',
+			(k: string) => k,
+			(k: string) => cells.get(k) ?? 0
+		);
+		const strict = derived(
+			'strict',
+			(k: string) => k,
+			(cx, k: string) => {
+				const v = cx.get(cell, k);
+				if (v < 0) throw new Error('negative');
+				return v;
+			}
+		);
+		const db = queries('test');
+		const { reads } = db.watch((cx) => cx.get(strict, 'a'));
+		const since = db.revision;
+		db.set(cell, 'a', -1);
+		expect(db.moved(reads)).toBe(true);
+		expect(db.answers_changed_since(since)).toBe(true);
+	});
+
 	test('setting an input to the value it has is no new revision', () => {
 		const w = world();
 		const db = queries('test');
@@ -132,6 +162,45 @@ describe('queries', () => {
 		db.set(w.cell, 'a', 1);
 		expect(db.get(w.label, 'a')).toBe('odd');
 		expect(db.get(w.label, 'd')).toBe('even');
+	});
+
+	test('the bound never lets an input go while an answer read it: reread sees the change (#1545)', () => {
+		const w = world();
+		const db = queries('test', 2);
+		db.get(w.parity, 'a');
+		db.get(w.cell, 'z');
+		db.get(w.cell, 'y');
+		w.cells.set('a', 1);
+		expect(db.reread()).toBe(true);
+		expect(db.get(w.parity, 'a')).toBe(1);
+	});
+
+	test('the bound never lets an input go while an answer read it: refresh says it changed (#1545)', () => {
+		const w = world();
+		const db = queries('test', 2);
+		db.get(w.parity, 'a');
+		db.get(w.cell, 'z');
+		db.get(w.cell, 'y');
+		w.cells.set('a', 1);
+		expect(db.refresh(w.cell, 'a')).toBe(true);
+		expect(db.get(w.parity, 'a')).toBe(1);
+	});
+
+	test('an input given its value only by set keeps it past the bound (#1545)', () => {
+		const db = queries('test', 2);
+		const facts = input(
+			'facts',
+			(k: string) => k,
+			() => 0
+		);
+		const double = derived(
+			'double',
+			(k: string) => k,
+			(cx, k: string) => cx.get(facts, k) * 2
+		);
+		db.set(facts, 'a', 21);
+		for (const k of ['b', 'c', 'd']) db.get(double, k);
+		expect(db.get(double, 'a')).toBe(42);
 	});
 
 	test('a chain of answers a hundred thousand deep is checked after an edit without a stack overflow', () => {
@@ -219,15 +288,17 @@ describe('queries', () => {
 		expect(db.answers_changed_since(0)).toBe(false);
 	});
 
-	test('past the bound, the answer used longest ago goes first: a set and a read in a later revision are uses', () => {
+	test('past the bound, the answer used longest ago goes first: a read in a later revision is a use; inputs stay', () => {
 		const w = world();
 		const db = queries('test', 3);
-		for (const k of ['a', 'b', 'c']) db.get(w.cell, k);
-		db.set(w.cell, 'a', 1);
-		db.get(w.cell, 'd');
-		db.get(w.cell, 'c');
-		db.get(w.cell, 'e');
-		expect(['a', 'b', 'c', 'd', 'e'].map((k) => db.holds(w.cell, k))).toEqual([
+		for (const k of ['a', 'b', 'c']) db.get(w.parity, k);
+		db.set(w.cell, 'z', 1);
+		db.get(w.parity, 'a');
+		db.get(w.parity, 'd');
+		db.get(w.parity, 'c');
+		db.get(w.parity, 'e');
+		expect(['a', 'b', 'c', 'd', 'e', 'z'].every((k) => db.holds(w.cell, k))).toBe(true);
+		expect(['a', 'b', 'c', 'd', 'e'].map((k) => db.holds(w.parity, k))).toEqual([
 			false,
 			false,
 			true,
@@ -273,14 +344,16 @@ describe('queries', () => {
 	test('a reader of an answer the bound let go runs again, and answers right', () => {
 		const w = world();
 		const db = queries('test', 3);
-		db.get(w.cell, 'a');
+		db.get(w.parity, 'a');
 		expect(db.get(w.label, 'a')).toBe('even');
-		db.get(w.cell, 'x');
-		expect(db.holds(w.cell, 'a')).toBe(false);
+		db.get(w.parity, 'x');
+		db.get(w.parity, 'y');
+		expect(db.holds(w.parity, 'a')).toBe(false);
+		expect(db.holds(w.label, 'a')).toBe(true);
 		db.set(w.cell, 'x', 1);
 		expect(db.get(w.label, 'a')).toBe('even');
 		expect(w.runs.get('parity a')).toBe(2);
-		expect(w.runs.get('label a')).toBe(1);
+		expect(w.runs.get('label a')).toBe(2);
 	});
 
 	test('same: structure, Maps and Sets in order', () => {

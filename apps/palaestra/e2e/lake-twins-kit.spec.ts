@@ -8,18 +8,13 @@
 //   pnpm --filter palaestra e2e lake-twins-kit
 import { test, check, sleep } from '@ogygia/tooling/e2e';
 
-// Kit's entry, held back so the runtime boots first, as it does on a page of real size: on a tiny
-// page Kit's start can win the race and remount before the runtime sees the lakes at all (#1561).
-const KIT_ENTRY_RE = /\/_app\/immutable\/entry\/(start|app)\.[^/]+\.js$/;
-
+// Kit's entry is NOT held back: on this tiny page Kit's start would win the race against the runtime
+// and remount before the runtime saw the lakes at all, and every lake stayed empty (#1561). The
+// runtime boots before Kit's start runs.
 test.describe('two same-component lakes on a csr=true page Kit remounts', () => {
 	test('each lake keeps its own content after the remount, and the footer keeps its visible island', async ({
 		page
 	}) => {
-		await page.route(KIT_ENTRY_RE, async (route) => {
-			await sleep(400);
-			await route.continue();
-		});
 		await page.addInitScript(() => {
 			document.addEventListener('readystatechange', () => {
 				if (document.readyState !== 'interactive') return;
@@ -78,5 +73,22 @@ test.describe('two same-component lakes on a csr=true page Kit remounts', () => 
 			{ timeout: 5000 }
 		);
 		check('the footer’s visible island woke and answers', true);
+	});
+
+	test('Kit still starts when the runtime fails to load: its wait settles', async ({ page }) => {
+		await page.route(/\/og-runtime[^/]*\.js$/, (route) => route.abort());
+		await page.goto('/lake-twins-kit/', { waitUntil: 'networkidle' });
+		check(
+			'the runtime never booted',
+			!(await page.evaluate(() => !!customElements.get('ogygia-region')))
+		);
+		const kbtn = page.locator('[data-kit-btn]');
+		await kbtn.click();
+		await page.waitForFunction(
+			() => document.querySelector('[data-kit-btn]')?.textContent?.includes('kit:1'),
+			undefined,
+			{ timeout: 5000 }
+		);
+		check('Kit’s client is alive', true);
 	});
 });

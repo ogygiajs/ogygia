@@ -1,17 +1,16 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { load_kit_dirs } from '../src/vite/kit-dirs.ts';
+import { load_kit_config } from '../src/vite/kit-dirs.ts';
 import {
-	kit_dirs,
-	set_kit_dirs,
-	kit_inline_style_threshold,
-	set_kit_inline_style_threshold,
+	default_kit_dirs,
 	keep_client_dir,
 	KEEP_CLIENT_DIR,
 	resolve_kit_paths
 } from '../src/compiler/kit.ts';
+import { CompileCtx, normalize_import_keys } from '../src/compiler/index.ts';
+import { partial_ctx_init } from './_compile-ctx.ts';
 import { islandDepsHandoffPath, island_deps_module } from '../src/compiler/link/island-deps.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,21 +37,21 @@ function app(files: Record<string, string>): string {
 	return root;
 }
 
+const dirs_of = async (root: string, plugins?: unknown) =>
+	(await load_kit_config(root, plugins)).dirs;
+
 describe('kit.files.routes / kit.outDir', () => {
 	it('reads both from svelte.config.js and resolves them against the root', async () => {
 		const root = app({
 			'svelte.config.js':
 				"export default { kit: { files: { routes: 'src/routes-v2' }, outDir: '.svelte-kit-v2' } };"
 		});
-		const d = await load_kit_dirs(root);
+		const d = await dirs_of(root);
 		expect(d).toEqual({
 			routes_dir: join(root, 'src/routes-v2'),
 			out_dir: join(root, '.svelte-kit-v2')
 		});
-		// cached for the compiler (sync) …
-		expect(kit_dirs(root)).toEqual(d);
-		// … and every path-derived helper follows it
-		expect(keep_client_dir(root)).toBe(join(root, 'src/routes-v2', KEEP_CLIENT_DIR));
+		expect(keep_client_dir(d.routes_dir)).toBe(join(root, 'src/routes-v2', KEEP_CLIENT_DIR));
 		expect(islandDepsHandoffPath(d.out_dir)).toBe(join(root, '.svelte-kit-v2/og-region-deps.json'));
 	});
 
@@ -67,64 +66,86 @@ describe('kit.files.routes / kit.outDir', () => {
 				setup({ files: { routes: 'src/r3' }, outDir: '.out3', inlineStyleThreshold: 2048 })
 			])
 		];
-		expect(await load_kit_dirs(root, kit3)).toEqual({
-			routes_dir: join(root, 'src/r3'),
-			out_dir: join(root, '.out3')
+		expect(await load_kit_config(root, kit3)).toEqual({
+			dirs: { routes_dir: join(root, 'src/r3'), out_dir: join(root, '.out3') },
+			inline_style_threshold: 2048
 		});
 		// Kit 2: the svelte config, Kit's options under `kit` — preferred over the file it was read from
 		const kit2_root = app({
 			'svelte.config.js': "export default { kit: { files: { routes: 'src/from-file' } } };"
 		});
 		expect(
-			await load_kit_dirs(kit2_root, [
-				[setup({ kit: { files: { routes: 'src/r2' }, outDir: '.out2' } })]
-			])
+			await dirs_of(kit2_root, [[setup({ kit: { files: { routes: 'src/r2' }, outDir: '.out2' } })]])
 		).toEqual({ routes_dir: join(kit2_root, 'src/r2'), out_dir: join(kit2_root, '.out2') });
 		// no Kit plugin in the list: the file
-		expect((await load_kit_dirs(kit2_root, [{ name: 'other' }, null, false])).routes_dir).toBe(
+		expect((await dirs_of(kit2_root, [{ name: 'other' }, null, false])).routes_dir).toBe(
 			join(kit2_root, 'src/from-file')
 		);
 	});
 
+	it('a svelte.config.js that throws as it loads: the defaults, and kit_config_unreadable says why', async () => {
+		const root = app({
+			'svelte.config.js': "throw new Error('config broke');\nexport default {};"
+		});
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			expect((await load_kit_config(root)).dirs).toEqual({
+				routes_dir: join(root, 'src/routes'),
+				out_dir: join(root, '.svelte-kit')
+			});
+			const said = warn.mock.calls.map((c) => String(c[0]));
+			expect(
+				said.some((s) => s.includes('kit_config_unreadable') && s.includes('config broke'))
+			).toBe(true);
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
 	it('defaults to src/routes + .svelte-kit without a config, or with a config that sets neither', async () => {
 		const bare = app({});
-		expect(await load_kit_dirs(bare)).toEqual({
+		expect(await dirs_of(bare)).toEqual(default_kit_dirs(bare));
+		expect(default_kit_dirs(bare)).toEqual({
 			routes_dir: join(bare, 'src/routes'),
 			out_dir: join(bare, '.svelte-kit')
 		});
 		const plain = app({ 'svelte.config.js': 'export default { kit: {} };' });
-		expect(await load_kit_dirs(plain)).toEqual({
-			routes_dir: join(plain, 'src/routes'),
-			out_dir: join(plain, '.svelte-kit')
-		});
+		expect(await dirs_of(plain)).toEqual(default_kit_dirs(plain));
 	});
 
-	it('an unread root answers the defaults (never throws), a set root answers what was set', () => {
+	it('a compile context holds the dirs it was given, and the defaults when given none', () => {
 		const root = app({});
-		expect(kit_dirs(root)).toEqual({
-			routes_dir: join(root, 'src/routes'),
-			out_dir: join(root, '.svelte-kit')
-		});
-		set_kit_dirs(root, { routes_dir: join(root, 'r'), out_dir: join(root, 'o') });
-		expect(kit_dirs(root).routes_dir).toBe(join(root, 'r'));
+		const ctx = (kit_dirs?: { routes_dir: string; out_dir: string }) =>
+			new CompileCtx(
+				partial_ctx_init({
+					root,
+					base: '/',
+					libDir: join(root, 'src/lib'),
+					presets: {},
+					import_keys: normalize_import_keys(undefined),
+					resolve_alias: [],
+					pkg_root: '/nowhere/ogygia',
+					app_shims: {},
+					...(kit_dirs ? { kit_dirs } : {})
+				})
+			);
+		expect(ctx().kit_dirs).toEqual(default_kit_dirs(root));
+		const given = { routes_dir: join(root, 'r'), out_dir: join(root, 'o') };
+		expect(ctx(given).kit_dirs).toEqual(given);
 	});
 
-	it('an unread root inlines no region CSS, as Kit inlines none by default', () => {
-		expect(kit_inline_style_threshold('/apps/never-set')).toBe(0);
-	});
-
-	it("Kit's inlineStyleThreshold is read for the region CSS too; a value that is not a positive number is 0", async () => {
-		const at = async (v: string) => {
-			const root = app({
-				'svelte.config.js': `export default { kit: { inlineStyleThreshold: ${v} } };`
-			});
-			await load_kit_dirs(root);
-			return kit_inline_style_threshold(root);
-		};
+	it("Kit's inlineStyleThreshold is read for the region CSS too; none, or a value that is not a positive number, is 0", async () => {
+		const at = async (v: string) =>
+			(
+				await load_kit_config(
+					app({ 'svelte.config.js': `export default { kit: { inlineStyleThreshold: ${v} } };` })
+				)
+			).inline_style_threshold;
 		expect(await at('4096')).toBe(4096);
 		expect(await at('-1')).toBe(0);
 		expect(await at('Infinity')).toBe(0);
 		expect(await at("'big'")).toBe(0);
+		expect((await load_kit_config(app({}))).inline_style_threshold).toBe(0);
 	});
 
 	it("the app's universal and client hooks are found as .ts or .js", () => {
@@ -134,19 +155,6 @@ describe('kit.files.routes / kit.outDir', () => {
 			expect(paths.universal_hooks).toBe(join(root, `src/hooks.${ext}`));
 			expect(paths.client_hooks).toBe(join(root, `src/hooks.client.${ext}`));
 		}
-	});
-
-	it('a root keeps what was set however many other roots one process configures (it cannot be read again here)', () => {
-		const first = '/apps/first';
-		set_kit_dirs(first, { routes_dir: '/apps/first/r', out_dir: '/apps/first/o' });
-		set_kit_inline_style_threshold(first, 4096);
-		for (let i = 0; i < 200; i++) {
-			const root = `/apps/other-${i}`;
-			set_kit_dirs(root, { routes_dir: `${root}/r`, out_dir: `${root}/o` });
-			set_kit_inline_style_threshold(root, 0);
-		}
-		expect(kit_dirs(first).routes_dir).toBe('/apps/first/r');
-		expect(kit_inline_style_threshold(first)).toBe(4096);
 	});
 
 	it('the SSR deps reader falls back to the configured outDir under cwd, not `.svelte-kit`', () => {

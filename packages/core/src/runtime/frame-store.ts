@@ -1,29 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// The frame store — the ONLY meeting point between the network and region DOM.
-//
-// Invariant (see internal/notes/frames.md): no code path from network arrival to DOM. Every channel
-// (defer fetch, streamed parcel, mutation fragment, live refresh) WRITES a frame here; region
-// elements are BINDERS that subscribe to their address and apply store state to themselves.
-//
-// What the mechanics buy:
-//   • dedupe   — N regions with the same address share one in-flight fetch (`ensure`).
-//   • staleness — every frame carries a stamp of the store's one world, taken when its request
-//     started (a fetch, a batch's part) or when it was written (a streamed or mutation frame);
-//     `write` drops one not newer than what is applied, so a slow response that started earlier can
-//     never overwrite one that started, or landed, later. A frame that carries a data version
-//     (`region(C, props, { version })`) is ordered by it first, so an answer decoded late (no
-//     request to stamp it by: a command's) cannot paint older data either. Each write, applied or
-//     dropped, is a move of the address's stored answer (a machine).
-//   • safety   — a prefetch warms an address nothing is bound to; it cannot touch the wrong DOM.
-//   • lifecycle — the shared fetch aborts only when the LAST waiter leaves; an entry nothing binds or
-//     fetches lingers EVICT_TTL, then goes (the store's cache, its age).
-//
-// The store is owned: its entries (a `cache()`), its fetches in flight (a `flights()`) and its world
-// live in one scope, and `_reset` ends that scope (every reservation fails, every caller of a fetch
-// gets STALE). Subscription is NOT owned here (hub v2 phase W): binders subscribe/notify through the
-// hub's ONE `watch`/`notify` primitive, keyed `frame:<address>`. No DOM, no Svelte. Unit-tested in
-// test/frame-store.test.ts.
-// ─────────────────────────────────────────────────────────────────────────────
 import {
 	cache,
 	flights,
@@ -50,13 +24,8 @@ export type FrameFetcher = (signal: AbortSignal, flight: InFlight) => Promise<Ve
  *  hands on goes into a region's DOM. */
 export type StoredFrame = Frame & { html: VerifiedHtml };
 
-/** Frame addresses live in the hub's watcher space under a namespace, so region binders subscribe
- *  through the ONE hub `watch`/`notify` primitive (hub v2 phase W) — the frame store no longer owns
- *  a parallel subscriber set. */
 const frame_id = (a: string): string => `frame:${a}`;
 
-/** The name of a refused answer's error (./region-endpoint-url.ts): by name, since the store is one
- *  per document across bundle copies, and a copy's class is not another's. */
 const REFUSED = 'RegionAnswerRefused';
 
 /** A refused answer nobody asked for yet (the page's early start: ./early-holes.ts), held at its
@@ -65,26 +34,16 @@ export function hold_refusal(a: string, err: unknown): void {
 	if ((err as { name?: string } | null)?.name === REFUSED) entry(a).refused = err as Error;
 }
 
-/** What a flight at an address runs: the store's own fetch, or a batch's part arriving through an
- *  external stream (the batch's promise, settled by the frame written there or failed by the
- *  batch's end). The input of the call that started the flight is the one that runs. */
 type FrameAsk = { a: string; work: FrameFetcher | Promise<VerifiedHtml | Stale> };
 
-/** An applied answer: its stamp `v`, its data version `d` (`Frame.d`, when it had one), and its
- *  HTML, vouched for (./html-sink.ts): the stored answer holds verified HTML only. */
 type Shown = { v: number; d: number | undefined; html: VerifiedHtml };
 
 type AnswerStates = {
-	/** Nothing applied at the address yet. */
 	empty: {};
-	/** An answer is applied. Each newer one is a step of its own. */
 	shown: Shown;
-	/** The answer written last was dropped (`dropped`, and why): the applied one stays. */
 	kept: Shown & { dropped: { v: number; d: number | undefined; why: DropWhy } };
 };
 
-/** The address's stored answer: every write is a move, applied (`shown`) or dropped (`kept`), so
- *  `observe()` (devtools, a test's trace) hears each decision. */
 const answer_definition = () =>
 	machine<AnswerStates>()({
 		name: 'stored-answer',
@@ -95,16 +54,11 @@ const answer_definition = () =>
 type StoredAnswer = ReturnType<ReturnType<typeof answer_definition>['create']>;
 
 type PartStates = {
-	/** A batch's part is out for the address. */
 	promised: {};
-	/** A frame was written there (the batch's part, or a forced fetch that landed first). */
 	landed: { html: VerifiedHtml };
-	/** The batch ended with no frame there. */
 	missed: {};
 };
 
-/** A batch's part promised at an address: its flight waits on `landed`, and a miss (or the store's
- *  end) makes that wait `STALE`, so a joined caller asks again and fetches on its own (`ensure`). */
 const part_definition = () =>
 	machine<PartStates>()({
 		name: 'frame-part',
@@ -115,48 +69,28 @@ const part_definition = () =>
 type Part = ReturnType<ReturnType<typeof part_definition>['create']>;
 
 type Entry = {
-	/** What is applied at the address, as a machine. */
 	answer: StoredAnswer;
-	/** The last batch's part promised here, if any (only a `promised` one is waited on). */
 	part: Part | null;
-	/** The fresh capability a renewal at this address answered (an expired one is re-signed once):
-	 *  the address's, so every element bound here moves onto it, not only the one that fetched. */
 	renewed: string | null;
-	/** A refused answer that no element asked for yet (the page's early start read it before any hole
-	 *  woke: ./early-holes.ts): handed, once, to the first caller that asks here, which is refused as
-	 *  if it had asked itself. A frame written here, or a forced fetch, ends it. */
 	refused: Error | null;
 };
 
-/** Entries with no subscribers linger this long (ms) so quick remounts / SPA swaps reuse content. */
 const EVICT_TTL = 60_000;
 
-/** The most addresses the store keeps: past it the least recently used idle one goes (a bound or
- *  fetched one never does). A page binds a few dozen; a long session's idle ones are what goes. */
 const MAX_ADDRESSES = 2000;
 
-/** A set by a caller that knows the entry is in use (bound or fetched), or idle. */
 const HELD = { keep: Infinity };
 const LINGER = { keep: EVICT_TTL };
 
 type FrameFlights = Flights<FrameAsk, VerifiedHtml, Pick<FrameAsk, 'a'>>;
 
-/** The store: its entries, its fetches in flight and its world, in one scope. */
 type Store = {
 	life: Scope;
-	/** Every stamp is this world's: a fetch's when it starts, a write from elsewhere when it writes. */
 	world: World;
 	entries: Cache<string, Entry>;
 	flights: FrameFlights;
 };
 
-// ONE store per document, even when this module is duplicated across bundles. The transport hook
-// (decode → write) ships in the app's UNIVERSAL hooks graph, while the region binder (subscribe) ships
-// in the separately-loaded ogygia RUNTIME chunk — two module instances. A single-flight mutation
-// writes in the transport copy and must notify a subscriber registered in the runtime copy, so the
-// store (its entries, its fetches in flight, its world: STALE is one symbol across copies) is pinned
-// to a global. Falls back to a plain value off-DOM (SSR / unit tests). The stored answers' definition
-// is the document's too, so every entry's moves reach the same copy's observers.
 const STORE_KEY = '__ogygia_frame_store__';
 const ANSWER_KEY = '__ogygia_frame_answer__';
 const PART_KEY = '__ogygia_frame_part__';
@@ -176,16 +110,12 @@ function make_store(): Store {
 	const life = scope();
 	const entries = cache<string, Entry>({
 		name: 'frames',
-		// (an entry nothing binds or fetches lingers EVICT_TTL, and past MAX_ADDRESSES the least
-		// recently used of those goes; a bound or fetched one is in use, never let go for size)
 		max: MAX_ADDRESSES,
 		keep: (_e, a) => (live(a) ? Infinity : EVICT_TTL),
 		pinned: (_e, a) => live(a),
 		owner: life,
 		onEvict: (a, e, why) => {
-			// its linger ran out while something bound it again or fetches it: it stays
 			if (why === 'age' && live(a) && entries.set(a, e, HELD)) return;
-			// (a binder joined to its reservation gets STALE: it never hangs)
 			e.part?.stop();
 			e.answer.stop();
 		}
@@ -208,7 +138,6 @@ function make_store(): Store {
 	return s;
 }
 
-/** The answer applied at an entry, if any. */
 function shown_of(e: Entry): Shown | null {
 	const now = e.answer.now;
 	return now.kind === 'empty' ? null : now;
@@ -230,8 +159,6 @@ export function ticket(a: string): number {
 	return stamp();
 }
 
-/** A fetch at an address takes its stamp at its start, and writes what it got (a newer write may
- *  have raced past it: the answer is whatever the store then holds). */
 async function fetch_frame(
 	a: string,
 	fetcher: FrameFetcher,
@@ -245,10 +172,8 @@ async function fetch_frame(
 	return (e && shown_of(e)?.html) ?? html;
 }
 
-/** A fetch or a batch's part is out at this address. */
 const flying = (a: string): boolean => store_host[STORE_KEY]?.flights.peek({ a }) !== undefined;
 
-/** Something binds the address, or fetches it: its entry stays. */
 const live = (a: string): boolean => watcher_count(frame_id(a)) > 0 || flying(a);
 
 function entry(a: string): Entry {
@@ -261,17 +186,9 @@ function entry(a: string): Entry {
 	return e;
 }
 
-/**
- * An entry nothing binds or fetches any more lingers EVICT_TTL from now, then goes. A late binder
- * that mounts inside the window still catches its content (prefetch / batch-stream ahead of the DOM).
- * Every channel that leaves an entry idle calls this: a subscriber unbinding, a flight that settled,
- * AND a `write()` that lands where nothing is listening (a single-flight mutation for an unmounted
- * region, or a live tick whose address keeps changing).
- */
 function schedule_evict(a: string, e: Entry): void {
-	// (an entry the store let go, for another at the address or its linger, is never held again)
 	if (live(a) || store_host[STORE_KEY]?.entries.peek(a) !== e) return;
-	store().entries.set(a, e, LINGER); // (set again: its linger starts now)
+	store().entries.set(a, e, LINGER);
 }
 
 /** Applied content for an address, if any. */
@@ -323,12 +240,9 @@ export function write(f: StoredFrame): boolean {
 	}
 	e.answer.go('shown', { ...stands_at(s, f), html: f.html });
 	e.refused = null;
-	// Fulfil a batch's part, whoever wrote the frame (the batch, or a forced fetch that landed
-	// first): a binder that joined via ensure() unblocks, and no per-region fetch ever starts. The
-	// subscription (set in the binder) is what actually paints — landing just unblocks.
 	e.part?.move('promised', 'landed', { html: f.html });
-	notify(frame_id(f.a), f); // region binders subscribe through the hub (watch), not a local set
-	schedule_evict(f.a, e); // no-op while subscribed; starts the linger when the write lands unbound
+	notify(frame_id(f.a), f);
+	schedule_evict(f.a, e);
 	return true;
 }
 
@@ -366,10 +280,8 @@ export function release(a: string): void {
  */
 export function subscribe(a: string, cb: (f: StoredFrame) => void): () => void {
 	const e = entry(a);
-	// Ongoing notifications ride the hub's watcher set; immediate replay of already-applied
-	// content stays here (a late binder catching a frame that landed before it mounted).
 	const off = watch(frame_id(a), cb as (v: unknown) => void);
-	store().entries.set(a, e, HELD); // (bound now: it stays while bound)
+	store().entries.set(a, e, HELD);
 	const s = shown_of(e);
 	if (s !== null) cb({ a, v: s.v, d: s.d, html: s.html });
 	return () => {
@@ -414,9 +326,6 @@ export async function ensure(
 			e.refused = null;
 			if (!fresh && refused !== null) throw refused;
 			const html = await st.flights.get({ a, work: fetcher }, { signal, fresh, priority });
-			// STALE: this caller left, the store ended, a forced fetch took the place of the one it
-			// waited on, or the batch part it joined was missed: then it asks again (joins the forced
-			// one, or starts its own)
 			if (html !== STALE || signal?.aborted || st.life.closed) return html;
 			fresh = false;
 		}

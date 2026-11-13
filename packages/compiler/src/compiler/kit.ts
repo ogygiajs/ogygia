@@ -5,7 +5,6 @@ import { createRequire } from 'node:module';
 import { ISLAND_DIR } from './region/transform.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
 import { OgygiaError } from './messages.ts';
-import { cache } from '@ogygia/machine';
 import type { Fs, FsEntry } from './fs.ts';
 import { derived, input, queries, type Queries, type Query } from './queries.ts';
 
@@ -214,33 +213,20 @@ export interface KitDirs {
 	out_dir: string;
 }
 export const DEFAULT_KIT_DIRS = { routes: 'src/routes', out: '.svelte-kit' } as const;
-const KIT_CONFIG_ROOTS_MAX = 10_000;
-const _kit_dirs = cache<string, KitDirs>({ name: 'kit dirs', max: KIT_CONFIG_ROOTS_MAX });
 
-export function set_kit_dirs(root: string, dirs: KitDirs): void {
-	_kit_dirs.set(root, dirs);
+/** An app's Kit config, as the plugin that read it holds it (vite/kit-dirs.ts). */
+export interface KitConfig {
+	dirs: KitDirs;
+	/** `kit.inlineStyleThreshold` in bytes (0: inline nothing) */
+	inline_style_threshold: number;
 }
 
-export function kit_dirs(root: string): KitDirs {
-	return (
-		_kit_dirs.get(root) ?? {
-			routes_dir: path.join(root, DEFAULT_KIT_DIRS.routes),
-			out_dir: path.join(root, DEFAULT_KIT_DIRS.out)
-		}
-	);
-}
-
-const _kit_inline_style_threshold = cache<string, number>({
-	name: 'kit inline style threshold',
-	max: KIT_CONFIG_ROOTS_MAX
-});
-
-export function set_kit_inline_style_threshold(root: string, bytes: number): void {
-	_kit_inline_style_threshold.set(root, bytes);
-}
-
-export function kit_inline_style_threshold(root: string): number {
-	return _kit_inline_style_threshold.get(root) ?? 0;
+/** The dirs an app with no Kit config has. */
+export function default_kit_dirs(root: string): KitDirs {
+	return {
+		routes_dir: path.join(root, DEFAULT_KIT_DIRS.routes),
+		out_dir: path.join(root, DEFAULT_KIT_DIRS.out)
+	};
 }
 
 /** Read `export const csr = true|false` from a route options file; `undefined` if unset/absent. */
@@ -693,14 +679,14 @@ export function hasAnyCsrFalseRoute(r: Routes, routesDir: string): boolean {
 	return page_leaves(tree).some((leaf) => node_csr(r, tree, leaf) === false);
 }
 
-/** On-disk path of the injected keepalive route for a given app root. */
-export function keep_client_dir(r: string): string {
-	return path.join(kit_dirs(r).routes_dir, KEEP_CLIENT_DIR);
+/** On-disk path of the injected keepalive route in an app's routes dir. */
+export function keep_client_dir(routes_dir: string): string {
+	return path.join(routes_dir, KEEP_CLIENT_DIR);
 }
 
 /** Write the URL-less `csr = true` keepalive layout into the app's routes (removed at process exit). */
-export function inject_keep_client_route(r: string): void {
-	const dir = keep_client_dir(r);
+export function inject_keep_client_route(routes_dir: string): void {
+	const dir = keep_client_dir(routes_dir);
 	fs.mkdirSync(dir, { recursive: true });
 	fs.writeFileSync(
 		path.join(dir, '+layout.ts'),

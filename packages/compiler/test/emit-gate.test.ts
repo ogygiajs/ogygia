@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { join } from 'node:path';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import {
 	island_host_loaded,
 	parse_server_handoff,
@@ -82,5 +84,15 @@ describe('the handoff file', () => {
 
 	it('reads as none when the server leg wrote nothing', () => {
 		expect(read_server_handoff('/nonexistent-ogygia-out')).toBeNull();
+	});
+
+	it('reads as none when the server leg died mid-write (a torn handoff)', () => {
+		const out = mkdtempSync(join(tmpdir(), 'og-handoff-torn-'));
+		try {
+			writeFileSync(server_handoff_path(out), '{"hosts": ["/app/src/routes/+pa');
+			expect(read_server_handoff(out)).toBeNull();
+		} finally {
+			rmSync(out, { recursive: true, force: true });
+		}
 	});
 });

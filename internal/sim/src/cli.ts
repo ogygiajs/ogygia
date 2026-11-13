@@ -48,6 +48,7 @@ import {
 	page_errors,
 	peer_answers,
 	page_rules,
+	text_restored,
 	regions_show,
 	fallback_stands,
 	islands_wake,
@@ -218,10 +219,6 @@ const SUPPLIED = ['/wake-gate-slow.js'];
 const FAULTS: FaultClass[] = ['delay', 'reorder', 'drop', 'duplicate', 'cut', 'tamper', 'redirect'];
 
 /** FNV-1a, hex: a DOM's fingerprint in the trace. */
-/** The visitor presses a button in it (once or twice, or as an outage starts). */
-function presses(a: Action): boolean {
-	return a.kind === 'press' || a.kind === 'twice' || (a.kind === 'outage' && a.during === 'press');
-}
 
 function fingerprint(s: string): string {
 	let h = 0x811c9dc5;
@@ -375,7 +372,15 @@ export async function run(
 	try {
 		const v = world.visitor('visitor');
 		/** Every tab the run judges: the visitor's, and a crowd's (workload.ts `crowd`). */
-		const judged = (): Tab[] => [...v.tabs, ...world.crowd.flatMap((c) => c.tabs)];
+		const tabs = (): Tab[] => [...v.tabs, ...world.crowd.flatMap((c) => c.tabs)];
+		const judged = (): Tab[] => tabs().filter((t) => !world.on_release(t.realm));
+		const unheard = (): void => {
+			for (const t of tabs().filter((t) => world.on_release(t.realm))) {
+				t.errors.length = 0;
+				t.console.length = 0;
+				t.said_by.clear();
+			}
+		};
 		// (the network's exchanges since the last check: a fault among them explains what was said)
 		let since = 0;
 		/** Each document's machine moves read so far (by realm): its log keeps only its last lines,
@@ -401,6 +406,7 @@ export async function run(
 		/** Each tab looked at, after `what`: its DOM and what it holds in the trace, and the oracles. */
 		const look = (what: string): void => {
 			hear_moves();
+			unheard();
 			if (OBSERVE !== undefined)
 				seen.push(
 					observe(
@@ -459,6 +465,8 @@ export async function run(
 			// (and no document's island load gate opened before it was parsed)
 			parsed_first(t),
 			page_rules(t, world),
+			// (and a reshaped page's trimmed text came back with its whitespace)
+			text_restored(t, world),
 			// (and every region shows something, unless a press made the page the visitor's own)
 			pressed.get(t.name) === t.documents ? null : regions_show(t, world),
 			// (and no hole that wakes on its own still shows its fallback, pressed or not: a press
@@ -505,8 +513,10 @@ export async function run(
 			if (CALM && NOT_CALM.includes(a.kind)) continue;
 			actions.push(a);
 			log.note(`action ${i + 1}: ${describe(a)}`);
-			// (what a press or a deploy does is on purpose: each document's asks are judged up to it)
-			if (presses(a) || a.kind === 'deploy')
+			// (what a press or a deploy does is on purpose: each document's asks are judged up to it;
+			// a press's mark waits to hear it clicked, #1038)
+			const before = new Map(v.tabs.map((t) => [t.realm, world.network.exchanges.length]));
+			if (a.kind === 'deploy')
 				for (const t of v.tabs)
 					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
 			// (an eager press comes once the next document is in: the marks are that document's)
@@ -535,7 +545,13 @@ export async function run(
 			// on, kept across client navigations, which no fresh load has; its next document is clean.
 			// And it may change the server's (a cart, a counter a command bumps), which every other
 			// tab's document predates: seed 221, /cart-b in another tab)
-			if (presses(a)) for (const t of v.tabs) pressed.set(t.name, t.documents);
+			// (only a press that clicked: one that found no button left every document the server's, #1038)
+			if (picks.pressed)
+				for (const t of v.tabs) {
+					pressed.set(t.name, t.documents);
+					const at = before.get(t.realm);
+					if (at !== undefined && !disturbed.has(t.realm)) disturbed.set(t.realm, at);
+				}
 			look(describe(a));
 			for (const t of judged().filter(resting)) {
 				log.note(`${t.name} at rest after ${describe(a)}`);
@@ -578,7 +594,7 @@ export async function run(
 			for (const t of judged())
 				for (const b of owed_at_rest(t))
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
-			for (const t of v.tabs) {
+			for (const t of v.tabs.filter((t) => !world.on_release(t.realm))) {
 				// (a document a deploy failed a download of is degraded as a faulted one is: by the host.
 				// One only an outage touched is back on the network, and owes what a fresh load shows:
 				// THE OUTAGE OVER, the page recovers)
@@ -592,6 +608,7 @@ export async function run(
 				// (NO WASTE: a document the network or an outage touched asks again on purpose)
 				const w = faulted(world, t) ? null : waste(world, t);
 				if (w) broken.push(w);
+				log.note(`${t.name} ${t.page.mainFrame.url} judged against a fresh load`);
 				const b = await mpa_equivalent(world, v, t);
 				if (b)
 					broken.push(outage && b.oracle !== 'known' ? { ...b, oracle: 'outage-recovery' } : b);
@@ -599,7 +616,9 @@ export async function run(
 			// (NO WASTE in any document of the run, a left one's too, each up to what disturbed it)
 			const asked = asked_twice_each(
 				world,
-				new Map(v.tabs.flatMap((t) => [...t.swaps_by])),
+				new Map(
+					v.tabs.flatMap((t) => [...t.swaps_by]).filter(([realm]) => !world.on_release(realm))
+				),
 				disturbed
 			);
 			if (asked) broken.push(asked);
