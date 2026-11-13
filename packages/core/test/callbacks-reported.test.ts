@@ -1,4 +1,4 @@
-// An app's callback that throws inside a loop that must go on (a ref watcher, a scope disposer, a
+// An app's callback that throws inside a loop that must go on (a ref watcher, a kind's dispose, a
 // page store subscriber, a navigation hook, a source receipt seam, a devtools sink): the others still
 // run, and the error is not dropped. It goes to the page's error handler (`reportError`: the console
 // and window.onerror, where error monitoring sees it), or is printed where there is none (a server).
@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // (the devtools bus's compile gate, on before it is imported)
 (globalThis as unknown as { __OGYGIA_DEVTOOLS__: boolean }).__OGYGIA_DEVTOOLS__ = true;
-const { watch, notify, dispose_scope, register_scope_disposer } = await import('../src/ref.ts');
+const { watch, notify, register_kind, resolve, dispose_ids } = await import('../src/ref.ts');
 const { subscribe_page, set_page } = await import('../src/shims/page-store.svelte.ts');
 const { SpaRouter } = await import('../src/runtime/router.ts');
 const { record_source_read, set_source_recorder, set_source_observer } =
@@ -49,13 +49,24 @@ describe("an app's callback that throws is reported, and the rest still run", ()
 		expect(messages(errors)).toEqual(['watcher a']);
 	});
 
-	it('a scope disposer', () => {
-		let ran = false;
-		register_scope_disposer('page', boom('disposer'));
-		register_scope_disposer('page', () => (ran = true));
-		const errors = reported(() => dispose_scope('page'));
-		expect(ran).toBe(true);
-		expect(messages(errors)).toEqual(['disposer']);
+	it("a kind's dispose", () => {
+		const ran: string[] = [];
+		register_kind({
+			k: 'cb-disposable',
+			match: () => false,
+			encode: () => ({}),
+			decode: (ref) => ({ id: ref.i }),
+			dispose: (live) => {
+				const { id } = live as { id: string };
+				if (id === 'cb-a') throw new Error('dispose');
+				ran.push(id);
+			}
+		});
+		resolve({ k: 'cb-disposable', i: 'cb-a' }, 'page');
+		resolve({ k: 'cb-disposable', i: 'cb-b' }, 'page');
+		const errors = reported(() => dispose_ids(['cb-a', 'cb-b']));
+		expect(ran).toEqual(['cb-b']);
+		expect(messages(errors)).toEqual(['dispose']);
 	});
 
 	it('a page store subscriber', () => {
