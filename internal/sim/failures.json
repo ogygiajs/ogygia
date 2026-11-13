@@ -221,6 +221,48 @@
 			"name": "a transform that drops ogygia's marks is thrown with reshape_marks_lost"
 		},
 		{
+			"site": "packages/reshape/src/restore.ts > restore > reset > parse:0",
+			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > reset > catch:0",
+			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > original > parse:0",
+			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > original > catch:0",
+			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > parse:0",
+			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > catch:0",
+			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore_adopt > catch:0",
+			"reason": "a shadow root that refuses a sheet (an engine's own refusal): happy-dom adopts every sheet",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a root that cannot adopt its sheet leaves the others in the answer theirs"
+		},
+		{
 			"site": "packages/core/src/runtime/entry-locations.ts > run > fetch:0",
 			"reason": "the build map's read failing on the network: only an identity-only load reads it, and the sim's faults touch that document; proved: a failed read kept (keep: () => Infinity) turns the test red",
 			"test": "packages/core/test/browser/entry-location-map-unread.test.ts",
@@ -321,48 +363,6 @@
 			"reason": "the import's rejection, as above: with the handler gone the run fails on an unhandled rejection in 3 engines (proved)",
 			"test": "packages/reshape/test/browser-chunk-lost/restore-report.test.ts",
 			"name": "a restore report whose wording chunk does not load says nothing, throws nothing, and keeps the log"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > reset > parse:0",
-			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > reset > catch:0",
-			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > original > parse:0",
-			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > original > catch:0",
-			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > parse:0",
-			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > catch:0",
-			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore_adopt > catch:0",
-			"reason": "a shadow root that refuses a sheet (an engine's own refusal): happy-dom adopts every sheet",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a root that cannot adopt its sheet leaves the others in the answer theirs"
 		}
 	],
 	"impossible": [],
