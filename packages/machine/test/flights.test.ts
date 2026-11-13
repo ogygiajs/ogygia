@@ -299,6 +299,12 @@ describe('keyed', () => {
 		expect(() => make({ key: ['a'], ignore: { a: 'twice' } as never, run })).toThrow(MachineError);
 		expect(() => make({ key: ['a'], ignore: { b: ' ' }, run })).toThrow(MachineError);
 		expect(() => make({ run } as never)).toThrow(MachineError);
+		expect(() => flights({ ignore: { a: 'a reason with no key' }, run } as never)).toThrow(
+			MachineError
+		);
+		expect(() => flights({ max: 0, run })).toThrow(MachineError);
+		expect(() => flights({ max: Infinity, run })).toThrow(MachineError);
+		expect(() => flights({ world: {} as never, run })).toThrow(MachineError);
 		expect(make({ key: [], ignore: { a: 'one look-up per owner', b: 'same' }, run })).toBeDefined();
 	});
 
