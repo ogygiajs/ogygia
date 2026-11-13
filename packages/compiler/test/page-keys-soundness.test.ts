@@ -1,3 +1,4 @@
+// oracle: seed_keys
 // Seed shaping must be SOUND: a key it leaves out is missing from the shipped page seed, and the island
 // reads `undefined` there. Each script below really runs, with a recording Proxy as `page.data`
 // and a `use()` that reads all of whatever it is handed (a function the analysis cannot see into),
