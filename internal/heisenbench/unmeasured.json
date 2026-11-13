@@ -5061,14 +5061,6 @@
 			"reason": "build only: one path relativize per prescanned module a plugin hook claims, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > plugin_not_listed > details",
-			"reason": "a message's prose for its docs page and build warning: constant text, printed once per unlisted plugin"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > plugin_not_listed > text",
-			"reason": "a message's one line for the build warning: a template over its detail, printed once per unlisted plugin"
-		},
-		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > config > handler > map:0~364fcf#3",
 			"reason": "config only, once per Vite config resolve: a map over the listed plugins, a handful"
 		},
@@ -5333,22 +5325,6 @@
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > relocation_unpatched > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > relocation_unpatched > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > runtime_marks_late > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > runtime_marks_late > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
 			"id": "packages/compiler/src/compiler/program.ts > Program > #check_late",
 			"reason": "once per registration after the runtime entry was made: a filter of the features (a fixed, short list), constant work"
 		},
@@ -5455,14 +5431,6 @@
 		{
 			"id": "packages/compiler/src/compiler/link/context-detect.ts > context_keys > walk",
 			"reason": "the AST walk that finds context calls and their keys in one module: recursive over the parsed tree (not replayable), linear in its nodes; context-detect tests run it"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > region_context_key_one_off > details",
-			"reason": "a warning's longer wording for its error page, constant text"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > region_context_key_one_off > text",
-			"reason": "a warning's wording, constant text"
 		},
 		{
 			"id": "packages/core/src/context-bridge.ts > createContext > defineProperties:1~034356 > [computed] > value",
@@ -5703,6 +5671,38 @@
 		{
 			"id": "packages/core/src/server/props-wire.ts > lake_identity",
 			"reason": "one hole_identity fingerprint of a lake's props per lake render, measured with hole_identity's own bench; lake-identity.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > WARNED > plugin_not_listed > details",
+			"reason": "a message's prose for its docs page and build warning: constant text, printed once per unlisted plugin"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > WARNED > plugin_not_listed > text",
+			"reason": "a message's one line for the build warning: a template over its detail, printed once per unlisted plugin"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > WARNED > relocation_unpatched > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > WARNED > relocation_unpatched > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > WARNED > runtime_marks_late > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > WARNED > runtime_marks_late > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > WARNED > region_context_key_one_off > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > WARNED > region_context_key_one_off > text",
+			"reason": "a warning's wording, constant text"
 		}
 	]
 }

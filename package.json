@@ -18,6 +18,7 @@
 		"check:maps": "node --test internal/checks/module-maps.test.ts && node internal/checks/module-maps.ts",
 		"bench:types": "node internal/heisenbench/src/types.ts",
 		"bench:unmeasured": "node internal/heisenbench/src/unmeasured.ts",
+		"bench:unmeasured:ids": "node internal/heisenbench/src/unmeasured.ts --ids-only --base origin/main",
 		"test:e2e": "node packages/tooling/src/e2e/run.ts",
 		"test:e2e:fast": "E2E_NO_BUILD=1 node packages/tooling/src/e2e/run.ts",
 		"test:e2e:serial": "turbo run e2e --concurrency=1",

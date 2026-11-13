@@ -8,23 +8,43 @@
  */
 export type Exemption = { id: string; reason: string };
 
+type Inventory = { functions: readonly { id: string }[] };
+
+/** Every name a function answers to: its id and its place, for it and each call it sits in (an
+ *  exemption of an enclosing call covers it), never the module alone. */
+function names_of(id: string, context_path: (id: string) => string): string[] {
+	const out: string[] = [];
+	while (id.includes(' > ')) {
+		out.push(id, context_path(id));
+		id = id.slice(0, id.lastIndexOf(' > '));
+	}
+	return out;
+}
+
 /** The exemptions whose id names no function of `inventory` (Heisenbench `inventory`'s output),
  *  by its id or by its place (`context_path`, Heisenbench identity.ts). */
 export function gone_exemptions(
 	exempt: readonly Exemption[],
-	inventory: { functions: readonly { id: string }[] },
+	inventory: Inventory,
 	context_path: (id: string) => string
 ): Exemption[] {
-	const named = new Set<string>();
-	for (const f of inventory.functions) {
-		// the function and every place it sits in (an exemption of an enclosing call covers it),
-		// never the module alone
-		let id = f.id;
-		while (id.includes(' > ')) {
-			named.add(id);
-			named.add(context_path(id));
-			id = id.slice(0, id.lastIndexOf(' > '));
-		}
-	}
+	const named = new Set(inventory.functions.flatMap((f) => names_of(f.id, context_path)));
 	return exempt.filter((e) => !named.has(e.id));
+}
+
+/** The functions of `inventory` whose place `base` does not have and no exemption names: what the
+ *  gate fails on unless a bench or a replayable test measures them (`unmeasured.ts --ids-only`). */
+export function unexempted_new_functions(
+	inventory: Inventory,
+	base: Inventory,
+	exempt: readonly Exemption[],
+	context_path: (id: string) => string
+): { id: string }[] {
+	const before = new Set(base.functions.map((f) => context_path(f.id)));
+	const excused = new Set(exempt.map((e) => e.id));
+	return inventory.functions.filter(
+		(f) =>
+			!before.has(context_path(f.id)) &&
+			!names_of(f.id, context_path).some((n) => excused.has(n))
+	);
 }
