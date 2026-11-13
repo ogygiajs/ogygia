@@ -2,6 +2,7 @@
 import { expect, inject, test, vi } from 'vitest';
 import { page } from 'vitest/browser';
 import { writable } from 'svelte/store';
+import { from_b64 } from './b64.ts';
 
 vi.mock('../_stubs/boot.hydrate-features.ts', async () => {
 	const [context, live, remote_seeds, seeds] = await Promise.all([
@@ -39,7 +40,7 @@ test('a kept island’s newer props that arrive as the wire codec installs win o
 	const meta = document.createElement('meta');
 	meta.name = 'ogygia-router';
 	document.head.append(meta);
-	const body = decodeURIComponent(escape(atob(inject('label_render_b64'))));
+	const body = from_b64(inject('label_render_b64'));
 	document.body.innerHTML = kept(body, { text: 'one' });
 	bootDev();
 	await expect
