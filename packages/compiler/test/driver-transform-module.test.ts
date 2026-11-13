@@ -161,6 +161,21 @@ describe('transform_module: which modules the region transform reads', () => {
 	});
 });
 
+describe('transform_module: the island graph is whole before the first module lowers', () => {
+	test('an island component transformed before its host still gets the `$app` shim', async () => {
+		const island = `<script>import { page } from '$app/state';</script>{page.url}\n`;
+		const { run } = make(
+			{
+				[`${ROOT}/src/routes/+page.svelte`]: MARKED.replace('./A.svelte', '../lib/A.svelte'),
+				[`${ROOT}/src/lib/A.svelte`]: island
+			},
+			{ app_shims: { '$app/state': '/shim/state.js' } }
+		);
+		const out = await run(island, `${ROOT}/src/lib/A.svelte`, false);
+		expect(out?.code).toContain('"/shim/state.js"');
+	});
+});
+
 describe('transform_module: seed shaping', () => {
 	const reads = (helper: boolean) => dedent`
 		<script>
