@@ -18,17 +18,17 @@ import { compile, parse } from 'svelte/compiler';
 import { walk } from 'estree-walker';
 import { unscoped_marker } from '@ogygia/core/contract';
 import { blank_styles } from './blank-styles.ts';
+import { component_blocks } from './parse/scan.ts';
 import { EVERY_BARREL, ExportIndex, Shapes } from './exports/index.ts';
 import { warn } from './messages.ts';
 import { region_family } from './ids.ts';
+import { resolve_app_spec, type AppAlias } from './app-spec.ts';
 
 export const FOUC_CSS_PREFIX: string = region_family('fouc_css');
 export const FOUC_SCOPED_PREFIX: string = region_family('fouc_scoped');
 
 const PATH_SEP = /[/\\]/;
-const SCRIPT_TAG = /<script\b[^>]*>[\s\S]*?<\/script>/gi;
 const STYLE_OPEN = /<style\b/i;
-const STYLE_BODY = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
 const STYLE_EXT = /\.(css|scss|sass|less|styl|stylus|pcss)(?:\?|$)/i;
 const SVELTE_EXT = /\.svelte(?:\?|$)/i;
 const IMPORT_SPEC =
@@ -72,7 +72,7 @@ export function foucRelFromId(id: string): string | null {
 	try {
 		rel = decodeURIComponent(encoded);
 	} catch {
-		rel = encoded;
+		rel = encoded; // ok: not percent-encoded: the id holds the path as is (the check below still runs)
 	}
 	// SECURITY: this rel is `path.join(root, rel)` + `readFileSync` in the dev `load()` hook. A FOUC
 	// id is minted from a module path in our own graph, so a legit rel is always root-relative with no
@@ -88,42 +88,6 @@ export function foucRelFromId(id: string): string | null {
 		return null;
 	}
 	return rel;
-}
-
-/**
- * Resolve a static import specifier against an importer file + `$lib`.
- * @param spec
- * @param importerAbs
- * @param libDir
- */
-/** One resolved Vite alias (`resolve.alias`, normalized) — Kit's `kit.alias` entries arrive here. */
-export interface FoucAlias {
-	find: string | RegExp;
-	replacement: string;
-}
-
-export function resolveFoucImportSpec(
-	spec: string,
-	importerAbs: string,
-	libDir: string,
-	alias: readonly FoucAlias[] = []
-): string | null {
-	if (spec === '$lib' || spec.startsWith('$lib/')) {
-		return path.join(libDir, spec === '$lib' ? '' : spec.slice('$lib/'.length));
-	}
-	if (spec.startsWith('.')) {
-		return path.resolve(path.dirname(importerAbs), spec);
-	}
-	// App aliases (`$lib_x`, `@scope/pkg` → a source dir): the same table Vite resolves with.
-	for (const a of alias) {
-		if (typeof a.find === 'string') {
-			if (spec === a.find) return a.replacement;
-			if (spec.startsWith(`${a.find}/`)) return a.replacement + spec.slice(a.find.length);
-		} else if (a.find.test(spec)) {
-			return spec.replace(a.find, a.replacement);
-		}
-	}
-	return null;
 }
 
 /**
@@ -166,7 +130,7 @@ export interface CssReachOptions {
 	/** The app's files (the compiler's: `CompileCtx.read_file`). */
 	readFile: (p: string) => string | null;
 	/** app aliases to follow (`$lib_x/…`, `@scope/pkg/…` → source dirs) — the fallback resolver's */
-	alias?: readonly FoucAlias[];
+	alias?: readonly AppAlias[];
 	/**
 	 * The bundler's own resolver (Vite's `this.resolve`): a package specifier through its `exports`
 	 * (a TypeScript entry included), a workspace link, an alias — whatever the build resolves. Without
@@ -223,7 +187,7 @@ export async function collectFoucCssReachable(
 			const id = await opts.resolve(spec, importer);
 			return id ? path.normalize(id.split('?')[0]) : null;
 		}
-		const base = resolveFoucImportSpec(spec, importer, opts.libDir, opts.alias);
+		const base = resolve_app_spec(spec, importer, opts);
 		if (!base) return null;
 		const clean = base.split('?')[0];
 		if (STYLE_EXT.test(clean) || SVELTE_EXT.test(clean)) return path.normalize(clean);
@@ -332,6 +296,26 @@ export async function collectFoucCssReachable(
 	return entries;
 }
 
+/** The plugin's preprocessor for a component's CSS: `<style lang="scss|sass">` to CSS, TypeScript
+ *  stripped from its script (vite/style-preprocess.ts). */
+export type PreprocessCss = (source: string, abs: string) => Promise<string>;
+
+/**
+ * A component's scoped CSS, one rule for every leg (dev router CSS, the build's tree CSS, the fouc
+ * module): preprocessed by `preprocess`, then compiled with its script
+ * (test/router-css-dev-preprocess.test.ts). With no preprocessor (a host with no bundler), the
+ * source as it is.
+ */
+export async function scoped_component_css(
+	abs: string,
+	source: string,
+	preprocess: PreprocessCss | undefined
+): Promise<string> {
+	return preprocess
+		? compileFoucScopedCss(abs, await preprocess(source, abs), { keepScript: true })
+		: compileFoucScopedCss(abs, source);
+}
+
 /**
  * Compile scoped CSS for a `.svelte` file (filename must match SSR for hash stability).
  * @param abs
@@ -352,7 +336,7 @@ export function compileFoucScopedCss(
 	// (the whole source first even when not preprocessed: stripping the script first made every
 	// template with a `bind:` or a script name throw, and the dev router leg shipped 11 of the
 	// profiler's 37 styled components unscoped)
-	const inputs = opts.keepScript ? [source] : [source, source.replace(SCRIPT_TAG, '')];
+	const inputs = opts.keepScript ? [source] : [source, without_scripts(source)];
 	let err: unknown;
 	for (const input of inputs) {
 		try {
@@ -411,7 +395,23 @@ function unwrap_global(css: string) {
 
 /** @param source */
 function extractRawStyleBodies(source: string) {
-	return unwrap_global([...source.matchAll(STYLE_BODY)].map((m) => m[1]).join('\n'));
+	return unwrap_global(
+		component_blocks(source)
+			.filter((b) => b.kind === 'style')
+			.map((b) => source.slice(b.start, b.end))
+			.join('\n')
+	);
+}
+
+function without_scripts(source: string): string {
+	let out = '';
+	let at = 0;
+	for (const b of component_blocks(source)) {
+		if (b.kind !== 'script') continue;
+		out += source.slice(at, b.open);
+		at = b.close;
+	}
+	return out + source.slice(at);
 }
 
 /**

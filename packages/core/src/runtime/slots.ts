@@ -7,7 +7,11 @@
  * `forms`) carry a no-op default so the feature can be absent; the rest are `null` until
  * a feature provides them and are read with optional chaining.
  *
- * This is the single wiring mechanism — there is no service locator and no per-feature setter.
+ * This is the single wiring mechanism — there is no service locator and no per-feature setter. A
+ * link a lazy chunk reads before its boot filled it throws `slot_not_linked`, and the registry
+ * imports no messages module, since every chunk imports it (test/slots-linked.test.ts).
+ *
+ * @packageDocumentation
  */
 import type { Scope, Stale } from '@ogygia/machine';
 import type { FrameOrder } from '../frame.ts';
@@ -15,7 +19,6 @@ import type { FrameFetcher, StoredFrame } from './frame-store.ts';
 import type { VerifiedHtml } from './html-sink.ts';
 import { is_frozen } from './region-attrs.ts';
 
-// ── lakes ────────────────────────────────────────────────────────────────
 /** Frozen SSR DOM detached before hydrate. */
 export type LiftedLake = {
 	id: string;
@@ -54,14 +57,12 @@ export type LakeOps = {
 	): void;
 };
 
-// ── forms ────────────────────────────────────────────────────────────────
 export type FormOps = {
 	enabled: boolean;
 	snapshot(root: ParentNode, pathKey: string): void;
 	restore(pathKey: string): void;
 };
 
-// ── the rest (nullable — core reads with optional chaining) ────────────────
 /** Wake a cold island when interaction lands inside it; returns a disarm fn (`over`: the region
  *  left while it was waking — the clicks it queued are dropped, not replayed). `fire` gets what
  *  replays the visitor's input (./interaction.ts `WakeFn`): the island goes live once it is in.
@@ -151,7 +152,6 @@ export type FrameOps = {
 	batch_times?(endpoint: string): { left: number; at: number; size: number } | undefined;
 };
 
-// ── nav ──────────────────────────────────────────────────────────────────
 /**
  * SPA navigation, filled by the router feature. Read by the kit-remote client stub (used by the
  * always-on remote-seeds feature) so a remote COMMAND can navigate/invalidate WITHOUT the stub
@@ -269,7 +269,7 @@ export type Slots = {
 	 * build detected no ogygia context provider — a plain app never bundles the ~4.7 kB bridge, and
 	 * core's call optional-chains to `undefined` (exactly "no provider above", the existing empty case).
 	 */
-	context: ((start: Element | null) => Map<string, unknown> | undefined) | null;
+	context: ((start: Element | null) => Map<string | symbol, unknown> | undefined) | null;
 	/** Boot helpers + session for the lazy chunks (see {@link BootLink}). */
 	boot: BootLink | null;
 	/** The router's history/scroll helpers for its navigation chunk (see {@link RouterLink}). */
@@ -316,11 +316,7 @@ export const slots: Slots = {
 	sync_attributes: null
 };
 
-/** A link a lazy chunk needs, or a loud error: every link is filled before its chunk can load, so a
- *  missing one means a chunk ran without the boot that owns it (a test that skipped `link_boot()`). */
 function linked<T>(link: T | null, name: string): T {
-	// (its code's link written out: every chunk imports this registry, so it imports no messages
-	// module — messages/core.ts has the code)
 	if (link === null)
 		throw new Error(`[ogygia] https://ogygiajs.dev/e/slot_not_linked?name=${name}`);
 	return link;

@@ -9,13 +9,15 @@
  *   node --experimental-vm-modules src/sweep.ts [--out <dir>] [--jobs 4] [--write]
  *
  * Fails (exit code 1) when a step is in no bucket, a `reached` step was not reached, or a `dead`
- * one was. `--write` sets `reached` to what the sweep reached. Runs under `nice`.
+ * one was, and when a failure site's buggify point (internal/sim/failures.json `fired`) did not
+ * fire (src/failures.ts). `--write` sets `reached` to what the sweep reached. Runs under `nice`.
  */
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { all_steps, universe } from './coverage.ts';
+import { check_failures, failures_line, fired_in, read_failure_ledger } from './failures.ts';
 import { account, LEDGER, read_ledger, reached_in } from './steps.ts';
 
 const SIM = resolve(import.meta.dirname, '..');
@@ -58,6 +60,7 @@ function main(): void {
 	const failed: string[] = [];
 	// (each saved plan of the app just built, replayed: the same run every time)
 	const by_plan = new Map<string, Set<string>>();
+	const missed = new Map<string, string[]>();
 	const replay = (app: string, of: 'palaestra' | number): void => {
 		for (const p of (sw.plans ?? []).filter((x) => x.app === of)) {
 			const results = join(SIM, 'results.json');
@@ -74,6 +77,8 @@ function main(): void {
 			copyFileSync(results, kept);
 			files.push(kept);
 			by_plan.set(p.plan, new Set(reached_in(kept)));
+			const r = JSON.parse(readFileSync(kept, 'utf8')) as { missed?: string[] };
+			missed.set(p.plan, r.missed ?? []);
 		}
 	};
 	const pal = run('../../apps/palaestra', sw.palaestra.runs, sw.palaestra.steps, 'palaestra');
@@ -112,7 +117,8 @@ function main(): void {
 	const a = account(all, ledger, {
 		read: (p) => (existsSync(join(ROOT, p)) ? readFileSync(join(ROOT, p), 'utf8') : null),
 		sweep: reached,
-		plans: by_plan
+		plans: by_plan,
+		missed
 	});
 	if (process.argv.includes('--write')) {
 		const r = [...all].filter((s) => reached.has(s)).sort();
@@ -135,7 +141,13 @@ function main(): void {
 				!ledger.dead.some((d) => d.step === s)
 		)
 	};
+	const failure_ledger = read_failure_ledger();
+	const sites = check_failures(failure_ledger, undefined, {
+		fired: new Set(files.flatMap(fired_in))
+	});
+	summary.failures.push(...sites.failures);
 	writeFileSync(join(out, 'steps.json'), `${JSON.stringify(summary, null, '\t')}\n`);
+	console.log(failures_line(failure_ledger, sites));
 	console.log(
 		`steps accounted: ${a.accounted}/${a.total} (sweep reached ${summary.reached}, covered ${summary.covered}, dead ${summary.dead})`
 	);

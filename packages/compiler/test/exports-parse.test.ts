@@ -169,7 +169,15 @@ describe('analyze_exports — shape + purity', () => {
 		).toBe(true);
 	});
 
+	it('a stray semicolon and a type-only export of a local type keep a barrel pure', () => {
+		expect(analyze_exports(`export { x } from './x';;`, TS)!.pure).toBe(true);
+		expect(
+			analyze_exports(`type T = 1; export { type T }; export { x } from './x';`, TS)!.pure
+		).toBe(true);
+	});
+
 	it.each([
+		['export const { a, ...rest } = o;', ['a', 'rest']],
 		['export const a = 1;', ['a']],
 		['export let { a, b: c } = o;', ['a', 'c']],
 		['export const [x, , ...rest] = arr;', ['x', 'rest']],
@@ -182,7 +190,11 @@ describe('analyze_exports — shape + purity', () => {
 		['sideEffect();', []],
 		['if (x) {}', []],
 		['export * from "./x"; globalThis.__registered = true;', []],
-		['export { x } from "./x"; import.meta.glob("./*.svelte");', []]
+		['export { x } from "./x"; import.meta.glob("./*.svelte");', []],
+		// imported for what loading them does: the barrel's import is what runs them
+		['import "./theme.css"; export { default as Button } from "./Button.svelte";', []],
+		['import "./polyfill"; export * from "./x";', []],
+		['import * as setup from "./setup"; export { x } from "./x";', []]
 	])('%s → impure, own names %j', (code, own) => {
 		const s = analyze_exports(code, TS)!;
 		expect(s.pure).toBe(false);

@@ -1,21 +1,3 @@
-/**
- * WHICH `page.data` KEYS does a module read? — the static analysis behind seed shaping.
- *
- * The page seed (`application/ogygia-page`) exists so an island can read `$page` through the shim,
- * and it used to be all-or-nothing: one island reading `page.data._locale` shipped the whole
- * `page.data` (368 KB on a measured CMS home page, 199 KB of it a header entry no island ever
- * touched). This analysis reads a module ONCE, at transform time, on the compiler's own parsers —
- * oxc for `.ts` / `.js`, Svelte's for `.svelte` (both scripts and the template's expressions) —
- * resolves the `page` binding through its aliases, and answers with the set of top-level
- * `page.data` keys the module can reach. The build unions the answers over an island's chunk
- * closure (island-deps.ts) and the handle ships only those keys.
- *
- * CONSERVATIVE BY CONSTRUCTION. Any read the analysis cannot resolve to a literal key — `page.data`
- * handed to a function, aliased whole, indexed with a variable, spread, `page.subscribe(...)`, a
- * namespace import, the whole page passed on — answers `'all'`, and the seed ships whole as
- * before. A wrong `'all'` costs bytes; a wrong key set would cost an island its data, so every
- * doubt goes to `'all'`.
- */
 import { parse, type AST } from 'svelte/compiler';
 import fs from 'node:fs';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
@@ -25,15 +7,17 @@ type Node = AstNode;
 
 export type PageKeys = ReadonlySet<string> | 'all';
 
-/** Kit's page-store specifiers as an author writes them; the driver's shim rewrite runs after
- *  this analysis, so the source still names them. */
 const PAGE_SPECIFIER_RE = /^\$app\/(?:state|stores)$/;
-/** The page fields that are never shaped — reading them commits nothing about `data`. */
-// static: Kit's page fields that are not load data
-const SAFE_FIELDS = new Set(['url', 'params', 'route', 'status', 'error', 'form', 'state']);
-/** Keys the walker never descends into (positions, back-references). */
-// static: the AST node keys the walk never descends into
-const SKIP_KEYS = new Set([
+const SAFE_FIELDS: ReadonlySet<string> = new Set([
+	'url',
+	'params',
+	'route',
+	'status',
+	'error',
+	'form',
+	'state'
+]);
+const SKIP_KEYS: ReadonlySet<string> = new Set([
 	'start',
 	'end',
 	'loc',
@@ -43,11 +27,8 @@ const SKIP_KEYS = new Set([
 	'leadingComments',
 	'trailingComments'
 ]);
-/** Cheap pre-filter for the transform hot path: no page specifier in the text → nothing to parse. */
 const PAGE_SPECIFIER_HINT_RE = /\$app\/st(?:ate|ores)/;
 
-/** The analysis giving up on a module: WHY, and WHERE (a source offset), so the build can name the
- *  line that makes a page ship all of `page.data`. */
 class All extends Error {
 	readonly why: string;
 	readonly at: number | null;
@@ -107,7 +88,6 @@ export function page_data_keys_answer(
 	try {
 		for (const root of roots) scan.collect_bindings(root);
 		if (!scan.refs.size) return { keys: null, reason: null, pending: [] };
-		// an alias in one root may come from an alias in another: grow over all until none grows
 		let grew = true;
 		while (grew) grew = roots.map((root) => scan.grow(root)).some(Boolean);
 		for (const root of roots) scan.walk(root, null, null);
@@ -141,12 +121,10 @@ export function summarize_export(
 	const roots = parse_roots(code, id, kind);
 	if (!roots) return 'all';
 	let fn: Node | null = null;
-	// a re-export (`export { name } from './x'`, `export * from './x'`, or a local binding imported
-	// from elsewhere and exported by name): the build follows it to the module that declares it
-	let named_follow: string | null = null; // an exact re-export of `name` — wins over every `export *`
+	let named_follow: string | null = null;
 	const stars: string[] = [];
 	let imported = name;
-	let fn_name: string | null = null; // the local binding `fn` was found under
+	let fn_name: string | null = null;
 	const local_fns = new Map<string, Node>();
 	const imports = new Map<string, { specifier: string; imported: string }>();
 	for (const root of roots) {
@@ -206,7 +184,6 @@ export function summarize_export(
 			}
 		});
 		if (fn) {
-			// the export's binding assigned anew may run another body: not followed
 			const rebound = fn_name;
 			if (rebound !== null && roots.some((r) => assigned_names(r).has(rebound))) return 'all';
 			break;
@@ -222,11 +199,10 @@ export function summarize_export(
 	for (const [local, imp] of imports) scan.import_binding(local, imp.specifier, imp.imported);
 	try {
 		scan.seed_param(param.name, fn as Node);
-		// the same alias pass the module's own analysis runs, then the defaults and the body
 		scan.grow(fn as Node);
 		scan.walk((fn as Node).params, fn, 'params');
 		scan.walk((fn as Node).body, fn, 'body');
-		if (scan.pending.length) return 'all'; // depth one: the helper handing the page on is not followed
+		if (scan.pending.length) return 'all';
 		return scan.keys;
 	} catch (e) {
 		if (e instanceof All) return 'all';
@@ -240,10 +216,7 @@ function line_of(code: string, offset: number): number {
 	return line;
 }
 
-/** Climb out of the wrappers TypeScript and the parsers put around an expression without
- *  changing what it is: `(page as any)`, `page!`, `page satisfies T`, `(page)`, an optional chain. */
-// static: the AST node types that wrap an expression without changing what it reads
-const WRAPPERS = new Set([
+const WRAPPERS: ReadonlySet<string> = new Set([
 	'TSAsExpression',
 	'TSNonNullExpression',
 	'TSSatisfiesExpression',
@@ -276,8 +249,6 @@ export function mentions_page_store(code: string): boolean {
 	return PAGE_SPECIFIER_HINT_RE.test(code);
 }
 
-// ── parsing ────────────────────────────────────────────────────────────────────────────────────
-
 export function parse_roots(code: string, id: string, kind: 'svelte' | 'script'): Node[] | null {
 	if (kind === 'script') {
 		const r = parse_module(code, id);
@@ -285,12 +256,9 @@ export function parse_roots(code: string, id: string, kind: 'svelte' | 'script')
 	}
 	let ast: AST.Root;
 	try {
-		// The component's `<style>` is preprocessor territory (SCSS `//` comments, nesting) that
-		// Svelte's parser rejects before any preprocessor ran — and a stylesheet never reads the page.
-		// Blank its inside (same length, offsets kept) and parse the scripts and the template.
 		ast = parse(blank_styles(code), { modern: true, filename: id });
 	} catch {
-		return null;
+		return null; // ok: null is "did not parse"; seed shaping answers 'all' for it, the context hint says nothing
 	}
 	const roots: Node[] = [];
 	if (ast.module?.content) roots.push(ast.module.content);
@@ -299,11 +267,7 @@ export function parse_roots(code: string, id: string, kind: 'svelte' | 'script')
 	return roots;
 }
 
-// ── the analysis ───────────────────────────────────────────────────────────────────────────────
-
-/** Function-like nodes: the scopes an alias lives in. */
-// static: the AST node types that open a scope
-const SCOPE_TYPES = new Set([
+const SCOPE_TYPES: ReadonlySet<string> = new Set([
 	'FunctionDeclaration',
 	'FunctionExpression',
 	'ArrowFunctionExpression',
@@ -316,24 +280,14 @@ const SCOPE_TYPES = new Set([
 ]);
 
 class Scan {
-	/** Every name that IS the page: import locals (module-wide), whole-page aliases and
-	 *  derived/subscribe params (each valid inside the function that declares it — an unrelated
-	 *  `value` in another method is not the page just because one method aliased it so). */
 	readonly refs = new Set<string>();
-	readonly #scopes = new Map<string, Set<Node | null>>(); // name → declaring scopes (null = module)
+	readonly #scopes = new Map<string, Set<Node | null>>();
 	readonly keys = new Set<string>();
-	/** Calls handing the page to an imported helper, for the build to follow (see PendingCall). */
 	readonly pending: PendingCall[] = [];
-	/** Import bindings of this module: local name → what and from where. */
 	readonly #imports = new Map<string, { specifier: string; imported: string }>();
-	/** Svelte's store helpers by local name: a `get` or `derived` from anywhere else is a plain call
-	 *  (test: page-keys-soundness `not svelte/store`). */
 	readonly #store = new Map<string, 'get' | 'derived'>();
-	/** Module-level function declarations by name (`function f(p) {}` / `const f = (p) => …`). */
 	readonly #local_fns = new Map<string, Node>();
-	/** Functions whose parameter is the page (a followed helper): `arguments` in one reaches it too. */
 	readonly #followed = new Set<Node>();
-	/** Names some assignment rebinds, in any root seen so far. */
 	readonly #assigned = new Set<string>();
 
 	private readonly code: string;
@@ -342,10 +296,8 @@ class Scan {
 		this.code = code;
 	}
 
-	/** For {@link summarize_export}: the helper's own parameter IS the page, inside the helper. */
 	seed_param(name: string, fn: Node): void {
 		this.#add_ref(name, fn.body ?? fn);
-		// the scope of a parameter is the function itself: register under the function node
 		const scopes = this.#scopes.get(name)!;
 		scopes.add(fn);
 		this.#followed.add(fn);
@@ -361,21 +313,28 @@ class Scan {
 		return true;
 	}
 
-	/** An import binding of the module: `local` is `imported` from `specifier`. */
 	import_binding(local: string, specifier: string, imported: string): void {
 		this.#imports.set(local, { specifier, imported });
 		if (specifier === 'svelte/store' && (imported === 'get' || imported === 'derived'))
 			this.#store.set(local, imported);
 	}
 
-	/** Is `node` inside a function whose parameter is the page? */
+	#local_fn(callee: Node): Node | undefined {
+		const fn = this.#local_fns.get(callee.name);
+		return fn && !declared_above(callee.name, callee, false) ? fn : undefined;
+	}
+
+	#store_helper(callee: Node): 'get' | 'derived' | undefined {
+		const helper = this.#store.get(callee.name);
+		return helper && !declared_above(callee.name, callee, false) ? helper : undefined;
+	}
+
 	#in_followed(node: Node): boolean {
 		for (let n: Node | null = node; n; n = n.__parent as Node | null)
 			if (this.#followed.has(n)) return true;
 		return false;
 	}
 
-	/** Is `name`, used at `use`, one of the page's names in scope there? */
 	#in_scope(name: string, use: Node): boolean {
 		const scopes = this.#scopes.get(name);
 		if (!scopes) return false;
@@ -384,10 +343,8 @@ class Scan {
 		return false;
 	}
 
-	/** Pass 1: bindings. Imports, then aliases grown to a fixed point (an alias of an alias). */
 	collect_bindings(root: Node): void {
 		visit(root, (node) => {
-			// module-level functions a `helper(page)` call can be followed into without leaving the file
 			if (node.type === 'FunctionDeclaration' && node.id?.name && !enclosing_scope(node))
 				this.#local_fns.set(node.id.name, node);
 			if (
@@ -398,8 +355,6 @@ class Scan {
 				!enclosing_scope(node)
 			)
 				this.#local_fns.set(node.id.name, node.init);
-			// the page leaving through a barrel, or arriving whole from `import()`: whoever reads it
-			// never names `$app/…` (test: page-keys-soundness `re-exported or imported dynamically`)
 			if (
 				(node.type === 'ExportAllDeclaration' ||
 					(node.type === 'ExportNamedDeclaration' &&
@@ -424,18 +379,16 @@ class Scan {
 			for (const s of node.specifiers ?? []) {
 				if (s.type === 'ImportNamespaceSpecifier' || s.type === 'ImportDefaultSpecifier')
 					throw new All('the page store is imported as a namespace', s.start ?? null);
+				if (s.type === 'ImportSpecifier' && spec_name(s.imported) === 'getStores')
+					throw new All('the page store is taken from `getStores()`', s.start ?? null);
 				if (s.type === 'ImportSpecifier' && spec_name(s.imported) === 'page')
 					this.#add_ref(s.local.name, null);
 			}
 		});
-		// a function binding assigned anew may run another body than the one declared: never followed
-		// (accumulated over every root: the template may assign a function the script declares)
 		for (const name of assigned_names(root)) this.#assigned.add(name);
 		for (const name of this.#assigned) this.#local_fns.delete(name);
 	}
 
-	/** Pass 1b: aliases of the page grown to a fixed point (an alias of an alias), through `root`.
-	 *  True when a name was added. */
 	grow(root: Node): boolean {
 		let any = false;
 		let grew = true;
@@ -450,17 +403,15 @@ class Scan {
 					if (node.id?.type === 'Identifier') {
 						if (this.#add_ref(node.id.name, node)) grew = true;
 					} else {
-						// `const { data } = page`, `const [..] = …`: the page taken apart
 						throw new All('the page is destructured (`const { data } = page`)', node.start ?? null);
 					}
 				}
 				if (node.type === 'CallExpression') {
 					const callee = node.callee;
 					const args = node.arguments ?? [];
-					// `helper(page)` where helper is a function of THIS module: its parameter is the page
-					// inside it, so the walk follows the read there instead of giving up at the call.
-					if (callee?.type === 'Identifier' && this.#local_fns.has(callee.name)) {
-						const fn = this.#local_fns.get(callee.name)!;
+					const local = callee?.type === 'Identifier' ? this.#local_fn(callee) : undefined;
+					if (local) {
+						const fn = local;
 						args.forEach((a: Node, i: number) => {
 							if (!this.is_page_value(a)) return;
 							const p = fn.params?.[i];
@@ -471,7 +422,6 @@ class Scan {
 							}
 						});
 					}
-					// page.subscribe((p) => …): the subscriber's parameter is the page inside it
 					if (
 						callee?.type === 'MemberExpression' &&
 						!callee.computed &&
@@ -485,10 +435,9 @@ class Scan {
 							grew = true;
 						}
 					}
-					// derived(page, ($p) => …) / derived([a, page], ([$a, $p]) => …)
 					if (
 						callee?.type === 'Identifier' &&
-						this.#store.get(callee.name) === 'derived' &&
+						this.#store_helper(callee) === 'derived' &&
 						args.length >= 2
 					) {
 						const fn = args[1];
@@ -522,7 +471,6 @@ class Scan {
 		return any;
 	}
 
-	/** Is this expression the page value itself? `page`, `$page`, `get(page)`. */
 	is_page_value(raw: Node): boolean {
 		const n = unwrap_down(raw);
 		if (n.type === 'Identifier') {
@@ -532,7 +480,7 @@ class Scan {
 		if (
 			n.type === 'CallExpression' &&
 			n.callee?.type === 'Identifier' &&
-			this.#store.get(n.callee.name) === 'get'
+			this.#store_helper(n.callee) === 'get'
 		) {
 			const a = n.arguments?.[0];
 			return !!a && a.type === 'Identifier' && this.#in_scope(a.name, a);
@@ -540,14 +488,12 @@ class Scan {
 		return false;
 	}
 
-	/** Pass 2: every use of a page value, judged by its parent. */
 	walk(node: Node, parent: Node | null, key: string | null): void {
 		if (!node || typeof node !== 'object') return;
 		if (Array.isArray(node)) {
 			for (const child of node) this.walk(child, parent, key);
 			return;
 		}
-		// `arguments` in a function handed the page reaches it without naming the parameter
 		if (node.type === 'Identifier' && node.name === 'arguments' && this.#in_followed(node))
 			throw new All('a function handed the page reads `arguments`', node.start ?? null);
 		if (
@@ -556,12 +502,8 @@ class Scan {
 			!is_declaration(node, parent, key)
 		) {
 			this.judge(node, parent, key);
-			if (node.type === 'CallExpression') return; // `get(page)` consumed as a unit
+			if (node.type === 'CallExpression') return;
 		}
-		// A BRANCH THE BROWSER NEVER TAKES: this answer is about the island's CLIENT code, and a read
-		// under `typeof window === 'undefined'` (or `import.meta.env.SSR`) runs only on the server —
-		// Region's own server-side snapshot of page.data put every island that renders a <Region>
-		// down as reading the page whole
 		if (node.type === 'IfStatement' || node.type === 'ConditionalExpression') {
 			const side = runs_on(node.test);
 			if (side) {
@@ -587,7 +529,6 @@ class Scan {
 	}
 
 	judge(value: Node, raw_parent: Node | null, raw_key: string | null): void {
-		// `(page as any).data.x`, `page!.data.x`, `(page).data.x`: the wrapper is not the consumer
 		const {
 			node: v,
 			parent,
@@ -597,7 +538,6 @@ class Scan {
 			: { node: value, parent: raw_parent, key: raw_key };
 		const at = value.start ?? null;
 		if (!parent) throw new All('the page is used bare', at);
-		// `page.<field>` — the one shape that commits nothing (safe field) or a key (`data.x`)
 		if (parent.type === 'MemberExpression' && key === 'object') {
 			const field = member_name(parent);
 			if (field === 'data') {
@@ -606,7 +546,6 @@ class Scan {
 			}
 			if (field !== null && SAFE_FIELDS.has(field)) return;
 			if (field === 'subscribe') {
-				// `page.subscribe((p) => …)`: the callback parameter is the page, tracked in pass 1
 				const call = parent.__parent as Node | null;
 				const fn =
 					call?.type === 'CallExpression' && (parent.__key as string) === 'callee'
@@ -625,16 +564,14 @@ class Scan {
 				at
 			);
 		}
-		// `const p = page` / `const v = get(page)` — an alias, tracked in pass 1
 		if (parent.type === 'VariableDeclarator' && key === 'init') return;
-		// `derived(page, …)` / `derived([…, page, …], …)` — the callback param is tracked in pass 1
 		if (
 			parent.type === 'CallExpression' &&
 			key === 'arguments' &&
 			parent.callee?.type === 'Identifier'
 		) {
 			const name = parent.callee.name;
-			const helper = this.#store.get(name);
+			const helper = this.#store_helper(parent.callee);
 			if (helper === 'get') return;
 			if (helper === 'derived') {
 				const cb = parent.arguments[1];
@@ -646,9 +583,8 @@ class Scan {
 					return;
 				throw new All('`derived(page, …)` hands the page to a callback it does not read here', at);
 			}
-			const fn = this.#local_fns.get(name);
+			const fn = this.#local_fn(parent.callee);
 			if (fn) {
-				// followed at collect time: the parameter is the page inside the helper
 				const i = parent.arguments.indexOf(v);
 				if (fn.params?.[i]?.type === 'Identifier') return;
 				throw new All(
@@ -656,9 +592,8 @@ class Scan {
 					at
 				);
 			}
-			const imp = this.#imports.get(name);
+			const imp = declared_above(name, parent.callee, false) ? undefined : this.#imports.get(name);
 			if (imp) {
-				// an IMPORTED helper: the build follows the call into that module (summarize_export)
 				this.pending.push({
 					specifier: imp.specifier,
 					imported: imp.imported,
@@ -670,20 +605,17 @@ class Scan {
 			throw new All(`the whole page is passed to \`${name}(…)\``, at);
 		}
 		if (parent.type === 'ArrayExpression') {
-			// `derived([…, page, …], fn)`'s source list: the callback's parameter is tracked in pass 1.
-			// Any other array carries the whole page on (test: page-keys-soundness `[page][0]`).
 			const call = parent.__parent as Node | null;
 			if (
 				call?.type === 'CallExpression' &&
 				call.callee?.type === 'Identifier' &&
-				this.#store.get(call.callee.name) === 'derived' &&
+				this.#store_helper(call.callee) === 'derived' &&
 				call.arguments?.[0] === parent &&
 				call.arguments.length >= 2
 			)
 				return;
 			throw new All('the whole page is put in an array', at);
 		}
-		// `Object.keys(page)` reads names, never values: nothing of `data` can leave through it
 		if (
 			parent.type === 'CallExpression' &&
 			key === 'arguments' &&
@@ -695,12 +627,9 @@ class Scan {
 		throw new All('the whole page escapes (passed on, returned, spread, exported or compared)', at);
 	}
 
-	/** `page.data` reached: the grandparent decides — a literal key, a destructuring, or all. */
 	judge_data(data_member: Node): void {
 		let { parent: owner, key: owner_key } = unwrap_up(data_member);
 		const at = data_member.start ?? null;
-		// `page.data || {}` / `page.data ?? {}`: the fallback is not a read — judge what consumes the
-		// whole expression (`const { a, b } = $page?.data || {}` is the common Svelte 4 guard)
 		while (
 			owner &&
 			owner.type === 'LogicalExpression' &&
@@ -715,7 +644,6 @@ class Scan {
 		if (owner.type === 'MemberExpression' && owner_key === 'object') {
 			const k = member_name(owner);
 			if (k === null) throw new All('`page.data[…]` is indexed with an expression', at);
-			// `page.data.k(…)` hands `page.data` to the method as `this` (`hasOwnProperty('x')` reads x)
 			const call = unwrap_up(owner);
 			if (call.parent?.type === 'CallExpression' && call.key === 'callee')
 				throw new All(`\`page.data.${k}(…)\` is called with \`page.data\` as \`this\``, at);
@@ -756,12 +684,6 @@ class Scan {
 	}
 }
 
-/** The nearest function-like ancestor an alias declared at `node` belongs to (`null` = module). */
-/**
- * Which side a test lets through: `'server'` when it is true only on the server
- * (`typeof window === 'undefined'`, `typeof document == 'undefined'`, `import.meta.env.SSR`),
- * `'client'` for its negation (`!==`, `!`), null for anything else.
- */
 function runs_on(test: Node | null | undefined): 'server' | 'client' | null {
 	const t = test ? unwrap_down(test) : null;
 	if (!t) return null;
@@ -769,7 +691,6 @@ function runs_on(test: Node | null | undefined): 'server' | 'client' | null {
 		const inner = runs_on(t.argument);
 		return inner === 'server' ? 'client' : inner === 'client' ? 'server' : null;
 	}
-	// import.meta.env.SSR
 	if (
 		t.type === 'MemberExpression' &&
 		!t.computed &&
@@ -786,13 +707,78 @@ function runs_on(test: Node | null | undefined): 'server' | 'client' | null {
 		n?.type === 'UnaryExpression' &&
 		n.operator === 'typeof' &&
 		n.argument?.type === 'Identifier' &&
-		(n.argument.name === 'window' || n.argument.name === 'document');
+		(n.argument.name === 'window' || n.argument.name === 'document') &&
+		!declared_above(n.argument.name, n.argument, true);
 	const undef = (n: Node) =>
 		(n?.type === 'Literal' || n?.type === 'StringLiteral') && n.value === 'undefined';
 	const l = unwrap_down(t.left);
 	const r = unwrap_down(t.right);
 	if (!((typeof_global(l) && undef(r)) || (typeof_global(r) && undef(l)))) return null;
 	return eq ? 'server' : 'client';
+}
+
+function declared_above(name: string, use: Node, module: boolean): boolean {
+	for (let n = use.__parent as Node | null; n; n = n.__parent as Node | null) {
+		if ((n.type === 'Program' || n.type === 'Fragment' || n.type === 'Root') && !module)
+			return false;
+		if (declares(n, name)) return true;
+	}
+	return false;
+}
+
+function declares(n: Node, name: string): boolean {
+	const has = (pattern: Node | null | undefined) => pattern_names(pattern).includes(name);
+	switch (n.type) {
+		case 'FunctionDeclaration':
+		case 'FunctionExpression':
+		case 'ArrowFunctionExpression':
+			return (n.params ?? []).some(has) || (n.type === 'FunctionExpression' && n.id?.name === name);
+		case 'Program':
+		case 'BlockStatement':
+		case 'StaticBlock':
+			return (n.body ?? []).some((s: Node) => statement_declares(s, name));
+		case 'ForStatement':
+			return n.init?.type === 'VariableDeclaration' && statement_declares(n.init, name);
+		case 'ForInStatement':
+		case 'ForOfStatement':
+			return n.left?.type === 'VariableDeclaration' && statement_declares(n.left, name);
+		case 'CatchClause':
+			return has(n.param);
+		case 'SnippetBlock':
+			return (n.parameters ?? []).some(has);
+		case 'EachBlock':
+			return has(n.context) || n.index === name;
+		default:
+			return false;
+	}
+}
+
+function statement_declares(s: Node, name: string): boolean {
+	const d =
+		s.type === 'ExportNamedDeclaration' || s.type === 'ExportDefaultDeclaration'
+			? s.declaration
+			: s;
+	if (!d) return false;
+	if (d.type === 'VariableDeclaration')
+		return (d.declarations ?? []).some((x: Node) => pattern_names(x.id).includes(name));
+	if (d.type === 'FunctionDeclaration' || d.type === 'ClassDeclaration') return d.id?.name === name;
+	if (d.type === 'ImportDeclaration')
+		return (d.specifiers ?? []).some((x: Node) => x.local?.name === name);
+	return false;
+}
+
+function pattern_names(p: Node | null | undefined): string[] {
+	if (!p) return [];
+	if (p.type === 'Identifier') return [p.name];
+	if (p.type === 'ObjectPattern')
+		return (p.properties ?? []).flatMap((x: Node) =>
+			pattern_names(x.type === 'RestElement' ? x.argument : x.value)
+		);
+	if (p.type === 'ArrayPattern') return (p.elements ?? []).flatMap((x: Node) => pattern_names(x));
+	if (p.type === 'RestElement') return pattern_names(p.argument);
+	if (p.type === 'AssignmentPattern') return pattern_names(p.left);
+	if (WRAPPERS.has(p.type)) return pattern_names(p.expression);
+	return [];
 }
 
 function enclosing_scope(node: Node): Node | null {
@@ -803,7 +789,6 @@ function enclosing_scope(node: Node): Node | null {
 	return null;
 }
 
-/** `(page as any)` → `page`: the expression under TypeScript / parenthesis wrappers. */
 function unwrap_down(n: Node): Node {
 	let cur = n;
 	while (cur && WRAPPERS.has(cur.type) && cur.expression) cur = cur.expression;
@@ -818,13 +803,11 @@ function call_name(call: Node): string {
 	return '?';
 }
 
-/** `a.b` → 'b'; `a['b']` → 'b'; `a[expr]` → null. */
 function member_name(m: Node): string | null {
 	if (!m.computed) return m.property?.type === 'Identifier' ? m.property.name : null;
 	return static_string(m.property);
 }
 
-/** `'x'` / `` `x` `` → 'x'; anything computed → null. */
 function static_string(n: Node | null | undefined): string | null {
 	if (n?.type === 'Literal' && typeof n.value === 'string') return n.value;
 	if (n?.type === 'TemplateLiteral' && n.expressions?.length === 0)
@@ -839,7 +822,6 @@ function spec_name(n: Node | undefined): string | null {
 	return null;
 }
 
-/** An identifier in a DECLARING position is not a use of the page value. */
 function is_declaration(node: Node, parent: Node | null, key: string | null): boolean {
 	if (!parent || node.type !== 'Identifier') return false;
 	if (parent.type === 'VariableDeclarator' && key === 'id') return true;
@@ -855,10 +837,10 @@ function is_declaration(node: Node, parent: Node | null, key: string | null): bo
 	if (
 		parent.type === 'ArrayPattern' ||
 		parent.type === 'ObjectPattern' ||
-		parent.type === 'AssignmentPattern' ||
 		parent.type === 'RestElement'
 	)
 		return true;
+	if (parent.type === 'AssignmentPattern') return key === 'left';
 	if (
 		(parent.type === 'FunctionDeclaration' ||
 			parent.type === 'FunctionExpression' ||
@@ -870,8 +852,6 @@ function is_declaration(node: Node, parent: Node | null, key: string | null): bo
 	return false;
 }
 
-/** Every name an assignment or update rebinds anywhere under `root` (`f = …`, `({ f } = …)`,
- *  `[f] = …`, `f++`, `f ||= …`). */
 function assigned_names(root: Node): Set<string> {
 	const names = new Set<string>();
 	const target = (t: Node | null | undefined): void => {
@@ -902,8 +882,6 @@ function assigned_names(root: Node): Set<string> {
 	return names;
 }
 
-/** Generic pre-order visit; annotates each node with its parent and the key it hangs from, which
- *  `judge_data` reads one level up. Arrays are transparent. */
 function visit(root: Node, fn: (node: Node) => void): void {
 	const rec = (node: Node, parent: Node | null, key: string | null) => {
 		if (!node || typeof node !== 'object') return;
@@ -929,9 +907,6 @@ function visit(root: Node, fn: (node: Node) => void): void {
 	rec(root, null, null);
 }
 
-// ── bundle time: following the calls into imported helpers ─────────────────────────────────────
-
-/** How deep a re-export chain the build follows before giving up (a barrel of barrels). */
 const FOLLOW_MAX_HOPS = 4;
 const SVELTE_EXT_RE = /\.svelte$/;
 const SCRIPT_EXT_RE = /\.(?:[cm]?[jt]sx?)$/;
@@ -956,7 +931,7 @@ export async function follow_pending_page_calls(
 	resolve: PendingResolver,
 	read: (file: string) => string | null = read_file_sync
 ): Promise<void> {
-	const summaries = new Map<string, PageKeys>(); // `${file}#${export}#${arg}` → answer
+	const summaries = new Map<string, PageKeys>();
 	for (const [module, calls] of program.page_pending) {
 		let keys: PageKeys | null = program.page_keys.get(module) ?? new Set();
 		for (const call of calls) {
@@ -992,7 +967,7 @@ async function summarize_call(
 		try {
 			resolved = await resolve(specifier, from);
 		} catch {
-			resolved = null;
+			resolved = null; // ok: unresolved answers 'all' just below, with the reason in the build report
 		}
 		if (!resolved?.id)
 			return { keys: 'all', why: `\`${specifier}\` could not be resolved from the caller` };
@@ -1014,7 +989,6 @@ async function summarize_call(
 			memo.set(memo_key, summary);
 			return { keys: summary, why: '' };
 		}
-		// a re-export: follow the first source that declares it (a `export *` fan-out tries each)
 		if (summary.follow.length === 1) {
 			specifier = summary.follow[0];
 			from = file;
@@ -1044,6 +1018,6 @@ function read_file_sync(file: string): string | null {
 	try {
 		return fs.readFileSync(file, 'utf8');
 	} catch {
-		return null;
+		return null; // ok: an unreadable helper answers 'all' in summarize_call, with the reason
 	}
 }

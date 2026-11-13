@@ -50,24 +50,31 @@ export function content_named_files(doc: Document = document): { url: string; na
  * (or revalidate) them again. The browser's timing API does not expose response headers, so this
  * sends a HEAD request past the browser's cache for each. A file's bytes are the page's own load of
  * it, never an earlier probe's empty HEAD. Off a build (no `src`, or the `src` is the entry): nothing.
+ * A file whose HEAD failed or was refused is left out: no answer says nothing about its caching.
  */
 export async function probe_cache(doc: Document = document, limit = 40): Promise<CacheProbe[]> {
 	const sizes = new Map<string, number>();
 	for (const r of performance.getEntriesByType('resource') as PerformanceResourceTiming[])
 		if (!tool_made(r)) sizes.set(r.name, r.decodedBodySize || 0);
 	const files = content_named_files(doc).slice(0, limit);
-	return Promise.all(
-		files.map(async ({ url, name }) => {
-			let cache_control: string | null = null;
+	const probes = await Promise.all(
+		files.map(async ({ url, name }): Promise<CacheProbe | null> => {
+			let res: Response;
 			try {
-				const res = await tool_fetch(url, { method: 'HEAD', cache: 'no-store' });
-				cache_control = res.headers.get('cache-control');
+				res = await tool_fetch(url, { method: 'HEAD', cache: 'no-store' });
 			} catch {
-				cache_control = null;
+				return null; // ok: no answer, nothing known about the file's caching: it is left out
 			}
-			return { url, name, cache_control, bytes: sizes.get(url) ?? 0 };
+			if (!res.ok) return null;
+			return {
+				url,
+				name,
+				cache_control: res.headers.get('cache-control'),
+				bytes: sizes.get(url) ?? 0
+			};
 		})
 	);
+	return probes.filter((p) => p !== null);
 }
 
 /** The finding: content-named files the host does not cache long, named heaviest first (the names

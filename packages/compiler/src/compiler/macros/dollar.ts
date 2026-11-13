@@ -1,55 +1,19 @@
-/**
- * `import.meta.og.$()` — the boundary mark for FUNCTIONS, as a compile construct.
- *
- * A closure can't serialize; what can is a handle: WHERE the code lives + WHAT it captured.
- * The construct does the split at build time:
- *
- *   setContext('fmt', import.meta.og.$((n) => `€${(n * (1 + tax)).toFixed(2)}`));
- *     ↓
- *   setContext('fmt', __og_$('src/routes/+layout.svelte#$0', [tax],
- *     (tax) => ((n) => `€${(n * (1 + tax)).toFixed(2)}`)));
- *
- * `__og_$` (runtime, fn-transport.ts) registers the factory under the tag and returns the LIVE
- * bound function — the host renders with a real closure; if it crosses a boundary, the fn kind
- * ships `{t: tag, d: bound}` and the far side rebinds. The factory is SELF-CONTAINED by
- * construction (see capture law), so the same factory text is also collected for the
- * `ogygia:boot/fn-manifest` module the client runtime imports — every factory registers
- * before any island hydrates, and calls stay synchronous.
- *
- * CAPTURE LAW (v1): a free identifier inside the marked function becomes a BOUND PARAMETER —
- * its VALUE crosses as data (same law as island props; the boundary classifier judges it at
- * the seam). Recognized globals (console, Math, JSON, fetch, …) pass through untouched.
- * Because every non-global free name is bound, the factory references NOTHING from its module
- * — which is what makes hoisting it into the manifest a pure text move. A capture that is a
- * module IMPORT therefore crosses by VALUE too; if that value can't serialize (a function),
- * the boundary errors at the seam with the path — move that dependency inside the marked fn
- * (import it there via a bound serializable, or use a store/wire capture for live state).
- *
- * STRICT BY CONSTRUCTION (og-wire's playbook): the construct is legal in exactly ONE shape —
- * a direct call `import.meta.og.$(<inline function expression>)`. Bare access, aliasing,
- * zero/multiple arguments, or a non-function argument are BUILD ERRORS naming file:line.
- * Detection is AST-precise over the module's JS regions; no scanner fallback — a mid-edit
- * unparseable file simply doesn't transform (the marker then fails at runtime loudly, since
- * `import.meta.og` is undefined without the transform).
- */
 import { og_js_regions } from '../parse/scan.ts';
 import { match_close } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { og_member } from './wire.ts';
 import { OgygiaError } from '../messages.ts';
+import { splice_text, type Edit } from '../splice.ts';
+import { free_references, scope_bindings } from '../free-vars.ts';
 
-// ── regexes
 const SERVER_MODULE_RE = /\.server(\.|$|\/)/;
-const IDENT_CHAR_RE = /[A-Za-z0-9_$.]/;
 const WS_RE = /\s/;
 
 const MARKER = 'import.meta.og.$';
 
 type Node = AstNode;
 
-/** Globals a hoisted factory may reference without binding (never captured). */
-// static: the platform's global names a `$` body may read
-const KNOWN_GLOBALS = new Set([
+const KNOWN_GLOBALS: ReadonlySet<string> = new Set([
 	'undefined',
 	'null',
 	'true',
@@ -116,20 +80,22 @@ const KNOWN_GLOBALS = new Set([
 
 function walk(
 	node: Node,
-	visit: (n: Node, parent: Node | null) => void,
-	parent: Node | null = null
+	visit: (n: Node, ancestors: readonly Node[]) => void,
+	ancestors: Node[] = []
 ): void {
-	visit(node, parent);
+	visit(node, ancestors);
+	ancestors.push(node);
 	for (const key in node) {
 		if (key === 'type' || key === 'start' || key === 'end') continue;
 		const child = node[key];
 		if (Array.isArray(child)) {
 			for (const c of child)
-				if (c && typeof c === 'object' && typeof c.type === 'string') walk(c, visit, node);
+				if (c && typeof c === 'object' && typeof c.type === 'string') walk(c, visit, ancestors);
 		} else if (child && typeof child === 'object' && typeof child.type === 'string') {
-			walk(child, visit, node);
+			walk(child, visit, ancestors);
 		}
 	}
+	ancestors.pop();
 }
 
 function line_of(src: string, offset: number): number {
@@ -146,109 +112,134 @@ function misuse(id: string, src: string, offset: number, what: string): never {
 	});
 }
 
-/** Names DECLARED anywhere inside `fn` (params, vars, inner fns, catch, destructuring). */
-function declared_names(fn: Node): Set<string> {
-	const out = new Set<string>();
-	const collect_pattern = (p: Node | null | undefined): void => {
-		if (!p) return;
-		switch (p.type) {
-			case 'Identifier':
-				out.add(p.name);
-				break;
-			case 'ObjectPattern':
-				for (const prop of p.properties ?? []) collect_pattern(prop.value ?? prop.argument);
-				break;
-			case 'ArrayPattern':
-				for (const el of p.elements ?? []) collect_pattern(el);
-				break;
-			case 'AssignmentPattern':
-				collect_pattern(p.left);
-				break;
-			case 'RestElement':
-				collect_pattern(p.argument);
-				break;
-		}
-	};
+function captures_of(fn: Node, around: readonly Node[]): string[] {
+	const bound = new Set<string>();
+	for (const scope of around) for (const name of scope_bindings(scope as never)) bound.add(name);
+	return free_references(fn as never).filter((name) => !KNOWN_GLOBALS.has(name) || bound.has(name));
+}
+
+function holds_mark(fn: Node): boolean {
+	let found = false;
 	walk(fn, (n) => {
-		if (n.type === 'VariableDeclarator') collect_pattern(n.id);
-		else if (n.type === 'FunctionDeclaration' || n.type === 'ClassDeclaration') {
-			if (n.id?.name) out.add(n.id.name);
-		} else if (n.type === 'CatchClause') collect_pattern(n.param);
-		else if (
-			n.type === 'FunctionExpression' ||
-			n.type === 'ArrowFunctionExpression' ||
-			n.type === 'FunctionDeclaration'
-		) {
-			for (const p of n.params ?? []) collect_pattern(p);
-			if (n.id?.name) out.add(n.id.name);
-		}
+		if (!found && n.type === 'CallExpression' && og_member(n.callee as Node) === '$') found = true;
 	});
-	for (const p of fn.params ?? []) collect_pattern(p);
-	return out;
+	return found;
 }
 
-/** Free identifiers of `fn`: referenced, not declared inside, not a known global. Source order. */
-function free_names(fn: Node): string[] {
-	const declared = declared_names(fn);
-	const seen = new Set<string>();
-	const out: string[] = [];
-	walk(fn, (n, parent) => {
-		if (n.type !== 'Identifier') return;
-		const name = n.name as string;
-		if (declared.has(name) || KNOWN_GLOBALS.has(name) || seen.has(name)) return;
-		if (parent) {
-			const pt = parent.type as string;
-			// non-reference positions: member property (a.b), non-shorthand object key, labels,
-			// import/export names, and TS type positions — a `: MyType` reference is not a value
-			// capture (matters once og.$ closures carry TS annotations, in a `lang="ts"` file).
-			if (pt.startsWith('TS')) return;
-			if (pt === 'MemberExpression' && parent.property === n && !parent.computed) return;
-			if ((pt === 'Property' || pt === 'ObjectProperty') && parent.key === n && !parent.shorthand)
-				return;
-			if (pt === 'LabeledStatement' || pt === 'BreakStatement' || pt === 'ContinueStatement')
-				return;
-		}
-		seen.add(name);
-		out.push(name);
+const ERASED_NODES: ReadonlySet<string> = new Set([
+	'TSTypeAnnotation',
+	'TSTypeParameterDeclaration',
+	'TSTypeParameterInstantiation',
+	'TSTypeAliasDeclaration',
+	'TSInterfaceDeclaration',
+	'TSDeclareFunction',
+	'TSAbstractMethodDefinition',
+	'TSAbstractPropertyDefinition',
+	'TSAbstractAccessorProperty',
+	'TSIndexSignature'
+]);
+
+const TYPE_AROUND_EXPRESSION: ReadonlySet<string> = new Set([
+	'TSAsExpression',
+	'TSSatisfiesExpression',
+	'TSNonNullExpression',
+	'TSInstantiationExpression',
+	'TSTypeAssertion'
+]);
+
+const RUNTIME_TS: ReadonlyMap<string, string> = new Map([
+	['TSEnumDeclaration', 'an enum'],
+	['TSParameterProperty', 'a parameter property']
+]);
+
+const CLASS_MEMBERS: ReadonlySet<string> = new Set([
+	'PropertyDefinition',
+	'MethodDefinition',
+	'AccessorProperty'
+]);
+
+const MEMBER_MODIFIER_RE =
+	/(?<![\w$@.])(?:public|private|protected|readonly|override|declare)(?![\w$])/g;
+const ABSTRACT_RE = /(?<![\w$@.])abstract(?![\w$])/g;
+
+function type_only_namespace(n: Node): boolean {
+	if (n.declare === true) return true;
+	const body = n.body as Node | null | undefined;
+	if (!body) return true;
+	if (body.type === 'TSModuleDeclaration') return type_only_namespace(body);
+	return ((body.body ?? []) as Node[]).every((s) => {
+		const d = (s.type === 'ExportNamedDeclaration' ? s.declaration : s) as Node | null;
+		if (!d) return false;
+		if (d.type === 'TSModuleDeclaration') return type_only_namespace(d);
+		return ERASED_NODES.has(d.type as string) || d.declare === true;
 	});
-	return out;
 }
 
-/**
- * The moved factory text is a RAW source slice, so in a `<script lang="ts">` (or `.ts`) file it still
- * carries TS type annotations — and it lands in a PLAIN-JS registration script (`data-ogygia-fnm`) +
- * the fn-manifest module. `(n: number) => …` there is a syntax error. Blank every TS-only span inside
- * `fn` (type annotations, generics, `as`/`satisfies`/`!`) with spaces — length-preserving, so the
- * captured-name offsets and the surrounding slice stay valid. This is the same technique as
- * ts-blank-space, scoped to the one hoisted function.
- */
-function strip_ts_types(fn: Node, region_code: string): string {
+function strip_ts_types(
+	fn: Node,
+	code: string,
+	refuse: (at: number, problem: string) => never
+): string {
 	const base = fn.start as number;
-	const chars = region_code.slice(base, fn.end as number).split('');
+	const chars = code.slice(base, fn.end as number).split('');
 	const blank = (s: number, e: number): void => {
 		for (let i = s - base; i < e - base; i++) if (i >= 0 && i < chars.length) chars[i] = ' ';
 	};
-	walk(fn, (n) => {
+	const blank_mark = (from: number, mark: string, to: number): void => {
+		const at = code.indexOf(mark, from);
+		if (at >= 0 && at < to) blank(at, at + 1);
+	};
+	const blank_words = (re: RegExp, from: number, to: number): void => {
+		for (const m of code.slice(from, to).matchAll(re))
+			blank(from + m.index, from + m.index + m[0].length);
+	};
+	const visit = (n: Node): void => {
 		const t = n.type as string;
-		// `: Type` on params / vars / arrow return, and `<T>` generics — the whole node is TS-only.
-		if (
-			t === 'TSTypeAnnotation' ||
-			t === 'TSTypeParameterDeclaration' ||
-			t === 'TSTypeParameterInstantiation'
-		) {
-			blank(n.start as number, n.end as number);
-		} else if (
-			// `expr as Type` / `expr satisfies Type` / `expr!` / `expr<T>` — keep the expression, blank
-			// only the TS suffix after it.
-			t === 'TSAsExpression' ||
-			t === 'TSSatisfiesExpression' ||
-			t === 'TSNonNullExpression' ||
-			t === 'TSInstantiationExpression'
-		) {
-			const expr = (n as { expression?: Node }).expression;
-			if (expr) blank(expr.end as number, n.end as number);
+		if (n.declare === true || ERASED_NODES.has(t)) return blank(n.start, n.end);
+		if (t === 'TSModuleDeclaration') {
+			if (!type_only_namespace(n))
+				refuse(n.start, `a namespace with values has runtime meaning, so $() cannot erase it`);
+			return blank(n.start, n.end);
 		}
-	});
+		const runtime = RUNTIME_TS.get(t);
+		if (runtime) refuse(n.start, `${runtime} has runtime meaning, so $() cannot erase it`);
+		if (TYPE_AROUND_EXPRESSION.has(t)) {
+			const expr = n.expression as Node;
+			blank(n.start, expr.start);
+			blank(expr.end, n.end);
+		}
+		if (t === 'Identifier' && n.optional === true)
+			blank_mark(n.start + (n.name as string).length, '?', n.end);
+		if (t === 'VariableDeclarator' && n.definite === true)
+			blank_mark((n.id as Node).start + ((n.id as Node).name as string).length, '!', n.end);
+		if (CLASS_MEMBERS.has(t)) {
+			const key = n.key as Node;
+			blank_words(MEMBER_MODIFIER_RE, n.start, key.start);
+			const value = n.value as Node | null | undefined;
+			if (n.optional === true) blank_mark(key.end, '?', value?.start ?? n.end);
+			if (n.definite === true) blank_mark(key.end, '!', n.end);
+		}
+		if (t === 'ClassDeclaration' || t === 'ClassExpression') {
+			if (n.abstract === true) blank_words(ABSTRACT_RE, n.start, code.indexOf('class', n.start));
+			const impl = (n.implements ?? []) as Node[];
+			if (impl.length)
+				blank(code.lastIndexOf('implements', impl[0]!.start), impl[impl.length - 1]!.end);
+		}
+		const params = n.params as Node[] | undefined;
+		if (params?.[0]?.type === 'Identifier' && params[0].name === 'this')
+			blank(params[0].start, params[1]?.start ?? params[0].end);
+		for (const key in n) {
+			if (key === 'type' || key === 'start' || key === 'end') continue;
+			const child = n[key];
+			if (Array.isArray(child)) {
+				for (const c of child)
+					if (c && typeof c === 'object' && typeof c.type === 'string') visit(c);
+			} else if (child && typeof child === 'object' && typeof child.type === 'string') {
+				visit(child);
+			}
+		}
+	};
+	visit(fn);
 	return chars.join('');
 }
 
@@ -263,6 +254,19 @@ export interface DollarResult {
 	hoists: DollarHoist[];
 }
 
+/** The fn-manifest's entries (tag → factory source), sorted by tag: the manifest is a function of
+ *  the hoists, not of the order modules transformed in (test/standalone-driver.test.ts). */
+export function fn_manifest_entries(hoists: ReadonlyMap<string, string>): Array<[string, string]> {
+	return [...hoists].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+}
+
+/** The fn-manifest as registrations through the bridge the manifest module installs. */
+export function fn_manifest_registrations(hoists: ReadonlyMap<string, string>): string {
+	return fn_manifest_entries(hoists)
+		.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
+		.join('\n');
+}
+
 /**
  * Rewrite every `import.meta.og.$` mark in `src`. Returns the input (same reference, empty
  * hoists) when there is nothing to do. Throws build-error voice on misuse. `rel_id` is the
@@ -274,28 +278,33 @@ export function rewrite_dollar(
 	rel_id: string,
 	markup_exts: readonly string[]
 ): DollarResult {
-	if (!src.includes(MARKER)) return { code: src, hoists: [] };
-	const regions = og_js_regions(src, id, markup_exts);
-	if (!regions) return { code: src, hoists: [] };
+	const { edits, hoists } = dollar_edits(src, id, rel_id, markup_exts);
+	return { code: splice_text(src, edits), hoists };
+}
 
-	type Edit = { start: number; end: number; text: string };
+/** The edits `rewrite_dollar` makes to `src`, and its hoists: none when there is nothing to do. */
+export function dollar_edits(
+	src: string,
+	id: string,
+	rel_id: string,
+	markup_exts: readonly string[]
+): { edits: Edit[]; hoists: DollarHoist[] } {
+	if (!src.includes(MARKER)) return { edits: [], hoists: [] };
+	const regions = og_js_regions(src, id, markup_exts);
+	if (!regions) return { edits: [], hoists: [] };
+
 	const edits: Edit[] = [];
 	const hoists: DollarHoist[] = [];
 	let seq = 0;
 	let needs_import = false;
 	let needs_boundary_import = false;
+	const script_scopes: Node[] = [];
 
 	for (const region of regions) {
-		// Parse as TS (a JS superset), so a `lang="ts"` script's og.$ closures — and any TS type
-		// annotations inside them — parse instead of erroring in oxc's JS mode (`.svelte` → JS). The
-		// template-call path below already does this; strip_ts_types then blanks the type spans from the
-		// hoisted factory text (a JS-mode parse yields no TS nodes to strip, so the types would leak).
 		const { program, ok } = parse_module(region.code, id.endsWith('.svelte') ? `${id}.ts` : id);
-		if (!ok || !program) continue; // mid-edit unparseable: no transform (marker fails loudly at runtime)
+		if (!ok || !program) continue;
+		script_scopes.push(program);
 
-		// SERVER-ONLY imports may never be CAPTURED: on any page that serializes the handle, the
-		// bound value ships into client HTML (a secret leak), and the hoisted factory can't
-		// re-import them client-side anyway. Map local name → source for the rejection message.
 		const server_only = new Map<string, string>();
 		for (const node of (program.body ?? []) as Node[]) {
 			if (node.type !== 'ImportDeclaration') continue;
@@ -313,7 +322,9 @@ export function rewrite_dollar(
 		}
 
 		const claimed = new Set<Node>();
-		walk(program, (n) => {
+		const refuse_at = (at: number, problem: string): never =>
+			misuse(id, src, region.offset + at, problem);
+		walk(program, (n, ancestors) => {
 			if (n.type === 'CallExpression' && og_member(n.callee as Node) === '$') {
 				const abs = region.offset + n.start;
 				const args = n.arguments as Node[] | undefined;
@@ -321,13 +332,9 @@ export function rewrite_dollar(
 					misuse(id, src, abs, `$() takes exactly one argument — the function to hoist`);
 				const fn = args[0]!;
 				if (fn.type !== 'ArrowFunctionExpression' && fn.type !== 'FunctionExpression') {
-					// THE UNIVERSAL BOUNDARY MARK: a non-function value isn't hoisted — it's ASSERTED.
-					// Rewrite to a runtime classification at the marked site, so a refusal (DOM node,
-					// bare fn, unwired class, secret) throws with THIS file:line at creation, and a
-					// legal value passes through untouched (mark-don't-wrap; passports already ride it).
 					claimed.add(n);
 					claimed.add(n.callee as Node);
-					const expr_text = strip_ts_types(fn, region.code);
+					const expr_text = strip_ts_types(fn, region.code, refuse_at);
 					const site = `${rel_id}:${line_of(src, abs)}`;
 					needs_boundary_import = true;
 					edits.push({
@@ -337,9 +344,11 @@ export function rewrite_dollar(
 					});
 					return;
 				}
+				if (holds_mark(fn))
+					misuse(id, src, abs, `a $() inside another $() — mark the outer one only`);
 				claimed.add(n);
 				claimed.add(n.callee as Node);
-				const captures = free_names(fn);
+				const captures = captures_of(fn, ancestors);
 				for (const c of captures) {
 					const from = server_only.get(c);
 					if (from) {
@@ -351,10 +360,8 @@ export function rewrite_dollar(
 						);
 					}
 				}
-				const fn_text = strip_ts_types(fn, region.code);
+				const fn_text = strip_ts_types(fn, region.code, refuse_at);
 				const tag = `${rel_id}#$${seq++}`;
-				// factory: captures become params SHADOWING the outer names, so the moved text's
-				// references bind to them — self-contained by construction.
 				const factory = `(${captures.join(', ')}) => (${fn_text})`;
 				hoists.push({ tag, factory_src: factory });
 				needs_import = true;
@@ -369,10 +376,6 @@ export function rewrite_dollar(
 				misuse(id, src, region.offset + n.start, `bare import.meta.og.$ used as a value`);
 			}
 		});
-		// inject the runtime imports at the top of the FIRST region that produced an edit.
-		// SAME-LINE (no trailing newline) on purpose: every rewrite in this file is a same-line
-		// splice, so keeping the import on line 1 preserves EVERY line number — breakpoints and
-		// stack traces in marked files stay exact even without a composed sourcemap.
 		if (
 			(needs_import || needs_boundary_import) &&
 			!edits.some((e) => e.text.startsWith('import'))
@@ -390,16 +393,6 @@ export function rewrite_dollar(
 		}
 	}
 
-	// TEMPLATE marks — `<Island fmt={import.meta.og.$(…)} />`. A markup file's expressions live
-	// OUTSIDE the JS regions, so the AST pass above never sees them. Find them with the
-	// string-aware lexer, skip anything inside a processed region, and parse each ARG standalone
-	// as an expression: an inline function hoists exactly like a script-block mark (free names
-	// resolve against the component scope by NAME, which is all capture analysis needs); anything
-	// else becomes the same boundary assertion. Imports are injected into the FIRST script region.
-	// The JS lexer can't scan markup (`</script>` reads as a regex opener), so template hits are
-	// found by literal marker + a context guard: the marker must open a svelte EXPRESSION (the
-	// previous non-space char is `{` or `(`), and its parens are matched by the quote-aware
-	// match_close (the ARGS are JS, so string-awareness matters there).
 	const in_region = (pos: number) =>
 		regions.some((r) => pos >= r.offset && pos < r.offset + r.code.length);
 	type TplCall = { start: number; end: number; args: string };
@@ -409,14 +402,12 @@ export function rewrite_dollar(
 		let at = -1;
 		while ((at = src.indexOf(M, at + 1)) !== -1) {
 			if (in_region(at)) continue;
-			const after = at + M.length;
-			if (IDENT_CHAR_RE.test(src[after] ?? '')) continue; // .store / other methods
-			let open = after;
+			let open = at + M.length;
 			while (open < src.length && WS_RE.test(src[open]!)) open++;
 			if (src[open] !== '(') continue;
 			let before = at - 1;
 			while (before >= 0 && WS_RE.test(src[before]!)) before--;
-			if (src[before] !== '{' && src[before] !== '(') continue; // must open an expression
+			if (src[before] !== '{' && src[before] !== '(') continue;
 			const close = match_close(src, open);
 			if (close < 0) continue;
 			template_calls.push({ start: at, end: close + 1, args: src.slice(open + 1, close) });
@@ -427,9 +418,6 @@ export function rewrite_dollar(
 	for (const call of template_calls) {
 		const arg_text = call.args.trim();
 		if (!arg_text) misuse(id, src, call.start, `$() takes exactly one argument`);
-		// Parse as TS (the wrapped expr id ends `.expr.ts`), then strip TS type spans from the moved
-		// text — a markup `fmt={import.meta.og.$((n: number) => …)}` hoists into the plain-JS manifest
-		// just like a script one, so its annotations must be blanked too.
 		const wrapped = `(${arg_text})`;
 		const { program, ok } = parse_module(wrapped, id.endsWith('.svelte') ? `${id}.expr.ts` : id);
 		if (!ok || !program)
@@ -437,9 +425,13 @@ export function rewrite_dollar(
 		const stmt = (program.body?.[0] ?? {}) as Node;
 		let expr = (stmt.expression ?? {}) as Node;
 		while (expr.type === 'ParenthesizedExpression') expr = expr.expression as Node;
-		const expr_text = strip_ts_types(expr, wrapped);
+		const expr_text = strip_ts_types(expr, wrapped, (_at, problem) =>
+			misuse(id, src, call.start, problem)
+		);
 		if (expr.type === 'ArrowFunctionExpression' || expr.type === 'FunctionExpression') {
-			const captures = free_names(expr);
+			if (holds_mark(expr))
+				misuse(id, src, call.start, `a $() inside another $() — mark the outer one only`);
+			const captures = captures_of(expr, script_scopes);
 			const tag = `${rel_id}#$${seq++}`;
 			const factory = `(${captures.join(', ')}) => (${expr_text})`;
 			hoists.push({ tag, factory_src: factory });
@@ -469,7 +461,6 @@ export function rewrite_dollar(
 		]
 			.filter(Boolean)
 			.join(', ');
-		// merge with a script-pass injection if one already exists; else inject same-line
 		const existing = edits.find((e) => e.start === first.offset && e.text.startsWith('import { '));
 		if (existing) {
 			const have = existing.text.slice('import { '.length, existing.text.indexOf(' }'));
@@ -486,14 +477,6 @@ export function rewrite_dollar(
 		}
 	}
 
-	if (!edits.length) return { code: src, hoists: [] };
-	edits.sort((a, b) => a.start - b.start);
-	let out = '';
-	let last = 0;
-	for (const e of edits) {
-		out += src.slice(last, e.start) + e.text;
-		last = e.end;
-	}
-	out += src.slice(last);
-	return { code: out, hoists };
+	if (!edits.length) return { edits: [], hoists: [] };
+	return { edits, hoists };
 }

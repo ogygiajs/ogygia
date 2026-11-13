@@ -21,7 +21,7 @@ export function speculate_url(url: string | URL, kind: 'prefetch' | 'prerender')
 	try {
 		target = new URL(url, location.href);
 	} catch {
-		return;
+		return; // ok: not a URL: no hint (a hint is only a hint)
 	}
 	if (target.origin !== location.origin) return;
 	const href = target.pathname + target.search;

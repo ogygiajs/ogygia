@@ -1,29 +1,8 @@
-/**
- * `import.meta.og.store()` — the store-factory assert mark, as a compile construct.
- *
- * The store kind's registered-factory tier needs a build tag ↔ factory pairing so decode can
- * rebuild a store THROUGH its factory (custom methods survive the wire). Provable factories
- * can be auto-branded later; this construct is the floor that always works — the author
- * asserts "this returns a store", and the compiler does the mechanical part:
- *
- *   export const createCart = import.meta.og.store((seed = []) => { … });
- *     ↓
- *   export const createCart = __og_store('src/lib/cart.ts#store0', (seed = []) => { … });
- *
- * `__og_store` (store-transport.ts) registers the factory at module load (the island importing
- * the factory module IS what fills decode's registry) and brands every product with the tag.
- * The factory's FIRST PARAMETER is the seed: decode calls `factory(currentValue)`.
- *
- * STRICT BY CONSTRUCTION (og-wire's playbook): legal in exactly ONE shape — a direct call
- * `import.meta.og.store(<inline function or identifier>)`. Bare access, aliasing, zero/multiple
- * arguments, or a non-function argument are BUILD ERRORS naming file:line. AST-precise over
- * the module's JS regions; a mid-edit unparseable file doesn't transform (the marker then
- * fails loudly at runtime — `import.meta.og` is undefined without the transform).
- */
 import { og_js_regions } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { og_member } from './wire.ts';
 import { OgygiaError, warn } from '../messages.ts';
+import { splice_text, type Edit } from '../splice.ts';
 
 const MARKER = 'import.meta.og.store';
 
@@ -57,15 +36,11 @@ function misuse(id: string, src: string, offset: number, what: string): never {
 	});
 }
 
-/** Unwrap oxc's preserved parens. */
 function unparen(v: Node | null | undefined): Node | null | undefined {
 	while (v && v.type === 'ParenthesizedExpression') v = v.expression as Node;
 	return v;
 }
 
-/** Provably NOT a store — the literal tier only: bare return, undefined, void, null, primitive
- *  literals. Identifiers, calls, members, ternaries are never flagged: they could be stores, the
- *  mark is the author's assertion, and dynamic values get the runtime floor instead. */
 function literal_non_store(v: Node | null | undefined): boolean {
 	v = unparen(v);
 	if (!v) return true;
@@ -81,8 +56,6 @@ function literal_non_store(v: Node | null | undefined): boolean {
 	);
 }
 
-/** First provably-non-store return inside an EXPLICITLY marked inline factory (top-level returns
- *  only — nested functions' returns are theirs). Region-relative offset, or undefined. */
 function first_non_store_return(fn: Node): number | undefined {
 	const body = fn.body as Node;
 	if (body.type !== 'BlockStatement')
@@ -123,11 +96,20 @@ export function rewrite_store(
 	rel_id: string,
 	markup_exts: readonly string[]
 ): string {
-	if (!src.includes(MARKER)) return src;
-	const regions = og_js_regions(src, id, markup_exts);
-	if (!regions) return src;
+	return splice_text(src, store_edits(src, id, rel_id, markup_exts));
+}
 
-	type Edit = { start: number; end: number; text: string };
+/** The edits `rewrite_store` makes to `src`: none when there is nothing to do. */
+export function store_edits(
+	src: string,
+	id: string,
+	rel_id: string,
+	markup_exts: readonly string[]
+): Edit[] {
+	if (!src.includes(MARKER)) return [];
+	const regions = og_js_regions(src, id, markup_exts);
+	if (!regions) return [];
+
 	const edits: Edit[] = [];
 	let seq = 0;
 	let needs_import = false;
@@ -158,10 +140,6 @@ export function rewrite_store(
 				claimed.add(n);
 				claimed.add(n.callee as Node);
 				if (fn.type !== 'Identifier') {
-					// WARN tier (not a build error): a literal `return undefined`/`return;`/primitive inside
-					// the marked factory breaks the mark's own assertion. Legal on purpose — a client-only
-					// store may return nothing on the server — so the runtime floor handles it; this names
-					// the exact line at build time instead of a warning at first render.
 					const bad = first_non_store_return(fn);
 					if (bad !== undefined && typeof console !== 'undefined') {
 						warn('macro_store_returns_non_store', {
@@ -193,17 +171,7 @@ export function rewrite_store(
 			needs_import = false;
 		}
 	}
-
-	if (!edits.length) return src;
-	edits.sort((a, b) => a.start - b.start);
-	let out = '';
-	let last = 0;
-	for (const e of edits) {
-		out += src.slice(last, e.start) + e.text;
-		last = e.end;
-	}
-	out += src.slice(last);
-	return out;
+	return edits;
 }
 
 /**
@@ -226,12 +194,21 @@ export function auto_brand_stores(
 	rel_id: string,
 	markup_exts: readonly string[]
 ): string {
-	if (!src.includes('subscribe') && !src.includes('writable') && !src.includes('readable'))
-		return src;
-	const regions = og_js_regions(src, id, markup_exts);
-	if (!regions) return src;
+	return splice_text(src, auto_brand_edits(src, id, rel_id, markup_exts));
+}
 
-	type Edit = { start: number; end: number; text: string };
+/** The edits `auto_brand_stores` makes to `src`: none when there is nothing to do. */
+export function auto_brand_edits(
+	src: string,
+	id: string,
+	rel_id: string,
+	markup_exts: readonly string[]
+): Edit[] {
+	if (!src.includes('subscribe') && !src.includes('writable') && !src.includes('readable'))
+		return [];
+	const regions = og_js_regions(src, id, markup_exts);
+	if (!regions) return [];
+
 	const edits: Edit[] = [];
 	let seq = 0;
 	let needs_import = false;
@@ -251,7 +228,6 @@ export function auto_brand_stores(
 		const { program, ok } = parse_module(region.code, id);
 		if (!ok || !program) continue;
 
-		// store-factory proof needs writable/readable to really be svelte/store's
 		const store_fns = new Set<string>();
 		for (const node of (program.body ?? []) as Node[]) {
 			if (node.type !== 'ImportDeclaration' || node.source?.value !== 'svelte/store') continue;
@@ -266,8 +242,7 @@ export function auto_brand_stores(
 		}
 
 		const provable_value = (v: Node | null | undefined): boolean => {
-			// oxc preserves parens: `(i) => ({ … })` bodies arrive as ParenthesizedExpression
-			while (v && v.type === 'ParenthesizedExpression') v = v.expression as Node;
+			v = unparen(v);
 			if (!v) return false;
 			if (v.type === 'ObjectExpression') return has_subscribe_prop(v);
 			if (v.type === 'CallExpression' && v.callee?.type === 'Identifier')
@@ -278,9 +253,7 @@ export function auto_brand_stores(
 		const provable_factory = (fn: Node): boolean => {
 			if (fn.type !== 'ArrowFunctionExpression' && fn.type !== 'FunctionExpression') return false;
 			const body = fn.body as Node;
-			if (body.type !== 'BlockStatement') return provable_value(body); // expression body
-			// block body: at least one return, and EVERY top-level-reachable return is provable.
-			// (nested functions' returns must not count — collect returns skipping inner fns)
+			if (body.type !== 'BlockStatement') return provable_value(body);
 			const returns: Node[] = [];
 			(function collect(n: Node): void {
 				for (const key in n) {
@@ -334,15 +307,5 @@ export function auto_brand_stores(
 			needs_import = false;
 		}
 	}
-
-	if (!edits.length) return src;
-	edits.sort((a, b) => a.start - b.start);
-	let out = '';
-	let last = 0;
-	for (const e of edits) {
-		out += src.slice(last, e.start) + e.text;
-		last = e.end;
-	}
-	out += src.slice(last);
-	return out;
+	return edits;
 }

@@ -3311,9 +3311,11 @@ describe('the ogygia / svelte / kit round: islands, seed, holes, lanes, markup v
 			expect(await next(`og_profiler=${token}; og_profiler_beacon=${mine}`)).toEqual([]);
 			expect(await next(`og_profiler=${token}; og_profiler_beacon=${FLAG}`)).toHaveLength(1);
 			const logout = await handle({
-				event: make_event('/__profiler/logout', {
-					'x-profiler-key': 'prof-key-of-16-bytes-or-more'
-				}),
+				event: make_event(
+					'/__profiler/logout',
+					{ 'x-profiler-key': 'prof-key-of-16-bytes-or-more' },
+					'POST'
+				),
 				resolve: async () => new Response('no')
 			});
 			const cleared = logout.headers.getSetCookie();
@@ -4223,7 +4225,7 @@ describe('the accuracy round: hot lines, server-timing, call paths, cold start, 
 		expect((await post(JSON.stringify({ page: '/p' }))).status).toBe(400); // neither islands nor vitals
 		// a page profile of /p joins them at view time
 		const rec = await handle({
-			event: make_event('/__profiler/page?p=/p&runs=1&cold=0'),
+			event: make_event('/__profiler/page?p=/p&runs=1&cold=0', {}, 'POST'),
 			resolve: async () => new Response('<html></html>')
 		});
 		const url = rec.headers.get('location')!;
@@ -4263,7 +4265,7 @@ describe('the accuracy round: hot lines, server-timing, call paths, cold start, 
 			).status
 		).toBe(204);
 		const rec = await handle({
-			event: make_event('/__profiler/page?p=/m&runs=1&cold=0'),
+			event: make_event('/__profiler/page?p=/m&runs=1&cold=0', {}, 'POST'),
 			resolve: async () => new Response('<html></html>')
 		});
 		const url = rec.headers.get('location')!;
@@ -5166,7 +5168,7 @@ describe('the browser CPU profile and the request replay', () => {
 			});
 		expect((await post(JSON.stringify({ page: '/cdn', cpu: cdn }))).status).toBe(204);
 		const rec = await handle({
-			event: make_event('/__profiler/page?p=/cdn&runs=1&cold=0'),
+			event: make_event('/__profiler/page?p=/cdn&runs=1&cold=0', {}, 'POST'),
 			resolve: async () => new Response('<html></html>')
 		});
 		const url = rec.headers.get('location')!;
@@ -5199,7 +5201,7 @@ describe('the browser CPU profile and the request replay', () => {
 		expect((await post(JSON.stringify({ page: '/c', cpu: { frames: 1 } }))).status).toBe(400);
 		expect((await post(JSON.stringify({ page: '/c', cpu: trace }))).status).toBe(204);
 		const rec = await handle({
-			event: make_event('/__profiler/page?p=/c&runs=1&cold=0'),
+			event: make_event('/__profiler/page?p=/c&runs=1&cold=0', {}, 'POST'),
 			resolve: async () => new Response('<html></html>')
 		});
 		const url = rec.headers.get('location')!;
@@ -5241,7 +5243,7 @@ describe('the browser CPU profile and the request replay', () => {
 		const report_url = profiled.headers.get('x-profile-report')!;
 		const id = report_url.split('/').pop()!;
 		const seen: Record<string, string>[] = [];
-		const ev = make_event(`/__profiler/replay/${id}`);
+		const ev = make_event(`/__profiler/replay/${id}`, {}, 'POST');
 		(ev as { fetch: unknown }).fetch = async (_p: string, init?: RequestInit) => {
 			seen.push(Object.fromEntries(new Headers(init?.headers).entries()));
 			return new Response('<html></html>');
@@ -5277,7 +5279,7 @@ describe('the browser CPU profile and the request replay', () => {
 		expect(
 			(
 				await handle({
-					event: make_event('/__profiler/replay/nope'),
+					event: make_event('/__profiler/replay/nope', {}, 'POST'),
 					resolve: async () => new Response('no')
 				})
 			).status
@@ -6031,11 +6033,17 @@ describe('analyze_heap', () => {
 // the handle: request log, Server-Timing, dashboard, net attribution
 // ─────────────────────────────────────────────────────────────────────────────
 
-function make_event(path: string, headers: Record<string, string> = {}): RequestEvent {
+/** `method`: a route that changes the profiler's state (`/page`, `/reset`, `/replay`, `/logout`)
+ *  takes a POST only (#1168) */
+function make_event(
+	path: string,
+	headers: Record<string, string> = {},
+	method = 'GET'
+): RequestEvent {
 	const url = new URL(`http://localhost${path}`);
 	return {
 		url,
-		request: new Request(url, { headers }),
+		request: new Request(url, { method, headers }),
 		route: { id: path.startsWith('/__profiler') ? null : '/[slug]' },
 		cookies: {
 			get: () => undefined,
@@ -6054,7 +6062,7 @@ describe('a report carried with the request (serverless: another instance answer
 		const key = { 'x-profiler-key': 'prof-key-of-16-bytes-or-more' };
 		const made = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		const rec = await made({
-			event: make_event('/__profiler/page?p=/p&runs=1&cold=0', key),
+			event: make_event('/__profiler/page?p=/p&runs=1&cold=0', key, 'POST'),
 			resolve: async () => new Response('<html></html>')
 		});
 		const id = rec.headers.get('location')!.split('/').pop()!;
@@ -6434,7 +6442,7 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 			).status
 		).toBe(413);
 		const rec = await handle({
-			event: make_event('/__profiler/page?p=/deep&runs=1&cold=0'),
+			event: make_event('/__profiler/page?p=/deep&runs=1&cold=0', {}, 'POST'),
 			resolve: async () => new Response('<html></html>')
 		});
 		const url = rec.headers.get('location')!;
@@ -6465,7 +6473,7 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		const doc = `<!doctype html><html><head><title>d</title><style>.x{}</style></head><body><p>hi</p><ogygia-region data-og-fp="0000aaaa1111bbbb" entry="/_app/x.js"><b>i</b></ogygia-region><script type="application/ogygia-page">{"data":{"products":[1,2,3],"flags":{"a":true}}}\x3C/script><script type="application/ogygia-props" data-ogygia-props>[]\x3C/script></body></html>`;
 		// the page profile renders through event.fetch (Kit's internal render), not resolve
-		const ev = make_event('/__profiler/page?p=/deep&runs=2&cold=0&format=keep');
+		const ev = make_event('/__profiler/page?p=/deep&runs=2&cold=0&format=keep', {}, 'POST');
 		(ev as { fetch: unknown }).fetch = async () =>
 			new Response(doc, { headers: { 'content-type': 'text/html' } });
 		const res = await handle({ event: ev, resolve: async () => new Response('no') });
@@ -6753,7 +6761,7 @@ describe('a visit posted in halves', () => {
 			).status
 		).toBe(204);
 		const rec = await handle({
-			event: make_event('/__profiler/page?p=/halves&runs=1&cold=0'),
+			event: make_event('/__profiler/page?p=/halves&runs=1&cold=0', {}, 'POST'),
 			resolve: async () => new Response('<html></html>')
 		});
 		const dump = await (
@@ -6771,7 +6779,7 @@ describe('a visit posted in halves', () => {
 		// a different visit of the same page stays separate and becomes the latest
 		expect((await post({ page: '/halves', visit: { at: 99, nav } })).status).toBe(204);
 		const rec2 = await handle({
-			event: make_event('/__profiler/page?p=/halves&runs=1&cold=0'),
+			event: make_event('/__profiler/page?p=/halves&runs=1&cold=0', {}, 'POST'),
 			resolve: async () => new Response('<html></html>')
 		});
 		const json = await (
@@ -6800,7 +6808,7 @@ describe('who caused the GC, on the host', () => {
 			}
 			return n;
 		}
-		const ev = make_event('/__profiler/page?p=/churn&runs=1&cold=0');
+		const ev = make_event('/__profiler/page?p=/churn&runs=1&cold=0', {}, 'POST');
 		(ev as { fetch: unknown }).fetch = async () => {
 			make_garbage();
 			return new Response('<html><body>churn</body></html>', {
@@ -6873,7 +6881,7 @@ describe('the profiler’s own cost is taken out', () => {
 	});
 	it('a page report carries the overhead it took out, and the runs as the app would have paid them', async () => {
 		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
-		const ev = make_event('/__profiler/page?p=/o&runs=2&cold=0');
+		const ev = make_event('/__profiler/page?p=/o&runs=2&cold=0', {}, 'POST');
 		(ev as { fetch: unknown }).fetch = async () => {
 			const junk = Array.from({ length: 200_000 }, (_, i) => ({ i }));
 			return new Response(`<html>${junk.length}</html>`);
@@ -7014,7 +7022,7 @@ describe('more from the same snapshot, on the host', () => {
 	it('a page profile counts the promises per render and measures what a render leaves behind', async () => {
 		const handle = profiler({ secret: 'prof-key-of-16-bytes-or-more' });
 		const kept: unknown[] = []; // a module-level "cache" that keeps part of every render
-		const ev = make_event('/__profiler/page?p=/keep&runs=2&cold=0');
+		const ev = make_event('/__profiler/page?p=/keep&runs=2&cold=0', {}, 'POST');
 		(ev as { fetch: unknown }).fetch = async () => {
 			for (let i = 0; i < 2000; i++) await Promise.resolve(i); // a small promise storm
 			const rows = Array.from({ length: 20_000 }, (_, i) => ({ i, s: `row ${i}` }));

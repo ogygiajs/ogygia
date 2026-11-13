@@ -18,6 +18,7 @@ import {
 
 const ROOT = '/app';
 const LIB = '/app/src/lib';
+const SPECS = { root: ROOT, libDir: LIB };
 
 /** In-memory module graph: path → import specs; `.svelte`/`.ts` existence from the map's keys. */
 function graph(files: Record<string, string[]>) {
@@ -33,7 +34,7 @@ describe('router_css_roots — the component closure of router modules', () => {
 			'/app/src/routes/x/Shell.svelte': [],
 			'/app/src/lib/Home.svelte': []
 		});
-		const roots = router_css_roots(new Set(['/app/src/routes/x/+server.ts']), specs, LIB, exists);
+		const roots = router_css_roots(new Set(['/app/src/routes/x/+server.ts']), specs, SPECS, exists);
 		expect(roots).toEqual(['/app/src/lib/Home.svelte', '/app/src/routes/x/Shell.svelte']);
 	});
 
@@ -45,7 +46,7 @@ describe('router_css_roots — the component closure of router modules', () => {
 			'/app/src/pages/deep/index.ts': ['./Docs.svelte'],
 			'/app/src/pages/deep/Docs.svelte': []
 		});
-		const roots = router_css_roots(new Set(['/app/src/app.ts']), specs, LIB, exists);
+		const roots = router_css_roots(new Set(['/app/src/app.ts']), specs, SPECS, exists);
 		expect(roots).toEqual(['/app/src/pages/Home.svelte', '/app/src/pages/deep/Docs.svelte']);
 	});
 
@@ -55,7 +56,7 @@ describe('router_css_roots — the component closure of router modules', () => {
 			'/app/src/components/index.ts': ['./Card.svelte'],
 			'/app/src/components/Card.svelte': []
 		});
-		const roots = router_css_roots(new Set(['/app/src/r.ts']), specs, LIB, exists);
+		const roots = router_css_roots(new Set(['/app/src/r.ts']), specs, SPECS, exists);
 		expect(roots).toEqual(['/app/src/components/Card.svelte']);
 	});
 
@@ -65,13 +66,13 @@ describe('router_css_roots — the component closure of router modules', () => {
 			'/app/src/b.ts': ['./a.ts', './X.svelte'],
 			'/app/src/X.svelte': []
 		});
-		const roots = router_css_roots(new Set(['/app/src/a.ts']), specs, LIB, exists);
+		const roots = router_css_roots(new Set(['/app/src/a.ts']), specs, SPECS, exists);
 		expect(roots).toEqual(['/app/src/X.svelte']);
 	});
 
 	it('no router modules → no roots', () => {
 		const { specs, exists } = graph({ '/app/src/a.ts': ['./X.svelte'], '/app/src/X.svelte': [] });
-		expect(router_css_roots(new Set(), specs, LIB, exists)).toEqual([]);
+		expect(router_css_roots(new Set(), specs, SPECS, exists)).toEqual([]);
 	});
 });
 
@@ -104,6 +105,32 @@ describe('router_css_module — the generated virtual', () => {
 		expect(src).not.toContain(`'$app/paths'`);
 		expect(src).toContain(`__SVELTEKIT_PATHS_BASE__`);
 		expect(src).toContain(`register_router_css(__OgRcss0`);
+	});
+
+	it('prod: a link is the base plus the handoff href, claimed by the raw href (a held region linking it dedupes)', async () => {
+		const src = await router_css_module(['/app/src/lib/Shell.svelte'], {
+			root: ROOT,
+			lib_dir: LIB,
+			is_dev: false,
+			read_file: () => null
+		});
+		expect(src).toContain('.map((h) => ({ key: h, href: base + h }))');
+	});
+
+	it('dev: a plain stylesheet in a preprocessor dialect is left out (it loads once built)', async () => {
+		const files: Record<string, string> = {
+			'/app/src/lib/Shell.svelte': `<script>import './a.css'; import './b.scss';\x3C/script><div></div>`,
+			'/app/src/lib/a.css': `.a { color: red; }`,
+			'/app/src/lib/b.scss': `$c: blue; .b { color: $c; }`
+		};
+		const src = await router_css_module(['/app/src/lib/Shell.svelte'], {
+			root: ROOT,
+			lib_dir: LIB,
+			is_dev: true,
+			read_file: (p) => files[p] ?? null
+		});
+		expect(src).toContain('rcss-dev:src/lib/a.css');
+		expect(src).not.toContain('b.scss');
 	});
 
 	it('dev: inlines compiled scoped css (transitively, through child components)', async () => {

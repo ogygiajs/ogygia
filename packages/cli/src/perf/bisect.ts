@@ -78,7 +78,7 @@ export async function bisect(opts: BisectOptions): Promise<BisectResult> {
 		try {
 			value = await opts.measure(sha);
 		} catch {
-			value = null;
+			value = null; // ok: a sha that cannot be measured is skipped, and listed as skipped
 		}
 		const step: BisectStep = {
 			sha,

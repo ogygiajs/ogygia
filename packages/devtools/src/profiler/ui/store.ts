@@ -67,11 +67,11 @@ async function with_store<T>(
 	if (!db) return null;
 	try {
 		const tx = db.transaction(name, mode);
-		const out = await fn(tx.objectStore(name));
-		db.close();
-		return out;
+		return await fn(tx.objectStore(name));
 	} catch {
-		return null;
+		return null; // ok: null is "not stored": callers show it (KeepLocal says it could not keep it)
+	} finally {
+		db.close();
 	}
 }
 

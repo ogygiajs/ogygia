@@ -12,7 +12,7 @@ import {
 	module_key,
 	module_origin,
 	duplicate_modules
-} from '../dist/compiler/link/island-deps.js';
+} from '../src/compiler/link/island-deps.ts';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -184,6 +184,35 @@ describe('collectIslandDepModulepreloads', () => {
 		expect(collectIslandDepModulepreloads(bundle, [], null, null, null, rt).js[`/${rt}`]).toEqual([
 			'/_app/immutable/chunks/helper.js',
 			'/_app/immutable/chunks/shared.js'
+		]);
+	});
+
+	test('only a chunk named like a facade is an island entry', () => {
+		const bundle = {
+			'_app/immutable/og-region.abc123.js': { type: 'chunk', imports: [] },
+			'_app/immutable/chunks/og-region-helper.js': { type: 'chunk', imports: [] },
+			'_app/immutable/og-region.notahash.js': { type: 'chunk', imports: [] }
+		};
+		expect(Object.keys(collectIslandDepModulepreloads(bundle).js)).toEqual([
+			'/_app/immutable/og-region.abc123.js'
+		]);
+	});
+
+	test('with entries given, every map is keyed by the identity, never the hashed file', () => {
+		const island = '_app/immutable/og-region.abc123-9f8e.js';
+		const rt = '_app/immutable/og-runtime-1a2b.js';
+		const bundle = {
+			[island]: { type: 'chunk', fileName: island, imports: ['_app/immutable/chunks/a.js'] },
+			[rt]: { type: 'chunk', fileName: rt, imports: ['_app/immutable/chunks/a.js'] },
+			'_app/immutable/chunks/a.js': { type: 'chunk', imports: [] }
+		};
+		const out = collectIslandDepModulepreloads(bundle, [], null, null, null, rt, {
+			islands: new Map([[island, '/_app/immutable/og-region.abc123.js']]),
+			runtime: '/_app/immutable/og-runtime.js'
+		});
+		expect(Object.keys(out.js).sort()).toEqual([
+			'/_app/immutable/og-region.abc123.js',
+			'/_app/immutable/og-runtime.js'
 		]);
 	});
 
@@ -438,6 +467,32 @@ describe('collectIslandDepModulepreloads', () => {
 			expect(out.at(-1)).toBe('+2 more');
 			// without sizes: the module order, as before
 			expect(summarize_chunk_contents(ids)[0]).toBe('src/lib/small0.ts');
+		});
+
+		test('a pnpm package is named by its last node_modules segment', () => {
+			expect(
+				summarize_chunk_contents(['/app/node_modules/.pnpm/foo@1.0.0/node_modules/foo/index.js'])
+			).toEqual(['foo']);
+		});
+
+		test('the contents the collector keeps name the heaviest module first', () => {
+			const facade = '_app/immutable/og-region.abc123.js';
+			const bundle = {
+				[facade]: {
+					type: 'chunk',
+					fileName: facade,
+					imports: [],
+					moduleIds: ['/app/src/lib/small.ts', '/app/src/lib/Big.svelte'],
+					modules: {
+						'/app/src/lib/small.ts': { renderedLength: 10 },
+						'/app/src/lib/Big.svelte': { renderedLength: 9000 }
+					}
+				}
+			};
+			expect(collectIslandDepModulepreloads(bundle).contents[`/${facade}`]).toEqual([
+				'src/lib/Big.svelte',
+				'src/lib/small.ts'
+			]);
 		});
 
 		test('a chunk’s heaviest named modules with their bytes, a package summed, and the chunk total', () => {
@@ -904,6 +959,22 @@ describe('remotes map', () => {
 			for (const d of r.js[`/${files[i]}`]) expect(b[d.slice(1)].type).toBe('chunk');
 	});
 
+	describe('the virtual module off the production server', () => {
+		test('the client leg answers none for every reader', async () => {
+			const m = await load_module(island_deps_module(false, false));
+			expect(m.region_reads_page('/e/a.js')).toBe(false);
+			expect(m.region_css('/e/a.js')).toEqual([]);
+			expect(m.entry_location('/e/a.js')).toBeNull();
+		});
+		test('dev links a region by its module url, always seeds the page, and an identity is its own location', async () => {
+			const m = await load_module(island_deps_module(true, true));
+			expect(m.region_css('/src/lib/A.svelte')).toEqual(['/src/lib/A.svelte']);
+			expect(m.region_css('')).toEqual([]);
+			expect(m.region_reads_page('/src/lib/A.svelte')).toBe(true);
+			expect(m.entry_location('/src/lib/A.svelte')).toBe('/src/lib/A.svelte');
+		});
+	});
+
 	describe('the virtual module\u2019s region_remotes', () => {
 		test('client leg → null (unused there)', () => {
 			const m = ISLAND_REMOTES_FN_RE.exec(island_deps_module(false, false));
@@ -920,6 +991,41 @@ describe('remotes map', () => {
 			expect(m.region_remotes('/e/c.js')).toBeNull();
 			expect((await with_handoff({})).region_remotes('/e/a.js')).toBeNull();
 		});
+	});
+});
+
+// THE HANDOFF READ (production server): a handoff it cannot find or read is said, and a read that
+// failed is never kept.
+describe('the virtual module’s handoff read', () => {
+	/** The server module beside its own handoff file (its first candidate), not inlined. */
+	const beside = async () => {
+		const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'og-handoff-')));
+		const file = path.join(dir, 'region-deps.mjs');
+		fs.writeFileSync(file, island_deps_module(true, false, '.no-such-out-dir'));
+		const handoff = path.join(dir, 'og-region-deps.json');
+		return { m: await import(file), handoff };
+	};
+
+	test('no handoff anywhere: its problem names every path it tried', async () => {
+		const { m, handoff } = await beside();
+		expect(m.region_css('/e/a.js')).toEqual([]);
+		const p = m.handoff_problem();
+		expect(p?.kind).toBe('missing');
+		expect(p?.tried).toContain(handoff);
+	});
+
+	test('a handoff that does not parse is said, and not kept: the next read finds the fixed one', async () => {
+		const { m, handoff } = await beside();
+		fs.writeFileSync(handoff, '{ "css": ');
+		expect(m.region_css('/e/a.js')).toEqual([]);
+		expect(m.handoff_problem()?.kind).toBe('unreadable');
+		fs.writeFileSync(handoff, JSON.stringify({ css: { '/e/a.js': ['/a.css'] } }));
+		expect(m.region_css('/e/a.js')).toEqual(['/a.css']);
+		expect(m.handoff_problem()).toBeNull();
+	});
+
+	test('an inlined handoff has no problem', async () => {
+		expect((await with_handoff({})).handoff_problem()).toBeNull();
 	});
 });
 

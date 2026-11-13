@@ -1,6 +1,3 @@
-/**
- * THE ONE RESOLVER over the virtual-module table (./table.ts): a specifier → the resolved id, a resolved id → its source, and a dev change → the modules it invalidates.
- */
 import { OgygiaError } from '../messages.ts';
 import { RESOLVED } from '../ids.ts';
 import {
@@ -18,10 +15,15 @@ import {
 	type Leg,
 	type ModuleEntry
 } from './table.ts';
-import { world, type World } from '@ogygia/machine';
+import { input, type Queries, type QueryCtx, type Reads } from '../queries.ts';
 
-/** A static named import of a realm module (`import { a, b as c } from 'ogygia:server'`). */
-const REALM_IMPORT_G =
+const PART = input<Part, number>(
+	'session part',
+	(part) => part,
+	() => 0
+);
+
+const REALM_NAMED_IMPORT_G =
 	/\b(import|export)\s*\{([^}]*)\}\s*from\s*(['"])ogygia:(server|boot|region|dev)\3;?/g;
 
 /** Where an import is resolved: the build's leg (Vite's environment), and whether it is the dev
@@ -52,6 +54,8 @@ function check_realm(id: string, realm: Realm, env: Env): void {
 export const is_virtual_specifier = (source: string): boolean =>
 	source.startsWith(OGYGIA_SCHEME) || source.startsWith(`\0${OGYGIA_SCHEME}`);
 
+/** The one resolver over the virtual-module table: a specifier → its resolved id, a resolved id →
+ *  its source, and a dev change → the modules it invalidates. */
 export class VirtualTable<A> {
 	/** specifier or alias → its one-module entry */
 	readonly #single = new Map<string, ModuleEntry<A>>();
@@ -66,23 +70,24 @@ export class VirtualTable<A> {
 	readonly #names: ValueNames;
 	/** the session's fields → the part each one is */
 	readonly #parts: Parts<A>;
-	/** one stamp per part, moved by a dev change to it */
-	readonly #stamps: World<Part> = world.keyed<Part>();
-	/** resolved id and leg → what that leg's last load read, and when: one id is loaded on both legs
-	 *  and can read different parts on each (bounded by the modules the table serves, twice) */
-	readonly #reads = new Map<string, { id: string; stamp: number; reads: ReadonlySet<Part> }>();
+	/** the session's queries: a load is a reader of them (`watch`), the parts among them */
+	readonly #db: Queries;
+	/** resolved id and leg → what that leg's last load read: one id is loaded on both legs and can
+	 *  read different things on each (bounded by the modules the table serves, twice) */
+	readonly #reads = new Map<string, { id: string; reads: Reads }>();
 
 	constructor(
 		entries: readonly Entry<A>[],
 		core_path: (app: A, module: string) => string,
 		names: ValueNames,
-		parts: Parts<A>
+		parts: Parts<A>,
+		db: Queries
 	) {
 		this.#core_path = core_path;
 		this.#names = names;
 		this.#parts = parts;
+		this.#db = db;
 		for (const e of entries) {
-			// (a constant is a define, not a module: not the table's to resolve)
 			if (e.kind === 'constant') continue;
 			const spec = specifier_of(e);
 			const taken = this.#single.has(spec) || this.#prefixes.some(([p]) => p === spec);
@@ -92,7 +97,6 @@ export class VirtualTable<A> {
 				this.#single.set(spec, e);
 				this.#by_resolved.set(RESOLVED(spec), e);
 			}
-			// the realm module: every entry's names, each once in its realm
 			const names = (this.#realms[e.realm] ??= new Map());
 			for (const [name, own] of realm_exports(e, this.#names)) {
 				if (names.has(name))
@@ -121,8 +125,6 @@ export class VirtualTable<A> {
 			list.push(own === name ? name : `${own} as ${name}`);
 			by_module.set(module, list);
 		}
-		// values first, requests last: a request's real module may import its realm module back,
-		// and must then find every value already evaluated
 		const rank = (module: string): number => {
 			const kind = this.#by_resolved.get(RESOLVED(module))?.kind;
 			return kind === 'value' ? 0 : kind === 'request' ? 2 : 1;
@@ -139,8 +141,6 @@ export class VirtualTable<A> {
 	 * declares fails here with `virtual_unknown`.
 	 */
 	resolve(source: string, env?: Env): string | undefined {
-		// an id already resolved resolves to itself (the bundler may resolve a barrel's resolved
-		// import again), when it is the table's
 		if (source.startsWith('\0'))
 			return this.#realm_of(source) || this.#by_resolved.has(source) ? source : undefined;
 		const realm = this.#realm_of(source);
@@ -159,7 +159,6 @@ export class VirtualTable<A> {
 			if (env) check_realm(source, family.realm, env);
 			return family.load ? RESOLVED(source) : undefined;
 		}
-		// (a declared id with a query is the bundler's to answer, as it always was)
 		const q = source.indexOf('?');
 		if (is_virtual_specifier(source) && !(q !== -1 && this.claims(source.slice(0, q))))
 			throw new OgygiaError('virtual_unknown', { id: source });
@@ -180,27 +179,32 @@ export class VirtualTable<A> {
 		return undefined;
 	}
 
-	/** A resolved id → its module source; `null`: not a module this table loads. Records the session
-	 *  parts the load read, for {@link bump}. */
+	/** A resolved id → its module source; `null`: not a module this table loads. Records what the
+	 *  load read (the session's parts, and every query it read), for {@link moved}. */
 	load(id: string, app: A, leg: Leg): string | Promise<string> | null {
-		const reads = new Set<Part>();
 		const key = `${leg.ssr ? 'ssr' : 'client'} ${id}`;
-		// (recorded before it runs: a bump while an async load is in flight names it too)
-		this.#reads.set(key, { id, stamp: this.#stamps.stamp(), reads });
-		const out = this.#load(id, tracked(app, this.#parts, reads), leg);
-		if (out === null) this.#reads.delete(key);
-		return out;
+		const { value, reads } = this.#db.watch((cx) =>
+			this.#load(id, tracked(app, this.#parts, cx), leg)
+		);
+		if (value === null) this.#reads.delete(key);
+		else this.#reads.set(key, { id, reads });
+		return value;
+	}
+
+	/** A dev change to `part` (one not yet a query: the registry, the marks, the routes, ...). */
+	move(part: Part): void {
+		this.#db.set(PART, part, this.#db.revision + 1);
 	}
 
 	/**
-	 * A dev change to `part`: every module whose last load read it, which the caller invalidates.
-	 * Each is named once; its next load records its reads afresh.
+	 * Every module that something its last load read has changed under, which the caller
+	 * invalidates: a part that moved, or a query whose answer is different now. Each is named once;
+	 * its next load records its reads afresh.
 	 */
-	bump(part: Part): string[] {
-		this.#stamps.bump([part]);
+	moved(): string[] {
 		const out = new Set<string>();
-		for (const [key, { id, stamp, reads }] of this.#reads) {
-			if (this.#stamps.fresh(stamp, reads)) continue;
+		for (const [key, { id, reads }] of this.#reads) {
+			if (!this.#db.moved(reads)) continue;
 			out.add(id);
 			this.#reads.delete(key);
 		}
@@ -215,7 +219,6 @@ export class VirtualTable<A> {
 			if (e.kind === 'value') {
 				const data = e.from(app, leg) as Record<string, unknown>;
 				const names = value_names(e, this.#names);
-				// the live keys must be the generated ones (test/virtual-types.test.ts keeps them so)
 				const keys = Object.keys(data);
 				let same = keys.length === names.length;
 				for (const k of keys) same &&= names.includes(k);
@@ -249,7 +252,7 @@ export class VirtualTable<A> {
 		if (!code.includes(OGYGIA_SCHEME)) return null;
 		let changed = false;
 		const out = code.replace(
-			REALM_IMPORT_G,
+			REALM_NAMED_IMPORT_G,
 			(whole, kw: string, list: string, quote: string, realm: string) => {
 				const names = this.#realms[realm as Realm];
 				if (!names) return whole;
@@ -259,7 +262,7 @@ export class VirtualTable<A> {
 					if (!spec) continue;
 					const [name, local = name] = spec.split(/\s+as\s+/);
 					const found = names.get(name);
-					if (!found) return whole; // the bundler's error: the realm module has no such name
+					if (!found) return whole;
 					const [own, module] = found;
 					const list_for = by_module.get(module) ?? [];
 					list_for.push(own === local ? own : `${own} as ${local}`);
@@ -305,14 +308,12 @@ export class VirtualTable<A> {
 	}
 }
 
-/** `app` as a module's load sees it: reading a field that is a part adds the part to `reads`. A
- *  method runs on the session itself (its private fields are its own). */
-function tracked<A>(app: A, parts: Parts<A>, reads: Set<Part>): A {
+function tracked<A>(app: A, parts: Parts<A>, cx: QueryCtx): A {
 	if (typeof app !== 'object' || app === null) return app;
 	return new Proxy(app, {
 		get(target, key) {
 			const part = typeof key === 'string' ? parts[key as keyof A & string] : undefined;
-			if (part) reads.add(part);
+			if (part) cx.get(PART, part);
 			const v: unknown = Reflect.get(target, key);
 			return typeof v === 'function' ? v.bind(target) : v;
 		}
