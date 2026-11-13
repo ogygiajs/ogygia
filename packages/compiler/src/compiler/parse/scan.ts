@@ -183,7 +183,11 @@ function walk(src: string, from: number, visit: Visit): void {
 			if (value_before) continue;
 		}
 		value_before = false;
-		dot_before = c === '.';
+		// a spread `...` wants a value; a single `.` makes the next word a property name
+		if (c === '.' && c2 === '.' && src[i + 1] === '.') {
+			i += 2;
+			dot_before = false;
+		} else dot_before = c === '.';
 		head = false;
 	}
 }
