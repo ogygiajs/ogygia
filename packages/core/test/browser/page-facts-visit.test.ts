@@ -10,6 +10,7 @@ import { install as install_morph } from '../../src/runtime/morph.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
 import { prepare_spa_document, seed_page_once } from '../../src/runtime/seeds.ts';
 import { boot_link } from '../../src/runtime/slots.ts';
+import { runtime_session } from '../../src/runtime/session.ts';
 import { page_state, set_page } from '../../src/shims/page-store.svelte.ts';
 import { TEST_MARK_ATTR } from './_response-mark.ts';
 import { publish_kit_page, unpublish_kit_page } from './_kit-thread.svelte.ts';
@@ -38,6 +39,14 @@ afterEach(() => {
 	history.replaceState(null, '', home);
 	// (the next page's head brought its runtime stand-in)
 	for (const el of document.head.querySelectorAll('script[data-ogygia-runtime]')) el.remove();
+});
+
+test('an answer’s page facts are taken out of its markup, never left in the page', () => {
+	const { frag } = region_fragment(
+		`<script type="application/ogygia-page-facts">${stringify({ who: 'hole' })}\x3C/script><p>hole</p>`
+	);
+	expect(frag.querySelector('script')).toBeNull();
+	runtime_session.visit.facts.length = 0;
 });
 
 test('facts a hole brought join page.data at the next hydrate, once', async () => {
