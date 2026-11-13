@@ -17,18 +17,29 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { STUB_PATHS, STUB_STATE } from '@ogygia/core/contract';
+import {
+	CORE_ROOT,
+	OGYGIA_INJECTED_FILES,
+	OGYGIA_INJECTED_IMPORTS,
+	OGYGIA_REGION_MODULES,
+	OGYGIA_VERSION,
+	OWN_PACKAGE_NAMES,
+	STUB_PATHS,
+	STUB_STATE
+} from '@ogygia/core/contract';
 import { dedent } from '@ogygia/core/contract';
 import { ogygia } from '../src/vite/index.ts';
 import { definePlugin } from '../src/vite/plugin-api.ts';
 import { keep_client_dir, kit_dirs } from '../src/compiler/kit.ts';
-import { server_handoff_path } from '../src/compiler/link/emit-gate.ts';
+import { server_handoff_json, server_handoff_path } from '../src/compiler/link/emit-gate.ts';
 import {
 	foucCssVirtualId,
 	foucScopedVirtualId,
 	FOUC_CSS_PREFIX
 } from '../src/compiler/fouc-css.ts';
 import { EVERY_BARREL } from '../src/compiler/exports/index.ts';
+import { BuildCache, __set_build_cache_root } from '../src/compiler/build-cache.ts';
+import { scan_entry_pattern } from '../src/vite/paths.ts';
 import type { OgygiaOptions } from '../src/vite/options.ts';
 
 type Command = 'build' | 'serve';
@@ -50,6 +61,7 @@ beforeEach(() => {
 });
 afterEach(() => {
 	rmSync(root, { recursive: true, force: true });
+	__set_build_cache_root(undefined);
 	if (saved_secret === undefined) delete process.env.OGYGIA_SECRET;
 	else process.env.OGYGIA_SECRET = saved_secret;
 	if (saved_rules === undefined) delete process.env.OGYGIA_RULES;
@@ -179,6 +191,59 @@ describe('the config hook', () => {
 		expect((await setup('build')).given.optimizeDeps.include).toEqual([]);
 	});
 
+	it("what ogygia hands Vite, before Kit's config: one Kit, itself SSR-inlined and never pre-bundled, its files served, entry exports kept", async () => {
+		app();
+		const { p, given } = await setup('build');
+		expect(p.config.order).toBe('pre');
+		expect(given.resolve.dedupe).toEqual(['@sveltejs/kit']);
+		expect(given.ssr.noExternal).toEqual(['esm-env', ...OWN_PACKAGE_NAMES]);
+		expect(given.optimizeDeps.exclude).toEqual([...OWN_PACKAGE_NAMES]);
+		expect(given.server.fs.allow).toEqual([CORE_ROOT]);
+		expect(given.build.rolldownOptions.preserveEntrySignatures).toBe('exports-only');
+	});
+
+	it("an ogygia plugin's package is SSR-inlined and kept out of the optimizer, like ogygia", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const listed = definePlugin({ name: 'x-tool' });
+		const { given } = await setup('serve', { plugins: [listed] });
+		expect(given.ssr.noExternal).toContain('x-tool');
+		expect(given.optimizeDeps.exclude).toContain('x-tool');
+	});
+
+	it("the router options, the version and the dev server's HMR bridge compile in as constants", async () => {
+		app();
+		const dev = (await setup('serve')).given.define;
+		const off = (await setup('build', { options: { router: { forms: false, serverDelta: true } } }))
+			.given.define;
+		expect(dev.__OGYGIA_VERSION__).toBe(JSON.stringify(OGYGIA_VERSION));
+		expect(off.__OGYGIA_VERSION__).toBe(JSON.stringify(OGYGIA_VERSION));
+		expect([dev.__OGYGIA_CONTINUITY_FORMS__, dev.__OGYGIA_SERVER_DELTA__]).toEqual([
+			'true',
+			'false'
+		]);
+		expect([off.__OGYGIA_CONTINUITY_FORMS__, off.__OGYGIA_SERVER_DELTA__]).toEqual([
+			'false',
+			'true'
+		]);
+		expect(JSON.parse(dev.__OGYGIA_DEV_HMR_URL__)).not.toBe('');
+		expect(JSON.parse(off.__OGYGIA_DEV_HMR_URL__)).toBe('');
+	});
+
+	it("the app's own Kit major compiles in", async () => {
+		app();
+		write(
+			'node_modules/@sveltejs/kit/package.json',
+			JSON.stringify({ name: '@sveltejs/kit', version: '3.1.0' })
+		);
+		expect((await setup('serve')).given.define.__OGYGIA_KIT_MAJOR__).toBe('3');
+		write(
+			'node_modules/@sveltejs/kit/package.json',
+			JSON.stringify({ name: '@sveltejs/kit', version: '2.9.0' })
+		);
+		expect((await setup('serve')).given.define.__OGYGIA_KIT_MAJOR__).toBe('2');
+	});
+
 	it('the rules fold in only under OGYGIA_RULES=1', async () => {
 		app();
 		expect((await setup('serve')).given.define.__OGYGIA_RULES__).toBe('false');
@@ -263,6 +328,25 @@ describe('the config hook', () => {
 		expect(existsSync(keep_client_dir(root))).toBe(false);
 	});
 
+	it('a keep-client route left on disk is not one of the routes that decide it', async () => {
+		app();
+		write(
+			path.relative(root, path.join(keep_client_dir(root), '+layout.ts')),
+			'export const csr = true;\n'
+		);
+		await setup('build');
+		expect(existsSync(path.join(keep_client_dir(root), '+layout.ts'))).toBe(true);
+	});
+
+	it("the keep-client route goes in the routes dir the app's Kit config names", async () => {
+		write('svelte.config.js', "export default { kit: { files: { routes: 'src/pages' } } };\n");
+		write('src/pages/+page.svelte', '<p>page</p>\n');
+		write('src/pages/+layout.ts', 'export const csr = false;\n');
+		await setup('build');
+		expect(keep_client_dir(root).startsWith(path.join(root, 'src/pages'))).toBe(true);
+		expect(existsSync(path.join(keep_client_dir(root), '+layout.ts'))).toBe(true);
+	});
+
 	it('a build of an app Kit hydrates sweeps a stale keep-client route', async () => {
 		app({ csr: true });
 		write(path.relative(root, path.join(keep_client_dir(root), '+layout.ts')), '// stale\n');
@@ -299,6 +383,101 @@ describe('configResolved', () => {
 		expect(resolved.optimizeDeps.entries).toContain(page);
 		const listed = await setup('serve', { resolved: { optimizeDeps: { entries: [page] } } });
 		expect(listed.resolved.optimizeDeps.entries.filter((e: string) => e === page)).toHaveLength(1);
+	});
+
+	it('a scan entry is a glob: a route group or a [param] dir in its path is escaped', async () => {
+		app();
+		write('src/lib/Card.svelte', '<p>card</p>\n');
+		write(
+			'src/routes/(shop)/[id]/+page.svelte',
+			dedent`
+				<script>
+					import Card from '$lib/Card.svelte' with { wake: 'visible' };
+				</script>
+				<Card />
+			`
+		);
+		const { resolved } = await setup('serve');
+		const host = resolved.optimizeDeps.entries.find((e: string) => e.includes('shop'));
+		expect(host).toBe(scan_entry_pattern(path.join(root, 'src/routes/(shop)/[id]/+page.svelte')));
+		expect(host).not.toContain('(shop)/[id]');
+	});
+
+	it('a hand-built config with no optimizeDeps gets one, holding the islands', async () => {
+		app();
+		const { resolved } = await setup('serve', { resolved: { optimizeDeps: undefined } });
+		expect(resolved.optimizeDeps.entries).toContain(path.join(root, 'src/lib/Counter.svelte'));
+	});
+
+	it("dev warns once when the app's own optimizer include names ogygia; a build does not", async () => {
+		app();
+		const warned = async (command: Command) => {
+			const said: string[] = [];
+			await setup(command, {
+				resolved: {
+					optimizeDeps: { include: ['ogygia/runtime', 'svelte', 'ogygia'] },
+					logger: { warn: (m: string) => void said.push(m) }
+				}
+			});
+			return said;
+		};
+		const dev = await warned('serve');
+		expect(dev).toHaveLength(1);
+		expect(dev[0]).toContain('ogygia/runtime, ogygia');
+		expect(await warned('build')).toEqual([]);
+	});
+
+	it("a second configResolved (a builder's next environment) keeps the program the first one built", async () => {
+		app();
+		const { p, resolved } = await setup('serve');
+		// (a host outside src: no prescan finds it, only its transform)
+		const island = write('elsewhere/Late.svelte', '<p>late</p>\n');
+		const host = write(
+			'elsewhere/Host.svelte',
+			dedent`
+				<script>
+					import Late from './Late.svelte' with { wake: 'visible' };
+				</script>
+				<Late />
+			`
+		);
+		const hears = () => {
+			const s = { ws: { send() {} }, moduleGraph: { getModuleById: () => null } };
+			return p.handleHotUpdate({ file: island, server: s });
+		};
+		await p.transform.call(hook_this('ssr'), readFileSync(host, 'utf8'), host, { ssr: true });
+		expect(hears()).toEqual([]);
+		p.configResolved.call(hook_this('client'), { ...resolved, optimizeDeps: {} });
+		expect(hears()).toEqual([]);
+	});
+
+	it("the build cache lives under the configured app's node_modules", async () => {
+		app();
+		await setup('build');
+		expect(new BuildCache('x').dir()).toBe(path.join(root, 'node_modules', '.ogygia', 'x'));
+	});
+
+	it("a plugin's own pages are compiled, but never handed to the scanner as the app's entries", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const ui = path.join(root, 'node_modules/x-tool/ui');
+		write('node_modules/x-tool/ui/Pane.svelte', '<p>pane</p>\n');
+		write(
+			'node_modules/x-tool/ui/Page.svelte',
+			dedent`
+				<script>
+					import Pane from './Pane.svelte' with { wake: 'visible' };
+				</script>
+				<Pane />
+			`
+		);
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) => b.files({ root: path.join(root, 'node_modules/x-tool'), dirs: [ui] })
+		});
+		const { resolved } = await setup('serve', { plugins: [plugin] });
+		expect(resolved.optimizeDeps.entries).toContain(path.join(root, 'src/lib/Counter.svelte'));
+		expect(resolved.optimizeDeps.entries.filter((e: string) => e.includes('x-tool'))).toEqual([]);
 	});
 
 	it('a build leaves the scan entries alone', async () => {
@@ -417,6 +596,65 @@ describe('resolveId', () => {
 		expect(await resolve(p, '#app/paths', 'ssr', kit)).not.toBe(STUB_PATHS);
 		expect(await resolve(p, '#app/paths', 'client', '/n/app/src/x.ts')).not.toBe(STUB_PATHS);
 		expect(await resolve(p, '#app/state/client', 'client', undefined)).not.toBe(STUB_STATE);
+	});
+
+	it("ogygia's injected imports resolve to its own files, even on an instance Vite never configured", async () => {
+		const p = ogygia().find((x) => x.name === 'ogygia') as Hooks;
+		for (const spec of OGYGIA_INJECTED_IMPORTS)
+			expect(await p.resolveId.call({}, spec, '\0ogygia:region/x.js', {}), spec).toBe(
+				OGYGIA_INJECTED_FILES[spec]
+			);
+	});
+
+	it("an island's closure follows the app's aliases, in Vite's object form as in its array form", async () => {
+		write('src/routes/+layout.ts', 'export const csr = false;\n');
+		write(
+			'src/routes/+page.svelte',
+			dedent`
+				<script>
+					import Reader from '$lib/Reader.svelte' with { wake: 'load' };
+				</script>
+				<Reader />
+			`
+		);
+		write(
+			'src/lib/Reader.svelte',
+			"<script>import { name } from '$boot/read';</script><p>{name()}</p>\n"
+		);
+		const helper = write(
+			'src/lib/boot/read.ts',
+			"import { page } from '$app/state'; export const name = () => String(page.data.name);\n"
+		);
+		const lib = path.join(root, 'src/lib');
+		const boot = path.join(root, 'src/lib/boot');
+		const shimmed = async (alias: unknown) => {
+			const { p } = await setup('serve', { resolved: { resolve: { alias } } });
+			return resolve(p, '$app/state', 'client', helper);
+		};
+		const by_array = await shimmed([
+			{ find: '$lib', replacement: lib },
+			{ find: '$boot', replacement: boot }
+		]);
+		expect(by_array).toBeTruthy();
+		expect(await shimmed({ $lib: lib, $boot: boot })).toEqual(by_array);
+		expect(await shimmed({ $lib: lib })).not.toEqual(by_array);
+	});
+
+	it("Region's twin imports are the awaiting ones only when the app compiles in Svelte's async mode", async () => {
+		app();
+		const region = [...OGYGIA_REGION_MODULES][0];
+		const svelte = (async: boolean) => ({
+			name: 'vite-plugin-svelte:config',
+			api: { options: { compilerOptions: { experimental: { async } } } }
+		});
+		const twin = async (async: boolean) => {
+			const { p } = await setup('serve', { resolved: { plugins: [svelte(async)] } });
+			return p.resolveId.call(hook_this('client'), './LateIsland.svelte', region, {});
+		};
+		expect(await twin(true)).toBe(
+			region.slice(0, region.lastIndexOf('/') + 1) + 'LateIslandAwait.svelte'
+		);
+		expect(JSON.stringify(await twin(false))).not.toContain('Await.svelte');
 	});
 
 	it("Kit's client paths module is stubbed in the browser only", async () => {
@@ -768,6 +1006,16 @@ describe('the build legs', () => {
 		expect(written).not.toContain('stale');
 	});
 
+	it("the client environment's own configResolved, after the server leg wrote the handoff, keeps it", async () => {
+		app();
+		const { p, resolved } = await setup('build');
+		const t = hook_this('ssr');
+		await p.buildStart.call(t);
+		p.buildEnd.call(t);
+		p.configResolved.call(hook_this('client'), resolved);
+		expect(existsSync(handoff())).toBe(true);
+	});
+
 	it('the client leg neither drops nor writes it', async () => {
 		app();
 		write(path.relative(root, handoff()), '["kept"]');
@@ -793,6 +1041,72 @@ describe('the build legs', () => {
 		const t = hook_this('client');
 		await p.buildStart.call(t);
 		expect(t.emitted.map((c) => c.type)).toContain('chunk');
+	});
+
+	const chunks = (t: { emitted: Array<Record<string, unknown>> }) =>
+		t.emitted.filter((c) => c.type === 'chunk').length;
+
+	it('the client leg emits no runtime and no island for an app Kit hydrates whole, or a standalone build', async () => {
+		app();
+		const kit = hook_this('client');
+		await (await setup('build')).p.buildStart.call(kit);
+		expect(chunks(kit)).toBe(2);
+		app({ csr: true });
+		const hydrated = hook_this('client');
+		await (await setup('build')).p.buildStart.call(hydrated);
+		expect(chunks(hydrated)).toBe(0);
+		app();
+		const standalone = hook_this('client');
+		await (await setup('build', { options: { standalone: true } })).p.buildStart.call(standalone);
+		expect(chunks(standalone)).toBe(1);
+	});
+
+	it('an app with no Kit page but a region to hydrate (a programmatic router) still gets the runtime', async () => {
+		write('src/lib/Counter.svelte', '<button>+</button>\n');
+		write(
+			'src/lib/View.svelte',
+			dedent`
+				<script>
+					import Counter from '$lib/Counter.svelte' with { wake: 'visible' };
+				</script>
+				<Counter />
+			`
+		);
+		const t = hook_this('client');
+		await (await setup('build')).p.buildStart.call(t);
+		expect(t.emitted.filter((c) => String(c.name).startsWith('og-runtime'))).toHaveLength(1);
+	});
+
+	it('an island whose host the server leg never loaded gets no chunk; with no handoff, every island does', async () => {
+		app();
+		write(path.relative(root, handoff()), server_handoff_json([], 'k', []));
+		const { p } = await setup('build');
+		const gated = hook_this('client');
+		await p.buildStart.call(gated);
+		expect(chunks(gated)).toBe(1);
+	});
+
+	it("a hook with no environment runs in the build's own leg", async () => {
+		app();
+		write(path.relative(root, handoff()), '["stale"]');
+		const { p } = await setup('build', { resolved: { build: { ssr: true } } });
+		const { environment: _, ...bare } = hook_this('ssr');
+		await p.buildStart.call(bare);
+		expect(existsSync(handoff())).toBe(false);
+	});
+
+	it("a markup format's islands are scanned once per build, and in dev before any request", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		let scans = 0;
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) => void b.markup({ extensions: ['.svx'], scan: () => void scans++ })
+		});
+		await begin((await setup('build', { plugins: [plugin] })).p, 'ssr', 'client');
+		expect(scans).toBe(1);
+		await begin((await setup('serve', { plugins: [plugin] })).p, 'ssr', 'client');
+		expect(scans).toBe(2);
 	});
 
 	it("the client leg names our entries and keeps the app's own naming for the rest", async () => {
@@ -1012,6 +1326,35 @@ describe('the dev server', () => {
 		const s2 = server();
 		p.handleHotUpdate({ file: dep, server: s2 });
 		expect(s2.sent.filter((m) => (m as { type?: string }).type === 'custom')).toEqual([]);
+	});
+
+	it("a stylesheet a page already joined is Vite's own soft update; one outside src is Vite's too", async () => {
+		app();
+		const css = write('src/lib/a.css', '.a {}\n');
+		const outside = write('styles/b.css', '.b {}\n');
+		const { p } = await setup('serve');
+		const joined = {
+			...server(),
+			environments: { client: { moduleGraph: { getModulesByFile: () => new Set([{}]) } } }
+		};
+		expect(p.handleHotUpdate({ file: css, server: joined })).toBe(undefined);
+		expect(joined.sent).toEqual([]);
+		const s = server();
+		expect(p.handleHotUpdate({ file: outside, server: s })).toBe(undefined);
+		expect(s.sent).toEqual([]);
+	});
+
+	it("an edit to a style-bearing file drops the router's inlined CSS module; a script edit does not", async () => {
+		app();
+		const { p } = await setup('serve');
+		await load(p, 'ogygia:server/router-css', 'ssr');
+		const touched = (file: string) => {
+			const s = server();
+			p.handleHotUpdate({ file: write(file, '\n'), server: s });
+			return s.invalidated.some((id) => id.includes('router-css'));
+		};
+		expect(touched('src/lib/x.ts')).toBe(false);
+		expect(touched('src/lib/X.svelte')).toBe(true);
 	});
 
 	it("every stylesheet kind the browser's bridge can join goes out as a scoped join, and only those", async () => {
