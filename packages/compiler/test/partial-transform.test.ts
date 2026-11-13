@@ -147,6 +147,29 @@ describe('an import attribute ogygia does not know, on a component import, fails
 			transformTsRegions(`import x from './x.json' with { type: 'json' };`, id, makeCtx())
 		).toBe(null);
 	});
+
+	test.each([
+		['used', `wake: 'load', partial: 'x'`, 'partial'],
+		['used', `wake: 'visible', wkae: 'load'`, 'wkae'],
+		['used', `partial: 'load', region: 'raw'`, 'partial'],
+		['unused', `wake: 'load', partial: 'x'`, 'partial']
+	])(
+		'a bad key beside a good one on one %s import is named by its code: { %s }',
+		(use, attrs, key) => {
+			const markup = use === 'used' ? '\n<Card />' : '';
+			const src = page(`import Card from '$lib/Card.svelte' with { ${attrs} };`) + markup;
+			expect(() => transformHost(src, host, makeCtx())).toThrow(
+				new RegExp(`\`${key}\`[\\s\\S]*e/region_attribute_unknown`)
+			);
+		}
+	);
+
+	test('a bad key beside a good one on one import is named by its code in a .ts module too', () => {
+		const src = `import Card from './Card.svelte' with { wake: 'load', partial: 'x' };\nexport const c = [Card];`;
+		expect(() => transformTsRegions(src, '/app/src/lib/cards.ts', makeCtx())).toThrow(
+			/`partial`[\s\S]*e\/region_attribute_unknown/
+		);
+	});
 });
 
 describe('transformTsRegions — held region in .ts', () => {
