@@ -23,4 +23,19 @@ describe('blank_styles', () => {
 		);
 		expect(out).toContain('<styles-not>keep</styles-not>');
 	});
+
+	it('a <style> inside an HTML comment is text, left alone', () => {
+		const src = '<!-- <style>.x { color: red }</style> --><p></p>';
+		expect(blank_styles(src)).toBe(src);
+	});
+
+	it('a component whose SCSS the Svelte parser rejects parses once blanked, offsets intact', async () => {
+		const { parse } = await import('svelte/compiler');
+		const src = '<p class="a">x</p>\n<style lang="scss">@each $i in 1, 2 { .a-#{$i} {} }</style>';
+		expect(() => parse(src, { modern: true })).toThrow();
+		const ast = parse(blank_styles(src), { modern: true });
+		expect(src.slice(ast.css!.start, ast.css!.end)).toBe(
+			src.slice(src.indexOf('<style'), src.length)
+		);
+	});
 });
