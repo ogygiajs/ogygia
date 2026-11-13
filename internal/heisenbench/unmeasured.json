@@ -605,10 +605,6 @@
 			"reason": "browser only: one live tick in its mailbox turn (the custom element, the frame store, hydration), constant work besides the morph and hydrate it calls; proven in packages/core/test/browser/live-region.test.ts, sim-region.test.ts and region-orderings.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #apply_live > defer:0~f0b0cb",
-			"reason": "browser only: drops a static live region's subscription when an interactive tick takes over, constant work; proven in packages/core/test/browser/live-region.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fire_prefetch > post:0~906789",
 			"reason": "browser only: hands a prefetch to the mailbox, constant work; proven in packages/core/test/browser/prefetch-owner.test.ts"
 		},
@@ -3797,10 +3793,6 @@
 			"reason": "the sort comparator of a call's parameters (a closure Array.sort calls, not replayable on its own), constant work per pair; frameAddress around it is proven in packages/core/test/frame-address.test.ts (#916)"
 		},
 		{
-			"id": "packages/core/src/kit-paths.ts > app_path",
-			"reason": "reads Kit's build define for paths.base (hidden state: a module constant), one string join, constant work; proven in packages/core/test/capability-relative-paths.test.ts (#925)"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #wake_online",
 			"reason": "browser only, an error path: an island whose code failed offline waits for the window's online event (a live element and window, not cloneable), constant work; proven in packages/core/test/browser/hole-offline.test.ts (#891)"
 		},
@@ -4247,10 +4239,6 @@
 		{
 			"id": "packages/core/src/markup-walk.ts > tags",
 			"reason": "a generator (not recorded): one pattern jump per tag, the tag itself read by read_tag (benched in packages/core/bench/markup.bench.ts, a scan of a whole document too); proven in packages/core/test/wire-markup.test.ts"
-		},
-		{
-			"id": "packages/postrender/src/server.ts > defineServer:0~48ac6f > page > then:1~a1b2d0",
-			"reason": "a failed deploy check let go (the store said its failure, the next request checks again): nothing"
 		},
 		{
 			"id": "packages/postrender/src/server.ts > servable",
@@ -4777,10 +4765,6 @@
 			"reason": "returns a Map holding Kit's page and stores contexts (not cloneable): kit_render_context plus two set() calls, constant work, once per held region render; proven in packages/core/test/held-region-runtime.test.ts"
 		},
 		{
-			"id": "packages/core/src/frame.ts > is_batch_miss",
-			"reason": "an instanceof check and one name compare on an Error (its prototype is hidden state the recorder does not keep), constant work; proven in packages/core/test/frame-store.test.ts"
-		},
-		{
 			"id": "packages/core/src/server/capped-body.ts > read_capped",
 			"reason": "network bound: reads a request body's pieces until the cap, one copy of the bytes; proven in packages/core/test/batch-body-cap.test.ts and packages/federation/test/body-cap.test.ts (#754, #1091)"
 		},
@@ -4851,6 +4835,70 @@
 		{
 			"id": "packages/core/src/runtime/form-continuity.ts > arm_form_restore > read_names",
 			"reason": "browser only: one query of the page's regions, then region_names; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > start_session > counting",
+			"reason": "browser only: the recording's console.error wrapper, one line counted (200 at most) and passed on, constant work per call; proven in packages/devtools/test/devtools-session-console.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > start_session > counting > push:0~64a57a > map:0~529f9c",
+			"reason": "browser only: one console.error argument as text, constant work per argument; proven in packages/devtools/test/devtools-session-console.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > page_payload_unreadable > details",
+			"reason": "a message's prose, built once when the warning is said (dev and prerender only), constant work"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > page_payload_unreadable > text",
+			"reason": "a message's one line, built once when the warning is said, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > part_definition",
+			"reason": "makes one three-state machine definition (data, not cloneable), constant work per promised part"
+		},
+		{
+			"id": "packages/core/src/runtime/page-defer.ts > settle > catch:0~a1b2d0",
+			"reason": "an empty catch on a promise the page's {#await} reads (a closure, not replayable): nothing"
+		},
+		{
+			"id": "packages/core/src/runtime/region-machines.ts > region_life_graph",
+			"reason": "the region life machine as data for docs and tests (graph() of a constant definition), never on a request or a wake"
+		},
+		{
+			"id": "packages/core/src/runtime/session.ts > RuntimeSession > settle_lake_before_swap",
+			"reason": "browser only: one lake machine move per region of a refresh (Elements, not cloneable), constant work"
+		},
+		{
+			"id": "packages/core/src/server/fn-manifest-script.ts > fn_manifest_script > map:0~9c7d1b",
+			"reason": "the map callback of one manifest entry (a closure fn_manifest_script calls), one JSON.stringify of the tag, constant work per entry"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > comment_end",
+			"reason": "profiler only (a page a developer opens): where one comment ends, a few prefix checks and one indexOf, linear in the comment"
+		},
+		{
+			"id": "packages/devtools/src/profiler/dom-diff.ts > tokenize_html > markup_tokens:1~8f6eed",
+			"reason": "profiler only: the callback of one markup token (a closure markup_tokens calls), one slice and a split for long text, linear in the token"
+		},
+		{
+			"id": "packages/devtools/src/profiler/standalone.ts > attrs_without > flatMap:0~219a6b",
+			"reason": "profiler only: the flatMap callback over the attributes to drop (a closure), one attr_spans call each"
+		},
+		{
+			"id": "packages/devtools/src/profiler/standalone.ts > attrs_without > sort:0~fd7745",
+			"reason": "profiler only: a sort comparator of two spans (a closure Array.sort calls), constant work per pair"
+		},
+		{
+			"id": "packages/devtools/src/profiler/standalone.ts > read",
+			"reason": "profiler only: one attribute read off a found tag (hidden state: the tag's document), one decodeText, linear in the value"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > permanent_redirect",
+			"reason": "two status compares on a Response (not cloneable), constant work"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > refusal",
+			"reason": "the store verdict before the body is read: a few field and header reads on a Response (not cloneable), constant work; proven in packages/postrender/test/dev-note.test.ts"
 		}
 	]
 }
