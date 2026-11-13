@@ -107,6 +107,32 @@ describe('router_css_module — the generated virtual', () => {
 		expect(src).toContain(`register_router_css(__OgRcss0`);
 	});
 
+	it('prod: a link is the base plus the handoff href, claimed by the raw href (a held region linking it dedupes)', async () => {
+		const src = await router_css_module(['/app/src/lib/Shell.svelte'], {
+			root: ROOT,
+			lib_dir: LIB,
+			is_dev: false,
+			read_file: () => null
+		});
+		expect(src).toContain('.map((h) => ({ key: h, href: base + h }))');
+	});
+
+	it('dev: a plain stylesheet in a preprocessor dialect is left out (it loads once built)', async () => {
+		const files: Record<string, string> = {
+			'/app/src/lib/Shell.svelte': `<script>import './a.css'; import './b.scss';\x3C/script><div></div>`,
+			'/app/src/lib/a.css': `.a { color: red; }`,
+			'/app/src/lib/b.scss': `$c: blue; .b { color: $c; }`
+		};
+		const src = await router_css_module(['/app/src/lib/Shell.svelte'], {
+			root: ROOT,
+			lib_dir: LIB,
+			is_dev: true,
+			read_file: (p) => files[p] ?? null
+		});
+		expect(src).toContain('rcss-dev:src/lib/a.css');
+		expect(src).not.toContain('b.scss');
+	});
+
 	it('dev: inlines compiled scoped css (transitively, through child components)', async () => {
 		const files: Record<string, string> = {
 			'/app/src/lib/Shell.svelte': `<script>import Badge from './Badge.svelte';\x3C/script><div class="shell"><Badge/></div><style>.shell { color: red; }</style>`,
