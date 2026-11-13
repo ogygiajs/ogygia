@@ -1816,7 +1816,7 @@ export class Compiler implements CoreApp {
 		file: string,
 		{ deleted = false, invalidate }: { deleted?: boolean; invalidate: (id: string) => void }
 	): boolean {
-		const { registry, island_graph, by_id, region_kinds, host_index } = this.program;
+		const { registry, host_index } = this.program;
 		const affected = new Set<string>();
 
 		if (this.is_registered_host(file)) {
@@ -1833,20 +1833,7 @@ export class Compiler implements CoreApp {
 			const kind = this.#scans(file);
 			if (kind) this.#scan_facts(path.normalize(file), null, kind);
 			for (const id of this.moved()) invalidate(id);
-			// (a copy: the loop deletes from the registry)
-			for (const [vpath, entry] of Array.from(registry.entries())) {
-				if (!same_module_path(entry.componentPath, file)) continue;
-				affected.add(vpath);
-				registry.delete(vpath);
-				island_graph.delete(vpath);
-				by_id.delete(entry.id);
-				region_kinds.delete(entry.id);
-				const idx = host_index.get(host_key(entry.hostPath ?? ''));
-				if (idx) {
-					idx.vpaths.delete(vpath);
-					idx.ids.delete(entry.id);
-				}
-			}
+			for (const vpath of this.program.drop_component(file)) affected.add(vpath);
 		}
 
 		if (affected.size === 0) return false;

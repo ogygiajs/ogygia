@@ -1,19 +1,3 @@
-/**
- * DEV watchdog for a stranded tab (dev only; the branch is dead in a production build). Under
- * `csr = false` Kit ships no client bootstrap, so a Vite dep re-optimization — which rotates the
- * optimizer's browserHash — can leave a tab that was loaded under the old hash importing island dep
- * URLs (`svelte.js?v=<old>`) that now 404, and Vite's own full-reload does not always reach a
- * csr=false page. The island entry then throws `Failed to fetch dynamically imported module` on
- * wake, and nothing recovers it.
- *
- * We CONFIRM it is staleness, not a genuinely-missing module: re-fetch the entry URL, and reload
- * only when the server still serves it (200) — a real 404 is a different bug and must stay visible.
- * A timestamp in `sessionStorage` bounds it to one reload per few seconds, so a genuinely broken
- * entry (200 that keeps failing to import) never loops. With no `sessionStorage` it never reloads.
- * test/browser/stale-deps.test.ts holds these.
- *
- * @packageDocumentation
- */
 import { clock, flights, net, storage } from '@ogygia/machine';
 import { code_url } from './code-origins.ts';
 
@@ -35,6 +19,7 @@ const make_watch = () =>
 	});
 let watch: ReturnType<typeof make_watch> | undefined;
 
+// @why a Vite dep re-optimization rotates its browserHash, and Vite's full reload does not always reach a csr=false tab, which then imports `?v=<old>` dep URLs that 404 (test: test/browser/stale-deps.test.ts › two islands that fail to import together reload the tab once)
 /** An island's entry failed to import: confirm at `url` (its module URL) that the entry still
  *  serves, then `reload` the tab. */
 export async function recover_from_stale_deps(

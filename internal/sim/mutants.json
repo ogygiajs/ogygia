@@ -149,20 +149,20 @@
 	{
 		"id": "fragment-body-tag-missed",
 		"file": "packages/federation/src/wire.ts",
-		"line": 668,
-		"code": "if (html.slice(i + 2, i + 6).toLowerCase() === 'body') {",
+		"line": 719,
+		"code": "const close = body_tag === null ? -1 : body_end(html);",
 		"operator": "equality",
-		"from": "() =",
-		"to": "() !"
+		"from": "===",
+		"to": "!=="
 	},
 	{
-		"id": "fragment-body-tag-end-narrowed",
-		"file": "packages/federation/src/wire.ts",
-		"line": 671,
-		"code": "if (c === 62 || c === 47 || c === 32 || (c >= 9 && c <= 13)) return i;",
-		"operator": "logical",
-		"from": "||",
-		"to": "&&"
+		"id": "hidden-document-reads-shown",
+		"file": "packages/core/src/runtime/schedule.ts",
+		"line": 470,
+		"code": "const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';",
+		"operator": "equality",
+		"from": "!",
+		"to": "="
 	},
 	{
 		"id": "federation-rules-gate-inverted",
@@ -193,5 +193,68 @@
 		"from": "fals",
 		"to": "tru",
 		"equivalent": "RULES only gates a buggify point, and buggify.fires is false unless a simulator installed its hook: on in a build without rules, the point still never fires"
+	},
+	{
+		"id": "reshape-children-not-put-back",
+		"file": "packages/reshape/src/restore.ts",
+		"line": 461,
+		"code": "host.appendChild(c.node);",
+		"operator": "statement",
+		"from": "host.appendChild(c.node);",
+		"to": "void c;"
+	},
+	{
+		"id": "reshape-render-left-in-light-dom",
+		"file": "packages/reshape/src/restore.ts",
+		"line": 454,
+		"code": "if (shadow) shadow.appendChild(n);",
+		"operator": "statement",
+		"from": "shadow.appendChild(n);",
+		"to": "void n;"
+	},
+	{
+		"id": "reshape-stand-in-kept",
+		"file": "packages/reshape/src/restore.ts",
+		"line": 243,
+		"code": "as.replaceWith(real);",
+		"operator": "statement",
+		"from": "as.replaceWith(real);",
+		"to": "void real;"
+	},
+	{
+		"id": "router-page-lost-not-handed-off",
+		"file": "packages/core/src/runtime/router-nav.ts",
+		"line": 1040,
+		"code": "if (built === null) return hand_off();",
+		"operator": "statement",
+		"from": "return hand_off();",
+		"to": "return;"
+	},
+	{
+		"id": "hole-retry-never-fetches",
+		"file": "packages/core/src/runtime/core.ts",
+		"line": 1677,
+		"code": "return this.#connect(turn);",
+		"operator": "statement",
+		"from": "return this.#connect(turn);",
+		"to": "return;"
+	},
+	{
+		"id": "hole-error-answer-swapped-in",
+		"file": "packages/core/src/runtime/hole-fetch.ts",
+		"line": 88,
+		"code": "if (!res.ok) throw new Error(`status ${res.status}`);",
+		"operator": "statement",
+		"from": "if (!res.ok)",
+		"to": "if (false)"
+	},
+	{
+		"id": "peer-replica-down-not-skipped",
+		"file": "packages/federation/src/peer.ts",
+		"line": 512,
+		"code": "if (res.status >= 500) continue;",
+		"operator": "statement",
+		"from": "continue;",
+		"to": "return null;"
 	}
 ]

@@ -95,6 +95,19 @@ describe('the page-data reads relocation', () => {
 		expect(value_of(out!.code)).toEqual({ cccccccccccc: true, dddddddddddd: true });
 	});
 
+	test("a component is found under the graph's id for it, a query or backslashes included", () => {
+		const c = compiler_with({ eeeeeeeeeeee: '/app/Clean.svelte' }, {});
+		const quiet = {
+			...bundle,
+			graph: (id: string) =>
+				id === '\\app\\Clean.svelte?v=1' ? { importedIds: [], dynamicallyImportedIds: [] } : null,
+			module_ids: () => ['\\app\\Clean.svelte?v=1']
+		};
+		expect(value_of(c.relocate(PLACEHOLDER, server_leg(), quiet)!.code)).toEqual({
+			eeeeeeeeeeee: false
+		});
+	});
+
 	test('unpatched (a build that never reached renderChunk), it is unknown: null', () => {
 		expect(value_of(PLACEHOLDER)).toBeNull();
 	});
