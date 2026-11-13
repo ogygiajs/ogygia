@@ -165,7 +165,7 @@ describe('queries', () => {
 		const pick = derived(
 			'pick',
 			(k: string) => k,
-			(cx, k: string) => {
+			(cx) => {
 				runs++;
 				return cx.get(cell, 'switch') === 0 ? cx.get(cell, 'a') + cx.get(cell, 'b') : -1;
 			}
@@ -217,6 +217,70 @@ describe('queries', () => {
 		expect(() => db.get(boom, 'a')).toThrow('boom');
 		expect(db.holds(boom, 'a')).toBe(false);
 		expect(db.answers_changed_since(0)).toBe(false);
+	});
+
+	test('past the bound, the answer used longest ago goes first: a set and a read in a later revision are uses', () => {
+		const w = world();
+		const db = queries('test', 3);
+		for (const k of ['a', 'b', 'c']) db.get(w.cell, k);
+		db.set(w.cell, 'a', 1);
+		db.get(w.cell, 'd');
+		db.get(w.cell, 'c');
+		db.get(w.cell, 'e');
+		expect(['a', 'b', 'c', 'd', 'e'].map((k) => db.holds(w.cell, k))).toEqual([
+			false,
+			false,
+			true,
+			true,
+			true
+		]);
+	});
+
+	test('a query that reads itself throws as a cycle even when the bound lets it go while it runs', () => {
+		const db = queries('test', 1);
+		const a: ReturnType<typeof derived<string, number>> = derived(
+			'a',
+			(k: string) => k,
+			(cx, k: string) => cx.get(b, k)
+		);
+		const b: ReturnType<typeof derived<string, number>> = derived(
+			'b',
+			(k: string) => k,
+			(cx, k: string) => cx.get(a, k)
+		);
+		expect(() => db.get(a, 'x')).toThrow(/query cycle: a x/);
+	});
+
+	test('answers run deeper than the bound still answer right after an edit', () => {
+		const cells = new Map<string, number>();
+		const cell = input(
+			'cell',
+			(k: string) => k,
+			(k: string) => cells.get(k) ?? 0
+		);
+		const chain: ReturnType<typeof derived<number, number>> = derived(
+			'chain',
+			(n: number) => String(n),
+			(cx, n: number) => (n === 0 ? cx.get(cell, 'a') : cx.get(chain, n - 1) + 1)
+		);
+		const db = queries('test', 2);
+		expect(db.get(chain, 5)).toBe(5);
+		cells.set('a', 20);
+		db.set(cell, 'a', 20);
+		expect(db.get(chain, 5)).toBe(25);
+	});
+
+	test('a reader of an answer the bound let go runs again, and answers right', () => {
+		const w = world();
+		const db = queries('test', 3);
+		db.get(w.cell, 'a');
+		expect(db.get(w.label, 'a')).toBe('even');
+		db.get(w.cell, 'x');
+		expect(db.holds(w.cell, 'a')).toBe(false);
+		db.set(w.cell, 'x', 1);
+		expect(db.get(w.label, 'a')).toBe('even');
+		expect(w.runs.get('parity a')).toBe(2);
+		expect(w.runs.get('label a')).toBe(1);
 	});
 
 	test('same: structure, Maps and Sets in order', () => {
