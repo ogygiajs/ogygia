@@ -28,7 +28,11 @@ import {
 	create_hole,
 	create_live,
 	create_paint,
-	create_wake
+	create_region_life,
+	create_wake,
+	detached,
+	lifetime_of,
+	new_lifetime
 } from '../src/runtime/region-machines.ts';
 import * as frames from '../src/runtime/frame-store.ts';
 import { vouch_page_html as html } from '../src/runtime/html-sink.ts';
@@ -265,12 +269,12 @@ bench(
 		}
 		for (let i = 0; i < n / 4; i++) {
 			const live = create_live();
-			live.go('static');
+			live.go('static', { bound: { address: 'a' } });
 			live.scope.defer(leave); // (its subscription)
-			live.go('hydrating', { module: 'a' });
+			live.go('hydrating', { module: 'a', pending: { props: null } });
 			live.go('live', { module: 'a', app });
 			live.scope.defer(() => app.dispose());
-			live.go('hydrating', { module: 'b' });
+			live.go('hydrating', { module: 'b', pending: { props: null } });
 			live.go('idle');
 		}
 		// frames that wait for their sheets: a newer one takes over the older one's visit
@@ -284,6 +288,26 @@ bench(
 			paint.go('idle');
 		}
 		return left + painted;
+	},
+	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
+);
+
+bench(
+	'region life: each region connects with a lifetime, schedules, fails a fetch and schedules again, then leaves',
+	({ n }) => {
+		let left = 0;
+		const leave = () => void left++;
+		for (let i = 0; i < n; i++) {
+			const region = create_region_life();
+			region.go('connected', new_lifetime());
+			region.now.life.defer(leave);
+			region.move('connected', 'scheduled', lifetime_of(region.now));
+			region.move('scheduled', 'connected', lifetime_of(region.now));
+			region.move('connected', 'scheduled', lifetime_of(region.now));
+			region.now.life.close();
+			region.go('detached', detached());
+		}
+		return left;
 	},
 	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
 );

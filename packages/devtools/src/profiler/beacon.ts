@@ -282,7 +282,7 @@ export function beacon_hole_answered(
 	try {
 		id = new URL(el.getAttribute('endpoint') ?? '', location.href).searchParams.get('id') ?? '';
 	} catch {
-		id = '';
+		id = ''; // ok: not a URL: a hole with no id is skipped below
 	}
 	if (!id || holes_answered_els.has(el)) return;
 	holes_answered_els.add(el);
@@ -337,7 +337,7 @@ export function beacon_nav(n: NavigatedEvent): void {
 			};
 		}
 	} catch {
-		split = {};
+		split = {}; // ok: no resource timing in this browser: the navigation is kept without its split
 	}
 	if (!navs_seen) {
 		navs_seen = true;

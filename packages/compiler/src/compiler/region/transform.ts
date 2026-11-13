@@ -759,61 +759,9 @@ function resolve_component_path(spec: string, host_id: string, ctx: HostCtx) {
  * @returns
  */
 
-/**
- * csr=true route host: strip its OWN island directives to plain imports (Kit compiles + hydrates them
- * inline). No context marker is emitted — the
- * inline-vs-island choice is now a single runtime fact (`documentIsCsrTrue`, context.ts), read the same
- * on both legs, which replaced the old per-host `CSR_TRUE_KEY` marker + `csr=false` reset cascade.
- * @param source @param id @param has_island_hint @param import_keys
- * @returns
- */
-function transform_csr_true_host(
-	source: string,
-	id: string,
-	rel_host: string,
-	has_island_hint: boolean,
-	import_keys: ImportKeys
-) {
-	let ast: SvelteNode;
-	try {
-		// the styles are never read here, and a raw `<style lang="scss">` throws in the CSS parser
-		ast = parse(blank_styles(source), { modern: true, filename: id });
-	} catch (err) {
-		warn_unparsed(id, err);
-		return null;
-	}
-	const ms = new MagicString(source);
-	// the same marks are read the same way on a csr=true page: a mark that would fail on a csr=false
-	// page fails here too, so flipping `csr` never turns a build red
-	const roots = [ast.instance?.content, ast.module?.content, ast.fragment];
-	refuse_as_region(roots, source, rel_host);
-
-	// Strip `with { wake|fetch|render|preset|region }` off host imports → plain imports (Kit compiles them).
-	if (has_island_hint) {
-		const region_keys = new Set([
-			import_keys.wake,
-			import_keys.fetch,
-			import_keys.render,
-			import_keys.preset,
-			import_keys.region
-		]);
-		const marked = new Map<string, { node: SvelteNode; exportName: string }>();
-		for (const node of ast.instance?.content?.body ?? []) {
-			if (node.type !== 'ImportDeclaration') continue;
-			const attrs = (node.attributes ?? []).filter((a: SvelteNode) => a.type === 'ImportAttribute');
-			if (!attrs.some((a: SvelteNode) => region_keys.has(a.key.name ?? a.key.value))) continue;
-			for (const b of marked_import_bindings(node, source, rel_host))
-				marked.set(b.local, { node, exportName: b.exportName });
-			ms.overwrite(node.start, node.end, clean_import_text(source, node));
-		}
-		check_marked_uses(roots, marked, source, rel_host);
-	}
-
-	return {
-		code: ms.toString(),
-		map: ms.generateMap({ hires: true, source: id, includeContent: true }),
-		islands: []
-	};
+/** A region Kit would hydrate itself on a csr=true document: an island with a wake schedule. */
+function is_wake_island(mark: RegionMark): boolean {
+	return mark.strategy !== 'server' && mark.strategy !== 'held' && mark.strategy !== 'lake';
 }
 
 export function transformHost(
@@ -861,6 +809,23 @@ class FileCompilation {
 	 *  without the hub → "Unknown type OgygiaRef", every island dead). */
 	#static_placed!: Set<string>;
 	#has_island_hint!: boolean;
+	#to_kit: Array<{ start: number; end: number; text: string }> = [];
+
+	// @why Kit hydrates a csr=true route host, so its wake islands are Kit's plain components; the regions the server drives stay (test: test/csr-true-host-regions.test.ts › a csr=true route host keeps the regions the server drives, as a shared component does)
+	#kit_owns(mark: RegionMark): boolean {
+		return this.#ctx.routeCsr === true && is_wake_island(mark);
+	}
+
+	/** The host with only its Kit-owned marks rewritten to plain imports. */
+	#kit_only() {
+		const s = new MagicString(this.#source);
+		for (const edit of this.#to_kit) s.overwrite(edit.start, edit.end, edit.text);
+		return {
+			code: s.toString(),
+			map: s.generateMap({ hires: true, source: this.#id, includeContent: true }),
+			islands: []
+		};
+	}
 
 	constructor(source: string, id: string, ctx: HostCtx) {
 		this.#source = source;
@@ -1313,25 +1278,6 @@ class FileCompilation {
 		const import_keys = this.#import_keys;
 		const has_island_hint = import_keys_hint(import_keys).test(source);
 
-		// A csr=true route host: Kit hydrates it, so strip its OWN island directives to plain
-		// components (Kit renders them inline). No context marker — every island reads the
-		// per-document documentIsCsrTrue() directly (Region.svelte is_csr). Held/deferred/live/lake
-		// regions are server-driven UI, orthogonal to a page's csr, and are deliberately NOT degraded.
-		if (ctx.routeCsr === true) {
-			return {
-				done:
-					has_island_hint || source.includes('asRegion')
-						? transform_csr_true_host(
-								source,
-								id,
-								path.relative(ctx.root, id).split(PATH_SEP).join('/'),
-								has_island_hint,
-								import_keys
-							)
-						: null
-			};
-		}
-
 		// cheap bailout — the library only touches region imports (configured key names), PLUS files
 		// that define a {#snippet} (a candidate portable snippet forwarded into an island) or name the
 		// retired import.meta.og.asRegion (refused). Files with none of those return null unchanged.
@@ -1408,10 +1354,14 @@ class FileCompilation {
 			// One parser for the whole region option surface → the mark.
 			const mark = this.#resolve_region_mark(inline, (m) => this.#err(names, m));
 			if (!mark) continue;
+			for (const b of bindings) marked_imports.set(b.local, { node, exportName: b.exportName });
+			if (this.#kit_owns(mark)) {
+				this.#to_kit.push({ start: node.start, end: node.end, text: cleaned });
+				continue;
+			}
 			for (const b of bindings) {
 				marked_components.set(b.local, mark);
 				export_names.set(b.local, b.exportName);
-				marked_imports.set(b.local, { node, exportName: b.exportName });
 			}
 		}
 		// every marked name is a component: placed, or handed on as a value
@@ -1421,7 +1371,7 @@ class FileCompilation {
 		// the component it's handed to). Keep going for those; the island passes below no-op with an empty
 		// `marked_components`, and the end guard returns `null` unchanged if no portable work happens.
 		if (marked_components.size === 0 && !source.includes('{#snippet')) {
-			return { done: null };
+			return { done: this.#to_kit.length ? this.#kit_only() : null };
 		}
 
 		/** Non-fallback children on a hydrate/defer call site cannot cross devalue — reject. */
@@ -1468,6 +1418,7 @@ class FileCompilation {
 		const has_island_hint = this.#has_island_hint;
 
 		const s = new MagicString(source);
+		for (const edit of this.#to_kit) s.overwrite(edit.start, edit.end, edit.text);
 		// The resolution base for this host's relative specifiers. For a real file it IS the file.
 		// For a generated entry (a portable-snippet synth re-processed under its virtual id) it is the
 		// file the slice was cut from — and it is what every record minted here stamps as `hostPath`,
@@ -2182,7 +2133,13 @@ ${host_style}`;
 		}
 
 		// Snippet-only files that produced no island or portable work are untouched — behave as bailed.
-		if (!has_island_hint && !portable_emitted && islands_by_id.size === 0) return null;
+		if (
+			!has_island_hint &&
+			!portable_emitted &&
+			islands_by_id.size === 0 &&
+			this.#to_kit.length === 0
+		)
+			return null;
 
 		// THE one wire question a host compilation answers: can this host cross live content into an
 		// island? True for a static placement WITH children (they cross as slot pointers), for a
@@ -2192,11 +2149,7 @@ ${host_style}`;
 		// program.register turns this single flag into the runtime `wire` mark; server/held/lake
 		// marks never cross children this way and stay out of it.
 		const has_dynamic_island_use = [...marked_components].some(
-			([name, m]) =>
-				m.strategy !== 'server' &&
-				m.strategy !== 'held' &&
-				m.strategy !== 'lake' &&
-				!this.#static_placed.has(name)
+			([name, m]) => is_wake_island(m) && !this.#static_placed.has(name)
 		);
 
 		return {

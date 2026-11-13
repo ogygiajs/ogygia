@@ -26,7 +26,7 @@
 			const dump = (await res.json()) as { meta: { id: string; created: number; trigger: string } };
 			state_ = (await put_report(dump)) ? 'kept' : 'failed';
 		} catch {
-			state_ = 'failed';
+			state_ = 'failed'; // ok: the panel shows that keeping it failed
 		}
 	}
 	const idle = (

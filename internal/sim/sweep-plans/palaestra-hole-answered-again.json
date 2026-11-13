@@ -4,7 +4,13 @@
 	"plan": {
 		"actions": [
 			{ "kind": "goto", "tab": 0, "path": "/header-refresh" },
-			{ "kind": "twice", "tab": 2, "nth": 301, "after": 5 }
+			{
+				"kind": "twice",
+				"tab": 0,
+				"nth": 301,
+				"after": 5,
+				"names": ["button og-region \"français\"", "button og-region \"français\""]
+			}
 		],
 		"mix": {
 			"click": 1,
