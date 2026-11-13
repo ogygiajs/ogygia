@@ -2,12 +2,12 @@
 // success) re-reads the page's head and data in place. Started while a navigation to the next page
 // waits (here on that page's stylesheet, held at the network for real), it must refresh the page
 // still on screen: never fetch the next page and merge its title, head and page data into this one.
-// The router's timers are the test's (fake): its 2 s cap on the sheet's wait never runs out on a
-// loaded runner and swaps the next page in early.
-import { afterEach, beforeEach, expect, vi } from 'vitest';
+// The page's clock is held until the sheet has come (`hold_time`): the router's 2 s cap on the
+// sheet's wait never runs out on a loaded runner and swaps the next page in early.
+import { afterEach, beforeEach, expect } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
-import { in_head } from './_in-head.ts';
+import { download_ended, end_time_hold, hold_time, in_head, release_time } from './_in-head.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { install as install_morph } from '../../src/runtime/morph.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
@@ -35,7 +35,6 @@ const asked: string[] = [];
 beforeEach(() => {
 	link_boot();
 	install_morph();
-	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 	const marker = document.createElement('meta');
 	marker.name = 'ogygia-router';
 	document.head.append(marker);
@@ -53,7 +52,7 @@ beforeEach(() => {
 	};
 });
 afterEach(async () => {
-	vi.useRealTimers();
+	end_time_hold();
 	window.fetch = real_fetch;
 	history.replaceState(null, '', home);
 	// (a fetched page's head brought its runtime stand-in)
@@ -69,9 +68,10 @@ it_with_network_routes(
 		await commands.hold_downloads(HELD);
 		const r = new SpaRouter();
 		r.start();
+		hold_time();
 		const went = r.navigate(new URL(NEXT, home));
 		// the next page is fetched; the navigation waits for its sheet
-		await in_head(`link[href="${HELD}"]`);
+		const sheet = (await in_head(`link[href="${HELD}"]`)) as HTMLLinkElement;
 		expect(r.nav.now.kind).toBe('loading');
 		asked.length = 0;
 		// a remote form on A succeeds: A's data is refreshed in place
@@ -83,8 +83,10 @@ it_with_network_routes(
 		);
 		expect((page_state.data as { who?: string }).who).toBe('a');
 		expect(document.querySelector('p')?.textContent).toBe('a');
-		// the navigation still goes in, afterwards
+		// the navigation still goes in, afterwards, on its sheet
 		await commands.keep_downloads(HELD);
+		await download_ended(sheet);
+		release_time();
 		await went;
 		expect(document.title).toBe('page B');
 		expect((page_state.data as { who?: string }).who).toBe('b');
@@ -97,14 +99,18 @@ it_with_network_routes(
 		await commands.hold_downloads(HELD);
 		const r = new SpaRouter();
 		r.start();
+		hold_time();
 		const went = r.navigate(new URL(NEXT, home));
-		const sheet = await in_head(`link[href="${HELD}"]`);
+		const sheet = (await in_head(`link[href="${HELD}"]`)) as HTMLLinkElement;
 		await r.invalidateAll();
 		// the page on screen's head merge is not the navigation's: its sheet stays, still loading
 		expect(sheet.isConnected).toBe(true);
 		expect(document.head.querySelectorAll(`link[href="${HELD}"]`)).toHaveLength(1);
-		// it arrives, and the navigation goes in on it (the cap's timer never runs: it is the test's)
+		// it arrives, and the navigation goes in on it (time moves again only once it has loaded, so
+		// the cap never runs first)
 		await commands.keep_downloads(HELD);
+		await download_ended(sheet);
+		release_time();
 		await went;
 		expect(document.title).toBe('page B');
 		expect(document.head.querySelectorAll(`link[href="${HELD}"]`)).toHaveLength(1);
