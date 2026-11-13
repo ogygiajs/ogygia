@@ -138,6 +138,7 @@ export type MarkKey =
 	| 'ogygiaKeep'
 	| 'ogygiaNoKeep'
 	| 'ogygiaPage'
+	| 'ogygiaPageUnshipped'
 	| 'ogygiaProps'
 	| 'ogygiaProvide'
 	| 'ogygiaProvidePage'
@@ -270,6 +271,8 @@ export const OGYGIA_HOLES = 'data-ogygia-holes';
 export const OGYGIA_KEEP = 'data-ogygia-keep';
 export const OGYGIA_NO_KEEP = 'data-ogygia-no-keep';
 export const OGYGIA_PAGE = 'data-ogygia-page';
+/** Rules builds: on the page seed, the `page.data` keys it leaves out (a JSON array). */
+export const OGYGIA_PAGE_UNSHIPPED = 'data-ogygia-page-unshipped';
 export const OGYGIA_PROPS = 'data-ogygia-props';
 export const OGYGIA_PROVIDE = 'data-ogygia-provide';
 export const OGYGIA_PROVIDE_PAGE = 'data-ogygia-provide-page';
@@ -398,6 +401,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	ogygiaKeep: { attr: OGYGIA_KEEP, by: 'page' },
 	ogygiaNoKeep: { attr: OGYGIA_NO_KEEP, by: 'page' },
 	ogygiaPage: { attr: OGYGIA_PAGE, by: 'page' },
+	ogygiaPageUnshipped: { attr: OGYGIA_PAGE_UNSHIPPED, by: 'page' },
 	ogygiaProps: { attr: OGYGIA_PROPS, by: 'page' },
 	ogygiaProvide: { attr: OGYGIA_PROVIDE, by: 'page' },
 	ogygiaProvidePage: { attr: OGYGIA_PROVIDE_PAGE, by: 'page' },

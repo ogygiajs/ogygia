@@ -95,6 +95,18 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/runtime/seeds.ts > watch_unshipped > parse:0",
+			"reason": "rules builds only: a left-out list that does not parse (the server writes it, so only a mangled document)",
+			"test": "packages/core/test/browser/seed-unshipped.test.ts",
+			"name": "a left-out list that does not parse names nothing: the seed still reads, and nothing is told"
+		},
+		{
+			"site": "packages/core/src/runtime/seeds.ts > watch_unshipped > catch:0",
+			"reason": "rules builds only: a left-out list that does not parse (the server writes it, so only a mangled document)",
+			"test": "packages/core/test/browser/seed-unshipped.test.ts",
+			"name": "a left-out list that does not parse names nothing: the seed still reads, and nothing is told"
+		},
+		{
 			"site": "packages/compiler/src/compiler/parse/roots.ts > parse_roots > catch:0",
 			"reason": "a component Svelte cannot parse: the analysis that asked gives up safely (seed shaping ships all)",
 			"test": "packages/page-keys/test/page-keys-summaries.test.ts",
