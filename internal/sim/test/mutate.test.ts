@@ -4,6 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { dedent } from '../../../packages/core/src/contract/dedent.ts';
 import {
 	apply_mutant,
 	baseline_packages,
@@ -74,7 +75,14 @@ describe('a mutant', () => {
 	});
 
 	it('looks only in its own function: the same code in another is not it', () => {
-		const two = `function g() {\n\treturn false;\n}\n${SRC}`;
+		const two = [
+			dedent`
+				function g() {
+					return false;
+				}
+			`,
+			SRC
+		].join('\n');
 		const out = apply_mutant(two, {
 			file: X,
 			in: 'f',
@@ -83,7 +91,16 @@ describe('a mutant', () => {
 		}).split('\n');
 		expect(out[1]).toBe('\treturn false;');
 		expect(out[5]).toBe('\treturn true;');
-		const nested = `class K {\n\tm() {\n\t\tconst inner = () => {\n\t\t\treturn false;\n\t\t};\n\t\treturn false;\n\t}\n}`;
+		const nested = dedent`
+			class K {
+				m() {
+					const inner = () => {
+						return false;
+					};
+					return false;
+				}
+			}
+		`;
 		const deep = apply_mutant(nested, {
 			file: X,
 			in: 'K > m > inner',
@@ -95,7 +112,13 @@ describe('a mutant', () => {
 	});
 
 	it('needs nth when its code is on two lines of one function, and nth picks one (0-based)', () => {
-		const twice = `function f(a) {\n\tif (a) return false;\n\treturn false;\n\treturn false;\n}`;
+		const twice = dedent`
+			function f(a) {
+				if (a) return false;
+				return false;
+				return false;
+			}
+		`;
 		const m = { file: X, in: 'f', code: 'return false;', operator: 'boolean' };
 		expect(() => apply_mutant(twice, m)).toThrow(/2 lines.*nth/);
 		expect(apply_mutant(twice, { ...m, nth: 1 }).split('\n')[3]).toBe('\treturn true;');
