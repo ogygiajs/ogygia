@@ -35,8 +35,7 @@ const LABEL = '/test/browser/fixtures/Label.svelte';
 const HYDRATED = 'ogygia-region[data-hydrated]';
 
 const kept = (body: string, props: Record<string, unknown>) =>
-	`<ogygia-region wake="load" entry="${LABEL}" data-ogygia-keep="label">${body}</ogygia-region>` +
-	`<script type="application/ogygia-props" data-ogygia-props>${stringify_props(props, 'Label')}\x3C/script>`;
+	`<ogygia-region wake="load" entry="${LABEL}" data-ogygia-keep="label">${body}</ogygia-region><script type="application/ogygia-props" data-ogygia-props>${stringify_props(props, 'Label')}\x3C/script>`;
 
 test('a kept island whose next props hold a live value shows them in a build without the wire codec', async () => {
 	const meta = document.createElement('meta');
