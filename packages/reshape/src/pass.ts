@@ -84,7 +84,7 @@ export function reshape_pass(
 				marked ? marked.record : null,
 				in_dev
 			);
-			if (out === null) return { html, head: '', body: '' };
+			if (out === null) return { html, head: '', body: RESTORER_SCRIPT };
 			const s = marked ? settle(out, marked.record, { dev: in_dev }) : null;
 			// A page loaded as one keeps hosts in the transform's first-load form: if this copy ever
 			// reaches the router (a store, a prerender, a cache), it loads it instead of swapping it in
