@@ -883,10 +883,10 @@ class OgygiaRegion extends HTMLElement {
 		// frame instead of paying the origin round trip. Never `interaction` (that is `when`'s job:
 		// arming it here would replace the hole's own on-demand fire) and never the same schedule
 		// as `when` (nothing to gain) — the compiler refuses both; the guard keeps a hand-written
-		// attribute harmless.
+		// attribute harmless. Its `visible` reads the region's `margin` as `when`'s does (`#on_visible`).
 		const prefetch = this.getAttribute('prefetch');
 		if (prefetch && prefetch !== when && prefetch !== 'interaction') {
-			this.#arm(prefetch, this.#fire_prefetch, this.getAttribute('margin') || undefined);
+			this.#arm(prefetch, this.#fire_prefetch);
 		}
 	}
 
