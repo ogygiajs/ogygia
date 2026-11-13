@@ -698,6 +698,14 @@ export class World {
 		return true;
 	}
 
+	/** When a quiesce last came to rest (virtual ms; -1: never). */
+	#rested_at = -1;
+
+	/** Whether the world is at rest now: a quiesce came to rest, and no time ran since. */
+	at_rest(): boolean {
+		return this.#rested_at === this.loop.now && this.#wire_quiet();
+	}
+
 	/** True when the world came to rest; false when the budget or the horizon ended the wait. */
 	async quiesce(budget = 30_000, gap = 2_000): Promise<boolean> {
 		const end = this.loop.now + budget;
@@ -708,7 +716,10 @@ export class World {
 			// (nor is a request a server is still working on: its answer is not a task until it
 			// comes, and the server's own timer may be due past the gap, a hole that renders in 3 s;
 			// seed 46, /ooo)
-			if (this.#wire_quiet() && next > this.loop.now + gap) return true;
+			if (this.#wire_quiet() && next > this.loop.now + gap) {
+				this.#rested_at = this.loop.now;
+				return true;
+			}
 			if (next > end || next > this.loop.horizon) return false;
 			await this.loop.step();
 		}

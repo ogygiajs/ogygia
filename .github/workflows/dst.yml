@@ -169,13 +169,13 @@ jobs:
       - name: Mutate
         working-directory: internal/sim
         run: |
-          node --no-warnings src/mutate.ts --mutants mutants.json --gens 188,191,192,193,220,262 --seeds 20 \
+          node --no-warnings src/mutate.ts --mutants mutants.json --gens 188,191,192,193,220,262,550 --seeds 20 \
             --jobs 4 --budget-min 60 --sandbox "$RUNNER_TEMP/mutbox" \
             --out "$RUNNER_TEMP/dst-mutation.jsonl"
           tail -1 "$RUNNER_TEMP/dst-mutation.jsonl" | node -e '
             const t = JSON.parse(require("fs").readFileSync(0, "utf8"));
             require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY,
-              `## Mutation testing\n\nKill rate ${t.rate}% (${t.killed}/${t.judged} judged of ${t.total}), ${t.at.slice(0, 10)}.\n`);'
+              `## Mutation testing\n\nKill rate ${t.rate}% (${t.killed}/${t.judged} judged of ${t.total}, ${t.equivalent ?? 0} equivalent), ${t.at.slice(0, 10)}.\n`);'
 
       - name: Upload the result
         if: always()
