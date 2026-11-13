@@ -11,6 +11,7 @@ import {
 	verify as ed_verify
 } from 'node:crypto';
 import {
+	body_end,
 	Needle,
 	next_any_tag,
 	next_tag,
@@ -661,20 +662,6 @@ function element_of(html: string, tag: FoundTag, name: string): string | null {
 	return gt === -1 ? null : html.slice(tag.start, gt + 1);
 }
 
-/** Where the document's last `</body` end tag starts, at or after `from`, or -1. */
-function last_body_close(html: string, from: number): number {
-	// markup-ok: a document's last `</body`, from the back (one walk for it: #1410)
-	for (let i = html.lastIndexOf('</'); i >= from && i !== -1; i = html.lastIndexOf('</', i - 1)) {
-		if (html.slice(i + 2, i + 6).toLowerCase() === 'body') {
-			const c = html.charCodeAt(i + 6);
-			// (the name ends there: whitespace, `/`, `>`)
-			if (c === 62 || c === 47 || c === 32 || (c >= 9 && c <= 13)) return i;
-		}
-		if (i === 0) break;
-	}
-	return -1;
-}
-
 /** A head meta the fragment carries: SEO/social; charset/viewport/http-equiv stay the shell's
  *  (it owns the document). */
 function carried_meta(t: FoundTag): boolean {
@@ -729,12 +716,13 @@ export function lift_document(html: string, origin: string): Omit<FragmentDocume
 	}
 	const title_tag = next_tag(head, 'title', 0);
 	const body_tag = next_tag(html, 'body', 0);
-	const body_end = body_tag === null ? -1 : last_body_close(html, body_tag.end);
+	const close = body_tag === null ? -1 : body_end(html);
+	const body_close = close < (body_tag?.end ?? 0) ? -1 : close;
 	return {
 		title: decodeText((title_tag && text_of(head, title_tag, 'title')) ?? ''),
 		css,
 		...(head_meta ? { head: head_meta } : {}),
-		body: absolutize(body_end === -1 ? html : html.slice(body_tag!.end, body_end), origin),
+		body: absolutize(body_close === -1 ? html : html.slice(body_tag!.end, body_close), origin),
 		...(runtime_src ? { runtime: new URL(runtime_src, `${origin}/`).href } : {})
 	};
 }
