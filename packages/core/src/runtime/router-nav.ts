@@ -186,7 +186,10 @@ function nav_headers(purpose: NavPurpose, known: string): Record<string, string>
  * fn to re-apply the stripped names AFTER the transition, so a page entered across a shell change
  * still animates on its next same-shell nav.
  */
-function fold_orphan_vt_names(current: ParentNode, incoming: ParentNode): () => void {
+function fold_orphan_vt_names(
+	current: ParentNode,
+	incoming: ParentNode
+): { fold_incoming: () => void; restore: () => void } {
 	const names_in = (root: ParentNode): Map<string, HTMLElement[]> => {
 		const map = new Map<string, HTMLElement[]>();
 		for (const el of root.querySelectorAll<HTMLElement>('[style*="view-transition-name"]')) {
@@ -211,9 +214,11 @@ function fold_orphan_vt_names(current: ParentNode, incoming: ParentNode): () => 
 		}
 	};
 	fold(cur, inc); // current-only (docs→marketing): fold into the root exit
-	fold(inc, cur); // incoming-only (marketing→docs): fold into the root enter
-	return () => {
-		for (const [el, name] of stripped) el.style.setProperty('view-transition-name', name);
+	return {
+		fold_incoming: () => fold(names_in(document.body), cur),
+		restore: () => {
+			for (const [el, name] of stripped) el.style.setProperty('view-transition-name', name);
+		}
 	};
 }
 
@@ -1052,8 +1057,12 @@ export async function navigate(
 		// change (docs sidebar ↔ marketing page) doesn't fire dozens of solo enter/exits over a
 		// holed-out root snapshot. Matched names (the docs↔docs highlight slide) are untouched.
 		// Captured NOW — before the transition snapshots `before` — and restored after it settles.
-		const restore_vt_names = fold_orphan_vt_names(document.body, built.doc.body);
-		const t = document.startViewTransition(swap);
+		const vt_names = fold_orphan_vt_names(document.body, built.doc.body);
+		const restore_vt_names = vt_names.restore;
+		const t = document.startViewTransition(() => {
+			swap();
+			if (!out.failed) vt_names.fold_incoming();
+		});
 		// A rapid follow-up navigation skips this transition; the browser then rejects `.ready`
 		// and `.finished` with "Transition was skipped". Nothing awaits those, so without a catch
 		// they surface as unhandled rejections (console noise, no functional effect). Swallow them.
