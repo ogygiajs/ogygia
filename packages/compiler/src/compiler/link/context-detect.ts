@@ -1,22 +1,11 @@
-/**
- * The string-literal context keys a file reads and sets, following the import binding through the
- * AST (a text scan would count an unrelated `getContext`). Whether a file PROVIDES ogygia context
- * (the `context` mark) is a question of what it reaches of ogygia: link/own-reach.ts.
- */
 import { parse_roots } from './page-keys.ts';
 import { OWN_PACKAGE_NAMES, key_name } from '@ogygia/core/contract';
 import type { AstNode } from '../parse/oxc.ts';
 
-/** Loose AST node — the parser hands ESTree-ish objects; positions/back-refs are skipped by the walk. */
 type SvelteNode = AstNode;
 
-/** Modules whose `getContext` reads the Svelte/ogygia context map (both resolve the same map — ogygia
- *  re-exports Svelte's, and the drop-in is read with the unchanged `getContext`). */
-// static: the modules a context call can come from (Svelte and ogygia's own packages)
-const CTX_MODULES = new Set(['svelte', ...OWN_PACKAGE_NAMES]);
-/** AST back-references / positions the walk must not descend into. */
-// static: the AST node keys the walk never descends into
-const NODE_SKIP = new Set([
+const CTX_MODULES: ReadonlySet<string> = new Set(['svelte', ...OWN_PACKAGE_NAMES]);
+const NODE_SKIP: ReadonlySet<string> = new Set([
 	'start',
 	'end',
 	'loc',
@@ -29,7 +18,6 @@ const NODE_SKIP = new Set([
 	'__key'
 ]);
 
-/** An import/member name node → its string name (`Identifier` or a string `Literal`). */
 function name_of(n: SvelteNode | undefined): string | null {
 	if (!n) return null;
 	if (n.type === 'Identifier') return n.name ?? null;
@@ -37,7 +25,6 @@ function name_of(n: SvelteNode | undefined): string | null {
 	return null;
 }
 
-/** A string-literal argument's value, else null (a dynamic key is deliberately not counted). */
 function literal_string(n: SvelteNode | undefined): string | null {
 	return n && n.type === 'Literal' && typeof n.value === 'string' ? n.value : null;
 }
@@ -104,8 +91,6 @@ export function context_keys(src: string, kind: 'svelte' | 'script'): ContextKey
 	const roots = parse_roots(src, 'ogygia:context-detect', kind);
 	if (!roots) return none;
 
-	// Local bindings resolved to Svelte/ogygia's getContext / setContext, plus namespace imports of a
-	// context module (`import * as x from 'svelte'` → `x.getContext(…)`).
 	const get_locals = new Set<string>();
 	const set_locals = new Set<string>();
 	const own_set_locals = new Set<string>();
