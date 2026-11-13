@@ -429,6 +429,27 @@ export function value_at(html: string, tag: FoundTag, name: string, attr: string
 	return at;
 }
 
+/** Where each copy of the attribute `attr` (lower case) of `tag`, a `<name …>` start tag of
+ *  `html`, is, in order: from the whitespace before its name to just past its value (past the
+ *  closing quote of a quoted one). What a rewrite cuts to drop the attribute, read the way the
+ *  browser reads it: any quoting, spaces around `=`, any case, every copy. */
+export function attr_spans(
+	html: string,
+	tag: FoundTag,
+	name: string,
+	attr: string
+): Array<[start: number, end: number]> {
+	const spans: Array<[number, number]> = [];
+	read_attrs(html, tag.start + 1 + name.length, (ns, ne, _vs, ve, vq) => {
+		if (!name_is(html, ns, ne, attr)) return;
+		let start = ns;
+		while (is_space(html.charCodeAt(start - 1))) start--;
+		// (bare: the name alone; quoted: past the closing quote; unquoted: the value's end)
+		spans.push([start, vq === -1 ? ne : vq === 0 ? ve : ve + 1]);
+	});
+	return spans;
+}
+
 /** The start tag whose name ends at `after` (its `<` at `lt`), up to its `>`. Null when the HTML
  *  ends inside it (an unclosed tag or quoted value), as a browser drops it. */
 export function read_tag(html: string, lt: number, after: number): FoundTag | null {

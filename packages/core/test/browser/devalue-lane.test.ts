@@ -36,12 +36,18 @@ test('only a script in the devalue lane needs devalue', () => {
 test('a read before the load says so; after it, devalue parses', async () => {
 	expect(() => devalue()).toThrow(/e\/devalue_not_loaded/);
 	const seen: unknown[] = [];
-	with_devalue(({ parse }) => seen.push(parse(stringify(new Date(0)))));
+	with_devalue(
+		({ parse }) => seen.push(parse(stringify(new Date(0)))),
+		(error) => seen.push(error)
+	);
 	expect(seen).toEqual([]); // (queued: the import is still in flight)
 	await load_devalue();
 	await Promise.resolve();
 	expect(seen).toEqual([new Date(0)]);
 	expect(devalue().parse(stringify(new Map([[1, 2]])))).toEqual(new Map([[1, 2]]));
-	with_devalue(({ parse }) => seen.push(parse(stringify(1))));
+	with_devalue(
+		({ parse }) => seen.push(parse(stringify(1))),
+		(error) => seen.push(error)
+	);
 	expect(seen).toHaveLength(2); // (loaded: it runs at once)
 });
