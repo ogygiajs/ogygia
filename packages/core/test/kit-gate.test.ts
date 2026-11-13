@@ -84,6 +84,7 @@ describe('the Kit start gate', () => {
 			readyState: 'loading',
 			addEventListener: (_: string, r: () => void) => listeners.push(r)
 		};
+		// oxlint-disable-next-line typescript/no-implied-eval -- runs the wait script the server prints, against a stand-in document
 		const wait = new Function('document', `return ${KIT_START_WAIT};`) as (
 			d: typeof doc
 		) => Promise<void>;
