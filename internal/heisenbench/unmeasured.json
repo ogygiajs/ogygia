@@ -37,10 +37,6 @@
 			"reason": "the sources to add that a directive lacks, constant work per source (one or two hashes); early-holes-csp.test.ts runs it"
 		},
 		{
-			"id": "packages/rewrite/src/pass.ts > count_error",
-			"reason": "the wrong-count message of a failed render, built only when a render returns the wrong number of results; rewrite.test.ts 'a batch with the wrong count is retried one at a time' runs it"
-		},
-		{
 			"id": "packages/rewrite/src/pass.ts > render_targets > map:0~ae0427",
 			"reason": "one null per target of a batch cancelled while it rendered, constant work per target; rewrite.test.ts's cancelled-request tests run it (the request's signal: not replayable)"
 		},
