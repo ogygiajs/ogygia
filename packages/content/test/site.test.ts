@@ -835,6 +835,15 @@ describe('search — projection', () => {
 });
 
 describe('search — engine + brain (Orama)', () => {
+	it("orama's insert answers at once for the engine's schema, so a build's index is whole before its first query", async () => {
+		const { create, insert } = await import('@orama/orama');
+		const db = create({
+			schema: { title: 'string', heading: 'string', text: 'string', section: 'string' }
+		});
+		const id = insert(db, { id: '0', title: 't', heading: '', text: 'x', section: 's' });
+		expect(id).toBe('0');
+	});
+
 	it('orama_engine indexes docs and ranks a term match', async () => {
 		const engine = orama_engine();
 		await engine.init?.();
