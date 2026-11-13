@@ -4,14 +4,9 @@
  * `__og_restore_adopt`); this realm reports what it recorded, restores each region answer before
  * anything reads it, and keeps a web component's own class tokens through Svelte's hydrate.
  */
-import { defineClient, type ClientPlugin } from '@ogygia/core/plugin/client';
+import { defineClient, type ClientPlugin, type PageGlobals } from '@ogygia/core/plugin/client';
 import { keep_host_classes, note_host_classes } from './host-classes.ts';
 import { report_restores } from './restore-report.ts';
-
-type RestoreWindow = {
-	__og_restore?: (root: ParentNode) => number;
-	__og_restore_adopt?: () => void;
-};
 
 const client: ClientPlugin = defineClient({
 	boot({ kitPage }) {
@@ -25,10 +20,10 @@ const client: ClientPlugin = defineClient({
 		},
 		answerParsed({ fragment }) {
 			// (the page's restorer, read now: the report wraps it at boot)
-			(window as RestoreWindow).__og_restore?.(fragment);
+			(window as PageGlobals).__og_restore?.(fragment);
 		},
 		answerPlaced() {
-			(window as RestoreWindow).__og_restore_adopt?.();
+			(window as PageGlobals).__og_restore_adopt?.();
 		}
 	}
 });
