@@ -683,7 +683,7 @@ export const BUILD_ERRORS = {
 			`seed shaping (\`pageReads\`) is claimed by both \`${a.owner}\` and \`${a.plugin}\`.`,
 		details: (): string => prose`
 			Two plugins answer which \`page.data\` keys a module reads. Only one can: list one of them
-			(\`dataShake()\` from \`@ogygia/data-shake\` is the one ogygia ships).
+			(\`dataShake()\` from \`@ogygia/data-shake/vite\` is the one ogygia ships).
 		`
 	},
 	page_modules_not_absolute: {

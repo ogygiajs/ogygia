@@ -1,8 +1,9 @@
 {
 	"name": "@ogygia/data-shake",
 	"version": "0.13.0",
-	"description": "Seed shaping for ogygia apps: each island gets only the page.data keys its code reads",
+	"description": "Data shaking for ogygia apps: a page ships only the data its regions' code reads, starting with page.data",
 	"keywords": [
+		"data-shaking",
 		"ogygia",
 		"page-data",
 		"sveltekit",
@@ -23,16 +24,16 @@
 	"type": "module",
 	"sideEffects": false,
 	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"default": "./src/index.ts"
+		"./vite": {
+			"types": "./dist/vite.d.ts",
+			"default": "./src/vite.ts"
 		}
 	},
 	"publishConfig": {
 		"exports": {
-			".": {
-				"types": "./dist/index.d.ts",
-				"default": "./dist/index.js"
+			"./vite": {
+				"types": "./dist/vite.d.ts",
+				"default": "./dist/vite.js"
 			}
 		}
 	},

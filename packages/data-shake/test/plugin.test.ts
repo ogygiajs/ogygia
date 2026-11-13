@@ -4,7 +4,8 @@
 import { describe, expect, it } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
 import type { BuildContext, PageReads, PluginDefinition } from '@ogygia/compiler/vite';
-import { dataShake, page_reads } from '../src/index.ts';
+import { page_reads } from '../src/index.ts';
+import { dataShake } from '../src/vite.ts';
 
 const files: Record<string, string> = {
 	'/app/src/lib/A.svelte': dedent`

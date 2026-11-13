@@ -70,7 +70,7 @@ describe('postrender() — the vite value', () => {
 			code: 'plugin_needs_plugin'
 		});
 		await expect(find_plugins([postrenderPlugin()])).rejects.toThrow(
-			/`@ogygia\/postrender` needs `dataShake\(\)`.*`@ogygia\/page-keys`/
+			/`@ogygia\/postrender` needs `dataShake\(\)`.*`@ogygia\/data-shake\/vite`/
 		);
 		const found = await find_plugins([postrenderPlugin(), dataShake()]);
 		expect(resolve_plugins(found, POSTRENDER_APP, true).page_reads).not.toBeNull();

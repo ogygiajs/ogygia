@@ -143,7 +143,7 @@ The content macros (`import.meta.og.loader`, `og.code`, `og.md`) bring their own
 The other features are set up the same way as markdown. Each is a package you install, with a plugin you list once beside `ogygia()` and before `sveltekit()`, for example `plugins: [ogygia(), flags(), sveltekit()]`:
 
 - **`@ogygia/flags`** (`flags()`): kill switches, rollouts and A/B tests, decided on the server. See [`@ogygia/flags`](/docs/flags/overview).
-- **`@ogygia/postrender`** (`postrender()`): pages stored whole on their first request and served as bytes. It requires `dataShake()` from `@ogygia/data-shake` listed beside it. See [`@ogygia/postrender`](/docs/postrender/overview).
+- **`@ogygia/postrender`** (`postrender()`): pages stored whole on their first request and served as bytes. It requires `dataShake()` from `@ogygia/data-shake/vite` listed beside it. See [`@ogygia/postrender`](/docs/postrender/overview).
 - **`@ogygia/federation`** (`federation()`): other teams' apps rendered into your pages. See [`@ogygia/federation`](/docs/federation/overview).
 - **`@ogygia/router`** (`router()`): routes declared as values in code. See [`@ogygia/router`](/docs/router/overview).
 - **`@ogygia/devtools`** (`devtools()`): the in-page devtools dock and the SSR profiler. See [`@ogygia/devtools`](/docs/devtools/overview).

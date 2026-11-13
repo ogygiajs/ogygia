@@ -1,4 +1,4 @@
-import { definePlugin, type OgygiaPlugin, type PageReads } from '@ogygia/compiler/vite';
+import type { PageReads } from '@ogygia/compiler/vite';
 import {
 	follow_pending_page_calls,
 	mentions_page_store,
@@ -11,24 +11,6 @@ import {
 } from './analysis.ts';
 
 const SCRIPT_MODULE_RE = /\.(?:[cm]?[jt]sx?)$/;
-
-/**
- * Seed shaping, listed beside `ogygia()` (`plugins: [ogygia(), dataShake(), sveltekit()]`).
- *
- * An island that reads `page.data` through `$app/state` / `$app/stores` gets the page seed. Without
- * this plugin that seed is all of `page.data`, and every server hole looks it up. With it, the build
- * reads each module once for the top-level `page.data` keys it can reach; the page ships only the
- * keys its islands read, and a hole whose tree reads none skips the lookup. Any read the analysis
- * cannot pin answers `'unknown'`, and that region gets all of `page.data` as before.
- */
-export function dataShake(): OgygiaPlugin {
-	return definePlugin({
-		name: '@ogygia/data-shake',
-		build(b) {
-			b.pageReads(page_reads());
-		}
-	});
-}
 
 /** One build's answers (a plugin instance per configured `ogygia()`: Kit 2 builds each leg in its
  *  own). `read` is the build's file reader, threaded in so this stays testable. */
