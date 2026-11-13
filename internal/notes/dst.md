@@ -459,6 +459,19 @@ then break the recovery and see a seed fail, twice on the same build (the re-run
 mutant goes in mutants.json and its id in `killed_by`. A site that fires but whose broken recovery
 nobody notices wants an oracle or a test first.
 
+THE LEDGER AUTOPILOT (`src/autopilot.ts`, test/autopilot.test.ts) moves baseline sites a real test
+already checks to `covered` in bulk. It puts a probe on each baseline site's recovery path (a catch
+body, a `.catch` or rejection handler, a `!res.ok`, STALE or null-body check when it holds, a throw,
+an `{ ok: false }`), runs a package's tests once per project to learn which tests reach it, takes
+the probes out, then breaks each reached recovery (a catch emptied or made to rethrow, a handler made
+to rethrow, a check never true, a throw removed, a failed result made ok) and reruns only the tests
+that reached it, under a time limit. A reaching test that fails twice on the same mutant (the re-run
+rule) is the site's `covered` test. A site whose mutants all leave its tests green SURVIVED (a test
+runs the path and checks nothing: a buggify or test gap), and one no test reaches is left for a
+buggify point. The source is put back after every pass and checked byte for byte; Ctrl-C puts it
+back too. `node src/autopilot.ts --package core --project node --project browser [--apply]`; its
+map, results (resumable), patch and report go to `--out` (default `.scratch/autopilot/<pkg>`).
+
 MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
 `internal/sim/mutants.json` on main's code, over gens 1 (a Kit mount of a peer with its refused and
 missing pages: a 400 taken as no error, an error that says nothing, and an exposed page answered as
