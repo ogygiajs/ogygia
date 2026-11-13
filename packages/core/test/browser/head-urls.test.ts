@@ -60,3 +60,29 @@ test('one file linked page-relative from two depths is one head node', () => {
 	live.setAttribute('href', '/_app/x.css');
 	expect(head_node_key(live)).toBe(`LINK:stylesheet:${location.origin}/_app/x.css:`);
 });
+
+test('a candidate URL that ends in the comma before the next one is a URL without it', () => {
+	const doc = parse(`<link rel="preload" as="image" imagesrcset="../a.png, ../b.png">`);
+	resolve_head_urls(doc.head, new URL('https://example.com/x/y/'));
+	expect(doc.head.firstElementChild!.getAttribute('imagesrcset')).toBe(
+		'https://example.com/x/a.png, https://example.com/x/b.png'
+	);
+});
+
+test('a URL that names the same file from any page stays as written', () => {
+	const absolute = `${location.origin}/_app/a.css`;
+	const doc = parse(
+		`<link rel="stylesheet" href="//cdn.example.com/a.css"><link rel="stylesheet" href="${absolute}"><link rel="stylesheet" href="/_app/b.css">`
+	);
+	resolve_head_urls(doc.head, new URL('/x/y/', location.href));
+	const [cdn, same, root] = doc.head.children;
+	expect(cdn.getAttribute('href')).toBe('//cdn.example.com/a.css');
+	expect(same.getAttribute('href')).toBe(absolute);
+	expect(root.getAttribute('href')).toBe('/_app/b.css');
+});
+
+test('a page-relative URL on this origin is written root-relative', () => {
+	const doc = parse(`<link rel="stylesheet" href="../../_app/x.css?v=1#k">`);
+	resolve_head_urls(doc.head, new URL('/a/e/f', location.href));
+	expect(doc.head.firstElementChild!.getAttribute('href')).toBe('/_app/x.css?v=1#k');
+});
