@@ -146,3 +146,28 @@ describe('the profiler routes', () => {
 		expect(thrown).toBe(404);
 	});
 });
+
+// A link on another site makes a plain GET, and a SameSite=Lax session cookie rides along: no GET
+// may change the profiler's state (#1168). Each route changes it only on a POST.
+describe('the profiler routes that change state', () => {
+	const changes: [string, keyof Deps][] = [
+		['/reset', 'reset'],
+		['/page?p=/x&runs=50', 'record_page'],
+		['/replay/r1', 'replay'],
+		['/logout', 'logout']
+	];
+	for (const [path, dep] of changes) {
+		it(`${path.split('?')[0]}: a GET changes nothing, a POST does`, async () => {
+			const done = vi.fn(async () => new Response('done'));
+			const app = build_profiler_router(deps({ [dep]: done } as Partial<Deps>));
+			const got = await app.fetch(req(path)).then(
+				(r) => ({ status: r?.status, allow: r?.headers.get('allow') }),
+				(e: unknown) => ({ status: (e as { status?: number }).status, allow: null })
+			);
+			expect(done).not.toHaveBeenCalled();
+			expect(got).toEqual({ status: 405, allow: 'POST' });
+			expect(await (await app.fetch(req(path, { method: 'POST' })))?.text()).toBe('done');
+			expect(done).toHaveBeenCalledTimes(1);
+		});
+	}
+});

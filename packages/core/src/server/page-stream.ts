@@ -1,5 +1,5 @@
 import { stringify } from 'devalue';
-import type { Scope } from '@ogygia/machine';
+import { STALE, type Scope } from '@ogygia/machine';
 import { PAGE_DEFER_GLOBAL, PAGE_DEFER_KEY, PAGE_SETTLED_KEY } from '../page-defer.ts';
 import { escape_script_text } from '../escape.ts';
 
@@ -286,19 +286,7 @@ export function stream_page_deferred(
 					// ok: Kit's dead tail is discarded; a read that fails has nothing left to discard
 				}
 			})(); // ok: never rejects, its body is caught
-			let pending = deferred.length;
 			let next_id = initial_next_id;
-			let closed = false;
-			const maybe_close = () => {
-				if (pending === 0 && !closed) {
-					closed = true;
-					try {
-						controller.close();
-					} catch {
-						// ok: already closed (the visitor left), which is what this was for
-					}
-				}
-			};
 			const push = (id: number, ok: boolean, value: unknown) => {
 				if (owner.closed) return;
 				try {
@@ -309,30 +297,35 @@ export function stream_page_deferred(
 					// ok: the client is gone and the stream closed; nobody reads this script
 				}
 			};
-			const settled = (id: number, ok: boolean, value: unknown) => {
-				push(id, ok, value);
-				pending -= 1;
-				maybe_close();
-			};
-			const stream_one = (id: number, promise: PromiseLike<unknown>) => {
-				Promise.resolve(promise).then(
-					(value) => {
-						let staged: ReturnType<typeof stage_deferred>;
-						try {
-							staged = stage_deferred(value, next_id);
-						} catch (error) {
-							return settled(id, false, error);
-						}
-						next_id = staged.next_id;
-						pending += staged.deferred.length;
-						for (const n of staged.deferred) stream_one(n.id, n.promise);
-						settled(id, true, staged.staged);
-					},
-					(error) => settled(id, false, error)
+			// One promise, as it settles, then the nested ones its value re-staged: done when its whole
+			// tree is. A task of the stream's owner: the visitor leaving makes it STALE at once. Its
+			// outcome is read before the task, so a closed owner (whose task never runs its work)
+			// still leaves no rejection unhandled.
+			const stream_one = async (id: number, promise: PromiseLike<unknown>): Promise<void> => {
+				const settled = Promise.resolve(promise).then(
+					(value) => ({ ok: true as const, value }),
+					(error: unknown) => ({ ok: false as const, error })
 				);
+				const out = await owner.task(() => settled);
+				if (out === STALE) return;
+				if (!out.ok) return push(id, false, out.error);
+				let staged: ReturnType<typeof stage_deferred>;
+				try {
+					staged = stage_deferred(out.value, next_id);
+				} catch (error) {
+					return push(id, false, error);
+				}
+				next_id = staged.next_id;
+				const nested = staged.deferred.map((n) => stream_one(n.id, n.promise));
+				push(id, true, staged.staged);
+				await Promise.all(nested);
 			};
-			for (const { id, promise } of deferred) stream_one(id, promise);
-			maybe_close();
+			await Promise.all(deferred.map(({ id, promise }) => stream_one(id, promise)));
+			try {
+				controller.close();
+			} catch {
+				// ok: already closed (the visitor left), which is what this was for
+			}
 		},
 		cancel() {
 			owner.close();
