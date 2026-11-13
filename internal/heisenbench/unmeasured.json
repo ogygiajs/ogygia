@@ -865,12 +865,16 @@
 			"reason": "hands the loaded Shiki module to createHighlighter: Shiki's WASM engine, which a measuring window refuses; proven in packages/content/test/markdown-start.test.ts"
 		},
 		{
-			"id": "packages/core/src/hooks.ts > start_app_plugins:1~a8e668 > sign",
-			"reason": "the handle module's signer for its plugins' apps: one call of sign() with the app's region key, which only the handle module's start has (a one-line hand-off, constant work over the HMAC)"
+			"id": "packages/core/src/hooks.ts > start_app_plugins:1~728add > charge",
+			"reason": "a plugin's signed hole asks the handle that serves its request to charge it: one WeakMap read over a RequestEvent (not cloneable), constant work; proven in packages/core/test/plugin-hole-budgets.test.ts"
 		},
 		{
-			"id": "packages/core/src/hooks.ts > start_app_plugins:1~a8e668 > verify",
-			"reason": "the handle module's verifier for its plugins' apps: one call of verify() with the app's region key, which only the handle module's start has (a one-line hand-off, constant work over the HMAC)"
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > charge_hole",
+			"reason": "one rate-limit check over a RequestEvent (not cloneable): the probe or render bucket the region hole already pays, constant work; proven in packages/core/test/plugin-hole-budgets.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > handle",
+			"reason": "with plugins, notes which handle serves the request (one WeakMap set) and runs the handle, whose own work the server benches count; a Kit hook input is not cloneable; proven in packages/core/test/plugin-hole-budgets.test.ts"
 		},
 		{
 			"id": "packages/core/src/plugin/css.ts > flights:0 > run",
@@ -2103,14 +2107,6 @@
 		{
 			"id": "packages/core/src/server/render-page.ts > render_page > get data",
 			"reason": "notes a page.data read into the running render's read set and returns the data, constant work"
-		},
-		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~cf894a > app > observeReads",
-			"reason": "forwards a RequestEvent (not cloneable) to observe_reads, constant work; packages/core/bench/server.bench.ts runs observe_reads"
-		},
-		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~cf894a > app > warn > once:1~c9a4aa",
-			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
 		},
 		{
 			"id": "packages/flags/src/index.ts > outbox:0~05e47f > giveUp > once:1~de49a5",
@@ -4585,12 +4581,40 @@
 			"reason": "one region GET's steps (precheck, verify, charge, render) on a Kit request event nothing can clone; the handle runs only inside a Kit server build, its moves are benched (packages/core/bench/region-capability.bench.ts `region_request`) and its order is proven in packages/core/test/region-request-order.test.ts and the e2e hole suites"
 		},
 		{
-			"id": "packages/core/src/plugin/capability.ts > plugin_signer > sign",
+			"id": "packages/core/src/plugin/capability.ts > plugin_signer > plain > sign",
 			"reason": "prefixes the plugin's domain and hands the message to the app's signer (a closure over the app key, not replayable), constant work over the HMAC; proven in packages/core/test/plugin-signing.test.ts"
 		},
 		{
-			"id": "packages/core/src/plugin/capability.ts > plugin_signer > verify",
+			"id": "packages/core/src/plugin/capability.ts > plugin_signer > plain > verify",
 			"reason": "prefixes the plugin's domain and hands the check to the app's signer (a closure over the app key, not replayable), constant work over the HMAC; proven in packages/core/test/plugin-signing.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/capability.ts > plugin_signer > capabilities > sign",
+			"reason": "prefixes the plugin's domain and `cap|`, then hands the message to the app's signer (a closure over the app key, not replayable), constant work over the HMAC; proven in packages/core/test/plugin-capability-key.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/capability.ts > plugin_signer > capabilities > verify",
+			"reason": "prefixes the plugin's domain and `cap|`, then hands the check to the app's signer (a closure over the app key, not replayable), constant work over the HMAC; proven in packages/core/test/plugin-capability-key.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/capability.ts > plugin_signer > plain_message",
+			"reason": "one prefix check and one concat (or a coded throw), constant work, inside a signer closure that is not replayable; proven in packages/core/test/plugin-signing.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/capability.ts > plugin_capabilities > refuse",
+			"reason": "wraps a refusal Response (not cloneable) in a result, constant work; proven in packages/core/test/plugin-hole-budgets.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/testing.ts > TEST_SIGNER > charge",
+			"reason": "the test signer's charge: returns null (a test's requests pay no budget), constant work over a RequestEvent (not cloneable)"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > plugin_capability_message > text",
+			"reason": "a message's one line for the thrown error: a template over the plugin's name, built once when a plugin signs a capability message by hand"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > plugin_capability_message > details",
+			"reason": "a message's docs paragraph: constant prose, read by the docs build and the error page"
 		},
 		{
 			"id": "packages/devtools/src/profiler/key-check.ts > sha256",
@@ -4687,18 +4711,6 @@
 		{
 			"id": "packages/federation/src/registry.ts > shared:0~e07cb9 > make",
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
-		},
-		{
-			"id": "packages/content/src/vite/index.ts > markdown_read",
-			"reason": "reads the process-wide markdown bridge slot (hidden state) and notes an early read: one field read and one write, constant work; proven in packages/content/test/content-config-order.test.ts"
-		},
-		{
-			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_ERRORS > content_config_read_first > text",
-			"reason": "a message's one line for the thrown error, built once when content() runs after the svelte config read its markdown settings"
-		},
-		{
-			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_ERRORS > content_config_read_first > details",
-			"reason": "a message's docs paragraph: constant prose, read by the docs build and the error page"
 		},
 		{
 			"id": "packages/core/src/plugin/request-scope.ts > shared:0~5bce76 > make",
@@ -4835,6 +4847,18 @@
 		{
 			"id": "packages/core/src/runtime/form-continuity.ts > arm_form_restore > read_names",
 			"reason": "browser only: one query of the page's regions, then region_names; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/content/src/vite/index.ts > markdown_read",
+			"reason": "reads the process-wide markdown bridge slot (hidden state) and notes an early read: one field read and one write, constant work; proven in packages/content/test/content-config-order.test.ts"
+		},
+		{
+			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_ERRORS > content_config_read_first > text",
+			"reason": "a message's one line for the thrown error, built once when content() runs after the svelte config read its markdown settings"
+		},
+		{
+			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_ERRORS > content_config_read_first > details",
+			"reason": "a message's docs paragraph: constant prose, read by the docs build and the error page"
 		},
 		{
 			"id": "packages/devtools/src/devtools/session.ts > start_session > counting",

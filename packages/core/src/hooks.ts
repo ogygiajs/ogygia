@@ -508,13 +508,21 @@ set_page_route_config(route_config);
 // the plugins of the run before leave first.
 // Their `app.sign` / `app.verify` use the region key, read at first use (an env the host fills after
 // module eval still counts). Their `app.capability` lives and renews by the app's own hole lifetime,
-// and a refused one is answered like a refused region request.
+// and a refused one is answered like a refused region request. Opening one pays the region budgets of
+// the handle serving the request (PROBE-THEN-RENDER); a request no handle of ours serves pays a 429.
+const hole_budgets = new WeakMap<Request, OgygiaHandle>();
 const plugins = start_app_plugins(server_plugins, {
 	sign: (message) => sign(signing_key().secret, message),
 	verify: (message, signature) => verify(signing_key().secret, message, signature),
 	fingerprint: () => signing_key().fp,
 	lifetime: app_lifetime,
-	deny: region_denied
+	deny: region_denied,
+	charge(event, step) {
+		const served_by = hole_budgets.get(event.request);
+		return served_by
+			? served_by.charge_hole(event, step)
+			: region_response('Too Many Requests', { status: 429 });
+	}
 });
 // DEVTOOLS: per-request event buffers, keyed off the request bag by a side WeakMap so RequestBag stays
 // pristine (and free) when devtools is off. GC'd with the bag; never a global ring (which would mix
@@ -895,7 +903,26 @@ class OgygiaHandle {
 	// THE REQUEST'S OWNER (plugin/request-scope.ts) is made here, outermost, so every plugin's hook
 	// and the core run under it, and ends with the response (its body read or cancelled) or when the
 	// visitor leaves, whichever is first.
-	handle: Handle = owned(around(plugins, (input) => this.#core(input)));
+	readonly #handle: Handle = owned(around(plugins, (input) => this.#core(input)));
+	// (whose budgets a plugin's signed hole in this request pays, `charge_hole`; no plugins, no hole)
+	handle: Handle =
+		plugins.length === 0
+			? this.#handle
+			: (input) => {
+					hole_budgets.set(input.event.request, this);
+					return this.#handle(input);
+				};
+
+	/** A plugin's signed hole (plugin/capability.ts `open`) pays this handle's region budgets, in
+	 *  the region hole's order: `probe` before any HMAC, `render` once the signature checks. */
+	charge_hole(event: RequestEvent, step: 'probe' | 'render'): Response | null {
+		const ip = client_ip(event);
+		// (fail closed, as a region hole does: one shared bucket for unknown addresses is a DoS vector)
+		if (!ip) return region_response('Too Many Requests', { status: 429 });
+		if (step === 'probe')
+			return this.probe_rate.limited(ip) ? over_budget(this.probe_rate, ip) : null;
+		return this.#render_over(ip) ? over_budget(this.render_rate, ip) : null;
+	}
 
 	#core: Handle = async ({ event, resolve }) => {
 		const path = decode_pathname(event.url.pathname);
