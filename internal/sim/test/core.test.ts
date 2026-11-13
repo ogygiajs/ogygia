@@ -151,6 +151,23 @@ describe('the network', () => {
 		expect(out.sort()).toEqual([0, 1, 2, 3, 4, 5].map((i) => `answer /r/${i}`));
 	});
 
+	it('a body that came whole, or was cut, is off the wire: its document is not busy (islands_wake judged nothing)', async () => {
+		const loop = new Loop(rng(5));
+		const net = new Network({ loop, rng: rng(5), faults: new Set(['cut']), rates: { cut: 0.5 } });
+		for (let i = 0; i < 6; i++)
+			void net
+				.send(
+					`tab-${i}#1`,
+					new Request(`https://app.test/r/${i}`),
+					async () => new Response('x'.repeat(64))
+				)
+				.then((r) => r.text())
+				.catch(() => {});
+		await loop.run();
+		expect(net.busy()).toBe(false);
+		for (let i = 0; i < 6; i++) expect(net.busy_for(`tab-${i}#1`), `tab-${i}`).toBe(false);
+	});
+
 	it("a calm tab's request is never held long: its legs stay short under reorder", async () => {
 		const loop = new Loop(rng(3));
 		const net = new Network({

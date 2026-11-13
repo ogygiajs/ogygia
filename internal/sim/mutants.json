@@ -97,5 +97,14 @@
 		"operator": "statement",
 		"from": "head_mark = kit_hydrates_page() ? null : boot_link().runtime_session.mark_head();",
 		"to": ""
+	},
+	{
+		"id": "visible-margin-dropped",
+		"file": "packages/core/src/runtime/core.ts",
+		"line": 1700,
+		"code": "const rootMargin = root_margin || this.getAttribute('margin') || '0px';",
+		"operator": "logical",
+		"from": "n || t",
+		"to": "n && t"
 	}
 ]
