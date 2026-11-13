@@ -274,7 +274,7 @@ try {
 	for (const lab of LABS) {
 		const rec = await fetch(
 			`${base}/__profiler/page?p=${encodeURIComponent(lab.path)}&runs=${lab.runs ?? 1}`,
-			{ redirect: 'manual', headers }
+			{ method: 'POST', redirect: 'manual', headers }
 		);
 		const id = rec.headers.get('location')?.split('/').pop();
 		if (!id) {

@@ -68,7 +68,8 @@ const NO_UNSUBSCRIBE = () => {};
  */
 export function mpa_nav(): NavHandle {
 	return {
-		goto(url, opts = {}) {
+		// (async: a refused URL rejects the promise, nothing throws out of the call)
+		async goto(url, opts = {}) {
 			const target = new URL(url, location.href);
 			if (target.protocol !== 'http:' && target.protocol !== 'https:') {
 				throw new OgygiaError('goto_not_http');
@@ -78,7 +79,6 @@ export function mpa_nav(): NavHandle {
 			}
 			if (opts.replaceState) location.replace(target.href);
 			else location.assign(target.href);
-			return Promise.resolve();
 		},
 		invalidate: invalidate_all,
 		invalidateAll: invalidate_all,

@@ -5163,7 +5163,8 @@ export function report_json(
 							: {})
 					}
 				: null,
-		// a caught request's replay: the link and the inputs it carries
+		// a caught request's replay: the endpoint (a POST, as every state change: #1168) and the
+		// inputs it carries
 		replay: meta.request
 			? {
 					url: `${base}/replay/${meta.id}`,
