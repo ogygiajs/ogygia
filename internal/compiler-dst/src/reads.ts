@@ -1,6 +1,6 @@
 /**
- * WHAT A COMPONENT READS OF `page.data`, AND WHAT IT REALLY READ. Seed shaping (`pageKeys()`,
- * packages/page-keys/src/analysis.ts) predicts the top-level `page.data` keys a module can reach, and the server ships
+ * WHAT A COMPONENT READS OF `page.data`, AND WHAT IT REALLY READ. Seed shaping (`dataShake()`,
+ * packages/data-shake/src/analysis.ts) predicts the top-level `page.data` keys a module can reach, and the server ships
  * only those to an island: a key read but not predicted is a value the island never sees. Here a
  * component is drawn from read shapes (a member, a computed literal, destructuring, an alias, a local
  * helper, optional chaining, a spread, a computed key), compiled for the server by Svelte, and

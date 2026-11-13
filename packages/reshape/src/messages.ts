@@ -14,6 +14,7 @@ import {
 	type MessagesOf
 } from '@ogygia/core/internal/messages';
 import { BROWSER, DEV } from 'esm-env';
+import { OG_HEAD } from '@ogygia/core/internal/instruments';
 
 /** The errors: `throw new OgygiaError(code, args)`. */
 export const RESHAPE_ERRORS = {
@@ -81,6 +82,21 @@ export const RESHAPE_WARNINGS = {
 			Load the component runtime after ogygia's restore (the pass inlines it at the end of the
 			body), or let it hydrate a declarative root instead of attaching its own in the
 			constructor. Said once per page and element name.
+		`
+	},
+	restore_sheet_missing: {
+		text: (a: { host: string; key: string }): string =>
+			`<${a.host}> names the shadow sheet "${a.key}" in og-shadow, but the page carries no sheet with that key; its shadow root goes without it.`,
+		details: (): string => prose`
+			A transform that renders a host's plan names the sheets for its shadow root in
+			\`og-shadow="key …"\`. The restorer finds each one as
+			\`<template ${OG_HEAD}="key">\` in the page's head (or in the answer that brought the
+			host). A key with no such template gives the root nothing, so the component paints
+			without that sheet until its own runtime styles it.
+
+			Make the transform emit a \`<template ${OG_HEAD}="key">\` for every key it names (a
+			\`<style ${OG_HEAD}>\` is a page sheet, not a shadow sheet), or stop naming the key.
+			Said once per page and key.
 		`
 	}
 };

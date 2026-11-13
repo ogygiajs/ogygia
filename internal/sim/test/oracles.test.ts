@@ -7,6 +7,7 @@ import { World } from '../src/world.ts';
 import { user_click } from '../src/workload.ts';
 import type { Heard } from '../src/browser.ts';
 import { waste } from '../src/waste.ts';
+import { owed_text } from '../src/network.ts';
 import {
 	document_faulted,
 	fallback_stands,
@@ -27,6 +28,7 @@ import {
 	peer_answers,
 	peer_fails_over,
 	reshaped_live,
+	text_restored,
 	page_rules,
 	regions_show,
 	replicas_as_one,
@@ -1103,6 +1105,50 @@ describe('page errors', () => {
 	});
 });
 
+describe("a reshaped page's text comes back as it was", () => {
+	const judged = async (body: string, owes: string[] | undefined) => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/p0' });
+		w.document.write(`<html><body>${body}</body></html>`);
+		const tab = {
+			realm: 'tab-0#1',
+			name: 'tab-0',
+			page: { mainFrame: { url: 'https://app.test/p0', document: w.document } }
+		} as unknown as Parameters<typeof text_restored>[0];
+		const world = {
+			network: {
+				exchanges: [
+					{
+						id: 1,
+						from: 'tab-0#1',
+						method: 'GET',
+						url: 'https://app.test/p0',
+						status: 200,
+						cut: false,
+						tampered: false,
+						restore_owes: owes
+					}
+				]
+			}
+		} as unknown as World;
+		return text_restored(tab, world);
+	};
+
+	it('reads the originals off the marks', () => {
+		expect(owed_text('<p><!--og-t 1.0 "\\n  r3\\n"-->r3</p><!--og-t 1.1-->')).toEqual(['\n  r3\n']);
+		expect(owed_text('<p>none</p>')).toBeUndefined();
+	});
+
+	it('finds trimmed text left trimmed (a restore that never put its text back survived), and passes it put back or changed since', async () => {
+		expect((await judged('<x-gen-box><b> pad </b></x-gen-box>', ['  pad  ']))?.oracle).toBe(
+			'text-restored'
+		);
+		expect(await judged('<x-gen-box><b>  pad  </b></x-gen-box>', ['  pad  '])).toBeNull();
+		expect(await judged('<x-gen-box><b>r4</b></x-gen-box>', ['  pad  '])).toBeNull();
+		expect(await judged('<x-gen-box> r3 </x-gen-box>', undefined)).toBeNull();
+	});
+});
+
 describe('a peer fails over, and only then', () => {
 	const hop = (id: number, origin: string, at: number, more: Record<string, unknown> = {}) => ({
 		id,
@@ -1512,6 +1558,42 @@ describe("a mounted peer's page answers as the peer did", () => {
 				'/peer/q0'
 			)
 		).toBeNull();
+	});
+
+	it("finds one of the peer's own pages answered 5xx though the peer gave it whole and in time (a mutant that made every exposed page a redirect survived)", async () => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/peer/q0' });
+		w.document.write('<html><body><p>500</p></body></html>');
+		const tab = {
+			realm: 'tab-1#1',
+			name: 'tab-1',
+			documents: 1,
+			page: { mainFrame: { url: 'https://app.test/peer/q0', document: w.document } }
+		} as unknown as Parameters<typeof peer_answers>[0];
+		const world = (hop: Record<string, unknown>) =>
+			({
+				fired_in: new Map(),
+				network: {
+					exchanges: [
+						{ id: 1, from: 'tab-1#1', url: 'https://app.test/peer/q0', at: 0, status: 500 },
+						{
+							id: 2,
+							from: 'server-0',
+							for: 'tab-1#1',
+							url: 'https://peer.test/og/fragment/page?path=%2Fq0',
+							at: 10,
+							status: 200,
+							ended_at: 40,
+							...hop
+						}
+					].map((e) => ({ method: 'GET', cut: false, tampered: false, redirected: false, ...e }))
+				}
+			}) as unknown as Parameters<typeof peer_answers>[1];
+		expect(peer_answers(tab, world({}), 0)?.oracle).toBe('peer-answers');
+		// (past the deadline, or held on the way: the app's 5xx is its own)
+		expect(peer_answers(tab, world({ ended_at: 6000 }), 0)).toBeNull();
+		expect(peer_answers(tab, world({ stalled: true }), 0)).toBeNull();
+		expect(peer_answers(tab, world({ status: 503 }), 0)).toBeNull();
 	});
 
 	it("passes one the network failed, or whose hop to the peer failed: the app's answer for it is its own", async () => {

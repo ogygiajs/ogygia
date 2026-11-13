@@ -217,36 +217,11 @@ function page_ctx(): Record<string, unknown> | undefined {
 	}).value;
 }
 
-/** The old callable form of a context, keyed by the plain string name. */
-export interface CallableContext<T> {
-	/**
-	 * `theme('dark')` → `{ theme: 'dark' }` — an entry for `<Provide values={[ … ]}>`.
-	 *
-	 * @deprecated Destructure instead: `const [getTheme, setTheme] = createContext<Theme>('theme')`,
-	 * and call `setTheme('dark')` in the component above. The new form keys by `Symbol.for(name)`, so
-	 * move a context's provider and its readers together.
-	 */
-	(value: T): Record<string, unknown>;
-	/**
-	 * Typed read of the string key, or the default.
-	 *
-	 * @deprecated Destructure instead: `const [getTheme] = createContext<Theme>('theme')`.
-	 */
-	get(): T | undefined;
-	/**
-	 * The string key, for `getContext(theme.key)`.
-	 *
-	 * @deprecated The new form's key is `Symbol.for(name)`.
-	 */
-	readonly key: string;
-}
-
 /**
  * What `createContext(name)` returns: Svelte's `[get, set, has]`, keyed by `Symbol.for(name)`, so a
- * value set above reaches every region in the browser too. It is also callable, the old form.
+ * value set above reaches every region in the browser too.
  */
-export type Context<T> = readonly [get: () => T, set: (value: T) => T, has: () => boolean] &
-	CallableContext<T>;
+export type Context<T> = readonly [get: () => T, set: (value: T) => T, has: () => boolean];
 
 /**
  * A typed context, in Svelte's `createContext` shape: `[get, set, has]`. Its key is
@@ -265,13 +240,7 @@ export type Context<T> = readonly [get: () => T, set: (value: T) => T, has: () =
  * A value with methods crosses as a wired class (`static wire = import.meta.og.wire(…)`): every
  * region gets the one live instance.
  */
-export function createContext<T>(name: string): Context<T>;
-/**
- * @deprecated A default belongs to the old callable form (`theme.get()`). Destructure instead and
- * ask `has()`: `const [getTheme, , hasTheme] = createContext<Theme>('theme')`.
- */
-export function createContext<T>(name: string, defaultValue: T): Context<T>;
-export function createContext<T>(name: string, defaultValue?: T): Context<T> {
+export function createContext<T>(name: string): Context<T> {
 	const key = Symbol.for(name);
 	const has = (): boolean => hasContext(key);
 	const get = (): T => {
@@ -279,20 +248,7 @@ export function createContext<T>(name: string, defaultValue?: T): Context<T> {
 		return getContext<T>(key);
 	};
 	const set = (value: T): T => setContext(key, value);
-	const ctx = (value: T): Record<string, unknown> => ({ [name]: value });
-	return Object.defineProperties(ctx, {
-		key: { value: name, enumerable: true },
-		get: {
-			value: (): T | undefined => {
-				const v = getContext<T | undefined>(name);
-				return v !== undefined ? v : defaultValue;
-			}
-		},
-		0: { value: get },
-		1: { value: set },
-		2: { value: has },
-		[Symbol.iterator]: { value: () => [get, set, has][Symbol.iterator]() }
-	}) as unknown as Context<T>;
+	return [get, set, has];
 }
 
 /**
@@ -317,9 +273,3 @@ export function setContext<T>(key: unknown, value: T, opts?: SetContextOptions):
 	record_ctx(key, value, opts);
 	return svelte_set_context(key, value);
 }
-
-/**
- * Kept for ABI: the build still emits a registration call for each `createContext(...)` export (that
- * used to tag keyless handles by `module#export`). Keys are explicit now, so this is a no-op.
- */
-export function __tag_context(): void {}

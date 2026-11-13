@@ -356,9 +356,10 @@ export function restore(root: Document | DocumentFragment | Element): number {
 
 	/** What went wrong, kept for whoever reads it later (the devtools, the profiler's beacon): the
 	 *  restorer runs while the page parses — before any listener of theirs exists. */
-	const log = (kind: 'late' | 'mismatch', host: Element, diff?: string) => {
+	const log = (kind: 'late' | 'mismatch' | 'sheet', host: Element, diff?: string, key?: string) => {
 		const list = (W.__og_restore_log ??= []);
 		if (list.length >= 50) return;
+		if (key && list.some((e) => e.kind === 'sheet' && e.key === key)) return;
 		const island = host.closest('ogygia-region')?.getAttribute('data-og-fp') ?? undefined;
 		list.push({
 			kind,
@@ -366,6 +367,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 			// port-ok: inlined as text by restore.toString() (no imports)
 			t: Math.round(performance.now()),
 			...(diff ? { diff: diff.slice(0, 300) } : {}),
+			...(key ? { key } : {}),
 			...(island ? { island } : {})
 		});
 	};
@@ -414,7 +416,10 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		if (shadow)
 			for (const key of keys) {
 				const s = sheet_for(key);
-				if (!s) continue;
+				if (!s) {
+					log('sheet', host, undefined, key);
+					continue;
+				}
 				if (s.sheet && adoptable) own.push(s.sheet);
 				else {
 					const style = doc.createElement('style');
