@@ -39,6 +39,12 @@ export const ORIGIN = 'https://app.test';
 /** The attribute on every element of HTML another origin answers (`no_foreign_html` looks for it). */
 export const FOREIGN_MARK = 'data-sim-foreign';
 
+/** At rest after ticks: how far off a page's next task must be (a frame is 16 ms, a hydrate turn's
+ *  snapshot wait 48; a page's own timers that come back every second or so are not a tick being
+ *  taken in), and how long rest looks for that between ticks before it judges the pages anyway. */
+const PAGE_GAP_MS = 250;
+const BETWEEN_TICKS_MS = 10_000;
+
 /** Whether a request of a tab's is for a page (its Kit data too): not a build's file or Kit's
  *  remote functions (`/_app/`), not a region's answer (ogygia's endpoint, `/__ogygia__`, and
  *  federation's, `/og/`: a peer frame's hole asked after a deploy is not the page's build; gen 54,
@@ -661,12 +667,35 @@ export class World {
 		// by its budget, as before; a live answer's pieces are not work in flight, or rest waited
 		// budget after budget, once to the horizon: palaestra seed 20003, test/rest.node.test.ts)
 		// (a quiesce whose next task is past its budget returns without running it: step to it)
-		while (!(await this.quiesce()) && this.loop.next_at <= this.loop.horizon && !this.#wire_quiet())
+		for (;;) {
+			if (await this.quiesce()) return;
+			if (this.loop.next_at > this.loop.horizon) return;
+			if (this.#wire_quiet()) break;
 			await this.loop.step();
+		}
+		// Ticks kept it from rest, and its budget ended wherever it fell: maybe a few ms after a tick
+		// put an island in, still waiting for its hydrate turn (gen 8, seed 72: `waking` at rest). The
+		// pages are judged between ticks: the wire quiet and nothing of a page's due within the gap
+		// (a page whose own timer keeps coming, a clock, is judged after `BETWEEN_TICKS_MS`, as before).
+		// test/rest.node.test.ts
+		const end = this.loop.now + BETWEEN_TICKS_MS;
+		for (;;) {
+			await this.loop.settle();
+			if (this.#wire_quiet() && this.#pages_quiet(PAGE_GAP_MS)) return;
+			if (this.loop.next_at > end || this.loop.next_at > this.loop.horizon) return;
+			await this.loop.step();
+		}
 	}
 
 	#wire_quiet(): boolean {
 		return !this.network.busy();
+	}
+
+	/** No task of a page (any tab's document) due within `gap` ms. */
+	#pages_quiet(gap: number): boolean {
+		const realms = new Set(this.browsers.visitors.flatMap((v) => v.tabs.map((t) => t.realm)));
+		for (const r of realms) if (this.loop.next_of(r) <= this.loop.now + gap) return false;
+		return true;
 	}
 
 	/** When a quiesce last came to rest (virtual ms; -1: never). */
