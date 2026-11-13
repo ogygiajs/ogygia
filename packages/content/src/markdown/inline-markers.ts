@@ -56,13 +56,15 @@ function highlight_all_spans(html: string, sub: string, classname: string): stri
 	const open = `<span class="${classname}">`;
 	const pattern = new RegExp(`${sub}([^ ]|[^ ][^]+?[^ ])${sub}`, 'g');
 	return html.replace(pattern, (_m, content: string, index: number) => {
-		const a = content.indexOf('<span');
-		const b = content.indexOf('</span');
-		const c = content.lastIndexOf('<span');
-		const d = content.lastIndexOf('</span');
+		// (Shiki's own output: its token spans, whose style values hold no `<` or `>`, and escaped text)
+		const a = content.indexOf('<span'); // markup-ok: Shiki's token spans
+		const b = content.indexOf('</span'); // markup-ok: Shiki's token spans
+		const c = content.lastIndexOf('<span'); // markup-ok: Shiki's token spans
+		const d = content.lastIndexOf('</span'); // markup-ok: Shiki's token spans
 		let adjusted = content;
 		if (b !== -1 && (a === -1 || b < a)) {
 			// content starts INSIDE a token span — close it, open ours, re-open the token
+			// markup-ok: Shiki's token spans
 			const tag_start = html.lastIndexOf('<span', index);
 			const tag = html.slice(tag_start, html.indexOf('>', tag_start) + 1);
 			adjusted = `</span>${open}${tag}${adjusted}`;

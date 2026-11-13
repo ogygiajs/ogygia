@@ -26,7 +26,7 @@ function root_absolute(value: string, base: URL): string {
 		const u = new URL(value, base);
 		return u.origin === base.origin ? u.pathname + u.search + u.hash : value;
 	} catch {
-		return value;
+		return value; // ok: not a URL: kept as written
 	}
 }
 
