@@ -30,6 +30,7 @@ import {
 	kit_dirs
 } from './kit.ts';
 import { run_module_macros } from './macros/pipeline.ts';
+import { fn_manifest_entries, fn_manifest_registrations } from './macros/dollar.ts';
 import { is_script_request } from './script-request.ts';
 import { resolveFeatures } from './link/runtime-entry.ts';
 import {
@@ -177,6 +178,8 @@ const MODULE_SPEC_RE =
 	/(?:^|[\n;])\s*(?:import|export)\b[^;'"()]*?from\s*['"]([^'"]+)['"]|(?:^|[\n;])\s*import\s*['"]([^'"]+)['"]/g;
 /** Where Kit's `$app` alias points (Kit 2 and 3: `resolve.alias` `$app` → `<kit>/src/runtime/app`). */
 const KIT_RUNTIME_APP = '/@sveltejs/kit/src/runtime/app/';
+/** Kit's page modules, where the alias sends `$app/state` and `$app/stores`. */
+const KIT_PAGE_MODULE_RE = /\/@sveltejs\/kit\/src\/runtime\/app\/(?:state|stores)(?:[/.]|$)/;
 /**
  * The island shim for an `$app/*` import, by specifier or by where Kit's alias sent it: Vite's alias
  * plugin runs before any plugin's resolveId, so an import the transform did not rewrite (a module
@@ -1674,6 +1677,11 @@ export class Compiler implements CoreApp {
 		return touched ? { code: out, map } : null;
 	}
 
+	/** The fn-manifest for the build handoff (tag → factory source), sorted by tag. */
+	fn_manifest(): Record<string, string> {
+		return Object.fromEntries(fn_manifest_entries(this.dollar_hoists));
+	}
+
 	/**
 	 * Patch the fn-manifest placeholder in a finished chunk with the collected `og.$` factory
 	 * registrations — every transform has run by renderChunk, so `dollar_hoists` is complete. Registrations
@@ -1682,9 +1690,7 @@ export class Compiler implements CoreApp {
 	 */
 	patch_fn_manifest(code: string): { code: string; map: null } | null {
 		if (!code.includes('/*__OGYGIA_FN_MANIFEST__*/')) return null;
-		const regs = [...this.dollar_hoists.entries()]
-			.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
-			.join('\n');
+		const regs = fn_manifest_registrations(this.dollar_hoists);
 		// FUNCTION-form replacement: factory sources legitimately contain `$$` (a literal `$`
 		// before a template hole), which String.replace would collapse in a string replacement.
 		return { code: code.replace('/*__OGYGIA_FN_MANIFEST__*/', () => regs), map: null };
@@ -1709,10 +1715,20 @@ export class Compiler implements CoreApp {
 		if (at === -1) return null;
 		const { page_keys, page_pending, by_id, registry } = this.program;
 		const clean = (id: string) => id.split('?')[0].split('\\').join('/');
-		const reads_itself = (id: string) => {
+		const imports_kit_page = (ids: readonly string[]) =>
+			ids.some((d) => KIT_PAGE_MODULE_RE.test(clean(d)));
+		const reads_itself = (id: string, info: ReturnType<typeof graph>) => {
 			const c = clean(id);
 			const k = page_keys.get(c);
-			return (k !== undefined && (k === 'all' || k.size > 0)) || page_pending.has(c);
+			if (k !== undefined) return k === 'all' || k.size > 0 || page_pending.has(c);
+			if (page_pending.has(c)) return true;
+			// Kit's page module is what is read: its own halves (`state/server.js`) are not a reader
+			if (KIT_PAGE_MODULE_RE.test(c)) return false;
+			// a page reader seed shaping could not read (a barrel, `getStores()`, an `import()`): unknown
+			return (
+				!!info &&
+				(imports_kit_page(info.importedIds) || imports_kit_page(info.dynamicallyImportedIds))
+			);
 		};
 		// a component path → the graph's id for it (a graph id may carry a query or another separator)
 		const ids_by_path = new Map<string, string>();
@@ -1724,8 +1740,8 @@ export class Compiler implements CoreApp {
 			for (let i = 0; i < queue.length; i++) {
 				const id = queue[i];
 				if (proven_clean.has(id)) continue;
-				if (reads_itself(id)) return true;
 				const info = graph(id);
+				if (reads_itself(id, info)) return true;
 				if (!info) continue;
 				for (const next of info.importedIds)
 					if (!seen.has(next)) {
