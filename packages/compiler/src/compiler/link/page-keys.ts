@@ -368,6 +368,18 @@ class Scan {
 			this.#store.set(local, imported);
 	}
 
+	/** The module-level function a call names, unless a nearer scope declares the name. */
+	#local_fn(callee: Node): Node | undefined {
+		const fn = this.#local_fns.get(callee.name);
+		return fn && !declared_above(callee.name, callee, false) ? fn : undefined;
+	}
+
+	/** Svelte's store helper a call names, unless a nearer scope declares the name. */
+	#store_helper(callee: Node): 'get' | 'derived' | undefined {
+		const helper = this.#store.get(callee.name);
+		return helper && !declared_above(callee.name, callee, false) ? helper : undefined;
+	}
+
 	/** Is `node` inside a function whose parameter is the page? */
 	#in_followed(node: Node): boolean {
 		for (let n: Node | null = node; n; n = n.__parent as Node | null)
@@ -424,6 +436,8 @@ class Scan {
 			for (const s of node.specifiers ?? []) {
 				if (s.type === 'ImportNamespaceSpecifier' || s.type === 'ImportDefaultSpecifier')
 					throw new All('the page store is imported as a namespace', s.start ?? null);
+				if (s.type === 'ImportSpecifier' && spec_name(s.imported) === 'getStores')
+					throw new All('the page store is taken from `getStores()`', s.start ?? null);
 				if (s.type === 'ImportSpecifier' && spec_name(s.imported) === 'page')
 					this.#add_ref(s.local.name, null);
 			}
@@ -459,8 +473,9 @@ class Scan {
 					const args = node.arguments ?? [];
 					// `helper(page)` where helper is a function of THIS module: its parameter is the page
 					// inside it, so the walk follows the read there instead of giving up at the call.
-					if (callee?.type === 'Identifier' && this.#local_fns.has(callee.name)) {
-						const fn = this.#local_fns.get(callee.name)!;
+					const local = callee?.type === 'Identifier' ? this.#local_fn(callee) : undefined;
+					if (local) {
+						const fn = local;
 						args.forEach((a: Node, i: number) => {
 							if (!this.is_page_value(a)) return;
 							const p = fn.params?.[i];
@@ -488,7 +503,7 @@ class Scan {
 					// derived(page, ($p) => …) / derived([a, page], ([$a, $p]) => …)
 					if (
 						callee?.type === 'Identifier' &&
-						this.#store.get(callee.name) === 'derived' &&
+						this.#store_helper(callee) === 'derived' &&
 						args.length >= 2
 					) {
 						const fn = args[1];
@@ -532,7 +547,7 @@ class Scan {
 		if (
 			n.type === 'CallExpression' &&
 			n.callee?.type === 'Identifier' &&
-			this.#store.get(n.callee.name) === 'get'
+			this.#store_helper(n.callee) === 'get'
 		) {
 			const a = n.arguments?.[0];
 			return !!a && a.type === 'Identifier' && this.#in_scope(a.name, a);
@@ -634,7 +649,7 @@ class Scan {
 			parent.callee?.type === 'Identifier'
 		) {
 			const name = parent.callee.name;
-			const helper = this.#store.get(name);
+			const helper = this.#store_helper(parent.callee);
 			if (helper === 'get') return;
 			if (helper === 'derived') {
 				const cb = parent.arguments[1];
@@ -646,7 +661,7 @@ class Scan {
 					return;
 				throw new All('`derived(page, …)` hands the page to a callback it does not read here', at);
 			}
-			const fn = this.#local_fns.get(name);
+			const fn = this.#local_fn(parent.callee);
 			if (fn) {
 				// followed at collect time: the parameter is the page inside the helper
 				const i = parent.arguments.indexOf(v);
@@ -656,7 +671,7 @@ class Scan {
 					at
 				);
 			}
-			const imp = this.#imports.get(name);
+			const imp = declared_above(name, parent.callee, false) ? undefined : this.#imports.get(name);
 			if (imp) {
 				// an IMPORTED helper: the build follows the call into that module (summarize_export)
 				this.pending.push({
@@ -676,7 +691,7 @@ class Scan {
 			if (
 				call?.type === 'CallExpression' &&
 				call.callee?.type === 'Identifier' &&
-				this.#store.get(call.callee.name) === 'derived' &&
+				this.#store_helper(call.callee) === 'derived' &&
 				call.arguments?.[0] === parent &&
 				call.arguments.length >= 2
 			)
@@ -786,13 +801,81 @@ function runs_on(test: Node | null | undefined): 'server' | 'client' | null {
 		n?.type === 'UnaryExpression' &&
 		n.operator === 'typeof' &&
 		n.argument?.type === 'Identifier' &&
-		(n.argument.name === 'window' || n.argument.name === 'document');
+		(n.argument.name === 'window' || n.argument.name === 'document') &&
+		!declared_above(n.argument.name, n.argument, true);
 	const undef = (n: Node) =>
 		(n?.type === 'Literal' || n?.type === 'StringLiteral') && n.value === 'undefined';
 	const l = unwrap_down(t.left);
 	const r = unwrap_down(t.right);
 	if (!((typeof_global(l) && undef(r)) || (typeof_global(r) && undef(l)))) return null;
 	return eq ? 'server' : 'client';
+}
+
+/** Is `name` declared by a scope between `use` and the module (the module's own scope too, with
+ *  `module`)? A name a nearer scope declares is not the module's helper, nor the global. */
+function declared_above(name: string, use: Node, module: boolean): boolean {
+	for (let n = use.__parent as Node | null; n; n = n.__parent as Node | null) {
+		if ((n.type === 'Program' || n.type === 'Fragment' || n.type === 'Root') && !module)
+			return false;
+		if (declares(n, name)) return true;
+	}
+	return false;
+}
+
+function declares(n: Node, name: string): boolean {
+	const has = (pattern: Node | null | undefined) => pattern_names(pattern).includes(name);
+	switch (n.type) {
+		case 'FunctionDeclaration':
+		case 'FunctionExpression':
+		case 'ArrowFunctionExpression':
+			return (n.params ?? []).some(has) || (n.type === 'FunctionExpression' && n.id?.name === name);
+		case 'Program':
+		case 'BlockStatement':
+		case 'StaticBlock':
+			return (n.body ?? []).some((s: Node) => statement_declares(s, name));
+		case 'ForStatement':
+			return n.init?.type === 'VariableDeclaration' && statement_declares(n.init, name);
+		case 'ForInStatement':
+		case 'ForOfStatement':
+			return n.left?.type === 'VariableDeclaration' && statement_declares(n.left, name);
+		case 'CatchClause':
+			return has(n.param);
+		case 'SnippetBlock':
+			return (n.parameters ?? []).some(has);
+		case 'EachBlock':
+			return has(n.context) || n.index === name;
+		default:
+			return false;
+	}
+}
+
+function statement_declares(s: Node, name: string): boolean {
+	const d =
+		s.type === 'ExportNamedDeclaration' || s.type === 'ExportDefaultDeclaration'
+			? s.declaration
+			: s;
+	if (!d) return false;
+	if (d.type === 'VariableDeclaration')
+		return (d.declarations ?? []).some((x: Node) => pattern_names(x.id).includes(name));
+	if (d.type === 'FunctionDeclaration' || d.type === 'ClassDeclaration') return d.id?.name === name;
+	if (d.type === 'ImportDeclaration')
+		return (d.specifiers ?? []).some((x: Node) => x.local?.name === name);
+	return false;
+}
+
+/** The names a binding pattern declares. */
+function pattern_names(p: Node | null | undefined): string[] {
+	if (!p) return [];
+	if (p.type === 'Identifier') return [p.name];
+	if (p.type === 'ObjectPattern')
+		return (p.properties ?? []).flatMap((x: Node) =>
+			pattern_names(x.type === 'RestElement' ? x.argument : x.value)
+		);
+	if (p.type === 'ArrayPattern') return (p.elements ?? []).flatMap((x: Node) => pattern_names(x));
+	if (p.type === 'RestElement') return pattern_names(p.argument);
+	if (p.type === 'AssignmentPattern') return pattern_names(p.left);
+	if (WRAPPERS.has(p.type)) return pattern_names(p.expression);
+	return [];
 }
 
 function enclosing_scope(node: Node): Node | null {
@@ -855,10 +938,11 @@ function is_declaration(node: Node, parent: Node | null, key: string | null): bo
 	if (
 		parent.type === 'ArrayPattern' ||
 		parent.type === 'ObjectPattern' ||
-		parent.type === 'AssignmentPattern' ||
 		parent.type === 'RestElement'
 	)
 		return true;
+	// `p = page`: the default value is a use (test: page-keys-soundness `(p = page)`)
+	if (parent.type === 'AssignmentPattern') return key === 'left';
 	if (
 		(parent.type === 'FunctionDeclaration' ||
 			parent.type === 'FunctionExpression' ||
