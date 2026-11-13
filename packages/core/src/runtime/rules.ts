@@ -192,9 +192,19 @@ const CODE_LINK_RE = /ogygiajs\.dev\/e\/[a-z_]+/;
 const FRAME_URL_RE = /((?:https?|file):\/\/[^\s()@]+?):\d+:\d+/;
 /** (The failures that left ogygia without a code, as found, are `R.uncoded`.) */
 
-/** Where ogygia's own code is served from (`install_rules`): its source folder when this module is
- *  served as source (dev: each module has a URL of its own), else the chunk it was bundled into. */
+/** Where ogygia's own code is served from (`install_rules`, {@link own_code_of}), or null. */
 let own_code: string | null = null;
+
+/**
+ * The folder ogygia's own code is served from, given this module's URL: core's `src/` when the
+ * module is served as source (dev, the browser tests: each module has a URL of its own). Null in a
+ * bundle: a chunk can hold the app's code beside ours (the runtime entry carries the app's client
+ * plugins), so a frame in it does not say whose code threw (test/browser/rules-uncoded-own-code.test.ts).
+ */
+export function own_code_of(module_url: string): string | null {
+	const own = module_url.split(/[?#]/)[0];
+	return own.endsWith('/src/runtime/rules.ts') ? new URL('../', own).href : null;
+}
 
 /** The file of the error's top frame that has one (a native frame, say `decodeURIComponent`'s, has
  *  none), or null. */
@@ -390,8 +400,7 @@ function check_soon(): void {
 export function install_rules(dev: boolean): void {
 	if (installed || typeof window === 'undefined') return;
 	installed = true;
-	const own = import.meta.url.split(/[?#]/)[0];
-	own_code = own.endsWith('/src/runtime/rules.ts') ? new URL('../', own).href : own;
+	own_code = own_code_of(import.meta.url);
 	runtime_rules.add('rule_region_mounted_twice', one_mount_per_region);
 	runtime_rules.add('rule_old_page_open', no_old_page_open);
 	runtime_rules.add('rule_failure_uncoded', no_failure_uncoded);

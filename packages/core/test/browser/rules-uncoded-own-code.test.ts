@@ -5,6 +5,7 @@
 // Its own file: the rules are module state shared by a file's tests.
 import { expect, test } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
+import { own_code_of } from '../../src/runtime/rules.ts';
 import { unknown_markers } from '../../src/wire-markup.ts';
 
 type Broken = Array<{ code: string; detail: string }>;
@@ -43,4 +44,15 @@ test("a TypeError thrown in ogygia's own code, with no code, breaks rule_failure
 			detail: expect.stringMatching(/^a TypeError thrown in ogygia's code, with no code: /)
 		}
 	]);
+});
+
+test("in a bundle no frame is ogygia's: a chunk can hold the app's client plugins beside the runtime", () => {
+	expect(own_code_of('http://localhost:5173/@fs/w/packages/core/src/runtime/rules.ts?v=1a2b')).toBe(
+		'http://localhost:5173/@fs/w/packages/core/src/'
+	);
+	expect(own_code_of('http://localhost:5173/node_modules/@ogygia/core/src/runtime/rules.ts')).toBe(
+		'http://localhost:5173/node_modules/@ogygia/core/src/'
+	);
+	expect(own_code_of('https://example.com/_app/immutable/og-runtime.Ab12Cd.js')).toBeNull();
+	expect(own_code_of('https://example.com/_app/immutable/chunks/Bx9q.js')).toBeNull();
 });
