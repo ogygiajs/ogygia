@@ -259,6 +259,89 @@
 		"to": "return null;"
 	},
 	{
+		"id": "peer-widget-failover-500-kept",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > widgetDoc",
+		"code": "if (res.status < 500 || i === origins.length - 1) break;",
+		"operator": "relational",
+		"from": "< 500",
+		"to": "<= 500"
+	},
+	{
+		"id": "peer-widget-failover-every-origin",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > widgetDoc",
+		"code": "if (res.status < 500 || i === origins.length - 1) break;",
+		"operator": "logical",
+		"from": "||",
+		"to": "&&"
+	},
+	{
+		"id": "peer-widget-failover-first-only",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > widgetDoc",
+		"code": "if (res.status < 500 || i === origins.length - 1) break;",
+		"operator": "equality",
+		"from": "===",
+		"to": "!=="
+	},
+	{
+		"id": "peer-widget-failover-past-last",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > widgetDoc",
+		"code": "if (res.status < 500 || i === origins.length - 1) break;",
+		"operator": "arithmetic",
+		"from": " - 1",
+		"to": " + 1",
+		"equivalent": "the loop ends after its last origin anyway: breaking at the last one or running out leaves the same answer in res"
+	},
+	{
+		"id": "peer-page-failover-500-kept",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > raw_doc",
+		"code": "if (res.status < 500 || i === pool.length - 1) break;",
+		"operator": "relational",
+		"from": "< 500",
+		"to": "<= 500"
+	},
+	{
+		"id": "peer-page-failover-every-origin",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > raw_doc",
+		"code": "if (res.status < 500 || i === pool.length - 1) break;",
+		"operator": "logical",
+		"from": "||",
+		"to": "&&"
+	},
+	{
+		"id": "peer-page-failover-first-only",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > raw_doc",
+		"code": "if (res.status < 500 || i === pool.length - 1) break;",
+		"operator": "equality",
+		"from": "===",
+		"to": "!=="
+	},
+	{
+		"id": "peer-page-failover-past-last",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > raw_doc",
+		"code": "if (res.status < 500 || i === pool.length - 1) break;",
+		"operator": "arithmetic",
+		"from": " - 1",
+		"to": " + 1",
+		"equivalent": "the loop ends after its last origin anyway: breaking at the last one or running out leaves the same answer in res"
+	},
+	{
+		"id": "peer-endpoint-500-not-skipped",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > endpoint",
+		"code": "if (res.status >= 500) continue;",
+		"operator": "relational",
+		"from": ">= 500",
+		"to": "> 500"
+	},
+	{
 		"id": "hole-answered-left-armed",
 		"file": "packages/core/src/runtime/core.ts",
 		"in": "OgygiaRegion > answered",

@@ -30,7 +30,11 @@ works, what is built, and how to add to it.
    - `network.ts`: in memory, on the loop, adversarial: delay, reorder, drop, duplicate, cut a body
      midway, tamper with bytes, redirect a region's request to another origin, stall an answer 10 to
      40 s before it starts or, half the time, after its body's first piece (past a client's own
-     deadline; its own swarm stream, 30% of runs), offline.
+     deadline; its own swarm stream, 30% of runs), offline, and `down`: a peer served at two origins
+     answers 500 or 503 at its first. A GET it answered excuses nothing: the app owes the next
+     origin's answer, so a page whose only failed hops were such GETs is judged whole (a stalled hop
+     beside it still excuses the app's 504). The MPA check reads the replica as its first origin
+     (its files, and a region sheet lifted beside the same file at the first: `replicas_as_one`).
    - `server.ts`: a built Kit app (`.svelte-kit/output`) served in process, static files plus
      `Server.respond`. Each instance loads its own copy of the output (its own module graph), placed
      beside the app's output so it resolves the app's dependencies.
@@ -462,7 +466,8 @@ never fetches again after its retry wait, both by `stuck`), 24 (a reshape pass t
 kills restore.ts's children not put back and its render left in the light DOM, by `ssr-hydrate`,
 and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest), 121 (a peer at
 two origins: its first replica down (`down`) and no answer asked of the next dies by
-`mpa-equivalence`), 188 (an empty island that wakes: it kills the
+`mpa-equivalence`, and a widget's, a page's or a hole's failover that keeps a 500, never asks the
+replica, or asks it after an answer, by `peer-failover`), 188 (an empty island that wakes: it kills the
 repair's `> 0` mutant), 191 (a hole whose render throws: an error answer swapped in for its
 fallback dies by `html-kept`), 192, 193, 220 (a text-only third party on a page root: it kills
 `align_to`'s last `return true` -> false) and 262 (islands with a `<svelte:head>`, one a third party
