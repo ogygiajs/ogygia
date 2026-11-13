@@ -38,10 +38,13 @@ function make_plugin(): Plugin {
 	return plugin;
 }
 
+/** The environment the hooks run in (each hook is called in one, as Vite does). */
+const SSR_ENV = { name: 'ssr', config: { consumer: 'server' } };
+
 describe('unresolvable marked package specifier', () => {
 	it('resolveId throws an actionable [ogygia] error for the re-emitted specifier', async () => {
 		const plugin = make_plugin();
-		const ctx = { resolve: async () => null, emitFile: () => '' };
+		const ctx = { resolve: async () => null, emitFile: () => '', environment: SSR_ENV };
 		const src = dedent`
 			<script>
 			import TabGroup from '${SPEC}' with { wake: 'load' };
@@ -62,7 +65,7 @@ describe('unresolvable marked package specifier', () => {
 
 	it('relative imports from a generated module keep the quiet null fall-through', async () => {
 		const plugin = make_plugin();
-		const ctx = { resolve: async () => null, emitFile: () => '' };
+		const ctx = { resolve: async () => null, emitFile: () => '', environment: SSR_ENV };
 		const src = dedent`
 			<script>
 			import TabGroup from '${SPEC}' with { wake: 'load' };

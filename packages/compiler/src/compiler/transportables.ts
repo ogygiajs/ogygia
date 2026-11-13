@@ -22,15 +22,9 @@
 import path from 'node:path';
 import { parse_module } from './parse/oxc.ts';
 import { OgygiaError } from './messages.ts';
+import { splice_text, type Edit } from './splice.ts';
 
 const CLASS_KW = /\bclass\b/;
-// A real (pre-transform) wire codec member: `static <name> = import.meta.og.wire(…)`. Tight on
-// purpose — the prescan uses this to catch a wire class BEFORE the macro rewrites it to the computed
-// `static [WIRE_EXPR]` form (which the AST check below sees). A BARE textual mention of the macro (a
-// comment or string that merely names it) must NOT
-// read as a transportable, or the module gets side-effect-imported into every realm by the eager
-// registration manifest — including a Web Worker that references `self`, which then crashes on SSR.
-const WIRE_STATIC_MEMBER = /\bstatic\s+#?\w+\s*=\s*import\.meta\.og\.wire\b/;
 const MODULE_KW = /\bmodule\b/;
 const CONTEXT_MODULE_ATTR = /context\s*=\s*["']module["']/;
 const SVELTE_EXT = /\.svelte$/;
@@ -218,42 +212,18 @@ interface ClassMember {
 }
 
 /**
- * Does this module define an exported class carrying a transportable codec? Used to build
- * the eager-registration manifest so islands never need a manual `import` of the class.
+ * Does this module define an exported class carrying a transportable codec? Used to build the
+ * class loaders, the eager-registration manifest and the `wire` mark, so islands never need a
+ * manual `import` of the class. The registration's own question ({@link appendTransportRegistrations}),
+ * asked of raw or rewritten source alike, so the two cannot disagree.
  *
- * Signal: an exported class with a `static` member whose key is COMPUTED (`static [x] = …` /
- * `static [x]() {}`) — every rewritten wire member is exactly that — OR, pre-rewrite, the
- * `import.meta.og.wire` construct marker (prescan reads RAW source, where the blessed spelling
- * `static wire = import.meta.og.wire()` is not yet a computed member). A false positive (an
- * unrelated computed static, the marker in a comment) only eagerly loads one extra module; a
- * transportable class is never missed.
+ * Over-approximates: a module it cannot parse may still define one, so it counts (a miss loses the
+ * loader and the wire mark; an extra loads one module). Test: transportables-prescan.test.ts.
  */
 export function moduleHasTransportable(code: string, id_n: string): boolean {
 	if (!CLASS_KW.test(code) || !code.includes('static')) return false;
-	if (WIRE_STATIC_MEMBER.test(code)) return true;
-	let body: AstNode[];
-	try {
-		const result = parse_module(code, id_n);
-		if (!result.ok || !result.program) return false;
-		body = (result.program as { body?: AstNode[] }).body ?? [];
-	} catch {
-		return false; // ok: NOT safe, filed as #1486; #1487 (on #1313) makes it the safe true
-	}
-	const isTransportableClass = (cls: AstNode | null | undefined): boolean => {
-		const members = (cls?.body as { body?: ClassMember[] } | undefined)?.body ?? [];
-		return members.some((m) => m.static === true && m.computed === true);
-	};
-	for (const node of body) {
-		if (node.type === 'ClassDeclaration' && isTransportableClass(node)) return true;
-		if (
-			(node.type === 'ExportNamedDeclaration' || node.type === 'ExportDefaultDeclaration') &&
-			node.declaration?.type === 'ClassDeclaration' &&
-			isTransportableClass(node.declaration as AstNode)
-		) {
-			return true;
-		}
-	}
-	return false;
+	const body = parse_body(code, id_n);
+	return body === null || exportedWireClassesFromBody(body, code, id_n).length > 0;
 }
 
 /**
@@ -339,12 +309,21 @@ export function appendSvelteModuleRegistrations(
 	id_n: string,
 	root: string
 ): string | null {
+	const edit = svelte_module_registration(code, id_n, root);
+	return edit ? splice_text(code, [edit]) : null;
+}
+
+/** The insert `appendSvelteModuleRegistrations` makes to `code`, or `null` when it makes none. */
+export function svelte_module_registration(code: string, id_n: string, root: string): Edit | null {
 	if (code.includes(GENERATED_MARK) || !CLASS_KW.test(code)) return null;
 	const mod = moduleScriptOf(code);
 	if (!mod) return null;
 	const exported = exportedWireClasses(mod.body, id_n.replace(SVELTE_EXT, '.svelte.ts'));
 	if (exported.length === 0) return null;
 	const rel = path.relative(root, id_n).split('\\').join('/');
-	const block = `\n${registrationBlock(rel, exported, [])}\n`;
-	return code.slice(0, mod.injectAt) + block + code.slice(mod.injectAt);
+	return {
+		start: mod.injectAt,
+		end: mod.injectAt,
+		text: `\n${registrationBlock(rel, exported, [])}\n`
+	};
 }

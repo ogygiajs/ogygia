@@ -133,52 +133,6 @@ export const BUILD_ERRORS = {
 			\`plugins\` (before \`sveltekit()\`).
 		`
 	},
-	macro_bake_arity: {
-		text: (a: { file: string; line: number }): string =>
-			`${a.file}:${a.line} — import.meta.og.bake(fn) takes exactly one argument (a function).`,
-		details: (): string => prose`
-			\`import.meta.og.bake\` runs one function at build time and inlines its result. It takes
-			that function and nothing else: \`import.meta.og.bake(() => buildNav())\`.
-		`
-	},
-	macro_bake_not_function: {
-		text: (a: { file: string; line: number }): string =>
-			`${a.file}:${a.line} — import.meta.og.bake(fn): the argument must be a function (\`() => …\`).`,
-		details: (): string => prose`
-			\`import.meta.og.bake\` was given something other than an inline function (a variable, a
-			value). The build evaluates the function's own source, so write it inline:
-			\`import.meta.og.bake(() => buildNav())\`.
-		`
-	},
-	macro_bake_eval_failed: {
-		text: (a: { file: string; reason: string }): string => prose`
-			import.meta.og.bake() in ${a.file}: evaluating the function failed — ${a.reason}. A baked
-			function may use this module's IMPORTS and literals only (not its other local variables),
-			and must not touch runtime-only modules ($app/*, the browser).
-		`,
-		details: (): string => prose`
-			The build bundled the baked function with the module's imports and ran it, and it threw.
-			\`reason\` is the error.
-
-			The function runs alone, at build time: it sees the module's imports and literals, not its
-			other local variables, and there is no request, no \`$app/*\` module and no browser. Move
-			what it needs into an import.
-		`
-	},
-	macro_bake_not_serializable: {
-		text: (a: { file: string; line: number; reason: string }): string => prose`
-			${a.file}:${a.line} — import.meta.og.bake(): the result is not serializable (${a.reason}).
-			bake produces DATA — return plain values (JSON + Date/Map/Set/RegExp/BigInt), never a
-			function, Promise, or class instance.
-		`,
-		details: (): string => prose`
-			The baked function ran, but its result cannot be written into the module as a constant.
-			\`reason\` names the value that failed.
-
-			Return plain data: JSON values, \`Date\`, \`Map\`, \`Set\`, \`RegExp\`, \`BigInt\`. A
-			function, a promise or a class instance cannot be baked.
-		`
-	},
 
 	// ── the compiler ──────────────────────────────────────────────────────────────────────────────
 	kit_config_not_literal: {
@@ -290,13 +244,67 @@ export const BUILD_ERRORS = {
 			says what is wrong and what to write.
 		`
 	},
-	as_region_invalid: {
-		text: (a: { host: string; name: string; problem: string }): string =>
-			`${a.host}: import.meta.og.asRegion (${a.name}) — ${a.problem}`,
+	as_region_removed: {
+		text: (a: { host: string; fixes: string }): string =>
+			`${a.host}: import.meta.og.asRegion is gone. Mark the import itself; a named import takes the same options:\n${a.fixes}`,
 		details: (): string => prose`
-			\`import.meta.og.asRegion\` marks a component as a region, like a marked import. It only
-			works on a plain \`const Name = import.meta.og.asRegion(Component, options)\`, with the
-			same options an import's \`with\` clause takes. \`problem\` says what is wrong.
+			\`import.meta.og.asRegion(Component, options)\` was replaced by the import it stood for. A
+			named import carries the mark the same way a default import does:
+			\`import { Search } from 'x' with { wake: 'idle' }\`, aliased with \`as\` when the region
+			had its own name. The message prints the line to write for each call in the file. Put it
+			beside the file's other imports and delete the \`const\`. If the old import is used for
+			nothing else, delete it too.
+		`
+	},
+	region_import_namespace: {
+		text: (a: { host: string; line: number; name: string; spec: string }): string => prose`
+			${a.host}:${a.line} — \`import * as ${a.name} from '${a.spec}'\` carries a region mark. A
+			namespace is not a component. Name the components you place:
+			\`import { Card } from '${a.spec}' with { … }\`.
+		`,
+		details: (): string => prose`
+			A region mark (\`wake\`, \`render\`, \`fetch\`, \`preset\` or \`region\` in the \`with\`
+			clause) makes every name the import binds a region. A namespace import binds an object of
+			exports, not a component, so it cannot be one. Import each component by name instead.
+		`
+	},
+	region_import_bare: {
+		text: (a: { host: string; line: number; spec: string }): string => prose`
+			${a.host}:${a.line} — \`import '${a.spec}'\` carries a region mark but binds no name, so
+			there is nothing to make a region. Bind the component:
+			\`import Card from '${a.spec}' with { … }\`, or drop the \`with\` clause.
+		`,
+		details: (): string => prose`
+			A side-effect import (\`import 'x'\`, or \`import {} from 'x'\`) binds no name. A region
+			mark only means something on a name you place as \`<Name />\` or hand to \`region()\`.
+		`
+	},
+	region_import_type_only: {
+		text: (a: { host: string; line: number; names: string; spec: string }): string => prose`
+			${a.host}:${a.line} — \`${a.names}\` is imported as a type with a region mark. A type is
+			gone at runtime, so it cannot be a region. Import the types on their own line without
+			\`with\`: \`import type { ${a.names} } from '${a.spec}';\`
+		`,
+		details: (): string => prose`
+			\`import type\`, or a \`type\` specifier inside the braces, imports only a type. Types are
+			erased before the code runs, so a region mark on one marks nothing. Keep region marks on
+			value imports of components and import types on a separate line.
+		`
+	},
+	region_binding_not_component: {
+		text: (a: { host: string; at: string; name: string; use: string; fix: string }): string =>
+			prose`
+			${a.host}:${a.at} — \`${a.name}\` comes from a region import, but it is ${a.use} here. A
+			region mark makes every name in its import a component region. If \`${a.name}\` is not a
+			component, import it on its own line without \`with\`: \`${a.fix}\`
+		`,
+		details: (): string => prose`
+			One \`with { … }\` clause covers every name its import binds, so each one becomes a
+			region: a component you place as \`<Name />\` or hand on as a value (\`region(Name)\`, a
+			prop, a registry). Calling it, reading a member off it, spreading it, rendering it as
+			text, \`typeof\`, \`{@render}\`, \`{@html}\`, an action or a transition all mean the
+			name is not a component. Usually a tool merged two imports of one module into one. Split
+			them: the components keep the \`with\` clause, the rest get a plain import line.
 		`
 	},
 	region_children_not_portable: {
@@ -716,6 +724,27 @@ export const BUILD_ERRORS = {
 			realm module knows them without running it. This one now returns other names: the
 			generated list is stale. Run \`node packages/core/scripts/virtual-types.ts\`. ${BUG}
 		`
+	},
+	plugin_session_order: {
+		text: (a: { hook: string; state: string }): string =>
+			`The bundler called ogygia's \`${a.hook}\` hook while the plugin was ${a.state}.`,
+		details: (): string => prose`
+			An \`ogygia()\` plugin is made, configured (\`config\`), then resolved
+			(\`configResolved\`) once: its compiler is made from the resolved build. A hook that
+			needs the compiler runs after that, and the build is resolved only once per plugin. A
+			bundler or a tool that calls the hooks in another order meets this. ${BUG}
+		`
+	},
+	build_leg_unclear: {
+		text: (a: { leg: string; open: number }): string =>
+			a.leg
+				? `The bundler called ogygia in environment \`${a.leg}\`, which never started a build.`
+				: `The bundler called ogygia with no environment while ${a.open} environments build.`,
+		details: (): string => prose`
+			Each bundler environment (\`ssr\`, \`client\`) builds its own output, and ogygia keeps what
+			each one emits apart. A call it cannot place in one environment would put one
+			environment's files in the other's output. ${BUG}
+		`
 	}
 };
 
@@ -761,15 +790,46 @@ export const BUILD_WARNINGS = {
 			compiles, like npm's \`files\`.
 		`
 	},
+	runtime_marks_late: {
+		text: (a: { file: string; features: string }): string => prose`
+			${a.file} placed a region that needs the runtime's ${a.features}, but the build had already
+			made its runtime without it: that region will not work in this build. Put the file where
+			the scan reads it: under \`src/\`, or in a package that declares \`"ogygia": { "files":
+			[...] }\`.
+		`,
+		details: (): string => prose`
+			A build picks the runtime's features once, from the regions it knows when the bundler
+			loads the runtime entry. This file was first reached later, while bundling, and one of
+			its regions needs a feature (a lake, a \`keep\`, a held region, a deferred hole, a wake
+			on interaction) the runtime was made without. The region then never wakes or never
+			fills.
+
+			ogygia reads every file under \`src/\` and every declared package file before the
+			bundler starts. Move the file there, or declare it in its package's \`ogygia.files\`.
+		`
+	},
+	relocation_unpatched: {
+		text: (a: { name: string; leg: string }): string => prose`
+			the ${a.name} in the ${a.leg} build was left unpatched: a value the build fills in at the end
+			never reached its chunk, so that part of the output is wrong. Please report it.
+		`,
+		details: (): string => prose`
+			Some values are known only once the bundler has transformed every module: the \`og.$\`
+			functions an app defines, and which server regions read \`page.data\`. The build writes a
+			placeholder for each and fills it in as each chunk is finished. A placeholder was left in
+			the output, or the module that carries it is in the output and none was filled. This is
+			an ogygia bug, or another plugin rewrote the chunk after ogygia filled it.
+		`
+	},
 	island_context_unprovided: {
 		text: (a: { file: string; key: string }): string => prose`
-			island code ${a.file} reads getContext('${a.key}'), but this app registers no ogygia
-			context provider and no island code sets '${a.key}'. On a csr=false page a value set with
+			island code ${a.file} reads getContext(${a.key}), but this app registers no ogygia
+			context provider and no island code sets ${a.key}. On a csr=false page a value set with
 			Svelte's setContext in a page/layout does NOT cross the island boundary — the island reads
 			undefined on the client, re-renders a different tree, and Svelte discards its
-			server-rendered DOM on hydration (a silent full re-render). Fix: provide '${a.key}' with
+			server-rendered DOM on hydration (a silent full re-render). Fix: provide ${a.key} with
 			setContext / <Provide> / createContext imported from 'ogygia' (in a csr=false layout); the
-			read stays getContext('${a.key}').
+			read stays getContext(${a.key}).
 		`,
 		details: (): string => prose`
 			An island reads a context nothing in the browser provides. On a csr=false page a layout
@@ -778,7 +838,22 @@ export const BUILD_WARNINGS = {
 			server HTML away.
 
 			Provide the value with \`setContext\`, \`<Provide>\` or \`createContext\` imported from
-			\`ogygia\`. The island keeps reading it with \`getContext\`.
+			\`ogygia\`. The island keeps reading it with \`getContext\`. The key is a string or a
+			\`Symbol.for('name')\`: both cross.
+		`
+	},
+	region_context_key_one_off: {
+		text: (a: { file: string; key: string }): string => prose`
+			${a.file} sets context with ogygia's setContext under the one-off symbol ${a.key}, which
+			cannot cross into regions: they read undefined in the browser. Key it with a string or
+			Symbol.for('name'); or pass { islands: false } if no region reads it.
+		`,
+		details: (): string => prose`
+			Each region wakes as its own root in the browser, so it reads context the page carries
+			across. A one-off \`Symbol()\` key has no twin there: nothing in the browser can name it.
+			Use a string key, or \`Symbol.for('name')\`, which the browser rebuilds from its name (or
+			\`createContext\` from \`ogygia\`). If no region reads the key, set it with
+			\`setContext(key, value, { islands: false })\`.
 		`
 	},
 	region_host_skipped: {
@@ -918,6 +993,16 @@ export const BUILD_WARNINGS = {
 			folder, fix the config so it loads.
 		`
 	},
+	plugin_not_listed: {
+		text: (a: { package: string; plugin: string; file: string }): string =>
+			`${a.file} imports ${a.package}, but its plugin \`${a.plugin}\` is not listed beside ogygia() in vite.config — its build half does not run.`,
+		details: (): string => prose`
+			This package has a part that runs in the build (for \`@ogygia/flags\`: the flag inventory,
+			\`node_modules/.ogygia/flags-manifest.json\`, and the server half that tells each request
+			which flags it read). That part runs only when the package's plugin is listed. Add it beside
+			\`ogygia()\` in vite.config \`plugins\`, before \`sveltekit()\`. Said once per build.
+		`
+	},
 
 	// ── the build's reports: printed at info level with `line(code, args)`, never warned ──────────
 	island_chunks_not_emitted: {
@@ -927,15 +1012,6 @@ export const BUILD_WARNINGS = {
 			The client build found islands whose host components no route of this build renders, so
 			it left their chunks out. Nothing is wrong unless an island is missing from a page that
 			should have it: then check the route that renders its host is part of the build.
-		`
-	},
-	flags_manifest_written: {
-		text: (a: { count: number }): string =>
-			`flags manifest: ${a.count} flag(s) → node_modules/.ogygia/flags-manifest.json`,
-		details: (): string => prose`
-			The build wrote the inventory of every \`flag()\` it found, with where each is read, to
-			\`node_modules/.ogygia/flags-manifest.json\`. Tools (the devtools, a flag dashboard) read it
-			from there.
 		`
 	},
 	page_seed_report: {

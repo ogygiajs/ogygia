@@ -8,8 +8,8 @@
  * barrels pass replaces `import { A } from 'barrel'` with `import A from '<leaf of A>'` at
  * transform time, so the graph is the leaves the file actually uses.
  *
- * An import that carries a region's identity (a region mark, or a binding `asRegion` reads) is left
- * exactly as written: ogygia pins it (`b.pinnedImports`).
+ * An import that carries a region's identity (a region mark, on a default or a named import) is
+ * left exactly as written: ogygia pins it (`b.pinnedImports`).
  */
 export type Matcher = string | RegExp | ((id: string) => boolean);
 

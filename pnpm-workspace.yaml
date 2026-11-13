@@ -44,6 +44,8 @@ catalog:
   typescript: ^6.0.3
   '@types/node': ^26.1.2
   magic-string: ^1.4.5
+  '@jridgewell/remapping': ^2.3.5
+  '@jridgewell/trace-mapping': ^0.3.31
   # test
   vitest: ^4.1.12
   '@vitest/browser': 4.1.12

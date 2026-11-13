@@ -84,8 +84,6 @@ export interface CoreApp {
 	runtime_chunk_url(): string;
 	region_names(): Record<string, string>;
 	router_css_roots(): string[];
-	/** dev: the server-region ids a server manifest was just emitted with */
-	note_server_ids(ids: Set<string>): void;
 	/** the app's Kit routes directory */
 	routes_dir(): string;
 	/** the plugins listed beside `ogygia()` */
@@ -109,8 +107,6 @@ export const CORE_PARTS: Parts<CoreApp> = {
 	runtime_chunk_url: 'regions',
 	region_names: 'regions',
 	router_css_roots: 'styles',
-	// (a report the load makes, not a read)
-	note_server_ids: null,
 	routes_dir: 'routes',
 	plugins: 'plugins'
 };
@@ -215,7 +211,7 @@ export const runtime_entry: Family = virtual.family({
 		app.prescan();
 		const { ctx } = app;
 		const { code } = generateRuntimeEntrySource(
-			app.program.runtime_marks,
+			app.program.ship_runtime(),
 			ctx.runtime_dir,
 			app.plugins().client
 		);
@@ -519,12 +515,13 @@ export const route_csr: Value<RouteCsrModule> = virtual.value<CoreApp, RouteCsrM
 				error_csr_true_routes: new Set(),
 				root_layout_csr_true: true
 			};
-		const routes = app.routes_dir();
+		const dir = app.routes_dir();
+		const r = app.ctx.routes;
 		return {
-			csr_true_routes: new Set(csrTrueRouteIds(routes)),
+			csr_true_routes: new Set(csrTrueRouteIds(r, dir)),
 			// Kit renders a route's error page with its LAYOUT branch only
-			error_csr_true_routes: new Set(errorCsrTrueRouteIds(routes)),
-			root_layout_csr_true: rootLayoutCsrTrue(routes)
+			error_csr_true_routes: new Set(errorCsrTrueRouteIds(r, dir)),
+			root_layout_csr_true: rootLayoutCsrTrue(r, dir)
 		};
 	}
 });
@@ -534,7 +531,7 @@ export const route_config: Family<RouteConfigModule> = virtual.family({
 	id: 'route-config',
 	exports: { route_config: 'route_config' },
 	load: (app: CoreApp, { ssr }) =>
-		route_config_module(ssr, app.routes_dir(), app.plugins().route_config)
+		route_config_module(ssr, app.ctx.routes, app.routes_dir(), app.plugins().route_config)
 });
 
 export const server_manifest: Family<ServerManifestModule> = virtual.family({
@@ -552,14 +549,7 @@ export const server_manifest: Family<ServerManifestModule> = virtual.family({
 	load(app: CoreApp, { ssr }) {
 		const { ctx, program } = app;
 		if (ssr) app.prescan();
-		if (ssr && ctx.is_dev) app.note_server_ids(new Set(server_island_ids(program)));
-		return server_manifest_module(
-			ssr,
-			program,
-			ctx.is_dev,
-			(vp: string) => ctx.dev_url_for(vp),
-			(rid: string) => ctx.island_public_url(rid)
-		);
+		return server_manifest_module(ssr, program, ctx.is_dev, (vp: string) => ctx.dev_url_for(vp));
 	}
 });
 
@@ -568,7 +558,10 @@ export const server_regions: Family<ServerRegionsModule> = virtual.family({
 	id: 'server-regions',
 	load(app: CoreApp, { ssr }) {
 		if (ssr) app.prescan();
-		return server_regions_module(ssr, app.program);
+		const late = ssr && app.ctx.is_build;
+		// a region registered after this is a late one: its loader is its own chunk
+		if (late) app.program.server_regions_written = new Set(server_island_ids(app.program));
+		return server_regions_module(ssr, app.program, late);
 	}
 });
 

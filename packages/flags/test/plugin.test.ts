@@ -22,10 +22,15 @@ describe('flags()', () => {
 		});
 		// and it names flag() as its definer (a build hook: core marks each call with its module's run)
 		const definers: unknown[] = [];
+		const prescans: { imports: readonly string[] }[] = [];
 		(manifest!.build as (b: unknown) => void)({
-			definers: (module: string, names: string[]) => definers.push({ module, names })
+			root: '/app',
+			definers: (module: string, names: string[]) => definers.push({ module, names }),
+			prescan: (hook: { imports: readonly string[] }) => prescans.push(hook)
 		});
 		expect(definers).toEqual([{ module: '@ogygia/flags', names: ['flag'] }]);
+		// and it reads the modules importing the package (the flag inventory)
+		expect(prescans.map((h) => h.imports)).toEqual([['@ogygia/flags']]);
 	});
 });
 
