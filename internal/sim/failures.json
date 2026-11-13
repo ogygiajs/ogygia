@@ -1750,6 +1750,12 @@
 			"name": "as origins, http(s) only, each once"
 		},
 		{
+			"site": "packages/core/src/runtime/viewport.ts > Tracker > constructor > throw:0",
+			"reason": "no IntersectionObserver: the watch throws to its caller before a tracker is kept (#1727)",
+			"test": "packages/core/test/browser/viewport-no-observer.test.ts",
+			"name": "a watch that threw for want of an observer leaves no tracker that breaks when the page ends"
+		},
+		{
 			"site": "packages/core/src/boundary.ts > __og_boundary > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/core/test/fn-transport.test.ts",

@@ -48,9 +48,9 @@ class Tracker {
 
 	constructor(root_margin: string, owner: Scope) {
 		this.owner = owner;
-		this.io = owner.watch(
-			seen.observer((entries) => this.#report(entries), { rootMargin: root_margin })!
-		);
+		const io = seen.observer((entries) => this.#report(entries), { rootMargin: root_margin });
+		if (!io) throw new ReferenceError('IntersectionObserver is not defined');
+		this.io = owner.watch(io);
 	}
 
 	#swapped(records: MutationRecord[]): void {
