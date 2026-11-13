@@ -242,6 +242,7 @@ export type BootLink = {
 };
 export type RouterLink = {
 	jump_to_hash: typeof import('./router.ts').jump_to_hash;
+	fragment_target: typeof import('./fragment.ts').fragment_target;
 };
 export type InteractionLink = {
 	resolve_address: typeof import('./interaction.ts').resolve_address;

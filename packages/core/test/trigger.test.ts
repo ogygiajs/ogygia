@@ -1,7 +1,7 @@
 // The `when` / `wake` / `prefetch` / `revalidate` vocabulary (src/contract/trigger.ts, #482): one
 // parse into a tagged union, read by the compiler's checks and the runtime's schedules alike.
 import { describe, expect, it, vi } from 'vitest';
-import { on_schedule, parse_trigger, SCHEDULE, WAKE } from '../src/contract/trigger.ts';
+import { on_schedule, on_trigger, parse_trigger, SCHEDULE, WAKE } from '../src/contract/trigger.ts';
 
 describe('parse_trigger', () => {
 	it('reads a keyword its set allows, and a media query, into one shape', () => {
@@ -63,5 +63,33 @@ describe('on_schedule', () => {
 		on_schedule('interaction', a, fire);
 		expect(a.media).not.toHaveBeenCalled();
 		expect(fire).toHaveBeenCalledOnce();
+	});
+});
+
+describe('on_trigger', () => {
+	const arms = () => ({
+		idle: vi.fn(),
+		visible: vi.fn(),
+		media: vi.fn(),
+		interaction: vi.fn(),
+		load: vi.fn()
+	});
+
+	it('a wake arms its gesture, and its load through its own start', () => {
+		const a = arms();
+		const fire = vi.fn();
+		expect(on_trigger('interaction', WAKE, a, fire)).toEqual({ on: 'interaction' });
+		expect(a.interaction).toHaveBeenCalledWith(fire);
+		on_trigger('load', WAKE, a, fire);
+		expect(a.load).toHaveBeenCalledWith(fire);
+		expect(fire).not.toHaveBeenCalled();
+	});
+
+	it('a value that is not a trigger (a typo) runs on load and says so, never waits on matchMedia', () => {
+		const a = arms();
+		const fire = vi.fn();
+		expect(on_trigger('visable', WAKE, a, fire)).toBeNull();
+		expect(a.media).not.toHaveBeenCalled();
+		expect(a.load).toHaveBeenCalledWith(fire);
 	});
 });

@@ -130,8 +130,8 @@ describe('standalone driver (no Vite)', () => {
 	test('Compiler.ts_regions mints a `with { wake }` load-region import', () => {
 		const { compiler, program } = make_compiler();
 		const src = `${dedent`
-			import { load } from './data.remote' with { wake: 'load' };
-			export { load };
+			import Feed from './Feed.svelte' with { wake: 'load' };
+			export { Feed };
 		`}\n`;
 		const result = compiler.ts_regions(src, `${ROOT}/src/lib/feed.ts`) as { code: string } | null;
 		// A ts-region mint either rewrites the module (island descriptors) or no-ops if the attribute
