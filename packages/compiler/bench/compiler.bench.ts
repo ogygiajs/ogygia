@@ -11,7 +11,9 @@ import { barrel_left_table } from '../src/compiler/exports/left.ts';
 import { BARREL_LEFT_REASONS } from '@ogygia/core/contract';
 import { collectFreeIdentifiers } from '../src/compiler/free-vars.ts';
 import { page_data_keys_answer } from '../src/compiler/link/page-keys.ts';
+import { rewrite_dollar } from '../src/compiler/macros/dollar.ts';
 import { auto_brand_stores, rewrite_store } from '../src/compiler/macros/store.ts';
+import { find_og_calls } from '../src/compiler/parse/scan.ts';
 import { run_module_macros } from '../src/compiler/macros/pipeline.ts';
 import { stamp_opaque } from '../src/compiler/ownership-stamps.ts';
 import { transformHost } from '../src/compiler/region/transform.ts';
@@ -181,6 +183,71 @@ bench(
 					{#each page.data.list as item}<p>{item.name} {page.data.user?.name}</p>{/each}
 				`}\n`
 			};
+		}
+	}
+);
+
+/** A script module that reads the page through its own helpers and the store helpers, `k` times
+ *  over, with names shadowed by params, patterns, loops, catch clauses and blocks. */
+function page_helpers_module(k: number): string {
+	const parts = [
+		`import { get, derived } from 'svelte/store';`,
+		`import { page } from '$app/stores';`,
+		`function lang(p) { return p.data.lang; }`,
+		`const title = (p) => p.data.title;`
+	];
+	for (let i = 0; i < k; i++)
+		parts.push(
+			`export const l${i} = lang(get(page));`,
+			`export const t${i} = derived(page, ($page) => title($page) + $page.data.s${i});`,
+			`export function f${i}({ get, b: [lang], ...rest }, title = 1) { return get(page) + lang(page) + title; }`,
+			`export function g${i}(xs) { for (const [get] of xs) get(page); for (let derived = 0; derived < 1; derived++) {} try { lang(get(page)); } catch (title) { title(page); } { const lang = 1; } return 0; }`
+		);
+	return parts.join('\n');
+}
+
+bench(
+	"page data keys: a module's own page helpers and the store helpers, shadowed and not",
+	({ source }) => page_data_keys_answer(source, '/app/src/lib/page-helpers.ts', 'script').keys,
+	{
+		setup: () => ({ source: page_helpers_module(5) }),
+		scale: (_ctx, k) => ({ source: page_helpers_module(5 * k) })
+	}
+);
+
+/** A module with `k` `$()` marks that capture module values, a shadowed global among them. */
+function dollar_module(k: number): string {
+	const parts = [`import { fetch } from './net.ts';`, `const tax = 0.19;`];
+	for (let i = 0; i < k; i++)
+		parts.push(
+			`const rate${i} = ${i};`,
+			`export const f${i} = import.meta.og.$((n) => Math.round(n * (1 + tax + rate${i})) + fetch(String(n)));`
+		);
+	return parts.join('\n');
+}
+
+bench(
+	'dollar macros: the marks of a module, each with its captures',
+	({ source }) =>
+		rewrite_dollar(source, '/app/src/lib/fns.ts', 'src/lib/fns.ts', SVELTE).hoists.length,
+	{
+		setup: () => ({ source: dollar_module(10) }),
+		scale: (_ctx, k) => ({ source: dollar_module(10 * k) })
+	}
+);
+
+bench(
+	'macro scanner: calls among templates, regexes after keywords, and comments',
+	({ source }) => find_og_calls(source, 'import.meta.og.').length,
+	{
+		setup: () => {
+			const lines: string[] = [];
+			for (let i = 0; i < 40; i++)
+				lines.push(
+					`const t${i} = \`a \${b${i}} \${\`'\`}\`; function r${i}(s) { if (s) return /'/.test(s); return typeof /"/; } // import.meta.og.no(${i})`,
+					`export const c${i} = import.meta.og.code('./x${i}.ts');`
+				);
+			return { source: `${lines.join('\n')}\n` };
 		}
 	}
 );
