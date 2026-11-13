@@ -178,6 +178,21 @@ export type ImportKeys = {
 	region: string;
 };
 
+/** The keys a region preset takes, by their standard names: a preset is config, so `importKeys`
+ * never renames them. */
+export const PRESET_KEYS: ReadonlySet<string> = new Set([
+	'render',
+	'wake',
+	'fetch',
+	'margin',
+	'maxAge',
+	'onExpire',
+	'revalidate',
+	'keep',
+	'stitch',
+	'prefetch'
+]);
+
 /** The three delivery modes the `render` attribute accepts. */
 // static: the region `render` modes
 const RENDER_MODES = new Set(['static', 'deferred', 'live']);
@@ -1064,9 +1079,9 @@ class FileCompilation {
 			}
 			for (const [k, v] of Object.entries(preset)) {
 				if (v == null) continue;
-				if (k === import_keys.render) render_mode = String(v);
-				else if (k === import_keys.wake) wake_val = String(v);
-				else if (k === import_keys.fetch) fetch_val = String(v);
+				if (k === 'render') render_mode = String(v);
+				else if (k === 'wake') wake_val = String(v);
+				else if (k === 'fetch') fetch_val = String(v);
 				else if (k === 'maxAge' || k === 'onExpire' || k === 'revalidate') live_opts[k] = v;
 				else if (k === 'margin' || k === 'keep' || k === 'prefetch') attrs.set(k, String(v));
 				else if (k === 'stitch') {
@@ -1078,7 +1093,7 @@ class FileCompilation {
 					attrs.set('stitch', v === 'edge' ? 'edge' : 'serve');
 				} else {
 					throw fail(
-						`unknown key \`${k}\` in preset '${from_preset}'. Use \`${import_keys.wake}\`, \`${import_keys.fetch}\`, \`${import_keys.render}\`, \`margin\`, \`maxAge\`, \`onExpire\`, \`revalidate\`, \`stitch\`, \`prefetch\`.`
+						`unknown key \`${k}\` in preset '${from_preset}'. Use ${[...PRESET_KEYS].map((key) => `\`${key}\``).join(', ')}.`
 					);
 				}
 			}
@@ -1179,7 +1194,7 @@ class FileCompilation {
 		}
 		if (from_preset && !attrs.has('hydrate') && !attrs.has('defer')) {
 			throw fail(
-				`${import_keys.preset} '${from_preset}' must set \`${import_keys.render}\` or \`${import_keys.wake}\` — a margin-only (or empty) preset is a no-op.`
+				`${import_keys.preset} '${from_preset}' must set \`render\` or \`wake\` — a margin-only (or empty) preset is a no-op.`
 			);
 		}
 
