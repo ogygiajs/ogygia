@@ -287,7 +287,6 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 		return true;
 	}
 
-	/** Read `query(arg)` for this revision, recording it in `into` (the reader's deps). */
 	function read<A, V>(typed: Query<A, V>, arg: A, into: Frame | undefined): V {
 		const slot = fresh(slot_of(typed as unknown as Erased, arg));
 		if (into) link(into, slot);
