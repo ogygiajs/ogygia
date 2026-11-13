@@ -1,3 +1,9 @@
+/**
+ * CORE'S VIRTUAL MODULES, declared in the table (./table.ts): the first registrant. Each entry reads
+ * its value off the compile session (`CoreApp`, the driver) and the leg it is loaded for. Each is a
+ * named export typed with what its module exports (a value's data, a family's `contract/`
+ * interface): the generated per-realm `.d.ts` reads the types off these exports.
+ */
 import fs from 'node:fs';
 import path from 'node:path';
 import { cache } from '@ogygia/machine';
@@ -110,12 +116,21 @@ type Family<M = Record<never, never>> = FamilyEntry<CoreApp, M>;
 
 const BACKSLASH_G = /\\/g;
 const posix = (p: string): string => p.replace(BACKSLASH_G, '/');
-const vite_dev_url = (id: string): string => `/@id/__x00__${id}`;
+/** A served dev URL for a virtual module (Vite's `/@id/` form of its resolved id). */
+const dev_url = (id: string): string => `/@id/__x00__${id}`;
+/** The id the bundler keys an entry's module by. */
+const key = specifier_of;
 
 /** A core module (its path under `src/`, no extension) → the built file next to the runtime. */
 export const core_path = (app: CoreApp, module: string): string =>
 	posix(path.join(path.dirname(app.ctx.runtime_dir), `${module}.js`));
 
+/**
+ * The runtime the dev boot runs, as the app resolves `ogygia/runtime` (the package's exports map:
+ * the dev boot imports that specifier). A published package points it at `dist/runtime` (= the
+ * prebuilt `runtime_dir`); this repo's workspace points it at `src/runtime` (`.ts` files). Null
+ * when it cannot be read (then `runtime_dir` stands). Once per runtime dir.
+ */
 const dev_runtimes = cache<string, { dir: string; ts: boolean } | null>({
 	name: 'dev runtimes',
 	max: 64
@@ -139,6 +154,9 @@ function dev_runtime_of(runtime_dir: string): { dir: string; ts: boolean } | nul
 	return out;
 }
 
+/** The client-hooks boot snippet for a generated runtime entry: an import of the runtime runner and
+ *  a call that dynamic-imports the app's `hooks.client.*` — empty when the app has none. Runs the
+ *  file's `init` on boot for csr=false pages (the runner skips a csr=true document). */
 function client_hooks_boot(ctx: CompileCtx): { imports: string; call: string } {
 	if (!ctx.client_hooks) return { imports: '', call: '' };
 	const runner = posix(`${ctx.runtime_dir}/client-hooks.js`);
@@ -148,9 +166,14 @@ function client_hooks_boot(ctx: CompileCtx): { imports: string; call: string } {
 	};
 }
 
+// ── boot ────────────────────────────────────────────────────────────────────────────────────
+
 export const runtime: Family = virtual.family({
 	realm: 'boot',
 	id: 'runtime',
+	// Dev sticky: kitchen-sink package entry. Build uses the hashed emitFile chunk. An EXPLICIT
+	// `bootDev()` call (not a bare side-effect import) so Vite's dep prebundler can't tree-shake the
+	// boot away — the bug that left `sideEffects:false` apps with a runtime that never woke.
 	load(app: CoreApp) {
 		const ch = client_hooks_boot(app.ctx);
 		const cp = client_realms_source(app.plugins().client);
@@ -165,6 +188,11 @@ export const runtime: Family = virtual.family({
 export const fn_manifest: Family = virtual.family({
 	realm: 'boot',
 	id: 'fn-manifest',
+	// og.$ factories, registered pre-hydration. Self-contained by the capture law, so emitting source
+	// is a pure text move. DEV: the hoists are complete by the time the browser requests this (SSR
+	// transformed the hosts first). BUILD: this module loads BEFORE all client transforms ran, so it
+	// is a rename-proof PLACEHOLDER — a globalThis bridge + a token `renderChunk` patches once every
+	// transform has contributed.
 	load(app: CoreApp) {
 		const bridge = `${dedent`
 			import { __register_fn } from 'ogygia/internal';
@@ -179,6 +207,7 @@ export const runtime_entry: Family = virtual.family({
 	realm: 'boot',
 	id: 'runtime-entry',
 	load(app: CoreApp) {
+		// every host walked (marks complete) before features are selected
 		app.prescan();
 		const { ctx } = app;
 		const { code } = generateRuntimeEntrySource(
@@ -197,6 +226,7 @@ export const runtime_flags: Family<RuntimeFlagsModule> = virtual.family({
 	exports: { FRAMES: 'FRAMES', load_wire_codec: 'load_wire_codec' },
 	load(app: CoreApp) {
 		const { ctx } = app;
+		// Dev runs the kitchen-sink boot: every flag on, like every feature.
 		if (!ctx.is_build) return generateRuntimeFlagsSource({}, ctx.runtime_dir, true);
 		app.prescan();
 		return generateRuntimeFlagsSource(app.program.runtime_marks, ctx.runtime_dir);
@@ -209,16 +239,22 @@ export const hydrate_features: Family<HydrateFeaturesModule> = virtual.family({
 	exports: { install_hydrate_features: 'install' },
 	load(app: CoreApp) {
 		const { ctx, program } = app;
+		// The hydrate core's feature phase, from the same marks as the boot entry. Dev runs the
+		// kitchen-sink boot (`bootDev`), so it gets every hydrate-phase feature, from the runtime the
+		// dev boot actually runs: a second copy would install the wire into slots it never reads.
 		if (!ctx.is_build) {
 			const rt = dev_runtime_of(ctx.runtime_dir);
 			const code = generateHydrateFeaturesSource({}, rt?.dir ?? ctx.runtime_dir, true).code;
 			return rt?.ts ? code.split('.js";').join('.ts";') : code;
 		}
 		app.prescan();
+		// og.$ factories register with the hydrate core, and only a decoder that revives a fn ref
+		// looks one up: the wire hub (props), the context bridge, or the app's Kit transport. With
+		// none in the build no ref can arrive, and the manifest would ship ~2 kB for nothing.
 		const marks = program.runtime_marks;
 		const fn_refs_decode = marks.wire === true || marks.context === true || program.crosses_wire;
 		return (
-			(fn_refs_decode ? `import ${JSON.stringify(specifier_of(fn_manifest))};\n` : '') +
+			(fn_refs_decode ? `import ${JSON.stringify(key(fn_manifest))};\n` : '') +
 			generateHydrateFeaturesSource(marks, ctx.runtime_dir).code
 		);
 	}
@@ -227,6 +263,7 @@ export const hydrate_features: Family<HydrateFeaturesModule> = virtual.family({
 export const devtools_meta: Value<DevtoolsMetaModule> = virtual.value({
 	realm: 'boot',
 	id: 'devtools-meta',
+	// a build: every region's component name, from the prescan (the dev server serves them live)
 	from(app: CoreApp) {
 		if (app.ctx.is_dev) return { region_names: {} };
 		app.prescan();
@@ -234,6 +271,7 @@ export const devtools_meta: Value<DevtoolsMetaModule> = virtual.value({
 	}
 });
 
+// region, not boot: the app's codecs, on the server leg too (its render encodes with them)
 export const transport: Family<TransportModule> = virtual.family({
 	realm: 'region',
 	id: 'transport',
@@ -242,10 +280,13 @@ export const transport: Family<TransportModule> = virtual.family({
 		transport_module(leg.universalHooks, leg.ssr ? null : (leg.kitCodec ?? null))
 });
 
+// region, not boot: eager on the server leg, lazy loaders in the browser
 export const transportables: Family<TransportablesModule> = virtual.family({
 	realm: 'region',
 	id: 'transportables',
 	exports: { wire_loaders: 'wire_loaders', wire_all: 'wire_all' },
+	// transportable-class modules: eager on the server, lazy loaders on the client (tag paths are
+	// root-relative, as the registration writes them)
 	load(app: CoreApp, { ssr }) {
 		app.prescan();
 		const { ctx, program } = app;
@@ -258,20 +299,28 @@ export const transportables: Family<TransportablesModule> = virtual.family({
 	}
 });
 
+// ── dev ─────────────────────────────────────────────────────────────────────────────────────
+
 export const hmr: Family = virtual.family({
 	realm: 'dev',
 	id: 'hmr',
+	// Dev-only soft HMR bridge under csr=false (no Kit client entry): join /src/**/*.css into the
+	// browser graph + strip Kit's FOUC bag. Failures fall through to a full document reload.
 	load: ({ ctx }: CoreApp) => (ctx.is_dev ? dev_hmr_client_source() : `export {}`)
 });
 
 export const devtools_boot: Family = virtual.family({
 	realm: 'dev',
 	id: 'devtools-boot',
+	// The plugins' browser halves on a csr=true (Kit-owned) page: the ogygia runtime never boots
+	// there, so ONLY they boot, told it is a Kit page. Empty with no client realm (never injected).
 	load(app: CoreApp) {
 		const { ctx } = app;
 		const client = app.plugins().client;
 		if (!client.length) return `export {}`;
 		const cp = client_realms_source(client);
+		// the dev server hands `define`s (the plugins' gates among them) to the page as globals
+		// from Vite's env module: it must run before they read them
 		const env = ctx.is_dev ? `import '/@vite/env';\n` : '';
 		const from = JSON.stringify(posix(`${ctx.runtime_dir}/client-plugins.js`));
 		return `${env}${cp.imports}import { boot_client_plugins } from ${from};
@@ -280,11 +329,16 @@ boot_client_plugins(${cp.list}, true);
 	}
 });
 
+// ── server ──────────────────────────────────────────────────────────────────────────────────
+
 export const runtime_url: Value<RuntimeUrlModule> = virtual.value({
 	realm: 'server',
 	id: 'runtime-url',
+	// The runtime's IDENTITY — dev: its dev URL; build: its stable URL (the hashed file is looked up
+	// at render time through the build handoff). Prescan first, so the feature hash matches the
+	// client emit's stable name (both legs prescan the same source).
 	from(app: CoreApp) {
-		if (app.ctx.is_dev) return { runtime_url: vite_dev_url(specifier_of(runtime)) };
+		if (app.ctx.is_dev) return { runtime_url: dev_url(key(runtime)) };
 		app.prescan();
 		return { runtime_url: app.runtime_chunk_url() };
 	}
@@ -292,14 +346,15 @@ export const runtime_url: Value<RuntimeUrlModule> = virtual.value({
 
 /** The dev HMR bridge's served URL: the dev server's `__OGYGIA_DEV_HMR_URL__` (`''` in a build, so
  *  the script that loads it folds out of every leg: src/dev-hmr-url.ts). */
-export const DEV_HMR_URL: string = vite_dev_url(specifier_of(hmr));
+export const DEV_HMR_URL: string = dev_url(key(hmr));
 
 export const devtools_boot_url: Value<DevtoolsBootUrlModule> = virtual.value({
 	realm: 'server',
 	id: 'devtools-boot-url',
+	// the dev URL the handle injects on csr=true pages; '' in build/preview and with no client realm
 	from: (app: CoreApp) => ({
 		devtools_boot_url:
-			app.plugins().client.length && app.ctx.is_dev ? vite_dev_url(specifier_of(devtools_boot)) : ''
+			app.plugins().client.length && app.ctx.is_dev ? dev_url(key(devtools_boot)) : ''
 	})
 });
 
@@ -333,6 +388,7 @@ export const region_deps: Family<RegionDepsModule> = virtual.family({
 export const router_css: Family = virtual.family({
 	realm: 'server',
 	id: 'router-css',
+	// the server router's component→CSS registrations; `export {}` without a server router
 	load: (app: CoreApp, leg) =>
 		router_css_module(app.router_css_roots(), {
 			root: app.ctx.root,
@@ -348,6 +404,7 @@ export const router_css: Family = virtual.family({
 export const secret: Value<SecretModule> = virtual.value({
 	realm: 'server',
 	id: 'secret',
+	// the build's key material, and whether the build had an `OGYGIA_SECRET` (its ids are salted)
 	from: ({ ctx }: CoreApp, { ssr }) =>
 		ssr
 			? { build_key: ctx.build_secret, build_had_secret: ctx.id_salt !== '' }
@@ -371,6 +428,8 @@ export const request_event: RequestEntry<CoreApp> = virtual.request({
 export const region_endpoint: RequestEntry<CoreApp> = virtual.request({
 	realm: 'server',
 	id: 'region-endpoint',
+	// Region's minting (lake endpoints, server regions, fingerprints, a hole's CSS). The browser leg
+	// mints nothing: lakes reuse the endpoint the SSR restore cached, and the runtime fetches holes.
 	module: { core: 'server/region-endpoint' },
 	exports: {
 		make_region_endpoint: 'make_region_endpoint',
@@ -384,6 +443,7 @@ export const region_endpoint: RequestEntry<CoreApp> = virtual.request({
 export const kit_wire: Family<KitWireModule> = virtual.family({
 	realm: 'server',
 	id: 'kit-wire',
+	// Kit's OWN wire protocol (its transport-aware devalue codec), deep-imported by absolute path
 	exports: {
 		stringify_remote_arg: 'stringify_remote_arg',
 		stringify_command_arg: 'stringify_command_arg',
@@ -398,6 +458,7 @@ export const kit_wire: Family<KitWireModule> = virtual.family({
 export const rate_limit: Value<RateLimitModule> = virtual.value({
 	realm: 'server',
 	id: 'rate-limit',
+	// `max: 0` disables (`ogygia({ rateLimit })`)
 	from: ({ ctx }: CoreApp, { ssr }) => ({
 		rate_limit: ssr ? ctx.rate_limit : { max: 0, windowMs: 60000 }
 	})
@@ -413,6 +474,7 @@ export const server_plugins: Family<ServerPluginsModule> = virtual.family({
 export const profiler_maps: Value<ProfilerMapsModule> = virtual.value({
 	realm: 'server',
 	id: 'profiler-maps',
+	// a placeholder the build fills with the maps (devtools' build/profiler-maps.ts); anything else: none
 	from: ({ ctx }: CoreApp, { ssr }) => ({
 		profiler_maps: ssr && ctx.is_build && ctx.measure ? PROFILER_MAPS_PLACEHOLDER : null
 	})
@@ -430,6 +492,7 @@ export const router_config: Value<RouterConfigModule> = virtual.value({
 export const session_cookie: Value<SessionCookieModule> = virtual.value({
 	realm: 'server',
 	id: 'session-cookie',
+	// the cookie name sealed into the region MAC, or '' (`ogygia({ sessionCookie })`)
 	from: ({ ctx }: CoreApp, { ssr }) => ({ session_cookie: ssr ? ctx.session_cookie : '' })
 });
 
@@ -445,6 +508,7 @@ export const region_ttl: Value<RegionTtlModule> = virtual.value({
 export const route_csr: Value<RouteCsrModule> = virtual.value<CoreApp, RouteCsrModule>({
 	realm: 'server',
 	id: 'route-csr',
+	// the client reads the same signal from `kit_hydrates_page()`
 	from(app: CoreApp, { ssr }) {
 		if (!ssr)
 			return {
@@ -456,6 +520,7 @@ export const route_csr: Value<RouteCsrModule> = virtual.value<CoreApp, RouteCsrM
 		const r = app.ctx.routes;
 		return {
 			csr_true_routes: new Set(csrTrueRouteIds(r, dir)),
+			// Kit renders a route's error page with its LAYOUT branch only
 			error_csr_true_routes: new Set(errorCsrTrueRouteIds(r, dir)),
 			root_layout_csr_true: rootLayoutCsrTrue(r, dir)
 		};
@@ -481,6 +546,7 @@ export const server_manifest: Family<ServerManifestModule> = virtual.family({
 		render_region: 'render_region',
 		region_reads_page_data: 'region_reads_page_data'
 	},
+	// filled in dev AND build (the client's would be from URLs)
 	load(app: CoreApp, { ssr }) {
 		const { ctx, program } = app;
 		if (ssr) app.prescan();
@@ -494,15 +560,21 @@ export const server_regions: Family<ServerRegionsModule> = virtual.family({
 	load(app: CoreApp, { ssr }) {
 		if (ssr) app.prescan();
 		const late = ssr && app.ctx.is_build;
+		// a region registered after this is a late one: its loader is its own chunk
 		if (late) app.program.server_regions_written = new Set(server_island_ids(app.program));
 		return server_regions_module(ssr, app.program, late);
 	}
 });
 
+// ── region ──────────────────────────────────────────────────────────────────────────────────
+
 export const kit_transport: Family<KitTransportModule> = virtual.family({
 	realm: 'region',
 	id: 'kit-transport',
 	exports: { kit_transport: 'transport' },
+	// `ogygia.transport`: the codec cluster only when the app crosses a region or wired value over
+	// Kit's wire; an empty map for an app of plain regions. The dist dir sits one level above
+	// runtime/; the realm picks the transport.
 	load({ ctx, program }: CoreApp, { ssr }) {
 		const crosses = program.runtime_marks.wire === true || program.crosses_wire;
 		return kit_transport_module(crosses, posix(`${ctx.runtime_dir}/..`), ssr);
@@ -512,6 +584,7 @@ export const kit_transport: Family<KitTransportModule> = virtual.family({
 export const transportables_eager: Family = virtual.family({
 	realm: 'region',
 	id: 'transportables-eager',
+	// a region entry's codecs: eager on the server, nothing in the browser
 	load(app: CoreApp, { ssr }) {
 		if (!ssr) return 'export {};\n';
 		app.prescan();
@@ -527,6 +600,9 @@ export const registry_stub: Family = virtual.family({
 	load: (_app: CoreApp, _leg, rest) => registry_stub_source(registry_stub_names(rest))
 });
 
+/** The per-region families the driver resolves and loads itself, off its registry (declared here
+ *  so the namespace is complete): a region's entry, its binding, its lazy client leg, its wrapper,
+ *  and its CSS-only FOUC graph. */
 const driver_family = (id: string): Family =>
 	virtual.family({ realm: 'region', id, parse: (rest) => rest });
 export const region_entry: Family = driver_family(REGION_FAMILY.entry);
@@ -539,6 +615,8 @@ export const client_binding_stub: Family = virtual.family({
 	realm: 'region',
 	id: REGION_FAMILY.client_binding_stub
 });
+
+// ── constants: the switches, as `define`s (read at config time, from the resolved options) ──
 
 /** What core's switches read: the plugin's options, resolved at config time. */
 export interface ConstantInput {
@@ -702,6 +780,7 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 	devtools_meta,
 	transport,
 	transportables,
+	// (after the boot values: its features import the runtime, which reads them back)
 	hydrate_features,
 	hmr,
 	devtools_boot,

@@ -13,16 +13,12 @@ type Settle = { resolve: (v: unknown) => void; reject: (e: unknown) => void };
 interface Registry {
 	q?: Array<[id: number, ok: boolean, encoded: string]>;
 	live?: (id: number, ok: boolean, encoded: string) => void;
-	/** each id's one promise, from its first read or its resolve, for the document's life (#1435) */
 	// oxlint-disable-next-line ogygia/no-promise-cache -- not a cache: a streamed value's one promise per id, a rejection included (it is the value the server sent)
 	promises?: Map<number, Promise<unknown>>;
-	/** the ones of those still waiting for their value */
 	waiting?: Map<number, Settle>;
 	revivers?: Record<string, (payload: never) => unknown>;
 	t?: Record<number, number>;
-	/** resolves that came and are still on their way in (devalue loading) */
 	arriving?: Set<number>;
-	/** the document has loaded: every resolve script it holds has run */
 	loaded?: boolean;
 }
 
@@ -31,8 +27,6 @@ function reg(): Registry {
 	return (g[PAGE_DEFER_REGISTRY_KEY] ??= {});
 }
 
-/** The Error a rejected streamed value is: the server's (sent as data, made an Error here), or
- *  ogygia's own coded one as it is (#1504). */
 function to_error(value: unknown): Error {
 	if (value instanceof Error) return value;
 	const msg =
@@ -64,24 +58,17 @@ export function create_deferred(id: number): Promise<unknown> {
 	return promise;
 }
 
-/** Why a streamed promise settles with no resolve: the document loaded without one (`stream`), or
- *  its resolve came and devalue's download never did (`devalue`). */
 function unresolved(why: 'stream' | 'devalue'): Error {
 	return new OgygiaError('page_promise_unresolved', { why });
 }
 
-/** The document has loaded: every resolve script it holds has run, so a promise with none queued
- *  or on its way in will never get one. */
 function document_loaded(): void {
 	const r = reg();
 	r.loaded = true;
-	// (settle deletes from the map it walks: a Map's for…of sees each key once all the same)
 	for (const id of r.waiting?.keys() ?? [])
 		if (!r.arriving?.has(id)) settle(id, false, unresolved('stream'));
 }
 
-/** `id`'s value came: its waiting promise settles, or, read by nobody yet, it is kept as a settled
- *  promise for its first read (a resolve that raced ahead of the seed). A promise settles once. */
 function settle(id: number, ok: boolean, value: unknown): void {
 	const r = reg();
 	r.arriving?.delete(id);
@@ -130,7 +117,6 @@ export function install_page_defer(
 	if (queued) for (const [id, ok, encoded] of queued) r.live(id, ok, encoded);
 	const g = globalThis as unknown as Record<string, unknown>;
 	g[PAGE_DEFER_GLOBAL] ??= (id: number, ok: boolean, encoded: string) => r.live!(id, ok, encoded);
-	// (off a document, a test or the server: nothing says when the resolves are done)
 	if (typeof document === 'undefined') return;
 	if (document.readyState === 'complete') document_loaded();
 	// oxlint-disable-next-line ogygia/owned-effects -- the document's own load, once: the registry is the document's and outlives every visit

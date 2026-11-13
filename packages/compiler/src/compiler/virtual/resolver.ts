@@ -1,3 +1,6 @@
+/**
+ * THE ONE RESOLVER over the virtual-module table (./table.ts): a specifier → the resolved id, a resolved id → its source, and a dev change → the modules it invalidates.
+ */
 import { OgygiaError } from '../messages.ts';
 import { RESOLVED } from '../ids.ts';
 import {
@@ -23,7 +26,8 @@ const PART = input<Part, number>(
 	() => 0
 );
 
-const REALM_NAMED_IMPORT_G =
+/** A static named import of a realm module (`import { a, b as c } from 'ogygia:server'`). */
+const REALM_IMPORT_G =
 	/\b(import|export)\s*\{([^}]*)\}\s*from\s*(['"])ogygia:(server|boot|region|dev)\3;?/g;
 
 /** Where an import is resolved: the build's leg (Vite's environment), and whether it is the dev
@@ -54,8 +58,6 @@ function check_realm(id: string, realm: Realm, env: Env): void {
 export const is_virtual_specifier = (source: string): boolean =>
 	source.startsWith(OGYGIA_SCHEME) || source.startsWith(`\0${OGYGIA_SCHEME}`);
 
-/** The one resolver over the virtual-module table: a specifier → its resolved id, a resolved id →
- *  its source, and a dev change → the modules it invalidates. */
 export class VirtualTable<A> {
 	/** specifier or alias → its one-module entry */
 	readonly #single = new Map<string, ModuleEntry<A>>();
@@ -88,6 +90,7 @@ export class VirtualTable<A> {
 		this.#parts = parts;
 		this.#db = db;
 		for (const e of entries) {
+			// (a constant is a define, not a module: not the table's to resolve)
 			if (e.kind === 'constant') continue;
 			const spec = specifier_of(e);
 			const taken = this.#single.has(spec) || this.#prefixes.some(([p]) => p === spec);
@@ -97,6 +100,7 @@ export class VirtualTable<A> {
 				this.#single.set(spec, e);
 				this.#by_resolved.set(RESOLVED(spec), e);
 			}
+			// the realm module: every entry's names, each once in its realm
 			const names = (this.#realms[e.realm] ??= new Map());
 			for (const [name, own] of realm_exports(e, this.#names)) {
 				if (names.has(name))
@@ -125,6 +129,8 @@ export class VirtualTable<A> {
 			list.push(own === name ? name : `${own} as ${name}`);
 			by_module.set(module, list);
 		}
+		// values first, requests last: a request's real module may import its realm module back,
+		// and must then find every value already evaluated
 		const rank = (module: string): number => {
 			const kind = this.#by_resolved.get(RESOLVED(module))?.kind;
 			return kind === 'value' ? 0 : kind === 'request' ? 2 : 1;
@@ -141,6 +147,8 @@ export class VirtualTable<A> {
 	 * declares fails here with `virtual_unknown`.
 	 */
 	resolve(source: string, env?: Env): string | undefined {
+		// an id already resolved resolves to itself (the bundler may resolve a barrel's resolved
+		// import again), when it is the table's
 		if (source.startsWith('\0'))
 			return this.#realm_of(source) || this.#by_resolved.has(source) ? source : undefined;
 		const realm = this.#realm_of(source);
@@ -159,6 +167,7 @@ export class VirtualTable<A> {
 			if (env) check_realm(source, family.realm, env);
 			return family.load ? RESOLVED(source) : undefined;
 		}
+		// (a declared id with a query is the bundler's to answer, as it always was)
 		const q = source.indexOf('?');
 		if (is_virtual_specifier(source) && !(q !== -1 && this.claims(source.slice(0, q))))
 			throw new OgygiaError('virtual_unknown', { id: source });
@@ -219,6 +228,7 @@ export class VirtualTable<A> {
 			if (e.kind === 'value') {
 				const data = e.from(app, leg) as Record<string, unknown>;
 				const names = value_names(e, this.#names);
+				// the live keys must be the generated ones (test/virtual-types.test.ts keeps them so)
 				const keys = Object.keys(data);
 				let same = keys.length === names.length;
 				for (const k of keys) same &&= names.includes(k);
@@ -252,7 +262,7 @@ export class VirtualTable<A> {
 		if (!code.includes(OGYGIA_SCHEME)) return null;
 		let changed = false;
 		const out = code.replace(
-			REALM_NAMED_IMPORT_G,
+			REALM_IMPORT_G,
 			(whole, kw: string, list: string, quote: string, realm: string) => {
 				const names = this.#realms[realm as Realm];
 				if (!names) return whole;
@@ -262,7 +272,7 @@ export class VirtualTable<A> {
 					if (!spec) continue;
 					const [name, local = name] = spec.split(/\s+as\s+/);
 					const found = names.get(name);
-					if (!found) return whole;
+					if (!found) return whole; // the bundler's error: the realm module has no such name
 					const [own, module] = found;
 					const list_for = by_module.get(module) ?? [];
 					list_for.push(own === local ? own : `${own} as ${local}`);

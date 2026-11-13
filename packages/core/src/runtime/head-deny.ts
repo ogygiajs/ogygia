@@ -4,10 +4,11 @@
  * sets a CSP (a meta policy is mergeable, an HTTP header is not) or sets a cookie acts on the page
  * the moment it lands. The router's head merge skips them (./router-nav.ts), and the rule
  * `rule_head_adopted` (./rules.ts) checks the head never gains one after the first document.
+ *
+ * @packageDocumentation
  */
 
-// static: the http-equiv names the head never adopts
-const DENIED_HTTP_EQUIV = new Set([
+const DENIED_HTTP_EQUIV: ReadonlySet<string> = new Set([
 	'refresh',
 	'content-security-policy',
 	'content-security-policy-report-only',
