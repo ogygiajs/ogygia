@@ -130,7 +130,6 @@ export async function look_up_page(
 	return { url: page, params, route, data };
 }
 
-/** The answer read up to its first line's end (`nl`, -1 when it ended first), or why it broke. */
 async function read_first_line(
 	reader: ReadableStreamDefaultReader<Uint8Array>,
 	text: TextDecoder
