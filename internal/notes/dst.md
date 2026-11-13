@@ -450,8 +450,9 @@ MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts`
 faults alone kill a navigation that never hands a lost page fetch to the browser, and a hole that
 never fetches again after its retry wait, both by `stuck`), 24 (a reshape pass that trims, with links: it
 kills restore.ts's children not put back and its render left in the light DOM, by `ssr-hydrate`,
-and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest),
-188 (an empty island that wakes: it kills the
+and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest), 121 (a peer at
+two origins: its first replica down (`down`) and no answer asked of the next dies by
+`mpa-equivalence`), 188 (an empty island that wakes: it kills the
 repair's `> 0` mutant), 191 (a hole whose render throws: an error answer swapped in for its
 fallback dies by `html-kept`), 192, 193, 220 (a text-only third party on a page root: it kills
 `align_to`'s last `return true` -> false) and 262 (islands with a `<svelte:head>`, one a third party

@@ -247,5 +247,14 @@
 		"operator": "statement",
 		"from": "if (!res.ok)",
 		"to": "if (false)"
+	},
+	{
+		"id": "peer-replica-down-not-skipped",
+		"file": "packages/federation/src/peer.ts",
+		"line": 512,
+		"code": "if (res.status >= 500) continue;",
+		"operator": "statement",
+		"from": "continue;",
+		"to": "return null;"
 	}
 ]
