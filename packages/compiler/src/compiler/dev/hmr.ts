@@ -1,8 +1,3 @@
-/**
- * HMR reload-decision helpers — pure policy functions the Vite adapter's `handleHotUpdate` /
- * `watchChange` consult to decide between a soft update and a full document reload. No build state;
- * data in → decision out. Covered by unit tests.
- */
 import path from 'node:path';
 
 const BACKSLASH = /\\/g;
