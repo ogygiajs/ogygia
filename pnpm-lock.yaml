@@ -646,6 +646,9 @@ importers:
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../../packages/flags
+      '@ogygia/machine':
+        specifier: workspace:*
+        version: link:../../packages/machine
       '@ogygia/postrender':
         specifier: workspace:*
         version: link:../../packages/postrender

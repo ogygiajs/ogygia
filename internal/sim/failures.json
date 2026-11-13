@@ -26,6 +26,12 @@
 	},
 	"fired": [
 		{
+			"site": "packages/reshape/src/pass.ts > transformed > catch:0",
+			"point": "gen.reshape-throws",
+			"how": "the random app's pass throws (a point in its own code): the answer goes out as ogygia rendered it, a document still with the restorer",
+			"killed_by": "reshape-fallback-off"
+		},
+		{
 			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > catch:0",
 			"point": "hole.fetch-lost",
 			"how": "the point throws a failed fetch inside the try, as a dropped request's answer: the catch hands it to fetch_failed (a retry, or the fallback stands)",
@@ -399,12 +405,6 @@
 			"reason": "a Kit-hydrated page (csr=true): the random app is csr=false",
 			"test": "packages/reshape/test/browser/restore.test.ts",
 			"name": "a Kit-hydrated page: a watched host that leaves the document leaves the watch, a moved one stays, and the observer goes with the last one"
-		},
-		{
-			"site": "packages/reshape/src/pass.ts > transformed > catch:0",
-			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
-			"test": "packages/reshape/test/pass-failed.test.ts",
-			"name": "a transform that throws: the page goes out as ogygia rendered it, said once with reshape_pass_failed (gen 10, seed 10)"
 		},
 		{
 			"site": "packages/reshape/src/pass.ts > transformed > throw:0",
