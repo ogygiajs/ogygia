@@ -1300,10 +1300,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					ssr: options?.ssr === true,
 					emitFile: (chunk) => this.emitFile(chunk)
 				});
-				// DEV: this transform's regions changed the registry or the marks: reload what read them
-				// (the server manifest, the runtime entry: driver `regions_moved`)
+				// DEV: this transform changed the registry, the marks or a file's scan facts: reload what
+				// read them (the server manifest, the runtime entry, the wire loaders: driver `moved`)
 				if (is_dev && vite_server)
-					for (const mid of compiler.regions_moved()) invalidate_module_id(vite_server, mid);
+					for (const mid of compiler.moved()) invalidate_module_id(vite_server, mid);
 				// DEV: an island this transform registered (a file added while the server runs) pulled
 				// modules into the island world that the server may already hold transformed for a
 				// non-island importer — with Kit's real `$app/*`, which never boots on a csr=false page.

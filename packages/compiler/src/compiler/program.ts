@@ -113,18 +113,22 @@ export class Program {
 	 *  chunk — or drag its imports into a client build whose server pass never saw them (a
 	 *  `.remote.ts` there fails Kit's "expected to find metadata" check). */
 	readonly ssr_transformed: Set<string> = new Set();
-	/** Absolute paths of app modules that define a transportable class (built during prescan). */
+	/** Absolute paths of app modules that define a transportable class (the scan's per-file fact). */
 	readonly transportable_modules: Set<string> = new Set();
 
 	/** PAGE MODULES (`b.pageModules()`: importers of a page specifier such as `'@ogygia/router'`, plus
 	 *  files named directly — server-router definition sites) + every walked
 	 *  module's import specifiers — the build data `ogygia:server/router-css` computes its
-	 *  component closure from (see link/router-css.ts). Filled during the prescan walk. */
+	 *  component closure from (see link/router-css.ts). Per-file facts of the scan. */
 	readonly router_modules: Set<string> = new Set();
 	readonly module_specs: Map<string, string[]> = new Map();
-	/** flag()/experiment() call sites the prescan OBSERVED (modules importing 'ogygia' only) —
+	/** flag()/experiment() call sites the scan OBSERVED (modules importing 'ogygia' only), by file —
 	 *  written to node_modules/.ogygia/flags-manifest.json at build for CI flag-debt diffs. */
-	readonly flag_sites: import('./flags.ts').FlagSite[] = [];
+	readonly flag_sites_by_file: Map<string, import('./flags.ts').FlagSite[]> = new Map();
+	/** Every file's flag sites, in scan order. */
+	get flag_sites(): import('./flags.ts').FlagSite[] {
+		return [...this.flag_sites_by_file.values()].flat();
+	}
 	/** SEED SHAPING: per module (query-less id, forward slashes), the top-level `page.data` keys its
 	 *  code reads — `'all'` when a read could not be pinned to a literal key. Recorded by the driver's
 	 *  transform for every module that imports Kit's page store (link/page-keys.ts); the client
@@ -140,9 +144,13 @@ export class Program {
 
 	/** App crosses a held region / transportable value through Kit's `transport` hook — a `.remote.*`
 	 *  file, or a `region`/`site`/content import (loads & remotes that carry regions or wired values).
-	 *  Set during the prescan walk; with `runtime_marks.wire` it decides whether `ogygia.transport`
-	 *  (the generated `ogygia:region/kit-transport`) carries the codec cluster or is an empty map. */
-	crosses_wire = false;
+	 *  With `runtime_marks.wire` it decides whether `ogygia.transport` (the generated
+	 *  `ogygia:region/kit-transport`) carries the codec cluster or is an empty map. */
+	get crosses_wire(): boolean {
+		return this.wire_crossers.size > 0;
+	}
+	/** The files that make {@link crosses_wire} true (the scan's per-file fact). */
+	readonly wire_crossers: Set<string> = new Set();
 
 	/** Island code can reach Kit's page world (`$app/state` and kin, or something the island-closure
 	 *  walk could not follow — driver.ts `mark_island_closure`). Folded into `runtime_marks.page` at

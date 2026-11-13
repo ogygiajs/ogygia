@@ -87,7 +87,7 @@ function compiler_on_disk() {
 async function add(compiler: Compiler, file: string, text: string): Promise<string[]> {
 	write(file, text);
 	await compiler.transform_module(text, file, { ssr: true, emitFile: () => '' });
-	return [...compiler.regions_moved(), ...compiler.drain_closure_marks()];
+	return [...compiler.moved(), ...compiler.drain_closure_marks()];
 }
 
 const load = (compiler: Compiler, id: string, ssr: boolean): string => {
@@ -123,7 +123,13 @@ test("an app's first remote file added while dev runs turns on Kit's codecs, as 
 
 test('a router page module added while dev runs makes its components router CSS roots, as after a restart', async () => {
 	start_files();
-	write(`${ROOT}/src/lib/About.svelte`, `<p>about</p>\n<style>p { color: red; }</style>\n`);
+	write(
+		`${ROOT}/src/lib/About.svelte`,
+		dedent`
+			<p>about</p>
+			<style>p { color: red; }</style>
+		`
+	);
 	const dev = compiler_on_disk();
 	expect(dev.router_css_roots()).toEqual([]);
 	await add(
