@@ -17,9 +17,16 @@ import { document_counts } from './document-counts.ts';
  */
 export function hole_answer_context(wakes: boolean, region_id: string): Map<unknown, unknown> {
 	const base: Map<unknown, unknown> = kit_render_context();
-	const seq = hole_slot_sequence(region_id);
+	let seq = hole_slot_sequence(region_id);
 	const counts = document_counts(kit_request_event());
-	if (counts) counts.slots ??= seq;
+	if (counts) {
+		// (one sequence per prefix in the request: one region twice in a batch, or two whose ids
+		// begin alike, count on together and never mint the same id)
+		const holes = (counts.holes ??= new Map());
+		seq = holes.get(seq.prefix) ?? seq;
+		holes.set(seq.prefix, seq);
+		counts.slots ??= seq;
+	}
 	base.set(HOLE_SLOT_SEQUENCE, seq);
 	return wakes ? nested_context(base) : base;
 }
