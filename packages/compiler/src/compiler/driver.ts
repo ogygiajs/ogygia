@@ -948,8 +948,7 @@ export class Compiler implements CoreApp {
 			if (!p) return;
 			const abs = strip_id(p);
 			if (!SOURCE_EXT_RE.test(abs)) return; // only what the scanner can parse
-			// (a virtual id or a vanished file is not a crawl root)
-			if (this.#ctx!.fs.stat(abs) === 'file') out.add(abs);
+			if (this.#ctx.fs.stat(abs) === 'file') out.add(abs);
 		};
 		for (const entry of registry.values()) {
 			if (entry.role !== 'entry' || entry.server) continue;

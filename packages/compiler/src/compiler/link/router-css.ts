@@ -62,7 +62,6 @@ export function router_css_roots(
 	router_modules: ReadonlySet<string>,
 	module_specs: ReadonlyMap<string, readonly string[]>,
 	lib_dir: string,
-	/** Is there a file at `p` (`CompileCtx.fs`). */
 	exists: (p: string) => boolean
 ): string[] {
 	const roots = new Set<string>();

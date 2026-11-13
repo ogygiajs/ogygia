@@ -337,7 +337,6 @@ function read_route_config_uncached(
 	const out: Record<string, unknown> = {};
 	const src = files.read(file);
 	if (src === null) return out; // no such module on this level
-	// cheap out — the common module mentions neither `config` nor a claimed key
 	if (!src.includes('config') || !keys.some((k) => src.includes(k))) return out;
 	const { program } = parse_module(src, file);
 	const object = program && config_object(program);
@@ -424,7 +423,6 @@ interface RouteTree {
 	readonly csr: Map<RouteNode, boolean | undefined>;
 }
 
-/** Kit's route tree of a routes directory, read once until a route file changes (`Routes.clear`). */
 function route_tree(r: Routes, routesDir: string): RouteTree {
 	let tree = r.route_trees.get(routesDir);
 	if (!tree) r.route_trees.set(routesDir, (tree = build_route_tree(r.fs, routesDir)));
@@ -610,7 +608,7 @@ export function routeCsrIsFalse(r: Routes, hostFile: string, routesDir: string):
 	const { any_false, any_true } = layout_page_worlds(r, tree, node);
 	if (any_false && !any_true) return true; // every page it serves is csr=false
 	if (any_false || any_true) return false; // mixed (or pure-true) → not the false world
-	return layout_chain_csr(r, node) === false; // no pages: its own chain
+	return layout_chain_csr(r, node) === false;
 }
 
 /**
@@ -629,7 +627,7 @@ export function routeCsrIsTrue(r: Routes, hostFile: string, routesDir: string): 
 	const { any_false, any_true } = layout_page_worlds(r, tree, node);
 	if (any_false) return false; // some page it serves gets no Kit client: never strip its chrome
 	if (any_true) return true; // every page it serves is Kit-hydrated
-	return layout_chain_csr(r, node) !== false; // no pages: its own chain
+	return layout_chain_csr(r, node) !== false;
 }
 
 /**
@@ -651,7 +649,7 @@ function route_entries(
 		let is_file = e.kind === 'file';
 		if (!is_dir && !is_file) {
 			const st = files.stat(path.join(dir, e.name));
-			if (st === null) continue; // dangling link — Kit ignores it too
+			if (st === null) continue;
 			is_dir = st === 'dir';
 			is_file = st === 'file';
 		}
@@ -689,7 +687,7 @@ export function csrTrueRouteIds(r: Routes, routesDir: string): string[] {
 // ── ROUTE CONFIG, per page ────────────────────────────────────────────────────────────────
 // Each page's merged value for every claimed `config` key (see read_route_config above). The plugin
 // applies its own default to a key no level sets. Memoized per routesDir + keys; cleared on a dev
-// route-topology change alongside the csr maps (`Routes.page_config`).
+// route-topology change alongside the csr maps.
 
 /** One page's merged config, claimed keys only, as Kit's `PageNodes.get_config` merges it: the
  *  layouts it renders in, root first, then the page; at each level the universal module, then the
@@ -735,7 +733,6 @@ export function page_route_config(
  * graph); only mixed apps pay for the layout wrappers.
  */
 export function hasAnyCsrTrueRoute(r: Routes, routesDir: string): boolean {
-	// memoized per routesDir: a build constant walked once, not per transform (`Routes.has_csr_true`)
 	let v = r.has_csr_true.get(routesDir);
 	if (v === undefined) {
 		v = csrTrueRouteIds(r, routesDir).length > 0;

@@ -335,7 +335,6 @@ export class CompileCtx {
 	/** Read a file as UTF-8, or `null` if it can't be read (the transform tolerates missing deps). */
 	read_file(abs: string): string | null {
 		const text = this.fs.read(abs);
-		// (a byte-order mark would shift every parser offset against the raw text: ./bom.ts)
 		return text === null ? null : strip_bom(text);
 	}
 
