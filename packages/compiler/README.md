@@ -6,7 +6,7 @@ the build, and holds the Vite plugin.
 Published, but apps do not install it directly. They install `ogygia`, whose `ogygia/vite` is this
 package's `./vite`, and whose `ogygia/internal/compiler` is this package's main entry. Plugin
 packages (`@ogygia/router`, `@ogygia/content`, `@ogygia/flags`, `@ogygia/federation`,
-`@ogygia/devtools`, `@ogygia/postrender`, `@ogygia/reshape`, …) and `@ogygia/cli` import it to hook
+`@ogygia/devtools`, `@ogygia/postrender`, `@ogygia/rewrite`, …) and `@ogygia/cli` import it to hook
 into the build.
 
 ## Entries

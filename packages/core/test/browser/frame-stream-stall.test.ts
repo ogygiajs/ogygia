@@ -9,6 +9,7 @@ import { streamFrames } from '../../src/runtime/frame-nav.ts';
 import { _reset, ensure } from '../_frames.ts';
 import { frameAddress } from '../../src/frame.ts';
 import { build_parcel } from '../../src/server/stream-regions.ts';
+import { slots } from '../../src/runtime/slots.ts';
 
 const ep = (sig: string) => `/__ogygia__?id=bbbbbbbbbbbb&props=${sig}&exp=9999999999&sig=${sig}`;
 
@@ -27,6 +28,15 @@ function stall_after(first: string) {
 	);
 }
 
+// (the machine's timers end through clearInterval, one handle space with setTimeout: a fake
+// setTimeout whose clearInterval is real is never ended, and an old state's timer fires later)
+const FAKED: ('setTimeout' | 'clearTimeout' | 'setInterval' | 'clearInterval')[] = [
+	'setTimeout',
+	'clearTimeout',
+	'setInterval',
+	'clearInterval'
+];
+
 afterEach(() => {
 	vi.useRealTimers();
 	vi.restoreAllMocks();
@@ -35,7 +45,7 @@ afterEach(() => {
 
 describe('a stalled batch stream', () => {
 	it('sends one frame and stalls: the hole it carried has it, the others fail and fetch on their own', async () => {
-		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		vi.useFakeTimers({ toFake: FAKED });
 		stall_after(build_parcel('s1', '<p>one</p>'));
 		const own = vi.fn(async () => 'own');
 		const steps: string[] = [];
@@ -67,7 +77,7 @@ describe('a stalled batch stream', () => {
 	});
 
 	it('an answer that never starts: the stream is given up while sending, and its holes are let go', async () => {
-		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		vi.useFakeTimers({ toFake: FAKED });
 		let aborted = false;
 		vi.spyOn(window, 'fetch').mockImplementation(
 			(_url, init) =>
@@ -84,7 +94,10 @@ describe('a stalled batch stream', () => {
 		});
 		const own = vi.fn(async () => 'own');
 		try {
-			void streamFrames([ep('s1'), ep('s2')]);
+			const ended = streamFrames([ep('s1'), ep('s2')]).then(
+				() => 'ended',
+				(err: unknown) => `rejected: ${String(err)}`
+			);
 			const outcomes = [ep('s1'), ep('s2')].map((e) =>
 				ensure(frameAddress(e), own).then(
 					() => 'answered',
@@ -97,11 +110,36 @@ describe('a stalled batch stream', () => {
 			await vi.advanceTimersByTimeAsync(10_000);
 			// (the holes it never carried fetch on their own)
 			expect(await Promise.all(outcomes)).toEqual(['answered', 'answered']);
+			expect(await ended, 'a batch given up while sending ends, never a rejection').toBe('ended');
 		} finally {
 			off();
 		}
 		expect(steps).toContain('sending -> stalled');
 		expect(aborted, 'the request is aborted').toBe(true);
 		expect(own).toHaveBeenCalledTimes(2);
+	});
+
+	it('a batch given up while sending is reported missed with no answer status (0)', async () => {
+		vi.useFakeTimers({ toFake: FAKED });
+		vi.spyOn(window, 'fetch').mockImplementation(
+			(_url, init) =>
+				new Promise<Response>((_, reject) =>
+					init?.signal?.addEventListener('abort', () =>
+						reject(new DOMException('aborted', 'AbortError'))
+					)
+				)
+		);
+		const missed: { sent: number; delivered: number; status: number }[] = [];
+		slots.hooks = { holeBatchMissed: (e) => void missed.push(e) };
+		try {
+			const ended = streamFrames([ep('s1'), ep('s2')]);
+			for (const e of [ep('s1'), ep('s2')])
+				void ensure(frameAddress(e), async () => 'own').catch(() => {}); // ok: only the report is checked
+			await vi.advanceTimersByTimeAsync(15_000);
+			await ended;
+		} finally {
+			slots.hooks = undefined;
+		}
+		expect(missed).toEqual([expect.objectContaining({ sent: 2, delivered: 0, status: 0 })]);
 	});
 });

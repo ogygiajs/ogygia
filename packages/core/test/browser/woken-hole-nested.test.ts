@@ -1,4 +1,4 @@
-// A server island that WAKES (`render: 'deferred', wake: 'load'`), whose component has another server
+// A server island that WAKES (`render: 'deferred', fetch: 'load'`), whose component has another server
 // island inside it (#906). The page's hole fetches its answer after the page loads (the endpoint's
 // render of the component, as its root), paints it, then the component hydrates over it. The inner
 // server island must show: rendered inline, or fetched as a hole.
