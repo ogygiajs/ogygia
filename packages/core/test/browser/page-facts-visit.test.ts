@@ -10,7 +10,7 @@ import { install as install_morph } from '../../src/runtime/morph.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
 import { prepare_spa_document, seed_page_once } from '../../src/runtime/seeds.ts';
 import { boot_link } from '../../src/runtime/slots.ts';
-import { page_state } from '../../src/shims/page-store.svelte.ts';
+import { page_state, set_page } from '../../src/shims/page-store.svelte.ts';
 import { TEST_MARK_ATTR } from './_response-mark.ts';
 
 const real_fetch = window.fetch;
@@ -37,6 +37,19 @@ afterEach(() => {
 	history.replaceState(null, '', home);
 	// (the next page's head brought its runtime stand-in)
 	for (const el of document.head.querySelectorAll('script[data-ogygia-runtime]')) el.remove();
+});
+
+test('facts a hole brought join page.data at the next hydrate, once', async () => {
+	await boot_link().load_devalue();
+	seed_page_once();
+	region_fragment(
+		`<script type="application/ogygia-page-facts">${stringify({ who: 'hole' })}\x3C/script><p>hole</p>`
+	);
+	seed_page_once();
+	expect((page_state.data as { who?: string }).who).toBe('hole');
+	set_page({ ...page_state, data: { who: 'changed since' } });
+	seed_page_once();
+	expect((page_state.data as { who?: string }).who).toBe('changed since');
 });
 
 test('facts a hole brought on one page do not join the next page’s page.data', async () => {

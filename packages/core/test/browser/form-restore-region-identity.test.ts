@@ -77,4 +77,94 @@ describe('form continuity', () => {
 
 		expect(again.value).toBe('pinned');
 	});
+
+	it('a field marked data-ogygia-no-keep (or inside one) starts blank on the return', () => {
+		const typed = region('/k.js');
+		typed.setAttribute('data-ogygia-no-keep', '');
+		typed.value = 'one-time code';
+		snapshot_forms(document.body, '/no-keep');
+		for (const el of document.querySelectorAll('ogygia-region')) el.remove();
+
+		const again = region('/k.js');
+		arm_form_restore('/no-keep');
+
+		expect(again.value).toBe('');
+	});
+
+	it('a restored field fires input and change, so a bound value follows', () => {
+		const typed = region('/e.js');
+		typed.value = 'bound';
+		snapshot_forms(document.body, '/events');
+		for (const el of document.querySelectorAll('ogygia-region')) el.remove();
+
+		const again = region('/e.js');
+		const heard: string[] = [];
+		again.addEventListener('input', () => heard.push('input'));
+		again.addEventListener('change', () => heard.push('change'));
+		arm_form_restore('/events');
+
+		expect(heard).toEqual(['input', 'change']);
+	});
+
+	it('an island that hydrates after the return, while its page is on screen, gets its field', () => {
+		const typed = region('/w.js');
+		typed.value = 'late';
+		snapshot_forms(document.body, '/late');
+		for (const el of document.querySelectorAll('ogygia-region')) el.remove();
+
+		arm_form_restore('/late');
+		const again = region('/w.js');
+		again.parentElement!.dispatchEvent(new Event('ogygia:hydrated', { bubbles: true }));
+
+		expect(again.value).toBe('late');
+	});
+
+	it("another page's restore opening ends this one's: one window at a time", () => {
+		const typed = region('/y.js');
+		typed.value = 'first page';
+		snapshot_forms(document.body, '/first');
+		for (const el of document.querySelectorAll('ogygia-region')) el.remove();
+		region('/z.js').value = 'second page';
+		snapshot_forms(document.body, '/second');
+		for (const el of document.querySelectorAll('ogygia-region')) el.remove();
+
+		arm_form_restore('/first');
+		arm_form_restore('/second');
+		const late = region('/y.js');
+		late.parentElement!.dispatchEvent(new Event('ogygia:hydrated', { bubbles: true }));
+
+		expect(late.value).toBe('');
+	});
+
+	it('a hole answer that puts a copy of an island before another names them again', () => {
+		region('/d.js');
+		const second = region('/d.js');
+		second.value = 'second copy';
+		snapshot_forms(document.body, '/copies');
+		for (const el of document.querySelectorAll('ogygia-region')) el.remove();
+
+		const kept = region('/d.js');
+		kept.parentElement!.removeAttribute('data-hydrated');
+		arm_form_restore('/copies');
+		const brought = region('/d.js');
+		document.body.insertBefore(brought.parentElement!, kept.parentElement);
+		document.dispatchEvent(new Event('ogygia:server'));
+		kept.parentElement!.dispatchEvent(new Event('ogygia:hydrated', { bubbles: true }));
+
+		expect(kept.value).toBe('second copy');
+	});
+
+	it("leaving the page ends its restore: an island hydrating after that gets nothing of the old page's", () => {
+		const typed = region('/x.js');
+		typed.value = 'old page';
+		snapshot_forms(document.body, '/left');
+		for (const el of document.querySelectorAll('ogygia-region')) el.remove();
+
+		arm_form_restore('/left');
+		snapshot_forms(document.body, '/elsewhere');
+		const next = region('/x.js');
+		next.parentElement!.dispatchEvent(new Event('ogygia:hydrated', { bubbles: true }));
+
+		expect(next.value).toBe('');
+	});
 });
