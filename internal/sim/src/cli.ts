@@ -156,7 +156,6 @@ function federation(seed: number): { env: Record<string, string>; peers: WorldOp
 		ORIGIN: a.origin,
 		[`${a.name.toUpperCase()}_SIGNING_KEY`]: a.keys.priv
 	});
-	// (a generated peer at two origins: the same build, its keys, at `peer2.test` too)
 	const second = GEN_PEER?.origins === 2 ? `https://${PEERS[0].name}2.test` : null;
 	if (second) common[`${PEERS[0].name.toUpperCase()}2_ORIGIN`] = second;
 	const peers = apps.slice(1).map((a, i) => ({

@@ -600,11 +600,10 @@ export interface GenPeer {
 	/** The app keeps the peer's page documents this many ms (`cache: { ttl }`, served stale while
 	 *  one fetch refreshes them); 0: no cache. */
 	readonly ttl: number;
-	/** The edge pages its pages link to: `/gone`, one it lacks (its not-found page, a 404);
-	 *  `/moved`, one that redirects to `/q0`; `/who`, one that shows the visitor the app vouched for. */
+	/** Edge pages its pages link to: `/gone` (no route), `/moved` (to `/q0`), `/who` (the visitor).
+	 *  test/gen.test.ts, test/oracles.test.ts `peer_answers`. */
 	readonly edges: { readonly gone: boolean; readonly moved: boolean; readonly who: boolean };
-	/** The origins the peer answers at: 2, the same build at `peer.test` and `peer2.test`, which the
-	 *  app reads from the second when a read of the first fails (cli.ts serves both). */
+	/** Origins the peer answers at: 2 is one build at `peer.test` and `peer2.test`. test/gen.test.ts. */
 	readonly origins: 1 | 2;
 }
 
@@ -662,7 +661,6 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 		return ps.chance(0.25) ? { ...n, children, style: true } : { ...n, children };
 	};
 	const pd = rng(seed).fork('gen peer data');
-	// (and its edge pages, from their own stream)
 	const pe = rng(seed).fork('gen peer edges');
 	const edges = { gone: pe.chance(0.5), moved: pe.chance(0.5), who: pe.chance(0.5) };
 	const origins = rng(seed).fork('gen peer origins').chance(0.4) ? 2 : 1;
@@ -1234,7 +1232,6 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 					? `\t\t'${p.path}': page(Q${i}, { load: () => ({ who: '${p.path.slice(1)} data' }) }),`
 					: `\t\t'${p.path}': page(Q${i}),`
 			),
-			// (`/gone` has no route: the peer answers its not-found page)
 			...(peer.edges.moved
 				? [`\t\t'/moved': page(Q0, { load: () => redirect(307, '${MOUNT}/q0') }),`]
 				: []),
