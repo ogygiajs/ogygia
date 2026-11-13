@@ -241,6 +241,19 @@ describe('failure sites accounted', () => {
 		]);
 	});
 
+	it("fails a step point whose kill names no live mutant (batch.part-lost's release, proved aimed)", () => {
+		const a = account_failures(
+			SITES,
+			ledger({
+				step_points: [
+					{ point: 'p.lost', steps: ['m: kept -> gone'], how: '', killed_by: 'm.gone' }
+				]
+			}),
+			o
+		);
+		expect(a.failures).toEqual(["p.lost: no live mutant 'm.gone' in mutants.json (step_points)"]);
+	});
+
 	it('passes a site an app shape fires (a gen stream), and fails one whose shape gen.ts no longer draws, or that names two ways', () => {
 		const shaped = (shape: string, point?: string) =>
 			account_failures(
