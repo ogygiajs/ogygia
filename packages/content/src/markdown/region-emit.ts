@@ -1,3 +1,5 @@
+// (not ./internal/server: that entry reaches Kit's `$app/*`, and this runs in a plain Node config)
+import { next_tag } from '@ogygia/core/internal/instruments';
 import { dedent } from '@ogygia/core/plugin/utils';
 
 /** Exact inverse of `escape_svelte` (shiki.ts). In escaped text every backslash was produced by one
@@ -9,8 +11,20 @@ export function unescape_svelte(escaped: string): string {
 
 const FENCE_EMBED_RE = /\{@html `((?:[^`\\]|\\[\s\S])*)`\}/g;
 
-const MODULE_SCRIPT_RE =
-	/<script\b[^>]*\b(?:context\s*=\s*(["'])module\1|module)\b[^>]*>([\s\S]*?)<\/script>/;
+/** Where a Svelte source's module script is (`<script module>`, or the legacy `context="module"`),
+ *  its tag read by core's tag walk as Svelte reads it: its start, the end of its start tag (where
+ *  its text starts), where its text ends, and just past its end tag. Null when it has none. */
+export function module_script(
+	code: string
+): { start: number; text: number; text_end: number; end: number } | null {
+	for (let t = next_tag(code, 'script', 0); t !== null; t = next_tag(code, 'script', t.next)) {
+		if (t.attr('module') === undefined && t.attr('context') !== 'module') continue;
+		const close = code.indexOf('>', t.next);
+		if (t.next >= code.length || close === -1) return null;
+		return { start: t.start, text: t.end, text_end: t.next, end: close + 1 };
+	}
+	return null;
+}
 
 export type RegionEmit = {
 	code: string;
@@ -19,10 +33,11 @@ export type RegionEmit = {
 };
 
 function split_module(code: string): { module_body: string; template: string } {
-	const mod = MODULE_SCRIPT_RE.exec(code);
+	const mod = module_script(code);
+	if (mod === null) return { module_body: '', template: code };
 	return {
-		module_body: mod ? mod[2]! : '',
-		template: mod ? `${code.slice(0, mod.index)}${code.slice(mod.index + mod[0]!.length)}` : code
+		module_body: code.slice(mod.text, mod.text_end),
+		template: `${code.slice(0, mod.start)}${code.slice(mod.end)}`
 	};
 }
 
@@ -56,7 +71,7 @@ export function component_tag_in(code: string): string | null {
 export function try_region_emit(code: string, module_lines: string[]): RegionEmit | null {
 	const { module_body, template } = split_module(code);
 
-	if (/<script\b/.test(template)) return null;
+	if (next_tag(template, 'script', 0) !== null) return null;
 
 	const fences: string[] = [];
 	let skeleton = template.replace(FENCE_EMBED_RE, (_, inner: string) => {

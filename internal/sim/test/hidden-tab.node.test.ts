@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
 import { act } from '../src/workload.ts';
+import { islands_wake } from '../src/oracles.ts';
 
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
@@ -44,6 +45,37 @@ describe.skipIf(!built)('a tab behind another', () => {
 			expect((front.page.mainFrame.window as unknown as Window).document.visibilityState).toBe(
 				'hidden'
 			);
+		} finally {
+			await world.end();
+		}
+	});
+
+	it('its islands are not judged asleep while its runtime is still on the wire', async () => {
+		// (seed 97's network stalls the runtime chunk's body ~39 s after its first piece: the
+		// action's quiesce gave up before it came, and islands_wake judged a page whose runtime had
+		// not run; at rest every island woke)
+		const world = await World.make({
+			seed: 97,
+			builds: [{ id: 'v1', output: OUTPUT }],
+			secret: 'sim-secret',
+			faults: new Set(['duplicate', 'tamper', 'stall']),
+			horizon: 180_000,
+			buggify: { on: 0.3, fires: 0.2 },
+			idle: true
+		});
+		try {
+			const v = world.visitor('v');
+			await world.go(world.tab(v), 'goto', '/');
+			await act(world, v, { kind: 'background', path: '/context/lake' }, 'https://app.test');
+			const back = v.tabs[1];
+			const doc = back.page.mainFrame.document as unknown as Document;
+			// (the case it is for: the runtime has not run yet)
+			expect(doc.readyState).toBe('interactive');
+			expect(world.network.busy()).toBe(true);
+			expect(islands_wake(back, world)).toBeNull();
+			await world.rest();
+			expect(doc.readyState).toBe('complete');
+			expect(islands_wake(back, world)).toBeNull();
 		} finally {
 			await world.end();
 		}
