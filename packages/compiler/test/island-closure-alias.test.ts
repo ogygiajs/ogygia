@@ -120,7 +120,6 @@ describe('island closure walk follows app aliases', () => {
 		const abs = path.join(root, 'src/lib/boot/read-page.ts');
 		compiler.start_leg('client', false);
 		const out = await compiler.transform_module(fs.readFileSync(abs, 'utf8'), abs, {
-			ssr: false,
 			leg: compiler.leg({ name: 'client', server: false }),
 			emitFile: () => ''
 		});
@@ -132,7 +131,6 @@ describe('island closure walk follows app aliases', () => {
 		// the SSR leg keeps Kit's real module
 		compiler.start_leg('ssr', true);
 		const ssr = await compiler.transform_module(fs.readFileSync(abs, 'utf8'), abs, {
-			ssr: true,
 			leg: compiler.leg({ name: 'ssr', server: true }),
 			emitFile: () => ''
 		});

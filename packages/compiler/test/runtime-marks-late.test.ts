@@ -93,7 +93,7 @@ const transform_library_host = (compiler: Compiler, mark: string) =>
 			<Pool />
 		`}\n`,
 		`${root}/lib/Card.svelte`,
-		{ ssr: false, leg: compiler.leg(CLIENT), emitFile: () => 'ref' }
+		{ leg: compiler.leg(CLIENT), emitFile: () => 'ref' }
 	);
 
 const late_lines = (calls: unknown[][]) =>

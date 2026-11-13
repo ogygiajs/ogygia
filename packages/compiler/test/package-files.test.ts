@@ -210,7 +210,7 @@ describe('undeclared-marks warning', () => {
 	/** A server-leg transform of `c`. */
 	const on_server = (c: Compiler) => {
 		c.start_leg('ssr', true);
-		return { ssr: true, leg: c.leg({ name: 'ssr', server: true }), emitFile: noop_emit };
+		return { leg: c.leg({ name: 'ssr', server: true }), emitFile: noop_emit };
 	};
 	const marked = `${dedent`
 		import W from './W.svelte' with { wake: 'load' };
