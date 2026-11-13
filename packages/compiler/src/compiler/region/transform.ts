@@ -5,7 +5,7 @@ import { dedent } from '@ogygia/core/contract';
 import type { IslandDescriptor } from '../program.ts';
 import { createHash } from 'node:crypto';
 import { foucCssVirtualId } from '../fouc-css.ts';
-import { collectCaptureInfo } from '../free-vars.ts';
+import { collectCaptureInfo, collect_pattern_names as pattern_names } from '../free-vars.ts';
 import { parse_module } from '../parse/oxc.ts';
 import { strategyKey, regionIdentity, regionId } from './identity.ts';
 import { parse_trigger, SCHEDULE, WAKE } from '@ogygia/core/contract';
@@ -2134,15 +2134,10 @@ class FileCompilation {
 		// snippet body that reads one of these lives in that block's scope: it can neither move to the
 		// template root (below) nor cross (its entry would see an undefined name), so it stays native.
 		const block_bound = new Set<string>();
-		const bind_pattern = (n: SvelteNode) => {
-			if (!n || typeof n !== 'object') return;
-			if (Array.isArray(n)) return n.forEach(bind_pattern);
-			if (n.type === 'Identifier' && n.name) block_bound.add(n.name);
-			for (const k in n) {
-				if (k === 'type' || k === 'start' || k === 'end' || k === 'loc') continue;
-				const v = n[k];
-				if (v && typeof v === 'object') bind_pattern(v);
-			}
+		// the names a pattern binds, never what its defaults read (test/free-vars-patterns.test.ts)
+		const bind_pattern = (n: SvelteNode | SvelteNode[] | null | undefined) => {
+			if (Array.isArray(n)) for (const p of n) pattern_names(p, block_bound);
+			else pattern_names(n, block_bound);
 		};
 		const walk_bound = (nodes: SvelteNode[], root: boolean) => {
 			for (const node of nodes ?? []) {
