@@ -99,8 +99,13 @@ const RUNTIME_POINTS = [
 	'flights.not-kept',
 	'flights.evicted-early',
 	'import-again.entry-missed',
-	'hole.fetch-lost'
+	'hole.fetch-lost',
+	'batch.part-lost'
 ];
+// (the router's batch reader is a chunk the boot loads on use: named here so the build holds it)
+const RUNTIME_POINTS_ENTRY = `${RUNTIME_ENTRY}${dedent`
+	export { streamFrames } from ${JSON.stringify(`${SRC}runtime/frame-nav.ts`)};
+`}\n`;
 const SERVER_POINTS = [
 	'flights.not-kept',
 	'flights.evicted-early',
@@ -117,8 +122,8 @@ const SERVER_POINTS_ENTRY = `${SERVER_ENTRY}${dedent`
 
 describe('buggify points never ship in a production build', () => {
 	it('the runtime boot: none of them off, every one on', async () => {
-		const off = await build(RUNTIME_ENTRY, false);
-		const on = await build(RUNTIME_ENTRY, true);
+		const off = await build(RUNTIME_POINTS_ENTRY, false);
+		const on = await build(RUNTIME_POINTS_ENTRY, true);
 		for (const point of RUNTIME_POINTS) {
 			expect(off, point).not.toContain(point);
 			expect(on, point).toContain(point);
