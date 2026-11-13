@@ -9,8 +9,10 @@
  *
  * Same shape as the setContext recorder: the server installs the recorder (request-scoped in
  * `hooks.ts`), so it is universal-safe — on the client `record_page` is a no-op (no recorder
- * installed).
+ * installed). The ports live in ../server-ports.ts.
  */
+import { server_ports } from './server-ports.ts';
+
 export type PageSnapshot = {
 	data?: unknown;
 	form?: unknown;
@@ -54,11 +56,10 @@ type Recorder = (
 	entry: string
 ) => void;
 
-let recorder: Recorder | null = null;
-
 /** Server (`hooks.ts`) installs a request-scoped recorder. */
 export function set_page_recorder(fn: Recorder | null): void {
-	recorder = fn;
+	const ports = server_ports();
+	if (ports) ports.page_recorder = fn;
 }
 
 /** What the page's regions asked for so far this request: whether any wants the seed, and which
@@ -68,26 +69,25 @@ export function set_page_recorder(fn: Recorder | null): void {
 type AskReader = () =>
 	| { wanted: boolean; keys: import('./server/seed-shape.ts').SeedKeys | null }
 	| undefined;
-let ask_reader: AskReader | null = null;
-
 /** Server (`hooks.ts`) installs the reader beside the recorder. */
 export function set_seed_ask_reader(fn: AskReader | null): void {
-	ask_reader = fn;
+	const ports = server_ports();
+	if (ports) ports.seed_ask_reader = fn;
 }
 
 export function read_seed_ask(): ReturnType<AskReader> {
-	return ask_reader?.();
+	return server_ports()?.seed_ask_reader?.();
 }
 
 /** Start collecting the regions' asks for a render outside a Kit page (the server router's document,
  *  answered before a Kit page bag exists): the next `record_page` calls of this request count, and
  *  `read_seed_ask` returns them. A no-op on the client or outside a request. */
-let ask_opener: (() => void) | null = null;
 export function set_ask_scope_opener(fn: (() => void) | null): void {
-	ask_opener = fn;
+	const ports = server_ports();
+	if (ports) ports.ask_scope_opener = fn;
 }
 export function open_ask_scope(): void {
-	ask_opener?.();
+	server_ports()?.ask_scope_opener?.();
 }
 
 /** Region.svelte calls this during SSR with Kit's real page; the client is a no-op. `seed: false`
@@ -99,5 +99,5 @@ export function record_page(
 	remotes: readonly string[] | null = null,
 	entry = ''
 ): void {
-	recorder?.(snapshot, seed, remotes, entry);
+	server_ports()?.page_recorder?.(snapshot, seed, remotes, entry);
 }

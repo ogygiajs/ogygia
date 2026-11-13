@@ -31,7 +31,7 @@
  * (`order_owner`), and whether a child EXISTS by the render's doing (`render_made`): one element, four
  * facets, one place. The morph's matching, attribute sync and removal all read them.
  */
-import { OG_BAKED, OG_HTML, OG_OPAQUE, OGYGIA_KEEP } from '../wire-markup.ts';
+import { OG_BAKED, OG_HTML, OG_OPAQUE, OGYGIA_KEEP, OGYGIA_REGION_CSS } from '../wire-markup.ts';
 
 /** The owner of an element, for the writers that consult it. */
 export type Owner = 'foreign' | 'region' | 'page' | 'static' | 'walk';
@@ -160,15 +160,18 @@ export function mark_render_made(node: Node): void {
 
 /**
  * Does `node`, a child of an element-ordered parent, EXIST by the render's doing? Marked by ogygia, or
- * structurally: an `<ogygia-region>` is always render output, and an element whose tag the render
- * produces at this level (`render_tags`) is render output — a runtime does not make the render's
- * elements. Anything else is the element's own: never matched, never removed.
+ * structurally: ogygia's own markup is always render output (an `<ogygia-region>`, and a region's
+ * sheet, `data-ogygia-region-css`, which the server writes inside a held region: #1039), and an
+ * element whose tag the render produces at this level (`render_tags`) is render output — a runtime
+ * does not make the render's elements. Anything else is the element's own: never matched, never
+ * removed.
  */
 export function render_made(node: Node, render_tags: ReadonlySet<string>): boolean {
 	if (rendered().has(node)) return true;
 	if (node.nodeType !== 1) return false;
-	const name = (node as Element).localName;
-	return name === REGION || render_tags.has(name);
+	const el = node as Element;
+	const name = el.localName;
+	return name === REGION || render_tags.has(name) || el.hasAttribute(OGYGIA_REGION_CSS);
 }
 
 // ── `<body>`: two owners (internal/notes/dom-ownership.md) ──────────────────────────────────────

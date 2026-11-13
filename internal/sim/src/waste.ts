@@ -56,16 +56,37 @@ export function asked_twice(
 		const since = Math.max(...swaps.filter((s) => s < t));
 		return next === t || fetched.some((f) => f > since && f <= t);
 	};
+	/** A hole answer whose last ask the page gave up on (stalled, cut, lost, changed), by key: when it
+	 *  was asked, and whether a router visit's batch asked it. The next ask of it is its recovery,
+	 *  the same ask (test/waste.test.ts). */
+	const given_up = new Map<string, { at: number; nav: boolean }>();
+	/** An ask of hole answer `k` at `at` (a recovery takes the given-up ask's place). */
+	const ask = (k: string, at: number, by_visit: boolean): void => {
+		const was = given_up.get(k);
+		given_up.delete(k);
+		const t = was?.at ?? at;
+		holes.set(k, [...(holes.get(k) ?? []), t]);
+		if (was?.nav ?? by_visit) nav.add(`${k} ${t}`);
+	};
 	for (const [i, e] of world.network.exchanges.entries()) {
 		if (i >= until) break;
 		if (e.from !== realm || e.status !== 200) continue;
 		// (a stalled answer the page may have given up on: asking again is its recovery)
-		if (e.cut || e.lost === true || e.tampered || e.duplicated || e.stalled === true) continue;
+		if (e.cut || e.lost === true || e.tampered || e.duplicated || e.stalled === true) {
+			if (e.duplicated) continue;
+			const keys =
+				e.method === 'POST'
+					? (e.holes ?? [])
+					: new URL(e.url).pathname === '/__ogygia__'
+						? [answer_key(new URL(e.url))]
+						: [];
+			const by_visit = e.method === 'POST' && visits(e.at);
+			for (const k of keys) if (!given_up.has(k)) given_up.set(k, { at: e.at, nav: by_visit });
+			continue;
+		}
 		if (e.method === 'POST') {
-			for (const k of e.holes ?? []) {
-				holes.set(k, [...(holes.get(k) ?? []), e.at]);
-				if (visits(e.at)) nav.add(`${k} ${e.at}`);
-			}
+			const by_visit = visits(e.at);
+			for (const k of e.holes ?? []) ask(k, e.at, by_visit);
 			continue;
 		}
 		if (e.method !== 'GET') continue;
@@ -73,8 +94,7 @@ export function asked_twice(
 		const path = decodeURIComponent(url.pathname);
 		if (path.startsWith('/_app/immutable/') || is_page_path(path) || IMAGE.test(path)) continue;
 		if (path === '/__ogygia__') {
-			const k = answer_key(url);
-			holes.set(k, [...(holes.get(k) ?? []), e.at]);
+			ask(answer_key(url), e.at, false);
 			continue;
 		}
 		const visit = path.startsWith('/_app/remote/') ? swaps.filter((t) => t <= e.at).length : 0;
