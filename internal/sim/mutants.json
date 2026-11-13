@@ -106,5 +106,62 @@
 		"operator": "logical",
 		"from": "n || t",
 		"to": "n && t"
+	},
+	{
+		"id": "peer-body-rewrite-inverted",
+		"file": "packages/federation/src/peer.ts",
+		"line": 434,
+		"code": "return body === doc.body ? doc : { ...doc, body };",
+		"operator": "equality",
+		"from": "dy =",
+		"to": "dy !"
+	},
+	{
+		"id": "fragment-body-tag-missed",
+		"file": "packages/federation/src/wire.ts",
+		"line": 668,
+		"code": "if (html.slice(i + 2, i + 6).toLowerCase() === 'body') {",
+		"operator": "equality",
+		"from": "() =",
+		"to": "() !"
+	},
+	{
+		"id": "fragment-body-tag-end-narrowed",
+		"file": "packages/federation/src/wire.ts",
+		"line": 671,
+		"code": "if (c === 62 || c === 47 || c === 32 || (c >= 9 && c <= 13)) return i;",
+		"operator": "logical",
+		"from": "||",
+		"to": "&&"
+	},
+	{
+		"id": "federation-rules-gate-inverted",
+		"file": "packages/federation/src/peer.ts",
+		"line": 49,
+		"code": "import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);",
+		"operator": "equality",
+		"from": "__ !",
+		"to": "__ =",
+		"equivalent": "RULES only gates a buggify point, and buggify.fires is false unless a simulator installed its hook: off in a rules build, it only takes a fault the simulator injects away"
+	},
+	{
+		"id": "federation-rules-gate-and",
+		"file": "packages/federation/src/peer.ts",
+		"line": 49,
+		"code": "import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);",
+		"operator": "logical",
+		"from": "||",
+		"to": "&&",
+		"equivalent": "RULES only gates a buggify point, and buggify.fires is false unless a simulator installed its hook: off in a rules build, it only takes a fault the simulator injects away"
+	},
+	{
+		"id": "federation-rules-gate-on",
+		"file": "packages/federation/src/peer.ts",
+		"line": 49,
+		"code": "import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);",
+		"operator": "boolean",
+		"from": "fals",
+		"to": "tru",
+		"equivalent": "RULES only gates a buggify point, and buggify.fires is false unless a simulator installed its hook: on in a build without rules, the point still never fires"
 	}
 ]
