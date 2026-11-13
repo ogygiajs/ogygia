@@ -4923,6 +4923,14 @@
 		{
 			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > plugin_capability_message > details",
 			"reason": "a message's docs paragraph: constant prose, read by the docs build and the error page"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > own_code_of",
+			"reason": "browser only, dev and e2e builds: one URL read, once as the rules install; proven in packages/core/test/browser/rules-uncoded-own-code.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > thrown_at",
+			"reason": "browser only, dev and e2e builds: one regex over an uncaught error's stack, once per failure (10 at most); proven in packages/core/test/browser/rules-uncoded-own-code.test.ts"
 		}
 	]
 }
