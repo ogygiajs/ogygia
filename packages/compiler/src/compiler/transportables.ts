@@ -7,8 +7,7 @@ import { splice_text, type Edit } from './splice.ts';
 const CLASS_KW = /\bclass\b/;
 const SVELTE_EXT = /\.svelte$/;
 
-const GENERATED_MARK =
-	'// ogygia: generated registration (transportable codecs + createContext tags)';
+const GENERATED_MARK = '// ogygia: generated registration (transportable codecs)';
 
 function parse_body(code: string, id_n: string): AstNode[] | null {
 	const { program } = parse_module(code, id_n);
@@ -113,41 +112,12 @@ interface AstNode {
 	name?: string;
 	start?: number;
 	id?: { name: string } | null;
-	declaration?: VarDecl | AstNode | null;
+	declaration?: AstNode | null;
 	source?: unknown;
 	specifiers?: { local?: { type: string; name: string } }[];
 	body?: { body?: ClassMember[] } | AstNode[];
 	static?: boolean;
 	computed?: boolean;
-}
-interface CallInit {
-	type: string;
-	callee?: { type?: string; name?: string; property?: { name?: string } };
-}
-interface VarDecl {
-	type: string;
-	id?: { type?: string; name?: string } | null;
-	kind?: string;
-	declarations?: { id?: { type?: string; name?: string }; init?: CallInit | null }[];
-}
-
-function contextExportNamesFromBody(body: AstNode[]): string[] {
-	const names: string[] = [];
-	for (const node of body) {
-		if (node.type !== 'ExportNamedDeclaration') continue;
-		const decl = node.declaration as VarDecl | null | undefined;
-		if (!decl || decl.type !== 'VariableDeclaration') continue;
-		for (const d of decl.declarations ?? []) {
-			const init = d.init;
-			if (d.id?.type !== 'Identifier' || !d.id.name || init?.type !== 'CallExpression') continue;
-			const callee = init.callee;
-			const isCreate =
-				(callee?.type === 'Identifier' && callee.name === 'createContext') ||
-				(callee?.type === 'MemberExpression' && callee.property?.name === 'createContext');
-			if (isCreate) names.push(d.id.name);
-		}
-	}
-	return names;
 }
 interface ClassMember {
 	type: string;
@@ -183,29 +153,24 @@ export function appendTransportRegistrations(
 	root: string
 ): string | null {
 	if (code.includes(GENERATED_MARK)) return null;
-	if (!CLASS_KW.test(code) && !code.includes('createContext')) return null;
+	if (!CLASS_KW.test(code)) return null;
 	const body = parse_body(code, id_n);
 	if (!body) return null;
 	const classes = exportedWireClassesFromBody(body, code, id_n);
-	const contexts = contextExportNamesFromBody(body);
-	if (classes.length === 0 && contexts.length === 0) return null;
+	if (classes.length === 0) return null;
 
 	const rel = path.relative(root, id_n).split('\\').join('/');
-	return `${code + registrationBlock(rel, classes, contexts)}\n`;
+	return `${code + registrationBlock(rel, classes)}\n`;
 }
 
-function registrationBlock(rel: string, classes: WireExport[], contexts: string[]): string {
-	const imports: string[] = [];
-	if (classes.length) imports.push('__register_transportable as __OGT');
-	if (contexts.length) imports.push('__tag_context as __OGC');
+function registrationBlock(rel: string, classes: WireExport[]): string {
 	const lines = [
 		'',
 		GENERATED_MARK,
-		`import { ${imports.join(', ')} } from 'ogygia/internal/register';`
+		`import { __register_transportable as __OGT } from 'ogygia/internal/register';`
 	];
 	for (const { tag, local } of classes)
 		lines.push(`__OGT(${JSON.stringify(`${rel}#${tag}`)}, ${local});`);
-	for (const name of contexts) lines.push(`__OGC(${JSON.stringify(`${rel}#${name}`)}, ${name});`);
 	return lines.join('\n');
 }
 
@@ -243,6 +208,6 @@ export function svelte_module_registration(code: string, id_n: string, root: str
 	return {
 		start: mod.injectAt,
 		end: mod.injectAt,
-		text: `\n${registrationBlock(rel, exported, [])}\n`
+		text: `\n${registrationBlock(rel, exported)}\n`
 	};
 }

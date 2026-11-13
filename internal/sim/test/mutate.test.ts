@@ -10,6 +10,7 @@ import {
 	baseline_packages,
 	clone_command,
 	confirmed,
+	failing_tests,
 	package_of,
 	runnable,
 	seed_list,
@@ -134,9 +135,10 @@ describe('a mutant', () => {
 
 	it('of the daily list applies to the code as it is', () => {
 		const root = fileURLToPath(new URL('../../../', import.meta.url));
-		const list = JSON.parse(
-			readFileSync(new URL('../mutants.json', import.meta.url), 'utf8')
-		) as Mutant[];
+		// (and the compiler simulator's list, judged with `--compiler-dst`)
+		const list = ['../mutants.json', '../../compiler-dst/mutants.json'].flatMap(
+			(at) => JSON.parse(readFileSync(new URL(at, import.meta.url), 'utf8')) as Mutant[]
+		);
 		for (const m of list) {
 			expect(m.code, `${m.id} names its line's code`).toBeTypeOf('string');
 			expect(m.in, `${m.id} names its function`).toBeTypeOf('string');
@@ -255,5 +257,37 @@ describe('a mutation run', () => {
 				m('packages/federation/src/peer.ts')
 			])
 		).toEqual(['packages/core', 'packages/federation']);
+	});
+});
+
+describe("a run on the compiler's simulator", () => {
+	it('reads the failing tests off a vitest report, a file that did not run by its file, and no report as no finish', () => {
+		const report = JSON.stringify({
+			testResults: [
+				{
+					name: '/box/internal/compiler-dst/test/a.test.ts',
+					status: 'failed',
+					assertionResults: [
+						{ fullName: 'a > passes', status: 'passed' },
+						{ fullName: 'a > fails', status: 'failed' }
+					]
+				},
+				{
+					name: '/box/internal/compiler-dst/test/b.test.ts',
+					status: 'failed',
+					assertionResults: []
+				},
+				{
+					name: '/box/internal/compiler-dst/test/c.test.ts',
+					status: 'passed',
+					assertionResults: []
+				}
+			]
+		});
+		expect(failing_tests(report, '/box/internal/compiler-dst')).toEqual([
+			'test/a.test.ts > a > fails',
+			'test/b.test.ts'
+		]);
+		expect(failing_tests(null, '/box')).toBeNull();
 	});
 });

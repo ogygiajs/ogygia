@@ -1,10 +1,10 @@
 <script lang="ts">
 	// A separate island bundle. Reads the live counter from context, no prop. `label` only names the
 	// DOM node so a page with several readers can be queried apart — the value still comes from get().
-	import { roomCtx } from '$lib/room-context.svelte.js';
+	import { readRoom } from '$lib/room-context.svelte.js';
 
 	let { label = 'reader' }: { label?: string } = $props();
-	const counter = roomCtx.get();
+	const counter = readRoom();
 </script>
 
 <span class="island" data-ctx-reader={label} data-is-instance={counter ? 'true' : 'false'}>

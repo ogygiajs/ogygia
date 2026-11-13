@@ -174,16 +174,16 @@ What it does and does not do:
 
 Options: `packages`, `force`, `keep` (matchers: a package name or specifier prefix, a `*` glob, a regex, or a function of the resolved id), `importers: { include, exclude }` (which files are rewritten; default project files), `followPackages` (walk `export *` into dependencies while mapping a barrel; default `true`), `report` (the end-of-build report: `true` = the eight biggest barrels and a count of the rest, `'all'` = every barrel, `false` = silent), `debug` (log every rewrite).
 
-### `pageKeys()`
+### `dataShake()`
 
-Seed shaping is a plugin, `pageKeys()` from `@ogygia/page-keys`, listed beside `ogygia()`. It takes no options. [`postrender()`](/docs/postrender/guide) requires it: an app that lists `postrender()` without it fails the build with `plugin_needs_plugin`.
+Data shaking is a plugin, `dataShake()` from `@ogygia/data-shake/vite`, listed beside `ogygia()`: a page ships only the data its regions' code reads, the way tree shaking ships only the code it uses. Its first job is the page seed. It takes no options. [`postrender()`](/docs/postrender/guide) requires it: an app that lists `postrender()` without it fails the build with `plugin_needs_plugin`.
 
 ```ts
-import { pageKeys } from '@ogygia/page-keys';
-export default defineConfig({ plugins: [ogygia(), pageKeys(), sveltekit()] });
+import { dataShake } from '@ogygia/data-shake/vite';
+export default defineConfig({ plugins: [ogygia(), dataShake(), sveltekit()] });
 ```
 
-An island that reads `page.data` through `$app/state` or `$app/stores` gets the page seed. Without `pageKeys()` that seed is all of `page.data`, and every [server island](/docs/regions/server-islands) looks the page up. With it, the build reads each module that imports the page for the top-level `page.data` keys it reaches, and a page ships only the keys its islands read (see [page data](/docs/data-state/page-data)). A server island whose code reads none of `page.data` skips the lookup. A read the build cannot pin to a literal key gives that island all of `page.data`, and the build's seed report names the file and line.
+An island that reads `page.data` through `$app/state` or `$app/stores` gets the page seed. Without `dataShake()` that seed is all of `page.data`, and every [server island](/docs/regions/server-islands) looks the page up. With it, the build reads each module that imports the page for the top-level `page.data` keys it reaches, and a page ships only the keys its islands read (see [page data](/docs/data-state/page-data)). A server island whose code reads none of `page.data` skips the lookup. A read the build cannot pin to a literal key gives that island all of `page.data`, and the build's seed report names the file and line.
 
 ### `bake()`
 

@@ -108,8 +108,9 @@ export type Reads = Frame;
 const QUERIES_MAX = 100_000;
 
 /**
- * A database of queries. `name` names its store in messages; `max` is how many answers it
- * remembers (one let go is computed again when next read).
+ * A database of queries. `name` names its store in messages; `max` is how many derived answers it
+ * remembers (one let go is computed again when next read). Inputs are never let go: they are the
+ * world an answer read, and some (`set`-only ones) have no other copy.
  *
  * An answer the compiler derives from the app's files is a query: a pure function of other
  * queries, down to INPUTS (a file's text, a directory's listing) that only the outside world
@@ -172,7 +173,7 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 				tail: 0
 			};
 			keyed.set(key, slot);
-			held.set(slot, slot);
+			if (query.kind === 'derived') held.set(slot, slot);
 		}
 		return slot;
 	}
@@ -280,7 +281,6 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 		if (had && query.equal(had.value, value)) return false;
 		revision++;
 		const slot = had ?? slot_of(query, arg);
-		if (had) held.get(had);
 		slot.value = value;
 		slot.changed = revision;
 		slot.verified = revision;
@@ -338,13 +338,11 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 		},
 		reread() {
 			let moved = false;
-			for (const [slot] of held.entries())
-				if (
-					slot.query.kind === 'input' &&
-					slot.verified !== LET_GO &&
-					set_input(slot.query, slot.arg, slot.query.run(db, slot.arg))
-				)
-					moved = true;
+			for (const [query, keyed] of table) {
+				if (query.kind !== 'input') continue;
+				for (const slot of keyed.values())
+					if (set_input(query, slot.arg, query.run(db, slot.arg))) moved = true;
+			}
 			return moved;
 		}
 	};
