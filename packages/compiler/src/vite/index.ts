@@ -1343,11 +1343,20 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				return source === code ? null : { code: source, map: null };
 			},
 
-			renderChunk(code, chunk) {
+			renderChunk(code, chunk, _options, meta) {
 				// the values known only once every transform has run (link/relocations.ts)
+				let facades: Map<string, string> | null = null;
 				return compiler_of(session, 'renderChunk').relocate(code, leg_of(this), {
 					chunk_file: chunk.fileName,
 					file_name: (ref) => this.getFileName(ref),
+					facade_file: (id) => {
+						if (facades === null) {
+							facades = new Map();
+							for (const c of Object.values(meta.chunks))
+								if (c.facadeModuleId) facades.set(c.facadeModuleId, c.fileName);
+						}
+						return facades.get(id);
+					},
 					graph: (id) => this.getModuleInfo(id),
 					module_ids: () => this.getModuleIds()
 				});
@@ -1647,7 +1656,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// the same, as one file the browser reads (the runtime's script tag names it)
 					locations: leg.location_map_url
 				});
-				emit_island_deps_handoff(root, json, kit_dirs(root).out_dir);
+				emit_island_deps_handoff(root, json, kit_dirs(root).out_dir, leg.relocated);
 			}
 		},
 		// the plugins' `post` stage: on what the region transform made of the module

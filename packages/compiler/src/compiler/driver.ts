@@ -56,7 +56,8 @@ import { collect_flag_sites, FLAGS_SPEC } from './flags.ts';
 import { router_css_roots } from './link/router-css.ts';
 import { source_crosses_wire } from './link/transport.ts';
 import { server_island_ids } from './link/server-manifest.ts';
-import { relocate, type RelocateCx } from './link/relocations.ts';
+import type { SourceMap } from 'magic-string';
+import { relocate, relocations_of, type RelocateCx } from './link/relocations.ts';
 import { same_module_path, island_vpaths_affected_by_file } from './dev/hmr.ts';
 import { VirtualTable } from './virtual/resolver.ts';
 import { CORE_VALUE_NAMES } from './virtual/value-names.ts';
@@ -1809,20 +1810,21 @@ export class Compiler implements CoreApp {
 	relocate(
 		code: string,
 		leg: Pick<BuildLeg, 'server' | 'relocated' | 'late_server_regions'>,
-		bundle: Pick<RelocateCx, 'graph' | 'module_ids' | 'chunk_file' | 'file_name'>
-	): { code: string; map: null } | null {
+		bundle: Pick<RelocateCx, 'graph' | 'module_ids' | 'chunk_file' | 'file_name' | 'facade_file'>
+	): { code: string; map: SourceMap } | null {
 		const ctx = this.#ctx;
-		const out = relocate(code, leg.server, leg.relocated, {
+		const s = relocate(code, relocations_of(leg.server), leg.relocated, {
 			program: this.program,
 			dollar_hoists: this.dollar_hoists,
 			public_url: (iid) => ctx.island_public_url(iid),
 			late_server_regions: leg.late_server_regions,
 			chunk_file: bundle.chunk_file,
 			file_name: bundle.file_name,
+			facade_file: bundle.facade_file,
 			graph: bundle.graph,
 			module_ids: bundle.module_ids
 		});
-		return out === null ? null : { code: out, map: null };
+		return s === null ? null : { code: s.toString(), map: s.generateMap({ hires: true }) };
 	}
 
 	/** True when `file` is a registered island HOST (a component that declares islands). */

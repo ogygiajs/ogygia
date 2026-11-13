@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { rolldown } from 'rolldown';
 import { lazy_files } from '../src/vite/lazy-files.ts';
+import { FILE, relocate, type RelocateCx } from '../src/compiler/link/relocations.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'og-lazy-files-'));
@@ -31,7 +32,23 @@ type Given = {
 async function built(minify: boolean): Promise<Record<string, Given>> {
 	const bundle = await rolldown({
 		input: path.join(dir, 'main.js'),
-		plugins: [lazy_files()]
+		plugins: [
+			lazy_files(),
+			// (the build half: the file tokens are relocations, replaced with the others at renderChunk)
+			{
+				name: 'relocate-files',
+				renderChunk(code, chunk, _options, meta) {
+					const facades = new Map<string, string>();
+					for (const c of Object.values(meta.chunks))
+						if (c.facadeModuleId) facades.set(c.facadeModuleId, c.fileName);
+					const s = relocate(code, [FILE], new Map(), {
+						chunk_file: chunk.fileName,
+						facade_file: (id) => facades.get(id)
+					} as RelocateCx);
+					return s && { code: s.toString(), map: s.generateMap({ hires: true }) };
+				}
+			}
+		]
 	});
 	const out = path.join(dir, minify ? 'out-min' : 'out');
 	await bundle.write({ dir: out, format: 'es', minify, chunkFileNames: '[name]-[hash].js' });
