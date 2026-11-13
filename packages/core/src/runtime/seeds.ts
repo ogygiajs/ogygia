@@ -135,6 +135,13 @@ export function seed_page_once(): void {
 }
 
 function absorb_page_facts(): void {
+	boot_link().with_devalue(
+		() => merge_page_facts(),
+		(error) => warn('page_payload_unreadable', { what: 'facts' }, error)
+	);
+}
+
+function merge_page_facts(): void {
 	const queued = session().visit.facts.splice(0);
 	let merged: Record<string, unknown> | null = null;
 	for (const text of queued) {
