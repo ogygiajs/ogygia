@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -84,6 +84,25 @@ describe('kit.files.routes / kit.outDir', () => {
 		expect((await load_kit_dirs(kit2_root, [{ name: 'other' }, null, false])).routes_dir).toBe(
 			join(kit2_root, 'src/from-file')
 		);
+	});
+
+	it('a svelte.config.js that throws as it loads: the defaults, and kit_config_unreadable says why', async () => {
+		const root = app({
+			'svelte.config.js': "throw new Error('config broke');\nexport default {};"
+		});
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			expect(await load_kit_dirs(root)).toEqual({
+				routes_dir: join(root, 'src/routes'),
+				out_dir: join(root, '.svelte-kit')
+			});
+			const said = warn.mock.calls.map((c) => String(c[0]));
+			expect(
+				said.some((s) => s.includes('kit_config_unreadable') && s.includes('config broke'))
+			).toBe(true);
+		} finally {
+			warn.mockRestore();
+		}
 	});
 
 	it('defaults to src/routes + .svelte-kit without a config, or with a config that sets neither', async () => {

@@ -373,6 +373,13 @@ describe('the config hook', () => {
 });
 
 describe('configResolved', () => {
+	it('an app-dir define that is not JSON keeps the `_app` default, and nothing throws', async () => {
+		app();
+		await expect(
+			setup('build', { resolved: { define: { __SVELTEKIT_APP_DIR__: 'not json' } } })
+		).resolves.toBeTruthy();
+	});
+
 	it('the dev server sweeps a keep-client route a crashed build left', async () => {
 		app();
 		write(path.relative(root, path.join(keep_client_dir(root), '+layout.ts')), '// stale\n');
