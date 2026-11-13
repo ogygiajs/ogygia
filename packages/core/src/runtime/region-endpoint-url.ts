@@ -34,7 +34,7 @@ export function capability_expired(
 		const exp = Number(new URL(endpoint, page_origin).searchParams.get('exp'));
 		return Number.isFinite(exp) && exp > 0 && exp <= now_ms / 1000 + CLOCK_SKEW_SEC;
 	} catch {
-		return false;
+		return false; // ok: an address that does not parse has no `exp` to be past
 	}
 }
 
@@ -59,8 +59,8 @@ export function is_document_answer(text: string): boolean {
 	return DOCUMENT_START_RE.test(text.slice(0, 256));
 }
 
-/** A region request that was redirected (same origin — cross-origin is refused earlier) did not
- *  reach the endpoint it named: whatever answered is not the region. */
+/** A region request that was redirected (to this origin or another) did not reach the endpoint it
+ *  named: whatever answered is not the region. */
 export function is_redirected_answer(res: Response): boolean {
 	return res.redirected === true;
 }
@@ -221,7 +221,7 @@ function warm_key(url: string): string {
 	try {
 		return new URL(url, location.href).href;
 	} catch {
-		return url;
+		return url; // ok: not a URL: its own key
 	}
 }
 

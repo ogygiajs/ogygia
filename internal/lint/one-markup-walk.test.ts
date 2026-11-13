@@ -68,7 +68,6 @@ const h = html.indexOf('</head>'); // markup-ok: a stated reason
 
 test('a regex or an indexOf over tags or attributes in package source is reported', () => {
 	assert.deepEqual(reported('packages/x/src/a.ts', BAD), [3, 4, 5, 6, 7, 8, 9, 10]);
-	// the compiler too: its blocks are read with the walk (parse/scan.ts component_blocks, #1428)
 	assert.deepEqual(reported('packages/compiler/src/a.ts', BAD), [3, 4, 5, 6, 7, 8, 9, 10]);
 });
 

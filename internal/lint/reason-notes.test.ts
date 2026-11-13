@@ -13,11 +13,11 @@ import path from 'node:path';
 const ROOT = path.resolve(import.meta.dirname, '../..');
 const OXLINT = path.join(ROOT, 'node_modules/.bin/oxlint');
 
-/** The lines of `source`, as a core source file, that `rule` reports. */
-function reported(rule: string, source: string): number[] {
+/** The lines of `source`, as a source file of `pkg` (core by default), that `rule` reports. */
+function reported(rule: string, source: string, pkg = 'core'): number[] {
 	const dir = mkdtempSync(path.join(tmpdir(), 'og-reason-notes-'));
 	try {
-		const file = path.join(dir, 'packages/core/src/x.ts');
+		const file = path.join(dir, `packages/${pkg}/src/x.ts`);
 		mkdirSync(path.dirname(file), { recursive: true });
 		writeFileSync(file, source);
 		const config = path.join(dir, '.oxlintrc.json');
@@ -64,4 +64,42 @@ export const c = 0x811c9dc5;
 
 test('ogygia/one-hash: a trailing note excuses its own line, not the line below', () => {
 	assert.deepEqual(reported('one-hash', HASH), [2]);
+});
+
+const VOIDS = `declare const p: () => Promise<void>;
+declare const s: { send?: () => Promise<void> } | undefined;
+void p();
+void s?.send?.();
+void (p() as Promise<void>);
+void p(); // ok: a trailing note is its own line's
+void p();
+// ok: a note alone on its line names the line below
+void p();
+void p().catch((e: unknown) => console.error(e));
+export const awaited = async () => void (await p());
+`;
+
+test('ogygia/no-silent-failures: every void call needs an ok note, an optional call and a cast too', () => {
+	assert.deepEqual(reported('no-silent-failures', VOIDS), [3, 4, 5, 7]);
+});
+
+const FALLBACKS = `declare const p: () => Promise<string>;
+declare const use: (x: unknown) => void;
+export function a() { try { return p(); } catch { return null; } }
+export function b() { try { return p(); } catch { return ''; } }
+export function c(xs: string[]) { for (const x of xs) { try { use(x); } catch { continue; } } }
+export function d() { let v = 1; try { v = 2; } catch { v = 0; } return v; }
+export const e = () => p().catch(() => '');
+export const f = () => p().catch(() => []);
+export const g = () => p().then(String, () => { return false; });
+export function h() { try { return p(); } catch (err) { return String(err); } }
+export function i() { try { return p(); } catch { return null; } } // ok: a missing value is the answer
+export const j = () => p().catch((err: unknown) => { use(err); return ''; });
+export function k() { try { return p(); } catch { use(1); return null; } }
+`;
+
+test('ogygia/no-silent-failures: a catch that only falls back (a value, a continue) says why (#1286)', () => {
+	assert.deepEqual(reported('no-silent-failures', FALLBACKS, 'router'), [3, 4, 5, 6, 7, 8, 9]);
+	// (a package not swept yet refuses only the empty ones, as before)
+	assert.deepEqual(reported('no-silent-failures', FALLBACKS, 'compiler'), []);
 });

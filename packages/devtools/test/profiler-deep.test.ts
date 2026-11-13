@@ -103,10 +103,10 @@ describe('byte strip', () => {
 	});
 
 	it('counts the elements as the browser makes them: none from a quoted `<`, a comment ends at `<!-->`, a nested template is one (#1370)', () => {
-		expect(byte_strip('<p title="<b>">y</p><!--><i>z</i><em>w</em>').elements.total).toBe(3);
+		expect(byte_strip('<p title="<b>">y</p><!--><i>z</i><em>w</em>').elements?.total).toBe(3);
 		expect(
 			byte_strip('<template><template><b>x</b></template><u>y</u></template><s>z</s>').elements
-				.total
+				?.total
 		).toBe(2);
 	});
 

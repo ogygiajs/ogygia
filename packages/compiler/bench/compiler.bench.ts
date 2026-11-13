@@ -15,6 +15,7 @@ import { collect_flag_sites } from '../src/compiler/flags.ts';
 import { collectFreeIdentifiers } from '../src/compiler/free-vars.ts';
 import { page_data_keys_answer } from '../src/compiler/link/page-keys.ts';
 import { auto_brand_stores, rewrite_store } from '../src/compiler/macros/store.ts';
+import { run_module_macros } from '../src/compiler/macros/pipeline.ts';
 import { stamp_opaque } from '../src/compiler/ownership-stamps.ts';
 import { transformHost } from '../src/compiler/region/transform.ts';
 import { mark_definer_calls } from '../src/vite/definers.ts';
@@ -115,6 +116,41 @@ bench(
 	{
 		setup: () => ({ source: route_page(3) }),
 		scale: (_ctx, k) => ({ source: route_page(3 * k) })
+	}
+);
+
+bench(
+	'module macros: plugin macros on app source, a foreign marker, a call without its plugin',
+	async ({ app, foreign, missing }) => {
+		const ctx = (own: boolean) => ({
+			root: '/app',
+			resolveAlias: [],
+			pkgRoot: '/og',
+			dollarHoists: new Map<string, string>(),
+			macros: [{ name: 'code', handler: (code: string) => code.split('og.code').join('og_code') }],
+			ownSource: () => own
+		});
+		const profile = { P: false } as unknown as Parameters<typeof run_module_macros>[3];
+		let n = (await run_module_macros(app, '/app/src/lib/a.ts', ctx(true), profile)).code.length;
+		n += (await run_module_macros(foreign, '/app/node_modules/x/i.js', ctx(false), profile)).code
+			.length;
+		await run_module_macros(
+			missing,
+			'/app/src/lib/b.ts',
+			{ ...ctx(true), macros: [] },
+			profile
+		).catch(() => n++);
+		return n;
+	},
+	{
+		setup: () => ({
+			app: Array.from(
+				{ length: 20 },
+				(_, i) => `export const c${i} = import.meta.og.code('x${i}');`
+			).join('\n'),
+			foreign: `export const t = 'import.meta.og.code(x)';\n// import.meta.og.code('y')`,
+			missing: `export const v = import.meta.og.md('# x');`
+		})
 	}
 );
 
