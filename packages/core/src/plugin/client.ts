@@ -46,6 +46,12 @@ export type {
 	RuntimeHooks,
 	WarningEvent
 } from '../contract/runtime-hooks.ts';
+export type {
+	PageGlobals,
+	PendingShadow,
+	RestoreLogEntry,
+	WaitingShadow
+} from '../page-globals.ts';
 
 /** What `boot` is told about the page. */
 export interface ClientBootContext {

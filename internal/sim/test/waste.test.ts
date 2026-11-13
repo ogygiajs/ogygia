@@ -7,7 +7,8 @@ import {
 	held_twice,
 	known_waste,
 	refused,
-	warned
+	warned,
+	watched_awake
 } from '../src/waste.ts';
 import type { World } from '../src/world.ts';
 
@@ -191,6 +192,29 @@ describe('asked twice in every document, up to what first disturbed it', () => {
 			'waste'
 		);
 	});
+
+	it("counts the ask that recovers a stalled visit's batch as that batch's (palaestra seed 24 with crowds)", () => {
+		// (a visit's batch stalled; its stream gave up 10 s later and the page asked each hole on its
+		// own: the recovery is the visit's ask, not a second one)
+		const w = run([['tab-1#1', hole, 200]]);
+		const at = (id: number, method: string, path: string, t: number, more: object = {}) =>
+			w.network.exchanges.push({
+				...w.network.exchanges[0],
+				id,
+				method,
+				url: `https://app.test${path}`,
+				at: t,
+				...more
+			});
+		at(2, 'GET', '/p2', 4000);
+		at(3, 'POST', '/__ogygia__', 4003, { holes: [hole], stalled: true });
+		at(4, 'GET', `${hole}&exp=9&sig=s`, 14_003);
+		expect(asked_twice_each(w, new Map([['tab-1#1', [4006]]]), new Map())?.oracle).toBe('known');
+		// (a recovery of a batch no visit sent is as wasteful as that batch)
+		expect(asked_twice_each(w, new Map([['tab-1#1', [4001, 4006]]]), new Map())?.oracle).toBe(
+			'waste'
+		);
+	});
 });
 
 describe('refused', () => {
@@ -282,5 +306,60 @@ describe('warned', () => {
 			])
 		} as unknown as Parameters<typeof warned>[0];
 		expect(warned(tab)).toEqual(['warn: new']);
+	});
+
+	it('leaves out a hydration mismatch a page makes on purpose, as hydrates_as_sent does (palaestra seed 92, /detector)', () => {
+		const said = ['warn: https://svelte.dev/e/hydration_mismatch', 'warn: other'];
+		const tab = (path: string) =>
+			({
+				realm: 'tab-1#1',
+				console: said,
+				said_by: new Map(),
+				page: { mainFrame: { url: `https://app.test${path}` } }
+			}) as unknown as Parameters<typeof warned>[0];
+		expect(warned(tab('/detector'))).toEqual(['warn: other']);
+		expect(warned(tab('/data'))).toEqual(said);
+	});
+});
+
+describe('alive after its owner', () => {
+	it("counts the viewport tracker's swap observer left on a region as #1255's (gen 734, seed 11: it killed every core mutant alike)", async () => {
+		const { Window } = await import('happy-dom');
+		const doc = new Window().document as unknown as Document;
+		expect(known_waste(doc, ['MutationObserver watching <ogygia-region>'])).toEqual({
+			left: [],
+			known: [1255]
+		});
+		expect(known_waste(doc, ['MutationObserver watching <div>']).left).toHaveLength(1);
+	});
+});
+
+describe('watched after its wake', () => {
+	const tab = async (body: string) => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/p1' });
+		w.document.write(`<html><body>${body}</body></html>`);
+		const all = [...w.document.querySelectorAll('ogygia-region')] as unknown as Element[];
+		return { observed: () => all } as unknown as Parameters<typeof watched_awake>[0];
+	};
+
+	it('finds a woken island an IntersectionObserver still watches (a mutant that kept the snapshot watching survived)', async () => {
+		expect(
+			watched_awake(
+				await tab(
+					'<ogygia-region entry="/_app/n1.js" wake="load" data-hydrated><p>n1</p></ogygia-region>'
+				)
+			)
+		).toEqual(['<ogygia-region entry="/_app/n1.js" wake="load">']);
+	});
+
+	it('passes an island still asleep, and a hole', async () => {
+		expect(
+			watched_awake(
+				await tab(
+					'<ogygia-region entry="/_app/n1.js" wake="visible"><p>n1</p></ogygia-region><ogygia-region entry="/_app/n2.js" render="defer" wake="load" data-hydrated><p>n2</p></ogygia-region>'
+				)
+			)
+		).toEqual([]);
 	});
 });

@@ -84,7 +84,8 @@
 		slot_pointer,
 		slot_marker_open,
 		SLOT_MARKER_CLOSE,
-		next_slot_id
+		next_slot_id,
+		HOLE_SLOT_SEQUENCE
 	} from './region-snippet.ts';
 	import { isRegion } from './region.ts';
 	import { written_order } from './frame.ts';
@@ -207,7 +208,7 @@
 					setup
 				}));
 	}
-	/** Context mark: "this subtree renders inside Kit's own page pass" (see `kit_page_pass`). */
+	/** Context mark: "this subtree renders inside Kit's own page pass" (see `render_root`). */
 	const KIT_PAGE_PASS = Symbol.for('ogygia.kit-page-pass');
 
 	// ─────────────────────────────────────────────── held: resolve (Promise `of`) ──
@@ -278,17 +279,24 @@
 	// so only there can an island's props sidecar be deferred to the end of the body. The outermost
 	// region stamps the fact into context for its subtree (its own re-set of the request context
 	// hides the bare `{ page }` from nested regions).
-	let kit_page_pass = false;
-	// …and the positive twin: a render root OGYGIA started (`kit_render_context` hands every one the live
-	// event beside the page) — never Kit's own pass, whose `{ page }` carries none.
-	let ogygia_root = false;
+	//
+	// THE RENDER ROOT this region renders under: 'kit' (Kit's own page pass), 'ogygia' (a root ogygia
+	// started: `kit_render_context` hands every one the live event beside the page), or null (the
+	// browser, or a server render with no request context).
+	/** @type {'kit' | 'ogygia' | null} */
+	let render_root = null;
 	if (typeof window === 'undefined') {
 		const req = /** @type {{ page?: unknown; event?: unknown } | undefined} */ (
 			getContext(KIT_REQUEST_CONTEXT)
 		);
-		kit_page_pass = getContext(KIT_PAGE_PASS) === true || !!(req && req.event == null);
-		ogygia_root = !kit_page_pass && !!(req && req.event != null);
-		if (kit_page_pass && getContext(KIT_PAGE_PASS) !== true) setContext(KIT_PAGE_PASS, true);
+		render_root =
+			getContext(KIT_PAGE_PASS) === true || (req && req.event == null)
+				? 'kit'
+				: req
+					? 'ogygia'
+					: null;
+		if (render_root === 'kit' && getContext(KIT_PAGE_PASS) !== true)
+			setContext(KIT_PAGE_PASS, true);
 		if (req && req.event == null) {
 			const event = kit_request_event();
 			if (event) setContext(KIT_REQUEST_CONTEXT, { ...req, event });
@@ -297,7 +305,7 @@
 	// THE DOCUMENT TAIL (server/document-tail.ts) for this render — non-null only inside Kit's page
 	// pass with a request tail installed. What the hints, the props sidecar and the seed-relative
 	// props codec all key on (see each site below).
-	const tail = typeof window === 'undefined' && kit_page_pass ? document_tail() : null;
+	const tail = typeof window === 'undefined' && render_root === 'kit' ? document_tail() : null;
 	// csr=true rule (ISLANDS only): on a Kit-hydrated page an interactive region should render its
 	// component INLINE in the Kit tree — no `<ogygia-region>`, no runtime — because Kit already
 	// hydrates it. Same degradation as `nested`, gated by the csr context the transform injects into
@@ -319,13 +327,13 @@
 		try {
 			return page.error != null;
 		} catch {
-			return false; // isolated render without a live page (a hole endpoint, a remote's region)
+			return false; // ok: isolated render without a live page (a hole endpoint, a remote's region)
 		}
 	}
 	// ONLY KIT'S OWN PASS IS KIT'S TO HYDRATE: a render root ogygia starts (a held region baked by a
 	// remote or awaited in the render, a hole, a snippet body) becomes opaque HTML Kit never walks — its
 	// islands must be real `<ogygia-region>`s the runtime wakes, whatever the document's csr.
-	const is_csr = documentIsCsrTrue(page_error_render()) && !isInLake() && !ogygia_root;
+	const is_csr = documentIsCsrTrue(page_error_render()) && !isInLake() && render_root !== 'ogygia';
 	// The island branch renders inline when nested OR on a csr=true page.
 	const island_inline = nested || is_csr;
 	if ((is_island || is_server) && !nested) setNested();
@@ -437,7 +445,8 @@
 	// The marker id fencing THIS island's children to its payload pointer. Server-assigned; the client
 	// reads it back from the serialized descriptor, never regenerates it.
 	// (counted per island entry: another island's async timing never shifts this one's id)
-	const slot_id = next_slot_id(untrack(() => island_entry) ?? '');
+	// (in a hole's answer, the hole's own sequence: server/answer-context.ts)
+	const slot_id = next_slot_id(untrack(() => island_entry) ?? '', getContext(HOLE_SLOT_SEQUENCE));
 	const has_slot_children = $derived(!nested && island_children != null);
 	// The BODY-side children: a server-convention snippet (`(renderer) => …`) that emits EXACTLY ONE
 	// element — `<ogygia-slot>` wrapping the natural children — with no extra snippet-layer anchors.
@@ -532,7 +541,7 @@
 	/**
 	 * This region's sheets as head tags: each one this request has not linked yet, named for its
 	 * owner. A sheet another outer island linked first gets this owner listed in the tail (#854,
-	 * test/shared-sheet-owners.test.ts). Server-only: `claim_region_css` is [] on the client.
+	 * test/shared-sheet-owners.test.ts). Server-only: `claim_region_css` is null on the client (no tags).
 	 * @param {string[]} hrefs
 	 */
 	const sheet_tags = (hrefs) => {
@@ -540,7 +549,7 @@
 			? (/** @type {string} */ href) => tail.sheet_owner(kit_asset(href), tag_owner)
 			: undefined;
 		let html = '';
-		for (const href of claim_region_css(hrefs, tag_owner, shared))
+		for (const href of claim_region_css(hrefs, tag_owner, shared) ?? [])
 			html += region_css_tag(href, kit_asset(href), tag_owner);
 		return html;
 	};
@@ -898,7 +907,7 @@
 	// Kit links CSS from the route's STATIC import graph, never from what actually rendered. This
 	// render pass knows, so link it here: real `<link>`s into <head> via svelte:head, claimed
 	// per-request so a page rendering five of the same block links its sheet once. Server-only —
-	// `claim_region_css` returns [] on the client (SSR already emitted them).
+	// `claim_region_css` returns null on the client: no tags (SSR already emitted them).
 	const region_css_html = $derived.by(() => {
 		if (!resolved || resolved.kind !== 'dual' || !resolved.module) return '';
 		return sheet_tags(region_css(resolved.module));
@@ -1014,7 +1023,7 @@
 	/** @param {import('./region.ts').DeferredRegion} f */
 	function identity(f) {
 		try {
-			return `${f.id} ${stringify_devalue(f.props)}`;
+			return `${f.id}\0${stringify_devalue(f.props)}`;
 		} catch {
 			return f.id;
 		}

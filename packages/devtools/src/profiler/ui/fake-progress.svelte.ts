@@ -5,7 +5,7 @@
  * "something is happening" reassurance bar. Call `start()` when the request goes out, `finish()` when
  * it resolves (it awaits one paint at 100% before returning), `fail()` on error.
  *
- * Its timers belong to it (a scope): the view that shows it disposes it when it unmounts, and every
+ * Its timers belong to it (a scope): the view that shows it closes it when it unmounts, and every
  * timer goes with it, mid-run or not.
  */
 import { scope, STALE, type Scope } from '@ogygia/machine';
@@ -50,7 +50,7 @@ export class FakeProgress {
 	}
 
 	/** Lets go of every timer, for good (the view unmounted). */
-	[Symbol.dispose](): void {
+	close(): void {
 		this.#owner.close();
 	}
 

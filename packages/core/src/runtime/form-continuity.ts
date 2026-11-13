@@ -2,8 +2,10 @@
  * CONTINUITY — ambient island form-field survival across SPA navigation.
  *
  * Leaving a page, every island input whose value differs from its SSR default is snapshotted into a
- * tab-session store, keyed by the page's path + a positional address (nth region + child-index path,
- * the same addressing `interaction` uses, because hydration can replace nodes). Returning to that
+ * tab-session store, keyed by the page's path + the island's name (its component and endpoint, and
+ * which copy of that island it is: never its place among the page's regions, which shifts when an
+ * island comes or goes, #1337) + the field's child-index path (the same addressing `interaction`
+ * uses, because hydration can replace nodes). Returning to that
  * page, each field is restored when its island (re)hydrates, with `input`/`change` fired so `bind:`
  * syncs. Session-scoped: survives navigation and back/forward, dies with the tab, never persisted.
  *
@@ -26,7 +28,8 @@ const VALUE_SELECTOR = 'input, textarea, select';
 const MAX_PAGES = 20;
 
 type FieldRec = {
-	region: number;
+	/** The island's name on its page (`region_names`). */
+	region: string;
 	addr: number[];
 	tag: string;
 	value: string;
@@ -60,12 +63,44 @@ function close_restore(): void {
 
 const is_checkable = (f: HTMLInputElement) => f.type === 'checkbox' || f.type === 'radio';
 
+/** A URL attribute as the page means it: a relative one (`./x`) resolved the way the runtime pins it
+ *  later (entry-locations.ts `pin_region_urls`), so a region's name is the same before and after. */
+function url_of(value: string | null): URL | null {
+	if (!value) return null;
+	try {
+		return new URL(value, document.baseURI);
+	} catch {
+		return null; // ok: not a URL; the name goes without it
+	}
+}
+
+/** What a region IS: its component (entry) and, for a hole, which one (its endpoint's path and
+ *  `id`). Never its props or its signature's expiry: a hole's props may change between visits. */
+function region_kind(region: Element): string {
+	const entry = url_of(region.getAttribute('entry'));
+	const endpoint = url_of(region.getAttribute('endpoint'));
+	return `${entry ? entry.pathname : ''} ${endpoint ? `${endpoint.pathname}?${endpoint.searchParams.get('id') ?? ''}` : ''}`;
+}
+
+/** Each region's name on its page: what it is (`region_kind`) and which copy of that island it is,
+ *  in document order. */
+function region_names(regions: Iterable<Element>): Map<Element, string> {
+	const copies = new Map<string, number>();
+	const names = new Map<Element, string>();
+	for (const region of regions) {
+		const signature = region_kind(region);
+		const n = copies.get(signature) ?? 0;
+		copies.set(signature, n + 1);
+		names.set(region, `${n} ${signature}`);
+	}
+	return names;
+}
+
 /** Snapshot changed island fields in `root` under `pathKey`. Call BEFORE the body is swapped out. */
 export function snapshot_forms(root: ParentNode, pathKey: string): void {
 	close_restore(); // the page is left: its restore is over
-	const regions = Array.from(root.querySelectorAll('ogygia-region'));
 	const recs: FieldRec[] = [];
-	regions.forEach((region, ri) => {
+	for (const [region, name] of region_names(root.querySelectorAll('ogygia-region'))) {
 		for (const el of region.querySelectorAll(VALUE_SELECTOR)) {
 			const f = el as HTMLInputElement;
 			// Per-field opt-out: mark a field (or an ancestor) `data-ogygia-no-keep` to never restore
@@ -76,14 +111,14 @@ export function snapshot_forms(root: ParentNode, pathKey: string): void {
 			const addr = element_address(region, el);
 			if (!addr) continue;
 			recs.push({
-				region: ri,
+				region: name,
 				addr,
 				tag: el.tagName,
 				value: f.value,
 				checked: is_checkable(f) ? f.checked : undefined
 			});
 		}
-	});
+	}
 	// (the store is bounded: past MAX_PAGES the least recently saved or read page goes)
 	if (recs.length) store.set(pathKey, recs);
 	else {
@@ -91,9 +126,9 @@ export function snapshot_forms(root: ParentNode, pathKey: string): void {
 	}
 }
 
-function apply_region(region: Element, ri: number, recs: FieldRec[]): void {
+function apply_region(region: Element, name: string, recs: FieldRec[]): void {
 	for (const r of recs) {
-		if (r.region !== ri) continue;
+		if (r.region !== name) continue;
 		const el = resolve_address(region, r.addr);
 		if (!el || el.tagName !== r.tag) continue;
 		const f = el as HTMLInputElement;
@@ -123,26 +158,23 @@ export function arm_form_restore(pathKey: string): void {
 	close_restore(); // (one window at a time: a page before this one's is over)
 	const recs = store.get(pathKey);
 	if (!recs) return;
-	// The page's regions read ONCE per arming (a read per hydrated island made each navigation
-	// regions × regions); re-read only when a hydrated region is not in the list (a hole brought it).
-	let regions = Array.from(document.querySelectorAll('ogygia-region'));
+	// The page's region names read ONCE per arming (a read per hydrated island made each navigation
+	// regions × regions); re-read only when a hydrated region is not named yet (a hole brought it).
+	const read_names = () => region_names(document.querySelectorAll('ogygia-region'));
+	let names = read_names();
 
-	regions.forEach((region, ri) => {
-		if (region.hasAttribute('data-hydrated')) apply_region(region, ri, recs);
-	});
+	for (const [region, name] of names)
+		if (region.hasAttribute('data-hydrated')) apply_region(region, name, recs);
 
 	const on_hydrated = (e: Event) => {
 		const region = e.target;
 		if (!(region instanceof Element) || region.localName !== 'ogygia-region') return;
-		let ri = regions.indexOf(region);
-		if (ri < 0) {
-			regions = Array.from(document.querySelectorAll('ogygia-region'));
-			ri = regions.indexOf(region);
-		}
-		if (ri >= 0) apply_region(region, ri, recs);
+		if (!names.has(region)) names = read_names();
+		const name = names.get(region);
+		if (name !== undefined) apply_region(region, name, recs);
 	};
-	// (a hole's answer can put regions anywhere, shifting the indices: read the list again after one)
-	const on_answer = () => (regions = Array.from(document.querySelectorAll('ogygia-region')));
+	// (a hole's answer can put a copy of an island before another: read the names again after one)
+	const on_answer = () => (names = read_names());
 	restore_window.go('open');
 	restore_window.scope.on(document, 'ogygia:hydrated', on_hydrated, true);
 	restore_window.scope.on(document, 'ogygia:server', on_answer, true);

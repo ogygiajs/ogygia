@@ -1,4 +1,5 @@
 import { boot_link } from './slots.ts';
+import { OgygiaError } from '../messages/lazy.ts';
 import {
 	PAGE_DEFER_KEY,
 	PAGE_SETTLED_KEY,
@@ -8,18 +9,21 @@ import {
 
 export { PAGE_DEFER_BOOTSTRAP } from '../page-defer.ts';
 
-type Deferred = {
-	promise: Promise<unknown>;
-	resolve: (v: unknown) => void;
-	reject: (e: unknown) => void;
-};
+type Settle = { resolve: (v: unknown) => void; reject: (e: unknown) => void };
 interface Registry {
 	q?: Array<[id: number, ok: boolean, encoded: string]>;
 	live?: (id: number, ok: boolean, encoded: string) => void;
-	deferreds?: Map<number, Deferred>;
-	settled?: Map<number, { ok: boolean; value: unknown }>;
+	/** each id's one promise, from its first read or its resolve, for the document's life (#1435) */
+	// oxlint-disable-next-line ogygia/no-promise-cache -- not a cache: a streamed value's one promise per id, a rejection included (it is the value the server sent)
+	promises?: Map<number, Promise<unknown>>;
+	/** the ones of those still waiting for their value */
+	waiting?: Map<number, Settle>;
 	revivers?: Record<string, (payload: never) => unknown>;
 	t?: Record<number, number>;
+	/** resolves that came and are still on their way in (devalue loading) */
+	arriving?: Set<number>;
+	/** the document has loaded: every resolve script it holds has run */
+	loaded?: boolean;
 }
 
 function reg(): Registry {
@@ -45,38 +49,51 @@ function to_error(value: unknown): Error {
  */
 export function create_deferred(id: number): Promise<unknown> {
 	const r = reg();
-	const deferreds = (r.deferreds ??= new Map());
-	const existing = deferreds.get(id);
-	if (existing) return existing.promise;
-	const early = r.settled?.get(id);
-	if (early) {
-		r.settled!.delete(id);
-		if (early.ok) return Promise.resolve(early.value);
-		const p = Promise.reject(to_error(early.value));
-		p.catch(() => {}); // ok: the same promise is handed back, and its `{#await}` sees the rejection; resolve raced ahead of the island — guard before `{#await}` attaches its :catch
-		return p;
-	}
-	let resolve!: (v: unknown) => void;
-	let reject!: (e: unknown) => void;
-	const promise = new Promise<unknown>((res, rej) => {
-		resolve = res;
-		reject = rej;
-	});
+	const promises = (r.promises ??= new Map());
+	const existing = promises.get(id);
+	if (existing) return existing;
+	let settle_it!: Settle;
+	const promise = new Promise<unknown>((resolve, reject) => (settle_it = { resolve, reject }));
 	promise.catch(() => {}); // ok: the same promise is handed back, and its `{#await}` sees the rejection; no unhandled-rejection noise if a rejected leaf goes un-awaited
-	deferreds.set(id, { promise, resolve, reject });
+	promises.set(id, promise);
+	(r.waiting ??= new Map()).set(id, settle_it);
+	if (r.loaded && !r.arriving?.has(id)) settle(id, false, unresolved('stream'));
 	return promise;
 }
 
+/** Why a streamed promise settles with no resolve: the document loaded without one (`stream`), or
+ *  its resolve came and devalue's download never did (`devalue`). */
+function unresolved(why: 'stream' | 'devalue'): Error {
+	return new OgygiaError('page_promise_unresolved', { why });
+}
+
+/** The document has loaded: every resolve script it holds has run, so a promise with none queued
+ *  or on its way in will never get one. */
+function document_loaded(): void {
+	const r = reg();
+	r.loaded = true;
+	// (settle deletes from the map it walks: a Map's for…of sees each key once all the same)
+	for (const id of r.waiting?.keys() ?? [])
+		if (!r.arriving?.has(id)) settle(id, false, unresolved('stream'));
+}
+
+/** `id`'s value came: its waiting promise settles, or, read by nobody yet, it is kept as a settled
+ *  promise for its first read (a resolve that raced ahead of the seed). A promise settles once. */
 function settle(id: number, ok: boolean, value: unknown): void {
 	const r = reg();
-	const d = r.deferreds?.get(id);
-	if (d) {
-		r.deferreds!.delete(id);
-		if (ok) d.resolve(value);
-		else d.reject(to_error(value));
-	} else {
-		(r.settled ??= new Map()).set(id, { ok, value });
+	r.arriving?.delete(id);
+	const waiting = r.waiting?.get(id);
+	if (waiting) {
+		r.waiting!.delete(id);
+		if (ok) waiting.resolve(value);
+		else waiting.reject(to_error(value));
+		return;
 	}
+	const promises = (r.promises ??= new Map());
+	if (promises.has(id)) return;
+	const promise = ok ? Promise.resolve(value) : Promise.reject(to_error(value));
+	promise.catch(() => {}); // ok: the same promise is handed back, and its `{#await}` sees the rejection; resolve raced ahead of the island — guard before `{#await}` attaches its :catch
+	promises.set(id, promise);
 }
 
 /** Install the live resolver (which parses the encoded value with the full reviver map, so a value
@@ -90,21 +107,31 @@ export function install_page_defer(
 	const r = reg();
 	if (r.live) return;
 	r.revivers = page_defer_revivers(extra_revivers);
-	r.live = (id, ok, encoded) =>
-		boot_link().with_devalue(({ parse }) => {
-			let value: unknown = null;
-			try {
-				value = parse(encoded, r.revivers as Parameters<typeof parse>[1]);
-			} catch {
-				// ok: a mangled chunk resolves to null, never hangs the `{#await}`
-			}
-			settle(id, ok, value);
-		});
+	r.live = (id, ok, encoded) => {
+		(r.arriving ??= new Set()).add(id);
+		boot_link().with_devalue(
+			({ parse }) => {
+				let value: unknown = null;
+				try {
+					value = parse(encoded, r.revivers as Parameters<typeof parse>[1]);
+				} catch {
+					// ok: a mangled chunk resolves to null, never hangs the `{#await}`
+				}
+				settle(id, ok, value);
+			},
+			() => settle(id, false, unresolved('devalue'))
+		);
+	};
 	const queued = r.q;
 	r.q = [];
 	if (queued) for (const [id, ok, encoded] of queued) r.live(id, ok, encoded);
 	const g = globalThis as unknown as Record<string, unknown>;
 	g[PAGE_DEFER_GLOBAL] ??= (id: number, ok: boolean, encoded: string) => r.live!(id, ok, encoded);
+	// (off a document, a test or the server: nothing says when the resolves are done)
+	if (typeof document === 'undefined') return;
+	if (document.readyState === 'complete') document_loaded();
+	// oxlint-disable-next-line ogygia/owned-effects -- the document's own load, once: the registry is the document's and outlives every visit
+	else addEventListener('load', document_loaded, { once: true });
 }
 
 /** devalue reviver map for the page seed. A DEFER marker becomes a pending Promise (streaming path); a

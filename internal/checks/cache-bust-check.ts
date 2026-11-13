@@ -503,6 +503,7 @@ try {
 		const profile = async () =>
 			(
 				await fetch(`${BASE}/__profiler/page?p=/dt-cache&runs=1&format=json`, {
+					method: 'POST',
 					headers: { 'x-profiler-key': PROFILER_KEY }
 				})
 			)
@@ -573,6 +574,7 @@ try {
 			// (past the report's second of clock slack: else the warm-up visit reads as the report's own)
 			await p.waitForTimeout(1600);
 			const rec = await fetch(`${BASE}/__profiler/page?p=/dt-cache&runs=1&format=json`, {
+				method: 'POST',
 				headers: { 'x-profiler-key': PROFILER_KEY }
 			})
 				.then((r) => r.json())
@@ -675,6 +677,7 @@ try {
 		});
 		await profiler_login(ctx);
 		const rec = await fetch(`${BASE}/__profiler/page?p=/dt-inp&runs=1&format=json`, {
+			method: 'POST',
 			headers: { 'x-profiler-key': PROFILER_KEY }
 		})
 			.then((r) => r.json())
