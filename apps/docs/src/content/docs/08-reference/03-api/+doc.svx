@@ -174,6 +174,15 @@ What it does and does not do:
 
 Options: `packages`, `force`, `keep` (matchers: a package name or specifier prefix, a `*` glob, a regex, or a function of the resolved id), `importers: { include, exclude }` (which files are rewritten; default project files), `followPackages` (walk `export *` into dependencies while mapping a barrel; default `true`), `report` (the end-of-build report: `true` = the eight biggest barrels and a count of the rest, `'all'` = every barrel, `false` = silent), `debug` (log every rewrite).
 
+### `bake()`
+
+`import.meta.og.bake(fn)` is a plugin, `bake()` from `@ogygia/bake`, listed beside `ogygia()`. Without it, a call fails the build with `macro_needs_plugin`. Its types come from `/// <reference types="@ogygia/bake/types" />`. See [bake](/docs/macros/bake).
+
+```ts
+import { bake } from '@ogygia/bake';
+export default defineConfig({ plugins: [ogygia(), bake(), sveltekit()] });
+```
+
 ### `presets`
 
 Presets are named bundles of strategy and options that an import references with `preset: 'name'`. A preset uses the same grammar as an inline import, namely `render` (the mode), `wake` (an island's schedule) or `fetch` (a hole's schedule), plus the tuning options that are not allowed inline (`margin`, `maxAge`, …):

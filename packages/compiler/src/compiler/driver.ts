@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { cache } from '@ogygia/machine';
+import { cache, say } from '@ogygia/machine';
 import { fnv1a32 } from '@ogygia/core/contract';
 import {
 	transformHost,
@@ -34,12 +34,7 @@ import { run_module_macros } from './macros/pipeline.ts';
 import { fn_manifest_entries, fn_manifest_registrations } from './macros/dollar.ts';
 import { is_script_request } from './script-request.ts';
 import { resolveFeatures } from './link/runtime-entry.ts';
-import {
-	resolveFoucImportSpec,
-	FOUC_CSS_PREFIX,
-	FOUC_SCOPED_PREFIX,
-	type FoucAlias
-} from './fouc-css.ts';
+import { resolveFoucImportSpec, FOUC_CSS_PREFIX, FOUC_SCOPED_PREFIX } from './fouc-css.ts';
 import {
 	moduleHasTransportable,
 	svelteModuleHasTransportable,
@@ -53,7 +48,6 @@ import {
 } from './region/emit.ts';
 import { by_key, location_map_files } from './link/location-map.ts';
 import { context_string_keys, source_uses_ogygia_context } from './link/context-detect.ts';
-import { collect_flag_sites, FLAGS_SPEC } from './flags.ts';
 import { router_css_roots } from './link/router-css.ts';
 import { source_crosses_wire } from './link/transport.ts';
 import { server_island_ids, PAGE_DATA_READS_TOKEN } from './link/server-manifest.ts';
@@ -145,8 +139,9 @@ export interface Profiler {
 		transformN: number;
 		transformHit: number;
 		prescanMs: number;
-		bakeMs: number;
-		bakeN: number;
+		/** time in plugin macros (`b.macro`), and how many calls */
+		macroMs: number;
+		macroN: number;
 		resolveMs: number;
 		loadMs: number;
 	};
@@ -222,13 +217,20 @@ export function app_shim_for(source: string, shims: Record<string, string>): str
 	else if (name.endsWith('.js')) name = name.slice(0, -'.js'.length);
 	return shims[`$app/${name}`] ?? null;
 }
-/** Manifest path for a flag site: package-relative for declared surfaces, root-relative else. */
-function flag_site_file(
+/** A prescanned module's identity: package-relative in declared files, root-relative else. */
+function prescan_rel(
 	ctx: { pkg_identity(p: string): string | null; root: string },
 	full: string
 ): string {
 	return (ctx.pkg_identity(full) ?? path.relative(ctx.root, full)).split(path.sep).join('/');
 }
+
+/** First-party packages with a build half an app turns on by listing their plugin: importing one
+ *  without the plugin is said once (packages/flags/test/inventory-build.test.ts). */
+// static: the first-party plugins whose package an app's modules import
+const PLUGIN_PACKAGES: Readonly<Record<string, string>> = { '@ogygia/flags': 'flags()' };
+/** Each unlisted package is said once per process (Kit builds two legs in one). */
+const unlisted_said = say();
 function extract_module_specs(src: string): string[] {
 	MODULE_SPEC_RE.lastIndex = 0;
 	const specs: string[] = [];
@@ -430,23 +432,28 @@ export class Compiler implements CoreApp {
 	}
 
 	/**
-	 * Run the module-macro passes (`wire`/`$`/`source`/`store`/auto-brand, the plugins' macros, then
-	 * `bake`) over one module — the leg that must land before the island transform / svelte compile /
+	 * Run the module-macro passes (`wire`/`$`/`source`/`store`/auto-brand, then the plugins' macros)
+	 * over one module — the leg that must land before the island transform / svelte compile /
 	 * ts-region minting sees it. `source` is the CURRENT text (a plugin's pre-transform may already have
 	 * edited it). Returns `{ code, touched }`; the caller nulls its own sourcemap when `touched`.
 	 */
-	macros(source: string, id: string): Promise<{ code: string; touched: boolean }> {
+	macros(
+		source: string,
+		id: string,
+		watch?: (file: string) => void
+	): Promise<{ code: string; touched: boolean }> {
 		const ctx = this.#ctx;
 		return run_module_macros(
 			source,
 			id,
 			{
 				root: ctx.root,
-				resolveAlias: ctx.resolve_alias,
+				alias: ctx.resolve_alias,
 				pkgRoot: ctx.pkg_root,
 				dollarHoists: this.dollar_hoists,
 				macros: ctx.macros,
-				ownSource: (file) => ctx.is_own_source(file)
+				ownSource: (file) => ctx.is_own_source(file),
+				watch
 			},
 			this.profiler
 		);
@@ -627,6 +634,17 @@ export class Compiler implements CoreApp {
 		const page_importers = ctx.page_importers;
 		const imports_page_spec = (specs: string[]): boolean =>
 			page_importers.length > 0 && specs.some((s) => page_importers.includes(s));
+		// PLUGIN READERS (`b.prescan`): each module importing what one asked for is handed to it; a
+		// first-party package imported with its plugin not listed is noted, and said at the end.
+		const unlisted = new Map<string, string>();
+		const read_for_plugins = (full: string, src: string, specs: string[]) => {
+			for (const hook of ctx.prescans)
+				if (specs.some((s) => hook.imports.includes(s)))
+					hook.module({ file: full, rel: prescan_rel(ctx, full), code: src });
+			for (const s of specs)
+				if (Object.hasOwn(PLUGIN_PACKAGES, s) && !ctx.plugins.includes(s) && !unlisted.has(s))
+					unlisted.set(s, prescan_rel(ctx, full));
+		};
 		const scan_file = (full: string, name: string) => {
 			if (name.endsWith('.svelte')) {
 				const src = ctx.read_file(full);
@@ -638,8 +656,7 @@ export class Compiler implements CoreApp {
 					const specs = extract_module_specs(src);
 					if (specs.length) program.module_specs.set(full, specs);
 					if (imports_page_spec(specs)) program.router_modules.add(full);
-					if (specs.includes(FLAGS_SPEC))
-						program.flag_sites.push(...collect_flag_sites(src, full, flag_site_file(ctx, full)));
+					read_for_plugins(full, src, specs);
 				}
 				// A `<script module>` transportable class goes in the manifest too (keyed by the
 				// .svelte path — side-effect-importing the component runs its module registration).
@@ -666,8 +683,7 @@ export class Compiler implements CoreApp {
 					const specs = extract_module_specs(src);
 					if (specs.length) program.module_specs.set(full, specs);
 					if (imports_page_spec(specs)) program.router_modules.add(full);
-					if (specs.includes(FLAGS_SPEC))
-						program.flag_sites.push(...collect_flag_sites(src, full, flag_site_file(ctx, full)));
+					read_for_plugins(full, src, specs);
 				}
 				// Transportable classes go into the eager-registration manifest so an island
 				// receiving one as a prop never has to import the class itself.
@@ -721,6 +737,10 @@ export class Compiler implements CoreApp {
 			}
 			if (P) prof.prescanMs += performance.now() - __ps;
 		}
+		for (const [pkg, file] of unlisted)
+			unlisted_said.once(pkg, () =>
+				warn('plugin_not_listed', { package: pkg, plugin: PLUGIN_PACKAGES[pkg]!, file })
+			);
 
 		// Complete `island_graph` TRANSITIVELY, before the bundler resolves a single module. `walk`
 		// above registered each island's OWN component; this marks everything those components import
@@ -840,7 +860,7 @@ export class Compiler implements CoreApp {
 	mark_island_closure(componentAbs: string): string[] {
 		const ctx = this.#ctx;
 		const { island_graph } = this.program;
-		const aliases = ctx.resolve_alias as readonly FoucAlias[];
+		const aliases = ctx.resolve_alias;
 		const added: string[] = [];
 		const resolve_dep = (spec: string, importerAbs: string): string | null => {
 			const base = resolveFoucImportSpec(spec, importerAbs, ctx.libDir, aliases);
@@ -1541,11 +1561,14 @@ export class Compiler implements CoreApp {
 		{
 			ssr,
 			leg,
-			emitFile
+			emitFile,
+			watch
 		}: {
 			ssr: boolean;
 			leg: BuildLeg;
 			emitFile: EmitChunk;
+			/** The bundler's watch for this module: a macro names the files it read. */
+			watch?: (file: string) => void;
 		}
 	): Promise<{ code: string; map: unknown } | null> {
 		const ctx = this.#ctx;
@@ -1602,12 +1625,13 @@ export class Compiler implements CoreApp {
 		let map: unknown = null;
 		let touched = false;
 
-		// The `import.meta.og.*` module macros — `wire`/`$`/`source`/`store`/auto-brand, the plugins'
-		// macros, then `bake` — all landing BEFORE either branch (island transform / svelte compile / ts
-		// region minting) sees the code, so a computed codec key is a real symbol, a hoisted fn is
-		// a ref, a baked call is plain data, and an inlined snippet flows through as a region. Each
-		// pass is a no-op unless its exact marker is present. Fills `dollar_hoists` + records bake timing.
-		const macroed = await this.macros(out, id_n);
+		// The `import.meta.og.*` module macros — `wire`/`$`/`source`/`store`/auto-brand, then the
+		// plugins' macros (`bake` last) — all landing BEFORE either branch (island transform / svelte
+		// compile / ts region minting) sees the code, so a computed codec key is a real symbol, a
+		// hoisted fn is a ref, a baked call is plain data, and an inlined snippet flows through as a
+		// region. Each pass is a no-op unless its exact marker is present. Fills `dollar_hoists` +
+		// records plugin macro timing.
+		const macroed = await this.macros(out, id_n, watch);
 		if (macroed.touched) {
 			out = macroed.code;
 			map = null; // any macro rewrite invalidates a prior sourcemap
