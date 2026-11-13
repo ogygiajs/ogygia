@@ -64,7 +64,6 @@ import {
 } from './virtual/core.ts';
 import type { Leg, Part } from './virtual/table.ts';
 import { strip_id, host_key } from './program.ts';
-import { mentions_page_store, page_data_keys_answer } from './link/page-keys.ts';
 import {
 	export_names,
 	registry_client_id,
@@ -1719,25 +1718,8 @@ export class Compiler implements CoreApp {
 			if (kind) this.#scan_facts(path.normalize(id_n), code, kind);
 		}
 
-		// SEED SHAPING: a module that imports Kit's page store is read ONCE here, on the compiler's
-		// parsers, for the top-level `page.data` keys it can reach (link/page-keys.ts). Recorded by
-		// the query-less id so the client `writeBundle` can find it from a chunk's `moduleIds`; the
-		// source form is what this pre-transform sees, before the `$app/*` shim rewrite below.
-		if (ctx.is_build && mentions_page_store(code)) {
-			const clean = id.split('?')[0].split('\\').join('/');
-			const kind = clean.endsWith('.svelte')
-				? 'svelte'
-				: SCRIPT_MODULE_RE.test(clean)
-					? 'script'
-					: null;
-			if (kind) {
-				const { keys, reason, pending } = page_data_keys_answer(code, clean, kind);
-				if (keys !== null) program.page_keys.set(clean, keys);
-				if (reason) program.page_key_reasons.set(clean, reason);
-				if (pending.length) program.page_pending.set(clean, pending);
-				else program.page_pending.delete(clean);
-			}
-		}
+		if (ctx.is_build && ctx.page_reads)
+			ctx.page_reads.module(id.split('?')[0].split('\\').join('/'), code);
 
 		// (There is deliberately NO csr=false route-client stripping here. Kit collects a route's
 		// CSS manifest from the CLIENT graph — stubbing those modules silently drops every component
@@ -1933,7 +1915,8 @@ export class Compiler implements CoreApp {
 			file_name: bundle.file_name,
 			facade_file: bundle.facade_file,
 			graph: bundle.graph,
-			module_ids: bundle.module_ids
+			module_ids: bundle.module_ids,
+			page_reads: ctx.page_reads
 		});
 		if (out === null) return null;
 		const { s, mapped } = out;
