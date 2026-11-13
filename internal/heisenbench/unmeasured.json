@@ -2913,8 +2913,12 @@
 			"reason": "build only: Vite's closeBundle hook, once per build leg, constant work of its own"
 		},
 		{
-			"id": "packages/compiler/src/vite/paths.ts > runtime_content_hash",
+			"id": "packages/compiler/src/vite/paths.ts > content_hash",
 			"reason": "build only: hashes the runtime's files on disk (file reads, not recorded), once per build leg"
+		},
+		{
+			"id": "packages/compiler/src/vite/paths.ts > runtime_inputs",
+			"reason": "build only: lists the runtime's files on disk (a directory read, not recorded), once per build leg"
 		},
 		{
 			"id": "packages/compiler/src/vite/paths.ts > scan_entry_pattern",

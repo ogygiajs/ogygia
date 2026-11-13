@@ -190,6 +190,18 @@
 	],
 	"covered": [
 		{
+			"site": "packages/compiler/src/vite/paths.ts > runtime_inputs > catch:0",
+			"reason": "an unbuilt runtime directory cannot be read: it adds no input",
+			"test": "packages/compiler/test/runtime-hash.test.ts",
+			"name": "an unbuilt runtime directory adds nothing"
+		},
+		{
+			"site": "packages/compiler/src/vite/paths.ts > content_hash > catch:0",
+			"reason": "an input that cannot be read adds nothing to the hash",
+			"test": "packages/compiler/test/runtime-hash.test.ts",
+			"name": "moves when any input changes; a missing input changes nothing"
+		},
+		{
 			"site": "packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:4",
 			"reason": "a config error, at config time: a plugin listed without a plugin it needs (postrender() without pageKeys())",
 			"test": "packages/compiler/test/plugins.test.ts",
@@ -2003,8 +2015,6 @@
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > throw:1",
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > catch:2",
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > throw:2",
-		"packages/compiler/src/vite/paths.ts > runtime_content_hash > catch:0",
-		"packages/compiler/src/vite/paths.ts > runtime_content_hash > catch:1",
 		"packages/compiler/src/vite/plugin-api.ts > definePlugin > configResolved > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:1",
