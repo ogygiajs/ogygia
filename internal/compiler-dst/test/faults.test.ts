@@ -7,14 +7,8 @@ import { describe, expect, test } from 'vitest';
 import fc from 'fast-check';
 import { app_files, app_shape } from '../src/app.ts';
 import { snapshot } from '../src/session.ts';
-import {
-	cold_server,
-	dev_server,
-	edit,
-	grow_only_missing,
-	KNOWN,
-	type Server
-} from '../src/dev.ts';
+import { cold_server, dev_server, edit, grow_only_missing, type Server } from '../src/dev.ts';
+import { dedent } from '../../../packages/core/src/contract/dedent.ts';
 import { permute, rng } from '../src/order.ts';
 import { faulty_fs, owed, WATCH_FAULTS, watched, type FaultyFs } from '../src/faults.ts';
 import { memory_fs } from '../../../packages/compiler/src/compiler/index.ts';
@@ -73,6 +67,38 @@ describe('the fault layer', () => {
 	});
 });
 
+describe('a lost watcher event, then the file saved again', () => {
+	test("a lake's wrapper served null while no host held it is served once a later save registers it (#1706)", async () => {
+		const A = '/dst-app/src';
+		const C0 = `${A}/lib/C0.svelte`;
+		const C1 = `${A}/lib/C1.svelte`;
+		const PAGE = `${A}/routes/+page.svelte`;
+		const lake_of = (from: string) =>
+			`${dedent`
+			<script>
+			import C1 from '${from}' with { wake: 'none' };
+			</script>
+			<C1 />
+		`}\n`;
+		const dev = dev_server({
+			[C0]: lake_of('./C1.svelte'),
+			[C1]: '<p>C1</p>\n',
+			[PAGE]: '<h1>page</h1>\n'
+		});
+		await dev.serve();
+		dev.fs.set(C0, '<p>C0</p>\n');
+		edit(dev, C1, null);
+		await dev.serve();
+		edit(dev, C1, '<p>C1</p>\n');
+		dev.fs.set(PAGE, lake_of('$lib/C1.svelte'));
+		await dev.serve();
+		for (const f of [C0, PAGE]) edit(dev, f, dev.fs.read(f));
+		await dev.serve();
+		const files = Object.fromEntries([C0, C1, PAGE].map((f) => [f, dev.fs.read(f)!]));
+		expect(seen(dev)).toEqual(seen(await cold_server(files, { dev: true, widen: dev.s })));
+	});
+});
+
 describe('dev matches a cold start through disk and watcher faults', () => {
 	test('after any run of edits, once each file seen wrong is saved again', async () => {
 		await fc.assert(
@@ -95,7 +121,7 @@ describe('dev matches a cold start through disk and watcher faults', () => {
 						const before = files;
 						const { deliveries, log } = watched(saves(files, to, seed + i), draws, {
 							rate,
-							faults: KNOWN.has(1706) ? ['twice', 'reordered'] : WATCH_FAULTS,
+							faults: WATCH_FAULTS,
 							there: (f) => before[f] !== undefined
 						});
 						all.push(...deliveries);
