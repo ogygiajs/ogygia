@@ -12,7 +12,8 @@
  *   store keeps a left page's answers (later, it was let go by design);
  * - no POST the app refused (4xx): a batch to a path that answers none (#987);
  * - nothing alive after its owner: an observer still observing once every element it watches has
- *   left the document (`tab.orphans()`; test/orphans.node.test.ts);
+ *   left the document (`tab.orphans()`; test/orphans.node.test.ts), and no woken island still
+ *   watched for where it is ({@link watched_awake});
  * - nothing sent twice in the document: one stylesheet linked twice, one `<style>` text twice, one
  *   island's props (`data-ogygia-props`) or a page seed twice, one module preloaded twice;
  * - nothing said: a console warning in such a document is something ogygia (or the app) found wrong.
@@ -251,6 +252,30 @@ export function warned(tab: Tab): string[] {
 	);
 }
 
+/**
+ * The woken islands an IntersectionObserver still watches at rest: nothing asks where one is once it
+ * woke (its `visible` wake fired once, the scheduler's viewport snapshot stops at its turn, a load's
+ * class at its end), so a watch kept is a watch nobody stopped, held until the island leaves. A
+ * mutant that dropped the snapshot's stop survived every other oracle (schedule.ts `drain`). Each
+ * as its open tag, less its props.
+ */
+export function watched_awake(tab: Tab): string[] {
+	return tab
+		.observed('IntersectionObserver')
+		.filter(
+			(t) =>
+				t.isConnected &&
+				t.localName === 'ogygia-region' &&
+				t.hasAttribute('entry') &&
+				!t.hasAttribute('render') &&
+				t.hasAttribute('data-hydrated')
+		)
+		.map(
+			(t) => `<ogygia-region entry="${t.getAttribute('entry')}" wake="${t.getAttribute('wake')}">`
+		)
+		.sort();
+}
+
 /** NO WASTE, for one tab's document at rest (the caller sets aside the documents the top names). */
 export function waste(world: World, tab: Tab): Broken | null {
 	const doc = tab.page.mainFrame.document as unknown as Document;
@@ -262,6 +287,7 @@ export function waste(world: World, tab: Tab): Broken | null {
 		...asked.left.map((k) => `refused: ${k}`),
 		...held.left.map((k) => `held twice: ${k}`),
 		...tab.orphans().map((o) => `alive after its owner: ${o}`),
+		...watched_awake(tab).map((r) => `watched after its wake: ${r}`),
 		...said.left.map((l) => `said: ${l.split('\n')[0].slice(0, 200)}`)
 	];
 	if (found.length > 0)

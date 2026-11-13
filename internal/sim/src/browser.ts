@@ -76,6 +76,8 @@ export interface Tab {
 	/** Observers still observing whose every watched element has left the document (their owner
 	 *  ended and nothing disconnected them), each as `<Name> watching <the first one's tag>`. */
 	orphans(): string[];
+	/** The elements observers of kind `name` (`IntersectionObserver`, ...) observe now. */
+	observed(name: string): Element[];
 	/** When the router swapped the shown document's page (`og:before-swap`, virtual ms): where one
 	 *  visit of the document ends and the next begins. */
 	swaps: number[];
@@ -666,6 +668,14 @@ export class Browsers {
 			}
 			return out.sort();
 		};
+		tab.observed = (name) => {
+			const out = new Set<Element>();
+			for (const o of observing) {
+				const mine = watched.get(o);
+				if (mine?.name === name) for (const t of mine.targets) out.add(t);
+			}
+			return [...out];
+		};
 	}
 
 	/**
@@ -745,6 +755,7 @@ export class Browsers {
 			listening: () => [],
 			watching: () => [],
 			orphans: () => [],
+			observed: () => [],
 			swaps: [],
 			swaps_by: new Map(),
 			heard: new Map(),
