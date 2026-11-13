@@ -15,6 +15,8 @@
 import path from 'node:path';
 import { renderId } from './region/identity.ts';
 import type { RuntimeMarks } from './link/runtime-entry.ts';
+import { OgygiaError } from './messages.ts';
+import { server_island_ids } from './link/server-manifest.ts';
 
 /** Strip a `?query` off a module id (host vs component vs Vite watch paths). */
 export const strip_id = (id: string): string => (id ? id.split('?')[0] : id);
@@ -244,9 +246,23 @@ export class Program {
 		// file's stale entry is harmless (never queried again). HMR correctness is preserved.
 	}
 
+	/** BUILD, server leg: the server-region ids `ogygia:server/server-manifest` was emitted with. A
+	 *  build cannot add a loader to it after that (test/server-region-late.test.ts). Null: not sealed. */
+	#server_sealed: ReadonlySet<string> | null = null;
+
+	/** Seal the server-region set: the manifest is being emitted with exactly these. */
+	seal_server_regions(): void {
+		this.#server_sealed = new Set(server_island_ids(this));
+	}
+
 	/** Replace this host's claims; shared ids keep one registry entry (path+strategy dedupe). */
 	register(result: RegisterResult, hostId: string): void {
 		const { registry, island_graph, by_id, region_kinds, host_index, id_hosts } = this;
+		const sealed = this.#server_sealed;
+		if (sealed)
+			for (const isl of result.islands ?? [])
+				if (isl.server && !sealed.has(isl.id))
+					throw new OgygiaError('server_region_late', { host: hostId });
 		this.unregister_host(hostId);
 		const key = host_key(hostId);
 		// The ONE wire rule: the transform said this file can cross live content into an island

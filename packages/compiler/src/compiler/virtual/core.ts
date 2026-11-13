@@ -553,6 +553,8 @@ export const server_manifest: Family<ServerManifestModule> = virtual.family({
 		const { ctx, program } = app;
 		if (ssr) app.prescan();
 		if (ssr && ctx.is_dev) app.note_server_ids(new Set(server_island_ids(program)));
+		// a build cannot add a region to this module once emitted: a later one is refused
+		if (ssr && ctx.is_build) program.seal_server_regions();
 		return server_manifest_module(
 			ssr,
 			program,
