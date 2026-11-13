@@ -4337,10 +4337,6 @@
 			"reason": "browser only: a kept region takes the next page's props on a navigation, through its live island and the page's context store (not cloneable), linear in its props; proven in apps/palaestra/e2e (#804)"
 		},
 		{
-			"id": "packages/core/src/runtime/hydrate-core.ts > absorb_region_props > capture_region_ids:1~a50e0d",
-			"reason": "browser only: the context read absorb_region_props wraps to record the ids the region owns (not cloneable), constant work around it (#804)"
-		},
-		{
 			"id": "packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_failed",
 			"reason": "an error path, at most once per Kit boot file per page: makes the coded error and says it once (console), constant work; proven in packages/core/test/browser/kit-page-thread.test.ts (#820)"
 		},
@@ -4951,6 +4947,18 @@
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_turns_counted > details",
 			"reason": "a message's prose for its docs page and dev warning: constant text, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_unregistered > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/federation-unregistered.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_unregistered > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/federation/src/serve.ts > serve_federation > once:1~b07d98",
+			"reason": "says federation_unregistered once per process for a federation path served before any federate(), constant work"
 		}
 	]
 }
