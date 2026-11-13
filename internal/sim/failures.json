@@ -140,12 +140,6 @@
 			"killed_by": "batch-unreleased-body-breaks"
 		},
 		{
-			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > stale:2",
-			"point": "batch.body-stalls",
-			"how": "the batch's body goes quiet (the point reads as a stall past STALL_MS): the batch ends, and the parts it still owed are released to fetch on their own",
-			"killed_by": "batch-unreleased-body-stalls"
-		},
-		{
 			"site": "packages/core/src/runtime/router-nav.ts > navigate > build > throw:0",
 			"point": "router.build-throws",
 			"how": "the point itself: a step of the next page's build throws (its devalue did not load, a parse failed)",
@@ -186,6 +180,12 @@
 			"point": "batch.part-lost",
 			"how": "a binder that joined a missed part gets STALE and asks again: its own fetch runs. Proved aimed (--buggify-aim batch.part-lost, gens 191 and 10: one that returns the STALE leaves the hole waiting, gen191:9 stuck)",
 			"killed_by": "missed-part-joiner-not-asking-again"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > stale:2",
+			"point": "batch.body-stalls",
+			"how": "the batch's body goes quiet (the point reads as a stall past STALL_MS): the batch ends, and the parts it still owed are released to fetch on their own",
+			"killed_by": "batch-unreleased-body-stalls"
 		}
 	],
 	"covered": [
@@ -2924,6 +2924,390 @@
 			"reason": "`catch (err) { const e = err as { code?: string; start?: { line?: numb…`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/barrels/test/left.test.ts",
 			"name": "unparsable: a component the parser cannot read keeps every barrel it imports"
+		},
+		{
+			"site": "packages/compiler/src/compiler/fouc-css.ts > foucRelFromId > catch:0",
+			"reason": "`catch { rel = encoded; // ok: not percent-encoded: the id holds the p…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/fouc-css-ids.test.ts",
+			"name": "%s decodes to %s"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_max_age > throw:0",
+			"reason": "`throw err(names, `\\`remount.maxAge\\` must be a non-negative number (m…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_max_age > throw:1",
+			"reason": "`throw err( names, `unknown remount.maxAge '${raw}'. Use a number (ms)…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_max_age > throw:2",
+			"reason": "`throw err(names, `\\`remount.maxAge\\` must be a number (ms) or duratio…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_cache_ttl_sec > throw:0",
+			"reason": "`throw err(names, `\\`maxAge\\` must be a non-negative number of seconds…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "maxAge %j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_cache_ttl_sec > throw:1",
+			"reason": "`throw err( names, `unknown \\`maxAge\\` '${raw}'. Use seconds (a number…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "maxAge %j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_cache_ttl_sec > throw:2",
+			"reason": "`throw err(names, `\\`maxAge\\` must be a number of seconds or a duratio…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "maxAge %j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:0",
+			"reason": "`throw err( names, `\\`remount.revalidate: true\\` is invalid — use 'loa…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:1",
+			"reason": "`throw err( names, `unknown remount.revalidate '${rev}'. Use false | '…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:2",
+			"reason": "`throw err(names, `unknown remount.onExpire '${oe}'. Use 'empty' | 'fe…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:3",
+			"reason": "`throw err( names, `\\`onExpire: 'fetch'\\` requires \\`revalidate\\` (a s…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:1",
+			"reason": "`throw err( node.name, `\\`render: 'live'\\` region <${node.name}> canno…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/transform-edges.test.ts",
+			"name": "%s is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:2",
+			"reason": "`throw err( node.name, `\\`render: 'live'\\` region <${node.name}> canno…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/transform-edges.test.ts",
+			"name": "%s is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:3",
+			"reason": "`throw err( node.name, `\\`render: 'live'\\` region <${node.name}> canno…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/transform-edges.test.ts",
+			"name": "%s is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:4",
+			"reason": "`throw fail( `preset '${from_preset}': \\`stitch\\` takes \\`true\\` / 'se…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:6",
+			"reason": "`throw fail( `\\`${k}\\` is not allowed inline. Use \\`${import_keys.wake…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/named-region-imports.test.ts",
+			"name": ".svelte: with { %s }"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:13",
+			"reason": "`throw fail( `\\`stitch\\` is only valid with \\`${import_keys.render}: '…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/preset-options.test.ts",
+			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:0",
+			"reason": "`throw new OgygiaError('region_import_invalid', { host: rel_host, name…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/ts-region-imports.test.ts",
+			"name": "%s is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/link/registry-stub.ts > static_script_specs > not-ok:0",
+			"reason": "`!parsed.ok`: proved: the !ok check made never true turns the test red, twice",
+			"test": "packages/compiler/test/registry-stub.test.ts",
+			"name": "unparsable → null"
+		},
+		{
+			"site": "packages/compiler/src/compiler/link/registry-stub.ts > registry_client_source > not-ok:0",
+			"reason": "`!parsed.ok`: proved: the !ok check made never true turns the test red, twice",
+			"test": "packages/compiler/test/registry-stub.test.ts",
+			"name": "a registry with no marks is returned unchanged; an unparsable one is null"
+		},
+		{
+			"site": "packages/compiler/src/compiler/parse/oxc.ts > parse_module > catch:0",
+			"reason": "`catch { return { program: null, ok: false, comments: [] }; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/oxc-parse.test.ts",
+			"name": "a source the parser refuses outright (a read that came back null) is a failed parse, never a throw"
+		},
+		{
+			"site": "packages/compiler/src/compiler/parse/oxc.ts > parse_module > result:1",
+			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
+			"test": "packages/compiler/test/oxc-parse.test.ts",
+			"name": "a source the parser refuses outright (a read that came back null) is a failed parse, never a throw"
+		},
+		{
+			"site": "packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > throw:0",
+			"reason": "`throw signal.reason;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/batch-stream-cancel.test.ts",
+			"name": "a call made with an aborted signal on a full gate rejects at once and never joins the queue"
+		},
+		{
+			"site": "packages/core/src/runtime/page-defer.ts > create_deferred > .catch:0",
+			"reason": "`promise.catch(() => {})`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/page-defer.test.ts",
+			"name": "a deferred leaf rejected while nobody awaits it makes no unhandled-rejection noise"
+		},
+		{
+			"site": "packages/core/src/runtime/page-defer.ts > settle > .catch:0",
+			"reason": "`promise.catch(() => {})`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/page-defer.test.ts",
+			"name": "a REJECTION that races ahead of the seed rejects cleanly (no unhandled-rejection noise)"
+		},
+		{
+			"site": "packages/core/src/runtime/page-defer.ts > page_defer_revivers > PAGE_SETTLED_KEY > .catch:0",
+			"reason": "`p.catch(() => {})`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/page-defer.test.ts",
+			"name": "a settled rejection revived where nobody awaits it makes no unhandled-rejection noise"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > stale:1",
+			"reason": "`res === STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/core/test/browser/frame-stream-stall.test.ts",
+			"name": "a batch given up while sending is reported missed with no answer status (0)"
+		},
+		{
+			"site": "packages/core/src/preload.ts > preload > .catch:0",
+			"reason": "`ensure( address, (signal) => fetch_hole(url, { signal, renewed: (fres…`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/browser/preload-hole.test.ts",
+			"name": "a preload whose fetch fails is quiet: no unhandled rejection reaches the page"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > navigate > .catch:0",
+			"reason": "`t.ready?.catch(() => {})`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/browser/router-nav-claims.test.ts",
+			"name": "a skipped transition leaves no unhandled rejection on the page"
+		},
+		{
+			"site": "packages/core/src/fn-transport.ts > fn_handle > throw:1",
+			"reason": "`throw new OgygiaError('fn_factory_not_function', { tag });`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/refusals.test.ts",
+			"name": "an og.$ factory that returns no function"
+		},
+		{
+			"site": "packages/core/src/ref.ts > resolve > throw:0",
+			"reason": "`throw new OgygiaError('ref_kind_missing', { kind: String(ref.k) });`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/refusals.test.ts",
+			"name": "a ref of a kind nobody registered"
+		},
+		{
+			"site": "packages/core/src/live-transport.ts > class_for > throw:0",
+			"reason": "`throw new OgygiaError('transportable_class_missing', { tag: String(ta…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/refusals.test.ts",
+			"name": "a wire value whose class the receiving build does not have"
+		},
+		{
+			"site": "packages/core/src/live-transport.ts > register_wire_kind > encode > throw:0",
+			"reason": "`throw new OgygiaError('transportable_unregistered', { name: cls.name …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/refusals.test.ts",
+			"name": "a wire class sent without its build registration"
+		},
+		{
+			"site": "packages/core/src/script.ts > script > throw:0",
+			"reason": "`throw new OgygiaError('script_run_not_function');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/refusals.test.ts",
+			"name": "a script whose run is not a function"
+		},
+		{
+			"site": "packages/core/src/script.ts > script > throw:2",
+			"reason": "`throw new OgygiaError('script_import_not_url', { name });`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/refusals.test.ts",
+			"name": "a module script import that is no URL"
+		},
+		{
+			"site": "packages/core/src/script.ts > script > throw:4",
+			"reason": "`throw new OgygiaError('script_not_json', { key });`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/refusals.test.ts",
+			"name": "a data script whose payload JSON cannot write"
+		},
+		{
+			"site": "packages/core/src/server/region-endpoint.ts > mint_server_region > throw:0",
+			"reason": "`throw new OgygiaError('hole_props_too_large', { entry, length: payloa…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/refusals.test.ts",
+			"name": "a deferred region whose props are past the address limit"
+		},
+		{
+			"site": "packages/core/src/store-transport.ts > register_derived_kind > decode > throw:0",
+			"reason": "`throw new OgygiaError('og_derived_formula_missing');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/refusals.test.ts",
+			"name": "a derived store revived without its formula"
+		},
+		{
+			"site": "packages/core/src/store-transport.ts > mark_store > catch:0",
+			"reason": "`catch { if (typeof console !== 'undefined') { warn('store_not_extensi…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/quiet-failures.test.ts",
+			"name": "a store that cannot take its tag is returned as is, and said"
+		},
+		{
+			"site": "packages/core/src/html.ts > Html > constructor > throw:0",
+			"reason": "`throw new TypeError('Html is made by html(), attr() or trusted_html()…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/refusals.test.ts",
+			"name": "Html is made only by its own module"
+		},
+		{
+			"site": "packages/core/src/contract/switch.ts > testing_lean > catch:0",
+			"reason": "`catch { return false; // ok: off the browser, or cookies blocked: not…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/quiet-failures.test.ts",
+			"name": "the testing switch reads not lean"
+		},
+		{
+			"site": "packages/core/src/contract/switch.ts > devtools_switched_on > catch:0",
+			"reason": "`catch { return false; // ok: off the browser, or cookies blocked, as …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/quiet-failures.test.ts",
+			"name": "the devtools switch reads off"
+		},
+		{
+			"site": "packages/core/src/contract/switch.ts > write_switch > catch:0",
+			"reason": "`catch { // ok: cookies off: nothing remembers the switch past this pa…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/quiet-failures.test.ts",
+			"name": "writing the devtools switch is a no-op"
+		},
+		{
+			"site": "packages/core/src/contract/core-files.ts > real_posix > catch:0",
+			"reason": "`catch { // ok: kept as given; a missing path never matches an id }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/quiet-failures.test.ts",
+			"name": "a path that does not exist is kept as given, with forward slashes"
+		},
+		{
+			"site": "packages/core/src/context.ts > note_early_hole > catch:0",
+			"reason": "`catch { // ok: no request (the client, a build step): no head to star…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/quiet-failures.test.ts",
+			"name": "an early hole noted outside a request is dropped"
+		},
+		{
+			"site": "packages/core/src/context-bridge.ts > parse_ctx > catch:0",
+			"reason": "`catch (e) { if (DEV) warn('page_payload_unreadable', { what: 'context…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/quiet-failures.test.ts",
+			"name": "a provided-context marker that does not parse provides nothing"
+		},
+		{
+			"site": "packages/core/src/plugin/facts.ts > current_request > catch:0",
+			"reason": "`catch { return undefined; // ok: outside a request, as said above }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/quiet-failures.test.ts",
+			"name": "a request reader that throws reads as no request"
+		},
+		{
+			"site": "packages/core/src/source.ts > fingerprint_args > catch:0",
+			"reason": "`catch { return 'opaque'; // ok: args that do not stringify share one …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/quiet-failures.test.ts",
+			"name": "arguments JSON cannot write share one opaque tag"
+		},
+		{
+			"site": "packages/core/src/source.ts > record_source_read > catch:1",
+			"reason": "`catch (error) { report_thrown(error); }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/quiet-failures.test.ts",
+			"name": "a receipt observer that throws never fails the read, and is reported"
+		},
+		{
+			"site": "packages/core/src/tool-fetches.ts > tool_fetch > catch:0",
+			"reason": "`catch { // ok: no location (not a browser): nothing to list it in }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/quiet-failures.test.ts",
+			"name": "a tool fetch off the browser goes out as given"
+		},
+		{
+			"site": "packages/core/src/router-css.ts > router_css_of > catch:0",
+			"reason": "`catch { return []; // ok: a broken handoff read must degrade to unsty…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/quiet-failures.test.ts",
+			"name": "a component's router CSS whose read throws is no CSS"
+		},
+		{
+			"site": "packages/core/src/plugin/server.ts > end_request > catch:1",
+			"reason": "`catch { // ok: a platform that refuses it: the work runs on by itself…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/plugin-request-end.test.ts",
+			"name": "a platform whose waitUntil refuses the work: the request still ends, and the work runs on by itself"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > normalize_import_keys_uncached > throw:0",
+			"reason": "`throw new OgygiaError('import_key_invalid', { role, got: String(JSON.…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/region-mark-refusals.test.ts",
+			"name": "an import key that is no JavaScript name"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:2",
+			"reason": "`throw fail( `\\`${import_keys.preset}\\` must be the only import attrib…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/region-mark-refusals.test.ts",
+			"name": "a preset beside another attribute"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:2",
+			"reason": "`throw new OgygiaError('region_import_no_specifier', { host: rel_host,…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/region-mark-refusals.test.ts",
+			"name": "a marked import with no specifier in a .ts module"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > names > throw:0",
+			"reason": "`throw new Error('resolve_plugins: no region table without ogygia()');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "without ogygia() a plugin reading the region table is told so"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > barrelWhy > throw:0",
+			"reason": "`throw new Error('resolve_plugins: no region table without ogygia()');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "without ogygia() a plugin reading the region table is told so"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:0",
+			"reason": "`throw unread();`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a client realm that does not parse, or whose defineClient spreads, cannot be read"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:2",
+			"reason": "`throw unread();`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a client realm that does not parse, or whose defineClient spreads, cannot be read"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > routeConfig > throw:1",
+			"reason": "`throw new OgygiaError('route_config_key_claimed', { key, owner, plugi…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a macro or a route config key two plugins both claim is refused, naming the first"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > macro > throw:1",
+			"reason": "`throw new OgygiaError('plugin_macro_claimed', { name, owner, plugin: …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a macro or a route config key two plugins both claim is refused, naming the first"
+		},
+		{
+			"site": "packages/compiler/src/compiler/queries.ts > queries > set_input > throw:0",
+			"reason": "`throw new Error(`query ${query.name} is not an input`);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/queries.test.ts",
+			"name": "an answer, not an input, cannot be set"
+		},
+		{
+			"site": "packages/compiler/src/compiler/queries.ts > queries > moved > catch:0",
+			"reason": "`catch { return true; // ok: an answer that now throws has changed; it…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/queries.test.ts",
+			"name": "an answer that now throws has moved, for a watcher and for answers_changed_since"
+		},
+		{
+			"site": "packages/compiler/src/compiler/queries.ts > queries > answers_changed_since > catch:0",
+			"reason": "`catch { return true; // ok: an answer that now throws has changed; it…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/queries.test.ts",
+			"name": "an answer that now throws has moved, for a watcher and for answers_changed_since"
 		}
 	],
 	"impossible": [
@@ -2932,6 +3316,12 @@
 			"why": "a flights' get is STALE only when its world moves, a drop or dispose ends its flight, a fresh flight supersedes it, or the caller's signal aborts. The island files' flights has no world, and its type, FileLoads, is a get by URL alone: no drop, no dispose, no fresh, no signal compiles. So no island file's load is ever STALE.",
 			"by": "packages/core/src/runtime/import-again.ts",
 			"name": "FileLoads"
+		},
+		{
+			"site": "packages/core/src/server/hmac.ts > Hmac > verify > catch:0",
+			"why": "timingSafeEqual throws only on buffers of different lengths. verify refuses any signature that is not 64 lowercase hex before the compare, so both buffers are always the 32 bytes of a SHA-256; the test holds that precheck.",
+			"by": "packages/core/test/quiet-failures.test.ts",
+			"name": "a signature that is not 64 lowercase hex is refused before any compare"
 		}
 	],
 	"baseline": [
@@ -3044,7 +3434,6 @@
 		"packages/compiler/src/compiler/exports/index.ts > ExportIndex > resolve > stale:0",
 		"packages/compiler/src/compiler/exports/index.ts > Walk > map > stale:0",
 		"packages/compiler/src/compiler/exports/index.ts > Walk > through > stale:0",
-		"packages/compiler/src/compiler/fouc-css.ts > foucRelFromId > catch:0",
 		"packages/compiler/src/compiler/fouc-css.ts > compileFoucScopedCss > catch:0",
 		"packages/compiler/src/compiler/fouc-css.ts > listStaticImports > catch:0",
 		"packages/compiler/src/compiler/fs.ts > read > catch:0",
@@ -3063,8 +3452,6 @@
 		"packages/compiler/src/compiler/link/build-output.ts > emit_island_deps_handoff > catch:1",
 		"packages/compiler/src/compiler/link/emit-gate.ts > parse_server_handoff > parse:0",
 		"packages/compiler/src/compiler/link/emit-gate.ts > read_server_handoff > catch:0",
-		"packages/compiler/src/compiler/link/registry-stub.ts > static_script_specs > not-ok:0",
-		"packages/compiler/src/compiler/link/registry-stub.ts > registry_client_source > not-ok:0",
 		"packages/compiler/src/compiler/macros/dollar.ts > misuse > throw:0",
 		"packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > refuse > throw:0",
 		"packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > throw:0",
@@ -3073,56 +3460,33 @@
 		"packages/compiler/src/compiler/macros/wire.ts > misuse > throw:0",
 		"packages/compiler/src/compiler/ownership-stamps.ts > opaque_stamp_edits > catch:0",
 		"packages/compiler/src/compiler/parse/oxc.ts > parse_module > result:0",
-		"packages/compiler/src/compiler/parse/oxc.ts > parse_module > catch:0",
-		"packages/compiler/src/compiler/parse/oxc.ts > parse_module > result:1",
 		"packages/compiler/src/compiler/parse/scan.ts > split_first_string > throw:0",
 		"packages/compiler/src/compiler/parse/scan.ts > split_first_string > throw:1",
 		"packages/compiler/src/compiler/parse/scan.ts > split_first_string > throw:2",
 		"packages/compiler/src/compiler/queries.ts > queries > compute > throw:0",
 		"packages/compiler/src/compiler/queries.ts > queries > compute > catch:0",
 		"packages/compiler/src/compiler/queries.ts > queries > compute > throw:1",
-		"packages/compiler/src/compiler/queries.ts > queries > set_input > throw:0",
-		"packages/compiler/src/compiler/queries.ts > queries > moved > catch:0",
-		"packages/compiler/src/compiler/queries.ts > queries > answers_changed_since > catch:0",
 		"packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:0",
 		"packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:1",
 		"packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:2",
 		"packages/compiler/src/compiler/region/marked-imports.ts > refuse_as_region > throw:0",
 		"packages/compiler/src/compiler/region/marked-imports.ts > check_marked_uses > fail > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > normalize_import_keys_uncached > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > normalize_import_keys_uncached > throw:1",
 		"packages/compiler/src/compiler/region/transform.ts > normalize_region_value > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > normalize_hydrate_value > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > reject_dynamic_region_imports > walk > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > parse_max_age > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > parse_max_age > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > parse_max_age > throw:2",
-		"packages/compiler/src/compiler/region/transform.ts > parse_cache_ttl_sec > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > parse_cache_ttl_sec > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > parse_cache_ttl_sec > throw:2",
-		"packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:2",
-		"packages/compiler/src/compiler/region/transform.ts > parse_remount > throw:3",
 		"packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:2",
-		"packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:3",
 		"packages/compiler/src/compiler/region/transform.ts > resolve_component_path > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:2",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:3",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:4",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:5",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:6",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:7",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:8",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:9",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:10",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:11",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:12",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:13",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:14",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:15",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:16",
@@ -3143,9 +3507,7 @@
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:1",
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:2",
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:3",
-		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:2",
 		"packages/compiler/src/compiler/transportables.ts > exportedWireClassesFromBody > throw:0",
 		"packages/compiler/src/compiler/virtual/core.ts > dev_runtime_of > parse:0",
 		"packages/compiler/src/compiler/virtual/core.ts > dev_runtime_of > catch:0",
@@ -3190,26 +3552,20 @@
 		"packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:1",
 		"packages/compiler/src/vite/plugin-api.ts > pinned_imports > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > names > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > barrelWhy > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:1",
 		"packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:2",
 		"packages/compiler/src/vite/plugin-api.ts > check_plugins > catch:0",
 		"packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:3",
 		"packages/compiler/src/vite/plugin-api.ts > realm_path > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:1",
-		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:2",
 		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:3",
 		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:4",
 		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:5",
 		"packages/compiler/src/vite/plugin-api.ts > package_resolves > catch:0",
 		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > routeConfig > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > routeConfig > throw:1",
 		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > macro > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > macro > throw:1",
 		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > pageModules > throw:0",
 		"packages/compiler/src/vite/session.ts > refuse > throw:0",
 		"packages/compiler/src/vite/sourcemaps.ts > island_sourcemaps_plugin > transform > catch:0",
@@ -3338,15 +3694,8 @@
 		"packages/content/src/vite/index.ts > validate_presets > throw:2",
 		"packages/content/src/vite/index.ts > validate_presets > throw:3",
 		"packages/content/src/vite/leaks.ts > warn_content_leaks > catch:0",
-		"packages/core/src/context-bridge.ts > warn_ctx_size > catch:0",
-		"packages/core/src/context-bridge.ts > parse_ctx > catch:0",
 		"packages/core/src/context-bridge.ts > createContext > get > throw:0",
-		"packages/core/src/context.ts > note_early_hole > catch:0",
 		"packages/core/src/contract/core-files.ts > (module) > parse:0",
-		"packages/core/src/contract/core-files.ts > real_posix > catch:0",
-		"packages/core/src/contract/switch.ts > testing_lean > catch:0",
-		"packages/core/src/contract/switch.ts > devtools_switched_on > catch:0",
-		"packages/core/src/contract/switch.ts > write_switch > catch:0",
 		"packages/core/src/early-holes.ts > start_early_holes > parse:0",
 		"packages/core/src/early-holes.ts > start_early_holes > abort:0",
 		"packages/core/src/early-holes.ts > start_early_holes > fetch:0",
@@ -3354,21 +3703,16 @@
 		"packages/core/src/events/sinks.ts > install_postmessage_sink > sink > message:0",
 		"packages/core/src/events/sinks.ts > ingest_server_events > parse:0",
 		"packages/core/src/events/sinks.ts > ingest_server_events > catch:0",
-		"packages/core/src/fn-transport.ts > fn_handle > throw:1",
 		"packages/core/src/head-owners.ts > adopt_owner_record > parse:0",
 		"packages/core/src/head-owners.ts > adopt_owner_record > catch:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > inject_client_seeds > stale:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > render_component > abort:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > capability_parcel > abort:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > capability_parcel > abort:1",
-		"packages/core/src/html.ts > Html > constructor > throw:0",
 		"packages/core/src/island-graph.ts > decode_island_locations > parse:0",
 		"packages/core/src/island-graph.ts > decode_island_graph > parse:0",
 		"packages/core/src/keep-fallback.ts > keepFallback > catch:0",
-		"packages/core/src/live-transport.ts > class_for > throw:0",
-		"packages/core/src/live-transport.ts > register_wire_kind > encode > throw:0",
 		"packages/core/src/plugin/css.ts > run > import:0",
-		"packages/core/src/plugin/facts.ts > current_request > catch:0",
 		"packages/core/src/plugin/reads.ts > observe_reads > fetch:0",
 		"packages/core/src/plugin/reads.ts > carries_cookies > catch:0",
 		"packages/core/src/plugin/request-scope.ts > entry_of > error-event:0",
@@ -3376,7 +3720,6 @@
 		"packages/core/src/plugin/request-scope.ts > own_response > pull > stream:0",
 		"packages/core/src/plugin/request-scope.ts > own_response > pull > stream:1",
 		"packages/core/src/plugin/request-scope.ts > own_response > pull > stream:2",
-		"packages/core/src/plugin/server.ts > end_request > catch:1",
 		"packages/core/src/plugin/testing.ts > verify > crypto:0",
 		"packages/core/src/policies.ts > (module) > policy:0",
 		"packages/core/src/policies.ts > (module) > policy:1",
@@ -3390,20 +3733,16 @@
 		"packages/core/src/preference.ts > preference_impl > head > storage:0",
 		"packages/core/src/preference.ts > preference_impl > head > catch:0",
 		"packages/core/src/preference.ts > preference_impl > set > catch:0",
-		"packages/core/src/preload.ts > preload > .catch:0",
-		"packages/core/src/ref.ts > resolve > throw:0",
 		"packages/core/src/region-snippet.ts > region_snippet > throw:0",
 		"packages/core/src/region.ts > make_inline_awaitable > value > run > import:0",
 		"packages/core/src/region.ts > make_inline_awaitable > value > reject:0",
 		"packages/core/src/region.ts > make_awaitable > value > reject:0",
 		"packages/core/src/request-event.ts > requestEvent > catch:0",
-		"packages/core/src/router-css.ts > router_css_of > catch:0",
 		"packages/core/src/rules.ts > Rules > broken > catch:0",
 		"packages/core/src/runtime/client-plugins.ts > region_urls > catch:0",
 		"packages/core/src/runtime/code-origins.ts > origin_of > catch:0",
 		"packages/core/src/runtime/code-origins.ts > import_code > import:0",
 		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > abort:0",
-		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > throw:0",
 		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > abort:1",
 		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > enter > gone > abort:0",
 		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > enter > error-event:0",
@@ -3440,11 +3779,10 @@
 		"packages/core/src/runtime/devalue-lane.ts > with_devalue > stale:0",
 		"packages/core/src/runtime/drift-watch.ts > watch_region > observer:0",
 		"packages/core/src/runtime/form-continuity.ts > url_of > catch:0",
-		"packages/core/src/runtime/frame-nav.ts > streamFrames > stale:0",
-		"packages/core/src/runtime/frame-nav.ts > streamFrames > stale:1",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > body:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > .catch:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > stream:0",
+		"packages/core/src/runtime/frame-nav.ts > streamFrames > stale:0",
 		"packages/core/src/runtime/frame-store.ts > write > refused:0",
 		"packages/core/src/runtime/frame-store.ts > reserve > reject:0",
 		"packages/core/src/runtime/frame-store.ts > release > refused:0",
@@ -3481,10 +3819,7 @@
 		"packages/core/src/runtime/morph.ts > carry_shadows > catch:0",
 		"packages/core/src/runtime/nav-handle.ts > (module) > import:0",
 		"packages/core/src/runtime/nav-handle.ts > invalidate_all > stale:0",
-		"packages/core/src/runtime/page-defer.ts > create_deferred > .catch:0",
-		"packages/core/src/runtime/page-defer.ts > settle > .catch:0",
 		"packages/core/src/runtime/page-defer.ts > install_page_defer > live > catch:0",
-		"packages/core/src/runtime/page-defer.ts > page_defer_revivers > PAGE_SETTLED_KEY > .catch:0",
 		"packages/core/src/runtime/region-endpoint-url.ts > capability_expired > catch:0",
 		"packages/core/src/runtime/region-endpoint-url.ts > deny_of > catch:0",
 		"packages/core/src/runtime/region-endpoint-url.ts > warm_key > catch:0",
@@ -3498,7 +3833,6 @@
 		"packages/core/src/runtime/router-nav.ts > navigate > build > catch:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > build > abort:1",
 		"packages/core/src/runtime/router-nav.ts > navigate > build > abort:2",
-		"packages/core/src/runtime/router-nav.ts > navigate > .catch:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > reject:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > .catch:1",
 		"packages/core/src/runtime/router-nav.ts > navigate > refused:0",
@@ -3528,20 +3862,13 @@
 		"packages/core/src/runtime/svelte-warnings.ts > tap_svelte_warnings > warn > catch:0",
 		"packages/core/src/runtime/viewport.ts > Tracker > hear_swaps > observer:0",
 		"packages/core/src/runtime/wire-format.ts > parse_wire_text > parse:0",
-		"packages/core/src/script.ts > script > throw:0",
-		"packages/core/src/script.ts > script > throw:2",
-		"packages/core/src/script.ts > script > throw:4",
 		"packages/core/src/server/capped-body.ts > read_capped > stream:0",
 		"packages/core/src/server/dead-kit-resolves.ts > drop_dead_kit_resolves > transform > stream:0",
 		"packages/core/src/server/hmac.ts > Hmac > verify > crypto:0",
-		"packages/core/src/server/hmac.ts > Hmac > verify > catch:0",
 		"packages/core/src/server/hmac.ts > hex_equal > crypto:0",
-		"packages/core/src/server/hole-graph.ts > root_absolute > catch:0",
-		"packages/core/src/server/hole-urls.ts > resolve_attr > catch:0",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > stale:0",
 		"packages/core/src/server/region-endpoint.ts > region_session > catch:0",
 		"packages/core/src/server/region-endpoint.ts > reuse_known_region > catch:1",
-		"packages/core/src/server/region-endpoint.ts > mint_server_region > throw:0",
 		"packages/core/src/server/region-props.ts > encode_region_props > catch:0",
 		"packages/core/src/server/render-cache.ts > cached_render > abort:0",
 		"packages/core/src/server/render-cache.ts > cached_render > throw:1",
@@ -3557,13 +3884,7 @@
 		"packages/core/src/server/stream-regions.ts > batch_stream > cancel > refused:0",
 		"packages/core/src/shims/kit-remote/client-stub.ts > seed_query_responses > catch:0",
 		"packages/core/src/shims/kit-remote/remote-cache.ts > release_departed > catch:0",
-		"packages/core/src/source.ts > record_source_read > catch:1",
-		"packages/core/src/source.ts > fingerprint_args > catch:0",
-		"packages/core/src/store-transport.ts > mark_store > catch:0",
-		"packages/core/src/store-transport.ts > register_derived_kind > decode > throw:0",
-		"packages/core/src/tool-fetches.ts > tool_fetch > catch:0",
 		"packages/core/src/tool-fetches.ts > tool_fetch > fetch:0",
-		"packages/core/src/transport.ts > register_region_kind > encode > throw:0",
 		"packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > read > catch:0",
 		"packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > writeBundle > catch:0",
 		"packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > handler > catch:0",

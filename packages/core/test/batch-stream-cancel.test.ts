@@ -108,6 +108,24 @@ describe('ConcurrencyGate: a call whose signal aborts (#245)', () => {
 		expect(gate.active).toBe(0);
 	});
 
+	it('a call made with an aborted signal on a full gate rejects at once and never joins the queue', async () => {
+		const gate = new ConcurrencyGate(1);
+		const held = gate.run(() => new Promise<void>(() => {}));
+		const gone = AbortSignal.abort();
+		let ran = false;
+		const outcome = gate
+			.run(async () => void (ran = true), { signal: gone })
+			.then(
+				() => 'ran',
+				(e: unknown) => e
+			);
+		await sleep(5);
+		expect(gate.waiting).toBe(0);
+		expect(await Promise.race([outcome, sleep(20).then(() => 'still waiting')])).toBe(gone.reason);
+		expect(ran).toBe(false);
+		void held;
+	});
+
 	it('a waiter whose signal aborts in the step it is handed a slot never runs, and gives the slot back', async () => {
 		const gate = new ConcurrencyGate(1);
 		let done!: () => void;
