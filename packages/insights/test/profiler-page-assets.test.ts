@@ -58,6 +58,16 @@ describe('scan_assets', () => {
 		expect(refs.map((r) => r.url)).toEqual(['/x.css', '/y.css']);
 	});
 
+	test('reads the page as core’s tag walk does: comments end where the browser ends them, a textarea or title holds no tag (#1370)', () => {
+		const { refs } = scan_assets(
+			'<head><!--><script src="/a.js"></script><!-- x --!><link rel=stylesheet href=/b.css>' +
+				'<title><link rel=stylesheet href=/no.css></title></head>' +
+				'<body><textarea><img src="/no.png"></textarea><img src="/c.png"></body>'
+		);
+		expect(refs.map((r) => r.url)).toEqual(['/a.js', '/b.css', '/c.png']);
+		expect(refs.find((r) => r.url === '/b.css')?.blocking).toBe(true);
+	});
+
 	test('attributes: quoted, unquoted, valueless, entities', () => {
 		const html = `<link rel=preload as="script" href='/a.js?x=1&amp;y=2' crossorigin>`;
 		const a = tag_attrs(next_tag(html, 'link', 0)!);
