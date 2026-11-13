@@ -335,6 +335,10 @@ in it; with the pass's `trim` it also trims and drops whitespace-only text, as a
 with `link`, an `<x-gen-link>` sits in a page's `<a>` and renders an `<a>` (the stand-in case; the
 outer `<a>` is `data-gen-messy`, the render's own markup). ogygia marks before the pass and restores
 in the browser before anything hydrates, so every oracle sees Svelte's markup where Svelte owns it.
+The pass also fails as an app's does, through buggify points in the app's code: it throws, takes
+3 s, or strips ogygia's marks (`gen.reshape-*`). ogygia sends a failed answer as it rendered it
+(#1569), so the oracles that judge every page (no 500, no hydration mismatch, the MPA check against
+a fresh load the pass may not have failed on) are what say a failing pass leaves the page whole.
 Gens 24 (trims, links,
 no router), 10 (links, router) and 196 run it. Mutation of `packages/reshape/src/restore.ts` runs
 on gens 24 and 10.
