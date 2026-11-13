@@ -655,7 +655,11 @@ describe('the random app', () => {
 			all(plan(s).flatMap((p) => p.roots)).filter((n) => n.thirdParty)
 		);
 		const kinds = new Set(touched.map((n) => n.thirdParty));
-		expect([...kinds].sort()).toEqual(['prepend', 'retag', 'text']);
+		expect([...kinds].sort((a, b) => String(a).localeCompare(String(b)))).toEqual([
+			'prepend',
+			'retag',
+			'text'
+		]);
 		const seed = seeds.find((s) =>
 			all(plan(s).flatMap((p) => p.roots)).some((n) => n.thirdParty === 'retag')
 		)!;

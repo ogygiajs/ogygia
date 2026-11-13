@@ -244,7 +244,7 @@ async function run_page(page, fresh = async () => {}) {
 	const need = repeat === 1 ? 1 : Math.ceil((repeat * 2) / 3);
 	let failed = 0;
 	console.log(`\n${page}  (found in N of ${repeat} runs; a planted kind needs ${need})`);
-	for (const [kind, n] of [...hits].sort()) {
+	for (const [kind, n] of [...hits].sort(([a], [b]) => (a < b ? -1 : 1))) {
 		const small = k.small.has(kind);
 		const ok = n >= need;
 		if (!ok && !small) failed++;
