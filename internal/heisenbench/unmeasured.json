@@ -1889,6 +1889,14 @@
 			"reason": "an error's message as a string, constant work"
 		},
 		{
+			"id": "packages/federation/src/federate.ts > SourceCapture > constructor",
+			"reason": "once per expose render: swaps the request's sources fact for a fresh list, constant work; its input is a live Request with the app's facts (not recorded); the federation expose tests run it"
+		},
+		{
+			"id": "packages/federation/src/federate.ts > SourceCapture > end",
+			"reason": "once per expose render: copies the render's source tags into the set and restores the request's list, linear in the tags; it reads the live request's facts (not replayable); the federation expose tests run it"
+		},
+		{
 			"id": "packages/federation/src/federate.ts > thaw_outbox",
 			"reason": "makes one outbox at module load (functions and a policy, not cloneable), constant work; the outbox itself is benched in packages/machine/bench/machine.bench.ts"
 		},
