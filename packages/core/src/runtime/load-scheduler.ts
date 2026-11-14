@@ -303,7 +303,7 @@ export class LoadSlot {
 				...(this.label !== undefined ? { label: this.label } : {}),
 				waitedMs: Math.round(now() - this.queued_at)
 			});
-		this.#resolve(place.release);
+		this.#resolve(() => place.release());
 	}
 
 	/** Out of the queue without a start (a fresh document): it stops watching, and never starts. */
