@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { VirtualTable } from '../src/virtual/resolver.ts';
 import { virtual, type Part } from '../src/virtual/table.ts';
 import { CORE_PARTS, type CoreApp } from '../src/virtual/core.ts';
-import { derived, input, queries, type Queries } from '../src/queries.ts';
+import { derived, input, Queries } from '../src/queries.ts';
 
 /** A dev change to `part`: the modules it moved. */
 function bump<A>(t: VirtualTable<A>, part: Part): string[] {
@@ -86,7 +86,7 @@ function table(): VirtualTable<App> {
 		() => '',
 		{ 'ogygia:server/opts': ['ttl'] },
 		PARTS,
-		queries('session')
+		new Queries('session')
 	);
 }
 
@@ -161,7 +161,7 @@ describe('a dev change reloads exactly the modules that read it', () => {
 			() => '',
 			{},
 			PARTS,
-			queries('session')
+			new Queries('session')
 		);
 		const id = '\0ogygia:region/server-reads';
 		load_now(t, id, { ssr: true, universalHooks: null });
@@ -216,14 +216,14 @@ describe('a load is a reader of the session’s queries', () => {
 	}
 
 	it('a query it read that changed names it, and only it', () => {
-		const db = queries('session');
+		const db = new Queries('session');
 		const { t, size } = session(db);
 		db.set(size, 'a', 3);
 		expect(t.moved()).toEqual([R('total')]);
 	});
 
 	it('an answer that comes out the same names nobody (early cutoff)', () => {
-		const db = queries('session');
+		const db = new Queries('session');
 		const { t, size } = session(db);
 		db.set(size, 'a', 3);
 		t.moved();
@@ -237,7 +237,7 @@ describe('a load is a reader of the session’s queries', () => {
 	});
 
 	it('a part moved names the modules that read it, beside any query that changed', () => {
-		const db = queries('session');
+		const db = new Queries('session');
 		const { t, size } = session(db);
 		db.set(size, 'a', 3);
 		t.move('regions');

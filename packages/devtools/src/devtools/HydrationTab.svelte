@@ -13,7 +13,7 @@
 	 */
 	import { hydration_rows, STATUS_RANK as RANK } from './hydration.ts';
 	import { html_diff } from '@ogygia/insights';
-	import { highlight, clear_highlight } from './highlight.ts';
+	import { highlighter } from './highlight.ts';
 	import { onMount } from 'svelte';
 
 	let { tick = 0, selected = $bindable(null) } = $props();
@@ -48,7 +48,7 @@
 		return r?.snap ? html_diff(r.snap.ssr, r.snap.hydrated) : null;
 	});
 
-	onMount(() => () => clear_highlight());
+	onMount(() => () => highlighter.clear());
 </script>
 
 <div class="hy" data-og-hydration>
@@ -73,8 +73,8 @@
 				<tr
 					class="row {r.status}"
 					data-status={r.status}
-					onmouseenter={() => highlight([r.el], `${r.name} — ${LABEL[r.status]}`)}
-					onmouseleave={() => clear_highlight()}
+					onmouseenter={() => highlighter.show([r.el], `${r.name} — ${LABEL[r.status]}`)}
+					onmouseleave={() => highlighter.clear()}
 					onclick={() => press(r)}
 					title={r.snap && r.status !== 'clean' ? 'show the difference' : "open the island's card"}
 				>
@@ -83,8 +83,8 @@
 					<td class="nm"
 						><button
 							class="rowbtn"
-							onfocus={() => highlight([r.el], `${r.name} — ${LABEL[r.status]}`)}
-							onblur={() => clear_highlight()}>{r.name}</button
+							onfocus={() => highlighter.show([r.el], `${r.name} — ${LABEL[r.status]}`)}
+							onblur={() => highlighter.clear()}>{r.name}</button
 						><span class="muted"> {r.wake}</span></td
 					>
 					<td class="why" title={r.reason}

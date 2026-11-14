@@ -866,11 +866,11 @@
 	{
 		"id": "reversible-localize-off",
 		"file": "packages/rewrite/src/reversible.ts",
-		"in": "localize_marks",
-		"code": "if (!moved) return { html, back: same };",
+		"in": "LocalMarks > constructor",
+		"code": "if (!moved) {",
 		"operator": "statement",
-		"from": "if (!moved) return",
-		"to": "return",
+		"from": "if (!moved) {",
+		"to": "{",
 		"equivalent": "no page can tell: without local numbering the render sees the page's own ids and hands them back, so what goes out is the same bytes; what is lost is the stable element.html an app's cache keys on and the one render of equal elements, which packages/rewrite/test/rewrite.test.ts ('run in order on one marking: the second sees the first one’s output, marks intact') kills"
 	},
 	{

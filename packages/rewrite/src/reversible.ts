@@ -1215,25 +1215,34 @@ export function root_attr(
 
 /** An element's marks renumbered from 0 in order of appearance, so the same element has the same
  *  bytes wherever it sits; `back` puts the ids it had on whatever a render returns. */
-export function localize_marks(html: string): {
-	html: string;
-	back: (rendered: string) => string;
-} {
-	const to_local = new Map<number, number>();
-	let moved = false;
-	const local = remap(html, (id) => {
-		let l = to_local.get(id);
-		if (l === undefined) to_local.set(id, (l = to_local.size));
-		if (l !== id) moved = true;
-		return l;
-	});
-	if (!moved) return { html, back: same };
-	const to_doc = new Map<number, number>();
-	for (const [d, l] of to_local) to_doc.set(l, d);
-	return { html: local, back: (rendered) => remap(rendered, (id) => to_doc.get(id)) };
-}
+export class LocalMarks {
+	readonly html: string;
+	readonly #to_doc: Map<number, number> | null = null;
 
-const same = (html: string): string => html;
+	constructor(html: string) {
+		const to_local = new Map<number, number>();
+		let moved = false;
+		const local = remap(html, (id) => {
+			let l = to_local.get(id);
+			if (l === undefined) to_local.set(id, (l = to_local.size));
+			if (l !== id) moved = true;
+			return l;
+		});
+		if (!moved) {
+			this.html = html;
+			return;
+		}
+		const to_doc = new Map<number, number>();
+		for (const [d, l] of to_local) to_doc.set(l, d);
+		this.html = local;
+		this.#to_doc = to_doc;
+	}
+
+	back(rendered: string): string {
+		const to_doc = this.#to_doc;
+		return to_doc === null ? rendered : remap(rendered, (id) => to_doc.get(id));
+	}
+}
 
 /** The ids of the hosts ogygia restores (`og-h`) in `html`, quoted any way a serializer writes them. */
 export function restored_ids(html: string): Set<number> {

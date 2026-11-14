@@ -272,6 +272,22 @@ export const SERVER_WARNINGS = {
 			refused. ${SECRET_FIX}
 		`
 	},
+	kit_start_ungated: {
+		text: (a: { path: string }): string => prose`
+			${a.path}: this csr=true page carries ogygia's runtime and Kit's start script, but ogygia could
+			not hold Kit's start until the runtime booted: the script has no \`import("…")\` of Kit's
+			entry in the form ogygia expects. Kit may start before the runtime, and a lake can come up
+			empty.
+		`,
+		details: (): string => prose`
+			Dev only. On a csr=true page with islands inside lakes, ogygia rewrites the one
+			expression of Kit's inline start script that imports Kit's entry, so Kit starts after
+			ogygia's runtime. Here it found Kit's script but no such expression: Kit changed how its
+			start script loads its entry (an upgrade), or the app uses \`bundleStrategy: 'inline'\`,
+			whose start script imports nothing. Report it with your Kit version; the canary
+			\`packages/core/test/canary/kit-start-script.test.ts\` names the shapes ogygia knows.
+		`
+	},
 	outside_page_data_unavailable: {
 		text: (a: { path: string; miss: string }): string =>
 			`${a.path}: the page's data for a render outside it is unavailable: ${a.miss}. The render sees an empty page.data.`,
