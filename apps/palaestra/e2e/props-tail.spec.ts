@@ -68,7 +68,7 @@ test.describe('PROPS TAIL: island props ride at the end of the body, keyed by fi
 		check(
 			'every region fp has a sidecar',
 			fps.every((fp) => keys.includes(fp)),
-			`fps ${fps} keys ${keys}`
+			`fps ${fps.join(',')} keys ${keys.join(',')}`
 		);
 		check(
 			'identical islands share one sidecar (3 sidecars for 4 regions)',
@@ -92,7 +92,7 @@ test.describe('PROPS TAIL: island props ride at the end of the body, keyed by fi
 		check(
 			'every island entry on the page has its graph',
 			[...entries].every((e) => graph.has(e)),
-			`entries ${[...entries]} graph ${[...graph.keys()]}`
+			`entries ${[...entries].join(',')} graph ${[...graph.keys()].join(',')}`
 		);
 	});
 

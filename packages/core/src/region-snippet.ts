@@ -247,6 +247,7 @@ function make(desc: RegionSnippetDescriptor, live_entry: Component | null = null
 					);
 				return () => {
 					dead = true;
+					// oxlint-disable-next-line typescript/no-floating-promises -- a cleanup cannot wait: Svelte's unmount resolves when its outros end and never rejects
 					if (app) unmount(app as never);
 				};
 			}

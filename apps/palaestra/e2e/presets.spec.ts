@@ -17,7 +17,7 @@ const ISLAND_LOAD_RE = /<OgygiaRegion__Wrapper __mode="island" load /;
 const SERVER_WRAPPER_RE = /OgygiaRegion__Wrapper __mode="server"/;
 const MEDIA_768_RE = /media=\{?"\(min-width: 768px\)"\}?/;
 const UNKNOWN_PRESET_RE = /unknown preset 'nope'.*chart/s;
-const NOT_ALLOWED_INLINE_RE = /not allowed inline/;
+const NOT_AN_ATTRIBUTE_RE = /`\w+` is not an attribute ogygia has/;
 const ONLY_IMPORT_ATTRIBUTE_RE = /must be the only import attribute/;
 const MODE_SERVER_RE = /__mode="server"/;
 const DEFER_IDLE_RE = /__defer=\{"idle"\}/;
@@ -122,7 +122,7 @@ test.describe('transform-level: region syntax + presets + errors', () => {
 		expect_error(
 			'inline option key rejected (margin)',
 			wrap(`import C from './C.svelte' with { wake: 'visible', margin: '9px' };`),
-			NOT_ALLOWED_INLINE_RE
+			NOT_AN_ATTRIBUTE_RE
 		);
 		expect_error(
 			'preset + another inline key rejected',
@@ -211,7 +211,7 @@ test.describe('transform-level: region syntax + presets + errors', () => {
 		expect_error(
 			'unknown key alongside a region key rejected',
 			wrap(`import C from './C.svelte' with { wake: 'load', wat: 'x' };`),
-			NOT_ALLOWED_INLINE_RE
+			NOT_AN_ATTRIBUTE_RE
 		);
 		{
 			const r = run(wrap(`import data from './d.json' with { type: 'json' };`, '<p>{data}</p>'));

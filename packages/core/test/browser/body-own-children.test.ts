@@ -21,8 +21,8 @@ install_morph();
 link_boot();
 
 let app: ReturnType<typeof mount> | null = null;
-afterEach(() => {
-	if (app) unmount(app);
+afterEach(async () => {
+	if (app) await unmount(app);
 	app = null;
 	document.body.replaceChildren();
 	for (const a of Array.from(document.body.attributes)) document.body.removeAttribute(a.name);

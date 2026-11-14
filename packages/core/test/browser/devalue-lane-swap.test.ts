@@ -1,5 +1,6 @@
 // Its own file: whether devalue is loaded is module state shared by a file's tests.
 import { expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { stringify } from 'devalue';
 import { bootDev } from '../../src/runtime/full.ts';
 import { devalue } from '../../src/runtime/devalue-lane.ts';
@@ -9,7 +10,7 @@ import { TEST_MARK_ATTR } from './_response-mark.ts';
 const hydrated = () => document.querySelectorAll('ogygia-region[data-hydrated]').length;
 
 test('a page swapped in with a devalue-lane seed is asked about again, though no region connected', async () => {
-	const json = decodeURIComponent(escape(atob(inject('counter_json_lane_ssr_b64'))));
+	const json = from_b64(inject('counter_json_lane_ssr_b64'));
 	const region = json.slice(0, json.indexOf('</ogygia-region>') + '</ogygia-region>'.length);
 	document.body.innerHTML = region.replace('wake="load"', 'wake="interaction"') + json;
 	bootDev();

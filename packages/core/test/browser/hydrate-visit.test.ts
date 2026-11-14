@@ -4,15 +4,13 @@
 // of its visit and must touch nothing of the new one: the island mounts ONCE, and the old run's
 // failure is not the new visit's (no failed state, no error said for it, no report).
 import { afterEach, expect, inject, test, vi } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 
 const SLOW = '/test/browser/fixtures/slow-entry.ts';
 const SLOW_FAIL = '/test/browser/fixtures/slow-fail-entry.ts';
 const island = (entry: string) =>
-	decodeURIComponent(escape(atob(inject('counter_ssr_b64')))).replace(
-		/entry="[^"]*"/,
-		`entry="${entry}"`
-	);
+	from_b64(inject('counter_ssr_b64')).replace(/entry="[^"]*"/, `entry="${entry}"`);
 
 const tick = (ms = 50) => new Promise((r) => setTimeout(r, ms));
 

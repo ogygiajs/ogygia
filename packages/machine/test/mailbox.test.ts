@@ -185,7 +185,7 @@ describe('mailbox', () => {
 		await Promise.all(asks);
 		// (each started in order; each came back once its own wait settled and the turn was free)
 		expect(seen.slice(0, 5)).toEqual([0, 1, 2, 3, 4]);
-		expect(seen.slice(5).sort()).toEqual([10, 11, 12, 13, 14]);
+		expect(seen.slice(5).sort((a, b) => a - b)).toEqual([10, 11, 12, 13, 14]);
 	});
 
 	it('ask() gives the handler’s value, sync or async, in its turn', async () => {

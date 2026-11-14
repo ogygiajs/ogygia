@@ -270,6 +270,7 @@ export function orama_engine(): SearchEngine {
 			docs.forEach((d, i) => {
 				const rid = String(i);
 				by_id.set(rid, d);
+				// oxlint-disable-next-line typescript/no-floating-promises -- with no async components orama inserts at once (test: site.test.ts › orama's insert answers at once for the engine's schema)
 				mod!.insert(db, {
 					id: rid,
 					title: d.title,

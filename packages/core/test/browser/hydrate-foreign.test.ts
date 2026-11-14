@@ -2,6 +2,7 @@
 // its module's `__og_hydrate` gets the region and props parsed plain, nothing of this build's
 // around them. Whether an island is foreign is read off its entry alone.
 import { afterEach, beforeAll, beforeEach, expect, inject, test, vi } from 'vitest';
+import { from_b64 } from './b64.ts';
 import type { Component } from 'svelte';
 import { stringify } from 'devalue';
 import { link_boot } from '../../src/runtime/boot-link.ts';
@@ -12,7 +13,7 @@ import { hydrate_island, read_region_props } from '../../src/runtime/hydrate-cor
 import Counter from './fixtures/Counter.svelte';
 
 const FOREIGN = 'https://peer.example.com/_app/widget.js';
-const render_html = () => decodeURIComponent(escape(atob(inject('counter_render_b64'))));
+const render_html = () => from_b64(inject('counter_render_b64'));
 let said: string[] = [];
 
 type Seen = { region: Element; props: Record<string, unknown>; options: unknown };

@@ -58,9 +58,9 @@ async function run(plugins: PluginOption[]): Promise<Array<[string, string]>> {
 		build: {
 			write: false,
 			minify: false,
-			rollupOptions: { input: path.join(root, 'src', 'entry.ts') }
+			rolldownOptions: { input: path.join(root, 'src', 'entry.ts') }
 		}
-	})) as Rollup.RollupOutput;
+	})) as Rollup.RolldownOutput;
 	return out.output
 		.map((o): [string, string] => [o.fileName, o.type === 'chunk' ? o.code : String(o.source)])
 		.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));

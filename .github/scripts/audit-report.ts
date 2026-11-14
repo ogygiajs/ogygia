@@ -160,7 +160,7 @@ const groups = { dependency: new Map(), peer: new Map(), dev: new Map() };
 let elsewhere = 0;
 
 for (const a of Object.values(audit.advisories ?? {})) {
-	const versions = [...new Set((a.findings ?? []).map((f) => f.version))];
+	const versions = [...new Set<string>((a.findings ?? []).map((f) => f.version))];
 	const ways = versions.flatMap((v) => reached.get(`${a.module_name}@${v}`) ?? []);
 	if (ways.length === 0) {
 		elsewhere++;

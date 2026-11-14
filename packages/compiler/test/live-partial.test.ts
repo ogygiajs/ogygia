@@ -19,7 +19,7 @@ function fakeBinding(overrides: Record<string, unknown> = {}) {
 		__hydrate: 'load',
 		__component: Comp,
 		__sign: (id: string) => `SIG(${id})`,
-		__renderHtml: (props: Record<string, unknown>) => `<p>${props.n ?? ''}</p>`,
+		__renderHtml: (props: Record<string, unknown>) => `<p>${String(props.n ?? '')}</p>`,
 		...overrides
 	};
 }

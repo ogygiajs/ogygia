@@ -18,12 +18,12 @@
 		"to": "6_000"
 	},
 	{
-		"id": "repair-lakes-not-lifted",
-		"file": "packages/core/src/runtime/hydrate-core.ts",
-		"in": "repair_if_drifted",
-		"code": "slots.lakes.lift(want);",
+		"id": "repair-walks-into-lakes",
+		"file": "packages/core/src/runtime/ownership.ts",
+		"in": "owner_of",
+		"code": "if (el.localName === REGION && el.matches(OPAQUE_SELECTOR)) return 'static';",
 		"operator": "statement",
-		"from": "slots.lakes.lift(want);",
+		"from": "if (el.localName === REGION && el.matches(OPAQUE_SELECTOR)) return 'static';",
 		"to": ""
 	},
 	{
