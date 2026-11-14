@@ -5,6 +5,7 @@
 // 1280x720 viewport, src/layout.ts) and an IntersectionObserver that reports from it, at a frame.
 import { describe, expect, it } from 'vitest';
 import { Window } from 'happy-dom';
+import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
 import { Loop } from '../src/loop.ts';
 import { rng } from '../src/rng.ts';
 import { boxes, install_layout } from '../src/layout.ts';
@@ -124,5 +125,35 @@ describe('a simulated document has a layout, and its IntersectionObserver report
 		}).observe($('below'));
 		await loop.run(100);
 		expect(later).toEqual(['below true']);
+	});
+});
+
+describe('a layout', () => {
+	it('of a large page keeps a bounded number of the stylesheet matches it is done with (seed 274517047: a page of 60,000 elements kept a match for every element and selector, and a worker ran out of memory in one frame)', () => {
+		const room = 10_000;
+		const rules = 40;
+		const items = 2000;
+		const { w } = page(
+			`<style>${Array.from({ length: rules }, (_, i) => `.c${i} { margin: 1px }`).join('\n')}</style><ul>${Array.from(
+				{ length: items },
+				(_, i) => `<li class="c${i % rules}">${i}</li>`
+			).join('')}</ul>`
+		);
+		const at = boxes(w.document as unknown as Document, room);
+		expect(at.size).toBe(w.document.querySelectorAll('*').length);
+		const listed = (w.document as unknown as Record<symbol, unknown[]>)[PropertySymbol.affectsCache]
+			.length;
+		expect(items * rules).toBeGreaterThan(4 * room);
+		expect(listed).toBeLessThanOrEqual(2 * room + rules);
+	});
+
+	it('of a page of ordinary size keeps every cache, which the next frame’s layout reuses', () => {
+		const { w } = page('<ul><li class="a">a</li><li>b</li></ul>');
+		boxes(w.document as unknown as Document);
+		const li = w.document.querySelector('li') as unknown as Record<
+			symbol,
+			{ computedStyle?: { result: unknown } | null; matches: Map<string, unknown> }
+		>;
+		expect(li[PropertySymbol.cache].computedStyle?.result).toBeTruthy();
 	});
 });
