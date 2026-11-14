@@ -185,14 +185,19 @@ export function register_region_kind(): void {
 	});
 }
 
-// static: one family
-const REGION_ONLY = new Set(['region']);
+const REGION_ONLY: ReadonlySet<string> = new Set(['region']);
 
 /** Every hub family the ONE `OgygiaRef` transport entry carries (hub v2 phase Y — symmetry).
  *  Region stays in the list for decode-completeness, but the `Region` entry below is first in
  *  object order so regions still ENCODE through it (legacy `EncodedRegion` wire shape kept). */
-// static: every family
-const ALL_FAMILIES = new Set(['wire', 'store', 'snippet', 'fn', 'derived', 'region']);
+const ALL_FAMILIES: ReadonlySet<string> = new Set([
+	'wire',
+	'store',
+	'snippet',
+	'fn',
+	'derived',
+	'region'
+]);
 
 // Kit calls the transport's `encode` for EVERY value it serializes (each node of a 700 KB load
 // tree), so the per-call work here is what a whole page pays thousands of times: register the

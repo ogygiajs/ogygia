@@ -17,8 +17,9 @@ function page_applied(bridge: Bridge): boolean {
 	if (bridge == null) return false;
 	try {
 		return bridge.page?.status !== KIT_PRE_START_STATUS;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- Kit's page cannot be read yet: not applied
 	} catch {
-		return false; // ok: Kit's page cannot be read yet: not applied
+		return false;
 	}
 }
 
@@ -83,9 +84,8 @@ function kit_boot_imports(): CodeUrl[] {
 			try {
 				const url = code_url(new URL(JSON.parse(m[1]) as string, document.baseURI).href);
 				if (url !== null) urls.add(url);
-			} catch {
-				// ok: not a URL Kit's import could load either; Kit's other files still decide
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL Kit's import could load either; Kit's other files still decide
+			} catch {}
 		}
 	}
 	return [...urls];

@@ -68,8 +68,9 @@ async function with_store<T>(
 	try {
 		const tx = db.transaction(name, mode);
 		return await fn(tx.objectStore(name));
+		// oxlint-disable-next-line ogygia/no-silent-failures -- null is "not stored": callers show it (KeepLocal says it could not keep it)
 	} catch {
-		return null; // ok: null is "not stored": callers show it (KeepLocal says it could not keep it)
+		return null;
 	} finally {
 		db.close();
 	}

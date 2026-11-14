@@ -142,8 +142,9 @@ export function restore_with(
 		try {
 			sheet = new CSSStyleSheet();
 			sheet.replaceSync(css);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no constructable stylesheets: a <style> per root
 		} catch {
-			sheet = null; // ok: no constructable stylesheets: a <style> per root
+			sheet = null;
 		}
 		const made = { sheet, css };
 		sheets.set(key, made);
@@ -189,9 +190,8 @@ export function restore_with(
 					// (never script: no handler, no srcdoc, no script URL; test/browser/restore.test.ts)
 					else if (!unsafe_attr(el, name, v)) el.setAttribute(name, v);
 				}
-			} catch {
-				// ok: a mangled diff: the attributes are left as served
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a mangled diff: the attributes are left as served
+			} catch {}
 		}
 		// (no class in the diff: the render left it as Svelte's)
 		if (custom) {
@@ -208,8 +208,9 @@ export function restore_with(
 		if (q === -1) return undefined;
 		try {
 			return JSON.parse(data.slice(q + 1)) as string;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a comment that only looks like a mark carries no original
 		} catch {
-			return undefined; // ok: a comment that only looks like a mark carries no original
+			return undefined;
 		}
 	};
 
@@ -277,8 +278,9 @@ export function restore_with(
 	)) {
 		try {
 			check = Object.assign(check ?? {}, JSON.parse(check_el.textContent || '{}'));
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a check that does not parse checks nothing; the restore itself goes on
 		} catch {
-			check ??= null; // ok: a check that does not parse checks nothing; the restore itself goes on
+			check ??= null;
 		}
 		check_el.remove();
 	}
@@ -564,7 +566,7 @@ export function restore_with(
  *  still out after 30 s never goes in (a morph took a copy of it, the hole left): dropped. */
 export function restore_adopt(): void {
 	const W = window as PageGlobals;
-	// port-ok: inlined as text by restore_adopt.toString() (no imports)
+	// oxlint-disable-next-line ogygia/ports -- inlined as text by restore_adopt.toString() (no imports)
 	const now = performance.now();
 	const waiting = (root: WaitingShadow) => now - (root.__og_out ??= now) < 30_000;
 	const where = (root: ShadowRoot): 'page' | 'later' | 'gone' => {
@@ -597,9 +599,8 @@ export function restore_adopt(): void {
 		else if (at === 'page')
 			try {
 				item.shadow.adoptedStyleSheets = [...item.shadow.adoptedStyleSheets, ...item.sheets];
-			} catch {
-				// ok: a sheet this page cannot adopt; the other roots still get theirs
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a sheet this page cannot adopt; the other roots still get theirs
+			} catch {}
 	}
 	W.__og_adopt = left;
 }

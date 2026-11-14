@@ -167,7 +167,8 @@ function on_warm_event(e: Event): void {
 	if (!a || a.warmed) return;
 	a.warmed = true;
 	a.warm();
-	replay().catch(() => {}); // ok: a warm ahead; the press loads it again and says a failure
+	// oxlint-disable-next-line ogygia/no-silent-failures -- a warm ahead; the press loads it again and says a failure
+	replay().catch(() => {});
 }
 
 function install_listeners(): void {
@@ -279,11 +280,12 @@ let replay_queued = false;
 function replay_ahead(): void {
 	if (replay_queued) return;
 	replay_queued = true;
+	// oxlint-disable-next-line ogygia/no-silent-failures -- a slot's turn never fails; a failed download is asked for again by the press, which says it
 	void new LoadSlot({ kind: 'code', cls: 'ahead', label: 'interaction replay' }).ready.then(
 		(release) => {
 			replay_queued = false;
 			if (armed.size === 0) return release();
 			replay().then(release, release);
 		}
-	); // ok: a slot's turn never fails; a failed download is asked for again by the press, which says it
+	);
 }

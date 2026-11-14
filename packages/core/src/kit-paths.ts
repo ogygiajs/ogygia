@@ -36,9 +36,8 @@ export function kit_asset(file: string): string {
 				wants_slash = false;
 				return out;
 			}
-		} catch {
-			// ok: Kit 2 in dev refuses it; the fallback below answers
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- Kit 2 in dev refuses it; the fallback below answers
+		} catch {}
 		wants_slash = true;
 	}
 	return call(wants_slash ? file : file.slice(1));

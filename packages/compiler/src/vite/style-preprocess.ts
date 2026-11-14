@@ -23,9 +23,8 @@ function load_sass(root: string): Sass | null {
 		try {
 			sass = require(name) as Sass;
 			return sass;
-		} catch {
-			// ok: not installed; the next is tried, and none says sass_missing
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not installed; the next is tried, and none says sass_missing
+		} catch {}
 	}
 	sass = null;
 	return sass;

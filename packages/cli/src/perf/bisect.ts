@@ -77,8 +77,9 @@ export async function bisect(opts: BisectOptions): Promise<BisectResult> {
 		let value: number | null = null;
 		try {
 			value = await opts.measure(sha);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a sha that cannot be measured is skipped, and listed as skipped
 		} catch {
-			value = null; // ok: a sha that cannot be measured is skipped, and listed as skipped
+			value = null;
 		}
 		const step: BisectStep = {
 			sha,

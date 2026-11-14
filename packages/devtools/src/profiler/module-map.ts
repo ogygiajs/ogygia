@@ -38,8 +38,9 @@ export function module_lookup(): (url: string, line: number) => string | undefin
 							JSON.parse(fs.readFileSync(file, 'utf8')) as { chunks: NonNullable<Loaded>['chunks'] }
 						).chunks
 					};
+					// oxlint-disable-next-line ogygia/no-silent-failures -- an unreadable module map: frames are named without it
 				} catch {
-					found = null; // ok: an unreadable module map: frames are named without it
+					found = null;
 				}
 				break;
 			}
@@ -55,8 +56,9 @@ export function module_lookup(): (url: string, line: number) => string | undefin
 		if (file.startsWith('file://')) {
 			try {
 				file = fileURLToPath(file);
+				// oxlint-disable-next-line ogygia/no-silent-failures -- not a file URL: no module to name
 			} catch {
-				return undefined; // ok: not a file URL: no module to name
+				return undefined;
 			}
 		}
 		// a relative script name (Lambda / Amplify hand V8 those): from the process's folder

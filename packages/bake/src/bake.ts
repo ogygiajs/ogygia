@@ -238,17 +238,15 @@ function resolve_file(base: string): string | null {
 		const f = base + e;
 		try {
 			if (fs.statSync(f).isFile()) return f;
-		} catch {
-			// ok: not this extension; the next is tried
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not this extension; the next is tried
+		} catch {}
 	}
 	for (const e of INDEX_EXTS) {
 		const f = base + e;
 		try {
 			if (fs.statSync(f).isFile()) return f;
-		} catch {
-			// ok: not this index; the next is tried
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not this index; the next is tried
+		} catch {}
 	}
 	return null;
 }

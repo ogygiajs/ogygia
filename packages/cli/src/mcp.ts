@@ -56,7 +56,8 @@ async function load_flag_inventory(): Promise<FlagInventory | null | Error> {
 		return got === STALE ? null : got; // (nothing drops it, so it is never STALE)
 	} catch (e) {
 		const code = (e as { code?: unknown }).code;
-		if (code === 'MODULE_NOT_FOUND' || code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') return null; // ok: not installed; the tool says so
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not installed; the tool says so
+		if (code === 'MODULE_NOT_FOUND' || code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') return null;
 		return e instanceof Error ? e : new Error(String(e));
 	}
 }
@@ -91,7 +92,8 @@ const reading_load = flights({
 });
 export async function load_profiler_reading(): Promise<ProfilerReading | null> {
 	// (nothing drops it, so it is never STALE)
-	const got = await reading_load.get().catch(() => null); // ok: no @ogygia/devtools in the app; each tool that needs it says so
+	// oxlint-disable-next-line ogygia/no-silent-failures -- no @ogygia/devtools in the app; each tool that needs it says so
+	const got = await reading_load.get().catch(() => null);
 	return got === STALE ? null : got;
 }
 
@@ -108,8 +110,15 @@ const { version } = require('../package.json') as { version: string };
 
 const PROTOCOL_VERSION = '2024-11-05';
 const SERVER_NAME = 'ogygia';
-// static: the import-attribute keys that mark a region, a fixed list
-const MARK_KEYS = new Set(['wake', 'fetch', 'render', 'region', 'keep', 'preset', 'margin']);
+const MARK_KEYS: ReadonlySet<string> = new Set([
+	'wake',
+	'fetch',
+	'render',
+	'region',
+	'keep',
+	'preset',
+	'margin'
+]);
 
 type Attrs = Record<string, string | undefined>;
 type Args = Record<string, unknown>;
@@ -155,8 +164,9 @@ function parse_marks(source: string): Mark[] {
 	let ast: ReturnType<typeof parse>;
 	try {
 		ast = parse(source, { modern: true });
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a file Svelte cannot parse has no marks to list (its build says why)
 	} catch {
-		return []; // ok: a file Svelte cannot parse has no marks to list (its build says why)
+		return [];
 	}
 	const bodies: Array<Record<string, unknown>> = [];
 	const inst = (ast as { instance?: { content?: { body?: unknown[] } } }).instance;
@@ -786,7 +796,8 @@ async function tool_debug(args: Args): Promise<ToolResult> {
 			await page.waitForTimeout(500);
 		}
 		if (click_sel) {
-			await page.click(click_sel, { timeout: 3000 }).catch(() => {}); // ok: the trace still runs; the click is a best-effort warm-up
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the trace still runs; the click is a best-effort warm-up
+			await page.click(click_sel, { timeout: 3000 }).catch(() => {});
 			await page.waitForTimeout(400);
 		}
 		const trace = (await page.evaluate(() =>
@@ -1533,8 +1544,9 @@ async function find_local_profiler(base: string, key: string): Promise<string[]>
 			const r = await fetch_timeout(origin + base, { redirect: 'manual', headers: key_h }, 700);
 			// 404 = no profiler here (bare Kit 404s that path). 200/401/30x = profiler answering.
 			return r.status !== 404 ? origin : null;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- nothing listening, or not http: no profiler on this origin
 		} catch {
-			return null; // ok: nothing listening, or not http: no profiler on this origin
+			return null;
 		}
 	});
 	return (await Promise.all(probes)).filter((o): o is string => !!o);
@@ -1578,8 +1590,9 @@ async function busy_holder(res: Response): Promise<BusyHolder | null> {
 	try {
 		const body = (await res.json()) as { holder?: BusyHolder | null };
 		return body.holder ?? null;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a 409 that names no holder is treated as a live one, and left alone
 	} catch {
-		return null; // ok: a 409 that names no holder is treated as a live one, and left alone
+		return null;
 	}
 }
 
@@ -1650,7 +1663,8 @@ async function tool_profile(args: Args): Promise<ToolResult> {
 			);
 		}
 		if (pre.status === 404) return fail(NOT_MOUNTED(profiler_base, origin));
-		await pre.body?.cancel().catch(() => {}); // ok: only the status and Location are read
+		// oxlint-disable-next-line ogygia/no-silent-failures -- only the status and Location are read
+		await pre.body?.cancel().catch(() => {});
 		if (sends_to_login(pre, origin + profiler_base))
 			return fail(
 				key
@@ -1695,9 +1709,8 @@ async function tool_profile(args: Args): Promise<ToolResult> {
 			const reset_h: Record<string, string> = key ? { 'x-profiler-key': key } : {};
 			await fetch_timeout(reset, { method: 'POST', redirect: 'manual', headers: reset_h }, 5000);
 			res = await record_once();
-		} catch {
-			// ok: falls through to the 409 message below, which says what to do
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- falls through to the 409 message below, which says what to do
+		} catch {}
 		if (res.status === 409) return fail(busy_message(origin, await busy_holder(res)));
 	}
 
@@ -1770,8 +1783,7 @@ async function tool_profile_open(args: Args): Promise<ToolResult> {
 
 // ── ogygia_scan — walk a real project, map every island + lint the whole codebase ──────────────────
 
-// static: the folders a project scan never walks into, a fixed list
-const SKIP_DIRS = new Set([
+const SKIP_DIRS: ReadonlySet<string> = new Set([
 	'node_modules',
 	'.svelte-kit',
 	'.git',
@@ -1787,8 +1799,9 @@ function walk_svelte(dir: string, out: string[] = [], depth = 0): string[] {
 	let entries: Dirent[];
 	try {
 		entries = readdirSync(dir, { withFileTypes: true }) as Dirent[];
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a folder that cannot be read adds no files to the scan
 	} catch {
-		return out; // ok: a folder that cannot be read adds no files to the scan
+		return out;
 	}
 	for (const e of entries) {
 		if (e.name.startsWith('.') && e.name !== '.') continue;
@@ -1833,8 +1846,9 @@ function tool_scan(args: Args): ToolResult {
 		let source: string;
 		try {
 			source = readFileSync(f, 'utf8');
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a file gone or unreadable since the walk is left out of the scan
 		} catch {
-			continue; // ok: a file gone or unreadable since the walk is left out of the scan
+			continue;
 		}
 		const marks = parse_marks(source);
 		if (!marks.length) continue;
@@ -1938,8 +1952,9 @@ function walk_flag_files(dir: string, out: string[] = [], depth = 0): string[] {
 	let entries: Dirent[];
 	try {
 		entries = readdirSync(dir, { withFileTypes: true }) as Dirent[];
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a folder that cannot be read adds no files to the scan
 	} catch {
-		return out; // ok: a folder that cannot be read adds no files to the scan
+		return out;
 	}
 	for (const e of entries) {
 		if (e.name.startsWith('.')) continue;
@@ -1975,8 +1990,9 @@ async function tool_flags(args: Args): Promise<ToolResult> {
 		manifest = JSON.parse(
 			readFileSync(path.join(root, 'node_modules', '.ogygia', 'flags-manifest.json'), 'utf8')
 		) as { flags: FlagSite[]; names: string[] };
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no build's flags manifest yet: the scan reads the source alone
 	} catch {
-		manifest = null; // ok: no build's flags manifest yet: the scan reads the source alone
+		manifest = null;
 	}
 
 	// Live scan — same collector the build runs (AST-resolved 'ogygia' imports, literal names).
@@ -1986,8 +2002,9 @@ async function tool_flags(args: Args): Promise<ToolResult> {
 		let source: string;
 		try {
 			source = readFileSync(f, 'utf8');
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a file gone or unreadable since the walk is left out of the scan
 		} catch {
-			continue; // ok: a file gone or unreadable since the walk is left out of the scan
+			continue;
 		}
 		const rel = path.relative(root, f).replace(BACKSLASH_G, '/');
 		sites.push(...collect_flag_sites(source, rel, rel));
@@ -2046,8 +2063,9 @@ async function tool_fragment(args: Args): Promise<ToolResult> {
 				signal: AbortSignal.timeout(10_000),
 				headers: { accept: 'application/json' }
 			});
+			// oxlint-disable-next-line ogygia/no-silent-failures -- shown as "unreachable" in the report below
 		} catch {
-			return null; // ok: shown as "unreachable" in the report below
+			return null;
 		}
 	};
 
@@ -2078,8 +2096,8 @@ async function tool_fragment(args: Args): Promise<ToolResult> {
 					Typed stubs: \`npx ogygia fragments ${origin} --out src/lib/widgets.ts\` (add \`--check\` in CI to fail on drift).
 				`
 				: 'Catalog mounted, zero widgets declared.';
+			// oxlint-disable-next-line ogygia/no-silent-failures -- said in the report: not a widget catalog
 		} catch {
-			// ok: said in the report: not a widget catalog
 			widgets_block = '__catalog returned non-JSON — not an ogygia widget catalog.';
 		}
 	}

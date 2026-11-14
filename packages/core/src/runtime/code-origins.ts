@@ -14,8 +14,9 @@ function origin_of(url: string, base?: string): string | null {
 	try {
 		const u = new URL(url, base ?? location.href);
 		return u.protocol === 'https:' || u.protocol === 'http:' ? u.origin : null;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: no origin
 	} catch {
-		return null; // ok: not a URL: no origin
+		return null;
 	}
 }
 
@@ -75,8 +76,9 @@ export function is_location_of(identity: string, location: string): boolean {
 	try {
 		id = new URL(identity);
 		loc = new URL(location);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not URLs: neither is the other's location
 	} catch {
-		return false; // ok: not URLs: neither is the other's location
+		return false;
 	}
 	if (id.origin !== loc.origin || code_url(loc.href) === null) return false;
 	const iid = IDENTITY_FILE.exec(id.pathname)?.[1];

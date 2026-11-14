@@ -56,8 +56,9 @@
 			url = `${location.origin}${base}/report/${id}#${blob}`;
 			if (blob.length > SAFE_UNIVERSAL)
 				note = 'Large link — opens in Chrome & Firefox; Safari recipients need the .ogp file.';
+			// oxlint-disable-next-line ogygia/no-silent-failures -- shown beside the button
 		} catch {
-			err = 'Could not build the link.'; // ok: shown beside the button
+			err = 'Could not build the link.';
 		} finally {
 			busy = false;
 		}
@@ -68,9 +69,8 @@
 			await navigator.clipboard.writeText(url);
 			copied = true;
 			owner.timeout(() => (copied = false), 1500);
-		} catch {
-			// ok: clipboard blocked; the field is selectable
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- clipboard blocked; the field is selectable
+		} catch {}
 	}
 </script>
 

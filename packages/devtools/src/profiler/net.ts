@@ -435,8 +435,9 @@ function is_internal(input: RequestInfo | URL, init?: RequestInit): boolean {
 function host_of(url: string): string {
 	try {
 		return new URL(url).host;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: no host
 	} catch {
-		return ''; // ok: not a URL: no host
+		return '';
 	}
 }
 
@@ -521,8 +522,9 @@ export function decode_trace(h: string | null | undefined): UpstreamTrace | unde
 				.map((x) => ({ url: x.url.slice(0, 200), ms: x.ms }));
 		if (typeof t.profiler === 'string') out.profiler = t.profiler.slice(0, 200);
 		return out;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- an upstream's header that does not decode is not a trace (it is outside input)
 	} catch {
-		return undefined; // ok: an upstream's header that does not decode is not a trace (it is outside input)
+		return undefined;
 	}
 }
 
@@ -547,7 +549,8 @@ function wrap_fetch(orig: typeof globalThis.fetch): typeof globalThis.fetch {
 		if (canned) return canned;
 		const call: NetCall = {
 			start: performance.now(),
-			epoch: Date.now(), // wall: the call's epoch time, beside its monotonic start
+			// oxlint-disable-next-line ogygia/ports -- the call's epoch time, beside its monotonic start
+			epoch: Date.now(),
 			ms: -1,
 			method: method.toUpperCase(),
 			url,
@@ -570,9 +573,8 @@ function wrap_fetch(orig: typeof globalThis.fetch): typeof globalThis.fetch {
 				init?.headers ?? (input instanceof Request ? input.headers : undefined)
 			);
 			if (h.has('cookie') || h.has('authorization')) call.personal = true;
-		} catch {
-			// ok: headers this cannot read: whether the call is personal stays unknown
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- headers this cannot read: whether the call is personal stays unknown
+		} catch {}
 		emit(call);
 		try {
 			// NESTED TRACES: while a recording runs, ask the upstream for its own timeline of this
@@ -586,8 +588,9 @@ function wrap_fetch(orig: typeof globalThis.fetch): typeof globalThis.fetch {
 					);
 					h.set(TRACE_HEADER, '1');
 					init2 = { ...init, headers: h };
+					// oxlint-disable-next-line ogygia/no-silent-failures -- headers we cannot copy: the call goes as the app wrote it, untraced
 				} catch {
-					init2 = init; // ok: headers we cannot copy: the call goes as the app wrote it, untraced
+					init2 = init;
 				}
 			}
 			const res = await orig(input as RequestInfo, init2);
@@ -636,9 +639,8 @@ function wrap_body(res: Response, call: NetCall): void {
 					return v;
 				}
 			});
-		} catch {
-			// ok: a frozen response: no body timing
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a frozen response: no body timing
+		} catch {}
 	}
 }
 
@@ -694,9 +696,8 @@ function capture_req_payload(init: RequestInit | undefined, call: NetCall): void
 			call.req_bytes = (body as ArrayBufferView).byteLength;
 		}
 		// FormData / Blob / ReadableStream: sizing would consume/serialize it — skip.
-	} catch {
-		// ok: a body this cannot size is left unsized
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a body this cannot size is left unsized
+	} catch {}
 }
 
 /** a body is fingerprinted over this many bytes at most (with its full length) */
@@ -710,8 +711,9 @@ function count_decoded(res: Response, call: NetCall, owner: Scope | undefined): 
 	let clone: Response;
 	try {
 		clone = res.clone();
+		// oxlint-disable-next-line ogygia/no-silent-failures -- already consumed, or not cloneable: the call is kept without its decoded size
 	} catch {
-		return; // ok: already consumed, or not cloneable: the call is kept without its decoded size
+		return;
 	}
 	const stream = clone.body;
 	if (!stream) return;
@@ -723,15 +725,18 @@ function count_decoded(res: Response, call: NetCall, owner: Scope | undefined): 
 		res.status >= 200 &&
 		res.status < 300;
 	const status = res.status;
+	// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects, its whole body is caught above
 	void (async () => {
 		try {
 			const reader = stream.getReader();
-			owner?.defer(() => void reader.cancel().catch(() => {})); // ok: the copy is let go; its cancel failing changes nothing
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the copy is let go; its cancel failing changes nothing
+			owner?.defer(() => void reader.cancel().catch(() => {}));
 			let total = 0;
 			let parts: Uint8Array[] | null = keep ? [] : null;
 			// a fingerprint of the body (FNV-1a over its first BODY_HASH_MAX bytes, and its length):
 			// the same GET answering the same bytes in every render is an answer to cache across requests
-			let h = 0x811c9dc5; // hash: over a body's bytes as they stream, not a string
+			// oxlint-disable-next-line ogygia/one-hash -- over a body's bytes as they stream, not a string
+			let h = 0x811c9dc5;
 			for (;;) {
 				const { done, value } = await reader.read();
 				if (done) break;
@@ -773,10 +778,9 @@ function count_decoded(res: Response, call: NetCall, owner: Scope | undefined): 
 					}
 				}
 			}
-		} catch {
-			// ok: the stream errored mid-read (the caller sees that error); the size is left to the wrap_body / transfer fallback
-		}
-	})(); // ok: never rejects, its whole body is caught above
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the stream errored mid-read (the caller sees that error); the size is left to the wrap_body / transfer fallback
+		} catch {}
+	})();
 }
 
 // ---------------------------------------------------------------------------
@@ -786,8 +790,9 @@ async function patch_http(): Promise<void> {
 		let mod: Record<string, unknown>;
 		try {
 			mod = (await import(/* @vite-ignore */ `node:${proto}`)).default as Record<string, unknown>;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- off Node there is no node:http to watch; fetch is still recorded
 		} catch {
-			continue; // ok: off Node there is no node:http to watch; fetch is still recorded
+			continue;
 		}
 		const orig_request = mod.request as (...args: unknown[]) => unknown;
 		const orig_get = mod.get as (...args: unknown[]) => unknown;
@@ -805,9 +810,8 @@ async function patch_http(): Promise<void> {
 					return req;
 				};
 			}
-		} catch {
-			// ok: the module object is not writable on this platform; the fetch patch still works
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the module object is not writable on this platform; the fetch patch still works
+		} catch {}
 	}
 }
 
@@ -840,7 +844,8 @@ function instrument_client_request(req: unknown, args: unknown[], proto: 'http' 
 
 	const call: NetCall = {
 		start: performance.now(),
-		epoch: Date.now(), // wall: the call's epoch time, beside its monotonic start
+		// oxlint-disable-next-line ogygia/ports -- the call's epoch time, beside its monotonic start
+		epoch: Date.now(),
 		ms: -1,
 		method: method.toUpperCase(),
 		url,

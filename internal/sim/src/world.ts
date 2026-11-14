@@ -9,6 +9,7 @@ import { Browsers, type Tab, type Visitor } from './browser.ts';
 import {
 	completion_on_the_loop,
 	documents_by_namespace,
+	declarative_shadow_roots,
 	history_by_document,
 	inert_custom_elements,
 	inert_parsed_documents,
@@ -267,6 +268,7 @@ export class World {
 		inert_custom_elements();
 		whole_text_runs();
 		documents_by_namespace();
+		declarative_shadow_roots();
 		history_by_document();
 		navigation_starts();
 		window_load_events();
