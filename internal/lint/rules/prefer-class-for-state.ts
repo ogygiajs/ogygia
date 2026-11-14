@@ -248,19 +248,66 @@ function closure_class(fn: Node): boolean {
 	return found.size > 0;
 }
 
-function module_lets(program: Node): Map<string, Node> {
+const SIDE_TABLES: ReadonlySet<string> = new Set(['WeakMap', 'WeakSet']);
+
+function side_table(init: Node | null | undefined): boolean {
+	const e = bare(init);
+	const name = e?.type === 'NewExpression' ? name_of(e.callee) : undefined;
+	return name !== undefined && SIDE_TABLES.has(name);
+}
+
+const start_of = (n: Node): number => (n as { range: [number, number] }).range[0];
+
+const READONLY_TYPES: ReadonlySet<string> = new Set([
+	'ReadonlyMap',
+	'ReadonlySet',
+	'ReadonlyArray',
+	'Readonly'
+]);
+
+function is_readonly_type(t: Node | null | undefined): boolean {
+	if (!t) return false;
+	if (t.type === 'TSTypeOperator') return t.operator === 'readonly';
+	if (t.type === 'TSTypeReference') {
+		const name = name_of(t.typeName);
+		return name !== undefined && READONLY_TYPES.has(name);
+	}
+	return false;
+}
+
+function readonly_table(d: Node): boolean {
+	const annotation = (d.id as { typeAnnotation?: { typeAnnotation?: Node } }).typeAnnotation;
+	if (is_readonly_type(annotation?.typeAnnotation)) return true;
+	let e = d.init as Node | null | undefined;
+	while (e?.type === 'TSAsExpression' || e?.type === 'TSSatisfiesExpression') {
+		const t = e.typeAnnotation as Node;
+		if (is_readonly_type(t)) return true;
+		if (t.type === 'TSTypeReference' && name_of(t.typeName) === 'const') return true;
+		e = e.expression as Node;
+	}
+	return false;
+}
+
+function module_state(program: Node): { lets: Map<string, Node>; tables: Map<string, Node> } {
 	const lets = new Map<string, Node>();
+	const tables = new Map<string, Node>();
 	for (const s of program.body as Node[]) {
 		const decl = s.type === 'ExportNamedDeclaration' ? (s.declaration as Node | null) : s;
-		if (decl?.type !== 'VariableDeclaration' || decl.kind !== 'let') continue;
+		if (decl?.type !== 'VariableDeclaration') continue;
 		for (const d of decl.declarations as Node[]) {
-			if (is_rune(d.init as Node | null)) continue;
-			const names = new Set<string>();
-			pattern_names(d.id as Node, names);
-			for (const name of names) lets.set(name, d);
+			const init = d.init as Node | null;
+			if (is_rune(init)) continue;
+			if (decl.kind === 'let') {
+				const names = new Set<string>();
+				pattern_names(d.id as Node, names);
+				for (const name of names) lets.set(name, d);
+			} else if (is_collection(init) && !side_table(init) && !readonly_table(d)) {
+				const id = name_of(d.id);
+				if (id !== undefined) tables.set(id, d);
+			}
 		}
 	}
-	return lets;
+	return { lets, tables };
 }
 
 function units(program: Node): Node[] {
@@ -277,17 +324,22 @@ function units(program: Node): Node[] {
 }
 
 function shared_lets(program: Node): { names: string[]; at: Node } | null {
-	const lets = module_lets(program);
-	if (!lets.size) return null;
+	const { lets, tables } = module_state(program);
+	if (!lets.size && !tables.size) return null;
 	const writers = new Map<string, number>();
 	for (const unit of units(program)) {
 		const found = new Set<string>();
 		writes_in_functions(unit, lets, false, false, found);
+		writes_in_functions(unit, tables, true, false, found);
 		for (const name of found) writers.set(name, (writers.get(name) ?? 0) + 1);
 	}
-	const names = [...lets.keys()].filter((n) => (writers.get(n) ?? 0) >= 2);
+	const declared = new Map([...lets, ...tables]);
+	const names = [...declared.keys()].filter((n) => (writers.get(n) ?? 0) >= 2);
 	if (!names.length) return null;
-	return { names, at: lets.get(names[0]!)! };
+	const at = names
+		.map((n) => declared.get(n)!)
+		.reduce((a, b) => (start_of(a) <= start_of(b) ? a : b));
+	return { names, at };
 }
 
 export const prefer_class_for_state = {

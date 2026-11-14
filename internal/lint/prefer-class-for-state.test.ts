@@ -159,6 +159,60 @@ export const is_armed = () => armed;
 	);
 });
 
+test('a module Map, Set or array that two or more top-level functions mutate is reported', () => {
+	assert.deepEqual(
+		reported(
+			'packages/demo/src/registry.ts',
+			`const seen = new Set<string>();
+const by_id = new Map<string, number>();
+const order: string[] = [];
+export function add(id: string, n: number): void {
+	seen.add(id);
+	by_id.set(id, n);
+	order.push(id);
+}
+export const remove = (id: string): void => {
+	seen.delete(id);
+	by_id.delete(id);
+};
+export function clear_order(): void {
+	order.length = 0;
+}
+`
+		),
+		[1]
+	);
+});
+
+test('a readonly table, or a module collection only one function fills, is not reported', () => {
+	assert.deepEqual(
+		reported(
+			'packages/demo/src/tables.ts',
+			`const KINDS: ReadonlySet<string> = new Set(['a', 'b']);
+const NAMES: ReadonlyMap<string, number> = new Map([['a', 1]]);
+const LIST: readonly string[] = ['a'];
+const PAIRS = [['a', 1]] as const;
+const notes = new WeakMap<object, string>();
+export function note(o: object, s: string): void {
+	notes.set(o, s);
+}
+export function forget(o: object): void {
+	notes.delete(o);
+}
+const cache = new Map<string, number>();
+export function remember(key: string, n: number): void {
+	cache.set(key, n);
+}
+export function recall(key: string): number | undefined {
+	return cache.get(key);
+}
+export const known = (k: string) => KINDS.has(k) && NAMES.has(k) && LIST.includes(k) && PAIRS.length > 0;
+`
+		),
+		[]
+	);
+});
+
 test('a pure function with a local counter is not reported', () => {
 	assert.deepEqual(
 		reported(
