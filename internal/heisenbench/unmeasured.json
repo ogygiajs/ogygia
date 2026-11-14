@@ -6287,6 +6287,10 @@
 		{
 			"id": "packages/devtools/src/profiler/report.ts > page_score_of > reduce:0~d32eea",
 			"reason": "one long task's or layout shift's part of a visit's sum, constant work per entry; run by packages/devtools/test/profiler.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/reconcile.ts > swap_reason",
+			"reason": "once per client navigation: three flag tests and the opt-out lookup the commit already made, on live DOM bodies (not replayable); test/browser/nav-fallback-reason.test.ts runs it"
 		}
 	]
 }
