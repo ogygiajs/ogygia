@@ -4789,18 +4789,6 @@
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
 		{
-			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > observeReads",
-			"reason": "hands a live RequestEvent (not cloneable) and its request's read set to observe_reads, constant work of its own; observe_reads is measured on its own"
-		},
-		{
-			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn",
-			"reason": "a plugin's dev warning: one say().once per message, printed through console.warn (not replayable), constant work"
-		},
-		{
-			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn > once:1~c9a4aa",
-			"reason": "prints a plugin's warning once through console.warn (not replayable), constant work"
-		},
-		{
 			"id": "packages/postrender/src/registry.ts > shared:0~4e63eb > make",
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
@@ -6017,8 +6005,24 @@
 			"reason": "dev only (the warning folds out of production); one bounded scan of the body's last 64 KB, the scan kit_gate's bench case already counts; kit-gate.test.ts and test/canary/kit-start-script.test.ts run it"
 		},
 		{
-			"id": "packages/core/src/region-snippet.ts > RenderSnippet > component:0~4930b4",
-			"reason": "calls the snippet with the renderer Svelte hands it, constant work of its own; its output is the snippet's, through Svelte's renderer, no replay holds it; region-snippet-freeze-dev.test.ts and test/canary/svelte-server-signature.test.ts run it"
+			"id": "packages/core/src/snippet-render.ts > SnippetRender > static install",
+			"reason": "runs once per module load (hooks.ts, region.ts): one slot write, constant work; snippet.bench.ts and every freeze test run it"
+		},
+		{
+			"id": "packages/core/src/region-snippet.ts > install_snippet_renderer",
+			"reason": "one slot write when a renderer is installed, once per module load; snippet.bench.ts and every freeze test run it"
+		},
+		{
+			"id": "packages/core/src/region-snippet.ts > shared:0~ef144f > make",
+			"reason": "a slot's maker: builds the renderer slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > snippet_freeze_not_installed > text",
+			"reason": "an error's one-line text: one template string, only when a snippet freezes with no renderer installed"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > snippet_freeze_not_installed > details",
+			"reason": "an error's details: one constant string, on the error path only"
 		},
 		{
 			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static event",
@@ -6035,6 +6039,18 @@
 		{
 			"id": "packages/core/src/server/live-event.ts > live_event",
 			"reason": "one call to Kit's getRequestEvent, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > observeReads",
+			"reason": "hands a live RequestEvent (not cloneable) and its request's read set to observe_reads, constant work of its own; observe_reads is measured on its own"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn",
+			"reason": "a plugin's dev warning: one say().once per message, printed through console.warn (not replayable), constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn > once:1~c9a4aa",
+			"reason": "prints a plugin's warning once through console.warn (not replayable), constant work"
 		},
 		{
 			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > show > defer:0~248bad",
