@@ -78,6 +78,21 @@ export interface EntryFallbackEvent {
 	readonly recovered: boolean;
 }
 
+/**
+ * A chunk that no retry can load: its own file came, yet it still failed, because a static
+ * dependency it imports failed to download and the document keeps that failure for its life (a
+ * dropped connection mid-load). Only a reload loads it. Told once per page, for the first such chunk
+ * (one reload loads them all), where the page says `chunk_reload_needed`.
+ */
+export interface ReloadNeededEvent {
+	/** the chunk's URL, as the last retry asked for it */
+	readonly url: string;
+	/** the error that retry failed with */
+	readonly error: unknown;
+	/** the regions whose own file the chunk is (none for a chunk no region loads directly) */
+	readonly regions: readonly Element[];
+}
+
 /** An in-app navigation, timed by the router (page time, ms). */
 export interface NavigatedEvent {
 	readonly from: string;
@@ -183,6 +198,7 @@ export interface RuntimeHooks {
 	holeFailed(e: HoleFailedEvent): void;
 	holeBatchMissed(e: HoleBatchMissedEvent): void;
 	entryFallback(e: EntryFallbackEvent): void;
+	reloadNeeded(e: ReloadNeededEvent): void;
 	navStarted(e: NavStartedEvent): void;
 	navigated(e: NavigatedEvent): void;
 	criticalSettled(e: CriticalSettledEvent): void;
@@ -207,6 +223,7 @@ export const RUNTIME_HOOK_CONSTANTS: { readonly [K in RuntimeHookName]: string }
 	holeFailed: '__OGYGIA_HOOK_HOLE_FAILED__',
 	holeBatchMissed: '__OGYGIA_HOOK_HOLE_BATCH_MISSED__',
 	entryFallback: '__OGYGIA_HOOK_ENTRY_FALLBACK__',
+	reloadNeeded: '__OGYGIA_HOOK_RELOAD_NEEDED__',
 	navStarted: '__OGYGIA_HOOK_NAV_STARTED__',
 	navigated: '__OGYGIA_HOOK_NAVIGATED__',
 	criticalSettled: '__OGYGIA_HOOK_CRITICAL_SETTLED__',

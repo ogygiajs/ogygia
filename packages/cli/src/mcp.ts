@@ -606,8 +606,6 @@ export function render_story(url: string, events: DtEvent[]): string {
 		const woke = has(evs, 'wake.fired');
 		const done = has(evs, 'region.hydrate.done');
 		const failed = has(evs, 'region.hydrate.failed');
-		const applied = has(evs, 'region.server.applied');
-		const props = has(evs, 'wire.props');
 		const scheduled = has(evs, 'wake.scheduled');
 		const replay = has(evs, 'interaction.replay');
 		const strategy = String(connected?.wake ?? scheduled?.when ?? '(unknown)');
@@ -620,23 +618,15 @@ export function render_story(url: string, events: DtEvent[]): string {
 		let status = '✅';
 		if (failed) status = '❌';
 		else if (ssr && !connected) status = '⚠️';
-		else if (connected && !done && !applied) status = '⏳';
+		else if (connected && !done) status = '⏳';
 
 		const lines: string[] = [];
 		if (ssr) lines.push(`  · SSR'd on the server${when(ssr)}`);
-		if (props)
-			lines.push(
-				`  · props crossed the wire${props.bytes != null ? ` (${String(props.bytes)} B)` : ''}`
-			);
 		if (connected)
 			lines.push(
 				`  · region connected — wake: ${strategy}${connected.nested ? ', nested (rides an awake ancestor)' : ''}${connected.deferred ? ', deferred hole' : ''}${when(connected)}`
 			);
 		if (woke) lines.push(`  · wake fired${when(woke)}`);
-		if (applied)
-			lines.push(
-				`  · deferred HTML applied${applied.bytes != null ? ` (${String(applied.bytes)} B)` : ''}${when(applied)}`
-			);
 		if (done)
 			lines.push(
 				`  · hydrated${done.ms != null ? ` in ${Math.round(Number(done.ms) * 10) / 10}ms` : ''} — interactive${when(done)}`
@@ -663,6 +653,25 @@ export function render_story(url: string, events: DtEvent[]): string {
 			);
 	}
 
+	const holes = new Map<string, DtEventNamed<'region.server.applied'>[]>();
+	for (const e of global)
+		if (e.name === 'region.server.applied') {
+			const key = String(e.endpoint ?? e.entry ?? '(unknown hole)');
+			const arr = holes.get(key) ?? [];
+			arr.push(e);
+			holes.set(key, arr);
+		}
+	for (const [key, evsRaw] of holes) {
+		const evs = evsRaw.slice().sort((a, b) => Number(a.seq ?? 0) - Number(b.seq ?? 0));
+		const first = evs.find((e) => !e.revalidate) ?? evs[0];
+		const again = evs.filter((e) => e !== first).length;
+		const label = first.entry ? base(String(first.entry)) : key;
+		const waited = first.wait_ms != null ? `, the fallback showed ${String(first.wait_ms)}ms` : '';
+		const lines = [`  · deferred HTML applied (${String(first.bytes)} B${waited})${when(first)}`];
+		if (again) lines.push(`  · re-applied ${again} time(s) (live)`);
+		blocks.push(`### ✅  ${label} — hole${first.entry ? `  (${key})` : ''}\n${lines.join('\n')}`);
+	}
+
 	const boot = has(global, 'runtime.boot');
 	const navs = global.filter((e) => e.name.startsWith('nav.'));
 	const booted = boot ? ` · runtime booted (${boot.features.join(', ') || 'no features'})` : '';
@@ -672,7 +681,7 @@ export function render_story(url: string, events: DtEvent[]): string {
 	const header = dedent`
 		# Runtime story — ${url}
 
-		${by_fp.size} island(s) · ${events.length} events${booted}${navigated}
+		${by_fp.size} island(s)${holes.size ? ` · ${holes.size} hole(s)` : ''} · ${events.length} events${booted}${navigated}
 	`;
 
 	const verdict = warnings.length
