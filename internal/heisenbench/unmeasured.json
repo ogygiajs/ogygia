@@ -2773,18 +2773,6 @@
 			"reason": "dev only: sets one response header and passes on, constant work"
 		},
 		{
-			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b",
-			"reason": "dev only: the dock's meta endpoint over the dev server's module graph (not recorded); its work is island_subgraph_bytes, measured in core"
-		},
-		{
-			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b > island_subgraph_bytes:2~0b61a8",
-			"reason": "dev only: hands one barrel question to the regions seam, constant work of its own"
-		},
-		{
-			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b > read",
-			"reason": "dev only: reads one component source once per request (a file read, not recorded), constant work of its own"
-		},
-		{
 			"id": "packages/devtools/src/vite.ts > devtools > dev_meta_plugin:0~479109",
 			"reason": "dev only: hands the build's regions seam to the dev meta plugin, constant work"
 		},
@@ -2987,14 +2975,6 @@
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports",
 			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why",
-			"reason": "the client tables' why for one barrel row, over ogygia()'s closure (not replayable), at most two lookups; the join is benched in packages/core/bench/compiler.bench.ts and proven in packages/core/test/barrel-left.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why > filter:0~cf3029",
-			"reason": "orders at most nine reasons (constant work); the same filter in the table is benched in packages/core/bench/compiler.bench.ts"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host",
@@ -5865,10 +5845,6 @@
 			"reason": "one hole_identity fingerprint of a lake's props per lake render, measured with hole_identity's own bench; lake-identity.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~6b3ec1 > prescan",
-			"reason": "build only: a plugin's prescan registration, once per plugin per build, constant work"
-		},
-		{
 			"id": "packages/compiler/src/driver.ts > Compiler > relocate > relocate:3~0b2c47 > public_url",
 			"reason": "one island's public url from the context, constant work, once per island token patched"
 		},
@@ -5903,10 +5879,6 @@
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > writeBundle > settle:0~e8e319",
 			"reason": "build only, once per client build: one bundler resolve per helper the page is handed to, Vite's own work"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~6b3ec1 > pageReads",
-			"reason": "build only: a plugin's seed-shaping claim, once per plugin per build, constant work"
 		},
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_seed_key_unshipped > text",
