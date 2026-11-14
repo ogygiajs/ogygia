@@ -1,0 +1,8 @@
+---
+title: '@ogygia/jumpstart'
+summary: The server build in a few files, for a fast cold start.
+---
+
+This page is generated from the package's own `.d.ts` files on every build, so the signatures, descriptions and examples below always match the source.
+
+> MODULE: @ogygia/jumpstart

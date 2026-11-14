@@ -100,8 +100,10 @@ catalogs:
     '@typescript/native': npm:typescript@^7.0.2
   # Kit 3, read by core's kit-shim-surface test (internal/kit-sources), and the svelte its peers ask
   # for: its own importer, so they never move the versions ogygia and the apps resolve.
+  # (and jumpstart's Kit 3 fixture app, packages/jumpstart/e2e/app-kit3)
   kit3:
     '@sveltejs/kit3': npm:@sveltejs/kit@3.0.1
+    '@sveltejs/kit': 3.0.1
     svelte: 5.57.2
   # internal/repro: the CONTROL repro (plain Svelte on Vite 6, no ogygia), frozen at the versions its
   # measurements were taken on (vite on the 6.4 patch line for its security fixes).

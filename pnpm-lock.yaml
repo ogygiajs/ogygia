@@ -285,6 +285,9 @@ catalogs:
       specifier: 9.32.0
       version: 9.32.0
   kit3:
+    '@sveltejs/kit':
+      specifier: 3.0.1
+      version: 3.0.1
     '@sveltejs/kit3':
       specifier: npm:@sveltejs/kit@3.0.1
       version: 3.0.1
@@ -485,6 +488,9 @@ importers:
       '@ogygia/insights':
         specifier: workspace:*
         version: link:../../packages/insights
+      '@ogygia/jumpstart':
+        specifier: workspace:*
+        version: link:../../packages/jumpstart
       '@ogygia/machine':
         specifier: workspace:*
         version: link:../../packages/machine
@@ -1806,6 +1812,169 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@21.0.4)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+
+  packages/jumpstart:
+    devDependencies:
+      '@ogygia/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@ogygia/config':
+        specifier: workspace:*
+        version: link:../config
+      '@ogygia/core':
+        specifier: workspace:*
+        version: link:../core
+      '@ogygia/tooling':
+        specifier: workspace:*
+        version: link:../tooling
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.62.1
+      '@sveltejs/adapter-node':
+        specifier: 'catalog:'
+        version: 5.5.7(@sveltejs/kit@2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.57.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.57.3)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))
+      '@sveltejs/kit':
+        specifier: 'catalog:'
+        version: 2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.57.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.57.3)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      '@sveltejs/vite-plugin-svelte':
+        specifier: 'catalog:'
+        version: 7.2.0(svelte@5.57.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.2
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
+      ogygia:
+        specifier: workspace:*
+        version: link:../ogygia
+      svelte:
+        specifier: 'catalog:'
+        version: 5.57.3
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@21.0.4)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+
+  packages/jumpstart/e2e/app:
+    dependencies:
+      jumpstart-e2e-many-files:
+        specifier: file:../deps/many-files
+        version: file:packages/jumpstart/e2e/deps/many-files
+      jumpstart-e2e-reads-file:
+        specifier: file:../deps/reads-file
+        version: file:packages/jumpstart/e2e/deps/reads-file
+      ogygia:
+        specifier: workspace:*
+        version: link:../../../ogygia
+    devDependencies:
+      '@ogygia/jumpstart':
+        specifier: workspace:*
+        version: link:../..
+      '@sveltejs/kit':
+        specifier: 'catalog:'
+        version: 2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.57.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.57.3)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      '@sveltejs/vite-plugin-svelte':
+        specifier: 'catalog:'
+        version: 7.2.0(svelte@5.57.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      svelte:
+        specifier: 'catalog:'
+        version: 5.57.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
+
+  packages/jumpstart/e2e/app-kit3:
+    dependencies:
+      jumpstart-e2e-many-files:
+        specifier: file:../deps/many-files
+        version: file:packages/jumpstart/e2e/deps/many-files
+      jumpstart-e2e-reads-file:
+        specifier: file:../deps/reads-file
+        version: file:packages/jumpstart/e2e/deps/reads-file
+      ogygia:
+        specifier: workspace:*
+        version: link:../../../ogygia
+    devDependencies:
+      '@ogygia/jumpstart':
+        specifier: workspace:*
+        version: link:../..
+      '@sveltejs/kit':
+        specifier: catalog:kit3
+        version: 3.0.1(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.57.2)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.57.2)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      '@sveltejs/vite-plugin-svelte':
+        specifier: 'catalog:'
+        version: 7.2.0(svelte@5.57.2)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      svelte:
+        specifier: catalog:kit3
+        version: 5.57.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
+
+  packages/jumpstart/e2e/bench-app:
+    dependencies:
+      jumpstart-e2e-many-files:
+        specifier: file:../deps/many-files
+        version: file:packages/jumpstart/e2e/deps/many-files
+      jumpstart-e2e-reads-file:
+        specifier: file:../deps/reads-file
+        version: file:packages/jumpstart/e2e/deps/reads-file
+      ogygia:
+        specifier: workspace:*
+        version: link:../../../ogygia
+    devDependencies:
+      '@ogygia/jumpstart':
+        specifier: workspace:*
+        version: link:../..
+      '@sveltejs/adapter-node':
+        specifier: 'catalog:'
+        version: 5.5.7(@sveltejs/kit@2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.57.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.57.3)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))
+      '@sveltejs/kit':
+        specifier: 'catalog:'
+        version: 2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.57.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.57.3)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      '@sveltejs/vite-plugin-svelte':
+        specifier: 'catalog:'
+        version: 7.2.0(svelte@5.57.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      svelte:
+        specifier: 'catalog:'
+        version: 5.57.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
+
+  packages/jumpstart/e2e/plain:
+    dependencies:
+      jumpstart-e2e-many-files:
+        specifier: file:../deps/many-files
+        version: file:packages/jumpstart/e2e/deps/many-files
+      ogygia:
+        specifier: workspace:*
+        version: link:../../../ogygia
+    devDependencies:
+      '@ogygia/jumpstart':
+        specifier: workspace:*
+        version: link:../..
+      '@sveltejs/kit':
+        specifier: 'catalog:'
+        version: 2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.57.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.57.3)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      '@sveltejs/vite-plugin-svelte':
+        specifier: 'catalog:'
+        version: 7.2.0(svelte@5.57.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+      svelte:
+        specifier: 'catalog:'
+        version: 5.57.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
 
   packages/machine:
     dependencies:
@@ -5127,6 +5296,12 @@ packages:
 
   jszip@3.10.2:
     resolution: {integrity: sha512-3l+rb15IOWtUhU0H5MFqES/T6Kh7abYwjosBey/vD6hDt8zoEffkSC5Ws5SGtgVw3gBx2NEbhTeSW1+kWkpyTQ==}
+
+  jumpstart-e2e-many-files@file:packages/jumpstart/e2e/deps/many-files:
+    resolution: {directory: packages/jumpstart/e2e/deps/many-files, type: directory}
+
+  jumpstart-e2e-reads-file@file:packages/jumpstart/e2e/deps/reads-file:
+    resolution: {directory: packages/jumpstart/e2e/deps/reads-file, type: directory}
 
   kleur@4.1.5:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
@@ -8978,6 +9153,10 @@ snapshots:
       pako: 1.0.11
       readable-stream: 2.3.8
       setimmediate: 1.0.5
+
+  jumpstart-e2e-many-files@file:packages/jumpstart/e2e/deps/many-files: {}
+
+  jumpstart-e2e-reads-file@file:packages/jumpstart/e2e/deps/reads-file: {}
 
   kleur@4.1.5: {}
 
