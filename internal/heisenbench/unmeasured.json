@@ -1,6 +1,18 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/runtime/reload-needed.ts > say_reload_needed",
+			"reason": "browser only, once per page at most (the first chunk no retry loads); test/browser/reload-needed-hook.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/reload-needed.ts > regions_of_file",
+			"reason": "a DOM query, browser only, once per page at most and only with a reloadNeeded subscriber; test/browser/reload-needed-hook.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/reload-needed.ts > file_of",
+			"reason": "one URL parse per region on the page, browser only, once per page at most; test/browser/reload-needed-hook.test.ts runs it"
+		},
+		{
 			"id": "packages/core/src/server/html-scan.ts > kit_boot_script > is_kit_boot_script:1~dc8962",
 			"reason": "one attribute lookup on a tag the walk already read, constant work; kit-gate.test.ts runs it"
 		},

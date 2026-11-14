@@ -36,6 +36,8 @@ export const HOOK_HOLE_BATCH_MISSED: boolean =
 		: true;
 export const HOOK_ENTRY_FALLBACK: boolean =
 	typeof __OGYGIA_HOOK_ENTRY_FALLBACK__ !== 'undefined' ? __OGYGIA_HOOK_ENTRY_FALLBACK__ : true;
+export const HOOK_RELOAD_NEEDED: boolean =
+	typeof __OGYGIA_HOOK_RELOAD_NEEDED__ !== 'undefined' ? __OGYGIA_HOOK_RELOAD_NEEDED__ : true;
 export const HOOK_NAV_STARTED: boolean =
 	typeof __OGYGIA_HOOK_NAV_STARTED__ !== 'undefined' ? __OGYGIA_HOOK_NAV_STARTED__ : true;
 export const HOOK_NAVIGATED: boolean =
@@ -118,6 +120,7 @@ export function boot_client_plugins(list: readonly ClientRealm[], kit_page: bool
 		HOOK_HOLE_FAILED ||
 		HOOK_HOLE_BATCH_MISSED ||
 		HOOK_ENTRY_FALLBACK ||
+		HOOK_RELOAD_NEEDED ||
 		HOOK_NAV_STARTED ||
 		HOOK_NAVIGATED ||
 		HOOK_CRITICAL_SETTLED ||
@@ -138,6 +141,7 @@ export function boot_client_plugins(list: readonly ClientRealm[], kit_page: bool
 		if (HOOK_HOLE_FAILED) h.holeFailed = joined(list, 'holeFailed');
 		if (HOOK_HOLE_BATCH_MISSED) h.holeBatchMissed = joined(list, 'holeBatchMissed');
 		if (HOOK_ENTRY_FALLBACK) h.entryFallback = joined(list, 'entryFallback');
+		if (HOOK_RELOAD_NEEDED) h.reloadNeeded = joined(list, 'reloadNeeded');
 		if (HOOK_NAV_STARTED) h.navStarted = joined(list, 'navStarted');
 		if (HOOK_NAVIGATED) h.navigated = joined(list, 'navigated');
 		if (HOOK_CRITICAL_SETTLED) h.criticalSettled = joined(list, 'criticalSettled');
