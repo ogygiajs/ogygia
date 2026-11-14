@@ -25,14 +25,12 @@ export function class_at(priority: number): LoadClass {
 	return priority >= 1 ? 'ahead' : 'speculative';
 }
 
-const FETCH_PRIORITY: Readonly<Record<LoadClass, 'high' | 'auto' | 'low'>> = {
-	user: 'high',
-	visible: 'auto',
-	ahead: 'low',
-	speculative: 'low'
-};
+const FETCH_PRIORITY: ReadonlyMap<string, 'high' | 'auto'> = new Map([
+	['user', 'high'],
+	['visible', 'auto']
+]);
 
 /** The fetch priority a class downloads at (`fetch(…, { priority })`, `<link fetchpriority>`). */
 export function fetch_priority_of(cls: LoadClass): 'high' | 'auto' | 'low' {
-	return FETCH_PRIORITY[cls];
+	return FETCH_PRIORITY.get(cls) ?? 'low';
 }

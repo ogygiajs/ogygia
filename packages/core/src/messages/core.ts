@@ -14,12 +14,15 @@ import { prose } from '../contract/prose.ts';
 import { OG_PREFIX, OGYGIA_KEEP, OGYGIA_PREFIX } from '../wire-markup.ts';
 
 const BUG = 'An ogygia bug: please report it with the page that shows it.';
-const PROMISE_UNRESOLVED: Readonly<Record<'stream' | 'devalue' | 'answer', string>> = {
-	stream: 'a streamed page.data promise never got its value: the page loaded without it.',
-	answer:
-		"a streamed page.data promise never got its value: the page's data answer ended without it.",
-	devalue: "a streamed page.data promise's value came, but the code to read it never loaded."
-};
+const PROMISE_UNRESOLVED: ReadonlyMap<string, string> = new Map([
+	['stream', 'a streamed page.data promise never got its value: the page loaded without it.'],
+	[
+		'answer',
+		"a streamed page.data promise never got its value: the page's data answer ended without it."
+	]
+]);
+const PROMISE_UNRESOLVED_DEVALUE =
+	"a streamed page.data promise's value came, but the code to read it never loaded.";
 /** Each message's arguments are its `text`'s: the one place they are written. */
 /** The errors: `throw new OgygiaError(code, args)`, or `console.error(new OgygiaError(…), err)` for a
  *  failure that is caught. */
@@ -175,7 +178,8 @@ export const ERRORS = {
 		details: (): string => BUG
 	},
 	page_promise_unresolved: {
-		text: (a: { why: 'stream' | 'devalue' | 'answer' }): string => PROMISE_UNRESOLVED[a.why],
+		text: (a: { why: 'stream' | 'devalue' | 'answer' }): string =>
+			PROMISE_UNRESOLVED.get(a.why) ?? PROMISE_UNRESOLVED_DEVALUE,
 		details: (): string => prose`
 			A promise in \`page.data\` streams into islands: the page carries it pending, and a script
 			later in the same response settles it. Here that can no longer happen, so the promise is
