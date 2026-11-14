@@ -1,6 +1,14 @@
 {
 	"exempt": [
 		{
+			"id": "packages/cli/src/cli.ts > installDeps > find:0~5e8663",
+			"reason": "the CLI's one-shot lockfile probe: a file check per known lockfile, run once per install"
+		},
+		{
+			"id": "packages/cli/src/cli.ts > preflight > find:0~8f7cb4",
+			"reason": "the CLI's one-shot vite config probe: a file check per name, run once per command"
+		},
+		{
 			"id": "packages/core/src/server/html-scan.ts > kit_boot_script > is_kit_boot_script:1~dc8962",
 			"reason": "one attribute lookup on a tag the walk already read, constant work; kit-gate.test.ts runs it"
 		},
@@ -5241,10 +5249,6 @@
 			"reason": "one table row per late server region, constant work"
 		},
 		{
-			"id": "packages/compiler/src/link/relocations.ts > LATE_SERVER_REGIONS > value > sort:0~60d5a8",
-			"reason": "one string compare in a sort of the late server regions (a handful), constant work"
-		},
-		{
 			"id": "packages/compiler/src/link/relocations.ts > PAGE_DATA_READS > value",
 			"reason": "once per chunk that carries the token: a closure over the program, constant work"
 		},
@@ -5317,7 +5321,7 @@
 			"reason": "dev only: one region's loader path, constant work"
 		},
 		{
-			"id": "packages/compiler/src/link/server-manifest.ts > server_regions > sort:0~60d5a8",
+			"id": "packages/compiler/src/link/server-manifest.ts > server_regions > sort:0~107bc2",
 			"reason": "one string compare in the server regions' sort, constant work, once per build"
 		},
 		{
