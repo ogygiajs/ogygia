@@ -116,6 +116,7 @@ import { build_river, load_return_keys, seed_key_bytes, type River } from './riv
 import { SinkBuffer, type SinkRow } from './sink.ts';
 import {
 	attribute_gc,
+	gc_running,
 	heap_sites,
 	gc_kind,
 	type AllocSite,
@@ -2369,13 +2370,9 @@ class Profiler {
 				const nm = src.lastIndexOf('/node_modules/');
 				const fn = m?.name ?? t.site?.fn ?? '';
 				// a library by its package name (`svelte`, `@acme/ui`), the app by file and line
-				const caller = !t.site
-					? t.caller
-					: nm !== -1
-						? `${fn} (${pkg_of(src.slice(nm + 14))})`
-						: m
-							? `${fn} (${rel_src(m.source)}:${m.line})`
-							: t.caller;
+				let caller = t.caller;
+				if (t.site && nm !== -1) caller = `${fn} (${pkg_of(src.slice(nm + 14))})`;
+				else if (t.site && m) caller = `${fn} (${rel_src(m.source)}:${m.line})`;
 				merged.set(caller, (merged.get(caller) ?? 0) + t.share);
 			}
 			cap.promises = {
@@ -2492,28 +2489,13 @@ class Profiler {
 				const first = cap.mem[0]?.heap_used;
 				const last = cap.mem[cap.mem.length - 1]?.heap_used;
 				const window_offset_ms = cap.window ? round2(cap.window.start - cap.perf_start) : 0;
+				const running = gc_running(analysis, window_offset_ms);
 				gc_attr = attribute_gc({
 					slices: cap.gc_slices,
 					events: cap.gc_events ?? [],
 					dict: cap.gc_dict ?? {},
 					window_ms: cap.duration_ms,
-					// what was RUNNING when each pause fell: the CPU segments over the whole capture
-					// (every run), else the profiled window's, shifted onto the capture's clock
-					...(analysis.capture_cpu
-						? { running: analysis.capture_cpu }
-						: analysis.timeline
-							? {
-									running: analysis.timeline.segments
-										.filter((s) => s.kind === 'cpu')
-										.map((s) => ({
-											t0: s.t0 + window_offset_ms,
-											t1: s.t1 + window_offset_ms,
-											label: s.label,
-											category: s.category,
-											file: s.file
-										}))
-								}
-							: {}),
+					...(running ? { running } : {}),
 					...(first !== undefined && last !== undefined ? { retained_mb: last - first } : {})
 				});
 				gc_attr.window_offset_ms = window_offset_ms;
@@ -2556,19 +2538,19 @@ class Profiler {
 				meta.runs = meta.runs!.map((r, i) => round2(Math.max(0, r - per_run[i])));
 			}
 		}
-		const gc: GcSummary | null = gc_attr
-			? {
-					count: gc_attr.summary.count,
-					total_ms: gc_attr.summary.total_ms,
-					max_ms: gc_attr.summary.max_ms
-				}
-			: cap.gc_pauses.length
-				? {
-						count: cap.gc_pauses.length,
-						total_ms: round2(cap.gc_pauses.reduce((a, c) => a + c, 0)),
-						max_ms: round2(Math.max(...cap.gc_pauses))
-					}
-				: null;
+		let gc: GcSummary | null = null;
+		if (gc_attr)
+			gc = {
+				count: gc_attr.summary.count,
+				total_ms: gc_attr.summary.total_ms,
+				max_ms: gc_attr.summary.max_ms
+			};
+		else if (cap.gc_pauses.length)
+			gc = {
+				count: cap.gc_pauses.length,
+				total_ms: round2(cap.gc_pauses.reduce((a, c) => a + c, 0)),
+				max_ms: round2(Math.max(...cap.gc_pauses))
+			};
 		const raw_json = JSON.stringify(cap.profile);
 		let raw: Buffer | string = raw_json;
 		try {
@@ -2630,23 +2612,21 @@ class Profiler {
 		if (cap.heap_series?.length) {
 			try {
 				const window_offset_ms = cap.window ? round2(cap.window.start - cap.perf_start) : 0;
+				let running: Parameters<typeof alloc_timeline>[0]['running'];
+				if (analysis.capture_cpu) running = analysis.capture_cpu;
+				else if (analysis.timeline)
+					running = analysis.timeline.segments
+						.filter((s) => s.kind === 'cpu')
+						.map((s) => ({
+							t0: s.t0 + window_offset_ms,
+							t1: s.t1 + window_offset_ms,
+							label: s.label,
+							category: s.category,
+							file: s.file
+						}));
 				alloc = alloc_timeline({
 					samples: cap.heap_series,
-					...(analysis.capture_cpu
-						? { running: analysis.capture_cpu }
-						: analysis.timeline
-							? {
-									running: analysis.timeline.segments
-										.filter((s) => s.kind === 'cpu')
-										.map((s) => ({
-											t0: s.t0 + window_offset_ms,
-											t1: s.t1 + window_offset_ms,
-											label: s.label,
-											category: s.category,
-											file: s.file
-										}))
-								}
-							: {}),
+					...(running ? { running } : {}),
 					gc: (cap.gc_events ?? []).map((g) => ({ t: g.t, ms: g.ms })),
 					...(cap.window
 						? {
@@ -2665,7 +2645,8 @@ class Profiler {
 		// THE INSTANCE WAS NOT ALONE: the other requests that overlapped the profiled window(s)
 		let contended: Contention | undefined;
 		{
-			const windows = cap.runs?.length ? cap.runs : cap.window ? [cap.window] : [];
+			const one_window = cap.window ? [cap.window] : [];
+			const windows = cap.runs?.length ? cap.runs : one_window;
 			if (windows.length) {
 				try {
 					// the paths the render called on its own server: a ring entry there is the render
@@ -3610,7 +3591,11 @@ class Profiler {
 					const lines = src.split('\n');
 					const stmt = (x: { line: number; end: number }) => lines.slice(x.line - 1, x.end);
 					const dedent = (ls: string[]) =>
-						ls.map((l) => (l.startsWith('\t') ? l.slice(1) : l.startsWith('  ') ? l.slice(2) : l));
+						ls.map((l) => {
+							if (l.startsWith('\t')) return l.slice(1);
+							if (l.startsWith('  ')) return l.slice(2);
+							return l;
+						});
 					p.sites[0].rewrite = {
 						file,
 						line: plan.stmts[0].line,
@@ -3634,7 +3619,8 @@ class Profiler {
 			// `src/lib/…`, `…/app/src/lib/…` or the lineage `lib/…`
 			const norm = (f: string) => {
 				const at = f.lastIndexOf('/src/');
-				return at !== -1 ? f.slice(at + 5) : f.startsWith('src/') ? f.slice(4) : f;
+				if (at !== -1) return f.slice(at + 5);
+				return f.startsWith('src/') ? f.slice(4) : f;
 			};
 			const files = [
 				...new Set([
@@ -3679,11 +3665,9 @@ class Profiler {
 				[...new Set((s.analysis.timeline?.lanes ?? []).map((l) => l.file))].find((f) =>
 					f.includes('+page')
 				) ?? (s.lineage?.components ?? []).find((c) => c.file.endsWith('+page.svelte'))?.file;
-			const dir = route
-				? `routes${route === '/' ? '' : route}`
-				: leaf
-					? leaf.slice(0, leaf.lastIndexOf('/'))
-					: '';
+			let dir = '';
+			if (route) dir = `routes${route === '/' ? '' : route}`;
+			else if (leaf) dir = leaf.slice(0, leaf.lastIndexOf('/'));
 			if (s.meta.run_static || (dir && route_prerendered(read, dir))) s.meta.prerendered = true;
 		}
 		const near =
@@ -5186,16 +5170,16 @@ class Profiler {
 				// fetch may follow same-origin redirects itself (res.redirected) or hand back the 3xx
 				// (…or a prerendered redirect: a 200 stub with a meta refresh, the build's stand-in for one)
 				const stub = res.ok && !res.redirected ? refresh_target(body, event.url.origin) : null;
-				const next = res.redirected
-					? new URL(res.url).pathname + new URL(res.url).search
-					: res.status >= 300 && res.status < 400
-						? (() => {
-								const loc = res.headers.get('location');
-								if (!loc) return null;
-								const u = new URL(loc, event.url.origin);
-								return u.pathname + u.search;
-							})()
-						: stub;
+				let next = stub;
+				if (res.redirected) next = new URL(res.url).pathname + new URL(res.url).search;
+				else if (res.status >= 300 && res.status < 400) {
+					const loc = res.headers.get('location');
+					next = null;
+					if (loc) {
+						const u = new URL(loc, event.url.origin);
+						next = u.pathname + u.search;
+					}
+				}
 				if (!next || next === target) break;
 				redirected_from ??= path;
 				if (stub && next === stub) redirect_stub = true;
@@ -6747,15 +6731,10 @@ class Profiler {
 			const text = new TextDecoder().decode(raw);
 			// a CPU trace is the one big body (samples + stacks); a visit is a few hundred resources;
 			// everything else stays small
-			if (
-				text.length >
-				(text.includes('"cpu"')
-					? MAX_BEACON_CPU_BODY
-					: text.includes('"visit"')
-						? MAX_BEACON_VISIT_BODY
-						: MAX_BEACON_BODY)
-			)
-				return new Response(null, { status: 413 });
+			let body_cap = MAX_BEACON_BODY;
+			if (text.includes('"cpu"')) body_cap = MAX_BEACON_CPU_BODY;
+			else if (text.includes('"visit"')) body_cap = MAX_BEACON_VISIT_BODY;
+			if (text.length > body_cap) return new Response(null, { status: 413 });
 			body = JSON.parse(text);
 		} catch {
 			return new Response(null, { status: 400 });

@@ -1620,14 +1620,10 @@ export function analyze(
 		// component. Name-keying merges them; other frames keep name+url. An unnamed function
 		// (an arrow, a callback) also keeps its start line: every arrow in a file is `(anonymous)`,
 		// and name+url alone would pile them all into one row with each other's hot lines.
-		r.key =
-			r.category === 'component'
-				? `C:${r.name}`
-				: r.category === 'profiler'
-					? `profiler:${r.name} ${r.url}`
-					: r.name === '(anonymous)' && r.url
-						? `${r.name} ${r.url}:${r.line}`
-						: `${r.name} ${r.url}`;
+		if (r.category === 'component') r.key = `C:${r.name}`;
+		else if (r.category === 'profiler') r.key = `profiler:${r.name} ${r.url}`;
+		else if (r.name === '(anonymous)' && r.url) r.key = `${r.name} ${r.url}:${r.line}`;
+		else r.key = `${r.name} ${r.url}`;
 		// Join this frame's invocation count from coverage, on the RAW identity (pre-sourcemap name+url).
 		// A component key merges several raw frames (the named wrapper + anonymous inline regions) — only
 		// the wrapper, whose raw name IS the component name, carries the render count; the inline loop's
@@ -1759,20 +1755,31 @@ export function analyze(
 			// an `app_ms` total that nets them out) so every consumer — report_json, the dashboard UI, the
 			// `ogygia_profile` MCP tool — shows the same "% of app time" without re-deriving it. The MCP
 			// currently strips them itself (mcp.ts render_profile); fold that in as the canonical behaviour.
-			const bk =
-				r.category === 'dependency' || r.category === 'svelte'
-					? (r.pkg ?? 'node_modules')
-					: r.category === 'component' || r.category === 'app'
-						? 'your code'
-						: r.category === 'node'
-							? 'node core'
-							: r.category === 'gc'
-								? 'garbage collection'
-								: r.category === 'idle'
-									? 'idle (waiting)'
-									: r.category === 'profiler'
-										? 'profiler overhead'
-										: 'v8 internals';
+			let bk: string;
+			switch (r.category) {
+				case 'dependency':
+				case 'svelte':
+					bk = r.pkg ?? 'node_modules';
+					break;
+				case 'component':
+				case 'app':
+					bk = 'your code';
+					break;
+				case 'node':
+					bk = 'node core';
+					break;
+				case 'gc':
+					bk = 'garbage collection';
+					break;
+				case 'idle':
+					bk = 'idle (waiting)';
+					break;
+				case 'profiler':
+					bk = 'profiler overhead';
+					break;
+				default:
+					bk = 'v8 internals';
+			}
 			const bg = buckets.get(bk) ?? { key: bk, category: r.category, self_ms: 0 };
 			bg.self_ms += s / 1000;
 			buckets.set(bk, bg);
@@ -2303,14 +2310,12 @@ export function analyze(
 		const o = idle ? undefined : owner_of_stack(frames);
 		// (drill.ts `owner_group`: `render2 (@acme/ui)` → `@acme/ui`)
 		const open = o ? o.label.lastIndexOf(' (') : -1;
-		const g =
-			!o || o.category === 'profiler'
-				? undefined
-				: o.category === 'dependency' && open !== -1 && o.label.endsWith(')')
-					? o.label.slice(open + 2, -1)
-					: o.category === 'node'
-						? 'node core'
-						: o.label;
+		let g: string | undefined;
+		if (!o || o.category === 'profiler') g = undefined;
+		else if (o.category === 'dependency' && open !== -1 && o.label.endsWith(')'))
+			g = o.label.slice(open + 2, -1);
+		else if (o.category === 'node') g = 'node core';
+		else g = o.label;
 		owner_memo.set(id, g);
 		return g;
 	};
@@ -2803,14 +2808,10 @@ export function chunk_component_renamer(
 							.pop()!
 							.replace(/\.svelte$/, '')
 				);
-			cache.set(
-				path,
-				comps.length
-					? comps.length === 1
-						? comps[0]
-						: `${comps[0]} (+${comps.length - 1} in chunk)`
-					: undefined
-			);
+			let named: string | undefined;
+			if (comps.length === 1) named = comps[0];
+			else if (comps.length) named = `${comps[0]} (+${comps.length - 1} in chunk)`;
+			cache.set(path, named);
 		}
 		return cache.get(path);
 	};
