@@ -1,7 +1,7 @@
 <!-- (its CSS injected into the dock's shadow root: see Devtools.svelte) -->
 <svelte:options css="injected" />
 
-<script>
+<script lang="ts">
 	/**
 	 * The Lens tab: toggles the page-tinting {@link ./BoundaryOverlay.svelte overlay} and lists every
 	 * region by NAME with its kind / schedule / JS cost / hydration state. Hovering a row lights up the
@@ -9,7 +9,15 @@
 	 * view — so the roster is a live index into the page, not just a static table. The overlay itself is
 	 * drawn by BoundaryOverlay (a sibling under the root app); this tab controls it and mirrors it.
 	 */
-	import { all_regions, region_name, region_transitive } from './regions.ts';
+	import { all_regions, region_name, region_transitive, type RegionInfo } from './regions.ts';
+
+	interface Props {
+		tick?: number;
+		overlay?: boolean;
+		focus?: Element | null;
+		selected?: Element | null;
+		picking?: boolean;
+	}
 
 	let {
 		tick = 0,
@@ -17,9 +25,9 @@
 		focus = $bindable(null),
 		selected = $bindable(null),
 		picking = $bindable(false)
-	} = $props();
+	}: Props = $props();
 
-	const kb = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
+	const kb = (n: number) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
 
 	const regions = $derived.by(() => {
 		void tick; // refresh with the panel tick
@@ -41,7 +49,7 @@
 		return { ...c, js, cold };
 	});
 
-	function state_of(r) {
+	function state_of(r: RegionInfo) {
 		// (a nested island rides the island around it: awake with it, never on its own)
 		if (r.kind === 'island' && r.rides)
 			return r.hydrated ? 'rides its parent' : 'cold (with its parent)';
