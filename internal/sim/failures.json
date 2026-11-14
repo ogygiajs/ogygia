@@ -2852,6 +2852,54 @@
 			"name": "a reconnect whose read fails waits and tries again on the same connection"
 		},
 		{
+			"site": "packages/content/src/formats.ts > as_object > throw:0",
+			"reason": "`throw new OgygiaError('content_format_not_object', …)`: proved: the throw removed takes a list for data, red twice",
+			"test": "packages/content/test/content.test.ts",
+			"name": "a module of the wrong shape is refused with the code that names it"
+		},
+		{
+			"site": "packages/content/src/formats.ts > markdown_format > throw:0",
+			"reason": "`throw new OgygiaError('content_markdown_not_module', …)`: proved: the throw removed, red twice",
+			"test": "packages/content/test/content.test.ts",
+			"name": "a module of the wrong shape is refused with the code that names it"
+		},
+		{
+			"site": "packages/content/src/formats.ts > markdown_format > throw:1",
+			"reason": "`throw new OgygiaError('content_markdown_no_metadata', …)`: proved: the throw removed, red twice",
+			"test": "packages/content/test/content.test.ts",
+			"name": "a module of the wrong shape is refused with the code that names it"
+		},
+		{
+			"site": "packages/content/src/schema.ts > parseSchema > catch:0",
+			"reason": "`catch (e) { … content_schema_failed … }`: proved: the catch made to rethrow loses the code, red twice",
+			"test": "packages/content/test/content.test.ts",
+			"name": "a schema whose parse throws fails with its words; one with no parse at all is unsupported"
+		},
+		{
+			"site": "packages/content/src/schema.ts > parseSchema > throw:1",
+			"reason": "`throw new OgygiaError('content_schema_failed', …)`: proved: the throw removed says unsupported instead, red twice",
+			"test": "packages/content/test/content.test.ts",
+			"name": "a schema whose parse throws fails with its words; one with no parse at all is unsupported"
+		},
+		{
+			"site": "packages/content/src/schema.ts > parseSchema > throw:2",
+			"reason": "`throw new OgygiaError('content_schema_unsupported', …)`: proved: the throw removed, red twice",
+			"test": "packages/content/test/content.test.ts",
+			"name": "a schema whose parse throws fails with its words; one with no parse at all is unsupported"
+		},
+		{
+			"site": "packages/content/src/source.ts > glob > throw:0",
+			"reason": "`throw new OgygiaError('content_glob_illegal_id', …)`: proved: the throw removed takes `../a`, red twice",
+			"test": "packages/content/test/content.test.ts",
+			"name": "a glob key whose id climbs out, or repeats another, is refused as the source is made"
+		},
+		{
+			"site": "packages/content/src/source.ts > glob > throw:1",
+			"reason": "`throw new OgygiaError('content_glob_duplicate_id', …)`: proved: the throw removed, red twice",
+			"test": "packages/content/test/content.test.ts",
+			"name": "a glob key whose id climbs out, or repeats another, is refused as the source is made"
+		},
+		{
 			"site": "packages/content/src/convention.ts > compile_format > throw:0",
 			"reason": "`throw new OgygiaError('content_dated_format_invalid', { format });`: proved: the throw removed turns the test red, twice",
 			"test": "packages/content/test/convention-dated.test.ts",
@@ -5365,9 +5413,6 @@
 		"packages/content/src/folder.ts > folder > meta > stale:0",
 		"packages/content/src/folder.ts > folder > throw:1",
 		"packages/content/src/folder.ts > folder > throw:2",
-		"packages/content/src/formats.ts > as_object > throw:0",
-		"packages/content/src/formats.ts > markdown_format > throw:0",
-		"packages/content/src/formats.ts > markdown_format > throw:1",
 		"packages/content/src/macros/git.ts > git_checkout_dir > throw:0",
 		"packages/content/src/macros/git.ts > materialize > throw:0",
 		"packages/content/src/macros/git.ts > safe > catch:0",
@@ -5384,9 +5429,6 @@
 		"packages/content/src/markdown/shiki.ts > get_highlighter > stale:0",
 		"packages/content/src/markdown/shiki.ts > highlight > throw:0",
 		"packages/content/src/markdown/shiki.ts > highlight > stale:0",
-		"packages/content/src/schema.ts > parseSchema > catch:0",
-		"packages/content/src/schema.ts > parseSchema > throw:1",
-		"packages/content/src/schema.ts > parseSchema > throw:2",
 		"packages/content/src/server.ts > withRemotes > list > throw:0",
 		"packages/content/src/site/dimensions.ts > Dimensions > constructor > throw:0",
 		"packages/content/src/site/dimensions.ts > Dimensions > constructor > throw:1",
@@ -5409,8 +5451,6 @@
 		"packages/content/src/site/search.ts > load_orama > throw:0",
 		"packages/content/src/site/search.ts > create_search > search > stale:0",
 		"packages/content/src/site/search.ts > create_search > search > stale:1",
-		"packages/content/src/source.ts > glob > throw:0",
-		"packages/content/src/source.ts > glob > throw:1",
 		"packages/content/src/vite/hmr.ts > content_hmr > configureServer > schedule > timer:0",
 		"packages/content/src/vite/index.ts > content_checks > transform > throw:0",
 		"packages/content/src/vite/leaks.ts > warn_content_leaks > catch:0",
