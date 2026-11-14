@@ -569,7 +569,7 @@ type DtEvent = {
 const short = (fp: string) => fp.slice(0, 8);
 
 /** Turn the raw event stream into a per-island runtime story + invariant warnings an AI can act on. */
-function render_story(url: string, events: DtEvent[]): string {
+export function render_story(url: string, events: DtEvent[]): string {
 	if (!events.length)
 		return `Loaded ${url}, but the devtools bus emitted no events — no islands on this page, or nothing had happened yet.`;
 
