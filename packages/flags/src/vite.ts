@@ -18,34 +18,48 @@ export function flags(): OgygiaPlugin {
 			// each flag() call is owned by the run of the module that makes it (dev: core marks it), so
 			// a flag deleted from the code leaves when its module reloads
 			b.definers('@ogygia/flags', ['flag']);
-			b.prescan(inventory(b.root));
+			b.prescan(new Inventory(b.root));
 		}
 	});
 }
 
 /** One build's flag inventory: the flag sites of every module the prescan reads, written once the
  *  client output is (both legs prescan: the manifest dedupes). */
-function inventory(root: string): PrescanHook {
-	const sites: FlagSite[] = [];
-	return {
-		imports: [FLAGS_SPEC],
-		module({ file, rel, code }) {
-			sites.push(...collect_flag_sites(code, file, rel));
-		},
-		written() {
-			if (!sites.length) return;
-			try {
-				const dir = path.join(root, 'node_modules', '.ogygia');
-				fs.mkdirSync(dir, { recursive: true });
-				const manifest = flags_manifest(sites);
-				fs.writeFileSync(
-					path.join(dir, 'flags-manifest.json'),
-					`${JSON.stringify(manifest, null, '\t')}\n`
-				);
-				console.log(line('flags_manifest_written', { count: manifest.names.length }));
-			} catch {
-				// ok: a read-only file system never fails the build over an inventory
-			}
+class Inventory implements PrescanHook {
+	readonly imports: readonly string[] = [FLAGS_SPEC];
+	readonly #root: string;
+	readonly #sites: FlagSite[] = [];
+
+	constructor(root: string) {
+		this.#root = root;
+	}
+
+	module({
+		file,
+		rel,
+		code
+	}: {
+		readonly file: string;
+		readonly rel: string;
+		readonly code: string;
+	}): void {
+		this.#sites.push(...collect_flag_sites(code, file, rel));
+	}
+
+	written(): void {
+		const sites = this.#sites;
+		if (!sites.length) return;
+		try {
+			const dir = path.join(this.#root, 'node_modules', '.ogygia');
+			fs.mkdirSync(dir, { recursive: true });
+			const manifest = flags_manifest(sites);
+			fs.writeFileSync(
+				path.join(dir, 'flags-manifest.json'),
+				`${JSON.stringify(manifest, null, '\t')}\n`
+			);
+			console.log(line('flags_manifest_written', { count: manifest.names.length }));
+		} catch {
+			// ok: a read-only file system never fails the build over an inventory
 		}
-	};
+	}
 }

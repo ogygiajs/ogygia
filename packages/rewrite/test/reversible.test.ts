@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	closes_all,
-	localize_marks,
+	LocalMarks,
 	mark,
 	restored_ids,
 	settle,
@@ -266,12 +266,12 @@ describe('restored_ids', () => {
 describe('localize_marks', () => {
 	it('gives back the same string when the marks already count from 0', () => {
 		const block = '<demo-card og-h="0"><!--og-c 0.0 t--> a </demo-card>';
-		const local = localize_marks(block);
+		const local = new LocalMarks(block);
 		expect(local.html).toBe(block);
 		expect(local.back('x')).toBe('x');
 	});
 	it('reads back ids a serializer requoted', () => {
-		const local = localize_marks('<demo-card og-h="7"></demo-card>');
+		const local = new LocalMarks('<demo-card og-h="7"></demo-card>');
 		expect(local.html).toBe('<demo-card og-h="0"></demo-card>');
 		expect(local.back(`<demo-card og-h='0'></demo-card>`)).toBe(`<demo-card og-h='7'></demo-card>`);
 		expect(local.back('<demo-card og-h=0></demo-card>')).toBe('<demo-card og-h=7></demo-card>');
@@ -279,7 +279,7 @@ describe('localize_marks', () => {
 	it('renumbers a block’s marks from 0 for a cache key, and puts the document’s ids back after', () => {
 		const block =
 			'<demo-card og-h="41" class="x"><!--og-c 41.0 t--> a <demo-card og-h="42" og-c="41.1">b</demo-card><!--og-t 41.3--> </demo-card>';
-		const local = localize_marks(block);
+		const local = new LocalMarks(block);
 		expect(local.html).toBe(
 			'<demo-card og-h="0" class="x"><!--og-c 0.0 t--> a <demo-card og-h="1" og-c="0.1">b</demo-card><!--og-t 0.3--> </demo-card>'
 		);
