@@ -421,11 +421,11 @@ exports[`dev > island reading the request, in Kit page pass 1`] = `
 `;
 
 exports[`dev > island rendering a snippet prop 1`] = `
-"<!-- head --><!--rtd3wb--><!--1d0mqok--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="e6235853852c0768"><!----><!---->
-<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="e6235853852c0768" src="/islands/tiny.js.hashed.js"><!--[--><span data-snippet-prop=""><ogygia-snippet data-og-static style="display:contents"><!--[--><u>s</u><!--]--></ogygia-snippet><!----></span><!--]--></ogygia-region><!--irnb2z--><script type="application/ogygia-props" data-ogygia-props="e6235853852c0768">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","sac3d8081bac455a3",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
+"<!-- head --><!--rtd3wb--><!--4clo38--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="bee76d6866eeeae2"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="bee76d6866eeeae2" src="/islands/tiny.js.hashed.js"><!--[--><span data-snippet-prop=""><ogygia-snippet data-og-static style="display:contents"><!--[--><u>s</u><!----><!--]--></ogygia-snippet><!----></span><!--]--></ogygia-region><!--albx9g--><script type="application/ogygia-props" data-ogygia-props="bee76d6866eeeae2">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","se9de2e38b5c3313b",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!---->\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
-<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"e6235853852c0768","mode":"island","entry":"/islands/tiny.js","propsBytes":145}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"bee76d6866eeeae2","mode":"island","entry":"/islands/tiny.js","propsBytes":157}]
 <!-- warnings -->[]"
 `;
 
@@ -487,11 +487,11 @@ exports[`dev > island with a live snippet prop, in Kit page pass 1`] = `
 `;
 
 exports[`dev > island with a snippet prop 1`] = `
-"<!-- head --><!--rtd3wb--><!--1d0mqok--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="e6235853852c0768"><!----><!---->
-<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="e6235853852c0768" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--irnb2z--><script type="application/ogygia-props" data-ogygia-props="e6235853852c0768">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","sac3d8081bac455a3",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
+"<!-- head --><!--rtd3wb--><!--4clo38--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="bee76d6866eeeae2"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="bee76d6866eeeae2" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--albx9g--><script type="application/ogygia-props" data-ogygia-props="bee76d6866eeeae2">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","se9de2e38b5c3313b",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!---->\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
-<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"e6235853852c0768","mode":"island","entry":"/islands/tiny.js","propsBytes":145}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"bee76d6866eeeae2","mode":"island","entry":"/islands/tiny.js","propsBytes":157}]
 <!-- warnings -->[]"
 `;
 
@@ -1078,11 +1078,11 @@ exports[`production > island reading the request, in Kit page pass 1`] = `
 `;
 
 exports[`production > island rendering a snippet prop 1`] = `
-"<!-- head --><!--rtd3wb--><!--1d0mqok--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="e6235853852c0768"><!----><!---->
-<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="e6235853852c0768" src="/islands/tiny.js.hashed.js"><!--[--><span data-snippet-prop=""><ogygia-snippet data-og-static style="display:contents"><!--[--><u>s</u><!--]--></ogygia-snippet><!----></span><!--]--></ogygia-region><!--irnb2z--><script type="application/ogygia-props" data-ogygia-props="e6235853852c0768">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","sac3d8081bac455a3",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
+"<!-- head --><!--rtd3wb--><!--4clo38--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="bee76d6866eeeae2"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="bee76d6866eeeae2" src="/islands/tiny.js.hashed.js"><!--[--><span data-snippet-prop=""><ogygia-snippet data-og-static style="display:contents"><!--[--><u>s</u><!----><!--]--></ogygia-snippet><!----></span><!--]--></ogygia-region><!--albx9g--><script type="application/ogygia-props" data-ogygia-props="bee76d6866eeeae2">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","se9de2e38b5c3313b",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!---->\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
-<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"e6235853852c0768","mode":"island","entry":"/islands/tiny.js","propsBytes":145}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"bee76d6866eeeae2","mode":"island","entry":"/islands/tiny.js","propsBytes":157}]
 <!-- warnings -->[]"
 `;
 
@@ -1144,11 +1144,11 @@ exports[`production > island with a live snippet prop, in Kit page pass 1`] = `
 `;
 
 exports[`production > island with a snippet prop 1`] = `
-"<!-- head --><!--rtd3wb--><!--1d0mqok--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="e6235853852c0768"><!----><!---->
-<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="e6235853852c0768" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--irnb2z--><script type="application/ogygia-props" data-ogygia-props="e6235853852c0768">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","sac3d8081bac455a3",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
+"<!-- head --><!--rtd3wb--><!--4clo38--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="bee76d6866eeeae2"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="bee76d6866eeeae2" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--albx9g--><script type="application/ogygia-props" data-ogygia-props="bee76d6866eeeae2">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","se9de2e38b5c3313b",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!---->\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
-<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"e6235853852c0768","mode":"island","entry":"/islands/tiny.js","propsBytes":145}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"bee76d6866eeeae2","mode":"island","entry":"/islands/tiny.js","propsBytes":157}]
 <!-- warnings -->[]"
 `;
 
