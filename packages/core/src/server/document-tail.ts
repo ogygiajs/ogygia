@@ -117,10 +117,12 @@ export function runtime_bootstrap_tags(
 	deps: readonly string[],
 	locations: string | null = null
 ): string {
-	let html = `<script type="module" ${OGYGIA_RUNTIME}${locations ? ` ${OG_LOCATIONS}="${locations}"` : ''} src="${src}" onerror="${RUNTIME_LOAD_FAILED}">\x3C/script>`;
+	const html = [
+		`<script type="module" ${OGYGIA_RUNTIME}${locations ? ` ${OG_LOCATIONS}="${locations}"` : ''} src="${src}" onerror="${RUNTIME_LOAD_FAILED}">\x3C/script>`
+	];
 	for (const dep of deps)
-		html = `${html}<link rel="modulepreload" href="${dep}" ${OGYGIA_RUNTIME_DEP}>`;
-	return html;
+		html.push(`<link rel="modulepreload" href="${dep}" ${OGYGIA_RUNTIME_DEP}>`);
+	return html.join('');
 }
 
 /**
@@ -299,13 +301,13 @@ export class DocumentTail {
 	 *  the profiler — a little extra work, only while it records. `mark`: the response's mark
 	 *  attribute, on the holes record (server/response-mark.ts `mark_attr`, RESPONSE-MARK). */
 	render(seed: SeedIndex | null = null, detail = false, mark = ''): string {
-		let out = '';
-		for (const href of this.#hints) out += modulepreload_tag(href);
-		out += island_graph_script(this.#graph, this.#locations);
+		const out: string[] = [];
+		for (const href of this.#hints) out.push(modulepreload_tag(href));
+		out.push(island_graph_script(this.#graph, this.#locations));
 		const rows: IslandStat[] | null = detail ? [] : null;
 		for (const [fp, s] of this.#props) {
 			const w = s.wire.wire(seed);
-			out += props_sidecar(fp, w, 'tail', s.wire.wire_modules);
+			out.push(props_sidecar(fp, w, 'tail', s.wire.wire_modules));
 			if (rows) {
 				rows.push({
 					fp,
@@ -332,14 +334,18 @@ export class DocumentTail {
 		if (this.#holes.size) {
 			const record: Record<string, HoleRecord> = {};
 			for (const [identity, facts] of this.#holes) record[identity] = facts;
-			out = `${out}${HOLES_SCRIPT_OPEN}${mark}>${escape_script_text(JSON.stringify(record))}${HOLES_SCRIPT_CLOSE}`;
+			out.push(
+				`${HOLES_SCRIPT_OPEN}${mark}>${escape_script_text(JSON.stringify(record))}${HOLES_SCRIPT_CLOSE}`
+			);
 		}
 		if (this.#sheet_owners.size) {
 			const record: Record<string, string[]> = {};
 			for (const [identity, owners] of this.#sheet_owners) record[identity] = [...owners];
-			out = `${out}<script type="application/json" ${HEAD_OWNERS_ATTR}>${escape_script_text(JSON.stringify(record))}\x3C/script>`;
+			out.push(
+				`<script type="application/json" ${HEAD_OWNERS_ATTR}>${escape_script_text(JSON.stringify(record))}\x3C/script>`
+			);
 		}
-		return out;
+		return out.join('');
 	}
 }
 

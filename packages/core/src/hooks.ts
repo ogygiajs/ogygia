@@ -1081,14 +1081,15 @@ class OgygiaHandle {
 			if (head !== null) {
 				// Stamp the fact for the runtime (it boots here only for the regions inside lakes, and
 				// reads this meta instead of scanning inline scripts for Kit's bootstrap).
-				head_inject = CSR_META + early_head;
 				// The ogygia runtime never mounts the devtools dock here (Kit owns the page). When
 				// devtools is compiled in (`devtools_boot_url` is non-empty only then, dev-only), inject a
 				// standalone dock boot so the launcher is on EVERY dev page — on this csr=true page it
 				// renders a "csr=true — open a csr=false page" notice, since there are no islands here.
-				if (devtools_boot_url && !head.includes(OGYGIA_DEVTOOLS_BOOT)) {
-					head_inject = `${head_inject}<script type="module" ${OGYGIA_DEVTOOLS_BOOT} src="${devtools_boot_url}"></script>`;
-				}
+				const devtools_boot =
+					devtools_boot_url && !head.includes(OGYGIA_DEVTOOLS_BOOT)
+						? `<script type="module" ${OGYGIA_DEVTOOLS_BOOT} src="${devtools_boot_url}"></script>`
+						: '';
+				head_inject = `${CSR_META}${early_head}${devtools_boot}`;
 				if (bag) bag.kit_with_runtime = page_declares_runtime_script(head);
 			}
 			// THE TAIL STILL SHIPS. The regions INSIDE A LAKE are ogygia's on this page too (their real
@@ -1159,7 +1160,7 @@ class OgygiaHandle {
 		let head_out: string | null = null;
 		// (the route fact for the runtime and the router: a csr=false document says so, and the
 		// browser reads one meta instead of probing every inline script for Kit's bootstrap)
-		let head_inject = head !== null ? CSR_FALSE_META + early_head : '';
+		let head_inject = '';
 		if (head !== null) {
 			// Dedupe the region-emitted modulepreload hints (each island instance emits its own dep
 			// block, so shared deps repeat) and the stylesheet links (a layout's real-wrapper island is
@@ -1172,12 +1173,14 @@ class OgygiaHandle {
 			// handle injects static Speculation Rules instead. Chromium prerenders likely next pages,
 			// Firefox prefetches them, everything else ignores the JSON. Presence-checked so a page
 			// authoring its own rules wins; per-link opt-out via `data-ogygia-speculate="off"`.
-			if (!router_enabled && !page_declares_speculation_rules(probe)) {
-				head_inject = `${head_inject}<script type="speculationrules" ${OGYGIA_SPECULATE}>${this.#speculation_rules}</script>`;
-			}
-			if (router_enabled && !page_declares_router_meta(probe)) {
-				head_inject = `${head_inject}<meta name="ogygia-router" content="${view_transitions ? 'vt' : 'plain'}">`;
-			}
+			const speculation =
+				!router_enabled && !page_declares_speculation_rules(probe)
+					? `<script type="speculationrules" ${OGYGIA_SPECULATE}>${this.#speculation_rules}</script>`
+					: '';
+			const router_meta =
+				router_enabled && !page_declares_router_meta(probe)
+					? `<meta name="ogygia-router" content="${view_transitions ? 'vt' : 'plain'}">`
+					: '';
 			// The runtime bootstrap goes FIRST in `<head>` (head-presence.ts `runtime_first`): the one
 			// an island page emitted moves up from Kit's head slot, and an island-less page gets it
 			// injected there (router on). Base-resolved the same way Region does — `asset()` is the
@@ -1202,14 +1205,15 @@ class OgygiaHandle {
 			// an app with `ogygia({ router: false })` (or any island page whose head the router branch
 			// skips) kept a poisoned tab after a re-optimize until a manual reload, reporting only
 			// "hydration failed". `dev_hmr_url` is empty outside `vite serve`, so this stays dev-only.
+			let dev_hmr = '';
 			if (dev_hmr_url && !page_declares_dev_hmr_script(probe)) {
-				head_inject = `${head_inject}<script type="module" ${OGYGIA_DEV_HMR} src="${kit_asset(dev_hmr_url)}"></script>`;
 				// The page's sub-app scope (its route id's first segment) for the dev CSS bridge:
 				// a changed stylesheet joins this page only when the plugin derives the same scope
 				// among its owners — two route-group sub-apps never paint each other in dev.
 				const scope = (event?.route.id ?? '').split('/').filter(Boolean)[0] ?? '';
-				head_inject = `${head_inject}<meta name="ogygia-dev-scope" content="${escape_amp_quot(scope)}">`;
+				dev_hmr = `<script type="module" ${OGYGIA_DEV_HMR} src="${kit_asset(dev_hmr_url)}"></script><meta name="ogygia-dev-scope" content="${escape_amp_quot(scope)}">`;
 			}
+			head_inject = `${CSR_FALSE_META}${early_head}${speculation}${router_meta}${dev_hmr}`;
 		}
 
 		// ── BODY (the chunk carrying `</body>`) ──

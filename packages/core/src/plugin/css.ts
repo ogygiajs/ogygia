@@ -50,13 +50,13 @@ export async function componentCssHead(components: readonly unknown[]): Promise<
 	// Off-request realm (bare `router.fetch`, no Kit event): nothing to claim against — dedupe
 	// locally so the document still styles. On-request, what an earlier render linked is left out.
 	const fresh = new Set(claim_region_css(keys) ?? keys);
-	let head = '';
+	const head: string[] = [];
 	for (const e of entries) {
 		if (!fresh.has(e.key)) continue;
 		fresh.delete(e.key); // shared child CSS can repeat across components — link once
-		if (e.href) head = `${head}<link rel="stylesheet" href="${e.href}" ${OGYGIA_REGION_CSS}>`;
+		if (e.href) head.push(`<link rel="stylesheet" href="${e.href}" ${OGYGIA_REGION_CSS}>`);
 		else if (e.css)
-			head = `${head}<style ${OGYGIA_RCSS}>${e.css.replace(STYLE_CLOSE_G, '<\\/style')}</style>`;
+			head.push(`<style ${OGYGIA_RCSS}>${e.css.replace(STYLE_CLOSE_G, '<\\/style')}</style>`);
 	}
-	return head;
+	return head.join('');
 }

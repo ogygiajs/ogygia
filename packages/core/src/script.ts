@@ -226,28 +226,31 @@ export function script(
 		const args = (o.args as unknown[] | undefined) ?? [];
 		// (each arg as JSON with `<` escaped — a string arg can never close the tag; an `undefined`
 		// arg stays a positional `undefined`, not a hole in the call)
-		let call = '';
+		const call_args: string[] = [];
 		for (let i = 0; i < args.length; i++) {
 			const json = JSON.stringify(args[i]);
-			call += (i ? ',' : '') + (json === undefined ? 'undefined' : escape_script_text(json));
+			call_args.push(json === undefined ? 'undefined' : escape_script_text(json));
 		}
+		let call = call_args.join(',');
 		// `imports`: static `import * as` lines first, the namespaces handed to `run` as one object
-		let lines = '';
+		const import_lines: string[] = [];
 		if (o.imports !== undefined) {
 			if (!module) throw new OgygiaError('script_imports_need_module');
-			let mods = '';
-			let n = 0;
+			const mods: string[] = [];
 			const imports = o.imports as Record<string, unknown>;
 			for (const name in imports) {
 				const url = imports[name];
 				if (typeof url !== 'string' || !url)
 					throw new OgygiaError('script_import_not_url', { name });
-				lines = `${lines}import * as __og_m${n} from ${escape_script_text(JSON.stringify(url))};`;
-				mods = `${mods}${n ? ',' : ''}${escape_script_text(JSON.stringify(name))}:__og_m${n}`;
-				n++;
+				const n = mods.length;
+				import_lines.push(
+					`import * as __og_m${n} from ${escape_script_text(JSON.stringify(url))};`
+				);
+				mods.push(`${escape_script_text(JSON.stringify(name))}:__og_m${n}`);
 			}
-			call = `{${mods}}${call ? `,${call}` : ''}`;
+			call = `{${mods.join(',')}}${call ? `,${call}` : ''}`;
 		}
+		const lines = import_lines.join('');
 		const src = fn_source(o.run);
 		// A bundler rewrote the function before it reached us: Vite's SSR transform turns an `import()`
 		// (and an imported binding) inside it into `__vite_ssr_…` helpers the browser does not have.
@@ -295,21 +298,23 @@ const DATA_KINDS = [
  * (`a <!--b` as an expression — `a < !(--b)` — would no longer parse. Nobody writes it.)
  */
 export function close_safe(code: string): string {
-	let out = '';
+	const out: string[] = [];
 	let last = 0;
 	for (let i = code.indexOf('<'); i !== -1; i = code.indexOf('<', i + 1)) {
 		if (code.startsWith('!--', i + 1)) {
-			out = `${out}${code.slice(last, i)}\\x3C`;
+			out.push(code.slice(last, i), '\\x3C');
 			last = i + 1;
 		} else if (
 			code.charCodeAt(i + 1) === 47 /* / */ &&
 			code.slice(i + 2, i + 8).toLowerCase() === 'script'
 		) {
-			out = `${out}${code.slice(last, i + 1)}\\`;
+			out.push(code.slice(last, i + 1), '\\');
 			last = i + 1;
 		}
 	}
-	return last === 0 ? code : out + code.slice(last);
+	if (last === 0) return code;
+	out.push(code.slice(last));
+	return out.join('');
 }
 
 /**

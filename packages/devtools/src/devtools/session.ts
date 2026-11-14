@@ -161,8 +161,6 @@ function island_of(node: Node | null | undefined): Element | null {
 /** `button#buy.primary` — a short readable name for an element. */
 export function describe_el(el: Element | null | undefined): string {
 	if (!el) return '(unknown)';
-	let s = el.localName;
-	if (el.id) s = `${s}#${el.id}`;
 	const cls =
 		typeof el.className === 'string'
 			? el.className
@@ -171,7 +169,7 @@ export function describe_el(el: Element | null | undefined): string {
 					.filter((c) => c && !c.startsWith('svelte-'))
 					.slice(0, 2)
 			: [];
-	if (cls.length) s = `${s}.${cls.join('.')}`;
+	const s = `${el.localName}${el.id ? `#${el.id}` : ''}${cls.length ? `.${cls.join('.')}` : ''}`;
 	const text = (el.textContent ?? '').trim().slice(0, 24);
 	return text ? `${s} "${text}${(el.textContent ?? '').trim().length > 24 ? '…' : ''}"` : s;
 }

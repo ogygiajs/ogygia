@@ -49,17 +49,19 @@ export function stitch_modes(html: string): { serve: boolean; edge: boolean } {
 export function esi_rewrite(html: string, page_path = '/'): string {
 	const holes = find_stitch_holes(html).filter((h) => h.mode === 'edge');
 	if (!holes.length) return html;
-	let out = '';
+	const out: string[] = [];
 	let last = 0;
 	for (const h of holes) {
 		const abs = new URL(h.endpoint, `http://o${page_path}`);
 		const src = escape_amp_quot(abs.pathname + abs.search);
-		out += html.slice(last, h.start);
-		out = `${out}<esi:remove>${html.slice(h.start, h.end)}</esi:remove><esi:include src="${src}" onerror="continue"/>`;
+		out.push(
+			html.slice(last, h.start),
+			`<esi:remove>${html.slice(h.start, h.end)}</esi:remove><esi:include src="${src}" onerror="continue"/>`
+		);
 		last = h.end;
 	}
-	out += html.slice(last);
-	return out;
+	out.push(html.slice(last));
+	return out.join('');
 }
 
 /** Find every TOP-LEVEL stitch-marked region block, balanced across nested regions. */
@@ -116,15 +118,17 @@ export async function stitch_html(
 	const holes = find_stitch_holes(html);
 	if (!holes.length) return html;
 	const rendered = await Promise.all(holes.map((h) => render(h.endpoint).catch(() => null))); // ok: fail-open, the hole keeps its fallback and fetches itself as an unstitched hole would
-	let out = '';
+	const out: string[] = [];
 	let last = 0;
 	for (let i = 0; i < holes.length; i++) {
 		const fill = rendered[i];
 		if (fill === null) continue;
-		out += html.slice(last, holes[i].start);
-		out = `${out}<div style="display:contents" ${OG_STITCHED}="">${fill}</div>`;
+		out.push(
+			html.slice(last, holes[i].start),
+			`<div style="display:contents" ${OG_STITCHED}="">${fill}</div>`
+		);
 		last = holes[i].end;
 	}
-	out += html.slice(last);
-	return out;
+	out.push(html.slice(last));
+	return out.join('');
 }

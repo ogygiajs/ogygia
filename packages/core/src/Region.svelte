@@ -875,12 +875,14 @@
 		const esc = (v: unknown) => escape_attr(String(v));
 		let s = ` entry="${esc(__entry || '')}" wake="none" remount="${esc(__remount)}"`;
 		const identity = lake_identity(__entry || '', __props);
+		/* oxlint-disable ogygia/no-string-concat -- #1925 / Region phase 2 owns Region.svelte */
 		if (identity) s = `${s} data-og-lake="${identity}"`;
 		if (lake_swr) s = `${s} when="${esc(__when)}"`;
 		if (__maxAge != null) s = `${s} max-age="${esc(String(__maxAge))}"`;
 		if (__onExpire) s = `${s} on-expire="${esc(__onExpire)}"`;
 		if (lake_swr && __margin) s = `${s} margin="${esc(__margin)}"`;
 		if (lake_endpoint) s = `${s} endpoint="${esc(lake_endpoint)}"`;
+		/* oxlint-enable ogygia/no-string-concat */
 		return s;
 	});
 	const lake_adopt = adopt_region(

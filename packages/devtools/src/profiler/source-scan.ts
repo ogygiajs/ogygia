@@ -1225,13 +1225,11 @@ export function constant_work(
 			// the whole statement: a braced list over several lines (`import {\n\trandomUUID\n} from
 			// 'node:crypto'`) names its bindings on the lines between, and its module on the last
 			let end = i;
-			let text = lines[i];
 			const all = [...t];
 			let open = 0;
 			for (const x of t) open += x === '{' ? 1 : x === '}' ? -1 : 0;
 			while (open > 0 && end + 1 < T.length) {
 				end++;
-				text = `${text}\n${lines[end]}`;
 				for (const x of T[end]) {
 					all.push(x);
 					open += x === '{' ? 1 : x === '}' ? -1 : 0;
@@ -1241,9 +1239,7 @@ export function constant_work(
 			i = end;
 			file_depth = 0;
 			// `randomUUID()` from node:crypto is not the same every request
-			const into = per_call_module(import_source(text.split('\n').pop()!))
-				? per_call
-				: module_names;
+			const into = per_call_module(import_source(lines[end])) ? per_call : module_names;
 			const from = all.indexOf('from');
 			for (let k = 1; k < (from === -1 ? all.length : from); k++)
 				if (
@@ -1432,10 +1428,9 @@ export function constant_work(
 			for (const x of t)
 				open +=
 					x === '(' || x === '[' || x === '{' ? 1 : x === ')' || x === ']' || x === '}' ? -1 : 0;
-			let text = lines[i];
 			const all = [...t];
-			for (let j = i + 1; open > 0 && j < body1; j++) {
-				text = `${text}\n${lines[j]}`;
+			let j = i + 1;
+			for (; open > 0 && j < body1; j++) {
 				for (const x of T[j]) {
 					all.push(x);
 					open +=
@@ -1443,7 +1438,7 @@ export function constant_work(
 				}
 			}
 			if (open !== 0 || all.includes('await')) continue;
-			const rw = line_rw(text.split('\n').join(' '));
+			const rw = line_rw(lines.slice(i, j).join(' '));
 			if (!rw.declared.length || !rw.reads.length) continue;
 			if (!rw.reads.every(known)) continue;
 			if (rw.declared.some((n) => changed.has(n))) {
@@ -1459,7 +1454,7 @@ export function constant_work(
 				(r) => module_names.has(r) && all.some((x, k) => x === r && all[k + 1] === '(')
 			);
 			for (const n of rw.declared) constant.add(n);
-			const end = i + text.split('\n').length;
+			const end = j;
 			if (all.includes('(')) {
 				out.push({ line: i + 1, names: rw.declared, calls, ...(spans ? { end, work: true } : {}) });
 				for (let j = i; j < end; j++) stmt_lines.add(j);

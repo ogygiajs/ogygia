@@ -3474,6 +3474,7 @@ class Profiler {
 			const bound = on_path.bound_by
 				? `: ${on_path.bound_by} runs about as long beside them and still sets the end`
 				: ': other work runs as long beside them';
+			// oxlint-disable-next-line ogygia/no-string-concat -- the pattern is found elsewhere; this adds the critical path's saving to its evidence, once
 			p.evidence = `${p.evidence}. Started together they would save ${p.naive_save_ms} ms of waiting, but only about ${on_path.save_ms} ms comes off the render${bound}`;
 		}
 		patterns.push(...waits);

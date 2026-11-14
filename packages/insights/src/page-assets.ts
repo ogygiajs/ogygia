@@ -534,13 +534,13 @@ export async function weigh_assets(opts: WeighOptions): Promise<PageAssets> {
 /** The text of every inline `<style>` in the document (only there is a marker the build's: a page
  *  that quotes one in its content is not a fallback). */
 function inline_style_text(html: string): string {
-	let out = '';
+	const out: string[] = [];
 	for (const tag of tags(html, 'style')) {
 		const text = text_of(html, tag, 'style');
 		if (text === null) break;
-		out = `${out}${text}\n`;
+		out.push(`${text}\n`);
 	}
-	return out;
+	return out.join('');
 }
 
 export interface AssetChange {

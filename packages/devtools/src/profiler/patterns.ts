@@ -2000,11 +2000,10 @@ function evidence_of(sites: readonly PatternSite[], renders = 1): string {
 		.sort(
 			(a, b) => b.cpu_ms + b.gc_ms + (b.lib_ms ?? 0) - (a.cpu_ms + a.gc_ms + (a.lib_ms ?? 0))
 		)[0];
-	let s = parts.join(', ');
-	if (s && renders > 1) s = `${s} over ${renders} renders`;
-	if (counted)
-		s = `${s}${s ? '; ' : ''}${counted.fn_name} ran ${counted.calls} times${renders > 1 ? ' in one render' : ''}`;
-	return s;
+	const joined = parts.join(', ');
+	const s = joined && renders > 1 ? `${joined} over ${renders} renders` : joined;
+	if (!counted) return s;
+	return `${s}${s ? '; ' : ''}${counted.fn_name} ran ${counted.calls} times${renders > 1 ? ' in one render' : ''}`;
 }
 
 // ── waiting: calls from one line that wait one after another ───────────────────
