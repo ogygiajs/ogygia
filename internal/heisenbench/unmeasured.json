@@ -6261,6 +6261,22 @@
 			"reason": "the sort comparator of a call's parameters (a closure Array.sort calls, not replayable on its own), constant work per pair; frameAddress around it is proven in packages/core/test/frame-address.test.ts (#916)"
 		},
 		{
+			"id": "packages/insights/src/page-insights.ts > analyze_page > every:0~a34c7c",
+			"reason": "a slow hole's split read for a finding's wording (was it rendered), inside analyze_page's pass, constant work per hole"
+		},
+		{
+			"id": "packages/insights/src/page-insights.ts > analyze_page > every:0~ab4fea",
+			"reason": "a slow hole's split read for a finding's wording (did its request leave), inside analyze_page's pass, constant work per hole"
+		},
+		{
+			"id": "packages/insights/src/page-insights.ts > analyze_page > map:0~7cca85",
+			"reason": "an eager hidden island's name and media query joined into a finding's fix text, inside analyze_page's pass, constant work per island"
+		},
+		{
+			"id": "packages/insights/src/page-insights.ts > analyze_page > map:0~e59b9a",
+			"reason": "a queued island's name and wait joined into a finding's message, inside analyze_page's pass, constant work per island"
+		},
+		{
 			"id": "packages/core/src/runtime/reconcile.ts > swap_reason",
 			"reason": "once per client navigation: three flag tests and the opt-out lookup the commit already made, on live DOM bodies (not replayable); test/browser/nav-fallback-reason.test.ts runs it"
 		}
