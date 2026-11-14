@@ -19,12 +19,10 @@ export interface ListOptions {
 /** Named rules for {@link check}: each returns true when it holds for the row. */
 export type Rules<I, P> = Record<string, (row: Row<I, P>) => boolean>;
 
-/** A table definition with its type parameters erased, as the walk reads it. */
 type Table = Decisions<Record<string, unknown>, unknown>;
 
 const DEFAULT_MAX = 100_000;
 
-/** The combinations a listing walks, as index tuples (one index into each field's list). */
 class Walk {
 	readonly fields: string[];
 	readonly domains: (readonly unknown[])[];
@@ -97,7 +95,6 @@ class Walk {
 	}
 }
 
-/** A seeded pseudo-random stream (mulberry32): the same seed gives the same numbers. */
 class Mulberry {
 	#state: number;
 	constructor(seed: number) {
@@ -188,7 +185,6 @@ function show_row(inputs: object, row: Row<unknown, unknown>): string {
 	return `${show_input(inputs, row.input)} -> ${outcome}`;
 }
 
-/** Plain data as text: objects and arrays by their content, other values as messages show them. */
 function show_data(v: unknown): string {
 	if (Array.isArray(v)) return `[${v.map(show_data).join(', ')}]`;
 	if (is_plain(v)) {

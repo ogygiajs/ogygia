@@ -1,6 +1,5 @@
 import { bad_option, machine_error } from './messages.ts';
 
-/** Dev and rules builds; folded out of any other (../rules-env.d.ts). */
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
