@@ -95,16 +95,80 @@ describe('transformHost — held region in .svelte (region: raw)', () => {
 			/only takes the value 'raw'/
 		);
 	});
+});
 
-	// The retired `partial:` key throws a pointer to its replacement — but only when the host also
-	// carries a live region key (the cheap source-scan skips a file whose ONLY marker is retired).
-	test('the retired `partial:` key throws when alongside a live region import', () => {
-		const bad = `<script>
-			import Card from '$lib/Card.svelte' with { partial: 'load' };
-			import Live from '$lib/Live.svelte' with { region: 'raw' };
-		</script>`;
-		expect(() => transformHost(bad, '/app/src/routes/+page.svelte', makeCtx())).toThrow(
-			/`partial` import attribute was retired/
+describe('an import attribute ogygia does not know, on a component import, fails the build', () => {
+	const host = '/app/src/routes/+page.svelte';
+	const page = (imports: string) => ['<script>', imports, '</script>'].join('\n');
+
+	test('a misspelt key, alone on a .svelte import, is named with the keys there are', () => {
+		const src = page(`import Card from '$lib/Card.svelte' with { wkae: 'load' };`);
+		expect(() => transformHost(src, host, makeCtx())).toThrow(
+			/`wkae`[\s\S]*`wake`[\s\S]*e\/region_attribute_unknown/
+		);
+	});
+
+	test('the retired `partial:` key is one of them, beside a live region import or alone', () => {
+		const beside = page(
+			`import Card from '$lib/Card.svelte' with { partial: 'load' };\nimport Live from '$lib/Live.svelte' with { region: 'raw' };`
+		);
+		expect(() => transformHost(beside, host, makeCtx())).toThrow(/e\/region_attribute_unknown/);
+		const alone = page(`import Card from '$lib/Card.svelte' with { partial: 'load' };`);
+		expect(() => transformHost(alone, host, makeCtx())).toThrow(/e\/region_attribute_unknown/);
+	});
+
+	test('with renamed keys, a default name given up to another tool is left alone, and a typo lists the renamed keys', () => {
+		const ctx = makeCtx({ importKeys: { wake: 'hydrate' } } as never);
+		const given_up = page(`import Card from '$lib/Card.svelte' with { wake: 'load' };`);
+		expect(() => transformHost(given_up, host, ctx)).not.toThrow();
+		const typo = page(`import Card from '$lib/Card.svelte' with { hydrat: 'load' };`);
+		expect(() => transformHost(typo, host, ctx)).toThrow(
+			/`hydrat`[\s\S]*`hydrate`[\s\S]*e\/region_attribute_unknown/
+		);
+	});
+
+	test('the standard `type` attribute on a component import is not ogygia’s', () => {
+		const src = page(`import Card from '$lib/Card.svelte' with { type: 'css' };`);
+		expect(transformHost(src, host, makeCtx())).toBe(null);
+	});
+
+	test('an attribute on an import that is not a component is left alone', () => {
+		const src = page(
+			`import data from './data.json' with { type: 'json' };\nimport Live from '$lib/Live.svelte' with { region: 'raw' };`
+		);
+		expect(() => transformHost(src, host, makeCtx())).not.toThrow();
+	});
+
+	test('in a .ts module too, and a json import there is left alone', () => {
+		const id = '/app/src/lib/cards.ts';
+		expect(() =>
+			transformTsRegions(`import Card from './Card.svelte' with { wkae: 'load' };`, id, makeCtx())
+		).toThrow(/`wkae`[\s\S]*e\/region_attribute_unknown/);
+		expect(
+			transformTsRegions(`import x from './x.json' with { type: 'json' };`, id, makeCtx())
+		).toBe(null);
+	});
+
+	test.each([
+		['used', `wake: 'load', partial: 'x'`, 'partial'],
+		['used', `wake: 'visible', wkae: 'load'`, 'wkae'],
+		['used', `partial: 'load', region: 'raw'`, 'partial'],
+		['unused', `wake: 'load', partial: 'x'`, 'partial']
+	])(
+		'a bad key beside a good one on one %s import is named by its code: { %s }',
+		(use, attrs, key) => {
+			const markup = use === 'used' ? '\n<Card />' : '';
+			const src = page(`import Card from '$lib/Card.svelte' with { ${attrs} };`) + markup;
+			expect(() => transformHost(src, host, makeCtx())).toThrow(
+				new RegExp(`\`${key}\`[\\s\\S]*e/region_attribute_unknown`)
+			);
+		}
+	);
+
+	test('a bad key beside a good one on one import is named by its code in a .ts module too', () => {
+		const src = `import Card from './Card.svelte' with { wake: 'load', partial: 'x' };\nexport const c = [Card];`;
+		expect(() => transformTsRegions(src, '/app/src/lib/cards.ts', makeCtx())).toThrow(
+			/`partial`[\s\S]*e\/region_attribute_unknown/
 		);
 	});
 });
@@ -362,8 +426,8 @@ describe('transformTsRegions — the module rules', () => {
 		).toBe('held_render_live');
 	});
 
-	test('region beside another key, or render beside a foreign key, is a mixed marker set', () => {
-		for (const attrs of [`region: 'raw', fetch: 'load'`, `render: 'deferred', margin: '1px'`])
+	test('region beside another key, or render beside a key it does not take, is a mixed marker set', () => {
+		for (const attrs of [`region: 'raw', fetch: 'load'`, `render: 'deferred', keep: 'x'`])
 			expect(
 				code_of(() => ts(`import C from './C.svelte' with { ${attrs} };\nexport const b = C;`))
 			).toBe('held_marker_mixed');
