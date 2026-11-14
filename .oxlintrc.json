@@ -68,25 +68,8 @@
 			"rules": { "no-eval": "error", "no-new-func": "error", "no-implied-eval": "error" }
 		},
 		{
-			"files": [
-				"packages/barrels/src/**",
-				"packages/cli/src/**",
-				"packages/compiler/src/**",
-				"packages/config/src/**",
-				"packages/content/src/**",
-				"packages/core/src/**",
-				"packages/data-shake/src/**",
-				"packages/devtools/src/**",
-				"packages/federation/src/**",
-				"packages/insights/src/**",
-				"packages/flags/src/**",
-				"packages/jumpstart/src/**",
-				"packages/machine/src/**",
-				"packages/rewrite/src/**",
-				"packages/router/src/**",
-				"packages/testing/src/**"
-			],
-			"rules": { "no-nested-ternary": "error" }
+			"files": ["packages/*/src/**"],
+			"rules": { "eslint/no-nested-ternary": "error" }
 		},
 		{
 			"files": [
