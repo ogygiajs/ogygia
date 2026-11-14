@@ -287,6 +287,39 @@ function running_at_each<S extends { t0: number; t1: number; category: string }>
 	return out;
 }
 
+/** One CPU segment on the capture's clock: what was running over `t0`..`t1`. */
+export interface Running {
+	t0: number;
+	t1: number;
+	label: string;
+	category: FrameCategory;
+	file?: string;
+}
+
+/**
+ * What was running when each pause fell: the CPU segments over the whole capture (every run),
+ * else the profiled window's CPU segments shifted onto the capture's clock; none without either.
+ * @heisenbench linear in input
+ */
+export function gc_running(
+	analysis: {
+		capture_cpu?: Running[];
+		timeline?: { segments: readonly (Running & { kind: string })[] };
+	},
+	window_offset_ms: number
+): Running[] | undefined {
+	if (analysis.capture_cpu) return analysis.capture_cpu;
+	return analysis.timeline?.segments
+		.filter((s) => s.kind === 'cpu')
+		.map((s) => ({
+			t0: s.t0 + window_offset_ms,
+			t1: s.t1 + window_offset_ms,
+			label: s.label,
+			category: s.category,
+			file: s.file
+		}));
+}
+
 /**
  * Each pause of a profiled window charged to the allocations before it, and each allocator to
  * the pause time it caused.
