@@ -124,6 +124,48 @@ export function inert_custom_elements(): void {
 }
 
 /**
+ * The document's own parser makes each `<template shadowrootmode>` its parent's shadow root, as a
+ * browser's does (the HTML spec's declarative shadow roots); a fragment parse (`innerHTML`,
+ * `DOMParser`, a template's own) keeps it a template. happy-dom's kept every one, so a page that
+ * server-renders a shadow root hydrated a light DOM no browser has (#1928). Idempotent.
+ * test/declarative-shadow.node.test.ts.
+ */
+export function declarative_shadow_roots(): void {
+	const parser = HTMLParser.prototype as unknown as Record<string, unknown> & { __dsd?: boolean };
+	if (parser.__dsd) return;
+	parser.__dsd = true;
+	type Parsing = { evaluateScripts?: boolean; nodeStack: Element[] };
+	const end = parser.parseEndTag as (this: Parsing, tag: string) => void;
+	parser.parseEndTag = function (this: Parsing, tag: string) {
+		const open = this.nodeStack.slice();
+		end.call(this, tag);
+		if (this.evaluateScripts !== true) return;
+		for (let i = open.length - 1; i >= this.nodeStack.length; i--) attach_declared(open[i]);
+	};
+}
+
+function attach_declared(el: Element): void {
+	if (el.localName !== 'template') return;
+	const mode = el.getAttribute('shadowrootmode')?.toLowerCase();
+	const host = el.parentElement;
+	if ((mode !== 'open' && mode !== 'closed') || host === null) return;
+	let root: ShadowRoot;
+	try {
+		root = host.attachShadow({
+			mode,
+			delegatesFocus: el.hasAttribute('shadowrootdelegatesfocus'),
+			clonable: el.hasAttribute('shadowrootclonable'),
+			serializable: el.hasAttribute('shadowrootserializable')
+		});
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a host that cannot take a shadow root keeps the template, as the spec's parser does
+	} catch {
+		return;
+	}
+	root.append((el as HTMLTemplateElement).content);
+	el.remove();
+}
+
+/**
  * `document.getElementsByTagNameNS` works, as in a browser. happy-dom's reads the owner document of
  * the node it searches from, for its content type, and a document has none, so it threw (the
  * router's title check, on every client navigation: generated app 31). The search from a document
