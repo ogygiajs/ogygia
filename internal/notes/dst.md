@@ -461,10 +461,12 @@ nobody notices wants an oracle or a test first.
 
 THE LEDGER AUTOPILOT (`src/autopilot.ts`, test/autopilot.test.ts) moves baseline sites a real test
 already checks to `covered` in bulk. It puts a probe on each baseline site's recovery path (a catch
-body, a `.catch` or rejection handler, a `!res.ok`, STALE or null-body check when it holds, a throw,
-an `{ ok: false }`), runs a package's tests once per project to learn which tests reach it, takes
-the probes out, then breaks each reached recovery (a catch emptied or made to rethrow, a handler made
-to rethrow, a check never true, a throw removed, a failed result made ok) and reruns only the tests
+body, a `.catch` or rejection handler, a `!res.ok`, STALE, null-body, `.aborted` or `'AbortError'`
+check when it holds, a throw, an `{ ok: false }`, a timer's callback, an error event's handler), runs
+a package's tests once per project to learn which tests reach it, takes the probes out, then breaks
+each reached recovery (a catch emptied or made to rethrow, a handler made to rethrow, a check never
+true, a throw removed, a failed result made ok, a timer's callback or an error handler made to do
+nothing) and reruns only the tests
 that reached it, under a time limit. A reaching test that fails twice on the same mutant (the re-run
 rule) is the site's `covered` test. A site whose mutants all leave its tests green SURVIVED (a test
 runs the path and checks nothing: a buggify or test gap), and one no test reaches is left for a
