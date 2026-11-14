@@ -339,6 +339,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		},
 		regions: {
 			names: () => compiler_of(session, 'regions.names').region_names(),
+			hosts: () => compiler_of(session, 'regions.hosts').region_hosts(),
 			whyStayed: (file, importers) => why_stayed(file, importers)
 		}
 	};

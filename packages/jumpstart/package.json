@@ -1,0 +1,81 @@
+{
+	"name": "@ogygia/jumpstart",
+	"version": "0.13.0",
+	"description": "A server build in a few files for ogygia apps: dependencies bundled, the framework in one chunk and each region registry in its own, for a fast cold start",
+	"keywords": [
+		"cold-start",
+		"ogygia",
+		"serverless",
+		"sveltekit",
+		"vite"
+	],
+	"homepage": "https://ogygiajs.dev",
+	"license": "MIT",
+	"author": "Puru Vijayvargia <devpuruvj@gmail.com>",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ogygiajs/ogygia.git",
+		"directory": "packages/jumpstart"
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./src/index.ts"
+		},
+		"./internal/messages": {
+			"types": "./dist/messages.d.ts",
+			"default": "./src/messages.ts"
+		}
+	},
+	"publishConfig": {
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"./internal/messages": {
+				"types": "./dist/messages.d.ts",
+				"default": "./dist/messages.js"
+			}
+		},
+		"access": "public"
+	},
+	"scripts": {
+		"build": "tsdown",
+		"prepublishOnly": "pnpm run build",
+		"check": "tsc -p . && tsc -p test && tsc -p e2e && vitest run",
+		"test": "vitest run",
+		"e2e": "playwright test",
+		"bench:cold": "node bench/cold-start.ts"
+	},
+	"devDependencies": {
+		"@ogygia/compiler": "workspace:*",
+		"@ogygia/config": "workspace:*",
+		"@ogygia/core": "workspace:*",
+		"@ogygia/tooling": "workspace:*",
+		"@playwright/test": "catalog:",
+		"@sveltejs/adapter-node": "catalog:",
+		"@sveltejs/kit": "catalog:",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"@types/node": "catalog:",
+		"@typescript/native": "catalog:tsgo",
+		"fast-check": "catalog:",
+		"ogygia": "workspace:*",
+		"svelte": "catalog:",
+		"tsdown": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:",
+		"vitest": "catalog:"
+	},
+	"peerDependencies": {
+		"@ogygia/compiler": "workspace:^",
+		"@ogygia/core": "workspace:^",
+		"vite": "catalog:peers"
+	}
+}

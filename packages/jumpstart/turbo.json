@@ -1,0 +1,10 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"e2e": {
+			"dependsOn": ["^build"],
+			"inputs": ["$TURBO_DEFAULT$", "e2e/**", "!e2e/*/node_modules/**", "!e2e/*/.svelte-kit*/**"]
+		}
+	}
+}

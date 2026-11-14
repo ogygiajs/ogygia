@@ -22,7 +22,8 @@
 			"@ogygia/barrels",
 			"@ogygia/bake",
 			"@ogygia/insights",
-			"@ogygia/data-shake"
+			"@ogygia/data-shake",
+			"@ogygia/jumpstart"
 		]
 	],
 	"format": "auto",
