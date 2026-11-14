@@ -1,6 +1,6 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import type { HtmlPass } from '@ogygia/core/plugin';
-import { closeSafe, escapeAttr } from '@ogygia/core/plugin/utils';
+import { closeSafe, escapeAttr, isScriptUrl } from '@ogygia/core/plugin/utils';
 import { MarkupCursor, OG_HEAD, OG_RESTORE, OG_STAND_INS } from '@ogygia/core/internal/instruments';
 import { DEV } from 'esm-env';
 import { buggify } from '@ogygia/machine';
@@ -17,7 +17,7 @@ import {
 	STAND_IN_CSS,
 	type MarkRecord
 } from './reversible.ts';
-import { restore, restore_adopt } from './restore.ts';
+import { restore_adopt, restore_with } from './restore.ts';
 import {
 	matcher,
 	scan,
@@ -68,7 +68,7 @@ export interface PassOptions {
  *  the document now, and stays as `__og_restore` / `__og_restore_adopt` for later chunks, hole
  *  answers and router swaps. Its text closed-safe like every inline code ogygia writes
  *  (test/restorer-inline-safe.test.ts). */
-export const RESTORER_SCRIPT: string = `<script ${OG_RESTORE}>${closeSafe(`(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()`)}</script>`;
+export const RESTORER_SCRIPT: string = `<script ${OG_RESTORE}>${closeSafe(`(function(){var u=${isScriptUrl.toString()},w=${restore_with.toString()},r=function(d,l){return w(u,d,l)};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()`)}</script>`;
 /** @internal A later chunk's restore: the hosts not restored yet (`lite`: none inside a declarative
  *  shadow root), or every host in the document when the chunk put one inside such a root. */
 export const RESTORE_CALL: string = `<script ${OG_RESTORE}>__og_restore(document,1)</script>`;
