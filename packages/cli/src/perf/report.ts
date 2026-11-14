@@ -1,17 +1,14 @@
 import type { Verdict, PageVerdict, MetricRow } from './compare.ts';
 
-const fmt = (n: number | null, unit: MetricRow['unit']) =>
-	n === null
-		? '—'
-		: unit === 'ms'
-			? `${n.toFixed(1)} ms`
-			: unit === 'KB'
-				? `${n.toFixed(1)} KB`
-				: String(Math.round(n));
+const UNIT_SUFFIX: Readonly<Record<MetricRow['unit'], string>> = { ms: ' ms', KB: ' KB', n: '' };
+const fmt = (n: number | null, unit: MetricRow['unit']) => {
+	if (n === null) return '—';
+	return unit === 'n' ? String(Math.round(n)) : `${n.toFixed(1)}${UNIT_SUFFIX[unit]}`;
+};
 const sign = (d: number | null, unit: MetricRow['unit']) =>
 	d === null
 		? 'new'
-		: `${d > 0 ? '+' : ''}${unit === 'n' ? Math.round(d) : d.toFixed(1)}${unit === 'ms' ? ' ms' : unit === 'KB' ? ' KB' : ''}`;
+		: `${d > 0 ? '+' : ''}${unit === 'n' ? Math.round(d) : d.toFixed(1)}${UNIT_SUFFIX[unit]}`;
 const pct = (p: number | null) => (p === null ? '' : ` (${p > 0 ? '+' : ''}${p.toFixed(0)}%)`);
 
 /**

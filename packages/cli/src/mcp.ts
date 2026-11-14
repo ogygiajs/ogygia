@@ -1009,25 +1009,19 @@ function render_plan(r: ProfileReport): string {
 		// the line to open: a looping caller, else the first caller of a helper, else the site
 		const at = s?.via?.find((v) => v.in_loop) ?? (p.wait ? s?.via?.[0] : undefined) ?? s;
 		// a built chunk's line (no sourcemap): which source module it is, then the chunk line
-		const where = at?.file
-			? at.module
-				? `${at.module} (built ${at.file}:${at.line})`
-				: `${at.file}:${at.line}`
-			: '';
-		const worth = p.kept_bytes
-			? `keeps ${kb_or_mb(p.kept_bytes)} alive per render`
-			: p.seed_bytes
-				? `ships ${kb_or_mb(p.seed_bytes)} per page view`
-				: `~${Math.round(((p.save_ms ?? 0) / (p.wait ? 1 : n)) * 10) / 10}ms per render`;
+		let where = '';
+		if (at?.file)
+			where = at.module ? `${at.module} (built ${at.file}:${at.line})` : `${at.file}:${at.line}`;
+		const per_render_ms = (p.save_ms ?? 0) / (p.wait ? 1 : n);
+		let worth = `~${Math.round(per_render_ms * 10) / 10}ms per render`;
+		if (p.kept_bytes) worth = `keeps ${kb_or_mb(p.kept_bytes)} alive per render`;
+		else if (p.seed_bytes) worth = `ships ${kb_or_mb(p.seed_bytes)} per page view`;
 		if (!p.kept_bytes && !p.seed_bytes && (p.save_ms ?? 0) <= 0) continue;
 		// a severe leak (8 MB+ a render: it ends in a crash) and a whole shipped seed lead; a small kept
 		// amount waits behind the time savings
-		const value =
-			(p.kept_bytes ?? 0) >= 8 * 1024 * 1024 || p.seed_bytes
-				? Infinity
-				: p.kept_bytes
-					? 0.5
-					: (p.save_ms ?? 0) / (p.wait ? 1 : n);
+		let value = per_render_ms;
+		if ((p.kept_bytes ?? 0) >= 8 * 1024 * 1024 || p.seed_bytes) value = Infinity;
+		else if (p.kept_bytes) value = 0.5;
 		steps.push({
 			value,
 			key: p.title ?? p.kind,
@@ -1160,15 +1154,14 @@ function render_patterns(r: ProfileReport): string {
 						.join('');
 					// what the service's own Cache-Control allows, for a same-answer site
 					const uc = s.upstream_cache;
-					const said = uc?.no_store
-						? ' (the service says no-store: check before caching)'
-						: uc?.no_cache
-							? ' (the service says revalidate every reuse: cache only with a check, e.g. its ETag)'
-							: uc?.max_age
-								? ` (the service allows caching ${uc.max_age}s${uc.private ? ', per user' : ''})`
-								: uc?.private
-									? ' (the service marks it private: per user only)'
-									: '';
+					let said = '';
+					if (uc?.no_store) said = ' (the service says no-store: check before caching)';
+					else if (uc?.no_cache)
+						said =
+							' (the service says revalidate every reuse: cache only with a check, e.g. its ETag)';
+					else if (uc?.max_age)
+						said = ` (the service allows caching ${uc.max_age}s${uc.private ? ', per user' : ''})`;
+					else if (uc?.private) said = ' (the service marks it private: per user only)';
 					// the change, written out: replace these lines with this
 					const rw = s.rewrite
 						? `\n${dedent`
@@ -1187,9 +1180,10 @@ function render_patterns(r: ProfileReport): string {
 				})
 				.join('');
 			const whole = p.kind === 'same-document' || p.kind === 'almost-same-document';
-			const save = p.save_ms
-				? ` — saves ~${per(p)}ms${whole ? ' (the whole render, from a cache)' : p.wait ? ' of waiting' : ''} per render`
-				: '';
+			let saved_what = '';
+			if (whole) saved_what = ' (the whole render, from a cache)';
+			else if (p.wait) saved_what = ' of waiting';
+			const save = p.save_ms ? ` — saves ~${per(p)}ms${saved_what} per render` : '';
 			const example = p.example?.after
 				? `\n   Example: \`${p.example.before ?? ''}\` → \`${(p.example.after ?? '').split('\n').join(' ')}\``
 				: '';
@@ -1237,14 +1231,11 @@ function render_drill(root: DrillShape): string {
 	const out: string[] = [];
 	const walk = (n: DrillShape, depth: number) => {
 		// alone = nothing else in flight: the least a faster answer saves
-		const alone =
-			n.alone === undefined
-				? ''
-				: n.alone < 0.05
-					? ', always beside other calls'
-					: n.alone >= n.ms - 0.05
-						? ', alone'
-						: `, ${n.alone}ms alone`;
+		let alone: string;
+		if (n.alone === undefined) alone = '';
+		else if (n.alone < 0.05) alone = ', always beside other calls';
+		else if (n.alone >= n.ms - 0.05) alone = ', alone';
+		else alone = `, ${n.alone}ms alone`;
 		// its low–high over the renders: a difference inside it is noise
 		const spread =
 			(n.runs
@@ -1418,24 +1409,23 @@ export function render_profile(
 				r.timeline?.wait_ms
 			);
 	const covered = (fc?.parts ?? []).filter((p) => p.with?.length);
-	const forecast_line =
-		fc && fc.now_ms > fc.after_ms
-			? `Doing all of it: ~${Math.round(fc.now_ms)}ms → ~${Math.round(fc.after_ms)}ms per render (−${Math.round(((fc.now_ms - fc.after_ms) / fc.now_ms) * 100)}%: ${[fc.cpu_ms ? `${fc.cpu_ms}ms CPU` : '', fc.wait_ms ? `${fc.wait_ms}ms waiting` : '', fc.delete_ms ? `${fc.delete_ms}ms of work for unread data` : ''].filter(Boolean).join(', ')}).${covered.length ? ` Counted once: ${covered.map((p) => `"${p.title}" covers ${p.with!.map((w) => `"${w}"`).join(', ')}`).join('; ')}.` : ''}${fc.answers ? ` Keeping the services' answers between renders too (a freshness decision: only where a slightly stale answer is fine): ~${Math.round(fc.answers.after_ms)}ms${fc.answers.measured ? ` (measured: the page rendered in ${Math.round(fc.answers.measured.ms)}ms with those answers served from memory, then the other fixes taken off)` : ''}.` : ''}${fc.cpu_now_ms && fc.cpu_after_ms && fc.cpu_after_ms < fc.cpu_now_ms * 0.9 ? ` Capacity: main-thread CPU ${Math.round(fc.cpu_now_ms)}ms → ~${Math.round(fc.cpu_after_ms)}ms a render after the CPU fixes, so one core serves ~${Math.round(1000 / fc.cpu_now_ms)} → ~${Math.round(1000 / fc.cpu_after_ms)} renders a second (waiting fixes cut latency, not this).` : ''}${fc.cache ? ' A cached copy of the whole document is a separate lever, not counted.' : ''}${fc.clamped ? ' (The savings claimed more waiting or CPU than the render had: held at what it used.)' : ''}${fc.partial ? ' Built without sourcemaps: fewer lines seen, so fewer fixes counted; the real time after them is likely lower.' : ''}\n`
-			: impact
-				? `Fixing all of these takes ~${Math.round(impact.render_ms - impact.after_ms)}ms off the ${Math.round(impact.render_ms)}ms render (${impact.pct}%).\n`
-				: '';
+	let forecast_line = '';
+	if (fc && fc.now_ms > fc.after_ms)
+		forecast_line = `Doing all of it: ~${Math.round(fc.now_ms)}ms → ~${Math.round(fc.after_ms)}ms per render (−${Math.round(((fc.now_ms - fc.after_ms) / fc.now_ms) * 100)}%: ${[fc.cpu_ms ? `${fc.cpu_ms}ms CPU` : '', fc.wait_ms ? `${fc.wait_ms}ms waiting` : '', fc.delete_ms ? `${fc.delete_ms}ms of work for unread data` : ''].filter(Boolean).join(', ')}).${covered.length ? ` Counted once: ${covered.map((p) => `"${p.title}" covers ${p.with!.map((w) => `"${w}"`).join(', ')}`).join('; ')}.` : ''}${fc.answers ? ` Keeping the services' answers between renders too (a freshness decision: only where a slightly stale answer is fine): ~${Math.round(fc.answers.after_ms)}ms${fc.answers.measured ? ` (measured: the page rendered in ${Math.round(fc.answers.measured.ms)}ms with those answers served from memory, then the other fixes taken off)` : ''}.` : ''}${fc.cpu_now_ms && fc.cpu_after_ms && fc.cpu_after_ms < fc.cpu_now_ms * 0.9 ? ` Capacity: main-thread CPU ${Math.round(fc.cpu_now_ms)}ms → ~${Math.round(fc.cpu_after_ms)}ms a render after the CPU fixes, so one core serves ~${Math.round(1000 / fc.cpu_now_ms)} → ~${Math.round(1000 / fc.cpu_after_ms)} renders a second (waiting fixes cut latency, not this).` : ''}${fc.cache ? ' A cached copy of the whole document is a separate lever, not counted.' : ''}${fc.clamped ? ' (The savings claimed more waiting or CPU than the render had: held at what it used.)' : ''}${fc.partial ? ' Built without sourcemaps: fewer lines seen, so fewer fixes counted; the real time after them is likely lower.' : ''}\n`;
+	else if (impact)
+		forecast_line = `Fixing all of these takes ~${Math.round(impact.render_ms - impact.after_ms)}ms off the ${Math.round(impact.render_ms)}ms render (${impact.pct}%).\n`;
 	const patterns = forecast_line + render_patterns(r);
 	const ledger = render_ledger(r);
 	const plan = render_plan(r);
 	// SINCE THE LAST PROFILE of this page: did the change pay (what an agent iterating on a fix asks first)
 	const sn = r.since;
-	const since = !sn
-		? ''
-		: sn.order
-			? `Run order skews this: both ran on one server after renders that kept ${sn.order.kept_mb} MB alive each; restart between profiles to compare.`
-			: sn.same
-				? `No real change since the last profile (${sn.a_ms} → ${sn.b_ms}ms, within the runs' own spread).`
-				: `${sn.b_ms !== undefined && sn.a_ms !== undefined ? `${sn.b_ms - sn.a_ms > 0 ? '+' : ''}${Math.round((sn.b_ms - sn.a_ms) * 10) / 10}ms since the last profile (${sn.a_ms} → ${sn.b_ms}ms)` : 'Since the last profile'}${sn.moved.length ? `, mostly:\n${sn.moved.map((m) => `- ${m.status} ${m.path[m.path.length - 1]}${m.at && m.kind !== 'line' ? ` @ ${m.at}` : ''}: ${m.d_ms > 0 ? '+' : ''}${m.d_ms}ms`).join('\n')}` : '.'}${sn.fix_check ? `\nThe fixed patterns promised ~${sn.fix_check.predicted_ms}ms; the render moved ${sn.fix_check.measured_ms}ms (${sn.fix_check.verdict}).` : ''}`;
+	let since = '';
+	if (sn?.order)
+		since = `Run order skews this: both ran on one server after renders that kept ${sn.order.kept_mb} MB alive each; restart between profiles to compare.`;
+	else if (sn?.same)
+		since = `No real change since the last profile (${sn.a_ms} → ${sn.b_ms}ms, within the runs' own spread).`;
+	else if (sn)
+		since = `${sn.b_ms !== undefined && sn.a_ms !== undefined ? `${sn.b_ms - sn.a_ms > 0 ? '+' : ''}${Math.round((sn.b_ms - sn.a_ms) * 10) / 10}ms since the last profile (${sn.a_ms} → ${sn.b_ms}ms)` : 'Since the last profile'}${sn.moved.length ? `, mostly:\n${sn.moved.map((m) => `- ${m.status} ${m.path[m.path.length - 1]}${m.at && m.kind !== 'line' ? ` @ ${m.at}` : ''}: ${m.d_ms > 0 ? '+' : ''}${m.d_ms}ms`).join('\n')}` : '.'}${sn.fix_check ? `\nThe fixed patterns promised ~${sn.fix_check.predicted_ms}ms; the render moved ${sn.fix_check.measured_ms}ms (${sn.fix_check.verdict}).` : ''}`;
 	const score =
 		sn?.score && sn.score.a !== sn.score.b
 			? `\nScore ${sn.score.a} → ${sn.score.b} (${sn.score.a_grade} → ${sn.score.b_grade})${sn.score.moved.length ? `: ${sn.score.moved.map((m) => `${m.label} ${m.a} → ${m.b}`).join(', ')}` : ''}.`
@@ -1570,6 +1560,18 @@ function sends_to_login(res: Response, base: string): boolean {
 
 /** Who holds the profiler's recorder, as its 409 says (devtools profiler `#busy`). */
 type BusyHolder = { kind: string; age_ms: number; stale: boolean };
+const HOLDER_LABEL: ReadonlyMap<string, string> = new Map([
+	['window', 'recording window'],
+	['background', 'background capture']
+]);
+const PAGE_POSTURE: ReadonlyMap<number, string> = new Map([
+	[401, '🔒 signature-verified — an unsigned request is rejected (good)'],
+	[
+		200,
+		'⚠️ OPEN — served an UNSIGNED request. Unless this origin is private-network-only, add each caller as a peer with its public `key` in federate({ peers }) (or `open: true` on purpose).'
+	],
+	[404, 'not exposed here (no /og/fragment/page — page mounting unavailable)']
+]);
 
 /** The holder a 409 names: null when it names none (an older profiler, or a body that is not its). */
 async function busy_holder(res: Response): Promise<BusyHolder | null> {
@@ -1583,7 +1585,7 @@ async function busy_holder(res: Response): Promise<BusyHolder | null> {
 
 function busy_message(origin: string, holder: BusyHolder | null): string {
 	const who = holder
-		? `a ${holder.kind === 'window' ? 'recording window' : holder.kind === 'background' ? 'background capture' : 'page profile'} started ${Math.round(holder.age_ms / 1000)}s ago`
+		? `a ${HOLDER_LABEL.get(holder.kind) ?? 'page profile'} started ${Math.round(holder.age_ms / 1000)}s ago`
 		: 'another recording';
 	return `The profiler on ${origin} is busy: ${who} holds it, and it may be someone else's, so ogygia_profile leaves it alone. Wait for it to end and retry (the dashboard's Reset takes it over, if it is yours and stuck).`;
 }
@@ -2010,11 +2012,11 @@ async function tool_flags(args: Args): Promise<ToolResult> {
 
 	const live_names = new Set(live.names);
 	const stale = manifest ? manifest.names.filter((n) => !live_names.has(n)) : [];
-	const manifest_note = !manifest
-		? `\n\n> No build manifest yet — node_modules/.ogygia/flags-manifest.json appears after a client build.`
-		: stale.length
-			? `\n\n> ⚠️ In the last build's manifest but NOT in source now (deleted or renamed since): ${stale.join(', ')}. Rebuild to refresh.`
-			: `\n\n> Matches the last build's manifest.`;
+	let manifest_note = `\n\n> Matches the last build's manifest.`;
+	if (!manifest)
+		manifest_note = `\n\n> No build manifest yet — node_modules/.ogygia/flags-manifest.json appears after a client build.`;
+	else if (stale.length)
+		manifest_note = `\n\n> ⚠️ In the last build's manifest but NOT in source now (deleted or renamed since): ${stale.join(', ')}. Rebuild to refresh.`;
 
 	return text(dedent`
 		# ogygia flags — ${dir}
@@ -2052,15 +2054,9 @@ async function tool_fragment(args: Args): Promise<ToolResult> {
 	// The fixed page endpoint a `federate({ expose })` serves — keep in sync with FRAGMENT_ROUTES_PATH
 	// (federation/wire.ts). Deliberately not imported: the MCP must not pull the handle graph.
 	const page_res = await get(`${origin}/og/fragment/page?path=${encodeURIComponent('/')}`);
-	const posture = !page_res
-		? '❌ unreachable (network error / timeout)'
-		: page_res.status === 401
-			? '🔒 signature-verified — an unsigned request is rejected (good)'
-			: page_res.status === 200
-				? '⚠️ OPEN — served an UNSIGNED request. Unless this origin is private-network-only, add each caller as a peer with its public `key` in federate({ peers }) (or `open: true` on purpose).'
-				: page_res.status === 404
-					? 'not exposed here (no /og/fragment/page — page mounting unavailable)'
-					: `HTTP ${page_res.status}`;
+	const posture = page_res
+		? (PAGE_POSTURE.get(page_res.status) ?? `HTTP ${page_res.status}`)
+		: '❌ unreachable (network error / timeout)';
 
 	const cat_res = await get(`${origin}/og/fragment/__catalog`);
 	let widgets_block =
@@ -2099,8 +2095,10 @@ async function tool_fragment(args: Args): Promise<ToolResult> {
 }
 
 /** A JSON value's type, in a tool schema's words. */
-const json_type = (v: unknown): string =>
-	Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v;
+const json_type = (v: unknown): string => {
+	if (Array.isArray(v)) return 'array';
+	return v === null ? 'null' : typeof v;
+};
 
 /** The tool's error for the first argument that is not what its schema declares; null when all are.
  *  Checked once here, so a tool reads a declared string as a string (test/property-mcp-tools.test.ts). */
