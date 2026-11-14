@@ -261,6 +261,7 @@ export interface VirtualConstants {
 	__OGYGIA_HOOK_HOLE_FAILED__: boolean;
 	__OGYGIA_HOOK_HOLE_BATCH_MISSED__: boolean;
 	__OGYGIA_HOOK_ENTRY_FALLBACK__: boolean;
+	__OGYGIA_HOOK_RELOAD_NEEDED__: boolean;
 	__OGYGIA_HOOK_NAVIGATED__: boolean;
 	__OGYGIA_HOOK_CRITICAL_SETTLED__: boolean;
 	__OGYGIA_HOOK_WARNING__: boolean;

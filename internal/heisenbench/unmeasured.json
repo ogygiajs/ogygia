@@ -1141,10 +1141,6 @@
 			"reason": "the same, as it gets its turn back, constant work; proven in packages/machine/test/mailbox.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > boot > on_reload_needed:0~c56e54",
-			"reason": "browser only: logs chunk_reload_needed once per page (one console.error); proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/import-again.ts > flights:0",
 			"reason": "browser only: an island file's one load at a time (the dynamic import() of its URL, and the immediate retry under a fresh URL after a dropped download); proven in packages/core/test/browser/import-file-one-retry.test.ts (#271) and apps/palaestra/e2e/lazy-chunk-retry.spec.ts (#261)"
 		},
@@ -6111,6 +6107,18 @@
 		{
 			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > whyStayed",
 			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/reload-needed.ts > say_reload_needed",
+			"reason": "browser only, once per page at most (the first chunk no retry loads); test/browser/reload-needed-hook.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/reload-needed.ts > regions_of_file",
+			"reason": "a DOM query, browser only, once per page at most and only with a reloadNeeded subscriber; test/browser/reload-needed-hook.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/reload-needed.ts > file_without_retry_mark",
+			"reason": "one URL parse per region on the page, browser only, once per page at most; test/browser/reload-needed-hook.test.ts runs it"
 		}
 	]
 }
