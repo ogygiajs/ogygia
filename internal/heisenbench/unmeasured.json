@@ -6143,6 +6143,18 @@
 		{
 			"id": "packages/core/src/server/live-event.ts > live_event",
 			"reason": "one call to Kit's getRequestEvent, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > observeReads",
+			"reason": "hands a live RequestEvent (not cloneable) and its request's read set to observe_reads, constant work of its own; observe_reads is measured on its own"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn",
+			"reason": "a plugin's dev warning: one say().once per message, printed through console.warn (not replayable), constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn > once:1~c9a4aa",
+			"reason": "prints a plugin's warning once through console.warn (not replayable), constant work"
 		}
 	]
 }

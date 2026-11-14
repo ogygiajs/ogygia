@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { parse, stringify } from 'devalue';
 import {
-	plan_props_wire,
+	PropsWire,
 	props_sidecar,
 	stringify_props,
 	WIRE_FORMAT_JSON
@@ -96,7 +96,7 @@ describe('analyze · what one walk says', () => {
 describe('plan_props_wire · lanes', () => {
 	it('plain props take the JSON lane: canonical is JSON.stringify, the wire text is `<`-escaped', () => {
 		const props = { label: '<b>hi</b>', n: [1, 2] };
-		const w = plan_props_wire(props, '/islands/x.js');
+		const w = new PropsWire(props, '/islands/x.js');
 		expect(w.json).toBe(true);
 		expect(w.canonical).toBe(JSON.stringify(props));
 		const out = w.wire(null);
@@ -107,7 +107,7 @@ describe('plan_props_wire · lanes', () => {
 
 	it('anything devalue exists for keeps devalue, and needs no second escape', () => {
 		const props = { when: new Date(1_700_000_000_000), tag: '</script>' };
-		const w = plan_props_wire(props, '/islands/x.js');
+		const w = new PropsWire(props, '/islands/x.js');
 		expect(w.json).toBe(false);
 		const out = w.wire(null);
 		expect(out.json).toBe(false);
@@ -119,7 +119,7 @@ describe('plan_props_wire · lanes', () => {
 		class Opaque {
 			v = 1;
 		}
-		expect(() => plan_props_wire({ o: new Opaque() }, '/islands/x.js')).toThrow(
+		expect(() => new PropsWire({ o: new Opaque() }, '/islands/x.js')).toThrow(
 			/island "\/islands\/x.js": a captured prop/
 		);
 	});
@@ -129,7 +129,7 @@ describe('plan_props_wire · fingerprint input', () => {
 	it('the fingerprint is a function of the props alone: same with or without the seed', () => {
 		const data = { catalog: { blocks: [block('one'), block('two')] } };
 		const props = { block: data.catalog.blocks[0], mode: 'x' };
-		const w = plan_props_wire(props, '/islands/x.js');
+		const w = new PropsWire(props, '/islands/x.js');
 		const fp = fingerprint_of('/islands/x.js', '', w.canonical);
 		// referenced or not, the wire text differs but the canonical (what data-og-fp hashes) does not
 		expect(w.wire(SeedIndex.of(data)).text).not.toBe(w.wire(null).text);
@@ -138,7 +138,7 @@ describe('plan_props_wire · fingerprint input', () => {
 			fingerprint_of(
 				'/islands/x.js',
 				'',
-				plan_props_wire(structuredClone(props), '/islands/x.js').canonical
+				new PropsWire(structuredClone(props), '/islands/x.js').canonical
 			)
 		).toBe(fp);
 	});
@@ -153,7 +153,7 @@ describe('plan_props_wire · seed references at wire time', () => {
 			twin: JSON.parse(JSON.stringify(data.catalog.blocks[1])),
 			n: 7
 		};
-		const w = plan_props_wire(props, '/islands/x.js');
+		const w = new PropsWire(props, '/islands/x.js');
 		expect(w.json).toBe(true); // plain props: JSON canonical …
 		const out = w.wire(SeedIndex.of(data));
 		expect(out.json).toBe(false); // … but devalue on the wire once references apply
@@ -165,7 +165,7 @@ describe('plan_props_wire · seed references at wire time', () => {
 
 	it('without the seed (null), or with a seed that owns none of the props: the canonical lane', () => {
 		const props = { block: data.catalog.blocks[0] };
-		const w = plan_props_wire(props, '/islands/x.js');
+		const w = new PropsWire(props, '/islands/x.js');
 		expect(w.wire(null)).toEqual({ text: w.canonical, json: true });
 		expect(w.wire(SeedIndex.of({ other: block('zzz') })).json).toBe(true);
 		expect(w.wire(SeedIndex.of({})).json).toBe(true);
@@ -173,7 +173,7 @@ describe('plan_props_wire · seed references at wire time', () => {
 
 	it('devalue-lane props reference too (a Date next to a seed node)', () => {
 		const props = { block: data.catalog.blocks[1], at: new Date(5) };
-		const w = plan_props_wire(props, '/islands/x.js');
+		const w = new PropsWire(props, '/islands/x.js');
 		expect(w.json).toBe(false);
 		const out = w.wire(SeedIndex.of(data));
 		expect(out.text).toContain(SEED_REF_KEY);
@@ -181,7 +181,7 @@ describe('plan_props_wire · seed references at wire time', () => {
 	});
 
 	it('the profiler reads the wire: how many references, into which seed keys, and the devalue culprit', () => {
-		const w = plan_props_wire(
+		const w = new PropsWire(
 			{ block: data.catalog.blocks[0], g: data.greeting, n: 1 },
 			'/islands/x.js'
 		);
@@ -189,13 +189,13 @@ describe('plan_props_wire · seed references at wire time', () => {
 		expect(w.culprit()).toBeNull(); // JSON lane: nothing to blame
 		w.wire(SeedIndex.of(data));
 		expect(w.refs).toEqual({ count: 1, keys: ['catalog'] }); // a primitive is never a seed node
-		const d = plan_props_wire({ block: data.catalog.blocks[0], at: new Date(5) }, '/islands/x.js');
+		const d = new PropsWire({ block: data.catalog.blocks[0], at: new Date(5) }, '/islands/x.js');
 		expect(d.culprit()).toBe('at (Date)');
 		expect(d.culprit()).toBe('at (Date)'); // memoised
 	});
 
 	it('the same plan can be wired twice (identical islands share a sidecar render)', () => {
-		const w = plan_props_wire({ block: data.catalog.blocks[0] }, '/islands/x.js');
+		const w = new PropsWire({ block: data.catalog.blocks[0] }, '/islands/x.js');
 		const idx = SeedIndex.of(data);
 		expect(w.wire(idx).text).toBe(w.wire(idx).text);
 	});
@@ -214,7 +214,7 @@ describe('live snippet entries', () => {
 			// a content-hashed location is not an identity
 			hashed: '/_app/immutable/og-region.abc123.Xy9_ab.js'
 		};
-		const w = plan_props_wire(props, '/islands/x.js');
+		const w = new PropsWire(props, '/islands/x.js');
 		expect(w.live_entries).toEqual([
 			'/_app/ogygia/og-region.abc123.js',
 			'/custom-dir/ogygia/og-region.def456.js'
@@ -222,9 +222,9 @@ describe('live snippet entries', () => {
 	});
 
 	it('a JSON-lane payload never carries one (a live snippet is a function)', () => {
-		expect(
-			plan_props_wire({ e: '/_app/immutable/og-region.abc123.js' }, '/x').live_entries
-		).toEqual([]);
+		expect(new PropsWire({ e: '/_app/immutable/og-region.abc123.js' }, '/x').live_entries).toEqual(
+			[]
+		);
 	});
 });
 
