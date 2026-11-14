@@ -395,6 +395,98 @@ bench(
 	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
 );
 
+/** A download in the load scheduler's line: its class (3 most urgent), whether it may start yet,
+ *  and the windows it falls in. */
+type Download = { rank: number; gated: boolean; hole: boolean };
+
+bench(
+	'queue: downloads by class through two windows, some gated, raised while they wait, a budget that yields',
+	async ({ n }) => {
+		let clock = 0;
+		let started = 0;
+		let open = false;
+		const jobs: Download[] = [];
+		const q = queue<Download>({
+			now: () => clock,
+			priority: (d) => d.rank,
+			ready: (d) => open || !d.gated,
+			windows: [
+				{ max: 3, holds: (d) => d.rank < 2 },
+				{ max: 3, holds: (d) => d.hole }
+			],
+			budget: { ms: 16, yield: (resume) => void setTimeout(resume, 0), settle: true },
+			start: (_d, place) => {
+				started++;
+				clock += 2;
+				void Promise.resolve().then(() => place.release()); // the download ends
+			}
+		});
+		for (let i = 0; i < n; i++) {
+			const d = { rank: i % 4, gated: i % 5 === 0, hole: i % 3 === 0 };
+			jobs.push(d);
+			q.push(d);
+			if (i % 13 === 0) {
+				jobs[i >> 1].rank = 3; // a visitor's join raises an older one
+				q.recheck();
+			}
+		}
+		open = true; // the critical resources settled
+		q.recheck();
+		while (q.waiting || q.holding) await new Promise((r) => setTimeout(r, 0));
+		return started;
+	},
+	{ setup: () => ({ n: 300 }), scale: (_ctx, k) => ({ n: 300 * k }) }
+);
+
+bench(
+	'queue: jobs ranked by a time (not whole numbers) through one place, ranks read again each pass',
+	({ n }) => {
+		let started = 0;
+		let held: { release(): void } | null = null;
+		const ranks: number[] = [];
+		const q = queue<number>({
+			max: 1,
+			priority: (i) => ranks[i],
+			start: (_i, place) => {
+				started++;
+				held = place;
+			}
+		});
+		for (let i = 0; i < n; i++) {
+			ranks.push(((i * 7919) % 1000) / 7);
+			q.push(i);
+		}
+		while (held !== null) {
+			const place: { release(): void } = held;
+			held = null;
+			place.release();
+		}
+		return started;
+	},
+	{ setup: () => ({ n: 40 }), scale: (_ctx, k) => ({ n: 40 * k }) }
+);
+
+bench(
+	'queue: background starts, each drain after a yield and yielding past its budget',
+	async ({ n }) => {
+		let clock = 0;
+		let ran = 0;
+		const q = queue<() => void>({
+			now: () => clock,
+			budget: { ms: 30, yield: (resume) => void setTimeout(resume, 0), defer: true },
+			start: (fn) => fn()
+		});
+		for (let i = 0; i < n; i++)
+			q.push(() => {
+				ran++;
+				clock += 1;
+			});
+		while (q.waiting) await new Promise((r) => setTimeout(r, 0));
+		return ran;
+	},
+	{ setup: () => ({ n: 250 }), scale: (_ctx, k) => ({ n: 250 * k }) }
+);
+
 bench(
 	'flights: keyed pages (joins, callers that leave, drops, fresh, keep, max and weigh)',
 	async ({ n }) => {
