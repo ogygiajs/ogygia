@@ -29,7 +29,7 @@ import {
 	STUB_PATHS,
 	STUB_STATE
 } from '@ogygia/core/contract';
-import { dedent } from '@ogygia/core/contract';
+import { dedent, type BarrelLeftReason } from '@ogygia/core/contract';
 import { ogygia } from '../src/vite/index.ts';
 import { definePlugin } from '../src/vite/plugin-api.ts';
 import { keep_client_dir } from '../src/kit.ts';
@@ -1013,36 +1013,40 @@ describe("a plugin's stage transforms and seams", () => {
 		expect(asked).toEqual([true, true, true]);
 	});
 
-	it("why a barrel stayed, by both stages, in the findings' order; a stage's rerun forgets its own word", async () => {
+	it("why a module stayed: every plugin's answer, for the browser's leg, once each in the findings' order", async () => {
 		app();
-		let say_source = true;
-		const left = (reason: 'pinned' | 'impure'): Parameters<Ctx['emit']>[0] => ({
-			domain: 'compile',
-			name: 'compile.barrel.left',
-			barrel: '/r/b.ts',
-			names: ['x'],
-			reason
+		const { plugin, seen } = tool({});
+		const asked: unknown[][] = [];
+		const answers = (name: string, said: BarrelLeftReason[]) => {
+			write(`node_modules/${name}/package.json`, JSON.stringify({ name }));
+			return definePlugin({
+				name,
+				build: (b) =>
+					b.stayed((file, importers, environment) => {
+						asked.push([name, file, importers, environment]);
+						return file === '/r/b.ts' ? said : [];
+					})
+			});
+		};
+		await setup('build', {
+			plugins: [
+				plugin,
+				answers('x-one', ['pinned', 'impure']),
+				answers('x-two', ['namespace', 'impure'])
+			]
 		});
-		const { plugin, seen } = tool({
-			source: (t) => {
-				if (say_source) t.emit(left('pinned'));
-			},
-			post: (t) => t.emit(left('impure'))
-		});
-		const { p, stage } = await setup('build', { plugins: [plugin] });
-		await begin(p, 'client', 'ssr');
-		const run = async (name: 'source' | 'post', leg: Leg = 'client') =>
-			stage(name).transform.call({ ...hook_this(leg), addWatchFile: () => {} }, 'x;\n', '/r/a.ts');
-		await run('source');
-		await run('post');
-		expect(seen.b!.regions.barrelWhy('/r/b.ts', ['/r/a.ts'])).toEqual(['impure', 'pinned']);
-		say_source = false;
-		await run('source');
-		expect(seen.b!.regions.barrelWhy('/r/b.ts', ['/r/a.ts'])).toEqual(['impure']);
-		// (the browser's word only: the server's bundle is not what a page downloads)
-		say_source = true;
-		await run('source', 'ssr');
-		expect(seen.b!.regions.barrelWhy('/r/b.ts', ['/r/a.ts'])).toEqual(['impure']);
+		expect(seen.b!.regions.whyStayed('/r/b.ts', new Set(['/r/a.ts']))).toEqual([
+			'impure',
+			'pinned',
+			'namespace'
+		]);
+		expect(seen.b!.regions.whyStayed('/r/c.ts', [])).toEqual([]);
+		expect(asked).toEqual([
+			['x-one', '/r/b.ts', ['/r/a.ts'], 'client'],
+			['x-two', '/r/b.ts', ['/r/a.ts'], 'client'],
+			['x-one', '/r/c.ts', [], 'client'],
+			['x-two', '/r/c.ts', [], 'client']
+		]);
 	});
 
 	it('a stage transform runs only on the modules its filter takes', async () => {
