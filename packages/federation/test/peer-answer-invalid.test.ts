@@ -95,6 +95,20 @@ describe("a peer's answer with an error status", () => {
 		expect(said(warned)).toBe(true);
 	});
 
+	for (const status of [200, 300, 304, 305, 399])
+		it(`a page document that moves with ${status}, no redirect status: a 502, and the code said`, async () => {
+			const { dash, warned } = peer(JSON.stringify({ status, location: '/elsewhere', body: '' }));
+			const e = await dash.doc('/p', '').catch((err: unknown) => err);
+			expect(isHttpError(e) && e.status).toBe(502);
+			expect(said(warned)).toBe(true);
+		});
+
+	for (const status of [301, 302, 303, 307, 308])
+		it(`a page document that moves with ${status}: the move, as the peer said it`, async () => {
+			const { dash } = peer(JSON.stringify({ status, location: '/elsewhere', body: '' }));
+			expect(await dash.doc('/p', '')).toMatchObject({ status, location: '/elsewhere' });
+		});
+
 	it("a page read the peer answers 404 with its document: the peer's own not-found page", async () => {
 		const { dash, warned } = peer(JSON.stringify({ status: 404, body: 'gone', css: [] }), 404);
 		expect((await dash.doc('/p', '')).body).toBe('gone');
