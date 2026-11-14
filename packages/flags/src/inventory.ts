@@ -153,6 +153,9 @@ export function flags_manifest(sites: readonly FlagSite[]): {
 		seen.add(k);
 		flags.push(s);
 	}
-	flags.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.file < b.file ? -1 : 1));
+	flags.sort((a, b) => {
+		if (a.name !== b.name) return a.name < b.name ? -1 : 1;
+		return a.file < b.file ? -1 : 1;
+	});
 	return { flags, names: [...new Set(flags.map((f) => f.name))].sort() };
 }

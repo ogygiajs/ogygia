@@ -732,7 +732,8 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 /** What an entry keeps: its answer, or the one kept beside its flight (`null`: none). */
 function held_of(m: Entry): Kept | null {
 	const s = m.now;
-	return s.kind === 'kept' ? s : s.kind === 'flying' ? s.prior : null;
+	if (s.kind === 'kept') return s;
+	return s.kind === 'flying' ? s.prior : null;
 }
 
 /** A flights hears its world move (a function of its own: it holds no flights). */

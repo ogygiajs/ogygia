@@ -12,6 +12,17 @@ const STUBS = fileURLToPath(new URL('../../core/test/_stubs/', import.meta.url))
 
 const ENTRY_STUB = /^(server|boot|region|dev)\.(.+)$/;
 
+const FIREFOX_PLACES: ReadonlyMap<string, readonly string[]> = new Map([
+	['darwin', ['/Applications/Firefox.app/Contents/MacOS/firefox']],
+	[
+		'win32',
+		[
+			'C:\\Program Files\\Mozilla Firefox\\firefox.exe',
+			'C:\\Program Files (x86)\\Mozilla Firefox\\firefox.exe'
+		]
+	]
+]);
+
 const exact = (id: string): RegExp => new RegExp(`^${id.replace(/[$/.]/g, '\\$&')}$`);
 
 /** The stubs as exact-match aliases (a realm module's id is a prefix of its entries' ids). */
@@ -20,13 +31,10 @@ export function stub_aliases(): { find: RegExp; replacement: string }[] {
 	for (const file of readdirSync(STUBS)) {
 		const name = file.replace(/\.ts$/, '');
 		const entry = ENTRY_STUB.exec(name);
-		const id = name.startsWith('app-')
-			? `$app/${name.slice(4)}`
-			: name.startsWith('realm-')
-				? `ogygia:${name.slice(6)}`
-				: entry
-					? `ogygia:${entry[1]}/${entry[2]}`
-					: null;
+		let id: string | null = null;
+		if (name.startsWith('app-')) id = `$app/${name.slice(4)}`;
+		else if (name.startsWith('realm-')) id = `ogygia:${name.slice(6)}`;
+		else if (entry) id = `ogygia:${entry[1]}/${entry[2]}`;
 		if (id) out.push({ find: exact(id), replacement: `${STUBS}${file}` });
 	}
 	return out;
@@ -104,15 +112,7 @@ export function firefox_binary(): string | null {
 		if (!existsSync(given)) throw new Error(`OGYGIA_FIREFOX: no file at ${given}`);
 		return given;
 	}
-	const places =
-		process.platform === 'darwin'
-			? ['/Applications/Firefox.app/Contents/MacOS/firefox']
-			: process.platform === 'win32'
-				? [
-						'C:\\Program Files\\Mozilla Firefox\\firefox.exe',
-						'C:\\Program Files (x86)\\Mozilla Firefox\\firefox.exe'
-					]
-				: [on_path('firefox')];
+	const places = FIREFOX_PLACES.get(process.platform) ?? [on_path('firefox')];
 	for (const p of places) if (p && existsSync(p)) return p;
 	return null;
 }
