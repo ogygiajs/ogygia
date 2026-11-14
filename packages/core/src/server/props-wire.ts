@@ -144,7 +144,6 @@ export class PropsWire {
 		}
 		const wire_modules = new Set<string>();
 		const text = stringify_props(value, entry, null, wire_modules);
-		// (a ref's id is fence + place; only the place is the same on the next render: ref.ts RefNames)
 		const canonical = placed(text);
 		this.#plain = { text, json: false };
 		this.canonical = canonical;

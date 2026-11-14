@@ -598,7 +598,7 @@ export class SeedRefPlan {
 				if (by_id) return hit(v, by_id);
 				const p = memo.get(v) ?? measure(v, memo);
 				const bytes = bytes_of(p);
-				if (bytes < min_bytes) return; // nothing below can be referenced either
+				if (bytes < min_bytes) return;
 				if (p & F_REF && index.candidates(bytes).length) {
 					const h = hash_subtree(v, hashed, new Set())?.hash ?? null;
 					const cand = h ? index.match(bytes, h) : undefined;
