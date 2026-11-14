@@ -61,12 +61,14 @@ describe('spawn_server', () => {
 		const port = await free_port();
 		const server = await spawn_server({
 			cmd: process.execPath,
-			args: args({ port, id: 'a', exit_delay: 'never' }),
+			args: args({ port, id: 'a', exit_delay: 'never', life: 20_000 }),
 			cwd: CWD,
 			url: `http://127.0.0.1:${port}/`
 		});
 		spawned.push(server);
+		const t0 = performance.now();
 		await server.kill();
+		expect(performance.now() - t0).toBeLessThan(12_000);
 		expect(await refused(port)).toBe(true);
 	}, 30_000);
 

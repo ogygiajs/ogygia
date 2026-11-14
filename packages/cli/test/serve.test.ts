@@ -6,7 +6,7 @@
 import { createServer as create_http, type Server } from 'node:http';
 import { connect, createServer as create_net } from 'node:net';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { serve } from '../src/perf/cli.ts';
 
 const FIXTURE = fileURLToPath(
@@ -124,7 +124,17 @@ describe('bisect server', () => {
 		const url = `http://127.0.0.1:${port}/`;
 		const t0 = Date.now();
 		// it tries to listen on the held port (EADDRINUSE) and exits; nothing ever answers `url`
-		await expect(serve(cmd({ port: held, id: 'a' }), CWD, url, 8000)).rejects.toThrow('EADDRINUSE');
+		const asked = vi.spyOn(globalThis, 'fetch');
+		const failed = await serve(cmd({ port: held, id: 'a' }), CWD, url, 8000).catch(
+			(e: unknown) => e as Error
+		);
+		expect(failed).toBeInstanceOf(Error);
+		expect((failed as Error).message).toContain('EADDRINUSE');
+		expect((failed as Error).message).toContain('cli_server_exited_early');
 		expect(Date.now() - t0).toBeLessThan(5000);
+		const after = asked.mock.calls.length;
+		await new Promise((r) => setTimeout(r, 500));
+		expect(asked.mock.calls.length).toBe(after);
+		asked.mockRestore();
 	}, 30_000);
 });

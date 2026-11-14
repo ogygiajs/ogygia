@@ -254,6 +254,48 @@
 	],
 	"covered": [
 		{
+			"site": "packages/testing/src/index.ts > Ogygia > constructor > .catch:0",
+			"reason": "an addInitScript that fails leaves no unhandled rejection: its failure is the first call's error; proved by hand: the handler made to rethrow turns the test red, twice",
+			"test": "packages/testing/test/driver-engine.test.ts",
+			"name": "an addInitScript that fails is the error the first call gives"
+		},
+		{
+			"site": "packages/testing/src/index.ts > Ogygia > record > catch:0",
+			"reason": "a recording stop that fails on another document is kept and named in the error; proved by hand: the catch made to rethrow turns the test red, twice",
+			"test": "packages/testing/test/testing-primitives.test.ts",
+			"name": "record(): a page that left for another document says so, with the actions’ own error as the cause"
+		},
+		{
+			"site": "packages/tooling/src/e2e/servers.ts > spawn_server > kill > timer:0",
+			"reason": "a server that ignores SIGTERM is SIGKILLed after the grace time, not left until it exits on its own; proved by hand: the timer dropped turns the test red, twice",
+			"test": "packages/tooling/test/servers.test.ts",
+			"name": "a server that ignores SIGTERM is killed after the grace time"
+		},
+		{
+			"site": "packages/cli/src/mcp.ts > parse_marks > catch:0",
+			"reason": "a file Svelte cannot parse is left out of a scan, and the other files are still scanned; proved by hand: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/mcp-scan.test.ts",
+			"name": "ogygia_scan: a file Svelte cannot parse is left out, and the other files are still scanned"
+		},
+		{
+			"site": "packages/cli/src/perf/cli.ts > serve > abort:0",
+			"reason": "the readiness loop stops asking once its spawning visit is over; proved by hand: the check made never true turns the test red (the loop asks on), twice",
+			"test": "packages/cli/test/serve.test.ts",
+			"name": "a server that exits at once fails at once, with its output"
+		},
+		{
+			"site": "packages/cli/src/perf/cli.ts > serve > throw:1",
+			"reason": "a server that exits before it answers fails as cli_server_exited_early, not as one that never got ready; proved by hand: the throw removed turns the test red, twice",
+			"test": "packages/cli/test/serve.test.ts",
+			"name": "a server that exits at once fails at once, with its output"
+		},
+		{
+			"site": "packages/cli/src/perf/measure.ts > measure > throw:2",
+			"reason": "a 409 says the profiler is busy on that server; proved by hand: the throw removed turns the test red (a plain 'answered 409'), twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "drives the profiler over HTTP with the key, one page at a time, and explains failures"
+		},
+		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > refuse_unknown_attributes > throw:0",
 			"reason": "an attribute ogygia does not know on a component import fails the build instead of leaving a plain import",
 			"test": "packages/compiler/test/partial-transform.test.ts",
@@ -4966,7 +5008,6 @@
 		"packages/cli/src/mcp.ts > load_flag_inventory > catch:0",
 		"packages/cli/src/mcp.ts > run > import:1",
 		"packages/cli/src/mcp.ts > load_profiler_reading > stale:0",
-		"packages/cli/src/mcp.ts > parse_marks > catch:0",
 		"packages/cli/src/mcp.ts > tool_compile > catch:0",
 		"packages/cli/src/mcp.ts > tool_islands > catch:0",
 		"packages/cli/src/mcp.ts > tool_check > catch:0",
@@ -5016,11 +5057,9 @@
 		"packages/cli/src/perf/cli.ts > serve > on_exit > refused:3",
 		"packages/cli/src/perf/cli.ts > serve > stop > refused:0",
 		"packages/cli/src/perf/cli.ts > serve > stop > refused:1",
-		"packages/cli/src/perf/cli.ts > serve > abort:0",
 		"packages/cli/src/perf/cli.ts > serve > fetch:0",
 		"packages/cli/src/perf/cli.ts > serve > timer:0",
 		"packages/cli/src/perf/cli.ts > serve > refused:0",
-		"packages/cli/src/perf/cli.ts > serve > throw:1",
 		"packages/cli/src/perf/cli.ts > serve > throw:2",
 		"packages/cli/src/perf/cli.ts > runBisect > measure_sha > catch:0",
 		"packages/cli/src/perf/cli.ts > runBisect > measure_sha > catch:1",
@@ -5029,7 +5068,6 @@
 		"packages/cli/src/perf/measure.ts > measure > timer:0",
 		"packages/cli/src/perf/measure.ts > measure > catch:0",
 		"packages/cli/src/perf/measure.ts > measure > throw:1",
-		"packages/cli/src/perf/measure.ts > measure > throw:2",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:3",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:5",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:12",
@@ -5851,11 +5889,9 @@
 		"packages/router/src/stream.ts > stream_document > start > stream:3",
 		"packages/router/src/stream.ts > stream_document > start > stream:4",
 		"packages/testing/src/client.ts > boot > lend > import:0",
-		"packages/testing/src/index.ts > Ogygia > constructor > .catch:0",
 		"packages/testing/src/index.ts > Ogygia > page > throw:0",
 		"packages/testing/src/index.ts > Ogygia > record > parse:0",
 		"packages/testing/src/index.ts > Ogygia > record > .catch:0",
-		"packages/testing/src/index.ts > Ogygia > record > catch:0",
 		"packages/testing/src/index.ts > Ogygia > record > throw:1",
 		"packages/testing/src/index.ts > Ogygia > record > parse:1",
 		"packages/testing/src/index.ts > Ogygia > record > .catch:2",
@@ -5894,7 +5930,6 @@
 		"packages/tooling/src/e2e/servers.ts > spawn_server > on_exit > refused:3",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > kill > refused:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > kill > refused:1",
-		"packages/tooling/src/e2e/servers.ts > spawn_server > kill > timer:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > abort:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > fetch:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > refused:0",

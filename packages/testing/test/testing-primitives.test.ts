@@ -480,6 +480,7 @@ describe('Ogygia', () => {
 			.catch((e: Error) => e);
 		expect((err as Error).message).toContain('went to another document');
 		expect((err as Error).message).toContain('http://app.test/elsewhere');
+		expect((err as Error).message).toContain('that document has no ogygia testing API');
 		expect((err as Error).message).not.toContain('plugins: [ogygia(), devtools(), sveltekit()]');
 		expect((err as Error).cause).toBe(boom);
 	});
