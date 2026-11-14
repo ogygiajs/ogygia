@@ -138,6 +138,14 @@ describe('core’s boot modules', () => {
 			);
 	});
 
+	it('on the dev server the boot imports no fn manifest either: a factory registers where its module runs', () => {
+		for (const program of [{ runtime_marks: { wire: true } }, { crosses_wire: true }]) {
+			const code = load('ogygia:boot/hydrate-features', app({ ctx: DEV, program }))!;
+			expect(code).not.toMatch(/fn-manifest/);
+			expect(code).toContain('hydrate');
+		}
+	});
+
 	it('re-exports the hydrate features after the runtime flags, which the runtime they import reads back', () => {
 		const boot = load('ogygia:boot', app())!;
 		expect(boot.indexOf('ogygia:boot/runtime-flags')).toBeGreaterThan(-1);
