@@ -4914,6 +4914,18 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/testing/test/driver-engine.test.ts",
 			"name": "addInitScript gets the engine script once, as the Ogygia is made, before any evaluate"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > arm_keep_client_cleanup > catch:0",
+			"reason": "a keep-client route the exit cannot remove is left for the next run, and the exit handler never throws; proved by hand: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a keep-client route the exit cannot remove stays on disk, and the exit goes on"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > resolveId > throw:0",
+			"reason": "a Kit with no client remote functions fails the browser's remote runtime with kit_remote_src_missing instead of resolving to nothing; proved by hand: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a Kit without its client remote functions fails the browser's remote runtime by name"
 		}
 	],
 	"impossible": [
@@ -4934,6 +4946,12 @@
 			"why": "the import of vite runs only inside the ogygia Vite plugin (vite/index.ts hands each component to preprocess_component_for_css), and vite is a required peer of @ogygia/compiler: a process running the plugin has vite to import.",
 			"by": "packages/compiler/package.json",
 			"name": "\"vite\": \"catalog:peers\""
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > generateBundle > import:0",
+			"why": "the import of svelte/compiler runs only inside the ogygia Vite plugin's own generateBundle hook, and svelte is a required peer of @ogygia/compiler: a process running the plugin has svelte to import (it compiled the app's components with it already).",
+			"by": "packages/compiler/package.json",
+			"name": "\"svelte\": \"catalog:peers\""
 		}
 	],
 	"baseline": [
@@ -5035,9 +5053,6 @@
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:12",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:15",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:16",
-		"packages/compiler/src/vite/index.ts > ogygia > arm_keep_client_cleanup > catch:0",
-		"packages/compiler/src/vite/index.ts > ogygia > resolveId > throw:0",
-		"packages/compiler/src/vite/index.ts > ogygia > generateBundle > import:0",
 		"packages/config/src/sim.ts > macrotask > message:0",
 		"packages/config/src/sim.ts > macrotask > message:1",
 		"packages/config/src/sim.ts > env_number > throw:0",
