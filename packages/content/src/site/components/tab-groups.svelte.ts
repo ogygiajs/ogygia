@@ -18,9 +18,8 @@ export function tab_group(group: string) {
 			selected[group] = label;
 			try {
 				storage.local()?.setItem(KEY + group, label);
-			} catch {
-				// ok: no storage (private mode); the choice is kept in memory only
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- no storage (private mode); the choice is kept in memory only
+			} catch {}
 		}
 	};
 }
@@ -35,8 +34,7 @@ export function hydrate_group(group: string, fallback: string): void {
 	let saved: string | null = null;
 	try {
 		saved = storage.local()?.getItem(KEY + group) ?? null;
-	} catch {
-		// ok: no storage (private mode); the fallback is chosen
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no storage (private mode); the fallback is chosen
+	} catch {}
 	selected[group] = saved ?? fallback;
 }

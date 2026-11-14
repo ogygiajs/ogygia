@@ -46,12 +46,13 @@
 					return r.ok ? await r.json() : null;
 				});
 				if (next !== STALE && next !== null) live = next;
-			} catch {
-				// ok: offline, or the server is gone; the next poll asks again
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- offline, or the server is gone; the next poll asks again
+			} catch {}
 		};
-		void poll(); // ok: a poll catches its own failure
-		s.every(() => void poll(), 4000); // ok: a poll catches its own failure
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a poll catches its own failure
+		void poll();
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a poll catches its own failure
+		s.every(() => void poll(), 4000);
 		return () => s.close();
 	});
 
@@ -97,7 +98,8 @@
 		return out.slice(0, 16);
 	});
 	const ago = (t: number) => {
-		const s = Math.max(0, (Date.now() - t) / 1000); // wall: `t` is a stored epoch time
+		// oxlint-disable-next-line ogygia/ports -- `t` is a stored epoch time
+		const s = Math.max(0, (Date.now() - t) / 1000);
 		if (s < 60) return 'just now';
 		if (s < 3600) return `${Math.round(s / 60)}m ago`;
 		if (s < 86400) return `${Math.round(s / 3600)}h ago`;

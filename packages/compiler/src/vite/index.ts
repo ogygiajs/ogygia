@@ -177,8 +177,9 @@ function bundler_resolve(ctx: {
 		try {
 			const r = await ctx.resolve(spec, importer, { skipSelf: true });
 			return r && !r.external ? r.id : null;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- Vite throws for a specifier this importer cannot resolve: unresolved, as a null answer is
 		} catch {
-			return null; // ok: Vite throws for a specifier this importer cannot resolve: unresolved, as a null answer is
+			return null;
 		}
 	};
 }
@@ -308,8 +309,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	const readFile = (abs: string) => {
 		try {
 			return fs.readFileSync(abs, 'utf-8');
+			// oxlint-disable-next-line ogygia/no-silent-failures -- null is "no such file" (the CSS walk tries candidates; a markup scan skips it)
 		} catch {
-			return null; // ok: null is "no such file" (the CSS walk tries candidates; a markup scan skips it)
+			return null;
 		}
 	};
 
@@ -366,8 +368,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					let r: Awaited<ReturnType<typeof this.resolve>>;
 					try {
 						r = await this.resolve(spec, importer, { skipSelf: true });
+						// oxlint-disable-next-line ogygia/no-silent-failures -- Vite throws for a specifier this importer cannot resolve
 					} catch {
-						return null; // ok: Vite throws for a specifier this importer cannot resolve
+						return null;
 					}
 					return r && !r.external ? r.id.replace(BACKSLASH_G, '/') : null;
 				},
@@ -408,9 +411,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		process.on('exit', () => {
 			try {
 				fs.rmSync(keep_client_dir(routes_dir), { recursive: true, force: true });
-			} catch {
-				// ok: best effort; the folder is gitignored and cleaned on the next run
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- best effort; the folder is gitignored and cleaned on the next run
+			} catch {}
 		});
 	};
 
@@ -564,9 +566,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					try {
 						const v = JSON.parse(app_dir_define);
 						if (typeof v === 'string' && v) app_dir = v;
-					} catch {
-						// ok: a define that is not JSON keeps the `_app` default
-					}
+						// oxlint-disable-next-line ogygia/no-silent-failures -- a define that is not JSON keeps the `_app` default
+					} catch {}
 				}
 				const ra = config.resolve?.alias ?? [];
 				resolve_alias = Array.isArray(ra)

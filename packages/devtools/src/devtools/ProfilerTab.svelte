@@ -104,8 +104,9 @@
 		try {
 			const x = new URL(u, location.href);
 			return (x.host === location.host ? '' : x.host) + x.pathname;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: kept as written
 		} catch {
-			return u; // ok: not a URL: kept as written
+			return u;
 		}
 	}
 	const grade_class = (s: number) => (s >= 80 ? 'good' : s >= 50 ? 'fair' : 'poor');
@@ -115,8 +116,9 @@
 		if (!prof) return [];
 		try {
 			return page_anchors(prof);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no costs pinned on the page; the profile's own list still shows them
 		} catch {
-			return []; // ok: no costs pinned on the page; the profile's own list still shows them
+			return [];
 		}
 	});
 	let pinned = $state<string | null>(null);

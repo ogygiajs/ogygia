@@ -78,8 +78,9 @@ export function note_code_sheets<T>(url: string, loading: Promise<T>): Promise<T
 		let dir: string;
 		try {
 			dir = new URL('.', new URL(url, document.baseURI)).href;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL, so no folder of its own to own sheets in
 		} catch {
-			return module; // ok: not a URL, so no folder of its own to own sheets in
+			return module;
 		}
 		const sheets: Element[] = [];
 		const session = runtime_session;

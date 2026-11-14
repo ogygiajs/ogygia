@@ -91,8 +91,9 @@ function find_suites(): Suite[] {
 function read_timings(): Record<string, number> {
 	try {
 		return JSON.parse(readFileSync(TIMINGS, 'utf8'));
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no timings yet (a first run): the shards split by count
 	} catch {
-		return {}; // ok: no timings yet (a first run): the shards split by count
+		return {};
 	}
 }
 
@@ -186,9 +187,8 @@ function kill_all() {
 	for (const child of children) {
 		try {
 			if (child.pid) process.kill(-child.pid, 'SIGTERM');
-		} catch {
-			// ok: the group already exited (ESRCH), which is what the signal was for
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the group already exited (ESRCH), which is what the signal was for
+		} catch {}
 	}
 }
 process.on('SIGINT', () => {

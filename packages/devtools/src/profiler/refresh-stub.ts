@@ -31,7 +31,8 @@ export function refresh_target(body: string, origin: string): string | null {
 		const url = new URL(to, origin);
 		if (url.origin !== new URL(origin).origin) return null;
 		return url.pathname + url.search;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: treated like another origin's, not followed
 	} catch {
-		return null; // ok: not a URL: treated like another origin's, not followed
+		return null;
 	}
 }

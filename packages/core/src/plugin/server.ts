@@ -174,9 +174,8 @@ export function end_request(
 	if (wait_until === null) return;
 	try {
 		wait_until(left.length === 1 ? left[0] : Promise.all(left).then(ignore));
-	} catch {
-		// ok: a platform that refuses it: the work runs on by itself
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a platform that refuses it: the work runs on by itself
+	} catch {}
 }
 
 function done_failed(error: unknown): void {
@@ -193,9 +192,8 @@ function keep_alive(work: Promise<unknown>): void {
 	if (wait_until === null) return;
 	try {
 		wait_until(work);
-	} catch {
-		// ok: a platform that refuses it: the work runs on by itself
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a platform that refuses it: the work runs on by itself
+	} catch {}
 }
 
 /** The platform's way to keep a request alive past its response, or null. */

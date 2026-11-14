@@ -31,8 +31,9 @@ export const node_fs: Fs = {
 	read(abs) {
 		try {
 			return fs.readFileSync(abs, 'utf-8');
+			// oxlint-disable-next-line ogygia/no-silent-failures -- unreadable reads as absent, the contract above
 		} catch {
-			return null; // ok: unreadable reads as absent, the contract above
+			return null;
 		}
 	},
 	list(dir) {
@@ -40,16 +41,18 @@ export const node_fs: Fs = {
 			return fs
 				.readdirSync(dir, { withFileTypes: true })
 				.map((e) => ({ name: e.name, kind: kind_of(e) }));
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a listable directory, the contract above
 		} catch {
-			return null; // ok: not a listable directory, the contract above
+			return null;
 		}
 	},
 	stat(abs) {
 		try {
 			const st = fs.statSync(abs);
 			return st.isFile() ? 'file' : st.isDirectory() ? 'dir' : null;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- nothing there, the contract above
 		} catch {
-			return null; // ok: nothing there, the contract above
+			return null;
 		}
 	}
 };
