@@ -145,7 +145,7 @@ import {
 	EARLY_HOLES_SOURCE,
 	with_early_holes_meta_csp
 } from './server/early-holes-csp.ts';
-import { kit_gate } from './server/kit-gate.ts';
+import { kit_gate, kit_start_ungated } from './server/kit-gate.ts';
 import {
 	merge_seed_ask,
 	shape_page_data,
@@ -1115,6 +1115,14 @@ class OgygiaHandle {
 					? kit_gate(html, spans.body_end)
 					: null;
 			if (gate) csp_sources.push(gate.source);
+			else if (
+				dev &&
+				head !== null &&
+				spans.body_end !== -1 &&
+				bag?.kit_with_runtime &&
+				kit_start_ungated(html, spans.body_end)
+			)
+				warn('kit_start_ungated', { path: event?.url.pathname ?? '/' });
 			const ordered =
 				head === null
 					? null
