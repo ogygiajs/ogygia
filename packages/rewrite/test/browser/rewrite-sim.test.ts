@@ -1,17 +1,22 @@
 // THE REWRITE SIMULATOR. Seeded pages (islands, lakes, server markup; custom elements nested in each
-// other) go through two rewrites in sequence, cut into chunks at random places (inside tags,
-// elements and marks), while every render call may fail the way a real one does: it throws, returns
-// the wrong count, returns HTML that does not close, drops ogygia's marks, is slow (its answers land
-// in any order, fc.scheduler), or the request is cancelled mid-batch. csr on and off; region
-// answers too. The page that comes out is parsed in a real browser and restored, and must hold:
+// other, in a `<p>`, in a declarative shadow root) go through two rewrites in sequence, cut into
+// chunks at random places (inside tags, elements and marks), while every render call may fail the
+// way a real one does: it throws, returns the wrong count, returns HTML that does not close, drops
+// ogygia's marks, is slow (its answers land in any order, fc.scheduler), the request is cancelled
+// mid-batch, or it leaves an element as it came. csr on and off; region answers too. The page that
+// comes out is loaded in a frame of a real browser, its own scripts run where they stand, and must
+// hold:
 //
 // - every Svelte-owned part is what Svelte rendered (the restorer's own check finds no mismatch,
 //   and each island's light DOM has the original's text and element tags);
-// - no ogygia mark is left anywhere, and no stand-in;
+// - no ogygia mark is left anywhere, shadow roots included, and no stand-in; a stand-in paints as
+//   its tag until the restore runs;
 // - every failure is said with its code (a fault that turned into an unrendered element was
-//   reported), and a run without a fault reports none;
+//   reported), and a run without a fault reports none; a run that never failed renders every match;
+// - a pass that wrote nothing changes no byte;
+// - a page without the first-load mark, swapped in by the router, restores every host it rendered;
 // - once the request is cancelled, no render is called and no failure is said;
-// - the restore is idempotent: a second one restores nothing and changes nothing.
+// - the restore is idempotent: a later one restores nothing and changes nothing.
 import { afterEach, expect, test } from 'vitest';
 import type { RequestEvent } from '@sveltejs/kit';
 import { fc } from '@ogygia/config/html-fuzz';
@@ -20,7 +25,7 @@ import { rewrite_pass, step_of, type Failure } from '../../src/pass.ts';
 import { restore } from '../../src/restore.ts';
 import type { ElementRewrite, RewriteElement, RewriteResult } from '../../src/types.ts';
 
-type Fault = 'ok' | 'throw' | 'count' | 'malformed' | 'strip' | 'slow' | 'abort';
+type Fault = 'ok' | 'same' | 'throw' | 'count' | 'malformed' | 'strip' | 'slow' | 'abort';
 
 const text = fc.constantFrom(' a ', 'b', '  spaced  ', 'é🏝️', ' ');
 const leaf = fc.oneof(
@@ -42,7 +47,21 @@ const block = fc.oneof(
 		.map((xs) => `<ogygia-region wake="none">${xs.join('')}</ogygia-region>`),
 	fc
 		.array(fc.oneof(card, leaf), { minLength: 1, maxLength: 2 })
-		.map((xs) => `<div>${xs.join('')}</div>`)
+		.map((xs) => `<div>${xs.join('')}</div>`),
+	fc
+		.array(card, { minLength: 1, maxLength: 2 })
+		.map(
+			(xs) => `<ogygia-region entry="./a.js" data-og-fp="f"><p>${xs.join('')}</p></ogygia-region>`
+		),
+	{
+		weight: 3,
+		arbitrary: fc
+			.array(card, { minLength: 1, maxLength: 2 })
+			.map(
+				(xs) =>
+					`<ogygia-region entry="./a.js" data-og-fp="f"><div><template shadowrootmode="open">${xs.join('')}</template></div></ogygia-region>`
+			)
+	}
 );
 const body = fc.array(block, { minLength: 1, maxLength: 5 }).map((bs) => bs.join(''));
 
@@ -88,7 +107,10 @@ interface Run {
 	abort: AbortController;
 	scheduler: fc.Scheduler;
 	late: string[];
+	wrote: boolean;
 }
+
+const WRITES: ReadonlySet<Fault> = new Set(['ok', 'slow', 'abort', 'strip']);
 
 function faulty(tag: string, run: Run): ElementRewrite {
 	return {
@@ -96,10 +118,13 @@ function faulty(tag: string, run: Run): ElementRewrite {
 		async render(els: readonly RewriteElement[]) {
 			if (run.abort.signal.aborted) run.late.push(`${tag} rendered`);
 			const fault = run.faults[run.at++ % run.faults.length];
-			if (fault !== 'ok' && fault !== 'slow' && fault !== 'abort') run.injected++;
+			if (fault !== 'ok' && fault !== 'same' && fault !== 'slow' && fault !== 'abort')
+				run.injected++;
+			if (WRITES.has(fault) && els.length) run.wrote = true;
 			if (fault === 'abort') run.abort.abort();
 			if (fault === 'slow') await run.scheduler.schedule(Promise.resolve(), `${tag} slow`);
 			if (fault === 'throw') throw new Error(`${tag} render failed`);
+			if (fault === 'same') return els.map((el) => el.html);
 			const out: RewriteResult[] = els.map((el) => ({
 				html: scoped(el.html, tag, true),
 				sheets: [{ key: `${tag}.shadow`, css: 'b{color:red}', scope: 'shadow' }]
@@ -151,7 +176,63 @@ const islands = (root: ParentNode) =>
 		tags: Array.from(r.querySelectorAll('*'), (e) => e.localName).join(' ')
 	}));
 
+const unrendered = (served: string): string[] =>
+	Array.from(served.matchAll(/<(x-card|x-icon)(?=[\s>])([^>]*)>/g))
+		.filter((m) => !m[2].includes(` data-r="${m[1]}"`))
+		.map((m) => `<${m[1]}${m[2]}>`);
+
+const parse_with_shadow_roots = (html: string): Document =>
+	(Document as unknown as { parseHTMLUnsafe(html: string): Document }).parseHTMLUnsafe(html);
+
+/** What a router that took this page for an answer would show: unless it says it is a first load,
+ *  it is restored and swapped in, so every host its render rendered must come back restored. */
+function swapped_unrestored(served: string): string[] {
+	const doc = new DOMParser().parseFromString(served, 'text/html');
+	if (doc.querySelector('meta[name="ogygia-first-load"]')) return [];
+	restore(doc);
+	return Array.from(doc.querySelectorAll('[data-r]'))
+		.filter((h) => !h.shadowRoot)
+		.map((h) => `<${h.localName}> rendered, never restored`);
+}
+
+/** Each stand-in that does not paint as its tag would, read right before each restore runs. */
+function paint_of(doc: Document, out: string[]): void {
+	const view = doc.defaultView!;
+	for (const el of Array.from(doc.querySelectorAll('og-as'))) {
+		const tag = el.getAttribute('tag') ?? '';
+		const real = doc.createElement(tag);
+		el.after(real);
+		const want = view.getComputedStyle(real).display;
+		real.remove();
+		const got = view.getComputedStyle(el).display;
+		if (got !== want) out.push(`<og-as tag="${tag}"> paints ${got}, its tag ${want}`);
+	}
+}
+
+let frame: HTMLIFrameElement | null = null;
+
+/** The page as a browser loads it: parsed in a frame, each of its scripts run where it stands. */
+async function load(
+	served: string
+): Promise<{ doc: Document; log: { kind: string }[]; paint: string[] }> {
+	const paint: string[] = [];
+	(window as { __og_paint?: (d: Document) => void }).__og_paint = (d) => paint_of(d, paint);
+	frame?.remove();
+	frame = document.createElement('iframe');
+	const loaded = new Promise((r) => frame!.addEventListener('load', r, { once: true }));
+	frame.srcdoc = served.replaceAll(
+		'<script data-og-restore>',
+		'<script>parent.__og_paint(document)</script><script data-og-restore>'
+	);
+	document.body.append(frame);
+	await loaded;
+	const w = frame.contentWindow as Window & { __og_restore_log?: { kind: string }[] };
+	return { doc: frame.contentDocument!, log: w.__og_restore_log ?? [], paint };
+}
+
 afterEach(() => {
+	frame?.remove();
+	frame = null;
 	const w = window as { __og_restore_log?: unknown[]; __og_sheets?: unknown };
 	w.__og_restore_log = [];
 	w.__og_sheets = undefined;
@@ -164,12 +245,16 @@ test('a seeded swarm of streamed pages through two failing rewrites restores wha
 	await fc.assert(
 		fc.asyncProperty(
 			body,
-			fc.array(fc.nat(), { maxLength: 6 }),
+			fc.oneof(fc.constant([]), {
+				weight: 3,
+				arbitrary: fc.array(fc.nat(), { minLength: 1, maxLength: 6 })
+			}),
 			fc.array(
 				fc.constantFrom<Fault>(
 					'ok',
 					'ok',
 					'ok',
+					'same',
 					'throw',
 					'count',
 					'malformed',
@@ -193,7 +278,8 @@ test('a seeded swarm of streamed pages through two failing rewrites restores wha
 					injected: 0,
 					abort: new AbortController(),
 					scheduler,
-					late: []
+					late: [],
+					wrote: false
 				};
 				const request = new Request('http://x/', { signal: run.abort.signal });
 				const failed: Failure[] = [];
@@ -233,12 +319,13 @@ test('a seeded swarm of streamed pages through two failing rewrites restores wha
 				const served = html
 					.replace('</head>', `${head_add}</head>`)
 					.replace('</body>', `${body_add}</body>`);
-				const original = new DOMParser().parseFromString(page, 'text/html');
-				const doc = new DOMParser().parseFromString(served, 'text/html');
-				(window as { __og_restore_log?: unknown[] }).__og_restore_log = [];
-				restore(doc);
-				const log = (window as { __og_restore_log?: { kind: string; diff?: string }[] })
-					.__og_restore_log!;
+				if (!run.wrote) expect(served, 'a rewrite that wrote nothing changes no byte').toBe(page);
+				if (faults.every((f) => f === 'ok') && failed.length === 0)
+					expect(unrendered(served), 'a rewrite that never failed renders every match').toEqual([]);
+				expect(swapped_unrestored(served), served).toEqual([]);
+				const original = parse_with_shadow_roots(page);
+				const { doc, log, paint } = await load(served);
+				expect(paint, served).toEqual([]);
 				expect(
 					log.filter((e) => e.kind === 'mismatch'),
 					served
@@ -250,6 +337,7 @@ test('a seeded swarm of streamed pages through two failing rewrites restores wha
 				if (!run.abort.signal.aborted && run.injected === 0) expect(coded, served).toEqual([]);
 				for (const f of coded)
 					expect(['rewrite_element_failed', 'rewrite_marks_lost']).toContain(f.code);
+				expect(restore(doc)).toBe(0);
 				const before = doc.body.innerHTML;
 				expect(restore(doc)).toBe(0);
 				expect(doc.body.innerHTML).toBe(before);
@@ -272,7 +360,8 @@ test('region answers: every host restored in the fragment, nothing left, idempot
 					injected: 0,
 					abort: new AbortController(),
 					scheduler,
-					late: []
+					late: [],
+					wrote: false
 				};
 				const request = new Request('http://x/');
 				const pass = rewrite_pass(

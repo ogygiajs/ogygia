@@ -855,6 +855,8 @@ describe('the random app', () => {
 		expect(boxed.length).toBeGreaterThan(0);
 		expect(boxed.some((n) => n.boxed === 'link')).toBe(true);
 		expect(boxed.some((n) => n.empty)).toBe(false);
+		const nested = boxed.find((n) => n.nested && n.kind !== 'held' && n.kind !== 'live');
+		expect(nested, 'a box holds a box').toBeDefined();
 		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
 		try {
 			write(app, pages, seed, null, null, true, pass);
@@ -865,6 +867,9 @@ describe('the random app', () => {
 			const component = readFileSync(join(lib, `N${n.id}.svelte`), 'utf8');
 			expect(component).toContain(`<x-gen-box data-n="${n.id}">`);
 			expect(component).toContain('<a data-gen-link data-gen-messy><x-gen-link>');
+			expect(readFileSync(join(lib, `N${nested!.id}.svelte`), 'utf8')).toMatch(
+				new RegExp(`<x-gen-box data-n="${nested!.id}">[^]*<x-gen-box data-n="${nested!.id}-in">`)
+			);
 			const transform = readFileSync(join(lib, 'reshape.server.ts'), 'utf8');
 			expect(transform).toContain("match: ['x-gen-box', 'x-gen-link'],");
 			expect(transform).toContain(`const TRIM = ${pass!.trim};`);
