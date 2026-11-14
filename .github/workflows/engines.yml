@@ -186,7 +186,7 @@ jobs:
         run: |
           for pkg in machine content core; do
             echo "::group::$pkg"
-            (cd packages/$pkg && pnpm exec vitest run --project browser) || failed=1
+            (cd packages/$pkg && pnpm exec vitest run --project 'browser*') || failed=1
             echo "::endgroup::"
           done
           exit ${failed:-0}
