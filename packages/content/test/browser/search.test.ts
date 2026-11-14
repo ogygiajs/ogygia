@@ -4,6 +4,7 @@
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it } from 'vitest';
 import Search from '../../src/site/components/Search.svelte';
+import SearchBaseHost from './fixtures/SearchBaseHost.svelte';
 import type { SearchHit } from '../../src/site/search.ts';
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => r(undefined)));
@@ -87,5 +88,21 @@ describe('Search', () => {
 		await until(field);
 		expect(key({ key: 'k', ctrlKey: true })).toBe(false);
 		expect(key({ key: '/' }, document.body)).toBe(false);
+	});
+});
+
+describe('a kept search', () => {
+	it('follows a new base: its link goes to the new base’s search page', () => {
+		const target = document.createElement('div');
+		target.style.cssText = 'position:fixed;left:-10000px;top:0';
+		document.body.append(target);
+		const app = mount(SearchBaseHost, { target }) as { move: (base: string) => void };
+		mounted.push(app);
+		flushSync();
+		const link = () => target.querySelector('a.og-search-trigger')?.getAttribute('href');
+		expect(link()).toBe('/v1/search');
+		app.move('/v2');
+		flushSync();
+		expect(link()).toBe('/v2/search');
 	});
 });
