@@ -6039,6 +6039,14 @@
 		{
 			"id": "packages/devtools/src/server.ts > defineServer:0~334514 > measures",
 			"reason": "the shared hook: forwards to the mounted profiler's measures, one call; proven in packages/core/test/server-timing-measurer.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_read_dropped > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/peer-flights.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_read_dropped > details",
+			"reason": "a warning's longer wording for its error page, constant text"
 		}
 	]
 }
