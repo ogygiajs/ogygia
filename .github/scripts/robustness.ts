@@ -23,6 +23,7 @@ import { disk_repo, read_sections } from '../../internal/checks/invariants.ts';
 import { all_steps, universe } from '../../internal/sim/src/coverage.ts';
 import { inventory, points_in, shapes_in } from '../../internal/sim/src/failures.ts';
 import type { FailureLedger } from '../../internal/sim/src/failures.ts';
+import { parse_ledger } from '../../internal/sim/src/ledger-json.ts';
 import type { Mutant } from '../../internal/sim/src/mutate.ts';
 import type { Ledger } from '../../internal/sim/src/steps.ts';
 
@@ -302,7 +303,7 @@ export function collect(root: string, inputs: Inputs = {}): Robustness {
 		.filter(Boolean);
 	const has = (f: string) => existsSync(join(root, f));
 	const read = (f: string) => readFileSync(join(root, f), 'utf8');
-	const json = <T>(f: string): T | null => (has(f) ? (JSON.parse(read(f)) as T) : null);
+	const json = <T>(f: string): T | null => (has(f) ? (parse_ledger(read(f), f) as T) : null);
 	const packages = [
 		...new Set(files.flatMap((f) => /^packages\/([^/]+)\/src\//.exec(f)?.[1] ?? []))
 	].sort();

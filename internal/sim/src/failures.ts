@@ -38,6 +38,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { parseSync } from 'rolldown/utils';
+import { read_ledger_file } from './ledger-json.ts';
 
 export type Node = Record<string, unknown> & { type: string; start: number; end: number };
 
@@ -603,7 +604,7 @@ const ROOT = resolve(import.meta.dirname, '..', '..', '..');
 export const FAILURE_LEDGER = join(ROOT, 'internal', 'sim', 'failures.json');
 
 export function read_failure_ledger(): FailureLedger {
-	return JSON.parse(readFileSync(FAILURE_LEDGER, 'utf8')) as FailureLedger;
+	return read_ledger_file(FAILURE_LEDGER) as FailureLedger;
 }
 
 /** Every site of the ledger's scope. */
@@ -727,7 +728,7 @@ export function check_failures(
 		}).flatMap((f) => points_in(readFileSync(join(ROOT, f), 'utf8')))
 	);
 	const mutants = (
-		JSON.parse(readFileSync(join(ROOT, 'internal/sim/mutants.json'), 'utf8')) as {
+		read_ledger_file(join(ROOT, 'internal/sim/mutants.json')) as {
 			id: string;
 			equivalent?: string;
 		}[]
