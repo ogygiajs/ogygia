@@ -325,13 +325,11 @@ function regions_show_their_answers(): string | null {
 
 /** (What parses built that they should not have, as found, is `R.parsed_built`.) */
 
-/** The rule's ear on every parse (./html-sink.ts calls it): an element of the parsed fragment or
- *  page that a component's constructor built (a defined name, an instance of its definition). */
 function note_parse(parsed: DocumentFragment | Document): void {
 	if (R.parsed_built.length >= 10 || typeof customElements === 'undefined') return;
 	const roots: Node[] = [parsed];
 	for (let q = 0; q < roots.length; q++) {
-		const walk = document.createTreeWalker(roots[q], 1 /* SHOW_ELEMENT */);
+		const walk = document.createTreeWalker(roots[q], NodeFilter.SHOW_ELEMENT);
 		for (let n = walk.nextNode() as Element | null; n; n = walk.nextNode() as Element | null) {
 			if (n.shadowRoot) roots.push(n.shadowRoot);
 			const ctor = customElements.get(n.localName);

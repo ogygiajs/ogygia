@@ -644,22 +644,22 @@ function sync_form_props(from: Element, to: Element): void {
 
 function clone(node: Node): Node {
 	const copy = owner_document(node).importNode(node, true);
-	if (node.nodeType === ELEMENT) carry_shadows(node as Element, copy as Element);
+	if (node.nodeType === ELEMENT) carry_shadows_under(node as Element, copy as Element);
 	return copy;
 }
 
-function carry_shadows(src: Element, dst: Element): void {
+function carry_shadows_under(src: Element, dst: Element): void {
 	const root = src.shadowRoot;
-	if (root && root.mode === 'open' && !dst.shadowRoot) carry_shadow(root, dst);
+	if (root && root.mode === 'open' && !dst.shadowRoot) carry_shadows(root, dst);
 	for (
 		let s = src.firstElementChild, d = dst.firstElementChild;
 		s && d;
 		s = s.nextElementSibling, d = d.nextElementSibling
 	)
-		carry_shadows(s, d);
+		carry_shadows_under(s, d);
 }
 
-function carry_shadow(root: ShadowRoot, dst: Element): void {
+function carry_shadows(root: ShadowRoot, dst: Element): void {
 	const copy = dst.attachShadow({ mode: 'open', delegatesFocus: root.delegatesFocus });
 	for (const c of Array.from(root.childNodes)) copy.appendChild(clone(c));
 	try {
