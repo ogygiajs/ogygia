@@ -148,11 +148,10 @@ export function platform(
 	const live = new Map<number, Task>();
 
 	const arm = (label: string, ms: number, fn: () => void, id = ++ids): number => {
-		if (SITES) label = `${label} @ ${site()}`;
 		// (a host timer runs in the context it was set in, as Node's own do: a server's timer is still
 		// that server's, its clock skew and its own symbols with it)
 		if (node) fn = AsyncResource.bind(fn);
-		const task = tie.add(name, label, ms, () => {
+		const task = tie.add(name, SITES ? `${label} @ ${site()}` : label, ms, () => {
 			live.delete(id);
 			fn();
 		});

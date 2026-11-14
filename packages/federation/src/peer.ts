@@ -453,7 +453,7 @@ export class PeerHandle implements Peer {
 	 */
 	#own_endpoints(html: string): string {
 		if (!REGION_NEEDLE.test(html)) return html;
-		let out = '';
+		const out: string[] = [];
 		let kept = 0;
 		for (let t = next_tag(html, REGION, 0); t !== null; t = next_tag(html, REGION, t.next)) {
 			const value = t.attr('endpoint');
@@ -467,10 +467,12 @@ export class PeerHandle implements Peer {
 			// escapes for those, and a path may hold a `'`)
 			const q = html.charCodeAt(at - 1);
 			const quoted = q === 34 || q === 39 ? 1 : 0;
-			out = `${out}${html.slice(kept, at - quoted)}"${escapeAttr(url)}"`;
+			out.push(html.slice(kept, at - quoted), `"${escapeAttr(url)}"`);
 			kept = at + value.length + quoted;
 		}
-		return kept === 0 ? html : `${out}${html.slice(kept)}`;
+		if (kept === 0) return html;
+		out.push(html.slice(kept));
+		return out.join('');
 	}
 
 	/** The path and query `url` names on one of this peer's origins (a relative one, on its first),

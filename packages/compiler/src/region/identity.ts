@@ -12,35 +12,14 @@ const PATH_SEP = /[/\\]/;
  */
 export function strategyKey(mark: { strategy: string; options?: MarkOptions | null }): string {
 	const o = mark.options || {};
-	if (mark.strategy === 'server') {
-		let k = `defer:${o.when ?? 'load'}`;
-		if (o.margin != null) k = `${k}:margin:${o.margin}`;
-		if (o.cacheTtlSec != null) k = `${k}:ttl:${o.cacheTtlSec}`;
-		if (o.stitch) k = `${k}:stitch:${o.stitch}`;
-		if (o.prefetch) k = `${k}:prefetch:${o.prefetch}`;
-		if (o.hydrate) {
-			k = `${k}+hydrate:${o.hydrate}`;
-			if (o.hydrateMargin != null) k = `${k}:hmargin:${o.hydrateMargin}`;
-		}
-		return k;
-	}
-	if (mark.strategy === 'lake') {
-		let k = `lake:${o.remount || 'cache'}`;
-		if (o.when) k = `${k}:when:${o.when}`;
-		if (o.maxAgeMs != null) k = `${k}:maxAge:${o.maxAgeMs}`;
-		if (o.onExpire) k = `${k}:onExpire:${o.onExpire}`;
-		if (o.margin != null) k = `${k}:margin:${o.margin}`;
-		return k;
-	}
-	if (mark.strategy === 'held') {
-		let k = `region:${o.hydrate || 'raw'}`;
-		if (o.hydrateMargin != null) k = `${k}:hmargin:${o.hydrateMargin}`;
-		return k;
-	}
-	let k = `hydrate:${mark.strategy}`;
-	if (o.margin != null) k = `${k}:margin:${o.margin}`;
-	if (o.keep != null) k = `${k}:keep:${o.keep}`;
-	return k;
+	const margin = o.margin != null ? `:margin:${o.margin}` : '';
+	const hmargin = o.hydrateMargin != null ? `:hmargin:${o.hydrateMargin}` : '';
+	if (mark.strategy === 'server')
+		return `defer:${o.when ?? 'load'}${margin}${o.cacheTtlSec != null ? `:ttl:${o.cacheTtlSec}` : ''}${o.stitch ? `:stitch:${o.stitch}` : ''}${o.prefetch ? `:prefetch:${o.prefetch}` : ''}${o.hydrate ? `+hydrate:${o.hydrate}${hmargin}` : ''}`;
+	if (mark.strategy === 'lake')
+		return `lake:${o.remount || 'cache'}${o.when ? `:when:${o.when}` : ''}${o.maxAgeMs != null ? `:maxAge:${o.maxAgeMs}` : ''}${o.onExpire ? `:onExpire:${o.onExpire}` : ''}${margin}`;
+	if (mark.strategy === 'held') return `region:${o.hydrate || 'raw'}${hmargin}`;
+	return `hydrate:${mark.strategy}${margin}${o.keep != null ? `:keep:${o.keep}` : ''}`;
 }
 
 /**

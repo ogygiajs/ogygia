@@ -30,14 +30,15 @@ test.describe('NESTED ISLAND CSS: an inner island links its own sheet', () => {
 			'the outer island SSR-rendered both inner islands',
 			html.includes('data-nc-inner') && html.includes('data-nc-registry')
 		);
-		let css = '';
+		const sheets: string[] = [];
 		for (const tag of html.match(STYLESHEET_LINK_G) ?? []) {
 			const href = tag.match(HREF_RE)?.[1];
 			if (!href) continue;
 			const r = await fetch(new URL(href, url).href);
-			css = `${css}${await r.text()}\n`;
+			sheets.push(`${await r.text()}\n`);
 		}
-		for (const m of html.matchAll(INLINE_STYLE_G)) css = `${css}${m[1]}\n`;
+		for (const m of html.matchAll(INLINE_STYLE_G)) sheets.push(`${m[1]}\n`);
+		const css = sheets.join('');
 		for (const tok of TOKENS) check(`inner island sheet on the page (${tok})`, css.includes(tok));
 	});
 

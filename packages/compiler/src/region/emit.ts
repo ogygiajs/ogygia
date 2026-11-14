@@ -170,10 +170,7 @@ export function make_region_binding(opts: {
 	lakes: never[];
 	identity: string;
 } {
-	let meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}`;
-	if (opts.hydrate) meta = `${meta}, __hydrate: ${JSON.stringify(opts.hydrate)}`;
-	if (opts.hydrate && opts.hydrateMargin != null)
-		meta = `${meta}, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}`;
+	const meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}${opts.hydrate ? `, __hydrate: ${JSON.stringify(opts.hydrate)}` : ''}${opts.hydrate && opts.hydrateMargin != null ? `, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}` : ''}`;
 	const ssr_source = `${component_import_line('__ogRegionComp', opts.componentPath, opts.exportName)}
 import { make_region_endpoint as __ogRegionSign, render_region_html as __ogRegionHtml } from 'ogygia/internal/server';
 export default { ${meta}, __component: __ogRegionComp, __sign: __ogRegionSign, __renderHtml: ${render_html_source(opts.moduleUrl)} };
@@ -204,10 +201,7 @@ function wrapper_attach_binding(opts: {
 	hydrateMargin?: string;
 	exportName?: string;
 }) {
-	let meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}`;
-	if (opts.hydrate) meta = `${meta}, __hydrate: ${JSON.stringify(opts.hydrate)}`;
-	if (opts.hydrate && opts.hydrateMargin != null)
-		meta = `${meta}, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}`;
+	const meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}${opts.hydrate ? `, __hydrate: ${JSON.stringify(opts.hydrate)}` : ''}${opts.hydrate && opts.hydrateMargin != null ? `, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}` : ''}`;
 	return {
 		ssr: `import __OgygiaWrap from ${JSON.stringify(opts.wrapperPath)};
 ${component_import_line('__ogRegionComp', opts.componentPath, opts.exportName)}
@@ -341,22 +335,10 @@ export function server_wrapper_source(
 ): string {
 	const deferred_hydrate = !!options?.hydrate;
 	const fetch_when = options?.when || 'load';
-	let server_attrs = `__defer={${JSON.stringify(fetch_when)}}`;
-	if (options?.stitch)
-		server_attrs = `${server_attrs} __stitch={${JSON.stringify(options.stitch)}}`;
-	if (options?.prefetch)
-		server_attrs = `${server_attrs} __prefetch={${JSON.stringify(options.prefetch)}}`;
-	if (options?.margin != null)
-		server_attrs = `${server_attrs} __margin={${JSON.stringify(options.margin)}}`;
-	if (options?.cacheTtlSec != null)
-		server_attrs = `${server_attrs} __cacheTtl={${JSON.stringify(options.cacheTtlSec)}}`;
-	if (deferred_hydrate) {
-		server_attrs = `${server_attrs} __hydrate={${JSON.stringify(options.hydrate)}}`;
-		server_attrs = `${server_attrs} __module={${JSON.stringify(module_url)}}`;
-		if (options.hydrateMargin != null) {
-			server_attrs = `${server_attrs} __hydrateMargin={${JSON.stringify(options.hydrateMargin)}}`;
-		}
-	}
+	const hydrate_attrs = deferred_hydrate
+		? ` __hydrate={${JSON.stringify(options.hydrate)}} __module={${JSON.stringify(module_url)}}${options.hydrateMargin != null ? ` __hydrateMargin={${JSON.stringify(options.hydrateMargin)}}` : ''}`
+		: '';
+	const server_attrs = `__defer={${JSON.stringify(fetch_when)}}${options?.stitch ? ` __stitch={${JSON.stringify(options.stitch)}}` : ''}${options?.prefetch ? ` __prefetch={${JSON.stringify(options.prefetch)}}` : ''}${options?.margin != null ? ` __margin={${JSON.stringify(options.margin)}}` : ''}${options?.cacheTtlSec != null ? ` __cacheTtl={${JSON.stringify(options.cacheTtlSec)}}` : ''}${hydrate_attrs}`;
 	const component_imports = component
 		? `	import __OgygiaEntry from ${JSON.stringify(entryPath)};
 	${component_import_line('__OgygiaCss', componentPath, exportName)}
@@ -387,13 +369,10 @@ export function lake_wrapper_source(
 	const remount = options?.remount || 'cache';
 	const needs_endpoint = remount === 'swr';
 	const when = options?.when || (needs_endpoint ? 'load' : undefined);
-	let attrs = `__entry={${JSON.stringify(iid)}} __remount={${JSON.stringify(remount)}} __props={__props}`;
-	if (options?.maxAgeMs != null) attrs = `${attrs} __maxAge={${JSON.stringify(options.maxAgeMs)}}`;
-	if (options?.onExpire) attrs = `${attrs} __onExpire={${JSON.stringify(options.onExpire)}}`;
-	if (needs_endpoint) {
-		attrs = `${attrs} __when={${JSON.stringify(when || 'load')}}`;
-		if (options?.margin != null) attrs = `${attrs} __margin={${JSON.stringify(options.margin)}}`;
-	}
+	const endpoint_attrs = needs_endpoint
+		? ` __when={${JSON.stringify(when || 'load')}}${options?.margin != null ? ` __margin={${JSON.stringify(options.margin)}}` : ''}`
+		: '';
+	const attrs = `__entry={${JSON.stringify(iid)}} __remount={${JSON.stringify(remount)}} __props={__props}${options?.maxAgeMs != null ? ` __maxAge={${JSON.stringify(options.maxAgeMs)}}` : ''}${options?.onExpire ? ` __onExpire={${JSON.stringify(options.onExpire)}}` : ''}${endpoint_attrs}`;
 	return `<script>
 \timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';
 \t${component_import_line('OgygiaLakeInner', componentPath, exportName)}
