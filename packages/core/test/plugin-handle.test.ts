@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { Handle } from '@sveltejs/kit';
-import { around, type LivePlugin } from '../src/plugin/server.ts';
+import { around, compose_resolve_options, type LivePlugin } from '../src/plugin/server.ts';
 import type { ServerApp, ServerPlugin } from '../src/plugin/index.ts';
 
 const live = (name: string, def: ServerPlugin<unknown, unknown>): LivePlugin => ({
@@ -56,6 +56,30 @@ describe('around()', () => {
 				return new Response(out);
 			}
 		});
+		expect(out).toBe('<html>[core][plugin]');
+	});
+
+	it("a plugin's handle written as a method keeps its this (#1818)", async () => {
+		const def = {
+			body: 'mine',
+			handle() {
+				return new Response(this.body);
+			}
+		};
+		const handle = around([live('p', def)], async () => new Response('core'));
+		const res = await handle({ event: {} as never, resolve: async () => new Response('') });
+		expect(await res.text()).toBe('mine');
+	});
+
+	it('a transformPageChunk written as a method keeps its this when composed (#1818)', async () => {
+		const tagged = (tag: string) => ({
+			tag,
+			transformPageChunk({ html }: { html: string }) {
+				return `${html}[${this.tag}]`;
+			}
+		});
+		const opts = compose_resolve_options(tagged('core'), tagged('plugin'));
+		const out = await opts!.transformPageChunk!({ html: '<html>', done: true });
 		expect(out).toBe('<html>[core][plugin]');
 	});
 
