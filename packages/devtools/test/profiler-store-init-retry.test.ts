@@ -59,7 +59,7 @@ it('a store whose init failed once is tried again by its next use, and the repor
 		expect(stop.status).toBe(200);
 		await vi.waitFor(() => expect(put).toHaveBeenCalled());
 		expect(inits).toBe(2);
-		expect(await memory.listReports(10)).toHaveLength(1);
+		expect(memory.listReports(10)).toHaveLength(1);
 	} finally {
 		errors.mockRestore();
 	}

@@ -7,7 +7,7 @@
 	"rules": {
 		"typescript/no-explicit-any": "error",
 		"typescript/no-deprecated": "error",
-		"typescript/await-thenable": "off",
+		"typescript/await-thenable": "error",
 		"typescript/no-array-delete": "error",
 		"typescript/no-base-to-string": "off",
 		"typescript/no-duplicate-type-constituents": "error",
