@@ -145,9 +145,9 @@ export function capability(options: CapabilityOptions): Capability {
 	const seen = new Map<string, number>();
 
 	const message = (audience: string, exp: number, n: string, fields: readonly string[]) => {
-		let m = `${head}${lp(audience)}|${lp(String(exp))}|${lp(n)}|${fields.length}`;
-		for (const f of fields) m = `${m}|${lp(f)}`;
-		return m;
+		const m = [`${head}${lp(audience)}|${lp(String(exp))}|${lp(n)}|${fields.length}`];
+		for (const f of fields) m.push(lp(f));
+		return m.join('|');
 	};
 	const clock = (where: string): number => {
 		const t = now();

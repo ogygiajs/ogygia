@@ -195,15 +195,15 @@ function fake_valkey(): ValkeyLike & { data: Map<string, string>; expiry: Map<st
 		async scan(cursor, ...args) {
 			// single-page cursor; honor MATCH with the same glob subset the adapter emits
 			const match = String(args[args.indexOf('MATCH') + 1]);
-			let source = '';
+			const source: string[] = [];
 			for (let i = 0; i < match.length; i++) {
 				const c = match[i];
-				if (c === '\\') source += regex_escape(match[++i]);
-				else if (c === '*') source = `${source}.*`;
-				else if (c === '?') source = `${source}.`;
-				else source += regex_escape(c);
+				if (c === '\\') source.push(regex_escape(match[++i]));
+				else if (c === '*') source.push('.*');
+				else if (c === '?') source.push('.');
+				else source.push(regex_escape(c));
 			}
-			const re = new RegExp(`^${source}$`);
+			const re = new RegExp(`^${source.join('')}$`);
 			return ['0', [...data.keys()].filter((k) => re.test(k))] as unknown;
 		}
 	};
