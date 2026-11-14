@@ -52,7 +52,8 @@ export async function fetch_when_free(
 		if (n >= PROFILER_BUSY.attempts || waited > PROFILER_BUSY.deadline) return res;
 		busy?.(waited);
 		const wait = busy_wait(res, PROFILER_BUSY.deadline - waited);
-		void res.body?.cancel().catch(() => {}); // ok: only the status and the header are read
+		// oxlint-disable-next-line ogygia/no-silent-failures -- only the status and the header are read
+		void res.body?.cancel().catch(() => {});
 		const slept = await owner.task(() => new Promise<void>((r) => owner.timeout(r, wait)));
 		if (slept === STALE) return STALE;
 	}

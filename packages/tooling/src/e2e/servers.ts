@@ -136,9 +136,8 @@ export async function spawn_server(opts: SpawnServerOptions): Promise<SpawnedSer
 	const signal_group = (sig: NodeJS.Signals) => {
 		try {
 			if (pid !== undefined) process.kill(-pid, sig);
-		} catch {
-			// ok: the group already exited (ESRCH), which is what the signal was for
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the group already exited (ESRCH), which is what the signal was for
+		} catch {}
 	};
 
 	const m = server_machine.create();
@@ -156,10 +155,12 @@ export async function spawn_server(opts: SpawnServerOptions): Promise<SpawnedSer
 		await Promise.race([closed, sleep(1000)]);
 		if (!m.move('stopping', 'exited')) m.move('exited_early', 'exited');
 	};
-	child.once('exit', (code, sig) => void on_exit(sig ? `signal ${sig}` : `code ${code}`)); // ok: on_exit never rejects
+	// oxlint-disable-next-line ogygia/no-silent-failures -- on_exit never rejects
+	child.once('exit', (code, sig) => void on_exit(sig ? `signal ${sig}` : `code ${code}`));
 	child.once('error', (error) => {
 		logs.push(error.message);
-		void on_exit(error.message); // ok: on_exit never rejects
+		// oxlint-disable-next-line ogygia/no-silent-failures -- on_exit never rejects
+		void on_exit(error.message);
 	});
 
 	const server: SpawnedServer = {
@@ -185,9 +186,8 @@ export async function spawn_server(opts: SpawnServerOptions): Promise<SpawnedSer
 			try {
 				const res = await fetch(opts.url, { redirect: 'manual', signal });
 				if (res.status > 0 && ready(res)) return true;
-			} catch {
-				// ok: not up yet; the loop asks again until the timeout says so
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- not up yet; the loop asks again until the timeout says so
+			} catch {}
 			await sleep(300, signal);
 		}
 		return false;

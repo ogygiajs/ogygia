@@ -20,8 +20,9 @@ export function speculate_url(url: string | URL, kind: 'prefetch' | 'prerender')
 	let target: URL;
 	try {
 		target = new URL(url, location.href);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: no hint (a hint is only a hint)
 	} catch {
-		return; // ok: not a URL: no hint (a hint is only a hint)
+		return;
 	}
 	if (target.origin !== location.origin) return;
 	const href = target.pathname + target.search;

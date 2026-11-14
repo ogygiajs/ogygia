@@ -1,5 +1,5 @@
 // `ogygia/one-markup-walk` (./plugin.ts, #1370): package source reads HTML through core's tag walk.
-// A regex or an indexOf over tags or attributes fails, unless it says why with `// markup-ok:`.
+// A regex or an indexOf over tags or attributes fails, unless it says why with the rule's directive.
 // Linted for real: a file in a temporary tree, the repository's plugin.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -61,9 +61,10 @@ const c = html.indexOf('>');
 const d = html.includes('<ogygia-region');
 const e = /^data-[a-z]+$/;
 const f = html.replace(/</g, '&lt;');
-// markup-ok: a test oracle that must not share the walk's mistakes
+// oxlint-disable-next-line ogygia/one-markup-walk -- a test oracle that must not share the walk's mistakes
 const g = /<script\\b[^>]*>/;
-const h = html.indexOf('</head>'); // markup-ok: a stated reason
+// oxlint-disable-next-line ogygia/one-markup-walk -- a stated reason
+const h = html.indexOf('</head>');
 `;
 
 test('a regex or an indexOf over tags or attributes in package source is reported', () => {

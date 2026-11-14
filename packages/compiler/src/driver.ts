@@ -1388,8 +1388,9 @@ export class Compiler implements CoreApp {
 		let resolved: { id: string } | null = null;
 		try {
 			resolved = await resolve(source, importer, { skipSelf: true });
+			// oxlint-disable-next-line ogygia/no-silent-failures -- an edge the resolver refuses is not forked: the real module stays (bytes, never a missing style); the bundler reports the import
 		} catch {
-			return null; // ok: an edge the resolver refuses is not forked: the real module stays (bytes, never a missing style); the bundler reports the import
+			return null;
 		}
 		if (!resolved?.id || resolved.id.startsWith('\0')) return null;
 		const target = strip_id(resolved.id);

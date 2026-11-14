@@ -29,6 +29,7 @@
 	});
 	// read once, at setup: the two ids the compare page handed over
 	// svelte-ignore state_referenced_locally
+	// oxlint-disable-next-line ogygia/no-silent-failures -- the browser store never rejects (a store it cannot open reads as nothing)
 	void Promise.all([get_report(a), get_report(b)])
 		.then(([A, B]) => {
 			const da = A?.dump as Dump | undefined;
@@ -36,7 +37,7 @@
 			missing = [...(da ? [] : [a]), ...(db ? [] : [b])];
 			if (da && db) cmp = compare_reports(pack(da), pack(db));
 		})
-		.finally(() => (loaded = true)); // ok: the browser store never rejects (a store it cannot open reads as nothing)
+		.finally(() => (loaded = true));
 </script>
 
 {#if cmp}

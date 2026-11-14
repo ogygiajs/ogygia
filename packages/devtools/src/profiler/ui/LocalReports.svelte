@@ -12,9 +12,10 @@
 	let rows = $state<Omit<StoredDump, 'dump'>[]>([]);
 	let loaded = $state(false);
 	const on_server = $derived(new Set(server_ids));
+	// oxlint-disable-next-line ogygia/no-silent-failures -- the browser store never rejects (a store it cannot open reads as nothing)
 	void list_reports()
 		.then((r) => (rows = r))
-		.finally(() => (loaded = true)); // ok: the browser store never rejects (a store it cannot open reads as nothing)
+		.finally(() => (loaded = true));
 	const when = (ms: number) => new Date(ms).toLocaleString();
 	/** the previous kept report of the same page, for a compare link */
 	const prev_of = (r: Omit<StoredDump, 'dump'>) =>

@@ -38,8 +38,9 @@ function keep_serializable(value: unknown, stringify_fn: typeof stringify): unkn
 		try {
 			stringify_fn(v);
 			return true;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- that is the answer: this value does not cross
 		} catch {
-			return false; // ok: that is the answer: this value does not cross
+			return false;
 		}
 	};
 	const put = (out: Record<string, unknown>, key: string, v: unknown) => {
@@ -75,8 +76,9 @@ function keep_serializable(value: unknown, stringify_fn: typeof stringify): unkn
 				let e: unknown;
 				try {
 					e = (v as Record<string, unknown>)[key];
+					// oxlint-disable-next-line ogygia/no-silent-failures -- a getter that throws: devalue could not read it either
 				} catch {
-					continue; // ok: a getter that throws: devalue could not read it either
+					continue;
 				}
 				const c = keep(e);
 				if (c !== DROP) put(out, key, c);
@@ -142,9 +144,8 @@ export class PageSeed {
 			if (json) {
 				try {
 					return { text: escape_script_text(JSON.stringify(full)), json: true };
-				} catch {
-					// ok: the analysis was wrong about a leaf; devalue below is the safe lane
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- the analysis was wrong about a leaf; devalue below is the safe lane
+				} catch {}
 			}
 			let raw: string;
 			try {
@@ -157,9 +158,8 @@ export class PageSeed {
 				let kept = full;
 				try {
 					kept = keep_serializable(full, stringify_fn) as typeof full;
-				} catch {
-					// ok: kept stays the source
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- kept stays the source
+				} catch {}
 				try {
 					raw = stringify_fn(kept);
 				} catch {
@@ -169,16 +169,16 @@ export class PageSeed {
 						try {
 							stringify_fn(kept[key]);
 							safe[key] = kept[key];
-						} catch {
-							// ok: this field cannot cross, so just it is dropped
-						}
+							// oxlint-disable-next-line ogygia/no-silent-failures -- this field cannot cross, so just it is dropped
+						} catch {}
 					}
 					raw = stringify_fn(safe);
 				}
 			}
 			return { text: raw, json: false };
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a reducer threw on the plain base itself; the page ships no seed, never a 500
 		} catch {
-			return null; // ok: a reducer threw on the plain base itself; the page ships no seed, never a 500
+			return null;
 		}
 	}
 }

@@ -65,11 +65,13 @@ export async function look_up_page(
 		return { miss: `the data request failed (${String((e as Error)?.message ?? e)})` };
 	}
 	if (!res.ok || !res.body) {
-		void res.body?.cancel().catch(() => {}); // ok: an answer not read; the miss below says why
+		// oxlint-disable-next-line ogygia/no-silent-failures -- an answer not read; the miss below says why
+		void res.body?.cancel().catch(() => {});
 		return { miss: `the data request answered ${res.status}` };
 	}
 	const reader = res.body.getReader();
-	owner?.defer(() => void reader.cancel().catch(() => {})); // ok: the request ended; a failed cancel has nothing left to stop
+	// oxlint-disable-next-line ogygia/no-silent-failures -- the request ended; a failed cancel has nothing left to stop
+	owner?.defer(() => void reader.cancel().catch(() => {}));
 	const text = new TextDecoder();
 	const read = await read_first_line(reader, text);
 	if ('miss' in read) return read;
@@ -77,7 +79,8 @@ export async function look_up_page(
 	const first = nl === -1 ? buf : buf.slice(0, nl);
 	const rest = nl === -1 ? '' : buf.slice(nl + 1);
 	const stop = (miss: string) => {
-		void reader.cancel().catch(() => {}); // ok: the miss returned says why it stopped
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the miss returned says why it stopped
+		void reader.cancel().catch(() => {});
 		return { miss };
 	};
 	let head: { type?: string; nodes?: unknown[]; location?: string };
@@ -96,7 +99,8 @@ export async function look_up_page(
 			...decoders,
 			Promise: (id: number) => {
 				const p = new Promise((fulfil, reject) => deferreds.set(id, { fulfil, reject }));
-				p.catch(() => {}); // ok: the same promise is handed to the render, which sees the rejection; one it never awaited must not crash the process
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the same promise is handed to the render, which sees the rejection; one it never awaited must not crash the process
+				p.catch(() => {});
 				return p;
 			}
 		});
@@ -109,8 +113,10 @@ export async function look_up_page(
 	} catch (e) {
 		return stop(`its data did not decode (${String((e as Error)?.message ?? e)})`);
 	}
-	if (deferreds.size) void settle_streamed(reader, text, rest, deferreds, revive); // ok: never rejects (its body is caught)
-	else void reader.cancel().catch(() => {}); // ok: nothing more to read; a failed cancel has nothing to stop
+	// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects (its body is caught)
+	if (deferreds.size) void settle_streamed(reader, text, rest, deferreds, revive);
+	// oxlint-disable-next-line ogygia/no-silent-failures -- nothing more to read; a failed cancel has nothing to stop
+	else void reader.cancel().catch(() => {});
 
 	let route: { id: string | null } = { id: null };
 	let params: Record<string, string | undefined> = {};
@@ -123,9 +129,8 @@ export async function look_up_page(
 			};
 			route = { id: r.id ?? null };
 			params = r.params ?? {};
-		} catch {
-			// ok: a mangled header: the page keeps no route
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a mangled header: the page keeps no route
+		} catch {}
 	}
 	return { url: page, params, route, data };
 }
@@ -171,9 +176,8 @@ async function settle_streamed(
 			deferreds.delete(chunk.id);
 			if (chunk.error !== undefined) d.reject(revive(chunk.error));
 			else d.fulfil(revive(chunk.data));
-		} catch {
-			// ok: a line that does not decode leaves its promise to the answer's end, which rejects it
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a line that does not decode leaves its promise to the answer's end, which rejects it
+		} catch {}
 	};
 	try {
 		for (;;) {
@@ -188,10 +192,11 @@ async function settle_streamed(
 			buf += text.decode(value, { stream: true });
 		}
 		line(buf);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the stream broke: what did not arrive is rejected below
 	} catch {
-		// ok: the stream broke: what did not arrive is rejected below
 	} finally {
-		void reader.cancel().catch(() => {}); // ok: done reading; a failed cancel has nothing to stop
+		// oxlint-disable-next-line ogygia/no-silent-failures -- done reading; a failed cancel has nothing to stop
+		void reader.cancel().catch(() => {});
 		// (the answer is over, ended, broken or let go with the request: what it did not bring never comes)
 		for (const d of deferreds.values())
 			d.reject(new OgygiaError('page_promise_unresolved', { why: 'answer' }));

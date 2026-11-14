@@ -52,8 +52,7 @@ export function configure_boundary(p: BoundaryPolicy): void {
 const secret_like = (name: string): boolean =>
 	!policy.allow.has(name) && (policy.deny.has(name) || SECRET_KEY_RE.test(name));
 
-// static: a store's own methods
-const STORE_BUILTINS = new Set(['subscribe', 'set', 'update']);
+const STORE_BUILTINS: ReadonlySet<string> = new Set(['subscribe', 'set', 'update']);
 
 function is_dom(v: object): boolean {
 	return (

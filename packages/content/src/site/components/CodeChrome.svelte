@@ -82,7 +82,7 @@
 
 		// FNV-1a → base36 (mirrors the build-time `remark-code-ids` hash, so a fallback id matches).
 		function hash_code(text: string): string {
-			// hash: a client island's own copy of core's fnv1a32 (no server module in its bundle)
+			// oxlint-disable-next-line ogygia/one-hash -- a client island's own copy of core's fnv1a32 (no server module in its bundle)
 			let h = 2166136261;
 			for (let i = 0; i < text.length; i++) {
 				h ^= text.charCodeAt(i);
@@ -159,7 +159,8 @@
 			link.addEventListener('click', () => {
 				focus_target(pre as HTMLElement); // land the reader's eye on the block (ring clears on blur)
 				const url = `${location.origin}${location.pathname}#${id}`;
-				navigator.clipboard?.writeText(url).then(link_ticked, () => {}); // ok: the clipboard refused (no permission); the link stays as it was
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the clipboard refused (no permission); the link stays as it was
+				navigator.clipboard?.writeText(url).then(link_ticked, () => {});
 			});
 
 			// Copy the code text.
@@ -182,7 +183,8 @@
 			btn.addEventListener('click', () => {
 				const code = pre.querySelector('code') || pre;
 				const text = (code as HTMLElement).innerText || code.textContent || '';
-				navigator.clipboard?.writeText(text).then(copy_ticked, () => {}); // ok: the clipboard refused (no permission); the button stays as it was
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the clipboard refused (no permission); the button stays as it was
+				navigator.clipboard?.writeText(text).then(copy_ticked, () => {});
 			});
 
 			actions.appendChild(link);

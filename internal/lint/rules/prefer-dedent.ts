@@ -2,7 +2,8 @@
  * `ogygia/prefer-dedent`: text of several lines is written as lines, in one `dedent` template
  * (`dedent.inline` for text that ends up on one line). It flags a string or template literal with
  * two or more `\n` escapes, and an array of string pieces joined with `'\n'` (not one line of text
- * with newlines only at its edges). No fix: a hand
+ * with newlines only at its edges, nor a template whose only text is `\n` between its values:
+ * values joined by newlines, not prose). No fix: a hand
  * conversion proves its bytes the same.
  */
 
@@ -23,6 +24,17 @@ function newline_escapes(raw: string): number {
 		i++;
 	}
 	return n;
+}
+
+const ONLY_NEWLINES_RE = /^\n*$/;
+
+/** A template whose only text is `\n` between its values (`${a}\n${b}\n`): values joined by
+ *  newlines, with no lines of its own to write (internal/lint/prefer-dedent.test.ts). */
+function newline_joined(node: Node): boolean {
+	if ((node.expressions as Node[]).length === 0) return false;
+	return (node.quasis as { value: { cooked: string | null } }[]).every(
+		(q) => q.value.cooked !== null && ONLY_NEWLINES_RE.test(q.value.cooked)
+	);
 }
 
 const is_text_piece = (e: Node): boolean => {
@@ -253,7 +265,7 @@ export const prefer_dedent = {
 				if ((node.parent as Node | undefined)?.type === 'TaggedTemplateExpression') return;
 				let n = 0;
 				for (const q of node.quasis as Node[]) n += newline_escapes(text(q));
-				if (n < 2) return;
+				if (n < 2 || newline_joined(node)) return;
 				const values: string[] = [];
 				report(node, cooked_text(node, values), values);
 			},

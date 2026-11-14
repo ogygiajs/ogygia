@@ -88,9 +88,8 @@ export function emit_island_deps_handoff(
 	try {
 		fs.mkdirSync(path.dirname(server_copy), { recursive: true });
 		fs.writeFileSync(server_copy, json);
-	} catch {
-		// ok: the handoff path is enough for prerender
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the handoff path is enough for prerender
+	} catch {}
 
 	try {
 		const server_dir = path.join(out_dir, 'output', 'server');
@@ -99,8 +98,9 @@ export function emit_island_deps_handoff(
 			let entries;
 			try {
 				entries = fs.readdirSync(dir, { withFileTypes: true });
+				// oxlint-disable-next-line ogygia/no-silent-failures -- no server output here; the server reads the handoff file instead
 			} catch {
-				return; // ok: no server output here; the server reads the handoff file instead
+				return;
 			}
 			for (const e of entries) {
 				const full = path.join(dir, e.name);
@@ -112,17 +112,17 @@ export function emit_island_deps_handoff(
 				let code;
 				try {
 					code = fs.readFileSync(full, 'utf8');
+					// oxlint-disable-next-line ogygia/no-silent-failures -- an unpatched chunk keeps its token, and the server reads the handoff file
 				} catch {
-					continue; // ok: an unpatched chunk keeps its token, and the server reads the handoff file
+					continue;
 				}
 				const patched = relocate(code, WRITTEN_RELOCATIONS, counts, cx);
 				if (patched) fs.writeFileSync(full, patched.s.toString());
 			}
 		};
 		patch_server(server_dir);
-	} catch {
-		// ok: the fs fallback still serves adapter-node and preview
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the fs fallback still serves adapter-node and preview
+	} catch {}
 }
 
 /**

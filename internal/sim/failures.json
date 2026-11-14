@@ -1179,6 +1179,66 @@
 			"name": "a notice that throws is reported with its code; the cache goes on"
 		},
 		{
+			"site": "packages/machine/src/decisions.ts > Decisions > decide > throw:0",
+			"reason": "`throw machine_error('machine_decision_refused', {`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/decisions.test.ts",
+			"name": "a refused input throws its code, naming the input and the reason"
+		},
+		{
+			"site": "packages/machine/src/decisions.ts > check_def > throw:0",
+			"reason": "`throw bad_option(option, show(domain), 'a list of at least one value');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/decisions.test.ts",
+			"name": "in dev, an empty or repeated field list is refused where the table is made"
+		},
+		{
+			"site": "packages/machine/src/decisions.ts > check_def > throw:1",
+			"reason": "`throw bad_option(option, show_list(domain), 'a list with each value once');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/decisions.test.ts",
+			"name": "in dev, an empty or repeated field list is refused where the table is made"
+		},
+		{
+			"site": "packages/machine/src/decisions.ts > check_input > throw:0",
+			"reason": "`throw machine_error('machine_decision_outside', {`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/decisions.test.ts",
+			"name": "in dev, a value outside its field list throws, naming the field"
+		},
+		{
+			"site": "packages/machine/src/testing.ts > Walk > constructor > throw:0",
+			"reason": "`throw bad_option('listing max', max, 'a number, 1 or more');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/decisions.test.ts",
+			"name": "refuses a sample that is not whole numbers, and a max under 1"
+		},
+		{
+			"site": "packages/machine/src/testing.ts > Walk > constructor > throw:1",
+			"reason": "`throw bad_option('sample seed', sample.seed, 'a whole number');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/decisions.test.ts",
+			"name": "refuses a sample that is not whole numbers, and a max under 1"
+		},
+		{
+			"site": "packages/machine/src/testing.ts > Walk > constructor > throw:2",
+			"reason": "`throw bad_option('sample size', sample.size, 'a whole number, 1 or more');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/decisions.test.ts",
+			"name": "refuses a sample that is not whole numbers, and a max under 1"
+		},
+		{
+			"site": "packages/machine/src/testing.ts > Walk > constructor > throw:3",
+			"reason": "`throw machine_error('machine_decisions_too_many', {`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/decisions.test.ts",
+			"name": "refuses past 100,000 rows at once, naming the count and how to sample"
+		},
+		{
+			"site": "packages/machine/src/testing.ts > check > catch:0",
+			"reason": "`catch (error) { held = false; threw = …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/decisions.test.ts",
+			"name": "a rule that throws breaks, with what it threw"
+		},
+		{
+			"site": "packages/machine/src/testing.ts > check > throw:0",
+			"reason": "`throw machine_error('machine_decisions_rule_broken', {`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/decisions.test.ts",
+			"name": "throws naming each broken rule with the first row that breaks it"
+		},
+		{
 			"site": "packages/machine/src/cache.ts > Store > set > throw:0",
 			"reason": "`throw bad_option('keep', ms, 'a time in ms of 0 or more');`: proved: the throw removed turns the test red, twice",
 			"test": "packages/machine/test/cache.test.ts",

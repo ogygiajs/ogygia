@@ -145,7 +145,7 @@ export function gc_kind(kind: number): GcEvent['kind'] {
 }
 
 /** FNV-1a over a string, hex — a short stable key for a stack path */
-// hash: seeded, so a stack path's key folds in its parent's (core's has no seed)
+// oxlint-disable-next-line ogygia/one-hash -- seeded, so a stack path's key folds in its parent's (core's has no seed)
 function fnv(s: string, seed = 0x811c9dc5): number {
 	let h = seed;
 	for (let i = 0; i < s.length; i++) {
@@ -214,7 +214,8 @@ export function heap_sites(head: HeapNode, dict: Record<string, AllocSite>): Map
 		for (const ch of node.children ?? []) visit(ch, h, own);
 		if (is_comp) stack.pop();
 	};
-	visit(head, 0x811c9dc5, undefined); // hash: the seeded fnv's first seed (above)
+	// oxlint-disable-next-line ogygia/one-hash -- the seeded fnv's first seed (above)
+	visit(head, 0x811c9dc5, undefined);
 	return out;
 }
 

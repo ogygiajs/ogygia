@@ -152,8 +152,7 @@ export function register_store_kind(): void {
 	});
 }
 
-// static: one family
-const STORE_ONLY = new Set(['store']);
+const STORE_ONLY: ReadonlySet<string> = new Set(['store']);
 
 /**
  * Devalue reducer: encode a store, or return undefined to fall through. Reads the store's
