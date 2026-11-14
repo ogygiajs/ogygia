@@ -248,7 +248,6 @@ abstract class Line<J> implements Queue<J> {
 }
 
 class PlainLine<J> extends Line<J> {
-	/** A place for a job starting now: given back once, by its job or by a start that threw. */
 	#place(): Place & { held: boolean } {
 		const place = {
 			held: true,
@@ -262,9 +261,8 @@ class PlainLine<J> extends Line<J> {
 		return place;
 	}
 
-	/** Starts jobs from the front while there is room. */
 	protected _drain(): void {
-		if (this._owner?.closed) return; // (its waiting jobs are stale: none starts)
+		if (this._owner?.closed) return;
 		while (this._holding < this._max && this._head < this._jobs.length) {
 			const at = this._head++;
 			const job = this._jobs[at];
