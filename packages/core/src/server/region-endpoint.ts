@@ -42,15 +42,15 @@ export function hole_css(entry: string): string[] {
 }
 
 /** Same families as encode_region_props — one seam law for island props. */
-// static: the prop families that cross the wire
-const PROP_FAMILIES = new Set(['wire', 'store', 'snippet', 'fn', 'derived']);
+const PROP_FAMILIES: ReadonlySet<string> = new Set(['wire', 'store', 'snippet', 'fn', 'derived']);
 
 /** The request being rendered (null off-request: prerender, a test). */
 function current_request(): Request | null {
 	try {
 		return get_request_event().request;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- off-request (prerender, a test), as said above
 	} catch {
-		return null; // ok: off-request (prerender, a test), as said above
+		return null;
 	}
 }
 
@@ -68,8 +68,9 @@ function region_session(): string {
 	if (!session_cookie) return '';
 	try {
 		return get_request_event().cookies.get(session_cookie) ?? '';
+		// oxlint-disable-next-line ogygia/no-silent-failures -- off-request (prerender): no session to seal, as said above
 	} catch {
-		return ''; // ok: off-request (prerender): no session to seal, as said above
+		return '';
 	}
 }
 
@@ -102,8 +103,9 @@ export function reuse_known_region(fp: string): boolean {
 	let event;
 	try {
 		event = get_request_event();
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no request scope (prerender / off-request) → render all
 	} catch {
-		return false; // ok: no request scope (prerender / off-request) → render all
+		return false;
 	}
 	const counts = document_counts(event);
 	if (counts === null) return false; // an event with no request: no claim, render all
@@ -117,9 +119,8 @@ export function reuse_known_region(fp: string): boolean {
 			const named = known && known.length <= KNOWN_HEADER_CAP ? known.split(',') : [];
 			if (named.length <= KNOWN_COPIES_CAP)
 				for (const k of named) copies.set(k, (copies.get(k) ?? 0) + 1);
-		} catch {
-			// ok: an unreadable header is no claim: everything renders
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- an unreadable header is no claim: everything renders
+		} catch {}
 	}
 	const left = copies.get(fp) ?? 0;
 	if (left === 0) return false;

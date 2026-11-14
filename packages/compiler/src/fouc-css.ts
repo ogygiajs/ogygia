@@ -56,8 +56,9 @@ export function foucRelFromId(id: string): string | null {
 	let rel: string;
 	try {
 		rel = decodeURIComponent(encoded);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not percent-encoded: the id holds the path as is (the check below still runs)
 	} catch {
-		rel = encoded; // ok: not percent-encoded: the id holds the path as is (the check below still runs)
+		rel = encoded;
 	}
 	if (
 		rel.startsWith('/') ||

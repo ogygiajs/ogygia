@@ -1,11 +1,14 @@
+<!--
+@component
+Cross-island context provider for plain `getContext(key)`: no `createContext` handle needed, and no
+change to the consumer islands. It writes `values` into the page once, so islands below (which
+hydrate as separate roots on a csr=false page) get them in their own context at hydrate, and it sets
+Svelte's own context, so the server-rendered tree reads the same values. Values must be
+serializable: plain data, `[ogygia.wire]` live values, region snippets; never a function or a live
+store. A provider's values are read once, when it renders.
+-->
 <script lang="ts">
-	// Cross-island context provider for PLAIN `getContext(key)` — no `createContext` handle needed, no
-	// change to the consumer islands. Writes `values` into the DOM once (so islands below, which
-	// hydrate as separate roots on a csr=false page, get them seeded into their own context at hydrate)
-	// AND sets Svelte's native context (so the SSR-nested tree + any non-island descendants read the
-	// same values in the server pass). Values must be SERIALIZABLE (devalue + ogygia codecs): plain
-	// data, `[ogygia.wire]` live values, region snippets — never a function or a live store.
-	import { setContext } from 'svelte';
+	import { setContext, untrack } from 'svelte';
 	import { serialize_context } from './context-bridge.ts';
 	import type { Snippet } from 'svelte';
 
@@ -17,22 +20,18 @@
 		children?: Snippet;
 	} = $props();
 
-	// A provider's values are fixed for its lifetime — resolved once (server pass).
-	// svelte-ignore state_referenced_locally
-	const resolved = Array.isArray(values)
-		? (Object.assign({}, ...values.filter(Boolean)) as Record<string, unknown>)
-		: values;
+	const resolved = untrack(() =>
+		Array.isArray(values)
+			? (Object.assign({}, ...values.filter(Boolean)) as Record<string, unknown>)
+			: values
+	);
 
-	// svelte-ignore state_referenced_locally
 	for (const k of Reflect.ownKeys(resolved))
 		setContext(k, (resolved as Record<PropertyKey, unknown>)[k]);
 
-	// Angle brackets built without literals so Svelte's raw-text lexer never sees a stray tag.
+	// @why a closing script tag written out inside a script ends it, even in a comment (test: internal/checks/shipped-svelte.test.ts › every shipped component passes)
 	const LT = String.fromCharCode(60);
 	const GT = String.fromCharCode(62);
-	// Serialize on the SERVER only — a csr=false provider never runs on the client; the payload is
-	// already in the SSR HTML for islands to read at hydrate.
-	// svelte-ignore state_referenced_locally
 	const script =
 		typeof window === 'undefined'
 			? `${LT}script data-ogygia-provide${GT}${serialize_context(resolved)}${LT}/script${GT}`

@@ -30,8 +30,8 @@ export const get_request_event: typeof Server.get_request_event = () => {
 	throw new Error('[ogygia] https://ogygiajs.dev/e/request_event_server_only');
 };
 // csr=true routes: the browser reads the same signal from `kit_hydrates_page()`
-export const csr_true_routes: typeof Server.csr_true_routes = new Set(); // static: always empty
-export const error_csr_true_routes: typeof Server.error_csr_true_routes = new Set(); // static: always empty
+export const csr_true_routes: ReadonlySet<string> = new Set();
+export const error_csr_true_routes: ReadonlySet<string> = new Set();
 export const root_layout_csr_true: typeof Server.root_layout_csr_true = true;
 export const runtime_bootstrap: typeof Server.runtime_bootstrap = blank;
 export const region_css_tag: typeof Server.region_css_tag = blank;

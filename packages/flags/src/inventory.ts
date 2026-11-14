@@ -35,8 +35,7 @@ type AstNode = {
 	[k: string]: unknown;
 };
 
-// static: the import attribute kinds this pass rewrites
-const KINDS = new Set(['flag']);
+const KINDS: ReadonlySet<string> = new Set(['flag']);
 /** Cheap pre-parse gate — most modules import ogygia for other reasons. */
 const MAYBE_RE = /\bflag\b/;
 /** Where every newline of `src` is, in order: one pass, then each line is a binary search. */

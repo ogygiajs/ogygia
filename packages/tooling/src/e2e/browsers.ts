@@ -13,11 +13,11 @@ import { test, type ConsoleMessage, type Page } from '@playwright/test';
  */
 export async function console_text(m: ConsoleMessage): Promise<string> {
 	const parts = await Promise.all(
-		m.args().map(
-			(a) =>
-				a
-					.evaluate((v) => (v instanceof Error ? `${v.name}: ${v.message}` : String(v)))
-					.catch(() => '') // ok: an argument of a page that left: its text is gone with it
+		m.args().map((a) =>
+			// oxlint-disable-next-line ogygia/no-silent-failures -- an argument of a page that left: its text is gone with it
+			a
+				.evaluate((v) => (v instanceof Error ? `${v.name}: ${v.message}` : String(v)))
+				.catch(() => '')
 		)
 	);
 	return parts.length ? parts.join(' ') : m.text();

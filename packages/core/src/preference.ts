@@ -64,11 +64,10 @@ function preference_switch(): string {
 			var val = btn.getAttribute('data-pref-set');
 			if (!name || !val) return;
 			try {
-				// port-ok: inline head script (no imports)
+				// oxlint-disable-next-line ogygia/ports -- inline head script (no imports)
 				localStorage.setItem('og-pref-' + name, val);
-			} catch {
-				// ok: private mode; the attribute still updates for this session
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- private mode; the attribute still updates for this session
+			} catch {}
 			document.documentElement.setAttribute('data-pref-' + name, val);
 		});
 	});
@@ -97,7 +96,7 @@ function preference_impl(spec: PreferenceSpec): Preference {
 			return script(
 				(n: string, vs: string[], d: string) => {
 					try {
-						// port-ok: inline head script (no imports)
+						// oxlint-disable-next-line ogygia/ports -- inline head script (no imports)
 						var v = localStorage.getItem('og-pref-' + n);
 						if (!v || vs.indexOf(v) < 0) v = d;
 						document.documentElement.setAttribute('data-pref-' + n, v);
@@ -115,9 +114,8 @@ function preference_impl(spec: PreferenceSpec): Preference {
 			const v = values.includes(value) ? value : def;
 			try {
 				storage.local()?.setItem(KEY(name), v);
-			} catch {
-				// ok: private mode; the attribute still updates for this session
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- private mode; the attribute still updates for this session
+			} catch {}
 			document.documentElement.setAttribute(attr, v);
 		},
 		get() {

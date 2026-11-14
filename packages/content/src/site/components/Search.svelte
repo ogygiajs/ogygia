@@ -64,8 +64,9 @@ the first intent: a hover, a focus, a click or a key. A page that never searches
 			if (m === STALE) return false;
 			Palette = m.default;
 			return true;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the palette's chunk did not come: the link still goes to the search page
 		} catch {
-			return false; // ok: the palette's chunk did not come: the link still goes to the search page
+			return false;
 		}
 	}
 
@@ -78,7 +79,8 @@ the first intent: a hover, a focus, a click or a key. A page that never searches
 	}
 
 	onMount(() => {
-		if (mode === 'inline') void wake_palette(); // ok: never rejects (a failed download answers false)
+		// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects (a failed download answers false)
+		if (mode === 'inline') void wake_palette();
 
 		// @why the keys open a dialog; a sheet is already open, so it leaves them to the page (test: test/browser/search.test.ts › in a sheet, mounts the palette at once and leaves the keys to the page)
 		if (mode !== 'dialog') return;
@@ -91,10 +93,12 @@ the first intent: a hover, a focus, a click or a key. A page that never searches
 				e.preventDefault();
 				if (open) open = false;
 				else if (opening) opening = false;
-				else void open_palette(); // ok: never rejects (a failed download answers false)
+				// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects (a failed download answers false)
+				else void open_palette();
 			} else if (k === '/' && !typing && !open && !opening) {
 				e.preventDefault();
-				void open_palette(); // ok: never rejects (a failed download answers false)
+				// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects (a failed download answers false)
+				void open_palette();
 			}
 		});
 	});

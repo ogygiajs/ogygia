@@ -21,7 +21,6 @@ export interface SiteFix {
 }
 
 /** keeping an answer, or the whole page, is a freshness decision per page, not one shared fix */
-// static: a fixed list of pattern kinds
 const NOT_SHARED: ReadonlySet<PatternKind> = new Set<PatternKind>([
 	'same-answer',
 	'almost-same-answer',

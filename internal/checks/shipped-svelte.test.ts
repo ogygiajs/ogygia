@@ -3,11 +3,19 @@
 // Run by plain node: `node --test internal/checks/shipped-svelte.test.ts`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { dedent } from '@ogygia/core/plugin/utils';
 import {
 	as_shipped,
+	CLEAN_PACKAGES,
 	compile_findings,
 	find_all,
+	MARKUP_FREE,
+	MARKUP_WHY,
+	markup_findings,
+	pending_markup,
+	ROOT,
 	shipped_components,
 	source_findings
 } from './shipped-svelte.ts';
@@ -117,6 +125,87 @@ test('a top-level await compiles in async mode', async () => {
 		<p>{n}</p>
 	`;
 	assert.deepEqual(compile_findings(await as_shipped(source, 'X.svelte'), 'X.svelte'), []);
+});
+
+const IN_CORE = path.join(ROOT, 'packages/core/src/X.svelte');
+const REAL_TEST = '(test: internal/checks/shipped-svelte.test.ts › every shipped component passes)';
+
+test('a markup comment is a tool directive, the @component doc or a tested @why; any other is named by its line', () => {
+	const source = dedent`
+		<!-- @component What the region shows. -->
+		<script lang="ts">
+			let open = $state(false);
+		</script>
+
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div onclick={() => (open = !open)}></div>
+		<!-- prettier-ignore -->
+		<pre>  a  </pre>
+		<!-- the panel opens on a click -->
+		<p>{open}</p>
+		<!--
+			two lines
+			of prose
+		-->
+		<p></p>
+	`;
+	assert.deepEqual(markup_findings(source, IN_CORE), [`10: ${MARKUP_FREE}`, `12: ${MARKUP_FREE}`]);
+});
+
+test('an @component doc passes only at the top level of the markup', () => {
+	const source = dedent`
+		<!-- @component The doc. -->
+		<div>
+			<!-- @component Not the doc. -->
+			<p></p>
+		</div>
+	`;
+	assert.deepEqual(markup_findings(source, IN_CORE), [`3: ${MARKUP_FREE}`]);
+});
+
+test('a markup @why passes only on its own line above its element, and when its test exists', () => {
+	const source = dedent`
+		<!-- @why Safari fires it twice ${REAL_TEST} -->
+		<p></p>
+		<!-- @why Safari fires it twice (test: internal/checks/nul-bytes.test.ts › no such test) -->
+		<p></p>
+		<!-- @why no test named -->
+		<p></p>
+		<!-- @why Safari fires it twice ${REAL_TEST} -->
+
+		<p></p>
+		<p></p><!-- @why Safari fires it twice ${REAL_TEST} -->
+		<p></p>
+	`;
+	assert.deepEqual(markup_findings(source, IN_CORE), [
+		`3: ${MARKUP_WHY}`,
+		`5: ${MARKUP_WHY}`,
+		`7: ${MARKUP_WHY}`,
+		`10: ${MARKUP_WHY}`
+	]);
+});
+
+test('a markup comment fails the check only in a clean package; the others are counted as pending', async () => {
+	const pending = await pending_markup();
+	for (const pkg of CLEAN_PACKAGES) assert.equal(pending.get(pkg), undefined, pkg);
+	const found = await find_all();
+	assert.ok(found.every((f) => !f.includes(MARKUP_FREE)));
+});
+
+test("each clean package's components hold the structured-comments rule as an error, script and markup", () => {
+	const config = JSON.parse(readFileSync(path.join(ROOT, '.oxlintrc.json'), 'utf8')) as {
+		overrides: { files: string[]; rules: Record<string, unknown> }[];
+	};
+	const as_error = new Set(
+		config.overrides
+			.filter((o) => o.rules['ogygia/structured-comments'] === 'error')
+			.flatMap((o) => o.files)
+	);
+	for (const pkg of CLEAN_PACKAGES)
+		assert.ok(
+			as_error.has(`packages/${pkg}/src/**/*.svelte`) || as_error.has(`packages/${pkg}/src/**`),
+			pkg
+		);
 });
 
 test('the shipped components are every package src component, and nothing else', () => {

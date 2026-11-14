@@ -9,7 +9,8 @@ Where the app runs Svelte's async mode, the build imports LateIslandAwait.svelte
 (vite/late-island.ts).
 -->
 <script lang="ts">
-	import type { Component as Loaded, Snippet } from 'svelte';
+	import { onDestroy, untrack, type Component as Loaded, type Snippet } from 'svelte';
+	import { scope, STALE } from '@ogygia/machine';
 	import { OgygiaError } from './messages/island.ts';
 
 	interface Props {
@@ -20,11 +21,16 @@ Where the app runs Svelte's async mode, the build imports LateIslandAwait.svelte
 
 	let { load, props, children }: Props = $props();
 	let Component: Loaded | undefined = $state(undefined);
-	// svelte-ignore state_referenced_locally
-	load().then(
-		(c) => (Component = c),
-		(error) => console.error(new OgygiaError('island_load_failed', { entry: null }), error)
-	);
+	const shown = scope();
+	onDestroy(() => shown.close());
+	shown
+		.task(() => untrack(() => load()))
+		.then(
+			(c) => {
+				if (c !== STALE) Component = c;
+			},
+			(error) => console.error(new OgygiaError('island_load_failed', { entry: null }), error)
+		);
 </script>
 
 {#if Component}<Component {...props}>{@render children?.()}</Component>{/if}

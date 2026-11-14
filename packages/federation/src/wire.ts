@@ -206,9 +206,8 @@ function any_key(keys: readonly string[]) {
 		for (const pk of keys) {
 			try {
 				if (ed_verify(null, msg, public_key(pk), bytes)) return true;
-			} catch {
-				// ok: a malformed key entry verifies nothing; the next is tried
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a malformed key entry verifies nothing; the next is tried
+			} catch {}
 		}
 		return false;
 	};
@@ -295,8 +294,9 @@ export function configured_audience(): string | undefined {
 	if (!origin) return undefined;
 	try {
 		return new URL(origin).host;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- an ORIGIN that is not a URL configures nothing; federate() warns
 	} catch {
-		return undefined; // ok: an ORIGIN that is not a URL configures nothing; federate() warns
+		return undefined;
 	}
 }
 
@@ -307,8 +307,9 @@ function claims_of(user_b64: string): { user?: Claims } | null {
 		return {
 			user: JSON.parse(Buffer.from(user_b64, 'base64').toString()) as Claims
 		};
+		// oxlint-disable-next-line ogygia/no-silent-failures -- signed but unparseable claims: the caller rejects the request
 	} catch {
-		return null; // ok: signed but unparseable claims: the caller rejects the request
+		return null;
 	}
 }
 
@@ -363,9 +364,8 @@ export function verify_signed_request(
 				// the same call, already accepted by its capability (#822)
 				if (nonce_seen(nonce, ts_n + skew, now)) return null;
 				return claims_of(user_b64);
-			} catch {
-				// ok: a malformed key entry verifies nothing; the next is tried, and none verifying refuses the call
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a malformed key entry verifies nothing; the next is tried, and none verifying refuses the call
+			} catch {}
 		}
 	}
 	return null;
@@ -508,8 +508,9 @@ function pin_graph(json: string, origin: string): string {
 	let wire: { h?: unknown; e?: unknown; s?: unknown };
 	try {
 		wire = JSON.parse(json);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a graph: peer HTML passes through as it came
 	} catch {
-		return json; // ok: not a graph: peer HTML passes through as it came
+		return json;
 	}
 	// (peer HTML: anything that is not a graph object passes through as it came)
 	if (!wire || typeof wire !== 'object' || Array.isArray(wire)) return json;

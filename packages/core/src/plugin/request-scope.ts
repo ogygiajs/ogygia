@@ -128,13 +128,15 @@ export function own_response(owner: Scope, response: Response, request: Request)
 		return response;
 	}
 	if (body_unread(request, response)) {
-		body.cancel().catch(noop); // ok: the body is dropped unread, so a failed cancel has nothing to stop
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the body is dropped unread, so a failed cancel has nothing to stop
+		body.cancel().catch(noop);
 		end_request_scope(owner);
 		if (RULES) note_response_end(owner);
 		return response;
 	}
 	const reader = body.getReader();
-	owner.defer(() => void reader.cancel().catch(noop)); // ok: the request ended; a failed cancel of its body has nothing left to stop
+	// oxlint-disable-next-line ogygia/no-silent-failures -- the request ended; a failed cancel of its body has nothing left to stop
+	owner.defer(() => void reader.cancel().catch(noop));
 	const carried = new ReadableStream<Uint8Array>(
 		{
 			async pull(controller) {

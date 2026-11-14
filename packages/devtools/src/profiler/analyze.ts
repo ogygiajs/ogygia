@@ -445,8 +445,7 @@ const OGYGIA_OWN_RE = /\/(?:ogygia|@ogygia\/core|packages\/core)\/(?:src|dist)\/
  *  `.svelte` from a dependency is compiled by the consumer), so in a production profile they sit
  *  at a chunk URL with the component's name and no `.svelte` path to vouch for them — and every
  *  island page renders `Region` once per island, so it would top the Components table. */
-// static: a fixed list of component names
-const OGYGIA_WRAPPERS = new Set([
+const OGYGIA_WRAPPERS: ReadonlySet<string> = new Set([
 	'Region',
 	'SlotBoundary',
 	'LakeBoundary',
@@ -467,8 +466,7 @@ export function strip_bundler_suffix(name: string): string {
 }
 
 /** SvelteKit endpoint/handler exports — capitalized, but not components. */
-// static: a fixed list of function names
-const handler_names = new Set([
+const handler_names: ReadonlySet<string> = new Set([
 	'GET',
 	'POST',
 	'PUT',
@@ -1155,9 +1153,8 @@ export class SourceMapResolver {
 							}
 						}
 					}
-				} catch {
-					// ok: an unusable source map; the miss is remembered and the frame keeps its generated place
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- an unusable source map; the miss is remembered and the frame keeps its generated place
+				} catch {}
 			}
 			this.#cache.set(path, entry);
 		}
@@ -2791,8 +2788,9 @@ export function chunk_component_renamer(
 		let path: string;
 		try {
 			path = new URL(url, 'http://x').pathname;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: the minified name stays as it is
 		} catch {
-			return undefined; // ok: not a URL: the minified name stays as it is
+			return undefined;
 		}
 		if (!cache.has(path)) {
 			const comps = (contents(path) ?? [])

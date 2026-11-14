@@ -68,7 +68,6 @@ function warn_content_leaks(bundle: Record<string, unknown>, root: string): void
 					.join('\n')
 			});
 		}
-	} catch {
-		// ok: a guardrail never breaks the build; the check is skipped
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a guardrail never breaks the build; the check is skipped
+	} catch {}
 }

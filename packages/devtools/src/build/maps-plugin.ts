@@ -32,9 +32,8 @@ export function profiler_maps_plugins(): VitePlugin[] {
 			// which source module sits at which lines of each server chunk, written beside the chunks
 			try {
 				write_module_map(options.dir, bundle as Record<string, unknown>, root);
-			} catch {
-				// ok: a module map is a nicety; the build never fails over it
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a module map is a nicety; the build never fails over it
+			} catch {}
 			pending = { dir: options.dir, bundle: bundle as Record<string, unknown> };
 		},
 		// after every plugin's writeBundle (Kit rewrites remote-function chunks in its own) and before
@@ -48,9 +47,8 @@ export function profiler_maps_plugins(): VitePlugin[] {
 				pending = null;
 				try {
 					fill_profiler_maps(dir, bundle, root);
-				} catch {
-					// ok: the profiler then reads the files beside the chunks, where they exist
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- the profiler then reads the files beside the chunks, where they exist
+				} catch {}
 			}
 		}
 	};
