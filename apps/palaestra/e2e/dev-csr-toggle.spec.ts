@@ -99,7 +99,26 @@ test.describe('PAGE-CSR dev leg: a csr-export toggle refreshes ogygia:server/rou
 			// ── flip back — the other direction must refresh too ────────────────────────────────────
 			writeFileSync(page_ts, orig!);
 			const restored = await wait_html((h) => !has_regions(h) && kit_booted(h), 30_000);
-			check('after restore → csr=true: degraded inline again (no stale island shells)', !!restored);
+			// #1825: when the restore stays stale, say what the server still serves, what is on disk,
+			// and whether one more file event (the same bytes written again) refreshes it: if it does,
+			// the dev server read the file mid-write and no later event came to read it again
+			let stale_report = '';
+			if (!restored) {
+				const seen = await fetch_html();
+				const on_disk = readFileSync(page_ts, 'utf8');
+				writeFileSync(page_ts, orig!);
+				const after_event = await wait_html((h) => !has_regions(h) && kit_booted(h), 10_000);
+				stale_report = [
+					`served: regions=${seen ? has_regions(seen) : '?'} kit=${seen ? kit_booted(seen) : '?'}`,
+					`on disk: ${JSON.stringify(on_disk)}`,
+					`one more write of the same bytes ${after_event ? 'refreshed it' : 'did not refresh it either'}`
+				].join('; ');
+			}
+			check(
+				'after restore → csr=true: degraded inline again (no stale island shells)',
+				!!restored,
+				stale_report
+			);
 		} finally {
 			writeFileSync(page_ts, orig!);
 		}
