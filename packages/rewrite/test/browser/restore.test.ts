@@ -154,6 +154,15 @@ test('a stand-in becomes only a tag the server pass writes as one, without on* a
 	expect(p.textContent).toBe('text');
 });
 
+test('a stand-in with an attribute name only the HTML parser accepts (`=eq`) becomes its tag, and so does every stand-in after it (#1775)', () => {
+	document.body.innerHTML = `<div id="c"><og-as tag="p" =eq="y" class="a">one</og-as><og-as tag="p" class="b">two</og-as></div>`;
+	restore(document);
+	const c = document.getElementById('c')!;
+	expect([...c.children].map((e) => e.localName)).toEqual(['p', 'p']);
+	expect(c.children[0].getAttribute('=eq')).toBe('y');
+	expect(c.children[1].getAttribute('class')).toBe('b');
+});
+
 test('the restorer swaps back every tag the server pass may write as a stand-in', () => {
 	const tags = [...STAND_IN_TAGS];
 	document.body.innerHTML = `<div id="c">${tags.map((t) => `<og-as tag="${t}"></og-as>`).join('')}</div>`;
