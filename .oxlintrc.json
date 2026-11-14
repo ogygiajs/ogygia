@@ -71,6 +71,7 @@
 			"files": [
 				"packages/barrels/src/**",
 				"packages/config/src/**",
+				"packages/data-shake/src/**",
 				"packages/federation/src/**",
 				"packages/flags/src/**",
 				"packages/jumpstart/src/**",
