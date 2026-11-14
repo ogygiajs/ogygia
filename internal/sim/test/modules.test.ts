@@ -164,6 +164,55 @@ describe('modules of a simulated tab', () => {
 		}
 	});
 
+	// gen 10, seed 50 (#1843): a router commit threw and the tab loaded afresh; the left document's
+	// restore report had asked for its wording, and that module's `import()` still landed, with an
+	// empty namespace: "n is not a function", in no page
+	it("a left document's module import() never settles either", async () => {
+		use_v8_modules();
+		let leave = (): void => {};
+		const browser = new Browser({
+			settings: {
+				enableJavaScriptEvaluation: true,
+				suppressInsecureJavaScriptEnvironmentWarning: true,
+				fetch: {
+					interceptor: {
+						beforeAsyncRequest: async ({ request, window }) => {
+							const W = window as unknown as { Response: typeof Response };
+							const path = new URL(request.url).pathname;
+							if (path === '/boot.js')
+								return new W.Response(
+									"import('./words.js').then((ns) => { window.settled = typeof ns.warn; }, (e) => { window.settled = 'failed: ' + e.message; });",
+									{ headers: { 'content-type': 'text/javascript' } }
+								) as never;
+							if (path === '/words.js') {
+								// (the tab moves on while the module's download is on its way)
+								leave();
+								return new W.Response('export const warn = () => {};', {
+									headers: { 'content-type': 'text/javascript' }
+								}) as never;
+							}
+							return new W.Response('<p>next</p>', {
+								headers: { 'content-type': 'text/html' }
+							}) as never;
+						}
+					}
+				}
+			}
+		});
+		try {
+			const page = browser.newPage();
+			page.url = 'https://example.com/';
+			const first = page.mainFrame.window as unknown as { settled?: string };
+			leave = () => void page.goto('https://example.com/next');
+			page.content = '<script type="module" src="/boot.js"></script>';
+			await new Promise((r) => setTimeout(r, 300));
+			expect(page.mainFrame.document.body.textContent).toBe('next');
+			expect(first.settled).toBeUndefined();
+		} finally {
+			await browser.close();
+		}
+	});
+
 	// palaestra (guided search): Kit's boot import of its app entry was cut, and ogygia's wait for
 	// Kit asked the same file again to learn Kit cannot start; the simulator downloaded it afresh, so
 	// the wait never failed and the island stayed waking. A browser keeps a failed module failed.
