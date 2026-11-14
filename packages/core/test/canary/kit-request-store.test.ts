@@ -2,13 +2,14 @@
  * CANARY (#1724): the reads of Kit's private request store ogygia keeps
  * (src/server/kit-request-store.ts), against every Kit the workspace installs. Every event read
  * goes through Kit's public `getRequestEvent()`; these are what it does not cover: the request's
- * `state.remote` (`data`, `implicit`) and running code inside a request.
+ * `state.remote` (`data`, `implicit`) and running code inside a request. The reads are made by
+ * `KitRequestStore` itself, inside a real Kit app's request (kit-app.ts).
  */
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import ts from 'typescript';
+import { KitApp, type KitMode } from './kit-app.ts';
 import { broke, KITS, type Internal } from './upstream.ts';
 
 const STORE: Internal = {
@@ -39,26 +40,9 @@ async function internal_server(root: string): Promise<Partial<KitServer>> {
 	return mod;
 }
 
-/** The member names of `interface <name>` in a declaration file, and of each member's own object
- *  type (`remote: { data; implicit }` → `remote.data`, `remote.implicit`). */
-function members(file: string, name: string): Set<string> {
-	const source = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest);
-	const out = new Set<string>();
-	const walk = (node: ts.Node): void => {
-		if (ts.isInterfaceDeclaration(node) && node.name.text === name)
-			for (const m of node.members) {
-				if (!m.name || !ts.isIdentifier(m.name)) continue;
-				out.add(m.name.text);
-				if (ts.isPropertySignature(m) && m.type && ts.isTypeLiteralNode(m.type))
-					for (const inner of m.type.members)
-						if (inner.name && ts.isIdentifier(inner.name))
-							out.add(`${m.name.text}.${inner.name.text}`);
-			}
-		ts.forEachChild(node, walk);
-	};
-	walk(source);
-	return out;
-}
+const MODES: readonly KitMode[] = ['dev', 'build'];
+
+vi.setConfig({ hookTimeout: 120_000, testTimeout: 30_000 });
 
 describe.each(Object.entries(KITS))("%s's request store", (_, root) => {
 	it('exports the three functions ogygia calls', async () => {
@@ -84,13 +68,35 @@ describe.each(Object.entries(KITS))("%s's request store", (_, root) => {
 		expect(kit.try_get_request_store(), broke(STORE, 'a store outlives its request')).toBeNull();
 	});
 
-	it("declares the store's `event` and `state`, and the state's `remote` maps", () => {
-		const types = path.join(root, 'src/types/internal.d.ts');
-		const store = members(types, 'RequestStore');
-		const state = members(types, 'RequestState');
-		for (const name of ['event', 'state'])
-			expect(store.has(name), broke(STORE, `RequestStore has no \`${name}\``)).toBe(true);
-		for (const name of ['remote', 'remote.data', 'remote.implicit'])
-			expect(state.has(name), broke(STORE, `RequestState has no \`${name}\``)).toBe(true);
+	describe.each(MODES)('in a real request, served from %s', (mode) => {
+		const app = new KitApp(root, mode);
+		beforeAll(() => app.start());
+		afterAll(() => app.stop());
+
+		it.each([
+			['a csr=true page', '/', 'kit'],
+			['a csr=false page', '/server', 'server']
+		])(
+			"hands KitRequestStore the request's state and event, and the remote query %s awaited",
+			async (_, pathname, name) => {
+				const { probe } = await app.probe(pathname);
+				expect(probe.store, broke(STORE, 'the state read is not the running request store')).toBe(
+					true
+				);
+				expect(probe.event, broke(STORE, 'the event read is not `getRequestEvent()`')).toBe(true);
+				const payload = Buffer.from(JSON.stringify([name])).toString('base64url');
+				expect(
+					probe.remotes,
+					broke(STORE, '`state.remote.implicit` no longer maps the awaited query to its results')
+				).toEqual([
+					{
+						id: expect.stringMatching(/^\w+\/greet$/),
+						type: 'query',
+						payloads: [payload],
+						memo: expect.not.stringMatching(/^undefined$/)
+					}
+				]);
+			}
+		);
 	});
 });
