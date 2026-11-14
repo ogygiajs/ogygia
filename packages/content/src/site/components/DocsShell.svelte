@@ -109,9 +109,7 @@ look, import the two stylesheets once (in the root layout); for your own, style 
 	const tree: NavTree = meta ? meta.nav : await site!.nav({ base: the_base, slug: current_slug });
 	const switcher = meta
 		? meta.switcher
-		: site
-			? await site.switcher(current_slug, { base: the_base })
-			: null;
+		: ((await site?.switcher(current_slug, { base: the_base })) ?? null);
 </script>
 
 <svelte:head>
