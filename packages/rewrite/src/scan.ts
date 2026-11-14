@@ -99,6 +99,8 @@ export interface Span {
 	owned: boolean;
 	/** the page's open elements around it, outermost first */
 	context: readonly string[];
+	/** it sits in a declarative shadow root the page opened */
+	shadow: boolean;
 }
 
 export interface Scanned {
@@ -118,6 +120,15 @@ export function may_match(html: string, m: Matcher, state: ScanState): boolean {
 	if (state.open !== null) return true;
 	if (m.needles === null) return html.indexOf('-') !== -1;
 	for (const n of m.needles) if (html.indexOf(n) !== -1) return true;
+	const pending = state.pending;
+	if (pending.length === 0) return false;
+	let reach = 0;
+	for (const n of m.needles) if (n.length - 1 > reach) reach = n.length - 1;
+	let before = '';
+	for (let i = pending.length - 1; i >= 0 && before.length < reach; i--)
+		before = pending[i] + before;
+	const edge = `${before.slice(-reach)}${html.slice(0, reach)}`;
+	for (const n of m.needles) if (edge.indexOf(n) !== -1) return true;
 	return false;
 }
 
@@ -156,6 +167,7 @@ function read(chunk: string, m: Matcher, state: ScanState, csr: boolean): Scanne
 	let carry_from = -1;
 	let raw_from = -1;
 	let context: readonly string[] = [];
+	let shadow = false;
 	for (const at = new MarkupCursor(html); at.next();) {
 		carry_from = -1;
 		if (at.kind === 0) carry_from = at.raw ? raw_from : opens_at(html, at.start, at.end);
@@ -181,12 +193,14 @@ function read(chunk: string, m: Matcher, state: ScanState, csr: boolean): Scanne
 				const r = state.regions;
 				owned = r.length ? r[r.length - 1] : csr;
 				context = state.tags.map((t) => t.name);
-			} else page_open(state.tags, name, html.charCodeAt(at.end - 2) === 47);
+				shadow = false;
+				for (const t of state.tags) if (t.shadow) shadow = true;
+			} else page_open(state.tags, html, name, at.ne, html.charCodeAt(at.end - 2) === 47);
 		} else if (at.kind === 2) {
 			const name = tag_name(html, at.start + 2, at.ne);
 			if (open !== null) {
 				if (name === open.name && --open.depth === 0) {
-					if (start !== -1) spans.push({ start, end: at.end, name, owned, context });
+					if (start !== -1) spans.push({ start, end: at.end, name, owned, context, shadow });
 					open = null;
 					start = -1;
 				}

@@ -636,7 +636,7 @@
 		"id": "rewrite-split-element-rendered",
 		"file": "packages/rewrite/src/scan.ts",
 		"in": "read",
-		"code": "if (start !== -1) spans.push({ start, end: at.end, name, owned, context });",
+		"code": "if (start !== -1) spans.push({ start, end: at.end, name, owned, context, shadow });",
 		"operator": "statement",
 		"from": "if (start !== -1)",
 		"to": "if (start !== -2)",
@@ -651,8 +651,7 @@
 		"operator": "statement",
 		"from": "state.open = open;",
 		"to": "state.open = null;",
-		"aim": "rewrite.chunk-split",
-		"equivalent": "for now: forgetting the element a chunk ended in renders the matched elements inside it on their own, which the rewrite-rendered oracle names, but the random app never nests a matched element in another (a box holds a region's label only), so no run can see it; it comes back when the app draws nested matches (rewrite-handoff-3)"
+		"aim": "rewrite.chunk-split"
 	},
 	{
 		"id": "rewrite-batch-throws",
