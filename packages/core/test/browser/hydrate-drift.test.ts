@@ -2,7 +2,7 @@
 // light DOM of a sleeping island against the server copy it connected with.
 import { beforeAll, beforeEach, expect, test } from 'vitest';
 import { link_boot } from '../../src/runtime/boot-link.ts';
-import { install as install_lakes, lift } from '../../src/runtime/lakes.ts';
+import { install as install_lakes } from '../../src/runtime/lakes.ts';
 import { repair_if_drifted } from '../../src/runtime/hydrate-core.ts';
 
 beforeAll(() => {
@@ -126,11 +126,10 @@ test('a conflict is the repair’s that met it: the next repair, with none, name
 	expect(repair_if_drifted(b, '<p>a</p>').conflict).toBeNull();
 });
 
-test('a lake that refreshed itself is no drift: the server copy’s lake is emptied as the live one is', () => {
+test('a lake that refreshed itself is no drift: the check does not walk into a lake, which stays in place', () => {
 	const r = region_of(
 		'<p>host</p><ogygia-region wake="none" entry="lk"><b>refreshed</b></ogygia-region>'
 	);
-	lift(r);
 	expect(
 		repair_if_drifted(
 			r,
