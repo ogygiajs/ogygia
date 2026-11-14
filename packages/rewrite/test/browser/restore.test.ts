@@ -130,6 +130,23 @@ test('a host’s attribute reset (`og-r`) never sets an on* handler or a javascr
 	expect(host.getAttribute('onfoo')).toBe('x');
 });
 
+test('a host’s attribute reset (`og-r`) never sets a data: URL, which html.ts refuses too', async () => {
+	await served('<demo-card class="own"> hi </demo-card>');
+	document.querySelector('demo-card')!.setAttribute(
+		'og-r',
+		JSON.stringify({
+			href: 'data:text/html,<script>window.__og_ran++</script>',
+			src: ' DATA:text/html;base64,PHNjcmlwdD48L3NjcmlwdD4=',
+			title: 'kept'
+		})
+	);
+	restore(document);
+	const host = document.querySelector('demo-card')!;
+	expect(host.hasAttribute('href')).toBe(false);
+	expect(host.hasAttribute('src')).toBe(false);
+	expect(host.getAttribute('title')).toBe('kept');
+});
+
 test('a stand-in keeps the parser from splitting the page’s link, and becomes a real <a> in the tree', async () => {
 	await served('<a href="/card"><demo-link>Go</demo-link></a>');
 	// as parsed: the page's link still holds the host (the tree's link is a stand-in)
