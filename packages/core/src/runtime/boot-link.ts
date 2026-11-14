@@ -19,6 +19,7 @@ import { runs_entry } from './region-attrs.ts';
 import { register_island_graph } from './island-graph-preload.ts';
 import { props_sidecar_of } from './sidecar.ts';
 import {
+	init_shadow_registries,
 	parse_page_document,
 	parse_region_html,
 	set_inner_html,
@@ -59,6 +60,7 @@ export function link_boot(): void {
 		props_sidecar_of,
 		parse_region_html,
 		parse_page_document,
+		init_shadow_registries,
 		set_inner_html,
 		vouch_page_answer,
 		vouch_page_html,

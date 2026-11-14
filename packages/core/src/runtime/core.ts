@@ -58,6 +58,7 @@ import {
 	region_schedule
 } from './region-attrs.ts';
 import { slots, type FrameOps } from './slots.ts';
+import { say_reload_needed } from './reload-needed.ts';
 import {
 	create_answer,
 	create_hole,
@@ -1702,9 +1703,7 @@ export function boot(
 	});
 	// A chunk whose dependency failed: no retry loads it, the page needs a reload (#262; said once,
 	// import-again.ts imports nothing)
-	on_reload_needed((url, error) =>
-		console.error(new OgygiaError('chunk_reload_needed', { url }), error)
-	);
+	on_reload_needed(say_reload_needed);
 	on_file_load(note_code_sheets);
 
 	if (import.meta.env.DEV) apply_dev_head_region_css();
