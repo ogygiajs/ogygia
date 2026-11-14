@@ -112,15 +112,16 @@ export interface Place {
 	release(): void;
 }
 
-/** A place in the list a job left (it started, was cancelled, or is past its deadline). */
+/** A place in the list a job left (cancelled, or past its deadline). */
 const GONE: unique symbol = Symbol('gone');
 
-/** Where a drain of a queue with passes is: `again` is a pass running that was asked for once more;
- *  `deferred` and `yielding` wait for the budget's `resume`. */
-type DrainState = 'idle' | 'deferred' | 'running' | 'again' | 'yielding';
+type DrainState = 'idle' | 'deferred' | 'running' | 'again' | 'yielding' | 'ending';
 
-/** Priorities a pass orders by counting: whole numbers this close together. */
 const COUNTED_SPAN = 64;
+
+const UNCOUNTED: Place & { held: boolean } = Object.freeze({ held: false, release: () => {} });
+
+const IN_ORDER_PUSHED: readonly number[] = [];
 
 class QueueImpl<J> implements Queue<J> {
 	readonly #name: string;
@@ -133,8 +134,8 @@ class QueueImpl<J> implements Queue<J> {
 	readonly #ready: ((job: J) => boolean) | null;
 	readonly #windows: readonly QueueWindow<J>[];
 	readonly #budget: QueueBudget | null;
-	/** Starts in passes: any of `priority`, `ready`, `windows` or `budget` was given. */
 	readonly #passes: boolean;
+	readonly #counted: boolean;
 	/** The jobs in the order pushed; the ones before `#head` started. */
 	#jobs: Array<J | typeof GONE> = [];
 	/** Each job's deadline, beside it (`Infinity`: none). */
@@ -142,7 +143,6 @@ class QueueImpl<J> implements Queue<J> {
 	#head = 0;
 	#waiting = 0;
 	#holding = 0;
-	/** Started jobs each window holds. */
 	readonly #counts: number[];
 	/** Waiting jobs with a deadline; the one timer, armed at `#armed_at`. */
 	#timed = 0;
@@ -150,12 +150,9 @@ class QueueImpl<J> implements Queue<J> {
 	#disarm: (() => void) | null = null;
 	#timers: Scope | null = null;
 	#state: DrainState = 'idle';
-	/** The open pass: the places in `#jobs` it reads, in its order (`null` between passes). */
-	#pass: number[] | null = null;
-	/** The next place in `#pass`; past its end, `#extra` walks the jobs pushed since it began. */
+	#pass: readonly number[] | null = null;
 	#at = 0;
 	#extra = 0;
-	/** When the drain yields (by `#now`). */
 	#until = Infinity;
 
 	constructor(o: QueueOptions<J>) {
@@ -175,6 +172,7 @@ class QueueImpl<J> implements Queue<J> {
 			this.#ready !== null ||
 			this.#windows.length > 0 ||
 			this.#budget !== null;
+		this.#counted = this.#max !== Infinity || this.#windows.length > 0;
 		this.#owner?.defer(() => this.#leave_where(() => true));
 	}
 
@@ -221,7 +219,6 @@ class QueueImpl<J> implements Queue<J> {
 		return place;
 	}
 
-	/** A place in a queue with passes, counted in the windows `mask` names. */
 	#pass_place(mask: number): Place & { held: boolean } {
 		const place = {
 			held: true,
@@ -240,11 +237,13 @@ class QueueImpl<J> implements Queue<J> {
 		for (let w = 0; mask !== 0; w++, mask >>>= 1) if (mask & 1) this.#counts[w]--;
 	}
 
-	/** Starts `job` (out of the line already) in a place of its own, counted in its windows. */
 	#hold(job: J, mask: number): void {
-		this.#holding++;
-		for (let w = 0, m = mask; m !== 0; w++, m >>>= 1) if (m & 1) this.#counts[w]++;
-		const place = this.#pass_place(mask);
+		let place: Place & { held: boolean } = UNCOUNTED;
+		if (this.#counted) {
+			this.#holding++;
+			for (let w = 0, m = mask; m !== 0; w++, m >>>= 1) if (m & 1) this.#counts[w]++;
+			place = this.#pass_place(mask);
+		}
 		try {
 			this.#start(job, place);
 		} catch (error) {
@@ -256,7 +255,7 @@ class QueueImpl<J> implements Queue<J> {
 		}
 	}
 
-	/** Starts jobs from the front while there is room (the plain queue). */
+	/** Starts jobs from the front while there is room. */
 	#drain(): void {
 		if (this.#owner?.closed) return; // (its waiting jobs are stale: none starts)
 		while (this.#holding < this.#max && this.#head < this.#jobs.length) {
@@ -273,8 +272,11 @@ class QueueImpl<J> implements Queue<J> {
 					continue;
 				}
 			}
-			this.#holding++;
-			const place = this.#place();
+			let place = UNCOUNTED;
+			if (this.#counted) {
+				this.#holding++;
+				place = this.#place();
+			}
 			try {
 				this.#start(job, place);
 			} catch (error) {
@@ -288,11 +290,9 @@ class QueueImpl<J> implements Queue<J> {
 		this.#compact();
 	}
 
-	/** A pass is asked for: one starts now (or after the budget's first yield), or the one running
-	 *  is followed by another. */
 	#ask_pass(): void {
 		const state = this.#state;
-		if (state === 'running') this.#state = 'again';
+		if (state === 'running' || state === 'ending') this.#state = 'again';
 		if (state !== 'idle' || this.#waiting === 0 || this.#owner?.closed) return;
 		const budget = this.#budget;
 		if (budget?.defer) {
@@ -304,9 +304,6 @@ class QueueImpl<J> implements Queue<J> {
 		this.#run();
 	}
 
-	/** Runs passes until the line has nothing left to start, or the drain waits (a settle, a yield).
-	 *  A rule that throws (`priority`, `ready`, a window's `holds`) ends the drain and throws to
-	 *  whoever woke it; the next push, release or recheck drains again. */
 	#run(): void {
 		try {
 			this.#passes_run();
@@ -318,27 +315,36 @@ class QueueImpl<J> implements Queue<J> {
 
 	#passes_run(): void {
 		const budget = this.#budget;
+		const jobs = this.#jobs;
+		const max = this.#max;
+		let pass = (this.#pass ??= this.#order());
+		let next = this.#at;
+		let extra = this.#extra;
 		for (;;) {
-			if (this.#owner?.closed) return this.#end();
-			const pass = (this.#pass ??= this.#order());
 			let at = -1;
-			if (this.#holding < this.#max) {
-				if (this.#at < pass.length) at = pass[this.#at++];
-				else if (this.#extra < this.#jobs.length) at = this.#extra++;
+			if (this.#holding < max) {
+				if (next < pass.length) at = pass[next++];
+				else if (extra < jobs.length) at = extra++;
 			}
 			if (at === -1) {
 				this.#pass = null;
-				if (this.#state !== 'again') return this.#end();
+				if (this.#state !== 'again') return budget?.settle ? this.#ending() : this.#end();
 				this.#state = 'running';
+				pass = this.#pass = this.#order();
+				next = 0;
+				extra = this.#extra;
 				continue;
 			}
 			if (!this.#take(at) || budget === null) continue;
-			if (budget.settle) return void Promise.resolve().then(() => this.#settled(budget));
+			if (budget.settle) {
+				this.#at = next;
+				this.#extra = extra;
+				return void Promise.resolve().then(() => this.#settled(budget));
+			}
 			if (this.#waiting > 0 && this.#now() >= this.#until) return this.#yield(budget);
 		}
 	}
 
-	/** A start's microtask ran: the drain yields if its time is up, else goes on. */
 	#settled(budget: QueueBudget): void {
 		if (this.#owner?.closed) return this.#end();
 		if (this.#waiting > 0 && this.#now() >= this.#until) return this.#yield(budget);
@@ -348,11 +354,22 @@ class QueueImpl<J> implements Queue<J> {
 	#yield(budget: QueueBudget): void {
 		this.#pass = null;
 		this.#state = 'yielding';
-		this.#sweep();
 		this.#hand_back(budget);
 	}
 
-	/** Gives the thread back through the budget's `yield`; its `resume` opens a new pass, once. */
+	#ending(): void {
+		this.#state = 'ending';
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a drain's end never rejects: a rule that throws in it reaches the page as an unhandled rejection
+		void Promise.resolve().then(() => this.#ended());
+	}
+
+	#ended(): void {
+		if (this.#state !== 'again' || this.#waiting === 0 || this.#owner?.closed) return this.#end();
+		this.#state = 'running';
+		this.#until = this.#now() + this.#budget!.ms;
+		this.#run();
+	}
+
 	#hand_back(budget: QueueBudget): void {
 		const waited = this.#state;
 		let resumed = false;
@@ -379,41 +396,43 @@ class QueueImpl<J> implements Queue<J> {
 		this.#sweep();
 	}
 
-	/** The places of the waiting jobs, highest priority first, ties in the order pushed. */
-	#order(): number[] {
+	#order(): readonly number[] {
 		const jobs = this.#jobs;
 		const n = jobs.length;
+		while (this.#head < n && jobs[this.#head] === GONE) this.#head++;
 		this.#at = 0;
 		this.#extra = n;
-		const places: number[] = [];
 		const by = this.#priority;
 		if (by === null) {
-			for (let i = this.#head; i < n; i++) if (jobs[i] !== GONE) places.push(i);
-			return places;
+			this.#extra = this.#head;
+			return IN_ORDER_PUSHED;
 		}
+		const places: number[] = [];
 		const ranks: number[] = [];
+		let count = 0;
 		let lo = Infinity;
 		let hi = -Infinity;
 		let whole = true;
 		for (let i = this.#head; i < n; i++) {
 			const job = jobs[i];
 			if (job === GONE) continue;
-			const r = by(job);
-			const rank = r === r ? r : -Infinity;
-			places.push(i);
-			ranks.push(rank);
+			let rank = by(job);
+			if (rank !== rank) rank = -Infinity;
+			places[count] = i;
+			ranks[count++] = rank;
 			if (rank < lo) lo = rank;
 			if (rank > hi) hi = rank;
-			if (whole && !Number.isInteger(rank)) whole = false;
+			if ((rank | 0) !== rank) whole = false;
 		}
-		if (places.length < 2) return places;
+		if (count < 2) return places;
 		if (whole && hi - lo < COUNTED_SPAN) {
+			const span = hi - lo + 2;
 			const starts: number[] = [];
-			for (let s = lo; s <= hi + 1; s++) starts.push(0);
-			for (const rank of ranks) starts[hi - rank + 1]++;
-			for (let s = 1; s < starts.length; s++) starts[s] += starts[s - 1];
+			for (let s = 0; s < span; s++) starts[s] = 0;
+			for (let k = 0; k < count; k++) starts[hi - ranks[k] + 1]++;
+			for (let s = 1; s < span; s++) starts[s] += starts[s - 1];
 			const out = places.slice();
-			for (let k = 0; k < places.length; k++) out[starts[hi - ranks[k]]++] = places[k];
+			for (let k = 0; k < count; k++) out[starts[hi - ranks[k]]++] = places[k];
 			return out;
 		}
 		const keys = places.map((_, k) => k);
@@ -421,16 +440,17 @@ class QueueImpl<J> implements Queue<J> {
 		return keys.map((k) => places[k]);
 	}
 
-	/** The job at `at`, if it may start now: out of the line and started. */
 	#take(at: number): boolean {
-		const job = this.#jobs[at];
+		const jobs = this.#jobs;
+		const job = jobs[at];
 		if (job === GONE) return false;
 		const deadline = this.#deadlines[at];
 		if (deadline !== Infinity && deadline <= this.#now()) {
 			this.#leave(at);
 			return false;
 		}
-		if (this.#ready !== null && !this.#ready(job)) return false;
+		const ready = this.#ready;
+		if (ready !== null && !ready(job)) return false;
 		let mask = 0;
 		const windows = this.#windows;
 		for (let w = 0; w < windows.length; w++) {
@@ -438,7 +458,7 @@ class QueueImpl<J> implements Queue<J> {
 			if (this.#counts[w] >= windows[w].max) return false;
 			mask |= 1 << w;
 		}
-		this.#jobs[at] = GONE;
+		jobs[at] = GONE;
 		this.#waiting--;
 		if (deadline !== Infinity) this.#untime();
 		this.#hold(job, mask);
@@ -509,7 +529,7 @@ class QueueImpl<J> implements Queue<J> {
 		}
 	}
 
-	/** The started and gone front of the plain queue's list out, once it is the larger part. */
+	/** The started and gone front of the list out, once it is the larger part. */
 	#compact(): void {
 		const head = this.#head;
 		if (head < 32 || head * 2 < this.#jobs.length) {
@@ -523,17 +543,24 @@ class QueueImpl<J> implements Queue<J> {
 		this.#head = 0;
 	}
 
-	/** Keeps only the waiting jobs, in the order pushed. */
 	#sweep(): void {
 		const jobs = this.#jobs;
 		if (this.#pass !== null || jobs.length === this.#waiting) return;
 		const deadlines = this.#deadlines;
 		if (this.#waiting === 0) {
-			jobs.length = deadlines.length = 0;
+			jobs.length = deadlines.length = this.#head = 0;
+			return;
+		}
+		let front = this.#head;
+		this.#head = 0;
+		while (jobs[front] === GONE) front++;
+		if (jobs.length - front === this.#waiting) {
+			jobs.splice(0, front);
+			deadlines.splice(0, front);
 			return;
 		}
 		let w = 0;
-		for (let i = 0; i < jobs.length; i++) {
+		for (let i = front; i < jobs.length; i++) {
 			if (jobs[i] === GONE) continue;
 			jobs[w] = jobs[i];
 			deadlines[w++] = deadlines[i];
@@ -542,7 +569,6 @@ class QueueImpl<J> implements Queue<J> {
 	}
 }
 
-/** The most windows a queue takes (each is a bit of a started job's mask). */
 const MAX_WINDOWS = 31;
 
 function cap(option: string, value: number): void {

@@ -307,6 +307,23 @@ describe('budget', () => {
 		expect(steps).toEqual(['start a', 'holder a', 'start b', 'holder b', 'start c', 'holder c']);
 	});
 
+	it('settle: jobs pushed in a drain’s last microtask take one more pass, not a pass each', async () => {
+		let reads = 0;
+		const gated = { open: false };
+		const { q, started } = line({
+			priority: (j) => (reads++, j.rank),
+			ready: () => gated.open,
+			budget: { ms: 1_000, yield: () => {}, settle: true }
+		});
+		for (let i = 0; i < 10; i++) q.push(job(`j${i}`));
+		await new Promise((r) => setTimeout(r, 0));
+		expect(reads).toBe(1 + 10); // the first push's pass, then one for the nine behind it
+		gated.open = true;
+		q.recheck();
+		await new Promise((r) => setTimeout(r, 0));
+		expect(started).toHaveLength(10);
+	});
+
 	it('a yield that throws is reported, and the drain goes on without it', () => {
 		let started: string[] = [];
 		const { said, thrown } = reporting(() => {
@@ -447,11 +464,24 @@ describe('passes', () => {
 		expect(q.waiting).toBe(0);
 	});
 
-	it('no max: every ready job starts', () => {
-		const { q, started } = line({ ready: () => true });
-		for (let i = 0; i < 50; i++) q.push(job(`j${i}`));
-		expect(started).toHaveLength(50);
-		expect(q.holding).toBe(50);
+	it('no max and no window: every job starts, and none holds a place (its release does nothing)', () => {
+		for (const o of [{ ready: () => true }, {}]) {
+			const { q, started, release } = line(o);
+			for (let i = 0; i < 50; i++) q.push(job(`j${i}`));
+			expect(started).toHaveLength(50);
+			expect(q.holding).toBe(0);
+			release('j0');
+			expect(q.holding).toBe(0);
+		}
+	});
+
+	it('a window alone counts places: holding is the started jobs not yet released', () => {
+		const { q, release } = line({ windows: [{ max: 5, holds: () => false }] });
+		for (let i = 0; i < 4; i++) q.push(job(`j${i}`));
+		expect(q.holding).toBe(4);
+		release('j0');
+		release('j0');
+		expect(q.holding).toBe(3);
 	});
 });
 
