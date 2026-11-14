@@ -1,18 +1,23 @@
 // Test stub for `ogygia:server/region-deps` (real one is minted by the Vite plugin): the per-entry
 // lookups Region.svelte reads while it emits its graph and CSS — empty in unit tests. Each `set_*`
-// sets what one lookup answers.
+// sets what one lookup answers. A list lookup answers a list or nothing, as the real `pick` does
+// (a key like `valueOf` is no entry of the map).
+const list = (map: Record<string, string[]>, key: string): string[] => {
+	const v = map[key];
+	return Array.isArray(v) ? v : [];
+};
 let deps_by_entry: Record<string, string[]> = {};
-export const region_deps = (entry: string): string[] => deps_by_entry[entry] ?? [];
+export const region_deps = (entry: string): string[] => list(deps_by_entry, entry);
 export function set_island_deps(map: Record<string, string[]>) {
 	deps_by_entry = map;
 }
 let css_by_entry: Record<string, string[]> = {};
-export const region_css = (entry: string): string[] => css_by_entry[entry] ?? [];
+export const region_css = (entry: string): string[] => list(css_by_entry, entry);
 export function set_island_css(map: Record<string, string[]>) {
 	css_by_entry = map;
 }
 let css_by_content: Record<string, string[]> = {};
-export const content_css = (id: string): string[] => css_by_content[id] ?? [];
+export const content_css = (id: string): string[] => list(css_by_content, id);
 export function set_content_css(map: Record<string, string[]>) {
 	css_by_content = map;
 }
@@ -60,8 +65,10 @@ export function set_chunk_contents(map: Record<string, string[]>) {
 	contents_by_chunk = map;
 }
 let entry_locations: Record<string, string> = {};
-export const entry_location = (identity: string): string | null =>
-	entry_locations[identity] ?? null;
+export const entry_location = (identity: string): string | null => {
+	const v = identity ? entry_locations[identity] : null;
+	return typeof v === 'string' ? v : null;
+};
 export function set_entry_locations(map: Record<string, string>) {
 	entry_locations = map;
 }

@@ -7,6 +7,12 @@
  * itself; the real hash values are pinned once, in region-output.test.ts › "the real hashes".
  */
 export function normalize_hashes(text: string): string {
+	return normalized_with_hashes(text).text;
+}
+
+/** {@link normalize_hashes}, and what each placeholder stands for: `<fp1>=7dd6306730e68332`, one per
+ *  placeholder in the order they were numbered. */
+export function normalized_with_hashes(text: string): { text: string; hashes: string[] } {
 	const names = new Map<string, string>();
 	const counts = new Map<string, number>();
 	const name = (kind: string, raw: string): string => {
@@ -19,7 +25,7 @@ export function normalize_hashes(text: string): string {
 		}
 		return found;
 	};
-	return text.replace(HASHES, (all, before, prefix, tag, n, comment, mode, snip, fp) =>
+	const out = text.replace(HASHES, (all, before, prefix, tag, n, comment, mode, snip, fp) =>
 		tag !== undefined
 			? `${before}og${prefix}${name('id', tag)}-${n}`
 			: comment !== undefined
@@ -30,6 +36,12 @@ export function normalize_hashes(text: string): string {
 						? name('fp', fp)
 						: all
 	);
+	return {
+		text: out,
+		hashes: [...names].map(
+			([key, placeholder]) => `${placeholder}=${key.slice(key.indexOf(':') + 1)}`
+		)
+	};
 }
 
 /** One pass, so placeholders number in the order the hashes appear: a slot id's entry tag, a

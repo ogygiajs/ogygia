@@ -1,0 +1,101 @@
+# Region server grid · async=on · kind=hole · at=island (fast)
+# 161280 cases, 4 distinct outputs; per part: head 1, body 2, thrown 1, tail 2, tail holes 2, tail islands 2, early holes 1, page records 1, devtools 1, said 1.
+# axes: kit=none|pass|pass-inner|ogygia csr=off|on page=ok|error env=prod when=load|idle|visible wake=none|module-only|load|idle|visible|interaction|media attrs=none|all ttl=0|60 fallback=none|text|island props=absent|empty|json|devalue|snippet component=tiny|none building=no|yes page_version=no|yes
+
+################ head · 1 distinct ################
+
+════ head 1 · 161280 cases ════
+<!--<id1>--><!--<id2>--><link rel="stylesheet" href="/holes/hole-a.css" data-ogygia-region-css><!----><!---->
+──── with <id1>=rtd3wb <id2>=8wrexz · 161280:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ body · 2 distinct ################
+
+════ body 1 · 80640 cases ════
+<!--[--><!--[--><!--[1--><!--[0--><ogygia-region entry="hole-a" wake="none" remount="cache" data-og-lake="<fp1>"><b data-tiny="">tiny</b><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=a57a6f3934f191c3 · 48384:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=absent|empty|snippet component=tiny building=* page_version=*
+──── with <fp1>=cb07bf30d01ae950 · 16128:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=json component=tiny building=* page_version=*
+──── with <fp1>=3629c9bcb8a43a64 · 16128:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=devalue component=tiny building=* page_version=*
+
+════ body 2 · 80640 cases ════
+<!--[--><!--[--><!--[1--><!--[0--><ogygia-region entry="hole-a" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=a57a6f3934f191c3 · 48384:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=absent|empty|snippet component=none building=* page_version=*
+──── with <fp1>=cb07bf30d01ae950 · 16128:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=json component=none building=* page_version=*
+──── with <fp1>=3629c9bcb8a43a64 · 16128:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=devalue component=none building=* page_version=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 161280 cases ════
+
+──── no hashes · 161280:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ tail · 2 distinct ################
+
+════ tail 1 · 80640 cases ════
+(no tail)
+──── no hashes · 80640:
+kit=none|ogygia csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+════ tail 2 · 80640 cases ════
+
+──── no hashes · 80640:
+kit=pass|pass-inner csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ tail holes · 2 distinct ################
+
+════ tail holes 1 · 80640 cases ════
+
+──── no hashes · 80640:
+kit=none|ogygia csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+════ tail holes 2 · 80640 cases ════
+[]
+──── no hashes · 80640:
+kit=pass|pass-inner csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ tail islands · 2 distinct ################
+
+════ tail islands 1 · 80640 cases ════
+
+──── no hashes · 80640:
+kit=none|ogygia csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+════ tail islands 2 · 80640 cases ════
+[]
+──── no hashes · 80640:
+kit=pass|pass-inner csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ early holes · 1 distinct ################
+
+════ early holes 1 · 161280 cases ════
+
+──── no hashes · 161280:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ page records · 1 distinct ################
+
+════ page records 1 · 161280 cases ════
+[{"seed":false,"remotes":[],"entry":""}]
+──── no hashes · 161280:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ devtools · 1 distinct ################
+
+════ devtools 1 · 161280 cases ════
+[]
+──── no hashes · 161280:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ said · 1 distinct ################
+
+════ said 1 · 161280 cases ════
+[]
+──── no hashes · 161280:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
