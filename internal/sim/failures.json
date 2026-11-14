@@ -4576,8 +4576,8 @@
 		{
 			"site": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > catch:3",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
-			"test": "packages/devtools/test/profiler-beacon-resource-type.test.ts",
-			"name": "a link is not a stylesheet by itself"
+			"test": "packages/devtools/test/profiler-browser-findings.test.ts",
+			"name": "the inline beacon names a preload the browser downloaded again (a Kit page has no runtime beacon)"
 		},
 		{
 			"site": "packages/devtools/src/profiler/crypto.ts > ogp_decode > catch:0",
