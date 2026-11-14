@@ -206,6 +206,7 @@ describe('the ledger patch', () => {
 			fired: [],
 			covered: [],
 			impossible: [],
+			equivalent: [],
 			baseline: ['a', 'b', 'c']
 		} as FailureLedger;
 		const proofs: Proof[] = [{ site: 'b', reason: 'r', test: 't.test.ts', name: 'n' }];
@@ -220,6 +221,7 @@ describe('the ledger patch', () => {
 			fired: [],
 			covered: [],
 			impossible: [],
+			equivalent: [],
 			baseline: ['a']
 		} as FailureLedger;
 		expect(() => merge_patch(ledger, [{ site: 'z', reason: 'r', test: 't', name: 'n' }])).toThrow(

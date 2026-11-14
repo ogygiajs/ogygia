@@ -448,8 +448,10 @@ their lines. The ledger `internal/sim/failures.json` puts each in exactly one bu
 buggify point, a sim fault, or an app shape (`shape`: a gen stream, as `gen messy` draws a hole whose
 render throws) reaches it; the sweep fails when the point did not fire; `killed_by`
 names the mutant of mutants.json that breaks its recovery and the simulator kills, the proof that a
-broken recovery is noticed), `covered` (a named real test, which the check finds) or `impossible` (a
-rule or type, by its file and name, which the check finds). Sites nobody has bucketed yet are the
+broken recovery is noticed), `covered` (a named real test, which the check finds), `impossible` (a
+rule or type, by its file and name, which the check finds) or `equivalent` (breaking its handling
+changes nothing anyone can see, as mutants.json's `equivalent`: `why` says how, and the check
+refuses an entry without it). Sites nobody has bucketed yet are the
 `baseline`: allowed, but it only shrinks (an id no site has fails, and the PR check, `--base
 HEAD^1`, fails a baseline id its base did not list: a new site goes in a bucket). The PR check job
 runs it ("Every failure site accounted for"); 4/1820 at the start (2026-11-13): hole.fetch-lost,
