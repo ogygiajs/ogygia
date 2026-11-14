@@ -8,7 +8,7 @@ import { mount, unmount } from 'svelte';
 import { scope } from '@ogygia/machine';
 import Devtools from './Devtools.svelte';
 import { install_page_hook } from './page.ts';
-import { set_highlight_root } from './highlight.ts';
+import { highlighter } from './highlight.ts';
 import { region_names } from 'ogygia:boot';
 
 /** Mounts the dock into `root`. Returns its teardown: the app (its Alt+O listener and timers with
@@ -18,7 +18,7 @@ export function mount_app(
 	opts: { csr_true: boolean; start_open: boolean; hide?: () => void }
 ): () => void {
 	install_page_hook();
-	set_highlight_root(root);
+	highlighter.set_root(root);
 	// a build knows its islands' component names (the dev server serves them live instead)
 	if (region_names && Object.keys(region_names).length && typeof window !== 'undefined')
 		window.__ogygia_region_names = { ...region_names, ...window.__ogygia_region_names };

@@ -53,10 +53,6 @@
 			"reason": "the matcher that matches nothing, for chunks read only to keep the scan's state: answers false, constant work; rewrite.test.ts's 'matches only in the last chunk' path runs it"
 		},
 		{
-			"id": "packages/devtools/src/devtools/highlight.ts > highlight > defer:0~248bad",
-			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
-		},
-		{
 			"id": "packages/devtools/src/devtools/profile-store.ts > set_profile > map:0~39039e",
 			"reason": "one profile out of each kept entry (64 at most) while the newest 8 are saved, constant work per entry; devtools-profile-store.test.ts runs it"
 		},
@@ -1673,14 +1669,6 @@
 			"reason": "a render's timeout on its race's scope, constant work"
 		},
 		{
-			"id": "packages/devtools/src/profiler/net.ts > count_decoded > <anonymous>~929d48 > defer:0~95f179",
-			"reason": "the counted copy's reader is cancelled when its request ends: a cancel when its owner ends, constant work; proven in packages/devtools/test/profiler-net-capture.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/net.ts > count_decoded > <anonymous>~929d48 > defer:0~95f179 > catch:0~a1b2d0",
-			"reason": "the counted copy's reader is cancelled when its request ends: a cancel when its owner ends, constant work; proven in packages/devtools/test/profiler-net-capture.test.ts"
-		},
-		{
 			"id": "packages/devtools/src/profiler/net.ts > install_net_capture > answer",
 			"reason": "the live profiler sink reads its AsyncLocalStorage (not cloneable), constant work; proven in packages/devtools/test/profiler-net-capture.test.ts (#285)"
 		},
@@ -1999,10 +1987,6 @@
 		{
 			"id": "packages/devtools/src/profiler/embedded-maps.ts > embedded_source > map:0~31820d",
 			"reason": "profiler only: lists the known app roots for one source path, linear in the roots (one per app)"
-		},
-		{
-			"id": "packages/devtools/src/profiler/net.ts > keeping",
-			"reason": "profiler only: reads the module's kept-answers state (hidden state), constant work"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > arm_on_demand > set:1~0b08c2",
@@ -6095,6 +6079,62 @@
 		{
 			"id": "packages/flags/src/prescan.ts > Inventory > written",
 			"reason": "build only, once per build: writes the flags manifest file, linear in flag sites"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > show > defer:0~248bad",
+			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > show",
+			"reason": "browser only: makes the dock's highlight layer (DOM) once and queues a frame, constant work besides scrollIntoView"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > #draw",
+			"reason": "browser only: one box per element on screen (getBoundingClientRect), linear in the elements, capped at 400"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > #schedule",
+			"reason": "browser only: queues one frame on the layer's scope, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > #schedule > schedule:1~47dbf5",
+			"reason": "browser only: the queued frame's handoff to #draw, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > clear",
+			"reason": "browser only: closes the layer's scope (its listeners and the layer go), constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > count",
+			"reason": "browser only: the shown layer's element count, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > set_root",
+			"reason": "browser only: keeps the dock's shadow root, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > diff",
+			"reason": "profiler only: reads the kept answers (hidden state), linear in the two bodies it compares"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > get",
+			"reason": "profiler only: a kept answer as a fresh Response (hidden state), linear in its body"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > get current",
+			"reason": "profiler only: the kept answers now (hidden state), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > count_decoded > <anonymous>~eed13d > defer:0~95f179",
+			"reason": "the counted copy's reader is cancelled when its request ends: a cancel when its owner ends, constant work; proven in packages/devtools/test/profiler-net-capture.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > count_decoded > <anonymous>~eed13d > defer:0~95f179 > catch:0~a1b2d0",
+			"reason": "the counted copy's reader is cancelled when its request ends: a cancel when its owner ends, constant work; proven in packages/devtools/test/profiler-net-capture.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > keeping",
+			"reason": "profiler only: reads the module's kept-answers state (hidden state), constant work"
 		}
 	]
 }
