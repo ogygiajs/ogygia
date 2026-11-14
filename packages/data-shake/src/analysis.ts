@@ -26,6 +26,16 @@ const SKIP_KEYS: ReadonlySet<string> = new Set([
 	'trailingComments'
 ]);
 const PAGE_SPECIFIER_HINT_RE = /\$app\/st(?:ate|ores)/;
+const WHOLE_USE: ReadonlyMap<string, string> = new Map([
+	['VariableDeclarator', '`page.data` is aliased whole (`const d = page.data`)'],
+	['SpreadElement', '`page.data` is spread'],
+	['ReturnStatement', '`page.data` is returned whole'],
+	['ArrowFunctionExpression', '`page.data` is returned whole']
+]);
+const FLIP_SIDE: Readonly<Record<'server' | 'client', 'server' | 'client'>> = {
+	server: 'client',
+	client: 'server'
+};
 
 class All extends Error {
 	readonly why: string;
@@ -638,29 +648,18 @@ class Scan {
 			for (const p of owner.id.properties) {
 				if (p.type !== 'Property' || p.computed)
 					throw new All('`page.data` is destructured with a rest or computed key', p.start ?? at);
-				const k =
-					p.key?.type === 'Identifier'
-						? p.key.name
-						: p.key?.type === 'Literal'
-							? String(p.key.value)
-							: null;
+				let k: string | null = null;
+				if (p.key?.type === 'Identifier') k = p.key.name;
+				else if (p.key?.type === 'Literal') k = String(p.key.value);
 				if (k === null)
 					throw new All('`page.data` is destructured with a non-literal key', p.start ?? at);
 				this.keys.add(k);
 			}
 			return;
 		}
-		const how =
-			owner.type === 'CallExpression'
-				? `\`page.data\` is handed whole to ${call_name(owner)}(…)`
-				: owner.type === 'VariableDeclarator'
-					? '`page.data` is aliased whole (`const d = page.data`)'
-					: owner.type === 'SpreadElement'
-						? '`page.data` is spread'
-						: owner.type === 'ReturnStatement' || owner.type === 'ArrowFunctionExpression'
-							? '`page.data` is returned whole'
-							: `\`page.data\` is used whole (${owner.type})`;
-		throw new All(how, at);
+		if (owner.type === 'CallExpression')
+			throw new All(`\`page.data\` is handed whole to ${call_name(owner)}(…)`, at);
+		throw new All(WHOLE_USE.get(owner.type) ?? `\`page.data\` is used whole (${owner.type})`, at);
 	}
 }
 
@@ -669,7 +668,7 @@ function runs_on(test: Node | null | undefined): 'server' | 'client' | null {
 	if (!t) return null;
 	if (t.type === 'UnaryExpression' && t.operator === '!') {
 		const inner = runs_on(t.argument);
-		return inner === 'server' ? 'client' : inner === 'client' ? 'server' : null;
+		return inner && FLIP_SIDE[inner];
 	}
 	if (
 		t.type === 'MemberExpression' &&
@@ -955,7 +954,9 @@ async function summarize_call(
 		const memo_key = `${file}#${name}#${call.arg}`;
 		const hit = memo.get(memo_key);
 		if (hit) return { keys: hit, why: '' };
-		const kind = SVELTE_EXT_RE.test(file) ? 'svelte' : SCRIPT_EXT_RE.test(file) ? 'script' : null;
+		let kind: 'svelte' | 'script' | null = null;
+		if (SVELTE_EXT_RE.test(file)) kind = 'svelte';
+		else if (SCRIPT_EXT_RE.test(file)) kind = 'script';
 		const code = kind ? read(file) : null;
 		if (!kind || code === null)
 			return { keys: 'all', why: `the helper's module (${file}) could not be read` };
