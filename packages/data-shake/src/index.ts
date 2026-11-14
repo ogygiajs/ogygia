@@ -36,7 +36,8 @@ export function page_reads(read: (file: string) => string | null = read_file_syn
 		keys(id) {
 			if (state.page_pending.has(id)) return 'unknown';
 			const k = state.page_keys.get(id);
-			return k === undefined ? null : k === 'all' ? 'unknown' : k;
+			if (k === undefined) return null;
+			return k === 'all' ? 'unknown' : k;
 		},
 		why: (id) => state.page_key_reasons.get(id) ?? null,
 		async dev(files, resolve) {
@@ -73,7 +74,8 @@ export function page_reads(read: (file: string) => string | null = read_file_syn
 					} else add(s);
 				}
 			}
-			return { keys: !any ? null : all ? 'unknown' : [...read_keys], why };
+			if (!any) return { keys: null, why };
+			return { keys: all ? 'unknown' : [...read_keys], why };
 		}
 	};
 }
