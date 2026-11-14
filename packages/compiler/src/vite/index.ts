@@ -128,6 +128,7 @@ import { derive_css_scope_owners, type DevGraphModule } from '../dev/css-scope.t
 import {
 	collectIslandDepModulepreloads,
 	collect_inline_css,
+	DEV_FN_MANIFEST_KEY,
 	remote_hash_of,
 	summarize_chunk_contents
 } from '../link/island-deps.ts';
@@ -730,6 +731,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			configureServer(server) {
 				const compiler = compiler_of(session, 'configureServer');
 				vite_server = server;
+				(globalThis as Record<symbol, unknown>)[Symbol.for(DEV_FN_MANIFEST_KEY)] = () =>
+					compiler.fn_manifest();
 				if (measure) {
 					install_dev_maps(server);
 					install_dev_client_maps(server);
