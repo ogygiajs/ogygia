@@ -7,16 +7,15 @@
  * real secret.
  *
  * Every capability is minted as v3: capability() from @ogygia/machine (its message names the
- * capability, its version and its audience, field by field length-prefixed). The `v1|`/`v2|`/`v3|`
- * MACs are still verified for URLs minted before it. Signing keys are HKDF-derived (`ogygia-mac-v1`)
- * from the raw secret so the id-salt domain stays separate.
+ * capability, its version and its audience, field by field length-prefixed), and only v3 is
+ * verified (#1769). Signing keys are HKDF-derived (`ogygia-mac-v1`) from the raw secret so the
+ * id-salt domain stays separate.
  */
 import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto';
 import { cache, capability, type Capability } from '@ogygia/machine';
 import { PRERENDER_REGION_TTL_SEC, REGION_CAPABILITY_VERSION, is_lower_hex } from './endpoint.ts';
 const MAC_INFO = Buffer.from('ogygia-mac-v1');
 const ID_SALT_INFO = Buffer.from('ogygia-id-salt-v1');
-const utf8 = new TextEncoder();
 
 /** Minimum UTF-8 byte length for a user-supplied `OGYGIA_SECRET` in production builds. */
 export const MIN_SECRET_BYTES = 16;
@@ -50,11 +49,6 @@ export function secret_has_min_entropy(secret: string): boolean {
 	return Buffer.byteLength(secret, 'utf8') >= MIN_SECRET_BYTES;
 }
 
-/** UTF-8 length-prefix so field contents cannot forge delimiters. */
-function lp(s: string): string {
-	return `${utf8.encode(s).byteLength}:${s}`;
-}
-
 export class Hmac {
 	static sha256(key: Buffer, message: string): string {
 		return createHmac('sha256', key).update(message, 'utf8').digest('hex');
@@ -74,51 +68,10 @@ export class Hmac {
 			return false; // ok: buffers that cannot be compared are not a match (fail closed)
 		}
 	}
-
-	/**
-	 * MAC message for a signed region capability. Every field is length-prefixed (`<utf8 bytes>:<value>`),
-	 * so a field's content can never forge a `|` boundary. Three versions:
-	 *
-	 * - `v1|id|exp|props|session|ttl` — the capability names only its region `id` (the wrapper that
-	 *   minted it: component ⊕ page-side schedule ⊕ the build's salt). Only a build that has that
-	 *   exact id can answer it. Minted before render identities (ogygia ≤ 0.8.6); still verified, so
-	 *   pages cached before an upgrade keep their holes.
-	 * - `v2|id|exp|props|session|ttl|render` — the same five, plus the region's render identity (the
-	 *   URL's `r`: the component the endpoint renders, compiler/region/identity.ts `renderId`). Signing
-	 *   it lets a build that no longer has `id` (another schedule, preset or salt) answer the
-	 *   capability with its own entry for that component, and only for that component. Minted until
-	 *   the capability() mint ({@link region_sign}); still verified.
-	 * - `v3|id|exp|props|session|ttl|render|wakes` — the same six, plus "wakes" (the URL's `w=1`): the
-	 *   hole's component hydrates over its answer, so the endpoint renders it inside an island, as
-	 *   the hydrate does (#906). Minted for a hole that wakes until the capability() mint; still
-	 *   verified. (Not the capability() mint's version: that one names itself in the URL's `v`.)
-	 *
-	 * The version follows from the URL: a capability with `w` is checked as `v3`, else one with `r`
-	 * as `v2`, one without either as `v1`. No version's MAC verifies as another's (the prefix and the
-	 * field count differ), so stripping `r` or `w`, adding `w`, or swapping `r` for another component
-	 * breaks the signature. Empty `session`/`ttl` are still fields
-	 * (prerender / unbound / no-store) — never optional concat. `ttl` is the response cache max-age in
-	 * seconds (`''` = no-store); signing it keeps a harvested URL from being re-pointed at a longer
-	 * browser cache.
-	 */
-	static region_message(
-		id: string,
-		exp: number | string,
-		props: string,
-		session = '',
-		ttl: number | string = '',
-		render = '',
-		wakes = ''
-	): string {
-		const v1 = `${lp(String(id))}|${lp(String(exp))}|${lp(String(props))}|${lp(String(session))}|${lp(String(ttl))}`;
-		if (wakes !== '') return `v3|${v1}|${lp(String(render))}|${lp(String(wakes))}`;
-		return render === '' ? `v1|${v1}` : `v2|${v1}|${lp(String(render))}`;
-	}
 }
 
 export const sign: typeof Hmac.sign = Hmac.sign.bind(Hmac);
 export const verify: typeof Hmac.verify = Hmac.verify.bind(Hmac);
-export const region_mac_message: typeof Hmac.region_message = Hmac.region_message.bind(Hmac);
 
 /** What a region capability signs beside its expiry (the URL's `id`, `props`, `ttl`, `r`, `w`, and
  *  the session cookie it is sealed to; `''` where it has none). */
@@ -184,9 +137,9 @@ export function region_sign(
 
 /**
  * Does `sig` sign this region capability? `version` is the URL's `v`: `'3'` checks it through
- * capability() for `audience`; `''` (minted before v3) checks the `v1|`/`v2|` MAC, so pages cached
- * before an upgrade keep their holes; anything else is refused. A v3 signature never verifies as
- * v1/v2, nor the other way (the messages differ). `late_sec`: a renewal's window past expiry.
+ * capability() for `audience`; anything else is refused, a capability minted before v3 (no `v`)
+ * among them: its page is an earlier build's, whose runtime cannot read this build's answer
+ * (#1769). `late_sec`: a renewal's window past expiry.
  */
 export function region_verify(
 	secret: string,
@@ -197,20 +150,6 @@ export function region_verify(
 	sig: string,
 	late_sec = 0
 ): boolean {
-	if (version === '')
-		return verify(
-			secret,
-			region_mac_message(
-				claim.id,
-				exp,
-				claim.payload,
-				claim.session,
-				claim.ttl,
-				claim.render,
-				claim.wakes
-			),
-			sig
-		);
 	const at = Number(exp);
 	if (version !== REGION_CAPABILITY_VERSION || !Number.isSafeInteger(at) || at < 0) return false;
 	const token = `v${version}.${at * 1000}..${sig}`;

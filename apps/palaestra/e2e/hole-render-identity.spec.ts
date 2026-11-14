@@ -10,7 +10,7 @@
 import fs from 'node:fs';
 import { test, check } from '@ogygia/tooling/e2e';
 import { AMP_ENTITY_G_RE, ENDPOINT_ATTR_RE } from '@ogygia/tooling/e2e/re.ts';
-import { region_mac_message, region_sign, sign } from '../../../packages/core/dist/server/hmac.js';
+import { region_sign, sign } from '../../../packages/core/dist/server/hmac.js';
 
 const ENV_SECRET_RE = /^OGYGIA_SECRET=(.+)$/m;
 const ENV_FILE = new URL('../.env', import.meta.url);
@@ -29,9 +29,11 @@ async function hole_endpoint(base: string, path: string): Promise<string> {
 	return m ? new URL(m[1].replace(AMP_ENTITY_G_RE, '&'), base + path).href : '';
 }
 
+const lp = (s: string) => `${Buffer.byteLength(s, 'utf8')}:${s}`;
+
 /** `endpoint` as another build would have minted it: its own `id`, this `r`. With an `r`, a
  *  current build's (v3, for the islands endpoint); with none, one minted before render ids and
- *  before v3 (a `v1|` MAC, no `v`), as a page cached across those upgrades still carries. */
+ *  before v3 (a `v1|` MAC, no `v`), as a page cached across those upgrades carries. */
 function minted_as(endpoint: string, id: string, r: string): string {
 	const u = new URL(endpoint);
 	const p = u.searchParams;
@@ -53,21 +55,9 @@ function minted_as(endpoint: string, id: string, r: string): string {
 	} else {
 		p.delete('r');
 		p.delete('v');
-		p.set(
-			'sig',
-			sign(
-				SECRET,
-				region_mac_message(
-					id,
-					exp,
-					p.get('props') ?? '',
-					'',
-					p.get('ttl') ?? '',
-					'',
-					p.get('w') ?? ''
-				)
-			)
-		);
+		p.delete('w');
+		const fields = [id, exp, p.get('props') ?? '', '', p.get('ttl') ?? ''];
+		p.set('sig', sign(SECRET, `v1|${fields.map(lp).join('|')}`));
 	}
 	return u.href;
 }
@@ -104,25 +94,20 @@ test.describe('a hole capability names what it renders', () => {
 			'…with the same answer',
 			other.body === own.body && own.body.includes('data-server-greeting')
 		);
-
-		const v1_own = await answer(minted_as(live, new URL(live).searchParams.get('id')!, ''));
-		check(
-			'a capability minted before render ids (v1), its id still here → 200',
-			v1_own.status === 200,
-			`${v1_own.status} ${v1_own.deny}`
-		);
 	});
 
 	test('nothing else is answered', async ({ baseURL }) => {
 		const live = await hole_endpoint(baseURL!, '/server');
 		const r = new URL(live).searchParams.get('r') ?? '';
 
-		const v1_other = await answer(minted_as(live, OTHER_BUILD_ID, ''));
-		check(
-			'v1 with an id this build does not have → 403 unknown-id',
-			v1_other.status === 403 && v1_other.deny === 'unknown-id',
-			`${v1_other.status} ${v1_other.deny}`
-		);
+		for (const id of [new URL(live).searchParams.get('id')!, OTHER_BUILD_ID]) {
+			const v1 = await answer(minted_as(live, id, ''));
+			check(
+				'a capability minted before v3 (v1, no v) is an earlier build page’s → 403 shape (#1769)',
+				v1.status === 403 && v1.deny === 'shape',
+				`${id} ${v1.status} ${v1.deny}`
+			);
+		}
 
 		const gone = await answer(minted_as(live, OTHER_BUILD_ID, 'b0b0b0b0b0b0'));
 		check(
