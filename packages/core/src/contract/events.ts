@@ -430,6 +430,10 @@ export type HubEventInput =
 
 // ── nav domain ───────────────────────────────────────────────────────────────────
 // Seam: runtime/router.ts (navigate), runtime/reconcile.ts (per-region decision).
+/** Why a navigation swapped the whole body instead of reconciling it: no morph loaded, a region
+ *  lives in a shadow root, or the author opted a page out with `data-og-no-reconcile`. */
+export type NavFallbackReason = 'no-morph' | 'shadow-region' | 'opt-out';
+
 export type NavEventInput =
 	| {
 			domain: 'nav';
@@ -471,6 +475,6 @@ export type NavEventInput =
 	| {
 			domain: 'nav';
 			name: 'nav.fallback';
-			/** Why the reconcile path was skipped (shadow-dom / reconcile-off). */
-			reason: string;
+			/** Why the reconcile path was skipped. */
+			reason: NavFallbackReason;
 	  };
