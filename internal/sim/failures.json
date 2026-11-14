@@ -5040,16 +5040,6 @@
 	],
 	"equivalent": [
 		{
-			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:1",
-			"why": "the loads' wait is STALE only when the region's mailbox closed: none of its parts can be STALE (the island file and the hydrate core, codec and devalue flights have no world, drop or dispose), and the mailbox closes only in #teardown, which first moves the wake off this waking visit. Without the check, destructuring STALE throws, the finally still releases the slot, and the catch returns quietly because the wake is no longer `mine`: no failure is said, no state moves."
-		},
-		{
-			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > stale:0",
-			"why": "the owner's task is STALE only when the stream's owner closed. Without the check, STALE.ok is undefined, so it is pushed as a failure, and push drops anything once the owner is closed: nothing reaches the stream, and nothing nested is staged."
-		}
-	],
-	"equivalent": [
-		{
 			"site": "packages/router/src/stream.ts > stream_document > start > stale:0",
 			"why": "the owner's task is STALE only when the owner closed (rest.next()'s answer is an iterator result, never STALE). Without the check, STALE.done is undefined, so `n.value.slot` throws, and the catch returns at once because the owner is closed: the same early end, with no tail and no close, as the check's return."
 		},
