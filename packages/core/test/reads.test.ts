@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { note_visitor_read, open_reads, Reads, set_open_reads } from '../src/plugin/reads.ts';
+import { note_visitor_read, open_reads, ReadSet, set_open_reads } from '../src/plugin/reads.ts';
 
 afterEach(() => set_open_reads(null));
 
 describe('read sets', () => {
 	it('a read lands in its own set and in every set around it; the first one names each', () => {
-		const page = new Reads();
-		const hole = new Reads(page);
-		const inner = new Reads(hole);
+		const page = new ReadSet();
+		const hole = new ReadSet(page);
+		const inner = new ReadSet(hole);
 		page.visitor('flag:hero');
 		inner.visitor('cookie:session');
 		expect(inner.perVisitor).toBe('cookie:session');
@@ -16,20 +16,20 @@ describe('read sets', () => {
 	});
 
 	it('a page.data read lands in every set around it', () => {
-		const page = new Reads();
-		const hole = new Reads(page);
+		const page = new ReadSet();
+		const hole = new ReadSet(page);
 		hole.page();
 		expect(hole.pageData).toBe(true);
 		expect(page.pageData).toBe(true);
 	});
 
 	it("a read with no work running lands in the request's set; under work, in both", () => {
-		const request = new Reads();
+		const request = new ReadSet();
 		note_visitor_read(request, 'header:authorization');
 		expect(request.perVisitor).toBe('header:authorization');
 
-		const other = new Reads();
-		const work = new Reads();
+		const other = new ReadSet();
+		const work = new ReadSet();
 		set_open_reads(() => work);
 		note_visitor_read(other, 'cookie:x');
 		expect(work.perVisitor).toBe('cookie:x');
@@ -42,7 +42,7 @@ describe('read sets', () => {
 			'../src/plugin/reads.ts?copy'
 		)) as typeof import('../src/plugin/reads.ts');
 		expect(copy.open_reads).not.toBe(open_reads);
-		const work = new Reads();
+		const work = new ReadSet();
 		set_open_reads(() => work);
 		expect(copy.open_reads()).toBe(work);
 	});

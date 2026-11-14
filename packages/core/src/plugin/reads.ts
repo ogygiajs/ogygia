@@ -16,9 +16,23 @@ import { slot as shared } from '@ogygia/machine';
  * runs in its own set under it, its `parent` (server/read-trace.ts): a read lands in the innermost
  * set and in every set around it, so a hole rendered into a page makes that page per-visitor too.
  * A plain shape, not a class: core's own types and its built types (and a plugin's copy of this
- * module) must agree on it.
+ * module) must agree on it. {@link ReadSet} is the one that keeps the state.
  */
-export class Reads {
+export interface Reads {
+	/** The first per-visitor input read (`flag:<name>`, `cookie:<name>`, `header:<name>`,
+	 *  `locals.<key>`, a plugin's reason), or null. */
+	readonly perVisitor: string | null;
+	/** The render read its page (`page.data`, or the url of the page it renders for): its output
+	 *  is one page's. */
+	readonly pageData: boolean;
+	/** A per-visitor input was read (the first one names the set). */
+	visitor(input: string): void;
+	/** The render's page was read. */
+	page(): void;
+}
+
+/** A read set ({@link Reads}) that keeps its own reads and passes each up to `parent`. */
+export class ReadSet implements Reads {
 	readonly #parent: Reads | null;
 	#per_visitor: string | null = null;
 	#page_data = false;
@@ -28,25 +42,19 @@ export class Reads {
 		this.#parent = parent;
 	}
 
-	/** The first per-visitor input read (`flag:<name>`, `cookie:<name>`, `header:<name>`,
-	 *  `locals.<key>`, a plugin's reason), or null. */
 	get perVisitor(): string | null {
 		return this.#per_visitor;
 	}
 
-	/** The render read its page (`page.data`, or the url of the page it renders for): its output
-	 *  is one page's. */
 	get pageData(): boolean {
 		return this.#page_data;
 	}
 
-	/** A per-visitor input was read (the first one names the set). */
 	visitor(input: string): void {
 		if (this.#per_visitor === null) this.#per_visitor = input;
 		this.#parent?.visitor(input);
 	}
 
-	/** The render's page was read. */
 	page(): void {
 		this.#page_data = true;
 		this.#parent?.page();

@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as devalue from 'devalue';
 import type { RequestEvent } from '@sveltejs/kit';
-import { observe_reads, Reads } from '../src/plugin/reads.ts';
+import { observe_reads, ReadSet } from '../src/plugin/reads.ts';
 import { configure_islands_endpoint } from '../src/server/endpoint.ts';
 import {
 	cached_render,
@@ -45,7 +45,7 @@ function hole_request(page: string): RequestEvent {
 			})) as RequestEvent['fetch'],
 		cookies: { get: () => undefined, getAll: () => [] }
 	} as unknown as RequestEvent;
-	observe_reads(event, new Reads());
+	observe_reads(event, new ReadSet());
 	return event;
 }
 
