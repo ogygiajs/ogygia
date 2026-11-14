@@ -68,6 +68,10 @@ function mount_fn(
 					yield String(moved_card(OG_MOUNT_MOVED, 'page', doc.location));
 					return;
 				}
+				if (doc.status >= 400) {
+					yield FAILED;
+					return;
+				}
 				yield (doc.css?.join('') ?? '') + (doc.head ?? '') + doc.body;
 			} catch {
 				yield FAILED;
