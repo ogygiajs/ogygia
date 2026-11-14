@@ -1,7 +1,7 @@
 <!-- (its CSS injected into the dock's shadow root: see Devtools.svelte) -->
 <svelte:options css="injected" />
 
-<script>
+<script lang="ts">
 	/**
 	 * The Wire tab (wire inspector, internal/notes/devtools.md, Rung 5 · 2): everything the SERVER
 	 * shipped to this page across the island boundary — each island's devalue PROPS payload, the
@@ -13,7 +13,11 @@
 	import { snapshot } from '@ogygia/core/events';
 	import { short_chunk, kb, region_name } from './regions.ts';
 
-	let { tick = 0 } = $props();
+	interface Props {
+		tick?: number;
+	}
+
+	let { tick = 0 }: Props = $props();
 
 	const model = $derived.by(() => {
 		void tick; // refresh with the panel tick
