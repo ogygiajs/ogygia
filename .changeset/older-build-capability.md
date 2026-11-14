@@ -1,5 +1,5 @@
 ---
-'@ogygia/core': patch
+'@ogygia/core': minor
 ---
 
-In a rolling upgrade from 0.12, a page 0.12 served no longer gets its holes answered by the new release, whose islands its runtime cannot run (the island failed to hydrate). The new server refuses a hole URL minted before capability v3 (`x-ogygia-deny: shape`, on its own, as a renewal and in a batch), so the old page keeps its fallback until it is loaded again.
+During an upgrade from 0.12.x, an old page's deferred regions are now refused by the new server, so they keep their fallback until the visitor reloads the page. Before, the new server answered them and they hydrated wrong (the old runtime loaded the new build's island and it failed). The refusal is `x-ogygia-deny: shape` for any region URL minted before capability v3: a single request, a renewal and a batch alike.
