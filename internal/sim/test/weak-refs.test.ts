@@ -61,6 +61,7 @@ describe("a realm's platform", () => {
 		const kept = (() => {
 			const loop = new Loop(rng(1));
 			const p = platform({ name: 'server', loop, rng: rng(1), node: true });
+			// oxlint-disable-next-line typescript/unbound-method -- the test keeps the method itself, as code the world left behind would
 			const left = { timer: p.setTimeout(() => {}, 10), Date: p.Date, now: p.performance!.now };
 			p.end();
 			return { left, loop: new WeakRef(loop) };
