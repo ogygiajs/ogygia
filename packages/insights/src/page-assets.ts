@@ -790,12 +790,9 @@ async function weigh_one(
 		const len = Number(res.headers.get('content-length'));
 		const buf = new Uint8Array(await res.arrayBuffer());
 		// the body is decoded by fetch; a compressed response's content-length is its wire size
-		const wire =
-			enc && Number.isFinite(len) && len > 0
-				? len
-				: opts.gzip && buf.byteLength > 256
-					? opts.gzip(buf)
-					: buf.byteLength;
+		let wire = buf.byteLength;
+		if (enc && Number.isFinite(len) && len > 0) wire = len;
+		else if (opts.gzip && buf.byteLength > 256) wire = opts.gzip(buf);
 		const w: Weight = { bytes: buf.byteLength, wire };
 		if (r.kind === 'script') {
 			const code = new TextDecoder().decode(buf);

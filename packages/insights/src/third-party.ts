@@ -227,12 +227,10 @@ export interface ThirdPartyFinding {
 	fix?: string;
 }
 
-const kb = (n: number) =>
-	n >= 1024 * 1024
-		? `${(n / 1048576).toFixed(1)} MB`
-		: n > 0 && n < 1024
-			? `${n} B`
-			: `${Math.round(n / 1024)} KB`;
+const kb = (n: number) => {
+	if (n >= 1024 * 1024) return `${(n / 1048576).toFixed(1)} MB`;
+	return n > 0 && n < 1024 ? `${n} B` : `${Math.round(n / 1024)} KB`;
+};
 
 /** `edited`: islands that did not wake from the server's markup on this visit (changed, recovered,
  *  healed, failed), with when they woke (ms; Infinity when unknown or never). */
@@ -248,24 +246,27 @@ export function third_party_findings(
 	const heavy = tp.origins.filter(
 		(o) => (o.cpu_ms ?? 0) >= 50 || o.script_bytes >= 50 * 1024 || o.unsized >= MANY || o.blocking
 	);
-	const size = (bytes: number, scripts: number, unsized: number) =>
-		!unsized
-			? kb(bytes)
-			: unsized === scripts
-				? `${scripts} script${scripts === 1 ? '' : 's'}, sizes hidden`
-				: `at least ${kb(bytes)}`;
+	const size = (bytes: number, scripts: number, unsized: number) => {
+		if (!unsized) return kb(bytes);
+		return unsized === scripts
+			? `${scripts} script${scripts === 1 ? '' : 's'}, sizes hidden`
+			: `at least ${kb(bytes)}`;
+	};
 	const label = (o: ThirdPartyOrigin) =>
 		`${o.host}${o.kind !== 'other' ? ` (${o.kind})` : ''} ${size(o.script_bytes, o.scripts, o.unsized)}${o.cpu_ms ? `, ${Math.round(o.cpu_ms)} ms CPU` : ''}${o.blocking ? `, ${o.blocking} blocking` : ''}`;
 	const scripts = tp.origins.reduce((s, o) => s + o.scripts, 0);
 	// (sizes the browser hid that were weighed apart from the visit: real bytes, said whose they are)
+	let hid = `${tp.weighed} of them`;
+	if (tp.weighed === scripts) hid = scripts === 1 ? 'it' : 'each';
 	const weighed = tp.weighed
-		? ` (this browser hid the size of ${tp.weighed === scripts ? (scripts === 1 ? 'it' : 'each') : `${tp.weighed} of them`}; weighed from the files themselves)`
+		? ` (this browser hid the size of ${hid}; weighed from the files themselves)`
 		: '';
-	const served = !tp.unsized
-		? `${kb(tp.script_bytes)} of JS${weighed}`
-		: tp.unsized === scripts
+	const sized = tp.unsized ? null : `${kb(tp.script_bytes)} of JS${weighed}`;
+	const served =
+		sized ??
+		(tp.unsized === scripts
 			? `${scripts} script${scripts === 1 ? '' : 's'} (this browser hides other origins' file sizes; a Chromium visit shows them)`
-			: `at least ${kb(tp.script_bytes)} of JS (${tp.unsized} of the ${scripts} scripts had their size hidden by this browser${tp.weighed ? `; ${tp.weighed} more it hid were weighed from the files themselves` : ''})`;
+			: `at least ${kb(tp.script_bytes)} of JS (${tp.unsized} of the ${scripts} scripts had their size hidden by this browser${tp.weighed ? `; ${tp.weighed} more it hid were weighed from the files themselves` : ''})`);
 	const worth =
 		tp.script_bytes >= 30 * 1024 || tp.unsized >= MANY || (tp.cpu_ms ?? 0) >= 50 || tp.blocking > 0;
 	if (worth)
