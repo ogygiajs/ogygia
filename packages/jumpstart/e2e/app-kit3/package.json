@@ -1,0 +1,23 @@
+{
+	"name": "jumpstart-e2e-app-kit3",
+	"version": "0.0.1",
+	"private": true,
+	"description": "@ogygia/jumpstart's e2e fixture app on SvelteKit 3, the same source as ../app: a block registry, CMS pages, light pages, an inline region, a hole and a dependency that reads a file beside itself. Built with and without jumpstart() by ../jumpstart.spec.ts. Its source is written by ../generate.ts.",
+	"type": "module",
+	"scripts": {
+		"build": "vite build",
+		"preview": "vite preview"
+	},
+	"dependencies": {
+		"jumpstart-e2e-many-files": "file:../deps/many-files",
+		"jumpstart-e2e-reads-file": "file:../deps/reads-file",
+		"ogygia": "workspace:*"
+	},
+	"devDependencies": {
+		"@ogygia/jumpstart": "workspace:*",
+		"@sveltejs/kit": "catalog:kit3",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"svelte": "catalog:kit3",
+		"vite": "catalog:"
+	}
+}

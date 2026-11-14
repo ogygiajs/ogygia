@@ -539,6 +539,26 @@ export class Compiler implements CoreApp {
 	}
 
 	/**
+	 * Each module that marks region imports (a host, by its absolute path), with the module ids its
+	 * regions are built from: their components and the modules minted for them. Read at call time
+	 * off the live registry, like {@link region_names}.
+	 */
+	region_hosts(): Map<string, Set<string>> {
+		const { host_index, registry } = this.program;
+		const hosts = new Map<string, Set<string>>();
+		for (const [host, entry] of host_index) {
+			const ids = new Set<string>();
+			for (const vpath of entry.vpaths) {
+				ids.add(vpath);
+				const component = registry.get(vpath)?.componentPath;
+				if (component) ids.add(strip_id(component));
+			}
+			if (ids.size > 0) hosts.set(host, ids);
+		}
+		return hosts;
+	}
+
+	/**
 	 * Run the module-macro passes (`wire`/`$`/`source`/`store`/auto-brand, then the plugins' macros)
 	 * over one module — the leg that must land before the island transform / svelte compile /
 	 * ts-region minting sees it. `source` is the CURRENT text (a plugin's pre-transform may already have

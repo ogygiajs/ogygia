@@ -17,6 +17,7 @@ import * as content from '@ogygia/content/internal/messages';
 import * as devtools from '@ogygia/devtools/internal/messages';
 import * as federation from '@ogygia/federation/internal/messages';
 import * as flags from '@ogygia/flags/internal/messages';
+import * as jumpstart from '@ogygia/jumpstart/internal/messages';
 import * as machine from '@ogygia/machine';
 import * as postrender from '@ogygia/postrender/internal/messages';
 import * as rewrite from '@ogygia/rewrite/internal/messages';
@@ -54,6 +55,8 @@ const TABLES: Array<[Kind, Table]> = [
 	['warning', flags.FLAGS_WARNINGS],
 	['error', flags.FLAGS_BUILD_ERRORS],
 	['warning', flags.FLAGS_BUILD_WARNINGS],
+	['error', jumpstart.JUMPSTART_ERRORS],
+	['warning', jumpstart.JUMPSTART_WARNINGS],
 	['error', machine.MACHINE_ERRORS],
 	['warning', machine.MACHINE_WARNINGS],
 	['error', postrender.POSTRENDER_ERRORS],

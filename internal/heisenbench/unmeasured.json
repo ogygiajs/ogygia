@@ -6107,6 +6107,142 @@
 		{
 			"id": "packages/core/src/runtime/reload-needed.ts > file_without_retry_mark",
 			"reason": "one URL parse per region on the page, browser only, once per page at most; test/browser/reload-needed-hook.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > region_hosts",
+			"reason": "reads the live region registry off the compiler instance (not cloneable), once per build when a plugin asks, linear in the regions; packages/compiler/test/driver.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > hosts",
+			"reason": "the regions seam hands a plugin the compiler's region_hosts(), constant work of its own"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > hosts",
+			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
+		},
+		{
+			"id": "packages/jumpstart/src/dependencies.ts > Dependencies > #walk",
+			"reason": "reads each linked package's package.json from disk (not replayable), once per build, linear in the app's linked packages; packages/jumpstart/test/dependencies.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/dependencies.ts > Dependencies > constructor",
+			"reason": "realpaths the app root and starts the package walk, once per build; packages/jumpstart/test/dependencies.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/dependencies.ts > Dependencies > get linked",
+			"reason": "a getter that returns a field, constant work"
+		},
+		{
+			"id": "packages/jumpstart/src/dependencies.ts > Dependencies > static #installed",
+			"reason": "realpaths node_modules/<name> up the directory tree (the file system, not replayable), once per dependency per build; packages/jumpstart/test/dependencies.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/dependencies.ts > Dependencies > static #manifest",
+			"reason": "reads and parses one package.json from disk (not replayable), once per package per build; packages/jumpstart/test/dependencies.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/externals.ts > Externals > get found",
+			"reason": "a getter that returns a field, constant work"
+		},
+		{
+			"id": "packages/jumpstart/src/index.ts > jumpstart",
+			"reason": "the plugin factory: builds the options and two plugin objects (functions, not cloneable), once per config load; packages/jumpstart/test/options.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/index.ts > jumpstart > definePlugin:0~dd04c0 > build",
+			"reason": "hands ogygia's region seam to the chunk plan, once per build, constant work; packages/jumpstart/e2e/jumpstart.spec.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/messages.ts > JUMPSTART_ERRORS > jumpstart_external_invalid > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/jumpstart/src/messages.ts > JUMPSTART_ERRORS > jumpstart_option_unknown > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/jumpstart/src/messages.ts > JUMPSTART_WARNINGS > jumpstart_external > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/jumpstart/src/messages.ts > JUMPSTART_WARNINGS > jumpstart_external_none > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/jumpstart/src/regions.ts > RegionGroups > constructor",
+			"reason": "stores the region seam, constant work"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > NO_REGIONS > hosts",
+			"reason": "the empty region table before ogygia hands its own: answers nothing, constant work"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > attach",
+			"reason": "stores a new RegionGroups over ogygia's seam (functions, not cloneable), once per build, constant work"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > constructor",
+			"reason": "stores the options, constant work"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > environment",
+			"reason": "builds the SSR environment's options (functions, not cloneable), once per build, constant work; packages/jumpstart/test/server-chunks.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin",
+			"reason": "builds the Vite plugin object (functions, not cloneable), once per config load, constant work; packages/jumpstart/test/server-chunks.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > buildEnd",
+			"reason": "a Vite hook: runs once per build in Rolldown's plugin context (`this.environment`, `getModuleInfo`), which a recorded input cannot replay; packages/jumpstart/e2e/jumpstart.spec.ts runs it on Kit 2 and Kit 3"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > buildEnd > graph:1~f65bc9",
+			"reason": "the module-info lookup Rolldown's context answers during buildEnd, one call per module; packages/jumpstart/e2e/jumpstart.spec.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > buildStart",
+			"reason": "a Vite hook: runs once per build in Rolldown's plugin context (`this.environment`, `getModuleInfo`), which a recorded input cannot replay; packages/jumpstart/e2e/jumpstart.spec.ts runs it on Kit 2 and Kit 3"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > configEnvironment",
+			"reason": "the Vite hook: one comparison, then environment(), once per environment per build; packages/jumpstart/test/server-chunks.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > configResolved",
+			"reason": "a Vite hook: runs once per build in Rolldown's plugin context (`this.environment`, `getModuleInfo`), which a recorded input cannot replay; packages/jumpstart/e2e/jumpstart.spec.ts runs it on Kit 2 and Kit 3"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > configResolved > resolved:1~f83163",
+			"reason": "the logger callback Vite's resolved config hands, one call per build; packages/jumpstart/e2e/jumpstart.spec.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > environment",
+			"reason": "picks the server environment of a build, constant work; packages/jumpstart/test/server-chunks.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > generateBundle",
+			"reason": "a Vite hook: runs once per build in Rolldown's plugin context (`this.environment`, `getModuleInfo`), which a recorded input cannot replay; packages/jumpstart/e2e/jumpstart.spec.ts runs it on Kit 2 and Kit 3"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > graph",
+			"reason": "forwards the built graph to graph(), which packages/jumpstart/bench/server-chunks.bench.ts counts; once per build"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > report",
+			"reason": "forwards the bundle to externals() and logs one line, which packages/jumpstart/bench/server-chunks.bench.ts counts; once per build"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > reset",
+			"reason": "clears two caches, constant work, once per build"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > resolved",
+			"reason": "stores the root and the logger, then reads the app's dependencies (Dependencies, exempt), once per build"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > root",
+			"reason": "reads the app's linked dependencies from disk (Dependencies, not replayable), once per build; packages/jumpstart/test/server-chunks.test.ts runs it"
 		}
 	]
 }

@@ -194,6 +194,29 @@ import { bake } from '@ogygia/bake';
 export default defineConfig({ plugins: [ogygia(), bake(), sveltekit()] });
 ```
 
+### `jumpstart()`
+
+A server build in a few files is a plugin, `jumpstart()` from `@ogygia/jumpstart`, listed beside `ogygia()`. An app adds it on purpose. It shapes the server build only, for a fast cold start on a slow serverless box.
+
+```ts
+import { jumpstart } from '@ogygia/jumpstart';
+export default defineConfig({ plugins: [ogygia(), jumpstart({ external: ['sharp'] }), sveltekit()] });
+```
+
+A SvelteKit server build puts nearly every module in its own small file and leaves dependencies in `node_modules`, where Node loads them one file at a time. On a 0.7 CPU box with slow reads, that per-file cost is most of a cold start. With `jumpstart()` listed:
+
+- **Dependencies are bundled in** (Vite's `noExternal`), except the packages in `external`.
+- **The framework and every dependency go in one chunk**, `server`.
+- **Each region registry gets a chunk of its own**, `regions-<name>`. A registry is a `.ts` or `.js` module that marks region imports (a block registry). Its chunk holds the registry and the blocks it renders, and only a page that imports the registry loads it, so a page with no blocks starts as it did before.
+- **App code a registry shares with the rest of the app** goes in `shared`, so a page outside the registry never loads the registry. A component that a Svelte module also marks stays where the bundler puts it.
+- **The client build and dev are not touched**, and every page is served byte for byte as without it.
+
+At the end of each build one line names each package that stayed outside the server bundle and why: listed in `external`, external in the Vite config, or kept out by Vite or another plugin (`jumpstart_external`; `jumpstart_external_none` when there is none).
+
+`external` takes package names, as Vite's `resolve.external` does. List a package that cannot be bundled: one with a native addon, one that reads files next to its own module (`new URL('./data.wasm', import.meta.url)`, `__dirname`), or one that must be a single instance across the process. The deploy needs each listed package installed. An unknown option fails the build (`jumpstart_option_unknown`).
+
+`adapter-node` and `adapter-vercel` keep the chunks as built. An adapter that bundles the server again with its own tool may merge them.
+
 ### `presets`
 
 Presets are named bundles of strategy and options that an import references with `preset: 'name'`. A preset uses the same grammar as an inline import, namely `render` (the mode), `wake` (an island's schedule) or `fetch` (a hole's schedule), plus the tuning options that are not allowed inline (`margin`, `maxAge`, …):

@@ -39,6 +39,7 @@ const DOCUMENTED_PACKAGES = [
 	'@ogygia/rewrite',
 	'@ogygia/devtools',
 	'@ogygia/insights',
+	'@ogygia/jumpstart',
 	'@ogygia/testing',
 	'@ogygia/tsdown-plugin-svelte'
 ];
