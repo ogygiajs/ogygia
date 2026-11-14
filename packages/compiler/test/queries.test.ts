@@ -6,7 +6,7 @@
 import { describe, expect, test } from 'vitest';
 import fc from 'fast-check';
 import { dedent } from '@ogygia/core/contract';
-import { derived, input, queries, same } from '../src/queries.ts';
+import { derived, input, Queries, same } from '../src/queries.ts';
 import { memory_fs, type MemoryFs } from '../src/fs.ts';
 import {
 	clientBuildWillSkip,
@@ -54,7 +54,7 @@ function world() {
 describe('queries', () => {
 	test('an answer is computed once, and again only after what it read changed', () => {
 		const w = world();
-		const db = queries('test');
+		const db = new Queries('test');
 		expect(db.get(w.label, 'a')).toBe('even');
 		expect(db.get(w.label, 'a')).toBe('even');
 		expect(w.runs.get('label a')).toBe(1);
@@ -68,7 +68,7 @@ describe('queries', () => {
 
 	test('an answer that comes out the same stops there: its readers keep theirs', () => {
 		const w = world();
-		const db = queries('test');
+		const db = new Queries('test');
 		db.set(w.cell, 'a', 1);
 		expect(db.get(w.label, 'a')).toBe('odd');
 		db.set(w.cell, 'a', 5); // parity still 1
@@ -79,7 +79,7 @@ describe('queries', () => {
 
 	test('an answer, not an input, cannot be set', () => {
 		const w = world();
-		const db = queries('test');
+		const db = new Queries('test');
 		expect(() => db.set(w.parity as never, 'a', 1)).toThrow(/query parity is not an input/);
 	});
 
@@ -99,7 +99,7 @@ describe('queries', () => {
 				return v;
 			}
 		);
-		const db = queries('test');
+		const db = new Queries('test');
 		const { reads } = db.watch((cx) => cx.get(strict, 'a'));
 		const since = db.revision;
 		db.set(cell, 'a', -1);
@@ -109,7 +109,7 @@ describe('queries', () => {
 
 	test('setting an input to the value it has is no new revision', () => {
 		const w = world();
-		const db = queries('test');
+		const db = new Queries('test');
 		expect(db.set(w.cell, 'a', 2)).toBe(true);
 		const rev = db.revision;
 		expect(db.set(w.cell, 'a', 2)).toBe(false);
@@ -118,7 +118,7 @@ describe('queries', () => {
 
 	test('refresh reads an input again only when something read it', () => {
 		const w = world();
-		const db = queries('test');
+		const db = new Queries('test');
 		w.cells.set('a', 1);
 		expect(db.refresh(w.cell, 'a')).toBe(false); // nobody read it: nothing to tell
 		expect(db.get(w.label, 'a')).toBe('odd');
@@ -129,7 +129,7 @@ describe('queries', () => {
 
 	test('reread reads every input again; answers_changed_since tells whether an answer moved', () => {
 		const w = world();
-		const db = queries('test');
+		const db = new Queries('test');
 		db.get(w.label, 'a');
 		const rev = db.revision;
 		w.cells.set('a', 2); // same parity
@@ -142,7 +142,7 @@ describe('queries', () => {
 	});
 
 	test('a query that reads itself throws, and the database still answers after', () => {
-		const db = queries('test');
+		const db = new Queries('test');
 		const loop: ReturnType<typeof derived<string, number>> = derived(
 			'loop',
 			(k: string) => k,
@@ -155,7 +155,7 @@ describe('queries', () => {
 
 	test('answers let go past the bound are computed again, right', () => {
 		const w = world();
-		const db = queries('test', 3);
+		const db = new Queries('test', 3);
 		for (const k of ['a', 'b', 'c', 'd']) db.get(w.label, k);
 		w.cells.set('a', 1);
 		db.refresh(w.cell, 'a');
@@ -166,7 +166,7 @@ describe('queries', () => {
 
 	test('the bound never lets an input go while an answer read it: reread sees the change (#1545)', () => {
 		const w = world();
-		const db = queries('test', 2);
+		const db = new Queries('test', 2);
 		db.get(w.parity, 'a');
 		db.get(w.cell, 'z');
 		db.get(w.cell, 'y');
@@ -177,7 +177,7 @@ describe('queries', () => {
 
 	test('the bound never lets an input go while an answer read it: refresh says it changed (#1545)', () => {
 		const w = world();
-		const db = queries('test', 2);
+		const db = new Queries('test', 2);
 		db.get(w.parity, 'a');
 		db.get(w.cell, 'z');
 		db.get(w.cell, 'y');
@@ -187,7 +187,7 @@ describe('queries', () => {
 	});
 
 	test('an input given its value only by set keeps it past the bound (#1545)', () => {
-		const db = queries('test', 2);
+		const db = new Queries('test', 2);
 		const facts = input(
 			'facts',
 			(k: string) => k,
@@ -205,7 +205,7 @@ describe('queries', () => {
 
 	test('a chain of answers a hundred thousand deep is checked after an edit without a stack overflow', () => {
 		const depth = 100_000;
-		const db = queries('test', 2 * depth);
+		const db = new Queries('test', 2 * depth);
 		const cell = input(
 			'cell',
 			(k: string) => k,
@@ -224,7 +224,7 @@ describe('queries', () => {
 	});
 
 	test('a recompute that reads fewer answers than before forgets the rest', () => {
-		const db = queries('test');
+		const db = new Queries('test');
 		const cell = input(
 			'cell',
 			(k: string) => k,
@@ -248,7 +248,7 @@ describe('queries', () => {
 	});
 
 	test('an answer whose run threw runs again when next read, even if nothing it read moved', () => {
-		const db = queries('test');
+		const db = new Queries('test');
 		const cell = input(
 			'cell',
 			(k: string) => k,
@@ -275,7 +275,7 @@ describe('queries', () => {
 	});
 
 	test('an answer whose first run threw is not held', () => {
-		const db = queries('test');
+		const db = new Queries('test');
 		const boom = derived(
 			'boom',
 			(k: string) => k,
@@ -290,7 +290,7 @@ describe('queries', () => {
 
 	test('past the bound, the answer used longest ago goes first: a read in a later revision is a use; inputs stay', () => {
 		const w = world();
-		const db = queries('test', 3);
+		const db = new Queries('test', 3);
 		for (const k of ['a', 'b', 'c']) db.get(w.parity, k);
 		db.set(w.cell, 'z', 1);
 		db.get(w.parity, 'a');
@@ -308,7 +308,7 @@ describe('queries', () => {
 	});
 
 	test('a query that reads itself throws as a cycle even when the bound lets it go while it runs', () => {
-		const db = queries('test', 1);
+		const db = new Queries('test', 1);
 		const a: ReturnType<typeof derived<string, number>> = derived(
 			'a',
 			(k: string) => k,
@@ -334,7 +334,7 @@ describe('queries', () => {
 			(n: number) => String(n),
 			(cx, n: number) => (n === 0 ? cx.get(cell, 'a') : cx.get(chain, n - 1) + 1)
 		);
-		const db = queries('test', 2);
+		const db = new Queries('test', 2);
 		expect(db.get(chain, 5)).toBe(5);
 		cells.set('a', 20);
 		db.set(cell, 'a', 20);
@@ -343,7 +343,7 @@ describe('queries', () => {
 
 	test('a reader of an answer the bound let go runs again, and answers right', () => {
 		const w = world();
-		const db = queries('test', 3);
+		const db = new Queries('test', 3);
 		db.get(w.parity, 'a');
 		expect(db.get(w.label, 'a')).toBe('even');
 		db.get(w.parity, 'x');

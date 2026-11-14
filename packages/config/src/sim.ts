@@ -80,12 +80,6 @@ export interface Sim {
 	fetch(answer: (request: Request, n: number) => Response | PromiseLike<Response>): void;
 	/** The requests `fetch` was asked for so far. */
 	readonly fetches: readonly Request[];
-	/** A stream of `chunks`, each one read when the scheduler picks it. `cancelled()`: its reader
-	 *  let go of it before its end. */
-	stream(
-		label: string,
-		chunks: readonly string[]
-	): { body: ReadableStream<Uint8Array>; cancelled: () => boolean };
 	/** A rule checked after each step and at the end. */
 	always(name: string, check: SimRule): void;
 	/** A rule checked at the end, once nothing is left to run. */
@@ -99,6 +93,35 @@ export interface Sim {
 	play(steps: readonly SimStep[]): Promise<void>;
 	/** Runs everything left (answers, timers up to the horizon) to the end. */
 	settle(): Promise<void>;
+}
+
+/** A stream of `chunks` in a run, each one read when the run's scheduler picks it. */
+export class SimStream {
+	readonly body: ReadableStream<Uint8Array>;
+	#at = 0;
+	#cancelled = false;
+
+	constructor(sim: Sim, label: string, chunks: readonly string[]) {
+		this.body = new ReadableStream<Uint8Array>(
+			{
+				pull: (controller) =>
+					sim.later(`${label}: chunk ${this.#at + 1} of ${chunks.length}`, () => {
+						if (this.#cancelled) return;
+						if (this.#at < chunks.length) controller.enqueue(encoder.encode(chunks[this.#at++]));
+						if (this.#at >= chunks.length) controller.close();
+					}),
+				cancel: () => {
+					this.#cancelled = this.#at < chunks.length;
+				}
+			},
+			{ highWaterMark: 0 }
+		);
+	}
+
+	/** Whether its reader let go of it before its end. */
+	cancelled(): boolean {
+		return this.#cancelled;
+	}
 }
 
 type Timer = { id: number; due: number; seq: number; fn: () => void; every: number };
@@ -240,29 +263,6 @@ class Run implements Sim {
 		const was = host.fetch;
 		host.fetch = fetch_stub as typeof fetch;
 		this._restore.push(() => (host.fetch = was));
-	}
-
-	stream(
-		label: string,
-		chunks: readonly string[]
-	): { body: ReadableStream<Uint8Array>; cancelled: () => boolean } {
-		let at = 0;
-		let cancelled = false;
-		const body = new ReadableStream<Uint8Array>(
-			{
-				pull: (controller) =>
-					this.later(`${label}: chunk ${at + 1} of ${chunks.length}`, () => {
-						if (cancelled) return;
-						if (at < chunks.length) controller.enqueue(encoder.encode(chunks[at++]));
-						if (at >= chunks.length) controller.close();
-					}),
-				cancel: () => {
-					cancelled = at < chunks.length;
-				}
-			},
-			{ highWaterMark: 0 }
-		);
-		return { body, cancelled: () => cancelled };
 	}
 
 	always(name: string, check: SimRule): void {

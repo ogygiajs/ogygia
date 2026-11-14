@@ -114,13 +114,13 @@ class Collected {
 	readonly failed_fps = new Map<string, string>();
 	readonly failed_spans = new Map<string, [number, number]>();
 	readonly failed_turns = new Map<string, number>();
+	snapshot_firsts = 0;
+	navs_seen = false;
+	readonly holes_answered_els = new WeakSet<Element>();
+	critical_held: { outcome: CriticalOutcome; resources: number; waited_ms: number } | null = null;
+	island_boxes: WeakMap<Element, { top: number; height: number }> | null = null;
 }
 let C = new Collected();
-let snapshot_firsts = 0;
-let navs_seen = false;
-let holes_answered_els = new WeakSet<Element>();
-let critical_held: { outcome: CriticalOutcome; resources: number; waited_ms: number } | null = null;
-let island_boxes: WeakMap<Element, { top: number; height: number }> | null = null;
 
 type NavOut = Omit<NavigatedEvent, 'href' | 'reconciled'> & {
 	server?: number;
@@ -247,7 +247,7 @@ export function hole_request_times(
 export function beacon_critical(e: CriticalSettledEvent): void {
 	const o = owner();
 	if (o) return o.beacon_critical(e);
-	critical_held = { outcome: e.outcome, resources: e.resources, waited_ms: e.waitedMs };
+	C.critical_held = { outcome: e.outcome, resources: e.resources, waited_ms: e.waitedMs };
 }
 
 export function beacon_entry_fallback(f: EntryFallbackEvent): void {
@@ -284,8 +284,8 @@ export function beacon_hole_answered(
 	} catch {
 		id = ''; // ok: not a URL: a hole with no id is skipped below
 	}
-	if (!id || holes_answered_els.has(el)) return;
-	holes_answered_els.add(el);
+	if (!id || C.holes_answered_els.has(el)) return;
+	C.holes_answered_els.add(el);
 	const rect = el.getBoundingClientRect();
 	const times = batch
 		? {
@@ -339,9 +339,9 @@ export function beacon_nav(n: NavigatedEvent): void {
 	} catch {
 		split = {}; // ok: no resource timing in this browser: the navigation is kept without its split
 	}
-	if (!navs_seen) {
-		navs_seen = true;
-		snapshot_firsts = C.snapshots.length;
+	if (!C.navs_seen) {
+		C.navs_seen = true;
+		C.snapshot_firsts = C.snapshots.length;
 		p.nav_at(n.t);
 	}
 	C.visit_navs.push({
@@ -388,18 +388,18 @@ function box_of(el: Element): { top: number; bottom: number; left: number; width
 }
 
 function note_island_boxes(): void {
-	if (island_boxes || typeof innerHeight === 'undefined') return;
-	island_boxes = new WeakMap();
+	if (C.island_boxes || typeof innerHeight === 'undefined') return;
+	const boxes = (C.island_boxes = new WeakMap());
 	for (const el of document.querySelectorAll(`ogygia-region[${OG_FP}]:not([data-hydrated])`)) {
 		const b = box_of(el);
-		if (b) island_boxes.set(el, { top: b.top + scrollY, height: b.bottom - b.top });
+		if (b) boxes.set(el, { top: b.top + scrollY, height: b.bottom - b.top });
 	}
 }
 
 function estimate_wake_shift(p: PageBeacon, el: Element, fp: string, t: number): void {
-	const before = island_boxes?.get(el);
+	const before = C.island_boxes?.get(el);
 	if (!before) return;
-	island_boxes!.delete(el);
+	C.island_boxes!.delete(el);
 	let last = before;
 	const look = (at: number) => {
 		const moved = box_shift(p, el, fp, last, at);
@@ -522,7 +522,7 @@ const part: RegionPart = {
 	visit() {
 		return {
 			...(C.visit_navs.length ? { navs: C.visit_navs.slice() } : {}),
-			...(island_boxes ? { shifts_from: 'boxes' } : {}),
+			...(C.island_boxes ? { shifts_from: 'boxes' } : {}),
 			islands: C.visit_islands.slice(),
 			regions: visit_regions(),
 			...(C.visit_warnings.length ? { warnings: C.visit_warnings.slice() } : {}),
@@ -533,7 +533,7 @@ const part: RegionPart = {
 			...(C.visit_entry_fallbacks.length
 				? { entry_fallbacks: C.visit_entry_fallbacks.slice() }
 				: {}),
-			...(critical_held ? { held: critical_held } : {})
+			...(C.critical_held ? { held: C.critical_held } : {})
 		};
 	},
 	snapshots(final) {
@@ -583,8 +583,8 @@ function snapshot_of(fp: string, ssr: string, now: string, a: string, b: string)
 
 function snapshot_room(): boolean {
 	if (C.snapshots.length < MAX_SNAPSHOTS) return true;
-	if (!navs_seen || C.snapshots.length <= snapshot_firsts) return false;
-	C.snapshots.splice(snapshot_firsts, 1);
+	if (!C.navs_seen || C.snapshots.length <= C.snapshot_firsts) return false;
+	C.snapshots.splice(C.snapshot_firsts, 1);
 	return true;
 }
 
@@ -647,7 +647,7 @@ function island_record(
 		} else changed = false;
 	}
 	const input = p.input_on(el, t0, t_done);
-	if (island_boxes) estimate_wake_shift(p, el, fp, t_done);
+	if (C.island_boxes) estimate_wake_shift(p, el, fp, t_done);
 	let markers: [number, number] | undefined;
 	if (recovered && typeof ssr_html === 'string') {
 		const open = count_of(ssr_html, '<!--[');
@@ -713,7 +713,7 @@ export function beacon_page(): BeaconPage | null {
 	return {
 		...p.page(),
 		islands: C.visit_islands.slice(),
-		...(island_boxes ? { shifts_from: 'boxes' as const } : {}),
+		...(C.island_boxes ? { shifts_from: 'boxes' as const } : {}),
 		snapshots: C.snapshots.slice()
 	};
 }
@@ -744,11 +744,6 @@ export function _reset_beacon(): void {
 	const g = globalThis as PageGlobals;
 	if (!self_api || g[REGIONS_KEY] === self_api) delete g[REGIONS_KEY];
 	C = new Collected();
-	snapshot_firsts = 0;
-	navs_seen = false;
-	holes_answered_els = new WeakSet();
-	critical_held = null;
-	island_boxes = null;
 }
 
 /** @internal tests */

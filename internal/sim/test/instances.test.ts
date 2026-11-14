@@ -24,7 +24,7 @@ describe.skipIf(!built)('server instances', () => {
 			const seen = new Set<string>();
 			for (let i = 0; i < 6; i++) {
 				const tab = world.tab(world.visitor(`v${i}`));
-				await world.go(tab, 'goto', '/context');
+				await world.go(tab, 'goto', '/nested-hole');
 				const doc = tab.page.mainFrame.document as unknown as Document;
 				for (const el of doc.querySelectorAll('ogygia-region[endpoint]'))
 					seen.add(el.getAttribute('endpoint')!.replace(/&(exp|sig)=[^&]*/g, ''));

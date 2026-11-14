@@ -23,8 +23,9 @@ export const EPOCH = Date.UTC(2026, 0, 1);
 
 const FRAME_MS = 16;
 
-/** The host's own `WeakRef`, before any realm's platform replaces it. */
+/** The host's own `WeakRef` and `FinalizationRegistry`, before any realm's platform replaces them. */
 const HOST_WEAK_REF = globalThis.WeakRef;
+const HOST_FINALIZATION_REGISTRY = globalThis.FinalizationRegistry;
 
 /** `SIM_SITES=1`: each timer's trace line names the code that set it (to find a replay leak). */
 export const SITES = process.env.SIM_SITES === '1';
@@ -342,20 +343,32 @@ export function message_channel(loop: Loop, realm: string): typeof MessageChanne
  * holds its whole world (test/weak-refs.test.ts).
  */
 class StrongRef<T extends object> {
-	static readonly #held = new Set<object>();
+	static readonly #made = new Set<WeakRef<StrongRef<object>>>();
+	static readonly #gone = new HOST_FINALIZATION_REGISTRY<WeakRef<StrongRef<object>>>((ref) =>
+		StrongRef.#made.delete(ref)
+	);
 
-	/** The run is over: every target a run's reference held may be collected. */
+	/** The run is over: every reference made in it lets go of its target. */
 	static release(): void {
-		StrongRef.#held.clear();
+		for (const ref of StrongRef.#made) {
+			const made = ref.deref();
+			if (made !== undefined) made.#let_go();
+		}
+		StrongRef.#made.clear();
 	}
 
-	readonly #ref: WeakRef<T>;
+	#target: T | undefined;
 	constructor(target: T) {
-		StrongRef.#held.add(target);
-		this.#ref = new HOST_WEAK_REF(target);
+		this.#target = target;
+		const me = new HOST_WEAK_REF<StrongRef<object>>(this);
+		StrongRef.#made.add(me);
+		StrongRef.#gone.register(this, me);
+	}
+	#let_go(): void {
+		this.#target = undefined;
 	}
 	deref(): T | undefined {
-		return this.#ref.deref();
+		return this.#target;
 	}
 	get [Symbol.toStringTag](): string {
 		return 'WeakRef';
