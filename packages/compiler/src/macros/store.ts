@@ -66,11 +66,9 @@ function first_non_store_return(fn: Node): number | undefined {
 			if (found !== undefined) return;
 			if (key === 'type' || key === 'start' || key === 'end') continue;
 			const child = n[key];
-			const kids = Array.isArray(child)
-				? child
-				: child && typeof child === 'object' && typeof child.type === 'string'
-					? [child]
-					: [];
+			let kids = child;
+			if (!Array.isArray(child))
+				kids = child && typeof child === 'object' && typeof child.type === 'string' ? [child] : [];
 			for (const c of kids as Node[]) {
 				if (
 					c.type === 'ArrowFunctionExpression' ||
@@ -259,11 +257,10 @@ export function auto_brand_edits(
 				for (const key in n) {
 					if (key === 'type' || key === 'start' || key === 'end') continue;
 					const child = n[key];
-					const kids = Array.isArray(child)
-						? child
-						: child && typeof child === 'object' && typeof child.type === 'string'
-							? [child]
-							: [];
+					let kids = child;
+					if (!Array.isArray(child))
+						kids =
+							child && typeof child === 'object' && typeof child.type === 'string' ? [child] : [];
 					for (const c of kids as Node[]) {
 						if (
 							c.type === 'ArrowFunctionExpression' ||

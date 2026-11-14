@@ -39,16 +39,17 @@ async function load_ts_transform(): Promise<Transform | null> {
 	const esbuild = vite.transformWithEsbuild as
 		| ((code: string, id: string, o?: unknown) => Promise<{ code: string }>)
 		| undefined;
-	transform = oxc
-		? (code, id) => oxc(code, id, { lang: 'ts', typescript: { onlyRemoveTypeImports: true } })
-		: esbuild
-			? (code, id) =>
-					esbuild(code, id, {
-						loader: 'ts',
-						target: 'esnext',
-						tsconfigRaw: { compilerOptions: { verbatimModuleSyntax: true } }
-					})
-			: null;
+	if (oxc)
+		transform = (code, id) =>
+			oxc(code, id, { lang: 'ts', typescript: { onlyRemoveTypeImports: true } });
+	else if (esbuild)
+		transform = (code, id) =>
+			esbuild(code, id, {
+				loader: 'ts',
+				target: 'esnext',
+				tsconfigRaw: { compilerOptions: { verbatimModuleSyntax: true } }
+			});
+	else transform = null;
 	return transform;
 }
 

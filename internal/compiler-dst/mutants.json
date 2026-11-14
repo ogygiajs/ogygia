@@ -30,9 +30,9 @@
 		"id": "compiler-server-island-css-unsorted",
 		"file": "packages/compiler/src/driver.ts",
 		"in": "Compiler > server_island_css_roots",
-		"code": "return out.sort((a, b) => (a.iid < b.iid ? -1 : a.iid > b.iid ? 1 : 0));",
+		"code": "return out.sort((a, b) => by_code_unit(a.iid, b.iid));",
 		"operator": "statement",
-		"from": "out.sort((a, b) => (a.iid < b.iid ? -1 : a.iid > b.iid ? 1 : 0))",
+		"from": "out.sort((a, b) => by_code_unit(a.iid, b.iid))",
 		"to": "out"
 	},
 	{

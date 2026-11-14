@@ -252,15 +252,13 @@ export async function collectFoucCssReachable(
 			abs
 		);
 		await follow(
-			shape.exports.flatMap((e) =>
-				e.kind === 'reexport' && !e.type_only
-					? [{ source: e.source, names: new Set([e.imported]) }]
-					: e.kind === 'star' && !e.type_only
-						? [{ source: e.source, names: new Set([ALL]) }]
-						: e.kind === 'star_ns'
-							? [{ source: e.source, names: new Set([ALL]) }]
-							: []
-			),
+			shape.exports.flatMap((e) => {
+				if (e.kind === 'reexport' && !e.type_only)
+					return [{ source: e.source, names: new Set([e.imported]) }];
+				if ((e.kind === 'star' && !e.type_only) || e.kind === 'star_ns')
+					return [{ source: e.source, names: new Set([ALL]) }];
+				return [];
+			}),
 			abs
 		);
 	};

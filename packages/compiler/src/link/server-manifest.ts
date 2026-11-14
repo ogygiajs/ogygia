@@ -1,5 +1,6 @@
 import type { Program, RegistryEntry } from '../program.ts';
 import { V_SERVER_REGIONS } from '../ids.ts';
+import { by_code_unit } from './location-map.ts';
 import { dedent } from '@ogygia/core/contract';
 
 /** The SERVER regions (deferred / server-picked), sorted by id: what the server leg writes is a
@@ -10,7 +11,7 @@ export function server_regions(program: Program): Array<[string, string, Registr
 		const reg = program.registry.get(virtualPath);
 		if (reg?.server) out.push([iid, virtualPath, reg]);
 	}
-	return out.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+	return out.sort(([a], [b]) => by_code_unit(a, b));
 }
 
 /** The SERVER-island ids the manifest carries right now (deferred / server-picked regions). */
