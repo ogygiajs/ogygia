@@ -269,6 +269,33 @@ test('a baked live value that turns into a plain held value hands its element no
 	expect(lived.map((v) => (v as { html: string }).html)).toEqual(['<b>baked</b>']);
 });
 
+for (const [where, place] of [
+	['in a live snippet', { nested: true, live_snippet: true }],
+	['on a csr=true page', { csr: true }]
+] as const)
+	test(`a hole created fresh ${where} tears its fallback down when it goes`, async () => {
+		let up = 0;
+		let down = 0;
+		const fallback = createRawSnippet(() => ({
+			render: () => '<p>wait</p>',
+			setup: () => {
+				up++;
+				return () => down++;
+			}
+		}));
+		const target = document.body.appendChild(document.createElement('div'));
+		const app = mount(RegionUnder as unknown as Component<Props>, {
+			target,
+			props: { setup: setup(place), regions: [{ ...HOLE, ogygiaFallback: fallback }] }
+		});
+		flushSync();
+		expect(target.querySelector('ogygia-region p')?.textContent).toBe('wait');
+		expect([up, down]).toEqual([1, 0]);
+		await unmount(app);
+		flushSync();
+		expect([up, down]).toEqual([1, 1]);
+	});
+
 test('a lake with no entry, created empty on a csr=true page, warns with no entry named', async () => {
 	const text = JSON.parse(await out([{ ...LAKE, __entry: '' }], { csr: true })) as {
 		console: string[];
