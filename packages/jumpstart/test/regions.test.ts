@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { RegionGroups, clean_id } from '../src/regions.ts';
+import fc from 'fast-check';
+import { REGISTRY_CHUNK_RE, RegionGroups, SHARED_CHUNK, clean_id } from '../src/regions.ts';
+import { RESERVED_CHUNKS, SERVER_CHUNK } from '../src/server-chunks.ts';
 
 const seam = (hosts: Record<string, string[]>) => ({
 	hosts: () => new Map(Object.entries(hosts).map(([h, ids]) => [h, new Set(ids)]))
@@ -63,6 +65,41 @@ describe('region groups', () => {
 		expect(groups.group('/app/src/A.svelte')).toBe('regions-blocks');
 		expect(groups.group('/app/src/B.svelte')).toBe('regions-blocks-2');
 		expect(groups.group('/app/src/C.svelte')).toBe('regions-my-blocks');
+	});
+
+	it('a registry named like a reserved chunk (shared.ts, server.ts) never shares its name, so light pages never load it', () => {
+		const groups = new RegionGroups(
+			seam({
+				'/app/src/lib/shared.ts': ['/app/src/lib/Hero.svelte'],
+				'/app/src/lib/server.ts': ['/app/src/lib/Footer.svelte']
+			})
+		);
+		for (const id of [
+			'/app/src/lib/shared.ts',
+			'/app/src/lib/server.ts',
+			'/app/src/lib/Hero.svelte'
+		])
+			expect([SHARED_CHUNK, SERVER_CHUNK]).not.toContain(groups.group(id));
+	});
+
+	it('no registry file name can produce a reserved chunk name', () => {
+		fc.assert(
+			fc.property(
+				fc.array(fc.string({ minLength: 1, maxLength: 12 }), { minLength: 1, maxLength: 6 }),
+				(bases) => {
+					const hosts = Object.fromEntries(
+						bases.map((b, i) => [`/app/src/${i}/${b}.ts`, [`/app/src/${i}/X.svelte`]])
+					);
+					const groups = new RegionGroups(seam(hosts));
+					for (const host of Object.keys(hosts)) {
+						const name = groups.group(host);
+						expect(name).toMatch(REGISTRY_CHUNK_RE);
+						expect(RESERVED_CHUNKS).not.toContain(name);
+					}
+				}
+			)
+		);
+		for (const reserved of RESERVED_CHUNKS) expect(reserved).not.toMatch(REGISTRY_CHUNK_RE);
 	});
 
 	it('reads the live table again after reset (a second build sees regions found later)', () => {

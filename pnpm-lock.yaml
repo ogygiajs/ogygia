@@ -1854,6 +1854,9 @@ importers:
       '@typescript/native':
         specifier: catalog:tsgo
         version: typescript@7.0.2
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.10.2
       ogygia:
         specifier: workspace:*
         version: link:../ogygia
