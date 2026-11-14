@@ -23,7 +23,6 @@ import {
 } from '../link/server-manifest.ts';
 import { registry_stub_names, registry_stub_source } from '../link/registry-stub.ts';
 import { dev_hmr_client_source } from '../dev/dev-hmr.ts';
-import { fn_manifest_registrations } from '../macros/dollar.ts';
 import { PROFILER_MAPS_PLACEHOLDER, REGION_FAMILY } from '../ids.ts';
 import type { CompileCtx } from '../ctx.ts';
 import type { ClientRealmFile, ServerRealm } from '../link/caps.ts';
@@ -72,8 +71,6 @@ import { dedent } from '@ogygia/core/contract';
 export interface CoreApp {
 	readonly ctx: CompileCtx;
 	readonly program: Program;
-	/** og.$ hoists (tag → factory source) */
-	readonly dollar_hoists: ReadonlyMap<string, string>;
 	prescan(): void;
 	runtime_chunk_url(): string;
 	region_names(): Record<string, string>;
@@ -96,7 +93,6 @@ export interface CorePlugins {
 export const CORE_PARTS: Parts<CoreApp> = {
 	ctx: 'options',
 	program: 'regions',
-	dollar_hoists: 'regions',
 	prescan: 'regions',
 	runtime_chunk_url: 'regions',
 	region_names: 'regions',
@@ -162,19 +158,6 @@ export const runtime: Family = virtual.family({
 	}
 });
 
-export const fn_manifest: Family = virtual.family({
-	realm: 'boot',
-	id: 'fn-manifest',
-	load(app: CoreApp) {
-		const bridge = `${dedent`
-			import { __register_fn } from 'ogygia/internal';
-			globalThis.__og_reg_fn = __register_fn;
-		`}\n`;
-		if (!app.ctx.is_dev) return `${bridge}/*__OGYGIA_FN_MANIFEST__*/`;
-		return `${bridge}${fn_manifest_registrations(app.dollar_hoists)}`;
-	}
-});
-
 export const runtime_entry: Family = virtual.family({
 	realm: 'boot',
 	id: 'runtime-entry',
@@ -215,12 +198,7 @@ export const hydrate_features: Family<HydrateFeaturesModule> = virtual.family({
 			return rt?.ts ? code.split('.js";').join('.ts";') : code;
 		}
 		app.prescan();
-		const marks = program.runtime_marks;
-		const fn_refs_decode = marks.wire === true || marks.context === true || program.crosses_wire;
-		return (
-			(fn_refs_decode ? `import ${JSON.stringify(specifier_of(fn_manifest))};\n` : '') +
-			generateHydrateFeaturesSource(marks, ctx.runtime_dir).code
-		);
+		return generateHydrateFeaturesSource(program.runtime_marks, ctx.runtime_dir).code;
 	}
 });
 
@@ -695,7 +673,6 @@ export const CORE_PROBE: { app: CoreApp; leg: Leg } = {
 /** Core's entries, in the table's order. */
 export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 	runtime,
-	fn_manifest,
 	runtime_entry,
 	runtime_flags,
 	devtools_meta,

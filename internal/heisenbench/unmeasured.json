@@ -5225,14 +5225,6 @@
 			"reason": "one patch's text from the chunk's file name, constant work"
 		},
 		{
-			"id": "packages/compiler/src/link/relocations.ts > FN_MANIFEST > value",
-			"reason": "once per chunk that carries the token: a closure over the build's fn hoists, constant work"
-		},
-		{
-			"id": "packages/compiler/src/link/relocations.ts > FN_MANIFEST > value > <anonymous>~787be9",
-			"reason": "the fn manifest's registrations, once per build (fn_manifest_registrations does the work)"
-		},
-		{
 			"id": "packages/compiler/src/link/relocations.ts > ISLAND_DEPS > value",
 			"reason": "once per chunk that carries the token: a closure over the chunk graph, constant work"
 		},
@@ -5723,10 +5715,6 @@
 		{
 			"id": "packages/core/src/server/props-wire.ts > lake_identity",
 			"reason": "one hole_identity fingerprint of a lake's props per lake render, measured with hole_identity's own bench; lake-identity.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/driver.ts > Compiler > relocate > relocate:3~0b2c47 > public_url",
-			"reason": "one island's public url from the context, constant work, once per island token patched"
 		},
 		{
 			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > page_reads_claimed > text",

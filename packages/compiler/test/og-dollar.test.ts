@@ -5,11 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
-import {
-	fn_manifest_entries,
-	fn_manifest_registrations,
-	rewrite_dollar
-} from '../src/macros/dollar.ts';
+import { fn_manifest_entries, rewrite_dollar } from '../src/macros/dollar.ts';
 import { __register_fn, fn_handle } from '../../core/src/fn-transport.ts';
 import { code_fn } from './_code-fn.ts';
 
@@ -398,7 +394,7 @@ describe('og.$ fn manifest', () => {
 			['src/a.ts#$0', '() => (1)']
 		]);
 		const b = new Map([...a].reverse());
-		expect(fn_manifest_registrations(a)).toBe(fn_manifest_registrations(b));
+		expect(fn_manifest_entries(a)).toEqual(fn_manifest_entries(b));
 		expect(fn_manifest_entries(a).map(([tag]) => tag)).toEqual(['src/a.ts#$0', 'src/b.ts#$0']);
 	});
 });

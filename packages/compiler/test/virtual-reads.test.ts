@@ -250,7 +250,6 @@ describe('core’s session parts', () => {
 		const keys: (keyof CoreApp)[] = [
 			'ctx',
 			'program',
-			'dollar_hoists',
 			'prescan',
 			'runtime_chunk_url',
 			'region_names',
