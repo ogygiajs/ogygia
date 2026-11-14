@@ -48,13 +48,15 @@ function event(url: string) {
 const resolve = async () => new Response('page');
 
 const hex = (n: number) =>
-	fc.string({ unit: fc.constantFrom(...'0123456789abcdef'), minLength: n, maxLength: n });
+	fc.string({ unit: fc.constantFrom(...'0123456789abcdef'.split('')), minLength: n, maxLength: n });
 const b64url = fc.string({
-	unit: fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'),
+	unit: fc.constantFrom(
+		...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'.split('')
+	),
 	maxLength: 64
 });
 const digits = (max: number) =>
-	fc.string({ unit: fc.constantFrom(...'0123456789'), minLength: 1, maxLength: max });
+	fc.string({ unit: fc.constantFrom(...'0123456789'.split('')), minLength: 1, maxLength: max });
 
 describe('the capability query', () => {
 	it('reads back as the fields it was written from', () => {

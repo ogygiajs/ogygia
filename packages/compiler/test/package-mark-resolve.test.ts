@@ -24,17 +24,20 @@ const handler = <T>(hook: Hook<T>): T =>
 function make_plugin(): Plugin {
 	const plugin = ogygia().find((p) => p.name === 'ogygia')!;
 	delete process.env.OGYGIA_SECRET; // keep region ids salt-free for the id computed below
-	handler(plugin.configResolved!).call(
-		null as never,
-		{
-			root: ROOT,
-			base: '/',
-			command: 'serve',
-			mode: 'development',
-			envDir: false,
-			build: {}
-		} as never
-	);
+	expect(
+		handler(plugin.configResolved!).call(
+			null as never,
+			{
+				root: ROOT,
+				base: '/',
+				command: 'serve',
+				mode: 'development',
+				envDir: false,
+				build: {}
+			} as never
+		),
+		'configResolved runs at once'
+	).toBeUndefined();
 	return plugin;
 }
 

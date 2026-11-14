@@ -607,6 +607,46 @@ describe('the random app', () => {
 		}
 	});
 
+	it('draws islands a third party edits inside a lake of theirs, from their own stream: one that wakes on its own, with no edit of its own', () => {
+		const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
+		const has_lake = (n: GenNode): boolean =>
+			n.children.some(
+				(c) => (c.kind === 'lake' && !c.empty) || (c.kind === 'plain' && has_lake(c))
+			);
+		const edited = seeds.flatMap((s) =>
+			all(plan(s).flatMap((p) => p.roots)).filter((n) => n.lakeEdit)
+		);
+		expect(edited.length).toBeGreaterThan(0);
+		for (const n of edited) {
+			expect(n.kind).toBe('island');
+			expect(['load', 'idle']).toContain(n.wake);
+			expect(n.thirdParty).toBeUndefined();
+			expect(has_lake(n)).toBe(true);
+		}
+		const seed = seeds.find((s) => all(plan(s).flatMap((p) => p.roots)).some((n) => n.lakeEdit))!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write(app, plan(seed), seed);
+			const pages = readdirSync(join(app, 'src', 'routes'), { recursive: true })
+				.filter((f) => String(f).endsWith('.svelte'))
+				.map((f) => readFileSync(join(app, 'src', 'routes', String(f)), 'utf8'))
+				.concat(
+					readdirSync(join(app, 'src', 'lib', 'gen'))
+						.filter((f) => f.endsWith('.svelte'))
+						.map((f) => readFileSync(join(app, 'src', 'lib', 'gen', f), 'utf8'))
+				);
+			for (const n of all(plan(seed).flatMap((p) => p.roots)).filter((n) => n.lakeEdit)) {
+				// (right after the island, a script that marks its lake and keeps the island's region)
+				const after = new RegExp(
+					`<N${n.id} [^\\n]*/>\\n\\s*\\{@html '<scr' \\+ 'ipt>[^\\n]*wake=none[^\\n]*data-gen-lake-mark[^\\n]*__sim_gen_lake_edits`
+				);
+				expect(pages.some((f) => after.test(f))).toBe(true);
+			}
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
 	// (repair mutant 388: a drift that keeps the element count and changes a tag reaches the repair's
 	// tag check, which a prepended element never does)
 	it("draws a third party that swaps an element's tag instead, from its own stream, the islands it touches unchanged", () => {
@@ -615,7 +655,11 @@ describe('the random app', () => {
 			all(plan(s).flatMap((p) => p.roots)).filter((n) => n.thirdParty)
 		);
 		const kinds = new Set(touched.map((n) => n.thirdParty));
-		expect([...kinds].sort()).toEqual(['prepend', 'retag', 'text']);
+		expect([...kinds].sort((a, b) => String(a).localeCompare(String(b)))).toEqual([
+			'prepend',
+			'retag',
+			'text'
+		]);
 		const seed = seeds.find((s) =>
 			all(plan(s).flatMap((p) => p.roots)).some((n) => n.thirdParty === 'retag')
 		)!;

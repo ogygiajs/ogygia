@@ -3,6 +3,7 @@
 // component's own nodes removed), a recovery (Svelte threw the server DOM away).
 // (devtools on for this file: the gate is read off the global when the module is first imported)
 import { afterEach, beforeAll, beforeEach, expect, inject, test, vi } from 'vitest';
+import { from_b64 } from './b64.ts';
 import type { Component } from 'svelte';
 import { claims } from './_walk.ts';
 import type { RegionMismatchedEvent } from '../../src/contract/runtime-hooks.ts';
@@ -49,7 +50,7 @@ afterEach(() => {
 });
 
 test('a healed island says why: on its attribute, a devtools event, the hook and the console', () => {
-	document.body.innerHTML = decodeURIComponent(escape(atob(inject('counter_ssr_b64'))));
+	document.body.innerHTML = from_b64(inject('counter_ssr_b64'));
 	const region = document.querySelector('ogygia-region') as HTMLElement;
 	region.setAttribute('data-og-fp', 'fp1');
 	const entry = region.getAttribute('entry')!;

@@ -56,7 +56,7 @@ export async function render_fence(
 	let claimed: ReturnType<typeof run_variants> = null;
 	if (pipeline.variants.length) {
 		// Let generators load heavy deps (e.g. the TS compiler) before they can produce their variants.
-		await Promise.all(pipeline.variants.map((g) => g.ready?.()));
+		await Promise.all(pipeline.variants.map((g) => g.ready?.() ?? Promise.resolve()));
 		claimed = run_variants(pipeline.variants, fence);
 	}
 
@@ -94,6 +94,6 @@ export async function render_fence(
 		)
 		.join('');
 	const open = html`<div class="og-code" data-pref="${pref.name}"${attr('data-file', file || null)}>`;
-	const out = `${open}<div class="og-code-controls" role="tablist">${controls}</div>${panels}</div>`;
+	const out = `${String(open)}<div class="og-code-controls" role="tablist">${controls}</div>${panels}</div>`;
 	return { html: out, count: rendered.length, source: fence.source, ...(file ? { file } : {}) };
 }

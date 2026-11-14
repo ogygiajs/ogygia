@@ -37,7 +37,7 @@ function page_store(): Store {
 }
 
 /** Read a server-printed seed: `<script type="application/json" data-og-shared="<name>">`. */
-function read_seed(name: string): unknown | undefined {
+function read_seed(name: string): unknown {
 	if (typeof document === 'undefined') return undefined;
 	const el = document.querySelector(
 		`script[type="application/json"][${OG_SHARED}=${JSON.stringify(name)}]`

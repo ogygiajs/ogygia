@@ -118,6 +118,7 @@ async function wait_for_event(
 		.waitForFunction(
 			// serialize the predicate as a string so it runs in-page
 			(predSrc: string) => {
+				// oxlint-disable-next-line typescript/no-implied-eval -- a predicate crosses into the page only as source text
 				const p = new Function('e', `return (${predSrc})(e)`) as (e: unknown) => boolean;
 				const hook = (window as DtWindow).__ogygia_devtools;
 				if (!hook) return false;
@@ -291,7 +292,7 @@ test.describe('devtools (dev server, OGYGIA_DEVTOOLS=1): events, panel tabs, pag
 			serverRendered.length > 0 &&
 				typeof serverRendered[0].fp === 'string' &&
 				typeof serverRendered[0].propsBytes === 'number',
-			`${serverRendered.length} rendered, sample propsBytes=${serverRendered[0]?.propsBytes}`
+			`${serverRendered.length} rendered, sample propsBytes=${String(serverRendered[0]?.propsBytes)}`
 		);
 		// (a seed ships only when an island reads the page — so the event must match the document)
 		const has_seed = await page.evaluate(
@@ -404,7 +405,7 @@ test.describe('devtools (dev server, OGYGIA_DEVTOOLS=1): events, panel tabs, pag
 		check(
 			'load island: region.hydrate.done arrived (with ms)',
 			typeof loadHydrated?.ms === 'number',
-			`ms=${loadHydrated?.ms}`
+			`ms=${String(loadHydrated?.ms)}`
 		);
 
 		// ── the interaction island is COLD: no wake.fired for it before we touch it ─
@@ -445,7 +446,7 @@ test.describe('devtools (dev server, OGYGIA_DEVTOOLS=1): events, panel tabs, pag
 		check(
 			'interaction: the click replayed once if it came while waking, none if it landed live',
 			typeof while_waking === 'boolean' && replay?.clicks === (while_waking ? 1 : 0),
-			`while waking: ${while_waking}, clicks=${replay?.clicks}`
+			`while waking: ${while_waking}, clicks=${String(replay?.clicks)}`
 		);
 		const interactionHydrated = await wait_for_event(
 			page,
@@ -488,7 +489,7 @@ test.describe('devtools (dev server, OGYGIA_DEVTOOLS=1): events, panel tabs, pag
 		check(
 			'nav: finish carries a ms timing',
 			typeof navFinish?.ms === 'number',
-			`ms=${navFinish?.ms}`
+			`ms=${String(navFinish?.ms)}`
 		);
 		// the Page tab follows the navigation: its report covers this page from the nav on
 		const page_nav = await page.evaluate(

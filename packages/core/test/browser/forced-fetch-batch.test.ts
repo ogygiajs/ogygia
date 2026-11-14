@@ -4,6 +4,7 @@
 // that revalidates (a forced fetch) at that address must not take the reservation's place: when the
 // batch ends without the hole's part, the hole is let go and fetches on its own.
 import { afterEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset } from '../../src/runtime/frame-store.ts';
 import { streamFrames } from '../../src/runtime/frame-nav.ts';
@@ -15,7 +16,7 @@ afterEach(() => {
 	_reset();
 });
 
-const island = () => decodeURIComponent(escape(atob(inject('counter_ssr_b64'))));
+const island = () => from_b64(inject('counter_ssr_b64'));
 const ENDPOINT = '/__ogygia__?id=forcebatch01&props=W3t9XQ&exp=9999999999&sig=stub';
 const lake = (inner: string) =>
 	`<ogygia-region wake="none" remount="swr" when="load" entry="forced-fetch-batch" endpoint="${ENDPOINT}">${inner}</ogygia-region>`;

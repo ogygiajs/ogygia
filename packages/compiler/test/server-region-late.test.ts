@@ -102,7 +102,7 @@ async function build_server(): Promise<Manifest> {
 			outDir: out_dir,
 			minify: false,
 			// (Kit's modules: no Kit here, and nothing below runs a region)
-			rollupOptions: { external: [/^\$app\//], output: { entryFileNames: 'entry.js' } }
+			rolldownOptions: { external: [/^\$app\//], output: { entryFileNames: 'entry.js' } }
 		}
 	});
 	const { manifest } = (await import(pathToFileURL(path.join(out_dir, 'entry.js')).href)) as {
@@ -150,7 +150,7 @@ test('a deferred region in a library host only the server bundle reached has its
 		build: {
 			outDir: client_dir,
 			minify: false,
-			rollupOptions: { input: path.join(root, 'src', 'client.ts'), external: [/^\$app\//] }
+			rolldownOptions: { input: path.join(root, 'src', 'client.ts'), external: [/^\$app\//] }
 		}
 	});
 	const handoff = JSON.parse(

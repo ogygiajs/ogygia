@@ -47,7 +47,7 @@ async function visit(
 		const replaced = await server.response?.(c, res);
 		return { res: replaced ?? res, hit: false };
 	} finally {
-		server.done?.(c);
+		await server.done?.(c);
 	}
 }
 
