@@ -1,10 +1,12 @@
-// FOUND BY THE SIMULATOR (gen 88, seed 88012: the outage flow): an island whose code fails to
-// download while the visitor is offline never wakes once the network is back. Its retry under a
-// fresh URL fails offline too, the build map's recovery (runtime/entry-locations.ts
-// `recover_location`) finds the same file there (HEAD 200), so the error stands and the island ends
-// `failed` with `island_load_failed`, its server markup never hydrated. A fresh load hydrates it.
-// (#891's island half, still open as #1900: this test is `it.fails` until it is fixed, then a plain
-// `it`. Skipped without `OGYGIA_RULES=1 vite build` in apps/palaestra.)
+// FOUND BY THE SIMULATOR (gen 88, seed 88012: the outage flow; #891's island half, #1900): the
+// connection drops just as the page asks for an island's code, and comes back 5 s later. The
+// island's file and its static dependencies (the modulepreloads, its chunks) fail while offline, and
+// the document's module map keeps each failed dependency for the document's life, as Chromium and
+// Firefox do. Back online, the island's file under a fresh URL comes, but still imports the failed
+// dependency URLs, so no retry can load it: only a reload can (bisect on #1900: the simulator's
+// module map turned this up, #1140; no package change). What the page owes is an honest end:
+// it says once that it needs a reload, the island ends failed, and nothing is left waiting.
+// (Skipped without `OGYGIA_RULES=1 vite build` in apps/palaestra.)
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -15,8 +17,8 @@ const OUTPUT = fileURLToPath(
 );
 const built = existsSync(`${OUTPUT}/server/index.js`);
 
-describe.skipIf(!built)('found: an island whose code failed while offline never wakes', () => {
-	it.fails('an island whose code failed to download in a short outage wakes once the network is back (#1900)', async () => {
+describe.skipIf(!built)('found: an island whose code an outage poisoned', () => {
+	it('says once that the page needs a reload, ends the island failed, and leaves nothing waiting', async () => {
 		const world = await World.make({
 			seed: 1,
 			builds: [{ id: 'v1', output: OUTPUT }],
@@ -40,14 +42,18 @@ describe.skipIf(!built)('found: an island whose code failed while offline never 
 			world.network.offline(tab.name, false);
 			// a minute online, then at rest
 			await world.loop.run(60_000);
-			await world.quiesce();
+			expect(await world.quiesce()).toBe(true);
 			expect(dropped).not.toBeNull();
 			const doc = tab.page.mainFrame.document as unknown as Document;
 			const island = [...doc.querySelectorAll('ogygia-region[src]')].find(
 				(el) => new URL(el.getAttribute('src')!, 'https://x/').pathname === dropped
 			);
 			expect(island).toBeDefined();
-			expect(island!.hasAttribute('data-hydrated')).toBe(true);
+			expect(island!.hasAttribute('data-hydrated')).toBe(false);
+			const said = tab.console.map((line) => line.split('\n')[0]);
+			expect(said.filter((l) => l.includes('/e/chunk_reload_needed'))).toHaveLength(1);
+			const entry = encodeURIComponent(island!.getAttribute('entry')!);
+			expect(said.some((l) => l.includes(`/e/island_load_failed?entry=${entry}`))).toBe(true);
 		} finally {
 			await world.end();
 		}
