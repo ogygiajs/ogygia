@@ -217,7 +217,7 @@ export class DocumentTail {
 		hydrate: string | null,
 		ttl: number,
 		name = '',
-		props: unknown = undefined,
+		props?: unknown,
 		copy = ''
 	): void {
 		const key = `${id}\0${when}\0${hydrate ?? ''}\0${ttl}`;
