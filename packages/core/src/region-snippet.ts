@@ -43,6 +43,7 @@ import { OgygiaError } from './messages/island.ts';
 import { OG_SLOT, OG_STATIC, OGYGIA_REGION_CSS } from './wire-markup.ts';
 import { escape_attr } from './escape.ts';
 
+type ComponentRenderer = { component(fn: (r: unknown) => void, of: unknown): void };
 /**
  * A hand-written SERVER component that renders a bare snippet: svelte has no public API to
  * stringify a snippet, but a server component is just `($$renderer, $$props) => void` and a server
@@ -50,8 +51,10 @@ import { escape_attr } from './escape.ts';
  * (not a `.svelte` file) so this module stays importable from plain node (endpoints, tests)
  * without a svelte compiler in the loader.
  */
-const RenderSnippet = (($$renderer: unknown, $$props: { s: Snippet }) => {
-	($$props.s as unknown as (r: unknown) => void)($$renderer);
+const RenderSnippet = (($$renderer: ComponentRenderer, $$props: { s: Snippet }) => {
+	$$renderer.component(($$renderer) => {
+		($$props.s as unknown as (r: unknown) => void)($$renderer);
+	}, RenderSnippet);
 }) as unknown as Component;
 
 /** Devalue custom-type name a region snippet crosses under (wire-stable; was `OgygiaS`). */

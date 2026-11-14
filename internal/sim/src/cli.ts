@@ -29,8 +29,9 @@ import { fork, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 // (the host's real timers: a run replaces the global ones with its simulated ones)
-import { clearTimeout as clearRealTimeout, setTimeout as real_timeout } from 'node:timers';
+import { clearInterval as clearRealInterval, setInterval as real_interval } from 'node:timers';
 import { basename, join, relative, resolve } from 'node:path';
+import { Watchdog } from './watchdog.ts';
 import { fileURLToPath } from 'node:url';
 import { describe, act, next_action, ACTION_KINDS, type Action, type Mix } from './workload.ts';
 import { html_kept, html_sent } from './html.ts';
@@ -1261,27 +1262,34 @@ function worker(): void {
 	// (the pool went away: nothing more will come)
 	process.on('disconnect', () => process.exit(0));
 	process.on('message', (job: { seed: number; steps: number; stop_at: number; plan?: Plan }) => {
-		// THE WATCHDOG: a run that has not ended after HANG_MS of real time is hung (a wait nobody
-		// will ever end: the simulator's, or the app's). What it was waiting on goes back as its
-		// finding, and the worker ends: its host is in a state no next run should meet.
-		const watchdog = real_timeout(() => {
+		// THE WATCHDOG (src/watchdog.ts): a run whose loop has run no task for HANG_MS of real time
+		// is hung. What it was waiting on goes back as its finding, and the worker ends: its host is
+		// in a state no next run should meet.
+		running = null;
+		const dog = new Watchdog(HANG_MS, real_ms());
+		const watchdog = real_interval(() => {
+			if (!dog.hung(running?.loop.ran ?? -1, real_ms())) return;
+			clearRealInterval(watchdog);
 			process.send!({ hung: hung_report(job.seed) }, () => process.exit(3));
-		}, HANG_MS);
+		}, 1000);
 		timed(job.seed, job.steps, job.stop_at ?? Infinity, job.plan).then(
 			(result) => {
-				clearRealTimeout(watchdog);
+				clearRealInterval(watchdog);
 				process.send!({ result });
 			},
 			(error: unknown) => {
-				clearRealTimeout(watchdog);
+				clearRealInterval(watchdog);
 				process.send!({ error: String((error as Error)?.stack ?? error) });
 			}
 		);
 	});
 }
 
-/** Real ms a run may take before it is called hung (a 40-action run takes a few seconds). */
+/** Real ms a run's loop may run no task before the run is called hung. */
 const HANG_MS = Number(arg('--hang-ms') ?? 60_000);
+
+/** The host's real clock in ms (a run replaces `Date` and `performance.now` with its own). */
+const real_ms = (): number => Number(process.hrtime.bigint() / 1_000_000n);
 
 /** The world of the run in progress (for a hung run's report). */
 let running: World | null = null;

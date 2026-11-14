@@ -11,7 +11,7 @@ import { doc_diff } from '../src/profiler/doc-diff.ts';
 import { attribute_gc, type AllocSite } from '../src/profiler/gc.ts';
 import { find_wait_patterns, type WaitCall } from '../src/profiler/patterns.ts';
 import { constant_work, hoist_plan, key_sources } from '../src/profiler/source-scan.ts';
-import { drop_answers, keep_answers, set_stack_capture } from '../src/profiler/net.ts';
+import { answer_keep, set_stack_capture } from '../src/profiler/net.ts';
 import { PostgresStore } from '../src/profiler/storage/postgres.ts';
 import { RedisStore } from '../src/profiler/storage/redis.ts';
 import type { ProfilerRecord } from '../src/profiler/storage/index.ts';
@@ -308,13 +308,13 @@ bench(
 		const owners = Array.from({ length: n }, () => ({}));
 		for (const o of owners) {
 			set_stack_capture(o, true);
-			keep_answers(o, true);
+			answer_keep.keep(o, true);
 		}
 		let off = 0;
 		for (const o of owners) {
-			keep_answers(o, false);
+			answer_keep.keep(o, false);
 			set_stack_capture(o, false);
-			drop_answers(o);
+			answer_keep.drop(o);
 			off++;
 		}
 		return off;

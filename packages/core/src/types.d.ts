@@ -57,10 +57,6 @@ declare module '@sveltejs/kit/internal/server' {
 		data: Map<RemoteInternals, Record<string, Promise<unknown>>> | null;
 	}
 	export interface RequestState {
-		transport?: Record<
-			string,
-			{ encode: (v: unknown) => unknown; decode: (v: unknown) => unknown }
-		>;
 		remote: RequestRemoteState;
 	}
 	export interface RequestStore {
@@ -70,6 +66,7 @@ declare module '@sveltejs/kit/internal/server' {
 	export function get_request_store(): RequestStore;
 	export function try_get_request_store(): RequestStore | null;
 	export function with_request_store<T>(store: RequestStore | null, fn: () => T): T;
+	export function getRequestEvent(): unknown;
 }
 
 interface Window {

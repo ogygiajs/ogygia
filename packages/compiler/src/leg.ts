@@ -1,5 +1,5 @@
 import { machine, type Machine } from '@ogygia/machine';
-import { barrel_left_table, type BarrelLeftTable } from './exports/left.ts';
+import { BarrelLeftTable } from './exports/left.ts';
 
 type LegStates = { open: {}; closed: {} };
 const LEG_STEPS = { open: ['closed'], closed: [] } as const;
@@ -50,7 +50,7 @@ export function new_leg(name: string, server: boolean): BuildLeg {
 		relocated: new Map(),
 		barrels_left(stage) {
 			let table = barrels.get(stage);
-			if (table === undefined) barrels.set(stage, (table = barrel_left_table()));
+			if (table === undefined) barrels.set(stage, (table = new BarrelLeftTable()));
 			return table;
 		},
 		barrels_said: (stage) => barrels.get(stage)
