@@ -3,12 +3,13 @@
 // opens it again: what happens after (a navigation, a worse interaction, a shift) goes out with
 // the next hide.
 import { afterEach, beforeEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset_beacon, beacon_nav } from '../../../devtools/src/profiler/beacon.ts';
 import { _restart_page_beacon } from '../../../devtools/src/profiler/beacon-standalone.ts';
 import devtools_client from '../../../devtools/src/client.ts';
 
-const inject_html = () => decodeURIComponent(escape(atob(inject('counter_json_lane_ssr_b64'))));
+const inject_html = () => from_b64(inject('counter_json_lane_ssr_b64'));
 
 type Body = { page: string; visit?: { navs?: { to: string }[] }; vitals?: object };
 let sent: Body[] = [];

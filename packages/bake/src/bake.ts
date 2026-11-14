@@ -324,7 +324,7 @@ async function evaluate(entry_code: string, id: string, opts: BakeOptions): Prom
 			minify: false,
 			target: 'esnext',
 			ssr: true,
-			rollupOptions: {
+			rolldownOptions: {
 				input: ENTRY,
 				external: (source: string) => source.startsWith('node:'),
 				plugins: [bake_plugin(ENTRY, entry_code, module_dir, opts.root, opts.alias)],

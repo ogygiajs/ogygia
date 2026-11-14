@@ -97,6 +97,9 @@ export function normalize(root: {
 		// script put in the head, and a fresh load of a page without that script never has: gen 262,
 		// seed 6, the `gen head` drift)
 		if (tag === 'meta' && el.hasAttribute('data-gen-third-party')) return;
+		// (a third party's mark in a lake, which the island's wake rightly leaves there, and a client
+		// navigation to the page never runs the script that makes it: `lakeEdit`)
+		if (el.hasAttribute('data-gen-lake-mark')) return;
 		if (el.matches(STORE_MARK)) return;
 		// (a reshape pass's mark on a document loaded as one, which the router's answer of the same
 		// page never carries: delivery, not the page; gen 10, seed 10)
@@ -1384,6 +1387,26 @@ export function no_foreign_html(tab: Tab): Broken | null {
 	};
 }
 
+/**
+ * AN OPAQUE REGION IS NEVER REPAIRED: a third party's edit inside a lake (gen `lakeEdit`), made while
+ * the island holding it slept, is still there once the island hydrated. The island's wake puts the
+ * island's own markup back to the server's, and never walks into a region Svelte's walk never enters.
+ */
+export function opaque_untouched(tab: Tab): Broken | null {
+	const w = tab.page.mainFrame.window as unknown as { __sim_gen_lake_edits?: Element[] };
+	const lost = (w.__sim_gen_lake_edits ?? []).filter(
+		(r) =>
+			r.isConnected &&
+			r.hasAttribute('data-hydrated') &&
+			r.querySelector('[data-gen-lake-mark]') === null
+	);
+	if (lost.length === 0) return null;
+	return {
+		oracle: 'opaque-untouched',
+		detail: `${tab.page.mainFrame.url}: the edit in a lake of ${lost.map((r) => r.querySelector('[data-gen]')?.className ?? r.localName).join(', ')} was undone`
+	};
+}
+
 /** Svelte's and ogygia's words for a region whose server HTML did not hydrate as it was. */
 const UNHYDRATED = /svelte\.dev\/e\/hydration_mismatch|ogygiajs\.dev\/e\/hydration_discarded/;
 
@@ -1526,6 +1549,34 @@ export function text_restored(tab: Tab, world: World): Broken | null {
 	return wrong.length === 0
 		? null
 		: { oracle: 'text-restored', detail: `${tab.page.mainFrame.url}: ${wrong.join('\n')}` };
+}
+
+/** The points that leave a rewrite's element unrendered on purpose: the packages' and the random
+ *  app's own. */
+const UNRENDERED_BY: readonly string[] = ['rewrite.', 'gen.reshape-'];
+
+/**
+ * A REWRITE RENDERS EVERY ELEMENT IT MATCHES, AND ONLY THE OUTERMOST: the page's HTML as it came
+ * (`Exchange.rewrite_misses`) holds no outermost matched element the render never reached, unless
+ * a rewrite point fired while the server answered it (a render that threw, a cancel, a split
+ * chunk), and never an element rendered inside one left unrendered, whatever fired. An unrendered
+ * element is still a correct page, so no other oracle tells a rewrite that rendered nothing from
+ * one that worked. A document the network changed is not judged.
+ */
+export function rewrite_rendered(tab: Tab, world: World): Broken | null {
+	const own = world.network.exchanges.find((e) => e.from === tab.realm);
+	const misses = own?.rewrite_misses;
+	if (misses === undefined || document_faulted(world, tab)) return null;
+	if (new URL(own!.url).pathname !== new URL(tab.page.mainFrame.url).pathname) return null;
+	const explained =
+		misses.stored || (own!.fired ?? []).some((p) => UNRENDERED_BY.some((u) => p.startsWith(u)));
+	const wrong = [
+		...(explained ? [] : misses.unrendered.map((n) => `<${n}> went out unrendered`)),
+		...misses.inner.map((n) => `<${n}> was rendered inside a matched element left unrendered`)
+	];
+	return wrong.length === 0
+		? null
+		: { oracle: 'rewrite-rendered', detail: `${own!.url}: ${wrong.join('\n')}` };
 }
 
 /** A peer hop's deadline (federation's `timeout` default, which the generated apps keep): an answer

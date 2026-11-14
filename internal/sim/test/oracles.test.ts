@@ -7,7 +7,7 @@ import { World } from '../src/world.ts';
 import { user_click } from '../src/workload.ts';
 import type { Heard } from '../src/browser.ts';
 import { waste } from '../src/waste.ts';
-import { owed_text } from '../src/network.ts';
+import { owed_text, rewrite_misses } from '../src/network.ts';
 import {
 	document_faulted,
 	fallback_stands,
@@ -23,6 +23,7 @@ import {
 	no_viewport_wait,
 	normalize,
 	parsed_first,
+	rewrite_rendered,
 	live_regions_out,
 	page_errors,
 	peer_answers,
@@ -82,7 +83,7 @@ describe('a live region whose tick changes its shape', () => {
 				'      "n10"'
 			].join('\n');
 		const moving = reshaped_live(held(other), held(still));
-		expect([...moving].sort()).toEqual([0, 1]);
+		expect([...moving].sort((a, b) => a - b)).toEqual([0, 1]);
 		const out = live_regions_out(held(other), moving);
 		expect(out).toBe(live_regions_out(held(still), moving));
 		expect(out.split('\n').slice(-3)).toEqual([
@@ -1149,6 +1150,78 @@ describe("a reshaped page's text comes back as it was", () => {
 	});
 });
 
+describe('a rewrite renders every element it matches, and only the outermost', () => {
+	const judged = (misses: ReturnType<typeof rewrite_misses>, fired: string[] = []) => {
+		const tab = {
+			realm: 'tab-0#1',
+			name: 'tab-0',
+			page: { mainFrame: { url: 'https://app.test/p0' } }
+		} as unknown as Parameters<typeof rewrite_rendered>[0];
+		const world = {
+			network: {
+				exchanges: [
+					{
+						id: 1,
+						from: 'tab-0#1',
+						method: 'GET',
+						url: 'https://app.test/p0',
+						status: 200,
+						cut: false,
+						tampered: false,
+						rewrite_misses: misses,
+						fired
+					}
+				]
+			}
+		} as unknown as World;
+		return rewrite_rendered(tab, world);
+	};
+
+	it('reads the page: an outermost matched element its render never reached, and a rendered one inside one left as it was', () => {
+		expect(
+			rewrite_misses(
+				'<x-gen-box og-h="0" data-rendered="x-gen-box"><x-gen-link data-rendered="x-gen-link">a</x-gen-link></x-gen-box>'
+			)
+		).toBeUndefined();
+		expect(rewrite_misses('<p>x-gen-box</p><x-gen-box og-h="0">a</x-gen-box>')).toEqual({
+			unrendered: ['x-gen-box'],
+			inner: [],
+			stored: false
+		});
+		expect(
+			rewrite_misses(
+				'<x-gen-box>a <x-gen-box data-rendered="x-gen-box">b</x-gen-box></x-gen-box><x-gen-link data-rendered="x-gen-link"></x-gen-link>'
+			)
+		).toEqual({ unrendered: ['x-gen-box'], inner: ['x-gen-box'], stored: false });
+		expect(rewrite_misses('<x-gen-box>a</x-gen-box>', true)).toEqual({
+			unrendered: ['x-gen-box'],
+			inner: [],
+			stored: true
+		});
+	});
+
+	it("a page store's copy was rendered by an earlier request: an element it left unrendered is that request's to explain (gen 262, seed 11), one rendered inside it never is", () => {
+		expect(judged({ unrendered: ['x-gen-box'], inner: [], stored: true })).toBeNull();
+		expect(judged({ unrendered: [], inner: ['x-gen-box'], stored: true })?.oracle).toBe(
+			'rewrite-rendered'
+		);
+	});
+
+	it('finds an element left unrendered with no rewrite point to explain it, and one rendered inside an unrendered one whatever fired', () => {
+		const left = { unrendered: ['x-gen-box'], inner: [], stored: false };
+		expect(judged(left)?.oracle).toBe('rewrite-rendered');
+		expect(judged(left, ['rewrite.render-throws'])).toBeNull();
+		expect(judged(left, ['gen.reshape-throws'])).toBeNull();
+		expect(judged(left, ['hole.fetch-lost'])?.oracle).toBe('rewrite-rendered');
+		expect(
+			judged({ unrendered: ['x-gen-box'], inner: ['x-gen-link'], stored: false }, [
+				'rewrite.chunk-split'
+			])?.oracle
+		).toBe('rewrite-rendered');
+		expect(judged(undefined)).toBeNull();
+	});
+});
+
 describe('a peer fails over, and only then', () => {
 	const hop = (id: number, origin: string, at: number, more: Record<string, unknown> = {}) => ({
 		id,
@@ -1274,7 +1347,7 @@ describe('leaks', () => {
 		const { Window } = await import('happy-dom');
 		const w = new Window();
 		const d = w.document as unknown as Document;
-		d.write('<html><head><title>t</title></head><body><p>hi</p></body></html>');
+		d.documentElement.innerHTML = '<head><title>t</title></head><body><p>hi</p></body>';
 		const leaks = new Leaks();
 		const count = () => d.getElementsByTagName('*').length;
 		const tab = {

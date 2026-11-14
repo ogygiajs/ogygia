@@ -436,6 +436,7 @@ const now = clock.mono;
 function schedule_drain(): void {
 	if (drainer.now.kind === 'queued') return;
 	drainer.go('queued');
+	// oxlint-disable-next-line typescript/no-floating-promises -- a task hop never rejects, and the drain it starts is the drainer machine's own (queued until it runs)
 	yield_task().then(drain);
 }
 

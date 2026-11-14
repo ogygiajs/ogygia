@@ -6,6 +6,7 @@
 // bug this pins: the lake rendered as a normal template → hydration_mismatch → Kit re-rendered the
 // page client-side and the whole lake vanished (a site header on a csr=true page).
 import { afterEach, beforeEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { page } from 'vitest/browser';
 import { hydrate, unmount } from 'svelte';
 import { bootDev } from '../../src/runtime/full.ts';
@@ -21,7 +22,7 @@ const LAKE = 'ogygia-region[wake="none"]';
 const ISLAND_HYDRATED = 'ogygia-region[wake="load"][data-hydrated]';
 
 /** Decode a `provide()`d HTML string (base64 — a raw `</script>` cannot ride the orchestrator). */
-const inject_html = (key: 'lake_kit_ssr_b64') => decodeURIComponent(escape(atob(inject(key))));
+const inject_html = (key: 'lake_kit_ssr_b64') => from_b64(inject(key));
 
 test('Kit hydration adopts the lake verbatim; the island inside wakes on the runtime', async () => {
 	const warns: string[] = [];
@@ -60,7 +61,7 @@ test('Kit hydration adopts the lake verbatim; the island inside wakes on the run
 		await page.getByRole('button', { name: 'add' }).click();
 		await expect.element(page.getByTestId('count')).toHaveTextContent('4');
 
-		unmount(app);
+		await unmount(app);
 	} finally {
 		console.warn = real_warn;
 	}
@@ -84,7 +85,7 @@ test('a lake re-created empty after a Kit hydration failure is repainted from it
 		.poll(() => document.querySelector(ISLAND_HYDRATED) !== null, { timeout: 10_000 })
 		.toBe(true);
 	// what Svelte's fallback does: the old tree goes, a fresh client render lands — the lake empty
-	unmount(app);
+	await unmount(app);
 	mount.innerHTML = `<ogygia-region entry="${lake_id}" wake="none" remount="cache" data-og-lake="${lake_identity}"></ogygia-region>`;
 	const fresh = document.querySelector(LAKE) as HTMLElement;
 	// the repaint is synchronous at connect (the copy is already in the session cache)

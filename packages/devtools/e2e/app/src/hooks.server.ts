@@ -1,7 +1,7 @@
 import { sequence } from '@sveltejs/kit/hooks';
 import type { Handle } from '@sveltejs/kit';
 import { handle as ogygiaHandle } from 'ogygia/server';
-import * as reshape from '@ogygia/reshape';
+import { rewrite } from '@ogygia/rewrite';
 import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
 import { SqliteStore } from '@ogygia/devtools/profiler/storage/sqlite';
 import { ds_ssr } from '$lib/hell/ds-ssr';
@@ -76,7 +76,7 @@ const stamp_cookie: Handle = async ({ event, resolve }) => {
 // The SSR profiler is NOT wired here — `devtools({ profiler })` in vite.config.ts mounts it inside
 // ogygia.handle(). UI at /__profiler (dev = open; prod needs ?key=<OGYGIA_PROFILER_SECRET>).
 const restore_lab: Handle = process.env.OGYGIA_RESTORE_LAB
-	? reshape.handle((html) => scoped_render(html))
+	? rewrite({ page: scoped_render })
 	: ({ event, resolve }) => resolve(event);
 
 export const handle = sequence(

@@ -100,11 +100,11 @@ const _r4: Promise<{ tab: string; user: string }> = client.get('/admin/[user]/[t
 // a Response-returning endpoint types unknown
 const _r3: Promise<unknown> = client.get('/raw');
 // @ts-expect-error — page paths carry no verbs, the client rejects them
-client.get('/');
+const _e1 = client.get('/');
 // @ts-expect-error — params are REQUIRED when the pattern has any
-client.get('/posts/[id]');
+const _e2 = client.get('/posts/[id]');
 // @ts-expect-error — the body must match the schema output
-client.post('/posts', { body: { wrong: true } });
+const _e3 = client.post('/posts', { body: { wrong: true } });
 
 // THE KEY TYPES A PAGE'S LOAD AND ACTIONS the same way: strict `c.params`, bare or wrapped, top
 // level, under nested layouts, behind `when()`; the load's return still reaches `$infer` as is.

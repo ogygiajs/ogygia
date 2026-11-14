@@ -79,6 +79,7 @@ describe('probes', () => {
 		g.STALE = Symbol('stale');
 		try {
 			const js = stripTypeScriptTypes(out.replace('export function', 'function'));
+			// oxlint-disable-next-line typescript/no-implied-eval -- runs the code the autopilot transform wrote
 			const f = new Function(`${js}; return f;`)() as (r: unknown, x: unknown) => string[];
 			expect(f({ ok: true }, 1)).toEqual(['good', 'fresh']);
 			expect(hits).toEqual([]);

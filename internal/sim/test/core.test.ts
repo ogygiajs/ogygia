@@ -287,7 +287,7 @@ describe('the network', () => {
 				.then((r) => r.text());
 			await l.run();
 		}
-		expect([...seen].sort()).toEqual([500, 503]);
+		expect([...seen].sort((a, b) => a - b)).toEqual([500, 503]);
 	});
 
 	it('a stalled answer comes 10 to 40 s late, and the exchange says it stalled; a calm one never', async () => {

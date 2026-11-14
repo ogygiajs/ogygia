@@ -107,6 +107,12 @@ export interface GenNode {
 	 *  where Svelte's head hydration would walk into it (the runtime takes every island's head off
 	 *  that walk first). Only one that wakes on its own, in the page's own HTML. */
 	readonly head?: 'own' | 'drift';
+	/** An island a third party's script edits INSIDE a lake of its own while it sleeps (stream `gen
+	 *  third party lake`): once the document is parsed, an element of its own first in the lake. A
+	 *  lake is opaque, so the island's wake repairs the island's markup and never the lake's: the mark
+	 *  is still there once the island hydrated (`opaque_untouched`). Only one that wakes on its own,
+	 *  in the page's own HTML, with no `thirdParty` script of its own. */
+	readonly lakeEdit?: boolean;
 	/** SCREEN (stream `gen screen`): a page's own hole fetched on the visitor's gesture warming ahead
 	 *  on another schedule (`prefetch`), and the margin (`margin`, a `rootMargin`) by which a
 	 *  `visible` island, fetch or prefetch looks past the viewport. What schedules owe at rest is the
@@ -370,7 +376,8 @@ export function plan(seed: number): GenPage[] {
 		.map(flagging(seed))
 		.map(third_party(seed))
 		.map(heads(seed))
-		.map(screen(seed));
+		.map(screen(seed))
+		.map(lake_edits(seed));
 }
 
 /** Margins a `visible` schedule may look past the viewport by: px, % of the viewport, one side. */
@@ -517,6 +524,39 @@ const THIRD_PARTY = {
 	),
 	text: third_party_script('el.appendChild(document.createTextNode(" third party"));')
 };
+
+/** Some islands a third party's script edits inside a lake of theirs (`lakeEdit`, their own stream,
+ *  `gen third party lake`): an island `third_party` can edit, with no edit of its own, holding a
+ *  lake with markup. */
+function lake_edits(seed: number): (page: GenPage) => GenPage {
+	const l = rng(seed).fork('gen third party lake');
+	const has_lake = (n: GenNode): boolean =>
+		n.children.some((c) => (c.kind === 'lake' && !c.empty) || (c.kind === 'plain' && has_lake(c)));
+	const walk = (n: GenNode, page: boolean): GenNode => {
+		const children = n.children.map((c) =>
+			walk(c, page && (n.kind === 'island' || n.kind === 'plain'))
+		);
+		const can =
+			page &&
+			n.kind === 'island' &&
+			(n.wake === 'load' || n.wake === 'idle') &&
+			!n.empty &&
+			!n.thirdParty &&
+			has_lake(n);
+		return can && l.chance(0.5) ? { ...n, children, lakeEdit: true } : { ...n, children };
+	};
+	return (page) => ({ ...page, roots: page.roots.map((n) => walk(n, true)) });
+}
+
+/** The third party's script after an island whose lake it edits (`lakeEdit`): once the document is
+ *  parsed it puts a `<b data-gen-lake-mark>` first in the island's first lake, and keeps the
+ *  island's region on the window (`__sim_gen_lake_edits`) for `opaque_untouched` to read. */
+const LAKE_EDIT = `{@html '<scr' + 'ipt>${[
+	'(function(){var s=document.currentScript;document.addEventListener("DOMContentLoaded",function(){',
+	'var r=s&&s.previousElementSibling;var l=r&&r.querySelector("ogygia-region[wake=none] [data-gen]");',
+	'if(l){var b=document.createElement("b");b.setAttribute("data-gen-lake-mark","");b.textContent="third party";l.prepend(b);',
+	'(window.__sim_gen_lake_edits||(window.__sim_gen_lake_edits=[])).push(r);}})})()'
+].join('')}</scr' + 'ipt>'}`;
 
 /** Some apps read a flag on some pages (their own stream, `gen flags`): 40% of seeds, half their
  *  pages. */
@@ -801,7 +841,9 @@ ${indent}</N${n.id}>`;
 	const blob = n.big ? ` blob={'x'.repeat(100_000)}` : '';
 	const third = n.thirdParty ? `\n${indent}${THIRD_PARTY[n.thirdParty]}` : '';
 	const drift = n.head === 'drift' ? `\n${indent}${head_drift_script(n.id)}` : '';
-	return `${indent}<N${n.id} label="n${n.id}"${since}${blob} />${third}${drift}`;
+	// (first after the island: its script finds the island as its previous element)
+	const lake = n.lakeEdit ? `\n${indent}${LAKE_EDIT}` : '';
+	return `${indent}<N${n.id} label="n${n.id}"${since}${blob} />${lake}${third}${drift}`;
 }
 
 /** A held or live region's remote module: the query that returns it (and the command that changes
@@ -1087,7 +1129,7 @@ export function app_reshape(pass: GenReshape | null): string {
 export const handle: Handle = ({ event, resolve }) => resolve(event);
 `;
 	return `import type { Handle } from '@sveltejs/kit';
-import * as reshape from '@ogygia/reshape';
+import { rewrite } from '@ogygia/rewrite';
 import { buggify } from '@ogygia/machine';
 
 const TRIM = ${pass.trim};
@@ -1135,9 +1177,7 @@ function render(html: string, tag: string, tree: (inner: string) => string): str
 \t}
 }
 
-export const transform: reshape.ReshapeTransform = async (html) => {
-\tif (buggify.fires('gen.reshape-throws')) throw new Error('the reshape pass threw');
-\tif (buggify.fires('gen.reshape-slow')) await new Promise((r) => setTimeout(r, 3000));
+function render_one(html: string): string {
 \tlet out = render(
 \t\thtml,
 \t\t'x-gen-box',
@@ -1146,9 +1186,16 @@ export const transform: reshape.ReshapeTransform = async (html) => {
 \tout = render(out, 'x-gen-link', (inner) => \`<a class="gen-link" tabindex="-1"><slot>\${trim(inner)}</slot></a>\`);
 \tif (buggify.fires('gen.reshape-strips-marks')) out = out.replace(/ og-[a-z]+="[^"]*"/g, '');
 \treturn out;
-};
+}
 
-export const handle: Handle = reshape.handle(transform);
+export const handle: Handle = rewrite({
+\tmatch: ['x-gen-box', 'x-gen-link'],
+\tasync render(elements) {
+\t\tif (buggify.fires('gen.reshape-throws')) throw new Error('the rewrite threw');
+\t\tif (buggify.fires('gen.reshape-slow')) await new Promise((r) => setTimeout(r, 3000));
+\t\treturn elements.map((el) => render_one(el.html));
+\t}
+});
 `;
 }
 

@@ -5,12 +5,13 @@
 // disarm it (clicks in the new visit would no longer be caught, and an `interaction` island has no
 // other trigger), and it must not replay its own clicks onto the new visit's markup.
 import { expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { observe } from '@ogygia/machine';
 import { bootDev } from '../../src/runtime/full.ts';
 
 const SLOW = '/test/browser/fixtures/slow-entry.ts';
 const island = () =>
-	decodeURIComponent(escape(atob(inject('counter_ssr_b64'))))
+	from_b64(inject('counter_ssr_b64'))
 		.replace('wake="load"', 'wake="interaction"')
 		.replace(/entry="[^"]*"/, `entry="${SLOW}"`);
 

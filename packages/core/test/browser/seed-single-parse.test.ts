@@ -5,6 +5,7 @@
 //   2. a reconcile navigation: the next page's island resolves its reference against the NEXT
 //      page's seed — the stale-reference regression (a per-element cache the morph reused).
 import { afterEach, beforeEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { mark_live_head } from './_response-mark.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import {
@@ -25,7 +26,7 @@ link_boot();
 
 const HYDRATED = 'ogygia-region[data-hydrated]';
 const decode = (key: 'counter_seedref_ssr_b64' | 'seed_nav_a_html_b64' | 'seed_nav_b_html_b64') =>
-	decodeURIComponent(escape(atob(inject(key))));
+	from_b64(inject(key));
 const counts = () =>
 	[...document.querySelectorAll('[data-testid="count"]')].map((e) => e.textContent);
 

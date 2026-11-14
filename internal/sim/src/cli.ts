@@ -45,10 +45,12 @@ import {
 	no_cross_visitor_cache,
 	no_foreign_html,
 	normalize,
+	opaque_untouched,
 	page_errors,
 	peer_answers,
 	page_rules,
 	text_restored,
+	rewrite_rendered,
 	regions_show,
 	fallback_stands,
 	islands_wake,
@@ -429,6 +431,7 @@ export async function run(
 					page_errors(t, world, since),
 					hydrates_as_sent(t, world),
 					no_foreign_html(t),
+					opaque_untouched(t),
 					page_rules(t, world),
 					leaks.check(t, pressed.get(t.name) === t.documents),
 					live_events(t, world),
@@ -467,6 +470,8 @@ export async function run(
 			page_rules(t, world),
 			// (and a reshaped page's trimmed text came back with its whitespace)
 			text_restored(t, world),
+			// (and its rewrite rendered every element it matched, the outermost only)
+			rewrite_rendered(t, world),
 			// (and every region shows something, unless a press made the page the visitor's own)
 			pressed.get(t.name) === t.documents ? null : regions_show(t, world),
 			// (and no hole that wakes on its own still shows its fallback, pressed or not: a press

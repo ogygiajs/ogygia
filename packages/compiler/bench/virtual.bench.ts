@@ -228,7 +228,9 @@ bench('virtual modules: dev moves, each followed by the modules that moved', () 
 	const leg = { ssr: true, universalHooks: null };
 	let named = 0;
 	for (let edit = 0; edit < 40; edit++) {
-		for (let i = 0; i < 50; i++) table.load(`\0ogygia:server/m${i}`, app, leg);
+		for (let i = 0; i < 50; i++)
+			// oxlint-disable-next-line typescript/no-floating-promises -- the bench counts load's own steps; these modules answer at once (test: virtual-reads.test.ts load_now)
+			table.load(`\0ogygia:server/m${i}`, app, leg);
 		if (edit % 4 === 0) table.move('regions');
 		else db.set(size, `f${edit % 10}`, edit);
 		named += table.moved().length;

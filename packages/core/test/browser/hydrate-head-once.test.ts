@@ -2,6 +2,7 @@
 // not hydrate, once, at the first island; never on a page Kit hydrates. The tests run in order: the
 // first hydrate of this file is the Kit page's.
 import { afterAll, beforeAll, beforeEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import type { Component } from 'svelte';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { load_devalue } from '../../src/runtime/devalue-lane.ts';
@@ -9,7 +10,7 @@ import { runtime_session } from '../../src/runtime/session.ts';
 import { hydrate_island } from '../../src/runtime/hydrate-core.ts';
 import Counter from './fixtures/Counter.svelte';
 
-const render_html = () => decodeURIComponent(escape(atob(inject('counter_render_b64'))));
+const render_html = () => from_b64(inject('counter_render_b64'));
 const counter = { default: Counter as unknown as Component<Record<string, unknown>> };
 const HEAD = '<!--svelte-1abc23--><meta name="x"><!---->';
 const head_comments = () =>
