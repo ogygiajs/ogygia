@@ -129,15 +129,19 @@ const fp = (i: number): string => (i * 2654435761 + 977).toString(16).slice(-8).
 
 /** One block island's server markup: a card of rows inside Svelte's anchor pair, with whitespace. */
 function block_html(i: number, rows: number): string {
-	let inner = dedent`
-		<!--[--><section class="block b${i}">
-			<h2>Block ${i}</h2>
-			<ul>
-	`;
+	const inner = [
+		dedent`
+			<!--[--><section class="block b${i}">
+				<h2>Block ${i}</h2>
+				<ul>
+		`
+	];
 	for (let r = 0; r < rows; r++)
-		inner = `${inner}\n\t\t<li data-sku="SKU-${i}-${r}"><a href="/p/${i}/${r}">Row ${r}</a> <span>${(i * 7 + r) % 97}</span></li>`;
+		inner.push(
+			`\n\t\t<li data-sku="SKU-${i}-${r}"><a href="/p/${i}/${r}">Row ${r}</a> <span>${(i * 7 + r) % 97}</span></li>`
+		);
 	return dedent`
-		${inner}
+		${inner.join('')}
 			</ul>
 		</section><!--]-->
 	`;
@@ -145,10 +149,12 @@ function block_html(i: number, rows: number): string {
 
 /** The header island: a nav of menus, a search box and an account menu. */
 function header_html(menus: number): string {
-	let inner = '<!--[--><header class="site">\n\t<nav>';
+	const inner = ['<!--[--><header class="site">\n\t<nav>'];
 	for (let m = 0; m < menus; m++)
-		inner = `${inner}\n\t\t<div class="menu"><button type="button">Menu ${m}</button> <ul><li><a href="/m/${m}/a">A</a></li> <li><a href="/m/${m}/b">B</a></li></ul></div>`;
-	return `${inner}
+		inner.push(
+			`\n\t\t<div class="menu"><button type="button">Menu ${m}</button> <ul><li><a href="/m/${m}/a">A</a></li> <li><a href="/m/${m}/b">B</a></li></ul></div>`
+		);
+	return `${inner.join('')}
 	</nav>
 	<form role="search"><input name="q"> <button>Go</button></form>
 </header><!--]-->`;
@@ -196,10 +202,14 @@ export function strip_whitespace(
  * own (its markers around a JSON-LD script inside an `{#if}`).
  */
 export function page_head(blocks: number): void {
-	let html = `<meta charset="utf-8"><meta name="ogygia-csr" content="false"><title>Catalog</title><!--h1a2b3--><meta name="description" content="Every product"><!----><link rel="stylesheet" href="/app.css">`;
+	const html = [
+		`<meta charset="utf-8"><meta name="ogygia-csr" content="false"><title>Catalog</title><!--h1a2b3--><meta name="description" content="Every product"><!----><link rel="stylesheet" href="/app.css">`
+	];
 	for (let i = 0; i < blocks; i += 10)
-		html = `${html}<!--h${fp(i)}--><!--[--><script type="application/ld+json">{"@id":"b${i}"}</script><!--]--><!---->`;
-	(document.head as unknown as DomElement).replaceChildren(...frag(html));
+		html.push(
+			`<!--h${fp(i)}--><!--[--><script type="application/ld+json">{"@id":"b${i}"}</script><!--]--><!---->`
+		);
+	(document.head as unknown as DomElement).replaceChildren(...frag(html.join('')));
 }
 
 /**
@@ -240,12 +250,11 @@ export function cms_page(blocks: number, rows = 6, edit = true): PageRegion[] {
 		entry: island_entry(30),
 		props: JSON.stringify({ year: 2026, links: ['a', 'b', 'c'] })
 	});
-	let html = '<main><div class="blocks">';
-	parts.forEach(
-		(p, i) => (html = `${html}${region_open(i, p.wake, p.entry) + p.html}</ogygia-region>`)
-	);
-	html = `${html}</div></main><div hidden>`;
-	parts.forEach((p, i) => (html += sidecar(i, p.props)));
+	const html = ['<main><div class="blocks">'];
+	for (let i = 0; i < parts.length; i++)
+		html.push(region_open(i, parts[i].wake, parts[i].entry), parts[i].html, '</ogygia-region>');
+	html.push('</div></main><div hidden>');
+	for (let i = 0; i < parts.length; i++) html.push(sidecar(i, parts[i].props));
 	// the tail's island graph: each entry's chunks, preloaded at its wake (island-graph-preload.ts)
 	const graph = new Map<string, string[]>();
 	for (const p of parts)
@@ -253,9 +262,10 @@ export function cms_page(blocks: number, rows = 6, edit = true): PageRegion[] {
 			const k = graph.size;
 			graph.set(p.entry, [chunk_of(k), chunk_of(k + 1), chunk_of(40)]);
 		}
-	html = `${html}<script type="application/json" ${ISLAND_GRAPH_ATTR}>${encode_island_graph(graph)}</script>`;
-	html = `${html}</div>`;
-	for (const n of frag(html)) body.appendChild(n);
+	html.push(
+		`<script type="application/json" ${ISLAND_GRAPH_ATTR}>${encode_island_graph(graph)}</script></div>`
+	);
+	for (const n of frag(html.join(''))) body.appendChild(n);
 	const els = (body as unknown as Element).querySelectorAll('ogygia-region');
 	return parts.map((p, i) => {
 		const region = els[i];
@@ -277,10 +287,12 @@ export function grid_page(cards: number): PageRegion {
 	body.replaceChildren();
 	page_head(0);
 	const entry = island_entry(50);
-	let inner = '<!--[-->';
+	const cards_html: string[] = [];
 	for (let i = 0; i < cards; i++)
-		inner = `${inner}<article class="card"><h3>Product ${i}</h3> <p>${(i * 13) % 97} USD</p></article>`;
-	inner = `${inner}<!--]-->`;
+		cards_html.push(
+			`<article class="card"><h3>Product ${i}</h3> <p>${(i * 13) % 97} USD</p></article>`
+		);
+	const inner = `<!--[-->${cards_html.join('')}<!--]-->`;
 	const props = JSON.stringify({ ids: Array.from({ length: cards }, (_, i) => i) });
 	for (const n of frag(
 		`${region_open(0, 'load', entry) + inner}</ogygia-region>${sidecar(0, props)}`

@@ -134,13 +134,16 @@ function load_module(consts: number): string {
 }
 
 function render_html(rows: number, changed: number): string {
-	let out = '<!doctype html><html><head><title>t</title></head><body>';
+	const out = ['<!doctype html><html><head><title>t</title></head><body>'];
 	for (let i = 0; i < rows; i++) {
 		const v = i < changed ? `v2-${i}` : `v1-${i}`;
-		out = `${out}<ogygia-region entry="/_app/ogygia/og-region.${i % 20}.js" data-og-fp="fp${i}"><li data-v="${v}">Row ${i} ${v}</li></ogygia-region>`;
-		out = `${out}<script type="application/ogygia-props" data-ogygia-props="fp${i}">{"row":${i},"v":"${v}"}</script>`;
+		out.push(
+			`<ogygia-region entry="/_app/ogygia/og-region.${i % 20}.js" data-og-fp="fp${i}"><li data-v="${v}">Row ${i} ${v}</li></ogygia-region>`,
+			`<script type="application/ogygia-props" data-ogygia-props="fp${i}">{"row":${i},"v":"${v}"}</script>`
+		);
 	}
-	return `${out}</body></html>`;
+	out.push('</body></html>');
+	return out.join('');
 }
 
 bench(
