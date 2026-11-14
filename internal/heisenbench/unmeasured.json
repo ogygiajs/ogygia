@@ -3841,31 +3841,31 @@
 			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
 		},
 		{
-			"id": "packages/machine/src/queue.ts > QueueImpl > #arm > timeout:0~5b3150",
+			"id": "packages/machine/src/queue.ts > Line > #arm > timeout:0~5b3150",
 			"reason": "the deadlines' one timer firing: hands over to #expire, constant work"
 		},
 		{
-			"id": "packages/machine/src/queue.ts > QueueImpl > #expire",
+			"id": "packages/machine/src/queue.ts > Line > #expire",
 			"reason": "a timer's callback over the waiting jobs, linear in them; queue.test.ts runs it under fake timers (not replayable: it reads the clock)"
 		},
 		{
-			"id": "packages/machine/src/queue.ts > QueueImpl > #expire > leave_where:0~9dd123",
+			"id": "packages/machine/src/queue.ts > Line > #expire > leave_where:0~9dd123",
 			"reason": "the deadline test #leave_where applies, one comparison"
 		},
 		{
-			"id": "packages/machine/src/queue.ts > QueueImpl > #leave_where",
+			"id": "packages/machine/src/queue.ts > Line > #leave_where",
 			"reason": "the waiting jobs a deadline or the owner's close picks, linear in them; queue.test.ts runs it (not replayable: stale hooks with side effects)"
 		},
 		{
-			"id": "packages/machine/src/queue.ts > QueueImpl > constructor > defer:0~b785c2",
+			"id": "packages/machine/src/queue.ts > Line > constructor > defer:0~b785c2",
 			"reason": "the queue's owner closing: hands over to #leave_where, constant work"
 		},
 		{
-			"id": "packages/machine/src/queue.ts > QueueImpl > constructor > defer:0~b785c2 > leave_where:0~8b94d4",
+			"id": "packages/machine/src/queue.ts > Line > constructor > defer:0~b785c2 > leave_where:0~8b94d4",
 			"reason": "the owner's close picks every waiting job, constant work"
 		},
 		{
-			"id": "packages/machine/src/queue.ts > QueueImpl > get holding",
+			"id": "packages/machine/src/queue.ts > Line > get holding",
 			"reason": "a getter, one read"
 		},
 		{
