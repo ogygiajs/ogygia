@@ -3,7 +3,7 @@
 // plain component Kit hydrates. The browser half: apps/palaestra/e2e/csr-true-regions.spec.ts.
 import { describe, expect, it } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
-import { transformHost } from '../src/compiler/region/transform.ts';
+import { transformHost } from '../src/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 const HOST = '/app/src/routes/kit/+page.svelte';

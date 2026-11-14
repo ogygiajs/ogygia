@@ -2,13 +2,8 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-	clientBuildWillSkip,
-	read_csr,
-	route_reader,
-	KEEP_CLIENT_DIR
-} from '../src/compiler/kit.ts';
-import { node_fs } from '../src/compiler/fs.ts';
+import { clientBuildWillSkip, read_csr, route_reader, KEEP_CLIENT_DIR } from '../src/kit.ts';
+import { node_fs } from '../src/fs.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const R = route_reader(node_fs);

@@ -291,7 +291,7 @@ A second pass pulled the rest of the file-local + discovery front-end Vite-free,
   `runtime_feature_hash` moved onto the `Program` (it is derived from `runtime_marks`, which lives there).
 - **The spine is now reachable + proven standalone.** `compiler/index.ts` (`ogygia/internal/compiler`)
   re-exports `Compiler` / `Program` / `CompileCtx`; `test/standalone-driver.test.ts` drives transform /
-  ts_regions / macros with ZERO Vite (imports only `../dist/compiler/index.js`). The "a REPL is just a
+  ts_regions / macros with ZERO Vite (imports only `../dist/index.js`). The "a REPL is just a
   second adapter" thesis is now executable, not aspirational.
 - **Config validation** (`assert_no_legacy_options` / `validate_region_presets` /
   `validate_content_presets`) moved to `vite/options.ts`, next to the option types it guards.

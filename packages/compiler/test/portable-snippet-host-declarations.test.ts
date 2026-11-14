@@ -4,7 +4,7 @@
 // `ReferenceError` at render (see portable-snippet-scope.test.ts for the other kinds).
 import { describe, expect, it } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
-import { transformHost } from '../src/compiler/region/transform.ts';
+import { transformHost } from '../src/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 type Ctx = Parameters<typeof transformHost>[2];

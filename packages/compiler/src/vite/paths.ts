@@ -22,7 +22,7 @@ export const KIT_REMOTE_STATE: RegExp = /state\.svelte\.js$/;
  *  `.js` file in `runtime_dir` (none when it is not built yet). */
 export function runtime_inputs(runtime_dir: string = RUNTIME_DIR): string[] {
 	const inputs = [
-		fileURLToPath(new URL('../compiler/link/runtime-entry.js', import.meta.url)),
+		fileURLToPath(new URL('../link/runtime-entry.js', import.meta.url)),
 		...RUNTIME_INPUTS
 	];
 	try {

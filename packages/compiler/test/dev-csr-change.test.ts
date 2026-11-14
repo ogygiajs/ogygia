@@ -5,12 +5,12 @@
 // restart), and one that became csr=true kept its regions. Found by the compiler DST harness
 // (internal/compiler-dst, dev matches a cold start).
 import { expect, test } from 'vitest';
-import { Compiler } from '../src/compiler/driver.ts';
-import { Program } from '../src/compiler/program.ts';
-import { CompileCtx } from '../src/compiler/ctx.ts';
-import { normalize_import_keys } from '../src/compiler/region/transform.ts';
-import { memory_fs, type MemoryFs } from '../src/compiler/fs.ts';
-import { csrTrueRouteIds, type FileEvent } from '../src/compiler/kit.ts';
+import { Compiler } from '../src/driver.ts';
+import { Program } from '../src/program.ts';
+import { CompileCtx } from '../src/ctx.ts';
+import { normalize_import_keys } from '../src/region/transform.ts';
+import { memory_fs, type MemoryFs } from '../src/fs.ts';
+import { csrTrueRouteIds, type FileEvent } from '../src/kit.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 

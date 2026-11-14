@@ -6,8 +6,8 @@
 // plain (`mutated`).
 import { describe, expect, it } from 'vitest';
 import { parse } from 'svelte/compiler';
-import { collectCaptureInfo, scope_bindings } from '../src/compiler/free-vars.ts';
-import { parse_module } from '../src/compiler/parse/oxc.ts';
+import { collectCaptureInfo, scope_bindings } from '../src/free-vars.ts';
+import { parse_module } from '../src/parse/oxc.ts';
 
 const info = (markup: string) => {
 	const r = collectCaptureInfo(parse(markup, { modern: true }).fragment.nodes as never);

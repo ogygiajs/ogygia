@@ -32,16 +32,12 @@ import {
 import { dedent } from '@ogygia/core/contract';
 import { ogygia } from '../src/vite/index.ts';
 import { definePlugin } from '../src/vite/plugin-api.ts';
-import { keep_client_dir } from '../src/compiler/kit.ts';
-import { server_handoff_json, server_handoff_path } from '../src/compiler/link/emit-gate.ts';
-import {
-	foucCssVirtualId,
-	foucScopedVirtualId,
-	FOUC_CSS_PREFIX
-} from '../src/compiler/fouc-css.ts';
-import { EVERY_BARREL } from '../src/compiler/exports/index.ts';
-import { remote_hash_of } from '../src/compiler/link/island-deps.ts';
-import { BuildCache, __set_build_cache_root } from '../src/compiler/build-cache.ts';
+import { keep_client_dir } from '../src/kit.ts';
+import { server_handoff_json, server_handoff_path } from '../src/link/emit-gate.ts';
+import { foucCssVirtualId, foucScopedVirtualId, FOUC_CSS_PREFIX } from '../src/fouc-css.ts';
+import { EVERY_BARREL } from '../src/exports/index.ts';
+import { remote_hash_of } from '../src/link/island-deps.ts';
+import { BuildCache, __set_build_cache_root } from '../src/build-cache.ts';
 import { scan_entry_pattern } from '../src/vite/paths.ts';
 import { load_kit_config } from '../src/vite/kit-dirs.ts';
 import { DEV_CLIENT_MAPS, DEV_MAPS, DEV_PAGE_KEYS } from '../src/vite/dev-maps.ts';
@@ -1876,7 +1872,7 @@ describe('the dev server', () => {
 	});
 
 	it("every stylesheet kind the browser's bridge can join goes out as a scoped join, and only those", async () => {
-		const { dev_hmr_client_source } = await import('../src/compiler/dev/dev-hmr.ts');
+		const { dev_hmr_client_source } = await import('../src/dev/dev-hmr.ts');
 		const glob = /import\.meta\.glob\("\/src\/\*\*\/\*\.\{([^}]+)\}"/.exec(dev_hmr_client_source());
 		const kinds = glob![1].split(',');
 		app();

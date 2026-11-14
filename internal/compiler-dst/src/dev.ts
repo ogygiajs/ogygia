@@ -7,11 +7,7 @@
  * start" is a real oracle: a module served stale in dev differs from a fresh session's.
  */
 import path from 'node:path';
-import {
-	memory_fs,
-	type Fs,
-	type MemoryFs
-} from '../../../packages/compiler/src/compiler/index.ts';
+import { memory_fs, type Fs, type MemoryFs } from '../../../packages/compiler/src/index.ts';
 import { code_of, session, transform_module, type Leg, type Session } from './session.ts';
 import { LIB, ROOT } from './app.ts';
 import { permute } from './order.ts';

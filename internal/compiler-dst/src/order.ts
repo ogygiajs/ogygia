@@ -4,7 +4,7 @@
  * what the compiler decides. `shuffled()` lists each directory in a seeded order; `permute()` gives
  * the transform order.
  */
-import type { Fs } from '../../../packages/compiler/src/compiler/index.ts';
+import type { Fs } from '../../../packages/compiler/src/index.ts';
 
 /** A small seeded generator (mulberry32): the same seed, the same orders. */
 export function rng(seed: number): () => number {

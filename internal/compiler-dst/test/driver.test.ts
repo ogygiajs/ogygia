@@ -1,11 +1,11 @@
-// The driver (packages/compiler/src/compiler/driver.ts) through the in-memory compile: what the
+// The driver (packages/compiler/src/driver.ts) through the in-memory compile: what the
 // prescan learns from the files, how a transform records each leg, the ids the client leg of a build
 // resolves a csr=false page's region registry to, the virtual modules it emits per leg, and what a
 // deleted component takes with it.
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { dedent } from '../../../packages/core/src/contract/dedent.ts';
-import { memory_fs } from '../../../packages/compiler/src/compiler/fs.ts';
+import { memory_fs } from '../../../packages/compiler/src/fs.ts';
 import { LIB, ROOT, ROUTES } from '../src/app.ts';
 import { session, transform_module, type Leg, type Session } from '../src/session.ts';
 import { page_reads } from '../../../packages/data-shake/src/index.ts';

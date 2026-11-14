@@ -1,9 +1,9 @@
-// Kit's route answers (src/compiler/kit.ts over src/compiler/queries.ts): each host's csr world asked
+// Kit's route answers (src/kit.ts over src/queries.ts): each host's csr world asked
 // the way every transform asks it, the app-wide answers the virtual modules bake, and a dev session's
 // file events (an edit that changes nothing, a csr flip, a page added) with the answers asked again.
 import { bench } from '@bench/heisenbench/bench';
 import { dedent } from '@ogygia/core/contract';
-import { memory_fs, type MemoryFs } from '../src/compiler/fs.ts';
+import { memory_fs, type MemoryFs } from '../src/fs.ts';
 import {
 	clientBuildWillSkip,
 	csrTrueRouteIds,
@@ -15,7 +15,7 @@ import {
 	routeCsrIsTrue,
 	route_reader,
 	type Routes
-} from '../src/compiler/kit.ts';
+} from '../src/kit.ts';
 
 const ROUTES = '/app/src/routes';
 const KEYS = ['tier'];

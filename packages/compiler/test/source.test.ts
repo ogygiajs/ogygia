@@ -3,7 +3,7 @@
 // reverse index) is tested in that plugin.
 import { describe, it, expect, afterEach } from 'vitest';
 import { compile } from 'svelte/compiler';
-import { rewrite_source } from '../src/compiler/macros/source.ts';
+import { rewrite_source } from '../src/macros/source.ts';
 import { dedent } from '@ogygia/core/contract';
 import {
 	__og_source,

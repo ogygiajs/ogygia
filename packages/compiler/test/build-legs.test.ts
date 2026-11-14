@@ -1,14 +1,14 @@
-// One record per bundler environment in a build (src/compiler/leg.ts): Kit 3 builds `ssr` then
+// One record per bundler environment in a build (src/leg.ts): Kit 3 builds `ssr` then
 // `client` in one plugin instance, so what one leg emits must never be read as the other's, and a
 // hook the bundler calls without an environment is placed only when one leg is open.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Compiler } from '../src/compiler/driver.ts';
-import { Program } from '../src/compiler/program.ts';
-import { CompileCtx } from '../src/compiler/ctx.ts';
-import { normalize_import_keys } from '../src/compiler/region/transform.ts';
+import { Compiler } from '../src/driver.ts';
+import { Program } from '../src/program.ts';
+import { CompileCtx } from '../src/ctx.ts';
+import { normalize_import_keys } from '../src/region/transform.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 

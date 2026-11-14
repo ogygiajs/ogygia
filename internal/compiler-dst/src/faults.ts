@@ -10,7 +10,7 @@
  * seed, on a file that is there. `watched()` turns a run of saves into the events a faulty watcher
  * delivers.
  */
-import type { Fs, MemoryFs } from '../../../packages/compiler/src/compiler/index.ts';
+import type { Fs, MemoryFs } from '../../../packages/compiler/src/index.ts';
 
 /** What one read of a file there can do wrong. */
 export type DiskFault = 'read-fails' | 'gone-after-stat' | 'half-written';

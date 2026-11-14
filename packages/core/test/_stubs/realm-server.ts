@@ -1,5 +1,5 @@
 // Test stub for `ogygia:server`: the realm module, re-exporting each entry's stub under its realm
-// name, as the generated one does (src/compiler/virtual/core.ts). It imports each entry by its own
+// name, as the generated one does (src/virtual/core.ts). It imports each entry by its own
 // id, so a suite's `vi.mock('ogygia:server/<id>')` reaches what the realm module exports.
 // test/virtual-table.test.ts checks it exports every name the table gives the realm.
 export { runtime_url } from 'ogygia:server/runtime-url';

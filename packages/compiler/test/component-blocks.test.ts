@@ -4,9 +4,9 @@
 // a block's text holds no tag, and `<scripts>` is not `<script>`.
 import { describe, expect, test } from 'vitest';
 import { fileURLToPath } from 'node:url';
-import { og_js_regions } from '../src/compiler/parse/scan.ts';
-import { svelteModuleHasTransportable } from '../src/compiler/transportables.ts';
-import { blank_styles } from '../src/compiler/blank-styles.ts';
+import { og_js_regions } from '../src/parse/scan.ts';
+import { svelteModuleHasTransportable } from '../src/transportables.ts';
+import { blank_styles } from '../src/blank-styles.ts';
 import { preprocess_component_for_css } from '../src/vite/style-preprocess.ts';
 import { dedent } from '@ogygia/core/contract';
 

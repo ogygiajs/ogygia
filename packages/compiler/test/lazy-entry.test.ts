@@ -11,9 +11,9 @@ import {
 	make_wake_island,
 	lazy_entry_source,
 	island_wrapper_client_source
-} from '../src/compiler/region/emit.ts';
-import { lazyEntryVirtualId } from '../src/compiler/ids.ts';
-import { is_island_path } from '../src/compiler/region/transform.ts';
+} from '../src/region/emit.ts';
+import { lazyEntryVirtualId } from '../src/ids.ts';
+import { is_island_path } from '../src/region/transform.ts';
 
 const record = () =>
 	make_wake_island({

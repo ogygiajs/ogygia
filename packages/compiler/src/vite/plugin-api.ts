@@ -4,19 +4,19 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type MagicString from 'magic-string';
 import type { Plugin as VitePlugin } from 'vite';
-import type { ExportMap, Policy } from '../compiler/exports/index.ts';
-import type { ClientRealmFile, ServerRealm } from '../compiler/link/caps.ts';
+import type { ExportMap, Policy } from '../exports/index.ts';
+import type { ClientRealmFile, ServerRealm } from '../link/caps.ts';
 import {
 	RUNTIME_HOOK_CONSTANTS,
 	type BarrelLeftReason,
 	type CompileEventInput,
 	type RuntimeHookName
 } from '@ogygia/core/contract';
-import { OgygiaError } from '../compiler/messages.ts';
+import { OgygiaError } from '../messages.ts';
 import type { Definers } from './definers.ts';
-import { parse_module, type AstNode } from '../compiler/parse/oxc.ts';
-import type { MacroContext } from '../compiler/macros/pipeline.ts';
-import type { PrescanHook } from '../compiler/ctx.ts';
+import { parse_module, type AstNode } from '../parse/oxc.ts';
+import type { MacroContext } from '../macros/pipeline.ts';
+import type { PrescanHook } from '../ctx.ts';
 
 /** Where `definePlugin` puts the definition on the Vite plugin it returns. A registered symbol, so a
  *  second copy of ogygia in one app still recognizes the first's plugins. */

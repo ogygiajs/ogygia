@@ -13,7 +13,7 @@ import {
 	registry_client_source,
 	static_script_specs,
 	REGISTRY_CLIENT_QUERY
-} from '../src/compiler/link/registry-stub.ts';
+} from '../src/link/registry-stub.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const REGISTRY = `
