@@ -43,8 +43,9 @@ function url_of(value: string | null): URL | null {
 	if (!value) return null;
 	try {
 		return new URL(value, document.baseURI);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL; the name goes without it
 	} catch {
-		return null; // ok: not a URL; the name goes without it
+		return null;
 	}
 }
 

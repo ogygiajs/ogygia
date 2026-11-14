@@ -45,8 +45,9 @@ function read_seed(name: string): unknown {
 	if (!el?.textContent) return undefined;
 	try {
 		return JSON.parse(el.textContent);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a state this server wrote (it writes JSON): read as none, as a missing one is
 	} catch {
-		return undefined; // ok: not a state this server wrote (it writes JSON): read as none, as a missing one is
+		return undefined;
 	}
 }
 

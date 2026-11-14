@@ -73,9 +73,8 @@ export function props_diff(
 	if (a === b) return null;
 	try {
 		return first_path(revive(JSON.parse(a)), revive(JSON.parse(b)), '');
-	} catch {
-		// ok: neither lane parsed: the text is compared, with the ids masked, below
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- neither lane parsed: the text is compared, with the ids masked, below
+	} catch {}
 	const ma = mask_ids(a);
 	const mb = mask_ids(b);
 	if (ma === mb) return null;

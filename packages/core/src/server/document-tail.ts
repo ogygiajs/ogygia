@@ -67,8 +67,9 @@ export function props_preview(props: unknown, max = 80): string {
 		const s = JSON.stringify(props, (_k, v) => (typeof v === 'bigint' ? String(v) : v));
 		if (!s || s === '{}' || s === '[]') return '';
 		return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a preview only; props that do not stringify show none
 	} catch {
-		return ''; // ok: a preview only; props that do not stringify show none
+		return '';
 	}
 }
 

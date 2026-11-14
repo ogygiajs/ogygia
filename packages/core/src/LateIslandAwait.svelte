@@ -7,7 +7,7 @@ async mode this file does not compile, which is why it is never the default. A f
 nothing, and says `island_load_failed`.
 -->
 <script lang="ts">
-	import type { Component as Loaded, Snippet } from 'svelte';
+	import { untrack, type Component as Loaded, type Snippet } from 'svelte';
 	import { OgygiaError } from './messages/island.ts';
 
 	interface Props {
@@ -17,8 +17,7 @@ nothing, and says `island_load_failed`.
 	}
 
 	let { load, props, children }: Props = $props();
-	// svelte-ignore state_referenced_locally
-	const Component = await load().catch((error) => {
+	const Component = await untrack(() => load()).catch((error) => {
 		console.error(new OgygiaError('island_load_failed', { entry: null }), error);
 		return undefined;
 	});

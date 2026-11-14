@@ -87,8 +87,9 @@ function canonical(value: unknown, depth = 0): unknown {
 export function fingerprint_args(args: unknown[]): string {
 	try {
 		return fnv1a(JSON.stringify(canonical(args)));
+		// oxlint-disable-next-line ogygia/no-silent-failures -- args that do not stringify share one tag: an evict drops them all, never too few
 	} catch {
-		return 'opaque'; // ok: args that do not stringify share one tag: an evict drops them all, never too few
+		return 'opaque';
 	}
 }
 

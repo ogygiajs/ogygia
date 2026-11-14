@@ -42,8 +42,9 @@
 			const s = read_styles(document, { match: true });
 			s.unscoped = await scan_unscoped(document);
 			styles = s;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the styles check failed: its section stays hidden, the tab works without it
 		} catch {
-			styles = null; // ok: the styles check failed: its section stays hidden, the tab works without it
+			styles = null;
 		}
 		styles_busy = false;
 	}
@@ -52,8 +53,9 @@
 	async function check_cache() {
 		try {
 			cache = await probe_cache(document);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the cache probe failed: no cache findings, the tab works without them
 		} catch {
-			cache = null; // ok: the cache probe failed: no cache findings, the tab works without them
+			cache = null;
 		}
 	}
 	// again after an in-app navigation (a new page, new sheets): keyed on the navigation's time — a
@@ -169,8 +171,9 @@
 				calls: net?.description ?? '',
 				ups: ups.map((u) => ({ desc: u!.description, ms: u!.duration }))
 			};
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no navigation timing in this browser: the server's line is left out
 		} catch {
-			return null; // ok: no navigation timing in this browser: the server's line is left out
+			return null;
 		}
 	})();
 	// the document's vitals (after a navigation the report drops them; they still show, labelled)

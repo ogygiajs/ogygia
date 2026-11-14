@@ -16,7 +16,6 @@ export type SourceReader = (
 const is_id_start = (c: number) =>
 	(c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 36 || c === 95 || c > 127;
 const is_id_part = (c: number) => is_id_start(c) || (c >= 48 && c <= 57);
-// static: the language's two-character operators
 const PUNCT2: ReadonlySet<string> = new Set([
 	'=>',
 	'+=',
@@ -453,7 +452,6 @@ function push(m: Map<string, string[]>, k: string, v: string) {
 }
 
 /** a word that is not a variable: the language's own, and the ones a statement reads by */
-// static: a fixed list of keywords
 const NOT_A_NAME: ReadonlySet<string> = new Set([
 	'await',
 	'async',
@@ -498,7 +496,6 @@ const NOT_A_NAME: ReadonlySet<string> = new Set([
 	'export'
 ]);
 /** a method that fills the value it is called on: `list.push(x)` writes `list` */
-// static: a fixed list of methods
 const FILLS: ReadonlySet<string> = new Set(['push', 'unshift', 'set', 'add', 'splice', 'assign']);
 
 /**
@@ -1020,7 +1017,6 @@ export function parent_use(
 
 /** globals whose calls give the same answer for the same input (a clock, a random or the network
  *  are not among them: `Date`, `Math`, `performance`, `crypto`, `fetch`) */
-// static: a fixed list of builtins
 const PURE_GLOBALS: ReadonlySet<string> = new Set([
 	'Object',
 	'Array',
@@ -1039,7 +1035,6 @@ const PURE_GLOBALS: ReadonlySet<string> = new Set([
 	'Intl'
 ]);
 
-// static: Node's built-in module names, a fixed list
 const NODE_MODULES: ReadonlySet<string> = new Set([
 	'crypto',
 	'fs',
@@ -1093,7 +1088,6 @@ function import_source(line: string): string {
 }
 
 /** globals whose every use can answer differently: the network, a clock, the process, timers */
-// static: a fixed list of builtins
 const PER_CALL_GLOBALS: ReadonlySet<string> = new Set([
 	'fetch',
 	'performance',
@@ -1108,7 +1102,6 @@ const PER_CALL_GLOBALS: ReadonlySet<string> = new Set([
 ]);
 
 /** methods that change what their receiver holds */
-// static: a fixed list of methods
 const MUTATORS: ReadonlySet<string> = new Set([
 	'push',
 	'pop',
@@ -2099,7 +2092,6 @@ export interface FormatterRewriteOptions {
 
 /** Intl constructors taken as `(locales, options)` — what one cached factory can build — and
  *  whether their options are required */
-// static: a fixed list of constructors
 const FACTORY_CTORS: ReadonlyMap<string, { required: boolean }> = new Map([
 	['NumberFormat', { required: false }],
 	['DateTimeFormat', { required: false }],

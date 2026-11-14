@@ -23,8 +23,9 @@ function cache_root(): string | null {
 		const d = path.join(configured ?? process.cwd(), 'node_modules', '.ogygia');
 		fs.mkdirSync(d, { recursive: true });
 		root = d;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a read-only install runs with no cache; the work is redone each build
 	} catch {
-		root = null; // ok: a read-only install runs with no cache; the work is redone each build
+		root = null;
 	}
 	return root;
 }
@@ -45,8 +46,9 @@ export class BuildCache<T> {
 			const d = path.join(r, this.namespace);
 			fs.mkdirSync(d, { recursive: true });
 			return d;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no cache directory is a miss; the caller does the work itself
 		} catch {
-			return null; // ok: no cache directory is a miss; the caller does the work itself
+			return null;
 		}
 	}
 
@@ -55,8 +57,9 @@ export class BuildCache<T> {
 		if (!d) return null;
 		try {
 			return JSON.parse(fs.readFileSync(path.join(d, `${key}.json`), 'utf8')) as T;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- an absent or torn entry is a miss; the caller recomputes and sets it
 		} catch {
-			return null; // ok: an absent or torn entry is a miss; the caller recomputes and sets it
+			return null;
 		}
 	}
 
@@ -67,8 +70,7 @@ export class BuildCache<T> {
 			const tmp = path.join(d, `${key}.${process.pid}.tmp`);
 			fs.writeFileSync(tmp, JSON.stringify(value));
 			fs.renameSync(tmp, path.join(d, `${key}.json`));
-		} catch {
-			// ok: best effort; a failed write means a recompute next time
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- best effort; a failed write means a recompute next time
+		} catch {}
 	}
 }

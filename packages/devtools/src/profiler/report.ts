@@ -623,8 +623,7 @@ const fmt_pct = (part: number, whole: number): string =>
 	whole > 0 ? `${((part / whole) * 100).toFixed(1)}%` : '—';
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 /** The dev server's own packages: their work (module loading, transforms) exists only in dev. */
-// static: a fixed list of package names
-const DEV_TOOLS = new Set([
+const DEV_TOOLS: ReadonlySet<string> = new Set([
 	'vite',
 	'rolldown',
 	'rollup',
@@ -642,8 +641,7 @@ export function dev_tool_caller(caller: string): boolean {
 	const pkg = caller.slice(open + 1, -1);
 	return DEV_TOOLS.has(pkg) || pkg.startsWith('@rolldown/') || pkg.startsWith('@vitejs/');
 }
-// static: a fixed list of keywords
-const CALL_KEYWORDS = new Set([
+const CALL_KEYWORDS: ReadonlySet<string> = new Set([
 	'if',
 	'for',
 	'while',
@@ -811,9 +809,8 @@ export function page_origin(pa: PageAssets | undefined): string {
 			if (a.via === via)
 				try {
 					return new URL(a.url).origin;
-				} catch {
-					// ok: not a URL, so no origin; the next asset is tried
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL, so no origin; the next asset is tried
+				} catch {}
 	return '';
 }
 
@@ -827,8 +824,9 @@ function cpu_by_host(extras: ReportExtras): Map<string, number> | null {
 		let host = '';
 		try {
 			host = new URL(f.path).host;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: no host to count it under
 		} catch {
-			continue; // ok: not a URL: no host to count it under
+			continue;
 		}
 		m.set(host, (m.get(host) ?? 0) + f.self_ms);
 	}
@@ -902,8 +900,9 @@ export function page_duplicates(
 	const path_of = (u: string) => {
 		try {
 			return new URL(u).pathname;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: kept as written
 		} catch {
-			return u; // ok: not a URL: kept as written
+			return u;
 		}
 	};
 	const loaded = new Set<string>();
@@ -987,7 +986,6 @@ export function with_hidden_filled(
 
 /** browser findings whose answer is the screen's: below its first screen, hidden on it, images it
  *  shows smaller or lower down */
-// static: a fixed list of finding codes
 const SCREEN_CODES: ReadonlySet<string> = new Set([
 	'eager-offscreen',
 	'eager-hidden',
@@ -1011,7 +1009,6 @@ const PATH_WARN_MS = 3;
 
 /** findings about a server render — its CPU, components, calls, memory — that mean nothing when the
  *  build's file answered (no render ran: `run_static`) */
-// static: a fixed list of finding codes
 const RENDER_ONLY: ReadonlySet<string> = new Set([
 	'low-confidence',
 	'phases',
@@ -2716,8 +2713,7 @@ export function group_islands(rows: readonly IslandStat[]): IslandStat[] {
 /** Code every page with islands loads once, never an island's own to change: the runtimes, Kit,
  *  and devalue (the runtime's decoder for rich props — the `props-devalue` finding is where that is
  *  the island's doing). The heavy-module and barrel notes leave these out. */
-// static: a fixed list of package names
-const FRAMEWORK = new Set([
+const FRAMEWORK: ReadonlySet<string> = new Set([
 	'svelte runtime',
 	'ogygia runtime',
 	'@sveltejs/kit',
@@ -3129,8 +3125,9 @@ function ogygia_findings(
 		const path_of_entry = (e: string) => {
 			try {
 				return new URL(e, 'http://x/').pathname;
+				// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: kept as written
 			} catch {
-				return e; // ok: not a URL: kept as written
+				return e;
 			}
 		};
 		const vh = extras.visit?.viewport?.[1];

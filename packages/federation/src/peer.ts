@@ -175,7 +175,8 @@ export class PeerHandle implements Peer {
 			) {
 				// stale: served as it is while one fresh flight refreshes it (an error answer, or a
 				// failure, leaves the good copy kept, and the next stale read tries again)
-				if (!seen.flying) docs.get(read, { fresh: true }).then(undefined, noop); // ok: the good copy stays served and the next stale read tries again; a read with no copy throws the failure
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the good copy stays served and the next stale read tries again; a read with no copy throws the failure
+				if (!seen.flying) docs.get(read, { fresh: true }).then(undefined, noop);
 				return this.#used(seen.answer.doc);
 			}
 			let answer: Fetched | typeof STALE;
@@ -271,7 +272,8 @@ export class PeerHandle implements Peer {
 		}
 		const url = res.url || this.origin;
 		if (!res.ok && !(kind === 'page' && res.status === 404)) {
-			res.body?.cancel().then(undefined, noop); // ok: the answer is not read, only let go
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the answer is not read, only let go
+			res.body?.cancel().then(undefined, noop);
 			const what = `a ${res.status}`;
 			warn('federation_peer_answer_invalid', { peer: this.name, url, what });
 			throw new HopFailed(`answered ${what}`, res.status);
@@ -281,8 +283,9 @@ export class PeerHandle implements Peer {
 		try {
 			const parsed: unknown = JSON.parse(text);
 			doc = kind === 'page' ? fragment_document(parsed) : widget_document(parsed);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not JSON is not the document either, said just below
 		} catch {
-			doc = null; // ok: not JSON is not the document either, said just below
+			doc = null;
 		}
 		if (doc === null) {
 			const what = 'something that is not its JSON document';
@@ -422,8 +425,9 @@ export class PeerHandle implements Peer {
 			if (!this.#origins.some((o) => new URL(o).origin === new URL(answered).origin)) return null;
 			const u = new URL(url);
 			return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: no origin to allow
 		} catch {
-			return null; // ok: not a URL: no origin to allow
+			return null;
 		}
 	}
 
@@ -478,8 +482,9 @@ export class PeerHandle implements Peer {
 			const u = new URL(url, `${this.origin}/`);
 			if (!this.#origins.some((o) => new URL(o).origin === u.origin)) return null;
 			return u.pathname + u.search;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: nothing to forward to
 		} catch {
-			return null; // ok: not a URL: nothing to forward to
+			return null;
 		}
 	}
 
@@ -515,7 +520,8 @@ export class PeerHandle implements Peer {
 				}
 			} catch {
 				if (signal?.aborted) return null;
-				continue; // ok: a replica that does not answer: the next is asked
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a replica that does not answer: the next is asked
+				continue;
 			}
 			if (res.status >= 500) continue;
 			if (res.status === 204) return { status: 204 };

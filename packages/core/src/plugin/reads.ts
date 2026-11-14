@@ -84,7 +84,6 @@ export function note_visitor_read(request_reads: Reads, input: string): void {
 	request_reads.visitor(input);
 }
 
-// static: a fixed list of header names
 const PERSONAL_HEADERS: ReadonlySet<string> = new Set([
 	'cookie',
 	'authorization',
@@ -111,9 +110,7 @@ function is_personal_header(name: string): boolean {
 	return PERSONAL_HEADERS.has(n) || PERSONAL_HEADER_RE.test(n);
 }
 
-// static: the platform members every request shares
 const SHARED_PLATFORM: ReadonlySet<string> = new Set(['env', 'caches']);
-// static: the platform context members every request shares
 const SHARED_PLATFORM_CONTEXT: ReadonlySet<string> = new Set([
 	'waitUntil',
 	'passThroughOnException'
@@ -204,7 +201,7 @@ export function observe_reads(event: RequestEvent, request_reads: Reads): void {
 		(event as { fetch: typeof fetch }).fetch = ((input, init) => {
 			// Kit's fetch sends the visitor's cookies to its own origin and its subdomains
 			if (credentialed && carries_cookies(event.url, input)) note('fetch:credentials');
-			// port-ok: Kit's own event.fetch, wrapped (the platform's goes through the network port)
+			// oxlint-disable-next-line ogygia/ports -- Kit's own event.fetch, wrapped (the platform's goes through the network port)
 			return fetch(input, init);
 		}) as typeof fetch;
 
@@ -242,8 +239,9 @@ function carries_cookies(page: URL, input: RequestInfo | URL): boolean {
 	let target: URL;
 	try {
 		target = new URL(input instanceof Request ? input.url : String(input), page);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a URL Kit cannot fetch carries nothing
 	} catch {
-		return false; // ok: a URL Kit cannot fetch carries nothing
+		return false;
 	}
 	if (target.origin === page.origin) return true;
 	return target.protocol === page.protocol && target.hostname.endsWith(`.${page.hostname}`);

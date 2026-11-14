@@ -3,8 +3,8 @@ import { realm } from './realm.ts';
 const read = (key: 'localStorage' | 'sessionStorage'): Storage | null => {
 	try {
 		return realm[key] ?? null;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- reading it throws where storage is blocked; null is "no storage here"
 	} catch {
-		// ok: reading it throws where storage is blocked; null is "no storage here"
 		return null;
 	}
 };

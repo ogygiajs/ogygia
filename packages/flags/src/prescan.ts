@@ -39,8 +39,7 @@ export class Inventory implements PrescanHook {
 				`${JSON.stringify(manifest, null, '\t')}\n`
 			);
 			console.log(line('flags_manifest_written', { count: manifest.names.length }));
-		} catch {
-			// ok: a read-only file system never fails the build over an inventory
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a read-only file system never fails the build over an inventory
+		} catch {}
 	}
 }

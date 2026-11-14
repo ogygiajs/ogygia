@@ -88,9 +88,8 @@ export function tap_svelte_warnings(): void {
 					log.add({ ...p, ...(fp ? { fp } : {}), t: Math.round(clock.mono() * 10) / 10 });
 				}
 			}
-		} catch {
-			// ok: reading a warning never breaks the console line it came in
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- reading a warning never breaks the console line it came in
+		} catch {}
 		return warn.apply(this, args as []);
 	};
 }

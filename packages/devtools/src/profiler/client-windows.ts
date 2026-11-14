@@ -30,8 +30,12 @@ export interface ClientWindows {
 /** a slice this short says nothing a sampler (~10 ms) can back up */
 const MIN_WINDOW_MS = 20;
 const MAX_WINDOWS = 16;
-// static: a fixed list of frame categories
-const NOT_CODE = new Set<FrameCategory>(['idle', 'gc', 'v8', 'profiler']);
+const NOT_CODE: ReadonlySet<FrameCategory> = new Set<FrameCategory>([
+	'idle',
+	'gc',
+	'v8',
+	'profiler'
+]);
 
 /** The profile with every sample outside `spans` (ms, the page clock) turned idle. */
 export function window_profile(

@@ -419,7 +419,6 @@ function path_of(at: PathNode): SeedPath {
 	return path;
 }
 
-// static: the empty list, shared and never written
 const EMPTY_NODES: readonly object[] = [];
 
 const index_cache = new WeakMap<object, SeedIndex>();

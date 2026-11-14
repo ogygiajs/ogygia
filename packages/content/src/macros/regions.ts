@@ -95,8 +95,9 @@ function glob_relative(dir: string, glob: string): string[] {
 		.filter((p) => {
 			try {
 				return fs.statSync(p).isFile();
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a match gone before it was read is no file
 			} catch {
-				return false; // ok: a match gone before it was read is no file
+				return false;
 			}
 		})
 		.sort();

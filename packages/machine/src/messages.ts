@@ -35,6 +35,10 @@ export type MachineErrors = {
 	machine_queue_start_failed: Entry<{ name: string }>;
 	machine_queue_stale_failed: Entry<{ name: string }>;
 	machine_queue_yield_failed: Entry<{ name: string }>;
+	machine_decision_refused: Entry<{ name: string; input: string; why: string }>;
+	machine_decision_outside: Entry<{ name: string; field: string; value: string }>;
+	machine_decisions_too_many: Entry<{ name: string; count: string; max: string }>;
+	machine_decisions_rule_broken: Entry<{ name: string; broken: string }>;
 };
 
 /** The errors: thrown in dev (and tests), where a wrong move is a bug to fix now. */
@@ -196,6 +200,34 @@ Catch inside \`stale\` to handle it there.`
 			`A \`queue()\` with a \`budget\` had started jobs for its \`ms\` and called the budget's \`yield\` to hand the thread back, and it threw. A drain that waits for a \`resume\` that never comes would leave every waiting job waiting forever, so the queue goes on at once instead: the error goes to the page's error handler (\`reportError\`: the console and \`window.onerror\`), and the drain resumes in this step, without the yield.
 
 Make \`yield\` call \`resume\` from a later task, and catch inside it what can fail.`
+	},
+	machine_decision_refused: {
+		text: (a: { name: string; input: string; why: string }): string =>
+			`decisions ${a.name}: no app can ask for ${a.input}: ${a.why}.`,
+		details: (): string =>
+			`A \`decisions()\` table was asked to decide an input its \`refuse\` names as one no app can produce, and \`refuse\` said why. It throws in every build: a plan made for an input nobody thought through is worse than no plan.
+
+Find the code that built this input and fix it. If an app can in fact produce it, take it out of \`refuse\` and make \`decide\` answer it (then run the table's \`check()\` rules again).`
+	},
+	machine_decision_outside: {
+		text: (a: { name: string; field: string; value: string }): string =>
+			`decisions ${a.name}: \`${a.field}\` is ${a.value}, which is not one of the values its \`inputs\` lists.`,
+		details: (): string =>
+			`A \`decisions()\` table lists every value each input field can take (\`inputs\`), so its tests can walk every combination. It was asked to decide an input with a field outside that list (or left out). In dev and rules builds this throws; a production build does not check.
+
+Add the value to the field's list in \`inputs\` (and run the table's \`check()\` rules again), or fix the code that built the input.`
+	},
+	machine_decisions_too_many: {
+		text: (a: { name: string; count: string; max: string }): string =>
+			`decisions ${a.name}: its inputs make ${a.count} combinations, more than the ${a.max} a listing walks.`,
+		details: (): string =>
+			`A \`decisions()\` listing from \`@ogygia/machine/testing\` (\`rows\`, \`check\`, \`table\`, \`dead_fields\`) walks every combination of the table's inputs, and there are more than its \`max\`. Raise \`max\` if the full walk is what you want, or pass \`sample: { seed, size }\` to walk that many combinations picked by the seed (the same seed picks the same ones). A table that big usually has a field that should be split into a table of its own.`
+	},
+	machine_decisions_rule_broken: {
+		text: (a: { name: string; broken: string }): string =>
+			`decisions ${a.name}: some rules do not hold:\n${a.broken}`,
+		details: (): string =>
+			`\`check()\` from \`@ogygia/machine/testing\` ran each named rule over every row of a \`decisions()\` table, and some rules returned false (or threw). Each one is named with the first row that breaks it: its input and its plan (or why it is refused). Fix \`decide\` (or \`refuse\`) for that input, or the rule if it is the rule that is wrong.`
 	}
 };
 
