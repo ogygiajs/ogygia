@@ -2828,6 +2828,18 @@
 			"name": "a dropped connection is opened again, and what changed meanwhile is read"
 		},
 		{
+			"site": "packages/content/src/collection-base.ts > Collection > connect > .catch:0",
+			"reason": "`pending.catch(ignore)`: proved: the catch made to rethrow leaves an unhandled rejection the test listens for, red twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "a dropped connection is opened again, and what changed meanwhile is read"
+		},
+		{
+			"site": "packages/content/src/collection-base.ts > Collection > reconnect > .catch:0",
+			"reason": "`this.#follow(…).catch(ignore)`: proved: the catch made to rethrow leaves an unhandled rejection the test listens for, red twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "a reconnect whose read fails waits and tries again on the same connection"
+		},
+		{
 			"site": "packages/content/src/convention.ts > compile_format > throw:0",
 			"reason": "`throw new OgygiaError('content_dated_format_invalid', { format });`: proved: the throw removed turns the test red, twice",
 			"test": "packages/content/test/convention-dated.test.ts",
@@ -4538,6 +4550,12 @@
 			"name": "rejects broken yaml as invalid frontmatter, naming what the parser stopped at"
 		},
 		{
+			"site": "packages/content/src/markdown/frontmatter.ts > parseFrontmatter > throw:0",
+			"reason": "`throw e;` (the parser's own invalid error passed on): proved: the throw removed wraps it twice and turns the test red, twice",
+			"test": "packages/content/test/frontmatter-errors.test.ts",
+			"name": "a block the parser itself calls invalid is said once, not wrapped in a second invalid-frontmatter error"
+		},
+		{
 			"site": "packages/content/src/markdown/index.ts > ogygiaPresetPreprocess > group_for > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/content/test/markdown.test.ts",
@@ -4554,6 +4572,12 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the error handler made to do nothing turns the test red",
 			"test": "packages/content/test/search-client.test.ts",
 			"name": "the worker crashes: waiting queries and later ones are rejected"
+		},
+		{
+			"site": "packages/content/src/site/search-client.ts > SearchClient > constructor > .catch:0",
+			"reason": "`this.ready.catch(() => {})`: proved: the catch made to rethrow leaves an unhandled rejection the test listens for, red twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "a client destroyed, or failed, before its index loads leaves no unhandled rejection when nothing awaits ready"
 		},
 		{
 			"site": "packages/content/src/vite/index.ts > content > throw:0",
@@ -5190,8 +5214,6 @@
 		"packages/content/src/collection-base.ts > Collection > normalizeRef > throw:1",
 		"packages/content/src/collection-base.ts > Collection > reloadIds > catch:0",
 		"packages/content/src/collection-base.ts > Collection > follow > catch:1",
-		"packages/content/src/collection-base.ts > Collection > connect > .catch:0",
-		"packages/content/src/collection-base.ts > Collection > reconnect > .catch:0",
 		"packages/content/src/folder.ts > folder > meta > stale:0",
 		"packages/content/src/folder.ts > folder > throw:1",
 		"packages/content/src/folder.ts > folder > throw:2",
@@ -5203,7 +5225,6 @@
 		"packages/content/src/macros/git.ts > safe > catch:0",
 		"packages/content/src/macros/loaders.ts > extract_preset > throw:0",
 		"packages/content/src/macros/regions.ts > glob_relative > catch:0",
-		"packages/content/src/markdown/frontmatter.ts > parseFrontmatter > throw:0",
 		"packages/content/src/markdown/index.ts > load_mdsvex > import:0",
 		"packages/content/src/markdown/index.ts > load_mdsvex > catch:0",
 		"packages/content/src/markdown/index.ts > load_mdsvex > throw:0",
@@ -5227,7 +5248,6 @@
 		"packages/content/src/site/fields.ts > (module) > throw:3",
 		"packages/content/src/site/outline.ts > OutlineImpl > ready > stale:0",
 		"packages/content/src/site/outline.ts > materialize > groups_of > stale:0",
-		"packages/content/src/site/search-client.ts > SearchClient > constructor > .catch:0",
 		"packages/content/src/site/search-client.ts > SearchClient > constructor > onmessage > refused:0",
 		"packages/content/src/site/search-client.ts > SearchClient > constructor > message:0",
 		"packages/content/src/site/search-client.ts > SearchClient > query > message:0",
