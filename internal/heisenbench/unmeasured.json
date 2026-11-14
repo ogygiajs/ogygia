@@ -4049,6 +4049,22 @@
 			"reason": "one hook entry to its load wait or nothing, inside analyze_session's pass, constant work"
 		},
 		{
+			"id": "packages/insights/src/page-insights.ts > analyze_page > every:0~a34c7c",
+			"reason": "a slow hole's split read for a finding's wording (was it rendered), inside analyze_page's pass, constant work per hole"
+		},
+		{
+			"id": "packages/insights/src/page-insights.ts > analyze_page > every:0~ab4fea",
+			"reason": "a slow hole's split read for a finding's wording (did its request leave), inside analyze_page's pass, constant work per hole"
+		},
+		{
+			"id": "packages/insights/src/page-insights.ts > analyze_page > map:0~7cca85",
+			"reason": "an eager hidden island's name and media query joined into a finding's fix text, inside analyze_page's pass, constant work per island"
+		},
+		{
+			"id": "packages/insights/src/page-insights.ts > analyze_page > map:0~e59b9a",
+			"reason": "a queued island's name and wait joined into a finding's message, inside analyze_page's pass, constant work per island"
+		},
+		{
 			"id": "packages/insights/src/session-insights.ts > analyze_session > push:0~e8d6d3 > flatMap:0~0d228a",
 			"reason": "one woke entry to its island fp or nothing, inside analyze_session's pass, constant work"
 		},
