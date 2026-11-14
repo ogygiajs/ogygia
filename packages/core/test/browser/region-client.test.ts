@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest';
 import { createRawSnippet, flushSync, mount, setContext, unmount, type Component } from 'svelte';
 import RegionUnder from '../_fixtures/RegionUnder.svelte';
 import Tiny from '../_fixtures/Tiny.svelte';
+import Wrap from '../_fixtures/Wrap.svelte';
 import IslandWithHole from '../_fixtures/IslandWithHole.svelte';
 import { REGION_BRAND } from '../../src/region.ts';
 import { setNested } from '../../src/nested.ts';
@@ -257,6 +258,33 @@ test('a held deferred value whose props cannot be written keeps its element whil
 	);
 	expect(a).not.toBeNull();
 	expect(b).toBe(a);
+});
+
+test('an island nested whose wrapper loads late renders its children inside it', async () => {
+	const text = JSON.parse(
+		await out(
+			[
+				{
+					...ISLAND,
+					__component: undefined,
+					__load: () => Promise.resolve(Wrap),
+					children: snippet('<i>kid</i>')
+				}
+			],
+			{ nested: true }
+		)
+	) as { body: string };
+	expect(text.body.replace(/<!--[^]*?-->/g, '')).toBe('<section data-wrap=""><i>kid</i></section>');
+});
+
+test('a held deferred value whose props cannot be written is a new element when its id changes', async () => {
+	const [a, b] = await elements_over(
+		{ of: deferred({ props: { f: () => 1 } }) },
+		{ of: deferred({ id: 'held-b', url: '/__ogygia__?id=held-b', props: { f: () => 1 } }) }
+	);
+	expect(b).not.toBeNull();
+	expect(b).not.toBe(a);
+	expect(b!.getAttribute('endpoint')).toBe('/__ogygia__?id=held-b');
 });
 
 test('a baked live value that turns into a plain held value hands its element nothing more', async () => {

@@ -562,6 +562,23 @@ test("in Kit's page pass, an island with no chunks puts no graph in the tail and
 	expect(rows.map((r) => r.hints)).toEqual([[]]);
 });
 
+test('a held deferred value that wakes but has no address writes no props beside it', () => {
+	vi.spyOn(console, 'warn').mockImplementation(() => {});
+	const held = (url: string) => ({
+		of: deferred({ module: '/islands/held.js', hydrate: 'load', url })
+	});
+	let addressed: string;
+	let unaddressed: string;
+	try {
+		addressed = out([held('/__ogygia__?id=held-a')]).split('<!-- body -->')[1]!;
+		unaddressed = out([held('')]).split('<!-- body -->')[1]!;
+	} finally {
+		vi.restoreAllMocks();
+	}
+	expect(addressed).toContain('<script type="application/ogygia-props" data-ogygia-props>');
+	expect(unaddressed).not.toContain('application/ogygia-props');
+});
+
 test('a region renders the same when there is no live page to read (an isolated render)', () => {
 	vi.spyOn(console, 'warn').mockImplementation(() => {});
 	const before = out([ISLAND, HOLE]);
