@@ -48,7 +48,9 @@ export function resolve_block_tree(
 	registry: BlockRegistry,
 	schedule?: BlockSchedule
 ): ResolvedBlockNode[] {
-	const nodes = Array.isArray(tree) ? tree : tree ? [tree] : [];
+	let nodes: BlockNode[] = [];
+	if (Array.isArray(tree)) nodes = tree;
+	else if (tree) nodes = [tree];
 	const out: ResolvedBlockNode[] = [];
 	for (const node of nodes) {
 		const binding = registry?.[node?.type];
