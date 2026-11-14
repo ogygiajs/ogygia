@@ -37,7 +37,7 @@
 			.then((r) => (available = r.status !== 404))
 			.catch(() => (available = false));
 		return () => {
-			highlighter.clear(); // leaving the tab takes the boxes off the page
+			highlighter.clear();
 			owner.close();
 		};
 	});

@@ -19,15 +19,26 @@ interface Shown {
 	queued: boolean;
 }
 
+function schedule(shown: Shown, draw: () => void): void {
+	if (shown.queued) return;
+	shown.queued = true;
+	shown.scope.timeout(draw, 'frame');
+}
+
+function highlight(first: Element): void {
+	try {
+		first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	} catch {
+		// ok: a detached element cannot scroll into view
+	}
+}
+
 /** The boxes over page elements, in the dock's shadow root. */
 export class Highlighter {
 	#root: ShadowRoot | null = null;
 	#shown: Shown | null = null;
 	readonly #schedule = (): void => {
-		const shown = this.#shown;
-		if (!shown || shown.queued) return;
-		shown.queued = true;
-		shown.scope.timeout(() => this.#draw(), 'frame');
+		if (this.#shown) schedule(this.#shown, () => this.#draw());
 	};
 
 	/** The dock's shadow root (ui-app.ts sets it at mount). */
@@ -53,13 +64,7 @@ export class Highlighter {
 			this.#shown.els = els;
 			this.#shown.label = caption;
 		}
-		if (scroll && els[0]) {
-			try {
-				els[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-			} catch {
-				// ok: a detached element cannot scroll into view
-			}
-		}
+		if (scroll && els[0]) highlight(els[0]);
 		this.#schedule();
 	}
 

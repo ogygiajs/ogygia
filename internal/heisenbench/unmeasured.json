@@ -69,7 +69,7 @@
 			"reason": "browser only: queues one frame on the layer's scope, constant work"
 		},
 		{
-			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > #schedule > timeout:0~47dbf5",
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > #schedule > schedule:1~47dbf5",
 			"reason": "browser only: the queued frame's handoff to #draw, constant work"
 		},
 		{
