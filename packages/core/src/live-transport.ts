@@ -172,8 +172,7 @@ export function register_wire_kind(): void {
 	});
 }
 
-// static: one family
-const WIRE_ONLY = new Set(['wire']);
+const WIRE_ONLY: ReadonlySet<string> = new Set(['wire']);
 
 /**
  * Devalue reducer: encode a transportable instance, or return undefined to fall through to

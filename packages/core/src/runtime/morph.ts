@@ -664,9 +664,8 @@ function carry_shadows(root: ShadowRoot, dst: Element): void {
 	for (const c of Array.from(root.childNodes)) copy.appendChild(clone(c));
 	try {
 		if (root.adoptedStyleSheets.length) copy.adoptedStyleSheets = [...root.adoptedStyleSheets];
-	} catch {
-		// ok: sheets made for another document; the restorer's pending list covers ours
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- sheets made for another document; the restorer's pending list covers ours
+	} catch {}
 	const pending = (root as PendingShadow).__og_pending;
 	if (pending) {
 		(copy as PendingShadow).__og_pending = pending;

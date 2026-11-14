@@ -12,8 +12,9 @@ import { tool_fetch } from '@ogygia/core/internal/instruments';
 
 const MARK = '//# sourceMappingURL=data:application/json;base64,';
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-// static: base64's 64 digits and their values, filled once from B64
-const B64_INDEX = new Map<string, number>(B64.split('').map((c, i) => [c, i]));
+const B64_INDEX: ReadonlyMap<string, number> = new Map<string, number>(
+	B64.split('').map((c, i) => [c, i])
+);
 
 /** served line (1-based) → source line (1-based), or 0 where the line maps nowhere */
 type Lines = Int32Array;
@@ -28,8 +29,9 @@ async function read_table(file: string): Promise<Lines | null> {
 		const r = await tool_fetch(`/${file}`);
 		const t = r.ok ? await r.text() : '';
 		return t ? parse(t, file) : null;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a file that cannot be read has no source lines to give (said as `null`)
 	} catch {
-		return null; // ok: a file that cannot be read has no source lines to give (said as `null`)
+		return null;
 	}
 }
 
@@ -99,8 +101,9 @@ function parse(text: string, file: string): Lines | null {
 			(s) => typeof s === 'string' && s.slice(s.lastIndexOf('/') + 1) === base
 		);
 		return lines_of_map(map.mappings, own === -1 ? 0 : own);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- an unreadable inline map: the file shows without source lines
 	} catch {
-		return null; // ok: an unreadable inline map: the file shows without source lines
+		return null;
 	}
 }
 
@@ -113,7 +116,8 @@ export function source_line(file: string, line: number | null): number | null | 
 	const seen = tables.peek(file);
 	if (seen?.kind === 'kept') return seen.answer === null ? null : seen.answer[line] || null;
 	// (being read: the next look has it)
-	if (seen === undefined && typeof fetch === 'function') void tables.get(file); // ok: its read never rejects (a failure is a null table)
+	// oxlint-disable-next-line ogygia/no-silent-failures -- its read never rejects (a failure is a null table)
+	if (seen === undefined && typeof fetch === 'function') void tables.get(file);
 	return undefined;
 }
 

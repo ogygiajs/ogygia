@@ -537,16 +537,18 @@ function capability_target(cap: Capability): string | null {
 function decode_pathname(pathname: string): string | null {
 	try {
 		return decodeURIComponent(pathname);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the caller answers 400
 	} catch {
-		return null; // ok: the caller answers 400
+		return null;
 	}
 }
 
 function client_ip(event: RequestEvent): string | null {
 	try {
 		return event.getClientAddress();
+		// oxlint-disable-next-line ogygia/no-silent-failures -- fail closed: the callers answer 429
 	} catch {
-		return null; // ok: fail closed: the callers answer 429
+		return null;
 	}
 }
 
@@ -796,9 +798,8 @@ class OgygiaHandle {
 						PAGE_FACTS_ROUTE_HEADER,
 						encodeURIComponent(JSON.stringify({ id: event.route.id, params: event.params }))
 					);
-				} catch {
-					// ok: an immutable response; the render keeps the endpoint's route and params
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- an immutable response; the render keeps the endpoint's route and params
+				} catch {}
 				return res;
 			}
 			// DEVTOOLS for this browser (a BUILD: only one that turned it on — contract/switch.ts). Its
@@ -887,9 +888,8 @@ class OgygiaHandle {
 			if (bag.csp_sources?.length)
 				try {
 					add_early_holes_csp(response.headers, bag.csp_sources);
-				} catch {
-					// ok: immutable headers: the platform's policy is the app's to allow the script in
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- immutable headers: the platform's policy is the app's to allow the script in
+				} catch {}
 			// with the app's own pass a router-fetched page is rendered as an answer (`#pass_document`):
 			// a shared cache must keep the two forms apart
 			// and with server-delta navigation, a router-fetched page skips the regions it names
@@ -898,9 +898,8 @@ class OgygiaHandle {
 			if ((pass || delta) && (response.headers.get('content-type') ?? '').includes('text/html'))
 				try {
 					response.headers.append('vary', delta ? 'x-ogygia-spa, x-ogygia-known' : 'x-ogygia-spa');
-				} catch {
-					// ok: immutable headers; the app's platform's headers win
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- immutable headers; the app's platform's headers win
+				} catch {}
 			// a browser that turned devtools on may sample its main thread (the JS Self-Profiling API needs
 			// the document to allow it): the CPU of a page load and of a recorded session. Its own pages only
 			if (
@@ -918,9 +917,8 @@ class OgygiaHandle {
 							'server-timing',
 							`og-route;desc=${JSON.stringify(event.route.id)}`
 						);
-				} catch {
-					// ok: immutable headers; the timing header is left out
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- immutable headers; the timing header is left out
+				} catch {}
 			}
 			// PLUGINS, `response` stage (SEQUENTIAL): the page's response before it streams out — each
 			// plugin sees the one before it left (a plugin may store it and send its copy instead). A
@@ -2026,7 +2024,8 @@ class OgygiaHandle {
 			timing.queue_ms !== undefined &&
 			(import.meta.env.DEV ||
 				(DEVTOOLS && event.cookies.get(DEVTOOLS_COOKIE) === DEVTOOLS_ON) ||
-				(await ask.measures(event).catch(() => undefined)) === true); // ok: a failed hook was said (plugin_hook_failed); unproved is not timed
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a failed hook was said (plugin_hook_failed); unproved is not timed
+				(await ask.measures(event).catch(() => undefined)) === true);
 		const server_timing: Record<string, string> = timed
 			? {
 					'server-timing': `og-queue;dur=${timing.queue_ms!.toFixed(1)}, og-render;dur=${(timing.render_ms ?? 0).toFixed(1)}`

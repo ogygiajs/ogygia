@@ -295,7 +295,8 @@ export function stream_page_deferred(
 	const reader = source.getReader();
 	const encoder = new TextEncoder();
 	const owner = request.child();
-	owner.defer(() => void reader.cancel().catch(() => {})); // ok: the request ended; a failed cancel of its source has nothing left to stop
+	// oxlint-disable-next-line ogygia/no-silent-failures -- the request ended; a failed cancel of its source has nothing left to stop
+	owner.defer(() => void reader.cancel().catch(() => {}));
 	const stream = new ReadableStream<Uint8Array>({
 		async start(controller) {
 			let carry: Uint8Array = new Uint8Array(0);
@@ -307,19 +308,18 @@ export function stream_page_deferred(
 					if (has_body_close(carry, value)) break;
 					carry = value.length >= 6 ? value.subarray(value.length - 6) : value;
 				}
-			} catch {
-				// ok: Kit's stream broke; the resolution streaming below still runs
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- Kit's stream broke; the resolution streaming below still runs
+			} catch {}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects, its body is caught
 			void (async () => {
 				try {
 					for (;;) {
 						const { done } = await reader.read();
 						if (done) break;
 					}
-				} catch {
-					// ok: Kit's dead tail is discarded; a read that fails has nothing left to discard
-				}
-			})(); // ok: never rejects, its body is caught
+					// oxlint-disable-next-line ogygia/no-silent-failures -- Kit's dead tail is discarded; a read that fails has nothing left to discard
+				} catch {}
+			})();
 			let next_id = initial_next_id;
 			let closed = false;
 			const quiet = deferred.length ? say_if_pending(owner, path) : noop;
@@ -329,9 +329,8 @@ export function stream_page_deferred(
 				quiet();
 				try {
 					controller.close();
-				} catch {
-					// ok: already closed (the visitor left), which is what this was for
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- already closed (the visitor left), which is what this was for
+				} catch {}
 			};
 			// (the request's end closes the stream: a promise still pending is let go)
 			owner.defer(close);

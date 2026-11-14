@@ -25,8 +25,9 @@
 			// the report is an islands page, so navigate to it (it renders + hydrates on load)
 			if (d.url) location.href = d.url;
 			else error = d.error || 'Could not open that file.';
+			// oxlint-disable-next-line ogygia/no-silent-failures -- shown on the form
 		} catch {
-			error = 'Could not read that file.'; // ok: shown on the form
+			error = 'Could not read that file.';
 		} finally {
 			busy = false;
 			if (fileInput) fileInput.value = '';

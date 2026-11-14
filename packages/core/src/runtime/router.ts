@@ -397,10 +397,11 @@ export class SpaRouter {
 		signal?: AbortSignal,
 		purpose?: 'nav' | 'prefetch' | 'history'
 	): Promise<import('./router-nav.ts').FetchedPage | null> {
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the navigation chunk did not load: no page fetched, so the browser navigates (the chunk's load says its failure)
 		return nav().then(
 			(n) => (n === STALE ? null : n.fetch_page(href, signal, purpose)),
 			() => null
-		); // ok: the navigation chunk did not load: no page fetched, so the browser navigates (the chunk's load says its failure)
+		);
 	}
 
 	async navigate(

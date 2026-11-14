@@ -44,11 +44,9 @@ export interface SinceLoad {
 }
 
 /** findings a dev server's first compile of the page can raise on its own (its islands' code arrives late) */
-// static: a fixed list of finding codes
-const COMPILE_BORNE = new Set(['late-interactive', 'slow-module', 'queued']);
+const COMPILE_BORNE: ReadonlySet<string> = new Set(['late-interactive', 'slow-module', 'queued']);
 /** …and, when the PAGE compiled on its request, everything that waited on its first byte */
-// static: a fixed list of finding codes
-const PAGE_COMPILE_BORNE = new Set([
+const PAGE_COMPILE_BORNE: ReadonlySet<string> = new Set([
 	...COMPILE_BORNE,
 	'slow-ttfb',
 	'slow-fcp',
@@ -69,7 +67,8 @@ const label = (f: { code: string; names: string[] }) =>
 export function since_load(
 	prev: LoadSnapshot,
 	now: LoadSnapshot,
-	at: number = Date.now() // wall: compared with the last load's stored time
+	// oxlint-disable-next-line ogygia/ports -- compared with the last load's stored time
+	at: number = Date.now()
 ): SinceLoad | null {
 	if (prev.path !== now.path) return null;
 	const key = (f: { code: string; names: string[] }) =>

@@ -32,7 +32,6 @@ const SINGLE_URL = 4;
 const TAG = 5;
 type Place = 0 | 1 | 2 | 3 | 4 | 5;
 
-// static: a fixed list of attribute names, those whose value is a URL a browser follows or loads
 const URL_ATTRS: ReadonlySet<string> = new Set([
 	'href',
 	'src',
@@ -44,7 +43,7 @@ const URL_ATTRS: ReadonlySet<string> = new Set([
 	'xlink:href'
 ]);
 const ATTR_NAME = /^[a-zA-Z_:][a-zA-Z0-9_:.-]*$/;
-// markup-ok: the html`` template's own source as its author wrote it, read to place a hole
+// oxlint-disable-next-line ogygia/one-markup-walk -- the html`` template's own source as its author wrote it, read to place a hole
 const NAME_BEFORE_QUOTE = /([^\s"'<>/=]+)\s*=\s*$/;
 const TAG_START = /[a-zA-Z/!?]/;
 

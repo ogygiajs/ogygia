@@ -71,8 +71,9 @@ const STATIC_OPEN = `<ogygia-snippet ${OG_STATIC} style="display:contents">`;
 const host_context = (): Map<unknown, unknown> | null => {
 	try {
 		return getAllContexts();
+		// oxlint-disable-next-line ogygia/no-silent-failures -- outside a component's init: no host contexts to take
 	} catch {
-		return null; // ok: outside a component's init: no host contexts to take
+		return null;
 	}
 };
 /** context.ts `isInLiveSnippet` reads it: a hole in the body stays deferred (Region.svelte). */
@@ -480,8 +481,7 @@ function snippet_stable_id(d: unknown): string | undefined {
 	return undefined;
 }
 
-// static: one family
-const SNIPPET_ONLY = new Set(['snippet']);
+const SNIPPET_ONLY: ReadonlySet<string> = new Set(['snippet']);
 
 /** Codec encode (legacy `OgygiaS` wire shape: the bare descriptor). Branded region snippet → its
  *  descriptor; a bare snippet → frozen static; anything else falls through. */

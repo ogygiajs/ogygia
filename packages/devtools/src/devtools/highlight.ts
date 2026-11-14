@@ -28,9 +28,8 @@ function schedule(shown: Shown, draw: () => void): void {
 function highlight(first: Element): void {
 	try {
 		first.scrollIntoView({ behavior: 'smooth', block: 'center' });
-	} catch {
-		// ok: a detached element cannot scroll into view
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a detached element cannot scroll into view
+	} catch {}
 }
 
 /** The boxes over page elements, in the dock's shadow root. */

@@ -36,9 +36,8 @@ Pair it with a head script that applies the stored theme before first paint, wit
 				const store = storage.local();
 				if (next) store?.setItem(key, next);
 				else store?.removeItem(key);
-			} catch {
-				// ok: no storage (private mode); the theme holds for this page only
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- no storage (private mode); the theme holds for this page only
+			} catch {}
 		};
 		const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 		const doc = document as unknown as {

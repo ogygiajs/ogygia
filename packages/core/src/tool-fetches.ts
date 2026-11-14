@@ -31,9 +31,8 @@ export function tool_fetch(url: string, init?: RequestInit): Promise<Response> {
 		const at = all.get(href);
 		if (at) at.push(clock.mono());
 		else all.set(href, [clock.mono()]);
-	} catch {
-		// ok: no location (not a browser): nothing to list it in
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no location (not a browser): nothing to list it in
+	} catch {}
 	return net.fetch(href, init);
 }
 

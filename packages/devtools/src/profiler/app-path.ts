@@ -7,8 +7,9 @@ function root_of_app(): string | null {
 			const cwd = (globalThis as { process?: { cwd?: () => string } }).process?.cwd?.();
 			app_root = cwd ? cwd.split('\\').join('/') : null;
 			if (app_root && !app_root.endsWith('/')) app_root = `${app_root}/`;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no process folder off Node: paths stay absolute
 		} catch {
-			app_root = null; // ok: no process folder off Node: paths stay absolute
+			app_root = null;
 		}
 	}
 	return app_root;

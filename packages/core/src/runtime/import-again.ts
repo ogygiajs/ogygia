@@ -73,9 +73,8 @@ function hear_responses(): void {
 				})
 			)
 			.observe({ type: 'resource', buffered: true });
-	} catch {
-		// ok: an engine with no resource entries to observe: nothing is heard, every read is the timeline's
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- an engine with no resource entries to observe: nothing is heard, every read is the timeline's
+	} catch {}
 }
 
 function heard(url: string, status: number | null): void {
@@ -136,8 +135,9 @@ function file_url(file: string, base: string | undefined): string | null {
 			base ?? (typeof location !== 'undefined' ? location.href : undefined)
 		);
 		return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no URL to ask again under; the loader loads the plain way next time
 	} catch {
-		return null; // ok: no URL to ask again under; the loader loads the plain way next time
+		return null;
 	}
 }
 
@@ -251,12 +251,13 @@ export function import_again<T>(
 				throw error;
 			});
 		}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the failure is the caller's: `run` itself is returned and rejects to it
 		run.then(
 			() => {
 				if (state.now.kind !== 'loaded') state.go('loaded', { run });
 			},
 			() => {}
-		); // ok: the failure is the caller's: `run` itself is returned and rejects to it
+		);
 		return run;
 	};
 	return next;

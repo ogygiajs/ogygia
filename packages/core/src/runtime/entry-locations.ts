@@ -26,8 +26,9 @@ function absolute(url: string, base?: string): string {
 	let out: string;
 	try {
 		out = new URL(url, b).href;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: kept as written
 	} catch {
-		out = url; // ok: not a URL: kept as written
+		out = url;
 	}
 	resolved_urls.set(key, out);
 	return out;
@@ -59,7 +60,8 @@ const BUILD_MAP_ATTR = OG_LOCATIONS;
 const build_map = flights({
 	name: 'build location map',
 	run: (url: string) =>
-		net // ok: a map that could not be read is not kept: the next load asks again, and loads keep their stable URLs meanwhile
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a map that could not be read is not kept: the next load asks again, and loads keep their stable URLs meanwhile
+		net
 			.fetch(url)
 			.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
 			.catch(() => null)
@@ -112,8 +114,9 @@ export function pin_region_urls(el: Element, base?: string): void {
 		let url: URL;
 		try {
 			url = new URL(absolute(value, base));
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: the attribute stays as written
 		} catch {
-			continue; // ok: not a URL: the attribute stays as written
+			continue;
 		}
 		if (url.origin === location.origin) el.setAttribute(name, url.pathname + url.search + url.hash);
 	}
@@ -129,7 +132,8 @@ export function island_entry_of(el: Element): string | null {
 const current_maps = flights({
 	name: 'current build map',
 	run: (file: string) =>
-		net // ok: a map that could not be read is not kept: the next ask reads again
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a map that could not be read is not kept: the next ask reads again
+		net
 			.fetch(file, { cache: 'no-cache' })
 			.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
 			.catch(() => null),
@@ -160,10 +164,11 @@ async function current_location(entry: string): Promise<string | null | undefine
 }
 
 function is_gone(url: string): Promise<boolean> {
+	// oxlint-disable-next-line ogygia/no-silent-failures -- no answer is not "gone"; the import's own failure stands
 	return net.fetch(url, { method: 'HEAD', cache: 'no-store' }).then(
 		(res) => res.status === 404 || res.status === 410,
 		() => false
-	); // ok: no answer is not "gone"; the import's own failure stands
+	);
 }
 
 async function recover_location(entry: string, failed: string): Promise<string | null> {

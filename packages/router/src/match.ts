@@ -282,7 +282,8 @@ export function match_path(sorted: CompiledPattern[], pathname: string): PathMat
 function safe_decode(s: string): string {
 	try {
 		return decodeURIComponent(s);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a malformed escape matches as it was written
 	} catch {
-		return s; // ok: a malformed escape matches as it was written
+		return s;
 	}
 }

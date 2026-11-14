@@ -23,8 +23,7 @@ export function ensure_prop_kinds(): void {
 }
 
 /** Island props carry classes, stores, snippets, og.$ fns and resumable deriveds. */
-// static: the prop families that cross the wire
-const PROP_FAMILIES = new Set(['wire', 'store', 'snippet', 'fn', 'derived']);
+const PROP_FAMILIES: ReadonlySet<string> = new Set(['wire', 'store', 'snippet', 'fn', 'derived']);
 
 /**
  * @returns b64url payload, or null when props cannot cross the wire (non-devalue or oversized).
@@ -38,8 +37,9 @@ export function encode_region_props(props: Record<string, unknown>): string | nu
 		payload = B64Url.encode(
 			placed(stringify(props, { [REF_WIRE_KEY]: ref_reducer(PROP_FAMILIES) }))
 		);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- make_region_endpoint says live_props_not_serializable
 	} catch {
-		return null; // ok: make_region_endpoint says live_props_not_serializable
+		return null;
 	}
 	if (payload.length > MAX_REGION_PROPS_LEN) return null;
 	return payload;

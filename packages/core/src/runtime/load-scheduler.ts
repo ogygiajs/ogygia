@@ -212,9 +212,8 @@ export function preload_urls(link: HTMLLinkElement): string[] {
 		if (!url) continue;
 		try {
 			out.push(new URL(url, document.baseURI).href);
-		} catch {
-			// ok: not a URL: the candidate is skipped
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: the candidate is skipped
+		} catch {}
 	}
 	return out;
 }
@@ -271,7 +270,8 @@ export class LoadSlot {
 			if (this.queued) line.recheck();
 		});
 		if (!scheduler.critical_done() && waits_for_critical(this.kind, this.cls()))
-			void critical_settled(); // ok: the critical wait only waits on timers and resources' events; it never rejects
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the critical wait only waits on timers and resources' events; it never rejects
+			void critical_settled();
 		line.push(this);
 	}
 

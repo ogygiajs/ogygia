@@ -94,7 +94,8 @@ export function api<App>(base: string, opts: ApiClientOptions = {}): ApiClient<A
 		if (res.status === 204) return undefined;
 		const is_json = (res.headers.get('content-type') ?? '').includes('json');
 		if (!res.ok) {
-			const body = is_json ? await res.json().catch(() => undefined) : await res.text(); // ok: the ApiError still carries the status
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the ApiError still carries the status
+			const body = is_json ? await res.json().catch(() => undefined) : await res.text();
 			throw new ApiError(res.status, body);
 		}
 		return is_json ? await res.json() : await res.text();

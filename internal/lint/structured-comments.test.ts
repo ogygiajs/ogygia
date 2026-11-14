@@ -211,20 +211,15 @@ test('a @packageDocumentation block passes at the top of a file; anywhere else i
 	});
 });
 
-test('an `// ok: <reason>` note passes, as the no-silent-failures rules ask for it; a bare `ok:` is reported', () => {
-	// (line 8 is the bare `ok:`)
+test('an old `// ok: <reason>` mark is no shape of its own; the directive with a reason is', () => {
 	const src = dedent`
 		export async function f(p: Promise<void>) {
 			p.catch(() => {}); // ok: the caller reports it
-			try {
-				await p;
-			} catch {
-				// ok: a second read is fine
-			}
-			p.catch(() => {}); // ok:
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the caller reports it
+			p.catch(() => {});
 		}
 	`;
-	assert.deepEqual(findings({ [A]: src }), { [A]: [8] });
+	assert.deepEqual(findings({ [A]: src }), { [A]: [2] });
 });
 
 test('.d.ts files and files outside a package src are not read', () => {
