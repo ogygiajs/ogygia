@@ -33,7 +33,7 @@
 		"ci:release": "changeset publish",
 		"format": "oxfmt .",
 		"format:check": "git ls-files -z | xargs -0 oxfmt --check --no-error-on-unmatched-pattern",
-		"lint": "node internal/lint/kit-sync.ts && oxlint",
+		"lint": "node internal/lint/engine.ts && node internal/lint/kit-sync.ts && oxlint",
 		"lint:test": "node --test internal/lint/*.test.ts internal/checks/*.test.ts",
 		"sim": "pnpm --filter ogygia-internal-sim sim",
 		"sim:long": "pnpm --filter ogygia-internal-sim sim:long",

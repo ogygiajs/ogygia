@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { dedent } from '../../packages/core/src/contract/dedent.ts';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
 const GUARD = path.join(ROOT, 'internal/lint/engine.ts');
@@ -25,7 +26,14 @@ function guard(env: Record<string, string>): { code: number | null; out: string 
 /** A stand-in tsgolint that reads its input, prints nothing and exits 0. */
 function silent_engine(dir: string): string {
 	const file = path.join(dir, 'tsgolint');
-	writeFileSync(file, '#!/bin/sh\ncat >/dev/null\nexit 0\n');
+	writeFileSync(
+		file,
+		dedent`
+			#!/bin/sh
+			cat >/dev/null
+			exit 0
+		`
+	);
 	chmodSync(file, 0o755);
 	return file;
 }
