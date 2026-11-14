@@ -2,8 +2,7 @@ import { OgygiaError } from '../messages/core.ts';
 import { HOOK_RELOAD_NEEDED } from './client-plugins.ts';
 import { slots } from './slots.ts';
 
-/** `url` resolved against the page, without a retry's `og-retry` mark. */
-function file_of(url: string): string {
+function file_without_retry_mark(url: string): string {
 	const u = new URL(url, document.baseURI);
 	u.searchParams.delete('og-retry');
 	return u.href;
@@ -11,9 +10,9 @@ function file_of(url: string): string {
 
 /** The regions on the page whose own file (`src`) is `url`, a retry's mark aside. */
 export function regions_of_file(url: string): Element[] {
-	const file = file_of(url);
+	const file = file_without_retry_mark(url);
 	return [...document.querySelectorAll('ogygia-region[src]')].filter(
-		(el) => file_of(el.getAttribute('src')!) === file
+		(el) => file_without_retry_mark(el.getAttribute('src')!) === file
 	);
 }
 

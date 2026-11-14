@@ -9,7 +9,7 @@
 			"reason": "a DOM query, browser only, once per page at most and only with a reloadNeeded subscriber; test/browser/reload-needed-hook.test.ts runs it"
 		},
 		{
-			"id": "packages/core/src/runtime/reload-needed.ts > file_of",
+			"id": "packages/core/src/runtime/reload-needed.ts > file_without_retry_mark",
 			"reason": "one URL parse per region on the page, browser only, once per page at most; test/browser/reload-needed-hook.test.ts runs it"
 		},
 		{
