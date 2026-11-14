@@ -11,7 +11,7 @@ import { set_island_deps } from '../../core/test/_stubs/server.region-deps.ts';
 import { island_deps_module } from '../src/compiler/link/island-deps.ts';
 import { decode_island_graph, encode_island_graph } from '../../core/src/island-graph.ts';
 import { DocumentTail, island_graph_script } from '../../core/src/server/document-tail.ts';
-import { assert_no_legacy_options } from '../src/vite/options.ts';
+import { assert_known_options } from '../src/vite/options.ts';
 import Region from '../../core/src/Region.svelte';
 import Tiny from '../../core/test/_fixtures/Tiny.svelte';
 
@@ -98,11 +98,9 @@ describe('island graph — the document tail', () => {
 });
 
 describe('preload is gone', () => {
-	it('the key is a build error that says why', () => {
-		expect(() => assert_no_legacy_options({ preload: 'all' } as never)).toThrow(
-			/`preload` is gone/
-		);
-		expect(() => assert_no_legacy_options({})).not.toThrow();
+	it('the key is an unknown option, a build error', () => {
+		expect(() => assert_known_options({ preload: 'all' } as never)).toThrow(/option_unknown/);
+		expect(() => assert_known_options({})).not.toThrow();
 	});
 
 	it('the minted virtual module no longer exports a policy', () => {

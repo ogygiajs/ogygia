@@ -4,13 +4,10 @@ import type { FrameFetcher, StoredFrame } from './frame-store.ts';
 import type { VerifiedHtml } from './html-sink.ts';
 import { is_frozen } from './region-attrs.ts';
 
-/** Frozen SSR DOM detached before hydrate. */
-export type LiftedLake = {
+/** A lake an island's hydrate adopts in place, held by its key to find it again after. */
+export type HeldLake = {
 	id: string;
-	frag: DocumentFragment;
-	endpoint: string;
-	when: string;
-	maxAgeMs: number;
+	lake: Element;
 };
 
 /** Region schedule hooks lakes need without importing the custom element. */
@@ -25,8 +22,8 @@ export type LakeArm = {
 export type LakeOps = {
 	on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean;
 	wait_for_boundary(el: HTMLElement, boundary: Element | null): boolean;
-	lift(parent: Element): LiftedLake[];
-	restore(parent: Element, lifted: LiftedLake[]): void;
+	hold(parent: Element): HeldLake[];
+	release(parent: Element, held: HeldLake[]): void;
 	settle_in(root: ParentNode): void;
 	mark_frozen_settled(region: HTMLElement): void;
 	/** After an answer swapped into `region`: a lake that settled wakes the regions waiting on it. */
@@ -273,8 +270,8 @@ export const slots: Slots = {
 	lakes: {
 		on_frozen_connect: (el) => is_frozen(el),
 		wait_for_boundary: () => false,
-		lift: () => [],
-		restore: () => {},
+		hold: () => [],
+		release: () => {},
 		settle_in: () => {},
 		mark_frozen_settled: () => {},
 		after_html_swap: () => {},

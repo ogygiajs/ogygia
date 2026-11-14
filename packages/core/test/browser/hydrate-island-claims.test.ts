@@ -1,6 +1,7 @@
 // The hydrate step's other claims, each on its own: what it reads before the island renders, which
 // islands are not its to hydrate, what it hands the island, what it owns, and how it ends.
 import { afterEach, beforeAll, beforeEach, expect, inject, test, vi } from 'vitest';
+import { from_b64 } from './b64.ts';
 import type { Component } from 'svelte';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { load_devalue } from '../../src/runtime/devalue-lane.ts';
@@ -23,8 +24,7 @@ import { claims } from './_walk.ts';
 
 type Mod = { default: Component<Record<string, unknown>> };
 const as_mod = (c: unknown): Mod => ({ default: c as Component<Record<string, unknown>> });
-const decode = (key: 'counter_render_b64' | 'counter_ssr_b64') =>
-	decodeURIComponent(escape(atob(inject(key))));
+const decode = (key: 'counter_render_b64' | 'counter_ssr_b64') => from_b64(inject(key));
 
 let said: string[] = [];
 const codes = (code: string) => said.filter((s) => s.includes(code));

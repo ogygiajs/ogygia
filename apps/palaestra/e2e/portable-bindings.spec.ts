@@ -123,7 +123,7 @@ const list = [{ Comp: A, props: { n: 1 } }, { Comp: B, props: { n: 2 } }];
 		const ctx = make_ctx();
 		// `.ts` held ids: strategy 'held', its baked schedule (`region:raw` / `region:visible`).
 		const held_id_of = (rel: string, hydrate?: string) => {
-			const options: Record<string, unknown> = {};
+			const options: Record<string, string> = {};
 			if (hydrate) {
 				options.hydrate = hydrate;
 				if (hydrate === 'visible') options.hydrateMargin = '0px';
@@ -198,7 +198,7 @@ export const registry = [RawX, WakeX, LoadY, WakeX2];
 		check(
 			'transform(.ts↔.svelte): a .ts held wake island ≠ a .svelte placed island (endpoint vs none)',
 			!!wakeX && rh.islands[0].id !== wakeX.id && rh.islands[0].server === false,
-			`${rh.islands[0]?.id} vs ${wakeX?.id}`
+			`${rh.islands[0]?.id} vs ${String(wakeX?.id)}`
 		);
 	});
 

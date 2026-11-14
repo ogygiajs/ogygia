@@ -1,4 +1,4 @@
-import { base } from '$app/paths';
+import { resolve } from '$app/paths';
 import { routes, page, layout } from '@ogygia/router';
 // DISTRIBUTED ROUTES: a table fragment shipped by a dependency (`ogygia.files`-declared) —
 // its pages + the islands inside them compile like app source (e2e/island-pkg.ts).
@@ -64,7 +64,7 @@ const app = routes(
 		'/api/ping': { GET: (c) => c.json({ pong: true }) }
 	}),
 	// Mounted under the Kit route `rtr/[...path]` — derive the mount from Kit's own base.
-	{ base: `${base}/rtr` }
+	{ base: resolve('/rtr/[...path]', { path: '' }) }
 );
 
 export const GET = async (event: { request: Request }) =>

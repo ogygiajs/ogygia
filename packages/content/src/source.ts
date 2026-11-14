@@ -44,7 +44,7 @@ export type SourceEntry<Meta = Record<string, never>> = SourceRef<Meta> & {
  *  - yield a **`string[]` of ids** → the collection reloads only those ids (`get(id)` each, missing
  *    ids are dropped) — incremental, for large collections where a full re-list is wasteful.
  */
-export type SourceChanges = AsyncIterable<string[] | unknown>;
+export type SourceChanges = AsyncIterable<unknown>;
 
 /**
  * The source contract: the only thing `content({ loader })` accepts. It reads in two shapes:
@@ -90,7 +90,7 @@ export type Format<V, Meta = Record<string, never>> = (
 ) => EntryParts<Meta> | Promise<EntryParts<Meta>>;
 
 /** `import.meta.glob(...)` map — eager values or lazy loaders. */
-export type GlobMap = Record<string, unknown | (() => Promise<unknown>)>;
+export type GlobMap = Record<string, unknown>;
 
 const BACKSLASH = /\\/g;
 const filePathOf = (key: string) => key.replace(BACKSLASH, '/').split('?')[0];

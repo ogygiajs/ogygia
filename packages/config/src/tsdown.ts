@@ -138,13 +138,14 @@ export function inline_markup_names() {
 			const visit = (node: Node, parent: Node | null): void => {
 				if (node.type === 'ImportDeclaration') return;
 				if (node.type === 'Identifier') {
-					const value = local.get(node.name as string);
+					const name = node.name as string;
+					const value = local.get(name);
 					if (value === undefined || !is_reference(node, parent)) return;
 					if (parent?.type === 'Property' && parent.shorthand === true)
 						edits.push({
 							start: node.start,
 							end: node.end,
-							text: `${node.name}: ${JSON.stringify(value)}`
+							text: `${name}: ${JSON.stringify(value)}`
 						});
 					// (inside a template: `${OG_X}` becomes the name's own text)
 					else if (

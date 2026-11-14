@@ -135,13 +135,13 @@ describe('misuse-error QUALITY — build-voice, file:line, explains the fix', ()
 	});
 
 	// code/md: arity + non-literal
-	it('code with an identifier source → static string literal + line', () => {
-		expect(
+	it('code with an identifier source → static string literal + line', async () => {
+		await expect(
 			rewrite_code('const c = import.meta.og.code(src, "ts");', '/c.ts', MARKUP, echo)
 		).rejects.toThrow(/c\.ts:1.*static string literal/);
 	});
-	it('md with wrong arity → takes exactly one argument', () => {
-		expect(
+	it('md with wrong arity → takes exactly one argument', async () => {
+		await expect(
 			rewrite_code('const d = import.meta.og.md("a", "b");', '/c.ts', MARKUP, echo)
 		).rejects.toThrow(/md\(text\) takes exactly one argument/);
 	});

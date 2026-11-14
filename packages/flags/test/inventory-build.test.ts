@@ -60,7 +60,7 @@ const run = (dir: string, plugins: PluginOption[]) =>
 			// written: the inventory is written once the client output is
 			outDir: path.join(dir, 'dist'),
 			minify: false,
-			rollupOptions: {
+			rolldownOptions: {
 				input: path.join(dir, 'src', 'main.ts'),
 				preserveEntrySignatures: 'strict',
 				external: ['@ogygia/flags']

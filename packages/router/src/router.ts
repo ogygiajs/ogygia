@@ -327,7 +327,9 @@ export function routes<const T extends KeyedTable<T>>(
 			...node.layouts.map((l) => l.load),
 			node.load
 		];
-		const results = await Promise.all(load_defs.map((l) => (l ? l(ctx) : undefined)));
+		const results = await Promise.all(
+			load_defs.map((l) => (l ? l(ctx) : Promise.resolve(undefined)))
+		);
 		const data: Record<string, unknown> = {};
 		for (const r of results) {
 			if (r instanceof Response) return r;

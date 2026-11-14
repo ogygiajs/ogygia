@@ -105,10 +105,7 @@ describe('the mobile bar switches its sheet between views', () => {
 	it('swaps at once under reduced motion: no height is pinned', async () => {
 		const real = window.matchMedia;
 		window.matchMedia = ((q: string) =>
-			({
-				...real.call(window, q),
-				matches: q.includes('reduce')
-			}) as MediaQueryList) as typeof real;
+			({ matches: q.includes('reduce') }) as MediaQueryList) as typeof real;
 		try {
 			const target = document.createElement('div');
 			document.body.append(target);

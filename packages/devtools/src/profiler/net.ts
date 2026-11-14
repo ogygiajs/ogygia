@@ -813,7 +813,7 @@ function instrument_client_request(req: unknown, args: unknown[], proto: 'http' 
 		if (typeof opts.method === 'string') method = opts.method;
 		if (!url) {
 			const host = (opts.hostname as string) || (opts.host as string) || 'localhost';
-			const port = opts.port ? `:${opts.port}` : '';
+			const port = opts.port ? `:${String(opts.port)}` : '';
 			const path = (opts.path as string) || '/';
 			url = `${proto}://${host}${port}${path}`;
 		}

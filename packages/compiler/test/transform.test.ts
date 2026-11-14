@@ -17,6 +17,7 @@ import {
 	CLIENT_BINDING_STUB,
 	foucCssVirtualId
 } from '../src/compiler/region/transform.ts';
+import type { MarkOptions } from '../src/compiler/region/ir.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 
@@ -25,11 +26,7 @@ const HOST = '/app/src/routes/+page.svelte';
 
 type HostCtx = Parameters<typeof transformHost>[2];
 
-function idFor(
-	compRel: string,
-	mark: { strategy: string; options?: Record<string, unknown> },
-	salt = ''
-) {
+function idFor(compRel: string, mark: { strategy: string; options?: MarkOptions }, salt = '') {
 	return regionId(regionIdentity(compRel, mark), salt);
 }
 

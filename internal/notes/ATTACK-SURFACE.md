@@ -243,7 +243,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## HTML sinks: markup written into a page as markup
 
-24 entries.
+25 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -270,6 +270,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/rewrite/src/check.ts` | `(module)` | `DOMParser` | 1 |
 | `packages/rewrite/src/check.ts` | `(module)` | `innerHTML =` | 1 |
 | `packages/rewrite/src/restore.ts` | `restore` | `innerHTML =` | 1 |
+| `packages/rewrite/src/restore.ts` | `restore` | `setHTMLUnsafe` | 1 |
 | `packages/router/src/RawHtml.svelte` | `(module)` | `{@html}` | 1 |
 
 ## Secrets and keys: environment secrets, MACs, key derivation, signatures
