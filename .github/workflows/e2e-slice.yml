@@ -14,6 +14,8 @@ on:
       shard: { type: string, required: false, default: '' }
       adapters: { type: boolean, required: false, default: false }
       browser: { type: string, required: true }
+      # the CI graph itself changed (ci-plan.ts, #1926): every suite runs, none replayed from cache
+      force: { type: boolean, required: false, default: false }
     secrets:
       TURBO_TOKEN: { required: false }
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: { required: false }
@@ -29,6 +31,7 @@ jobs:
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
       # (the caller's event: a pull request reads the cache and never writes it)
       TURBO_REMOTE_CACHE_READ_ONLY: ${{ github.event_name != 'push' }}
+      TURBO_FORCE: ${{ inputs.force && 'true' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -54,13 +57,13 @@ jobs:
       - name: Plan
         id: plan
         run: |
-          if [ "$EVENT" = "pull_request" ]; then affected=--affected; fi
+          if [ "$EVENT" = "pull_request" ] && [ "$TURBO_FORCE" != "true" ]; then affected=--affected; fi
           # (word-split on purpose: the filter is several --filter flags)
           pnpm exec turbo run e2e --concurrency=1 $FILTER $affected --dry=json > turbo-plan.json
           node -e '
             const plan = JSON.parse(require("fs").readFileSync("turbo-plan.json", "utf8"));
             const e2e = (plan.tasks ?? []).filter((t) => t.task === "e2e" && t.command !== "<NONEXISTENT>");
-            const left = e2e.filter((t) => t.cache?.status !== "HIT");
+            const left = process.env.TURBO_FORCE === "true" ? e2e : e2e.filter((t) => t.cache?.status !== "HIT");
             console.log(`${e2e.length} e2e task(s), ${left.length} to run: ${left.map((t) => t.taskId).join(", ") || "none"}`);
             require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `skip=${left.length === 0}\n`);
           '
@@ -112,7 +115,7 @@ jobs:
       # through the suite config, and turbo hashes both into the `e2e` task.
       - name: Run the e2e suites
         run: |
-          if [ "$EVENT" = "pull_request" ]; then affected=--affected; fi
+          if [ "$EVENT" = "pull_request" ] && [ "$TURBO_FORCE" != "true" ]; then affected=--affected; fi
           pnpm turbo run e2e --concurrency=1 $FILTER $affected
         env:
           EVENT: ${{ github.event_name }}
