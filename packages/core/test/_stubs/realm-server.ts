@@ -34,11 +34,7 @@ export {
 	region_fingerprint,
 	hole_css
 } from 'ogygia:server/region-endpoint';
-export {
-	stringify_remote_arg,
-	stringify_command_arg,
-	create_remote_key
-} from 'ogygia:server/kit-wire';
+export { create_remote_key } from 'ogygia:server/kit-wire';
 export { rate_limit } from 'ogygia:server/rate-limit';
 export { profiler_maps } from 'ogygia:server/profiler-maps';
 export { plugins as server_plugins } from 'ogygia:server/server-plugins';

@@ -168,6 +168,7 @@ export type BootLink = {
 	props_sidecar_of: typeof import('./sidecar.ts').props_sidecar_of;
 	parse_region_html: typeof import('./html-sink.ts').parse_region_html;
 	parse_page_document: typeof import('./html-sink.ts').parse_page_document;
+	init_shadow_registries: typeof import('./html-sink.ts').init_shadow_registries;
 	set_inner_html: typeof import('./html-sink.ts').set_inner_html;
 	vouch_page_answer: typeof import('./html-sink.ts').vouch_page_answer;
 	vouch_page_html: typeof import('./html-sink.ts').vouch_page_html;

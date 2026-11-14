@@ -68,9 +68,30 @@ export function vouch_remote_answer(html: string): VerifiedHtml {
 	return html as VerifiedHtml;
 }
 
-/** A page's whole document, parsed (inert: nothing in it runs). */
+/**
+ * A page's whole document (the router's next page, a soft refresh), parsed the way a region's
+ * answer is ({@link parse_region_html}): written by the DSD-aware parser into an empty document
+ * with no browsing context and the page's URL, so its declarative shadow roots are attached and
+ * nothing in it runs or is built (#1894). The `<html>` element's own attributes are not kept
+ * (nothing reads them).
+ */
 export function parse_page_document(html: VerifiedHtml): Document {
-	return new DOMParser().parseFromString(html, 'text/html');
+	// @why Chromium's Document.parseHTMLUnsafe drops comments, which are Svelte's hydration markers (test: apps/palaestra/e2e/router-dsd.spec.ts › a router navigation to a page with declarative shadow DOM: shadow roots live, the island hydrates)
+	// @why createHTMLDocument's document has the URL about:blank, an empty DOMParser document the page's, which head node keys resolve against (test: packages/core/test/browser/nav-head-key-depth.test.ts › a navigation to a page at another depth keeps one head node for the same file)
+	const doc = new DOMParser().parseFromString('', 'text/html');
+	write_unsafe(doc.documentElement, doc.documentElement, html);
+	(globalThis as PageGlobals).__og_parsed?.(doc);
+	return doc;
+}
+
+function write_unsafe(el: Element, root: ParentNode, html: VerifiedHtml): void {
+	const set_html_unsafe = (el as { setHTMLUnsafe?: (h: string) => void }).setHTMLUnsafe;
+	if (typeof set_html_unsafe === 'function') {
+		set_html_unsafe.call(el, html);
+	} else {
+		el.innerHTML = html;
+		attach_declarative_shadows(root);
+	}
 }
 
 /** An element's children replaced by `html`'s, parsed in its own document. */
@@ -111,13 +132,7 @@ export function set_inner_html(el: Element, html: VerifiedHtml): void {
  */
 export function parse_region_html(html: VerifiedHtml): DocumentFragment {
 	const tpl = inert_document().createElement('template');
-	const set_html_unsafe = (tpl as { setHTMLUnsafe?: (h: string) => void }).setHTMLUnsafe;
-	if (typeof set_html_unsafe === 'function') {
-		set_html_unsafe.call(tpl, html);
-	} else {
-		tpl.innerHTML = html;
-		attach_declarative_shadows(tpl.content);
-	}
+	write_unsafe(tpl, tpl.content, html);
 	(globalThis as PageGlobals).__og_parsed?.(tpl.content);
 	return tpl.content;
 }
@@ -134,7 +149,7 @@ function inert_document(): Document {
  *  `setHTMLUnsafe`. Recurse into each shadow we attach: `querySelectorAll` stops at shadow boundaries,
  *  and a `<template shadowrootmode>` can nest inside another. First template per host wins (a host already
  *  carrying a shadow root is left as is). */
-export function attach_declarative_shadows(root: DocumentFragment | ShadowRoot): void {
+export function attach_declarative_shadows(root: ParentNode): void {
 	for (const node of Array.from(root.querySelectorAll('template[shadowrootmode]'))) {
 		const tpl = node as HTMLTemplateElement;
 		const host = tpl.parentElement;

@@ -286,6 +286,7 @@ export function repair_if_drifted(
 			: null;
 	conflict = null;
 	repair_markup(region, want);
+	boot_link().init_shadow_registries(region);
 	const met = conflict;
 	conflict = null;
 	return { repaired: true, reason, conflict: met };

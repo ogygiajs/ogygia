@@ -56,3 +56,30 @@ it('ogygia_debug: the story header lists the features the runtime booted (#1813)
 	const story = render_story('http://localhost/', [boot, ...failed_run]);
 	expect(story).toContain('runtime booted (router, context)');
 });
+
+const applied = (endpoint: string, seq: number, revalidate = false): DevtoolsEvent => ({
+	domain: 'runtime',
+	name: 'region.server.applied',
+	entry: 'src/lib/Greeting.svelte',
+	endpoint,
+	bytes: 120,
+	revalidate,
+	...(revalidate ? {} : { wait_ms: 40 }),
+	v: 1,
+	seq,
+	t: 30 + seq,
+	realm: 'client'
+});
+
+it('ogygia_debug: each applied hole has its own block, keyed by its endpoint (#1820)', () => {
+	const story = render_story('http://localhost/', [
+		...failed_run,
+		applied('/__ogygia__/r?id=a', 3),
+		applied('/__ogygia__/r?id=b', 4),
+		applied('/__ogygia__/r?id=a', 5, true)
+	]);
+	expect(story).toContain('2 hole(s)');
+	expect(story.split('deferred HTML applied (120 B').length - 1).toBe(2);
+	expect(story).toContain('Greeting.svelte');
+	expect(story).toContain('re-applied 1 time(s)');
+});
