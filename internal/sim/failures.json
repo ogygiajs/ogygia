@@ -3381,22 +3381,40 @@
 			"name": "%s is refused"
 		},
 		{
-			"site": "packages/compiler/src/region/transform.ts > FileCompilation > resolve_region_mark > throw:4",
+			"site": "packages/compiler/src/region/transform.ts > FileCompilation > resolve_region_mark > throw:3",
 			"reason": "`throw fail( `preset '${from_preset}': \\`stitch\\` takes \\`true\\` / 'se…`: proved: the throw removed turns the test red, twice",
 			"test": "packages/compiler/test/preset-options.test.ts",
 			"name": "%j is refused"
 		},
 		{
-			"site": "packages/compiler/src/region/transform.ts > FileCompilation > resolve_region_mark > throw:6",
+			"site": "packages/compiler/src/region/transform.ts > FileCompilation > resolve_region_mark > throw:4",
+			"reason": "`throw fail( `unknown key \\`${k}\\` in preset '${from_preset}'…`: proved: the throw removed turns the test red (#1786)",
+			"test": "packages/compiler/test/audit-fixes.test.ts",
+			"name": "a preset's unknown key names every key a preset takes, keep among them (#1177)"
+		},
+		{
+			"site": "packages/compiler/src/region/transform.ts > FileCompilation > resolve_region_mark > throw:5",
 			"reason": "`throw fail( `\\`${k}\\` is not allowed inline. Use \\`${import_keys.wake…`: proved: the throw removed turns the test red, twice",
 			"test": "packages/compiler/test/named-region-imports.test.ts",
 			"name": ".svelte: with { %s }"
 		},
 		{
-			"site": "packages/compiler/src/region/transform.ts > FileCompilation > resolve_region_mark > throw:13",
+			"site": "packages/compiler/src/region/transform.ts > FileCompilation > resolve_region_mark > throw:6",
+			"reason": "`throw fail( `\\`stitch: '${mode}'\\` — the inline values are…`: proved: the throw removed turns the test red (#1786)",
+			"test": "packages/compiler/test/transform.test.ts",
+			"name": "inline stitch takes the strings 'serve' or 'edge' only"
+		},
+		{
+			"site": "packages/compiler/src/region/transform.ts > FileCompilation > resolve_region_mark > throw:12",
 			"reason": "`throw fail( `\\`stitch\\` is only valid with \\`${import_keys.render}: '…`: proved: the throw removed turns the test red, twice",
 			"test": "packages/compiler/test/preset-options.test.ts",
 			"name": "%j is refused"
+		},
+		{
+			"site": "packages/compiler/src/region/transform.ts > FileCompilation > resolve_region_mark > throw:13",
+			"reason": "`throw fail(` prefetch without render: deferred: proved: the throw removed turns the test red (#1786)",
+			"test": "packages/compiler/test/transform.test.ts",
+			"name": "prefetch without render: deferred is refused (an island has modulepreload hints for its JS)"
 		},
 		{
 			"site": "packages/compiler/src/region/transform.ts > TsRegionCompilation > run > throw:0",
@@ -5469,9 +5487,6 @@
 		"packages/cli/src/perf/measure.ts > measure > timer:0",
 		"packages/cli/src/perf/measure.ts > measure > catch:0",
 		"packages/cli/src/perf/measure.ts > measure > throw:1",
-		"packages/compiler/src/region/transform.ts > FileCompilation > resolve_region_mark > throw:3",
-		"packages/compiler/src/region/transform.ts > FileCompilation > resolve_region_mark > throw:5",
-		"packages/compiler/src/region/transform.ts > FileCompilation > resolve_region_mark > throw:12",
 		"packages/config/src/sim.ts > macrotask > message:0",
 		"packages/config/src/sim.ts > macrotask > message:1",
 		"packages/config/src/sim.ts > Run > fetch > fetch_stub > abort:0",

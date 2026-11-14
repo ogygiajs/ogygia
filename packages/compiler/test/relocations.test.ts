@@ -1,15 +1,15 @@
 // VALUES KNOWN ONLY AT THE END OF A LEG (link/relocations.ts): every token a finished chunk carries is
-// replaced, each patch is counted on the leg, and a leg whose output still holds a token, or holds
-// the module that writes one with no patch counted, is said (`relocation_unpatched`).
+// replaced, each patch is counted on the leg, and a leg whose output still holds a token is said
+// (`relocation_unpatched`).
 import { describe, expect, test } from 'vitest';
 import { Program } from '../src/program.ts';
-import { V_FN_MANIFEST } from '../src/ids.ts';
 import {
 	LATE_SERVER_REGIONS_TOKEN,
 	PAGE_DATA_READS_TOKEN,
 	SERVER_MAP_TOKENS
 } from '../src/link/server-manifest.ts';
 import {
+	RELOCATIONS,
 	WRITTEN_RELOCATIONS,
 	relocate as relocate_table,
 	relocations_of,
@@ -20,16 +20,13 @@ import { file_token } from '../src/link/file-token.ts';
 import { ISLAND_DEPS_INLINE_TOKEN } from '../src/link/island-deps.ts';
 import { code_fn } from './_code-fn.ts';
 
-const FN = '/*__OGYGIA_FN_MANIFEST__*/';
-
 /** A leg's relocations over a chunk: its patched text, or null. */
 const relocate = (code: string, server: boolean, counts: Map<string, number>, c: RelocateCx) =>
 	relocate_table(code, relocations_of(server), counts, c)?.s.toString() ?? null;
 
-function cx(hoists: Record<string, string> = {}): RelocateCx {
+function cx(): RelocateCx {
 	return {
 		program: new Program({ forms: true, router: true }),
-		dollar_hoists: new Map(Object.entries(hoists)),
 		public_url: (iid) => `/_app/${iid}.js`,
 		late_server_regions: new Map([['aaaaaaaaaaaa', 'ref1']]),
 		chunk_file: 'chunks/manifest.js',
@@ -42,18 +39,17 @@ function cx(hoists: Record<string, string> = {}): RelocateCx {
 }
 
 describe('relocate', () => {
-	test('the fn manifest takes the og.$ factories as written, `$$` and all', () => {
-		const counts = new Map<string, number>();
-		const out = relocate(`a;${FN}b;`, false, counts, cx({ t1: '() => `$${x}`' }));
-		expect(out).toBe('a;globalThis.__og_reg_fn("t1", (() => `$${x}`));b;');
-		expect(counts.get('fn manifest')).toBe(1);
+	test('no token is a comment, which the bundler drops before renderChunk', () => {
+		for (const r of [...RELOCATIONS, ...WRITTEN_RELOCATIONS])
+			expect(r.token.trimStart().startsWith('/*') || r.token.startsWith('//')).toBe(false);
 	});
 
 	test('every token in a chunk is replaced and counted', () => {
 		const counts = new Map<string, number>();
-		const out = relocate(`${FN}|${FN}`, false, counts, cx());
-		expect(out).toBe('|');
-		expect(counts.get('fn manifest')).toBe(2);
+		const token = `"${PAGE_DATA_READS_TOKEN}"`;
+		const out = relocate(`${token}|${token}`, true, counts, cx());
+		expect(out).toBe('"null"|"null"');
+		expect(counts.get('page data reads')).toBe(2);
 	});
 
 	test('a browser leg leaves the server-only page-data reads alone', () => {
@@ -99,9 +95,9 @@ describe('relocate', () => {
 	});
 
 	test("only a mapped relocation's patch hands on a map (the others keep the chunk's as given)", () => {
-		const table = relocations_of(false);
-		const fn = relocate_table(`a;${FN}b;`, table, new Map(), cx({ t: 'x' }));
-		expect(fn!.mapped).toBe(false);
+		const table = relocations_of(true);
+		const reads = relocate_table(`"${PAGE_DATA_READS_TOKEN}"`, table, new Map(), cx());
+		expect(reads!.mapped).toBe(false);
 		const file = relocate_table(`f(${file_token('/app/src/lazy.ts')})`, table, new Map(), cx());
 		expect(file!.mapped).toBe(true);
 	});
@@ -126,7 +122,7 @@ describe('written relocations', () => {
 	test('a leg does not patch the written ones at its own end', () => {
 		const code = `"${ISLAND_DEPS_INLINE_TOKEN}"`;
 		expect(relocate(code, true, new Map(), cx())).toBeNull();
-		expect(unpatched(true, new Map(), [{ code, moduleIds: [] }])).toEqual([]);
+		expect(unpatched(true, [{ code }])).toEqual([]);
 	});
 });
 
@@ -134,21 +130,11 @@ describe('unpatched', () => {
 	const names = (rs: { name: string }[]) => rs.map((r) => r.name);
 
 	test('a token left in the output is said', () => {
-		const left = unpatched(true, new Map(), [
-			{ code: `"${PAGE_DATA_READS_TOKEN}"`, moduleIds: [] }
-		]);
+		const left = unpatched(true, [{ code: `"${PAGE_DATA_READS_TOKEN}"` }]);
 		expect(names(left)).toEqual(['page data reads']);
 	});
 
-	test('the fn manifest module in the output with no patch counted is said', () => {
-		const chunk = { code: 'globalThis.__og_reg_fn = r;', moduleIds: [`\0${V_FN_MANIFEST}`] };
-		expect(names(unpatched(false, new Map(), [chunk]))).toEqual(['fn manifest']);
-		expect(unpatched(false, new Map([['fn manifest', 1]]), [chunk])).toEqual([]);
-	});
-
 	test('a browser leg is not held to a server-only token', () => {
-		expect(
-			unpatched(false, new Map(), [{ code: `"${PAGE_DATA_READS_TOKEN}"`, moduleIds: [] }])
-		).toEqual([]);
+		expect(unpatched(false, [{ code: `"${PAGE_DATA_READS_TOKEN}"` }])).toEqual([]);
 	});
 });

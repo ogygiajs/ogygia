@@ -1662,7 +1662,6 @@ export class Compiler implements CoreApp {
 		const ctx = this.#ctx;
 		const out = relocate(code, relocations_of(leg.server), leg.relocated, {
 			program: this.program,
-			dollar_hoists: this.dollar_hoists,
 			public_url: (iid) => ctx.island_public_url(iid),
 			late_server_regions: leg.late_server_regions,
 			chunk_file: bundle.chunk_file,
