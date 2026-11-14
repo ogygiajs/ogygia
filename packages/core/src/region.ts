@@ -6,6 +6,9 @@ import { REGION_BRAND } from './region-brand.ts';
 import { held_root_context, kit_page_facts_tail, kit_page_ready } from './server/kit-context.ts';
 import { region_css_tags } from './server/html-scan.ts';
 import { OgygiaError } from './messages/island.ts';
+import { SnippetRender } from './snippet-render.ts';
+
+SnippetRender.install();
 
 export { REGION_BRAND };
 

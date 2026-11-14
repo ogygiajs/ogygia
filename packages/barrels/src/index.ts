@@ -22,10 +22,11 @@ import {
 	definePlugin,
 	type BuildContext,
 	type OgygiaPlugin,
-	type TransformContext,
-	type TransformEvent
+	type TransformContext
 } from '@ogygia/compiler/vite';
 import { is_script_request, type ExportMap, type Policy } from '@ogygia/compiler';
+import type { BarrelLeftReason } from '@ogygia/core/contract';
+import { BarrelLeftLegs } from './left.ts';
 import { matches_any, normalize_options, type BarrelsOptions } from './options.ts';
 import { rewrite_imports, type Lookup, type RewriteMove } from './rewrite.ts';
 import { rewrite_svelte } from './svelte.ts';
@@ -47,6 +48,7 @@ export function barrels(options: BarrelsOptions | true = {}): [OgygiaPlugin, Plu
 	let command: 'build' | 'serve' = 'serve';
 	let report = fresh_report();
 	const warned = say();
+	const left_legs = new BarrelLeftLegs();
 
 	const policy: Policy = {
 		candidate(id, spec) {
@@ -122,8 +124,10 @@ export function barrels(options: BarrelsOptions | true = {}): [OgygiaPlugin, Plu
 			return map;
 		};
 		// each import left on its barrel is told, so a finding can say why the barrel stayed
-		const left = (barrel: string | null, names: string[], reason: TransformEvent['reason']) =>
-			t.emit({ domain: 'compile', name: 'compile.barrel.left', barrel, names, reason });
+		const table = left_legs.leg(t.environment);
+		table.forget(t.id);
+		const left = (barrel: string | null, _names: string[], reason: BarrelLeftReason) =>
+			table.record(t.id, barrel, reason);
 		const rewrite = { skip: b.pinnedImports(t.code), left };
 		const skipped = on_skip(importer);
 		const moves = importer.endsWith('.svelte')
@@ -144,6 +148,7 @@ export function barrels(options: BarrelsOptions | true = {}): [OgygiaPlugin, Plu
 			name: '@ogygia/barrels',
 			build(b) {
 				b.transform({ stage: 'source', filter: is_importer, transform: transform(b) });
+				b.stayed((file, importers, environment) => left_legs.why(file, importers, environment));
 			}
 		}),
 		{
@@ -154,6 +159,9 @@ export function barrels(options: BarrelsOptions | true = {}): [OgygiaPlugin, Plu
 				root = searchForWorkspaceRoot(config.root).replace(BACKSLASH_G, '/');
 				command = config.command;
 				log = (msg) => config.logger.info(msg);
+			},
+			buildStart() {
+				if (command === 'build') left_legs.drop(this.environment.name);
 			},
 			// Once per build leg (Kit builds client then server); dev prints nothing here.
 			closeBundle() {

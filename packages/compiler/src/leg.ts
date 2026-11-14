@@ -1,5 +1,4 @@
 import { machine, type Machine } from '@ogygia/machine';
-import { BarrelLeftTable } from './exports/left.ts';
 
 type LegStates = { open: {}; closed: {} };
 const LEG_STEPS = { open: ['closed'], closed: [] } as const;
@@ -27,14 +26,9 @@ export interface BuildLeg {
 	readonly late_server_regions: Map<string, string>;
 	/** Each relocation's patches in this leg's chunks, by name (link/relocations.ts). */
 	readonly relocated: Map<string, number>;
-	/** Why a barrel stayed, by transform stage (exports/left.ts). */
-	barrels_left(stage: string): BarrelLeftTable;
-	/** The stage's table, if any module said anything in it. */
-	barrels_said(stage: string): BarrelLeftTable | undefined;
 }
 
 export function new_leg(name: string, server: boolean): BuildLeg {
-	const barrels = new Map<string, BarrelLeftTable>();
 	return {
 		name,
 		server,
@@ -47,12 +41,6 @@ export function new_leg(name: string, server: boolean): BuildLeg {
 		hole_css_refs: new Map(),
 		content_css_refs: new Map(),
 		late_server_regions: new Map(),
-		relocated: new Map(),
-		barrels_left(stage) {
-			let table = barrels.get(stage);
-			if (table === undefined) barrels.set(stage, (table = new BarrelLeftTable()));
-			return table;
-		},
-		barrels_said: (stage) => barrels.get(stage)
+		relocated: new Map()
 	};
 }

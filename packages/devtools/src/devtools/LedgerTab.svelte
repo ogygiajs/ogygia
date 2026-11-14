@@ -9,7 +9,7 @@ one, a row per island entry chunk with how many regions use it, its own chunk's 
 (`cold` until it loads) and its whole subgraph (+deps), dearest first, then the runtime chunk and the
 page total.
 -->
-<script>
+<script lang="ts">
 	import {
 		all_regions,
 		chunk_bytes,
@@ -22,7 +22,11 @@ page total.
 	import { page_ledger } from './ledger-dom.ts';
 	import { profile_for, profiles_version } from './profile-store.ts';
 
-	let { tick = 0 } = $props();
+	interface Props {
+		tick?: number;
+	}
+
+	let { tick = 0 }: Props = $props();
 	const IS_DEV = !!(import.meta.env && import.meta.env.DEV);
 
 	const exact = $derived.by(() => {
