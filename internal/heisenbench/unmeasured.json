@@ -121,7 +121,7 @@
 			"reason": "names an unnamed theme object for Shiki: a spread of a theme object, constant work; proven in packages/content/test/shiki-highlighters.test.ts"
 		},
 		{
-			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~7326ff",
+			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~370216",
 			"reason": "the replacement for the multi-variant id attribute: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
 		},
 		{
@@ -3593,19 +3593,19 @@
 			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~3b3bc2",
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~0a5830",
 			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~8ba958",
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~2f9524",
 			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~9ce3d0",
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~6624ce",
 			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~bd1f02",
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~7e6e9f",
 			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
 		},
 		{
@@ -5129,10 +5129,6 @@
 			"reason": "build only: one bake call's evaluation in the build's Node, once per call site per build; its cost is the app's own function"
 		},
 		{
-			"id": "packages/bake/src/bake.ts > evaluate > build:0~602b6c > build > rolldownOptions > external",
-			"reason": "build only: the bake build's external test, one startsWith per import it resolves"
-		},
-		{
 			"id": "packages/bake/src/index.ts > bake",
 			"reason": "the plugin's factory, once per config load: builds one plugin record, constant work"
 		},
@@ -5877,22 +5873,6 @@
 			"reason": "browser, dev and rules builds only: one read noted into a list capped at 10 (hidden state), constant work"
 		},
 		{
-			"id": "packages/core/src/runtime/seeds.ts > absorb_page_facts > with_devalue:0~d7d878",
-			"reason": "browser only: hands the queued facts to merge_page_facts once devalue is in, constant work; proven in packages/core/test/browser/page-facts-before-devalue.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/seeds.ts > absorb_page_facts > with_devalue:1~411c45",
-			"reason": "browser only: devalue's download failed for good, one warning, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts",
-			"reason": "browser only: one devalue parse per hole answer that carried page facts (a few keys), then one page-store set; proven in packages/core/test/browser/page-facts-before-devalue.test.ts and page-facts-visit.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts > filter:0~deb9e1",
-			"reason": "dev builds only: compares the facts' few keys with the page's, for a warning; proven in packages/core/test/browser/page-facts-visit.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/seeds.ts > watch_unshipped",
 			"reason": "browser, dev and rules builds only: one JSON.parse of the seed's left-out key list and one Proxy, once per page seed; proven in packages/core/test/browser/seed-unshipped.test.ts"
 		},
@@ -5919,6 +5899,26 @@
 		{
 			"id": "packages/data-shake/src/vite.ts > dataShake > definePlugin:0~7b132b > build",
 			"reason": "build only: makes the plugin's page_reads (measured in the data-shake bench) and hands it to the build, once per build"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > absorb_page_facts > with_devalue:0~d7d878",
+			"reason": "browser only: hands the queued facts to merge_page_facts once devalue is in, constant work; proven in packages/core/test/browser/page-facts-before-devalue.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > absorb_page_facts > with_devalue:1~411c45",
+			"reason": "browser only: devalue's download failed for good, one warning, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts",
+			"reason": "browser only: one devalue parse per hole answer that carried page facts (a few keys), then one page-store set; proven in packages/core/test/browser/page-facts-before-devalue.test.ts and page-facts-visit.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts > filter:0~deb9e1",
+			"reason": "dev builds only: compares the facts' few keys with the page's, for a warning; proven in packages/core/test/browser/page-facts-visit.test.ts"
+		},
+		{
+			"id": "packages/bake/src/bake.ts > evaluate > build:0~602b6c > build > rolldownOptions > external",
+			"reason": "build only: the bake build's external test, one startsWith per import it resolves"
 		},
 		{
 			"id": "packages/core/src/runtime/lakes.ts > hold",

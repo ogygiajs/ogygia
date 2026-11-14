@@ -275,7 +275,7 @@ describe('an imported helper handed the page is summarized soundly', () => {
 			('follow' in summary ? false : !seen.all && read.every((k) => summary.has(k)));
 		expect(
 			covered,
-			`summarized ${JSON.stringify(summary === 'all' ? 'all' : [...(summary as Set<string>)])}, read ${read}`
+			`summarized ${JSON.stringify(summary === 'all' ? 'all' : [...(summary as Set<string>)])}, read ${read.join(',')}`
 		).toBe(true);
 	});
 });

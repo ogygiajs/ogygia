@@ -40,7 +40,7 @@
 		"typescript/no-unsafe-unary-minus": "error",
 		"typescript/no-useless-default-assignment": "off",
 		"typescript/require-array-sort-compare": "error",
-		"typescript/restrict-template-expressions": "off",
+		"typescript/restrict-template-expressions": "error",
 		"typescript/unbound-method": "off",
 		"ogygia/no-promise-cache": "error",
 		"ogygia/owned-effects": "error",
