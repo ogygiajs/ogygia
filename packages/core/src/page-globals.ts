@@ -37,6 +37,6 @@ export interface PageGlobals {
 	__og_adopt?: { shadow: ShadowRoot; sheets: CSSStyleSheet[] }[];
 	/** The rules take the router's head deny as its chunk loads (runtime/rules.ts). */
 	__og_head_deny?: (deny: (node: Element) => boolean) => void;
-	/** The rules hear each parse of an answer (runtime/html-sink.ts → runtime/rules.ts). */
-	__og_parsed?: (fragment: DocumentFragment) => void;
+	/** The rules hear each parse of an answer or a page (runtime/html-sink.ts → runtime/rules.ts). */
+	__og_parsed?: (parsed: DocumentFragment | Document) => void;
 }
