@@ -4,9 +4,11 @@
  * literal, a `.join()` or `String()` call, or such a chain itself; number arithmetic never does.
  * The fix writes the chain as one template literal (a number sum before the first string stays one
  * `${…}`, as `+` evaluates it). A chain across lines that builds lines of text (`\n`), or holds a
- * comment, is reported with the `dedent` hint and left for a hand fix. A `+=` in a loop body (a
- * `for`, `for…of`, `for…in`, `while` or `do`, or a `forEach` / `map` callback) builds a string in
- * pieces: it is reported with the `join` hint and no fix (internal/lint/no-string-concat.test.ts).
+ * comment, is reported with the `dedent` hint and left for a hand fix. An append (`s += x`,
+ * `s = s + x`, `s = \`${s}x\``) builds a string in pieces, and has no fix: in a loop body (a `for`,
+ * `for…of`, `for…in`, `while` or `do`, or a `forEach` / `map` callback) that the string outlives,
+ * it is reported with the `join` hint; elsewhere, with the hint to write the string once
+ * (internal/lint/no-string-concat.test.ts).
  */
 
 import { concat_kept, unwrap, type FixContext, type Node, type Ranged } from './shared.ts';
@@ -15,42 +17,95 @@ const MESSAGE_CONCAT = 'Build the string with a template literal, not `+`.';
 const MESSAGE_CONCAT_LINES =
 	'Build the string with a template literal, not `+` across lines: a long or multi-line one is a `dedent` template (core contract/dedent.ts).';
 
-const MESSAGE_CONCAT_LOOP =
-	'A string built with `+=` in a loop: collect the parts in an array and `join()` them once.';
+const MESSAGE_APPEND_LOOP =
+	'A string appended to in a loop: collect the parts in an array and `join()` them once.';
+const MESSAGE_APPEND =
+	'Build the string once, in one template literal, not by appending to it (a part that is not always there is a `${…}` that can be empty).';
 
-const LOOPS: ReadonlySet<string> = new Set([
-	'ForStatement',
-	'ForOfStatement',
-	'ForInStatement',
-	'WhileStatement',
-	'DoWhileStatement'
-]);
 const LOOP_CALLBACKS: ReadonlySet<string> = new Set(['forEach', 'map']);
 const FUNCTIONS: ReadonlySet<string> = new Set([
 	'FunctionDeclaration',
 	'FunctionExpression',
 	'ArrowFunctionExpression'
 ]);
+const BLOCKS: ReadonlySet<string> = new Set(['BlockStatement', 'Program', 'StaticBlock']);
 
-/** Is `node` in a loop's body, or in a `forEach` / `map` callback, within its own function? */
-function in_loop(node: Node): boolean {
+/** The names a binding pattern binds. */
+function bound(p: Node | null | undefined): string[] {
+	if (!p) return [];
+	switch (p.type) {
+		case 'Identifier':
+			return [(p as { name: string }).name];
+		case 'AssignmentPattern':
+			return bound(p.left as Node);
+		case 'RestElement':
+			return bound(p.argument as Node);
+		case 'ArrayPattern':
+			return (p.elements as (Node | null)[]).flatMap(bound);
+		case 'ObjectPattern':
+			return (p.properties as Node[]).flatMap((q) =>
+				bound(q.type === 'RestElement' ? q : (q.value as Node))
+			);
+		case 'TSParameterProperty':
+			return bound(p.parameter as Node);
+		default:
+			return [];
+	}
+}
+
+const declares = (d: Node | null | undefined, name: string): boolean =>
+	d?.type === 'VariableDeclaration' &&
+	(d.declarations as Node[]).some((v) => bound(v.id as Node).includes(name));
+
+/** Is `fn` the callback of a `forEach` / `map` call? */
+function loop_callback(fn: Node): boolean {
+	const call = fn.parent as Node | undefined;
+	if (call?.type !== 'CallExpression' || !(call.arguments as Node[]).includes(fn)) return false;
+	const callee = call.callee as Node;
+	return (
+		callee.type === 'MemberExpression' &&
+		LOOP_CALLBACKS.has((callee.property as { name?: string })?.name ?? '')
+	);
+}
+
+/** Does the append `node` to `name` (null: a member) run on more than one turn of a loop that the
+ *  string outlives? The walk goes up to where `name` is declared; a loop passed on the way counts. */
+function across_turns(node: Node, name: string | null): boolean {
+	let looped = false;
 	let child = node;
 	let n = node.parent as Node | undefined;
 	while (n) {
-		if (LOOPS.has(n.type) && n.body === child) return true;
-		if (FUNCTIONS.has(n.type)) {
-			const call = n.parent as Node | undefined;
-			if (call?.type !== 'CallExpression' || !(call.arguments as Node[]).includes(n)) return false;
-			const callee = call.callee as Node;
-			return (
-				callee.type === 'MemberExpression' &&
-				LOOP_CALLBACKS.has((callee.property as { name?: string })?.name ?? '')
-			);
+		switch (n.type) {
+			case 'ForOfStatement':
+			case 'ForInStatement':
+				if (name !== null && declares(n.left as Node, name)) return looped;
+				if (n.body === child) looped = true;
+				break;
+			case 'ForStatement':
+				if (n.body === child || n.update === child) looped = true;
+				if (name !== null && declares(n.init as Node, name)) return looped;
+				break;
+			case 'WhileStatement':
+			case 'DoWhileStatement':
+				if (n.body === child) looped = true;
+				break;
+			case 'SwitchCase':
+				if (name !== null && (n.consequent as Node[]).some((s) => declares(s, name))) return looped;
+				break;
+			default:
+				if (BLOCKS.has(n.type)) {
+					if (name !== null && (n.body as Node[]).some((s) => declares(s, name))) return looped;
+				} else if (FUNCTIONS.has(n.type)) {
+					if (name !== null && (n.params as Node[]).some((p) => bound(p).includes(name)))
+						return looped;
+					if (!loop_callback(n)) return looped;
+					looped = true;
+				}
 		}
 		child = n;
 		n = n.parent as Node | undefined;
 	}
-	return false;
+	return looped;
 }
 
 const is_plus = (e: Node | undefined): boolean =>
@@ -118,6 +173,26 @@ function as_template(context: FixContext, top: Node, ops: Node[]): string {
 
 const CLOSE_SCRIPT_G = /<\/(script)/gi;
 
+/** The target's text when the assignment `node` appends a string to it (`s += 'x'`,
+ *  `s = s + 'x'`, `s = \`${s}x\``), else null. */
+function appended(context: FixContext, node: Node): string | null {
+	const left = node.left as Node;
+	if (left.type !== 'Identifier' && left.type !== 'MemberExpression') return null;
+	const right = unwrap(node.right as Node);
+	if (node.operator === '+=') return stringy(right) ? context.sourceCode.getText(left as Ranged) : null;
+	if (node.operator !== '=') return null;
+	const target = context.sourceCode.getText(left as Ranged);
+	const is_target = (e: Node | undefined) =>
+		e !== undefined && context.sourceCode.getText(unwrap(e) as Ranged) === target;
+	if (right.type === 'TemplateLiteral') {
+		const quasis = right.quasis as { value: { raw: string } }[];
+		const values = right.expressions as Node[];
+		const first = quasis[0]!.value.raw === '' && is_target(values[0]);
+		return first && (values.length > 1 || quasis[1]!.value.raw !== '') ? target : null;
+	}
+	return is_plus(right) && stringy(right) && is_target(operands(right)[0]) ? target : null;
+}
+
 export const no_string_concat = {
 	meta: {
 		type: 'suggestion',
@@ -138,6 +213,7 @@ export const no_string_concat = {
 				// (or, in parentheses, in the chain that holds it)
 				const parent = node.parent as Node | undefined;
 				if (is_plus(parent)) return;
+				if (parent?.type === 'AssignmentExpression' && appended(context, parent) !== null) return;
 				const ops = operands(node);
 				if (!ops.some(stringy) || concat_kept(node)) return;
 				const n = node as Ranged;
@@ -155,28 +231,13 @@ export const no_string_concat = {
 				});
 			},
 			AssignmentExpression(node: Node) {
-				if (node.operator !== '+=' || !stringy(node.right as Node) || concat_kept(node)) return;
+				const target = appended(context, node);
+				if (target === null || concat_kept(node)) return;
 				const left = node.left as Node;
-				const n = node as Ranged;
-				if (in_loop(node)) {
-					context.report({ node, message: MESSAGE_CONCAT_LOOP });
-					return;
-				}
-				// (a plain name only: a member read twice could run a getter twice)
-				const simple = left.type === 'Identifier' && !is_plus(unwrap(node.right as Node));
-				if (!simple || !fixable(n)) {
-					context.report({
-						node,
-						message: across_lines(n) ? MESSAGE_CONCAT_LINES : MESSAGE_CONCAT
-					});
-					return;
-				}
-				const name = context.sourceCode.getText(left as Ranged);
+				const name = left.type === 'Identifier' ? target : null;
 				context.report({
 					node,
-					message: MESSAGE_CONCAT,
-					fix: (fixer) =>
-						fixer.replaceText(n, `${name} = \`\${${name}}${part(context, node.right as Node)}\``)
+					message: across_turns(node, name) ? MESSAGE_APPEND_LOOP : MESSAGE_APPEND
 				});
 			}
 		};
