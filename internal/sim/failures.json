@@ -4384,20 +4384,20 @@
 		{
 			"site": "packages/content/src/macros/code.ts > static_string > throw:1",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/content/test/constructs-stress.test.ts",
-			"name": "code with an identifier source → static string literal + line"
+			"test": "packages/content/test/og-code.test.ts",
+			"name": "rejects a non-literal lang"
 		},
 		{
 			"site": "packages/content/src/macros/code.ts > find_calls > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/content/test/constructs-stress.test.ts",
-			"name": "md with wrong arity → takes exactly one argument"
+			"test": "packages/content/test/og-code.test.ts",
+			"name": "rejects md() with wrong arity"
 		},
 		{
 			"site": "packages/content/src/macros/code.ts > find_calls > throw:1",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/content/test/constructs-stress.test.ts",
-			"name": "code with zero args"
+			"test": "packages/content/test/og-code.test.ts",
+			"name": "rejects wrong arity"
 		},
 		{
 			"site": "packages/content/src/macros/git.ts > parse_git_spec > throw:0",
