@@ -15,7 +15,7 @@
 	import { scope } from '@ogygia/machine';
 	import { run_profile, profile_for, profiles_version } from './profile-store.ts';
 	import { page_anchors } from './profile-anchors.ts';
-	import { highlight, clear_highlight } from './highlight.ts';
+	import { highlighter } from './highlight.ts';
 
 	let { tick = 0, focus = $bindable(null), selected = $bindable(null) } = $props();
 
@@ -37,7 +37,7 @@
 			.then((r) => (available = r.status !== 404))
 			.catch(() => (available = false));
 		return () => {
-			clear_highlight(); // leaving the tab takes the boxes off the page
+			highlighter.clear(); // leaving the tab takes the boxes off the page
 			owner.close();
 		};
 	});
@@ -116,8 +116,8 @@
 	let pinned = $state(/** @type {string | null} */ (null));
 	function show(a, pin = false) {
 		if (pin) pinned = pinned === a.key ? null : a.key;
-		if (pin && pinned === null) return clear_highlight();
-		highlight(a.find(), `${a.title} — ${a.detail}`, pin);
+		if (pin && pinned === null) return highlighter.clear();
+		highlighter.show(a.find(), `${a.title} — ${a.detail}`, pin);
 	}
 	/** the islands on this page with these fingerprints (a browser finding's) */
 	function regions_of(fps) {
@@ -129,9 +129,9 @@
 	function unshow() {
 		if (pinned) {
 			const a = anchors.find((x) => x.key === pinned);
-			if (a) return highlight(a.find(), `${a.title} — ${a.detail}`);
+			if (a) return highlighter.show(a.find(), `${a.title} — ${a.detail}`);
 		}
-		clear_highlight();
+		highlighter.clear();
 	}
 </script>
 
@@ -316,7 +316,7 @@
 							class={f.severity}
 							class:lit={!!f.fps}
 							data-code={f.code}
-							onmouseenter={f.fps ? () => highlight(regions_of(f.fps), f.code) : undefined}
+							onmouseenter={f.fps ? () => highlighter.show(regions_of(f.fps), f.code) : undefined}
 							onmouseleave={f.fps ? unshow : undefined}
 						>
 							<p class="msg">{f.message}</p>
