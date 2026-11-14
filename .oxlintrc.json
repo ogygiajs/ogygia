@@ -77,6 +77,7 @@
 				"packages/core/src/**",
 				"packages/data-shake/src/**",
 				"packages/federation/src/**",
+				"packages/insights/src/**",
 				"packages/flags/src/**",
 				"packages/jumpstart/src/**",
 				"packages/machine/src/**",
