@@ -7,6 +7,7 @@ const QUERY_RE = /[?#].*$/;
 const NODE_MODULES_RE = /[\\/]node_modules[\\/]/;
 const clean = (id: string): string => id.replace(QUERY_RE, '');
 
+/** Why the pass left an import on its barrel, by barrel and by importer, for one build leg. */
 export class BarrelLeftTable {
 	readonly #cap: number;
 	readonly #by_barrel = new Map<string, Map<string, Set<BarrelLeftReason>>>();
@@ -19,15 +20,14 @@ export class BarrelLeftTable {
 
 	/** `importer` left an import on `barrel` (null: the importer could not be read at all). */
 	record(importer: string, barrel: string | null, reason: BarrelLeftReason): void {
-		const by_barrel = this.#by_barrel;
 		if (barrel === null) {
-			if (by_barrel.size + this.#unparsable.size < this.#cap) this.#unparsable.add(clean(importer));
+			if (this.size < this.#cap) this.#unparsable.add(clean(importer));
 			return;
 		}
-		let importers = by_barrel.get(barrel);
+		let importers = this.#by_barrel.get(barrel);
 		if (importers === undefined) {
-			if (by_barrel.size + this.#unparsable.size >= this.#cap) return; // ok: capped, the finding says no reason
-			by_barrel.set(barrel, (importers = new Map()));
+			if (this.size >= this.#cap) return; // ok: capped, the finding says no reason
+			this.#by_barrel.set(barrel, (importers = new Map()));
 		}
 		let reasons = importers.get(importer);
 		if (reasons === undefined) importers.set(importer, (reasons = new Set()));
@@ -55,12 +55,11 @@ export class BarrelLeftTable {
 	 *  ids, queries allowed) join an importer that could not be parsed. */
 	why(barrel: string, importers: Iterable<string>): BarrelLeftReason[] {
 		const found = new Set<BarrelLeftReason>();
-		const unparsable = this.#unparsable;
 		for (const reasons of this.#by_barrel.get(clean(barrel))?.values() ?? [])
 			for (const r of reasons) found.add(r);
-		if (unparsable.size > 0 && !NODE_MODULES_RE.test(barrel))
+		if (this.#unparsable.size > 0 && !NODE_MODULES_RE.test(barrel))
 			for (const i of importers)
-				if (unparsable.has(clean(i))) {
+				if (this.#unparsable.has(clean(i))) {
 					found.add('unparsable');
 					break;
 				}
@@ -76,5 +75,27 @@ export class BarrelLeftTable {
 	/** barrels and unparsable importers held */
 	get size(): number {
 		return this.#by_barrel.size + this.#unparsable.size;
+	}
+}
+
+/** One {@link BarrelLeftTable} per bundler environment (a build leg). */
+export class BarrelLeftLegs {
+	readonly #legs = new Map<string, BarrelLeftTable>();
+
+	/** The environment's table, made on first use. */
+	leg(environment: string): BarrelLeftTable {
+		let table = this.#legs.get(environment);
+		if (table === undefined) this.#legs.set(environment, (table = new BarrelLeftTable()));
+		return table;
+	}
+
+	/** The environment begins a build: what its last build said no longer holds. */
+	drop(environment: string): void {
+		this.#legs.delete(environment);
+	}
+
+	/** Why `barrel` stayed in the environment's leg (none: nothing was said there). */
+	why(barrel: string, importers: Iterable<string>, environment: string): BarrelLeftReason[] {
+		return this.#legs.get(environment)?.why(barrel, importers) ?? [];
 	}
 }
