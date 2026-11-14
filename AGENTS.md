@@ -92,7 +92,8 @@ no other comments (`ogygia/structured-comments`; COMMENTS-ARE-TESTS in
 A line that lets a check through is a waiver, and a waiver names the rule it waives:
 `// oxlint-disable-next-line ogygia/<rule> -- <reason>` (`@ts-expect-error` and `svelte-ignore`
 likewise). A quiet catch waives `ogygia/no-silent-failures` this way. No custom tags: the older
-`// ok:`, `// wall:` and `// hash:` marks are being moved to directives. Where a type can say it,
+`// ok:`, `// port-ok:`, `// markup-ok:`, `// wall:` and `// hash:` marks have moved to directives,
+and the rules no longer read them, so an old mark excuses nothing. Where a type can say it,
 the type is the mark and no comment is needed: a module-level table that never grows is declared
 `ReadonlySet`, `ReadonlyMap` or `readonly T[]`, which TypeScript enforces from every module (this
 replaces `// static:`). `@why` is the only tag, because it records a fact, not a waiver.
@@ -101,7 +102,8 @@ replaces `// static:`). `@why` is the only tag, because it records a fact, not a
 
 Every failure is either handled with a reason or reported with a message code. Console output from
 ogygia is a code plus a link (`https://ogygiajs.dev/e/<code>`), worded for the person who has to fix
-it. A deliberate swallow carries `// ok: <reason>`.
+it. A deliberate swallow carries
+`// oxlint-disable-next-line ogygia/no-silent-failures -- <reason>`.
 
 ### Every bug is proved first
 

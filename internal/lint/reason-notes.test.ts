@@ -1,7 +1,7 @@
-// A REASON NOTE NAMES ONE STATEMENT (#1033): `// port-ok: <why>` (`ogygia/ports`) and
-// `// hash: <why>` (`ogygia/one-hash`) excuse the code on their own line, or the line below when
-// the note stands alone on its line. A note trailing another statement is that statement's: the
-// line under it is still checked. Linted for real: a package file in a temporary tree, the
+// A WAIVER NAMES ITS RULE AND ONE LINE: `// oxlint-disable-next-line ogygia/<rule> -- <why>`
+// excuses that rule on the line below, and nothing else. The old reason marks (`// ok:`,
+// `// port-ok:`, `// hash:`, `// markup-ok:`) excuse nothing (the #1033 question, which statement a
+// trailing note names, cannot come up). Linted for real: a package file in a temporary tree, the
 // repository's plugin.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -44,26 +44,13 @@ function reported(rule: string, source: string, pkg = 'core'): number[] {
 	}
 }
 
-const PORTS = `export const a = Date.now(); // port-ok: stored for the next load
+const PORTS = `// oxlint-disable-next-line ogygia/ports -- stored for the next load
+export const a = Date.now();
 export const elapsed = Date.now() - a;
-// port-ok: a note alone on its line names the line below
-export const b = Date.now();
-export const c = Date.now(); // port-ok: its own line
-export const d = Date.now();
 `;
 
-test('ogygia/ports: a trailing note excuses its own line, not the line below', () => {
-	assert.deepEqual(reported('ports', PORTS), [2, 6]);
-});
-
-const HASH = `export const a = 0x811c9dc5; // hash: a seeded copy
-export const b = 0x811c9dc5;
-// hash: one over bytes
-export const c = 0x811c9dc5;
-`;
-
-test('ogygia/one-hash: a trailing note excuses its own line, not the line below', () => {
-	assert.deepEqual(reported('one-hash', HASH), [2]);
+test('ogygia/ports: a directive excuses the line below, not the one after it', () => {
+	assert.deepEqual(reported('ports', PORTS), [3]);
 });
 
 const VOIDS = `declare const p: () => Promise<void>;
@@ -71,16 +58,15 @@ declare const s: { send?: () => Promise<void> } | undefined;
 void p();
 void s?.send?.();
 void (p() as Promise<void>);
-void p(); // ok: a trailing note is its own line's
+// oxlint-disable-next-line ogygia/no-silent-failures -- p never rejects
 void p();
-// ok: a note alone on its line names the line below
 void p();
 void p().catch((e: unknown) => console.error(e));
 export const awaited = async () => void (await p());
 `;
 
-test('ogygia/no-silent-failures: every void call needs an ok note, an optional call and a cast too', () => {
-	assert.deepEqual(reported('no-silent-failures', VOIDS), [3, 4, 5, 7]);
+test('ogygia/no-silent-failures: every void call needs a directive, an optional call and a cast too', () => {
+	assert.deepEqual(reported('no-silent-failures', VOIDS), [3, 4, 5, 8]);
 });
 
 const FALLBACKS = `declare const p: () => Promise<string>;
@@ -93,7 +79,8 @@ export const e = () => p().catch(() => '');
 export const f = () => p().catch(() => []);
 export const g = () => p().then(String, () => { return false; });
 export function h() { try { return p(); } catch (err) { return String(err); } }
-export function i() { try { return p(); } catch { return null; } } // ok: a missing value is the answer
+// oxlint-disable-next-line ogygia/no-silent-failures -- a missing value is the answer
+export function i() { try { return p(); } catch { return null; } }
 export const j = () => p().catch((err: unknown) => { use(err); return ''; });
 export function k() { try { return p(); } catch { use(1); return null; } }
 `;
