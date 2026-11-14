@@ -19,7 +19,7 @@ import type { RequestState } from '@sveltejs/kit/internal/server';
 import { __heisenbench as hooks } from '../src/hooks.ts';
 import { record_page } from '../src/page-seed-registry.ts';
 import { facts_of } from '../src/plugin/facts.ts';
-import { SeedIndex, json_culprit, plan_seed_refs } from '../src/seed-refs.ts';
+import { SeedIndex, SeedRefPlan, json_culprit } from '../src/seed-refs.ts';
 import { DocumentTail, document_tail } from '../src/server/document-tail.ts';
 import { region_fingerprint } from '../src/server/fingerprint.ts';
 import {
@@ -29,7 +29,7 @@ import {
 	stream_page_deferred,
 	type Deferred
 } from '../src/server/page-stream.ts';
-import { plan_props_wire } from '../src/server/props-wire.ts';
+import { PropsWire } from '../src/server/props-wire.ts';
 import {
 	request_stats_detailed,
 	set_request_stats_sink,
@@ -190,7 +190,7 @@ function render_island(
 ): void {
 	record_page({ data, form: null, error: null, status: 200 }, ask, remotes, entry);
 	const tail = document_tail()!;
-	const wire = plan_props_wire(props, entry);
+	const wire = new PropsWire(props, entry);
 	const fp = region_fingerprint(entry, wire.canonical);
 	tail.props(fp, wire, { entry, name: 'Block', module_url: entry, wake: 'visible' });
 	const hrefs = tail.graph_of(entry) ?? graph;
@@ -440,7 +440,7 @@ bench(
 // every seed node of its byte size for its hash (same-shaped records share a size).
 bench(
 	'seed refs: a list island passed copies of the page’s products',
-	({ index, props }) => plan_seed_refs(index, props).count,
+	({ index, props }) => new SeedRefPlan(index, props).count,
 	{ setup: () => copies_of(2500), scale: (_ctx, k) => copies_of(250 * k) }
 );
 
@@ -572,7 +572,7 @@ bench('seed index: a page.data dictionary (prices by SKU)', ({ data }) => SeedIn
 
 bench(
 	'seed refs: copies of the page’s list and dictionary, each matched whole',
-	({ index, props }) => plan_seed_refs(index, props).count,
+	({ index, props }) => new SeedRefPlan(index, props).count,
 	{ setup: () => whole_copies(2500), scale: (_ctx, k) => whole_copies(250 * k) }
 );
 

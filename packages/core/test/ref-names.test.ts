@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { ref_names, set_ref_names_reader, placed, type RefNames } from '../src/ref.ts';
 import { __register_transportable, wire } from '../src/live-transport.ts';
-import { plan_props_wire } from '../src/server/props-wire.ts';
+import { PropsWire } from '../src/server/props-wire.ts';
 import { region_fingerprint } from '../src/server/fingerprint.ts';
 
 class Stamp {
@@ -35,7 +35,7 @@ function request<T>(fn: (names: RefNames) => T): { out: T; names: RefNames } {
 
 /** A page: one island whose props carry a fresh instance, rendered in one request. */
 const render_page = () => {
-	const w = plan_props_wire({ stamp: new Stamp('kept'), label: 'near' }, '/islands/c.js');
+	const w = new PropsWire({ stamp: new Stamp('kept'), label: 'near' }, '/islands/c.js');
 	return { fp: region_fingerprint('/islands/c.js', w.canonical), text: w.wire(null).text };
 };
 
@@ -59,9 +59,9 @@ describe('ref names · one per render', () => {
 	it('one instance is one id in a render; two instances are two, so two islands never share by accident', () => {
 		const { out } = request(() => {
 			const shared = new Stamp('s');
-			const one = plan_props_wire({ stamp: shared }, '/islands/c.js');
-			const two = plan_props_wire({ stamp: shared }, '/islands/c.js');
-			const other = plan_props_wire({ stamp: new Stamp('s') }, '/islands/c.js');
+			const one = new PropsWire({ stamp: shared }, '/islands/c.js');
+			const two = new PropsWire({ stamp: shared }, '/islands/c.js');
+			const other = new PropsWire({ stamp: new Stamp('s') }, '/islands/c.js');
 			return { one, two, other };
 		});
 		expect(out.two.wire(null).text).toBe(out.one.wire(null).text);

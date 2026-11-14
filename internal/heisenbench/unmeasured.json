@@ -53,10 +53,6 @@
 			"reason": "the matcher that matches nothing, for chunks read only to keep the scan's state: answers false, constant work; rewrite.test.ts's 'matches only in the last chunk' path runs it"
 		},
 		{
-			"id": "packages/devtools/src/devtools/highlight.ts > highlight > defer:0~248bad",
-			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
-		},
-		{
 			"id": "packages/devtools/src/devtools/profile-store.ts > set_profile > map:0~39039e",
 			"reason": "one profile out of each kept entry (64 at most) while the newest 8 are saved, constant work per entry; devtools-profile-store.test.ts runs it"
 		},
@@ -1505,26 +1501,6 @@
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{
-			"id": "packages/config/src/sim.ts > Run > stream",
-			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
-		},
-		{
-			"id": "packages/config/src/sim.ts > Run > stream > ReadableStream:0~264709 > cancel",
-			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
-		},
-		{
-			"id": "packages/config/src/sim.ts > Run > stream > ReadableStream:0~264709 > pull",
-			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
-		},
-		{
-			"id": "packages/config/src/sim.ts > Run > stream > ReadableStream:0~264709 > pull > later:1~4fcdea",
-			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
-		},
-		{
-			"id": "packages/config/src/sim.ts > Run > stream > cancelled",
-			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
-		},
-		{
 			"id": "packages/config/src/sim.ts > Run > timers",
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
@@ -1691,14 +1667,6 @@
 		{
 			"id": "packages/devtools/src/profiler/index.ts > with_timeout > Promise:0~5c1151 > timeout:0~25c4cd",
 			"reason": "a render's timeout on its race's scope, constant work"
-		},
-		{
-			"id": "packages/devtools/src/profiler/net.ts > count_decoded > <anonymous>~929d48 > defer:0~95f179",
-			"reason": "the counted copy's reader is cancelled when its request ends: a cancel when its owner ends, constant work; proven in packages/devtools/test/profiler-net-capture.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/net.ts > count_decoded > <anonymous>~929d48 > defer:0~95f179 > catch:0~a1b2d0",
-			"reason": "the counted copy's reader is cancelled when its request ends: a cancel when its owner ends, constant work; proven in packages/devtools/test/profiler-net-capture.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/net.ts > install_net_capture > answer",
@@ -2019,10 +1987,6 @@
 		{
 			"id": "packages/devtools/src/profiler/embedded-maps.ts > embedded_source > map:0~31820d",
 			"reason": "profiler only: lists the known app roots for one source path, linear in the roots (one per app)"
-		},
-		{
-			"id": "packages/devtools/src/profiler/net.ts > keeping",
-			"reason": "profiler only: reads the module's kept-answers state (hidden state), constant work"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > arm_on_demand > set:1~0b08c2",
@@ -4825,6 +4789,18 @@
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
 		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > observeReads",
+			"reason": "hands a live RequestEvent (not cloneable) and its request's read set to observe_reads, constant work of its own; observe_reads is measured on its own"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn",
+			"reason": "a plugin's dev warning: one say().once per message, printed through console.warn (not replayable), constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn > once:1~c9a4aa",
+			"reason": "prints a plugin's warning once through console.warn (not replayable), constant work"
+		},
+		{
 			"id": "packages/postrender/src/registry.ts > shared:0~4e63eb > make",
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
@@ -5255,18 +5231,6 @@
 		{
 			"id": "packages/flags/src/build-messages.ts > FLAGS_BUILD_WARNINGS > flags_manifest_written > text",
 			"reason": "a message's one line for the build note: a template over its detail, printed once per build"
-		},
-		{
-			"id": "packages/flags/src/vite.ts > inventory",
-			"reason": "the plugin's factory, once per config load: builds one plugin record, constant work"
-		},
-		{
-			"id": "packages/flags/src/vite.ts > inventory > module",
-			"reason": "build only: the inventory's prescan hook over one module that imports @ogygia/flags, delegating to collect_flag_sites (measured on its own)"
-		},
-		{
-			"id": "packages/flags/src/vite.ts > inventory > written",
-			"reason": "build only, once per build: writes the flags manifest file, linear in flag sites"
 		},
 		{
 			"id": "packages/compiler/src/driver.ts > Compiler > #scan > once:1~8ca9a8",
@@ -5737,30 +5701,6 @@
 			"reason": "the routes db input that reads one route file through the fs seam (not replayable), linear in its text"
 		},
 		{
-			"id": "packages/compiler/src/queries.ts > queries > db > changed_since",
-			"reason": "compares one slot's changed stamp to a revision (the db's slots: not cloneable), constant work"
-		},
-		{
-			"id": "packages/compiler/src/queries.ts > queries > db > holds",
-			"reason": "is an answer held for this query and arg: one slot lookup (the db's state: not replayable), constant work"
-		},
-		{
-			"id": "packages/compiler/src/queries.ts > queries > db > reread",
-			"reason": "reruns every held input once (a new build of the same session), linear in the held inputs; queries tests and the queries bench run it"
-		},
-		{
-			"id": "packages/compiler/src/scan-facts.ts > scan_facts > has",
-			"reason": "does the scan hold facts for a file: one db read (the scan db's state: not replayable), constant work"
-		},
-		{
-			"id": "packages/compiler/src/scan-facts.ts > scan_facts > input:2~ae0427",
-			"reason": "the scan db input for a file's facts, set by the prescan and the dev transform (not replayable), constant work"
-		},
-		{
-			"id": "packages/compiler/src/scan-facts.ts > scan_facts > input:2~ea66dc",
-			"reason": "the scan db input for a file's facts, read by every query over the scan (not replayable), constant work"
-		},
-		{
 			"id": "packages/compiler/src/fouc-css.ts > extractRawStyleBodies > filter:0~e6fdc6",
 			"reason": "a filter over one component's blocks (a handful), constant work per block; component-blocks.test.ts runs it"
 		},
@@ -6095,6 +6035,126 @@
 		{
 			"id": "packages/core/src/server/live-event.ts > live_event",
 			"reason": "one call to Kit's getRequestEvent, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts runs it"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > show > defer:0~248bad",
+			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > show",
+			"reason": "browser only: makes the dock's highlight layer (DOM) once and queues a frame, constant work besides scrollIntoView"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > #draw",
+			"reason": "browser only: one box per element on screen (getBoundingClientRect), linear in the elements, capped at 400"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > #schedule",
+			"reason": "browser only: queues one frame on the layer's scope, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > #schedule > schedule:1~47dbf5",
+			"reason": "browser only: the queued frame's handoff to #draw, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > clear",
+			"reason": "browser only: closes the layer's scope (its listeners and the layer go), constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > count",
+			"reason": "browser only: the shown layer's element count, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > set_root",
+			"reason": "browser only: keeps the dock's shadow root, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > diff",
+			"reason": "profiler only: reads the kept answers (hidden state), linear in the two bodies it compares"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > get",
+			"reason": "profiler only: a kept answer as a fresh Response (hidden state), linear in its body"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > get current",
+			"reason": "profiler only: the kept answers now (hidden state), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > count_decoded > <anonymous>~eed13d > defer:0~95f179",
+			"reason": "the counted copy's reader is cancelled when its request ends: a cancel when its owner ends, constant work; proven in packages/devtools/test/profiler-net-capture.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > count_decoded > <anonymous>~eed13d > defer:0~95f179 > catch:0~a1b2d0",
+			"reason": "the counted copy's reader is cancelled when its request ends: a cancel when its owner ends, constant work; proven in packages/devtools/test/profiler-net-capture.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > keeping",
+			"reason": "profiler only: reads the module's kept-answers state (hidden state), constant work"
+		},
+		{
+			"id": "packages/config/src/sim.ts > SimStream > constructor",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > SimStream > constructor > ReadableStream:0~516354 > cancel",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > SimStream > constructor > ReadableStream:0~516354 > pull",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > SimStream > constructor > ReadableStream:0~516354 > pull > later:1~5fc325",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/config/src/sim.ts > SimStream > cancelled",
+			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
+		},
+		{
+			"id": "packages/federation/src/federate.ts > SourceCapture > constructor",
+			"reason": "once per expose render: swaps the request's sources fact for a fresh list, constant work; its input is a live Request with the app's facts (not recorded); the federation expose tests run it"
+		},
+		{
+			"id": "packages/federation/src/federate.ts > SourceCapture > end",
+			"reason": "once per expose render: copies the render's source tags into the set and restores the request's list, linear in the tags; it reads the live request's facts (not replayable); the federation expose tests run it"
+		},
+		{
+			"id": "packages/flags/src/prescan.ts > Inventory > constructor",
+			"reason": "the plugin's factory, once per config load: builds one plugin record, constant work"
+		},
+		{
+			"id": "packages/flags/src/prescan.ts > Inventory > module",
+			"reason": "build only: the inventory's prescan hook over one module that imports @ogygia/flags, delegating to collect_flag_sites (measured on its own)"
+		},
+		{
+			"id": "packages/flags/src/prescan.ts > Inventory > written",
+			"reason": "build only, once per build: writes the flags manifest file, linear in flag sites"
+		},
+		{
+			"id": "packages/compiler/src/queries.ts > Queries > changed_since",
+			"reason": "compares one slot's changed stamp to a revision (the db's slots: not cloneable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/queries.ts > Queries > holds",
+			"reason": "is an answer held for this query and arg: one slot lookup (the db's state: not replayable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/queries.ts > Queries > reread",
+			"reason": "reruns every held input once (a new build of the same session), linear in the held inputs; queries tests and the queries bench run it"
+		},
+		{
+			"id": "packages/compiler/src/scan-facts.ts > ScanFacts > has",
+			"reason": "does the scan hold facts for a file: one db read (the scan db's state: not replayable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/scan-facts.ts > ScanFacts > input:2~ae0427",
+			"reason": "the scan db input for a file's facts, set by the prescan and the dev transform (not replayable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/scan-facts.ts > ScanFacts > input:2~ea66dc",
+			"reason": "the scan db input for a file's facts, read by every query over the scan (not replayable), constant work"
 		}
 	]
 }

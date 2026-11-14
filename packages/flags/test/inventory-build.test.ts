@@ -14,6 +14,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { ogygia } from '@ogygia/compiler/vite';
 import { dedent } from '@ogygia/core/plugin/utils';
 import { flags } from '../src/vite.ts';
+import { Inventory } from '../src/prescan.ts';
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url));
 
@@ -95,5 +96,19 @@ describe('the flag inventory', () => {
 		expect(fs.existsSync(MANIFEST(dir))).toBe(false);
 		expect(said.filter((s) => s.includes('plugin_not_listed'))).toHaveLength(1);
 		expect(said.join('\n')).toContain('flags()');
+	});
+
+	it('a root the manifest cannot be written under never fails the build', () => {
+		root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'flags-inventory-')));
+		const file_root = path.join(root, 'not-a-dir');
+		fs.writeFileSync(file_root, '');
+		const inventory = new Inventory(file_root);
+		inventory.module({
+			file: path.join(root, 'main.ts'),
+			rel: 'main.ts',
+			code: "import { flag } from '@ogygia/flags';\nexport const a = flag('a', 5);"
+		});
+		expect(() => inventory.written()).not.toThrow();
+		expect(fs.existsSync(MANIFEST(file_root))).toBe(false);
 	});
 });
