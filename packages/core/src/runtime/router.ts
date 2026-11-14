@@ -44,13 +44,18 @@ function hovered_anchor(event: Event): HTMLAnchorElement | null {
 }
 
 // @why SvelteKit's remote-function client patches `pushState` and `replaceState` on the history instance and warns when they are called (test: test/browser/router-claims.test.ts › the router writes history past a pushState and replaceState patched on the instance)
+// oxlint-disable-next-line typescript/unbound-method -- the native method, kept before an instance patch; called with .call(history)
 const native_push = typeof History !== 'undefined' ? History.prototype.pushState : null;
+// oxlint-disable-next-line typescript/unbound-method -- the native method, kept before an instance patch; called with .call(history)
 const native_replace = typeof History !== 'undefined' ? History.prototype.replaceState : null;
 export const push_state = (state: unknown, url: string): void =>
-	(native_push ?? history.pushState).call(history, state, '', url);
+	native_push ? native_push.call(history, state, '', url) : history.pushState(state, '', url);
 export const replace_state = (state: unknown, url?: string): void => {
-	const fn = native_replace ?? history.replaceState;
-	return url === undefined ? fn.call(history, state, '') : fn.call(history, state, '', url);
+	if (native_replace)
+		return url === undefined
+			? native_replace.call(history, state, '')
+			: native_replace.call(history, state, '', url);
+	return url === undefined ? history.replaceState(state, '') : history.replaceState(state, '', url);
 };
 
 /** Resolved navigation target (URL + Kit-shaped stubs for params/route). */

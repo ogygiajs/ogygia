@@ -15,6 +15,7 @@ import { one_hash } from './rules/one-hash.ts';
 import { one_markup_walk } from './rules/one-markup-walk.ts';
 import { owned_effects } from './rules/owned-effects.ts';
 import { ports } from './rules/ports.ts';
+import { prefer_class_for_state } from './rules/prefer-class-for-state.ts';
 import { prefer_dedent } from './rules/prefer-dedent.ts';
 import { stale_whole } from './rules/stale-whole.ts';
 import { structured_comments } from './rules/structured-comments.ts';
@@ -38,6 +39,7 @@ export default {
 		'dispose-by-close': dispose_by_close,
 		'tests-read-source': tests_read_source,
 		'fake-timers-whole': fake_timers_whole,
+		'prefer-class-for-state': prefer_class_for_state,
 		ports
 	}
 };

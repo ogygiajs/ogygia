@@ -581,6 +581,7 @@ function watch_url(): void {
 		watch.moves.push({ to: location.pathname + location.search, t: performance.now() });
 		if (watch.moves.length > URL_MOVES_MAX) watch.moves.shift();
 	};
+	// oxlint-disable-next-line typescript/unbound-method -- whatever pushState the page has now (Kit may have patched it), kept before the page-long patch; called with each call's own receiver
 	const push = history.pushState;
 	history.pushState = function (this: History, ...args: Parameters<History['pushState']>) {
 		push.apply(this, args);

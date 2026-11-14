@@ -1,6 +1,22 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static event",
+			"reason": "one read of Kit's AsyncLocalStorage store, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts and plugin-request-end.test.ts run it"
+		},
+		{
+			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static run",
+			"reason": "hands the call to Kit's with_request_store, constant work of its own; test/canary/kit-request-store.test.ts and plugin-request-end.test.ts run it"
+		},
+		{
+			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static state",
+			"reason": "one read of Kit's AsyncLocalStorage store, constant work; its answer is the live request's state, hidden state no replay holds; request-bag.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/server/live-event.ts > live_event",
+			"reason": "one call to Kit's getRequestEvent, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts runs it"
+		},
+		{
 			"id": "packages/core/src/server/html-scan.ts > kit_boot_script > is_kit_boot_script:1~dc8962",
 			"reason": "one attribute lookup on a tag the walk already read, constant work; kit-gate.test.ts runs it"
 		},
@@ -1345,10 +1361,6 @@
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{
-			"id": "packages/config/src/sim.ts > Run > _install > push:0~45a4e7",
-			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
-		},
-		{
 			"id": "packages/config/src/sim.ts > Run > _install > push:0~789f90",
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
@@ -1401,11 +1413,11 @@
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{
-			"id": "packages/config/src/sim.ts > Run > _install > timeout",
+			"id": "packages/config/src/sim.ts > Run > _patch",
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{
-			"id": "packages/config/src/sim.ts > Run > _install > timeout > _add:0~355949",
+			"id": "packages/config/src/sim.ts > Run > _patch > push:0~94f71c",
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{

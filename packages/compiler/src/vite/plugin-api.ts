@@ -64,7 +64,7 @@ export interface MarkupSource {
 	extensions: readonly string[];
 	/** Discover the format's islands up front (build start, dev included): read each file, turn it
 	 *  into Svelte, and hand that to `transform` so its islands are registered before chunks emit. */
-	scan?(ctx: { root: string; readFile(abs: string): string | null }): void | Promise<void>;
+	scan?(ctx: { root: string; readFile: (abs: string) => string | null }): void | Promise<void>;
 	/** The format's modules, absolute path → their post-preprocess Svelte source. A module only ever
 	 *  renders on the server, so no client chunk carries its CSS: the build ships, as one client asset
 	 *  per module, the scoped CSS of its own `<style>` and of every component it imports (and plain
@@ -76,7 +76,7 @@ export interface MarkupSource {
 export interface MarkupRegions {
 	/** Rewrite the marked imports in already-preprocessed Svelte and register its regions. The code,
 	 *  or null when nothing changed. */
-	transform(source: string, filename: string): string | null;
+	transform: (source: string, filename: string) => string | null;
 }
 
 /** Where a plugin's transform runs: on the module as written, before the region transform
@@ -98,7 +98,7 @@ export interface TransformContext {
 	 *  (unresolvable, or external). */
 	resolve(spec: string, importer: string): Promise<string | null>;
 	/** Re-transform this module when `file` changes (dev). */
-	watch(file: string): void;
+	watch: (file: string) => void;
 	/** Tell the build what the transform did to this module (it is the event's importer): read back
 	 *  by the findings, and forgotten when the module is transformed again. */
 	emit(event: TransformEvent): void;
@@ -142,7 +142,7 @@ export interface BuildContext {
 	/** For a module's code: the imports that carry a region's identity (a region mark, on a default
 	 *  or a named import). A transform that rewrites imports leaves them as written, so the region
 	 *  the prescan keys on the raw import is the region the transform sees. */
-	pinnedImports(code: string): (decl: PinnedDecl) => boolean;
+	readonly pinnedImports: (code: string) => (decl: PinnedDecl) => boolean;
 	/** The app's regions as the build knows them now, for a tool that names or weighs them. */
 	readonly regions: RegionsSeam;
 	/** The app's root directory. */
@@ -330,7 +330,7 @@ export interface RegionsSeam {
 
 export interface BuildSeams {
 	exports: ExportsSeam;
-	pinned_imports(code: string): (decl: PinnedDecl) => boolean;
+	pinned_imports: (code: string) => (decl: PinnedDecl) => boolean;
 	regions: RegionsSeam;
 }
 

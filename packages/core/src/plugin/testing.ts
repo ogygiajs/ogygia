@@ -52,7 +52,7 @@ export function inRequest<T>(event: Partial<RequestEvent>, fn: () => T): T {
 export interface StartedPlugin<Options, State> {
 	app: ServerApp<Options>;
 	/** A request context for `request` (a bare event: url, request, cookies that read nothing). */
-	ctx(request: Request, event?: Partial<RequestEvent>): RequestContext<Options, State>;
+	ctx: (request: Request, event?: Partial<RequestEvent>) => RequestContext<Options, State>;
 }
 
 /**

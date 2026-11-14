@@ -28,8 +28,8 @@ export type CapabilityDeny = 'expired' | 'renew-window' | 'foreign-key' | 'sig';
  *  gets. (Handed in, never imported: this module stays free of the app's virtual modules, so the
  *  plugin test harness runs it as it is.) */
 export interface CapabilitySigner {
-	sign(message: string): string;
-	verify(message: string, signature: string): boolean;
+	sign: (message: string) => string;
+	verify: (message: string, signature: string) => boolean;
 	/** The key's fingerprint, as a region capability carries it (`&k=`, server/signing-key.ts). */
 	fingerprint(): string;
 	lifetime: CapabilityLifetime;

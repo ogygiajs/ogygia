@@ -4,7 +4,7 @@ import type { HookEntry } from '@ogygia/insights';
  *  names, and the runtime's sidecar lookup, whose state lives in the runtime's module. */
 export interface RealmLoan {
 	readonly region_names: Record<string, string> | undefined;
-	props_sidecar_of(region: Element): HTMLScriptElement | null;
+	props_sidecar_of: (region: Element) => HTMLScriptElement | null;
 }
 
 /** What the realm the app's build compiled tells a reader that was not built with the app (the

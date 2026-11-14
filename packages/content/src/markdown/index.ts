@@ -82,13 +82,16 @@ export { parseFrontmatter } from './frontmatter.ts';
 export type { FrontmatterResult } from './frontmatter.ts';
 
 /** One unified plugin entry (a plugin, or a `[plugin, options]` tuple), as mdsvex accepts them. */
-type UnifiedEntry = NonNullable<MdsvexOptions['remarkPlugins']>[number];
+type UnifiedPlugin = (...args: never[]) => unknown;
+type UnifiedEntry =
+	| UnifiedPlugin
+	| readonly [UnifiedPlugin, ...unknown[]]
+	| { plugins?: readonly UnifiedEntry[]; settings?: Record<string, unknown> };
 /**
  * A prose/rehype chain entry, optionally staged Vite-style: a plain entry runs in the default slot;
  * `{ enforce: 'pre', plugin }` runs before the built-in passes (`'post'` = the default, explicit).
  */
 export type StagedPlugin =
-	// oxlint-disable-next-line typescript/no-redundant-type-constituents -- mdsvex's entry type is any (unified does not resolve from mdsvex); a real type narrows a public option, owner call
 	| UnifiedEntry
 	| {
 			enforce: 'pre' | 'post';

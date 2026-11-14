@@ -39,6 +39,7 @@ export function inert_parsed_documents(): void {
 	if (proto.__inert) return;
 	proto.__inert = true;
 	const context = WindowBrowserContext.prototype as unknown as { getBrowserFrame(): unknown };
+	// oxlint-disable-next-line typescript/unbound-method -- happy-dom's own, kept before the process-long patch; called with each call's own receiver
 	const frame = context.getBrowserFrame;
 	let inert = 0;
 	context.getBrowserFrame = function (this: unknown) {
@@ -99,6 +100,7 @@ export function inert_custom_elements(): void {
 			...a: unknown[]
 		): unknown;
 	};
+	// oxlint-disable-next-line typescript/unbound-method -- happy-dom's own, kept before the process-long patch; called with each call's own receiver
 	const parse = parser.parse;
 	parser.parse = function (...a: unknown[]) {
 		const own = a[1] === this.window.document;
@@ -131,6 +133,7 @@ export function documents_by_namespace(): void {
 	const proto = Document.prototype as unknown as Record<string, unknown> & { __ns?: boolean };
 	if (proto.__ns) return;
 	proto.__ns = true;
+	// oxlint-disable-next-line typescript/unbound-method -- happy-dom's own, kept before the process-long patch; called with each call's own receiver
 	const find = ParentNodeUtility.getElementsByTagNameNS;
 	ParentNodeUtility.getElementsByTagNameNS = function (parent, namespace, tag) {
 		const node = parent as unknown as Record<symbol, unknown>;
@@ -219,6 +222,7 @@ export function whole_text_runs(): void {
 		rootNode: Node;
 		documentStructure: { nodes: { documentElement: Node; head: Node } } | null;
 	};
+	// oxlint-disable-next-line typescript/unbound-method -- happy-dom's own, kept before the process-long patch; called with each call's own receiver
 	const plain = parser.parsePlainText;
 	// (the text nodes a parse made: a node that was there before it, as at `insertAdjacentHTML`,
 	// stays apart, as in a browser)
@@ -309,6 +313,7 @@ export function modules_in_order(): void {
 	const parser = HTMLParser.prototype as unknown as {
 		parse(this: { window: ParsedWindow }, ...a: unknown[]): unknown;
 	};
+	// oxlint-disable-next-line typescript/unbound-method -- happy-dom's own, kept before the process-long patch; called with each call's own receiver
 	const parse = parser.parse;
 	parser.parse = function (...a: unknown[]) {
 		const was = parsing;
@@ -446,7 +451,9 @@ export function history_by_document(): void {
 	const frame = BrowserFrame.prototype as unknown as {
 		goto(this: { reload(): Promise<unknown> }, ...a: unknown[]): Promise<unknown>;
 	};
+	// oxlint-disable-next-line typescript/unbound-method -- happy-dom's own, kept before the process-long patch; called with each call's own receiver
 	const real_reload = location.reload;
+	// oxlint-disable-next-line typescript/unbound-method -- happy-dom's own, kept before the process-long patch; called with each call's own receiver
 	const goto = frame.goto;
 	let reloading = false;
 	location.reload = function (this: unknown) {

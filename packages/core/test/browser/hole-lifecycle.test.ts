@@ -282,24 +282,10 @@ test('a hole answered twice moves once per answer, and the second answer is the 
 });
 
 test('a hole that arms two media schedules disarms both when it leaves', async () => {
-	const added = new Set<unknown>();
-	const removed = new Set<unknown>();
-	const add = MediaQueryList.prototype.addEventListener;
-	const remove = MediaQueryList.prototype.removeEventListener;
-	vi.spyOn(MediaQueryList.prototype, 'addEventListener').mockImplementation(function (
-		this: MediaQueryList,
-		...args: Parameters<MediaQueryList['addEventListener']>
-	) {
-		if (args[0] === 'change') added.add(args[1]);
-		return add.apply(this, args);
-	});
-	vi.spyOn(MediaQueryList.prototype, 'removeEventListener').mockImplementation(function (
-		this: MediaQueryList,
-		...args: Parameters<MediaQueryList['removeEventListener']>
-	) {
-		if (args[0] === 'change') removed.add(args[1]);
-		return remove.apply(this, args);
-	});
+	const add = vi.spyOn(MediaQueryList.prototype, 'addEventListener');
+	const remove = vi.spyOn(MediaQueryList.prototype, 'removeEventListener');
+	const changes = (calls: unknown[][]) =>
+		new Set(calls.filter((args) => args[0] === 'change').map((args) => args[1]));
 	window.fetch = async () => html('<p>never</p>');
 	// `when` and `prefetch` both media queries that do not match: both listen for a change
 	const [el] = insert(
@@ -307,25 +293,18 @@ test('a hole that arms two media schedules disarms both when it leaves', async (
 	);
 	bootDev();
 	await tick();
-	expect(added.size, 'both schedules listen').toBe(2);
+	expect(changes(add.mock.calls).size, 'both schedules listen').toBe(2);
 	el.remove();
 	await tick();
+	const removed = changes(remove.mock.calls);
 	expect(
-		[...added].filter((on) => !removed.has(on)),
+		[...changes(add.mock.calls)].filter((on) => !removed.has(on)),
 		'no listener left behind'
 	).toHaveLength(0);
 });
 
 test('a hole whose prefetch and island both wait to be visible stops watching for both when it leaves', async () => {
-	const unobserved: Element[] = [];
-	const unobserve = IntersectionObserver.prototype.unobserve;
-	vi.spyOn(IntersectionObserver.prototype, 'unobserve').mockImplementation(function (
-		this: IntersectionObserver,
-		target: Element
-	) {
-		unobserved.push(target);
-		return unobserve.call(this, target);
-	});
+	const unobserve = vi.spyOn(IntersectionObserver.prototype, 'unobserve');
 	window.fetch = async () => html(counter());
 	// fetched at idle, warmed when visible, its island wakes when visible: far below the fold
 	const [el] = insert(
@@ -336,7 +315,10 @@ test('a hole whose prefetch and island both wait to be visible stops watching fo
 	await tick();
 	el.remove();
 	await tick();
-	expect(unobserved, 'nothing watches the element after it left').toContain(el);
+	expect(
+		unobserve.mock.calls.map(([target]) => target),
+		'nothing watches the element after it left'
+	).toContain(el);
 });
 
 test('an interaction island that fails to wake says so, and its click is replayed on the server markup', async () => {
