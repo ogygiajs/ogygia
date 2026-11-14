@@ -208,10 +208,13 @@ bench(
 );
 
 function list(keys: number[]): string {
-	let out = '<ul class="results">';
+	const out = ['<ul class="results">'];
 	for (const k of keys)
-		out = `${out}<li data-key="r${k}"><a href="/p/${k}">Result ${k}</a><span class="price">${(k * 13) % 997}</span></li>`;
-	return `${out}</ul>`;
+		out.push(
+			`<li data-key="r${k}"><a href="/p/${k}">Result ${k}</a><span class="price">${(k * 13) % 997}</span></li>`
+		);
+	out.push('</ul>');
+	return out.join('');
 }
 
 bench(
@@ -245,9 +248,9 @@ bench(
 			const section = (k: number) =>
 				`<section><h2>Section ${k}</h2>${list(Array.from({ length: 10 }, (_, i) => k * 100 + i))}</section>`;
 			const parent = el('<main><h1>A</h1><p>intro</p></main>');
-			let next = '<h1>B</h1>';
-			for (let k = 0; k < 30; k++) next = `${next}${section(k)}`;
-			return { parent, next: frag(next) };
+			const next = ['<h1>B</h1>'];
+			for (let k = 0; k < 30; k++) next.push(section(k));
+			return { parent, next: frag(next.join('')) };
 		}
 	}
 );
@@ -441,12 +444,12 @@ bench(
 bench(
 	"navigation's reconcile keys: a page of regions, a fifth of them twins (one key each, by their order)",
 	({ n }) => {
-		let html = '';
+		const html: string[] = [];
 		for (let i = 0; i < n; i++) {
 			const fp = (i % 5 === 0 ? 7 : i).toString(16).padStart(16, '0');
-			html = `${html}<ogygia-region entry="/r.js" data-og-fp="${fp}"></ogygia-region>`;
+			html.push(`<ogygia-region entry="/r.js" data-og-fp="${fp}"></ogygia-region>`);
 		}
-		const body = el(`<body>${html}</body>`) as unknown as ParentNode;
+		const body = el(`<body>${html.join('')}</body>`) as unknown as ParentNode;
 		// the next page's body, then the same regions stamped again (kept from an earlier visit)
 		stamp_region_keys(body);
 		stamp_region_keys(body);
@@ -458,9 +461,9 @@ bench(
 bench(
 	"navigation's departed regions: the shared ids they owned, less the ones a staying region owns",
 	({ n }) => {
-		let html = '';
-		for (let i = 0; i < n; i++) html = `${html}<ogygia-region entry="/r.js"></ogygia-region>`;
-		const body = el(`<body>${html}</body>`) as unknown as ParentNode;
+		const body = el(
+			`<body>${'<ogygia-region entry="/r.js"></ogygia-region>'.repeat(n)}</body>`
+		) as unknown as ParentNode;
 		const regions = [...body.querySelectorAll('ogygia-region')];
 		const held: string[] = [];
 		for (let i = 0; i < n; i++) {

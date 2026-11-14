@@ -2437,10 +2437,6 @@
 			"reason": "a message table entry: wording only (a rule broken; rewrite.test.ts 'rule_rewrite_after_cancel: …' says it)"
 		},
 		{
-			"id": "packages/rewrite/src/pass.ts > call_render > map:0~ba4374",
-			"reason": "rules builds only (buggify): each result of a render checked once for the malformed and strips-marks points, constant work per result (the render's own output: not replayable); folds out of production"
-		},
-		{
 			"id": "packages/core/src/server/page-stream.ts > swap_tracked",
 			"reason": "the fallback walk for a page value too deep or cyclic for the untracked one, handed a swap function (not cloneable); linear in the value, one Map entry per open object; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
 		},
@@ -6275,6 +6271,10 @@
 		{
 			"id": "packages/machine/src/decisions.ts > show_list",
 			"reason": "dev and rules builds only: words a repeated field list in a refusal, when a table is made; packages/machine/test/decisions.test.ts runs it"
+		},
+		{
+			"id": "packages/rewrite/src/pass.ts > call_render > map:0~2fef46",
+			"reason": "rules builds only (buggify): each result of a render checked once for the malformed and strips-marks points, constant work per result (the render's own output: not replayable); folds out of production"
 		}
 	]
 }
