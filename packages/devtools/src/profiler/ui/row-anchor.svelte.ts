@@ -34,8 +34,9 @@ export function follow_hash(
 		let key: string;
 		try {
 			key = decodeURIComponent(m[2]);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a hand-mangled hash names no row: nothing to open
 		} catch {
-			return; // ok: a hand-mangled hash names no row: nothing to open
+			return;
 		}
 		if (!keys().includes(key)) return;
 		open(key);

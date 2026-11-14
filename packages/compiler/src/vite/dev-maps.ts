@@ -58,9 +58,10 @@ export function install_dev_page_keys(
 			level = next;
 		}
 		const a = await reads.dev(files, async (specifier, importer) => {
+			// oxlint-disable-next-line ogygia/no-silent-failures -- dev only: a helper that does not resolve is not followed (the plugin says why)
 			const resolved = await server.pluginContainer
 				.resolveId(specifier, importer, { ssr: true })
-				.catch(() => null); // ok: dev only: a helper that does not resolve is not followed (the plugin says why)
+				.catch(() => null);
 			const id = resolved?.id?.split('?')[0];
 			return id && app_file(id) ? { id } : null;
 		});

@@ -71,7 +71,8 @@
 			(here) => here === true,
 			() => (profiler_here = false)
 		);
-	onMount(() => void probe_profiler()); // ok: never rejects (a failed probe reads as no profiler)
+	// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects (a failed probe reads as no profiler)
+	onMount(() => void probe_profiler());
 	let window_on = false;
 	/** the window's start in flight (a stop pressed before it answered waits, then stops it) */
 	let window_starting: Promise<void> | null = null;

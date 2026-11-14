@@ -34,9 +34,8 @@ export function raw_cookie_values(header: string, name: string): string[] {
 			value = value.slice(1, -1);
 		try {
 			value = decodeURIComponent(value);
-		} catch {
-			// ok: not percent-encoded as sent; the raw value is the candidate
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not percent-encoded as sent; the raw value is the candidate
+		} catch {}
 		out.push(value);
 	}
 	return out;

@@ -36,9 +36,8 @@ async function resolve(client: RedisLike | string): Promise<RedisLike> {
 	let node_redis: NodeRedis | null = null;
 	try {
 		node_redis = (await import(nodeRedis)) as NodeRedis;
-	} catch {
-		// ok: node-redis is not installed; ioredis is tried, and its import failing says so
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- node-redis is not installed; ioredis is tried, and its import failing says so
+	} catch {}
 	if (node_redis) {
 		const c = node_redis.createClient({ url: client });
 		await c.connect?.();
@@ -145,8 +144,9 @@ export class RedisStore implements ProfilerStore {
 		if (!raw) return null;
 		try {
 			return (JSON.parse(raw) as { dump: string }).dump;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a corrupt row reads as missing: the report page says it is not found
 		} catch {
-			return null; // ok: a corrupt row reads as missing: the report page says it is not found
+			return null;
 		}
 	}
 
@@ -163,9 +163,8 @@ export class RedisStore implements ProfilerStore {
 			}
 			try {
 				out.push((JSON.parse(raw) as { summary: ProfilerSummary }).summary);
-			} catch {
-				// ok: a row that does not parse is left out of the list
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a row that does not parse is left out of the list
+			} catch {}
 		}
 		await zrem(r, this.#RZ, gone);
 		return out;
@@ -202,9 +201,8 @@ export class RedisStore implements ProfilerStore {
 			}
 			try {
 				out.push(JSON.parse(raw) as ProfilerVisitRecord);
-			} catch {
-				// ok: a row that does not parse is left out of the list
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a row that does not parse is left out of the list
+			} catch {}
 		}
 		await zrem(r, this.#VZ(page), gone);
 		return out;
@@ -214,9 +212,10 @@ export class RedisStore implements ProfilerStore {
 		const made = this.#made;
 		this.#made = null;
 		this.#connect = this.#connector();
+		// oxlint-disable-next-line ogygia/no-silent-failures -- closing: a connection that fails to quit is dropped all the same
 		await (made as unknown as { quit?: () => Promise<void>; disconnect?: () => void })
 			?.quit?.()
-			.catch(() => {}); // ok: closing: a connection that fails to quit is dropped all the same
+			.catch(() => {});
 	}
 
 	#connector(): Flights<void, RedisLike> {

@@ -4,7 +4,7 @@ import { OG_LEN, OGYGIA_SLOT } from '../wire-markup.ts';
 const STREAM_DONE_SLOT = '__ogygia_done__';
 
 function has_template_close(html: string): boolean {
-	// markup-ok: a false yes only frames the answer by length, which is always safe
+	// oxlint-disable-next-line ogygia/one-markup-walk -- a false yes only frames the answer by length, which is always safe
 	for (let i = html.indexOf('</'); i !== -1; i = html.indexOf('</', i + 2)) {
 		if (html.length - i < 10) return false;
 		if (html.slice(i + 2, i + 10).toLowerCase() === 'template') return true;
@@ -67,7 +67,8 @@ export function batch_stream(
 			await batch.scope.task((signal) =>
 				Promise.all(
 					calls.map(async (endpoint) => {
-						const out = await render(endpoint, signal).catch(() => null); // ok: the render says its own failure; the hole keeps its fallback and fetches itself
+						// oxlint-disable-next-line ogygia/no-silent-failures -- the render says its own failure; the hole keeps its fallback and fetches itself
+						const out = await render(endpoint, signal).catch(() => null);
 						if (out && batch.now === streaming)
 							controller.enqueue(encoder.encode(build_parcel(out.slot, out.html)));
 					})

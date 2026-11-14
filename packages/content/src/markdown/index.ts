@@ -286,8 +286,9 @@ function register_island_scanner(
 			let entries;
 			try {
 				entries = readdirSync(dir, { withFileTypes: true });
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a folder that cannot be read holds no pages to watch
 			} catch {
-				return; // ok: a folder that cannot be read holds no pages to watch
+				return;
 			}
 			for (const e of entries) {
 				if (e.isDirectory()) {

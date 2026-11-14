@@ -529,3 +529,69 @@ moves.stop(); // or `using moves = trace()`
 ```
 
 Each machine is numbered per name in the order it first moves, so two visits in one log stay apart. It keeps the last `max` lines and says how many it let go.
+
+## Decision tables
+
+A machine answers "where can it go next". A decision table answers "what do we do for this input": a pure function whose inputs each take a few named values, so the whole input space can be listed, and a test can look at every row of it.
+
+```ts
+import { decisions } from '@ogygia/machine';
+
+const wake = decisions({
+	name: 'wake',
+	inputs: {
+		trigger: ['load', 'visible', 'idle'],
+		held: [false, true],
+		js: ['none', 'some']
+	} as const,
+	refuse: (i) => (i.held && i.trigger === 'load' ? 'a held region never wakes on load' : null),
+	decide: (i) => ({
+		now: i.js === 'some' && i.trigger === 'load',
+		head: { runtime: i.js === 'some', observe: i.js === 'some' && i.trigger === 'visible' }
+	})
+});
+
+wake.decide({ trigger: 'visible', held: false, js: 'some' });
+// { now: false, head: { runtime: true, observe: true } }
+```
+
+- **Write the lists `as const`.** The input type is read from them: `trigger` is `'load' | 'visible' | 'idle'`, so a value outside its list does not compile. Without `as const` it is `string`. The plan's type is what `decide` returns.
+- **`refuse` names the combinations no app can produce**, with the reason. `decide()` throws on one in every build ([machine_decision_refused](https://ogygiajs.dev/e/machine_decision_refused)), so `decide` never has to invent an answer for it.
+- **In dev and rules builds**, `decide()` also refuses a field whose value is not in its list ([machine_decision_outside](https://ogygiajs.dev/e/machine_decision_outside)), and `decisions()` refuses an empty list or one with a value twice. Both fold out of production, where `decide()` is the `refuse` call and the `decide` call.
+
+### Testing a table
+
+`@ogygia/machine/testing` walks the whole table. It is a test-only entry: the runtime never imports it.
+
+```ts
+import { check, count, dead_fields, rows, table } from '@ogygia/machine/testing';
+
+count(wake); // 12: 3 × 2 × 2
+for (const row of rows(wake)) row; // { input, plan } or { input, refused }
+
+check(wake, {
+	'a refused row is held': (r) => !('refused' in r) || r.input.held,
+	'nothing wakes now without js': (r) => !('plan' in r) || !r.plan.now || r.input.js === 'some'
+}); // 12 rows checked, or throws naming each broken rule with its first row
+
+dead_fields(wake); // [] (a field listed here never changes the plan)
+
+expect(table(wake)).toMatchSnapshot();
+// | trigger | held  | js   | now   | head.runtime | head.observe | refused                           |
+// | ------- | ----- | ---- | ----- | ------------ | ------------ | --------------------------------- |
+// | load    | false | none | false | false        | false        |                                   |
+// | load    | false | some | true  | true         | false        |                                   |
+// | load    | true  | none |       |              |              | a held region never wakes on load |
+// …
+```
+
+|                          |                                                                                                                                                                                                                       |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `decisions(def)`         | A table: `name`, `inputs` (each field's values), `refuse?` (a reason, or `null`), `decide`. Returns `{ def, decide(input) }`.                                                                                         |
+| `count(d)`               | How many combinations the inputs make.                                                                                                                                                                                |
+| `rows(d, opts?)`         | Every combination, lazily, in the order the fields are listed (the last fastest): `{ input, plan }` or `{ input, refused }`.                                                                                          |
+| `check(d, rules, opts?)` | Runs each named rule (true when it holds) over every row. Throws [machine_decisions_rule_broken](https://ogygiajs.dev/e/machine_decisions_rule_broken) naming each broken rule's first row; returns the rows checked. |
+| `table(d, opts?)`        | The table as markdown: input fields, then the plan's fields (nested objects flattened: `head.runtime`), then `refused`. Columns line up, for a snapshot to diff.                                                      |
+| `dead_fields(d, opts?)`  | The fields whose value never changes the outcome (plan or refusal), for every combination of the others.                                                                                                              |
+| `opts.max`               | The most combinations a listing walks (default 100,000). Past it, a listing throws at once ([machine_decisions_too_many](https://ogygiajs.dev/e/machine_decisions_too_many)).                                         |
+| `opts.sample`            | `{ seed, size }`: walk `size` distinct combinations picked by `seed` instead of all of them. The same seed picks the same rows.                                                                                       |

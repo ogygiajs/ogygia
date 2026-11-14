@@ -108,9 +108,8 @@ function mount_launcher(opts?: { csr_true?: boolean }): void {
 				// (the recorder's code did not load: the session does not go on, and that is said)
 				(error: unknown) => console.error(new OgygiaError('devtools_dock_load_failed'), error)
 			);
-	} catch {
-		// ok: no storage: no session to go on with
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no storage: no session to go on with
+	} catch {}
 	// A 0×0 fixed host holds the shadow root; the real UI is a fixed, viewport-filling root inside it.
 	// MAX z-index (int32) on the HOST: without one the host stacks at `auto` in the page's root
 	// context, so any app overlay with a z-index paints over the dock. At 2147483647 — plus being
@@ -220,9 +219,8 @@ function apply_url_switch(): void {
 		if (want === null) return;
 		write_switch(want);
 		history.replaceState(history.state, '', without_switch(url).href);
-	} catch {
-		// ok: no URL or history (an embedded frame): the cookie alone
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no URL or history (an embedded frame): the cookie alone
+	} catch {}
 }
 
 /** Turn devtools on in this browser, now: the launcher shows (measuring starts with the next load). */
@@ -239,9 +237,8 @@ export function devtools_off(): void {
 	write_switch(false);
 	try {
 		localStorage.removeItem(LAYOUT_KEY); // (a dock left open must not come back with the switch)
-	} catch {
-		// ok: no storage: no layout was kept
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no storage: no layout was kept
+	} catch {}
 	// the dock goes whatever it is doing: a mounted one is unmounted, a download's answer is dropped
 	if (dock) {
 		dock.machine.go('off');
@@ -289,7 +286,8 @@ function install_console_api(): void {
 function was_open(): boolean {
 	try {
 		return !!JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}')?.open;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- storage blocked or unreadable: the dock starts closed
 	} catch {
-		return false; // ok: storage blocked or unreadable: the dock starts closed
+		return false;
 	}
 }

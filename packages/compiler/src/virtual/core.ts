@@ -128,8 +128,9 @@ function dev_runtime_of(runtime_dir: string): { dir: string; ts: boolean } | nul
 			const file = path.join(pkg_dir, rel);
 			if (fs.existsSync(file)) out = { dir: path.dirname(file), ts: file.endsWith('.ts') };
 		}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- an unreadable package keeps `runtime_dir`
 	} catch {
-		out = null; // ok: an unreadable package keeps `runtime_dir`
+		out = null;
 	}
 	dev_runtimes.set(runtime_dir, out);
 	return out;

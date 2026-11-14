@@ -78,7 +78,7 @@ export function without_comments(html: string): string {
 		if (at.kind === 0 && !at.raw) {
 			// (the walk reads any `<!--` it reaches as a comment: one left in text is one the markup
 			// ends inside, which runs to the end)
-			// markup-ok: the walk's own tail, cut where its unclosed comment opens
+			// oxlint-disable-next-line ogygia/one-markup-walk -- the walk's own tail, cut where its unclosed comment opens
 			const open = html.indexOf('<!--', at.start);
 			if (open !== -1 && open < at.end) return out + html.slice(at.start, open);
 		}

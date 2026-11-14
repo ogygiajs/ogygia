@@ -42,7 +42,6 @@ async function confirm_and_reload(url: string, reload: () => void): Promise<void
 		if (!res.ok) return;
 		session.setItem(STALE_DEP_RELOAD_KEY, String(clock.wall()));
 		reload();
-	} catch {
-		// ok: dev only: storage or fetch blocked; the error said before this stays, and the dev reloads by hand
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- dev only: storage or fetch blocked; the error said before this stays, and the dev reloads by hand
+	} catch {}
 }

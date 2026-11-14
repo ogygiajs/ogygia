@@ -412,6 +412,7 @@ export class Collection<
 		const ready = read();
 		// (once the collection left this visit, its connection is closed: nothing more applies)
 		const following = () => this.#life.now === visit;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects, each failure in it is said with a code
 		void (async () => {
 			try {
 				await ready;
@@ -449,7 +450,7 @@ export class Collection<
 				console.error(new OgygiaError('content_live_source_failed'), err);
 				this.#reconnect(visit, failures);
 			}
-		})(); // ok: never rejects, each failure in it is said with a code
+		})();
 		return ready;
 	}
 
