@@ -29,7 +29,7 @@ test.describe('classic form actions (no-JS + JS)', () => {
 			headers: {
 				'content-type': 'application/x-www-form-urlencoded',
 				accept: 'text/html',
-				origin: baseURL
+				origin: baseURL!
 			},
 			body: new URLSearchParams({ name: '', message: '' })
 		});
@@ -47,7 +47,7 @@ test.describe('classic form actions (no-JS + JS)', () => {
 			headers: {
 				'content-type': 'application/x-www-form-urlencoded',
 				accept: 'text/html',
-				origin: baseURL
+				origin: baseURL!
 			},
 			body: new URLSearchParams({ name: 'Grace', message: unique }),
 			redirect: 'manual'

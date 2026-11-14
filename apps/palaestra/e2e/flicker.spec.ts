@@ -51,7 +51,7 @@ test.describe('SSR-resolved query seeding: zero-flash hydration', () => {
 		);
 
 		// capture the SSR-resolved greeting BEFORE hydration can change it (it is in the SSR HTML)
-		const beforeText = (await page.locator('[data-resolved-greeting]').textContent()).trim();
+		const beforeText = (await page.locator('[data-resolved-greeting]').textContent())!.trim();
 		check(
 			'SSR-resolved greeting present pre-hydration',
 			beforeText.includes('Hello, world!') && COMPUTED_ISO_RE.test(beforeText),
@@ -62,7 +62,7 @@ test.describe('SSR-resolved query seeding: zero-flash hydration', () => {
 		await page.waitForSelector('ogygia-region[data-hydrated]', { timeout: 6000 }).catch(() => {});
 		await sleep(2500);
 
-		const afterText = (await page.locator('[data-resolved-greeting]').textContent()).trim();
+		const afterText = (await page.locator('[data-resolved-greeting]').textContent())!.trim();
 		const worldFetched = remoteReqs.some((u) => GREETING_WORLD_RE.test(u));
 		const countFetchedDuringHydration = remoteReqs.some(
 			(u) => u.startsWith('GET') && GET_COUNT_CALL_RE.test(u)

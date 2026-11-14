@@ -15,7 +15,14 @@ import type { BrowserContext, Page, Route, TestInfo } from '@playwright/test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { check, moves, sleep, test } from './index.ts';
-import { calm_actions, ear, snapshot, type Observed, type Seen } from './sim-observe.ts';
+import {
+	calm_actions,
+	ear,
+	snapshot,
+	type Observed,
+	type Seen,
+	type TabSeen
+} from './sim-observe.ts';
 
 /** `SIM_OBSERVE=<dir>`: the differential's run (internal/sim/src/differ.ts). Calm: no wire fault,
  *  none of `NOT_CALM`'s actions; after each action the world is let come to rest and looked at,
@@ -427,7 +434,7 @@ async function play(
 		do await pass(context, 500);
 		while (flying > 0 && Date.now() < until);
 		await pass(context, 2000);
-		const each = [];
+		const each: TabSeen[] = [];
 		for (const t of tabs)
 			each.push({
 				url: t.url(),
