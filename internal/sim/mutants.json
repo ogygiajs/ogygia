@@ -636,7 +636,7 @@
 		"id": "rewrite-split-element-rendered",
 		"file": "packages/rewrite/src/scan.ts",
 		"in": "read",
-		"code": "if (start !== -1) spans.push({ start, end: at.end, name, owned, context });",
+		"code": "if (start !== -1) spans.push({ start, end: at.end, name, owned, context, shadow });",
 		"operator": "statement",
 		"from": "if (start !== -1)",
 		"to": "if (start !== -2)",
