@@ -8,7 +8,7 @@ import { blank_styles } from '../src/blank-styles.ts';
 import { component_blocks } from '../src/parse/scan.ts';
 import { EVERY_BARREL, ExportIndex, Shapes, type Policy } from '../src/exports/index.ts';
 import { analyze_exports, analyze_imports } from '../src/exports/parse.ts';
-import { barrel_left_table } from '../src/exports/left.ts';
+import { BarrelLeftTable } from '../src/exports/left.ts';
 import { BARREL_LEFT_REASONS } from '@ogygia/core/contract';
 import { collectFreeIdentifiers } from '../src/free-vars.ts';
 import { own_reach, reaches_context, reaches_wire } from '../src/link/own-reach.ts';
@@ -429,7 +429,7 @@ bench(
 			kept: (id) => id.endsWith('0/index.ts'),
 			candidate: (id) => !id.endsWith('1/index.ts')
 		};
-		const table = barrel_left_table(barrels * 2);
+		const table = new BarrelLeftTable(barrels * 2);
 		for (let i = 0; i < barrels * 4; i++) {
 			const barrel = `/app/lib/b${i % barrels}/index.ts`;
 			const map = await index.map(barrel, 'x', refusing);

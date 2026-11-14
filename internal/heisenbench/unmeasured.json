@@ -5717,27 +5717,27 @@
 			"reason": "the routes db input that reads one route file through the fs seam (not replayable), linear in its text"
 		},
 		{
-			"id": "packages/compiler/src/queries.ts > queries > db > changed_since",
+			"id": "packages/compiler/src/queries.ts > Queries > changed_since",
 			"reason": "compares one slot's changed stamp to a revision (the db's slots: not cloneable), constant work"
 		},
 		{
-			"id": "packages/compiler/src/queries.ts > queries > db > holds",
+			"id": "packages/compiler/src/queries.ts > Queries > holds",
 			"reason": "is an answer held for this query and arg: one slot lookup (the db's state: not replayable), constant work"
 		},
 		{
-			"id": "packages/compiler/src/queries.ts > queries > db > reread",
+			"id": "packages/compiler/src/queries.ts > Queries > reread",
 			"reason": "reruns every held input once (a new build of the same session), linear in the held inputs; queries tests and the queries bench run it"
 		},
 		{
-			"id": "packages/compiler/src/scan-facts.ts > scan_facts > has",
+			"id": "packages/compiler/src/scan-facts.ts > ScanFacts > has",
 			"reason": "does the scan hold facts for a file: one db read (the scan db's state: not replayable), constant work"
 		},
 		{
-			"id": "packages/compiler/src/scan-facts.ts > scan_facts > input:2~ae0427",
+			"id": "packages/compiler/src/scan-facts.ts > ScanFacts > input:2~ae0427",
 			"reason": "the scan db input for a file's facts, set by the prescan and the dev transform (not replayable), constant work"
 		},
 		{
-			"id": "packages/compiler/src/scan-facts.ts > scan_facts > input:2~ea66dc",
+			"id": "packages/compiler/src/scan-facts.ts > ScanFacts > input:2~ea66dc",
 			"reason": "the scan db input for a file's facts, read by every query over the scan (not replayable), constant work"
 		},
 		{
