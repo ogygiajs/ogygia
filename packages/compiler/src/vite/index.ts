@@ -158,6 +158,7 @@ const KIT_DISCLOSE_VERSION = `((globalThis.__ogygia ??= {}).v ??= new Set()).add
 import { scan_entry_pattern, KIT_REMOTE_CLIENT, KIT_REMOTE_STATE, RUNTIME_HASH } from './paths.ts';
 
 import type { OgygiaOptions } from './options.ts';
+import { SVELTE_DEV_ISLAND_ENTRIES } from './svelte-entries.ts';
 import { OgygiaError, warn, line } from '../messages.ts';
 
 const DEV_CSS_FILE_RE = /\.(css|scss|sass|less|styl)$/;
@@ -508,12 +509,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 					const dev_island_deps =
 						env.command === 'serve'
-							? [
-									'svelte',
-									'svelte/internal/client',
-									'svelte/server',
-									'ogygia > @ogygia/core > devalue'
-								]
+							? [...SVELTE_DEV_ISLAND_ENTRIES, 'ogygia > @ogygia/core > devalue']
 							: [];
 					return {
 						resolve: { dedupe: ['@sveltejs/kit'] },

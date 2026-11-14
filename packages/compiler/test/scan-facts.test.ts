@@ -4,7 +4,7 @@
 // set of facts gives, fed the final facts in the same scan order.
 import { describe, expect, test } from 'vitest';
 import fc from 'fast-check';
-import { scan_facts, type FileFacts, type ScanFacts } from '../src/scan-facts.ts';
+import { ScanFacts, type FileFacts } from '../src/scan-facts.ts';
 
 const FILES = ['/a/x.ts', '/a/y.svelte', '/a/z.remote.ts', '/a/w.ts'];
 
@@ -31,14 +31,14 @@ describe('scan facts', () => {
 			fc.property(
 				fc.array(fc.tuple(fc.constantFrom(...FILES), facts_arb), { minLength: 1, maxLength: 25 }),
 				(ops) => {
-					const dev = scan_facts();
+					const dev = new ScanFacts();
 					const first_seen: string[] = [];
 					const last = new Map<string, FileFacts | null>();
 					for (const [file, facts] of ops) {
 						dev.set(file, facts);
 						if (facts !== null && !first_seen.includes(file)) first_seen.push(file);
 						if (first_seen.includes(file)) last.set(file, facts);
-						const cold = scan_facts();
+						const cold = new ScanFacts();
 						for (const f of first_seen) cold.set(f, last.get(f) ?? null);
 						expect(folds(dev)).toEqual(folds(cold));
 					}
@@ -49,7 +49,7 @@ describe('scan facts', () => {
 	}, 600_000);
 
 	test('setting a file the facts it has moves no fold', () => {
-		const s = scan_facts();
+		const s = new ScanFacts();
 		const facts: FileFacts = {
 			crosses_wire: true,
 			transportable: false,
@@ -67,7 +67,7 @@ describe('scan facts', () => {
 	});
 
 	test('a deleted file leaves every fold, and has() says so', () => {
-		const s = scan_facts();
+		const s = new ScanFacts();
 		s.set('/a/x.ts', {
 			crosses_wire: true,
 			transportable: true,
