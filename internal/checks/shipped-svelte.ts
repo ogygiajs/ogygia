@@ -27,7 +27,7 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 
 /** The packages whose components hold no unstructured comment, script or markup. Each one also
  *  holds `ogygia/structured-comments` as an error on its `.svelte` files (`.oxlintrc.json`). */
-export const CLEAN_PACKAGES: ReadonlySet<string> = new Set([]);
+export const CLEAN_PACKAGES: ReadonlySet<string> = new Set(['core']);
 
 /** A markup comment a tool reads, kept as it is. */
 const MARKUP_DIRECTIVE = /^\s*(svelte-ignore|prettier-ignore|oxfmt-ignore)\b/;
