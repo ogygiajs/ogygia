@@ -6,7 +6,8 @@
 // component's constructor made.
 import { afterEach, expect, test, vi } from 'vitest';
 import { check_script, STAND_IN_TAGS, transformMarkup } from '../../src/reversible.ts';
-import { restore, restore_adopt } from '../../src/restore.ts';
+import { isScriptUrl } from '@ogygia/core/plugin/utils';
+import { restore, restore_adopt, restore_with } from '../../src/restore.ts';
 import { fake_scoped } from '../fixtures/fake-scoped-render.ts';
 import { init_shadow_registries } from '../../../core/src/runtime/html-sink.ts';
 
@@ -838,7 +839,9 @@ test('putting attributes back never adds an event handler, a srcdoc or a javascr
 test('self-contained: the function source runs on its own (the handle inlines it)', async () => {
 	await served('<demo-card class="own"> inline </demo-card>');
 	// oxlint-disable-next-line typescript/no-implied-eval -- the test proves the function's own source runs with no module scope
-	const standalone = new Function(`return (${restore.toString()})`)() as typeof restore;
-	expect(standalone(document)).toBe(1);
+	const standalone = new Function(
+		`return [(${restore_with.toString()}), (${isScriptUrl.toString()})]`
+	)() as [typeof restore_with, typeof isScriptUrl];
+	expect(standalone[0](standalone[1], document)).toBe(1);
 	expect(document.querySelector('demo-card')!.innerHTML).toBe(' inline ');
 });

@@ -14,9 +14,10 @@
  * The page stays painted the same throughout: the scoped form and the shadow form render alike, and
  * each host is restored in one task. It must run before anything reads the markup — before an island
  * snapshots or hydrates, before Kit starts, before a web-component runtime upgrades a host. So the
- * handle inlines it at the end of the document's body (`restore.toString()`: this function is
- * self-contained, no imports, no outer names), and the runtime calls it on a hole / lake answer before
- * insertion and on an incoming page before a router swap.
+ * handle inlines it at the end of the document's body (`restore_with.toString()`: that function
+ * is self-contained, no imports, no outer names; core's script-URL check is handed to it), and the
+ * runtime calls it on a hole / lake answer before insertion and on an incoming page before a router
+ * swap.
  *
  * A host that already has a shadow root when it is reached was upgraded first — the restore came
  * too late. The root is the component's own and is left to it; the light DOM still goes back to
@@ -26,9 +27,21 @@
  * page-load case: a component runtime that upgraded first.
  */
 import type { PageGlobals, PendingShadow, WaitingShadow } from '@ogygia/core/plugin/client';
+import { isScriptUrl } from '@ogygia/core/plugin/utils';
 
-/* oxlint-disable ogygia/markup-from-vocabulary -- restore() ships as its own source (restore.toString()): it may name nothing outside itself, so it spells its markers */
+/** The restorer with core's script-URL check: what a module calls. */
 export function restore(root: Document | DocumentFragment | Element, lite?: number): number {
+	return restore_with(isScriptUrl, root, lite);
+}
+
+/** The restorer itself, self-contained: the inline script ships its source and hands it the
+ *  script-URL check's source beside it (src/pass.ts `RESTORER_SCRIPT`). */
+/* oxlint-disable ogygia/markup-from-vocabulary -- restore_with() ships as its own source (restore_with.toString()): it may name nothing outside itself, so it spells its markers */
+export function restore_with(
+	is_script_url: (value: string) => boolean,
+	root: Document | DocumentFragment | Element,
+	lite?: number
+): number {
 	const doc: Document = (root as Node).ownerDocument ?? (root as Document);
 	const head = document.head;
 	const W = window as PageGlobals & {
@@ -151,11 +164,8 @@ export function restore(root: Document | DocumentFragment | Element, lite?: numb
 		// (a handler is an `on…` name the element has an event-handler property for: `onclick`, not a
 		// component's own `online` or `once`)
 		if ((n.startsWith('on') && n in el) || n === 'srcdoc') return true;
-		// (a script URL in any attribute, not only the ones known to hold URLs today: the scheme as a
-		// browser reads it, leading spaces and controls, and tabs or newlines inside, gone)
-		// oxlint-disable-next-line no-control-regex -- the controls a URL parser strips are the point
-		const scheme = value.replace(/[\u0000- ]/g, '').toLowerCase();
-		return scheme.startsWith('javascript:') || scheme.startsWith('vbscript:');
+		// (a script URL in any attribute, not only the ones known to hold URLs today)
+		return is_script_url(value);
 	};
 	const reset = (el: Element) => {
 		const r = el.getAttribute('og-r');
@@ -355,7 +365,7 @@ export function restore(root: Document | DocumentFragment | Element, lite?: numb
 		const want = check?.[k];
 		if (want === undefined) return;
 		const tpl = doc.createElement('template');
-		// oxlint-disable-next-line ogygia/html-sink -- inlined by `restore.toString()` (no imports): the page's own check record, parsed into an inert template, compared, never inserted
+		// oxlint-disable-next-line ogygia/html-sink -- inlined by `restore_with.toString()` (no imports): the page's own check record, parsed into an inert template, compared, never inserted
 		tpl.innerHTML = want;
 		const diff = differ(tpl.content, host, `<${host.localName}>`);
 		if (!diff) return;
@@ -384,7 +394,7 @@ export function restore(root: Document | DocumentFragment | Element, lite?: numb
 		list.push({
 			kind,
 			host: host.localName,
-			// port-ok: inlined as text by restore.toString() (no imports)
+			// port-ok: inlined as text by restore_with.toString() (no imports)
 			t: Math.round(performance.now()),
 			...(diff ? { diff: diff.slice(0, 300) } : {}),
 			...(key ? { key } : {}),
@@ -415,10 +425,10 @@ export function restore(root: Document | DocumentFragment | Element, lite?: numb
 		const box = inert.createElement('div') as HTMLElement & {
 			setHTMLUnsafe?: (html: string) => void;
 		};
-		// oxlint-disable-next-line ogygia/html-sink -- inlined by `restore.toString()` (no imports): a feature test, nothing parsed
+		// oxlint-disable-next-line ogygia/html-sink -- inlined by `restore_with.toString()` (no imports): a feature test, nothing parsed
 		if (typeof box.setHTMLUnsafe !== 'function') return null;
 		const name = served.localName;
-		// oxlint-disable-next-line ogygia/html-sink -- inlined by `restore.toString()` (no imports): only the element's own name and an empty declarative root, in an inert document, never inserted as parsed
+		// oxlint-disable-next-line ogygia/html-sink -- inlined by `restore_with.toString()` (no imports): only the element's own name and an empty declarative root, in an inert document, never inserted as parsed
 		box.setHTMLUnsafe(`<${name}><template shadowrootmode="open"></template></${name}>`);
 		const made = box.firstElementChild as HTMLElement | null;
 		if (
