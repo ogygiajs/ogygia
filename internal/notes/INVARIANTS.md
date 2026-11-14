@@ -295,19 +295,19 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 **Do not:** Predict the skip by any other rule than Kit's, or keep the injected route after the build.
 
-**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > skips its client build exactly when every route node is csr=false`, `packages/compiler/test/csr-skip.test.ts > every node explicitly csr=false (layout AND pages) → skip (the adapters-fixture shape)`, `packages/compiler/test/csr-skip.test.ts > the injected keepalive dir is invisible to the prediction`, `packages/compiler/test/keep-client-worker.test.ts`, `apps/palaestra/e2e/adapters.spec.ts` (a built csr=false-only app loads its runtime on every adapter)
+**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > skips its client build, as the compiler predicts`, `packages/compiler/test/canary/kit-build.test.ts > keeps its client build while one route node is csr=true, as the compiler predicts`, `packages/compiler/test/csr-skip.test.ts > every node explicitly csr=false (layout AND pages) → skip (the adapters-fixture shape)`, `packages/compiler/test/csr-skip.test.ts > the injected keepalive dir is invisible to the prediction`, `packages/compiler/test/keep-client-worker.test.ts`, `apps/palaestra/e2e/adapters.spec.ts` (a built csr=false-only app loads its runtime on every adapter)
 
 ---
 
 ## KIT-CSR-FALSE-ASSETS — a csr=false page links the CSS of what it rendered
 
-**What:** SvelteKit links every route node's client `stylesheets` and `modulepreload`s from the node's CLIENT module graph, on csr=false pages too. A region host that imports many marked components (a block registry) would put every one of their sheets in the page's head, rendered or not. The compiler stubs a region host's client imports (packages/compiler/src/region/emit.ts, the render-nothing registry stubs), so the client graph holds only what the page placed, and the rendered islands' CSS reaches the page through the region-CSS channel.
+**What:** SvelteKit links every route node's client `stylesheets` from the node's CLIENT module graph, on csr=false pages too (the `modulepreload`s it links on csr=true pages only). A region host that imports many marked components (a block registry) would put every one of their sheets in the page's head, rendered or not. The compiler stubs a region host's client imports (packages/compiler/src/region/emit.ts, the render-nothing registry stubs), so the client graph holds only what the page placed, and the rendered islands' CSS reaches the page through the region-CSS channel.
 
 **Why:** Kit's linking is Kit's private render logic. If Kit starts linking by what the server rendered, the stubs become unneeded; if it starts linking more (another graph), unrendered CSS lands on the page again and first paint slows.
 
 **Do not:** Let a region host's client import reach Kit's client graph whole.
 
-**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > links every route node's client stylesheets and preloads, csr=false or not`, `apps/palaestra/e2e/head-budget.spec.ts > SSR: linked stylesheets carry the rendered islands only, within budget`, `apps/palaestra/e2e/head-budget.spec.ts > SSR: a registry behind a plain helper module gets the same treatment`
+**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > links every route node's client stylesheets on a csr=false page, rendered or not`, `apps/palaestra/e2e/head-budget.spec.ts > SSR: linked stylesheets carry the rendered islands only, within budget`, `apps/palaestra/e2e/head-budget.spec.ts > SSR: a registry behind a plain helper module gets the same treatment`
 
 ---
 
@@ -319,7 +319,7 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 **Do not:** Read a Kit option without a default that matches Kit's, or from one place only.
 
-**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > has the config options the compiler reads`, `packages/compiler/test/kit-dirs.test.ts > reads both from svelte.config.js and resolves them against the root`, `packages/compiler/test/kit-dirs.test.ts > off Kit's own plugin: Kit 3's options at the top (vite.config only), Kit 2's under`, `packages/compiler/test/kit-dirs.test.ts > Kit's inlineStyleThreshold is read for the region CSS too`
+**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > as the compiler reads them`, `packages/compiler/test/canary/kit-build.test.ts > inlines the stylesheets under`, `packages/compiler/test/kit-dirs.test.ts > reads both from svelte.config.js and resolves them against the root`, `packages/compiler/test/kit-dirs.test.ts > off Kit's own plugin: Kit 3's options at the top (vite.config only), Kit 2's under`, `packages/compiler/test/kit-dirs.test.ts > Kit's inlineStyleThreshold is read for the region CSS too`
 
 ---
 

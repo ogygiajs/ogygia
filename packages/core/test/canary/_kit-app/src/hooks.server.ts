@@ -1,11 +1,11 @@
 import type { Handle } from '@sveltejs/kit';
 import { try_get_request_store } from '@sveltejs/kit/internal/server';
 import { getRequestEvent } from '$app/server';
-import { KitRequestStore, collect_remote_seed, create_remote_key } from '$lib/ogygia';
+import * as ogygia from '$lib/ogygia';
 
 class RequestProbe {
 	static async read(): Promise<unknown> {
-		const state = KitRequestStore.state();
+		const state = ogygia.KitRequestStore.state();
 		const implicit = state?.remote?.implicit;
 		const remotes = implicit
 			? [...implicit].map(([internals, record]) => ({
@@ -15,15 +15,16 @@ class RequestProbe {
 					memo: typeof state.remote.data?.get(internals)
 				}))
 			: null;
-		const seed = implicit
-			? await collect_remote_seed(implicit, null, {
-					memo: (internals) => state.remote.data?.get(internals as never),
-					key: create_remote_key
-				})
-			: null;
+		const seed =
+			implicit && ogygia.create_remote_key
+				? await ogygia.collect_remote_seed(implicit, null, {
+						memo: (internals) => state.remote.data?.get(internals),
+						key: ogygia.create_remote_key
+					})
+				: null;
 		return {
 			store: state !== null && state === try_get_request_store()?.state,
-			event: KitRequestStore.event() === getRequestEvent(),
+			event: ogygia.KitRequestStore.event() === getRequestEvent(),
 			remotes,
 			seed
 		};
