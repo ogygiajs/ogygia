@@ -1,27 +1,3 @@
-/**
- * THE HYDRATION SCHEDULER — one island per task, viewport first.
- *
- * `customElements.define` upgrades every region on the page in one task; with 21 `wake:'load'`
- * islands the old runtime then hydrated them back-to-back in microtasks — props parse + module
- * continuation + Svelte hydrate, 21 times, in ONE long task, in document order, with the header
- * nobody can see yet racing the hero everybody can. Here every island that is ready to hydrate
- * asks for a TURN; turns are handed out one per task (`scheduler.yield()`, else a `MessageChannel`
- * hop — never a timer), so the browser paints, scrolls and handles input between islands, and the
- * next turn goes to a region that is on screen NOW (the one viewport tracker's snapshot, taken at
- * connect: ./viewport.ts) before any that is not, document order within each group.
- *
- * What a turn covers is the island's whole synchronous hydrate step (props parse, Svelte hydrate,
- * lake restore). Module imports are NOT serialized — every island's `import()` starts at its wake,
- * in parallel; a turn is requested when the module has arrived. Arrivals are staggered (one task
- * each, in network order), so "viewport first" also means: a ready island BELOW the fold holds its
- * turn while a viewport island is still waiting for its module — bounded, so a chunk that never
- * comes cannot stall the rest of the page.
- *
- * The viewport snapshot is asynchronous (the observer reports after layout). A drain waits for
- * the snapshot of every queued region, bounded (a hidden document never lays out; a stalled
- * observer must not stall hydration), so the boot's first island is the right one, not merely the
- * first one.
- */
 import { watch_viewport } from './viewport.ts';
 import { watch_turns } from './rules.ts';
 import {
@@ -50,15 +26,9 @@ export type Turn = {
 	done: boolean;
 };
 
-/** How long the drain waits for the observer's snapshot of a queued region before ignoring it. */
 const SNAPSHOT_WAIT_MS = 48;
-/** How long a ready below-the-fold island holds for a viewport island still loading its module. */
 const HOLD_FOR_VIEWPORT_MS = 1000;
 
-// THE PENDING TURNS, kept so a turn costs the same however many are pending (a page's `load` wakes
-// are all pending at once): two heaps by connect order, the turns of regions in the viewport and
-// the rest (a region's report moves its turns across; the entry left behind is skipped), each
-// region's turns, and the turns still waiting for their snapshot, in request order.
 export class PendingTurns {
 	count = 0;
 	next_seq = 0;
@@ -68,7 +38,6 @@ export class PendingTurns {
 	readonly unsnapped: Turn[] = [];
 	unsnapped_head = 0;
 }
-/** The document's pending turns (its one scheduler's: a turn leaves at its pick or its region's leaving). */
 const P = new PendingTurns();
 
 /** What the drain's pick rests on (`rule_turns_counted`, #1478): `count` is the turns held, none of
@@ -91,19 +60,8 @@ export function turns_counted(p: PendingTurns = P): string | null {
 		? null
 		: `the scheduler counts ${p.count} pending turn(s) and holds ${held}`;
 }
-// (the runtime's rules read it: dev and OGYGIA_RULES=1 builds only, folds out of any other)
 if (RULES) watch_turns(turns_counted);
 
-/**
- * The drain, as a machine:
- *
- *   idle ─ queued ─ idle            a drain waits for its task (`yield_task`), then runs
- *       ╲ waiting{at} ╱             a drain waits for a time: the snapshot, or a viewport island
- *
- * `waiting` owns its timer (its visit's scope), so leaving it drops the timer: a drain queued
- * meanwhile runs sooner and works out the waits again, so a sooner wait replaces a later one
- * (#236). One state in place of the `draining` flag beside a `wait_timer` and its `wait_at`.
- */
 const drain_definition = machine<{ idle: {}; queued: {}; waiting: { at: number } }>()({
 	name: 'hydrate-drain',
 	initial: 'idle',
@@ -119,23 +77,16 @@ const drainer = drain_definition.create();
 export function drain_graph(): MachineGraph {
 	return drain_definition.graph();
 }
-/** Connect-order stamp per region — document order at upgrade, insertion order after a morph. */
 const order_of = new WeakMap<Element, number>();
 let next_order = 0;
-/** The snapshot: intersecting now? Absent = the observer has not reported yet. */
 const in_viewport = new WeakMap<Element, boolean>();
-/** Each region's viewport snapshot while it runs (closing it stops the snapshot). */
 const snapshot_of = new WeakMap<Element, () => void>();
-/** Regions whose hydrate has STARTED (module in flight) and not yet taken its turn (held weakly: a
- *  region gone is let go), and those of them the snapshot says intersect the viewport (what a hold
- *  waits for: each leaves at its turn, its settle or its region's leaving). */
 class LoadingRegions {
 	readonly all = new WeakSet<Element>();
 	readonly on_screen = new Set<Element>();
 }
 const L = new LoadingRegions();
 
-/** Keep the on-screen loading regions in step after `el`'s loading state or snapshot changed. */
 function sync_loading(el: Element): void {
 	if (L.all.has(el) && in_viewport.get(el) === true) L.on_screen.add(el);
 	else L.on_screen.delete(el);
@@ -146,7 +97,6 @@ function stop_loading(el: Element): boolean {
 	return L.all.delete(el);
 }
 
-/** Connect order, then request order: the pick order within one heap. */
 const before = (a: Turn, b: Turn): boolean =>
 	a.order < b.order || (a.order === b.order && a.seq < b.seq);
 
@@ -176,13 +126,11 @@ function heap_pop(h: Turn[]): void {
 	}
 }
 
-/** The heap's first live turn (stale entries on top are dropped on the way). */
 function heap_top(h: Turn[], vis: boolean): Turn | undefined {
 	while (h.length && (h[0].done || h[0].vis !== vis)) heap_pop(h);
 	return h[0];
 }
 
-/** File each pending turn of `el` in the heap its snapshot now says. */
 function refile(el: Element): void {
 	const vis = in_viewport.get(el) === true;
 	for (const t of P.turns_of.get(el) ?? []) {
@@ -192,7 +140,6 @@ function refile(el: Element): void {
 	}
 }
 
-/** The turn leaves the queue (taken, or its region went away). */
 function retire(t: Turn): void {
 	t.done = true;
 	P.count--;
@@ -201,15 +148,9 @@ function retire(t: Turn): void {
 	if (!list.length) P.turns_of.delete(t.el);
 }
 
-/**
- * Yield to the event loop: resolves in a NEW task, so whatever ran before is a finished task and
- * the browser may render and handle input in between. `scheduler.yield()` where it exists (it
- * keeps the continuation at the current task's priority); else a message hop — a `MessageChannel`
- * post lands as a task without the 4 ms clamp `setTimeout` carries.
- */
+// @why a MessageChannel post lands as a new task without the 4 ms clamp nested setTimeout calls carry (test: test/browser/yield-task.test.ts › without scheduler.yield, a chain of 100 hops pays no timer clamp)
 class TaskHops {
 	readonly channel = new MessageChannel();
-	/** The hops posted and not yet landed, in order (each lands in its own task). */
 	readonly waiting: Array<() => void> = [];
 	constructor() {
 		this.channel.port1.onmessage = () => this.waiting.shift()?.();
@@ -219,10 +160,10 @@ class TaskHops {
 		this.channel.port2.postMessage(null);
 	}
 }
-/** The message-channel hop, made at the first yield that needs it (the document's). */
 let hops: TaskHops | null = null;
 export function yield_task(): Promise<void> {
 	const s = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+	// @why scheduler.yield() continues at the yielding task's priority (test: test/browser/yield-task.test.ts › a yield uses scheduler.yield where the browser has it)
 	if (s && typeof s.yield === 'function') return s.yield();
 	return new Promise<void>((resolve) => (hops ??= new TaskHops()).hop(resolve));
 }
@@ -235,20 +176,13 @@ export function yield_task(): Promise<void> {
  * Holding island code back until the page has painted is `after_document_painted`'s job.
  */
 export function background_start(fn: () => void): void {
-	// ONE background task drains every start queued meanwhile (a task per island: each hydrate turn
-	// outranked the next island's start, so its import began late); it yields past a time budget
-	// (a drain is out exactly while a start waits: a start leaves only after it ran, so the first
-	// one queued into an empty list is the one that posts it)
 	if (B.starts.push(fn) === 1) post_background(drain_background);
 }
 
-/** The starts queued for the background drain: each leaves after it ran, so a drain is out exactly
- *  while one is here (test/schedule-background.test.ts). */
 class BackgroundStarts {
 	readonly starts: (() => void)[] = [];
 }
 const B = new BackgroundStarts();
-/** a drain yields to the page after this long, and continues in a new background task */
 const BACKGROUND_BUDGET_MS = 30;
 
 function drain_background(): void {
@@ -275,15 +209,13 @@ function post_background(fn: () => void): void {
 		try {
 			s.postTask(fn, { priority: 'background' });
 			return;
-		} catch {
-			// ok: an invalid-priority throw (an older postTask); the fallback below runs it
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- an older postTask throws on the priority: the macrotask below runs it
+		} catch {}
 	}
 	// oxlint-disable-next-line ogygia/owned-effects -- the process's one background drain (out while `B.starts` holds one), one task: it ends itself, and a start queued in it belongs to whoever queued it
 	timers.after(fn, 0);
 }
 
-/** The gate below, once for the document (a test's reset drops it). */
 const document_painted = flights({ name: 'document painted', run: () => until_painted() });
 
 /**
@@ -306,13 +238,12 @@ export function after_document_painted(): Promise<void | Stale> {
 function until_painted(): Promise<void> {
 	return new Promise<void>((resolve) => {
 		if (typeof document === 'undefined') return resolve();
-		// (the document's own gate, once per document: these end themselves, whoever waits on them)
 		const painted = () => {
 			if (document.visibilityState === 'hidden' || typeof requestAnimationFrame !== 'function')
 				// oxlint-disable-next-line ogygia/owned-effects -- the document's paint gate, one task, once per document
 				timers.after(resolve, 0);
 			// oxlint-disable-next-line ogygia/owned-effects -- the document's paint gate, one frame and one task, once per document
-			else tasks.frame(() => timers.after(resolve, 0)); // the task after the frame
+			else tasks.frame(() => timers.after(resolve, 0));
 		};
 		if (dom_content_loaded()) return painted();
 		let done = false;
@@ -359,8 +290,6 @@ export function register_region(el: Element, owner: Scope): void {
 		if (P.count) schedule_drain();
 	});
 	snapshot_of.set(el, stop);
-	// (the owner ending stops this snapshot only: a later one of the element is another owner's.
-	// A defer, not a child scope: one closure per region on the hydrate path, #300)
 	owner.defer(() => {
 		if (snapshot_of.get(el) === stop) stop_snapshot(el);
 	});
@@ -376,7 +305,6 @@ export function unregister_region(el: Element): void {
 	in_viewport.delete(el);
 	stop_loading(el);
 	const list = P.turns_of.get(el);
-	// (the latest request first, as the turns always resolved here)
 	if (list) {
 		for (const turn of list.slice().reverse()) {
 			retire(turn);
@@ -440,19 +368,12 @@ function schedule_drain(): void {
 	yield_task().then(drain);
 }
 
-/** Re-drain after `ms`. Called only by `drain()`, which has just moved to `idle`: a wait set before
- *  was left when a turn queued (its timer dropped), and this drain worked the waits out again. */
 function drain_after(ms: number): void {
 	const at = now() + Math.max(1, ms);
 	drainer.go('waiting', { at });
 	drainer.scope.timeout(schedule_drain, Math.max(1, ms));
 }
 
-/**
- * The earliest-requested pending turn still waiting for its snapshot within its wait, or none.
- * Turns are requested in time order, so the ones ahead of it that reported, went, or ran out of
- * wait are behind for good (the clock only moves on) and leave the queue.
- */
 function first_unsnapped(t: number): Turn | undefined {
 	while (P.unsnapped_head < P.unsnapped.length) {
 		const p = P.unsnapped[P.unsnapped_head];
@@ -463,24 +384,16 @@ function first_unsnapped(t: number): Turn | undefined {
 	return undefined;
 }
 
-/** One turn per call: pick the best pending region, hand it its task; the next pick after a yield. */
 function drain(): void {
 	drainer.go('idle');
 	if (!P.count) return;
 	const t = now();
 	const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
-	// Viewport-first needs the snapshot: hold the FIRST picks until every queued region has
-	// reported, or its wait is up (the observer re-drains as reports arrive). A hidden document has
-	// no viewport to prefer — skip the wait there.
 	if (!hidden) {
 		const p = first_unsnapped(t);
 		if (p) return drain_after(SNAPSHOT_WAIT_MS - (t - p.queued_at));
 	}
-	// the best: a region in the viewport before one that is not, connect order within each
 	const turn = (heap_top(P.heap_vis, true) ?? heap_top(P.heap_rest, false))!;
-	// The best ready island is below the fold while a viewport island is still waiting for its
-	// module: hold — that island's turn request (or its settling) re-drains. Bounded, so a chunk
-	// that never arrives cannot stall the page.
 	if (!hidden && !turn.vis && L.on_screen.size) {
 		const left = HOLD_FOR_VIEWPORT_MS - (t - turn.queued_at);
 		if (left > 0) return drain_after(left);
@@ -489,8 +402,8 @@ function drain(): void {
 	retire(turn);
 	stop_loading(turn.el);
 	stop_snapshot(turn.el);
-	turn.resolve(); // the island's hydrate step runs as this task's microtask continuation
-	if (P.count) schedule_drain(); // the next island in the next task
+	turn.resolve();
+	if (P.count) schedule_drain();
 }
 
 /** Test seam: is a hydration turn queued or being drained right now? */

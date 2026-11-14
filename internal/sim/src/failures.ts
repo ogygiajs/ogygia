@@ -15,7 +15,10 @@
  *   sweep; with `--sweep`, a named point must have fired in the sweep's results;
  * - `covered`: a real test reaches it: `test` (a file from the repo root) holds a test named `name`;
  * - `impossible`: it cannot fail, and a rule or type says so: `by` (a file from the repo root) holds
- *   `name` (the rule's name, or the type's), and `why` says how.
+ *   `name` (the rule's name, or the type's), and `why` says how;
+ * - `equivalent`: it can fail, but breaking its handling changes nothing anyone can see (the code
+ *   after it does the same thing), so no test can tell the two apart: `why` says how, and the check
+ *   refuses an entry without it. It mirrors mutants.json's `equivalent`.
  *
  * Sites nobody has bucketed yet are the `baseline`: the check allows it, but it may only shrink. A
  * baseline id no site has any more fails (take it out), and with `--base <rev>` a baseline id the
@@ -425,11 +428,18 @@ export interface Impossible {
 	readonly name: string;
 }
 
+export interface Equivalent {
+	readonly site: string;
+	/** Why breaking the site's handling changes nothing: what the code after it does instead. */
+	readonly why: string;
+}
+
 export interface FailureLedger {
 	readonly scope: Scope;
 	readonly fired: readonly Fired[];
 	readonly covered: readonly Covered[];
 	readonly impossible: readonly Impossible[];
+	readonly equivalent: readonly Equivalent[];
 	/** Sites nobody has bucketed yet. It may only shrink. */
 	readonly baseline: readonly string[];
 	/** Points that fire no failure site but a machine's recovery steps (a keep running out early:
@@ -489,6 +499,7 @@ export function account_failures(
 	for (const f of ledger.fired) put(f.site, 'fired');
 	for (const c of ledger.covered) put(c.site, 'covered');
 	for (const i of ledger.impossible) put(i.site, 'impossible');
+	for (const e of ledger.equivalent) put(e.site, 'equivalent');
 	for (const b of ledger.baseline) put(b, 'baseline');
 	for (const s of sites) if (!buckets.has(s)) failures.push(`in no bucket: ${s}`);
 	for (const [s, b] of buckets) {
@@ -535,6 +546,9 @@ export function account_failures(
 		if (text === null) failures.push(`${i.site}: its rule's file is not there: ${i.by}`);
 		else if (!text.includes(i.name)) failures.push(`${i.site}: ${i.by} has no '${i.name}'`);
 	}
+	for (const e of ledger.equivalent)
+		if (typeof e.why !== 'string' || e.why.trim() === '')
+			failures.push(`${e.site}: an equivalent site says why breaking it changes nothing`);
 	const named = new Set([
 		...ledger.fired.flatMap((f) => (f.point === undefined ? [] : [f.point])),
 		...(ledger.step_points ?? []).map((p) => p.point)
@@ -630,7 +644,8 @@ function main(): void {
 		const bucketed = new Set([
 			...ledger.fired.map((f) => f.site),
 			...ledger.covered.map((c) => c.site),
-			...ledger.impossible.map((i) => i.site)
+			...ledger.impossible.map((i) => i.site),
+			...ledger.equivalent.map((e) => e.site)
 		]);
 		const baseline = all.map((s) => s.id).filter((s) => !bucketed.has(s));
 		writeFileSync(FAILURE_LEDGER, `${JSON.stringify({ ...ledger, baseline }, null, '\t')}\n`);
@@ -733,7 +748,7 @@ export function check_failures(
 /** The check's summary line. */
 export function failures_line(ledger: FailureLedger, a: FailureAccounting): string {
 	const pct = Math.round((a.accounted / a.total) * 1000) / 10;
-	return `failure sites accounted: ${a.accounted}/${a.total} (${pct}%), ${a.baseline} in the baseline (fired ${ledger.fired.length}, ${a.proved} with a killed mutant; covered ${ledger.covered.length}, impossible ${ledger.impossible.length})`;
+	return `failure sites accounted: ${a.accounted}/${a.total} (${pct}%), ${a.baseline} in the baseline (fired ${ledger.fired.length}, ${a.proved} with a killed mutant; covered ${ledger.covered.length}, impossible ${ledger.impossible.length}, equivalent ${ledger.equivalent.length})`;
 }
 
 /** The buggify points that fired in a results.json (its coverage's `points`). */
