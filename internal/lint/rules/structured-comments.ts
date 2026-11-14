@@ -16,7 +16,9 @@ const REASONED =
 /** Directives a tool reads, which need no reason. */
 const FREE =
 	/^\s*(oxlint-enable|eslint-enable|svelte-ignore|[@#]__PURE__|[@#]__NO_SIDE_EFFECTS__|@vite-ignore|oxfmt-ignore|prettier-ignore|\/ <reference )/;
-const WHY = /^ @why (\S.*?) \(test: (\S+) › (.+)\)$/;
+/** A `@why` line's text after `//` (or inside `<!-- … -->`, trimmed at the end): the fact, the
+ *  test file and the test's name. */
+export const WHY = /^ @why (\S.*?) \(test: (\S+) › (.+)\)$/;
 /** A JSDoc that is only a type (`@type {…}`, `@satisfies {…}`): the checker reads it, as in a
  *  `.svelte` file's JS script. Its text, `*` gutters dropped, is the tag and its braces alone. */
 const TYPE_ONLY = /^@(type|satisfies)\s*\{[\s\S]*\}$/;
@@ -126,7 +128,7 @@ function test_text(path: string): string | null {
 }
 
 /** Does the `@why`'s test exist: a file (from the package or the repository root) holding the name? */
-function why_test_exists(file: string, test: string, test_name: string): boolean {
+export function why_test_exists(file: string, test: string, test_name: string): boolean {
 	const m = ALL_SOURCE.exec(file);
 	if (!m) return false;
 	const root = file.slice(0, m.index + m[1].length);
