@@ -9,6 +9,7 @@
 // - no kept failure (the server's rules), and every read settles.
 import { afterEach, describe, it } from 'vitest';
 import { fc, simulate } from '@ogygia/config/sim';
+import { isHttpError } from '@ogygia/router';
 import { PeerHandle } from '../src/peer.ts';
 import { set_current_request } from '../../core/src/plugin/facts.ts';
 import { server_rules_hold } from '../../core/test/sim/_server.ts';
@@ -151,7 +152,14 @@ describe('a federation peer, simulated', () => {
 									`${p}: ${d.body}, upstream ${version[p]}`
 								);
 						},
-						(e: unknown) => (r.got = `failed: ${String((e as { status?: number })?.status ?? e)}`)
+						(e: unknown) => {
+							r.got = `failed: ${String((e as { status?: number })?.status ?? e)}`;
+							if (leave?.signal.aborted && isHttpError(e))
+								sim.broke(
+									'a read whose visitor left ends with the leaving, not a failure of its own (#1792)',
+									`${p}: ${r.got}`
+								);
+						}
 					);
 				};
 				const play: Array<readonly [string, () => unknown]> = [];
