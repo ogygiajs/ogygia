@@ -140,6 +140,7 @@ exports[`dev > hole in Kit page pass 1`] = `
 <!-- body --><!--[--><!--[--><!--[1--><!--[-1--><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=hole-a&amp;p=%7B%22q%22%3A%22x%22%7D&amp;ttl=0&amp;w=false" data-og-hole="6c88c728d5741256"><!--[-1--><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!--[1--><!--[-1--><ogygia-region entry="/islands/hole.js" render="defer" when="idle" wake="load" endpoint="/__ogygia__?id=hole-a&amp;p=%7B%22q%22%3A%22x%22%7D&amp;ttl=30&amp;w=true" data-og-hole="6c88c728d5741256" src="/islands/hole.js.hashed.js"><!--[-1--><!--]--></ogygia-region><!--6220ky--><script type="application/ogygia-props" data-ogygia-props data-og-format="json">{"q":"x"}</script><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><script type="application/json" data-ogygia-graph>{"h":["/islands/hole.js~dep-a.js","/islands/hole.js~dep-b.js"],"e":{"/islands/hole.js":[0,1]}}</script>
 <!-- tail holes -->[{"id":"hole-a","name":"Tiny","props":"{\\"q\\":\\"x\\"}","when":"load","hydrate":null,"ttl":0,"count":1},{"id":"hole-a","name":"Tiny","props":"{\\"q\\":\\"x\\"}","when":"idle","hydrate":"load","ttl":30,"count":1}]
+<!-- tail islands -->[]
 <!-- early holes -->/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=false
 <!-- page records -->[{"seed":false,"remotes":[],"entry":""},{"seed":"all","remotes":null,"entry":"/islands/hole.js"}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"","mode":"server","propsBytes":0},{"domain":"server","name":"server.region.rendered","fp":"","mode":"server","entry":"/islands/hole.js","propsBytes":9}]
@@ -151,6 +152,7 @@ exports[`dev > hole in Kit page pass, csr=false, wakes 1`] = `
 <!-- body --><!--[--><!--[--><!--[1--><!--[-1--><ogygia-region entry="/islands/hole.js" render="defer" when="load" wake="load" endpoint="/__ogygia__?id=hole-a&amp;p=%7B%22q%22%3A%22x%22%7D&amp;ttl=0&amp;w=true" data-og-hole="6c88c728d5741256" src="/islands/hole.js.hashed.js"><!--[-1--><!--]--></ogygia-region><!--6220ky--><script type="application/ogygia-props" data-ogygia-props data-og-format="json">{"q":"x"}</script><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><script type="application/json" data-ogygia-graph>{"h":["/islands/hole.js~dep-a.js","/islands/hole.js~dep-b.js"],"e":{"/islands/hole.js":[0,1]}}</script>
 <!-- tail holes -->[{"id":"hole-a","name":"Tiny","props":"{\\"q\\":\\"x\\"}","when":"load","hydrate":"load","ttl":0,"count":1}]
+<!-- tail islands -->[]
 <!-- early holes -->/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=true
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/hole.js"}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"","mode":"server","entry":"/islands/hole.js","propsBytes":9}]
@@ -162,6 +164,7 @@ exports[`dev > hole in Kit page pass, csr=true 1`] = `
 <!-- body --><!--[--><!--[--><!--[1--><!--[1--><ogygia-region entry="/islands/hole.js" render="defer" when="load" wake="load" endpoint="/__ogygia__?id=hole-a&amp;p=%7B%22q%22%3A%22x%22%7D&amp;ttl=0&amp;w=true" data-og-hole="6c88c728d5741256" src="/islands/hole.js.hashed.js"></ogygia-region><!----><!--6220ky--><script type="application/ogygia-props" data-ogygia-props data-og-format="json">{"q":"x"}</script><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><script type="application/json" data-ogygia-graph>{"h":["/islands/hole.js~dep-a.js","/islands/hole.js~dep-b.js"],"e":{"/islands/hole.js":[0,1]}}</script><script type="application/ogygia-holes" data-ogygia-holes>{"6c88c728d5741256":{"endpoint":"/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=true","sidecar":"\\u003Cscript type=\\"application/ogygia-props\\" data-ogygia-props data-og-format=\\"json\\">{\\"q\\":\\"x\\"}\\u003C/script>"}}</script>
 <!-- tail holes -->[{"id":"hole-a","name":"Tiny","props":"{\\"q\\":\\"x\\"}","when":"load","hydrate":"load","ttl":0,"count":1}]
+<!-- tail islands -->[]
 <!-- early holes -->/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=true
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/hole.js"}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"","mode":"server","entry":"/islands/hole.js","propsBytes":9}]
@@ -182,6 +185,7 @@ exports[`dev > hole in a live snippet, in Kit page pass 1`] = `
 <!-- body --><!--[--><!--[--><!--[1--><!--[1--><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=hole-a&amp;p=%7B%22q%22%3A%22x%22%7D&amp;ttl=0&amp;w=false" data-og-hole="6c88c728d5741256"></ogygia-region><!----><!--45h--><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><script type="application/ogygia-holes" data-ogygia-holes>{"6c88c728d5741256":{"endpoint":"/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=false","sidecar":""}}</script>
 <!-- tail holes -->[{"id":"hole-a","name":"Tiny","props":"{\\"q\\":\\"x\\"}","when":"load","hydrate":null,"ttl":0,"count":1}]
+<!-- tail islands -->[]
 <!-- early holes -->/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=false
 <!-- page records -->[{"seed":false,"remotes":[],"entry":""}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"","mode":"server","propsBytes":0}]
@@ -215,11 +219,21 @@ exports[`dev > hole on a csr=true page 1`] = `
 <!-- warnings -->[]"
 `;
 
+exports[`dev > hole rendered for a page 1`] = `
+"<!-- head --><!--rtd3wb--><!--u7pura--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><!----><!---->
+<!-- body --><!--[--><!--[--><!--[1--><!--[-1--><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=hole-a&amp;p=%7B%22q%22%3A%22x%22%7D&amp;ttl=0&amp;w=false&amp;pv=hole-a" data-og-hole="6c88c728d5741256"><!--[-1--><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!--]--><!--]-->
+<!-- early holes -->/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=false&pv=hole-a
+<!-- page records -->[{"seed":false,"remotes":[],"entry":""}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"","mode":"server","propsBytes":0}]
+<!-- warnings -->[]"
+`;
+
 exports[`dev > hole whose fallback holds an island, in Kit page pass 1`] = `
 "<!-- head --><!--rtd3wb--><!--u7pura--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><!----><!----><!--rtd3wb--><!--2k49nh--><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="7dd6306730e68332"><!----><!---->
 <!-- body --><!--[--><!--[--><!--[1--><!--[-1--><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=hole-a&amp;p=%7B%22q%22%3A%22x%22%7D&amp;ttl=0&amp;w=false" data-og-hole="6c88c728d5741256"><!--[0--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="7dd6306730e68332" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!----><!----><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><script type="application/ogygia-props" data-ogygia-props="7dd6306730e68332" id="og-props-7dd6306730e68332" data-og-format="json">{"n":1}</script>
 <!-- tail holes -->[{"id":"hole-a","name":"Tiny","props":"{\\"q\\":\\"x\\"}","when":"load","hydrate":null,"ttl":0,"count":1}]
+<!-- tail islands -->[{"fp":"7dd6306730e68332","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"load","props_bytes":7,"canonical_bytes":7,"canonical":"{\\"n\\":1}","json":true,"culprit":null,"refs":0,"ref_keys":[],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 <!-- early holes -->/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=false
 <!-- page records -->[{"seed":false,"remotes":[],"entry":""},{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"","mode":"server","propsBytes":0},{"domain":"server","name":"server.region.rendered","fp":"7dd6306730e68332","mode":"island","entry":"/islands/tiny.js","propsBytes":7}]
@@ -285,6 +299,7 @@ exports[`dev > island in Kit page pass 1`] = `
 <!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="7dd6306730e68332" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="idle" data-og-fp="7dd6306730e68332" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><script type="application/ogygia-props" data-ogygia-props="7dd6306730e68332" id="og-props-7dd6306730e68332" data-og-format="json">{"n":1}</script>
 <!-- tail holes -->[]
+<!-- tail islands -->[{"fp":"7dd6306730e68332","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"load","props_bytes":7,"canonical_bytes":7,"canonical":"{\\"n\\":1}","json":true,"culprit":null,"refs":0,"ref_keys":[],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":2}]
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"},{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"7dd6306730e68332","mode":"island","entry":"/islands/tiny.js","propsBytes":7},{"domain":"server","name":"server.region.rendered","fp":"7dd6306730e68332","mode":"island","entry":"/islands/tiny.js","propsBytes":7}]
@@ -296,6 +311,7 @@ exports[`dev > island in Kit page pass, csr=true 1`] = `
 <!-- body --><!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><link rel="modulepreload" href="/islands/tiny.js.hashed.js" fetchpriority="low"><link rel="modulepreload" href="/islands/tiny.js~dep-a.js" fetchpriority="low"><link rel="modulepreload" href="/islands/tiny.js~dep-b.js" fetchpriority="low">
 <!-- tail holes -->[]
+<!-- tail islands -->[]
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
 <!-- devtools -->[]
@@ -314,6 +330,15 @@ exports[`dev > island in a live snippet 1`] = `
 exports[`dev > island nested in an island 1`] = `
 "<!-- head --><!--rtd3wb--><!--7uu6nv--><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/tiny.js"><!----><!---->
 <!-- body --><!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+<!-- early holes -->
+<!-- page records -->[{"seed":false,"remotes":[],"entry":""}]
+<!-- devtools -->[]
+<!-- warnings -->[]"
+`;
+
+exports[`dev > island nested in an island, rendering a snippet prop 1`] = `
+"<!-- head --><!--rtd3wb--><!--7uu6nv--><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/tiny.js"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><span data-snippet-prop=""><u>s</u><!----></span><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
 <!-- early holes -->
 <!-- page records -->[{"seed":false,"remotes":[],"entry":""}]
 <!-- devtools -->[]
@@ -374,14 +399,33 @@ exports[`dev > island on a csr=true page, idle 1`] = `
 <!-- warnings -->[]"
 `;
 
+exports[`dev > island on a csr=true page, rendering a snippet prop 1`] = `
+"<!-- head --><!--rtd3wb--><!--1ek8cr7--><link rel="modulepreload" href="/islands/tiny.js.hashed.js" fetchpriority="low"><link rel="modulepreload" href="/islands/tiny.js~dep-a.js" fetchpriority="low"><link rel="modulepreload" href="/islands/tiny.js~dep-b.js" fetchpriority="low"><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/tiny.js"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><span data-snippet-prop=""><u>s</u><!----></span><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+<!-- early holes -->
+<!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
+<!-- devtools -->[]
+<!-- warnings -->[]"
+`;
+
 exports[`dev > island reading the request, in Kit page pass 1`] = `
 "<!-- head --><!--rtd3wb--><!--irqo66--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="7dd6306730e68332"><!----><!---->
 <!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="7dd6306730e68332" src="/islands/tiny.js.hashed.js"><!--[--><p>ada|/plain</p><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><script type="application/ogygia-props" data-ogygia-props="7dd6306730e68332" id="og-props-7dd6306730e68332" data-og-format="json">{"n":1}</script>
 <!-- tail holes -->[]
+<!-- tail islands -->[{"fp":"7dd6306730e68332","entry":"/islands/tiny.js","name":"EventProbe","module_url":"/islands/tiny.js.hashed.js","wake":"load","props_bytes":7,"canonical_bytes":7,"canonical":"{\\"n\\":1}","json":true,"culprit":null,"refs":0,"ref_keys":[],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"7dd6306730e68332","mode":"island","entry":"/islands/tiny.js","propsBytes":7}]
+<!-- warnings -->[]"
+`;
+
+exports[`dev > island rendering a snippet prop 1`] = `
+"<!-- head --><!--rtd3wb--><!--1d0mqok--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="e6235853852c0768"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="e6235853852c0768" src="/islands/tiny.js.hashed.js"><!--[--><span data-snippet-prop=""><ogygia-snippet data-og-static style="display:contents"><!--[--><u>s</u><!--]--></ogygia-snippet><!----></span><!--]--></ogygia-region><!--irnb2z--><script type="application/ogygia-props" data-ogygia-props="e6235853852c0768">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","sac3d8081bac455a3",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
+<!-- early holes -->
+<!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"e6235853852c0768","mode":"island","entry":"/islands/tiny.js","propsBytes":145}]
 <!-- warnings -->[]"
 `;
 
@@ -421,6 +465,27 @@ exports[`dev > island with a hole, in the page 1`] = `
 <!-- warnings -->["[ogygia] nested server island \\"hole-in-island\\" is inside another island; it renders inline as frozen HTML (no JS ships; islands inside it wake on their own) — 'deferred' ignored.\\nhttps://ogygiajs.dev/e/nested_server_island_inline?entry=hole-in-island"]"
 `;
 
+exports[`dev > island with a live snippet prop 1`] = `
+"<!-- head --><!--rtd3wb--><!--zzvqsb--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js","/_app/ogygia/og-region.abc123.js.hashed.js","/_app/ogygia/og-region.abc123.js~dep-a.js","/_app/ogygia/og-region.abc123.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1,2,3,4]},"s":{"/_app/ogygia/og-region.abc123.js":"/_app/ogygia/og-region.abc123.js.hashed.js"}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="88175c26626a12fa"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="88175c26626a12fa" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--7irf0p--><script type="application/ogygia-props" data-ogygia-props="88175c26626a12fa">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","le58913d6b89e9258",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1]</script><!----><!--]--><!--]--><!--]--><!--]-->
+<!-- early holes -->
+<!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"88175c26626a12fa","mode":"island","entry":"/islands/tiny.js","propsBytes":147}]
+<!-- warnings -->[]"
+`;
+
+exports[`dev > island with a live snippet prop, in Kit page pass 1`] = `
+"<!-- head --><!--rtd3wb--><!--7y8uio--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="88175c26626a12fa"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="88175c26626a12fa" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!--]--><!--]-->
+<!-- tail --><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js","/_app/ogygia/og-region.abc123.js.hashed.js","/_app/ogygia/og-region.abc123.js~dep-a.js","/_app/ogygia/og-region.abc123.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1,2,3,4]},"s":{"/_app/ogygia/og-region.abc123.js":"/_app/ogygia/og-region.abc123.js.hashed.js"}}</script><script type="application/ogygia-props" data-ogygia-props="88175c26626a12fa" id="og-props-88175c26626a12fa">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","le58913d6b89e9258",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1]</script>
+<!-- tail holes -->[]
+<!-- tail islands -->[{"fp":"88175c26626a12fa","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"load","props_bytes":147,"canonical_bytes":147,"canonical":"[{\\"s\\":1},[\\"OgygiaRef\\",2],{\\"k\\":3,\\"i\\":4,\\"d\\":5},\\"snippet\\",\\"le58913d6b89e9258\\",{\\"m\\":6,\\"e\\":7,\\"p\\":8},\\"live\\",\\"/_app/ogygia/og-region.abc123.js\\",{\\"k\\":9},1]","json":false,"culprit":"s (function)","refs":0,"ref_keys":[],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js","/_app/ogygia/og-region.abc123.js.hashed.js","/_app/ogygia/og-region.abc123.js~dep-a.js","/_app/ogygia/og-region.abc123.js~dep-b.js"],"interactivity":null,"count":1}]
+<!-- early holes -->
+<!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"88175c26626a12fa","mode":"island","entry":"/islands/tiny.js","propsBytes":147}]
+<!-- warnings -->[]"
+`;
+
 exports[`dev > island with a snippet prop 1`] = `
 "<!-- head --><!--rtd3wb--><!--1d0mqok--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="e6235853852c0768"><!----><!---->
 <!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="e6235853852c0768" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--irnb2z--><script type="application/ogygia-props" data-ogygia-props="e6235853852c0768">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","sac3d8081bac455a3",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
@@ -454,6 +519,15 @@ exports[`dev > island with children the browser already has 1`] = `
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"c2690e78672f61b6","mode":"island","entry":"/islands/tiny.js","propsBytes":123}]
+<!-- warnings -->[]"
+`;
+
+exports[`dev > island with children, in a hole answer 1`] = `
+"<!-- head --><!--rtd3wb--><!--1glwcv0--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="fed5c2ccb00675e2"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="fed5c2ccb00675e2" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--geoi8w--><script type="application/ogygia-props" data-ogygia-props="fed5c2ccb00675e2">[{"n":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:ogabcdef-srnm90-1",{"m":7,"id":8},"slot","ogabcdef-srnm90-1"]</script><!----><!--]--><!--]--><!--]--><!--]-->
+<!-- early holes -->
+<!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"fed5c2ccb00675e2","mode":"island","entry":"/islands/tiny.js","propsBytes":137}]
 <!-- warnings -->[]"
 `;
 
@@ -723,6 +797,7 @@ exports[`production > hole in Kit page pass 1`] = `
 <!-- body --><!--[--><!--[--><!--[1--><!--[-1--><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=hole-a&amp;p=%7B%22q%22%3A%22x%22%7D&amp;ttl=0&amp;w=false" data-og-hole="6c88c728d5741256"><!--[-1--><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!--[1--><!--[-1--><ogygia-region entry="/islands/hole.js" render="defer" when="idle" wake="load" endpoint="/__ogygia__?id=hole-a&amp;p=%7B%22q%22%3A%22x%22%7D&amp;ttl=30&amp;w=true" data-og-hole="6c88c728d5741256" src="/islands/hole.js.hashed.js"><!--[-1--><!--]--></ogygia-region><!--6220ky--><script type="application/ogygia-props" data-ogygia-props data-og-format="json">{"q":"x"}</script><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><script type="application/json" data-ogygia-graph>{"h":["/islands/hole.js~dep-a.js","/islands/hole.js~dep-b.js"],"e":{"/islands/hole.js":[0,1]}}</script>
 <!-- tail holes -->[{"id":"hole-a","name":"Tiny","props":"{\\"q\\":\\"x\\"}","when":"load","hydrate":null,"ttl":0,"count":1},{"id":"hole-a","name":"Tiny","props":"{\\"q\\":\\"x\\"}","when":"idle","hydrate":"load","ttl":30,"count":1}]
+<!-- tail islands -->[]
 <!-- early holes -->/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=false
 <!-- page records -->[{"seed":false,"remotes":[],"entry":""},{"seed":"all","remotes":null,"entry":"/islands/hole.js"}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"","mode":"server","propsBytes":0},{"domain":"server","name":"server.region.rendered","fp":"","mode":"server","entry":"/islands/hole.js","propsBytes":9}]
@@ -734,6 +809,7 @@ exports[`production > hole in Kit page pass, csr=false, wakes 1`] = `
 <!-- body --><!--[--><!--[--><!--[1--><!--[-1--><ogygia-region entry="/islands/hole.js" render="defer" when="load" wake="load" endpoint="/__ogygia__?id=hole-a&amp;p=%7B%22q%22%3A%22x%22%7D&amp;ttl=0&amp;w=true" data-og-hole="6c88c728d5741256" src="/islands/hole.js.hashed.js"><!--[-1--><!--]--></ogygia-region><!--6220ky--><script type="application/ogygia-props" data-ogygia-props data-og-format="json">{"q":"x"}</script><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><script type="application/json" data-ogygia-graph>{"h":["/islands/hole.js~dep-a.js","/islands/hole.js~dep-b.js"],"e":{"/islands/hole.js":[0,1]}}</script>
 <!-- tail holes -->[{"id":"hole-a","name":"Tiny","props":"{\\"q\\":\\"x\\"}","when":"load","hydrate":"load","ttl":0,"count":1}]
+<!-- tail islands -->[]
 <!-- early holes -->/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=true
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/hole.js"}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"","mode":"server","entry":"/islands/hole.js","propsBytes":9}]
@@ -745,6 +821,7 @@ exports[`production > hole in Kit page pass, csr=true 1`] = `
 <!-- body --><!--[--><!--[--><!--[1--><!--[1--><ogygia-region entry="/islands/hole.js" render="defer" when="load" wake="load" endpoint="/__ogygia__?id=hole-a&amp;p=%7B%22q%22%3A%22x%22%7D&amp;ttl=0&amp;w=true" data-og-hole="6c88c728d5741256" src="/islands/hole.js.hashed.js"></ogygia-region><!----><!--6220ky--><script type="application/ogygia-props" data-ogygia-props data-og-format="json">{"q":"x"}</script><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><script type="application/json" data-ogygia-graph>{"h":["/islands/hole.js~dep-a.js","/islands/hole.js~dep-b.js"],"e":{"/islands/hole.js":[0,1]}}</script><script type="application/ogygia-holes" data-ogygia-holes>{"6c88c728d5741256":{"endpoint":"/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=true","sidecar":"\\u003Cscript type=\\"application/ogygia-props\\" data-ogygia-props data-og-format=\\"json\\">{\\"q\\":\\"x\\"}\\u003C/script>"}}</script>
 <!-- tail holes -->[{"id":"hole-a","name":"Tiny","props":"{\\"q\\":\\"x\\"}","when":"load","hydrate":"load","ttl":0,"count":1}]
+<!-- tail islands -->[]
 <!-- early holes -->/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=true
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/hole.js"}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"","mode":"server","entry":"/islands/hole.js","propsBytes":9}]
@@ -765,6 +842,7 @@ exports[`production > hole in a live snippet, in Kit page pass 1`] = `
 <!-- body --><!--[--><!--[--><!--[1--><!--[1--><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=hole-a&amp;p=%7B%22q%22%3A%22x%22%7D&amp;ttl=0&amp;w=false" data-og-hole="6c88c728d5741256"></ogygia-region><!----><!--45h--><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><script type="application/ogygia-holes" data-ogygia-holes>{"6c88c728d5741256":{"endpoint":"/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=false","sidecar":""}}</script>
 <!-- tail holes -->[{"id":"hole-a","name":"Tiny","props":"{\\"q\\":\\"x\\"}","when":"load","hydrate":null,"ttl":0,"count":1}]
+<!-- tail islands -->[]
 <!-- early holes -->/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=false
 <!-- page records -->[{"seed":false,"remotes":[],"entry":""}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"","mode":"server","propsBytes":0}]
@@ -798,11 +876,21 @@ exports[`production > hole on a csr=true page 1`] = `
 <!-- warnings -->[]"
 `;
 
+exports[`production > hole rendered for a page 1`] = `
+"<!-- head --><!--rtd3wb--><!--u7pura--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><!----><!---->
+<!-- body --><!--[--><!--[--><!--[1--><!--[-1--><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=hole-a&amp;p=%7B%22q%22%3A%22x%22%7D&amp;ttl=0&amp;w=false&amp;pv=hole-a" data-og-hole="6c88c728d5741256"><!--[-1--><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!--]--><!--]-->
+<!-- early holes -->/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=false&pv=hole-a
+<!-- page records -->[{"seed":false,"remotes":[],"entry":""}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"","mode":"server","propsBytes":0}]
+<!-- warnings -->[]"
+`;
+
 exports[`production > hole whose fallback holds an island, in Kit page pass 1`] = `
 "<!-- head --><!--rtd3wb--><!--u7pura--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><!----><!----><!--rtd3wb--><!--2k49nh--><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="7dd6306730e68332"><!----><!---->
 <!-- body --><!--[--><!--[--><!--[1--><!--[-1--><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=hole-a&amp;p=%7B%22q%22%3A%22x%22%7D&amp;ttl=0&amp;w=false" data-og-hole="6c88c728d5741256"><!--[0--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="7dd6306730e68332" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!----><!----><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><script type="application/ogygia-props" data-ogygia-props="7dd6306730e68332" id="og-props-7dd6306730e68332" data-og-format="json">{"n":1}</script>
 <!-- tail holes -->[{"id":"hole-a","name":"Tiny","props":"{\\"q\\":\\"x\\"}","when":"load","hydrate":null,"ttl":0,"count":1}]
+<!-- tail islands -->[{"fp":"7dd6306730e68332","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"load","props_bytes":7,"canonical_bytes":7,"canonical":"{\\"n\\":1}","json":true,"culprit":null,"refs":0,"ref_keys":[],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 <!-- early holes -->/__ogygia__?id=hole-a&p=%7B%22q%22%3A%22x%22%7D&ttl=0&w=false
 <!-- page records -->[{"seed":false,"remotes":[],"entry":""},{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"","mode":"server","propsBytes":0},{"domain":"server","name":"server.region.rendered","fp":"7dd6306730e68332","mode":"island","entry":"/islands/tiny.js","propsBytes":7}]
@@ -868,6 +956,7 @@ exports[`production > island in Kit page pass 1`] = `
 <!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="7dd6306730e68332" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="idle" data-og-fp="7dd6306730e68332" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><script type="application/ogygia-props" data-ogygia-props="7dd6306730e68332" id="og-props-7dd6306730e68332" data-og-format="json">{"n":1}</script>
 <!-- tail holes -->[]
+<!-- tail islands -->[{"fp":"7dd6306730e68332","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"load","props_bytes":7,"canonical_bytes":7,"canonical":"{\\"n\\":1}","json":true,"culprit":null,"refs":0,"ref_keys":[],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":2}]
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"},{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"7dd6306730e68332","mode":"island","entry":"/islands/tiny.js","propsBytes":7},{"domain":"server","name":"server.region.rendered","fp":"7dd6306730e68332","mode":"island","entry":"/islands/tiny.js","propsBytes":7}]
@@ -879,6 +968,7 @@ exports[`production > island in Kit page pass, csr=true 1`] = `
 <!-- body --><!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><link rel="modulepreload" href="/islands/tiny.js.hashed.js" fetchpriority="low"><link rel="modulepreload" href="/islands/tiny.js~dep-a.js" fetchpriority="low"><link rel="modulepreload" href="/islands/tiny.js~dep-b.js" fetchpriority="low">
 <!-- tail holes -->[]
+<!-- tail islands -->[]
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
 <!-- devtools -->[]
@@ -897,6 +987,15 @@ exports[`production > island in a live snippet 1`] = `
 exports[`production > island nested in an island 1`] = `
 "<!-- head --><!--rtd3wb--><!--7uu6nv--><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/tiny.js"><!----><!---->
 <!-- body --><!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+<!-- early holes -->
+<!-- page records -->[{"seed":false,"remotes":[],"entry":""}]
+<!-- devtools -->[]
+<!-- warnings -->[]"
+`;
+
+exports[`production > island nested in an island, rendering a snippet prop 1`] = `
+"<!-- head --><!--rtd3wb--><!--7uu6nv--><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/tiny.js"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><span data-snippet-prop=""><u>s</u><!----></span><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
 <!-- early holes -->
 <!-- page records -->[{"seed":false,"remotes":[],"entry":""}]
 <!-- devtools -->[]
@@ -957,14 +1056,33 @@ exports[`production > island on a csr=true page, idle 1`] = `
 <!-- warnings -->[]"
 `;
 
+exports[`production > island on a csr=true page, rendering a snippet prop 1`] = `
+"<!-- head --><!--rtd3wb--><!--1ek8cr7--><link rel="modulepreload" href="/islands/tiny.js.hashed.js" fetchpriority="low"><link rel="modulepreload" href="/islands/tiny.js~dep-a.js" fetchpriority="low"><link rel="modulepreload" href="/islands/tiny.js~dep-b.js" fetchpriority="low"><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/tiny.js"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><span data-snippet-prop=""><u>s</u><!----></span><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+<!-- early holes -->
+<!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
+<!-- devtools -->[]
+<!-- warnings -->[]"
+`;
+
 exports[`production > island reading the request, in Kit page pass 1`] = `
 "<!-- head --><!--rtd3wb--><!--irqo66--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="7dd6306730e68332"><!----><!---->
 <!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="7dd6306730e68332" src="/islands/tiny.js.hashed.js"><!--[--><p>ada|/plain</p><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- tail --><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><script type="application/ogygia-props" data-ogygia-props="7dd6306730e68332" id="og-props-7dd6306730e68332" data-og-format="json">{"n":1}</script>
 <!-- tail holes -->[]
+<!-- tail islands -->[{"fp":"7dd6306730e68332","entry":"/islands/tiny.js","name":"EventProbe","module_url":"/islands/tiny.js.hashed.js","wake":"load","props_bytes":7,"canonical_bytes":7,"canonical":"{\\"n\\":1}","json":true,"culprit":null,"refs":0,"ref_keys":[],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"7dd6306730e68332","mode":"island","entry":"/islands/tiny.js","propsBytes":7}]
+<!-- warnings -->[]"
+`;
+
+exports[`production > island rendering a snippet prop 1`] = `
+"<!-- head --><!--rtd3wb--><!--1d0mqok--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="e6235853852c0768"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="e6235853852c0768" src="/islands/tiny.js.hashed.js"><!--[--><span data-snippet-prop=""><ogygia-snippet data-og-static style="display:contents"><!--[--><u>s</u><!--]--></ogygia-snippet><!----></span><!--]--></ogygia-region><!--irnb2z--><script type="application/ogygia-props" data-ogygia-props="e6235853852c0768">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","sac3d8081bac455a3",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
+<!-- early holes -->
+<!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"e6235853852c0768","mode":"island","entry":"/islands/tiny.js","propsBytes":145}]
 <!-- warnings -->[]"
 `;
 
@@ -1004,6 +1122,27 @@ exports[`production > island with a hole, in the page 1`] = `
 <!-- warnings -->[]"
 `;
 
+exports[`production > island with a live snippet prop 1`] = `
+"<!-- head --><!--rtd3wb--><!--zzvqsb--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js","/_app/ogygia/og-region.abc123.js.hashed.js","/_app/ogygia/og-region.abc123.js~dep-a.js","/_app/ogygia/og-region.abc123.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1,2,3,4]},"s":{"/_app/ogygia/og-region.abc123.js":"/_app/ogygia/og-region.abc123.js.hashed.js"}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="88175c26626a12fa"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="88175c26626a12fa" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--7irf0p--><script type="application/ogygia-props" data-ogygia-props="88175c26626a12fa">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","le58913d6b89e9258",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1]</script><!----><!--]--><!--]--><!--]--><!--]-->
+<!-- early holes -->
+<!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"88175c26626a12fa","mode":"island","entry":"/islands/tiny.js","propsBytes":147}]
+<!-- warnings -->[]"
+`;
+
+exports[`production > island with a live snippet prop, in Kit page pass 1`] = `
+"<!-- head --><!--rtd3wb--><!--7y8uio--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="88175c26626a12fa"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="88175c26626a12fa" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--45h--><!----><!--]--><!--]--><!--]--><!--]-->
+<!-- tail --><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js","/_app/ogygia/og-region.abc123.js.hashed.js","/_app/ogygia/og-region.abc123.js~dep-a.js","/_app/ogygia/og-region.abc123.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1,2,3,4]},"s":{"/_app/ogygia/og-region.abc123.js":"/_app/ogygia/og-region.abc123.js.hashed.js"}}</script><script type="application/ogygia-props" data-ogygia-props="88175c26626a12fa" id="og-props-88175c26626a12fa">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","le58913d6b89e9258",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1]</script>
+<!-- tail holes -->[]
+<!-- tail islands -->[{"fp":"88175c26626a12fa","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"load","props_bytes":147,"canonical_bytes":147,"canonical":"[{\\"s\\":1},[\\"OgygiaRef\\",2],{\\"k\\":3,\\"i\\":4,\\"d\\":5},\\"snippet\\",\\"le58913d6b89e9258\\",{\\"m\\":6,\\"e\\":7,\\"p\\":8},\\"live\\",\\"/_app/ogygia/og-region.abc123.js\\",{\\"k\\":9},1]","json":false,"culprit":"s (function)","refs":0,"ref_keys":[],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js","/_app/ogygia/og-region.abc123.js.hashed.js","/_app/ogygia/og-region.abc123.js~dep-a.js","/_app/ogygia/og-region.abc123.js~dep-b.js"],"interactivity":null,"count":1}]
+<!-- early holes -->
+<!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"88175c26626a12fa","mode":"island","entry":"/islands/tiny.js","propsBytes":147}]
+<!-- warnings -->[]"
+`;
+
 exports[`production > island with a snippet prop 1`] = `
 "<!-- head --><!--rtd3wb--><!--1d0mqok--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="e6235853852c0768"><!----><!---->
 <!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="e6235853852c0768" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--irnb2z--><script type="application/ogygia-props" data-ogygia-props="e6235853852c0768">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","sac3d8081bac455a3",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
@@ -1037,6 +1176,15 @@ exports[`production > island with children the browser already has 1`] = `
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
 <!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"c2690e78672f61b6","mode":"island","entry":"/islands/tiny.js","propsBytes":123}]
+<!-- warnings -->[]"
+`;
+
+exports[`production > island with children, in a hole answer 1`] = `
+"<!-- head --><!--rtd3wb--><!--1glwcv0--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="fed5c2ccb00675e2"><!----><!---->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="fed5c2ccb00675e2" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--geoi8w--><script type="application/ogygia-props" data-ogygia-props="fed5c2ccb00675e2">[{"n":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:ogabcdef-srnm90-1",{"m":7,"id":8},"slot","ogabcdef-srnm90-1"]</script><!----><!--]--><!--]--><!--]--><!--]-->
+<!-- early holes -->
+<!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"fed5c2ccb00675e2","mode":"island","entry":"/islands/tiny.js","propsBytes":137}]
 <!-- warnings -->[]"
 `;
 

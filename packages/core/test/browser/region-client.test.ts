@@ -11,6 +11,12 @@ import IslandWithHole from '../_fixtures/IslandWithHole.svelte';
 import { REGION_BRAND } from '../../src/region.ts';
 import { setNested } from '../../src/nested.ts';
 import { setInLake, setInLiveSnippet } from '../../src/context.ts';
+import { runtime_session } from '../../src/runtime/session.ts';
+import { mark_written } from '../../src/frame.ts';
+import RegionSet from '../_fixtures/RegionSet.svelte';
+import * as ProbeFallback from './fixtures/ProbeFallback.svelte';
+
+const { probe_fallback } = ProbeFallback as unknown as { probe_fallback: unknown };
 
 type Props = Record<string, unknown>;
 const snippet = (html: string) => createRawSnippet(() => ({ render: () => html }));
@@ -43,13 +49,20 @@ const deferred = (extra: Props = {}) =>
 		...extra
 	});
 
+const written = (v: Props, order: { v: number; d?: number }) => {
+	mark_written(v, order);
+	return v;
+};
+
 type Place = {
 	nested?: boolean;
 	live_snippet?: boolean;
 	in_lake?: boolean;
 	context?: [string, string];
+	csr?: boolean;
 };
 const setup = (place: Place) => (): void => {
+	if (place.csr) runtime_session.kit_page = true;
 	if (place.nested) setNested(true, () => 'load');
 	if (place.live_snippet) setInLiveSnippet(true);
 	if (place.in_lake) setInLake();
@@ -75,6 +88,7 @@ afterAll(() => {
 afterEach(() => {
 	document.body.innerHTML = '';
 	lived.length = 0;
+	runtime_session.kit_page = undefined;
 	vi.restoreAllMocks();
 });
 
@@ -84,7 +98,7 @@ async function out(regions: Props[], place: Place = {}): Promise<string> {
 	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 	const target = document.body.appendChild(document.createElement('div'));
-	const head_before = document.head.innerHTML;
+	const head_before = document.head.children.length;
 	const app = mount(RegionUnder as unknown as Component<Props>, {
 		target,
 		props: { setup: setup(place), regions }
@@ -95,7 +109,7 @@ async function out(regions: Props[], place: Place = {}): Promise<string> {
 	const text = JSON.stringify(
 		{
 			body: target.innerHTML,
-			head_changed: document.head.innerHTML !== head_before,
+			head_tags: [...document.head.children].slice(head_before).map((el) => el.outerHTML),
 			apply_live: lived,
 			console: said
 		},
@@ -171,6 +185,22 @@ const CASES: Array<[name: string, regions: Props[], place?: Place]> = [
 	[
 		'held promise that never lands',
 		[{ of: new Promise(() => {}), placeholder: snippet('<p>wait</p>') }]
+	],
+	[
+		'lake on a csr=true page, created fresh',
+		[{ ...LAKE, children: snippet('<p>lake</p>') }],
+		{ csr: true }
+	],
+	['island on a csr=true page', [ISLAND], { csr: true }],
+	['hole on a csr=true page', [{ ...HOLE, ogygiaFallback: snippet('<p>wait</p>') }], { csr: true }],
+	[
+		'hole in a live snippet, created fresh: its fallback reads the page contexts',
+		[{ ...HOLE, ogygiaFallback: probe_fallback }],
+		{ nested: true, live_snippet: true, context: ['probe', 'page-value'] }
+	],
+	[
+		'held live value written to the frame store',
+		[{ of: written(deferred({ html: '<b>live</b>' }), { v: 7, d: 2 }) }]
 	]
 ];
 
@@ -178,3 +208,52 @@ for (const [name, regions, place] of CASES)
 	test(name, async () => {
 		expect(await out(regions, place)).toMatchSnapshot();
 	});
+
+/** Mount one region, then hand it each next set of props: the `<ogygia-region>` after each. */
+async function elements_over(first: Props, ...next: Props[]): Promise<Array<Element | null>> {
+	const target = document.body.appendChild(document.createElement('div'));
+	const app = mount(RegionSet as unknown as Component<{ first: Props }>, {
+		target,
+		props: { first }
+	}) as { set: (r: Props) => void };
+	flushSync();
+	const seen = [target.querySelector('ogygia-region')];
+	for (const r of next) {
+		app.set(r);
+		flushSync();
+		seen.push(target.querySelector('ogygia-region'));
+	}
+	await unmount(app);
+	return seen;
+}
+
+test('a held deferred value with the same id and props keeps its element', async () => {
+	const [a, b] = await elements_over({ of: deferred() }, { of: deferred() });
+	expect(a).not.toBeNull();
+	expect(b).toBe(a);
+});
+
+test('a held deferred value with other props is a new element', async () => {
+	const [a, b] = await elements_over({ of: deferred() }, { of: deferred({ props: { h: 2 } }) });
+	expect(b).not.toBeNull();
+	expect(b).not.toBe(a);
+	expect(b!.getAttribute('endpoint')).toBe('/__ogygia__?id=held-a');
+});
+
+test('a held deferred value with another id is a new element at its own address', async () => {
+	const [a, b] = await elements_over(
+		{ of: deferred() },
+		{ of: deferred({ id: 'held-b', url: '/__ogygia__?id=held-b' }) }
+	);
+	expect(b).not.toBe(a);
+	expect(b!.getAttribute('endpoint')).toBe('/__ogygia__?id=held-b');
+});
+
+test('a held live value hands each new value to its element, which stays', async () => {
+	const [a, b] = await elements_over(
+		{ of: deferred({ html: '<b>one</b>' }) },
+		{ of: deferred({ html: '<b>two</b>' }) }
+	);
+	expect(b).toBe(a);
+	expect(lived.map((v) => (v as { html: string }).html)).toEqual(['<b>one</b>', '<b>two</b>']);
+});

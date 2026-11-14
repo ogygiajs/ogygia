@@ -31,6 +31,9 @@ import { set_request_event_stub } from '../_stubs/server.request-event.ts';
 import { csr_true_routes } from '../_stubs/server.route-csr.ts';
 import WokenHoleCard from './fixtures/WokenHoleCard.svelte';
 import { hole_answer_context } from '../../src/server/answer-context.ts';
+import RegionUnder from '../_fixtures/RegionUnder.svelte';
+import { HYDRATE_CASES, place_setup } from './fixtures/hydrate-cases.ts';
+import { set_island_css } from '../_stubs/server.region-deps.ts';
 
 const COUNTER = '/test/browser/fixtures/Counter.svelte';
 const HEAVY = '/test/browser/fixtures/Heavy.svelte';
@@ -156,7 +159,39 @@ declare module 'vitest' {
 		/** LakeIslandPage: an interaction island (LakeIslandHost) holding a lake with a custom
 		 *  element in it — base64. */
 		lake_island_page_ssr_b64: string;
+		/** Each of `HYDRATE_CASES` rendered in its own request: `{ [name]: { head, body } }` as JSON —
+		 *  base64. */
+		region_hydrate_cases_b64: string;
 	}
+}
+
+/** Each hydrate case rendered as its own request renders it: a csr=true route where it says so. */
+function render_hydrate_cases(): Record<string, { head: string; body: string }> {
+	const out: Record<string, { head: string; body: string }> = {};
+	set_island_css({
+		'/islands/tiny.js': ['/islands/tiny.css'],
+		'/islands/dual.js': ['/islands/dual.css']
+	});
+	try {
+		for (const [name, regions, place] of HYDRATE_CASES) {
+			const route = place.csr ? '/kit' : '/plain';
+			const event = { route: { id: route }, request: new Request(`https://app.test${route}`) };
+			set_request_event_stub(() => event);
+			if (place.csr) csr_true_routes.add(route);
+			try {
+				const r = render(RegionUnder as unknown as Component<Record<string, unknown>>, {
+					props: { setup: place_setup(place), regions: regions() }
+				});
+				out[name] = { head: r.head, body: r.body };
+			} finally {
+				csr_true_routes.delete(route);
+				set_request_event_stub(null);
+			}
+		}
+	} finally {
+		set_island_css({});
+	}
+	return out;
 }
 
 /** SSR `comp` inside a request for a csr=true route, so Region takes its Kit-hydrated paths.
@@ -289,4 +324,5 @@ export default async function setup(project: TestProject) {
 		'lake_island_page_ssr_b64',
 		b64(render(LakeIslandPage as unknown as Component).body)
 	);
+	project.provide('region_hydrate_cases_b64', b64(JSON.stringify(render_hydrate_cases())));
 }

@@ -3,7 +3,7 @@
 // snippet, a lake's inside, csr=true and csr=false documents, Kit's page pass with its tail, an
 // error page, and dev and production. The build's answers (deps, sheets, locations, endpoints) are
 // stand-ins that name their inputs, so a change to what Region asks for shows in the output.
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, test, vi } from 'vitest';
 import { render } from 'svelte/server';
 import { setContext, type Component } from 'svelte';
 
@@ -34,17 +34,23 @@ const { set_request_event_stub } = await import('./_stubs/server.request-event.t
 const { csr_true_routes, error_csr_true_routes } = await import('./_stubs/server.route-csr.ts');
 const { setNested } = await import('../src/nested.ts');
 const { setInLake, setInLiveSnippet } = await import('../src/context.ts');
-const { KIT_REQUEST_CONTEXT, set_kit_event_reader } = await import('../src/server/kit-context.ts');
+const { KIT_REQUEST_CONTEXT, set_kit_event_reader, set_render_page_port } =
+	await import('../src/server/kit-context.ts');
+const { og_portable, hole_slot_sequence, HOLE_SLOT_SEQUENCE } =
+	await import('../src/region-snippet.ts');
+const { default: SnippetProp } = await import('./_fixtures/SnippetProp.svelte');
 const { DocumentTail, set_tail_reader } = await import('../src/server/document-tail.ts');
 const { page } = await import('./_stubs/app-state.ts');
 const deps = await import('./_stubs/server.region-deps.ts');
 
+const LIVE_ENTRY = '/_app/ogygia/og-region.abc123.js';
 const ENTRIES = [
 	'/islands/tiny.js',
 	'/islands/host.js',
 	'/islands/dual.js',
 	'/islands/hole.js',
-	'/islands/held.js'
+	'/islands/held.js',
+	LIVE_ENTRY
 ];
 beforeAll(() => {
 	deps.set_island_deps(
@@ -101,6 +107,7 @@ const deferred = (extra: Props = {}) => ({
 	module: '',
 	...extra
 });
+const live = () => og_portable(snippet('<u>live</u>') as never, Tiny, { k: 1 }, LIVE_ENTRY);
 const inline = (extra: Props = {}) => ({
 	[REGION_BRAND]: true,
 	kind: 'inline',
@@ -120,6 +127,8 @@ type Place = {
 	error?: boolean;
 	building?: boolean;
 	warn?: boolean;
+	hole_answer?: boolean;
+	page_version?: boolean;
 };
 
 const { default: RegionUnder } = await import('./_fixtures/RegionUnder.svelte');
@@ -130,6 +139,7 @@ const setup = (place: Place) => (): void => {
 	if (place.in_lake) setInLake();
 	if (place.kit_pass) setContext(KIT_REQUEST_CONTEXT, { page: {} });
 	if (place.ogygia_root) setContext(KIT_REQUEST_CONTEXT, { page: {}, event: {} });
+	if (place.hole_answer) setContext(HOLE_SLOT_SEQUENCE, hole_slot_sequence('abcdef0123'));
 };
 
 let tail: InstanceType<typeof DocumentTail> | null = null;
@@ -137,6 +147,7 @@ afterEach(() => {
 	set_request_event_stub(null);
 	set_tail_reader(null);
 	set_kit_event_reader(null);
+	set_render_page_port(null);
 	csr_true_routes.clear();
 	error_csr_true_routes.clear();
 	page.error = null;
@@ -162,6 +173,8 @@ function out(regions: Props[], place: Place = {}): string {
 		const t = tail;
 		set_tail_reader(() => t);
 	}
+	if (place.page_version)
+		set_render_page_port({ ready: () => {}, tail: () => '', version: (id) => `&pv=${id}` });
 	const events: unknown[] = [];
 	const records: unknown[] = [];
 	set_server_devtools_recorder((e) => events.push(e));
@@ -181,6 +194,7 @@ function out(regions: Props[], place: Place = {}): string {
 	const parts = [`<!-- head -->${r.head}`, `<!-- body -->${r.body}`];
 	if (tail) parts.push(`<!-- tail -->${tail.render(null, true)}`);
 	if (tail) parts.push(`<!-- tail holes -->${JSON.stringify(tail.hole_rows())}`);
+	if (tail) parts.push(`<!-- tail islands -->${JSON.stringify(tail.island_rows())}`);
 	parts.push(`<!-- early holes -->${take_early_holes(event.request).join(' ')}`);
 	parts.push(`<!-- page records -->${JSON.stringify(records)}`);
 	parts.push(`<!-- devtools -->${JSON.stringify(events)}`);
@@ -358,7 +372,33 @@ const CASES: Array<[name: string, regions: Props[], place?: Place]> = [
 		],
 		{ kit_pass: true }
 	],
-	['nothing held', [{}]]
+	['nothing held', [{}]],
+	[
+		'island rendering a snippet prop',
+		[{ ...ISLAND, __component: SnippetProp, __props: { s: snippet('<u>s</u>') } }]
+	],
+	[
+		'island nested in an island, rendering a snippet prop',
+		[{ ...ISLAND, __component: SnippetProp, __props: { s: snippet('<u>s</u>') } }],
+		{ nested: true }
+	],
+	[
+		'island on a csr=true page, rendering a snippet prop',
+		[{ ...ISLAND, __component: SnippetProp, __props: { s: snippet('<u>s</u>') } }],
+		{ csr: true }
+	],
+	['island with a live snippet prop', [{ ...ISLAND, __props: { s: live() } }]],
+	[
+		'island with a live snippet prop, in Kit page pass',
+		[{ ...ISLAND, __props: { s: live() } }],
+		{ kit_pass: true }
+	],
+	[
+		'island with children, in a hole answer',
+		[{ ...ISLAND, children: snippet('<i>kid</i>') }],
+		{ hole_answer: true }
+	],
+	['hole rendered for a page', [HOLE], { page_version: true }]
 ];
 
 for (const dev of [true, false])
@@ -395,3 +435,26 @@ for (const dev of [true, false])
 				}
 			});
 	});
+
+test("in Kit's page pass, a page with an island three times asks the build for its graph once", () => {
+	vi.spyOn(console, 'warn').mockImplementation(() => {});
+	const asked: string[] = [];
+	const known = Object.fromEntries(ENTRIES.map((e) => [e, [`${e}~dep-a.js`]]));
+	deps.set_island_deps(
+		new Proxy(known, {
+			get: (map, key) => {
+				if (typeof key === 'string') asked.push(key);
+				return map[key as string];
+			}
+		})
+	);
+	try {
+		out([ISLAND, ISLAND, { ...ISLAND, idle: true }], { kit_pass: true });
+	} finally {
+		deps.set_island_deps(
+			Object.fromEntries(ENTRIES.map((e) => [e, [`${e}~dep-a.js`, `${e}~dep-b.js`]]))
+		);
+		vi.restoreAllMocks();
+	}
+	expect(asked.filter((k) => k === ISLAND.__entry)).toEqual([ISLAND.__entry]);
+});
