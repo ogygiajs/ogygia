@@ -28,10 +28,13 @@ const frame_id = (a: string): string => `frame:${a}`;
 
 const REFUSED = 'RegionAnswerRefused';
 
-/** A refused answer nobody asked for yet (the page's early start: ./early-holes.ts), held at its
+const is_refusal = (err: unknown): err is Error =>
+	(err as { name?: string } | null)?.name === REFUSED;
+
+/** A refused answer no caller heard yet (the page's early start: ./early-holes.ts), held at its
  *  address for the first caller that asks there (see `Entry.refused`). Any other failure is not. */
 export function hold_refusal(a: string, err: unknown): void {
-	if ((err as { name?: string } | null)?.name === REFUSED) entry(a).refused = err as Error;
+	if (is_refusal(err)) entry(a).refused = err;
 }
 
 type FrameAsk = { a: string; work: FrameFetcher | Promise<VerifiedHtml | Stale> };
@@ -166,7 +169,13 @@ async function fetch_frame(
 	flight: InFlight
 ): Promise<VerifiedHtml> {
 	const t = stamp();
-	const html = await fetcher(signal, flight);
+	let html: VerifiedHtml;
+	try {
+		html = await fetcher(signal, flight);
+	} catch (err) {
+		hold_refusal(a, err);
+		throw err;
+	}
 	if (!signal.aborted) write({ a, v: t, html });
 	const e = store().entries.peek(a);
 	return (e && shown_of(e)?.html) ?? html;
@@ -264,6 +273,19 @@ export function reserve(a: string): void {
 }
 
 /**
+ * Start the flight at an address for no caller yet (the page's early start: ./early-holes.ts): a
+ * hole that asks there joins it. `signal` ends it if nobody joined before. A refusal it gets that no
+ * caller heard waits at the address for the first one that asks (`Entry.refused`); a caller that
+ * joined heard it, and asks again past it. No-op if content or a fetch is already present.
+ */
+export function start(a: string, fetcher: FrameFetcher, signal: AbortSignal): void {
+	const e = entry(a);
+	if (shown_of(e) !== null || flying(a)) return;
+	const settled = () => schedule_evict(a, e);
+	store().flights.get({ a, work: fetcher }, { signal }).then(settled, settled);
+}
+
+/**
  * Miss an unfulfilled batch part (the batch ended and no frame was written at this address, by it or
  * by anyone): joined binders ask again in `ensure()`, and their own fetch runs (nothing failed, the
  * batch just did not carry it). No-op once a frame has landed.
@@ -304,7 +326,8 @@ export function subscribe(a: string, cb: (f: StoredFrame) => void): () => void {
  * `signal` is the caller's: when it aborts, this caller alone gets `STALE` at once, and the shared
  * fetch is aborted only once its LAST caller left — one unmounting element must not kill a fetch
  * its twin still awaits. Rejections propagate to every joined caller; retry policy stays with the
- * caller (the element).
+ * caller (the element). A refusal is held at the address only until a caller hears it: one handed
+ * to a caller through its flight is not handed to it again when it asks once more.
  *
  * `priority` is how soon this caller needs it (its load class, ./load-class.ts): a fetch out at a
  * lower one, a warm still waiting for a background turn, is raised to it, never lowered.
@@ -325,7 +348,13 @@ export async function ensure(
 			const refused = e.refused;
 			e.refused = null;
 			if (!fresh && refused !== null) throw refused;
-			const html = await st.flights.get({ a, work: fetcher }, { signal, fresh, priority });
+			let html: VerifiedHtml | Stale;
+			try {
+				html = await st.flights.get({ a, work: fetcher }, { signal, fresh, priority });
+			} catch (err) {
+				if (e.refused === err) e.refused = null;
+				throw err;
+			}
 			if (html !== STALE || signal?.aborted || st.life.closed) return html;
 			fresh = false;
 		}
