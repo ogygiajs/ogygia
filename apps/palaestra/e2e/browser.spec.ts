@@ -14,12 +14,12 @@ test.describe('hydration, load/idle/visible/media, devalue, SPA', () => {
 
 		const counter = page.locator('[data-counter] button').first();
 		await counter.waitFor();
-		check('home: counter SSR text', (await counter.textContent()).includes('count is 10'));
+		check('home: counter SSR text', (await counter.textContent())!.includes('count is 10'));
 		await counter.click();
 		await counter.click();
 		check(
 			'home: counter hydrated & interactive',
-			(await counter.textContent()).includes('count is 12')
+			(await counter.textContent())!.includes('count is 12')
 		);
 
 		// visible strategy: below-fold island NOT hydrated until scrolled into view.
@@ -38,24 +38,24 @@ test.describe('hydration, load/idle/visible/media, devalue, SPA', () => {
 		const dv = page.locator('[data-devalue]');
 		check(
 			'home: devalue island Date instanceof true (client)',
-			(await dv.locator('[data-date]').textContent()).includes('instanceof Date: true')
+			(await dv.locator('[data-date]').textContent())!.includes('instanceof Date: true')
 		);
 		await dv.locator('button').click();
 		check(
 			'home: devalue island hydrated (button works)',
-			(await dv.locator('button').textContent()).includes('revived? true')
+			(await dv.locator('button').textContent())!.includes('revived? true')
 		);
 		check(
 			'home: devalue Map revived (client)',
-			(await dv.locator('[data-map]').textContent()).includes('instanceof Map: true')
+			(await dv.locator('[data-map]').textContent())!.includes('instanceof Map: true')
 		);
 		check(
 			'home: devalue Set revived (client)',
-			(await dv.locator('[data-set]').textContent()).includes('instanceof Set: true')
+			(await dv.locator('[data-set]').textContent())!.includes('instanceof Set: true')
 		);
 		check(
 			'home: devalue BigInt revived (client)',
-			(await dv.locator('[data-big]').textContent()).includes('typeof bigint')
+			(await dv.locator('[data-big]').textContent())!.includes('typeof bigint')
 		);
 
 		const vis = page.locator('[data-visible-island]');
@@ -96,7 +96,7 @@ test.describe('hydration, load/idle/visible/media, devalue, SPA', () => {
 		await lazyBtn.click();
 		check(
 			'home: per-use strategy (same module, visible) hydrated & interactive',
-			COUNT_100_RE.test(await lazyBtn.textContent())
+			COUNT_100_RE.test((await lazyBtn.textContent())!)
 		);
 	});
 
@@ -179,7 +179,7 @@ test.describe('hydration, load/idle/visible/media, devalue, SPA', () => {
 		// mode (a) resolved at SSR — the resolved data is in the served HTML.
 		check(
 			'data: mode (a) resolved greeting present (SSR)',
-			(await page.locator('[data-resolved-greeting]').textContent()).includes('Hello, world!')
+			(await page.locator('[data-resolved-greeting]').textContent())!.includes('Hello, world!')
 		);
 		// The /data islands DO hydrate (their custom elements connect).
 		await sleep(400);

@@ -24,17 +24,17 @@ test.describe('page.url/params/route/status/data/form/error/state in islands', (
 		await sleep(300);
 
 		const probe = page.locator('[data-pageurl-probe]');
-		const pathname = (await probe.locator('[data-pathname]').textContent()).trim();
-		const href = (await probe.locator('[data-href]').textContent()).trim();
-		const search = (await probe.locator('[data-search]').textContent()).trim();
-		const host = (await probe.locator('[data-host]').textContent()).trim();
-		const paramId = (await probe.locator('[data-param-id]').textContent()).trim();
-		const routeId = (await probe.locator('[data-route-id]').textContent()).trim();
-		const status = (await probe.locator('[data-status]').textContent()).trim();
-		const dataKeys = (await probe.locator('[data-data-keys]').textContent()).trim();
-		const form = (await probe.locator('[data-form]').textContent()).trim();
-		const error = (await probe.locator('[data-error]').textContent()).trim();
-		const stateType = (await probe.locator('[data-state-type]').textContent()).trim();
+		const pathname = (await probe.locator('[data-pathname]').textContent())!.trim();
+		const href = (await probe.locator('[data-href]').textContent())!.trim();
+		const search = (await probe.locator('[data-search]').textContent())!.trim();
+		const host = (await probe.locator('[data-host]').textContent())!.trim();
+		const paramId = (await probe.locator('[data-param-id]').textContent())!.trim();
+		const routeId = (await probe.locator('[data-route-id]').textContent())!.trim();
+		const status = (await probe.locator('[data-status]').textContent())!.trim();
+		const dataKeys = (await probe.locator('[data-data-keys]').textContent())!.trim();
+		const form = (await probe.locator('[data-form]').textContent())!.trim();
+		const error = (await probe.locator('[data-error]').textContent())!.trim();
+		const stateType = (await probe.locator('[data-state-type]').textContent())!.trim();
 
 		check(
 			'page.url.pathname is non-empty inside island',
@@ -69,8 +69,8 @@ test.describe('page.url/params/route/status/data/form/error/state in islands', (
 				{ timeout: 5000 }
 			)
 			.catch(() => {});
-		const pathname2 = (await probe.locator('[data-pathname]').textContent()).trim();
-		const paramId2 = (await probe.locator('[data-param-id]').textContent()).trim();
+		const pathname2 = (await probe.locator('[data-pathname]').textContent())!.trim();
+		const paramId2 = (await probe.locator('[data-param-id]').textContent())!.trim();
 		check(
 			'SPA nav updates page.url.pathname inside island',
 			pathname2 === '/dashboard/orders/6',

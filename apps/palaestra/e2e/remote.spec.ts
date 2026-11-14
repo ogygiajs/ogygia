@@ -38,7 +38,7 @@ test.describe('client query+args+refresh, command, live', () => {
 			.catch(() => {});
 		check(
 			'mode (a): resolved greeting present',
-			(await page.locator('[data-resolved-greeting]').textContent()).includes('Hello, world!')
+			(await page.locator('[data-resolved-greeting]').textContent())!.includes('Hello, world!')
 		);
 
 		// SSR mode (b): pending boundary -> resolves AFTER hydration with fetched data (client query).
@@ -52,7 +52,7 @@ test.describe('client query+args+refresh, command, live', () => {
 		check(
 			'mode (b): pending boundary resolved after hydration (client query fetch)',
 			(await page.locator('[data-pending-greeting]').count()) === 1 &&
-				(await page.locator('[data-pending-greeting]').textContent()).includes('Hello, lazily!')
+				(await page.locator('[data-pending-greeting]').textContent())!.includes('Hello, lazily!')
 		);
 
 		// query with reactive .current
@@ -66,9 +66,9 @@ test.describe('client query+args+refresh, command, live', () => {
 				{ timeout: 6000 }
 			)
 			.catch(() => {});
-		const currentText = (
-			await page.locator('[data-remote-counter] [data-current]').textContent()
-		).trim();
+		const currentText = (await page
+			.locator('[data-remote-counter] [data-current]')
+			.textContent())!.trim();
 		check(
 			'query: reactive .current populated from client fetch',
 			REACTIVE_CURRENT_RE.test(currentText),
@@ -77,7 +77,7 @@ test.describe('client query+args+refresh, command, live', () => {
 
 		// command mutates server state; query.refresh() shows the change (reactive .current++)
 		const before = Number(
-			(await page.locator('[data-remote-counter] [data-current]').textContent()).replace(
+			(await page.locator('[data-remote-counter] [data-current]').textContent())!.replace(
 				NON_DIGIT_G_RE,
 				''
 			)
@@ -96,7 +96,7 @@ test.describe('client query+args+refresh, command, live', () => {
 			)
 			.catch(() => {});
 		const after = Number(
-			(await page.locator('[data-remote-counter] [data-current]').textContent()).replace(
+			(await page.locator('[data-remote-counter] [data-current]').textContent())!.replace(
 				NON_DIGIT_G_RE,
 				''
 			)
@@ -125,7 +125,7 @@ test.describe('client query+args+refresh, command, live', () => {
 			)
 			.catch(() => {});
 		const after3 = Number(
-			(await page.locator('[data-remote-counter] [data-current]').textContent()).replace(
+			(await page.locator('[data-remote-counter] [data-current]').textContent())!.replace(
 				NON_DIGIT_G_RE,
 				''
 			)
@@ -137,9 +137,9 @@ test.describe('client query+args+refresh, command, live', () => {
 		);
 
 		// query.live: streaming updates the reactive current over time
-		const tick1 = (await page.locator('[data-live-current]').textContent()).trim();
+		const tick1 = (await page.locator('[data-live-current]').textContent())!.trim();
 		await sleep(1300);
-		const tick2 = (await page.locator('[data-live-current]').textContent()).trim();
+		const tick2 = (await page.locator('[data-live-current]').textContent())!.trim();
 		check(
 			'query.live: SSE stream updates reactive current',
 			tick1 !== tick2 && ISO_STAMP_RE.test(tick2),

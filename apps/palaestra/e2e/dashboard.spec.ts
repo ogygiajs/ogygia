@@ -16,15 +16,15 @@ test.describe('page shim, island goto, client table, chart', () => {
 		const od = page.locator('[data-orderdetail]');
 		check(
 			'orderdetail: page.params.id via shim',
-			(await od.locator('h2').textContent()).includes('Order #5')
+			(await od.locator('h2').textContent())!.includes('Order #5')
 		);
 		check(
 			'orderdetail: page.data Date survived to client',
-			(await od.locator('[data-created]').textContent()).includes('2024-01-01T14:34:15')
+			(await od.locator('[data-created]').textContent())!.includes('2024-01-01T14:34:15')
 		);
 		check(
 			'orderdetail: page.data Map survived to client',
-			LINE_ITEMS_MAP_RE.test(await od.locator('[data-lineitems]').textContent())
+			LINE_ITEMS_MAP_RE.test((await od.locator('[data-lineitems]').textContent())!)
 		);
 		check(
 			'orderdetail: no page errors from $app/state shim',
@@ -36,7 +36,7 @@ test.describe('page shim, island goto, client table, chart', () => {
 		const probe = page.locator('[data-pagedata-probe]');
 		check(
 			'pagedata-probe: $derived over page.* present at #5',
-			(await probe.textContent()).includes('#5')
+			(await probe.textContent())!.includes('#5')
 		);
 
 		// prev/next SPA nav updates the page-shim island content
@@ -48,7 +48,7 @@ test.describe('page shim, island goto, client table, chart', () => {
 		);
 		check(
 			'orderdetail: SPA nav to #6 updates page-shim island',
-			(await od.locator('h2').textContent()).includes('Order #6')
+			(await od.locator('h2').textContent())!.includes('Order #6')
 		);
 		// remount after SPA nav -> the island's $derived recomputes fresh from the $state shim
 		await page
@@ -59,7 +59,7 @@ test.describe('page shim, island goto, client table, chart', () => {
 			.catch(() => {});
 		check(
 			'pagedata-probe: $derived over page.data updates after SPA nav to #6 (remount -> fresh)',
-			(await probe.textContent()).includes('#6')
+			(await probe.textContent())!.includes('#6')
 		);
 		check(
 			'orderdetail: SPA nav kept the document stamp (no reload)',
@@ -114,7 +114,7 @@ test.describe('page shim, island goto, client table, chart', () => {
 		const meta = await page.locator('[data-orders-meta]').textContent();
 		check(
 			'filterbar: server re-rendered filtered list (status shipped)',
-			STATUS_SHIPPED_RE.test(meta)
+			STATUS_SHIPPED_RE.test(meta!)
 		);
 		check(
 			'orders: no page errors from $app/navigation shim',

@@ -97,7 +97,7 @@ export const test = base.extend<{ server_rules: void }>({
 /** A named soft assertion. `extra` (a measured value, a snippet) rides in the failure message.
  *  Every check in a test runs, each failure is reported, and the test fails once at the end: the
  *  shape of the PASS/FAIL scripts the specs replaced, with Playwright's report and traces around it. */
-export function check(name: string, cond: unknown, extra = ''): void {
+export function check(name: string, cond: unknown, extra: string | null = ''): void {
 	expect.soft(!!cond, extra ? `${name} — ${extra}` : name).toBe(true);
 }
 
