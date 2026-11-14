@@ -11,7 +11,11 @@ export const region_css = (entry: string): string[] => css_by_entry[entry] ?? []
 export function set_island_css(map: Record<string, string[]>) {
 	css_by_entry = map;
 }
-export const content_css = (_id: string): string[] => [];
+let css_by_content: Record<string, string[]> = {};
+export const content_css = (id: string): string[] => css_by_content[id] ?? [];
+export function set_content_css(map: Record<string, string[]>) {
+	css_by_content = map;
+}
 // (null = link it)
 let inline_css: Record<string, string> = {};
 export const region_css_inline = (href: string): string | null =>

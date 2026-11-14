@@ -58,3 +58,20 @@ test('a promise replaced before it lands never shows: the newer one wins', async
 	await unmount(app);
 	target.remove();
 });
+
+test('a promise replaced before it rejects never fails the region: the newer one stays', async () => {
+	const target = document.body.appendChild(document.createElement('div'));
+	const old = Promise.withResolvers<RegionValue>();
+	const app = mount(PromiseSwapHost, {
+		target,
+		props: { held: PromiseRegion, first: old.promise }
+	}) as { swap: (next: Promise<RegionValue>) => void };
+	flushSync();
+	app.swap(Promise.resolve(og_html_region('<b>new</b>')));
+	await settle();
+	old.reject(new Error('late'));
+	await settle();
+	expect(target.textContent).toBe('new');
+	await unmount(app);
+	target.remove();
+});
