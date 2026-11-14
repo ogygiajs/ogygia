@@ -287,6 +287,42 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 ---
 
+## KIT-CLIENT-BUILD — a csr=false-only app still gets Kit's client build
+
+**What:** When every route node is `csr = false`, SvelteKit skips its client build, and the islands then have no `_app/immutable` output, no client manifest and no runtime to load. The compiler predicts Kit's skip with Kit's own rule (`clientBuildWillSkip` in packages/compiler/src/kit.ts: a node is `csr = false` by its option chain) and, when Kit would skip, injects a hidden `csr = true` route (`KEEP_CLIENT_DIR`) for the build, removed after. A worker build (Kit's analyse and prerender) neither injects it nor sweeps it.
+
+**Why:** Kit's skip is Kit's private build logic, not a promise. If the rule changes (another condition, another place), the prediction goes wrong without a word: either the keep-alive route is missing and a csr=false-only app ships islands with no client, or it is injected where it is not needed.
+
+**Do not:** Predict the skip by any other rule than Kit's, or keep the injected route after the build.
+
+**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > skips its client build exactly when every route node is csr=false`, `packages/compiler/test/csr-skip.test.ts > every node explicitly csr=false (layout AND pages) → skip (the adapters-fixture shape)`, `packages/compiler/test/csr-skip.test.ts > the injected keepalive dir is invisible to the prediction`, `packages/compiler/test/keep-client-worker.test.ts`, `apps/palaestra/e2e/adapters.spec.ts` (a built csr=false-only app loads its runtime on every adapter)
+
+---
+
+## KIT-CSR-FALSE-ASSETS — a csr=false page links the CSS of what it rendered
+
+**What:** SvelteKit links every route node's client `stylesheets` and `modulepreload`s from the node's CLIENT module graph, on csr=false pages too. A region host that imports many marked components (a block registry) would put every one of their sheets in the page's head, rendered or not. The compiler stubs a region host's client imports (packages/compiler/src/region/emit.ts, the render-nothing registry stubs), so the client graph holds only what the page placed, and the rendered islands' CSS reaches the page through the region-CSS channel.
+
+**Why:** Kit's linking is Kit's private render logic. If Kit starts linking by what the server rendered, the stubs become unneeded; if it starts linking more (another graph), unrendered CSS lands on the page again and first paint slows.
+
+**Do not:** Let a region host's client import reach Kit's client graph whole.
+
+**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > links every route node's client stylesheets and preloads, csr=false or not`, `apps/palaestra/e2e/head-budget.spec.ts > SSR: linked stylesheets carry the rendered islands only, within budget`, `apps/palaestra/e2e/head-budget.spec.ts > SSR: a registry behind a plain helper module gets the same treatment`
+
+---
+
+## KIT-CONFIG — the Kit options the compiler reads
+
+**What:** The compiler reads `kit.files.routes`, `kit.outDir`, `kit.appDir` and `kit.inlineStyleThreshold` from the app's config (`svelte.config.js` on Kit 2, the `sveltekit()` plugin options on Kit 3), each with Kit's default when unset, and says `kit_config_unreadable` when the config throws as it loads.
+
+**Why:** These are Kit's public options, but their place (Kit 3 moved them) and their defaults are Kit's. A renamed or moved option read with the old name falls back to the default without a word, and the compiler then scans the wrong routes or writes to the wrong dir.
+
+**Do not:** Read a Kit option without a default that matches Kit's, or from one place only.
+
+**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > has the config options the compiler reads`, `packages/compiler/test/kit-dirs.test.ts > reads both from svelte.config.js and resolves them against the root`, `packages/compiler/test/kit-dirs.test.ts > off Kit's own plugin: Kit 3's options at the top (vite.config only), Kit 2's under`, `packages/compiler/test/kit-dirs.test.ts > Kit's inlineStyleThreshold is read for the region CSS too`
+
+---
+
 ## Related docs
 
 - Product vocabulary: [`DESIGN.md`](./DESIGN.md)
