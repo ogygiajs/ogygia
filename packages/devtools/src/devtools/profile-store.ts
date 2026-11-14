@@ -126,9 +126,8 @@ export async function run_profile(
 			const j = JSON.parse(text) as { error?: unknown; message?: unknown };
 			said =
 				typeof j.error === 'string' ? j.error : typeof j.message === 'string' ? j.message : text;
-		} catch {
-			// ok: not JSON: the text itself is said
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not JSON: the text itself is said
+		} catch {}
 		throw new Error(
 			r.status === 503
 				? said.slice(0, 600)
@@ -195,7 +194,8 @@ export function slim_profile(r: WireRecord): SlimProfile {
 	return {
 		id: String(r?.id ?? ''),
 		page: String(target.page ?? ''),
-		at: num(r?.created) ?? Date.now(), // wall: a stored profile's epoch time
+		// oxlint-disable-next-line ogygia/ports -- a stored profile's epoch time
+		at: num(r?.created) ?? Date.now(),
 		runs,
 		render_ms: Math.round(median(runs) * 10) / 10,
 		...(typeof target.cache_control === 'string' && target.cache_control
@@ -411,9 +411,8 @@ function load(): void {
 		const raw = sessionStorage.getItem(KEY);
 		const list = raw ? (JSON.parse(raw) as SlimProfile[]) : [];
 		for (const p of list) if (p && p.page) by_page.set(p.page, p);
-	} catch {
-		// ok: private mode or quota: memory only
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- private mode or quota: memory only
+	} catch {}
 }
 
 export function set_profile(p: SlimProfile): void {
@@ -428,9 +427,8 @@ export function set_profile(p: SlimProfile): void {
 			.sort((a, b) => b.at - a.at)
 			.slice(0, STORED);
 		sessionStorage.setItem(KEY, JSON.stringify(list));
-	} catch {
-		// ok: no storage: memory only
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no storage: memory only
+	} catch {}
 }
 
 export function profile_for(page: string): SlimProfile | null {

@@ -49,8 +49,7 @@ const dim = color.dim;
 // ── argv ─────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2);
 const command = argv[0];
-// static: the command line's flags, read once when the command starts
-const flags = new Set(argv.slice(1).filter((a) => a.startsWith('-')));
+const flags: ReadonlySet<string> = new Set(argv.slice(1).filter((a) => a.startsWith('-')));
 
 if (
 	command !== 'init' &&
@@ -837,8 +836,9 @@ function globHasSvx(dir: string): boolean {
 		let entries;
 		try {
 			entries = readdirSync(d, { withFileTypes: true });
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a folder that cannot be read adds nothing to the walk
 		} catch {
-			continue; // ok: a folder that cannot be read adds nothing to the walk
+			continue;
 		}
 		for (const e of entries) {
 			if (e.isDirectory()) stack.push(path.join(d, e.name));

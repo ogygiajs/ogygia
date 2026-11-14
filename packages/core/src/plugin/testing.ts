@@ -1,7 +1,7 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { KitRequestStore } from '../server/kit-request-store.ts';
 import type { RequestContext, ServerApp, ServerPlugin } from './index.ts';
-// port-ok: a test helper's own key, made once per test process (never a running app's)
+// oxlint-disable-next-line ogygia/ports -- a test helper's own key, made once per test process (never a running app's)
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { facts_of } from './facts.ts';
 import { LivePlugins, request_contexts, type AppSigner } from './server.ts';

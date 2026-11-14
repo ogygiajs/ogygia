@@ -335,16 +335,16 @@ export function seed_key_bytes(seed_json: string): Record<string, number> {
 		const out: Record<string, number> = {};
 		for (const [k, v] of Object.entries(inner)) out[k] = JSON.stringify(v)?.length ?? 0;
 		return out;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a seed that does not parse has no key sizes to show
 	} catch {
-		return {}; // ok: a seed that does not parse has no key sizes to show
+		return {};
 	}
 }
 
 /** devalue's typed arrays: `["Date", "…"]`, `["Map", i, j…]`, `["Set", i…]`, `["Object", i]`,
  *  `["RegExp", …]`, `["BigInt", …]`, `["null"]` — the first element names the type, the rest are
  *  indices for the container kinds and plain values for the others */
-// static: a fixed list of devalue's container kinds
-const DEVALUE_CONTAINERS = new Set(['Map', 'Set', 'Object', 'Array']);
+const DEVALUE_CONTAINERS: ReadonlySet<string> = new Set(['Map', 'Set', 'Object', 'Array']);
 
 function devalue_key_bytes(nodes: unknown[]): Record<string, number> {
 	const root = nodes[0] as Record<string, unknown>;

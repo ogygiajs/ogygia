@@ -115,9 +115,8 @@ function release_departed(map: Map<string, Map<string, RemoteEntry>>) {
 			if (!departed(entry)) continue;
 			try {
 				entry.resource?.destroy?.();
-			} catch {
-				// ok: already torn down, which is what this was for
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- already torn down, which is what this was for
+			} catch {}
 			entries.delete(payload);
 		}
 		if (entries.size === 0) map.delete(id);

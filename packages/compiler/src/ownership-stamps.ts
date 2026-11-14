@@ -84,8 +84,9 @@ export function opaque_stamp_edits(source: string, filename: string): Edit[] {
 	let ast: Node;
 	try {
 		ast = parse(blank_styles(source), { modern: true, filename }) as unknown as Node;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no stamps is the safe answer (under); Svelte's own compile reports the syntax
 	} catch {
-		return []; // ok: no stamps is the safe answer (under); Svelte's own compile reports the syntax
+		return [];
 	}
 	const at: { pos: number; attr: string }[] = [];
 	const visit = (nodes: Node[] | undefined) => {

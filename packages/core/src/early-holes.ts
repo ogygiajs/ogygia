@@ -42,9 +42,10 @@ export function start_early_holes(id: string, key: string): void {
 		if (asked.has(url)) continue;
 		asked.add(url);
 		const controller = new AbortController();
-		// port-ok: this function's source is an inline head script (no imports, a fixed CSP hash)
+		// oxlint-disable-next-line ogygia/ports -- this function's source is an inline head script (no imports, a fixed CSP hash)
 		const response = fetch(url, { credentials: 'same-origin', signal: controller.signal });
-		response.catch(() => {}); // ok: the runtime says the failure when it takes the request over
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the runtime says the failure when it takes the request over
+		response.catch(() => {});
 		parked.push({ url, response, controller });
 	}
 	(globalThis as Record<symbol, unknown>)[Symbol.for(key)] = parked;

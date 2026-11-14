@@ -41,11 +41,11 @@ export type CtxLike = {
 	visitor?: (Record<string, unknown> & { sub?: string; vid?: string }) | undefined;
 };
 
-/** Written by an upstream shell's identity hop (the fragment feature); absent = the tier is skipped. */
 const BOOL_VARIANT: ReadonlyMap<unknown, string> = new Map([
 	[true, 'on'],
 	[false, 'off']
 ]);
+/** Written by an upstream shell's identity hop (the fragment feature); absent = the tier is skipped. */
 const CLAIMS = Symbol.for('ogygia.claims');
 /** Per-request source resolution, cached on the Request (GC'd with it): its {@link Prime}. */
 const RESOLVED = Symbol.for('ogygia.flags.resolved');
@@ -221,17 +221,19 @@ function emit_exposure(e: ExposureEvent): void {
 	const now = _exposures.now;
 	if (now.kind === 'buffering') {
 		now.queue.push(e);
-		if (now.queue.length >= _batch.max) void send(); // ok: send never rejects (a sink failure is said as flags_exposure_failed)
+		// oxlint-disable-next-line ogygia/no-silent-failures -- send never rejects (a sink failure is said as flags_exposure_failed)
+		if (now.queue.length >= _batch.max) void send();
 		return;
 	}
 	_exposures.go('buffering', { queue: [e] });
 	if (_batch.max <= 1) {
-		void send(); // ok: send never rejects
+		// oxlint-disable-next-line ogygia/no-silent-failures -- send never rejects
+		void send();
 		return;
 	}
 	// the age cap, for this visit of `buffering` only: a send or a flush clears it
-	// oxlint-disable-next-line ogygia/owned-effects -- the buffering visit's (its scope clears it, below), but a bare timer: it holds the process open until the queued exposures are sent, which a scope's timer does not
-	const timer = timers.keep(() => void send(), _batch.ms); // ok: send never rejects
+	// oxlint-disable-next-line ogygia/owned-effects, ogygia/no-silent-failures -- the buffering visit's (its scope clears it, below), but a bare timer: it holds the process open until the queued exposures are sent, which a scope's timer does not; send never rejects
+	const timer = timers.keep(() => void send(), _batch.ms);
 	_exposures.scope.defer(() => timers.cancel(timer));
 }
 
@@ -324,8 +326,9 @@ async function ask_source(c: CtxLike, source: NonNullable<typeof _source>): Prom
 		for (const q of queries) {
 			const raw = out?.[q.name];
 			if (raw === undefined) continue;
-			const variant = typeof raw === 'string' ? raw : (BOOL_VARIANT.get(raw) ?? 'off');
-			const norm = typeof raw === 'object' ? raw : { variant };
+			let norm: Decision | null = typeof raw === 'object' ? raw : null;
+			if (typeof raw === 'string') norm = { variant: raw };
+			else if (typeof raw === 'boolean') norm = { variant: BOOL_VARIANT.get(raw)! };
 			if (norm && q.variants.includes(norm.variant)) map[q.name] = norm;
 		}
 		set_prime(c, { kind: 'resolved', map });
@@ -576,7 +579,8 @@ export function flag(
 function now(): number {
 	try {
 		return clock.wall(); // wall: an exposure's timestamp, sent to the analytics sink
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no clock in this sandbox: exposure timestamps are 0 (said above)
 	} catch {
-		return 0; // ok: no clock in this sandbox: exposure timestamps are 0 (said above)
+		return 0;
 	}
 }

@@ -62,7 +62,7 @@ export function stream_tail(
 			n = n * 10 + (html.charCodeAt(j) - 48);
 		if (!digits) continue;
 		keys.push({ key: names.get(n) ?? null, id: n, left_ms: left_at(at, chunks) ?? last.t });
-		// markup-ok: inside core's own resolve script, whose escaped JSON holds no `</script`
+		// oxlint-disable-next-line ogygia/one-markup-walk -- inside core's own resolve script, whose escaped JSON holds no `</script`
 		resolves.push({ start: at, end: html.indexOf('</script', at) });
 	}
 	// (a segment that is one of those resolve scripts is counted as its key, not again as a script)

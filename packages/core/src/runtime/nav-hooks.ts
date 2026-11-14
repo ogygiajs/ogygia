@@ -15,8 +15,7 @@ import { onDestroy } from 'svelte';
 export function bind_to_component(off: () => void): () => void {
 	try {
 		onDestroy(off);
-	} catch {
-		// ok: not inside a component; the caller owns the unsubscribe it was handed
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not inside a component; the caller owns the unsubscribe it was handed
+	} catch {}
 	return off;
 }

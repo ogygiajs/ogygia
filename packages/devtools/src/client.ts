@@ -29,10 +29,11 @@ const plugin: ClientPlugin = {
 		});
 		// @why a build's dock measures a switched-on browser, and an app without ogygia's handle gets no beacon tag; a lazy chunk, so other builds pay nothing (test: e2e/dock-switch.spec.ts › the page beacon in a build)
 		if (LAZY && devtools_switched_on() && !(globalThis as Record<symbol, unknown>)[BEACON_KEY])
+			// oxlint-disable-next-line ogygia/no-silent-failures -- it never rejects (a failed download is warned inside)
 			void start_page_beacon().then((started) => {
 				// (the regions' half joins the beacon now that there is one)
 				if (started) install_beacon(true);
-			}); // ok: it never rejects (a failed download is warned inside)
+			});
 	},
 	hooks: {
 		regionMount: (e) => realm_hook('regionMount', e),

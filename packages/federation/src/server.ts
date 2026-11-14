@@ -24,7 +24,8 @@ const server: ServerPlugin = defineServer({
 	invalidated(tags) {
 		const fed = current_federation();
 		if (!fed) return;
-		void broadcast_thaw(fed, { id: random.uuid(), hop: 0, tags }); // ok: broadcast_thaw never rejects (an outbox put never does)
+		// oxlint-disable-next-line ogygia/no-silent-failures -- broadcast_thaw never rejects (an outbox put never does)
+		void broadcast_thaw(fed, { id: random.uuid(), hop: 0, tags });
 	}
 });
 export default server;

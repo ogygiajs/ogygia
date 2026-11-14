@@ -103,7 +103,8 @@ export class AkamaiEdge implements EdgeAdapter {
 			throw new OgygiaError('postrender_adapter_request_failed', {
 				what: 'akamai purge',
 				status: res.status,
-				body: await res.text().catch(() => '') // ok: the failure is thrown just here; its body is only detail
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the failure is thrown just here; its body is only detail
+				body: await res.text().catch(() => '')
 			});
 		}
 	}

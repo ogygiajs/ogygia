@@ -89,8 +89,9 @@ export function router_css_of(component: unknown): RouterCssEntry[] {
 	if (thunk) {
 		try {
 			return thunk() ?? [];
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a broken handoff read must degrade to unstyled, never crash the render
 		} catch {
-			return []; // ok: a broken handoff read must degrade to unstyled, never crash the render
+			return [];
 		}
 	}
 	if (paths.by_path.size) {

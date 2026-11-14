@@ -102,9 +102,8 @@ export function span<T>(
 		if (typeof attrs === 'function' && error === undefined) {
 			try {
 				extra = attrs(result as Awaited<T>);
-			} catch {
-				// ok: an attrs function never fails the span; the span is kept without its extra attributes
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- an attrs function never fails the span; the span is kept without its extra attributes
+			} catch {}
 		}
 		r.end(s, extra, error);
 	};
@@ -246,8 +245,7 @@ function wrap_call(
 	try {
 		Object.defineProperty(wrapped, 'name', { value: fn.name || name });
 		Object.defineProperty(wrapped, 'length', { value: fn.length });
-	} catch {
-		// ok: frozen; the wrapper still works, under its own name
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- frozen; the wrapper still works, under its own name
+	} catch {}
 	return wrapped;
 }

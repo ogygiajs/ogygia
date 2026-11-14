@@ -157,6 +157,8 @@ export function from_dom(node: Element, parent: El | null = null): El {
 const VOID = new Set('area base br col embed hr img input link meta source track wbr'.split(' '));
 /** Elements whose text is raw: their content is no markup. */
 const RAW = new Set(['script', 'style', 'textarea', 'title']);
+/** `s` with only its ASCII letters lowered: the same length, so an index in it is one in `s`. */
+const ascii_lower = (s: string) => s.replace(/[A-Z]+/g, (m) => m.toLowerCase());
 const TOKEN =
 	/<!--[\s\S]*?-->|<!doctype[^>]*>|<\/([a-zA-Z][\w:-]*)\s*>|<([a-zA-Z][\w:-]*)((?:\s+[^\s=/>]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?)*)\s*(\/?)>/gi;
 const ATTR = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
@@ -206,7 +208,7 @@ export function source_tree(html: string): { roots: El[]; unbalanced: Lint[] } {
 		const parent = stack.at(-1);
 		let text = '';
 		if (RAW.has(tag)) {
-			const close = html.toLowerCase().indexOf(`</${tag}`, TOKEN.lastIndex);
+			const close = ascii_lower(html).indexOf(`</${tag}`, TOKEN.lastIndex);
 			const to = close === -1 ? html.length : close;
 			text = html.slice(TOKEN.lastIndex, to);
 			TOKEN.lastIndex = to;

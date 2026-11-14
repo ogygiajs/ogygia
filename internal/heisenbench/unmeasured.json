@@ -6243,6 +6243,18 @@
 		{
 			"id": "packages/core/src/runtime/morph.ts > carry_shadows",
 			"reason": "browser only: copies one open shadow root onto a morph's fresh copy (the unit tests' DOM shim has no shadow roots); proven in packages/core/test/browser/page-dsd-parse.test.ts and apps/palaestra/e2e/router-dsd.spec.ts"
+		},
+		{
+			"id": "packages/machine/src/decisions.ts > check_def",
+			"reason": "dev and rules builds only (folded out of the build the benches count): one pass over the field lists when a table is made, its definition holds functions (not cloneable); packages/machine/test/decisions.test.ts runs it"
+		},
+		{
+			"id": "packages/machine/src/decisions.ts > check_input",
+			"reason": "dev and rules builds only (folded out of the build the benches count): one includes() per field of a small list, its definition holds functions (not cloneable); packages/machine/test/decisions.test.ts runs it"
+		},
+		{
+			"id": "packages/machine/src/decisions.ts > show_list",
+			"reason": "dev and rules builds only: words a repeated field list in a refusal, when a table is made; packages/machine/test/decisions.test.ts runs it"
 		}
 	]
 }
