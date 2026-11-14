@@ -3633,7 +3633,7 @@
 			"name": "without ogygia() a plugin reading the region table is told so"
 		},
 		{
-			"site": "packages/compiler/src/vite/plugin-api.ts > barrelWhy > throw:0",
+			"site": "packages/compiler/src/vite/plugin-api.ts > whyStayed > throw:0",
 			"reason": "`throw new Error('resolve_plugins: no region table without ogygia()');`: proved: the throw removed turns the test red, twice",
 			"test": "packages/compiler/test/plugins.test.ts",
 			"name": "without ogygia() a plugin reading the region table is told so"
