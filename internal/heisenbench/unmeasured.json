@@ -2577,6 +2577,18 @@
 			"reason": "the escape callback of one character (a table lookup, constant work); quote's escapes are proven in packages/barrels/test/rewrite.test.ts"
 		},
 		{
+			"id": "packages/devtools/src/profiler/gc.ts > gc_running > filter:0~41b3ce",
+			"reason": "one timeline segment's kind read (a CPU segment or not), constant work per segment; gc_running itself is measured (profiler-deep.test.ts › gc_running)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/gc.ts > gc_running > map:0~ee221a",
+			"reason": "one CPU segment shifted onto the capture clock (five fields copied), constant work per segment; gc_running itself is measured (profiler-deep.test.ts › gc_running)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/report.ts > page_score_of > reduce:0~d32eea",
+			"reason": "one long task's or layout shift's part of a visit's sum, constant work per entry; run by packages/devtools/test/profiler.test.ts"
+		},
+		{
 			"id": "packages/devtools/src/profiler/report.ts > ogygia_findings > flatMap:0~283e13",
 			"reason": "the reasons of at most three listed barrels (constant work); proven in packages/devtools/test/profiler.test.ts"
 		},
