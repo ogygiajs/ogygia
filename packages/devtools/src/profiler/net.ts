@@ -537,12 +537,10 @@ function wrap_fetch(orig: typeof globalThis.fetch): typeof globalThis.fetch {
 	): Promise<Response> {
 		// the profiler's own page-mode self-requests are not the app's traffic
 		if (is_internal(input, init)) return orig(input as RequestInfo, init);
-		const url =
-			typeof input === 'string'
-				? input
-				: input instanceof URL
-					? input.href
-					: ((input as Request)?.url ?? '');
+		let url: string;
+		if (typeof input === 'string') url = input;
+		else if (input instanceof URL) url = input.href;
+		else url = (input as Request)?.url ?? '';
 		const method = init?.method ?? ((input as Request)?.method || 'GET');
 		// the what-if render: this call's answer, kept from the timed renders, served from memory
 		const canned = shared.answer?.(method.toUpperCase(), url);

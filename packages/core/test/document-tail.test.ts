@@ -17,6 +17,8 @@ import {
 	props_preview
 } from '../src/server/document-tail.ts';
 import { decode_island_graph } from '../src/island-graph.ts';
+import { PropsWire } from '../src/server/props-wire.ts';
+import { SeedIndex } from '../src/seed-refs.ts';
 import { set_island_deps } from './_stubs/server.region-deps.ts';
 
 const region = Region as unknown as Component<Record<string, unknown>>;
@@ -87,6 +89,17 @@ describe('DocumentTail', () => {
 				hints: ['/one.js']
 			},
 			{ fp: 'f2', entry: '', name: '', count: 1 }
+		]);
+	});
+
+	it('props that qualify for JSON but go to devalue for seed references name the references as the culprit', () => {
+		const block = { id: 'one', body: 'x'.repeat(200), tags: ['a', 'b', 'c'] };
+		const data = { catalog: { blocks: [block] } };
+		const t = new DocumentTail();
+		t.props('f1', new PropsWire({ block, n: 1 }, '/islands/one.js'));
+		t.render(SeedIndex.of(data), true);
+		expect(t.island_rows()).toMatchObject([
+			{ fp: 'f1', json: false, refs: 1, culprit: 'seed references (1, into catalog)' }
 		]);
 	});
 
