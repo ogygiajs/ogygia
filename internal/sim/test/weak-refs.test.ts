@@ -38,6 +38,22 @@ describe('a weak reference made in a run', () => {
 		expect(watch.real.deref()).toBeUndefined();
 		expect(watch.ref.deref()).toBeUndefined();
 	});
+
+	it('holds its target no longer than it is itself held, as a strong reference would (a DOM library’s computed-style cache keeps one per element per layout and drops it when the element changes: all of them held to the run’s end ran a worker out of memory on a page of 10,000 elements, seed 274517047)', async () => {
+		const loop = new Loop(rng(1));
+		const realm: Record<string, unknown> = {};
+		const restore = install(realm, platform({ name: 'tab-1', loop, rng: rng(1) }));
+		const SimWeakRef = realm.WeakRef as WeakRefConstructor;
+		const real = await (async () => {
+			const target = { payload: Array.from({ length: 1000 }, () => 1) };
+			void new SimWeakRef(target);
+			return new WeakRef(target);
+		})();
+
+		await collect();
+		expect(real.deref()).toBeUndefined();
+		restore();
+	});
 });
 
 describe("a realm's platform", () => {
@@ -45,7 +61,6 @@ describe("a realm's platform", () => {
 		const kept = (() => {
 			const loop = new Loop(rng(1));
 			const p = platform({ name: 'server', loop, rng: rng(1), node: true });
-			// oxlint-disable-next-line typescript/unbound-method -- the test keeps the method itself, as code the world left behind would
 			const left = { timer: p.setTimeout(() => {}, 10), Date: p.Date, now: p.performance!.now };
 			p.end();
 			return { left, loop: new WeakRef(loop) };
