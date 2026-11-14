@@ -1201,6 +1201,10 @@
 			"reason": "a failed load of the report reading: a constant null"
 		},
 		{
+			"id": "packages/cli/src/mcp.ts > render_story > map:0~b41403",
+			"reason": "one property read per event of a region with no connect or schedule event (the entry fallback), linear in that region's few events; an inline arrow over render_story's grouped events, so not replayable alone; proven in packages/cli/test/mcp-debug-story.test.ts"
+		},
+		{
 			"id": "packages/content/src/site/search.ts > create_search > search > map:0",
 			"reason": "a scope's collections (live handles, not cloneable) to their tags, constant work per collection; run by the search tests in packages/content/test/site.test.ts"
 		},
