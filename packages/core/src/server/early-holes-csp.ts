@@ -82,7 +82,7 @@ export function with_early_holes_meta_csp(
 ): string {
 	// (most heads carry no http-equiv at all: one search answers them)
 	if (sources.length === 0 || !HTTP_EQUIV_RE.test(head)) return head;
-	let out = '';
+	const out: string[] = [];
 	let kept = 0;
 	for (let t = next_tag(head, 'meta', 0); t !== null; t = next_tag(head, 'meta', t.next)) {
 		if (t.attr('http-equiv')?.toLowerCase() !== 'content-security-policy') continue;
@@ -93,10 +93,12 @@ export function with_early_holes_meta_csp(
 		if (next === policy) continue;
 		const quoted = head[at - 1] === '"' || head[at - 1] === "'";
 		const from = quoted ? at - 1 : at;
-		out = `${out}${head.slice(kept, from)}"${next.replaceAll('"', '&quot;')}"`;
+		out.push(head.slice(kept, from), `"${next.replaceAll('"', '&quot;')}"`);
 		kept = at + policy.length + (quoted ? 1 : 0);
 	}
-	return kept === 0 ? head : out + head.slice(kept);
+	if (kept === 0) return head;
+	out.push(head.slice(kept));
+	return out.join('');
 }
 
 const CSP_HEADERS = ['content-security-policy', 'content-security-policy-report-only'] as const;
