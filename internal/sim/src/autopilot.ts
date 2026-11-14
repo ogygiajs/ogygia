@@ -86,6 +86,11 @@ const wrap = (n: { start: number; end: number }, open: string, close: string): E
 	];
 };
 
+/** The opening of a wrap that runs probe `p` before a handler, with its `this` and arguments (a
+ *  value that is not a function goes through as it is). */
+const CALL_THROUGH = (p: string): string =>
+	`((h: any) => typeof h === 'function' ? function (this: any, ...a: any[]) { ${p}; return h.apply(this, a); } : h)(`;
+
 const truthy = (id: string) => `((v: any) => (v && ${probe_call(id)}, v))(`;
 const falsy = (id: string) => `((v: any) => (!v && ${probe_call(id)}, v))(`;
 const NEGATED: ReadonlySet<string> = new Set(['!==', '!=']);
@@ -97,11 +102,58 @@ function handler_of(s: SiteNode): Node | null {
 	return h === undefined || h.type === 'SpreadElement' ? null : h;
 }
 
-/** The condition a check site is (`!res.ok`, `x === STALE`, `!x.body`, `x.body === null`), and
- *  whether it holds on the recovery path when true. */
+const FUNCTION_TYPES: ReadonlySet<string> = new Set([
+	'ArrowFunctionExpression',
+	'FunctionExpression'
+]);
+
+/** The callback a timer runs when it fires (its give-up path): `setTimeout`'s first argument, or the
+ *  function a scope's `timeout(ms, fn)` is handed. Null when it has none (`AbortSignal.timeout`). */
+function timer_callback(s: SiteNode): Node | null {
+	const args = (s.node.arguments as Node[] | undefined) ?? [];
+	const callee = s.node.callee as Node;
+	if (callee.type === 'Identifier' && callee.name === 'setTimeout')
+		return args[0] !== undefined && args[0].type !== 'SpreadElement' ? args[0] : null;
+	return args.find((a) => FUNCTION_TYPES.has(a.type)) ?? null;
+}
+
+/** The handler an error event runs: a listener's (the argument after the event's name), an
+ *  `onerror = h`'s or an `{ onerror: h }`'s. */
+function error_handler(s: SiteNode): Node | null {
+	if (s.node.type === 'CallExpression') {
+		const args = s.node.arguments as Node[];
+		const at = args.findIndex((a) => a.type === 'Literal');
+		const h = args[at + 1];
+		return at === -1 || h === undefined || h.type === 'SpreadElement' ? null : h;
+	}
+	if (s.node.type === 'Property') return s.node.value as Node;
+	if (s.node.type === 'MemberExpression' && s.parent?.type === 'AssignmentExpression')
+		return s.parent.right as Node;
+	return null;
+}
+
+/** The condition a check site is (`!res.ok`, `x === STALE`, `!x.body`, `x.body === null`,
+ *  `signal.aborted`, `e.name === 'AbortError'`), and whether it holds on the recovery path when
+ *  true. */
 function check_of(s: SiteNode): { node: Node; when: boolean } | null {
 	if (s.kind === 'not-ok')
 		return s.parent?.type === 'UnaryExpression' ? { node: s.parent, when: true } : null;
+	if (s.kind === 'abort') {
+		if (s.node.type === 'MemberExpression') {
+			const p = s.parent;
+			const written =
+				(p?.type === 'AssignmentExpression' && p.left === s.node) ||
+				p?.type === 'UpdateExpression' ||
+				(p?.type === 'CallExpression' && p.callee === s.node);
+			return written ? null : { node: s.node, when: true };
+		}
+		if (s.node.type === 'Literal' && s.parent?.type === 'BinaryExpression') {
+			const op = String(s.parent.operator);
+			if (!['===', '!==', '==', '!='].includes(op)) return null;
+			return { node: s.parent, when: !NEGATED.has(op) };
+		}
+		return null;
+	}
 	if (s.node.type === 'UnaryExpression') return { node: s.node, when: true };
 	if (s.node.type === 'BinaryExpression')
 		return { node: s.node, when: !NEGATED.has(String(s.node.operator)) };
@@ -121,13 +173,7 @@ export function probe_of(s: SiteNode): Edit[] | null {
 		case '.catch':
 		case 'reject': {
 			const h = handler_of(s);
-			return h === null
-				? null
-				: wrap(
-						h,
-						`((h: any) => typeof h === 'function' ? (...a: any[]) => (${p}, h(...a)) : h)(`,
-						')'
-					);
+			return h === null ? null : wrap(h, CALL_THROUGH(p), ')');
 		}
 		case 'not-ok':
 		case 'stale':
@@ -137,6 +183,15 @@ export function probe_of(s: SiteNode): Edit[] | null {
 		}
 		case 'result':
 			return wrap(s.node.value as Node, `(${p}, `, ')');
+		case 'abort': {
+			const c = check_of(s);
+			return c === null ? null : wrap(c.node, c.when ? truthy(s.id) : falsy(s.id), ')');
+		}
+		case 'timer':
+		case 'error-event': {
+			const h = s.kind === 'timer' ? timer_callback(s) : error_handler(s);
+			return h === null ? null : wrap(h, CALL_THROUGH(p), ')');
+		}
 		default:
 			return null;
 	}
@@ -151,7 +206,10 @@ export const AUTOPILOT_KINDS: ReadonlySet<SiteKind> = new Set([
 	'stale',
 	'body',
 	'throw',
-	'result'
+	'result',
+	'abort',
+	'timer',
+	'error-event'
 ]);
 
 const RETHROW = '(e: unknown) => { throw e; }';
@@ -232,6 +290,39 @@ export function mutants_of(s: SiteNode): SiteMutant[] {
 					edits: [replace(s.node, '{}')]
 				}
 			];
+		case 'abort': {
+			const c = check_of(s);
+			if (c === null) return [];
+			return [
+				{
+					operator: 'never',
+					says: 'the abort check never true',
+					edits: [replace(c.node, c.when ? 'false' : 'true')]
+				}
+			];
+		}
+		case 'timer': {
+			const h = timer_callback(s);
+			if (h === null) return [];
+			return [
+				{
+					operator: 'silent',
+					says: "the timer's callback made to do nothing",
+					edits: [replace(h, '() => {}')]
+				}
+			];
+		}
+		case 'error-event': {
+			const h = error_handler(s);
+			if (h === null) return [];
+			return [
+				{
+					operator: 'silent',
+					says: 'the error handler made to do nothing',
+					edits: [replace(h, '() => {}')]
+				}
+			];
+		}
 		case 'result':
 			return [
 				{
@@ -306,6 +397,8 @@ export interface AutopilotReport {
 	readonly unhandled: string[];
 	/** Sites left out (`--skip`) or not judged yet (`--limit`, `--only`). */
 	readonly skipped: string[];
+	/** Sites a mutant killed whose failing tests' names the ledger could not find in their files. */
+	readonly unnamed: { readonly site: string; readonly tests: readonly string[] }[];
 }
 
 export interface AutopilotOptions {
@@ -448,13 +541,41 @@ async function run_vitest(
 
 interface Judged {
 	readonly site: string;
-	readonly verdict: 'proved' | 'survived' | 'no-mutant';
+	/** `unnamed`: a mutant killed it, but no failing test's name is in its file (the ledger could not
+	 *  find it): never a survivor. */
+	readonly verdict: 'proved' | 'survived' | 'no-mutant' | 'unnamed';
+	/** For `unnamed`: the tests that failed, by their full names. */
+	readonly tests?: readonly string[];
 	readonly proof?: Proof;
 	readonly operators?: readonly string[];
 }
 
 const has_name = (text: string, name: string): boolean =>
 	text.includes(`'${name}'`) || text.includes(`"${name}"`) || text.includes(`\`${name}\``);
+
+const STRINGS = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\$]|\\.|\$(?!\{))*)`/g;
+const EACH_MARK = /%[sdifjoOc#%]|\$[A-Za-z_][\w.]*/;
+
+/** The name a test has in its file (`text`), as the ledger's check finds it: `name` itself, or the
+ *  each template (`'%j gives %d'`, `'$a is $b'`) a parameterized test's `name` was made from. Null
+ *  when neither is there. */
+export function test_name_in(text: string, name: string): string | null {
+	if (has_name(text, name)) return name;
+	for (const m of text.matchAll(STRINGS)) {
+		const literal = m[1] ?? m[2] ?? m[3];
+		if (!EACH_MARK.test(literal)) continue;
+		let pattern = '';
+		let at = 0;
+		for (const mark of literal.matchAll(new RegExp(EACH_MARK.source, 'g'))) {
+			pattern += literal.slice(at, mark.index).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			pattern += mark[0] === '%%' ? '%' : '[\\s\\S]*?';
+			at = mark.index + mark[0].length;
+		}
+		pattern += literal.slice(at).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		if (new RegExp(`^${pattern}$`).test(name) && has_name(text, literal)) return literal;
+	}
+	return null;
+}
 
 /** The `-t` pattern that picks one test alone, by its full name (vitest joins a test's suites and
  *  its name with spaces). */
@@ -593,10 +714,12 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 		const proved: Proof[] = [];
 		const survived: Survivor[] = [];
 		const unreached: string[] = [];
+		const unnamed: AutopilotReport['unnamed'] = [];
 		for (const s of wanted) {
 			const j = judged.get(s.id);
 			if (reach[s.id] === undefined) unreached.push(s.id);
 			else if (j?.verdict === 'proved' && j.proof) proved.push(j.proof);
+			else if (j?.verdict === 'unnamed') unnamed.push({ site: s.id, tests: j.tests ?? [] });
 			else if (j?.verdict === 'survived')
 				survived.push({
 					site: s.id,
@@ -611,7 +734,8 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 			survived,
 			unreached,
 			unhandled,
-			skipped
+			skipped,
+			unnamed
 		};
 		writeFileSync(join(o.out, 'patch.json'), `${JSON.stringify(proved, null, '\t')}\n`);
 		writeFileSync(join(o.out, 'report.json'), `${JSON.stringify(report, null, '\t')}\n`);
@@ -634,6 +758,7 @@ async function judge(
 ): Promise<Judged> {
 	const abs = join(o.root, s.file);
 	const tried: string[] = [];
+	const unnamed: string[] = [];
 	for (const m of mutants_of(s)) {
 		const text = apply_edits(source, m.edits);
 		if (!parses(s.file, text)) continue;
@@ -693,20 +818,32 @@ async function judge(
 		const both = first
 			.filter((t) => again.some((a) => a.test === t.test && a.full === t.full))
 			.sort((a, b) => Number(a.hung) - Number(b.hung));
-		const named = both.find((t) => has_name(readFileSync(join(o.root, t.test), 'utf8'), t.name));
-		if (named === undefined) continue;
-		const red = named.hung ? 'hangs the test past the run time limit' : 'turns the test red';
+		let named: { t: (typeof both)[number]; name: string } | null = null;
+		for (const t of both) {
+			const name = test_name_in(readFileSync(join(o.root, t.test), 'utf8'), t.name);
+			if (name !== null) {
+				named = { t, name };
+				break;
+			}
+		}
+		if (named === null) {
+			if (both.length > 0) unnamed.push(...both.map((t) => `${t.test} › ${t.full}`));
+			continue;
+		}
+		const red = named.t.hung ? 'hangs the test past the run time limit' : 'turns the test red';
 		return {
 			site: s.id,
 			verdict: 'proved',
 			proof: {
 				site: s.id,
 				reason: `a test reaches its recovery path; proved by the autopilot: ${m.says} ${red}`,
-				test: named.test,
+				test: named.t.test,
 				name: named.name
 			}
 		};
 	}
+	if (unnamed.length > 0)
+		return { site: s.id, verdict: 'unnamed', operators: tried, tests: [...new Set(unnamed)] };
 	return {
 		site: s.id,
 		verdict: tried.length === 0 ? 'no-mutant' : 'survived',
@@ -720,7 +857,7 @@ export function report_md(r: AutopilotReport): string {
 	return [
 		`# Autopilot: packages/${r.package}`,
 		'',
-		`Baseline sites: ${r.baseline}. Proved: ${r.proved.length}. Survived: ${r.survived.length}. Unreached: ${r.unreached.length}. No operator: ${r.unhandled.length}. Skipped: ${r.skipped.length}.`,
+		`Baseline sites: ${r.baseline}. Proved: ${r.proved.length}. Survived: ${r.survived.length}. Killed but unnamed: ${r.unnamed.length}. Unreached: ${r.unreached.length}. No operator: ${r.unhandled.length}. Skipped: ${r.skipped.length}.`,
 		'',
 		'## Proved (baseline to covered)',
 		'',
@@ -737,6 +874,10 @@ export function report_md(r: AutopilotReport): string {
 						.join('; ')}${s.tests.length > 3 ? `; +${s.tests.length - 3}` : ''}`
 			)
 			.join('\n'),
+		'',
+		'## Killed, but no failing test has a name the ledger finds',
+		'',
+		r.unnamed.map((u) => `- \`${u.site}\`: ${u.tests.slice(0, 3).join('; ')}`).join('\n'),
 		'',
 		'## Unreached (no test runs the recovery path)',
 		'',
@@ -812,7 +953,7 @@ async function main(): Promise<void> {
 		remap: process.argv.includes('--remap')
 	});
 	console.log(
-		`packages/${pkg}: ${report.baseline} in the baseline; proved ${report.proved.length}, survived ${report.survived.length}, unreached ${report.unreached.length}, no operator ${report.unhandled.length}, skipped ${report.skipped.length} (${out})`
+		`packages/${pkg}: ${report.baseline} in the baseline; proved ${report.proved.length}, survived ${report.survived.length}, unnamed ${report.unnamed.length}, unreached ${report.unreached.length}, no operator ${report.unhandled.length}, skipped ${report.skipped.length} (${out})`
 	);
 	if (process.argv.includes('--apply')) {
 		const next = merge_patch(read_failure_ledger(), report.proved);

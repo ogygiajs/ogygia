@@ -106,7 +106,7 @@ describe('measure', () => {
 		expect(snap.label).toBe('sha1');
 		expect(snap.node).toBe('v26');
 		await expect(measure({ url: 'http://h', pages: ['/busy'], fetch: fake })).rejects.toThrow(
-			/busy/
+			/the profiler is busy on that server/
 		);
 		await expect(measure({ url: 'http://h', pages: ['/locked'], fetch: fake })).rejects.toThrow(
 			/key right/

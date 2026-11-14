@@ -168,6 +168,7 @@ const ledger = (over: Partial<FailureLedger> = {}): FailureLedger => ({
 		{ site: 'f > fetch:0', reason: 'a real browser', test: 't/a.test.ts', name: 'retries a fetch' }
 	],
 	impossible: [{ site: 'g > stale:0', why: 'a rule', by: 'src/rules.ts', name: 'never_stale' }],
+	equivalent: [],
 	baseline: ['h > parse:0', 'k > catch:0'],
 	...over
 });
@@ -317,5 +318,36 @@ describe('failure sites accounted', () => {
 	it('fails a fired site whose point did not fire in the sweep', () => {
 		const a = account_failures(SITES, ledger(), { ...o, fired: new Set<string>() });
 		expect(a.failures).toEqual(["f > catch:0: its point 'p.lost' did not fire in the sweep"]);
+	});
+
+	it('passes an equivalent site with its written reason, and counts it accounted', () => {
+		const a = account_failures(
+			SITES,
+			ledger({
+				equivalent: [{ site: 'k > catch:0', why: 'the code after the check does the same' }],
+				baseline: ['h > parse:0']
+			}),
+			o
+		);
+		expect(a.failures).toEqual([]);
+		expect([a.accounted, a.baseline]).toEqual([4, 1]);
+	});
+
+	it('refuses an equivalent site without a written reason', () => {
+		const a = account_failures(
+			SITES,
+			ledger({
+				equivalent: [
+					{ site: 'k > catch:0', why: '  ' },
+					{ site: 'h > parse:0' } as unknown as FailureLedger['equivalent'][number]
+				],
+				baseline: []
+			}),
+			o
+		);
+		expect(a.failures).toEqual([
+			'k > catch:0: an equivalent site says why breaking it changes nothing',
+			'h > parse:0: an equivalent site says why breaking it changes nothing'
+		]);
 	});
 });

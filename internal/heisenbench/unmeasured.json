@@ -709,24 +709,32 @@
 			"reason": "browser only: the frames feature takes the head's early requests over at boot, linear in the load holes; proven in packages/core/test/browser/early-holes.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > catch:0~5fe629",
-			"reason": "browser only: an early flight's failure, held at its address when it is a refusal, constant work; proven in packages/core/test/browser/early-holes.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > ensure:1~1117e8",
+			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > start:1~1117e8",
 			"reason": "browser only: an early flight's work (the parked response read through read_hole), linear in the answer; proven in packages/core/test/browser/early-holes.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > ensure:1~1117e8 > on:2~6c2793",
+			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > start:1~1117e8 > on:2~6c2793",
 			"reason": "browser only: the flight's abort cancels the parked request (one abort call), constant work; proven in packages/core/test/browser/early-holes.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > ensure:1~1117e8 > read_hole:2~58a925 > renewed",
+			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > start:1~1117e8 > read_hole:2~58a925 > renewed",
 			"reason": "browser only: a renewed capability handed to the address (one store write), constant work; proven by the renewal path in packages/core/test/browser/hole-renewal.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/frame-store.ts > hold_refusal",
-			"reason": "browser only: one field set when an early flight was refused, constant work; proven in packages/core/test/browser/early-holes.test.ts"
+			"reason": "browser only: one field set when a flight was refused, constant work; proven in packages/core/test/browser/early-holes.test.ts and packages/core/test/frame-store-claims.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > is_refusal",
+			"reason": "one name compare on a failed fetch, constant work; proven in packages/core/test/frame-store-claims.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > start",
+			"reason": "browser only: the page's early start made the flight at its address, once per load hole at boot, constant work each; proven in packages/core/test/browser/early-holes.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > start > settled",
+			"reason": "browser only: an early flight's end schedules its address's linger (one cache set), constant work; proven in packages/core/test/browser/early-holes.test.ts"
 		},
 		{
 			"id": "packages/core/src/context.ts > note_early_hole",
@@ -1231,6 +1239,14 @@
 		{
 			"id": "packages/core/src/runtime/router.ts > SpaRouter > hand_off",
 			"reason": "browser only: ends the visit, then one history replace and a document navigation; proven in apps/palaestra/e2e/mixed.spec.ts (#259) and router-document-fetch.spec.ts (#266: a download and a 204 link, clicked twice)"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > navigate > task:0~1a8181",
+			"reason": "browser only: the claimed navigation's wait for the navigation chunk, on the visit's own scope (one import, constant work); proven in packages/core/test/browser/router-claim-superseded.test.ts and apps/palaestra/e2e/router-race.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > navigate > task:0~1a8181 > then:0~54592b",
+			"reason": "browser only: maps the chunk loader's STALE to null (one comparison); proven in packages/core/test/browser/router-claim-superseded.test.ts and apps/palaestra/e2e/router-race.spec.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/router.ts > SpaRouter > #on_click",
