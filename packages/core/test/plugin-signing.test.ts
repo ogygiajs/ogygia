@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
 import { defineServer, type ServerApp } from '../src/plugin/index.ts';
-import { start_plugins, type AppSigner } from '../src/plugin/server.ts';
+import { LivePlugins, type AppSigner } from '../src/plugin/server.ts';
 import { capability_lifetime } from '../src/server/capability-lifetime.ts';
 import { RENEW_WINDOW_SEC } from '../src/server/shared-cache.ts';
 import {
@@ -47,11 +47,11 @@ afterEach(() => {
 
 /** The live apps of plugins named `names`, started as the handle starts them. */
 function apps(...names: string[]): ServerApp<unknown>[] {
-	const started = start_plugins(
+	const started = new LivePlugins(
 		names.map((name) => ({ name, options: undefined, server: defineServer({}) })),
 		APP_SIGNER
 	);
-	leaves.push(started.leave);
+	leaves.push(() => started.leave());
 	return started.plugins.map((p) => p.app);
 }
 

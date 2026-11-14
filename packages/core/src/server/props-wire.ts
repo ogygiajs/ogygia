@@ -38,13 +38,7 @@ import { register_snippet_kind } from '../region-snippet.ts';
 import { register_fn_kind } from '../fn-transport.ts';
 import { OgygiaError } from '../messages/server.ts';
 import { fingerprint_of } from '../contract/hash.ts';
-import {
-	analyze,
-	json_culprit,
-	plan_seed_refs,
-	SEED_REF_KEY,
-	type SeedIndex
-} from '../seed-refs.ts';
+import { analyze, json_culprit, SEED_REF_KEY, SeedRefPlan, type SeedIndex } from '../seed-refs.ts';
 import { OG_FORMAT, OG_WIRE, OGYGIA_PROPS } from '../wire-markup.ts';
 
 /** The one non-devalue format (`OG_FORMAT`; absent = devalue): plain JSON, read with `JSON.parse`. */
@@ -110,7 +104,13 @@ export interface WireText {
 	json: boolean;
 }
 
-export interface PropsWire {
+/**
+ * An island's sidecar plan: lane, canonical text, live snippet entries — and a `wire(seed)` that
+ * produces the final text once the request knows about the seed (the document tail's render).
+ * The wire text is produced once per seed: identical islands share one plan, and a tail rendered
+ * twice against the same index (a test, a re-render) plans and serializes once.
+ */
+export class PropsWire {
 	/** The canonical, seed-independent text — what the fingerprint hashes. Its refs are in place
 	 *  form (ref.ts `placed`), so the same props give the same text on every render. */
 	readonly canonical: string;
@@ -122,22 +122,69 @@ export interface PropsWire {
 	/** The transportable classes these props carry, by tag path (root-relative module): the browser
 	 *  loads just these before decoding (it no longer loads every transportable up front). */
 	readonly wire_modules: readonly string[];
+	/** The references the LAST `wire()` wrote: how many, into which top-level `page.data` keys. */
+	readonly refs: { count: number; keys: readonly string[] } = { count: 0, keys: [] };
+	readonly #value: unknown;
+	readonly #entry: string;
+	#plain: WireText | null = null;
+	#last_seed: SeedIndex | null | undefined;
+	#last_text: WireText | null = null;
+	#culprit: string | null | undefined;
+
+	constructor(value: unknown, entry: string) {
+		this.#value = value;
+		this.#entry = entry;
+		const shape = analyze(value);
+		if (shape.json) {
+			this.canonical = JSON.stringify(value);
+			this.json = true;
+			this.live_entries = [];
+			this.wire_modules = [];
+			return;
+		}
+		const wire_modules = new Set<string>();
+		const text = stringify_props(value, entry, null, wire_modules);
+		// (a ref's id is fence + place; only the place is the same on the next render: ref.ts RefNames)
+		const canonical = placed(text);
+		this.#plain = { text, json: false };
+		this.canonical = canonical;
+		this.json = false;
+		this.live_entries = live_entries_in(canonical);
+		this.wire_modules = [...wire_modules];
+	}
+
 	/** The sidecar text for the wire. `seed` is the page seed's index when the seed ships (then a
 	 *  props subtree that is a seed node crosses as a reference), `null` when it does not. */
-	wire(seed: SeedIndex | null): WireText;
-	/** The references the LAST `wire()` wrote: how many, into which top-level `page.data` keys. */
-	readonly refs: { count: number; keys: readonly string[] };
+	wire(seed: SeedIndex | null): WireText {
+		if (seed === this.#last_seed) return this.#last_text!;
+		this.#last_seed = seed;
+		return (this.#last_text =
+			this.#referenced(seed) ??
+			(this.#plain ??= { text: escape_script_text(this.canonical), json: true }));
+	}
+
 	/** Why the canonical text is not JSON (the first disqualifying leaf); `null` on the JSON lane.
 	 *  A separate walk, run on demand — the profiler's explainer, never the render path. */
-	culprit(): string | null;
+	culprit(): string | null {
+		if (this.json) return null;
+		return this.#culprit === undefined
+			? (this.#culprit = json_culprit(this.#value))
+			: this.#culprit;
+	}
+
+	#referenced(seed: SeedIndex | null): WireText | null {
+		const refs = this.refs;
+		refs.count = 0;
+		refs.keys = [];
+		if (seed === null || seed.size === 0) return null;
+		const plan = new SeedRefPlan(seed, this.#value);
+		if (plan.count === 0) return null;
+		refs.count = plan.count;
+		refs.keys = [...plan.keys].sort();
+		return { text: stringify_props(this.#value, this.#entry, plan.reducer), json: false };
+	}
 }
 
-/**
- * Plan an island's sidecar: lane, canonical text, live snippet entries — and a `wire(seed)` that
- * produces the final text once the request knows about the seed (the document tail's render).
- * The wire text is produced once per seed: identical islands share one plan, and a tail rendered
- * twice against the same index (a test, a re-render) plans and serializes once.
- */
 /**
  * A hole's IDENTITY (`data-og-hole`): the fingerprint of its entry and canonical props. Region
  * computes it on both legs, so the browser leg finds the facts the server minted for the hole by it
@@ -154,7 +201,7 @@ export function hole_identity(
 	props: unknown,
 	wire: PropsWire | null = null
 ): string {
-	const canonical = (wire ?? plan_props_wire(props || {}, entry)).canonical;
+	const canonical = (wire ?? new PropsWire(props || {}, entry)).canonical;
 	const text = canonical.includes(REF_WIRE_KEY)
 		? with_local_names(() => stringify_props(props || {}, entry))
 		: canonical;
@@ -178,57 +225,6 @@ export function lake_identity(entry: string, props: Record<string, unknown> | un
 		// ok: a lake renders on the server alone, so any prop is allowed; one no wire carries leaves the lake known by its entry and place
 		return '';
 	}
-}
-
-export function plan_props_wire(value: unknown, entry: string): PropsWire {
-	const shape = analyze(value);
-	const refs = { count: 0, keys: [] as string[] };
-	const referenced = (seed: SeedIndex | null): WireText | null => {
-		refs.count = 0;
-		refs.keys = [];
-		if (seed === null || seed.size === 0) return null;
-		const plan = plan_seed_refs(seed, value);
-		if (plan.count === 0) return null;
-		refs.count = plan.count;
-		refs.keys = [...plan.keys].sort();
-		return { text: stringify_props(value, entry, plan.reducer), json: false };
-	};
-	let last_seed: SeedIndex | null | undefined;
-	let last_text: WireText;
-	const once = (seed: SeedIndex | null, plain: () => WireText): WireText => {
-		if (seed === last_seed) return last_text;
-		last_seed = seed;
-		return (last_text = referenced(seed) ?? plain());
-	};
-	if (shape.json) {
-		const canonical = JSON.stringify(value);
-		let escaped: WireText | null = null;
-		return {
-			canonical,
-			json: true,
-			live_entries: [],
-			wire_modules: [],
-			wire: (seed) =>
-				once(seed, () => (escaped ??= { text: escape_script_text(canonical), json: true })),
-			refs,
-			culprit: () => null
-		};
-	}
-	const wire_modules = new Set<string>();
-	const text = stringify_props(value, entry, null, wire_modules);
-	// (a ref's id is fence + place; only the place is the same on the next render: ref.ts RefNames)
-	const canonical = placed(text);
-	const plain: WireText = { text, json: false };
-	let culprit: string | null | undefined;
-	return {
-		canonical,
-		json: false,
-		live_entries: live_entries_in(canonical),
-		wire_modules: [...wire_modules],
-		wire: (seed) => once(seed, () => plain),
-		refs,
-		culprit: () => (culprit === undefined ? (culprit = json_culprit(value)) : culprit)
-	};
 }
 
 // Portable region-snippets riding an island's props come alive via `import(desc.e)` at hydrate;

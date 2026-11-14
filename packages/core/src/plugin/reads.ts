@@ -18,39 +18,39 @@ import { slot as shared } from '@ogygia/machine';
  * A plain shape, not a class: core's own types and its built types (and a plugin's copy of this
  * module) must agree on it.
  */
-export interface Reads {
+export class Reads {
+	readonly #parent: Reads | null;
+	#per_visitor: string | null = null;
+	#page_data = false;
+
+	/** A new read set inside `parent` (its reads pass up to it). */
+	constructor(parent: Reads | null = null) {
+		this.#parent = parent;
+	}
+
 	/** The first per-visitor input read (`flag:<name>`, `cookie:<name>`, `header:<name>`,
 	 *  `locals.<key>`, a plugin's reason), or null. */
-	readonly perVisitor: string | null;
+	get perVisitor(): string | null {
+		return this.#per_visitor;
+	}
+
 	/** The render read its page (`page.data`, or the url of the page it renders for): its output
 	 *  is one page's. */
-	readonly pageData: boolean;
-	/** A per-visitor input was read (the first one names the set). */
-	visitor(input: string): void;
-	/** The render's page was read. */
-	page(): void;
-}
+	get pageData(): boolean {
+		return this.#page_data;
+	}
 
-/** A new read set inside `parent` (its reads pass up to it). */
-export function read_set(parent: Reads | null = null): Reads {
-	let per_visitor: string | null = null;
-	let page_data = false;
-	return {
-		get perVisitor() {
-			return per_visitor;
-		},
-		get pageData() {
-			return page_data;
-		},
-		visitor(input) {
-			if (per_visitor === null) per_visitor = input;
-			parent?.visitor(input);
-		},
-		page() {
-			page_data = true;
-			parent?.page();
-		}
-	};
+	/** A per-visitor input was read (the first one names the set). */
+	visitor(input: string): void {
+		if (this.#per_visitor === null) this.#per_visitor = input;
+		this.#parent?.visitor(input);
+	}
+
+	/** The render's page was read. */
+	page(): void {
+		this.#page_data = true;
+		this.#parent?.page();
+	}
 }
 
 interface ReadsSlot {

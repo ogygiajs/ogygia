@@ -4,7 +4,7 @@ import type { RequestContext, ServerApp, ServerPlugin } from './index.ts';
 // port-ok: a test helper's own key, made once per test process (never a running app's)
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { facts_of } from './facts.ts';
-import { request_contexts, start_plugins, type AppSigner } from './server.ts';
+import { LivePlugins, request_contexts, type AppSigner } from './server.ts';
 import { capability_lifetime } from '../server/capability-lifetime.ts';
 import { RENEW_WINDOW_SEC } from '../server/shared-cache.ts';
 
@@ -73,7 +73,7 @@ export function startPlugin<Options = undefined, State = undefined>(
 ): StartedPlugin<Options, State> {
 	const {
 		plugins: [live]
-	} = start_plugins(
+	} = new LivePlugins(
 		[{ name, options, server: server as ServerPlugin<unknown, unknown> }],
 		TEST_SIGNER
 	);

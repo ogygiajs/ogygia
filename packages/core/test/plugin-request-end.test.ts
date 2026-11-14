@@ -6,7 +6,7 @@
  * real timers.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { end_request, start_plugins, type LivePlugin } from '../src/plugin/server.ts';
+import { end_request, LivePlugins, type LivePlugin } from '../src/plugin/server.ts';
 import { inRequest } from '../src/plugin/testing.ts';
 import type { RequestContext, ServerApp, ServerPlugin } from '../src/plugin/index.ts';
 
@@ -155,7 +155,7 @@ describe('end_request: the work a plugin leaves at the request end', () => {
 describe('app.keepAlive', () => {
 	const {
 		plugins: [p]
-	} = start_plugins([{ name: 'p', options: undefined, server: {} }], {
+	} = new LivePlugins([{ name: 'p', options: undefined, server: {} }], {
 		sign: () => '',
 		verify: () => false
 	} as never);

@@ -61,12 +61,7 @@
 	import { page } from '$app/state';
 	import { record_page } from './page-seed-registry.ts';
 	import { document_tail, island_graph_script, modulepreload_tag } from './server/document-tail.ts';
-	import {
-		hole_identity,
-		lake_identity,
-		plan_props_wire,
-		props_sidecar
-	} from './server/props-wire.ts';
+	import { hole_identity, lake_identity, PropsWire, props_sidecar } from './server/props-wire.ts';
 	import { escape_amp_quot, escape_attr } from './escape.ts';
 	import { warn } from './messages/island.ts';
 	import {
@@ -528,7 +523,7 @@
 	// tail renders — by then the request knows whether the page seed ships, and a props subtree
 	// that is a seed node crosses as a reference (seed-refs.ts), whichever island rendered first.
 	const island_wire = $derived(
-		nested || !is_island || island_inline ? null : plan_props_wire(island_props_wire, island_entry)
+		nested || !is_island || island_inline ? null : new PropsWire(island_props_wire, island_entry)
 	);
 	// THE ISLAND'S FINGERPRINT (server/fingerprint.ts, through the client-stubbed virtual): its
 	// module URL + canonical props text, a native digest. Emitted as data-og-fp; the client only ever
@@ -733,7 +728,7 @@
 
 	// A hydrating hole's props: ADJACENT and self-contained (the hole's HTML is spliced by the
 	// runtime), unkeyed, in whichever lane the props qualify for (props-wire.ts).
-	const server_wire = $derived(nested || !__hydrate ? null : plan_props_wire(__props, __entry));
+	const server_wire = $derived(nested || !__hydrate ? null : new PropsWire(__props, __entry));
 	const server_props_script = $derived(
 		server_wire
 			? props_sidecar('', server_wire.wire(null), 'adjacent', server_wire.wire_modules)

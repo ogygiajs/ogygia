@@ -34,14 +34,21 @@ export interface LivePlugin {
  *  capability the way it answers a refused region request). */
 export type AppSigner = CapabilitySigner;
 
-/** Make each plugin live, in order: app, shared hooks, `setup`. `leave` takes their shared hooks out
- *  again. */
-export function start_plugins(
-	entries: readonly ServerPluginEntry[],
-	signer: AppSigner
-): { plugins: LivePlugin[]; leave: () => void } {
-	const leaves: Array<() => void> = [];
-	const plugins = entries.map(({ name, options, server }) => {
+/** The app's plugins made live, in order: app, shared hooks, `setup`. `leave` takes their shared
+ *  hooks out again. */
+export class LivePlugins {
+	readonly plugins: LivePlugin[];
+	readonly #leaves: Array<() => void> = [];
+
+	constructor(entries: readonly ServerPluginEntry[], signer: AppSigner) {
+		this.plugins = entries.map((entry) => this.#start(entry, signer));
+	}
+
+	leave(): void {
+		for (const leave of this.#leaves) leave();
+	}
+
+	#start({ name, options, server }: ServerPluginEntry, signer: AppSigner): LivePlugin {
 		// (once per message, of the last 1024 said: a message with a URL in it never grows the server)
 		const warned = say();
 		const own = plugin_signer(name, signer);
@@ -63,16 +70,10 @@ export function start_plugins(
 				warned.once(message, () => console.warn(`[${name}] ${message}`));
 			}
 		};
-		leaves.push(register_hooks(server));
+		this.#leaves.push(register_hooks(server));
 		server.setup?.(app);
 		return { def: server, app };
-	});
-	return {
-		plugins,
-		leave() {
-			for (const leave of leaves) leave();
-		}
-	};
+	}
 }
 
 /** The leave of the app's plugins as the handle module last started them. One global slot, like the
@@ -91,9 +92,9 @@ export function start_app_plugins(
 	signer: AppSigner
 ): LivePlugin[] {
 	app_plugins.leave?.();
-	const { plugins, leave } = start_plugins(entries, signer);
-	app_plugins.leave = leave;
-	return plugins;
+	const started = new LivePlugins(entries, signer);
+	app_plugins.leave = () => started.leave();
+	return started.plugins;
 }
 
 type ChunkInput = Parameters<NonNullable<ResolveOptions['transformPageChunk']>>[0];
