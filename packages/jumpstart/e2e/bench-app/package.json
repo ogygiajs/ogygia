@@ -1,0 +1,23 @@
+{
+	"name": "jumpstart-e2e-bench-app",
+	"version": "0.0.1",
+	"private": true,
+	"description": "@ogygia/jumpstart's cold-start bench app: the e2e app's shape at the research size (225 blocks), built with adapter-node. Its source is gitignored and written by `node ../generate.ts bench` (../../bench/cold-start.ts runs it).",
+	"type": "module",
+	"scripts": {
+		"build": "vite build"
+	},
+	"dependencies": {
+		"jumpstart-e2e-many-files": "file:../deps/many-files",
+		"jumpstart-e2e-reads-file": "file:../deps/reads-file",
+		"ogygia": "workspace:*"
+	},
+	"devDependencies": {
+		"@ogygia/jumpstart": "workspace:*",
+		"@sveltejs/adapter-node": "catalog:",
+		"@sveltejs/kit": "catalog:",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"svelte": "catalog:",
+		"vite": "catalog:"
+	}
+}

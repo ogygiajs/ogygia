@@ -16,7 +16,6 @@ import { CORE_PARTS, CORE_VIRTUALS, core_path, type CoreApp } from '../src/virtu
 import { virtual, write_value, type Leg, type Part } from '../src/virtual/table.ts';
 import {
 	RESOLVED,
-	V_FN_MANIFEST,
 	V_RUNTIME_ENTRY,
 	V_SERVER_MANIFEST,
 	V_SERVER_REGIONS,
@@ -51,7 +50,6 @@ describe('the virtual-module table', () => {
 	it('answers every id the code outside the table names (ids.ts)', () => {
 		for (const id of [
 			V_RUNTIME_ENTRY,
-			V_FN_MANIFEST,
 			V_SERVER_MANIFEST,
 			V_SERVER_REGIONS,
 			V_TRANSPORT,

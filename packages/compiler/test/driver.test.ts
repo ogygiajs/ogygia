@@ -439,3 +439,32 @@ describe('the island-closure walk', () => {
 		expect(reads.get(shared)).toBe(before);
 	});
 });
+
+describe('the region hosts plugins read (b.regions.hosts)', () => {
+	test('each host names the components its regions render and the modules minted for them', () => {
+		const { compiler, program } = make_compiler(counting({}).fs);
+		const src = dedent`
+			<script>
+			import X from './X.svelte' with { wake: 'load' };
+			import Y from './Y.svelte' with { wake: 'visible' };
+			</script>
+			<X /><Y />
+		`;
+		const id = `${ROOT}/src/routes/+page.svelte`;
+		program.register(compiler.transform(src, id) as never, id);
+		const hosts = compiler.region_hosts();
+		expect([...hosts.keys()]).toEqual([id]);
+		const ids = [...hosts.get(id)!];
+		expect(ids).toContain(`${ROOT}/src/routes/X.svelte`);
+		expect(ids).toContain(`${ROOT}/src/routes/Y.svelte`);
+		expect(ids.some((m) => m.startsWith('ogygia:region/'))).toBe(true);
+		expect(ids.every((m) => !m.includes('?'))).toBe(true);
+	});
+
+	test('a host with no regions left is not listed', () => {
+		const { compiler, program } = make_compiler(counting({}).fs);
+		const id = `${ROOT}/src/routes/+page.svelte`;
+		program.register({ islands: [] }, id);
+		expect(compiler.region_hosts().size).toBe(0);
+	});
+});

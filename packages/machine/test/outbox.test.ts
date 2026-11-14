@@ -9,28 +9,50 @@ const quick = (p: Partial<Policy> = {}): Policy =>
 	policy({ attempts: 3, backoff: 10, jitter: 0, deadline: 2000, ...p });
 
 afterEach(() => {
+	vi.useRealTimers();
 	vi.restoreAllMocks();
 });
+
+/** The fake clock: timers and `performance.now()` move only as a test advances them. */
+const fake_clock = () =>
+	vi.useFakeTimers({
+		toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'performance', 'Date']
+	});
+
+/** Whether `p` has settled, read after the microtasks queued so far have run. */
+async function settled(p: Promise<unknown>): Promise<boolean> {
+	let done = false;
+	void p.then(
+		() => (done = true),
+		() => (done = true)
+	);
+	for (let i = 0; i < 20; i++) await Promise.resolve();
+	return done;
+}
 
 describe('put', () => {
 	it('returns at once, never throws, and resolves true once the send is done', async () => {
 		let applied = 0;
+		let release!: () => void;
+		const answered = new Promise<void>((r) => (release = r));
 		const box = outbox({
 			send: async (n: number) => {
-				await wait(20);
+				await answered;
 				applied += n;
 			},
 			retry: quick()
 		});
-		const t0 = performance.now();
 		const sent = box.put(2);
-		expect(performance.now() - t0).toBeLessThan(10);
+		expect(sent).toBeInstanceOf(Promise);
+		expect(await settled(sent)).toBe(false);
 		expect(applied).toBe(0);
+		release();
 		expect(await sent).toBe(true);
 		expect(applied).toBe(2);
 	});
 
 	it('tries a failed send again after its backoff, until one is done', async () => {
+		fake_clock();
 		const at: number[] = [];
 		const box = outbox({
 			send: () => {
@@ -39,10 +61,17 @@ describe('put', () => {
 			},
 			retry: quick({ attempts: 4, backoff: [30, 60] })
 		});
-		expect(await box.put('x')).toBe(true);
+		const sent = box.put('x');
+		await vi.advanceTimersByTimeAsync(29);
+		expect(at).toHaveLength(1);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(at).toHaveLength(2);
+		await vi.advanceTimersByTimeAsync(59);
+		expect(at).toHaveLength(2);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(await sent).toBe(true);
 		expect(at).toHaveLength(3);
-		expect(at[1] - at[0]).toBeGreaterThanOrEqual(25);
-		expect(at[2] - at[1]).toBeGreaterThanOrEqual(55);
+		expect([at[1] - at[0], at[2] - at[1]]).toEqual([30, 60]);
 	});
 
 	it('out of tries: giveUp hears the last error once, and the put resolves false', async () => {
@@ -76,6 +105,7 @@ describe('put', () => {
 	});
 
 	it('the deadline aborts the try still out, and no try starts after it', async () => {
+		fake_clock();
 		const give_up = vi.fn();
 		const signals: AbortSignal[] = [];
 		const box = outbox({
@@ -87,9 +117,11 @@ describe('put', () => {
 			retry: quick({ attempts: 5, deadline: 60 }),
 			giveUp: give_up
 		});
-		const t0 = performance.now();
-		expect(await box.put(1)).toBe(false);
-		expect(performance.now() - t0).toBeGreaterThanOrEqual(55);
+		const sent = box.put(1);
+		await vi.advanceTimersByTimeAsync(59);
+		expect(await settled(sent)).toBe(false);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(await sent).toBe(false);
 		expect(signals).toHaveLength(1);
 		expect(signals[0].aborted).toBe(true);
 		expect((give_up.mock.calls[0][1] as DOMException).name).toBe('TimeoutError');
@@ -105,9 +137,10 @@ describe('put', () => {
 			retry: quick({ attempts: 5, backoff: 500, deadline: 100 }),
 			giveUp: () => {}
 		});
-		const t0 = performance.now();
-		expect(await box.put(1)).toBe(false);
-		expect(performance.now() - t0).toBeLessThan(80);
+		fake_clock();
+		const sent = box.put(1);
+		expect(await settled(sent)).toBe(true);
+		expect(await sent).toBe(false);
 		expect(n).toBe(1);
 	});
 

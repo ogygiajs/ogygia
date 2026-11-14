@@ -87,11 +87,11 @@ describe('what each mode and leg is told', () => {
 		);
 	});
 
-	it('the fn manifest is imported only when a decoder can revive a fn ref', async () => {
+	it('the browser bundle carries no fn manifest, wired or not (the page inlines it)', async () => {
 		const plain = await load(warm(app()), 'ogygia:boot/hydrate-features', 'client');
 		const wired = await load(warm(app({ wire: true })), 'ogygia:boot/hydrate-features', 'client');
 		expect(plain).not.toMatch(/fn-manifest/);
-		expect(wired).toMatch(/fn-manifest/);
+		expect(wired).not.toMatch(/fn-manifest/);
 	});
 
 	it('kit transport carries the codec cluster only when the app crosses the wire', async () => {
@@ -119,21 +119,6 @@ describe('what each mode and leg is told', () => {
 		);
 	});
 
-	it('the context bridge alone makes the fn manifest load', async () => {
-		const files = {
-			...app(),
-			[`${LIB}/Theme.svelte`]: dedent`
-				<script>
-					import { setContext } from 'ogygia';
-					setContext('theme', 'dark');
-				</script>
-			`
-		};
-		expect(await load(warm(files), 'ogygia:boot/hydrate-features', 'client')).toMatch(
-			/fn-manifest/
-		);
-	});
-
 	it('no Kit wire path: the kit-wire module is empty', async () => {
 		expect(await load(warm(app()), 'ogygia:server/kit-wire', 'ssr')).toBe(null);
 	});
@@ -142,11 +127,5 @@ describe('what each mode and leg is told', () => {
 		expect(await load(warm(app()), 'ogygia:server/profiler-maps', 'ssr')).toMatch(
 			/profiler_maps\W+null/
 		);
-	});
-
-	it('the fn manifest bridges the register function, and a build leaves the token to fill', async () => {
-		const out = await load(warm(app()), 'ogygia:boot/fn-manifest', 'client');
-		expect(out).toContain('globalThis.__og_reg_fn = __register_fn;');
-		expect(out).toContain('/*__OGYGIA_FN_MANIFEST__*/');
 	});
 });

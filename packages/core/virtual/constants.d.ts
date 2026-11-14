@@ -24,6 +24,7 @@ declare const __OGYGIA_HOOK_REGION_MISMATCHED__: import('../dist/contract/virtua
 declare const __OGYGIA_HOOK_REGION_MOUNT__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_REGION_MOUNT__'];
 declare const __OGYGIA_HOOK_REGION_UNMOUNT__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_REGION_UNMOUNT__'];
 declare const __OGYGIA_HOOK_REGION_WOKE__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_REGION_WOKE__'];
+declare const __OGYGIA_HOOK_RELOAD_NEEDED__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_RELOAD_NEEDED__'];
 declare const __OGYGIA_HOOK_WARNING__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_HOOK_WARNING__'];
 declare const __OGYGIA_KIT_MAJOR__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_KIT_MAJOR__'];
 declare const __OGYGIA_RULES__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_RULES__'];

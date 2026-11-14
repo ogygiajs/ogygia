@@ -27,6 +27,7 @@ export type {
 	CriticalOutcome,
 	CriticalSettledEvent,
 	EntryFallbackEvent,
+	ReloadNeededEvent,
 	HoleAnsweredEvent,
 	HoleBatchMissedEvent,
 	HoleFailedEvent,

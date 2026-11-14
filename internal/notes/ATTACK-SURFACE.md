@@ -135,7 +135,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-101 entries.
+102 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -226,6 +226,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/insights/src/fp-drift.ts` | `revive` | `devalue unflatten` | 1 |
 | `packages/insights/src/page-insights.ts` | `defer_keys` | `JSON.parse` | 1 |
 | `packages/insights/src/page-insights.ts` | `encoding_only` | `decodeURIComponent` | 2 |
+| `packages/jumpstart/src/dependencies.ts` | `#manifest` | `JSON.parse` | 1 |
 | `packages/postrender/src/adapters/cloudflare-kv.ts` | `get` | `JSON.parse` | 1 |
 | `packages/postrender/src/adapters/upstash.ts` | `get` | `JSON.parse` | 1 |
 | `packages/postrender/src/adapters/valkey.ts` | `get` | `JSON.parse` | 1 |
@@ -263,8 +264,8 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/RawHtml.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/core/src/Region.svelte` | `(module)` | `{@html}` | 6 |
 | `packages/core/src/runtime/html-sink.ts` | `parse_page_document` | `DOMParser` | 1 |
-| `packages/core/src/runtime/html-sink.ts` | `parse_region_html` | `innerHTML =` | 1 |
 | `packages/core/src/runtime/html-sink.ts` | `set_inner_html` | `innerHTML =` | 1 |
+| `packages/core/src/runtime/html-sink.ts` | `write_unsafe` | `innerHTML =` | 1 |
 | `packages/devtools/src/profiler/ui/ReportBody.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/insights/src/session-insights.ts` | `(module)` | `{@html}` | 1 |
 | `packages/rewrite/src/check.ts` | `(module)` | `DOMParser` | 1 |

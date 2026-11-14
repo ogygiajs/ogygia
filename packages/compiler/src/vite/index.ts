@@ -339,6 +339,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		},
 		regions: {
 			names: () => compiler_of(session, 'regions.names').region_names(),
+			hosts: () => compiler_of(session, 'regions.hosts').region_hosts(),
 			whyStayed: (file, importers) => why_stayed(file, importers)
 		}
 	};
@@ -989,7 +990,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				if (!is_build) return;
 				const leg = leg_of(this);
 				const chunks = Object.values(bundle).filter((item) => item.type === 'chunk');
-				for (const r of unpatched(leg.server, leg.relocated, chunks))
+				for (const r of unpatched(leg.server, chunks))
 					warn('relocation_unpatched', { name: r.name, leg: leg.name });
 				if (leg.server) return;
 				for (const file of compiler.location_maps(leg, (ref) => this.getFileName(ref)))

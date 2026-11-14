@@ -1,0 +1,10 @@
+{
+	"name": "jumpstart-e2e-reads-file",
+	"version": "0.0.0",
+	"private": true,
+	"description": "A dependency of jumpstart's fixture apps that reads message.txt beside its own module, so it cannot be bundled: the external option's test.",
+	"type": "module",
+	"exports": {
+		".": "./index.js"
+	}
+}

@@ -326,7 +326,7 @@ export function keep_head_node_across_spa(node: Element): boolean {
 }
 
 /**
- * Install a `<style>` into the live document. `cloneNode` from a `DOMParser` tree
+ * Install a `<style>` into the live document. `cloneNode` from a parsed page's tree
  * often fails to register the sheet; recreate with textContent instead.
  * @internal
  */
@@ -714,6 +714,7 @@ export async function navigate(
 			adopt_title(doc);
 			session().settle_lakes_in(document.body);
 		}
+		boot_link().init_shadow_registries(document.body);
 		(globalThis as PageGlobals).__og_restore_adopt?.();
 		session().retire_page_head_copies();
 		release_head_nodes(unlisted);
