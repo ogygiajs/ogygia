@@ -8,6 +8,8 @@ import { bootDev } from '../../src/runtime/full.ts';
 import { _reset_beacon, _beacon_state } from '../../../devtools/src/profiler/beacon.ts';
 import { _restart_page_beacon } from '../../../devtools/src/profiler/beacon-standalone.ts';
 import devtools_client from '../../../devtools/src/client.ts';
+import { scope } from '@ogygia/machine';
+import { patch } from '../_patch.ts';
 
 const devtools = [{ name: '@ogygia/devtools', client: devtools_client }];
 
@@ -26,11 +28,11 @@ test('a fingerprinted island reports its hydration timing to the profiler beacon
 	document.head.appendChild(meta);
 	_restart_page_beacon();
 	const sent: { url: string; body: string }[] = [];
-	const orig = navigator.sendBeacon;
-	navigator.sendBeacon = ((url: string, body: string) => {
-		sent.push({ url, body });
+	const spies = scope();
+	patch(spies, navigator, 'sendBeacon', () => (url: string | URL, body?: BodyInit | null) => {
+		sent.push({ url: String(url), body: body as string });
 		return true;
-	}) as typeof navigator.sendBeacon;
+	});
 	try {
 		// the page-pass shape: the region carries data-og-fp, its sidecar sits at the end of the body
 		document.body.innerHTML = inject_html('counter_json_lane_ssr_b64');
@@ -125,7 +127,7 @@ test('a fingerprinted island reports its hydration timing to the profiler beacon
 		expect(sent.length).toBe(before);
 		expect(_beacon_state().queued).toBe(0);
 	} finally {
-		navigator.sendBeacon = orig;
+		spies.close();
 		meta.remove();
 	}
 });

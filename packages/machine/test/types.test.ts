@@ -248,7 +248,7 @@ describe('types', () => {
 			expectTypeOf(key).toEqualTypeOf<Pick<Ask, 'href' | 'n'>>();
 			return key.href.startsWith('/a');
 		});
-		expectTypeOf(keyed.get).parameter(0).toEqualTypeOf<Ask>();
+		expectTypeOf<Parameters<typeof keyed.get>[0]>().toEqualTypeOf<Ask>();
 		compile_only(() => {
 			// @ts-expect-error: a keyed flights needs its input
 			void pages.get();

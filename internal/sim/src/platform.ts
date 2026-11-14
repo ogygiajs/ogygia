@@ -409,18 +409,21 @@ export function install(target: object, p: ReturnType<typeof platform>): () => v
 	const perf = t.performance as { now?: () => number } | undefined;
 	if (perf !== undefined) {
 		save(perf, 'now');
-		Object.defineProperty(perf, 'now', { value: p.performance!.now, configurable: true });
+		Object.defineProperty(perf, 'now', {
+			value: p.performance!.now.bind(p.performance),
+			configurable: true
+		});
 	}
 	const crypto = t.crypto as Record<string, unknown> | undefined;
 	if (crypto !== undefined) {
 		save(crypto, 'getRandomValues');
 		save(crypto, 'randomUUID');
 		Object.defineProperty(crypto, 'getRandomValues', {
-			value: p.crypto!.getRandomValues,
+			value: p.crypto!.getRandomValues.bind(p.crypto),
 			configurable: true
 		});
 		Object.defineProperty(crypto, 'randomUUID', {
-			value: p.crypto!.randomUUID,
+			value: p.crypto!.randomUUID?.bind(p.crypto),
 			configurable: true
 		});
 	}

@@ -4,11 +4,13 @@ import { afterEach, expect, test } from 'vitest';
 import { mark } from '../../../devtools/src/profiler/client.ts';
 import { _reset_beacon } from '../../../devtools/src/profiler/beacon.ts';
 import { _restart_page_beacon } from '../../../devtools/src/profiler/beacon-standalone.ts';
+import { scope } from '@ogygia/machine';
+import { patch } from '../_patch.ts';
 
-let undo: (() => void)[] = [];
+let owner = scope();
 afterEach(() => {
-	for (const u of undo) u();
-	undo = [];
+	owner.close();
+	owner = scope();
 	(globalThis as unknown as Record<symbol, { stop(): void } | undefined>)[
 		Symbol.for('ogygia.beacon')
 	]?.stop();
@@ -22,21 +24,22 @@ function beacon_with(content: string, where: HTMLElement): string[] {
 	meta.content = content;
 	where.appendChild(meta);
 	const urls: string[] = [];
-	const orig_beacon = navigator.sendBeacon;
-	const orig_fetch = globalThis.fetch;
-	navigator.sendBeacon = ((url: string) => (
-		urls.push(String(url)),
-		true
-	)) as typeof navigator.sendBeacon;
-	globalThis.fetch = ((url: RequestInfo | URL) => (
-		urls.push(String(url)),
-		Promise.resolve(new Response(null, { status: 204 }))
-	)) as typeof fetch;
-	undo.push(() => {
-		navigator.sendBeacon = orig_beacon;
-		globalThis.fetch = orig_fetch;
-		meta.remove();
-	});
+	patch(
+		owner,
+		navigator,
+		'sendBeacon',
+		() => (url: string | URL) => (urls.push(String(url)), true)
+	);
+	patch(
+		owner,
+		globalThis,
+		'fetch',
+		() => (url: RequestInfo | URL) => (
+			urls.push(String(url)),
+			Promise.resolve(new Response(null, { status: 204 }))
+		)
+	);
+	owner.defer(() => meta.remove());
 	_restart_page_beacon();
 	mark('m', () => 1);
 	dispatchEvent(new Event('pagehide'));
