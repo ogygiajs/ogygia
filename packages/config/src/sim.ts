@@ -493,7 +493,7 @@ class Run implements Sim {
 			perf.now = () => perf_base + this._clock;
 			this._restore.push(() => (perf.now = was_perf_now));
 		}
-		this._patch(AbortSignal, 'timeout', (ms: number) => {
+		const timeout = (ms: number) => {
 			const abort = new AbortController();
 			this._add(
 				() => abort.abort(new DOMException('The operation timed out.', 'TimeoutError')),
@@ -501,7 +501,8 @@ class Run implements Sim {
 				false
 			);
 			return abort.signal;
-		});
+		};
+		this._patch(AbortSignal, 'timeout', timeout);
 		// a rejection nobody hears is a broken rule of every area
 		const on_unheard = (reason: unknown) => this.broke('unhandled rejection', String(reason));
 		const proc = (globalThis as { process?: NodeJS.Process }).process;
