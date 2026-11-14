@@ -76,7 +76,7 @@
 				"packages/content/src/**",
 				"packages/core/src/**",
 				"packages/data-shake/src/**",
-				"packages/devtools/src/profiler/*.ts",
+				"packages/devtools/src/**",
 				"packages/federation/src/**",
 				"packages/insights/src/**",
 				"packages/flags/src/**",
