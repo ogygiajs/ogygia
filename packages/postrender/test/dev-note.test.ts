@@ -27,7 +27,7 @@ async function dev_answer(response: Response): Promise<string | null> {
 	mark_handled(c.event, runtime);
 	await server.page?.(c);
 	await server.response?.(c, response);
-	server.done?.(c);
+	await server.done?.(c);
 	return response.headers.get('x-ogygia-postrender');
 }
 

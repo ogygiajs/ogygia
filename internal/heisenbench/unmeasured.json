@@ -5805,38 +5805,6 @@
 			"reason": "browser only: one pass over the page's frozen regions to rank a lake among those sharing its identity, linear in frozen regions (a handful per page); lake-restore-count.test.ts runs it"
 		},
 		{
-			"id": "packages/core/src/runtime/lakes.ts > hold",
-			"reason": "browser only: once per island hydrate, one key per lake the island holds (a handful), nothing moved; lake-restore-count.test.ts runs it (#1675)"
-		},
-		{
-			"id": "packages/core/src/runtime/lakes.ts > hold > map:0~d6bede",
-			"reason": "browser only: one key per held lake, constant work per lake; lake-restore-count.test.ts runs it (#1675)"
-		},
-		{
-			"id": "packages/core/src/runtime/lakes.ts > hosted_lakes_of",
-			"reason": "browser only: one query of the island's frozen regions per hold and per release, linear in the island's elements; lake-restore-count.test.ts runs it (#1675)"
-		},
-		{
-			"id": "packages/core/src/runtime/lakes.ts > hosted_lakes_of > filter:0~14818b",
-			"reason": "browser only: one closest() per frozen region in the island, depth-bounded; lake-restore-count.test.ts runs it (#1675)"
-		},
-		{
-			"id": "packages/core/src/runtime/lakes.ts > release",
-			"reason": "browser only: once per island hydrate, settles and remembers each lake it holds (a handful); lake-restore-count.test.ts and lake-settled-on-restore.test.ts run it (#1675)"
-		},
-		{
-			"id": "packages/core/src/runtime/lakes.ts > release > map:0~45dbf6",
-			"reason": "browser only: one map entry per held lake, constant work per lake; lake-restore-count.test.ts runs it (#1675)"
-		},
-		{
-			"id": "packages/core/src/runtime/slots.ts > slots > lakes > hold",
-			"reason": "the empty default before the lakes feature installs: returns an empty list, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/slots.ts > slots > lakes > release",
-			"reason": "the empty default before the lakes feature installs: does nothing, constant work"
-		},
-		{
 			"id": "packages/core/src/server/props-wire.ts > lake_identity",
 			"reason": "one hole_identity fingerprint of a lake's props per lake render, measured with hole_identity's own bench; lake-identity.test.ts runs it"
 		},
@@ -5909,6 +5877,22 @@
 			"reason": "browser, dev and rules builds only: one read noted into a list capped at 10 (hidden state), constant work"
 		},
 		{
+			"id": "packages/core/src/runtime/seeds.ts > absorb_page_facts > with_devalue:0~d7d878",
+			"reason": "browser only: hands the queued facts to merge_page_facts once devalue is in, constant work; proven in packages/core/test/browser/page-facts-before-devalue.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > absorb_page_facts > with_devalue:1~411c45",
+			"reason": "browser only: devalue's download failed for good, one warning, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts",
+			"reason": "browser only: one devalue parse per hole answer that carried page facts (a few keys), then one page-store set; proven in packages/core/test/browser/page-facts-before-devalue.test.ts and page-facts-visit.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts > filter:0~deb9e1",
+			"reason": "dev builds only: compares the facts' few keys with the page's, for a warning; proven in packages/core/test/browser/page-facts-visit.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/seeds.ts > watch_unshipped",
 			"reason": "browser, dev and rules builds only: one JSON.parse of the seed's left-out key list and one Proxy, once per page seed; proven in packages/core/test/browser/seed-unshipped.test.ts"
 		},
@@ -5937,20 +5921,36 @@
 			"reason": "build only: makes the plugin's page_reads (measured in the data-shake bench) and hands it to the build, once per build"
 		},
 		{
-			"id": "packages/core/src/runtime/seeds.ts > absorb_page_facts > with_devalue:0~d7d878",
-			"reason": "browser only: hands the queued facts to merge_page_facts once devalue is in, constant work; proven in packages/core/test/browser/page-facts-before-devalue.test.ts"
+			"id": "packages/core/src/runtime/lakes.ts > hold",
+			"reason": "browser only: once per island hydrate, one key per lake the island holds (a handful), nothing moved; lake-restore-count.test.ts runs it (#1675)"
 		},
 		{
-			"id": "packages/core/src/runtime/seeds.ts > absorb_page_facts > with_devalue:1~411c45",
-			"reason": "browser only: devalue's download failed for good, one warning, constant work"
+			"id": "packages/core/src/runtime/lakes.ts > hold > map:0~d6bede",
+			"reason": "browser only: one key per held lake, constant work per lake; lake-restore-count.test.ts runs it (#1675)"
 		},
 		{
-			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts",
-			"reason": "browser only: one devalue parse per hole answer that carried page facts (a few keys), then one page-store set; proven in packages/core/test/browser/page-facts-before-devalue.test.ts and page-facts-visit.test.ts"
+			"id": "packages/core/src/runtime/lakes.ts > hosted_lakes_of",
+			"reason": "browser only: one query of the island's frozen regions per hold and per release, linear in the island's elements; lake-restore-count.test.ts runs it (#1675)"
 		},
 		{
-			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts > filter:0~deb9e1",
-			"reason": "dev builds only: compares the facts' few keys with the page's, for a warning; proven in packages/core/test/browser/page-facts-visit.test.ts"
+			"id": "packages/core/src/runtime/lakes.ts > hosted_lakes_of > filter:0~14818b",
+			"reason": "browser only: one closest() per frozen region in the island, depth-bounded; lake-restore-count.test.ts runs it (#1675)"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > release",
+			"reason": "browser only: once per island hydrate, settles and remembers each lake it holds (a handful); lake-restore-count.test.ts and lake-settled-on-restore.test.ts run it (#1675)"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > release > map:0~45dbf6",
+			"reason": "browser only: one map entry per held lake, constant work per lake; lake-restore-count.test.ts runs it (#1675)"
+		},
+		{
+			"id": "packages/core/src/runtime/slots.ts > slots > lakes > hold",
+			"reason": "the empty default before the lakes feature installs: returns an empty list, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/slots.ts > slots > lakes > release",
+			"reason": "the empty default before the lakes feature installs: does nothing, constant work"
 		},
 		{
 			"id": "packages/rewrite/src/messages.ts > REWRITE_WARNINGS > restore_host_invalid > details",

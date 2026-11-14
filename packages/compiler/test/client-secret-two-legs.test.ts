@@ -24,17 +24,20 @@ afterEach(() => {
 /** One leg's own `ogygia()`, configured for a build of `root`. */
 function leg_plugin(ssr: boolean): Plugin {
 	const plugin = ogygia().find((p) => p.name === 'ogygia')!;
-	handler(plugin.configResolved!).call(
-		null as never,
-		{
-			root,
-			base: '/',
-			command: 'build',
-			mode: 'production',
-			envDir: false,
-			build: { ssr }
-		} as never
-	);
+	expect(
+		handler(plugin.configResolved!).call(
+			null as never,
+			{
+				root,
+				base: '/',
+				command: 'build',
+				mode: 'production',
+				envDir: false,
+				build: { ssr }
+			} as never
+		),
+		'configResolved runs at once'
+	).toBeUndefined();
 	return plugin;
 }
 

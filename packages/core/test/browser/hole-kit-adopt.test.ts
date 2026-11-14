@@ -15,7 +15,7 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-test('Kit hydration adopts the hole verbatim: its address and landed HTML survive', () => {
+test('Kit hydration adopts the hole verbatim: its address and landed HTML survive', async () => {
 	document.body.innerHTML = `<script>__sveltekit_lab = {};\x3C/script><div data-mount>${inject_html('hole_kit_ssr_b64')}</div>`;
 	const mount = document.querySelector('[data-mount]') as HTMLElement;
 	const hole = document.querySelector('ogygia-region[render="defer"]') as HTMLElement;
@@ -42,5 +42,5 @@ test('Kit hydration adopts the hole verbatim: its address and landed HTML surviv
 	expect(hole.getAttribute('endpoint'), 'its address kept').toBe(endpoint);
 	expect(hole.querySelector('[data-landed]'), 'its landed HTML kept').not.toBeNull();
 	expect(warns.filter((w) => w.includes('hydration_mismatch'))).toEqual([]);
-	unmount(app as never);
+	await unmount(app as never);
 });

@@ -61,7 +61,7 @@ test('Kit hydration adopts the lake verbatim; the island inside wakes on the run
 		await page.getByRole('button', { name: 'add' }).click();
 		await expect.element(page.getByTestId('count')).toHaveTextContent('4');
 
-		unmount(app);
+		await unmount(app);
 	} finally {
 		console.warn = real_warn;
 	}
@@ -85,7 +85,7 @@ test('a lake re-created empty after a Kit hydration failure is repainted from it
 		.poll(() => document.querySelector(ISLAND_HYDRATED) !== null, { timeout: 10_000 })
 		.toBe(true);
 	// what Svelte's fallback does: the old tree goes, a fresh client render lands — the lake empty
-	unmount(app);
+	await unmount(app);
 	mount.innerHTML = `<ogygia-region entry="${lake_id}" wake="none" remount="cache" data-og-lake="${lake_identity}"></ogygia-region>`;
 	const fresh = document.querySelector(LAKE) as HTMLElement;
 	// the repaint is synchronous at connect (the copy is already in the session cache)
