@@ -6291,6 +6291,10 @@
 		{
 			"id": "packages/insights/src/page-insights.ts > analyze_page > map:0~e59b9a",
 			"reason": "a queued island's name and wait joined into a finding's message, inside analyze_page's pass, constant work per island"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > <anonymous>~b32df9",
+			"reason": "dev server only: one call per page render, a sorted copy of the og.$ hoists the compiler holds (Compiler.fn_manifest, which the build path already measures); apps/palaestra/e2e/dev-dollar-fn.spec.ts runs it"
 		}
 	]
 }
