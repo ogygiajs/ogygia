@@ -4381,6 +4381,14 @@
 			"reason": "a warning's longer wording for its error page, constant text"
 		},
 		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_read_dropped > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/peer-flights.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_read_dropped > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
 			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_unreachable > text",
 			"reason": "a warning's wording, constant text; said in packages/federation/test/peer-unreachable.test.ts"
 		},

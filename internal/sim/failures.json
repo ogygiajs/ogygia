@@ -4905,13 +4905,13 @@
 		},
 		{
 			"site": "packages/federation/src/peer.ts > PeerHandle > doc > abort:0",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the abort check never true hangs the test past the run time limit",
+			"reason": "a read its request ended stops reading; proved by hand: the abort check made never true turns the test red, twice (the read fetches again until it gives up with a 504, #1792)",
 			"test": "packages/federation/test/sim-peer.test.ts",
 			"name": "fetches each page once per thaw, and never serves a page from before what it saw"
 		},
 		{
 			"site": "packages/federation/src/peer.ts > PeerHandle > doc > throw:1",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed hangs the test past the run time limit",
+			"reason": "`throw signal.reason;`: proved by hand: the throw removed turns the test red, twice (the read fetches again until it gives up with a 504, #1792)",
 			"test": "packages/federation/test/sim-peer.test.ts",
 			"name": "fetches each page once per thaw, and never serves a page from before what it saw"
 		},
