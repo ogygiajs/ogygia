@@ -34,11 +34,7 @@ import { ogygia } from '../src/vite/index.ts';
 import { definePlugin } from '../src/vite/plugin-api.ts';
 import { keep_client_dir } from '../src/kit.ts';
 import { server_handoff_json, server_handoff_path } from '../src/link/emit-gate.ts';
-import {
-	foucCssVirtualId,
-	foucScopedVirtualId,
-	FOUC_CSS_PREFIX
-} from '../src/fouc-css.ts';
+import { foucCssVirtualId, foucScopedVirtualId, FOUC_CSS_PREFIX } from '../src/fouc-css.ts';
 import { EVERY_BARREL } from '../src/exports/index.ts';
 import { remote_hash_of } from '../src/link/island-deps.ts';
 import { BuildCache, __set_build_cache_root } from '../src/build-cache.ts';

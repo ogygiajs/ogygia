@@ -12,12 +12,7 @@ import { VirtualTable } from '../src/virtual/resolver.ts';
 import { queries } from '../src/queries.ts';
 import { route_reader } from '../src/kit.ts';
 import { node_fs } from '../src/fs.ts';
-import {
-	CORE_PARTS,
-	CORE_VIRTUALS,
-	core_path,
-	type CoreApp
-} from '../src/virtual/core.ts';
+import { CORE_PARTS, CORE_VIRTUALS, core_path, type CoreApp } from '../src/virtual/core.ts';
 import { virtual, write_value, type Leg, type Part } from '../src/virtual/table.ts';
 import {
 	RESOLVED,

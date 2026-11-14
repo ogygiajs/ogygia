@@ -4,10 +4,7 @@
 // order).
 import { expect, test } from 'vitest';
 import { Program } from '../src/program.ts';
-import {
-	server_manifest_module,
-	server_regions_module
-} from '../src/link/server-manifest.ts';
+import { server_manifest_module, server_regions_module } from '../src/link/server-manifest.ts';
 
 const hole = (id: string, host: string) => ({
 	islands: [

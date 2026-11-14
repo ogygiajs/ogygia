@@ -251,7 +251,7 @@ describe('undeclared-marks warning', () => {
 		const c = make(og_root);
 		await c.transform_module(
 			`const RE = /\\bwith\\s*\\{[^}]*\\bwake\\b/; export const s = "with { wake: 'load' }";\n`,
-			`${og_root}/dist/compiler/region/transform.js`,
+			`${og_root}/dist/region/transform.js`,
 			on_server(c)
 		);
 		expect(warn.mock.calls.flat().join('\n')).not.toMatch(/declares no/);

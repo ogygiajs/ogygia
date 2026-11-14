@@ -19,10 +19,7 @@ import path from 'node:path';
 import { render } from 'svelte/server';
 import type { Component } from 'svelte';
 import { location_map_files } from '../src/link/location-map.ts';
-import {
-	collectIslandDepModulepreloads,
-	island_deps_module
-} from '../src/link/island-deps.ts';
+import { collectIslandDepModulepreloads, island_deps_module } from '../src/link/island-deps.ts';
 import {
 	decode_island_graph,
 	decode_island_locations,

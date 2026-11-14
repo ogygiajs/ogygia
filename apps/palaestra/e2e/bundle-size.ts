@@ -37,12 +37,13 @@ const arg = (flag: string): string | undefined => {
 const CORE = arg('--core')
 	? resolve(arg('--core')!)
 	: fileURLToPath(new URL('../../../packages/core', import.meta.url));
-// (a checkout from before @ogygia/compiler has the runtime entry inside core)
-const COMPILER_ENTRY = join(CORE, '../compiler/dist/link/runtime-entry.js');
+// (an older checkout keeps it under the compiler's dist/compiler/, or inside core before @ogygia/compiler)
+const COMPILER_ENTRY = [
+	join(CORE, '../compiler/dist/link/runtime-entry.js'),
+	join(CORE, '../compiler/dist/compiler/link/runtime-entry.js')
+].find((p) => existsSync(p));
 const { generateRuntimeEntrySource, resolveFeatures } = (await import(
-	pathToFileURL(
-		existsSync(COMPILER_ENTRY) ? COMPILER_ENTRY : join(CORE, 'dist/compiler/link/runtime-entry.js')
-	).href
+	pathToFileURL(COMPILER_ENTRY ?? join(CORE, 'dist/compiler/link/runtime-entry.js')).href
 )) as typeof import('../../../packages/compiler/dist/link/runtime-entry.js');
 
 const RUNTIME_DIR = join(CORE, 'dist/runtime');

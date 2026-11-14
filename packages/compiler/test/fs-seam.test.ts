@@ -154,10 +154,10 @@ const DIRECT_FS: Record<string, { calls: number; why: string }> = {
 };
 
 test('the compiler reads app files only through its fs seam', () => {
-	const dir = path.join(import.meta.dirname, '../src/compiler');
+	const dir = path.join(import.meta.dirname, '../src');
 	const found: Record<string, number> = {};
 	for (const rel of fs.readdirSync(dir, { recursive: true, encoding: 'utf8' })) {
-		if (!rel.endsWith('.ts')) continue;
+		if (!rel.endsWith('.ts') || rel.split(path.sep)[0] === 'vite') continue;
 		const src = fs.readFileSync(path.join(dir, rel), 'utf8');
 		// (`ctx.fs.read(` and `r.fs.stat(` are the seam: a dot before `fs` is not a direct call)
 		const n = src.match(/(?<![\w.])fs\s*\.\s*\w+\(/g)?.length ?? 0;

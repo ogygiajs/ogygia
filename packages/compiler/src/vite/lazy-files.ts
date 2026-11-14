@@ -1,11 +1,6 @@
 import MagicString from 'magic-string';
 import type { Plugin } from 'vite';
-import {
-	FILE_TOKEN_MARK,
-	FILE_TOKEN_RE,
-	file_token,
-	file_token_id
-} from '../link/file-token.ts';
+import { FILE_TOKEN_MARK, FILE_TOKEN_RE, file_token, file_token_id } from '../link/file-token.ts';
 
 const LOADER_RE = /\bimport_again\(\s*\(\)\s*=>\s*import\(\s*(["'`])([^"'`]+)\1\s*\)/g;
 

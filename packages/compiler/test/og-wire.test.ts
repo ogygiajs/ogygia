@@ -7,10 +7,7 @@ import {
 	reduce_transportable,
 	revive_transportable
 } from '../../core/src/live-transport.ts';
-import {
-	moduleHasTransportable,
-	appendTransportRegistrations
-} from '../src/transportables.ts';
+import { moduleHasTransportable, appendTransportRegistrations } from '../src/transportables.ts';
 
 const MARKUP = ['.svelte'] as const;
 const CODEC = `{ encode: (c) => c.v, decode: (v) => new C(v) }`;

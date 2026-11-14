@@ -5,11 +5,7 @@
  * virtual emits. End-to-end (build → handoff → linked page) is covered by the router's e2e suite (packages/router/e2e).
  */
 import { describe, expect, it } from 'vitest';
-import {
-	router_css_roots,
-	router_css_module,
-	router_css_key
-} from '../src/link/router-css.ts';
+import { router_css_roots, router_css_module, router_css_key } from '../src/link/router-css.ts';
 import {
 	register_router_css,
 	register_router_css_paths,

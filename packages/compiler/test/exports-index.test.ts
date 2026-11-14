@@ -4,11 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
 import { EVERY_BARREL, ExportIndex, Shapes, type Policy } from '../src/exports/index.ts';
-import {
-	collectFoucCssReachable,
-	through_caller,
-	type WalkResolve
-} from '../src/fouc-css.ts';
+import { collectFoucCssReachable, through_caller, type WalkResolve } from '../src/fouc-css.ts';
 
 function graph(files: Record<string, string>) {
 	const reads = new Map<string, number>();

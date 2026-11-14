@@ -98,7 +98,7 @@ describe('the virtual modules’ declarations', () => {
 		expect(realm).toContain(
 			`export const region_css: ${CONTRACT}.VirtualModules['ogygia:server/region-deps']['region_css'];`
 		);
-		expect(Object.values(want).join('\n')).not.toContain('dist/compiler/');
+		expect(Object.values(want).join('\n')).not.toContain('compiler/dist/');
 	});
 
 	it('declare each entry by its realm-named id only', () => {

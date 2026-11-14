@@ -123,10 +123,7 @@ import type { BuildLeg } from '../leg.ts';
 import { strip_bom } from '../bom.ts';
 
 import { preprocess_component_for_css } from './style-preprocess.ts';
-import {
-	needs_csr_false_full_reload,
-	needs_island_entry_full_reload
-} from '../dev/hmr.ts';
+import { needs_csr_false_full_reload, needs_island_entry_full_reload } from '../dev/hmr.ts';
 import { derive_css_scope_owners, type DevGraphModule } from '../dev/css-scope.ts';
 import {
 	collectIslandDepModulepreloads,

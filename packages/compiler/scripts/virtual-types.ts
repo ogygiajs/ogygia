@@ -16,9 +16,7 @@ import {
 } from '../src/virtual/types.ts';
 
 const names = probe_value_names(core.CORE_VIRTUALS, core.CORE_PROBE.app, core.CORE_PROBE.leg);
-const names_file = fileURLToPath(
-	new URL('../src/virtual/value-names.ts', import.meta.url)
-);
+const names_file = fileURLToPath(new URL('../src/virtual/value-names.ts', import.meta.url));
 fs.writeFileSync(names_file, value_names_source(names));
 // (the formatter's layout, so the committed file and a fresh one compare equal)
 execFileSync('pnpm', ['exec', 'oxfmt', names_file], { stdio: 'ignore' });
