@@ -124,7 +124,6 @@ type TaskScheduler = {
 
 /** The host's own, taken before any run swaps them: a real task boundary between scheduler waits. */
 const real_now = Date.now;
-const real_abort_timeout = AbortSignal.timeout;
 const real_set_immediate = (globalThis as { setImmediate?: (fn: () => void) => unknown })
 	.setImmediate;
 const macrotask = (): Promise<void> =>
@@ -494,7 +493,7 @@ class Run implements Sim {
 			perf.now = () => perf_base + this._clock;
 			this._restore.push(() => (perf.now = was_perf_now));
 		}
-		AbortSignal.timeout = (ms: number) => {
+		this._patch(AbortSignal, 'timeout', (ms: number) => {
 			const abort = new AbortController();
 			this._add(
 				() => abort.abort(new DOMException('The operation timed out.', 'TimeoutError')),
@@ -502,8 +501,7 @@ class Run implements Sim {
 				false
 			);
 			return abort.signal;
-		};
-		this._restore.push(() => (AbortSignal.timeout = real_abort_timeout));
+		});
 		// a rejection nobody hears is a broken rule of every area
 		const on_unheard = (reason: unknown) => this.broke('unhandled rejection', String(reason));
 		const proc = (globalThis as { process?: NodeJS.Process }).process;
@@ -516,6 +514,20 @@ class Run implements Sim {
 			window.addEventListener('unhandledrejection', on_event);
 			this._restore.push(() => window.removeEventListener('unhandledrejection', on_event));
 		}
+	}
+
+	_patch<T extends object, K extends keyof T>(target: T, key: K, value: T[K]): void {
+		const saved = Object.getOwnPropertyDescriptor(target, key);
+		Object.defineProperty(target, key, {
+			value,
+			configurable: true,
+			writable: true,
+			enumerable: saved?.enumerable ?? true
+		});
+		this._restore.push(() => {
+			if (saved) Object.defineProperty(target, key, saved);
+			else Reflect.deleteProperty(target, key);
+		});
 	}
 
 	_uninstall(): void {

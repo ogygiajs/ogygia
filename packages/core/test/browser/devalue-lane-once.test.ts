@@ -9,6 +9,8 @@ import { expect, inject, test } from 'vitest';
 import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { devalue } from '../../src/runtime/devalue-lane.ts';
+import { scope } from '@ogygia/machine';
+import { patch } from '../_patch.ts';
 
 const decode = (key: 'counter_tail_ssr_b64' | 'counter_json_lane_ssr_b64') => from_b64(inject(key));
 
@@ -22,12 +24,18 @@ test('one document query for the page, another only when markup comes in', async
 	document.body.innerHTML = region.repeat(5) + json;
 
 	let asked = 0;
-	const proto = Document.prototype as { querySelector(selector: string): Element | null };
-	const query = proto.querySelector;
-	proto.querySelector = function (this: Document, selector: string) {
-		if (selector.includes(LANE_QUERY)) asked++;
-		return query.call(this, selector);
-	};
+	const proto = Document.prototype as { querySelector: (selector: string) => Element | null };
+	const spies = scope();
+	patch(
+		spies,
+		proto,
+		'querySelector',
+		(query) =>
+			function (this: Document, selector: string) {
+				if (selector.includes(LANE_QUERY)) asked++;
+				return query.call(this, selector);
+			}
+	);
 	try {
 		bootDev();
 		await expect
@@ -55,6 +63,6 @@ test('one document query for the page, another only when markup comes in', async
 			.toBe(8);
 		expect(asked).toBe(2);
 	} finally {
-		proto.querySelector = query;
+		spies.close();
 	}
 });
