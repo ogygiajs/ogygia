@@ -6,11 +6,12 @@
  */
 import { expect, it } from 'vitest';
 import { render } from 'svelte/server';
-import type { Component } from 'svelte';
-import { greeting } from './canary/_fixtures/SnippetHost.svelte';
+import type { Component, Snippet } from 'svelte';
+import * as SnippetHost from './canary/_fixtures/SnippetHost.svelte';
 import Lifter from './canary/_fixtures/Lifter.svelte';
 
 it('region.snippet() freezes a compiled snippet that writes elements, in a dev build', () => {
+	const { greeting } = SnippetHost as unknown as { greeting: Snippet };
 	const out: { frozen?: unknown } = {};
 	void render(Lifter as Component<Record<string, unknown>>, { props: { snippet: greeting, out } })
 		.body;
