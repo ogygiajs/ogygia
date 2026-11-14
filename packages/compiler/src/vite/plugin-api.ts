@@ -323,6 +323,9 @@ export interface ResolvedPlugins {
 export interface RegionsSeam {
 	/** island id → its component's name */
 	names(): Record<string, string>;
+	/** Each module that marks region imports (a host, by its absolute path) → the module ids its
+	 *  regions are built from: their components and the modules ogygia mints for them. */
+	hosts(): ReadonlyMap<string, ReadonlySet<string>>;
 	/** Why `barrels()` left the barrel at `file` as these modules import it (none: it was rewritten,
 	 *  or no rewrite was asked for). */
 	barrelWhy(file: string, importers: Iterable<string>): BarrelLeftReason[];
@@ -356,6 +359,9 @@ const NO_SEAMS: BuildSeams = {
 	},
 	regions: {
 		names: () => {
+			throw new Error('resolve_plugins: no region table without ogygia()');
+		},
+		hosts: () => {
 			throw new Error('resolve_plugins: no region table without ogygia()');
 		},
 		barrelWhy: () => {

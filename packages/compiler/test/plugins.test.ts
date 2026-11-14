@@ -239,6 +239,7 @@ describe('realms, named by the plugin', () => {
 	it('without ogygia() a plugin reading the region table is told so', () => {
 		for (const read of [
 			(b: BuildContext) => b.regions.names(),
+			(b: BuildContext) => b.regions.hosts(),
 			(b: BuildContext) => b.regions.barrelWhy('x', [])
 		])
 			expect(() =>

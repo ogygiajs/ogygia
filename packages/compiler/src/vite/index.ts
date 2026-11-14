@@ -338,6 +338,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		},
 		regions: {
 			names: () => compiler_of(session, 'regions.names').region_names(),
+			hosts: () => compiler_of(session, 'regions.hosts').region_hosts(),
 			barrelWhy: (file, importers) => barrel_why(file, importers)
 		}
 	};
