@@ -16,7 +16,19 @@
  * then each whose crossing changed, at the first frame after the document changed. A frame is a
  * task of the document's realm on the loop, so it replays.
  */
+import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
 import type { Loop } from './loop.ts';
+
+/** A cached answer of happy-dom's: `result` null once it no longer holds. */
+interface Kept {
+	result: unknown;
+}
+
+/** What happy-dom keeps on a node: its caches, and the entries its changing clears. */
+interface Cached {
+	[PropertySymbol.cache]: { computedStyle?: Kept | null; matches: Map<string, Kept> };
+	[PropertySymbol.affectsCache]: Kept[];
+}
 
 /** A box, in px from the document's top left. */
 export interface Box {
@@ -118,12 +130,14 @@ function px(value: string | undefined): number | null {
 	return Number.isFinite(n) ? n : null;
 }
 
-/** Every element's box in `doc` (an element with none has a box of no size where it would be). */
-export function boxes(doc: Document): Map<Element, Box> {
+/** Every element's box in `doc` (an element with none has a box of no size where it would be).
+ *  `room`: the live style-cache entries the document may keep (`LaidStyles`). */
+export function boxes(doc: Document, room = LAID_ROOM): Map<Element, Box> {
 	const view = doc.defaultView as unknown as {
 		getComputedStyle(el: Element): Record<string, string | undefined>;
 	};
 	const css = (el: Element) => view.getComputedStyle(el);
+	const laid = new LaidStyles(doc, room);
 	const out = new Map<Element, Box>();
 	let x = 0;
 	let y = 0;
@@ -153,8 +167,14 @@ export function boxes(doc: Document): Map<Element, Box> {
 		out.set(el, { x, y, w: 0, h: 0 });
 		for (const c of el.querySelectorAll('*')) out.set(c, { x, y, w: 0, h: 0 });
 	};
-	/** Lays out `node`; the boxes its content took (for its parent's union). */
+	/** Lays out `node`; the boxes its content took (for its parent's union). Once an element is laid
+	 *  out, the stylesheet matches it no longer needs may go (`LaidStyles`). */
 	const walk = (node: Node): Box[] => {
+		const took = lay(node);
+		if (node.nodeType === 1) laid.forget(node as Element);
+		return took;
+	};
+	const lay = (node: Node): Box[] => {
 		if (node.nodeType === 3) {
 			const text = (node.textContent ?? '').replace(/\s+/g, ' ');
 			if (text.trim() === '') return [];
@@ -251,6 +271,45 @@ export function boxes(doc: Document): Map<Element, Box> {
 	};
 	if (doc.documentElement) walk(doc.documentElement);
 	return out;
+}
+
+/** Live entries on a document's cache list past which a layout lets go of what it is done with. */
+const LAID_ROOM = 2_000_000;
+
+/**
+ * What the DOM library keeps of each element's stylesheet matches, let go once the element is laid
+ * out. The library keeps a match per element per stylesheet selector, listed on the document too,
+ * and an entry stays on that list after its element changed; on a page of 60,000 elements that was
+ * 3 GB in one frame (test/layout.test.ts). The list is cut down to its live entries whenever it has
+ * doubled. A page whose live entries stay under `LAID_ROOM` keeps every cache (a layout each frame
+ * reuses them); past it, each element laid out lets go of its matches, so a layout stays linear in
+ * the page. The caches only save work: what the library computes again is the same.
+ */
+class LaidStyles {
+	readonly #doc: Cached;
+	readonly #limit: number;
+	#full = false;
+	#room: number;
+
+	constructor(doc: Document, limit: number) {
+		this.#doc = doc as unknown as Cached;
+		this.#limit = limit;
+		this.#room = limit;
+	}
+
+	forget(el: Element): void {
+		const listed = this.#doc[PropertySymbol.affectsCache];
+		if (listed.length > this.#room) {
+			const live = listed.filter((item) => item.result !== null);
+			this.#doc[PropertySymbol.affectsCache] = live;
+			this.#room = Math.max(this.#limit, live.length * 2);
+			this.#full = live.length > this.#limit;
+		}
+		if (!this.#full) return;
+		const cache = (el as unknown as Cached)[PropertySymbol.cache];
+		for (const item of cache.matches.values()) item.result = null;
+		cache.matches = new Map();
+	}
 }
 
 /** `rootMargin` as px on each side (top, right, bottom, left); `%` of the viewport. */
