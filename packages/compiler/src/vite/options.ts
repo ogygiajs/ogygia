@@ -1,5 +1,5 @@
-import { PRESET_KEYS, type ImportKeys } from '../compiler/region/transform.ts';
-import { OgygiaError } from '../compiler/messages.ts';
+import { PRESET_KEYS, type ImportKeys } from '../region/transform.ts';
+import { OgygiaError } from '../messages.ts';
 
 /**
  * Named strategy bundle referenced from source via `with { preset: 'name' }`

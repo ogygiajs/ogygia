@@ -13,8 +13,8 @@ import {
 	regionId,
 	regionBindingVirtualId,
 	wrapperVirtualId
-} from '../src/compiler/region/transform.ts';
-import type { MarkOptions } from '../src/compiler/region/ir.ts';
+} from '../src/region/transform.ts';
+import type { MarkOptions } from '../src/region/ir.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 type HostCtx = Parameters<typeof transformHost>[2];

@@ -4,7 +4,7 @@
 // per name, which redeclares the identifiers and fails the build:
 //   RollupError: Identifier 'handleClickUrl' has already been declared
 import { describe, it, expect } from 'vitest';
-import { transformHost } from '../src/compiler/region/transform.ts';
+import { transformHost } from '../src/region/transform.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const ctx = {

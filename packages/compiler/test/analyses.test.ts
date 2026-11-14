@@ -1,4 +1,4 @@
-// The analysis table (src/compiler/link/analyses.ts) stays true: each entry's function is where it
+// The analysis table (src/link/analyses.ts) stays true: each entry's function is where it
 // says, and each has an oracle (a file marked `// oracle: <name>`) or a gap naming the issue for one,
 // never both. A marker for an analysis the table does not list fails, so an oracle cannot drift
 // away from its analysis. Oracles may live anywhere in the repo's packages or internal tools.
@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ANALYSES } from '../src/compiler/link/analyses.ts';
+import { ANALYSES } from '../src/link/analyses.ts';
 
 const REPO = fileURLToPath(new URL('../../..', import.meta.url));
 const PACKAGES = fileURLToPath(new URL('../../', import.meta.url));

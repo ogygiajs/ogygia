@@ -12,8 +12,8 @@ import {
 	transformHost,
 	transformTsRegions,
 	wrapperVirtualId
-} from '../src/compiler/region/transform.ts';
-import type { IslandDescriptor } from '../src/compiler/program.ts';
+} from '../src/region/transform.ts';
+import type { IslandDescriptor } from '../src/program.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 type HostCtx = Parameters<typeof transformHost>[2];

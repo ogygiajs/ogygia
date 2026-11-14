@@ -6,10 +6,10 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
-import { Compiler } from '../src/compiler/driver.ts';
-import { Program } from '../src/compiler/program.ts';
-import { CompileCtx } from '../src/compiler/ctx.ts';
-import { normalize_import_keys } from '../src/compiler/region/transform.ts';
+import { Compiler } from '../src/driver.ts';
+import { Program } from '../src/program.ts';
+import { CompileCtx } from '../src/ctx.ts';
+import { normalize_import_keys } from '../src/region/transform.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 

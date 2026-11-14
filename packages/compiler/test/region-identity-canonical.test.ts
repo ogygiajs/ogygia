@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { transformHost } from '../src/compiler/region/transform.ts';
+import { transformHost } from '../src/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 

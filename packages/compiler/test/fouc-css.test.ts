@@ -8,7 +8,7 @@ import {
 	foucCssVirtualId,
 	foucScopedVirtualId,
 	listStaticImports
-} from '../src/compiler/fouc-css.ts';
+} from '../src/fouc-css.ts';
 
 describe('fouc-css collector', () => {
 	const root = '/app';

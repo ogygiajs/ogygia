@@ -4,8 +4,8 @@
 import { describe, expect, it } from 'vitest';
 import path from 'node:path';
 import { dedent } from '@ogygia/core/contract';
-import { transformHost, transformTsRegions } from '../src/compiler/region/transform.ts';
-import { regionId } from '../src/compiler/region/identity.ts';
+import { transformHost, transformTsRegions } from '../src/region/transform.ts';
+import { regionId } from '../src/region/identity.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 type Ctx = Parameters<typeof transformHost>[2];

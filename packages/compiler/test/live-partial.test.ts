@@ -7,7 +7,7 @@
 import { describe, test, expect } from 'vitest';
 import { region, isRegion } from '../../core/src/region.ts';
 import { ogygiaTransport } from '../../core/src/transport.ts';
-import { transformHost } from '../src/compiler/region/transform.ts';
+import { transformHost } from '../src/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 /** A fake SSR partial-binding (what `ogygia:region/binding/<iid>.js` exports on the server leg). */

@@ -8,7 +8,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render } from 'svelte/server';
 import type { Component } from 'svelte';
 import { set_island_deps } from '../../core/test/_stubs/server.region-deps.ts';
-import { island_deps_module } from '../src/compiler/link/island-deps.ts';
+import { island_deps_module } from '../src/link/island-deps.ts';
 import { decode_island_graph, encode_island_graph } from '../../core/src/island-graph.ts';
 import { DocumentTail, island_graph_script } from '../../core/src/server/document-tail.ts';
 import { assert_known_options } from '../src/vite/options.ts';

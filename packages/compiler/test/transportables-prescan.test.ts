@@ -11,7 +11,7 @@ import { dedent } from '@ogygia/core/contract';
 import {
 	appendTransportRegistrations,
 	moduleHasTransportable
-} from '../src/compiler/transportables.ts';
+} from '../src/transportables.ts';
 
 const FILE = '/app/src/lib/cart.ts';
 const registers = (src: string) =>

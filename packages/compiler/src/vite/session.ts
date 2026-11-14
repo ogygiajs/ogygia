@@ -1,6 +1,6 @@
 import { machine, type Machine } from '@ogygia/machine';
-import type { Compiler } from '../compiler/driver.ts';
-import { OgygiaError } from '../compiler/messages.ts';
+import type { Compiler } from '../driver.ts';
+import { OgygiaError } from '../messages.ts';
 
 type SessionStates = { created: {}; configured: {}; resolved: { compiler: Compiler } };
 const SESSION_STEPS = {

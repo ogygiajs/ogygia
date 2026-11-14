@@ -25,7 +25,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { rolldown, type OutputChunk } from 'rolldown';
-import type { RuntimeMarks } from '../../../packages/compiler/dist/compiler/link/runtime-entry.js';
+import type { RuntimeMarks } from '../../../packages/compiler/dist/link/runtime-entry.js';
 
 /** The value after `flag` on the command line, if any. */
 const arg = (flag: string): string | undefined => {
@@ -38,12 +38,12 @@ const CORE = arg('--core')
 	? resolve(arg('--core')!)
 	: fileURLToPath(new URL('../../../packages/core', import.meta.url));
 // (a checkout from before @ogygia/compiler has the runtime entry inside core)
-const COMPILER_ENTRY = join(CORE, '../compiler/dist/compiler/link/runtime-entry.js');
+const COMPILER_ENTRY = join(CORE, '../compiler/dist/link/runtime-entry.js');
 const { generateRuntimeEntrySource, resolveFeatures } = (await import(
 	pathToFileURL(
 		existsSync(COMPILER_ENTRY) ? COMPILER_ENTRY : join(CORE, 'dist/compiler/link/runtime-entry.js')
 	).href
-)) as typeof import('../../../packages/compiler/dist/compiler/link/runtime-entry.js');
+)) as typeof import('../../../packages/compiler/dist/link/runtime-entry.js');
 
 const RUNTIME_DIR = join(CORE, 'dist/runtime');
 const CORE_VERSION = (

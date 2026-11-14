@@ -1,4 +1,4 @@
-// QUERIES (src/compiler/queries.ts): an answer is computed again only when what it read changed, an
+// QUERIES (src/queries.ts): an answer is computed again only when what it read changed, an
 // answer that comes out the same stops there, and after any run of edits every answer equals the
 // one a fresh database on the final inputs gives. The last is checked on Kit's route answers
 // (kit.ts), over random route trees and random edits told to the reader the way the dev watcher
@@ -6,8 +6,8 @@
 import { describe, expect, test } from 'vitest';
 import fc from 'fast-check';
 import { dedent } from '@ogygia/core/contract';
-import { derived, input, queries, same } from '../src/compiler/queries.ts';
-import { memory_fs, type MemoryFs } from '../src/compiler/fs.ts';
+import { derived, input, queries, same } from '../src/queries.ts';
+import { memory_fs, type MemoryFs } from '../src/fs.ts';
 import {
 	clientBuildWillSkip,
 	csrTrueRouteIds,
@@ -20,7 +20,7 @@ import {
 	routeCsrIsTrue,
 	route_reader,
 	type Routes
-} from '../src/compiler/kit.ts';
+} from '../src/kit.ts';
 
 /** A tiny world: named cells the test sets, and counters of how often each answer ran. */
 function world() {

@@ -1,15 +1,15 @@
-// Core's virtual modules (packages/compiler/src/compiler/virtual/core.ts), loaded through the
+// Core's virtual modules (packages/compiler/src/virtual/core.ts), loaded through the
 // in-memory compile: no Vite. A build module read from the whole program prescans first, so the
 // first load in a cold session says the same as one after an explicit prescan; the leg and the
 // mode pick what each module says (dev's kitchen-sink boot, the server-only secret, the fn
 // manifest only when a decoder can revive a fn ref).
 import { describe, expect, it } from 'vitest';
 import { dedent } from '../../../packages/core/src/contract/dedent.ts';
-import { memory_fs } from '../../../packages/compiler/src/compiler/fs.ts';
+import { memory_fs } from '../../../packages/compiler/src/fs.ts';
 import {
 	SERVER_MAP_TOKENS,
 	server_manifest_maps
-} from '../../../packages/compiler/src/compiler/link/server-manifest.ts';
+} from '../../../packages/compiler/src/link/server-manifest.ts';
 import { LIB, ROUTES } from '../src/app.ts';
 import { session, type Leg, type Session } from '../src/session.ts';
 

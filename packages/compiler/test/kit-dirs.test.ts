@@ -8,10 +8,10 @@ import {
 	keep_client_dir,
 	KEEP_CLIENT_DIR,
 	resolve_kit_paths
-} from '../src/compiler/kit.ts';
-import { CompileCtx, normalize_import_keys } from '../src/compiler/index.ts';
+} from '../src/kit.ts';
+import { CompileCtx, normalize_import_keys } from '../src/index.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
-import { islandDepsHandoffPath, island_deps_module } from '../src/compiler/link/island-deps.ts';
+import { islandDepsHandoffPath, island_deps_module } from '../src/link/island-deps.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ogygia must follow the app's `kit.files.routes` and `kit.outDir`, not assume `src/routes` and

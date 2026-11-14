@@ -2,16 +2,16 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
-import { queries } from '../src/compiler/queries.ts';
+import { VirtualTable } from '../src/virtual/resolver.ts';
+import { queries } from '../src/queries.ts';
 import {
 	CORE_PARTS,
 	CORE_VIRTUALS,
 	core_path,
 	type CoreApp
-} from '../src/compiler/virtual/core.ts';
-import type { Leg } from '../src/compiler/virtual/table.ts';
-import { CORE_VALUE_NAMES } from '../src/compiler/virtual/value-names.ts';
+} from '../src/virtual/core.ts';
+import type { Leg } from '../src/virtual/table.ts';
+import { CORE_VALUE_NAMES } from '../src/virtual/value-names.ts';
 
 const table = new VirtualTable<CoreApp>(
 	CORE_VIRTUALS,

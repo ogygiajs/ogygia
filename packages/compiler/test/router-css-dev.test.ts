@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createServer, type Plugin, type RunnableDevEnvironment, type ViteDevServer } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { router_css_module } from '../src/compiler/link/router-css.ts';
+import { router_css_module } from '../src/link/router-css.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const own = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));

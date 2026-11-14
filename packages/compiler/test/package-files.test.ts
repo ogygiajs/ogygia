@@ -9,10 +9,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { vi } from 'vitest';
 import { discover_package_files } from '../src/vite/package-files.ts';
-import { CompileCtx, type CompileCtxInit, type PackageScan } from '../src/compiler/ctx.ts';
-import { Compiler } from '../src/compiler/driver.ts';
-import { Program } from '../src/compiler/program.ts';
-import { normalize_import_keys, type ImportKeys } from '../src/compiler/region/transform.ts';
+import { CompileCtx, type CompileCtxInit, type PackageScan } from '../src/ctx.ts';
+import { Compiler } from '../src/driver.ts';
+import { Program } from '../src/program.ts';
+import { normalize_import_keys, type ImportKeys } from '../src/region/transform.ts';
 import { dedent } from '@ogygia/core/contract';
 
 let app: string;

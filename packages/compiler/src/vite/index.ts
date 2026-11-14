@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { dedent } from '@ogygia/core/contract';
 import { isMainThread } from 'node:worker_threads';
 import { loadEnv, type Plugin, type Rolldown, type ViteDevServer } from 'vite';
-import { configure_build_cache } from '../compiler/build-cache.ts';
+import { configure_build_cache } from '../build-cache.ts';
 import {
 	content_css_key,
 	DEFAULT_REGION_TTL_SEC,
@@ -35,7 +35,7 @@ import {
 import { island_sourcemaps_plugin } from './sourcemaps.ts';
 import { lazy_files } from './lazy-files.ts';
 import { install_dev_client_maps, install_dev_maps, install_dev_page_keys } from './dev-maps.ts';
-import { is_island_path, normalize_import_keys } from '../compiler/region/transform.ts';
+import { is_island_path, normalize_import_keys } from '../region/transform.ts';
 
 export {
 	normalize_import_keys,
@@ -49,9 +49,9 @@ export {
 	regionId,
 	regionIdentity,
 	strategyKey
-} from '../compiler/region/transform.ts';
-export { rewrite_lake_import_to_placeholder } from '../compiler/region/emit.ts';
-export type { ImportKeys } from '../compiler/region/transform.ts';
+} from '../region/transform.ts';
+export { rewrite_lake_import_to_placeholder } from '../region/emit.ts';
+export type { ImportKeys } from '../region/transform.ts';
 export { definePlugin } from './plugin-api.ts';
 export type {
 	OgygiaPlugin,
@@ -78,7 +78,7 @@ export type {
 	Entry as ExportEntry,
 	Leaf as ExportLeaf,
 	Policy as ExportPolicy
-} from '../compiler/exports/index.ts';
+} from '../exports/index.ts';
 export type { OgygiaPreset, OgygiaRateLimit, OgygiaOptions } from './options.ts';
 import {
 	find_plugins,
@@ -91,7 +91,7 @@ import {
 } from './plugin-api.ts';
 import MagicString from 'magic-string';
 import { definers_plugin } from './definers.ts';
-import type { ClientRealmFile, ServerRealm } from '../compiler/link/caps.ts';
+import type { ClientRealmFile, ServerRealm } from '../link/caps.ts';
 import { assert_known_options, validate_region_presets, resolve_options } from './options.ts';
 import {
 	clientBuildWillSkip,
@@ -103,8 +103,8 @@ import {
 	kit_major,
 	default_kit_dirs,
 	type KitConfig
-} from '../compiler/kit.ts';
-import { node_fs } from '../compiler/fs.ts';
+} from '../kit.ts';
+import { node_fs } from '../fs.ts';
 import { load_kit_config } from './kit-dirs.ts';
 import {
 	buildFoucCssModuleSource,
@@ -117,37 +117,37 @@ import {
 	svelteHasStyle,
 	through_caller,
 	type WalkResolve
-} from '../compiler/fouc-css.ts';
-import { ExportIndex, Shapes } from '../compiler/exports/index.ts';
-import type { BuildLeg } from '../compiler/leg.ts';
-import { strip_bom } from '../compiler/bom.ts';
+} from '../fouc-css.ts';
+import { ExportIndex, Shapes } from '../exports/index.ts';
+import type { BuildLeg } from '../leg.ts';
+import { strip_bom } from '../bom.ts';
 
 import { preprocess_component_for_css } from './style-preprocess.ts';
 import {
 	needs_csr_false_full_reload,
 	needs_island_entry_full_reload
-} from '../compiler/dev/hmr.ts';
-import { derive_css_scope_owners, type DevGraphModule } from '../compiler/dev/css-scope.ts';
+} from '../dev/hmr.ts';
+import { derive_css_scope_owners, type DevGraphModule } from '../dev/css-scope.ts';
 import {
 	collectIslandDepModulepreloads,
 	collect_inline_css,
 	remote_hash_of,
 	summarize_chunk_contents
-} from '../compiler/link/island-deps.ts';
-import { report_seed_shaping } from '../compiler/link/build-output.ts';
-import { unpatched } from '../compiler/link/relocations.ts';
-import { emit_island_deps_handoff, refuse_client_secrets } from '../compiler/link/build-output.ts';
+} from '../link/island-deps.ts';
+import { report_seed_shaping } from '../link/build-output.ts';
+import { unpatched } from '../link/relocations.ts';
+import { emit_island_deps_handoff, refuse_client_secrets } from '../link/build-output.ts';
 import {
 	server_handoff_path,
 	server_handoff_json,
 	read_server_handoff
-} from '../compiler/link/emit-gate.ts';
-import { router_css_key } from '../compiler/link/router-css.ts';
-import { Program, strip_id } from '../compiler/program.ts';
-import { Compiler } from '../compiler/driver.ts';
+} from '../link/emit-gate.ts';
+import { router_css_key } from '../link/router-css.ts';
+import { Program, strip_id } from '../program.ts';
+import { Compiler } from '../driver.ts';
 import { compiler_of, configured, new_session, resolve } from './session.ts';
-import { core_defines } from '../compiler/virtual/core.ts';
-import { CompileCtx, type PackageScan } from '../compiler/ctx.ts';
+import { core_defines } from '../virtual/core.ts';
+import { CompileCtx, type PackageScan } from '../ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
 
@@ -161,7 +161,7 @@ const KIT_DISCLOSE_VERSION = `((globalThis.__ogygia ??= {}).v ??= new Set()).add
 import { scan_entry_pattern, KIT_REMOTE_CLIENT, KIT_REMOTE_STATE, RUNTIME_HASH } from './paths.ts';
 
 import type { OgygiaOptions } from './options.ts';
-import { OgygiaError, warn, line } from '../compiler/messages.ts';
+import { OgygiaError, warn, line } from '../messages.ts';
 
 const DEV_CSS_FILE_RE = /\.(css|scss|sass|less|styl)$/;
 const BACKSLASH_G = /\\/g;

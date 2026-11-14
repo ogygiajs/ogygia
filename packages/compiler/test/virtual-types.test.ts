@@ -5,18 +5,18 @@
  */
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
-import * as core from '../src/compiler/virtual/core.ts';
+import * as core from '../src/virtual/core.ts';
 import {
 	virtual_types,
 	constant_types,
 	probe_value_names,
 	value_names_source,
 	REALMS
-} from '../src/compiler/virtual/types.ts';
-import { CORE_VALUE_NAMES } from '../src/compiler/virtual/value-names.ts';
-import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
-import { virtual } from '../src/compiler/virtual/table.ts';
-import { queries } from '../src/compiler/queries.ts';
+} from '../src/virtual/types.ts';
+import { CORE_VALUE_NAMES } from '../src/virtual/value-names.ts';
+import { VirtualTable } from '../src/virtual/resolver.ts';
+import { virtual } from '../src/virtual/table.ts';
+import { queries } from '../src/queries.ts';
 
 const names = probe_value_names(core.CORE_VIRTUALS, core.CORE_PROBE.app, core.CORE_PROBE.leg);
 const want = virtual_types(core, names);
@@ -26,7 +26,7 @@ const squash = (s: string): string => s.replace(/[\s'"]+/g, '');
 describe('the virtual modules’ declarations', () => {
 	it('name each value entry’s exports as a fresh probe of its `from` does', () => {
 		expect(CORE_VALUE_NAMES).toEqual(names);
-		const file = new URL('../src/compiler/virtual/value-names.ts', import.meta.url);
+		const file = new URL('../src/virtual/value-names.ts', import.meta.url);
 		// (the committed file is formatted; the names, quotes aside, are the generated ones)
 		expect(squash(fs.readFileSync(file, 'utf8'))).toBe(squash(value_names_source(names)));
 	});

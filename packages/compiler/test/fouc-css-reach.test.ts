@@ -10,7 +10,7 @@ import {
 	collectFoucCssReachable,
 	foucScopedVirtualId,
 	listStaticImports
-} from '../src/compiler/fouc-css.ts';
+} from '../src/fouc-css.ts';
 
 const styled = (cls: string) => `<i class="${cls}"></i><style>.${cls} { color: red }</style>`;
 const LIB = '/app/src/lib';

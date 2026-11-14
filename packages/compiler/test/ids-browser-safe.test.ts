@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const SRC = fileURLToPath(new URL('../src/compiler/', import.meta.url));
+const SRC = fileURLToPath(new URL('../src/', import.meta.url));
 const IMPORT_RE = /^\s*(?:import|export)\b[^'"]*?from\s*['"]([^'"]+)['"]/gm;
 
 function closure(file: string, seen = new Set<string>()): Set<string> {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
-import { rewrite_wire, WIRE_EXPR } from '../src/compiler/macros/wire.ts';
+import { rewrite_wire, WIRE_EXPR } from '../src/macros/wire.ts';
 import {
 	wire,
 	__register_transportable,
@@ -10,7 +10,7 @@ import {
 import {
 	moduleHasTransportable,
 	appendTransportRegistrations
-} from '../src/compiler/transportables.ts';
+} from '../src/transportables.ts';
 
 const MARKUP = ['.svelte'] as const;
 const CODEC = `{ encode: (c) => c.v, decode: (v) => new C(v) }`;

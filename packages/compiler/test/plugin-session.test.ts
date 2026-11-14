@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Plugin } from 'vite';
 import { compiler_of, configured, new_session, resolve } from '../src/vite/session.ts';
-import type { Compiler } from '../src/compiler/driver.ts';
+import type { Compiler } from '../src/driver.ts';
 import { ogygia } from '../src/vite/index.ts';
 
 const fake = (n: number) => ({ n }) as unknown as Compiler;

@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { type KitConfig, type KitDirs, DEFAULT_KIT_DIRS } from '../compiler/kit.ts';
-import { warn } from '../compiler/messages.ts';
+import { type KitConfig, type KitDirs, DEFAULT_KIT_DIRS } from '../kit.ts';
+import { warn } from '../messages.ts';
 
 const CONFIG_FILES = ['svelte.config.js', 'svelte.config.mjs'];
 

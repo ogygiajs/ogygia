@@ -2,7 +2,7 @@
 // session begins its legs as Vite's `buildStart` does, so each leg's transform of a page compiles it.
 import { describe, expect, it } from 'vitest';
 import { dedent } from '../../../packages/core/src/contract/dedent.ts';
-import { memory_fs } from '../../../packages/compiler/src/compiler/fs.ts';
+import { memory_fs } from '../../../packages/compiler/src/fs.ts';
 import { LIB, ROUTES } from '../src/app.ts';
 import { session, transform_module } from '../src/session.ts';
 

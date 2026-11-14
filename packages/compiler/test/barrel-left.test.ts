@@ -1,7 +1,7 @@
-// The table of why a barrel stayed (src/compiler/exports/left.ts): what a stage transform said about
+// The table of why a barrel stayed (src/exports/left.ts): what a stage transform said about
 // each module's imports, read back for the barrels an island still imports whole.
 import { describe, expect, it } from 'vitest';
-import { barrel_left_table } from '../src/compiler/exports/left.ts';
+import { barrel_left_table } from '../src/exports/left.ts';
 
 describe('the barrel-left table', () => {
 	it('answers the reasons recorded for a barrel, in a fixed order, once each', () => {

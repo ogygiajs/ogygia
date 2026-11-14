@@ -9,7 +9,7 @@ import {
 	router_css_roots,
 	router_css_module,
 	router_css_key
-} from '../src/compiler/link/router-css.ts';
+} from '../src/link/router-css.ts';
 import {
 	register_router_css,
 	register_router_css_paths,

@@ -6,7 +6,7 @@
 // rewrite every body occurrence to the capture's prop name, and WARN that the copy is frozen —
 // the exact failure a consumer hit in CI (commerce-app previewPage page).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { transformHost } from '../src/compiler/region/transform.ts';
+import { transformHost } from '../src/region/transform.ts';
 
 const ctx = {
 	root: '/app',

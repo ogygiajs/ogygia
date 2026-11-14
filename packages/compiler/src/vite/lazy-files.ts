@@ -5,7 +5,7 @@ import {
 	FILE_TOKEN_RE,
 	file_token,
 	file_token_id
-} from '../compiler/link/file-token.ts';
+} from '../link/file-token.ts';
 
 const LOADER_RE = /\bimport_again\(\s*\(\)\s*=>\s*import\(\s*(["'`])([^"'`]+)\1\s*\)/g;
 

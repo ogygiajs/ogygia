@@ -2,7 +2,7 @@
 // server/render-page.ts): the server manifest's placeholder is patched, once the graph is complete,
 // with each server island's answer over its component's static AND dynamic imports.
 import { describe, test, expect } from 'vitest';
-import { CompileCtx, Compiler, Program, normalize_import_keys } from '../src/compiler/index.ts';
+import { CompileCtx, Compiler, Program, normalize_import_keys } from '../src/index.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { code_fn } from './_code-fn.ts';
 

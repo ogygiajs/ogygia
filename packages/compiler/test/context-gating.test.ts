@@ -6,9 +6,9 @@
  * The barrel and dynamic import forms: own-reach.test.ts.
  */
 import { describe, expect, it } from 'vitest';
-import { context_keys } from '../src/compiler/link/context-detect.ts';
-import { own_reach, reaches_context } from '../src/compiler/link/own-reach.ts';
-import { resolveFeatures } from '../src/compiler/link/runtime-entry.ts';
+import { context_keys } from '../src/link/context-detect.ts';
+import { own_reach, reaches_context } from '../src/link/own-reach.ts';
+import { resolveFeatures } from '../src/link/runtime-entry.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const source_uses_ogygia_context = (src: string) =>

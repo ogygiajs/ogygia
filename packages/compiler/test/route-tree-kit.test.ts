@@ -17,8 +17,8 @@ import {
 	route_reader,
 	routeCsrIsFalse,
 	routeCsrIsTrue
-} from '../src/compiler/kit.ts';
-import { node_fs } from '../src/compiler/fs.ts';
+} from '../src/kit.ts';
+import { node_fs } from '../src/fs.ts';
 
 let R = route_reader(node_fs);
 

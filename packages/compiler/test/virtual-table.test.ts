@@ -1,5 +1,5 @@
 /**
- * The virtual-module table (src/compiler/virtual/): every module ogygia serves is declared once, an
+ * The virtual-module table (src/virtual/): every module ogygia serves is declared once, an
  * undeclared id in the namespace fails with a code, every module answers to its realm-named
  * specifier only, and a dev change invalidates exactly the entries that watch it.
  */
@@ -8,17 +8,17 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
-import { queries } from '../src/compiler/queries.ts';
-import { route_reader } from '../src/compiler/kit.ts';
-import { node_fs } from '../src/compiler/fs.ts';
+import { VirtualTable } from '../src/virtual/resolver.ts';
+import { queries } from '../src/queries.ts';
+import { route_reader } from '../src/kit.ts';
+import { node_fs } from '../src/fs.ts';
 import {
 	CORE_PARTS,
 	CORE_VIRTUALS,
 	core_path,
 	type CoreApp
-} from '../src/compiler/virtual/core.ts';
-import { virtual, write_value, type Leg, type Part } from '../src/compiler/virtual/table.ts';
+} from '../src/virtual/core.ts';
+import { virtual, write_value, type Leg, type Part } from '../src/virtual/table.ts';
 import {
 	RESOLVED,
 	V_FN_MANIFEST,
@@ -32,9 +32,9 @@ import {
 	regionBindingVirtualId,
 	region_family,
 	wrapperVirtualId
-} from '../src/compiler/ids.ts';
-import { BUILD_ERRORS } from '../src/compiler/messages.ts';
-import { CORE_VALUE_NAMES } from '../src/compiler/virtual/value-names.ts';
+} from '../src/ids.ts';
+import { BUILD_ERRORS } from '../src/messages.ts';
+import { CORE_VALUE_NAMES } from '../src/virtual/value-names.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
 
 const table = new VirtualTable<CoreApp>(

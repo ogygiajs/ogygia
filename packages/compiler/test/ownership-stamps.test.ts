@@ -2,7 +2,7 @@
 // into (internal/notes/dom-ownership.md §4). The runtime's repair, drift watch and morph leave those
 // subtrees alone (runtime/ownership.ts); the runtime can't tell them apart from the DOM by itself.
 import { describe, expect, test } from 'vitest';
-import { stamp_opaque } from '../src/compiler/ownership-stamps.ts';
+import { stamp_opaque } from '../src/ownership-stamps.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const S = (src: string) => stamp_opaque(src, '/app/src/lib/X.svelte');

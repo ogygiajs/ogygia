@@ -94,7 +94,7 @@ export function constant_types(entries: Record<string, unknown>): string {
 	}
 	return `${dedent`
 		// ogygia's switches, the \`define\`s its build inlines. GENERATED from the virtual-module
-		// table's constants (packages/compiler/src/compiler/virtual/core.ts) by
+		// table's constants (packages/compiler/src/virtual/core.ts) by
 		// \`node packages/compiler/scripts/virtual-types.ts\`. Do not edit.
 
 		${lines.join('\n')}
@@ -124,7 +124,7 @@ export function virtual_types<A>(
 		}
 		out[realm] = dedent`
 			// The \`ogygia:${realm}\` module and its entries' own ids. GENERATED from the virtual-module
-			// table (packages/compiler/src/compiler/virtual/core.ts) by
+			// table (packages/compiler/src/virtual/core.ts) by
 			// \`node packages/compiler/scripts/virtual-types.ts\`; every type is core's contract
 			// (src/contract/virtual-modules.ts). Do not edit.
 

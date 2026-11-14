@@ -9,7 +9,7 @@ import {
 	BuildCache,
 	__set_build_cache_root,
 	configure_build_cache
-} from '../src/compiler/build-cache.ts';
+} from '../src/build-cache.ts';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'og-cache-'));
 

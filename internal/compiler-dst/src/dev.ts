@@ -11,7 +11,7 @@ import {
 	memory_fs,
 	type Fs,
 	type MemoryFs
-} from '../../../packages/compiler/src/compiler/index.ts';
+} from '../../../packages/compiler/src/index.ts';
 import { code_of, session, transform_module, type Leg, type Session } from './session.ts';
 import { LIB, ROOT } from './app.ts';
 import { permute } from './order.ts';
