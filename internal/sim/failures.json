@@ -2114,6 +2114,12 @@
 			"name": "a navigation hook (before, after, and after at once as it is added)"
 		},
 		{
+			"site": "packages/core/src/runtime/router.ts > SpaRouter > navigate > stale:1",
+			"reason": "a newer click ends the claim while the navigation chunk loads; its wait answers STALE and it stops: the check removed turns the test red",
+			"test": "packages/core/test/browser/router-claim-superseded.test.ts",
+			"name": "two navigations while the navigation chunk loads: the first claim stops at the chunk, and only the last one fetches its page"
+		},
+		{
 			"site": "packages/core/src/runtime/schedule.ts > post_background > catch:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
 			"test": "packages/core/test/schedule-background.test.ts",
