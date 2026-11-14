@@ -7,7 +7,7 @@ import { buggify } from '@ogygia/machine';
 import {
 	check_script,
 	closes_all,
-	localize_marks,
+	LocalMarks,
 	mark,
 	mark_with,
 	remap,
@@ -375,12 +375,12 @@ async function run_steps(
 			for (const span of scan(unit.cur, step.match, state, whole?.csr ?? false).spans) {
 				const raw = unit.cur.slice(span.start, span.end);
 				const outer = outer_mark(raw);
-				const local = localize_marks(outer ? outer.html : raw);
+				const local = new LocalMarks(outer ? outer.html : raw);
 				targets.push({
 					unit,
 					start: span.start,
 					end: span.end,
-					back: outer ? (h) => with_outer_mark(local.back(h), outer.attr) : local.back,
+					back: outer ? (h) => with_outer_mark(local.back(h), outer.attr) : (h) => local.back(h),
 					element: { name: span.name, html: local.html, restored: starts_restored(local.html) }
 				});
 			}

@@ -7,7 +7,7 @@
 //   timer, its fetch) the moment the visitor leaves;
 // - every read settles.
 import { describe, it } from 'vitest';
-import { fc, simulate } from '@ogygia/config/sim';
+import { fc, SimStream, simulate } from '@ogygia/config/sim';
 import { own_response, request_scope } from '../../src/plugin/request-scope.ts';
 import { server_rules_hold } from './_server.ts';
 
@@ -44,7 +44,7 @@ describe('the request scope, simulated', () => {
 						signal: visitor.signal
 					});
 					const chunks = Array.from({ length: r.chunks }, (_, k) => `<p>${i}.${k}</p>`);
-					const source = sim.stream(`request ${i}'s page`, chunks);
+					const source = new SimStream(sim, `request ${i}'s page`, chunks);
 					let fetch_signal: AbortSignal | null = null;
 					let response: Response | null = null;
 					let read = '';
