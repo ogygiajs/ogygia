@@ -253,14 +253,12 @@ export async function record_stop(blocked: BlockedNavigation[] = []): Promise<
 	set_last_session({ data, report });
 	window.__ogygia_session = report;
 	// each finding with the islands it points at, by name, as page findings carry them
-	const fp_of = (ref: Ref): string | null =>
-		ref.kind === 'island'
-			? ref.fp
-			: ((ref.kind === 'interaction'
-					? data.interactions
-					: ref.kind === 'click'
-						? data.clicks
-						: data.shifts)[ref.i]?.fp ?? null);
+	const fp_of = (ref: Ref): string | null => {
+		if (ref.kind === 'island') return ref.fp;
+		if (ref.kind === 'interaction') return data.interactions[ref.i]?.fp ?? null;
+		if (ref.kind === 'click') return data.clicks[ref.i]?.fp ?? null;
+		return data.shifts[ref.i]?.fp ?? null;
+	};
 	let nav_i = 0;
 	return {
 		...report,
