@@ -6035,6 +6035,10 @@
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > turn > wait > then:0~6e1ddd",
 			"reason": "browser only: maps a wait's answer to STALE when the region left the page (one isConnected read); proven in packages/core/test/browser/region-left-mid-wake.test.ts"
+		},
+		{
+			"id": "packages/cli/src/mcp.ts > render_story > map:0~b41403",
+			"reason": "one property read per event of a region with no connect or schedule event (the entry fallback), linear in that region's few events; an inline arrow over render_story's grouped events, so not replayable alone; proven in packages/cli/test/mcp-debug-story.test.ts"
 		}
 	]
 }
