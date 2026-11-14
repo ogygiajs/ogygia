@@ -255,6 +255,12 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/server/live-event.ts > live_event > catch:0",
+			"reason": "Kit's getRequestEvent throws outside a request, and every reader answers no request instead; proved by hand: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/kit-request-reads.test.ts",
+			"name": "outside any Kit request every reader answers null, and recording throws nothing"
+		},
+		{
 			"site": "packages/content/src/site/search-worker.ts > run > not-ok:0",
 			"reason": "an index download that is not ok fails as content_search_index_fetch_failed, not as a parse of its error body; proved by hand: the check made never true turns the test red, twice",
 			"test": "packages/content/test/search-client.test.ts",
@@ -1525,6 +1531,18 @@
 			"reason": "`catch (error) { report_thrown('machine_queue_start_failed', { name: t…`: a queue with passes: the jobs after a throwing start still start, and its window place goes back",
 			"test": "packages/machine/test/queue-passes.test.ts",
 			"name": "a start that throws is reported, its place and windows go back, and the pass goes on"
+		},
+		{
+			"site": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > until_critical > timer:0",
+			"reason": "`wait.timeout(() => this.settle_critical('cap'), CRITICAL_CAP_MS)`: a critical image that never arrives settles the wait as `cap`",
+			"test": "packages/core/test/browser/load-scheduler.test.ts",
+			"name": "a critical image that never arrives holds island code only up to the cap"
+		},
+		{
+			"site": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > until_critical > error-event:0",
+			"reason": "`wait.on(el, 'error', one, { once: true })`: proved by hand: without it a failed hero holds island code until the cap",
+			"test": "packages/core/test/browser/load-scheduler-critical-error.test.ts",
+			"name": "a critical image that fails to load ends the wait as one that arrived: island code starts"
 		},
 		{
 			"site": "packages/machine/src/queue.ts > PassLine > run > catch:0",
@@ -5618,8 +5636,6 @@
 		"packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_imports > parse:0",
 		"packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_imports > catch:0",
 		"packages/core/src/runtime/load-scheduler.ts > preload_urls > catch:0",
-		"packages/core/src/runtime/load-scheduler.ts > until_critical > timer:0",
-		"packages/core/src/runtime/load-scheduler.ts > until_critical > error-event:0",
 		"packages/core/src/runtime/morph.ts > carry_shadows > catch:0",
 		"packages/core/src/runtime/nav-handle.ts > (module) > import:0",
 		"packages/core/src/runtime/nav-handle.ts > invalidate_all > stale:0",
