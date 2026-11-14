@@ -228,6 +228,26 @@ describe('element rewrites: the restore', () => {
 			expect(seen.flat().map((e) => e.restored)).toEqual([true]);
 		});
 
+	for (const [match, at] of [
+		['demo-', '<'],
+		['demo-', '<dem'],
+		[['demo-card'], '<demo-ca'],
+		[(name: string) => name === 'demo-card', '<demo'],
+		[(name: string) => name === 'demo-card', '<demo-']
+	] as const)
+		it(`a matched element whose start tag a chunk boundary cuts (after "${at}", in a chunk with no match before it) is said as split, as one its chunk ends inside (found by the rewrite sim)`, async () => {
+			const seen: RewriteElement[][] = [];
+			const { chunk, failed } = chunked([{ ...scoped(seen), match }]);
+			const shell = doc('').replace('</body></html>', '');
+			const page = `${shell}<div><demo-card>a</demo-card></div></body></html>`;
+			const cut = shell.length + '<div>'.length + at.length;
+			const first = await chunk(page.slice(0, cut), { done: false });
+			const second = await chunk(page.slice(cut));
+			expect(first.html + second.html).toBe(page);
+			expect(seen).toEqual([]);
+			expect(failed.map((f) => `${f.code} ${f.name}`)).toEqual(['rewrite_element_split demo-card']);
+		});
+
 	it('a chunk-1 meta or sheet never lands inside an island: the first-load mark goes before the element it is for (found by the rewrite sim)', async () => {
 		const { chunk } = chunked([scoped()]);
 		await chunk(doc('').replace('</body></html>', ''), { done: false });
