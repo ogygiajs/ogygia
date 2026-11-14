@@ -1,14 +1,6 @@
 {
 	"exempt": [
 		{
-			"id": "packages/cli/src/cli.ts > installDeps > find:0~5e8663",
-			"reason": "the CLI's one-shot lockfile probe: a file check per known lockfile, run once per install"
-		},
-		{
-			"id": "packages/cli/src/cli.ts > preflight > find:0~8f7cb4",
-			"reason": "the CLI's one-shot vite config probe: a file check per name, run once per command"
-		},
-		{
 			"id": "packages/core/src/server/html-scan.ts > kit_boot_script > is_kit_boot_script:1~dc8962",
 			"reason": "one attribute lookup on a tag the walk already read, constant work; kit-gate.test.ts runs it"
 		},
@@ -2437,6 +2429,10 @@
 			"reason": "a message table entry: wording only (a rule broken; rewrite.test.ts 'rule_rewrite_after_cancel: …' says it)"
 		},
 		{
+			"id": "packages/rewrite/src/pass.ts > call_render > map:0~2fef46",
+			"reason": "rules builds only (buggify): each result of a render checked once for the malformed and strips-marks points, constant work per result (the render's own output: not replayable); folds out of production"
+		},
+		{
 			"id": "packages/core/src/server/page-stream.ts > swap_tracked",
 			"reason": "the fallback walk for a page value too deep or cyclic for the untracked one, handed a swap function (not cloneable); linear in the value, one Map entry per open object; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
 		},
@@ -3823,10 +3819,6 @@
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fetch_region > fetch_hole:1~0557ca > renewed",
 			"reason": "browser only: a renewal's fresh capability handed to the frame store, constant work; proven in packages/core/test/browser/hole-renewal.test.ts"
-		},
-		{
-			"id": "packages/core/src/frame.ts > frameAddress > sort:0~fd3bf5",
-			"reason": "the sort comparator of a call's parameters (a closure Array.sort calls, not replayable on its own), constant work per pair; frameAddress around it is proven in packages/core/test/frame-address.test.ts (#916)"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #wake_online",
@@ -5317,10 +5309,6 @@
 			"reason": "dev only: one region's loader path, constant work"
 		},
 		{
-			"id": "packages/compiler/src/link/server-manifest.ts > server_regions > sort:0~107bc2",
-			"reason": "one string compare in the server regions' sort, constant work, once per build"
-		},
-		{
 			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > as_region_removed > details",
 			"reason": "a message table entry: wording only"
 		},
@@ -6257,8 +6245,20 @@
 			"reason": "dev and rules builds only: words a repeated field list in a refusal, when a table is made; packages/machine/test/decisions.test.ts runs it"
 		},
 		{
-			"id": "packages/rewrite/src/pass.ts > call_render > map:0~2fef46",
-			"reason": "rules builds only (buggify): each result of a render checked once for the malformed and strips-marks points, constant work per result (the render's own output: not replayable); folds out of production"
+			"id": "packages/cli/src/cli.ts > installDeps > find:0~5e8663",
+			"reason": "the CLI's one-shot lockfile probe: a file check per known lockfile, run once per install"
+		},
+		{
+			"id": "packages/cli/src/cli.ts > preflight > find:0~8f7cb4",
+			"reason": "the CLI's one-shot vite config probe: a file check per name, run once per command"
+		},
+		{
+			"id": "packages/compiler/src/link/server-manifest.ts > server_regions > sort:0~107bc2",
+			"reason": "one string compare in the server regions' sort, constant work, once per build"
+		},
+		{
+			"id": "packages/core/src/frame.ts > frameAddress > sort:0~fd3bf5",
+			"reason": "the sort comparator of a call's parameters (a closure Array.sort calls, not replayable on its own), constant work per pair; frameAddress around it is proven in packages/core/test/frame-address.test.ts (#916)"
 		}
 	]
 }
