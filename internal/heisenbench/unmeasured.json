@@ -5913,8 +5913,68 @@
 			"reason": "build only: makes the plugin's page_reads (measured in the data-shake bench) and hands it to the build, once per build"
 		},
 		{
-			"id": "packages/rewrite/src/pass.ts > count_error",
-			"reason": "the wrong-count message of a failed render, built only when a render returns the wrong number of results; rewrite.test.ts 'a batch with the wrong count is retried one at a time' runs it"
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > option_unknown > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > option_unknown > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/vite/options.ts > assert_known_options",
+			"reason": "config-time only: once per ogygia() call, over the handful of keys the app passed"
+		},
+		{
+			"id": "packages/compiler/src/vite/options.ts > assert_known_options > OgygiaError:1~cd3adc > filter:0~bd445f",
+			"reason": "builds the unknown-option message, once, as the build fails"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_attribute_unknown > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_attribute_unknown > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > component_attribute_keys",
+			"reason": "builds an eight-name list, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > foreign_attribute",
+			"reason": "two lookups per attribute key, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > has_unknown_component_attribute",
+			"reason": "only for a host with no region key: one includes() and one linear regex pass over its .svelte import clauses; a bench would count the regex engine, not ours"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > refuse_unknown_attributes",
+			"reason": "once per attributed import a host already parses, over its few attribute keys"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > refuse_unknown_attributes > OgygiaError:1~5816b6 > map:0~86ff3f",
+			"reason": "builds the message once, as the build fails"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > map:0~74ff48",
+			"reason": "one specifier's local name per attributed import in a .ts module, for region_attribute_unknown's message: constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > absorb_page_facts > with_devalue:0~d7d878",
+			"reason": "browser only: hands the queued facts to merge_page_facts once devalue is in, constant work; proven in packages/core/test/browser/page-facts-before-devalue.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > absorb_page_facts > with_devalue:1~411c45",
+			"reason": "browser only: devalue's download failed for good, one warning, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts",
+			"reason": "browser only: one devalue parse per hole answer that carried page facts (a few keys), then one page-store set; proven in packages/core/test/browser/page-facts-before-devalue.test.ts and page-facts-visit.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts > filter:0~deb9e1",
+			"reason": "dev builds only: compares the facts' few keys with the page's, for a warning; proven in packages/core/test/browser/page-facts-visit.test.ts"
 		}
 	]
 }
