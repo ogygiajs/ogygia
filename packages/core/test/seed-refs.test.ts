@@ -362,6 +362,39 @@ describe('Region.svelte × seed references', () => {
 		expect(out.body).toContain('one body');
 	});
 
+	it('a prop of -0 and a sparse array round-trip unchanged when the seed holds 0 and undefined', () => {
+		tail = new DocumentTail();
+		set_tail_reader(() => tail);
+		const zero = { ...big('zero'), weight: 0 };
+		const filled = [big('a'), undefined, big('b')];
+		const data = { catalog: { zero, filled } };
+		const sparse: unknown[] = [clone(filled[0])];
+		sparse[2] = clone(filled[2]);
+		render_in_kit_pass([island({ zero: { ...clone(zero), weight: -0 }, sparse })]);
+		const html = tail.render(SeedIndex.of(data));
+		const script = html.match(/data-ogygia-props="[0-9a-f]+" id="[^"]+">([^<]*)</)![1];
+		const revived = parse(script, { [SEED_REF_KEY]: seed_ref_reviver(() => data) }) as {
+			zero: { weight: number };
+			sparse: unknown[];
+		};
+		expect(Object.is(revived.zero.weight, -0)).toBe(true);
+		expect(revived.sparse).toHaveLength(3);
+		expect(1 in revived.sparse).toBe(false);
+	});
+
+	it('deep_equal_plain tells -0 from 0 and an empty slot from undefined', () => {
+		expect(deep_equal_plain({ n: -0 }, { n: 0 })).toBe(false);
+		expect(deep_equal_plain([-0], [-0])).toBe(true);
+		expect(deep_equal_plain([NaN], [NaN])).toBe(true);
+		const hole: unknown[] = [];
+		hole.length = 1;
+		expect(deep_equal_plain(hole, [undefined])).toBe(false);
+		expect(deep_equal_plain([undefined], hole)).toBe(false);
+		const hole2: unknown[] = [];
+		hole2.length = 1;
+		expect(deep_equal_plain(hole, hole2)).toBe(true);
+	});
+
 	it('plain props with no seed data in them take the JSON lane', () => {
 		tail = new DocumentTail();
 		set_tail_reader(() => tail);

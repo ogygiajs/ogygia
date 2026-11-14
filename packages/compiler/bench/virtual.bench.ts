@@ -24,7 +24,7 @@ import {
 	virtual_types
 } from '../src/virtual/types.ts';
 import { CORE_VALUE_NAMES } from '../src/virtual/value-names.ts';
-import { VirtualTable } from '../src/virtual/resolver.ts';
+import { VirtualTable, realm_allowed } from '../src/virtual/resolver.ts';
 import { derived, input, Queries } from '../src/queries.ts';
 import { BUILD_ERRORS } from '../src/messages.ts';
 import { specifier, virtual, type Realm } from '../src/virtual/table.ts';
@@ -145,6 +145,8 @@ bench(
 				if (typeof id !== 'string' || !id.startsWith('\0')) continue;
 				ids.push(id);
 				for (const ssr of [true, false]) {
+					// loaded on each leg its realm may be imported from, as a bundle loads it
+					if (!realm_allowed(realm, { ssr, dev: is_dev })) continue;
 					bytes += size(await c.emit(id, { ssr, universalHooks: null, resolve: async () => null }));
 				}
 			}
