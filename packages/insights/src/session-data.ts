@@ -95,7 +95,7 @@ export interface SessionData {
 	heap: { from: number; to: number } | null;
 	/** the runtime hooks the page called while it recorded */
 	hooks: HookEntry[];
-	cpu: unknown | null;
+	cpu: unknown;
 	cpu_off: string | null;
 	page: string;
 	/** the documents the session crossed (a full page load mid-session), each with when it began */
