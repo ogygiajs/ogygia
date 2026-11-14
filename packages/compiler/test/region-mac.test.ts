@@ -6,6 +6,9 @@ import { MAX_REGION_PROPS_LEN } from '../../core/src/server/endpoint.ts';
 import { html_has_kit_bootstrap } from '../../core/src/server/html-scan.ts';
 import { RuntimeSession } from '../../core/src/runtime/session.ts';
 import { islandId } from '../src/region/transform.ts';
+import { SnippetRender } from '../../core/src/snippet-render.ts';
+
+SnippetRender.install();
 
 describe('verify', () => {
 	const secret = 'test-secret-key-16b';
