@@ -120,6 +120,15 @@ export function may_match(html: string, m: Matcher, state: ScanState): boolean {
 	if (state.open !== null) return true;
 	if (m.needles === null) return html.indexOf('-') !== -1;
 	for (const n of m.needles) if (html.indexOf(n) !== -1) return true;
+	const pending = state.pending;
+	if (pending.length === 0) return false;
+	let reach = 0;
+	for (const n of m.needles) if (n.length - 1 > reach) reach = n.length - 1;
+	let before = '';
+	for (let i = pending.length - 1; i >= 0 && before.length < reach; i--)
+		before = pending[i] + before;
+	const edge = `${before.slice(-reach)}${html.slice(0, reach)}`;
+	for (const n of m.needles) if (edge.indexOf(n) !== -1) return true;
 	return false;
 }
 
