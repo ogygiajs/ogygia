@@ -268,6 +268,27 @@ export class Counter {
 	);
 });
 
+test("a component's own lets are its instance state, not a module singleton", () => {
+	assert.deepEqual(
+		reported(
+			'packages/demo/src/Picker.svelte',
+			`<script lang="ts">
+	let picking = false;
+	function start() {
+		picking = true;
+	}
+	function stop() {
+		picking = false;
+	}
+</script>
+
+<button onclick={picking ? stop : start}>pick</button>
+`
+		),
+		[]
+	);
+});
+
 test('a name a function declares for itself is not the module let', () => {
 	assert.deepEqual(
 		reported(

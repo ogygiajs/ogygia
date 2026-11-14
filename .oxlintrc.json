@@ -55,7 +55,8 @@
 		"ogygia/dispose-by-close": "error",
 		"ogygia/ports": "error",
 		"ogygia/tests-read-source": "error",
-		"ogygia/fake-timers-whole": "error"
+		"ogygia/fake-timers-whole": "error",
+		"ogygia/prefer-class-for-state": "warn"
 	},
 	"overrides": [
 		{
