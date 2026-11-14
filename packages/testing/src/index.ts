@@ -809,6 +809,11 @@ export function forAttachment(r: OgygiaReport): unknown {
 
 type Severity = 'info' | 'warn' | 'error';
 const SEV: Record<Severity, number> = { info: 0, warn: 1, error: 2 };
+const SESSION_LABEL: ReadonlyMap<string, string> = new Map([
+	['cls', 'session CLS'],
+	['slow', 'slow interactions'],
+	['navigations', 'blocked navigations']
+]);
 
 export interface Budget {
 	// page
@@ -1082,8 +1087,10 @@ export type CompareInput =
 	| { test: string; reports: OgygiaReport[] }
 	| { test: string; runs: OgygiaReport[][] };
 
-const runs_of = (t: CompareInput | undefined): OgygiaReport[][] =>
-	!t ? [] : 'runs' in t ? t.runs : [t.reports];
+const runs_of = (t: CompareInput | undefined): OgygiaReport[][] => {
+	if (!t) return [];
+	return 'runs' in t ? t.runs : [t.reports];
+};
 
 /** The `nth` report of `kind` in each run that has one. */
 const slot = (runs: OgygiaReport[][], kind: OgygiaReport['kind'], nth: number): OgygiaReport[] =>
@@ -1325,9 +1332,7 @@ export function toMarkdown(diffs: RunDiff[]): string {
 				`  - ${v.key.toUpperCase()} ${v.key === 'cls' ? v.base : `${Math.round(v.base)} ms`} → ${v.key === 'cls' ? v.head : `${Math.round(v.head)} ms`}`
 			);
 		for (const s of d.session ?? [])
-			out.push(
-				`  - ${s.key === 'cls' ? 'session CLS' : s.key === 'slow' ? 'slow interactions' : s.key === 'navigations' ? 'blocked navigations' : s.key} ${s.base} → ${s.head}`
-			);
+			out.push(`  - ${SESSION_LABEL.get(s.key) ?? s.key} ${s.base} → ${s.head}`);
 		for (const h of d.hydration?.broke ?? []) out.push(`  - hydration broke: ${h}`);
 		for (const h of d.hydration?.fixed ?? []) out.push(`  - hydration fixed: ${h}`);
 		for (const f of d.findings.added) out.push(`  - new: ${f}`);

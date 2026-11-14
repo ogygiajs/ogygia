@@ -69,7 +69,7 @@ export function normalize_options(o: BarrelsOptions | true = {}): NormalizedOpti
 		importer_include: opts.importers?.include ?? [],
 		importer_exclude: opts.importers?.exclude ?? [],
 		follow_packages: opts.followPackages ?? true,
-		report: opts.report === false ? false : opts.report === 'all' ? 'all' : true,
+		report: opts.report === false || opts.report === 'all' ? opts.report : true,
 		debug: !!opts.debug
 	};
 }

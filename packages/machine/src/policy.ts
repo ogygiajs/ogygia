@@ -83,8 +83,9 @@ export function backoffAfter(p: Policy, n: number, random: number = randomness.f
 	const b = p.backoff;
 	const tries = Math.max(1, n);
 	// (0 doubles to 0 forever: never 0 * 2^n, which is NaN once 2^n is Infinity)
-	const base =
-		typeof b === 'number' ? (b === 0 ? 0 : b * 2 ** (tries - 1)) : b[Math.min(tries, b.length) - 1];
+	let base: number;
+	if (typeof b !== 'number') base = b[Math.min(tries, b.length) - 1];
+	else base = b === 0 ? 0 : b * 2 ** (tries - 1);
 	return Math.min(MAX_TIMEOUT_MS, Math.round(base * (1 - p.jitter * random)));
 }
 
