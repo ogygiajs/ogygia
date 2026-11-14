@@ -198,6 +198,27 @@ describe('prose dialect — remark/rehype passthrough', () => {
 		expect((out as { code: string }).code).toContain('HELLO WORLD');
 	});
 
+	it('takes a plugin with its own this, a plugin with options, and a unified preset', async () => {
+		type Processor = { data(key?: string): unknown };
+		type Tree = { type?: string; value?: string; children?: Tree[] };
+		const map_text = (tree: Tree, f: (s: string) => string) => {
+			if (tree.type === 'text' && typeof tree.value === 'string') tree.value = f(tree.value);
+			tree.children?.forEach((c) => map_text(c, f));
+		};
+		function suffix(this: Processor, options?: { mark: string }) {
+			return (tree: Tree) => map_text(tree, (s) => `${s}${options?.mark ?? ''}`);
+		}
+		const prefix = (options: { mark: string }) => (tree: Tree) =>
+			map_text(tree, (s) => `${options.mark}${s}`);
+		const preset: {
+			plugins: Array<typeof suffix | [typeof prefix, { mark: string }]>;
+			settings: Record<string, unknown>;
+		} = { plugins: [[prefix, { mark: '<' }]], settings: {} };
+		const pp = ogygiaPreprocess({ remark: [[suffix, { mark: '>' }], preset] });
+		const out = await pp.markup?.({ content: '# hello', filename: '/x/page.md' });
+		expect((out as { code: string }).code).toContain('<h1 id="hello"><hello></h1>');
+	});
+
 	it('runs a user rehype plugin (adds an attribute to an element)', async () => {
 		const stamp = () => (tree: unknown) => {
 			const walk = (n: {

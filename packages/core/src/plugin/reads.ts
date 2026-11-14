@@ -223,8 +223,7 @@ export function observe_reads(event: RequestEvent, request_reads: Reads): void {
 
 /** `headers` holds any of `names` (or, with none given, any personal header). */
 function has_personal(headers: Headers, names?: readonly string[]): boolean {
-	const has = Headers.prototype.has;
-	if (names) return names.some((n) => has.call(headers, n));
+	if (names) return names.some((n) => Headers.prototype.has.call(headers, n));
 	for (const [name] of Headers.prototype.entries.call(headers))
 		if (is_personal_header(name)) return true;
 	return false;

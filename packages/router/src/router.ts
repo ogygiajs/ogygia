@@ -92,10 +92,10 @@ export interface Router<T extends TableShape = RouteTable> {
 	/** `(request) => Response | null` — null on no-match (a catchall 404s its own way). */
 	fetch(request: Request, event?: RequestEvent): Promise<Response | null>;
 	/** Kit handle: dispatches, else falls through to the rest of the app. */
-	handle(input: {
+	handle: (input: {
 		event: RequestEvent;
 		resolve: (e: RequestEvent) => Response | Promise<Response>;
-	}): Promise<Response>;
+	}) => Promise<Response>;
 	/** Rename-safe URL to a route in this table. */
 	href<P extends keyof T & string>(pattern: P, ...args: HrefArgs<P>): string;
 	/** The catchall crawl list (static page routes) — `export const entries = app.entries`. */

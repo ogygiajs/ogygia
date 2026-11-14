@@ -26,7 +26,7 @@ export interface MacroContext {
 	/** Markup extensions whose `<script>` blocks hold the macro calls (`.svelte`). */
 	readonly markupExts: readonly string[];
 	/** Name a file the rewrite read: an edit to it transforms this module again (dev). */
-	watch(file: string): void;
+	watch: (file: string) => void;
 }
 
 /** A plugin's `import.meta.og.<name>` macro (registered with `b.macro`). */
