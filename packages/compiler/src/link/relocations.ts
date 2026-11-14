@@ -1,4 +1,3 @@
-import { V_FN_MANIFEST } from '../ids.ts';
 import path from 'node:path';
 import {
 	LATE_SERVER_REGIONS_TOKEN,
@@ -13,7 +12,6 @@ import { FILE_TOKEN_MARK, FILE_TOKEN_RE, file_token_id } from './file-token.ts';
 import { ISLAND_DEPS_INLINE_TOKEN } from './island-deps.ts';
 import type { Program } from '../program.ts';
 import type { PageReadsSink } from '../ctx.ts';
-import { fn_manifest_registrations } from '../macros/dollar.ts';
 
 const KIT_PAGE_MODULE_RE = /\/@sveltejs\/kit\/src\/runtime\/app\/(?:state|stores)(?:[/.]|$)/;
 
@@ -53,7 +51,6 @@ export type GraphInfo = {
 /** What a relocation's value is made from: the final records and the finished graph. */
 export interface RelocateCx {
 	readonly program: Program;
-	readonly dollar_hoists: ReadonlyMap<string, string>;
 	/** A region's public URL, the key its CSS is handed off under. */
 	public_url(iid: string): string;
 	/** The leg's late server regions' chunk refs, by island id. */
@@ -82,32 +79,16 @@ export interface Relocation<Cx = RelocateCx> {
 	/** A chunk it patched hands on a map of the patch. Left out: the chunk's map passes as it was
 	 *  given, as these patches always did (one map through every pass is report step 13). */
 	readonly mapped?: true;
-	/** The resolved id of the virtual module that writes the token where the token cannot be shaken
-	 *  out of its chunk (a statement of a module with side effects); `null` for an export the bundler
-	 *  may drop when nothing reads it. */
-	readonly carrier: string | null;
 	/** The value, once per chunk, then per token: `quote` is the character before the token (a token
 	 *  inside a string literal is escaped for that literal's quote), or the pattern's quote; `part` is
 	 *  the pattern's part (`''` without one). */
 	value(cx: Cx): (quote: string, part: string) => string;
 }
 
-const FN_MANIFEST: Relocation = {
-	name: 'fn manifest',
-	token: '/*__OGYGIA_FN_MANIFEST__*/',
-	server_only: false,
-	carrier: `\0${V_FN_MANIFEST}`,
-	value(cx) {
-		const regs = fn_manifest_registrations(cx.dollar_hoists);
-		return () => regs;
-	}
-};
-
 const PAGE_DATA_READS: Relocation = {
 	name: 'page data reads',
 	token: PAGE_DATA_READS_TOKEN,
 	server_only: true,
-	carrier: null,
 	value(cx) {
 		const page_reads = cx.page_reads;
 		if (!page_reads) return () => 'null';
@@ -182,7 +163,6 @@ const server_map = (name: keyof ServerManifestMaps): Relocation => ({
 	name: `server ${name}`,
 	token: SERVER_MAP_TOKENS[name],
 	server_only: true,
-	carrier: null,
 	value(cx) {
 		const json = JSON.stringify(
 			server_manifest_maps(cx.program, (iid) => cx.public_url(iid))[name]
@@ -195,7 +175,6 @@ const LATE_SERVER_REGIONS: Relocation = {
 	name: 'late server regions',
 	token: LATE_SERVER_REGIONS_TOKEN,
 	server_only: true,
-	carrier: null,
 	value(cx) {
 		const from = path.posix.dirname(cx.chunk_file);
 		const late = [...cx.late_server_regions].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
@@ -220,7 +199,6 @@ export const FILE: Relocation = {
 	pattern: FILE_TOKEN_RE,
 	server_only: false,
 	mapped: true,
-	carrier: null,
 	value(cx) {
 		return (_quote, hex) => {
 			const file = cx.facade_file(file_token_id(hex));
@@ -231,14 +209,13 @@ export const FILE: Relocation = {
 
 /**
  * Values known only at the end of a leg. A virtual module loads before the bundler has transformed
- * every module, so a value that needs every transform (the `og.$` factories, which holes read
- * `page.data`) is written as a token, and each finished chunk has its tokens replaced at
- * renderChunk from the final records. This table is every such token. A leg whose output still
- * holds a token, or whose bundle holds a carrier no chunk was patched for, is said
+ * every module, so a value that needs every transform (which holes read `page.data`) is written as
+ * a token, and each finished chunk has its tokens replaced at renderChunk from the final records.
+ * A token is a string or an expression the bundler keeps, never a comment, which it drops before
+ * renderChunk. This table is every such token. A leg whose output still holds a token is said
  * (`relocation_unpatched`). One value comes from a later leg: {@link WRITTEN_RELOCATIONS}.
  */
 export const RELOCATIONS: readonly Relocation[] = [
-	FN_MANIFEST,
 	PAGE_DATA_READS,
 	server_map('region_url'),
 	server_map('region_name'),
@@ -257,7 +234,6 @@ const ISLAND_DEPS: Relocation<WrittenCx> = {
 	name: 'island deps',
 	token: ISLAND_DEPS_INLINE_TOKEN,
 	server_only: true,
-	carrier: null,
 	value(cx) {
 		const inline = in_any_literal(cx.island_deps);
 		return () => inline;
@@ -310,21 +286,10 @@ export function relocate<Cx>(
 	return s === null ? null : { s, mapped };
 }
 
-/** A relocation a leg's output left unpatched: a chunk still holds its token, or the bundle holds
- *  its carrier and no chunk was patched for it. */
-export function unpatched(
-	server: boolean,
-	counts: ReadonlyMap<string, number>,
-	chunks: Iterable<{ code: string; moduleIds: readonly string[] }>
-): Relocation[] {
+/** A relocation a leg's output left unpatched: a chunk still holds its token. */
+export function unpatched(server: boolean, chunks: Iterable<{ code: string }>): Relocation[] {
 	const left = new Set<Relocation>();
-	const carried = new Set<Relocation>();
 	const own = relocations_of(server);
-	for (const chunk of chunks)
-		for (const r of own) {
-			if (chunk.code.includes(r.token)) left.add(r);
-			if (r.carrier !== null && chunk.moduleIds.includes(r.carrier)) carried.add(r);
-		}
-	for (const r of carried) if (!counts.get(r.name)) left.add(r);
+	for (const chunk of chunks) for (const r of own) if (chunk.code.includes(r.token)) left.add(r);
 	return own.filter((r) => left.has(r));
 }

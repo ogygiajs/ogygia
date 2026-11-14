@@ -35,6 +35,7 @@
 		"@ogygia/federation": "workspace:*",
 		"@ogygia/flags": "workspace:*",
 		"@ogygia/insights": "workspace:*",
+		"@ogygia/jumpstart": "workspace:*",
 		"@ogygia/machine": "workspace:*",
 		"@ogygia/postrender": "workspace:*",
 		"@ogygia/rewrite": "workspace:*",

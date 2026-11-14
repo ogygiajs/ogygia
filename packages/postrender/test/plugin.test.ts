@@ -56,9 +56,10 @@ describe('postrender() — the vite value', () => {
 			pageModules: () => {},
 			pageReads: () => {},
 			transform: () => {},
+			stayed: () => {},
 			exports: { map: () => Promise.resolve(null) },
 			pinnedImports: () => () => false,
-			regions: { names: () => ({}), barrelWhy: () => [] },
+			regions: { names: () => ({}), hosts: () => new Map(), whyStayed: () => [] },
 			definers: () => {},
 			prescan: () => {}
 		});

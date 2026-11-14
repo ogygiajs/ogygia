@@ -12,10 +12,6 @@ export const load_wire_codec: import('../dist/contract/virtual-modules.js').Virt
 declare module 'ogygia:boot/devtools-meta' {
 export const region_names: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:boot/devtools-meta']['region_names'];
 }
-declare module 'ogygia:boot/fn-manifest' {
-const module: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:boot/fn-manifest'];
-export = module;
-}
 declare module 'ogygia:boot/hydrate-features' {
 const module: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:boot/hydrate-features'];
 export = module;

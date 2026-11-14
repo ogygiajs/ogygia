@@ -48,10 +48,8 @@ the first intent: a hover, a focus, a click or a key. A page that never searches
 	} = $props();
 
 	const ctx = get_shell_context();
-	// svelte-ignore state_referenced_locally
-	const the_base = base ?? ctx?.base ?? '';
-	// svelte-ignore state_referenced_locally
-	const search_action = action ?? `${the_base}/search`;
+	const the_base = $derived(base ?? ctx?.base ?? '');
+	const search_action = $derived(action ?? `${the_base}/search`);
 
 	// svelte-ignore state_referenced_locally
 	let open = $state(mode === 'inline');

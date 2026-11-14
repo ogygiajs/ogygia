@@ -23,7 +23,6 @@ export const VIRTUALS = [
 	'ogygia:boot/runtime-entry',
 	'ogygia:boot/runtime-flags',
 	'ogygia:boot/hydrate-features',
-	'ogygia:boot/fn-manifest',
 	'ogygia:region/transportables',
 	'ogygia:region/transportables-eager',
 	'ogygia:region/kit-transport',

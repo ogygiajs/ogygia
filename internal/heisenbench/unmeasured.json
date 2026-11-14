@@ -1141,10 +1141,6 @@
 			"reason": "the same, as it gets its turn back, constant work; proven in packages/machine/test/mailbox.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > boot > on_reload_needed:0~c56e54",
-			"reason": "browser only: logs chunk_reload_needed once per page (one console.error); proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/import-again.ts > flights:0",
 			"reason": "browser only: an island file's one load at a time (the dynamic import() of its URL, and the immediate retry under a fresh URL after a dropped download); proven in packages/core/test/browser/import-file-one-retry.test.ts (#271) and apps/palaestra/e2e/lazy-chunk-retry.spec.ts (#261)"
 		},
@@ -2321,80 +2317,40 @@
 			"reason": "build-time: the plugin's manifest, once per build"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > describe",
+			"reason": "browser only, on a found difference: names one node for the restore log's diff text, constant work; the restorer's browser tests (packages/rewrite/test/browser) run it"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > comments",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > differ",
+			"reason": "browser only: compares the wanted tree with the one in the page for the restore log, linear in the nodes; the restorer's browser tests run it"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > describe",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > norm",
+			"reason": "browser only: one attribute's value normalized for the compare (class tokens sorted, style declarations trimmed), linear in the value"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > differ",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > norm > map:0~543c6f",
+			"reason": "browser only: one style declaration trimmed for the compare, constant work"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > esc",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > unmark",
+			"reason": "browser only: drops one key's og-c markers from a host's elements, linear in the marked elements; the restorer's browser tests run it"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > fix_text",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > unsafe_attr",
+			"reason": "browser only: one attribute's handler and script-URL check (is_script_url, benched in packages/core/bench/markup.bench.ts), constant work; test/browser/script-url.test.ts runs it"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > log",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > watch",
+			"reason": "browser only: adds a host to the document's one class watch (a MutationObserver, not recorded), constant work; the restorer's browser tests run it"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > map:0~54a21c",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > watch > MutationObserver:0~19a5fb",
+			"reason": "browser only: the class watch's callback over the DOM's mutation records (not recorded), linear in them"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > norm",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > norm > map:0~543c6f",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > original",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > reset",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > sheet_for",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > sort:0~178687",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > swap_stand_ins",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > verify",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > watch",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > watch > MutationObserver:0~19a5fb",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > within",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > within",
+			"reason": "browser only: whether every wanted class token is in the page's class list, linear in the tokens; the restorer's browser tests run it"
 		},
 		{
 			"id": "packages/rewrite/src/restore.ts > restore_adopt",
@@ -2737,18 +2693,6 @@
 			"reason": "dev only: sets one response header and passes on, constant work"
 		},
 		{
-			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b",
-			"reason": "dev only: the dock's meta endpoint over the dev server's module graph (not recorded); its work is island_subgraph_bytes, measured in core"
-		},
-		{
-			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b > island_subgraph_bytes:2~0b61a8",
-			"reason": "dev only: hands one barrel question to the regions seam, constant work of its own"
-		},
-		{
-			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b > read",
-			"reason": "dev only: reads one component source once per request (a file read, not recorded), constant work of its own"
-		},
-		{
 			"id": "packages/devtools/src/vite.ts > devtools > dev_meta_plugin:0~479109",
 			"reason": "dev only: hands the build's regions seam to the dev meta plugin, constant work"
 		},
@@ -2953,14 +2897,6 @@
 			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why",
-			"reason": "the client tables' why for one barrel row, over ogygia()'s closure (not replayable), at most two lookups; the join is benched in packages/core/bench/compiler.bench.ts and proven in packages/core/test/barrel-left.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why > filter:0~cf3029",
-			"reason": "orders at most nine reasons (constant work); the same filter in the table is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host",
 			"reason": "builds one Vite plugin object per stage (constant work, over ogygia()'s closure); the stage's transforms are benched in packages/barrels/bench/barrels.bench.ts"
 		},
@@ -3021,16 +2957,8 @@
 			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/insights/test/profiler-page-assets.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > barrelWhy",
-			"reason": "dev only: the regions seam hands the dock one barrel answer from the build's index, constant work of its own"
-		},
-		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > names",
 			"reason": "dev only: the regions seam lists the build's region entries, linear in the regions"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > barrelWhy",
-			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
 		},
 		{
 			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > names",
@@ -4658,7 +4586,7 @@
 		},
 		{
 			"id": "packages/core/src/runtime/html-sink.ts > parse_page_document",
-			"reason": "browser only: one DOMParser call (the browser's parser, not ours)"
+			"reason": "browser only: one setHTMLUnsafe call into a fresh document with no browsing context (the browser's parser, not ours); proven in packages/core/test/browser/page-dsd-parse.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/html-sink.ts > set_inner_html",
@@ -5281,14 +5209,6 @@
 			"reason": "once per leg per build: an object of empty Maps, constant work"
 		},
 		{
-			"id": "packages/compiler/src/leg.ts > new_leg > barrels_left",
-			"reason": "one Map read (a table made on first use), constant work; the table's own work is measured in the barrel-left bench"
-		},
-		{
-			"id": "packages/compiler/src/leg.ts > new_leg > barrels_said",
-			"reason": "one Map read, constant work"
-		},
-		{
 			"id": "packages/compiler/src/link/emit-gate.ts > parse_server_handoff > filter:0~4b42c1",
 			"reason": "once per server region in the build's server handoff (read once per client build): four typeof checks, constant work"
 		},
@@ -5299,14 +5219,6 @@
 		{
 			"id": "packages/compiler/src/link/relocations.ts > FILE > value > <anonymous>~397f04",
 			"reason": "one patch's text from the chunk's file name, constant work"
-		},
-		{
-			"id": "packages/compiler/src/link/relocations.ts > FN_MANIFEST > value",
-			"reason": "once per chunk that carries the token: a closure over the build's fn hoists, constant work"
-		},
-		{
-			"id": "packages/compiler/src/link/relocations.ts > FN_MANIFEST > value > <anonymous>~787be9",
-			"reason": "the fn manifest's registrations, once per build (fn_manifest_registrations does the work)"
 		},
 		{
 			"id": "packages/compiler/src/link/relocations.ts > ISLAND_DEPS > value",
@@ -5801,14 +5713,6 @@
 			"reason": "one hole_identity fingerprint of a lake's props per lake render, measured with hole_identity's own bench; lake-identity.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~6b3ec1 > prescan",
-			"reason": "build only: a plugin's prescan registration, once per plugin per build, constant work"
-		},
-		{
-			"id": "packages/compiler/src/driver.ts > Compiler > relocate > relocate:3~0b2c47 > public_url",
-			"reason": "one island's public url from the context, constant work, once per island token patched"
-		},
-		{
 			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > page_reads_claimed > text",
 			"reason": "a build error's text, built once when two plugins claim seed shaping, then the build stops; constant work"
 		},
@@ -5839,10 +5743,6 @@
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > writeBundle > settle:0~e8e319",
 			"reason": "build only, once per client build: one bundler resolve per helper the page is handed to, Vite's own work"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~6b3ec1 > pageReads",
-			"reason": "build only: a plugin's seed-shaping claim, once per plugin per build, constant work"
 		},
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_seed_key_unshipped > text",
@@ -6017,10 +5917,6 @@
 			"reason": "dev only (the warning folds out of production); one bounded scan of the body's last 64 KB, the scan kit_gate's bench case already counts; kit-gate.test.ts and test/canary/kit-start-script.test.ts run it"
 		},
 		{
-			"id": "packages/core/src/region-snippet.ts > RenderSnippet > component:0~4930b4",
-			"reason": "calls the snippet with the renderer Svelte hands it, constant work of its own; its output is the snippet's, through Svelte's renderer, no replay holds it; region-snippet-freeze-dev.test.ts and test/canary/svelte-server-signature.test.ts run it"
-		},
-		{
 			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static event",
 			"reason": "one read of Kit's AsyncLocalStorage store, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts and plugin-request-end.test.ts run it"
 		},
@@ -6155,6 +6051,198 @@
 		{
 			"id": "packages/compiler/src/scan-facts.ts > ScanFacts > input:2~ea66dc",
 			"reason": "the scan db input for a file's facts, read by every query over the scan (not replayable), constant work"
+		},
+		{
+			"id": "packages/core/src/snippet-render.ts > SnippetRender > static install",
+			"reason": "runs once per module load (hooks.ts, region.ts): one slot write, constant work; snippet.bench.ts and every freeze test run it"
+		},
+		{
+			"id": "packages/core/src/region-snippet.ts > install_snippet_renderer",
+			"reason": "one slot write when a renderer is installed, once per module load; snippet.bench.ts and every freeze test run it"
+		},
+		{
+			"id": "packages/core/src/region-snippet.ts > shared:0~ef144f > make",
+			"reason": "a slot's maker: builds the renderer slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > snippet_freeze_not_installed > text",
+			"reason": "an error's one-line text: one template string, only when a snippet freezes with no renderer installed"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > snippet_freeze_not_installed > details",
+			"reason": "an error's details: one constant string, on the error path only"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > whyStayed",
+			"reason": "the regions seam hands a reader the plugins' why-stayed answer, constant work of its own"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > why_stayed",
+			"reason": "asks each plugin's why-stayed answer (one per plugin, barrels() today) and orders the union; the answer's own work is measured in the barrel-left bench; a closure over the build's plugin list, not replayable"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > why_stayed > filter:0~cf3029",
+			"reason": "one Set read per reason (nine), constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~3a93bb > stayed",
+			"reason": "once per plugin at config time: one array push, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > whyStayed",
+			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > region_hosts",
+			"reason": "reads the live region registry off the compiler instance (not cloneable), once per build when a plugin asks, linear in the regions; packages/compiler/test/driver.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > hosts",
+			"reason": "the regions seam hands a plugin the compiler's region_hosts(), constant work of its own"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > hosts",
+			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
+		},
+		{
+			"id": "packages/jumpstart/src/dependencies.ts > Dependencies > #walk",
+			"reason": "reads each linked package's package.json from disk (not replayable), once per build, linear in the app's linked packages; packages/jumpstart/test/dependencies.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/dependencies.ts > Dependencies > constructor",
+			"reason": "realpaths the app root and starts the package walk, once per build; packages/jumpstart/test/dependencies.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/dependencies.ts > Dependencies > get linked",
+			"reason": "a getter that returns a field, constant work"
+		},
+		{
+			"id": "packages/jumpstart/src/dependencies.ts > Dependencies > static #installed",
+			"reason": "realpaths node_modules/<name> up the directory tree (the file system, not replayable), once per dependency per build; packages/jumpstart/test/dependencies.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/dependencies.ts > Dependencies > static #manifest",
+			"reason": "reads and parses one package.json from disk (not replayable), once per package per build; packages/jumpstart/test/dependencies.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/externals.ts > Externals > get found",
+			"reason": "a getter that returns a field, constant work"
+		},
+		{
+			"id": "packages/jumpstart/src/index.ts > jumpstart",
+			"reason": "the plugin factory: builds the options and two plugin objects (functions, not cloneable), once per config load; packages/jumpstart/test/options.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/index.ts > jumpstart > definePlugin:0~dd04c0 > build",
+			"reason": "hands ogygia's region seam to the chunk plan, once per build, constant work; packages/jumpstart/e2e/jumpstart.spec.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/messages.ts > JUMPSTART_ERRORS > jumpstart_external_invalid > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/jumpstart/src/messages.ts > JUMPSTART_ERRORS > jumpstart_option_unknown > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/jumpstart/src/messages.ts > JUMPSTART_WARNINGS > jumpstart_external > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/jumpstart/src/messages.ts > JUMPSTART_WARNINGS > jumpstart_external_none > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/jumpstart/src/regions.ts > RegionGroups > constructor",
+			"reason": "stores the region seam, constant work"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > NO_REGIONS > hosts",
+			"reason": "the empty region table before ogygia hands its own: answers nothing, constant work"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > attach",
+			"reason": "stores a new RegionGroups over ogygia's seam (functions, not cloneable), once per build, constant work"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > constructor",
+			"reason": "stores the options, constant work"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > environment",
+			"reason": "builds the SSR environment's options (functions, not cloneable), once per build, constant work; packages/jumpstart/test/server-chunks.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin",
+			"reason": "builds the Vite plugin object (functions, not cloneable), once per config load, constant work; packages/jumpstart/test/server-chunks.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > buildEnd",
+			"reason": "a Vite hook: runs once per build in Rolldown's plugin context (`this.environment`, `getModuleInfo`), which a recorded input cannot replay; packages/jumpstart/e2e/jumpstart.spec.ts runs it on Kit 2 and Kit 3"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > buildEnd > graph:1~f65bc9",
+			"reason": "the module-info lookup Rolldown's context answers during buildEnd, one call per module; packages/jumpstart/e2e/jumpstart.spec.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > buildStart",
+			"reason": "a Vite hook: runs once per build in Rolldown's plugin context (`this.environment`, `getModuleInfo`), which a recorded input cannot replay; packages/jumpstart/e2e/jumpstart.spec.ts runs it on Kit 2 and Kit 3"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > configEnvironment",
+			"reason": "the Vite hook: one comparison, then environment(), once per environment per build; packages/jumpstart/test/server-chunks.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > configResolved",
+			"reason": "a Vite hook: runs once per build in Rolldown's plugin context (`this.environment`, `getModuleInfo`), which a recorded input cannot replay; packages/jumpstart/e2e/jumpstart.spec.ts runs it on Kit 2 and Kit 3"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > configResolved > resolved:1~f83163",
+			"reason": "the logger callback Vite's resolved config hands, one call per build; packages/jumpstart/e2e/jumpstart.spec.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > environment",
+			"reason": "picks the server environment of a build, constant work; packages/jumpstart/test/server-chunks.test.ts runs it"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > generateBundle",
+			"reason": "a Vite hook: runs once per build in Rolldown's plugin context (`this.environment`, `getModuleInfo`), which a recorded input cannot replay; packages/jumpstart/e2e/jumpstart.spec.ts runs it on Kit 2 and Kit 3"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > graph",
+			"reason": "forwards the built graph to graph(), which packages/jumpstart/bench/server-chunks.bench.ts counts; once per build"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > report",
+			"reason": "forwards the bundle to externals() and logs one line, which packages/jumpstart/bench/server-chunks.bench.ts counts; once per build"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > reset",
+			"reason": "clears two caches, constant work, once per build"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin > resolved",
+			"reason": "stores the root and the logger, then reads the app's dependencies (Dependencies, exempt), once per build"
+		},
+		{
+			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > root",
+			"reason": "reads the app's linked dependencies from disk (Dependencies, not replayable), once per build; packages/jumpstart/test/server-chunks.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/reload-needed.ts > say_reload_needed",
+			"reason": "browser only, once per page at most (the first chunk no retry loads); test/browser/reload-needed-hook.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/reload-needed.ts > regions_of_file",
+			"reason": "a DOM query, browser only, once per page at most and only with a reloadNeeded subscriber; test/browser/reload-needed-hook.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/reload-needed.ts > file_without_retry_mark",
+			"reason": "one URL parse per region on the page, browser only, once per page at most; test/browser/reload-needed-hook.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/morph.ts > carry_shadows",
+			"reason": "browser only: copies one open shadow root onto a morph's fresh copy (the unit tests' DOM shim has no shadow roots); proven in packages/core/test/browser/page-dsd-parse.test.ts and apps/palaestra/e2e/router-dsd.spec.ts"
 		}
 	]
 }

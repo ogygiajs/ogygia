@@ -1,0 +1,11 @@
+{
+	"name": "jumpstart-e2e-many-files",
+	"version": "0.0.0",
+	"private": true,
+	"description": "A dependency of jumpstart's fixture apps: one function per file, 120 files behind one index (like a date library). Left external, a cold start loads each file. The files are written by ../generate.ts.",
+	"type": "module",
+	"sideEffects": false,
+	"exports": {
+		".": "./index.js"
+	}
+}
