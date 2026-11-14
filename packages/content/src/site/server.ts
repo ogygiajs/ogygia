@@ -78,7 +78,6 @@ export function remotes(
 		// @why `source` is a server-only reader (a function), never wire data (test: test/site-reads.test.ts › a page crosses without its source reader, and with its body awaited)
 		const { source: _source, ...entry } = view.entry as typeof view.entry & { source?: unknown };
 		// @why awaiting the body bakes its SSR HTML, which the transport ships as a ticket (test: test/site-reads.test.ts › a page crosses without its source reader, and with its body awaited)
-		// oxlint-disable-next-line typescript/await-thenable -- the body is region()'s AwaitableRegion, typed as the public RegionValue; typing it awaitable is a public type change, owner call
 		const body = entry.body ? await entry.body : undefined;
 		return { ...view, entry: { ...entry, ...(body ? { body } : {}) } };
 	};

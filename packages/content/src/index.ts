@@ -1,4 +1,4 @@
-import type { RegionValue } from '@ogygia/core';
+import type { AwaitableRegion } from '@ogygia/core';
 
 /** A heading pulled from the markdown pass (h2–h4). Powers on-page TOCs; rides `markdown` `meta`. */
 export type Heading = { depth: 2 | 3 | 4; id: string; text: string };
@@ -55,7 +55,7 @@ export type Entry<Data = Record<string, unknown>, Meta = Record<string, never>> 
 	id: string;
 	data: Data;
 	meta: Meta;
-	body?: RegionValue;
+	body?: AwaitableRegion;
 	/** Lazy raw SOURCE text, when the source provides it (`markdown()` does). Server-only; never wired. */
 	source?: () => Promise<string>;
 	rel: Record<string, RefEntry | RefEntry[] | null>;

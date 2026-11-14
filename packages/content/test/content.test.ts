@@ -105,7 +105,7 @@ describe('format source-builders', () => {
 		expect('body' in e).toBe(false);
 		const full = (await src.get('x'))!;
 		expect(full.body).toMatchObject({ kind: 'inline', component: Comp, props: {} });
-		expect((full.body as Record<symbol, unknown>)[REGION_BRAND]).toBe(true);
+		expect((full.body as unknown as Record<symbol, unknown>)[REGION_BRAND]).toBe(true);
 	});
 
 	it('markdown: surfaces the compiler-injected __ogygia_source as a LAZY entry.source', async () => {
