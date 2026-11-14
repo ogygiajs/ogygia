@@ -3,6 +3,7 @@ import type { RequestEvent } from '@sveltejs/kit';
 import {
 	call_render,
 	RESTORE_CALL,
+	RESTORE_CALL_FULL,
 	RESTORER_SCRIPT,
 	rewrite_pass,
 	step_of,
@@ -180,6 +181,27 @@ describe('element rewrites: the restore', () => {
 			first.html.indexOf('<demo-card')
 		);
 		expect(first.html.endsWith(RESTORER_SCRIPT)).toBe(true);
+	});
+
+	it("a later chunk's host inside a declarative shadow root the page opened, in that chunk or an earlier one, gets the restore call that enters every root (found by the rewrite sim)", async () => {
+		const shadow = '<template shadowrootmode="open">';
+		const around = chunked([scoped()]);
+		await around.chunk(doc(island('<demo-card>a</demo-card>')), { done: false });
+		const here = await around.chunk(
+			island(`<div>${shadow}<demo-card>b</demo-card></template></div>`)
+		);
+		expect(here.html.endsWith(RESTORE_CALL_FULL)).toBe(true);
+		const earlier = chunked([scoped()]);
+		await earlier.chunk(doc(island('<demo-card>a</demo-card>')), { done: false });
+		await earlier.chunk(`<ogygia-region entry="./a.js"><div>${shadow}`, { done: false });
+		const later = await earlier.chunk('<demo-card>b</demo-card></template></div></ogygia-region>');
+		expect(later.html.endsWith(RESTORE_CALL_FULL)).toBe(true);
+		const flat = chunked([scoped()]);
+		await flat.chunk(doc(island('<demo-card>a</demo-card>')), { done: false });
+		const none = await flat.chunk(
+			island('<div><template><demo-card>b</demo-card></template></div>')
+		);
+		expect(none.html.endsWith(RESTORE_CALL)).toBe(true);
 	});
 
 	it('a chunk that ends inside a region or a tag carries no script: the restore waits for a chunk that ends where one may go', async () => {
