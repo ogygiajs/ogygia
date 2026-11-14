@@ -288,9 +288,11 @@ export function tag_fills(
 		// about which key one is for; the lines that called it do
 		// the lines under a row, the ones an "N more" folded included
 		const lines_under = (m: DrillNode): DrillNode[] =>
-			(m.children ?? []).flatMap((c) =>
-				c.kind === 'line' ? [c] : c.kind === 'more' ? lines_under(c) : []
-			);
+			(m.children ?? []).flatMap((c) => {
+				if (c.kind === 'line') return [c];
+				if (c.kind === 'more') return lines_under(c);
+				return [];
+			});
 		const collect = (m: DrillNode) => {
 			const under = lines_under(m);
 			// a row's own place only when nothing under it says more: a CPU row's `at` is where its
@@ -465,11 +467,9 @@ function build_tree(
 		};
 		for (const m of gc_makers) {
 			if (m.gc_ms <= 0) continue;
-			const at = m.at
-				? `${short_path(m.at.path)}:${hot_line(m.at.path, m.at.line)}`
-				: m.url
-					? `${short_path(m.url)}:${m.line}`
-					: m.name;
+			let at = m.name;
+			if (m.at) at = `${short_path(m.at.path)}:${hot_line(m.at.path, m.at.line)}`;
+			else if (m.url) at = `${short_path(m.url)}:${m.line}`;
 			by.set(at, (by.get(at) ?? 0) + m.gc_ms);
 		}
 		const total = [...by.values()].reduce((s, v) => s + v, 0);
@@ -724,13 +724,12 @@ function build_tree(
 				// your function → its lines; a library → your lines that call it
 				const pkg_lines = g.lib ? callers_of_pkg(n.label) : [];
 				const gc = n.label === 'garbage collection' ? gc_lines : [];
-				const lines = gc.length
-					? gc
-					: pkg_lines.length
-						? pkg_lines
-						: key.startsWith('c\0') && !g.lib
-							? lines_of(n.label)
-							: [];
+				let lines = gc;
+				if (!gc.length) {
+					if (pkg_lines.length) lines = pkg_lines;
+					else if (key.startsWith('c\0') && !g.lib) lines = lines_of(n.label);
+					else lines = [];
+				}
 				if (pkg_lines.length) delete n.at;
 				if (lines.length > 1)
 					n.children = fold(

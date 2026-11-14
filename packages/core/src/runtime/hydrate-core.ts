@@ -50,13 +50,14 @@ export type IslandHandle = {
 
 /** An island's loaded module: the component, plus a foreign build's own hydrate contract.
  *  `options.recover === false` asks the entry's svelte to THROW on a hydration mismatch instead
- *  of silently re-rendering (the self-heal below needs to know); an older entry ignores it. */
+ *  of silently re-rendering (the self-heal below needs to know); `options.context` is the
+ *  cross-island context the page provides the region. An older entry ignores either. */
 export type IslandModule = {
 	default: Component<Record<string, unknown>>;
 	__og_hydrate?: (
 		target: Element,
 		props: Record<string, unknown>,
-		options?: { recover?: boolean }
+		options?: { recover?: boolean; context?: Map<string | symbol, unknown> }
 	) => unknown;
 	__og_unmount?: (app: unknown) => void;
 };
@@ -572,12 +573,14 @@ export function hydrate_island(
 			if (!is_deferred(region) && !foreign_delegate) ensure_envelope(region);
 			set_current_region(region);
 			try {
+				const provided_ctx = capture_region_ids(region, () => slots.context?.(region));
 				if (foreign_delegate) {
 					set_foreign_hydrate({ origin: new URL(entry).origin, entry });
-					const app = mod.__og_hydrate!(region, wrapped, recover ? undefined : { recover: false });
+					const strict = recover ? undefined : { recover: false };
+					const options = provided_ctx ? { ...strict, context: provided_ctx } : strict;
+					const app = mod.__og_hydrate!(region, wrapped, options);
 					return handle(app, mod.__og_unmount ?? (() => {}), entry, null);
 				}
-				const provided_ctx = capture_region_ids(region, () => slots.context?.(region));
 				const recovery = recover ? {} : { recover: false as const };
 				const pushed = keep ? new slots.Pushable!(wrapped) : null;
 				const app = hydrate(Component, {

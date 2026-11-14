@@ -50,7 +50,7 @@ import type { HoleStat, IslandInteractivity, IslandStat } from './request-stats.
 /** What the tail needs of a props plan (server/props-wire.ts `PropsWire`, or a test's stand-in). */
 export interface SidecarWire {
 	wire(seed: SeedIndex | null): WireText;
-	readonly json?: boolean;
+	readonly json_exact?: boolean;
 	readonly canonical?: string;
 	readonly refs?: { count: number; keys: readonly string[] };
 	culprit?(): string | null;

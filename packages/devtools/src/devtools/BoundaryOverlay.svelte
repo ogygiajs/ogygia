@@ -127,19 +127,14 @@
 				) ?? null)
 			: null;
 		const t = info.kind === 'island' ? region_transitive(info.entry) : null;
+		let state: 'hydrated' | 'cold' | 'filled' | 'pending' = info.hydrated ? 'filled' : 'pending';
+		if (info.kind === 'island') state = info.hydrated ? 'hydrated' : 'cold';
 		return {
 			name: region_name(info.entry),
 			kind: info.kind,
 			wake: info.wake,
 			fp: info.fp,
-			state:
-				info.kind === 'island'
-					? info.hydrated
-						? 'hydrated'
-						: 'cold'
-					: info.hydrated
-						? 'filled'
-						: 'pending',
+			state,
 			props: rendered && typeof rendered.propsBytes === 'number' ? rendered.propsBytes : null,
 			ms: hyd && typeof hyd.ms === 'number' ? hyd.ms : null,
 			js: t ? t.bytes : null,

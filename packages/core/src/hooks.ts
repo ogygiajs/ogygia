@@ -807,7 +807,7 @@ class OgygiaHandle {
 			const devtools_on = DEVTOOLS && (!DEVTOOLS_LAZY || devtools_switch(event));
 			// (a prerender has no visitor, and may not read the query)
 			const devtools_personal =
-				DEVTOOLS_LAZY && !building && (devtools_on || switch_in_url(event.url) !== null);
+				!building && (devtools_on || (DEVTOOLS_LAZY && switch_in_url(event.url) !== null));
 			facts.private = devtools_personal;
 			// (the app's own pass renders a router-fetched page as an ANSWER — every host planned,
 			// `#pass_document` — a form a store keyed by path does not hold)
