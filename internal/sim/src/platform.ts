@@ -23,6 +23,9 @@ export const EPOCH = Date.UTC(2026, 0, 1);
 
 const FRAME_MS = 16;
 
+/** The host's own `WeakRef`, before any realm's platform replaces it. */
+const HOST_WEAK_REF = globalThis.WeakRef;
+
 /** `SIM_SITES=1`: each timer's trace line names the code that set it (to find a replay leak). */
 export const SITES = process.env.SIM_SITES === '1';
 
@@ -67,6 +70,43 @@ export interface SimPlatform extends Platform {
 	readonly outstanding: () => number;
 	/** Their trace labels (with `SIM_SITES=1`, each names the code that set it). */
 	readonly pending: () => string[];
+	/** Its world is over: the realm lets go of the world's loop and options. */
+	readonly end: () => void;
+}
+
+/**
+ * A realm's hold on its world: the world's loop and the realm's options until the world ends, then
+ * none. What a world leaves behind in the process (a server's modules stay loaded, and keep its
+ * timer handles and its clock) then never keeps the world itself (test/weak-refs.test.ts). Once
+ * ended, the realm's clock stands still and its timers are never due, as they were never run before.
+ */
+class WorldTie {
+	#loop: Loop | null;
+	#options: RealmOptions | null;
+	#ended_at = 0;
+
+	constructor(loop: Loop, options: RealmOptions) {
+		this.#loop = loop;
+		this.#options = options;
+	}
+
+	get now(): number {
+		return this.#loop?.now ?? this.#ended_at;
+	}
+
+	get options(): RealmOptions | null {
+		return this.#options;
+	}
+
+	add(realm: string, label: string, ms: number, run: () => void): Task | null {
+		return this.#loop?.add(realm, label, ms, run) ?? null;
+	}
+
+	end(): void {
+		this.#ended_at = this.now;
+		this.#loop = null;
+		this.#options = null;
+	}
 }
 
 /** The simulated time, timers, task hooks and randomness of one realm. */
@@ -92,12 +132,17 @@ export function platform(
 	| 'Math'
 	| 'crypto'
 	| 'buggify'
+	| 'end'
 > {
-	const { name, loop } = options;
+	const name = options.name;
+	const tie = new WorldTie(options.loop, options);
+	const node = options.node === true;
 	const rng = options.rng.fork(name);
-	const skewed = options.skew ?? 0;
-	const skew = (): number => (typeof skewed === 'number' ? skewed : skewed());
-	const born = options.born ?? loop.now;
+	const skew = (): number => {
+		const skewed = tie.options?.skew ?? 0;
+		return typeof skewed === 'number' ? skewed : skewed();
+	};
+	const born = options.born ?? options.loop.now;
 	let ids = 0;
 	const live = new Map<number, Task>();
 
@@ -105,13 +150,13 @@ export function platform(
 		if (SITES) label = `${label} @ ${site()}`;
 		// (a host timer runs in the context it was set in, as Node's own do: a server's timer is still
 		// that server's, its clock skew and its own symbols with it)
-		if (options.node) fn = AsyncResource.bind(fn);
-		const task = loop.add(name, label, ms, () => {
+		if (node) fn = AsyncResource.bind(fn);
+		const task = tie.add(name, label, ms, () => {
 			live.delete(id);
 			fn();
 		});
-		live.set(id, task);
-		return options.node ? (node_handle(id, () => arm(label, ms, fn, id)) as unknown as number) : id;
+		if (task !== null) live.set(id, task);
+		return node ? (node_handle(id, () => arm(label, ms, fn, id)) as unknown as number) : id;
 	};
 	const clear = (handle: unknown): void => {
 		const id = typeof handle === 'object' && handle !== null ? Number(handle) : (handle as number);
@@ -140,7 +185,7 @@ export function platform(
 	});
 
 	const RealDate = Date;
-	const now = (): number => EPOCH + loop.now + skew();
+	const now = (): number => EPOCH + tie.now + skew();
 	// `new Date()` and `Date.now()` read virtual time; `new Date(x)` and the statics are the real ones
 	const SimDate = function (this: unknown, ...args: unknown[]) {
 		if (!new.target) return new RealDate(now()).toString();
@@ -157,9 +202,9 @@ export function platform(
 
 	/** The next frame, `fn`'s (under `id`, a parked frame's own). */
 	const frame = (fn: FrameRequestCallback, id?: number): number => {
-		const since = loop.now - born;
+		const since = tie.now - born;
 		const next = (Math.floor(since / FRAME_MS) + 1) * FRAME_MS - since;
-		return arm('frame', next, () => fn(loop.now - born), id);
+		return arm('frame', next, () => fn(tie.now - born), id);
 	};
 	/** Frames asked for while the tab was hidden, by id, in the order asked. */
 	const parked = new Map<number, FrameRequestCallback>();
@@ -193,7 +238,7 @@ export function platform(
 			// platform is installed, and a hidden tab's page still loads; test/hidden-tab.node.test.ts)
 			const library = first_frame;
 			first_frame = false;
-			if (!library && options.hidden?.()) {
+			if (!library && tie.options?.hidden?.()) {
 				const id = ++ids;
 				parked.set(id, fn);
 				return id;
@@ -209,16 +254,21 @@ export function platform(
 			const wait = rng.between(1, 50);
 			const ms = opts?.timeout !== undefined ? Math.min(wait, opts.timeout) : wait;
 			return arm('idle', ms, () => {
-				const start = loop.now;
+				const start = tie.now;
 				(fn as (deadline: IdleDeadline) => void)({
 					didTimeout: opts?.timeout !== undefined && wait > opts.timeout,
-					timeRemaining: () => Math.max(0, 50 - (loop.now - start))
+					timeRemaining: () => Math.max(0, 50 - (tie.now - start))
 				});
 			});
 		},
 		cancelIdleCallback: (id) => clear(id),
-		performance: { now: () => loop.now - born },
-		buggify: (point) => options.buggify?.(name, point) ?? false,
+		performance: { now: () => tie.now - born },
+		buggify: (point) => tie.options?.buggify?.(name, point) ?? false,
+		end: () => {
+			tie.end();
+			live.clear();
+			parked.clear();
+		},
 		Date: SimDate,
 		Math: math,
 		crypto: {
@@ -286,15 +336,26 @@ export function message_channel(loop: Loop, realm: string): typeof MessageChanne
  * When the host collects garbage is real time: a `FinalizationRegistry` callback or a `WeakRef`
  * that empties would land at a different step each run (an app's query cache drops an entry, and
  * the page fetches again or not). So a run is the schedule where nothing is ever collected: a weak
- * reference holds on, and no finalizer runs. Every real browser may run that schedule too.
+ * reference holds on, and no finalizer runs. Every real browser may run that schedule too. Once the
+ * run is over (`install`'s undo), every target is let go: a reference made in the run may sit in a
+ * real registry made before it (Node's own `Request` keeps one), and a target held for good there
+ * holds its whole world (test/weak-refs.test.ts).
  */
 class StrongRef<T extends object> {
-	readonly #target: T;
-	constructor(target: T) {
-		this.#target = target;
+	static readonly #held = new Set<object>();
+
+	/** The run is over: every target a run's reference held may be collected. */
+	static release(): void {
+		StrongRef.#held.clear();
 	}
-	deref(): T {
-		return this.#target;
+
+	readonly #ref: WeakRef<T>;
+	constructor(target: T) {
+		StrongRef.#held.add(target);
+		this.#ref = new HOST_WEAK_REF(target);
+	}
+	deref(): T | undefined {
+		return this.#ref.deref();
 	}
 	get [Symbol.toStringTag](): string {
 		return 'WeakRef';
@@ -368,5 +429,6 @@ export function install(target: object, p: ReturnType<typeof platform>): () => v
 			if (d === undefined) delete (o as Record<string, unknown>)[key];
 			else Object.defineProperty(o, key, d);
 		}
+		StrongRef.release();
 	};
 }
