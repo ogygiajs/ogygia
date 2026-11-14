@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	// csr=false CLIENT host stand-in for a portable island binding.
 	// SSR / csr=true keep the real wrapper; hydrate loads via import(entry) only.
 	// Beside this stub the transform emits `import 'ogygia:region/fouc-css/…'` so Kit still

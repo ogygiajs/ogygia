@@ -1,7 +1,7 @@
 <!-- (its CSS injected into the dock's shadow root: see Devtools.svelte) -->
 <svelte:options css="injected" />
 
-<script>
+<script lang="ts">
 	/**
 	 * The Nav tab (nav lab, internal/notes/devtools.md, Rung 5 · 4): makes an SPA navigation
 	 * observable. ogygia navs DIFF the body in place — matched regions keep their live island, changed
@@ -12,19 +12,37 @@
 	 */
 	import { snapshot } from '@ogygia/core/events';
 	import { region_name, region_name_by_fp } from './regions.ts';
+	import type { EventNamed } from './bus-events.ts';
 
-	let { tick = 0 } = $props();
+	interface Props {
+		tick?: number;
+	}
 
-	const DECISION = {
+	type Decision = EventNamed<'nav.reconcile'>['decision'];
+	type NavModel =
+		| { hasNav: false }
+		| {
+				hasNav: true;
+				last: EventNamed<'nav.finish'>;
+				from: string | undefined;
+				decisions: EventNamed<'nav.reconcile'>[];
+				counts: Record<Decision, number>;
+				batch: EventNamed<'nav.batch'> | undefined;
+				history: { to: string; ms: number; reconciled: boolean; vt: boolean; seq: number }[];
+		  };
+
+	let { tick = 0 }: Props = $props();
+
+	const DECISION: Record<Decision, { c: string; help: string }> = {
 		keep: { c: '#22c55e', help: 'same island reused — its live state survived the nav' },
 		patch: { c: '#f59e0b', help: 'same slot, inputs changed — re-mounted in place' },
 		mount: { c: '#38bdf8', help: 'new island — appeared on this page' },
 		remove: { c: '#ef4444', help: 'island gone — left with the old page' }
 	};
-	const ORDER = ['keep', 'patch', 'mount', 'remove'];
+	const ORDER: Decision[] = ['keep', 'patch', 'mount', 'remove'];
 
 	// The reconcile key is `<type>\0<value>`: k = keep-marker name, p = persist signature, r = props fp.
-	function label_of(d) {
+	function label_of(d: EventNamed<'nav.reconcile'>) {
 		if (d.entry) return region_name(d.entry);
 		const nul = (d.key || '').indexOf('\0');
 		const type = nul >= 0 ? d.key.slice(0, nul) : '';
@@ -34,28 +52,36 @@
 		if (type === 'p') return 'persisted region';
 		return val || '—';
 	}
-	function origin_of(d) {
+	function origin_of(d: EventNamed<'nav.reconcile'>) {
 		const t = (d.key || '').slice(0, (d.key || '').indexOf('\0'));
 		return t === 'k' ? 'keep' : t === 'p' ? 'persist' : '';
 	}
 
-	const model = $derived.by(() => {
+	const model: NavModel = $derived.by(() => {
 		void tick; // refresh with the panel tick
 		const ev = snapshot();
-		const finishes = ev.filter((e) => e.name === 'nav.finish');
+		const finishes = ev.filter((e): e is EventNamed<'nav.finish'> => e.name === 'nav.finish');
 		if (finishes.length === 0) return { hasNav: false };
 
-		const last = finishes[finishes.length - 1];
-		const start = ev.filter((e) => e.name === 'nav.start' && e.seq < last.seq).at(-1);
+		const last = finishes[finishes.length - 1]!;
+		const start = ev
+			.filter((e): e is EventNamed<'nav.start'> => e.name === 'nav.start' && e.seq < last.seq)
+			.at(-1);
 		const from = start?.seq ?? -1;
 		const decisions = ev
-			.filter((e) => e.name === 'nav.reconcile' && e.seq > from && e.seq < last.seq)
+			.filter(
+				(e): e is EventNamed<'nav.reconcile'> =>
+					e.name === 'nav.reconcile' && e.seq > from && e.seq < last.seq
+			)
 			.slice()
 			.sort((a, b) => ORDER.indexOf(a.decision) - ORDER.indexOf(b.decision));
 		const batch = ev
-			.filter((e) => e.name === 'nav.batch' && e.seq > from && e.seq <= last.seq)
+			.filter(
+				(e): e is EventNamed<'nav.batch'> =>
+					e.name === 'nav.batch' && e.seq > from && e.seq <= last.seq
+			)
 			.at(-1);
-		const counts = { keep: 0, patch: 0, mount: 0, remove: 0 };
+		const counts: Record<Decision, number> = { keep: 0, patch: 0, mount: 0, remove: 0 };
 		for (const d of decisions) counts[d.decision]++;
 		const history = finishes
 			.slice(-8)

@@ -8,12 +8,18 @@ renders nothing, and says `island_load_failed`.
 Where the app runs Svelte's async mode, the build imports LateIslandAwait.svelte in this one's place
 (vite/late-island.ts).
 -->
-<script>
+<script lang="ts">
+	import type { Component as Loaded, Snippet } from 'svelte';
 	import { OgygiaError } from './messages/island.ts';
-	/** @type {{ load: () => Promise<import('svelte').Component>, props: Record<string, unknown>, children?: import('svelte').Snippet }} */
-	let { load, props, children } = $props();
-	/** @type {import('svelte').Component | undefined} */
-	let Component = $state(undefined);
+
+	interface Props {
+		load: () => Promise<Loaded>;
+		props: Record<string, unknown>;
+		children?: Snippet;
+	}
+
+	let { load, props, children }: Props = $props();
+	let Component: Loaded | undefined = $state(undefined);
 	// svelte-ignore state_referenced_locally
 	load().then(
 		(c) => (Component = c),

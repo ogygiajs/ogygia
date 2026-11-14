@@ -40,6 +40,7 @@ import { parseArgs } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { heisenbench_dir, bench_packages, link_heisenbench, REPO_ROOT } from './heisenbench.ts';
 import { gone_exemptions, unexempted_new_functions, type Exemption } from './stale.ts';
+import { failed_cases, failed_cases_md } from './failed-cases.ts';
 import { read_ledger_file } from '../../sim/src/ledger-json.ts';
 
 const { values } = parseArgs({
@@ -266,6 +267,12 @@ if (values.base) gate_args.push('--base-inventory', base_inventory_of(values.bas
 let status = heisenbench_cli(gate_args);
 if (gone.length) {
 	writeFileSync(join(out, 'gate.md'), gone_md, { flag: 'a' });
+	status = 1;
+}
+const threw = failed_cases(reports.map((r) => JSON.parse(readFileSync(r, 'utf8'))));
+for (const c of threw) log(`bench case threw: ${c.file} › ${c.name}`);
+if (threw.length) {
+	writeFileSync(join(out, 'gate.md'), failed_cases_md(threw), { flag: 'a' });
 	status = 1;
 }
 if (process.env.GITHUB_STEP_SUMMARY) {
