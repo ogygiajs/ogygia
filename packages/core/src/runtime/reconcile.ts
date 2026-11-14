@@ -3,6 +3,7 @@ import { boot_link, morph_sync_attributes, slots } from './slots.ts';
 import { ids_released } from './region-ids.ts';
 import { emit as dt_emit } from '../events/bus.ts';
 import { OG_FP, OG_NO_RECONCILE, OGYGIA_KEEP } from '../wire-markup.ts';
+import type { NavFallbackReason } from '../contract/events.ts';
 
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 import { fnv1a, endpoint_key, signature_of, fingerprint_of } from '../contract/hash.ts';
@@ -120,6 +121,20 @@ export const NO_RECONCILE_SELECTOR: string = `[${OG_NO_RECONCILE}]`;
  *  element in it (test/browser/no-reconcile-opt-out.test.ts). */
 export function opts_out_of_reconcile(body: Element): boolean {
 	return body.hasAttribute(OG_NO_RECONCILE) || body.querySelector(NO_RECONCILE_SELECTOR) !== null;
+}
+
+/** Why a navigation swaps the whole body instead of reconciling it (the devtools' `nav.fallback`
+ *  reason), or `null` when it reconciles (test/browser/nav-fallback-reason.test.ts). */
+export function swap_reason(
+	morph: boolean,
+	in_shadow: () => boolean,
+	live: Element,
+	next: Element
+): NavFallbackReason | null {
+	if (!morph) return 'no-morph';
+	if (in_shadow()) return 'shadow-region';
+	if (opts_out_of_reconcile(live) || opts_out_of_reconcile(next)) return 'opt-out';
+	return null;
 }
 
 function dt_emit_reconcile(live: Element, next: Element): void {
