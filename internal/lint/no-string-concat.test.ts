@@ -162,6 +162,16 @@ test('a member appended to itself in a forEach callback gets the join message', 
 	assert.match(hits[0]!.message, LOOP);
 });
 
+test("a member of the loop's own value, appended to once a turn, is written once", () => {
+	const { hits } = lint(dedent`
+		declare const xs: { note: string }[];
+		for (const p of xs) p.note = \`\${p.note}!\`;
+		export { xs };
+	`);
+	assert.equal(hits.length, 1);
+	assert.match(hits[0]!.message, ONCE);
+});
+
 test('a string appended to itself outside a loop says to write it once, with no fix', () => {
 	const source = dedent`
 		declare const a: string;
