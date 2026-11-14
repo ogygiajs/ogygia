@@ -1037,8 +1037,7 @@ export interface CompareOptions {
 }
 
 const NOISE = { lcp: 150, fcp: 150, ttfb: 100, inp: 50, cls: 0.02 } as const;
-// static: the hydration statuses that read as good, a fixed pair
-const GOOD_HYDRATION = new Set(['clean', 'asleep']);
+const GOOD_HYDRATION: ReadonlySet<string> = new Set(['clean', 'asleep']);
 
 /** Islands whose hydration got worse / better between two reports: by instance key, or (reports from
  *  before keys) by how many islands of each name ended in each status. */
@@ -1091,7 +1090,7 @@ const slot = (runs: OgygiaReport[][], kind: OgygiaReport['kind'], nth: number): 
 	runs.map((r) => r.filter((x) => x.kind === kind)[nth]).filter((x): x is OgygiaReport => !!x);
 
 /** A finding's code and its line, the first time each code is seen. */
-function finding_lines(reports: OgygiaReport[], skip: Set<string>): Map<string, string> {
+function finding_lines(reports: OgygiaReport[], skip: ReadonlySet<string>): Map<string, string> {
 	const out = new Map<string, string>();
 	for (const r of reports)
 		for (const f of ('findings' in r ? r.findings : []) as { code: string; message: string }[])
@@ -1138,8 +1137,7 @@ function hydration_consensus(reports: OgygiaHydrationReport[]): OgygiaHydrationR
 }
 
 /** The session-only codes `compare` leaves to their own line: `navigation-blocked` IS `navigations`. */
-// static: the session-only codes, a fixed list
-const SESSION_LISTED = new Set(['navigation-blocked']);
+const SESSION_LISTED: ReadonlySet<string> = new Set(['navigation-blocked']);
 
 /**
  * What changed between two runs of the same tests (each: the `ogygia.json` bodies, parsed).

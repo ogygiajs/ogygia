@@ -118,8 +118,7 @@ export function register_fn_kind(): void {
 		}
 	});
 }
-// static: one family
-const FN_ONLY = new Set(['fn']);
+const FN_ONLY: ReadonlySet<string> = new Set(['fn']);
 
 /** Devalue reducer (legacy-shaped wrapper, mirrors the other kinds). */
 export function reduce_fn(value: unknown): { t: string; i: string; d: unknown } | undefined {

@@ -483,8 +483,7 @@ function snippet_stable_id(d: unknown): string | undefined {
 	return undefined;
 }
 
-// static: one family
-const SNIPPET_ONLY = new Set(['snippet']);
+const SNIPPET_ONLY: ReadonlySet<string> = new Set(['snippet']);
 
 /** Codec encode (legacy `OgygiaS` wire shape: the bare descriptor). Branded region snippet → its
  *  descriptor; a bare snippet → frozen static; anything else falls through. */

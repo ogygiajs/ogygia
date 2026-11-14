@@ -1051,7 +1051,6 @@ type DevIslandKeys = {
 };
 
 /** the main thread's work in a render: the code on the sampled stacks and the collector's pauses */
-// static: a fixed list of frame categories
 const MAIN_THREAD_CPU: ReadonlySet<string> = new Set([
 	'app',
 	'component',

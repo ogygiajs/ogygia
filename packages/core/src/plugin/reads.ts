@@ -84,7 +84,6 @@ export function note_visitor_read(request_reads: Reads, input: string): void {
 	request_reads.visitor(input);
 }
 
-// static: a fixed list of header names
 const PERSONAL_HEADERS: ReadonlySet<string> = new Set([
 	'cookie',
 	'authorization',
@@ -111,9 +110,7 @@ function is_personal_header(name: string): boolean {
 	return PERSONAL_HEADERS.has(n) || PERSONAL_HEADER_RE.test(n);
 }
 
-// static: the platform members every request shares
 const SHARED_PLATFORM: ReadonlySet<string> = new Set(['env', 'caches']);
-// static: the platform context members every request shares
 const SHARED_PLATFORM_CONTEXT: ReadonlySet<string> = new Set([
 	'waitUntil',
 	'passThroughOnException'

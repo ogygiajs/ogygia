@@ -736,8 +736,7 @@ export const DOM_LARGE = 1500;
 /** early by less than this is a tie, not a lost click */
 const EARLY_SLACK_MS = 8;
 
-// static: the two wakes that run without a visitor
-const EAGER = new Set(['load', 'idle']);
+const EAGER: ReadonlySet<string> = new Set(['load', 'idle']);
 
 const round = (n: number, d = 1) => {
 	const k = 10 ** d;
@@ -2626,7 +2625,6 @@ export function lcp_rivals(
 }
 
 /** elements whose largest paint is their own file; any other with a URL painted a CSS background */
-// static: the elements whose largest paint is a file of their own
 const LCP_OWN_FILE: ReadonlySet<string> = new Set(['img', 'image', 'video', 'svg', 'input']);
 
 /**

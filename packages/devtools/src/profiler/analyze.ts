@@ -445,8 +445,7 @@ const OGYGIA_OWN_RE = /\/(?:ogygia|@ogygia\/core|packages\/core)\/(?:src|dist)\/
  *  `.svelte` from a dependency is compiled by the consumer), so in a production profile they sit
  *  at a chunk URL with the component's name and no `.svelte` path to vouch for them — and every
  *  island page renders `Region` once per island, so it would top the Components table. */
-// static: a fixed list of component names
-const OGYGIA_WRAPPERS = new Set([
+const OGYGIA_WRAPPERS: ReadonlySet<string> = new Set([
 	'Region',
 	'SlotBoundary',
 	'LakeBoundary',
@@ -467,8 +466,7 @@ export function strip_bundler_suffix(name: string): string {
 }
 
 /** SvelteKit endpoint/handler exports — capitalized, but not components. */
-// static: a fixed list of function names
-const handler_names = new Set([
+const handler_names: ReadonlySet<string> = new Set([
 	'GET',
 	'POST',
 	'PUT',

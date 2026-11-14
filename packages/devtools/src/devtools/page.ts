@@ -170,8 +170,7 @@ export function region_facts(): RegionFact[] {
 	return out;
 }
 
-// static: the two wakes that run without a visitor
-const EAGER_WAKES = new Set(['load', 'idle']);
+const EAGER_WAKES: ReadonlySet<string> = new Set(['load', 'idle']);
 /** Each hidden eager island's screen sizes, read once while the page's sheets stay the same (by
  *  fingerprint and sheet count): the regions the dock has looked at, the least recently read first
  *  to go. */

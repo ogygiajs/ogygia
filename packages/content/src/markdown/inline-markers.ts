@@ -30,8 +30,7 @@ const SUB: Record<Marker, string> = { '+++': ' '.repeat(41), '---': ' '.repeat(4
 // Markdown-family fences are where the AUTHORING SYNTAX itself is shown (a docs page teaching the
 // dialect) — a marker there must render literally. Same rule as diff_markers; `diff` because its
 // `---` lines are real syntax.
-// static: the languages whose fences show the marker syntax itself, a fixed list
-const SKIP_LANGS = new Set(['diff', 'markdown', 'md', 'mdx', 'svx']);
+const SKIP_LANGS: ReadonlySet<string> = new Set(['diff', 'markdown', 'md', 'mdx', 'svx']);
 
 type Redaction = { placeholder: string; content: string };
 type MarkerMeta = { redactions: Redaction[] };
