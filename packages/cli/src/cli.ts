@@ -33,6 +33,13 @@ const JSON_INDENT_RE = /\n(\t| +)/;
 const TRAILING_LFS_RE = /\n*$/;
 const BACKSLASH_G = /\\/g;
 // (the unscoped spelling is a layout an older CLI wrote — still ours)
+const VITE_CONFIGS: readonly string[] = ['vite.config.ts', 'vite.config.js'];
+const LOCKFILE_PM: readonly (readonly [string, string])[] = [
+	['pnpm-lock.yaml', 'pnpm'],
+	['yarn.lock', 'yarn'],
+	['bun.lockb', 'bun'],
+	['bun.lock', 'bun']
+];
 const CONTENT_SHELL_IMPORT_RE = /from ['"]@?ogygia\/content(\/docs-shell)?['"]/;
 
 const require = createRequire(import.meta.url);
@@ -108,7 +115,9 @@ ${strong('mcp')}  — runs a Model Context Protocol server on stdio. Point an MC
 }
 
 const cwd = process.cwd();
-const wantMarkdown = flags.has('--markdown') ? true : flags.has('--no-markdown') ? false : null;
+let wantMarkdown: boolean | null = null;
+if (flags.has('--markdown')) wantMarkdown = true;
+else if (flags.has('--no-markdown')) wantMarkdown = false;
 const yes = flags.has('-y') || flags.has('--yes');
 const noInstall = flags.has('--no-install');
 
@@ -194,11 +203,9 @@ function preflight(): Preflight {
 	if (!allDeps['@sveltejs/kit']) {
 		die('this does not look like a SvelteKit project (`@sveltejs/kit` is not a dependency).');
 	}
-	const viteConfig = fileExists(cwd, 'vite.config.ts')
-		? 'vite.config.ts'
-		: fileExists(cwd, 'vite.config.js')
-			? 'vite.config.js'
-			: die('could not find vite.config.ts or vite.config.js.');
+	const viteConfig =
+		VITE_CONFIGS.find((name) => fileExists(cwd, name)) ??
+		die('could not find vite.config.ts or vite.config.js.');
 	const ext = viteConfig.endsWith('.ts') || fileExists(cwd, 'tsconfig.json') ? 'ts' : 'js';
 	return { pkg, pkgRaw, viteConfig, ext };
 }
@@ -395,13 +402,7 @@ function wireOgygia(pf: Preflight, markdown: boolean, asyncCompiler = false): vo
 
 /** Install with the detected package manager (best-effort). */
 function installDeps(): void {
-	const pm = existsSync(path.join(cwd, 'pnpm-lock.yaml'))
-		? 'pnpm'
-		: existsSync(path.join(cwd, 'yarn.lock'))
-			? 'yarn'
-			: existsSync(path.join(cwd, 'bun.lockb')) || existsSync(path.join(cwd, 'bun.lock'))
-				? 'bun'
-				: 'npm';
+	const pm = LOCKFILE_PM.find(([lockfile]) => existsSync(path.join(cwd, lockfile)))?.[1] ?? 'npm';
 	stdout.write(`\n  Installing with ${accent(pm)}…\n`);
 	const res = spawnSync(pm, ['install'], {
 		cwd,

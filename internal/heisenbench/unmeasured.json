@@ -1,6 +1,14 @@
 {
 	"exempt": [
 		{
+			"id": "packages/cli/src/cli.ts > installDeps > find:0~5e8663",
+			"reason": "the CLI's one-shot lockfile probe: a file check per known lockfile, run once per install"
+		},
+		{
+			"id": "packages/cli/src/cli.ts > preflight > find:0~8f7cb4",
+			"reason": "the CLI's one-shot vite config probe: a file check per name, run once per command"
+		},
+		{
 			"id": "packages/core/src/server/html-scan.ts > kit_boot_script > is_kit_boot_script:1~dc8962",
 			"reason": "one attribute lookup on a tag the walk already read, constant work; kit-gate.test.ts runs it"
 		},
@@ -2427,10 +2435,6 @@
 		{
 			"id": "packages/rewrite/src/messages.ts > REWRITE_WARNINGS > rule_rewrite_after_cancel > text",
 			"reason": "a message table entry: wording only (a rule broken; rewrite.test.ts 'rule_rewrite_after_cancel: …' says it)"
-		},
-		{
-			"id": "packages/rewrite/src/pass.ts > call_render > map:0~2fef46",
-			"reason": "rules builds only (buggify): each result of a render checked once for the malformed and strips-marks points, constant work per result (the render's own output: not replayable); folds out of production"
 		},
 		{
 			"id": "packages/core/src/server/page-stream.ts > swap_tracked",
@@ -6255,6 +6259,10 @@
 		{
 			"id": "packages/machine/src/decisions.ts > show_list",
 			"reason": "dev and rules builds only: words a repeated field list in a refusal, when a table is made; packages/machine/test/decisions.test.ts runs it"
+		},
+		{
+			"id": "packages/rewrite/src/pass.ts > call_render > map:0~2fef46",
+			"reason": "rules builds only (buggify): each result of a render checked once for the malformed and strips-marks points, constant work per result (the render's own output: not replayable); folds out of production"
 		}
 	]
 }

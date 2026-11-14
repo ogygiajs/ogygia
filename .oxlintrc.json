@@ -70,6 +70,7 @@
 		{
 			"files": [
 				"packages/barrels/src/**",
+				"packages/cli/src/**",
 				"packages/config/src/**",
 				"packages/content/src/**",
 				"packages/data-shake/src/**",
