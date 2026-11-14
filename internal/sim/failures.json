@@ -4926,6 +4926,42 @@
 			"reason": "a Kit with no client remote functions fails the browser's remote runtime with kit_remote_src_missing instead of resolving to nothing; proved by hand: the throw removed turns the test red, twice",
 			"test": "packages/compiler/test/vite-hooks.test.ts",
 			"name": "a Kit without its client remote functions fails the browser's remote runtime by name"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > task > reject:0",
+			"reason": "a task whose work closed its own scope and then failed leaves no unhandled rejection; proved by hand: the handler made to rethrow turns the test red in node and every browser, twice",
+			"test": "packages/machine/test/scope.test.ts",
+			"name": "a task whose work closes its own scope and then fails is STALE, its failure never unhandled"
+		},
+		{
+			"site": "packages/postrender/src/server.ts > page > stale:0",
+			"reason": "a request whose joined render an invalidation ended asks again and opens the new render, which is stored; proved by hand: the check made never true turns the test red, twice",
+			"test": "packages/postrender/test/refusals-and-ages.test.ts",
+			"name": "an invalidation ends the render it joined: it renders the page anew, and that render is stored"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > answer > abort:0",
+			"reason": "a hop its own request ended is not said as an unreachable peer; proved by hand: the check made never true turns the test red, twice",
+			"test": "packages/federation/test/peer-unreachable.test.ts",
+			"name": "a page read: the fetch ends unsaid, and no other origin is asked"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > answer > throw:0",
+			"reason": "a hop its own request ended throws its own error, unsaid; proved by hand: the throw removed turns the test red, twice",
+			"test": "packages/federation/test/peer-unreachable.test.ts",
+			"name": "a page read: the fetch ends unsaid, and no other origin is asked"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > raw_doc > abort:0",
+			"reason": "a read its request ended asks no other origin; proved by hand: the check made never true turns the test red, twice",
+			"test": "packages/federation/test/peer-unreachable.test.ts",
+			"name": "a page read: the fetch ends unsaid, and no other origin is asked"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > raw_doc > throw:0",
+			"reason": "an answer that is not a failed hop (a body that breaks off) fails the mutation with its own error; proved by hand: the rethrow removed turns the test red, twice",
+			"test": "packages/federation/test/peer-unreachable.test.ts",
+			"name": "a mutation whose answer breaks off mid-body fails with that break, as it came"
 		}
 	],
 	"impossible": [
@@ -5758,15 +5794,11 @@
 		"packages/federation/src/mount.ts > mount_fn > stream_slot > import:0",
 		"packages/federation/src/mount.ts > kit_mount > kit > import:0",
 		"packages/federation/src/peer.ts > PeerHandle > widgetDoc > abort:0",
-		"packages/federation/src/peer.ts > PeerHandle > answer > abort:0",
-		"packages/federation/src/peer.ts > PeerHandle > answer > throw:0",
 		"packages/federation/src/peer.ts > PeerHandle > answer > reject:0",
 		"packages/federation/src/peer.ts > PeerHandle > answer > parse:0",
 		"packages/federation/src/peer.ts > PeerHandle > widget > throw:0",
 		"packages/federation/src/peer.ts > PeerHandle > signed_fetch > fetch:0",
 		"packages/federation/src/peer.ts > PeerHandle > signed_fetch > timer:0",
-		"packages/federation/src/peer.ts > PeerHandle > raw_doc > abort:0",
-		"packages/federation/src/peer.ts > PeerHandle > raw_doc > throw:0",
 		"packages/federation/src/peer.ts > PeerHandle > own_url > catch:0",
 		"packages/federation/src/peer.ts > PeerHandle > own_target > catch:0",
 		"packages/federation/src/peer.ts > PeerHandle > endpoint > ask > fetch:0",
@@ -5819,7 +5851,6 @@
 		"packages/machine/src/ports/timers.ts > keep > timer:0",
 		"packages/machine/src/ports/timers.ts > timeout > abort:0",
 		"packages/machine/src/scope.ts > Scoped > signal > abort:0",
-		"packages/machine/src/scope.ts > Scoped > task > reject:0",
 		"packages/machine/src/stage.ts > Staged > constructor > refused:0",
 		"packages/ogygia/src/cli.ts > installed > catch:0",
 		"packages/postrender/src/adapters/akamai.ts > AkamaiEdge > signed_post > fetch:0",
@@ -5854,7 +5885,6 @@
 		"packages/postrender/src/server.ts > dev_postrender_note > catch:0",
 		"packages/postrender/src/server.ts > capture_page > catch:0",
 		"packages/postrender/src/server.ts > page > reject:0",
-		"packages/postrender/src/server.ts > page > stale:0",
 		"packages/postrender/src/server.ts > response > catch:1",
 		"packages/postrender/src/server.ts > invalidate > throw:1",
 		"packages/postrender/src/server.ts > lastBuild > stale:0",
