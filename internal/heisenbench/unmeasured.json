@@ -1485,23 +1485,23 @@
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{
-			"id": "packages/config/src/sim.ts > Run > stream",
+			"id": "packages/config/src/sim.ts > SimStream > constructor",
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{
-			"id": "packages/config/src/sim.ts > Run > stream > ReadableStream:0~264709 > cancel",
+			"id": "packages/config/src/sim.ts > SimStream > constructor > ReadableStream:0~516354 > cancel",
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{
-			"id": "packages/config/src/sim.ts > Run > stream > ReadableStream:0~264709 > pull",
+			"id": "packages/config/src/sim.ts > SimStream > constructor > ReadableStream:0~516354 > pull",
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{
-			"id": "packages/config/src/sim.ts > Run > stream > ReadableStream:0~264709 > pull > later:1~4fcdea",
+			"id": "packages/config/src/sim.ts > SimStream > constructor > ReadableStream:0~516354 > pull > later:1~5fc325",
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{
-			"id": "packages/config/src/sim.ts > Run > stream > cancelled",
+			"id": "packages/config/src/sim.ts > SimStream > cancelled",
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{
@@ -5237,15 +5237,15 @@
 			"reason": "a message's one line for the build note: a template over its detail, printed once per build"
 		},
 		{
-			"id": "packages/flags/src/vite.ts > inventory",
+			"id": "packages/flags/src/prescan.ts > Inventory > constructor",
 			"reason": "the plugin's factory, once per config load: builds one plugin record, constant work"
 		},
 		{
-			"id": "packages/flags/src/vite.ts > inventory > module",
+			"id": "packages/flags/src/prescan.ts > Inventory > module",
 			"reason": "build only: the inventory's prescan hook over one module that imports @ogygia/flags, delegating to collect_flag_sites (measured on its own)"
 		},
 		{
-			"id": "packages/flags/src/vite.ts > inventory > written",
+			"id": "packages/flags/src/prescan.ts > Inventory > written",
 			"reason": "build only, once per build: writes the flags manifest file, linear in flag sites"
 		},
 		{
