@@ -34,7 +34,7 @@ import { runtime_url, router_enabled, view_transitions } from 'ogygia:server';
 import { dev_hmr_url } from './dev-hmr-url.ts';
 import { runtime_bootstrap } from './server/entry-location.ts';
 import { current_facts } from './plugin/facts.ts';
-import { try_get_request_store } from '@sveltejs/kit/internal/server';
+import { live_event } from './server/live-event.ts';
 import { kit_render_context, type KitPage } from './server/kit-context.ts';
 import { open_ask_scope, read_seed_ask, record_page } from './page-seed-registry.ts';
 import { shape_page_data, unshipped_attr } from './server/seed-shape.ts';
@@ -90,8 +90,7 @@ export interface DocumentOptions {
  *  renders under this document rebuild the same context (see server/kit-context.ts). */
 function kit_page_context(options: DocumentOptions): KitPage {
 	const s = options.pageState;
-	const store = try_get_request_store() as { event?: { url?: URL } } | undefined;
-	const href = s?.url?.href ?? store?.event?.url?.href;
+	const href = s?.url?.href ?? live_event()?.url?.href;
 	const page: KitPage = {
 		url: href ? new URL(href) : undefined,
 		params: s?.params ?? {},
@@ -178,8 +177,7 @@ export async function document(
 	// owns there are no asks to read, and the whole slice ships as before.
 	// RESPONSE-MARK: the request's mark, so a handle writing into this response agrees (outside a
 	// request, the document's own)
-	const store = try_get_request_store() as { event?: { request?: Request } } | undefined;
-	const mark_key: object = store?.event?.request ?? {};
+	const mark_key: object = live_event()?.request ?? {};
 	const ask = options.pageState ? read_seed_ask() : undefined;
 	if (options.pageState && (!ask || ask.wanted)) {
 		const s = options.pageState;
