@@ -1153,10 +1153,6 @@
 			"reason": "the same, as it gets its turn back, constant work; proven in packages/machine/test/mailbox.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > boot > on_reload_needed:0~c56e54",
-			"reason": "browser only: logs chunk_reload_needed once per page (one console.error); proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/import-again.ts > flights:0",
 			"reason": "browser only: an island file's one load at a time (the dynamic import() of its URL, and the immediate retry under a fresh URL after a dropped download); proven in packages/core/test/browser/import-file-one-retry.test.ts (#271) and apps/palaestra/e2e/lazy-chunk-retry.spec.ts (#261)"
 		},
