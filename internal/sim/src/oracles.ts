@@ -417,12 +417,14 @@ export function first_difference(a: string, b: string, context = 3): string {
 }
 
 /** A hard load of `url` in a new browser with `v`'s cookies, on a network that does not fail it
- *  (a fault there is no finding about the tab), at rest, each leg `pace` ms slower. */
+ *  (a fault there is no finding about the tab), at rest, each leg `pace` ms slower, in a tab
+ *  `behind` another when the judged one was never shown. */
 async function load_fresh(
 	world: World,
 	v: Visitor,
 	url: string,
 	name: string,
+	behind: boolean,
 	pace = 0
 ): Promise<{ visitor: Visitor; tab: Tab }> {
 	const visitor = world.visitor(`${v.name}-${name}`);
@@ -438,6 +440,7 @@ async function load_fresh(
 	// (every cookie, httpOnly ones too: a request carries them all; `true` would be a script's view)
 	jar(visitor).addCookies(jar(v).getCookies(null, false));
 	const tab = world.tab(visitor);
+	tab.hidden = behind;
 	world.network.calm(tab.name, pace);
 	const path = new URL(url);
 	await world.go(tab, 'goto', path.pathname + path.search + path.hash);
@@ -506,8 +509,13 @@ export async function mpa_equivalent(
 	// (a page a build a deploy replaced answered is compared with a fresh load from that build: an
 	// old page is the old release's, whole)
 	const build = world.build_of(tab.realm);
+	const behind = tab.hidden && !tab.seen.has(tab.realm);
 	const fresh_load = (w: World, visitor: Visitor, at: string, name: string, pace = 0) =>
-		w.as_of(build, () => load_fresh(w, visitor, at, name, pace), world.answers_of(tab.realm));
+		w.as_of(
+			build,
+			() => load_fresh(w, visitor, at, name, behind, pace),
+			world.answers_of(tab.realm)
+		);
 	const fresh = await fresh_load(world, v, url, 'fresh');
 	// (no reference: the build the page is of could not give it again, its stored copies dropped and
 	// a newer build's handed out instead, gen 131, seed 131003)
