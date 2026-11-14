@@ -22,6 +22,8 @@ const RUNTIME_RULES = [
 	'rule_turns_counted',
 	// (the scheduler's own check, beside its code: ../src/runtime/schedule.ts)
 	'pending turn(s) and holds',
+	// (the lakes feature's note, behind its own `RULES` guard: ../src/runtime/lakes.ts)
+	'lake(s) and found',
 	'__ogygia_rules'
 ];
 /** What the server's rules say (their codes are in the server's message table, which ships with
@@ -55,7 +57,8 @@ async function build(entry: string, rules: boolean): Promise<string> {
 const RUNTIME_ENTRY = `${dedent`
 	import { boot } from ${JSON.stringify(`${SRC}runtime/core.ts`)};
 	import { install } from ${JSON.stringify(`${SRC}runtime/router.ts`)};
-	boot([install]);
+	import { install as lakes } from ${JSON.stringify(`${SRC}runtime/lakes.ts`)};
+	boot([install, lakes]);
 `}\n`;
 // The response path, and the checks installed as the handle installs them (hooks.ts: its `RULES`
 // guard, word for word; the handle itself reads virtual modules a bare build cannot resolve).
