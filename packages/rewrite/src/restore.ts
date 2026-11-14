@@ -354,12 +354,11 @@ export function restore_with(
 		for (const t of want.split(/\s+/)) if (t && !have.has(t)) return false;
 		return true;
 	};
-	const describe = (n: Node): string =>
-		n.nodeType === 3
-			? `the text ${JSON.stringify((n as Text).data)}`
-			: n.nodeType === 8
-				? `the comment <!--${(n as Comment).data}-->`
-				: `<${(n as Element).localName}>`;
+	const describe = (n: Node): string => {
+		if (n.nodeType === 3) return `the text ${JSON.stringify((n as Text).data)}`;
+		if (n.nodeType === 8) return `the comment <!--${(n as Comment).data}-->`;
+		return `<${(n as Element).localName}>`;
+	};
 	const verify = (host: Element, k: string) => {
 		const want = check?.[k];
 		if (want === undefined) return;
@@ -568,14 +567,10 @@ export function restore_adopt(): void {
 	// port-ok: inlined as text by restore_adopt.toString() (no imports)
 	const now = performance.now();
 	const waiting = (root: WaitingShadow) => now - (root.__og_out ??= now) < 30_000;
-	const where = (root: ShadowRoot): 'page' | 'later' | 'gone' =>
-		root.host.isConnected
-			? root.host.ownerDocument === document
-				? 'page'
-				: 'gone'
-			: waiting(root)
-				? 'later'
-				: 'gone';
+	const where = (root: ShadowRoot): 'page' | 'later' | 'gone' => {
+		if (root.host.isConnected) return root.host.ownerDocument === document ? 'page' : 'gone';
+		return waiting(root) ? 'later' : 'gone';
+	};
 	// first: roots attached outside the page get the page's registry, so what is inside them upgrades
 	// (a browser without scoped registries never nulls it, and has no `initialize`)
 	const bare = W.__og_init;
