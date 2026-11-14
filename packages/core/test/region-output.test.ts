@@ -524,6 +524,24 @@ test("an island whose live snippet's module is served from the island's own file
 	expect(JSON.parse(graph![1]!)).toMatchObject({ s: { [LIVE_ENTRY]: ISLAND.__entry } });
 });
 
+test('an island nested in an island names the outer island as the owner of its Kit-island mark', async () => {
+	vi.spyOn(console, 'warn').mockImplementation(() => {});
+	const { default: IslandWithIsland } = await import('./_fixtures/IslandWithIsland.svelte');
+	let html: string;
+	try {
+		html = out([{ ...ISLAND, __entry: '/islands/host.js', __component: IslandWithIsland }]);
+	} finally {
+		vi.restoreAllMocks();
+	}
+	const head = html.split('<!-- body -->')[0]!;
+	const body = html.split('<!-- body -->')[1]!;
+	const outer = /data-og-fp="([0-9a-f]+)"/.exec(body)?.[1];
+	expect(outer).toBeTruthy();
+	expect(head).toContain(
+		`<meta name="ogygia-kit-island" content="/islands/inner.js" data-og-owner="${outer}">`
+	);
+});
+
 test("in Kit's page pass, an island with no chunks puts no graph in the tail and no hints in its row", () => {
 	vi.spyOn(console, 'warn').mockImplementation(() => {});
 	deps.set_island_deps({});
