@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset } from '../../src/runtime/frame-store.ts';
+import { EARLY_HOLES_KEY, type EarlyHole } from '../../src/early-holes.ts';
 
 const ep = (id: string) => `/__ogygia__?id=${id}&props=W3t9XQ&exp=9999999999&sig=stub`;
 const hole = (endpoint: string) =>
@@ -99,6 +100,40 @@ for (const deny of ['sig', 'shape', 'foreign-key']) {
 		expect(asked).toBe(2);
 	});
 }
+
+test('a hole the page started early, refused with sig while the hole waited on it, still asks once more (#1752)', async () => {
+	vi.spyOn(console, 'warn').mockImplementation(() => {});
+	let asked = 0;
+	window.fetch = async () => {
+		asked++;
+		await new Promise((r) => setTimeout(r, 50));
+		if (asked === 1) return new Response('', { status: 403, headers: { 'x-ogygia-deny': 'sig' } });
+		return new Response('<p data-answer>hello</p>', {
+			status: 200,
+			headers: { 'content-type': 'text/html' }
+		});
+	};
+	const endpoint = ep('earlysig0001');
+	const url = new URL(endpoint, document.baseURI).href;
+	const controller = new AbortController();
+	const parked: EarlyHole[] = [
+		{ url, response: window.fetch(url, { signal: controller.signal }), controller }
+	];
+	(globalThis as Record<symbol, unknown>)[Symbol.for(EARLY_HOLES_KEY)] = parked;
+	const box = document.createElement('div');
+	box.innerHTML = hole(endpoint);
+	const el = box.querySelector<HTMLElement>('ogygia-region')!;
+	document.body.append(el);
+	bootDev();
+	await expect
+		.poll(() => el.querySelector('[data-answer]'), {
+			message: 'the second server’s answer',
+			timeout: 5_000,
+			interval: 50
+		})
+		.not.toBeNull();
+	expect(asked).toBe(2);
+});
 
 test('a hole refused with sig after a failed fetch still asks once more: only refusals count toward its retry (#1752)', async () => {
 	const said = vi.spyOn(console, 'warn').mockImplementation(() => {});
