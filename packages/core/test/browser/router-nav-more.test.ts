@@ -14,6 +14,7 @@ import { SpaRouter } from '../../src/runtime/router.ts';
 import { prepare_spa_document } from '../../src/runtime/seeds.ts';
 import { runtime_session } from '../../src/runtime/session.ts';
 import { slots } from '../../src/runtime/slots.ts';
+import { patch } from '../_patch.ts';
 
 declare module 'vitest/browser' {
 	interface BrowserCommands {
@@ -24,7 +25,7 @@ declare module 'vitest/browser' {
 
 const real_fetch = window.fetch;
 const real_report = window.reportError;
-const real_vt = document.startViewTransition;
+let spies = scope();
 const home = location.href;
 const home_head = [...document.head.children];
 
@@ -91,7 +92,8 @@ beforeEach(async () => {
 afterEach(() => {
 	window.fetch = real_fetch;
 	window.reportError = real_report;
-	document.startViewTransition = real_vt;
+	spies.close();
+	spies = scope();
 	for (const el of Array.from(document.head.children)) if (!home_head.includes(el)) el.remove();
 	document.head.append(...home_head.filter((el) => !el.isConnected));
 	history.replaceState(null, '', home);
@@ -118,15 +120,21 @@ function owned(html: string): Element {
 
 test('a commit that throws under a view transition skips the transition', async () => {
 	let skipped = 0;
-	document.startViewTransition = ((update: () => void) => {
-		update();
-		return {
-			ready: Promise.resolve(),
-			finished: Promise.resolve(),
-			updateCallbackDone: Promise.resolve(),
-			skipTransition: () => void skipped++
-		};
-	}) as never;
+	patch(
+		spies,
+		document,
+		'startViewTransition',
+		() =>
+			((update: () => void) => {
+				update();
+				return {
+					ready: Promise.resolve(),
+					finished: Promise.resolve(),
+					updateCallbackDone: Promise.resolve(),
+					skipTransition: () => void skipped++
+				};
+			}) as never
+	);
 	const g = globalThis as { __og_restore_adopt?: () => void };
 	g.__og_restore_adopt = () => {
 		throw new Error('adopt broke');

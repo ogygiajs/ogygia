@@ -23,8 +23,8 @@ describe('rewrite()', () => {
 		expectTypeOf(el).toEqualTypeOf<Rewrite>();
 		expectTypeOf(el).toExtend<Handle>();
 		expectTypeOf(page).toEqualTypeOf<WholePageRewrite>();
-		expectTypeOf(el.check).returns.resolves.toEqualTypeOf<RewriteCheck>();
-		expectTypeOf(page.html).returns.resolves.toEqualTypeOf<string>();
+		expectTypeOf<ReturnType<typeof el.check>>().resolves.toEqualTypeOf<RewriteCheck>();
+		expectTypeOf<ReturnType<typeof page.html>>().resolves.toEqualTypeOf<string>();
 	});
 
 	it('render gets the elements and the context, and gives one result per element, sync or async', () => {

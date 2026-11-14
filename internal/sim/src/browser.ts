@@ -390,7 +390,7 @@ export class Browsers {
 		// (the document's own performance, its clock the realm's; before `install`, which sets the
 		// `now` of the window's performance: its own, no longer the host's one object)
 		install_timeline(window, {
-			now: p.performance!.now,
+			now: p.performance!.now.bind(p.performance),
 			origin: p.Date.now() - p.performance!.now(),
 			url: window.location.href,
 			type: started.type
@@ -599,7 +599,9 @@ export class Browsers {
 				addEventListener(type: string, fn: unknown, options?: unknown): void;
 				removeEventListener(type: string, fn: unknown, options?: unknown): void;
 			};
+			// oxlint-disable-next-line typescript/unbound-method -- the tab's own, kept before the patch that lasts as long as its window; called with each call's own receiver
 			const add = t.addEventListener;
+			// oxlint-disable-next-line typescript/unbound-method -- the tab's own, kept before the patch that lasts as long as its window; called with each call's own receiver
 			const remove = t.removeEventListener;
 			t.addEventListener = function (type, fn, options) {
 				// (a `once` listener or one with a signal lets itself go: counted while it may still fire)

@@ -156,7 +156,7 @@ export interface BatchHoleStats extends HoleRequestStats {
 /** Where the handle hands each request's stats: the profiler's store (`@ogygia/devtools`). With
  *  none installed the handle records nothing, so an app without a profiler builds no stats object. */
 export interface RequestStatsSink {
-	page(request: Request, s: OgygiaRequestStats): void;
+	page: (request: Request, s: OgygiaRequestStats) => void;
 	hole(request: Request, s: HoleRequestStats): void;
 	/** A batch's holes settle after the handle returned, so each is handed on as it lands. */
 	batchHole(request: Request, s: BatchHoleStats): void;

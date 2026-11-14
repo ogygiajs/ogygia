@@ -73,7 +73,9 @@ test.beforeEach(async ({ page }) => {
 	await page.addInitScript(() => {
 		const keys = new Set<unknown>();
 		const proto = EventTarget.prototype;
+		// oxlint-disable-next-line typescript/unbound-method -- the page's own, kept before a page-long patch in its init script (no imports there); called with each call's own receiver
 		const add = proto.addEventListener;
+		// oxlint-disable-next-line typescript/unbound-method -- the page's own, kept before a page-long patch in its init script (no imports there); called with each call's own receiver
 		const remove = proto.removeEventListener;
 		proto.addEventListener = function (
 			this: EventTarget | undefined,
@@ -99,7 +101,9 @@ test.beforeEach(async ({ page }) => {
 			return remove.call(on, type, fn, opts);
 		};
 		const heads = new Set<MutationObserver>();
+		// oxlint-disable-next-line typescript/unbound-method -- the page's own, kept before a page-long patch in its init script (no imports there); called with each call's own receiver
 		const observe = MutationObserver.prototype.observe;
+		// oxlint-disable-next-line typescript/unbound-method -- the page's own, kept before a page-long patch in its init script (no imports there); called with each call's own receiver
 		const disconnect = MutationObserver.prototype.disconnect;
 		MutationObserver.prototype.observe = function (target, options) {
 			if (target === document.head) heads.add(this);

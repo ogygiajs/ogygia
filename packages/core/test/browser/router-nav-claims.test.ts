@@ -12,6 +12,8 @@ import { SpaRouter } from '../../src/runtime/router.ts';
 import { prepare_spa_document } from '../../src/runtime/seeds.ts';
 import { runtime_session } from '../../src/runtime/session.ts';
 import { slots } from '../../src/runtime/slots.ts';
+import { scope } from '@ogygia/machine';
+import { patch } from '../_patch.ts';
 
 declare module 'vitest/browser' {
 	interface BrowserCommands {
@@ -22,7 +24,9 @@ declare module 'vitest/browser' {
 
 const real_fetch = window.fetch;
 const real_report = window.reportError;
-const real_vt = document.startViewTransition;
+let spies = scope();
+const fake_vt = (vt: (update: () => void) => unknown) =>
+	patch(spies, document, 'startViewTransition', () => vt as never);
 const home = location.href;
 const home_head = [...document.head.children];
 
@@ -95,7 +99,8 @@ beforeEach(async () => {
 afterEach(() => {
 	window.fetch = real_fetch;
 	window.reportError = real_report;
-	document.startViewTransition = real_vt;
+	spies.close();
+	spies = scope();
 	for (const el of Array.from(document.head.children)) if (!home_head.includes(el)) el.remove();
 	document.head.append(...home_head.filter((el) => !el.isConnected));
 	history.replaceState(null, '', home);
@@ -301,7 +306,7 @@ test('the announcer stays one node with its own text when the next page ends in 
 function fake_transition(seen: Map<string, string>[]) {
 	let finish = () => {};
 	const finished = new Promise<void>((resolve) => (finish = resolve));
-	document.startViewTransition = ((cb: () => void) => {
+	fake_vt((cb: () => void) => {
 		const names = new Map<string, string>();
 		for (const el of document.querySelectorAll<HTMLElement>('[id]'))
 			names.set(el.id, el.style.getPropertyValue('view-transition-name'));
@@ -313,7 +318,7 @@ function fake_transition(seen: Map<string, string>[]) {
 			updateCallbackDone: Promise.resolve(),
 			skipTransition() {}
 		};
-	}) as never;
+	});
 	return () => finish();
 }
 
@@ -342,7 +347,7 @@ test('folded names come back when the transition is skipped', async () => {
 	document.body.innerHTML = '<a id="here" style="view-transition-name: row-1">row</a>';
 	pages['/rn-vt-skip'] = { marker: '', body: '<p>next</p>' };
 	const here = document.getElementById('here')!;
-	document.startViewTransition = ((cb: () => void) => {
+	fake_vt((cb: () => void) => {
 		cb();
 		const skipped = Promise.reject(new DOMException('Transition was skipped', 'AbortError'));
 		return {
@@ -351,7 +356,7 @@ test('folded names come back when the transition is skipped', async () => {
 			updateCallbackDone: Promise.resolve(),
 			skipTransition() {}
 		};
-	}) as never;
+	});
 	await go('/rn-vt-skip');
 	await expect.poll(() => here.style.getPropertyValue('view-transition-name')).toBe('row-1');
 });
@@ -365,7 +370,7 @@ test('a skipped transition leaves no unhandled rejection on the page', async () 
 		e.preventDefault();
 	};
 	window.addEventListener('unhandledrejection', on);
-	document.startViewTransition = ((cb: () => void) => {
+	fake_vt((cb: () => void) => {
 		cb();
 		return {
 			ready: Promise.reject(new DOMException('Transition was skipped', 'AbortError')),
@@ -373,7 +378,7 @@ test('a skipped transition leaves no unhandled rejection on the page', async () 
 			updateCallbackDone: Promise.resolve(),
 			skipTransition() {}
 		};
-	}) as never;
+	});
 	try {
 		await go('/rn-vt-skip-quiet');
 		await new Promise((r) => setTimeout(r, 100));
@@ -675,7 +680,7 @@ test('the transition starts after the build yields its task', async () => {
 		order.push('yield');
 		return real_yield();
 	};
-	document.startViewTransition = ((update: () => void) => {
+	fake_vt((update: () => void) => {
 		order.push('transition');
 		update();
 		return {
@@ -684,7 +689,7 @@ test('the transition starts after the build yields its task', async () => {
 			updateCallbackDone: Promise.resolve(),
 			skipTransition() {}
 		};
-	}) as never;
+	});
 	pages['/rn-yield'] = { marker: '', body: '<p>next</p>' };
 	try {
 		await go('/rn-yield');
