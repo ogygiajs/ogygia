@@ -43,6 +43,30 @@ test('a held refusal is handed once to the first caller; the next one fetches', 
 	expect(await got).toBe('fresh');
 });
 
+test('a refusal its caller heard through the flight is not held: that caller asks again past it', async () => {
+	await expect(frames.ensure('/heard', async () => Promise.reject(refusal()))).rejects.toThrow(
+		'refused'
+	);
+	const next = held('second');
+	const got = frames.ensure('/heard', next.fetcher);
+	next.answer();
+	expect(await got).toBe('second');
+});
+
+test('twins that joined one refused flight both heard it: the next ask fetches', async () => {
+	let refuse!: () => void;
+	const out = new Promise<string>((_ok, no) => (refuse = () => no(refusal())));
+	const one = frames.ensure('/twins', () => out);
+	const two = frames.ensure('/twins', vi.fn());
+	refuse();
+	await expect(one).rejects.toThrow('refused');
+	await expect(two).rejects.toThrow('refused');
+	const next = held('again');
+	const got = frames.ensure('/twins', next.fetcher);
+	next.answer();
+	expect(await got).toBe('again');
+});
+
 test('a failure that is not a refusal is not held', async () => {
 	frames.hold_refusal('/n', new Error('network'));
 	const f = held('ok');
