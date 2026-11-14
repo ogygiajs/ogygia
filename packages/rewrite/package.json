@@ -1,6 +1,6 @@
 {
 	"name": "@ogygia/rewrite",
-	"version": "0.13.0",
+	"version": "0.14.0",
 	"description": "An app's own pass over the HTML ogygia sends (a web-component server render): ogygia puts back what it moved before anything hydrates",
 	"keywords": [
 		"ogygia",

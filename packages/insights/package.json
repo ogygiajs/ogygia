@@ -1,6 +1,6 @@
 {
 	"name": "@ogygia/insights",
-	"version": "0.13.0",
+	"version": "0.14.0",
 	"description": "The analysis engine for ogygia: what the browser measured on a page visit or a recorded session, turned into findings for the devtools dock, the profiler's report and @ogygia/testing",
 	"keywords": [
 		"devtools",

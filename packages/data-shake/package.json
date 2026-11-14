@@ -1,6 +1,6 @@
 {
 	"name": "@ogygia/data-shake",
-	"version": "0.13.0",
+	"version": "0.14.0",
 	"description": "Data shaking for ogygia apps: a page ships only the data its regions' code reads, starting with page.data",
 	"keywords": [
 		"data-shaking",

@@ -1,6 +1,6 @@
 {
 	"name": "@ogygia/bake",
-	"version": "0.13.0",
+	"version": "0.14.0",
 	"description": "import.meta.og.bake(fn) for ogygia apps: run a function at build and inline its result",
 	"keywords": [
 		"bake",

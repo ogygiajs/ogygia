@@ -1,6 +1,6 @@
 {
 	"name": "@ogygia/compiler",
-	"version": "0.13.0",
+	"version": "0.14.0",
 	"description": "The compiler of ogygia (SSR islands for SvelteKit): the region transform, the build's link step and the Vite plugin",
 	"keywords": [
 		"compiler",
