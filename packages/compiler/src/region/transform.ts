@@ -1264,7 +1264,7 @@ class FileCompilation {
 			componentPathAbs: string,
 			always_link_css = false
 		) => {
-			let text = `import ${local} from ${JSON.stringify(bindingPath)};`;
+			const text = `import ${local} from ${JSON.stringify(bindingPath)};`;
 			if (
 				!ctx.ssr &&
 				(always_link_css || (!link_virtual && ctx.dev)) &&
@@ -1275,7 +1275,7 @@ class FileCompilation {
 			) {
 				fouc_css_specs.add(componentPathAbs);
 				const rel = this.#posix_rel(componentPathAbs);
-				text = `${text}\nimport ${JSON.stringify(foucCssVirtualId(rel))};`;
+				return `${text}\nimport ${JSON.stringify(foucCssVirtualId(rel))};`;
 			}
 			return text;
 		};
@@ -1718,12 +1718,9 @@ ${host_style}`;
 		}
 
 		{
-			let head = '';
 			if (portable_emitted) {
 				const helper = `import { og_portable as ${OG_PORTABLE} } from 'ogygia/internal';`;
-				head = `${head}${[helper, ...portable_imports].join('\n')}\n`;
-			}
-			if (head) {
+				const head = `${[helper, ...portable_imports].join('\n')}\n`;
 				if (ast.instance) s.appendLeft(ast.instance.content.start, `\n${head}`);
 				else
 					s.prepend(
