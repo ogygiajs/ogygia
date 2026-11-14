@@ -70,11 +70,13 @@ for (const mode of ['redirect', 'document'] as const) {
 // and the islands endpoint to another that signed with its own key — every hole 403'd four times
 // over, and nothing said why. Played here by rewriting the hole's capability on its way out: `k`
 // names a key this server does not sign with (another deployment), or `sig` is not this key's.
+// Both are about the answering server, so the hole asks once more (a rolling deploy's other server
+// may take it, #1752), whether its first ask was the head's early start or its own.
 for (const [mode, param, value, deny] of [
 	['foreign-key', 'k', '0ther0ky', 'foreign-key'],
 	['sig', 'sig', 'AAAAAAAAAAAAAAAAAAAAAA', 'sig']
 ] as const) {
-	test(`${mode}: a refused capability — one request, the reason in its headers, fallback stands`, async ({
+	test(`${mode}: a refused capability — asked twice, the reason in its headers, fallback stands`, async ({
 		page
 	}) => {
 		const answers: { status: number; deny: string | null; key: string | null; k: string | null }[] =
@@ -100,15 +102,15 @@ for (const [mode, param, value, deny] of [
 		await answered;
 		await sleep(2000); // past the runtime's retry delays, had it retried
 		check(
-			`${mode}: exactly ONE hole request (no retry of a refused capability)`,
-			answers.length === 1,
+			`${mode}: exactly TWO hole requests (one retry of a refusal about the server)`,
+			answers.length === 2,
 			String(answers.length)
 		);
 		const a = answers[0];
 		check(
-			`${mode}: 403 with x-ogygia-deny: ${deny}`,
-			a?.status === 403 && a.deny === deny,
-			JSON.stringify(a)
+			`${mode}: both 403 with x-ogygia-deny: ${deny}`,
+			answers.every((b) => b.status === 403 && b.deny === deny),
+			JSON.stringify(answers)
 		);
 		check(
 			`${mode}: the answer names its key`,

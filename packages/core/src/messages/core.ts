@@ -526,6 +526,14 @@ export const WARNINGS = {
 					OGYGIA_SECRET.
 				`
 			}
+			${
+				/^(sig|shape|foreign-key)\b/.test(a.deny) &&
+				prose`
+					It was asked twice: in a rolling deploy, a server of an older or newer ogygia build
+					refuses a capability it cannot check, and the second ask usually reaches one of the
+					page's own build. Both were refused.
+				`
+			}
 			The fallback stands.
 		`,
 		details: (): string => prose`
@@ -535,6 +543,12 @@ export const WARNINGS = {
 			\`foreign-key\`: the page and its islands endpoint came from different deployments, each
 			signing with its own key. Route the endpoint to the deployment that served the page, or
 			give every deployment the same \`OGYGIA_SECRET\`.
+
+			\`sig\`, \`shape\`, \`foreign-key\`: these are about the server that answered, so the
+			runtime asks once more before it gives up. In a rolling deploy, a server of an older or
+			newer ogygia build cannot check a capability the page's build signed; the second ask
+			usually reaches a server of the page's own build. Both asks were refused. If this happens
+			only during deploys, drain the old servers before new pages go out.
 
 			\`not ogygia\`: the answer did not come from ogygia at all; something in front of
 			\`ogygia.handle()\` answered it.

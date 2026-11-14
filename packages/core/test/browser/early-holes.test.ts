@@ -165,4 +165,23 @@ describe('a hole the page started early', () => {
 		expect(window.fetch).toHaveBeenCalledTimes(1);
 		visit.close();
 	});
+
+	it('a refused answer the hole joined while it was out is not handed to it again: its next ask goes to the network (#1752)', async () => {
+		vi.spyOn(window, 'fetch').mockImplementation(async () => {
+			await new Promise((r) => setTimeout(r, 20));
+			return new Response('', { status: 403, headers: { 'x-ogygia-deny': 'sig' } });
+		});
+		start_early([ep('j1')]);
+		const visit = scope();
+		adopt_early_holes(visit);
+		const address = frameAddress(ep('j1'));
+		const own = vi.fn(async () => '<p>own</p>');
+		const heard = await ensure(address, own).catch((e: unknown) => e);
+		expect((heard as Error)?.name).toBe('RegionAnswerRefused');
+		expect(own).not.toHaveBeenCalled();
+		expect(await ensure(address, own)).toBe('<p>own</p>');
+		expect(own).toHaveBeenCalledTimes(1);
+		expect(window.fetch).toHaveBeenCalledTimes(1);
+		visit.close();
+	});
 });
