@@ -5,7 +5,7 @@ precomputed tree: transform it and hand it back), or a `site` to read it from. D
 with the `item` snippet; style the rest through the `.og-*` classes.
 -->
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 	import { page } from '$app/state';
 	import { scope, storage } from '@ogygia/machine';
 	import { get_shell_context } from '../context.ts';
@@ -29,12 +29,11 @@ with the `item` snippet; style the rest through the `.og-*` classes.
 	} = $props();
 
 	const ctx = get_shell_context();
-	// svelte-ignore state_referenced_locally
-	const the_site = site ?? ctx?.site;
-	// svelte-ignore state_referenced_locally
-	const the_base = base ?? ctx?.base ?? '';
-	// svelte-ignore state_referenced_locally
-	const fetched: NavTree = nav ? [] : the_site ? await the_site.nav({ base: the_base }) : [];
+	const the_base = $derived(base ?? ctx?.base ?? '');
+	const fetched: NavTree = await untrack(() => {
+		const from = site ?? ctx?.site;
+		return nav || !from ? [] : from.nav({ base: the_base });
+	});
 	// @why a kept sidebar gets each page's tree as a new `nav` prop, without a re-mount (test: apps/docs/e2e/sidebar-keep.spec.ts › the sidebar is the same element after a navigation to another section, with the new tree)
 	const tree: NavTree = $derived(nav ?? fetched);
 

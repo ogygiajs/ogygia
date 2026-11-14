@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	/**
 	 * The one wrapper. Every region — placed (`<C/>` with `wake`/`fill`/`none`) or held
 	 * (`region(C, props)`) — renders through here. It absorbs the four old wrappers:
@@ -26,7 +26,9 @@
 		setContext,
 		createRawSnippet,
 		mount,
-		unmount
+		unmount,
+		type Component,
+		type Snippet
 	} from 'svelte';
 	import {
 		KIT_REQUEST_CONTEXT,
@@ -88,7 +90,7 @@
 		next_slot_id,
 		HOLE_SLOT_SEQUENCE
 	} from './region-snippet.ts';
-	import { isRegion } from './region.ts';
+	import { isRegion, type DeferredRegion, type DualRegion, type RegionValue } from './region.ts';
 	import { written_order } from './frame.ts';
 	// (LateIslandAwait.svelte in its place where the app runs Svelte's async mode: vite/late-island.ts)
 	import LateIsland from './LateIsland.svelte';
@@ -105,20 +107,39 @@
 	 * Every prop is optional: a HELD usage passes only `of`, a PLACEMENT usage (the transform's
 	 * wrappers) passes only the `__*` internals — so `<Region of={value} />` type-checks for consumers
 	 * without the internal props.
-	 * @type {{
-	 *   of?: import('./region.ts').RegionValue | Promise<import('./region.ts').RegionValue>;
-	 *   placeholder?: import('svelte').Snippet;
-	 *   children?: import('svelte').Snippet;
-	 *   __mode?: 'island' | 'server' | 'lake'; __baked?: boolean;
-	 *   visible?: string | boolean; idle?: boolean; media?: string; load?: boolean; interaction?: boolean;
-	 *   __keep?: string; __entry?: string; __component?: import('svelte').Component; __css?: unknown;
-	 *   __load?: () => Promise<import('svelte').Component>;
-	 *   __props?: Record<string, unknown>; __defer?: string; __margin?: string; __hydrate?: string;
-	 *   __hydrateMargin?: string; __module?: string; __cacheTtl?: number; __stitch?: string; __prefetch?: string;
-	 *   ogygiaFallback?: import('svelte').Snippet;
-	 *   __remount?: string; __when?: string; __maxAge?: number; __onExpire?: 'empty' | 'fetch';
-	 * }}
 	 */
+	interface Props {
+		of?: RegionValue | Promise<RegionValue>;
+		placeholder?: Snippet;
+		children?: Snippet;
+		__mode?: 'island' | 'server' | 'lake';
+		__baked?: boolean;
+		visible?: string | boolean;
+		idle?: boolean;
+		media?: string;
+		load?: boolean;
+		interaction?: boolean;
+		__keep?: string;
+		__entry?: string;
+		__component?: Component;
+		__css?: unknown;
+		__load?: () => Promise<Component>;
+		__props?: Record<string, unknown>;
+		__defer?: string;
+		__margin?: string;
+		__hydrate?: string;
+		__hydrateMargin?: string;
+		__module?: string;
+		__cacheTtl?: number;
+		__stitch?: string;
+		__prefetch?: string;
+		ogygiaFallback?: Snippet;
+		__remount?: string;
+		__when?: string;
+		__maxAge?: number;
+		__onExpire?: 'empty' | 'fetch';
+	}
+
 	let {
 		// Held API: a `RegionValue` from `region()` (inline / dual / deferred), or a Promise of one
 		// (a remote call: `of={search(q)}`) — the region owns the whole wait, `placeholder` fills it.
@@ -169,7 +190,7 @@
 		__when = 'load',
 		__maxAge,
 		__onExpire
-	} = $props();
+	}: Props = $props();
 
 	// Keep entry `.svelte` imports alive for FOUC without rendering them (the virtual owns the tree).
 	// svelte-ignore state_referenced_locally
@@ -192,18 +213,21 @@
 	 * hole renders its fallback (the page's snippet: what the server showed until the answer lands, and
 	 * what an `interaction` hole is woken through), a lake repaints from the runtime's copy (lakes.ts), a
 	 * baked region morphs in its live value. `setup` sees the element either way.
-	 * @param {() => string} attrs the element's attribute text (both legs)
-	 * @param {(renderer: never) => void} [inner] SERVER: renders its inside into the element
-	 * @param {(el: Element) => void | (() => void)} [setup] CLIENT: the adopted (or created) element
+	 * @param attrs the element's attribute text (both legs)
+	 * @param inner SERVER: renders its inside into the element
+	 * @param setup CLIENT: the adopted (or created) element
 	 */
-	function adopt_region(attrs, inner, setup) {
+	function adopt_region(
+		attrs: () => string,
+		inner?: (renderer: never) => void,
+		setup?: (el: Element) => void | (() => void)
+	): Snippet {
 		return typeof window === 'undefined'
-			? /** @param {{ push(html: string): void }} renderer */
-				(renderer) => {
+			? (((renderer: { push(html: string): void }) => {
 					renderer.push(`${LT}ogygia-region${attrs()}${GT}`);
-					inner?.(/** @type {never} */ (renderer));
+					inner?.(renderer as never);
 					renderer.push(`${LT}/ogygia-region${GT}`);
-				}
+				}) as unknown as Snippet)
 			: createRawSnippet(() => ({
 					render: () => `${LT}ogygia-region${attrs()}${GT}${LT}/ogygia-region${GT}`,
 					setup
@@ -218,7 +242,7 @@
 	// or a promise is fixed per instance, so reading `of` once here is intentional.
 	// svelte-ignore state_referenced_locally
 	const of_is_promise =
-		!!of && typeof (/** @type {{ then?: unknown }} */ (of).then) === 'function' && !isRegion(of);
+		!!of && typeof (of as { then?: unknown }).then === 'function' && !isRegion(of);
 	// A promise with no placeholder guarantees a blank window on first load (nothing to show while
 	// the promise and its stylesheet resolve). The model is "loading UI lives on the region" — say so.
 	// svelte-ignore state_referenced_locally
@@ -230,14 +254,11 @@
 	// there, and what it resolves to comes back here as a value. Region renders values.
 	// What every held branch below renders: a value resolves synchronously (SSR renders it in this
 	// same pass — blocks/SDUI never see a placeholder).
-	const resolved = $derived(
-		of_is_promise ? undefined : /** @type {import('./region.ts').RegionValue | undefined} */ (of)
-	);
+	const resolved = $derived(of_is_promise ? undefined : (of as RegionValue | undefined));
 	// A LIVE region (a wire value with HTML, a deferred hole) is the runtime's to paint, on a Kit-hydrated
 	// page too; so is the one a promise will resolve to.
 	// svelte-ignore state_referenced_locally
-	const holds_live =
-		of_is_promise || /** @type {{ kind?: string } | undefined} */ (of)?.kind === 'deferred';
+	const holds_live = of_is_promise || (of as { kind?: string } | undefined)?.kind === 'deferred';
 
 	// A held interactive dual renders exactly like a placed island — same SSR-inline + self-hydrate —
 	// so both feed the island branch. A held static dual (no schedule) renders bare, like inline.
@@ -245,9 +266,7 @@
 	// them once is intentional — not a missed reactive capture. A Promise `of` is never a dual here:
 	// a promise resolves to a wire value (deferred) — only a same-pass VALUE can be a dual.
 	// svelte-ignore state_referenced_locally
-	const of_init = of_is_promise
-		? undefined
-		: /** @type {import('./region.ts').RegionValue | undefined} */ (of);
+	const of_init = of_is_promise ? undefined : (of as RegionValue | undefined);
 	const held_dual_island = !!(of_init && of_init.kind === 'dual' && of_init.hydrate);
 	// svelte-ignore state_referenced_locally
 	const is_island = __mode === 'island' || held_dual_island;
@@ -284,12 +303,9 @@
 	// THE RENDER ROOT this region renders under: 'kit' (Kit's own page pass), 'ogygia' (a root ogygia
 	// started: `kit_render_context` hands every one the live event beside the page), or null (the
 	// browser, or a server render with no request context).
-	/** @type {'kit' | 'ogygia' | null} */
-	let render_root = null;
+	let render_root: 'kit' | 'ogygia' | null = null;
 	if (typeof window === 'undefined') {
-		const req = /** @type {{ page?: unknown; event?: unknown } | undefined} */ (
-			getContext(KIT_REQUEST_CONTEXT)
-		);
+		const req = getContext(KIT_REQUEST_CONTEXT) as { page?: unknown; event?: unknown } | undefined;
 		render_root =
 			getContext(KIT_PAGE_PASS) === true || (req && req.event == null)
 				? 'kit'
@@ -346,10 +362,8 @@
 	// ─────────────────────────────────────────────────────────── island branch ──
 	// Normalized island inputs, from placement props OR a held dual. `as_dual` is the type-narrowed
 	// reactive read of the dual value (a Promise `of` never lands here — see `held_dual_island`).
-	const as_dual = $derived(
-		/** @type {import('./region.ts').DualRegion | undefined} */ (
-			held_dual_island && resolved?.kind === 'dual' ? resolved : undefined
-		)
+	const as_dual: DualRegion | undefined = $derived(
+		held_dual_island && resolved?.kind === 'dual' ? resolved : undefined
 	);
 	const island_entry = $derived(as_dual ? as_dual.module : __mode === 'island' ? __entry : '');
 	const island_component = $derived(as_dual ? as_dual.component : __component);
@@ -432,7 +446,7 @@
 	// csr=true page, where Kit's client renders the snippet as written) has no crossing, so untouched.
 	// CHILDREN are not frozen — they cross via the slot marker below.
 	const island_props_ready = $derived(
-		island_inline ? island_props : prepare_region_props(island_props)
+		island_inline ? island_props : prepare_region_props(island_props!)
 	);
 
 	// ── slot crossing: an island's children render IN-PLACE, the client ADOPTS them ──
@@ -453,9 +467,9 @@
 	// PAGE's markup rendered inside the hole's shell, not the island's tree — an island in it (a login
 	// dropdown inside an actions hole) must be a full region, or a `keepFallback()`-kept fallback
 	// would stand forever with a dead, flattened component inside it (e2e/lake-kit.spec.ts).
-	const slot_children = (renderer) => {
+	const slot_children = (renderer: { push(html: string): void }) => {
 		renderer.push(slot_marker_open(slot_id));
-		SlotBoundary(renderer, { children: island_children });
+		SlotBoundary(renderer as never, { children: island_children });
 		renderer.push(SLOT_MARKER_CLOSE);
 	};
 	// Body props: children ride as a PROP (the island renders them via its own `{@render children()}`),
@@ -476,7 +490,7 @@
 	// The `wake` value IS the strategy: 'load' | 'idle' | 'visible' | 'interaction' | a media query.
 	const hydrate_attr = $derived(
 		as_dual
-			? as_dual.hydrate
+			? as_dual.hydrate!
 			: media
 				? media
 				: idle
@@ -509,7 +523,7 @@
 	// from the build handoff (in dev the identity is the location); a region the browser renders has
 	// none, and the runtime finds it in the build's location map (runtime/entry-locations.ts). Only a
 	// location is ever written as a URL to fetch: no location, no URL.
-	const location_of = (/** @type {string} */ identity) => {
+	const location_of = (identity: string) => {
 		const found = identity ? entry_location(identity) : null;
 		return found ? kit_asset(found) : '';
 	};
@@ -544,11 +558,10 @@
 	 * This region's sheets as head tags: each one this request has not linked yet, named for its
 	 * owner. A sheet another outer island linked first gets this owner listed in the tail (#854,
 	 * test/shared-sheet-owners.test.ts). Server-only: `claim_region_css` is null on the client (no tags).
-	 * @param {string[]} hrefs
 	 */
-	const sheet_tags = (hrefs) => {
+	const sheet_tags = (hrefs: string[]) => {
 		const shared = tail
-			? (/** @type {string} */ href) => tail.sheet_owner(kit_asset(href), tag_owner)
+			? (href: string) => tail.sheet_owner(kit_asset(href), tag_owner)
 			: undefined;
 		let html = '';
 		for (const href of claim_region_css(hrefs, tag_owner, shared) ?? [])
@@ -618,19 +631,17 @@
 	 * props come alive via `import(desc.e)` at hydrate — their entries (+ deps) join the graph.
 	 * RENDER-GATED by construction: listed iff the island that carries the snippet rendered. The wire
 	 * plan found each descriptor's public entry URL in the payload (props-wire.ts).
-	 * @param {string} entry
-	 * @param {string} self_url
-	 * @param {readonly string[] | null | undefined} live_entries
-	 * @returns {string[]}
 	 */
-	function graph_hrefs(entry, self_url, live_entries) {
+	function graph_hrefs(
+		entry: string,
+		self_url: string,
+		live_entries: readonly string[] | null | undefined
+	): string[] {
 		const deps = region_deps(entry);
 		if (!live_entries?.length) return deps.map((dep) => kit_asset(dep));
 		const seen = new Set([self_url]);
-		/** @type {string[]} */
-		const hrefs = [];
-		/** @param {string} href */
-		const add = (href) => {
+		const hrefs: string[] = [];
+		const add = (href: string) => {
 			if (href && !seen.has(href)) {
 				seen.add(href);
 				hrefs.push(href);
@@ -649,8 +660,7 @@
 	const island_live_locations = $derived.by(() => {
 		const live = nested || !is_island ? null : island_wire?.live_entries;
 		if (!live?.length) return null;
-		/** @type {Map<string, string>} */
-		const out = new Map();
+		const out: Map<string, string> = new Map();
 		for (const m of live) {
 			const loc = location_of(m);
 			if (loc) out.set(m, loc);
@@ -741,7 +751,7 @@
 	// with NO address (it cannot mint), and the runtime hands the SSR facts back by identity — never
 	// by position. Emitted on every top-level hole; costs one walk of the hole's (small) props.
 	const server_identity = $derived(
-		nested || !is_server ? '' : hole_identity(/** @type {string} */ (__entry), __props, server_wire)
+		nested || !is_server ? '' : hole_identity(__entry as string, __props, server_wire)
 	);
 	// A hole a client hydrates over — in a live snippet's body, or on a KIT-HYDRATED document — is adopted
 	// (`adopt_region`): its browser leg cannot mint the hole's address, and as a template it blanked
@@ -749,15 +759,14 @@
 	// the content with it (a csr=true page's hole inside an inline island went empty in dev). A re-created
 	// one has no address; the runtime finds the hole's facts by identity, as for a hole Kit rebuilt.
 	const hole_attrs = () => {
-		/** @param {string} name @param {unknown} v */
-		const a = (name, v) => (v == null || v === '' ? '' : ` ${name}="${escape_attr(String(v))}"`);
+		const a = (name: string, v: unknown) =>
+			v == null || v === '' ? '' : ` ${name}="${escape_attr(String(v))}"`;
 		return ` entry="${escape_attr(server_region_entry)}" render="defer"${a('stitch', __stitch)}${a('prefetch', __prefetch)}${a('when', __defer)}${a('wake', __hydrate)}${a('margin', __margin)}${a('hydrate-margin', __hydrateMargin)} endpoint="${escape_attr(server_endpoint)}"${a('data-og-hole', server_identity)}${a('src', server_region_src)}`;
 	};
 	const hole_adopt = adopt_region(
 		hole_attrs,
 		(renderer) => {
-			if (ogygiaFallback)
-				SlotBoundary(renderer, /** @type {never} */ ({ children: ogygiaFallback }));
+			if (ogygiaFallback) SlotBoundary(renderer, { children: ogygiaFallback } as never);
 		},
 		(el) => {
 			// created fresh (adopted, it holds the server's): its fallback, rendered here as the server
@@ -781,16 +790,11 @@
 			return ` entry="${escape_attr(String(__entry || ''))}" wake="none" remount="cache"${identity ? ` data-og-lake="${identity}"` : ''}`;
 		},
 		(renderer) => {
-			const Component = /** @type {(r: unknown, p: unknown) => void} */ (
-				/** @type {unknown} */ (__component)
-			);
+			const Component = __component as unknown as (r: unknown, p: unknown) => void;
 			if (Component)
-				LakeBoundary(
-					renderer,
-					/** @type {never} */ ({
-						children: (/** @type {unknown} */ r) => Component(r, __props || {})
-					})
-				);
+				LakeBoundary(renderer, {
+					children: (r: unknown) => Component(r, __props || {})
+				} as never);
 		}
 	);
 	// …and its stylesheets: the page never imported its component (the client wrapper has none), so
@@ -868,8 +872,7 @@
 	// region: LakeBoundary resets `nested` and marks the lake's inside, so the islands and holes
 	// authored in there emit their real regions and wake on the runtime.
 	const lake_attrs = $derived.by(() => {
-		/** @param {unknown} v */
-		const esc = (v) => escape_attr(String(v));
+		const esc = (v: unknown) => escape_attr(String(v));
 		let s = ` entry="${esc(__entry || '')}" wake="none" remount="${esc(__remount)}"`;
 		const identity = lake_identity(__entry || '', __props);
 		if (identity) s = `${s} data-og-lake="${identity}"`;
@@ -882,7 +885,7 @@
 	});
 	const lake_adopt = adopt_region(
 		() => lake_attrs,
-		(renderer) => LakeBoundary(renderer, /** @type {never} */ ({ children })),
+		(renderer) => LakeBoundary(renderer, { children } as never),
 		(el) => {
 			// Created fresh on the client (a Kit client-side navigation mounted this lake, or Kit gave up
 			// hydrating the document and mounted fresh), so there was no SSR element to adopt: a lake is
@@ -950,11 +953,6 @@
 		return `${LT}meta name="ogygia-kit-island" content="${content}"${head_owner_attr(tag_owner)}${GT}`;
 	});
 
-	// A content BODY (an inline region from a `.svx`/`.md`) carries its own scoped `<style>`, but the
-	// corpus is server-only so that CSS joins no page stylesheet — the same blind spot a held dual has,
-	// one step further (there is no client module at all, just data). The markdown source baked a
-	// `content_id`; resolve it through the handoff (`content_css`) and link the client CSS asset the
-	// plugin emitted, the SAME `data-ogygia-region-css` channel, deduped per-request by `claim_region_css`.
 	const content_css_html = $derived.by(() => {
 		if (resolved?.kind !== 'inline' || !resolved.content_id) return '';
 		return sheet_tags(content_css(resolved.content_id));
@@ -985,22 +983,19 @@
 	// against. Later values never re-render it (a re-render would recreate every node and remount the
 	// islands inside); the runtime morphs them in.
 	// svelte-ignore state_referenced_locally
-	const baked_html = __baked
-		? (/** @type {{ html?: string } | undefined} */ (resolved)?.html ?? '')
-		: '';
+	const baked_html = __baked ? ((resolved as { html?: string } | undefined)?.html ?? '') : '';
 	// The baked region is OPAQUE (region-attrs.ts `OPAQUE_SELECTOR`): its HTML is server-only, never a
 	// Svelte tree the client could hydrate — the same as a lake's — so it is adopted (`adopt_region`). As
 	// an `{@html}`, Svelte walked its siblings to the first empty comment and the render's own top-level
 	// markers stopped it inside: `hydration_mismatch`, and Kit remounted the page with the region
 	// emptied. Later values morph in.
-	/** @type {Element | null} */
-	let baked_el = $state(null);
+	let baked_el: Element | null = $state(null);
 	// `data-og-baked` says "the server wrote the first HTML in here", so only the server's element
 	// carries it: one the browser creates fresh (an island re-creating it, Kit remounting) is empty,
 	// a plain live region whose first value paints (e2e/held-in-held.spec.ts, #945)
 	const baked_adopt = adopt_region(
 		() => (typeof window === 'undefined' ? ' live data-og-baked' : ' live'),
-		(renderer) => /** @type {{ push(html: string): void }} */ (renderer).push(baked_html),
+		(renderer) => (renderer as { push(html: string): void }).push(baked_html),
 		(el) => {
 			baked_el = el;
 			return () => (baked_el = null);
@@ -1008,11 +1003,9 @@
 	);
 	// (reads `resolved` too: a Promise `of` that re-resolves morphs the mounted region in place)
 	$effect(() => {
-		if (baked_el)
-			apply_live(/** @type {Element & { applyLive?: (v: unknown) => void }} */ (baked_el));
+		if (baked_el) apply_live(baked_el as Element & { applyLive?: (v: unknown) => void });
 	});
-	/** @param {Element & { applyLive?: (v: unknown) => void }} node */
-	function apply_live(node) {
+	function apply_live(node: Element & { applyLive?: (v: unknown) => void }) {
 		// Reads `resolved`, so the attachment re-runs when a Promise `of` re-resolves — the mounted
 		// region morphs to the new HTML instead of remounting (LAG keeps the old content meanwhile).
 		const f = resolved;
@@ -1028,8 +1021,7 @@
 			written: written_order(f)
 		});
 	}
-	/** @param {import('./region.ts').DeferredRegion} f */
-	function identity(f) {
+	function identity(f: DeferredRegion) {
 		try {
 			return `${f.id}\0${stringify_devalue(f.props)}`;
 		} catch {
@@ -1102,7 +1094,7 @@
 				>{@render island_children?.()}</Component
 			>{:else if late_load}<LateIsland
 				load={late_load}
-				props={island_props_ready}
+				props={island_props_ready!}
 				children={island_children}
 			/>{/if}{:else if island_skip}<ogygia-region
 			entry={island_module_url}
@@ -1160,7 +1152,7 @@
 			>{#if placeholder}{@render placeholder()}{:else if children}{@render children()}{/if}</ogygia-region
 		>{/if}
 {:else if resolved}
-	{@const d = /** @type {import('./region.ts').DeferredRegion} */ (resolved)}
+	{@const d = resolved as DeferredRegion}
 	{#key identity(d)}
 		<ogygia-region
 			entry={d.module || ''}

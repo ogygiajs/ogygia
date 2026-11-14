@@ -6,6 +6,7 @@ import { createRawSnippet, flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it } from 'vitest';
 import { page } from '$app/state';
 import Sidebar from '../../src/site/components/Sidebar.svelte';
+import SidebarBaseHost from './fixtures/SidebarBaseHost.svelte';
 import type { NavTree } from '../../src/site/types.ts';
 
 const BASE = '/docs-sidebar-test';
@@ -157,5 +158,26 @@ describe('the sidebar keeps its scroll position', () => {
 		await scroll_to(el, 300);
 
 		expect(sessionStorage.getItem(KEY)).toBeNull();
+	});
+
+	it('a kept sidebar given a new base saves under the new base', async () => {
+		const el = panel();
+		const app = mount(SidebarBaseHost, { target: el, props: { nav, first: '/v1' } }) as {
+			move: (base: string) => void;
+		};
+		flushSync();
+		for (let i = 0; i < 10 && !el.querySelector('nav'); i++) await frame();
+		await frame();
+		app.move('/v2');
+		flushSync();
+		await scroll_to(el, 200);
+		try {
+			expect(sessionStorage.getItem('og:sidenav:/v1')).toBeNull();
+			expect(Number(sessionStorage.getItem('og:sidenav:/v2'))).toBeCloseTo(200, 0);
+		} finally {
+			await unmount(app);
+			sessionStorage.removeItem('og:sidenav:/v1');
+			sessionStorage.removeItem('og:sidenav:/v2');
+		}
 	});
 });

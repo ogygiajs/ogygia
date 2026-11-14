@@ -946,12 +946,21 @@ importers:
       '@ogygia/devtools':
         specifier: workspace:*
         version: link:../../packages/devtools
+      '@ogygia/tsdown-plugin-svelte':
+        specifier: workspace:*
+        version: link:../../packages/tsdown-plugin-svelte
+      '@sveltejs/vite-plugin-svelte':
+        specifier: 'catalog:'
+        version: 7.2.0(svelte@5.57.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
       devtools-e2e-app:
         specifier: workspace:*
         version: link:../../packages/devtools/e2e/app
       ogygia:
         specifier: workspace:*
         version: link:../../packages/ogygia
+      svelte:
+        specifier: 'catalog:'
+        version: 5.57.3
 
   internal/compiler-dst:
     dependencies:
