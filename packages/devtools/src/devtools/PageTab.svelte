@@ -1,7 +1,7 @@
 <!-- (its CSS injected into the dock's shadow root: see Devtools.svelte) -->
 <svelte:options css="injected" />
 
-<script>
+<script lang="ts">
 	/**
 	 * The Page tab: what the BROWSER saw of this visit — the profiler beacon's data, read live (no tag,
 	 * no server; runtime/beacon.ts records it on a devtools build). The vitals rated, what the page
@@ -15,14 +15,26 @@
 	import { beacon_record_cpu } from '../profiler/beacon.ts';
 	import { read_styles, scan_unscoped, styles_findings } from './styles.ts';
 	import { hole_segments, HOLE_SEG_LABEL } from '@ogygia/insights';
-	import { cache_findings, probe_cache } from './cache-headers.ts';
+	import { cache_findings, probe_cache, type CacheProbe } from './cache-headers.ts';
+	import type { StylesReport } from './styles.ts';
+	import type { PageInput, RatedVital } from '@ogygia/insights';
 
-	let { tick = 0, focus = $bindable(null), selected = $bindable(null) } = $props();
+	interface Props {
+		tick?: number;
+		focus?: Element | null;
+		selected?: Element | null;
+	}
+
+	type Visit = NonNullable<PageInput['visit']>;
+	type VisitNav = NonNullable<Visit['nav']>;
+	type VisitPaints = NonNullable<Visit['paints']>;
+
+	let { tick = 0, focus = $bindable(null), selected = $bindable(null) }: Props = $props();
 
 	// THE PAGE'S STYLES: read once the tab opens (selectors tried against the page, the build's
 	// unscoped markers fetched from the cache), after each in-app navigation, and on "check again" —
 	// not on every tick
-	let styles = $state(/** @type {import('./styles.ts').StylesReport | null} */ (null));
+	let styles = $state<StylesReport | null>(null);
 	let styles_busy = $state(false);
 	async function check_styles() {
 		styles_busy = true;
@@ -36,7 +48,7 @@
 		styles_busy = false;
 	}
 	// HOW THE HOST CACHES THE ISLANDS' FILES (cache-headers.ts): asked once per page, beside the styles
-	let cache = $state(/** @type {import('./cache-headers.ts').CacheProbe[] | null} */ (null));
+	let cache = $state<CacheProbe[] | null>(null);
 	async function check_cache() {
 		try {
 			cache = await probe_cache(document);
@@ -46,7 +58,6 @@
 	}
 	// again after an in-app navigation (a new page, new sheets): keyed on the navigation's time — a
 	// number, so the ticks that rebuild the view do not re-run a check that queries every selector
-	const nav_key = $derived(view?.nav?.t ?? 0);
 	$effect(() => {
 		void nav_key;
 		const s = scope();
@@ -64,46 +75,47 @@
 		const extra = [
 			...(styles ? styles_findings(styles) : []),
 			...(cache ? cache_findings(cache) : [])
-		].map((f) => ({ ...f, fps: /** @type {string[]} */ ([]) }));
+		].map((f) => ({ ...f, fps: [] as string[] }));
 		// errors, then warnings, then notes: the report's own order (a stable sort keeps the rest)
-		const order = /** @type {Record<string, number>} */ ({ error: 0, warn: 1, info: 2 });
+		const order: Record<string, number> = { error: 0, warn: 1, info: 2 };
 		return [...view.report.findings, ...extra].sort(
 			(a, b) => order[a.severity] - order[b.severity]
 		);
 	});
 
 	let wrapW = $state(560);
-	let diff_fp = $state(/** @type {string | null} */ (null));
+	let diff_fp = $state<string | null>(null);
 	const LABEL_W = 132;
 	const trackW = $derived(Math.max(160, wrapW - LABEL_W - 70));
 
 	const read = $derived.by(() => {
 		void tick;
 		try {
-			return { view: read_page(), failed: /** @type {string | null} */ (null) };
+			return { view: read_page(), failed: null as string | null };
 		} catch (error) {
 			return { view: null, failed: error instanceof Error ? error.message : String(error) };
 		}
 	});
 	const view = $derived(read.view);
+	const nav_key = $derived(view?.nav?.t ?? 0);
 
 	const axis = $derived.by(() => {
 		if (!view) return null;
 		const { report, page } = view;
-		const nav = page.visit?.nav ?? {};
-		const paints = page.visit?.paints ?? {};
+		const nav = (page.visit?.nav ?? {}) as VisitNav;
+		const paints = (page.visit?.paints ?? {}) as VisitPaints;
 		const lines = [
 			{ k: 'FCP', t: paints.fcp, c: '#38bdf8' },
 			{ k: 'LCP', t: paints.lcp, c: '#f472b6' },
 			{ k: 'DCL', t: nav.dcl, c: '#94a3b8' },
 			{ k: 'load', t: nav.load, c: '#64748b' }
-		].filter((l) => typeof l.t === 'number' && l.t > 0);
+		].filter((l): l is { k: string; t: number; c: string } => typeof l.t === 'number' && l.t > 0);
 		let end = 1;
 		for (const r of report.rows) end = Math.max(end, r.done);
 		for (const h of view.holes ?? []) end = Math.max(end, (h.shown_at ?? 0) + h.wait_ms);
 		for (const l of lines) end = Math.max(end, l.t);
 		end *= 1.04;
-		const x = (/** @type {number} */ t) => Math.max(0, Math.min(trackW, (t / end) * trackW));
+		const x = (t: number) => Math.max(0, Math.min(trackW, (t / end) * trackW));
 		return { end, lines, x };
 	});
 
@@ -112,40 +124,41 @@
 	const hole_segs = hole_segments;
 	const SEG_TITLE = HOLE_SEG_LABEL;
 
-	const kb = (/** @type {number} */ n) =>
+	const kb = (n: number) =>
 		n < 1024
 			? `${n} B`
 			: n < 1048576
 				? `${(n / 1024).toFixed(1)} KB`
 				: `${(n / 1048576).toFixed(2)} MB`;
-	const ms = (/** @type {number} */ n) =>
-		n >= 1000 ? `${(n / 1000).toFixed(2)} s` : `${Math.round(n)} ms`;
+	const ms = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(2)} s` : `${Math.round(n)} ms`);
 
-	function el_of(/** @type {string} */ fp) {
+	function el_of(fp: string) {
 		return document.querySelector(`ogygia-region[data-og-fp="${fp}"]`);
 	}
-	function light(/** @type {string[]} */ fps) {
-		focus = fps.length ? el_of(fps[0]) : null;
+	function light(fps: string[]) {
+		focus = fps.length ? el_of(fps[0]!) : null;
 	}
-	function open(/** @type {string} */ fp) {
+	function open(fp: string) {
 		const el = el_of(fp);
 		if (el) selected = el;
 	}
 	// a hole has no fingerprint: its endpoint finds it
-	function hole_el(/** @type {string | undefined} */ endpoint) {
+	function hole_el(endpoint: string | undefined) {
 		return endpoint
 			? document.querySelector(`ogygia-region[endpoint="${CSS.escape(endpoint)}"]`)
 			: null;
 	}
-	function vital_text(v) {
+	function vital_text(v: RatedVital) {
 		return v.key === 'cls' ? String(v.value) : ms(v.value);
 	}
 	// the server's own account of THIS document (its Server-Timing: ogygia's profiler sends it in dev)
 	const doc_server = (() => {
 		try {
-			const nav = performance.getEntriesByType('navigation')[0];
+			const nav = performance.getEntriesByType('navigation')[0] as
+				| PerformanceNavigationTiming
+				| undefined;
 			const st = nav?.serverTiming ?? [];
-			const get = (n) => st.find((x) => x.name === n);
+			const get = (n: string) => st.find((x) => x.name === n);
 			const ssr = get('ssr');
 			if (!ssr) return null;
 			const net = get('net');
@@ -154,19 +167,25 @@
 				ssr: ssr.duration,
 				net: net?.duration ?? null,
 				calls: net?.description ?? '',
-				ups: ups.map((u) => ({ desc: u.description, ms: u.duration }))
+				ups: ups.map((u) => ({ desc: u!.description, ms: u!.duration }))
 			};
 		} catch {
 			return null; // ok: no navigation timing in this browser: the server's line is left out
 		}
 	})();
 	// the document's vitals (after a navigation the report drops them; they still show, labelled)
-	const LABEL = { ttfb: 'TTFB', fcp: 'FCP', lcp: 'LCP', cls: 'CLS', inp: 'INP' };
+	const LABEL: Record<RatedVital['key'], string> = {
+		ttfb: 'TTFB',
+		fcp: 'FCP',
+		lcp: 'LCP',
+		cls: 'CLS',
+		inp: 'INP'
+	};
 	const doc_vitals = $derived.by(() => {
 		if (!view) return [];
 		if (!view.nav) return view.report.vitals;
-		const out = [];
-		for (const key of ['ttfb', 'fcp', 'lcp', 'cls', 'inp']) {
+		const out: RatedVital[] = [];
+		for (const key of ['ttfb', 'fcp', 'lcp', 'cls', 'inp'] as RatedVital['key'][]) {
 			const v = view.page.vitals[key];
 			if (typeof v === 'number')
 				out.push({ key, label: LABEL[key], value: v, rating: rate(key, v) });

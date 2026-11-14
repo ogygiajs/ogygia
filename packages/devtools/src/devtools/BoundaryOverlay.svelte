@@ -1,7 +1,7 @@
 <!-- (its CSS injected into the dock's shadow root: see Devtools.svelte) -->
 <svelte:options css="injected" />
 
-<script>
+<script lang="ts">
 	/**
 	 * The boundary-lens OVERLAY: draws a labelled box over every `<ogygia-region>` on the page — tinted
 	 * by kind (island / lake / hole), dashed while cold — and, on hover, a rich card that fuses DOM
@@ -18,6 +18,15 @@
 	import { scope } from '@ogygia/machine';
 	import { snapshot } from '@ogygia/core/events';
 	import { all_regions, region_info, region_name, region_transitive } from './regions.ts';
+	import type { EventNamed } from './bus-events.ts';
+
+	interface Props {
+		overlay?: boolean;
+		focus?: Element | null;
+		selected?: Element | null;
+		picking?: boolean;
+		onpick?: (el: Element) => void;
+	}
 
 	let {
 		overlay = false,
@@ -25,11 +34,11 @@
 		selected = null,
 		picking = $bindable(false),
 		onpick
-	} = $props();
+	}: Props = $props();
 
-	const kb = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
+	const kb = (n: number) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
 
-	function pick(el) {
+	function pick(el: Element) {
 		onpick?.(el);
 		picking = false;
 	}
@@ -38,7 +47,7 @@
 	// One-time wiring (lifecycle, not an effect): Esc cancels a half-started pick. It reads `picking`
 	// live at call time.
 	onMount(() => {
-		const onkey = (e) => {
+		const onkey = (e: KeyboardEvent) => {
 			if (e.key === 'Escape' && picking) picking = false;
 		};
 		const s = scope();
@@ -76,8 +85,8 @@
 	});
 
 	// Hover tooltip state (local — drives the card). `focus` is the shared cross-highlight key.
-	let hover = $state(/** @type {null | { x: number; y: number; el: Element }} */ (null));
-	function on_move(e) {
+	let hover = $state<null | { x: number; y: number; el: Element }>(null);
+	function on_move(e: MouseEvent) {
 		if (!overlay) {
 			hover = null;
 			return;
@@ -106,10 +115,16 @@
 		const info = region_info(hover.el);
 		const events = snapshot();
 		const rendered = info.fp
-			? (events.findLast((ev) => ev.name === 'server.region.rendered' && ev.fp === info.fp) ?? null)
+			? (events.findLast(
+					(ev): ev is EventNamed<'server.region.rendered'> =>
+						ev.name === 'server.region.rendered' && ev.fp === info.fp
+				) ?? null)
 			: null;
 		const hyd = info.fp
-			? (events.findLast((ev) => ev.name === 'region.hydrate.done' && ev.fp === info.fp) ?? null)
+			? (events.findLast(
+					(ev): ev is EventNamed<'region.hydrate.done'> =>
+						ev.name === 'region.hydrate.done' && ev.fp === info.fp
+				) ?? null)
 			: null;
 		const t = info.kind === 'island' ? region_transitive(info.entry) : null;
 		return {
@@ -173,8 +188,8 @@
 	{#if tip}
 		<div
 			class="tip"
-			style:left="{Math.min(hover.x + 14, innerWidth - 300)}px"
-			style:top="{Math.min(hover.y + 14, innerHeight - 160)}px"
+			style:left="{Math.min(hover!.x + 14, innerWidth - 300)}px"
+			style:top="{Math.min(hover!.y + 14, innerHeight - 160)}px"
 		>
 			<div class="head">
 				<span class="dot og-{tip.kind}"></span><b>{tip.name}</b>

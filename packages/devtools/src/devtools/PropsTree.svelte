@@ -1,7 +1,7 @@
 <!-- (its CSS injected into the dock's shadow root: see Devtools.svelte) -->
 <svelte:options css="injected" />
 
-<script>
+<script lang="ts">
 	/**
 	 * A compact, collapsible tree for a decoded props value — the actual data that crossed the island
 	 * boundary. Recursive (imports itself). Objects / arrays / Map / Set expand; leaves are type-
@@ -10,12 +10,25 @@
 	 */
 	import Self from './PropsTree.svelte';
 
-	let { value, name = null, depth = 0 } = $props();
+	interface OgRef {
+		__ogRef: true;
+		kind: string;
+		id: string;
+		tag?: string;
+	}
 
-	function classify(v) {
+	interface Props {
+		value: unknown;
+		name?: string | number | null;
+		depth?: number;
+	}
+
+	let { value, name = null, depth = 0 }: Props = $props();
+
+	function classify(v: unknown) {
 		if (v === null) return 'null';
 		if (v === undefined) return 'undefined';
-		if (typeof v === 'object' && v.__ogRef) return 'ref';
+		if (typeof v === 'object' && (v as Partial<OgRef>).__ogRef) return 'ref';
 		if (v instanceof Date) return 'date';
 		if (v instanceof Map) return 'map';
 		if (v instanceof Set) return 'set';
@@ -30,18 +43,22 @@
 	// svelte-ignore state_referenced_locally
 	let open = $state(depth < 2);
 
-	const entries = $derived.by(() => {
-		if (type === 'array') return value.map((v, i) => [i, v]);
-		if (type === 'object') return Object.entries(value);
-		if (type === 'map') return [...value.entries()].map(([k, v], i) => [`${String(k)}`, v]);
-		if (type === 'set') return [...value].map((v, i) => [i, v]);
+	const entries: [string | number, unknown][] = $derived.by(() => {
+		if (type === 'array') return (value as unknown[]).map((v, i) => [i, v]);
+		if (type === 'object') return Object.entries(value as object);
+		if (type === 'map')
+			return [...(value as Map<unknown, unknown>).entries()].map(([k, v], i) => [
+				`${String(k)}`,
+				v
+			]);
+		if (type === 'set') return [...(value as Set<unknown>)].map((v, i) => [i, v]);
 		return [];
 	});
 	const preview = $derived.by(() => {
-		if (type === 'array') return `Array(${value.length})`;
-		if (type === 'object') return `{ ${Object.keys(value).length} }`;
-		if (type === 'map') return `Map(${value.size})`;
-		if (type === 'set') return `Set(${value.size})`;
+		if (type === 'array') return `Array(${(value as unknown[]).length})`;
+		if (type === 'object') return `{ ${Object.keys(value as object).length} }`;
+		if (type === 'map') return `Map(${(value as Map<unknown, unknown>).size})`;
+		if (type === 'set') return `Set(${(value as Set<unknown>).size})`;
 		return '';
 	});
 </script>
@@ -62,11 +79,15 @@
 		<div class="row leaf">
 			{#if name != null}<span class="key">{name}</span><span class="c">:</span>{/if}
 			{#if type === 'ref'}
-				<span class="ref" title={value.tag || value.id}>
-					<span class="rk">{value.kind}</span>{value.tag ? value.tag.split('#').pop() : value.id}
+				<span class="ref" title={(value as OgRef).tag || (value as OgRef).id}>
+					<span class="rk">{(value as OgRef).kind}</span>{(value as OgRef).tag
+						? (value as OgRef).tag!.split('#').pop()
+						: (value as OgRef).id}
 				</span>
 			{:else if type === 'string'}
-				<span class="str">"{value.length > 90 ? value.slice(0, 90) + '…' : value}"</span>
+				<span class="str"
+					>"{(value as string).length > 90 ? (value as string).slice(0, 90) + '…' : value}"</span
+				>
 			{:else if type === 'number'}
 				<span class="num">{value}</span>
 			{:else if type === 'bigint'}
@@ -74,7 +95,7 @@
 			{:else if type === 'boolean'}
 				<span class="bool">{value}</span>
 			{:else if type === 'date'}
-				<span class="date">{value.toISOString()}</span>
+				<span class="date">{(value as Date).toISOString()}</span>
 			{:else}
 				<span class="nul">{type}</span>
 			{/if}
