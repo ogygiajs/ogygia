@@ -226,12 +226,9 @@ export function simulate_awaits(
 			const p_start = start.get(pr.p.i) ?? pr.p.t0;
 			const p_end = end.get(pr.p.i) ?? pr.p.t1;
 			// a removed predecessor is not waited for; a parallelized call starts with its predecessor
-			t0 =
-				p_change === 'remove'
-					? Math.min(n.t0, p_start)
-					: change === 'parallel'
-						? p_start
-						: p_end + pr.gap;
+			if (p_change === 'remove') t0 = Math.min(n.t0, p_start);
+			else if (change === 'parallel') t0 = p_start;
+			else t0 = p_end + pr.gap;
 			chain = [...(chain_of.get(pr.p.i) ?? [pr.p.label]), n.label];
 		} else {
 			t0 = n.t0;
