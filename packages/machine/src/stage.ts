@@ -9,7 +9,7 @@ export interface Staging {
 	readonly signal: AbortSignal;
 	/** Runs `step` unless the stage commits: when the owner closes first, the build fails, or the
 	 *  commit throws. At once when that has already happened. */
-	discard(step: () => void): void;
+	readonly discard: (step: () => void) => void;
 }
 
 export interface StageOptions<B> {

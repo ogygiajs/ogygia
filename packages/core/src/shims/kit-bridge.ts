@@ -20,9 +20,9 @@ import type { PageSnapshot } from './page-store.svelte.ts';
 export interface KitNavigation {
 	goto(url: string | URL, opts?: unknown): Promise<void>;
 	invalidate(resource?: unknown): Promise<void>;
-	invalidateAll(): Promise<void>;
+	invalidateAll: () => Promise<void>;
 	/** Kit 2.7x and Kit 3; absent on older Kit. */
-	refreshAll?(): Promise<void>;
+	refreshAll?: () => Promise<void>;
 	preloadData(url: string | URL): Promise<unknown>;
 	preloadCode(url?: string): Promise<void>;
 	pushState(url: string | URL, state: unknown): void;

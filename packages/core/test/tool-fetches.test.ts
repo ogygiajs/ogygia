@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { scope } from '@ogygia/machine';
 import { tool_fetch, tool_made } from '../src/tool-fetches.ts';
+import { patch } from './_patch.ts';
 
 const entry = (name: string, startTime: number, initiatorType = 'fetch') =>
 	({ name, startTime, initiatorType }) as PerformanceResourceTiming;
@@ -7,20 +9,21 @@ const entry = (name: string, startTime: number, initiatorType = 'fetch') =>
 describe("the tools' own requests", () => {
 	const real = {
 		fetch: globalThis.fetch,
-		location: (globalThis as { location?: unknown }).location,
-		now: globalThis.performance.now
+		location: (globalThis as { location?: unknown }).location
 	};
+	let spies = scope();
 	let now = 0;
 	beforeEach(() => {
 		delete (globalThis as Record<symbol, unknown>)[Symbol.for('ogygia.tool-fetches')];
 		(globalThis as { location?: unknown }).location = { href: 'http://x.test/hell' };
 		globalThis.fetch = (async () => new Response('')) as typeof fetch;
 		now = 0;
-		globalThis.performance.now = () => now;
+		patch(spies, globalThis.performance, 'now', () => () => now);
 	});
 	afterEach(() => {
 		globalThis.fetch = real.fetch;
-		globalThis.performance.now = real.now;
+		spies.close();
+		spies = scope();
 		(globalThis as { location?: unknown }).location = real.location;
 	});
 

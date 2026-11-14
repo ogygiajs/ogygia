@@ -29,8 +29,8 @@ import { bytes as random_bytes } from './ports/random.ts';
 /** Signs and verifies one message. `sign`'s output is URL-safe (hex or base64url); `verify`
  *  compares in constant time. */
 export interface Signer {
-	sign(message: string): string;
-	verify(message: string, sig: string): boolean;
+	sign: (message: string) => string;
+	verify: (message: string, sig: string) => boolean;
 }
 
 /** Options for {@link capability}. */

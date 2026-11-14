@@ -26,7 +26,7 @@ import { rewrite_svelte } from '../src/svelte.ts';
 
 /** A test's host: the reads, the resolver, and the barrel policy. */
 export interface Host extends Policy {
-	read(id: string): string | null;
+	read: (id: string) => string | null;
 	resolve(spec: string, importer: string): Promise<string | null>;
 }
 
