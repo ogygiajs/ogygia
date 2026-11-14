@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { dedent } from '../../../packages/core/src/contract/dedent.ts';
 import {
 	account_failures,
+	base_after_renames,
 	faults_in,
 	points_in,
 	shapes_in,
@@ -198,6 +199,18 @@ describe('failure sites accounted', () => {
 	it('fails a baseline that grew against the base', () => {
 		const a = account_failures(SITES, ledger(), { ...o, base: new Set(['h > parse:0']) });
 		expect(a.failures).toEqual(['the baseline grew (put it in a bucket instead): k > catch:0']);
+	});
+
+	it('reads the base baseline under a moved file’s new name, so a move is not growth', () => {
+		const base = base_after_renames(
+			['old/h > parse:0', 'old/k > catch:0', 'f > catch:0'],
+			new Map([
+				['old/h', 'h'],
+				['old/k', 'k']
+			])
+		);
+		expect([...base]).toEqual(['h > parse:0', 'k > catch:0', 'f > catch:0']);
+		expect(account_failures(SITES, ledger(), { ...o, base }).failures).toEqual([]);
 	});
 
 	it('fails a baseline id no site has (it may only shrink, so it is taken out)', () => {
