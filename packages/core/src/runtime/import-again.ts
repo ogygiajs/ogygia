@@ -118,7 +118,8 @@ const WEBKIT_IMPORT_FAILED_RE = /^importing a module script failed\.?$/i;
 /** Whether `error` is a dynamic import that failed to load (any engine's wording), not an error the
  *  module threw as it ran. */
 export function is_failed_import(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+	let message = typeof error === 'string' ? error : '';
+	if (error instanceof Error) message = error.message;
 	return FAILED_IMPORT_RE.test(message) || WEBKIT_IMPORT_FAILED_RE.test(message);
 }
 

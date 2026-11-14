@@ -3825,7 +3825,7 @@
 			"reason": "browser only: a renewal's fresh capability handed to the frame store, constant work; proven in packages/core/test/browser/hole-renewal.test.ts"
 		},
 		{
-			"id": "packages/core/src/frame.ts > frameAddress > sort:0~f5ce9e",
+			"id": "packages/core/src/frame.ts > frameAddress > sort:0~fd3bf5",
 			"reason": "the sort comparator of a call's parameters (a closure Array.sort calls, not replayable on its own), constant work per pair; frameAddress around it is proven in packages/core/test/frame-address.test.ts (#916)"
 		},
 		{
