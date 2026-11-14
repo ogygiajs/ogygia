@@ -1418,6 +1418,14 @@ const UNHYDRATED_BY_DESIGN: ReadonlyArray<{ path: RegExp; why: string }> = [
 	{
 		path: /^\/detector$/,
 		why: "its hooks strip one region's hydration anchors, for the foreign-mutation detector's e2e"
+	},
+	{
+		path: /^\/lake-twins-kit\/?$/,
+		why: 'a csr=true page whose web component edits its light DOM before Kit hydrates, so Kit remounts the page (apps/palaestra/e2e/lake-twins-kit.spec.ts needs the remount)'
+	},
+	{
+		path: /^\/bench-cms\/kit\/?$/,
+		why: 'a csr=true page whose few hundred web components render into their light DOM before Kit hydrates: the remount is the cost its bench studies'
 	}
 ];
 
