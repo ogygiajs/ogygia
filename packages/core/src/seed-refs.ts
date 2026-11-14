@@ -76,14 +76,11 @@ function is_leaf(v: unknown): boolean {
 	);
 }
 
-const leaf_text = (v: unknown): string =>
-	v === undefined
-		? 'u'
-		: v === null
-			? 'n'
-			: v instanceof Date
-				? `d${v.getTime()}`
-				: `${typeof v}:${String(v)}`;
+const leaf_text = (v: unknown): string => {
+	if (v === undefined) return 'u';
+	if (v === null) return 'n';
+	return v instanceof Date ? `d${v.getTime()}` : `${typeof v}:${String(v)}`;
+};
 
 /**
  * Post-order structural hash + byte estimate of a plain subtree. `null` when the subtree is not
@@ -347,13 +344,8 @@ export function json_culprit(value: unknown, max_depth = 64): string | null {
 			case 'boolean':
 				return null;
 			case 'number':
-				return Number.isFinite(v)
-					? Object.is(v, -0)
-						? '-0'
-						: null
-					: Number.isNaN(v)
-						? 'NaN'
-						: 'Infinity';
+				if (Number.isFinite(v)) return Object.is(v, -0) ? '-0' : null;
+				return Number.isNaN(v) ? 'NaN' : 'Infinity';
 			case 'undefined':
 				return 'undefined';
 			case 'bigint':

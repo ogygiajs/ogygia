@@ -661,16 +661,10 @@ export function hydrate_island(
 					kind: 'recovered',
 					...(drift.reason ? { reason: drift.reason } : {})
 				});
-			warn('hydration_discarded', {
-				entry,
-				drift: drift.reason,
-				strict:
-					strict_error === null
-						? null
-						: strict_error instanceof Error
-							? strict_error.message
-							: String(strict_error)
-			});
+			let strict: string | null = null;
+			if (strict_error !== null)
+				strict = strict_error instanceof Error ? strict_error.message : String(strict_error);
+			warn('hydration_discarded', { entry, drift: drift.reason, strict });
 		}
 
 		if (head_mark) boot_link().runtime_session.record_island_head(head_mark);

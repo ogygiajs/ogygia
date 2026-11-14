@@ -290,12 +290,9 @@ export function dispose_ids(ids: Iterable<string>): void {
  * user's state into another's HTML.
  */
 export function resolve(ref: Ref, scope_or_remember: boolean | Scope): unknown {
-	const scope: Scope =
-		typeof scope_or_remember === 'boolean'
-			? scope_or_remember
-				? 'page'
-				: 'request'
-			: scope_or_remember;
+	let scope = scope_or_remember;
+	if (scope === true) scope = 'page';
+	else if (scope === false) scope = 'request';
 	const remember = scope !== 'request';
 	const reg = registry();
 	if (remember) {

@@ -436,12 +436,8 @@ function install_remote_mutation_cache_bust() {
 				(typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')
 			).toUpperCase();
 			if (method !== 'GET' && method !== 'HEAD' && res.ok) {
-				const href =
-					typeof input === 'string'
-						? input
-						: input instanceof URL
-							? input.href
-							: (input as Request).url;
+				let href = typeof input === 'string' ? input : (input as Request).url;
+				if (input instanceof URL) href = input.href;
 				if (REMOTE_MUTATION_PATH.test(href)) bust_page_cache();
 			}
 			// oxlint-disable-next-line ogygia/no-silent-failures -- the cache bust is a nicety: it never breaks the app's fetch
@@ -614,7 +610,9 @@ export async function navigate(
 		if (session().visit !== next) next.scope.close();
 	});
 
-	const move: HistoryMove = pop ? 'pop' : push && !replace ? 'push' : 'replace';
+	let move: HistoryMove = 'replace';
+	if (pop) move = 'pop';
+	else if (push && !replace) move = 'push';
 
 	const hand_off = (error?: unknown, written = false) =>
 		r.hand_off(url, mine, written ? 'replace' : move, error);

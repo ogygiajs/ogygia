@@ -1,4 +1,5 @@
 <script lang="ts">
+	/* oxlint-disable no-nested-ternary -- #1925 / Region phase 2 owns Region.svelte */
 	/**
 	 * The one wrapper. Every region — placed (`<C/>` with `wake`/`fill`/`none`) or held
 	 * (`region(C, props)`) — renders through here. It absorbs the four old wrappers:
