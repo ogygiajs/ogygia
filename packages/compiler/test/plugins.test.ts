@@ -240,7 +240,7 @@ describe('realms, named by the plugin', () => {
 		for (const read of [
 			(b: BuildContext) => b.regions.names(),
 			(b: BuildContext) => b.regions.hosts(),
-			(b: BuildContext) => b.regions.barrelWhy('x', [])
+			(b: BuildContext) => b.regions.whyStayed('x', [])
 		])
 			expect(() =>
 				resolve_plugins([def({ name: '@ogygia/flags', build: (b) => void read(b) })], APP, true)

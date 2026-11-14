@@ -64,8 +64,8 @@ export type {
 	MarkupRegions,
 	TransformStage,
 	TransformContext,
-	TransformEvent,
 	StageTransform,
+	StayedAnswer,
 	ExportsSeam,
 	PinnedDecl,
 	RegionsSeam,
@@ -211,6 +211,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let prescans: ResolvedPlugins['prescans'] = [];
 	let listed_plugins: string[] = [];
 	let stage_transforms: ResolvedPlugins['transforms'] = [];
+	let stayed_answers: ResolvedPlugins['stayed'] = [];
 	let markup: ResolvedPlugins['markup'] = [];
 	let definers: ResolvedPlugins['definers'] = [];
 	const import_keys = normalize_import_keys(options.importKeys);
@@ -339,15 +340,13 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		regions: {
 			names: () => compiler_of(session, 'regions.names').region_names(),
 			hosts: () => compiler_of(session, 'regions.hosts').region_hosts(),
-			barrelWhy: (file, importers) => barrel_why(file, importers)
+			whyStayed: (file, importers) => why_stayed(file, importers)
 		}
 	};
-	const barrel_why = (barrel: string, importers: Iterable<string>): BarrelLeftReason[] => {
+	const why_stayed = (file: string, importers: Iterable<string>): BarrelLeftReason[] => {
 		const ids = [...importers];
 		const found = new Set<BarrelLeftReason>();
-		const client = compiler_of(session, 'regions.barrelWhy').find_leg('client');
-		for (const stage of ['source', 'post'] as const)
-			for (const r of client?.barrels_said(stage)?.why(barrel, ids) ?? []) found.add(r);
+		for (const answer of stayed_answers) for (const r of answer(file, ids, 'client')) found.add(r);
 		return BARREL_LEFT_REASONS.filter((r) => found.has(r));
 	};
 	const stage_host = (stage: TransformStage): Plugin => ({
@@ -356,8 +355,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		async transform(raw, id) {
 			const mine = stage_transforms.filter((s) => s.stage === stage && (s.filter?.(id) ?? true));
 			if (mine.length === 0) return null;
-			const left = leg_of(this).barrels_left(stage);
-			left.forget(id);
 			const code = strip_bom(raw);
 			const edit = new MagicString(code);
 			const t: TransformContext = {
@@ -374,8 +371,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					}
 					return r && !r.external ? r.id.replace(BACKSLASH_G, '/') : null;
 				},
-				watch: (file) => this.addWatchFile(file),
-				emit: (e) => left.record(id, e.barrel, e.reason)
+				watch: (file) => this.addWatchFile(file)
 			};
 			for (const s of mine) await s.transform(t);
 			return edit.hasChanged()
@@ -460,6 +456,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						seams
 					);
 					stage_transforms = resolved.transforms;
+					stayed_answers = resolved.stayed;
 					({
 						servers: server_plugins,
 						clients: client_plugins,
@@ -1148,7 +1145,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							const own = info.code?.length ?? Infinity;
 							if (fanout >= 6 && own <= fanout * 160) {
 								const name = summarize_chunk_contents([id], 1, 1)[0];
-								const why = barrel_why(id, info.importers);
+								const why = why_stayed(id, info.importers);
 								if (name) found.push(why.length ? { name, fanout, why } : { name, fanout });
 							}
 						}

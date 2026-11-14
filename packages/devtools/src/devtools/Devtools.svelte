@@ -4,7 +4,7 @@ to a file by default (Kit's `css: 'external'`), which the page links into its ow
 shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 <svelte:options css="injected" />
 
-<script>
+<script lang="ts">
 	/**
 	 * The devtools ROOT app — one component we `mount()` once (from ui.ts, behind the gate). It owns the
 	 * launcher, a draggable + resizable tabbed window, and the boundary overlay; each tab is a child that
@@ -30,7 +30,7 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 	import SessionTab from './SessionTab.svelte';
 	import HydrationTab from './HydrationTab.svelte';
 	import { onDestroy, onMount } from 'svelte';
-	import { scope, STALE } from '@ogygia/machine';
+	import { scope, STALE, type Scope } from '@ogygia/machine';
 	import BoundaryOverlay from './BoundaryOverlay.svelte';
 	import { bottom_chrome } from './bottom-chrome.ts';
 	import IslandDetail from './IslandDetail.svelte';
@@ -44,8 +44,13 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 	// `startOpen` = the launcher's click loaded this dock (a build loads it only on open): open at once.
 	// `hide` (a build only): turn devtools off in this browser — the launcher and dock go, nothing is
 	// measured from the next load (insights/switch.ts); `?og-devtools=on` brings it back.
-	/** @type {{ csrTrue?: boolean, startOpen?: boolean, hide?: () => void }} */
-	let { csrTrue = false, startOpen = false, hide } = $props();
+	interface Props {
+		csrTrue?: boolean;
+		startOpen?: boolean;
+		hide?: () => void;
+	}
+
+	let { csrTrue = false, startOpen = false, hide }: Props = $props();
 	const LAZY = typeof __OGYGIA_DEVTOOLS_LAZY__ !== 'undefined' ? __OGYGIA_DEVTOOLS_LAZY__ : false;
 
 	const TABS = [
@@ -86,7 +91,8 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 	// so when the page's first paint follows it closely, since a browser may count the dock's own text
 	// as the page's first paint (Safari: its largest paint too)
 	if (was_open && typeof performance !== 'undefined')
-		globalThis[Symbol.for('ogygia.dock-open-at')] ??= performance.now();
+		(globalThis as Record<symbol, unknown>)[Symbol.for('ogygia.dock-open-at')] ??=
+			performance.now();
 	let placed = saved.win != null;
 	function save_layout() {
 		try {
@@ -160,7 +166,7 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 	/** The dock's own work in the page (its keys, its timers, its fetch): let go when it unmounts. */
 	const owner = scope();
 	onDestroy(() => owner.close());
-	let launchWrap = /** @type {HTMLElement | null} */ (null);
+	let launchWrap: HTMLElement | null = null;
 	let launchLift = $state(0);
 	function clear_page_chrome() {
 		const host = launchWrap?.getRootNode();
@@ -169,7 +175,7 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 		launchLift = bottom_chrome(rect.left + rect.width / 2, host.host);
 	}
 	/** The live refresh while the window is open: a child of the dock's scope. */
-	let refresh = /** @type {import('@ogygia/machine').Scope | null} */ (null);
+	let refresh: Scope | null = null;
 	function refresh_on() {
 		if (refresh) return;
 		refresh = owner.child();
@@ -185,7 +191,7 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 			y: Math.max(8, innerHeight - winSize.height - 88)
 		};
 	}
-	function set_open(v) {
+	function set_open(v: boolean) {
 		open = v;
 		if (open) {
 			if (!placed) {
@@ -204,12 +210,12 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 
 	// ── selection / picking (cross-highlight with the overlay + Lens tab) ───────────────────────────
 	let overlay = $state(false);
-	let focus = $state(/** @type {Element | null} */ (null));
-	let selected = $state(/** @type {Element | null} */ (null));
+	let focus = $state<Element | null>(null);
+	let selected = $state<Element | null>(null);
 	let picking = $state(false);
 	// Picking an island on the page ends pick mode AND turns off the overlay the picker switched on — you
 	// wanted THAT island, not the boxes. Done here at the assignment, not via an effect.
-	function select_region(el) {
+	function select_region(el: Element) {
 		selected = el;
 		picking = false;
 		overlay = false;
@@ -241,7 +247,7 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 	// One-time setup: Alt+O toggle, the compiler's devtools metadata, and (re)starting the refresh timer
 	// if we restored an open window. Returns the teardown — this is lifecycle, not reactive state.
 	onMount(() => {
-		const onkey = (e) => {
+		const onkey = (e: KeyboardEvent) => {
 			if (e.altKey && (e.key === 'o' || e.key === 'O')) {
 				e.preventDefault();
 				toggle_open();

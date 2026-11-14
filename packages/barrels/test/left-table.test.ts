@@ -1,7 +1,7 @@
-// The table of why a barrel stayed (src/exports/left.ts): what a stage transform said about
+// The table of why a barrel stayed (src/left.ts): what the barrels transform said about
 // each module's imports, read back for the barrels an island still imports whole.
 import { describe, expect, it } from 'vitest';
-import { BarrelLeftTable } from '../src/exports/left.ts';
+import { BarrelLeftLegs, BarrelLeftTable } from '../src/left.ts';
 
 describe('the barrel-left table', () => {
 	it('answers the reasons recorded for a barrel, in a fixed order, once each', () => {
@@ -53,5 +53,20 @@ describe('the barrel-left table', () => {
 		t.clear();
 		expect(t.size).toBe(0);
 		expect(t.why('/app/lib/index.ts', [])).toEqual([]);
+	});
+});
+
+describe('one table per build leg', () => {
+	it("a leg answers only what was said in it, and a leg that begins again forgets its last build's word", () => {
+		const legs = new BarrelLeftLegs();
+		legs.leg('client').record('/app/src/A.ts', '/app/lib/index.ts', 'pinned');
+		legs.leg('ssr').record('/app/src/A.ts', '/app/lib/index.ts', 'impure');
+		expect(legs.why('/app/lib/index.ts', [], 'client')).toEqual(['pinned']);
+		expect(legs.why('/app/lib/index.ts', [], 'ssr')).toEqual(['impure']);
+		expect(legs.why('/app/lib/index.ts', [], 'edge')).toEqual([]);
+		expect(legs.leg('client')).toBe(legs.leg('client'));
+		legs.drop('client');
+		expect(legs.why('/app/lib/index.ts', [], 'client')).toEqual([]);
+		expect(legs.why('/app/lib/index.ts', [], 'ssr')).toEqual(['impure']);
 	});
 });

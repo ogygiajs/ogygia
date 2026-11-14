@@ -1,16 +1,17 @@
 <!-- (its CSS injected into the dock's shadow root: see Devtools.svelte) -->
 <svelte:options css="injected" />
 
-<script module>
+<script module lang="ts">
+	declare const Profiler: unknown;
+
 	/** the last session's data + report, kept across tab switches (not across reloads) */
-	let last = $state(
-		/** @type {{ data: import('./session.ts').SessionData; report: import('@ogygia/insights').SessionReport } | null} */ (
-			null
-		)
-	);
+	let last = $state<{
+		data: import('./session.ts').SessionData;
+		report: import('@ogygia/insights').SessionReport;
+	} | null>(null);
 </script>
 
-<script>
+<script lang="ts">
 	/**
 	 * The Record tab: press record, use the page (click, type, scroll, navigate), press stop — and get
 	 * what that stretch did: slow interactions (with the function behind each), clicks that did
@@ -22,15 +23,23 @@
 	import { onMount } from 'svelte';
 	import { flights, scope } from '@ogygia/machine';
 	import { start_session, recording, set_last_session, session_names } from './session.ts';
-	import { run_profile, slim_profile } from './profile-store.ts';
-	import { analyze_session, session_timeline } from '@ogygia/insights';
+	import { run_profile, slim_profile, type SlimProfile } from './profile-store.ts';
+	import { analyze_session, session_timeline, type Ref, type TimelineItem } from '@ogygia/insights';
 	import { region_name_by_fp } from './regions.ts';
 	import { unmeasured } from './page.ts';
 	// (what this browser cannot measure: a session's silence on those is not a clean bill)
 	const limits = unmeasured(typeof Profiler === 'undefined' ? 'unsupported' : null);
 	import { highlighter } from './highlight.ts';
 
-	let { tick = 0 } = $props();
+	interface Props {
+		tick?: number;
+	}
+
+	interface ServerWindow {
+		requests?: { method: string; path: string; route?: string; ms: number; status?: number }[];
+	}
+
+	let { tick = 0 }: Props = $props();
 
 	let rec = $state(recording());
 	let busy = $state(false);
@@ -49,9 +58,7 @@
 	let profiler_here = $state(false);
 	let with_server = $state(true);
 	let server_note = $state('');
-	let server_window = $state(
-		/** @type {import('./profile-store.ts').SlimProfile & { window?: any } | null} */ (null)
-	);
+	let server_window = $state<(SlimProfile & { window?: ServerWindow }) | null>(null);
 	/** Is the profiler here? Asked once and kept; a probe the network failed is not kept (the next
 	 *  ask probes again), and reads as no for now. */
 	const probe = flights({
@@ -67,7 +74,7 @@
 	onMount(() => void probe_profiler()); // ok: never rejects (a failed probe reads as no profiler)
 	let window_on = false;
 	/** the window's start in flight (a stop pressed before it answered waits, then stops it) */
-	let window_starting = /** @type {Promise<void> | null} */ (null);
+	let window_starting: Promise<void> | null = null;
 	/** '' | 'starting' | 'on' | 'off' — shown beside the recording (the server may wait out a background sample) */
 	let window_state = $state('');
 	function start() {
@@ -137,11 +144,11 @@
 	}
 
 	/** the elements a finding's refs point at, now */
-	function els_of(refs) {
+	function els_of(refs: Ref[]) {
 		if (!last) return [];
-		const out = [];
+		const out: Element[] = [];
 		for (const r of refs) {
-			let el = null;
+			let el: Element | null = null;
 			if (r.kind === 'interaction') el = last.data.interactions[r.i]?.el?.deref() ?? null;
 			else if (r.kind === 'click') el = last.data.clicks[r.i]?.el?.deref() ?? null;
 			else if (r.kind === 'shift') el = last.data.shifts[r.i]?.el?.deref() ?? null;
@@ -164,8 +171,9 @@
 		return { lanes, span };
 	});
 	const LANE_W = 88;
-	const x_of = (t, span) => Math.max(0, Math.min(1, t / span)) * Math.max(100, tlW - LANE_W - 8);
-	function tl_enter(it) {
+	const x_of = (t: number, span: number) =>
+		Math.max(0, Math.min(1, t / span)) * Math.max(100, tlW - LANE_W - 8);
+	function tl_enter(it: TimelineItem) {
 		hover = it.label;
 		if (it.ref) {
 			const els = els_of([it.ref]);
@@ -178,12 +186,10 @@
 	}
 
 	// CLIENT → SERVER in one click: a slow request found in the session, profiled on the server
-	let server = $state(
-		/** @type {Record<string, { busy?: boolean; error?: string; p?: import('./profile-store.ts').SlimProfile }>} */ ({})
-	);
+	let server = $state<Record<string, { busy?: boolean; error?: string; p?: SlimProfile }>>({});
 	/** The tab's server profiles (their requests, their waits for a busy profiler): end with the tab. */
 	const owner = scope();
-	async function profile_request(url) {
+	async function profile_request(url: string) {
 		const u = new URL(url);
 		const path = u.pathname + u.search;
 		server = { ...server, [url]: { busy: true } };
@@ -195,8 +201,8 @@
 			server = { ...server, [url]: { error: e instanceof Error ? e.message : String(e) } };
 		}
 	}
-	const ms = (n) => (n >= 1000 ? `${(n / 1000).toFixed(2)} s` : `${Math.round(n)} ms`);
-	const kb = (n) =>
+	const ms = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(2)} s` : `${Math.round(n)} ms`);
+	const kb = (n: number) =>
 		n < 1024
 			? `${n} B`
 			: n < 1048576
@@ -384,7 +390,7 @@
 								class="chip srv"
 								data-og-session-profile
 								disabled={sv?.busy}
-								onclick={() => profile_request(f.url)}
+								onclick={() => profile_request(f.url!)}
 							>
 								{sv?.busy
 									? 'profiling on the server…'

@@ -9,7 +9,6 @@ import type { ClientRealmFile, ServerRealm } from '../link/caps.ts';
 import {
 	RUNTIME_HOOK_CONSTANTS,
 	type BarrelLeftReason,
-	type CompileEventInput,
 	type RuntimeHookName
 } from '@ogygia/core/contract';
 import { OgygiaError } from '../messages.ts';
@@ -99,16 +98,15 @@ export interface TransformContext {
 	resolve(spec: string, importer: string): Promise<string | null>;
 	/** Re-transform this module when `file` changes (dev). */
 	watch: (file: string) => void;
-	/** Tell the build what the transform did to this module (it is the event's importer): read back
-	 *  by the findings, and forgotten when the module is transformed again. */
-	emit(event: TransformEvent): void;
 }
 
-/** What a stage transform tells the build about the module it transformed. */
-export type TransformEvent = Omit<
-	Extract<CompileEventInput, { name: 'compile.barrel.left' }>,
-	'importer'
->;
+/** Why imports of the module at `file` stayed as written in these importers (ids, queries allowed),
+ *  in the bundler environment `environment`; none when this plugin left none of them. */
+export type StayedAnswer = (
+	file: string,
+	importers: readonly string[],
+	environment: string
+) => readonly BarrelLeftReason[];
 
 /** A transform at a stage around the region transform: ordering is the stage, not list position. */
 export interface StageTransform {
@@ -136,6 +134,10 @@ export interface PinnedDecl {
 export interface BuildContext {
 	/** Run `transform` on every module (that `filter` takes) at its `stage`. */
 	transform(transform: StageTransform): void;
+	/** Answer why a transform of this plugin left imports of a module as written: the findings that
+	 *  weigh a module an island still imports whole ask every plugin's answer
+	 *  ({@link RegionsSeam.whyStayed}). */
+	stayed(answer: StayedAnswer): void;
 	/** The app's export index (`compiler/exports/`), for a transform that follows names through
 	 *  barrels. */
 	readonly exports: ExportsSeam;
@@ -315,6 +317,8 @@ export interface ResolvedPlugins {
 	page_modules: { importers: string[]; files: string[] };
 	/** stage transforms (`b.transform()`), in plugin order */
 	transforms: StageTransform[];
+	/** why-stayed answers (`b.stayed()`), in plugin order */
+	stayed: StayedAnswer[];
 	/** the plugin that answers seed shaping (`b.pageReads()`), or null: every region gets all */
 	page_reads: PageReads | null;
 }
@@ -326,9 +330,10 @@ export interface RegionsSeam {
 	/** Each module that marks region imports (a host, by its absolute path) → the module ids its
 	 *  regions are built from: their components and the modules ogygia mints for them. */
 	hosts(): ReadonlyMap<string, ReadonlySet<string>>;
-	/** Why `barrels()` left the barrel at `file` as these modules import it (none: it was rewritten,
-	 *  or no rewrite was asked for). */
-	barrelWhy(file: string, importers: Iterable<string>): BarrelLeftReason[];
+	/** Why the module at `file` stayed as these modules import it, in the browser's leg: every
+	 *  plugin's answer ({@link BuildContext.stayed}), in `BARREL_LEFT_REASONS` order (none: no plugin
+	 *  left it). */
+	whyStayed(file: string, importers: Iterable<string>): BarrelLeftReason[];
 }
 
 export interface BuildSeams {
@@ -364,7 +369,7 @@ const NO_SEAMS: BuildSeams = {
 		hosts: () => {
 			throw new Error('resolve_plugins: no region table without ogygia()');
 		},
-		barrelWhy: () => {
+		whyStayed: () => {
 			throw new Error('resolve_plugins: no region table without ogygia()');
 		}
 	}
@@ -527,6 +532,7 @@ export function resolve_plugins(
 		files: [],
 		page_modules: { importers: [], files: [] },
 		transforms: [],
+		stayed: [],
 		page_reads: null
 	};
 	let page_reads_owner: string | null = null;
@@ -553,6 +559,9 @@ export function resolve_plugins(
 			regions: seams.regions,
 			transform(t) {
 				out.transforms.push(t);
+			},
+			stayed(answer) {
+				out.stayed.push(answer);
 			},
 			routeConfig(key) {
 				if (!ROUTE_CONFIG_KEY_RE.test(key))

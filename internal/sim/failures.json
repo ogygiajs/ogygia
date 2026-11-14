@@ -621,13 +621,13 @@
 			"name": "a request cancelled while the page function ran: the document goes out as ogygia rendered it"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > sheet_for > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > sheet_for > catch:0",
 			"reason": "an engine without constructable stylesheets: happy-dom has them",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a DOM without adoptable sheets or CSS.escape (jsdom): a <style> per root"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > watch > observer:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > watch > observer:0",
 			"reason": "a Kit-hydrated page (csr=true): the random app is csr=false",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a Kit-hydrated page: a watched host that leaves the document leaves the watch, a moved one stays, and the observer goes with the last one"
@@ -639,43 +639,43 @@
 			"name": "dev throws it"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > reset > parse:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > reset > parse:0",
 			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > reset > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > reset > catch:0",
 			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > original > parse:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > original > parse:0",
 			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > original > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > original > catch:0",
 			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > parse:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > parse:0",
 			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > catch:0",
 			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > catch:1",
+			"site": "packages/rewrite/src/restore.ts > restore_with > catch:1",
 			"reason": "a marked host that cannot have a shadow root (a built-in element or a name the engine refuses): the server marks only valid custom elements, so only markup a sanitizer let through carries one",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a host that cannot have a shadow root is skipped and said; the hosts after it are restored"
@@ -2181,16 +2181,22 @@
 			"name": "DEV: a live region snippet’s portable form threads its entry region-css link into <head>"
 		},
 		{
-			"site": "packages/core/src/region-snippet.ts > capture_static > catch:0",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"site": "packages/core/src/snippet-render.ts > SnippetRender > freeze > catch:0",
+			"reason": "a test reaches its recovery path: the catch body emptied turns the test red",
+			"test": "packages/core/test/plain-function-prop.test.ts",
+			"name": "errors as a FUNCTION (not a snippet), naming the prop and the callback case"
+		},
+		{
+			"site": "packages/core/src/snippet-render.ts > SnippetRender > freeze > throw:0",
+			"reason": "a test reaches its recovery path: the throw removed turns the test red",
 			"test": "packages/core/test/plain-function-prop.test.ts",
 			"name": "errors as a FUNCTION (not a snippet), naming the prop and the callback case"
 		},
 		{
 			"site": "packages/core/src/region-snippet.ts > capture_static > throw:0",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/core/test/plain-function-prop.test.ts",
-			"name": "errors as a FUNCTION (not a snippet), naming the prop and the callback case"
+			"reason": "a test reaches it: with no snippet renderer installed the throw removed turns the test red",
+			"test": "packages/core/test/snippet-freeze-not-installed.test.ts",
+			"name": "a bare snippet encoded with no snippet renderer installed says snippet_freeze_not_installed"
 		},
 		{
 			"site": "packages/core/src/region.ts > to_version > throw:0",
@@ -3627,7 +3633,7 @@
 			"name": "without ogygia() a plugin reading the region table is told so"
 		},
 		{
-			"site": "packages/compiler/src/vite/plugin-api.ts > barrelWhy > throw:0",
+			"site": "packages/compiler/src/vite/plugin-api.ts > whyStayed > throw:0",
 			"reason": "`throw new Error('resolve_plugins: no region table without ogygia()');`: proved: the throw removed turns the test red, twice",
 			"test": "packages/compiler/test/plugins.test.ts",
 			"name": "without ogygia() a plugin reading the region table is told so"
