@@ -98,6 +98,61 @@ export const j = () => p().catch((err: unknown) => { use(err); return ''; });
 export function k() { try { return p(); } catch { use(1); return null; } }
 `;
 
+const OLD_MARKS = {
+	ports: `export const a = Date.now(); // port-ok: stored for the next load
+// port-ok: a note alone on its line
+export const b = Date.now();
+// oxlint-disable-next-line ogygia/ports -- stored for the next load
+export const c = Date.now();
+`,
+	'one-hash': `export const a = 0x811c9dc5; // hash: a seeded copy
+// hash: one over bytes
+export const b = 0x811c9dc5;
+// oxlint-disable-next-line ogygia/one-hash -- a seeded copy
+export const c = 0x811c9dc5;
+`,
+	'one-markup-walk': `declare const html: string;
+export const a = html.indexOf('</head>'); // markup-ok: a stated reason
+// markup-ok: a test oracle that must not share the walk's mistakes
+export const b = /<script\\b[^>]*>/;
+// oxlint-disable-next-line ogygia/one-markup-walk -- a stated reason
+export const c = html.indexOf('</head>');
+`,
+	'no-silent-failures': `declare const p: () => Promise<void>;
+void p(); // ok: a trailing note
+// ok: a note alone on its line
+void p();
+export function f() { try { return p(); } catch { return null; } } // ok: a missing value is the answer
+export function g() {
+	try {
+		return p();
+	} catch {
+		// ok: inside the catch
+	}
+}
+// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects
+void p();
+`
+} as const;
+
+test('an old reason mark excuses nothing; the rule’s directive with a reason does', () => {
+	assert.deepEqual(reported('ports', OLD_MARKS.ports), [1, 3]);
+	assert.deepEqual(reported('one-hash', OLD_MARKS['one-hash']), [1, 3]);
+	assert.deepEqual(reported('one-markup-walk', OLD_MARKS['one-markup-walk']), [2, 4]);
+	assert.deepEqual(reported('no-silent-failures', OLD_MARKS['no-silent-failures']), [2, 4, 5, 9]);
+});
+
+const STALE_OLD = `declare const m: { scope: { task<T>(f: () => Promise<T>): Promise<T> } };
+declare const load: () => Promise<number>;
+export const a = [m.scope.task(load)]; // ok: each slot is checked
+// oxlint-disable-next-line ogygia/stale-whole -- each slot is checked
+export const b = [m.scope.task(load)];
+`;
+
+test('ogygia/stale-whole: an old ok mark excuses nothing; the directive does', () => {
+	assert.deepEqual(reported('stale-whole', STALE_OLD), [3]);
+});
+
 test('ogygia/no-silent-failures: a catch that only falls back (a value, a continue) says why (#1286)', () => {
 	assert.deepEqual(reported('no-silent-failures', FALLBACKS, 'router'), [3, 4, 5, 6, 7, 8, 9]);
 	// (every package is swept: the compiler, the last, is held to it too)
