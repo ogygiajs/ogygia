@@ -1,0 +1,496 @@
+# Region client grid · async=off · kind=dual · at=page (full)
+# 2304 cases, 90 distinct outputs; per part: body 89, live 1, head_changed 1, thrown 1, said 2, unhandled 1.
+# axes: csr=off|on env=dev|prod wake=none|load|idle|visible|interaction|media margin=none|9px thenable=no|yes module=dual|none component=tiny|wrap children=none|text|island placeholder=none|text
+
+################ body · 89 distinct ################
+
+════ body 1 · 192 cases ════
+<!----><!----><!----><b data-tiny="">tiny</b>
+──── no hashes · 192:
+csr=* env=* wake=none margin=* thenable=* module=* component=tiny children=* placeholder=*
+
+════ body 2 · 64 cases ════
+<!----><!----><!----><section data-wrap=""><!----><!----></section>
+──── no hashes · 64:
+csr=* env=* wake=none margin=* thenable=* module=* component=wrap children=none placeholder=*
+
+════ body 3 · 64 cases ════
+<!----><!----><!----><section data-wrap=""><!----><!----><i>kid</i><!----></section>
+──── no hashes · 64:
+csr=* env=* wake=none margin=* thenable=* module=* component=wrap children=text placeholder=*
+
+════ body 4 · 32 cases ════
+<!----><!----><!----><section data-wrap=""><!----><!----><!----><!----><ogygia-region entry="/islands/inner.js" wake="idle"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"inner":1}</script><!----><!----></section>
+──── no hashes · 32:
+csr=off env=* wake=none margin=* thenable=* module=* component=wrap children=island placeholder=*
+
+════ body 5 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="load"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=load margin=none thenable=* module=dual component=tiny children=none placeholder=*
+
+════ body 6 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="load"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=load margin=none thenable=* module=dual component=tiny children=text|island placeholder=*
+
+════ body 7 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="load"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=load margin=none thenable=* module=dual component=wrap children=none placeholder=*
+
+════ body 8 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="load"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=load margin=none thenable=* module=dual component=wrap children=text|island placeholder=*
+
+════ body 9 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="load"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=load margin=none thenable=* module=none component=tiny children=none placeholder=*
+
+════ body 10 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="load"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=load margin=none thenable=* module=none component=tiny children=text|island placeholder=*
+
+════ body 11 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="load"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=load margin=none thenable=* module=none component=wrap children=none placeholder=*
+
+════ body 12 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="load"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=load margin=none thenable=* module=none component=wrap children=text|island placeholder=*
+
+════ body 13 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="load" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=load margin=9px thenable=* module=dual component=tiny children=none placeholder=*
+
+════ body 14 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="load" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=load margin=9px thenable=* module=dual component=tiny children=text|island placeholder=*
+
+════ body 15 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="load" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=load margin=9px thenable=* module=dual component=wrap children=none placeholder=*
+
+════ body 16 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="load" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=load margin=9px thenable=* module=dual component=wrap children=text|island placeholder=*
+
+════ body 17 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="load" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=load margin=9px thenable=* module=none component=tiny children=none placeholder=*
+
+════ body 18 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="load" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=load margin=9px thenable=* module=none component=tiny children=text|island placeholder=*
+
+════ body 19 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="load" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=load margin=9px thenable=* module=none component=wrap children=none placeholder=*
+
+════ body 20 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="load" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=load margin=9px thenable=* module=none component=wrap children=text|island placeholder=*
+
+════ body 21 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="idle"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=idle margin=none thenable=* module=dual component=tiny children=none placeholder=*
+
+════ body 22 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="idle"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=idle margin=none thenable=* module=dual component=tiny children=text|island placeholder=*
+
+════ body 23 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="idle"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=idle margin=none thenable=* module=dual component=wrap children=none placeholder=*
+
+════ body 24 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="idle"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=idle margin=none thenable=* module=dual component=wrap children=text|island placeholder=*
+
+════ body 25 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="idle"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=idle margin=none thenable=* module=none component=tiny children=none placeholder=*
+
+════ body 26 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="idle"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=idle margin=none thenable=* module=none component=tiny children=text|island placeholder=*
+
+════ body 27 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="idle"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=idle margin=none thenable=* module=none component=wrap children=none placeholder=*
+
+════ body 28 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="idle"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=idle margin=none thenable=* module=none component=wrap children=text|island placeholder=*
+
+════ body 29 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="idle" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=idle margin=9px thenable=* module=dual component=tiny children=none placeholder=*
+
+════ body 30 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="idle" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=idle margin=9px thenable=* module=dual component=tiny children=text|island placeholder=*
+
+════ body 31 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="idle" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=idle margin=9px thenable=* module=dual component=wrap children=none placeholder=*
+
+════ body 32 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="idle" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=idle margin=9px thenable=* module=dual component=wrap children=text|island placeholder=*
+
+════ body 33 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="idle" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=idle margin=9px thenable=* module=none component=tiny children=none placeholder=*
+
+════ body 34 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="idle" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=idle margin=9px thenable=* module=none component=tiny children=text|island placeholder=*
+
+════ body 35 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="idle" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=idle margin=9px thenable=* module=none component=wrap children=none placeholder=*
+
+════ body 36 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="idle" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=idle margin=9px thenable=* module=none component=wrap children=text|island placeholder=*
+
+════ body 37 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="visible"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=visible margin=none thenable=* module=dual component=tiny children=none placeholder=*
+
+════ body 38 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="visible"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=visible margin=none thenable=* module=dual component=tiny children=text|island placeholder=*
+
+════ body 39 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="visible"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=visible margin=none thenable=* module=dual component=wrap children=none placeholder=*
+
+════ body 40 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="visible"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=visible margin=none thenable=* module=dual component=wrap children=text|island placeholder=*
+
+════ body 41 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="visible"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=visible margin=none thenable=* module=none component=tiny children=none placeholder=*
+
+════ body 42 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="visible"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=visible margin=none thenable=* module=none component=tiny children=text|island placeholder=*
+
+════ body 43 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="visible"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=visible margin=none thenable=* module=none component=wrap children=none placeholder=*
+
+════ body 44 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="visible"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=visible margin=none thenable=* module=none component=wrap children=text|island placeholder=*
+
+════ body 45 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="visible" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=visible margin=9px thenable=* module=dual component=tiny children=none placeholder=*
+
+════ body 46 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="visible" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=visible margin=9px thenable=* module=dual component=tiny children=text|island placeholder=*
+
+════ body 47 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="visible" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=visible margin=9px thenable=* module=dual component=wrap children=none placeholder=*
+
+════ body 48 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="visible" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=visible margin=9px thenable=* module=dual component=wrap children=text|island placeholder=*
+
+════ body 49 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="visible" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=visible margin=9px thenable=* module=none component=tiny children=none placeholder=*
+
+════ body 50 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="visible" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=visible margin=9px thenable=* module=none component=tiny children=text|island placeholder=*
+
+════ body 51 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="visible" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=visible margin=9px thenable=* module=none component=wrap children=none placeholder=*
+
+════ body 52 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="visible" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=visible margin=9px thenable=* module=none component=wrap children=text|island placeholder=*
+
+════ body 53 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="interaction"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=interaction margin=none thenable=* module=dual component=tiny children=none placeholder=*
+
+════ body 54 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="interaction"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=interaction margin=none thenable=* module=dual component=tiny children=text|island placeholder=*
+
+════ body 55 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="interaction"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=interaction margin=none thenable=* module=dual component=wrap children=none placeholder=*
+
+════ body 56 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="interaction"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=interaction margin=none thenable=* module=dual component=wrap children=text|island placeholder=*
+
+════ body 57 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="interaction"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=interaction margin=none thenable=* module=none component=tiny children=none placeholder=*
+
+════ body 58 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="interaction"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=interaction margin=none thenable=* module=none component=tiny children=text|island placeholder=*
+
+════ body 59 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="interaction"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=interaction margin=none thenable=* module=none component=wrap children=none placeholder=*
+
+════ body 60 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="interaction"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=interaction margin=none thenable=* module=none component=wrap children=text|island placeholder=*
+
+════ body 61 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="interaction" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=interaction margin=9px thenable=* module=dual component=tiny children=none placeholder=*
+
+════ body 62 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="interaction" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=interaction margin=9px thenable=* module=dual component=tiny children=text|island placeholder=*
+
+════ body 63 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="interaction" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=interaction margin=9px thenable=* module=dual component=wrap children=none placeholder=*
+
+════ body 64 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="interaction" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=interaction margin=9px thenable=* module=dual component=wrap children=text|island placeholder=*
+
+════ body 65 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="interaction" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=interaction margin=9px thenable=* module=none component=tiny children=none placeholder=*
+
+════ body 66 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="interaction" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=interaction margin=9px thenable=* module=none component=tiny children=text|island placeholder=*
+
+════ body 67 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="interaction" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=interaction margin=9px thenable=* module=none component=wrap children=none placeholder=*
+
+════ body 68 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="interaction" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=interaction margin=9px thenable=* module=none component=wrap children=text|island placeholder=*
+
+════ body 69 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="(min-width: 600px)"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=media margin=none thenable=* module=dual component=tiny children=none placeholder=*
+
+════ body 70 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="(min-width: 600px)"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=media margin=none thenable=* module=dual component=tiny children=text|island placeholder=*
+
+════ body 71 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="(min-width: 600px)"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=media margin=none thenable=* module=dual component=wrap children=none placeholder=*
+
+════ body 72 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="(min-width: 600px)"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=media margin=none thenable=* module=dual component=wrap children=text|island placeholder=*
+
+════ body 73 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="(min-width: 600px)"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=media margin=none thenable=* module=none component=tiny children=none placeholder=*
+
+════ body 74 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="(min-width: 600px)"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=media margin=none thenable=* module=none component=tiny children=text|island placeholder=*
+
+════ body 75 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="(min-width: 600px)"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=media margin=none thenable=* module=none component=wrap children=none placeholder=*
+
+════ body 76 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="(min-width: 600px)"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=media margin=none thenable=* module=none component=wrap children=text|island placeholder=*
+
+════ body 77 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="(min-width: 600px)" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=media margin=9px thenable=* module=dual component=tiny children=none placeholder=*
+
+════ body 78 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="(min-width: 600px)" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=media margin=9px thenable=* module=dual component=tiny children=text|island placeholder=*
+
+════ body 79 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="(min-width: 600px)" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=media margin=9px thenable=* module=dual component=wrap children=none placeholder=*
+
+════ body 80 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/dual.js" wake="(min-width: 600px)" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=media margin=9px thenable=* module=dual component=wrap children=text|island placeholder=*
+
+════ body 81 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="(min-width: 600px)" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=media margin=9px thenable=* module=none component=tiny children=none placeholder=*
+
+════ body 82 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="(min-width: 600px)" margin="9px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=media margin=9px thenable=* module=none component=tiny children=text|island placeholder=*
+
+════ body 83 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="(min-width: 600px)" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"d":1}</script><!---->
+──── no hashes · 8:
+csr=off env=* wake=media margin=9px thenable=* module=none component=wrap children=none placeholder=*
+
+════ body 84 · 16 cases ════
+<!----><!----><!----><ogygia-region entry="" wake="(min-width: 600px)" margin="9px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"children":2},1,["OgygiaRef",3],{"k":4,"i":5,"d":6},"snippet","slot:og#1",{"m":7,"id":8},"slot","og#1"]</script><!---->
+──── no hashes · 16:
+csr=off env=* wake=media margin=9px thenable=* module=none component=wrap children=text|island placeholder=*
+
+════ body 85 · 32 cases ════
+<!----><!----><!----><section data-wrap=""><!----><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></section>
+──── no hashes · 32:
+csr=on env=* wake=none margin=* thenable=* module=* component=wrap children=island placeholder=*
+
+════ body 86 · 480 cases ════
+<!----><!----><!----><!----><!----><b data-tiny="">tiny</b>
+──── no hashes · 480:
+csr=on env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=tiny children=* placeholder=*
+
+════ body 87 · 160 cases ════
+<!----><!----><!----><!----><!----><section data-wrap=""><!----><!----></section>
+──── no hashes · 160:
+csr=on env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=none placeholder=*
+
+════ body 88 · 160 cases ════
+<!----><!----><!----><!----><!----><section data-wrap=""><!----><i>kid</i><!----></section>
+──── no hashes · 160:
+csr=on env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=text placeholder=*
+
+════ body 89 · 160 cases ════
+<!----><!----><!----><!----><!----><section data-wrap=""><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></section>
+──── no hashes · 160:
+csr=on env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=island placeholder=*
+
+################ live · 1 distinct ################
+
+════ live 1 · 2304 cases ════
+[]
+──── no hashes · 2304:
+csr=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
+
+################ head_changed · 1 distinct ################
+
+════ head_changed 1 · 2304 cases ════
+false
+──── no hashes · 2304:
+csr=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 2304 cases ════
+null
+──── no hashes · 2304:
+csr=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
+
+################ said · 2 distinct ################
+
+════ said 1 · 2240 cases ════
+[]
+──── no hashes · 2240:
+csr=off env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
+csr=on env=dev wake=none|idle margin=* thenable=* module=* component=* children=* placeholder=*
+csr=on env=dev wake=load|visible|interaction|media margin=* thenable=* module=* component=tiny children=* placeholder=*
+csr=on env=dev wake=load|visible|interaction|media margin=* thenable=* module=* component=wrap children=none|text placeholder=*
+csr=on env=prod wake=* margin=* thenable=* module=* component=* children=* placeholder=*
+
+════ said 2 · 64 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Finner.js"
+]
+──── no hashes · 64:
+csr=on env=dev wake=load|visible|interaction|media margin=* thenable=* module=* component=wrap children=island placeholder=*
+
+################ unhandled · 1 distinct ################
+
+════ unhandled 1 · 2304 cases ════
+[]
+──── no hashes · 2304:
+csr=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*

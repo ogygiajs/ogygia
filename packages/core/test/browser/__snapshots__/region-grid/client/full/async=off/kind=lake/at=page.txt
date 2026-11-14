@@ -1,0 +1,459 @@
+# Region client grid · async=off · kind=lake · at=page (full)
+# 6048 cases, 75 distinct outputs; per part: body 39, live 1, head_changed 1, thrown 1, said 2, unhandled 1.
+# axes: csr=off|on env=dev|prod remount=cache|empty|swr when=none|idle max_age=none|30 on_expire=none|empty|fetch margin=none|5px children=none|text|island props=absent|empty|json|devalue|snippet|live|ref
+
+################ body · 39 distinct ################
+
+════ body 1 · 1008 cases ════
+<!----><!----><!----><!---->
+──── no hashes · 1008:
+csr=off env=* remount=* when=* max_age=* on_expire=* margin=* children=none props=*
+
+════ body 2 · 1008 cases ════
+<!----><!----><!----><!----><p>lake</p>
+──── no hashes · 1008:
+csr=off env=* remount=* when=* max_age=* on_expire=* margin=* children=text props=*
+
+════ body 3 · 1008 cases ════
+<!----><!----><!----><!----><!----><!----><ogygia-region entry="/islands/inner.js" wake="idle"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"inner":1}</script><!---->
+──── no hashes · 1008:
+csr=off env=* remount=* when=* max_age=* on_expire=* margin=* children=island props=*
+
+════ body 4 · 168 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 96:
+csr=on env=* remount=cache when=* max_age=none on_expire=none margin=* children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 24:
+csr=on env=* remount=cache when=* max_age=none on_expire=none margin=* children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 24:
+csr=on env=* remount=cache when=* max_age=none on_expire=none margin=* children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 24:
+csr=on env=* remount=cache when=* max_age=none on_expire=none margin=* children=* props=ref
+
+════ body 5 · 168 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="cache" data-og-lake="<fp1>" on-expire="empty"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 96:
+csr=on env=* remount=cache when=* max_age=none on_expire=empty margin=* children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 24:
+csr=on env=* remount=cache when=* max_age=none on_expire=empty margin=* children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 24:
+csr=on env=* remount=cache when=* max_age=none on_expire=empty margin=* children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 24:
+csr=on env=* remount=cache when=* max_age=none on_expire=empty margin=* children=* props=ref
+
+════ body 6 · 168 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="cache" data-og-lake="<fp1>" on-expire="fetch"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 96:
+csr=on env=* remount=cache when=* max_age=none on_expire=fetch margin=* children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 24:
+csr=on env=* remount=cache when=* max_age=none on_expire=fetch margin=* children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 24:
+csr=on env=* remount=cache when=* max_age=none on_expire=fetch margin=* children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 24:
+csr=on env=* remount=cache when=* max_age=none on_expire=fetch margin=* children=* props=ref
+
+════ body 7 · 168 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="cache" data-og-lake="<fp1>" max-age="30"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 96:
+csr=on env=* remount=cache when=* max_age=30 on_expire=none margin=* children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 24:
+csr=on env=* remount=cache when=* max_age=30 on_expire=none margin=* children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 24:
+csr=on env=* remount=cache when=* max_age=30 on_expire=none margin=* children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 24:
+csr=on env=* remount=cache when=* max_age=30 on_expire=none margin=* children=* props=ref
+
+════ body 8 · 168 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="cache" data-og-lake="<fp1>" max-age="30" on-expire="empty"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 96:
+csr=on env=* remount=cache when=* max_age=30 on_expire=empty margin=* children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 24:
+csr=on env=* remount=cache when=* max_age=30 on_expire=empty margin=* children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 24:
+csr=on env=* remount=cache when=* max_age=30 on_expire=empty margin=* children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 24:
+csr=on env=* remount=cache when=* max_age=30 on_expire=empty margin=* children=* props=ref
+
+════ body 9 · 168 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="cache" data-og-lake="<fp1>" max-age="30" on-expire="fetch"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 96:
+csr=on env=* remount=cache when=* max_age=30 on_expire=fetch margin=* children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 24:
+csr=on env=* remount=cache when=* max_age=30 on_expire=fetch margin=* children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 24:
+csr=on env=* remount=cache when=* max_age=30 on_expire=fetch margin=* children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 24:
+csr=on env=* remount=cache when=* max_age=30 on_expire=fetch margin=* children=* props=ref
+
+════ body 10 · 168 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="empty" data-og-lake="<fp1>"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 96:
+csr=on env=* remount=empty when=* max_age=none on_expire=none margin=* children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 24:
+csr=on env=* remount=empty when=* max_age=none on_expire=none margin=* children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 24:
+csr=on env=* remount=empty when=* max_age=none on_expire=none margin=* children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 24:
+csr=on env=* remount=empty when=* max_age=none on_expire=none margin=* children=* props=ref
+
+════ body 11 · 168 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="empty" data-og-lake="<fp1>" on-expire="empty"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 96:
+csr=on env=* remount=empty when=* max_age=none on_expire=empty margin=* children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 24:
+csr=on env=* remount=empty when=* max_age=none on_expire=empty margin=* children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 24:
+csr=on env=* remount=empty when=* max_age=none on_expire=empty margin=* children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 24:
+csr=on env=* remount=empty when=* max_age=none on_expire=empty margin=* children=* props=ref
+
+════ body 12 · 168 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="empty" data-og-lake="<fp1>" on-expire="fetch"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 96:
+csr=on env=* remount=empty when=* max_age=none on_expire=fetch margin=* children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 24:
+csr=on env=* remount=empty when=* max_age=none on_expire=fetch margin=* children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 24:
+csr=on env=* remount=empty when=* max_age=none on_expire=fetch margin=* children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 24:
+csr=on env=* remount=empty when=* max_age=none on_expire=fetch margin=* children=* props=ref
+
+════ body 13 · 168 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="empty" data-og-lake="<fp1>" max-age="30"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 96:
+csr=on env=* remount=empty when=* max_age=30 on_expire=none margin=* children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 24:
+csr=on env=* remount=empty when=* max_age=30 on_expire=none margin=* children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 24:
+csr=on env=* remount=empty when=* max_age=30 on_expire=none margin=* children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 24:
+csr=on env=* remount=empty when=* max_age=30 on_expire=none margin=* children=* props=ref
+
+════ body 14 · 168 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="empty" data-og-lake="<fp1>" max-age="30" on-expire="empty"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 96:
+csr=on env=* remount=empty when=* max_age=30 on_expire=empty margin=* children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 24:
+csr=on env=* remount=empty when=* max_age=30 on_expire=empty margin=* children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 24:
+csr=on env=* remount=empty when=* max_age=30 on_expire=empty margin=* children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 24:
+csr=on env=* remount=empty when=* max_age=30 on_expire=empty margin=* children=* props=ref
+
+════ body 15 · 168 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="empty" data-og-lake="<fp1>" max-age="30" on-expire="fetch"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 96:
+csr=on env=* remount=empty when=* max_age=30 on_expire=fetch margin=* children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 24:
+csr=on env=* remount=empty when=* max_age=30 on_expire=fetch margin=* children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 24:
+csr=on env=* remount=empty when=* max_age=30 on_expire=fetch margin=* children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 24:
+csr=on env=* remount=empty when=* max_age=30 on_expire=fetch margin=* children=* props=ref
+
+════ body 16 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="load"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=none max_age=none on_expire=none margin=none children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=none margin=none children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=none margin=none children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=none margin=none children=* props=ref
+
+════ body 17 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="load" margin="5px"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=none max_age=none on_expire=none margin=5px children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=none margin=5px children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=none margin=5px children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=none margin=5px children=* props=ref
+
+════ body 18 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="load" on-expire="empty"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=none max_age=none on_expire=empty margin=none children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=empty margin=none children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=empty margin=none children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=empty margin=none children=* props=ref
+
+════ body 19 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="load" on-expire="empty" margin="5px"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=none max_age=none on_expire=empty margin=5px children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=empty margin=5px children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=empty margin=5px children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=empty margin=5px children=* props=ref
+
+════ body 20 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="load" on-expire="fetch"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=none max_age=none on_expire=fetch margin=none children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=fetch margin=none children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=fetch margin=none children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=fetch margin=none children=* props=ref
+
+════ body 21 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="load" on-expire="fetch" margin="5px"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=none max_age=none on_expire=fetch margin=5px children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=fetch margin=5px children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=fetch margin=5px children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=none max_age=none on_expire=fetch margin=5px children=* props=ref
+
+════ body 22 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="load" max-age="30"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=none max_age=30 on_expire=none margin=none children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=none margin=none children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=none margin=none children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=none margin=none children=* props=ref
+
+════ body 23 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="load" max-age="30" margin="5px"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=none max_age=30 on_expire=none margin=5px children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=none margin=5px children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=none margin=5px children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=none margin=5px children=* props=ref
+
+════ body 24 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="load" max-age="30" on-expire="empty"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=none max_age=30 on_expire=empty margin=none children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=empty margin=none children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=empty margin=none children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=empty margin=none children=* props=ref
+
+════ body 25 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="load" max-age="30" on-expire="empty" margin="5px"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=none max_age=30 on_expire=empty margin=5px children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=empty margin=5px children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=empty margin=5px children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=empty margin=5px children=* props=ref
+
+════ body 26 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="load" max-age="30" on-expire="fetch"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=none max_age=30 on_expire=fetch margin=none children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=fetch margin=none children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=fetch margin=none children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=fetch margin=none children=* props=ref
+
+════ body 27 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="load" max-age="30" on-expire="fetch" margin="5px"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=none max_age=30 on_expire=fetch margin=5px children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=fetch margin=5px children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=fetch margin=5px children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=none max_age=30 on_expire=fetch margin=5px children=* props=ref
+
+════ body 28 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="idle"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=idle max_age=none on_expire=none margin=none children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=none margin=none children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=none margin=none children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=none margin=none children=* props=ref
+
+════ body 29 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="idle" margin="5px"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=idle max_age=none on_expire=none margin=5px children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=none margin=5px children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=none margin=5px children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=none margin=5px children=* props=ref
+
+════ body 30 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="idle" on-expire="empty"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=idle max_age=none on_expire=empty margin=none children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=empty margin=none children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=empty margin=none children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=empty margin=none children=* props=ref
+
+════ body 31 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="idle" on-expire="empty" margin="5px"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=idle max_age=none on_expire=empty margin=5px children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=empty margin=5px children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=empty margin=5px children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=empty margin=5px children=* props=ref
+
+════ body 32 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="idle" on-expire="fetch"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=idle max_age=none on_expire=fetch margin=none children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=fetch margin=none children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=fetch margin=none children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=fetch margin=none children=* props=ref
+
+════ body 33 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="idle" on-expire="fetch" margin="5px"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=idle max_age=none on_expire=fetch margin=5px children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=fetch margin=5px children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=fetch margin=5px children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=idle max_age=none on_expire=fetch margin=5px children=* props=ref
+
+════ body 34 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="idle" max-age="30"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=none margin=none children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=none margin=none children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=none margin=none children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=none margin=none children=* props=ref
+
+════ body 35 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="idle" max-age="30" margin="5px"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=none margin=5px children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=none margin=5px children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=none margin=5px children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=none margin=5px children=* props=ref
+
+════ body 36 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="idle" max-age="30" on-expire="empty"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=empty margin=none children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=empty margin=none children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=empty margin=none children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=empty margin=none children=* props=ref
+
+════ body 37 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="idle" max-age="30" on-expire="empty" margin="5px"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=empty margin=5px children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=empty margin=5px children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=empty margin=5px children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=empty margin=5px children=* props=ref
+
+════ body 38 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="idle" max-age="30" on-expire="fetch"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=fetch margin=none children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=fetch margin=none children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=fetch margin=none children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=fetch margin=none children=* props=ref
+
+════ body 39 · 42 cases ════
+<!----><!----><!----><ogygia-region entry="lake-a" wake="none" remount="swr" data-og-lake="<fp1>" when="idle" max-age="30" on-expire="fetch" margin="5px"></ogygia-region>
+──── with <fp1>=3fc4a6ac99881946 · 24:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=fetch margin=5px children=* props=absent|empty|snippet|live
+──── with <fp1>=62aff95f47e8d4a8 · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=fetch margin=5px children=* props=json
+──── with <fp1>=c7b475f3337a0cce · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=fetch margin=5px children=* props=devalue
+──── with <fp1>=e8f6824715499f6d · 6:
+csr=on env=* remount=swr when=idle max_age=30 on_expire=fetch margin=5px children=* props=ref
+
+################ live · 1 distinct ################
+
+════ live 1 · 6048 cases ════
+[]
+──── no hashes · 6048:
+csr=* env=* remount=* when=* max_age=* on_expire=* margin=* children=* props=*
+
+################ head_changed · 1 distinct ################
+
+════ head_changed 1 · 6048 cases ════
+false
+──── no hashes · 6048:
+csr=* env=* remount=* when=* max_age=* on_expire=* margin=* children=* props=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 6048 cases ════
+null
+──── no hashes · 6048:
+csr=* env=* remount=* when=* max_age=* on_expire=* margin=* children=* props=*
+
+################ said · 2 distinct ################
+
+════ said 1 · 4536 cases ════
+[]
+──── no hashes · 4536:
+csr=off env=* remount=* when=* max_age=* on_expire=* margin=* children=* props=*
+csr=on env=prod remount=* when=* max_age=* on_expire=* margin=* children=* props=*
+
+════ said 2 · 1512 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/lake_mounted_without_html?entry=lake-a"
+]
+──── no hashes · 1512:
+csr=on env=dev remount=* when=* max_age=* on_expire=* margin=* children=* props=*
+
+################ unhandled · 1 distinct ################
+
+════ unhandled 1 · 6048 cases ════
+[]
+──── no hashes · 6048:
+csr=* env=* remount=* when=* max_age=* on_expire=* margin=* children=* props=*

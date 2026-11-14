@@ -1,0 +1,45 @@
+# Region client grid · async=on · kind=nothing · at=island (full)
+# 24 cases, 1 distinct outputs; per part: body 1, live 1, head_changed 1, thrown 1, said 1, unhandled 1.
+# axes: csr=off|on env=dev|prod children=none|text|island placeholder=none|text
+
+################ body · 1 distinct ################
+
+════ body 1 · 24 cases ════
+<!----><!---->
+──── no hashes · 24:
+csr=* env=* children=* placeholder=*
+
+################ live · 1 distinct ################
+
+════ live 1 · 24 cases ════
+[]
+──── no hashes · 24:
+csr=* env=* children=* placeholder=*
+
+################ head_changed · 1 distinct ################
+
+════ head_changed 1 · 24 cases ════
+false
+──── no hashes · 24:
+csr=* env=* children=* placeholder=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 24 cases ════
+null
+──── no hashes · 24:
+csr=* env=* children=* placeholder=*
+
+################ said · 1 distinct ################
+
+════ said 1 · 24 cases ════
+[]
+──── no hashes · 24:
+csr=* env=* children=* placeholder=*
+
+################ unhandled · 1 distinct ################
+
+════ unhandled 1 · 24 cases ════
+[]
+──── no hashes · 24:
+csr=* env=* children=* placeholder=*

@@ -1,0 +1,131 @@
+# Region server grid · async=off · kind=island · at=woken-answer (full)
+# 129024 cases, 20 distinct outputs; per part: head 2, body 5, thrown 1, tail 2, tail holes 2, tail islands 2, early holes 1, page records 2, devtools 1, said 3.
+# axes: kit=none|pass|pass-inner|ogygia csr=off|on page=ok|error env=dev|prod wake=load|idle|visible|visible-margin|interaction|media keep=none|nav children=none|text|island component=tiny|wrap|late|tiny+late props=absent|empty|json|devalue|snippet|live|ref ttl=0|60 known=no|yes
+
+################ head · 2 distinct ################
+
+════ head 1 · 118272 cases ════
+<!--<id1>--><!--<id2>--><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/tiny.js"><!----><!---->
+──── with <id1>=rtd3wb <id2>=7uu6nv · 118272:
+kit=* csr=* page=* env=* wake=* keep=* children=none|text component=* props=* ttl=* known=*
+kit=* csr=* page=* env=* wake=* keep=* children=island component=tiny|late|tiny+late props=* ttl=* known=*
+
+════ head 2 · 10752 cases ════
+<!--<id1>--><!--<id2>--><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/tiny.js"><!----><!----><!--<id1>--><!--<id3>--><link rel="stylesheet" href="/islands/inner.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/inner.js"><!----><!---->
+──── with <id1>=rtd3wb <id2>=7uu6nv <id3>=1v07hc5 · 10752:
+kit=* csr=* page=* env=* wake=* keep=* children=island component=wrap props=* ttl=* known=*
+
+################ body · 5 distinct ################
+
+════ body 1 · 64512 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 64512:
+kit=* csr=* page=* env=* wake=* keep=* children=* component=tiny|tiny+late props=* ttl=* known=*
+
+════ body 2 · 10752 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 10752:
+kit=* csr=* page=* env=* wake=* keep=* children=none component=wrap props=* ttl=* known=*
+
+════ body 3 · 32256 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[-1--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 32256:
+kit=* csr=* page=* env=* wake=* keep=* children=* component=late props=* ttl=* known=*
+
+════ body 4 · 10752 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><i>kid</i><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 10752:
+kit=* csr=* page=* env=* wake=* keep=* children=text component=wrap props=* ttl=* known=*
+
+════ body 5 · 10752 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 10752:
+kit=* csr=* page=* env=* wake=* keep=* children=island component=wrap props=* ttl=* known=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 129024 cases ════
+
+──── no hashes · 129024:
+kit=* csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
+
+################ tail · 2 distinct ################
+
+════ tail 1 · 64512 cases ════
+(no tail)
+──── no hashes · 64512:
+kit=none|ogygia csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
+
+════ tail 2 · 64512 cases ════
+
+──── no hashes · 64512:
+kit=pass|pass-inner csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
+
+################ tail holes · 2 distinct ################
+
+════ tail holes 1 · 64512 cases ════
+
+──── no hashes · 64512:
+kit=none|ogygia csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
+
+════ tail holes 2 · 64512 cases ════
+[]
+──── no hashes · 64512:
+kit=pass|pass-inner csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
+
+################ tail islands · 2 distinct ################
+
+════ tail islands 1 · 64512 cases ════
+
+──── no hashes · 64512:
+kit=none|ogygia csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
+
+════ tail islands 2 · 64512 cases ════
+[]
+──── no hashes · 64512:
+kit=pass|pass-inner csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
+
+################ early holes · 1 distinct ################
+
+════ early holes 1 · 129024 cases ════
+
+──── no hashes · 129024:
+kit=* csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
+
+################ page records · 2 distinct ################
+
+════ page records 1 · 118272 cases ════
+[{"seed":false,"remotes":[],"entry":""}]
+──── no hashes · 118272:
+kit=* csr=* page=* env=* wake=* keep=* children=none|text component=* props=* ttl=* known=*
+kit=* csr=* page=* env=* wake=* keep=* children=island component=tiny|late|tiny+late props=* ttl=* known=*
+
+════ page records 2 · 10752 cases ════
+[{"seed":false,"remotes":[],"entry":""},{"seed":false,"remotes":[],"entry":""}]
+──── no hashes · 10752:
+kit=* csr=* page=* env=* wake=* keep=* children=island component=wrap props=* ttl=* known=*
+
+################ devtools · 1 distinct ################
+
+════ devtools 1 · 129024 cases ════
+[]
+──── no hashes · 129024:
+kit=* csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
+
+################ said · 3 distinct ################
+
+════ said 1 · 59136 cases ════
+["[ogygia] nested island \"/islands/tiny.js\" is inside another island; it hydrates with its parent (strategy ignored).\nhttps://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Ftiny.js"]
+──── no hashes · 59136:
+kit=* csr=* page=* env=dev wake=* keep=* children=none|text component=* props=* ttl=* known=*
+kit=* csr=* page=* env=dev wake=* keep=* children=island component=tiny|late|tiny+late props=* ttl=* known=*
+
+════ said 2 · 5376 cases ════
+["[ogygia] nested island \"/islands/tiny.js\" is inside another island; it hydrates with its parent (strategy ignored).\nhttps://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Ftiny.js","[ogygia] nested island \"/islands/inner.js\" is inside another island; it hydrates with its parent (strategy ignored).\nhttps://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Finner.js"]
+──── no hashes · 5376:
+kit=* csr=* page=* env=dev wake=* keep=* children=island component=wrap props=* ttl=* known=*
+
+════ said 3 · 64512 cases ════
+[]
+──── no hashes · 64512:
+kit=* csr=* page=* env=prod wake=* keep=* children=* component=* props=* ttl=* known=*

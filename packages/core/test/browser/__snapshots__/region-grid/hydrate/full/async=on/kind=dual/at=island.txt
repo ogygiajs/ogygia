@@ -1,0 +1,181 @@
+# Region hydration grid · async=on · kind=dual · at=island (full)
+# 2304 cases, 18 distinct outputs; per part: kept_body 1, head_gone 2, body_hydrated 8, body_after 8, live 1, thrown 1, said 6, unhandled 1.
+# axes: csr=off|on page=ok|error env=dev|prod wake=none|load|idle|visible|interaction|media margin=none|9px thenable=no|yes module=dual|none component=tiny|wrap children=none|text|island placeholder=none|text
+
+################ kept_body · 1 distinct ################
+
+════ kept_body 1 · 2304 cases ════
+true
+──── no hashes · 2304:
+csr=* page=ok env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
+
+################ head_gone · 2 distinct ################
+
+════ head_gone 1 · 1920 cases ════
+[
+ "<!--<id1>-->"
+]
+──── with <id1>=rtd3wb · 1920:
+csr=* page=ok env=* wake=* margin=* thenable=* module=* component=tiny children=* placeholder=*
+csr=* page=ok env=* wake=* margin=* thenable=* module=* component=wrap children=none|text placeholder=*
+
+════ head_gone 2 · 384 cases ════
+[
+ "<!--<id1>-->",
+ "<!--<id1>-->"
+]
+──── with <id1>=rtd3wb · 384:
+csr=* page=ok env=* wake=* margin=* thenable=* module=* component=wrap children=island placeholder=*
+
+################ body_hydrated · 8 distinct ################
+
+════ body_hydrated 1 · 192 cases ════
+<!--[--><!--[--><!--[4--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 192:
+csr=* page=ok env=* wake=none margin=* thenable=* module=* component=tiny children=* placeholder=*
+
+════ body_hydrated 2 · 64 cases ════
+<!--[--><!--[--><!--[4--><!--[--><section data-wrap=""><!--[-1--><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 64:
+csr=* page=ok env=* wake=none margin=* thenable=* module=* component=wrap children=none placeholder=*
+
+════ body_hydrated 3 · 64 cases ════
+<!--[--><!--[--><!--[4--><!--[--><section data-wrap=""><!--[0--><i>kid</i><!----><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 64:
+csr=* page=ok env=* wake=none margin=* thenable=* module=* component=wrap children=text placeholder=*
+
+════ body_hydrated 4 · 64 cases ════
+<!--[--><!--[--><!--[4--><!--[--><section data-wrap=""><!--[0--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!----><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 64:
+csr=* page=ok env=* wake=none margin=* thenable=* module=* component=wrap children=island placeholder=*
+
+════ body_hydrated 5 · 960 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 960:
+csr=* page=ok env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=tiny children=* placeholder=*
+
+════ body_hydrated 6 · 320 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 320:
+csr=* page=ok env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=none placeholder=*
+
+════ body_hydrated 7 · 320 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><i>kid</i><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 320:
+csr=* page=ok env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=text placeholder=*
+
+════ body_hydrated 8 · 320 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 320:
+csr=* page=ok env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=island placeholder=*
+
+################ body_after · 8 distinct ################
+
+════ body_after 1 · 192 cases ════
+<!--[--><!--[--><!--[4--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 192:
+csr=* page=ok env=* wake=none margin=* thenable=* module=* component=tiny children=* placeholder=*
+
+════ body_after 2 · 64 cases ════
+<!--[--><!--[--><!--[4--><!--[--><section data-wrap=""><!--[-1--><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 64:
+csr=* page=ok env=* wake=none margin=* thenable=* module=* component=wrap children=none placeholder=*
+
+════ body_after 3 · 64 cases ════
+<!--[--><!--[--><!--[4--><!--[--><section data-wrap=""><!--[0--><i>kid</i><!----><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 64:
+csr=* page=ok env=* wake=none margin=* thenable=* module=* component=wrap children=text placeholder=*
+
+════ body_after 4 · 64 cases ════
+<!--[--><!--[--><!--[4--><!--[--><section data-wrap=""><!--[0--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!----><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 64:
+csr=* page=ok env=* wake=none margin=* thenable=* module=* component=wrap children=island placeholder=*
+
+════ body_after 5 · 960 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 960:
+csr=* page=ok env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=tiny children=* placeholder=*
+
+════ body_after 6 · 320 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 320:
+csr=* page=ok env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=none placeholder=*
+
+════ body_after 7 · 320 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><i>kid</i><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 320:
+csr=* page=ok env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=text placeholder=*
+
+════ body_after 8 · 320 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 320:
+csr=* page=ok env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=island placeholder=*
+
+################ live · 1 distinct ################
+
+════ live 1 · 2304 cases ════
+[]
+──── no hashes · 2304:
+csr=* page=ok env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 2304 cases ════
+null
+──── no hashes · 2304:
+csr=* page=ok env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
+
+################ said · 6 distinct ################
+
+════ said 1 · 1472 cases ════
+[]
+──── no hashes · 1472:
+csr=* page=ok env=dev wake=none|load margin=* thenable=* module=* component=tiny children=* placeholder=*
+csr=* page=ok env=dev wake=none|load margin=* thenable=* module=* component=wrap children=none|text placeholder=*
+csr=* page=ok env=prod wake=* margin=* thenable=* module=* component=* children=* placeholder=*
+
+════ said 2 · 64 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Finner.js"
+]
+──── no hashes · 64:
+csr=* page=ok env=dev wake=none|load margin=* thenable=* module=* component=wrap children=island placeholder=*
+
+════ said 3 · 320 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Fdual.js"
+]
+──── no hashes · 320:
+csr=* page=ok env=dev wake=idle|visible|interaction|media margin=* thenable=* module=dual component=tiny children=* placeholder=*
+csr=* page=ok env=dev wake=idle|visible|interaction|media margin=* thenable=* module=dual component=wrap children=none|text placeholder=*
+
+════ said 4 · 64 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Fdual.js",
+ "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Finner.js"
+]
+──── no hashes · 64:
+csr=* page=ok env=dev wake=idle|visible|interaction|media margin=* thenable=* module=dual component=wrap children=island placeholder=*
+
+════ said 5 · 320 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent"
+]
+──── no hashes · 320:
+csr=* page=ok env=dev wake=idle|visible|interaction|media margin=* thenable=* module=none component=tiny children=* placeholder=*
+csr=* page=ok env=dev wake=idle|visible|interaction|media margin=* thenable=* module=none component=wrap children=none|text placeholder=*
+
+════ said 6 · 64 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent",
+ "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Finner.js"
+]
+──── no hashes · 64:
+csr=* page=ok env=dev wake=idle|visible|interaction|media margin=* thenable=* module=none component=wrap children=island placeholder=*
+
+################ unhandled · 1 distinct ################
+
+════ unhandled 1 · 2304 cases ════
+[]
+──── no hashes · 2304:
+csr=* page=ok env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*

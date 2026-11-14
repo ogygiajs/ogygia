@@ -22,6 +22,7 @@ declare module 'vitest/browser' {
 
 const RUNS = Number(inject('fuzz_runs') || 600);
 const SEED = Number(inject('fuzz_seed') || 314);
+const BATCH = 1000;
 
 beforeAll(() => define_region_element());
 
@@ -30,13 +31,18 @@ test('any input hydrates over its own server HTML with nothing discarded and not
 		fc.record({ spec: spec_arb('mixed'), at: fc.nat(HYDRATE_PLACES.length - 1) }),
 		{ numRuns: RUNS, seed: SEED }
 	);
-	const ssr = await commands.region_grid_ssr_specs(
-		inputs.map(({ spec, at }) => ({ spec, place: HYDRATE_PLACES[at].server }))
-	);
 	const broken: string[] = [];
+	let ssr: Awaited<ReturnType<typeof commands.region_grid_ssr_specs>> = [];
 	for (const [i, { spec, at }] of inputs.entries()) {
+		// (the server leg in batches: one answer for every input at once is too big to send)
+		if (i % BATCH === 0)
+			ssr = await commands.region_grid_ssr_specs(
+				inputs
+					.slice(i, i + BATCH)
+					.map((input) => ({ spec: input.spec, place: HYDRATE_PLACES[input.at].server }))
+			);
 		const place = HYDRATE_PLACES[at];
-		const server = ssr[i];
+		const server = ssr[i % BATCH];
 		const input = JSON.stringify({ spec, place: place.client });
 		if (server.thrown) {
 			if (!rejected_code(server.thrown)) broken.push(`${input}: the server threw ${server.thrown}`);

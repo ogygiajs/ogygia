@@ -1,0 +1,149 @@
+# Region hydration grid · async=off · kind=promise · at=woken-answer (full)
+# 96 cases, 18 distinct outputs; per part: kept_body 1, head_gone 1, body_hydrated 2, body_after 10, live 2, thrown 1, said 3, unhandled 2.
+# axes: csr=off|on page=ok|error env=dev|prod settles=never|live|deferred|rejects children=none|text|island placeholder=none|text
+
+################ kept_body · 1 distinct ################
+
+════ kept_body 1 · 96 cases ════
+true
+──── no hashes · 96:
+csr=* page=ok env=* settles=* children=* placeholder=*
+
+################ head_gone · 1 distinct ################
+
+════ head_gone 1 · 96 cases ════
+[
+ "<!--<id1>-->"
+]
+──── with <id1>=rtd3wb · 96:
+csr=* page=ok env=* settles=* children=* placeholder=*
+
+################ body_hydrated · 2 distinct ################
+
+════ body_hydrated 1 · 48 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><!----><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 48:
+csr=* page=ok env=* settles=* children=* placeholder=none
+
+════ body_hydrated 2 · 48 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><p>wait</p><!----><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 48:
+csr=* page=ok env=* settles=* children=* placeholder=text
+
+################ body_after · 10 distinct ################
+
+════ body_after 1 · 24 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><!----><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 24:
+csr=* page=ok env=* settles=never|rejects children=* placeholder=none
+
+════ body_after 2 · 24 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><p>wait</p><!----><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 24:
+csr=* page=ok env=* settles=never|rejects children=* placeholder=text
+
+════ body_after 3 · 4 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><!----><!----><ogygia-region live="true"><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 4:
+csr=* page=ok env=* settles=live children=none placeholder=none
+
+════ body_after 4 · 12 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><!----><!----><ogygia-region live="true"><!----><p>wait</p><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 12:
+csr=* page=ok env=* settles=live children=* placeholder=text
+
+════ body_after 5 · 4 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><!----><!----><ogygia-region live="true"><!----><p>kid</p><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 4:
+csr=* page=ok env=* settles=live children=text placeholder=none
+
+════ body_after 6 · 4 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><!----><!----><ogygia-region live="true"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 4:
+csr=* page=ok env=* settles=live children=island placeholder=none
+
+════ body_after 7 · 4 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----></ogygia-region><!----><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 4:
+csr=* page=ok env=* settles=deferred children=none placeholder=none
+
+════ body_after 8 · 12 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----><p>wait</p><!----></ogygia-region><!----><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 12:
+csr=* page=ok env=* settles=deferred children=* placeholder=text
+
+════ body_after 9 · 4 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----><p>kid</p><!----></ogygia-region><!----><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 4:
+csr=* page=ok env=* settles=deferred children=text placeholder=none
+
+════ body_after 10 · 4 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><!----><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 4:
+csr=* page=ok env=* settles=deferred children=island placeholder=none
+
+################ live · 2 distinct ################
+
+════ live 1 · 72 cases ════
+[]
+──── no hashes · 72:
+csr=* page=ok env=* settles=never|deferred|rejects children=* placeholder=*
+
+════ live 2 · 24 cases ════
+[
+ {
+  "id": "held-p",
+  "module": "",
+  "props": {},
+  "html": "<b>late</b>",
+  "url": "/__ogygia__?id=held-p"
+ }
+]
+──── no hashes · 24:
+csr=* page=ok env=* settles=live children=* placeholder=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 96 cases ════
+null
+──── no hashes · 96:
+csr=* page=ok env=* settles=* children=* placeholder=*
+
+################ said · 3 distinct ################
+
+════ said 1 · 8 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/region_promise_no_placeholder"
+]
+──── no hashes · 8:
+csr=* page=ok env=dev settles=* children=none placeholder=none
+
+════ said 2 · 84 cases ════
+[]
+──── no hashes · 84:
+csr=* page=ok env=dev settles=never|rejects children=none placeholder=text
+csr=* page=ok env=dev settles=never|rejects children=text|island placeholder=*
+csr=* page=ok env=dev settles=live|deferred children=none|island placeholder=text
+csr=* page=ok env=dev settles=live|deferred children=text placeholder=*
+csr=* page=ok env=prod settles=* children=* placeholder=*
+
+════ said 3 · 4 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Finner.js"
+]
+──── no hashes · 4:
+csr=* page=ok env=dev settles=live|deferred children=island placeholder=none
+
+################ unhandled · 2 distinct ################
+
+════ unhandled 1 · 72 cases ════
+[]
+──── no hashes · 72:
+csr=* page=ok env=* settles=never|live|deferred children=* placeholder=*
+
+════ unhandled 2 · 24 cases ════
+[
+ "Error: the remote call failed\n\n  in $effect\n  in PromiseRegion.svelte\n  in Region.svelte\n  in RegionUnder.svelte\n  in undefined\n"
+]
+──── no hashes · 24:
+csr=* page=ok env=* settles=rejects children=* placeholder=*

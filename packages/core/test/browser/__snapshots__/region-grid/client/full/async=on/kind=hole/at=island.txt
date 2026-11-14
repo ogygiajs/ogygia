@@ -1,0 +1,56 @@
+# Region client grid · async=on · kind=hole · at=island (full)
+# 10080 cases, 2 distinct outputs; per part: body 1, live 1, head_changed 1, thrown 1, said 2, unhandled 1.
+# axes: csr=off|on env=dev|prod when=load|idle|visible wake=none|module-only|load|idle|visible|interaction|media attrs=none|all ttl=0|60 fallback=none|text|island props=absent|empty|json|devalue|snippet component=tiny|none
+
+################ body · 1 distinct ################
+
+════ body 1 · 10080 cases ════
+<!----><!----><!----><ogygia-region entry="hole-a" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region>
+──── with <fp1>=a57a6f3934f191c3 · 6048:
+csr=* env=* when=* wake=* attrs=* ttl=* fallback=* props=absent|empty|snippet component=*
+──── with <fp1>=cb07bf30d01ae950 · 2016:
+csr=* env=* when=* wake=* attrs=* ttl=* fallback=* props=json component=*
+──── with <fp1>=3629c9bcb8a43a64 · 2016:
+csr=* env=* when=* wake=* attrs=* ttl=* fallback=* props=devalue component=*
+
+################ live · 1 distinct ################
+
+════ live 1 · 10080 cases ════
+[]
+──── no hashes · 10080:
+csr=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=*
+
+################ head_changed · 1 distinct ################
+
+════ head_changed 1 · 10080 cases ════
+false
+──── no hashes · 10080:
+csr=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 10080 cases ════
+null
+──── no hashes · 10080:
+csr=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=*
+
+################ said · 2 distinct ################
+
+════ said 1 · 5040 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_server_island_inline?entry=hole-a"
+]
+──── no hashes · 5040:
+csr=* env=dev when=* wake=* attrs=* ttl=* fallback=* props=* component=*
+
+════ said 2 · 5040 cases ════
+[]
+──── no hashes · 5040:
+csr=* env=prod when=* wake=* attrs=* ttl=* fallback=* props=* component=*
+
+################ unhandled · 1 distinct ################
+
+════ unhandled 1 · 10080 cases ════
+[]
+──── no hashes · 10080:
+csr=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=*

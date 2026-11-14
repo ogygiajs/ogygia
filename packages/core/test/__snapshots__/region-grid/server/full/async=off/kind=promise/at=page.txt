@@ -1,0 +1,100 @@
+# Region server grid · async=off · kind=promise · at=page (full)
+# 768 cases, 6 distinct outputs; per part: head 1, body 2, thrown 1, tail 2, tail holes 2, tail islands 2, early holes 1, page records 1, devtools 1, said 2.
+# axes: kit=none|pass|pass-inner|ogygia csr=off|on page=ok|error env=dev|prod settles=never|live|deferred|rejects children=none|text|island placeholder=none|text
+
+################ head · 1 distinct ################
+
+════ head 1 · 768 cases ════
+<!--<id1>--><!--<id2>--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><!----><!---->
+──── with <id1>=rtd3wb <id2>=u7pura · 768:
+kit=* csr=* page=* env=* settles=* children=* placeholder=*
+
+################ body · 2 distinct ################
+
+════ body 1 · 384 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><!----><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 384:
+kit=* csr=* page=* env=* settles=* children=* placeholder=none
+
+════ body 2 · 384 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><p>wait</p><!----><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 384:
+kit=* csr=* page=* env=* settles=* children=* placeholder=text
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 768 cases ════
+
+──── no hashes · 768:
+kit=* csr=* page=* env=* settles=* children=* placeholder=*
+
+################ tail · 2 distinct ################
+
+════ tail 1 · 384 cases ════
+(no tail)
+──── no hashes · 384:
+kit=none|ogygia csr=* page=* env=* settles=* children=* placeholder=*
+
+════ tail 2 · 384 cases ════
+
+──── no hashes · 384:
+kit=pass|pass-inner csr=* page=* env=* settles=* children=* placeholder=*
+
+################ tail holes · 2 distinct ################
+
+════ tail holes 1 · 384 cases ════
+
+──── no hashes · 384:
+kit=none|ogygia csr=* page=* env=* settles=* children=* placeholder=*
+
+════ tail holes 2 · 384 cases ════
+[]
+──── no hashes · 384:
+kit=pass|pass-inner csr=* page=* env=* settles=* children=* placeholder=*
+
+################ tail islands · 2 distinct ################
+
+════ tail islands 1 · 384 cases ════
+
+──── no hashes · 384:
+kit=none|ogygia csr=* page=* env=* settles=* children=* placeholder=*
+
+════ tail islands 2 · 384 cases ════
+[]
+──── no hashes · 384:
+kit=pass|pass-inner csr=* page=* env=* settles=* children=* placeholder=*
+
+################ early holes · 1 distinct ################
+
+════ early holes 1 · 768 cases ════
+
+──── no hashes · 768:
+kit=* csr=* page=* env=* settles=* children=* placeholder=*
+
+################ page records · 1 distinct ################
+
+════ page records 1 · 768 cases ════
+[{"seed":"all","remotes":null,"entry":""}]
+──── no hashes · 768:
+kit=* csr=* page=* env=* settles=* children=* placeholder=*
+
+################ devtools · 1 distinct ################
+
+════ devtools 1 · 768 cases ════
+[]
+──── no hashes · 768:
+kit=* csr=* page=* env=* settles=* children=* placeholder=*
+
+################ said · 2 distinct ################
+
+════ said 1 · 64 cases ════
+["[ogygia] <Region of={promise}> has no `placeholder` — the region will sit empty until the promise resolves and its stylesheet loads. Add {#snippet placeholder()}…{/snippet} for the wait.\nhttps://ogygiajs.dev/e/region_promise_no_placeholder"]
+──── no hashes · 64:
+kit=* csr=* page=* env=dev settles=* children=none placeholder=none
+
+════ said 2 · 704 cases ════
+[]
+──── no hashes · 704:
+kit=* csr=* page=* env=dev settles=* children=none placeholder=text
+kit=* csr=* page=* env=dev settles=* children=text|island placeholder=*
+kit=* csr=* page=* env=prod settles=* children=* placeholder=*

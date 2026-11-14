@@ -1,0 +1,55 @@
+# Region client grid · async=off · kind=lake · at=lake (full)
+# 6048 cases, 3 distinct outputs; per part: body 3, live 1, head_changed 1, thrown 1, said 1, unhandled 1.
+# axes: csr=off|on env=dev|prod remount=cache|empty|swr when=none|idle max_age=none|30 on_expire=none|empty|fetch margin=none|5px children=none|text|island props=absent|empty|json|devalue|snippet|live|ref
+
+################ body · 3 distinct ################
+
+════ body 1 · 2016 cases ════
+<!----><!----><!----><!---->
+──── no hashes · 2016:
+csr=* env=* remount=* when=* max_age=* on_expire=* margin=* children=none props=*
+
+════ body 2 · 2016 cases ════
+<!----><!----><!----><!----><p>lake</p>
+──── no hashes · 2016:
+csr=* env=* remount=* when=* max_age=* on_expire=* margin=* children=text props=*
+
+════ body 3 · 2016 cases ════
+<!----><!----><!----><!----><!----><!----><ogygia-region entry="/islands/inner.js" wake="idle"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"inner":1}</script><!---->
+──── no hashes · 2016:
+csr=* env=* remount=* when=* max_age=* on_expire=* margin=* children=island props=*
+
+################ live · 1 distinct ################
+
+════ live 1 · 6048 cases ════
+[]
+──── no hashes · 6048:
+csr=* env=* remount=* when=* max_age=* on_expire=* margin=* children=* props=*
+
+################ head_changed · 1 distinct ################
+
+════ head_changed 1 · 6048 cases ════
+false
+──── no hashes · 6048:
+csr=* env=* remount=* when=* max_age=* on_expire=* margin=* children=* props=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 6048 cases ════
+null
+──── no hashes · 6048:
+csr=* env=* remount=* when=* max_age=* on_expire=* margin=* children=* props=*
+
+################ said · 1 distinct ################
+
+════ said 1 · 6048 cases ════
+[]
+──── no hashes · 6048:
+csr=* env=* remount=* when=* max_age=* on_expire=* margin=* children=* props=*
+
+################ unhandled · 1 distinct ################
+
+════ unhandled 1 · 6048 cases ════
+[]
+──── no hashes · 6048:
+csr=* env=* remount=* when=* max_age=* on_expire=* margin=* children=* props=*

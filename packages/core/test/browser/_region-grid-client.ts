@@ -133,10 +133,17 @@ async function with_console<T>(
  *  regions came before in this file, not anything of the case. */
 function number_slots(text: string): string {
 	const seen = new Map<string, number>();
-	return text.replace(/slot:og([0-9a-z]+)(?![0-9a-z-])/g, (_all, n: string) => {
+	const number = (n: string) => {
 		if (!seen.has(n)) seen.set(n, seen.size + 1);
-		return `slot:og#${seen.get(n)}`;
-	});
+		return seen.get(n)!;
+	};
+	// (as a pointer, `slot:og<n>`; as a slot descriptor's id, devalue writes it as its own string)
+	return text
+		.replace(/slot:og([0-9a-z]+)(?![0-9a-z-])/g, (_all, n: string) => `slot:og#${number(n)}`)
+		.replace(
+			/(\\?"slot\\?",\\?")og([0-9a-z]+)(?=\\?")/g,
+			(_all, before: string, n: string) => `${before}og#${number(n)}`
+		);
 }
 
 /** A browser leg's output (its JSON), part by part: each key's value, as text. */
