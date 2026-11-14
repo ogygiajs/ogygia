@@ -26,7 +26,6 @@ import type { Handle } from './kit-handle.ts';
 import { try_get_request_store } from '@sveltejs/kit/internal/server';
 import type { RequestState } from '@sveltejs/kit/internal/server';
 import * as devalue from 'devalue';
-// (the islands' loaders come through `load_islands()`, a dynamic import — link/server-manifest.ts)
 import {
 	load_server_regions,
 	region_url,
@@ -75,7 +74,6 @@ import { read_capped } from './server/capped-body.ts';
 import { KEEP_FALLBACK_HTML, is_keep_fallback } from './keep-fallback.ts';
 import { set_source_recorder } from './source.ts';
 import { building, dev } from '$app/env';
-// Kit's `asset()`, taking ogygia's base-less `/…` URLs on Kit 2 and Kit 3 alike
 import { kit_asset } from './kit-paths.ts';
 import {
 	sign,
@@ -112,7 +110,6 @@ import {
 } from './plugin/server.ts';
 import type { HtmlPass } from './plugin/index.ts';
 import { end_request_scope, own_response, request_scope } from './plugin/request-scope.ts';
-// PULL-registration at decode time (idempotent; no import-time side effects).
 import { register_wire_kind } from './live-transport.ts';
 import { register_store_kind, register_derived_kind } from './store-transport.ts';
 import { register_snippet_kind } from './region-snippet.ts';
@@ -238,11 +235,7 @@ import { ERRORS, WARNINGS } from './messages/core.ts';
 import { define_messages, dev_or_prerender } from './contract/messages.ts';
 import { ask } from './plugin/hooks.ts';
 
-// A prerender words every message, the link after it (contract/messages.ts `dev_or_prerender`).
 (globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.prerendering')] = building;
-// The server's render runs the same shared code as the island (a transport, `Region`), which words
-// its messages through the runtime's own (messages/island.ts): published here as the runtime's boot
-// publishes them in the browser — with the tables, worded in dev and while prerendering.
 (globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.messages')] ??=
 	define_messages(
 		import.meta.env?.DEV || import.meta.env?.SSR ? ERRORS : null,
@@ -263,7 +256,6 @@ function devtools_switch(event: RequestEvent): boolean {
 	return want;
 }
 
-/** Hard cap on rendered region HTML (bytes). */
 const MAX_REGION_BODY = 2_000_000;
 
 // DEVTOOLS gate — server realm. The SSR bundle carries the `__OGYGIA_DEVTOOLS__` define; off → the
@@ -271,12 +263,9 @@ const MAX_REGION_BODY = 2_000_000;
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 const DEVTOOLS_LAZY =
 	typeof __OGYGIA_DEVTOOLS_LAZY__ !== 'undefined' ? __OGYGIA_DEVTOOLS_LAZY__ : false;
-// the server's rules (./server/rules.ts): checked after each response in dev and in a build made with
-// OGYGIA_RULES=1; folds out of any other build
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 if (RULES) install_server_rules();
-/** The monotonic clock, for server-realm devtools timestamps. */
 const dt_now = clock.mono;
 
 // Drop-in `setContext` bridge. A layout that imports `setContext` from `ogygia` records each string
