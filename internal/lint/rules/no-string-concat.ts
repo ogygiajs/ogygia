@@ -4,7 +4,9 @@
  * literal, a `.join()` or `String()` call, or such a chain itself; number arithmetic never does.
  * The fix writes the chain as one template literal (a number sum before the first string stays one
  * `${…}`, as `+` evaluates it). A chain across lines that builds lines of text (`\n`), or holds a
- * comment, is reported with the `dedent` hint and left for a hand fix.
+ * comment, is reported with the `dedent` hint and left for a hand fix. A `+=` in a loop body (a
+ * `for`, `for…of`, `for…in`, `while` or `do`, or a `forEach` / `map` callback) builds a string in
+ * pieces: it is reported with the `join` hint and no fix (internal/lint/no-string-concat.test.ts).
  */
 
 import { concat_kept, unwrap, type FixContext, type Node, type Ranged } from './shared.ts';
@@ -12,6 +14,44 @@ import { concat_kept, unwrap, type FixContext, type Node, type Ranged } from './
 const MESSAGE_CONCAT = 'Build the string with a template literal, not `+`.';
 const MESSAGE_CONCAT_LINES =
 	'Build the string with a template literal, not `+` across lines: a long or multi-line one is a `dedent` template (core contract/dedent.ts).';
+
+const MESSAGE_CONCAT_LOOP =
+	'A string built with `+=` in a loop: collect the parts in an array and `join()` them once.';
+
+const LOOPS: ReadonlySet<string> = new Set([
+	'ForStatement',
+	'ForOfStatement',
+	'ForInStatement',
+	'WhileStatement',
+	'DoWhileStatement'
+]);
+const LOOP_CALLBACKS: ReadonlySet<string> = new Set(['forEach', 'map']);
+const FUNCTIONS: ReadonlySet<string> = new Set([
+	'FunctionDeclaration',
+	'FunctionExpression',
+	'ArrowFunctionExpression'
+]);
+
+/** Is `node` in a loop's body, or in a `forEach` / `map` callback, within its own function? */
+function in_loop(node: Node): boolean {
+	let child = node;
+	let n = node.parent as Node | undefined;
+	while (n) {
+		if (LOOPS.has(n.type) && n.body === child) return true;
+		if (FUNCTIONS.has(n.type)) {
+			const call = n.parent as Node | undefined;
+			if (call?.type !== 'CallExpression' || !(call.arguments as Node[]).includes(n)) return false;
+			const callee = call.callee as Node;
+			return (
+				callee.type === 'MemberExpression' &&
+				LOOP_CALLBACKS.has((callee.property as { name?: string })?.name ?? '')
+			);
+		}
+		child = n;
+		n = n.parent as Node | undefined;
+	}
+	return false;
+}
 
 const is_plus = (e: Node | undefined): boolean =>
 	e?.type === 'BinaryExpression' && e.operator === '+';
@@ -118,6 +158,10 @@ export const no_string_concat = {
 				if (node.operator !== '+=' || !stringy(node.right as Node) || concat_kept(node)) return;
 				const left = node.left as Node;
 				const n = node as Ranged;
+				if (in_loop(node)) {
+					context.report({ node, message: MESSAGE_CONCAT_LOOP });
+					return;
+				}
 				// (a plain name only: a member read twice could run a getter twice)
 				const simple = left.type === 'Identifier' && !is_plus(unwrap(node.right as Node));
 				if (!simple || !fixable(n)) {
