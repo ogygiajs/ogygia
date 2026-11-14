@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { dedent } from '../../../packages/core/src/contract/dedent.ts';
 import { LEDGER_FILES, parse_ledger, read_ledger_file } from '../src/ledger-json.ts';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -20,7 +21,13 @@ describe('a hand-merged ledger', () => {
 	});
 
 	it('with a key twice in a nested object is refused at that line', () => {
-		const text = '[\n\t{ "id": "m1", "code": "x" },\n\t{ "id": "m2",\n\t  "id": "m3" }\n]\n';
+		const text = dedent`
+			[
+				{ "id": "m1", "code": "x" },
+				{ "id": "m2",
+				  "id": "m3" }
+			]
+		`;
 		expect(() => parse_ledger(text, 'mutants.json')).toThrow(
 			'mutants.json:4: the key "id" is in this object twice'
 		);
