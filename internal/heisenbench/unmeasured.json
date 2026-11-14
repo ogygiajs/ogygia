@@ -53,50 +53,6 @@
 			"reason": "the matcher that matches nothing, for chunks read only to keep the scan's state: answers false, constant work; rewrite.test.ts's 'matches only in the last chunk' path runs it"
 		},
 		{
-			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > show > defer:0~248bad",
-			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
-		},
-		{
-			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > show",
-			"reason": "browser only: makes the dock's highlight layer (DOM) once and queues a frame, constant work besides scrollIntoView"
-		},
-		{
-			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > #draw",
-			"reason": "browser only: one box per element on screen (getBoundingClientRect), linear in the elements, capped at 400"
-		},
-		{
-			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > #schedule",
-			"reason": "browser only: queues one frame on the layer's scope, constant work"
-		},
-		{
-			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > #schedule > schedule:1~47dbf5",
-			"reason": "browser only: the queued frame's handoff to #draw, constant work"
-		},
-		{
-			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > clear",
-			"reason": "browser only: closes the layer's scope (its listeners and the layer go), constant work"
-		},
-		{
-			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > count",
-			"reason": "browser only: the shown layer's element count, constant work"
-		},
-		{
-			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > set_root",
-			"reason": "browser only: keeps the dock's shadow root, constant work"
-		},
-		{
-			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > diff",
-			"reason": "profiler only: reads the kept answers (hidden state), linear in the two bodies it compares"
-		},
-		{
-			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > get",
-			"reason": "profiler only: a kept answer as a fresh Response (hidden state), linear in its body"
-		},
-		{
-			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > get current",
-			"reason": "profiler only: the kept answers now (hidden state), constant work"
-		},
-		{
 			"id": "packages/devtools/src/devtools/profile-store.ts > set_profile > map:0~39039e",
 			"reason": "one profile out of each kept entry (64 at most) while the newest 8 are saved, constant work per entry; devtools-profile-store.test.ts runs it"
 		},
@@ -1201,6 +1157,34 @@
 			"reason": "browser only: the wait for Kit to apply its page (a global accessor and a Svelte effect root), once per wait; proven in packages/core/test/browser/kit-page-thread.test.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > #until_critical > then:0~d52439 > one",
+			"reason": "browser only: a critical resource's load or error event, once per resource per document; proven in packages/core/test/browser/load-scheduler.test.ts and load-scheduler-critical-error.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > #until_critical > then:0~d52439 > timeout:0~301398",
+			"reason": "browser only: the critical wait's cap (2.5 s), once per document; proven in packages/core/test/browser/load-scheduler.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > on_first_input",
+			"reason": "browser only: the visitor's first click or key, once per document; proven in packages/core/test/browser/load-scheduler.test.ts and load-scheduler-touched.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > addEventListener:1~97a62a",
+			"reason": "browser only: the document's first pointerdown or keydown listener, once per document; proven in packages/core/test/browser/load-scheduler-touched.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > reset > drop:0~8b94d4",
+			"reason": "a test seam: drops the critical wait, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > #open_line > queue:0~e6e564 > stale",
+			"reason": "a test seam: a slot still queued when a test resets the document leaves unwatched, constant work per slot"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadSlot > leave",
+			"reason": "a test seam: a slot still queued when a test resets the document stops watching its element, constant work"
+		},
+		{
 			"id": "packages/core/src/runtime/schedule.ts > register_region > defer:0~d7202d",
 			"reason": "browser only: a region's lifetime ends and stops its viewport snapshot if it is still the same one (an IntersectionObserver release), constant work; proven in packages/core/test/browser/region-orderings.test.ts and hole-lifecycle.test.ts"
 		},
@@ -1685,14 +1669,6 @@
 			"reason": "a render's timeout on its race's scope, constant work"
 		},
 		{
-			"id": "packages/devtools/src/profiler/net.ts > count_decoded > <anonymous>~eed13d > defer:0~95f179",
-			"reason": "the counted copy's reader is cancelled when its request ends: a cancel when its owner ends, constant work; proven in packages/devtools/test/profiler-net-capture.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/net.ts > count_decoded > <anonymous>~eed13d > defer:0~95f179 > catch:0~a1b2d0",
-			"reason": "the counted copy's reader is cancelled when its request ends: a cancel when its owner ends, constant work; proven in packages/devtools/test/profiler-net-capture.test.ts"
-		},
-		{
 			"id": "packages/devtools/src/profiler/net.ts > install_net_capture > answer",
 			"reason": "the live profiler sink reads its AsyncLocalStorage (not cloneable), constant work; proven in packages/devtools/test/profiler-net-capture.test.ts (#285)"
 		},
@@ -2011,10 +1987,6 @@
 		{
 			"id": "packages/devtools/src/profiler/embedded-maps.ts > embedded_source > map:0~31820d",
 			"reason": "profiler only: lists the known app roots for one source path, linear in the roots (one per app)"
-		},
-		{
-			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > keeping",
-			"reason": "profiler only: reads the module's kept-answers state (hidden state), constant work"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > arm_on_demand > set:1~0b08c2",
@@ -3853,6 +3825,34 @@
 			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
 		},
 		{
+			"id": "packages/machine/src/queue.ts > Line > #arm > timeout:0~5b3150",
+			"reason": "the deadlines' one timer firing: hands over to #expire, constant work"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > Line > #expire",
+			"reason": "a timer's callback over the waiting jobs, linear in them; queue.test.ts runs it under fake timers (not replayable: it reads the clock)"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > Line > #expire > leave_where:0~9dd123",
+			"reason": "the deadline test #leave_where applies, one comparison"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > Line > #leave_where",
+			"reason": "the waiting jobs a deadline or the owner's close picks, linear in them; queue.test.ts runs it (not replayable: stale hooks with side effects)"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > Line > constructor > defer:0~b785c2",
+			"reason": "the queue's owner closing: hands over to #leave_where, constant work"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > Line > constructor > defer:0~b785c2 > leave_where:0~8b94d4",
+			"reason": "the owner's close picks every waiting job, constant work"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > Line > get holding",
+			"reason": "a getter, one read"
+		},
+		{
 			"id": "packages/core/src/runtime/router.ts > SpaRouter > scan_preload_links > on_idle:1~4ff29d > once_on_screen:2~719a25",
 			"reason": "browser only: a viewport-preload link came on screen, one warm of its page (fetch_page, measured by the router benches)"
 		},
@@ -4787,6 +4787,18 @@
 		{
 			"id": "packages/core/src/plugin/server.ts > shared:0~f8205a > make",
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > observeReads",
+			"reason": "hands a live RequestEvent (not cloneable) and its request's read set to observe_reads, constant work of its own; observe_reads is measured on its own"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn",
+			"reason": "a plugin's dev warning: one say().once per message, printed through console.warn (not replayable), constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn > once:1~c9a4aa",
+			"reason": "prints a plugin's warning once through console.warn (not replayable), constant work"
 		},
 		{
 			"id": "packages/postrender/src/registry.ts > shared:0~4e63eb > make",
@@ -5993,6 +6005,94 @@
 			"reason": "one specifier's local name per attributed import in a .ts module, for region_attribute_unknown's message: constant work"
 		},
 		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > kit_start_ungated > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > kit_start_ungated > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/server/kit-gate.ts > kit_start_ungated",
+			"reason": "dev only (the warning folds out of production); one bounded scan of the body's last 64 KB, the scan kit_gate's bench case already counts; kit-gate.test.ts and test/canary/kit-start-script.test.ts run it"
+		},
+		{
+			"id": "packages/core/src/region-snippet.ts > RenderSnippet > component:0~4930b4",
+			"reason": "calls the snippet with the renderer Svelte hands it, constant work of its own; its output is the snippet's, through Svelte's renderer, no replay holds it; region-snippet-freeze-dev.test.ts and test/canary/svelte-server-signature.test.ts run it"
+		},
+		{
+			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static event",
+			"reason": "one read of Kit's AsyncLocalStorage store, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts and plugin-request-end.test.ts run it"
+		},
+		{
+			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static run",
+			"reason": "hands the call to Kit's with_request_store, constant work of its own; test/canary/kit-request-store.test.ts and plugin-request-end.test.ts run it"
+		},
+		{
+			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static state",
+			"reason": "one read of Kit's AsyncLocalStorage store, constant work; its answer is the live request's state, hidden state no replay holds; request-bag.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/server/live-event.ts > live_event",
+			"reason": "one call to Kit's getRequestEvent, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts runs it"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > show > defer:0~248bad",
+			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > show",
+			"reason": "browser only: makes the dock's highlight layer (DOM) once and queues a frame, constant work besides scrollIntoView"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > #draw",
+			"reason": "browser only: one box per element on screen (getBoundingClientRect), linear in the elements, capped at 400"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > #schedule",
+			"reason": "browser only: queues one frame on the layer's scope, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > #schedule > schedule:1~47dbf5",
+			"reason": "browser only: the queued frame's handoff to #draw, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > clear",
+			"reason": "browser only: closes the layer's scope (its listeners and the layer go), constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > count",
+			"reason": "browser only: the shown layer's element count, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > set_root",
+			"reason": "browser only: keeps the dock's shadow root, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > diff",
+			"reason": "profiler only: reads the kept answers (hidden state), linear in the two bodies it compares"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > get",
+			"reason": "profiler only: a kept answer as a fresh Response (hidden state), linear in its body"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > get current",
+			"reason": "profiler only: the kept answers now (hidden state), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > count_decoded > <anonymous>~eed13d > defer:0~95f179",
+			"reason": "the counted copy's reader is cancelled when its request ends: a cancel when its owner ends, constant work; proven in packages/devtools/test/profiler-net-capture.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > count_decoded > <anonymous>~eed13d > defer:0~95f179 > catch:0~a1b2d0",
+			"reason": "the counted copy's reader is cancelled when its request ends: a cancel when its owner ends, constant work; proven in packages/devtools/test/profiler-net-capture.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > AnswerKeep > keeping",
+			"reason": "profiler only: reads the module's kept-answers state (hidden state), constant work"
+		},
+		{
 			"id": "packages/config/src/sim.ts > SimStream > constructor",
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
@@ -6055,94 +6155,6 @@
 		{
 			"id": "packages/compiler/src/scan-facts.ts > ScanFacts > input:2~ea66dc",
 			"reason": "the scan db input for a file's facts, read by every query over the scan (not replayable), constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > #until_critical > then:0~d52439 > one",
-			"reason": "browser only: a critical resource's load or error event, once per resource per document; proven in packages/core/test/browser/load-scheduler.test.ts and load-scheduler-critical-error.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > #until_critical > then:0~d52439 > timeout:0~301398",
-			"reason": "browser only: the critical wait's cap (2.5 s), once per document; proven in packages/core/test/browser/load-scheduler.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > on_first_input",
-			"reason": "browser only: the visitor's first click or key, once per document; proven in packages/core/test/browser/load-scheduler.test.ts and load-scheduler-touched.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > addEventListener:1~97a62a",
-			"reason": "browser only: the document's first pointerdown or keydown listener, once per document; proven in packages/core/test/browser/load-scheduler-touched.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > reset > drop:0~8b94d4",
-			"reason": "a test seam: drops the critical wait, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > #open_line > queue:0~e6e564 > stale",
-			"reason": "a test seam: a slot still queued when a test resets the document leaves unwatched, constant work per slot"
-		},
-		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > LoadSlot > leave",
-			"reason": "a test seam: a slot still queued when a test resets the document stops watching its element, constant work"
-		},
-		{
-			"id": "packages/machine/src/queue.ts > Line > #arm > timeout:0~5b3150",
-			"reason": "the deadlines' one timer firing: hands over to #expire, constant work"
-		},
-		{
-			"id": "packages/machine/src/queue.ts > Line > #expire",
-			"reason": "a timer's callback over the waiting jobs, linear in them; queue.test.ts runs it under fake timers (not replayable: it reads the clock)"
-		},
-		{
-			"id": "packages/machine/src/queue.ts > Line > #expire > leave_where:0~9dd123",
-			"reason": "the deadline test #leave_where applies, one comparison"
-		},
-		{
-			"id": "packages/machine/src/queue.ts > Line > #leave_where",
-			"reason": "the waiting jobs a deadline or the owner's close picks, linear in them; queue.test.ts runs it (not replayable: stale hooks with side effects)"
-		},
-		{
-			"id": "packages/machine/src/queue.ts > Line > constructor > defer:0~b785c2",
-			"reason": "the queue's owner closing: hands over to #leave_where, constant work"
-		},
-		{
-			"id": "packages/machine/src/queue.ts > Line > constructor > defer:0~b785c2 > leave_where:0~8b94d4",
-			"reason": "the owner's close picks every waiting job, constant work"
-		},
-		{
-			"id": "packages/machine/src/queue.ts > Line > get holding",
-			"reason": "a getter, one read"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > kit_start_ungated > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > kit_start_ungated > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/server/kit-gate.ts > kit_start_ungated",
-			"reason": "dev only (the warning folds out of production); one bounded scan of the body's last 64 KB, the scan kit_gate's bench case already counts; kit-gate.test.ts and test/canary/kit-start-script.test.ts run it"
-		},
-		{
-			"id": "packages/core/src/region-snippet.ts > RenderSnippet > component:0~4930b4",
-			"reason": "calls the snippet with the renderer Svelte hands it, constant work of its own; its output is the snippet's, through Svelte's renderer, no replay holds it; region-snippet-freeze-dev.test.ts and test/canary/svelte-server-signature.test.ts run it"
-		},
-		{
-			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static event",
-			"reason": "one read of Kit's AsyncLocalStorage store, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts and plugin-request-end.test.ts run it"
-		},
-		{
-			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static run",
-			"reason": "hands the call to Kit's with_request_store, constant work of its own; test/canary/kit-request-store.test.ts and plugin-request-end.test.ts run it"
-		},
-		{
-			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static state",
-			"reason": "one read of Kit's AsyncLocalStorage store, constant work; its answer is the live request's state, hidden state no replay holds; request-bag.test.ts runs it"
-		},
-		{
-			"id": "packages/core/src/server/live-event.ts > live_event",
-			"reason": "one call to Kit's getRequestEvent, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts runs it"
 		}
 	]
 }
