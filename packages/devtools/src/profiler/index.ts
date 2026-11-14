@@ -50,7 +50,7 @@ import {
 	type SourceMapResolver
 } from './analyze.ts';
 import { route_dirs as route_folders } from './route-files.ts';
-import type { CallerSite, NetCall, NetContext } from './net.ts';
+import type { AnswerKeep, CallerSite, NetCall, NetContext } from './net.ts';
 import { TRACE_HEADER, encode_trace } from './net.ts';
 import type { IoOp } from './async-io.ts';
 import {
@@ -1287,13 +1287,7 @@ class Profiler {
 	/** wraps Kit's `event.fetch` (in-process same-origin dispatch) with the recorder, per attributed request */
 	#wrap_event_fetch: (<F extends typeof globalThis.fetch>(f: F) => F) | null = null;
 	/** the network layer's kept answers (net.ts): what the keep-the-answers render is served */
-	#kept: {
-		/** each recording turns its own keeping on and off (`owner`) */
-		keep: (owner: object, on: boolean) => void;
-		get: (key: string) => Response | undefined;
-		drop: (owner: object) => void;
-		diff: (key: string) => { bytes: number; size: number; text: string } | undefined;
-	} | null = null;
+	#kept: AnswerKeep | null = null;
 	/** the keep-the-answers render in flight: its request carries this token, and only these calls
 	 *  (`GET <url>`, the same answer in every timed render) are served from memory */
 	#answers: { token: string; keys: ReadonlySet<string> } | null = null;
@@ -1644,22 +1638,10 @@ class Profiler {
 			}
 			if (this.#als) {
 				try {
-					const {
-						install_net_capture,
-						ensure_fetch_patched,
-						wrap_event_fetch,
-						keep_answers,
-						kept_answer,
-						drop_answers,
-						answer_diff
-					} = await import('./net.ts');
+					const { install_net_capture, ensure_fetch_patched, wrap_event_fetch, answer_keep } =
+						await import('./net.ts');
 					this.#wrap_event_fetch = wrap_event_fetch;
-					this.#kept = {
-						keep: keep_answers,
-						get: kept_answer,
-						drop: drop_answers,
-						diff: answer_diff
-					};
+					this.#kept = answer_keep;
 					await install_net_capture(this.#als, (call) => {
 						this.#collect_window(call);
 						this.#background_net.push(call);

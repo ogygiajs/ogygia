@@ -28,7 +28,7 @@
 	import { unmeasured } from './page.ts';
 	// (what this browser cannot measure: a session's silence on those is not a clean bill)
 	const limits = unmeasured(typeof Profiler === 'undefined' ? 'unsupported' : null);
-	import { highlight, clear_highlight } from './highlight.ts';
+	import { highlighter } from './highlight.ts';
 
 	let { tick = 0 } = $props();
 
@@ -74,7 +74,7 @@
 		last = null;
 		server_window = null;
 		server_note = '';
-		clear_highlight();
+		highlighter.clear();
 		window_on = false;
 		// the browser side at once (the next click counts); the server window alongside
 		rec = start_session();
@@ -169,12 +169,12 @@
 		hover = it.label;
 		if (it.ref) {
 			const els = els_of([it.ref]);
-			if (els.length) highlight(els, it.label.slice(0, 80));
+			if (els.length) highlighter.show(els, it.label.slice(0, 80));
 		}
 	}
 	function tl_leave() {
 		hover = '';
-		clear_highlight();
+		highlighter.clear();
 	}
 
 	// CLIENT → SERVER in one click: a slow request found in the session, profiled on the server
@@ -204,7 +204,7 @@
 				: `${(n / 1048576).toFixed(1)} MB`;
 
 	onMount(() => () => {
-		clear_highlight();
+		highlighter.clear();
 		owner.close();
 	});
 </script>
@@ -365,15 +365,16 @@
 					<li
 						class={f.severity}
 						data-code={f.code}
-						onmouseenter={() => f.refs.length && highlight(els_of(f.refs), f.message.slice(0, 80))}
-						onmouseleave={() => clear_highlight()}
+						onmouseenter={() =>
+							f.refs.length && highlighter.show(els_of(f.refs), f.message.slice(0, 80))}
+						onmouseleave={() => highlighter.clear()}
 					>
 						<p class="msg">{f.message}</p>
 						{#if f.fix}<p class="fix">{f.fix}</p>{/if}
 						{#if f.refs.length && els_of(f.refs).length}
 							<button
 								class="chip"
-								onclick={() => highlight(els_of(f.refs), f.message.slice(0, 80), true)}
+								onclick={() => highlighter.show(els_of(f.refs), f.message.slice(0, 80), true)}
 								>show on the page ({els_of(f.refs).length})</button
 							>
 						{/if}
@@ -453,8 +454,9 @@
 				<tbody>
 					{#each r.interactions as x (x.i)}
 						<tr
-							onmouseenter={() => highlight(els_of([{ kind: 'interaction', i: x.i }]), x.target)}
-							onmouseleave={() => clear_highlight()}
+							onmouseenter={() =>
+								highlighter.show(els_of([{ kind: 'interaction', i: x.i }]), x.target)}
+							onmouseleave={() => highlighter.clear()}
 						>
 							<td>{x.name}</td>
 							<td class="tgt" title={x.target}
