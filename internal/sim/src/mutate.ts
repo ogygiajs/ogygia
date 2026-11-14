@@ -11,12 +11,13 @@
  *
  *   node src/mutate.ts --mutants <file.json> [--gens 191,192,550+33+36] [--palaestra] [--seeds 20]
  *     [--jobs 4] [--sandbox <dir>] [--out <file.jsonl>] [--budget-min <minutes>]
- *     [--buggify-aim <points>]
- *   node src/mutate.ts --mutants <file.json> --compiler-dst [--dst-runs 100] [--sandbox <dir>]
+ *     [--buggify-aim <points>] [--killed <file.jsonl>]
+ *   node src/mutate.ts --mutants <file.json> --suite <name> [--suite-runs 100] [--sandbox <dir>]
  *
- * `--compiler-dst` judges the list on the compiler's simulator (`internal/compiler-dst`, which
- * compiles the package sources, so nothing is built): a mutant is killed by a test that fails on it
- * twice and not on the baseline.
+ * `--suite` judges the list's mutants of one package on a simulator that runs that package's
+ * sources (a {@link SUITES} entry, so nothing is built): a mutant is killed by a test that fails on
+ * it twice and not on the baseline. `--killed` takes such a run's results: each mutant it killed
+ * counts as killed here, and is not run again.
  *
  * `--buggify-aim` runs every seed, the baseline's too, with only those buggify points on (cli.ts):
  * a point its app asks rarely proves its recovery this way.
@@ -330,18 +331,47 @@ export function failing_tests(report: string | null, root: string): string[] | n
 	return out.sort();
 }
 
-/** The compiler's simulator (`internal/compiler-dst`, `--compiler-dst`): it compiles the package
- *  sources themselves, so a mutant needs no build. Its failing tests, `DST_RUNS` apps each. */
-function run_compiler_dst(box: string, runs: number, log: string): string[] | null {
-	const dir = join(box, 'internal', 'compiler-dst');
+/** A simulator that runs a package's sources themselves (`--suite`), so a mutant needs no build:
+ *  where it runs, the mutants it judges (their files' prefix), and its vitest run's environment and
+ *  arguments, `runs` inputs each. */
+export interface Suite {
+	readonly dir: string;
+	readonly files: string;
+	readonly run: (runs: number) => string;
+}
+
+export const SUITES: Readonly<Record<string, Suite>> = {
+	'compiler-dst': {
+		dir: 'internal/compiler-dst',
+		files: 'packages/compiler/',
+		run: (runs) => `DST_RUNS=${runs} nice -n 10 npx vitest run`
+	},
+	'rewrite-browser': {
+		dir: 'packages/rewrite',
+		files: 'packages/rewrite/',
+		run: (runs) =>
+			`OGYGIA_SIM_RUNS=${runs} OGYGIA_BROWSERS=chromium nice -n 10 npx vitest run --project browser`
+	}
+};
+
+/** A suite's failing tests, or null when its run did not finish. */
+function run_suite(box: string, suite: Suite, runs: number, log: string): string[] | null {
+	const dir = join(box, suite.dir);
 	const report = join(dir, 'mutate-report.json');
 	rmSync(report, { force: true });
-	sh(
-		dir,
-		`DST_RUNS=${runs} nice -n 10 npx vitest run --maxWorkers=2 --reporter=json --outputFile=${report}`,
-		log
-	);
+	sh(dir, `${suite.run(runs)} --maxWorkers=2 --reporter=json --outputFile=${report}`, log);
 	return failing_tests(existsSync(report) ? readFileSync(report, 'utf8') : null, dir);
+}
+
+/** The ids of the mutants a `--suite` run's results (`--out` lines) killed. */
+export function killed_in(results: string): Set<string> {
+	const out = new Set<string>();
+	for (const line of results.split('\n')) {
+		if (!line.trim()) continue;
+		const r = JSON.parse(line) as { mutant?: Mutant; killed?: boolean };
+		if (r.killed && r.mutant) out.add(name(r.mutant));
+	}
+	return out;
 }
 
 /** The packages a run's mutants build (each with its dependents): the baseline builds them first,
@@ -384,8 +414,18 @@ function main(): void {
 	if (!sh(dirname(box), clone_command(process.platform, REPO, box), log))
 		throw new Error(`could not clone the repo (${log})`);
 	console.log(`sandbox ${box}; log ${log}; results ${out}`);
-	if (process.argv.includes('--compiler-dst'))
-		return compiler_dst_main(mutants, box, out, log, Number(arg('--dst-runs') ?? 100), deadline);
+	const suite = arg('--suite');
+	if (suite !== undefined) {
+		const s = SUITES[suite];
+		if (!s) throw new Error(`--suite ${suite}: one of ${Object.keys(SUITES).join(', ')}`);
+		const own = mutants.filter((m) => m.file.startsWith(s.files));
+		return suite_main(own, s, box, out, log, Number(arg('--suite-runs') ?? 100), deadline);
+	}
+	const killed_list = arg('--killed');
+	const killed =
+		killed_list && existsSync(killed_list)
+			? killed_in(readFileSync(killed_list, 'utf8'))
+			: new Set<string>();
 
 	// the baseline: each target on the code as it is, built as a mutant's is
 	for (const pkg of baseline_packages(mutants))
@@ -402,7 +442,14 @@ function main(): void {
 	const { run, equivalent } = runnable(mutants);
 	for (const m of equivalent) console.log(`EQUIV    ${name(m)}: ${m.equivalent}`);
 	const judged: Array<{ killed: boolean }> = [];
-	for (const m of run) {
+	for (const m of run.filter((m) => killed.has(name(m)))) {
+		const v = { killed: true, by: [`killed in ${killed_list}`] };
+		judged.push(v);
+		appendFileSync(out, `${JSON.stringify({ mutant: m, killed: true, by: v.by })}\n`);
+		console.log(`KILLED   ${name(m)}: ${v.by[0]}`);
+	}
+	const left = run.filter((m) => !killed.has(name(m)));
+	for (const m of left) {
 		if (Date.now() > deadline) {
 			console.log(`time budget spent: ${judged.length} of ${run.length} mutants judged`);
 			break;
@@ -465,19 +512,20 @@ function main(): void {
 	appendFileSync(out, `${JSON.stringify(t)}\n`);
 }
 
-/** A run on the compiler's simulator: killed by a test that failed on no baseline run, found again
- *  by a second run of the same mutant (the re-run rule), or by a run that did not finish. */
-function compiler_dst_main(
+/** A run on a suite: killed by a test that failed on no baseline run, found again by a second run
+ *  of the same mutant (the re-run rule), or by a run that did not finish. */
+function suite_main(
 	mutants: readonly Mutant[],
+	suite: Suite,
 	box: string,
 	out: string,
 	log: string,
 	runs: number,
 	deadline: number
 ): void {
-	const base = run_compiler_dst(box, runs, log);
-	if (base === null) throw new Error(`the compiler simulator's baseline did not finish (${log})`);
-	console.log(`baseline compiler-dst: ${base.length} failing tests`);
+	const base = run_suite(box, suite, runs, log);
+	if (base === null) throw new Error(`${suite.dir}: the baseline did not finish (${log})`);
+	console.log(`baseline ${suite.dir}: ${base.length} failing tests`);
 	const { run, equivalent } = runnable(mutants);
 	for (const m of equivalent) console.log(`EQUIV    ${name(m)}: ${m.equivalent}`);
 	const judged: Array<{ killed: boolean }> = [];
@@ -497,12 +545,13 @@ function compiler_dst_main(
 			continue;
 		}
 		writeFileSync(file, text);
-		const now = run_compiler_dst(box, runs, log);
-		const again = now === null ? null : run_compiler_dst(box, runs, log);
+		const now = run_suite(box, suite, runs, log);
+		const fresh = now?.filter((t) => !base.includes(t)) ?? [];
+		const again = now === null || fresh.length === 0 ? now : run_suite(box, suite, runs, log);
 		const by =
 			now === null || again === null
-				? ['compiler-dst did not finish']
-				: now.filter((t) => !base.includes(t) && again.includes(t));
+				? [`${suite.dir} did not finish`]
+				: fresh.filter((t) => again.includes(t));
 		const v = { killed: by.length > 0, by };
 		judged.push(v);
 		appendFileSync(

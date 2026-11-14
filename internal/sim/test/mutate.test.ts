@@ -11,7 +11,9 @@ import {
 	clone_command,
 	confirmed,
 	failing_tests,
+	killed_in,
 	package_of,
+	SUITES,
 	runnable,
 	seed_list,
 	tally,
@@ -135,7 +137,7 @@ describe('a mutant', () => {
 
 	it('of the daily list applies to the code as it is', () => {
 		const root = fileURLToPath(new URL('../../../', import.meta.url));
-		// (and the compiler simulator's list, judged with `--compiler-dst`)
+		// (and the compiler simulator's list, judged with `--suite compiler-dst`)
 		const list = ['../mutants.json', '../../compiler-dst/mutants.json'].flatMap(
 			(at) => JSON.parse(readFileSync(new URL(at, import.meta.url), 'utf8')) as Mutant[]
 		);
@@ -257,6 +259,40 @@ describe('a mutation run', () => {
 				m('packages/federation/src/peer.ts')
 			])
 		).toEqual(['packages/core', 'packages/federation']);
+	});
+});
+
+describe('a run on a suite', () => {
+	it("judges the list's mutants of the suite's package, each suite where its package's sources run", () => {
+		const list = JSON.parse(
+			readFileSync(new URL('../mutants.json', import.meta.url), 'utf8')
+		) as Mutant[];
+		const rewrite = list.filter((m) => m.file.startsWith(SUITES['rewrite-browser'].files));
+		expect(rewrite.length).toBeGreaterThan(0);
+		expect(rewrite.every((m) => package_of(m.file) === 'packages/rewrite')).toBe(true);
+		const compiler = JSON.parse(
+			readFileSync(new URL('../../compiler-dst/mutants.json', import.meta.url), 'utf8')
+		) as Mutant[];
+		expect(compiler.every((m) => m.file.startsWith(SUITES['compiler-dst'].files))).toBe(true);
+		expect(SUITES['rewrite-browser'].run(300)).toContain('OGYGIA_SIM_RUNS=300');
+		expect(SUITES['compiler-dst'].run(100)).toContain('DST_RUNS=100');
+	});
+
+	it("names the mutants a suite's results killed, and none it only judged or skipped", () => {
+		const a = {
+			id: 'a',
+			file: 'packages/rewrite/src/pass.ts',
+			in: 'f',
+			code: 'x;',
+			operator: 'statement'
+		};
+		const lines = [
+			{ mutant: a, killed: true, by: ['t'] },
+			{ mutant: { ...a, id: 'b' }, killed: false, by: [] },
+			{ mutant: { ...a, id: 'c' }, skipped: 'gone' },
+			{ killed: 1, judged: 2, equivalent: 0, total: 3, rate: 50, at: '' }
+		];
+		expect([...killed_in(lines.map((l) => JSON.stringify(l)).join('\n'))]).toEqual(['a']);
 	});
 });
 
