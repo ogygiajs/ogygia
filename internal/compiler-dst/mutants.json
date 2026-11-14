@@ -1,5 +1,23 @@
 [
 	{
+		"id": "compiler-entry-refs-unsorted",
+		"file": "packages/compiler/src/driver.ts",
+		"in": "Compiler > entry_locations",
+		"code": "const refs = [...leg.island_entry_refs].sort(by_key);",
+		"operator": "statement",
+		"from": ".sort(by_key)",
+		"to": ""
+	},
+	{
+		"id": "compiler-router-css-unsorted",
+		"file": "packages/compiler/src/link/router-css.ts",
+		"in": "router_css_roots",
+		"code": "return [...roots].sort();",
+		"operator": "statement",
+		"from": ".sort()",
+		"to": ""
+	},
+	{
 		"id": "compiler-island-scan-unsorted",
 		"file": "packages/compiler/src/driver.ts",
 		"in": "Compiler > island_scan_entries",
