@@ -20,7 +20,6 @@ type Fake = {
 	ctx?: Record<string, unknown>;
 	program?: Record<string, unknown>;
 	client?: { name: string; module: string }[];
-	hoists?: Map<string, string>;
 	calls?: string[];
 };
 
@@ -40,7 +39,6 @@ function app(f: Fake = {}): CoreApp {
 			},
 			...f.program
 		},
-		dollar_hoists: f.hoists ?? new Map(),
 		prescan: () => calls.push('prescan'),
 		runtime_chunk_url: () => {
 			calls.push('runtime_chunk_url');
@@ -73,16 +71,6 @@ describe('core’s boot modules', () => {
 		expect(hooks).toContain('from "/pkg/dist/runtime/client-hooks.js"');
 		expect(hooks).toContain('__og_run_client_hooks(() => import("/app/hooks.client.ts"));');
 		expect(load('ogygia:boot/runtime', app())).not.toContain('client-hooks');
-	});
-
-	it('registers og.$ factories from the hoists in dev, and leaves a placeholder for renderChunk in a build', () => {
-		const hoists = new Map([['t1', '() => 1']]);
-		const dev = load('ogygia:boot/fn-manifest', app({ ctx: DEV, hoists }))!;
-		expect(dev).toContain('globalThis.__og_reg_fn = __register_fn;');
-		expect(dev).toContain('"t1"');
-		const build = load('ogygia:boot/fn-manifest', app({ ctx: BUILD, hoists }))!;
-		expect(build.endsWith('/*__OGYGIA_FN_MANIFEST__*/')).toBe(true);
-		expect(build).not.toContain('"t1"');
 	});
 
 	it('picks the boot entry’s features only after every host is prescanned', () => {
@@ -138,13 +126,16 @@ describe('core’s boot modules', () => {
 		fs.rmSync(pkg, { recursive: true });
 	});
 
-	it('imports the og.$ manifest in a build only when a decoder can revive a fn ref (wire, context, Kit transport)', () => {
-		const with_ = (program: Record<string, unknown>) =>
-			load('ogygia:boot/hydrate-features', app({ ctx: BUILD, program }))!.includes('fn-manifest');
-		expect(with_({})).toBe(false);
-		expect(with_({ runtime_marks: { wire: true } })).toBe(true);
-		expect(with_({ runtime_marks: { context: true } })).toBe(true);
-		expect(with_({ crosses_wire: true })).toBe(true);
+	it('leaves the og.$ factories to the page-inline manifest: the browser bundle imports none', () => {
+		for (const program of [
+			{},
+			{ runtime_marks: { wire: true } },
+			{ runtime_marks: { context: true } },
+			{ crosses_wire: true }
+		])
+			expect(load('ogygia:boot/hydrate-features', app({ ctx: BUILD, program }))).not.toMatch(
+				/fn-manifest|__register_fn/
+			);
 	});
 
 	it('re-exports the hydrate features after the runtime flags, which the runtime they import reads back', () => {

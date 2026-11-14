@@ -218,7 +218,6 @@ export interface RouteCsrModule {
  */
 export interface VirtualModules {
 	'ogygia:boot/runtime': SideEffectModule;
-	'ogygia:boot/fn-manifest': SideEffectModule;
 	'ogygia:boot/runtime-entry': SideEffectModule;
 	'ogygia:boot/runtime-flags': RuntimeFlagsModule;
 	'ogygia:boot/hydrate-features': HydrateFeaturesModule;

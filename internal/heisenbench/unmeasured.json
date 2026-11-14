@@ -5225,14 +5225,6 @@
 			"reason": "one patch's text from the chunk's file name, constant work"
 		},
 		{
-			"id": "packages/compiler/src/link/relocations.ts > FN_MANIFEST > value",
-			"reason": "once per chunk that carries the token: a closure over the build's fn hoists, constant work"
-		},
-		{
-			"id": "packages/compiler/src/link/relocations.ts > FN_MANIFEST > value > <anonymous>~787be9",
-			"reason": "the fn manifest's registrations, once per build (fn_manifest_registrations does the work)"
-		},
-		{
 			"id": "packages/compiler/src/link/relocations.ts > ISLAND_DEPS > value",
 			"reason": "once per chunk that carries the token: a closure over the chunk graph, constant work"
 		},
