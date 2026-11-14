@@ -6595,6 +6595,11 @@ describe('the deep pictures on the host: visits, keep, the byte strip, nested tr
 				.map((l) => JSON.parse(l) as { k: string; path: string; ms: number });
 			expect(rows.map((r) => r.path)).toEqual(['/a', '/b']);
 			expect(rows.every((r) => r.k === 'req' && r.ms >= 0)).toBe(true);
+			const failed = await handle({
+				event: make_event('/__profiler/site', { 'x-profiler-key': 'prof-key-of-16-bytes-or-more' }),
+				resolve: async () => new Response('no')
+			});
+			expect(await failed.text()).toContain('last post failed');
 			// the failed post's rows are kept and go again with the next flush
 			fail = false;
 			await new Promise((r) => setTimeout(r, 1300));
