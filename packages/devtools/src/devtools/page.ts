@@ -51,8 +51,9 @@ function fp_drift(nav = 0): FpDrift[] {
 	let store: Record<string, KeptIsland[]> = {};
 	try {
 		store = JSON.parse(sessionStorage.getItem(FPS_KEY) ?? '{}') as Record<string, KeptIsland[]>;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- storage blocked or unreadable: no drift shown, this load starts fresh
 	} catch {
-		store = {}; // ok: storage blocked or unreadable: no drift shown, this load starts fresh
+		store = {};
 	}
 	const drift = fp_compare(store[page] ?? [], now);
 	store[page] = now;
@@ -60,9 +61,8 @@ function fp_drift(nav = 0): FpDrift[] {
 	for (let i = 0; i < pages.length - FPS_PAGES_CAP; i++) delete store[pages[i]];
 	try {
 		sessionStorage.setItem(FPS_KEY, JSON.stringify(store));
-	} catch {
-		// ok: storage full or blocked: the next load compares nothing
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- storage full or blocked: the next load compares nothing
+	} catch {}
 	fps_memo = { at, drift };
 	return drift;
 }
@@ -130,8 +130,9 @@ export function region_facts(): RegionFact[] {
 	const abs = (e: string | null | undefined) => {
 		try {
 			return e ? new URL(e, location.href).href : '';
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: no entry to name
 		} catch {
-			return ''; // ok: not a URL: no entry to name
+			return '';
 		}
 	};
 	for (const r of all_regions()) {
@@ -169,8 +170,7 @@ export function region_facts(): RegionFact[] {
 	return out;
 }
 
-// static: the two wakes that run without a visitor
-const EAGER_WAKES = new Set(['load', 'idle']);
+const EAGER_WAKES: ReadonlySet<string> = new Set(['load', 'idle']);
 /** Each hidden eager island's screen sizes, read once while the page's sheets stay the same (by
  *  fingerprint and sheet count): the regions the dock has looked at, the least recently read first
  *  to go. */
@@ -205,8 +205,9 @@ function shown_under_media(el: Element): string | null {
 	const matches = (sel: string) => {
 		try {
 			return target.matches(sel);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a selector this browser cannot match hides nothing here
 		} catch {
-			return false; // ok: a selector this browser cannot match hides nothing here
+			return false;
 		}
 	};
 	let budget = 20000;
@@ -237,8 +238,9 @@ function shown_under_media(el: Element): string | null {
 		let rules: CSSRuleList;
 		try {
 			rules = sheet.cssRules;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a cross-origin sheet cannot be read; the others still are
 		} catch {
-			continue; // ok: a cross-origin sheet cannot be read; the others still are
+			continue;
 		}
 		const hit = walk(rules, null, null);
 		if (hit) return hit;
@@ -287,7 +289,8 @@ export function vary_of(url: string): string | null {
 function asked<V>(f: Flights<string, V>, key: string): V | null {
 	const e = f.peek(key);
 	if (e?.kind === 'kept') return e.answer;
-	if (e === undefined && !leaving) f.get(key).catch(() => {}); // ok: not answered this time; the next read asks again
+	// oxlint-disable-next-line ogygia/no-silent-failures -- not answered this time; the next read asks again
+	if (e === undefined && !leaving) f.get(key).catch(() => {});
 	return null;
 }
 
@@ -376,8 +379,9 @@ export function hole_waits(since: number = last_nav()?.t ?? -Infinity, fcp = 0):
 		let id = '';
 		try {
 			id = e.endpoint ? (new URL(e.endpoint, location.href).searchParams.get('id') ?? '') : '';
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: the hole goes unnamed
 		} catch {
-			id = ''; // ok: not a URL: the hole goes unnamed
+			id = '';
 		}
 		const rect = el?.getBoundingClientRect();
 		// how long the visitor SAW the fallback: from the first paint (or the hole's own start, when
@@ -438,9 +442,8 @@ function batch_request_start(endpoint: string, sent: number): number {
 		) as PerformanceResourceTiming[])
 			if (r.startTime >= sent - 5 && (!best || r.startTime < best.startTime)) best = r;
 		if (best) return best.requestStart || best.startTime;
-	} catch {
-		// ok: no Resource Timing in this browser: no request start
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no Resource Timing in this browser: no request start
+	} catch {}
 	return sent;
 }
 
@@ -454,8 +457,9 @@ export function hole_batches(since: number = last_nav()?.t ?? -Infinity): HoleBa
 				let id = '';
 				try {
 					id = new URL(ep, location.href).searchParams.get('id') ?? '';
+					// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: named 'a hole' below
 				} catch {
-					id = ''; // ok: not a URL: named 'a hole' below
+					id = '';
 				}
 				return (id && region_names()[id]) || 'a hole';
 			});
@@ -705,8 +709,9 @@ export function unmeasured(cpu_off?: string | null): string[] {
 	let types: readonly string[] = [];
 	try {
 		types = PerformanceObserver.supportedEntryTypes ?? [];
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no PerformanceObserver here: each missing kind is listed below
 	} catch {
-		types = []; // ok: no PerformanceObserver here: each missing kind is listed below
+		types = [];
 	}
 	const out: string[] = [];
 	// (a wake that moved the layout is estimated instead, from each island's box before and after)
@@ -815,7 +820,8 @@ function server_brief(path: string): ServerProfileBrief | undefined {
 			? p.cache_control
 			: undefined;
 	return {
-		ago_min: Math.max(0, (Date.now() - p.at) / 60_000), // wall: a stored profile's epoch time
+		// oxlint-disable-next-line ogygia/ports -- a stored profile's epoch time
+		ago_min: Math.max(0, (Date.now() - p.at) / 60_000),
 		render_ms: p.render_ms,
 		top: said
 			? trim(said)
@@ -844,8 +850,9 @@ function not_restored_reasons(): string[] {
 			.map((r) => String(r?.reason ?? ''))
 			.filter(Boolean)
 			.slice(0, 6);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a browser without the reasons gives none
 	} catch {
-		return []; // ok: a browser without the reasons gives none
+		return [];
 	}
 }
 
@@ -1094,9 +1101,8 @@ export function install_page_hook(): void {
 				const v = read_page();
 				if (v && !v.nav)
 					sessionStorage.setItem(LOAD_KEY + location.pathname, JSON.stringify(snapshot_of(v)));
-			} catch {
-				// ok: no storage: the next load compares nothing
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- no storage: the next load compares nothing
+			} catch {}
 		});
 		// (a page the back-forward cache brings back is here again: its reads ask as before)
 		// oxlint-disable-next-line ogygia/owned-effects -- the document's, installed once beside its pagehide
@@ -1118,8 +1124,9 @@ function previous_load(): LoadSnapshot | null {
 	try {
 		const raw = sessionStorage.getItem(LOAD_KEY + location.pathname);
 		prev_load = raw ? (JSON.parse(raw) as LoadSnapshot) : null;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- storage blocked or unreadable: no last load to compare with
 	} catch {
-		prev_load = null; // ok: storage blocked or unreadable: no last load to compare with
+		prev_load = null;
 	}
 	return prev_load;
 }
@@ -1128,7 +1135,8 @@ function snapshot_of(v: PageView): LoadSnapshot {
 	const name = new Map(v.regions.map((r) => [r.fp, r.name]));
 	return {
 		path: location.pathname,
-		at: Date.now(), // wall: kept across page loads
+		// oxlint-disable-next-line ogygia/ports -- kept across page loads
+		at: Date.now(),
 		// (`dev`: the dev server's own doing — never "new" or "fixed" on the next load)
 		findings: v.report.findings.map((f) => ({
 			code: f.code,

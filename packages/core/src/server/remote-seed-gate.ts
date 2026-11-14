@@ -72,12 +72,13 @@ export async function collect_remote_seed(
 			const promise = opts.memo?.(internals)?.[payload] ?? record[payload]();
 			let resolved = true;
 			await Promise.race([
+				// oxlint-disable-next-line ogygia/no-silent-failures -- an errored remote is left out of the seed; the client fetches it itself and sees its error
 				Promise.resolve(promise).then(
 					(v) => {
 						if (resolved && !opts.skip_value?.(v)) data[bucket][remote_key] = { v };
 					},
 					() => {}
-				), // ok: an errored remote is left out of the seed; the client fetches it itself and sees its error
+				),
 				Promise.resolve().then(() => {
 					resolved = false;
 				})

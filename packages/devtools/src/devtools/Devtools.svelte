@@ -71,8 +71,9 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 	function load_layout() {
 		try {
 			return JSON.parse(localStorage.getItem(LS_KEY) || '{}') || {};
+			// oxlint-disable-next-line ogygia/no-silent-failures -- storage blocked or the saved layout is unreadable: the default layout
 		} catch {
-			return {}; // ok: storage blocked or the saved layout is unreadable: the default layout
+			return {};
 		}
 	}
 	const saved = load_layout();
@@ -100,9 +101,8 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 				LS_KEY,
 				JSON.stringify({ open, launch: launchPos, win: winPos, rz: winResizeOff, size: winSize })
 			);
-		} catch {
-			// ok: private mode or quota: the layout is not kept
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- private mode or quota: the layout is not kept
+		} catch {}
 	}
 
 	// ── neodrag: launcher drags whole; window drags by header, resizes by its edges ─────────────────
@@ -234,7 +234,8 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 			const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
 			const a = document.createElement('a');
 			a.href = url;
-			a.download = `ogygia-trace-${Date.now()}.json`; // wall: a file name that sorts by time
+			// oxlint-disable-next-line ogygia/ports -- a file name that sorts by time
+			a.download = `ogygia-trace-${Date.now()}.json`;
 			a.click();
 			// (the download is the page's, not the dock's: it lets go of the file even if the dock goes)
 			// oxlint-disable-next-line ogygia/owned-effects -- one-shot, ends itself, outlives the dock on purpose
@@ -262,6 +263,7 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 		// the tabs with real names/costs. Best-effort — the endpoint only exists on the dev server (a
 		// build carries its names in the dock's own module: ui-app.ts).
 		if (!LAZY)
+			// oxlint-disable-next-line ogygia/no-silent-failures -- best effort (dev server only): without names the tabs show hashes
 			owner
 				.task((signal) =>
 					fetch('/__ogygia_devtools_meta', { signal }).then((r) => (r.ok ? r.json() : null))
@@ -273,7 +275,7 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 					if (meta.bytes) window.__ogygia_region_bytes = meta.bytes;
 					tick++;
 				})
-				.catch(() => {}); // ok: best effort (dev server only): without names the tabs show hashes
+				.catch(() => {});
 
 		if (startOpen && !open) set_open(true);
 		else if (open) refresh_on();

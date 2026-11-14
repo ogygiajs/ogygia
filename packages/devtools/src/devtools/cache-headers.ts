@@ -62,8 +62,9 @@ export async function probe_cache(doc: Document = document, limit = 40): Promise
 			let res: Response;
 			try {
 				res = await tool_fetch(url, { method: 'HEAD', cache: 'no-store' });
+				// oxlint-disable-next-line ogygia/no-silent-failures -- no answer, nothing known about the file's caching: it is left out
 			} catch {
-				return null; // ok: no answer, nothing known about the file's caching: it is left out
+				return null;
 			}
 			if (!res.ok) return null;
 			return {

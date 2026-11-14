@@ -28,9 +28,10 @@ export function preload(region: unknown): void {
 	// stored: a 204 is the keep-fallback marker, a page or a redirect is refused (nothing stored), and
 	// a renewed capability is the address's.
 	// (the app asked for it now: a warm the region's own `prefetch` has waiting is raised to it)
+	// oxlint-disable-next-line ogygia/no-silent-failures -- a failed warm is harmless; the bound region falls back to its own fetch, which says its failure
 	void ensure(
 		address,
 		(signal) => fetch_hole(url, { signal, renewed: (fresh) => renew(address, fresh) }),
 		{ priority: PRIORITY.user }
-	).catch(() => {}); // ok: a failed warm is harmless; the bound region falls back to its own fetch, which says its failure
+	).catch(() => {});
 }

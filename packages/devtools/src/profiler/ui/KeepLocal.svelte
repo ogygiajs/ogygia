@@ -25,16 +25,18 @@
 			if (!res.ok) throw new Error(String(res.status));
 			const dump = (await res.json()) as { meta: { id: string; created: number; trigger: string } };
 			state_ = (await put_report(dump)) ? 'kept' : 'failed';
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the panel shows that keeping it failed
 		} catch {
-			state_ = 'failed'; // ok: the panel shows that keeping it failed
+			state_ = 'failed';
 		}
 	}
 	const idle = (
 		globalThis as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void }
 	).requestIdleCallback;
-	if (idle) idle(() => void keep(), { timeout: 3000 }); // ok: keep shows its own failure (state 'failed')
-	// oxlint-disable-next-line ogygia/owned-effects -- an island of the report page, as long as the document: keeping the report finishes even as the page goes
-	else setTimeout(() => void keep(), 500); // ok: keep shows its own failure (state 'failed')
+	// oxlint-disable-next-line ogygia/no-silent-failures -- keep shows its own failure (state 'failed')
+	if (idle) idle(() => void keep(), { timeout: 3000 });
+	// oxlint-disable-next-line ogygia/owned-effects, ogygia/no-silent-failures -- an island of the report page, as long as the document: keeping the report finishes even as the page goes; keep shows its own failure (state 'failed')
+	else setTimeout(() => void keep(), 500);
 </script>
 
 <span

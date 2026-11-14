@@ -64,8 +64,9 @@ export class Hmac {
 		const expected = Hmac.sha256(derive_mac_key(secret), message);
 		try {
 			return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(sig, 'hex'));
+			// oxlint-disable-next-line ogygia/no-silent-failures -- buffers that cannot be compared are not a match (fail closed)
 		} catch {
-			return false; // ok: buffers that cannot be compared are not a match (fail closed)
+			return false;
 		}
 	}
 }

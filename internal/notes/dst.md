@@ -10,7 +10,7 @@ works, what is built, and how to add to it.
    goes through a port: `clock` (mono, wall), `timers`, `tasks` (micro, frame, idle), `random`,
    `net` (fetch, stream), `seen` (IntersectionObserver), `storage`. The lint rule `ogygia/ports`
    (internal/lint/plugin.ts) refuses a raw call in package source. A raw call that must stay says
-   why: `// port-ok: <why>`. Build-time code (compiler, Vite plugins, CLI, test tooling) is out of
+   why on the line before: `// oxlint-disable-next-line ogygia/ports -- <why>`. Build-time code (compiler, Vite plugins, CLI, test tooling) is out of
    scope (`.oxlintrc.json`), and so is devtools for now (an instrument the simulated apps do not
    turn on; to fold in).
    - A port reads its realm's platform when called. The simulator gives each realm (a tab's

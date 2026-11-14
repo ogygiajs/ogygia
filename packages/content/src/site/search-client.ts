@@ -62,7 +62,8 @@ export class SearchClient {
 		this.ready = this.#state.wait('ready').then((s) => {
 			if (s === STALE) throw this.#error();
 		});
-		this.ready.catch(() => {}); // ok: the same failure rejects every query, which the palette shows
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the same failure rejects every query, which the palette shows
+		this.ready.catch(() => {});
 
 		worker.onmessage = (e: MessageEvent) => {
 			const m = e.data as { type: string; id?: number; hits?: SearchHit[]; message?: string };

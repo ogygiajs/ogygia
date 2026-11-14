@@ -96,9 +96,10 @@ export function eager_waits_for(p: BrowserPlan, i: number): 'rest' | null {
 async function until_rest(context: BrowserContext, tab: Page, ms: number): Promise<void> {
 	for (let left = ms; left > 0; left -= 10) {
 		const moves =
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a document between loads reads as not at rest yet
 			(await tab
 				.evaluate(() => (window as unknown as { __ogygia_moves?: () => string }).__ogygia_moves?.())
-				.catch(() => '')) ?? ''; // ok: a document between loads reads as not at rest yet
+				.catch(() => '')) ?? '';
 		const last = new Map<string, string>();
 		for (const m of moves.split('\n')) {
 			const at = /^(wake#\d+) \S+ -> (\S+)$/.exec(m);
@@ -179,7 +180,7 @@ export function perf_watch(): void {
 		__sim_perf?: (e: Sent) => Promise<void>;
 		__sim_input?: () => void;
 	};
-	// ok: the replay's own binding: it fails only as its page closes, with nothing left to record
+	// oxlint-disable-next-line ogygia/no-silent-failures -- the replay's own binding: it fails only as its page closes, with nothing left to record
 	const send = (e: Sent) => void w.__sim_perf?.({ ...e, url: location.href });
 	const now = () => new PerformanceMark('sim').startTime;
 	let parsed = false;
@@ -224,9 +225,8 @@ export function perf_watch(): void {
 				});
 			}
 		}).observe({ type: 'layout-shift', buffered: true });
-	} catch {
-		// ok: an engine with no layout-shift entries (the run notes none)
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- an engine with no layout-shift entries (the run notes none)
+	} catch {}
 	try {
 		// oxlint-disable-next-line ogygia/owned-effects -- runs in the replayed page (an init script, no imports): the document's record for its whole life
 		new PerformanceObserver((list) => {
@@ -246,9 +246,8 @@ export function perf_watch(): void {
 							fn: s.sourceFunctionName
 						});
 		}).observe({ type: 'long-animation-frame', buffered: true });
-	} catch {
-		// ok: an engine with no long-animation-frame entries
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- an engine with no long-animation-frame entries
+	} catch {}
 }
 
 /** The plans SIM_PLANS names, read. */
@@ -348,7 +347,8 @@ async function hover_nth(page: Page, nth: number): Promise<void> {
 		return 0;
 	}, nth);
 	if (index === -1) return;
-	await page.hover('[data-sim-hover]').catch(() => {}); // ok: an element with no box cannot be pointed at
+	// oxlint-disable-next-line ogygia/no-silent-failures -- an element with no box cannot be pointed at
+	await page.hover('[data-sim-hover]').catch(() => {});
 	await page.evaluate(() =>
 		document.querySelector('[data-sim-hover]')?.removeAttribute('data-sim-hover')
 	);
@@ -438,10 +438,11 @@ async function play(
 		for (const t of tabs)
 			each.push({
 				url: t.url(),
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a tab on the browser's error page, or between documents
 				dom: await t
 					.evaluate(`(${snapshot.toString()})(document)`)
 					.then(String)
-					.catch(() => ''), // ok: a tab on the browser's error page, or between documents
+					.catch(() => ''),
 				moves: (await moves(t)) ?? '',
 				heard: (heard.get(t) ?? []).splice(0),
 				said: (said.get(t) ?? []).splice(0)
@@ -489,9 +490,10 @@ async function play(
 		const tab = 'tab' in a ? tabs[a.tab % tabs.length] : page;
 		// (what the visitor does next is input: a shift it causes is the visitor's, not a region's)
 		if (chromium)
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a tab on the browser's error page has no observers
 			await tab
 				.evaluate(() => (window as unknown as { __sim_input?: () => void }).__sim_input?.())
-				.catch(() => {}); // ok: a tab on the browser's error page has no observers
+				.catch(() => {});
 		switch (a.kind) {
 			case 'click':
 				await nth_of(tab, LINKS, a.nth);
@@ -600,10 +602,11 @@ async function play(
 		const owned = new Map<string, boolean>();
 		for (const e of perf)
 			if (e.kind === 'task' && !owned.has(e.source)) {
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a source that cannot be fetched is judged by its URL alone
 				const text = await context.request
 					.get(e.source)
 					.then((r) => r.text())
-					.catch(() => ''); // ok: a source that cannot be fetched is judged by its URL alone
+					.catch(() => '');
 				owned.set(e.source, /\/og-runtime-/.test(e.source) || text.includes('ogygiajs.dev/e/'));
 			}
 		const { noted, failing } = judge_perf(perf, (u) => owned.get(u) === true);

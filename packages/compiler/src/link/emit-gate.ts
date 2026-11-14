@@ -68,8 +68,9 @@ export function parse_server_handoff(json: string): ServerHandoff {
 export function read_server_handoff(out_dir: string): ServerHandoff | null {
 	try {
 		return parse_server_handoff(fs.readFileSync(server_handoff_path(out_dir), 'utf8'));
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no server leg ran before this one (or it died mid-write: emit everything)
 	} catch {
-		return null; // ok: no server leg ran before this one (or it died mid-write: emit everything)
+		return null;
 	}
 }
 

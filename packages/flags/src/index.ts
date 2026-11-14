@@ -217,17 +217,19 @@ function emit_exposure(e: ExposureEvent): void {
 	const now = _exposures.now;
 	if (now.kind === 'buffering') {
 		now.queue.push(e);
-		if (now.queue.length >= _batch.max) void send(); // ok: send never rejects (a sink failure is said as flags_exposure_failed)
+		// oxlint-disable-next-line ogygia/no-silent-failures -- send never rejects (a sink failure is said as flags_exposure_failed)
+		if (now.queue.length >= _batch.max) void send();
 		return;
 	}
 	_exposures.go('buffering', { queue: [e] });
 	if (_batch.max <= 1) {
-		void send(); // ok: send never rejects
+		// oxlint-disable-next-line ogygia/no-silent-failures -- send never rejects
+		void send();
 		return;
 	}
 	// the age cap, for this visit of `buffering` only: a send or a flush clears it
-	// oxlint-disable-next-line ogygia/owned-effects -- the buffering visit's (its scope clears it, below), but a bare timer: it holds the process open until the queued exposures are sent, which a scope's timer does not
-	const timer = timers.keep(() => void send(), _batch.ms); // ok: send never rejects
+	// oxlint-disable-next-line ogygia/owned-effects, ogygia/no-silent-failures -- the buffering visit's (its scope clears it, below), but a bare timer: it holds the process open until the queued exposures are sent, which a scope's timer does not; send never rejects
+	const timer = timers.keep(() => void send(), _batch.ms);
 	_exposures.scope.defer(() => timers.cancel(timer));
 }
 
@@ -576,7 +578,8 @@ export function flag(
 function now(): number {
 	try {
 		return clock.wall(); // wall: an exposure's timestamp, sent to the analytics sink
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no clock in this sandbox: exposure timestamps are 0 (said above)
 	} catch {
-		return 0; // ok: no clock in this sandbox: exposure timestamps are 0 (said above)
+		return 0;
 	}
 }

@@ -96,9 +96,8 @@ export function session_timeline(s: SessionData, names: (fp: string) => string):
 		let path = r.url;
 		try {
 			path = new URL(r.url).pathname;
-		} catch {
-			// ok: not a URL: the raw string is kept
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: the raw string is kept
+		} catch {}
 		return {
 			t0: r.t - z,
 			t1: r.t - z + r.ms,
@@ -229,8 +228,9 @@ const path_of = (u: string) => {
 	try {
 		const x = new URL(u);
 		return x.pathname + (x.search.length > 1 ? x.search.slice(0, 40) : '');
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: shown as given
 	} catch {
-		return u; // ok: not a URL: shown as given
+		return u;
 	}
 };
 
@@ -238,8 +238,9 @@ const path_of = (u: string) => {
 function same_origin_get(url: string, page_url: string): boolean {
 	try {
 		return new URL(url).origin === new URL(page_url).origin && !url.includes('/__profiler');
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: not one the profiler can render
 	} catch {
-		return false; // ok: not a URL: not one the profiler can render
+		return false;
 	}
 }
 

@@ -152,9 +152,8 @@ function styles_the_panel(
 					return;
 				}
 				if (panel.querySelector(m)) in_panel = true;
-			} catch {
-				// ok: a selector this browser cannot query matches nothing
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a selector this browser cannot query matches nothing
+			} catch {}
 		}
 	});
 	return in_panel;
@@ -296,10 +295,11 @@ export async function scan_unscoped(
 		const href = sheet.href;
 		if (new URL(href, location.href).origin !== location.origin) continue;
 		jobs.push(
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a sheet that cannot be fetched is left out of the report
 			tool_fetch(href, { cache: 'force-cache' })
 				.then((r) => (r.ok ? r.text() : ''))
 				.then((css) => add(css, file_of(href)))
-				.catch(() => {}) // ok: a sheet that cannot be fetched is left out of the report
+				.catch(() => {})
 		);
 	}
 	await Promise.all(jobs);

@@ -946,8 +946,9 @@ async function summarize_call(
 		let resolved: { id: string } | null | undefined;
 		try {
 			resolved = await resolve(specifier, from);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- unresolved answers 'all' just below, with the reason in the build report
 		} catch {
-			resolved = null; // ok: unresolved answers 'all' just below, with the reason in the build report
+			resolved = null;
 		}
 		if (!resolved?.id)
 			return { keys: 'all', why: `\`${specifier}\` could not be resolved from the caller` };
@@ -997,7 +998,8 @@ function is_reexport(s: ExportSummary): s is { follow: string[]; imported: strin
 export function read_file_sync(file: string): string | null {
 	try {
 		return fs.readFileSync(file, 'utf8');
+		// oxlint-disable-next-line ogygia/no-silent-failures -- an unreadable helper answers 'all' in summarize_call, with the reason
 	} catch {
-		return null; // ok: an unreadable helper answers 'all' in summarize_call, with the reason
+		return null;
 	}
 }

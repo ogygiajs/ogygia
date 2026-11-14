@@ -22,8 +22,9 @@ function priority_of(link: HTMLLinkElement): Priority {
 function absolute(href: string, base: string): string | null {
 	try {
 		return new URL(href, base).href;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: no preload for it
 	} catch {
-		return null; // ok: not a URL: no preload for it
+		return null;
 	}
 }
 

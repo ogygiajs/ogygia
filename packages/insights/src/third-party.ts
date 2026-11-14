@@ -120,8 +120,9 @@ interface Res {
 function host_of(url: string): string {
 	try {
 		return new URL(url).host;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: no host to group by
 	} catch {
-		return ''; // ok: not a URL: no host to group by
+		return '';
 	}
 }
 

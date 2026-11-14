@@ -162,9 +162,8 @@ export function byte_strip(html: string): ByteStrip {
 				label: r.attrs[OG_FP] ?? r.attrs.entry ?? r.attrs.name
 			});
 		}
-	} catch {
-		// ok: a scanner that throws on a broken document leaves the strip to the regexes
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a scanner that throws on a broken document leaves the strip to the regexes
+	} catch {}
 	spans.sort((a, b) => a.start - b.start || b.end - a.end);
 	// drop spans inside an earlier one (a script inside an island is the island's bytes), fill gaps
 	const head = next_tag(html, 'head', 0);

@@ -71,8 +71,9 @@ export function testing_lean(): boolean {
 			lean_in(document.cookie) ||
 			new URL(location.href).searchParams.get(TESTING_PARAM) === TESTING_LEAN
 		);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- off the browser, or cookies blocked: not lean
 	} catch {
-		return false; // ok: off the browser, or cookies blocked: not lean
+		return false;
 	}
 }
 
@@ -88,8 +89,9 @@ export const SWITCH_COOKIE_OPTIONS: {
 export function devtools_switched_on(): boolean {
 	try {
 		return switch_on_in(document.cookie);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- off the browser, or cookies blocked, as said above
 	} catch {
-		return false; // ok: off the browser, or cookies blocked, as said above
+		return false;
 	}
 }
 
@@ -99,7 +101,6 @@ export function write_switch(on: boolean): void {
 		document.cookie = on
 			? `${DEVTOOLS_COOKIE}=${DEVTOOLS_ON}; path=/; max-age=${MAX_AGE}; samesite=lax`
 			: `${DEVTOOLS_COOKIE}=; path=/; max-age=0; samesite=lax`;
-	} catch {
-		// ok: cookies off: nothing remembers the switch past this page
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- cookies off: nothing remembers the switch past this page
+	} catch {}
 }

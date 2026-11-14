@@ -208,8 +208,9 @@ export function standalone_beacon(): void {
 		if (!raw) return null;
 		try {
 			return new URL(raw, location.href).origin === location.origin ? raw : null;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- an address that does not parse is no target
 		} catch {
-			return null; // ok: an address that does not parse is no target
+			return null;
 		}
 	})();
 	const landing = location.pathname;
@@ -284,8 +285,9 @@ export function standalone_beacon(): void {
 	const supports = (type: string) => {
 		try {
 			return (PerformanceObserver.supportedEntryTypes ?? []).includes(type);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no PerformanceObserver here: that kind is not measured
 		} catch {
-			return false; // ok: no PerformanceObserver here: that kind is not measured
+			return false;
 		}
 	};
 	const nav_entry = () => {
@@ -293,8 +295,9 @@ export function standalone_beacon(): void {
 			return performance.getEntriesByType('navigation')[0] as
 				| PerformanceNavigationTiming
 				| undefined;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no navigation timing in this browser: the visit goes without it
 		} catch {
-			return undefined; // ok: no navigation timing in this browser: the visit goes without it
+			return undefined;
 		}
 	};
 	const fp_of = (node: unknown): string | undefined => {
@@ -443,7 +446,7 @@ export function standalone_beacon(): void {
 			if (raw === 'plaintext') i = n;
 			else if (RAW_TEXT.includes(raw)) {
 				// (its text runs to `</name` followed by a space, `/` or `>`)
-				// markup-ok: core's walk, copied (inlined by toString(), it imports nothing; parity test)
+				// oxlint-disable-next-line ogygia/one-markup-walk -- core's walk, copied (inlined by toString(), it imports nothing; parity test)
 				let close = s.indexOf('</', end);
 				while (close !== -1) {
 					const after = close + 2 + raw.length;
@@ -453,7 +456,8 @@ export function standalone_beacon(): void {
 						(t === undefined || t === '>' || t === '/' || SPACE.includes(t))
 					)
 						break;
-					close = s.indexOf('</', close + 2); // markup-ok: the copy above
+					// oxlint-disable-next-line ogygia/one-markup-walk -- the copy above
+					close = s.indexOf('</', close + 2);
 				}
 				i = close === -1 ? n : close;
 			}
@@ -493,7 +497,7 @@ export function standalone_beacon(): void {
 				const start = p[k + 1];
 				if (p[k] === 3 && html.startsWith('<!--', start)) continue;
 				if (p[k] === 0 && p[k + 4] === 0) {
-					// markup-ok: core's without_comments, copied: an unclosed comment runs to the end
+					// oxlint-disable-next-line ogygia/one-markup-walk -- core's without_comments, copied: an unclosed comment runs to the end
 					const open = html.indexOf('<!--', start);
 					if (open !== -1 && open < p[k + 2]) {
 						out += html.slice(start, open);
@@ -521,7 +525,7 @@ export function standalone_beacon(): void {
 		at += 7;
 		const end = endpoint.indexOf('&', at);
 		const payload = endpoint.slice(at, end === -1 ? endpoint.length : end);
-		// hash: core's hole_copy_of, copied: this script is inlined by toString and can import nothing
+		// oxlint-disable-next-line ogygia/one-hash -- core's hole_copy_of, copied: this script is inlined by toString and can import nothing
 		let h = 0x811c9dc5;
 		for (let i = 0; i < payload.length; i++) {
 			h ^= payload.charCodeAt(i);
@@ -566,9 +570,8 @@ export function standalone_beacon(): void {
 				...(type === 'event' ? { durationThreshold: 16 } : {})
 			} as PerformanceObserverInit);
 			observers.push(po);
-		} catch {
-			// ok: an entry type this browser does not have: its numbers are left out
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- an entry type this browser does not have: its numbers are left out
+		} catch {}
 	}
 
 	function observe(): void {
@@ -580,9 +583,8 @@ export function standalone_beacon(): void {
 		});
 		try {
 			performance.setResourceTimingBufferSize(MAX_SEEN_RESOURCES);
-		} catch {
-			// ok: a browser that cannot grow the buffer keeps its default
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a browser that cannot grow the buffer keeps its default
+		} catch {}
 		watch('resource', (es) => {
 			for (const e of es)
 				if (seen.length < MAX_SEEN_RESOURCES) seen.push(e as unknown as PerformanceResourceTiming);
@@ -789,23 +791,24 @@ export function standalone_beacon(): void {
 		const release = () => {
 			queued = Math.max(0, queued - bytes);
 		};
-		if (settled) void settled.finally(release); // ok: settled never rejects (its catch is the post's)
+		// oxlint-disable-next-line ogygia/no-silent-failures -- settled never rejects (its catch is the post's)
+		if (settled) void settled.finally(release);
 		// oxlint-disable-next-line ogygia/owned-effects -- inline script, no imports: one-shot, ends the task that sent the beacon
 		else setTimeout(release, 0);
 	}
 	function post(body: string, keepalive: boolean): void {
 		try {
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a dropped beacon is a missing measurement, never a page error
 			const settled = fetch(target!, {
 				method: 'POST',
 				body,
 				keepalive,
 				credentials: 'same-origin',
 				headers: { 'content-type': 'text/plain' }
-			}).catch(() => {}); // ok: a dropped beacon is a missing measurement, never a page error
+			}).catch(() => {});
 			if (keepalive) hold(body.length, settled);
-		} catch {
-			// ok: no fetch in this browser: no beacon
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no fetch in this browser: no beacon
+		} catch {}
 	}
 	function send(body: string, slim?: () => string): void {
 		if (!target) return;
@@ -818,9 +821,8 @@ export function standalone_beacon(): void {
 		}
 		try {
 			if (navigator.sendBeacon?.(target, body)) return hold(body.length);
-		} catch {
-			// ok: no sendBeacon; the fetch below sends it
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no sendBeacon; the fetch below sends it
+		} catch {}
 		post(body, true);
 	}
 
@@ -917,9 +919,8 @@ export function standalone_beacon(): void {
 			if (end === -1) break;
 			try {
 				urls.push(new URL(unquote(src.slice(at + 4, end)), base).href);
-			} catch {
-				// ok: not a URL, so not a file the page loaded
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL, so not a file the page loaded
+			} catch {}
 			at = src.indexOf('url(', end);
 		}
 		return urls;
@@ -936,8 +937,9 @@ export function standalone_beacon(): void {
 			let rules: CSSRuleList;
 			try {
 				rules = sheet.cssRules;
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a cross-origin sheet cannot be read
 			} catch {
-				continue; // ok: a cross-origin sheet cannot be read
+				continue;
 			}
 			for (const rule of rules) {
 				if (out.length >= 12) return out;
@@ -1193,9 +1195,8 @@ export function standalone_beacon(): void {
 				link_as.set(l.href, l.getAttribute('as') ?? 'script');
 				link_co.set(l.href, l.getAttribute('crossorigin'));
 			}
-		} catch {
-			// ok: no document: nothing of it to read
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no document: nothing of it to read
+		} catch {}
 		const type_of = (r: PerformanceResourceTiming) => resource_type(r, link_as);
 		const preload_misses: Visit[] = [];
 		let resources: Visit[] = [];
@@ -1271,9 +1272,8 @@ export function standalone_beacon(): void {
 						entry: el.getAttribute('entry')!,
 						...(hole ? { hole: hole.slice(0, 40) } : {})
 					});
-				} catch {
-					// ok: not a URL, so not a file the page loaded
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL, so not a file the page loaded
+				} catch {}
 			}
 			const runtime_src =
 				// oxlint-disable-next-line ogygia/markup-from-vocabulary -- inlined through toString(): it names nothing outside itself
@@ -1330,8 +1330,9 @@ export function standalone_beacon(): void {
 				...(r.decodedBodySize ? { size: r.decodedBodySize } : {}),
 				...(blocking(r) ? { blocking: true } : {})
 			}));
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no resource timing in this browser: the visit is sent without it
 		} catch {
-			resources = []; // ok: no resource timing in this browser: the visit is sent without it
+			resources = [];
 		}
 		let fonts: { family: string; display: string; urls: string[] }[] = [];
 		let oversized: Visit[] = [];
@@ -1348,9 +1349,8 @@ export function standalone_beacon(): void {
 			unsized = images_unsized();
 			dom = dom_shape();
 			wasted = preloads_never_used(nav.loadEventEnd);
-		} catch {
-			// ok: no document: nothing of it to read
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no document: nothing of it to read
+		} catch {}
 		const { held, ...regions } = part?.visit() ?? { islands: [] };
 		const dock_open_at = g[Symbol.for('ogygia.dock-open-at')];
 		return {
@@ -1516,9 +1516,8 @@ export function standalone_beacon(): void {
 					for (const k of all.slice(0, Math.max(0, all.length - 30))) store.delete(k);
 				};
 			};
-		} catch {
-			// ok: no IndexedDB here: the visit is not kept in this browser
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no IndexedDB here: the visit is not kept in this browser
+		} catch {}
 	}
 
 	function flush_visit(final: boolean): void {
@@ -1535,13 +1534,14 @@ export function standalone_beacon(): void {
 					});
 		});
 		const at = visit.at as number;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects (a browser store it cannot open keeps nothing)
 		void store_visit({
 			key: `${landing}|${at}`,
 			page: landing,
 			at,
 			visit,
 			snapshots: part?.snapshots(final) ?? []
-		}); // ok: never rejects (a browser store it cannot open keeps nothing)
+		});
 	}
 
 	function make_profiler(): SelfProfiler | null {
@@ -1576,7 +1576,8 @@ export function standalone_beacon(): void {
 			if ((part?.waking(now) ?? false) && now - cpu_started_at < CPU_WINDOW_MAX_MS)
 				// oxlint-disable-next-line ogygia/owned-effects -- inline script, no imports: the load trace's check ends itself at the cap
 				setTimeout(check, CPU_QUIET_MS);
-			else void flush_cpu(false); // ok: never rejects (a sampler that cannot stop has no trace)
+			// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects (a sampler that cannot stop has no trace)
+			else void flush_cpu(false);
 		};
 		// oxlint-disable-next-line ogygia/owned-effects -- inline script, no imports: the load trace's check ends itself at the cap
 		setTimeout(check, CPU_WINDOW_MS);
@@ -1589,8 +1590,9 @@ export function standalone_beacon(): void {
 		let trace: unknown;
 		try {
 			trace = await p.stop();
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the profiler would not stop: the visit is kept without its load trace
 		} catch {
-			return; // ok: the profiler would not stop: the visit is kept without its load trace
+			return;
 		}
 		if (off || !trace) return;
 		keep_trace({ trace, from: cpu_started_at, to: performance.now(), label: 'page load' });
@@ -1601,8 +1603,8 @@ export function standalone_beacon(): void {
 		if (icpu || icpu_done || off) return;
 		icpu = make_profiler();
 		if (!icpu) return;
-		// oxlint-disable-next-line ogygia/owned-effects -- inline script, no imports: the interaction trace's cap, cleared as it stops
-		icpu_timer = setTimeout(() => void stop_interaction_cpu(false), ICPU_MAX_MS); // ok: never rejects
+		// oxlint-disable-next-line ogygia/owned-effects, ogygia/no-silent-failures -- inline script, no imports: the interaction trace's cap, cleared as it stops; never rejects
+		icpu_timer = setTimeout(() => void stop_interaction_cpu(false), ICPU_MAX_MS);
 	}
 	function interaction_seen(i: Interaction): void {
 		if (!icpu || icpu_caught || i.ms < ICPU_SLOW_MS) return;
@@ -1613,8 +1615,8 @@ export function standalone_beacon(): void {
 			handler: [handlers_at, handlers_at + i.processing]
 		};
 		if (icpu_timer) clearTimeout(icpu_timer);
-		// oxlint-disable-next-line ogygia/owned-effects -- inline script, no imports: the interaction trace's end, cleared as it stops
-		icpu_timer = setTimeout(() => void stop_interaction_cpu(false), 300); // ok: never rejects
+		// oxlint-disable-next-line ogygia/owned-effects, ogygia/no-silent-failures -- inline script, no imports: the interaction trace's end, cleared as it stops; never rejects
+		icpu_timer = setTimeout(() => void stop_interaction_cpu(false), 300);
 	}
 	async function stop_interaction_cpu(hiding: boolean): Promise<void> {
 		if (!icpu) return;
@@ -1626,8 +1628,9 @@ export function standalone_beacon(): void {
 		let trace: unknown;
 		try {
 			trace = await p.stop();
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the profiler would not stop: this interaction goes without a trace
 		} catch {
-			return; // ok: the profiler would not stop: this interaction goes without a trace
+			return;
 		}
 		let caught = icpu_caught;
 		if (off || !trace || !caught) return;
@@ -1693,9 +1696,8 @@ export function standalone_beacon(): void {
 				);
 			// oxlint-disable-next-line ogygia/owned-effects -- inline script, no imports: once per document, a one-shot whose re-send is the visit's own
 			else addEventListener('load', () => setTimeout(resend_soon, 1700), { once: true });
-		} catch {
-			// ok: no document: nothing of it to read
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no document: nothing of it to read
+		} catch {}
 	}
 
 	function hide(): void {
@@ -1714,8 +1716,10 @@ export function standalone_beacon(): void {
 		} finally {
 			leaving = false;
 		}
-		void flush_cpu(true); // ok: never rejects (a sampler that cannot stop has no trace)
-		void stop_interaction_cpu(true); // ok: never rejects (a sampler that cannot stop has no trace)
+		// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects (a sampler that cannot stop has no trace)
+		void flush_cpu(true);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects (a sampler that cannot stop has no trace)
+		void stop_interaction_cpu(true);
 	}
 	function show(): void {
 		if (visit_state === 'sent') visit_state = 'reopened';
@@ -1744,16 +1748,15 @@ export function standalone_beacon(): void {
 		for (const o of observers) {
 			try {
 				o.disconnect();
-			} catch {
-				// ok: already disconnected
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- already disconnected
+			} catch {}
 		}
 		for (const p of [cpu, icpu]) {
 			try {
-				p?.stop().catch(() => {}); // ok: the beacon is ending; its trace is not wanted
-			} catch {
-				// ok: already stopped
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the beacon is ending; its trace is not wanted
+				p?.stop().catch(() => {});
+				// oxlint-disable-next-line ogygia/no-silent-failures -- already stopped
+			} catch {}
 		}
 		cpu = icpu = null;
 		if (icpu_timer) clearTimeout(icpu_timer);
@@ -1820,8 +1823,9 @@ export function standalone_beacon(): void {
 			try {
 				keep_trace({ trace: await p.stop(), from, to: performance.now(), label });
 				return true;
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the caller is told no trace was kept
 			} catch {
-				return false; // ok: the caller is told no trace was kept
+				return false;
 			}
 		},
 		keep_traces() {

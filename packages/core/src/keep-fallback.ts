@@ -30,9 +30,8 @@ export function keepFallback(): never {
 	let inline = false;
 	try {
 		inline = isHoleInline();
-	} catch {
-		// ok: outside component init (after an await on some runtimes): no context to read, so the signal path below
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- outside component init (after an await on some runtimes): no context to read, so the signal path below
+	} catch {}
 	// (a misplaced keepFallback() fails with a real error, not the signal)
 	if (inline) throw new OgygiaError('keep_fallback_inline');
 	throw new KeepFallbackSignal();
