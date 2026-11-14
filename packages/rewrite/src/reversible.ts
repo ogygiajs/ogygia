@@ -410,14 +410,25 @@ function implied_close(stack: Stack<{ name: string }>, name: string): number {
 
 /** The page's open elements around a matched element, as the parser keeps them: what
  *  {@link settle} needs (its `context`) to know a render's tag the page would restructure. */
-export type PageTags = Stack<{ name: string }>;
+export type PageTags = Stack<{ name: string; shadow?: true }>;
 
-/** A start tag of the page: the parser's implied closes, then the element opened. */
-export function page_open(tags: PageTags, name: string, self: boolean): void {
+/** A start tag of the page, its name ending at `name_end`: the parser's implied closes, then the
+ *  element opened (a `<template shadowrootmode>` marked `shadow`: a declarative shadow root). */
+export function page_open(
+	tags: PageTags,
+	html: string,
+	name: string,
+	name_end: number,
+	self: boolean
+): void {
 	const close = implied_close(tags, name);
 	if (close === DROP) return;
 	if (close !== -1) cut(tags, close);
-	if (!VOID.has(name) && !self) push(tags, { name });
+	if (VOID.has(name) || self) return;
+	if (name === 'template')
+		for (const a of parse_attrs(html, name_end))
+			if (a.name === 'shadowrootmode') return push(tags, { name, shadow: true });
+	push(tags, { name });
 }
 
 /** An end tag of the page. */
