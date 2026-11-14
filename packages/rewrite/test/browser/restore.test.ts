@@ -6,7 +6,8 @@
 // component's constructor made.
 import { afterEach, expect, test, vi } from 'vitest';
 import { check_script, STAND_IN_TAGS, transformMarkup } from '../../src/reversible.ts';
-import { restore, restore_adopt } from '../../src/restore.ts';
+import { isScriptUrl } from '@ogygia/core/plugin/utils';
+import { restore, restore_adopt, restore_with } from '../../src/restore.ts';
 import { fake_scoped } from '../fixtures/fake-scoped-render.ts';
 import { init_shadow_registries } from '../../../core/src/runtime/html-sink.ts';
 
@@ -128,6 +129,23 @@ test('a host’s attribute reset (`og-r`) never sets an on* handler or a javascr
 	expect(host.getAttribute('online')).toBe('');
 	expect(host.getAttribute('once')).toBe('true');
 	expect(host.getAttribute('onfoo')).toBe('x');
+});
+
+test('a host’s attribute reset (`og-r`) never sets a data: URL, which html.ts refuses too', async () => {
+	await served('<demo-card class="own"> hi </demo-card>');
+	document.querySelector('demo-card')!.setAttribute(
+		'og-r',
+		JSON.stringify({
+			href: 'data:text/html,<script>window.__og_ran++</script>',
+			src: ' DATA:text/html;base64,PHNjcmlwdD48L3NjcmlwdD4=',
+			title: 'kept'
+		})
+	);
+	restore(document);
+	const host = document.querySelector('demo-card')!;
+	expect(host.hasAttribute('href')).toBe(false);
+	expect(host.hasAttribute('src')).toBe(false);
+	expect(host.getAttribute('title')).toBe('kept');
 });
 
 test('a stand-in keeps the parser from splitting the page’s link, and becomes a real <a> in the tree', async () => {
@@ -821,7 +839,9 @@ test('putting attributes back never adds an event handler, a srcdoc or a javascr
 test('self-contained: the function source runs on its own (the handle inlines it)', async () => {
 	await served('<demo-card class="own"> inline </demo-card>');
 	// oxlint-disable-next-line typescript/no-implied-eval -- the test proves the function's own source runs with no module scope
-	const standalone = new Function(`return (${restore.toString()})`)() as typeof restore;
-	expect(standalone(document)).toBe(1);
+	const standalone = new Function(
+		`return [(${restore_with.toString()}), (${isScriptUrl.toString()})]`
+	)() as [typeof restore_with, typeof isScriptUrl];
+	expect(standalone[0](standalone[1], document)).toBe(1);
 	expect(document.querySelector('demo-card')!.innerHTML).toBe(' inline ');
 });

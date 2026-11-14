@@ -12,6 +12,9 @@ export { escape_text as escapeText } from '../escape.ts';
 /** Code written inline in a `<script>`: its text made to hold no `</script` and no `<!--`, so the
  *  element ends where it should (what `script()` does for ogygia's own inline code). */
 export { close_safe as closeSafe } from '../script.ts';
+/** Whether a URL is one a browser would run as script (`javascript:`, `vbscript:`, `data:`), its
+ *  scheme read as the URL parser reads it. Self-contained: its source runs as is. */
+export { is_script_url as isScriptUrl } from '../script-url.ts';
 /** The regex `\s` over one char code: ASCII whitespace and the Unicode spaces. */
 export { is_space as isSpace } from '../server/html-scan.ts';
 /** HTML from a template, each value escaped for where it sits (text, a quoted attribute, a URL

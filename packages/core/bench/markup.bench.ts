@@ -21,6 +21,7 @@ import { markup_tokens, next_tag, read_tag, tags, text_of } from '../src/wire-ma
 import { attr_changes } from '../src/contract/markup-text.ts';
 import { document, head, hole_answer } from './fixtures.ts';
 import { attr, decode_text, html, trusted_html } from '../src/html.ts';
+import { is_script_url } from '../src/script-url.ts';
 
 bench(
 	'head: dedupe repeated hints and sheets, then put the runtime first',
@@ -194,6 +195,19 @@ bench(
 );
 
 bench(
+	'script URLs: the links of a CMS page, paths, full URLs, mail and script, each one read',
+	({ urls }) => {
+		let n = 0;
+		for (const u of urls) if (is_script_url(u)) n++;
+		return n;
+	},
+	{
+		setup: () => ({ urls: links(200) }),
+		scale: (_ctx, k) => ({ urls: links(200 * k) })
+	}
+);
+
+bench(
 	'tags: every region start tag of a document, read past its scripts, styles and comments',
 	({ html }) => {
 		let n = 0;
@@ -223,4 +237,20 @@ function cards(n: number): { id: string; href: string; title: string }[] {
 			? { id: `c"${i}<`, href: `/p?a=${i}&b="x"`, title: `Tom & Jerry <${i}> 'q'` }
 			: { id: `c${i}`, href: `/p/${i}`, title: `Card ${i}` }
 	);
+}
+
+/** `n` link values as a CMS page holds them: mostly paths and full URLs, some mail and phone, a few
+ *  script URLs (one hidden behind a tab). */
+function links(n: number): string[] {
+	const kinds = [
+		(i: number) => `/section/${i}/page`,
+		(i: number) => `https://cdn.example.com/img/${i}.png`,
+		(i: number) => `#part-${i}`,
+		(i: number) => `mailto:team${i}@example.com`,
+		(i: number) => `tel:+1555010${i % 10}`,
+		(i: number) => `page-${i}.html`,
+		(i: number) => `javascript:void(${i})`,
+		(i: number) => ` java\tscript:x${i}`
+	];
+	return Array.from({ length: n }, (_, i) => kinds[i % kinds.length]!(i));
 }

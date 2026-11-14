@@ -114,6 +114,7 @@ import { end_request_scope, own_response, request_scope } from './plugin/request
 import { register_wire_kind } from './live-transport.ts';
 import { register_store_kind, register_derived_kind } from './store-transport.ts';
 import { register_snippet_kind } from './region-snippet.ts';
+import { SnippetRender } from './snippet-render.ts';
 import { register_fn_kind } from './fn-transport.ts';
 import {
 	capability_query,
@@ -358,6 +359,7 @@ set_kit_page_reader(() => {
 	const bag = bag_of();
 	return render_page(bag ? (bag.page ?? {}) : undefined, live_event() ?? undefined);
 });
+SnippetRender.install();
 set_late_scope_opener(() => {
 	const bag = bag_of();
 	if (bag) bag.late ??= { regions: [], next: 0 };

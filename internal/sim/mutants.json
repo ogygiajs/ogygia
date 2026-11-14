@@ -197,7 +197,7 @@
 	{
 		"id": "reshape-children-not-put-back",
 		"file": "packages/rewrite/src/restore.ts",
-		"in": "restore",
+		"in": "restore_with",
 		"code": "host.appendChild(c.node);",
 		"operator": "statement",
 		"from": "host.appendChild(c.node);",
@@ -206,7 +206,7 @@
 	{
 		"id": "reshape-render-left-in-light-dom",
 		"file": "packages/rewrite/src/restore.ts",
-		"in": "restore",
+		"in": "restore_with",
 		"code": "if (shadow) shadow.appendChild(n);",
 		"operator": "statement",
 		"from": "shadow.appendChild(n);",
@@ -215,7 +215,7 @@
 	{
 		"id": "reshape-stand-in-kept",
 		"file": "packages/rewrite/src/restore.ts",
-		"in": "restore > swap_stand_ins",
+		"in": "restore_with > swap_stand_ins",
 		"code": "as.replaceWith(real);",
 		"operator": "statement",
 		"from": "as.replaceWith(real);",
@@ -224,7 +224,7 @@
 	{
 		"id": "reshape-trimmed-text-not-put-back",
 		"file": "packages/rewrite/src/restore.ts",
-		"in": "restore > fix_text",
+		"in": "restore_with > fix_text",
 		"code": "if (next && next.nodeType === 3) (next as Text).data = was;",
 		"operator": "statement",
 		"from": "(next as Text).data = was;",
