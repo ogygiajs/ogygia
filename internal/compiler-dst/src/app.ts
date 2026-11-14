@@ -70,7 +70,14 @@ export interface Component {
 export interface AppShape {
 	readonly routes: readonly Route[];
 	readonly components: readonly Component[];
+	/** Page modules (`b.pageModules()`): at `PAGE_FILES[i]`, the library components it imports
+	 *  (indexes into `components`), or null where the app has none. */
+	readonly pages?: readonly (readonly number[] | null)[];
 }
+
+/** Where the app's page modules are: pages rendered outside Kit's routes, whose components get
+ *  router css (the compile's `page_files`). */
+export const PAGE_FILES: readonly string[] = [`${LIB}/page0.ts`, `${LIB}/page1.ts`];
 
 const MAX_COMPONENTS = 4;
 
@@ -95,7 +102,10 @@ export const app_shape: fc.Arbitrary<AppShape> = fc
 					uses: fc.array(use(n), { maxLength: 3 })
 				}),
 				{ minLength: 1, maxLength: ROUTE_DIRS.length, selector: (r) => r.dir }
-			)
+			),
+			pages: fc.array(fc.option(fc.array(fc.nat({ max: n - 1 }), { maxLength: 3 })), {
+				maxLength: PAGE_FILES.length
+			})
 		})
 	);
 
@@ -168,6 +178,15 @@ export function app_files(shape: AppShape): Record<string, string> {
 		])
 			if (o) files[o[0]] = o[1];
 	}
+	(shape.pages ?? []).forEach((uses, i) => {
+		if (uses === null) return;
+		const own = [...new Set(uses.filter((c) => c < n))];
+		files[PAGE_FILES[i]] = [
+			...own.map((c) => `import ${component_name(c)} from './${component_name(c)}.svelte';`),
+			`export default [${own.map(component_name).join(', ')}];`,
+			''
+		].join('\n');
+	});
 	// a Kit app has a routes directory (with none, Kit's route walk and ours both throw)
 	if (!Object.keys(files).some((f) => f.startsWith(`${ROUTES}/`)))
 		files[`${ROUTES}/+page.svelte`] = '<h1>page</h1>\n';
