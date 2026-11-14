@@ -305,7 +305,8 @@ export class Ogygia {
 		this.#injected = driver.addInitScript
 			? driver.addInitScript(engine_script())
 			: Promise.resolve();
-		this.#injected.catch(() => {}); // ok: its failure is the first call's error (#call awaits it)
+		// oxlint-disable-next-line ogygia/no-silent-failures -- its failure is the first call's error (#call awaits it)
+		this.#injected.catch(() => {});
 	}
 
 	async page(): Promise<OgygiaPageReport> {
@@ -397,7 +398,8 @@ export class Ogygia {
 				// deployment attributes it (the profiler gathers them from its store at stop)
 				if (window_id && driver.tagRequests) {
 					const untag = await driver.tagRequests(window_id.header, window_id.id);
-					undo(server_side, () => untag().catch(() => {})); // ok: unroute fails only on a closed page, which has no tag left to take off
+					// oxlint-disable-next-line ogygia/no-silent-failures -- unroute fails only on a closed page, which has no tag left to take off
+					undo(server_side, () => untag().catch(() => {}));
 				}
 			}
 			if (ropts?.blockNavigation && !driver.blockNavigation)
@@ -455,7 +457,8 @@ export class Ogygia {
 		}
 		if (server_error) server = { error: server_error } as unknown as OgygiaSessionReport['server'];
 		if (!r) {
-			const now = await this.#in_page(() => location.href, null).catch(() => null); // ok: only words the error thrown below
+			// oxlint-disable-next-line ogygia/no-silent-failures -- only words the error thrown below
+			const now = await this.#in_page(() => location.href, null).catch(() => null);
 			throw new Error(
 				`the recording was lost: the page went to another document while it ran${now ? ` (it is now at ${now})` : ''}${
 					out.stop_error !== undefined
@@ -576,7 +579,8 @@ export class Ogygia {
 			out.r && typeof out.r === 'object' ? (out.r as { engine?: OgygiaEngine }).engine : undefined;
 		this.#engine = own ?? { version: out.v };
 		if (out.v < TESTING_ENGINE_VERSION) {
-			const at = await this.#in_page(() => location.origin, null).catch(() => ''); // ok: the origin only keys the one-time warning
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the origin only keys the one-time warning
+			const at = await this.#in_page(() => location.origin, null).catch(() => '');
 			const key = `${at}|${out.v}`;
 			if (warned_engines.get(key)) return out.r;
 			warned_engines.set(key, true);
@@ -632,12 +636,13 @@ export function playwrightDriver(
 		async blockNavigation() {
 			const held: HeldNavigation[] = [];
 			// the page's clock, from its start (the page cannot be asked while a load waits on the route)
-			const origin = await page.evaluate(() => performance.timeOrigin).catch(() => null); // ok: a page that cannot answer has no clock; holds are kept untimed (t: null)
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a page that cannot answer has no clock; holds are kept untimed (t: null)
+			const origin = await page.evaluate(() => performance.timeOrigin).catch(() => null);
 			// a document load in the page's own frame: answered 204, so the browser keeps the page
 			const hold = async (route: Route) => {
 				const req = route.request();
 				if (!req.isNavigationRequest() || req.frame() !== page.mainFrame()) return route.fallback();
-				// wall: against the page's own epoch origin (performance.timeOrigin)
+				// oxlint-disable-next-line ogygia/ports -- against the page's own epoch origin (performance.timeOrigin)
 				const nav = { url: req.url(), t: origin === null ? null : Math.round(Date.now() - origin) };
 				held.push(nav);
 				opts.onNavigationHeld?.(nav);
@@ -1032,8 +1037,7 @@ export interface CompareOptions {
 }
 
 const NOISE = { lcp: 150, fcp: 150, ttfb: 100, inp: 50, cls: 0.02 } as const;
-// static: the hydration statuses that read as good, a fixed pair
-const GOOD_HYDRATION = new Set(['clean', 'asleep']);
+const GOOD_HYDRATION: ReadonlySet<string> = new Set(['clean', 'asleep']);
 
 /** Islands whose hydration got worse / better between two reports: by instance key, or (reports from
  *  before keys) by how many islands of each name ended in each status. */
@@ -1086,7 +1090,7 @@ const slot = (runs: OgygiaReport[][], kind: OgygiaReport['kind'], nth: number): 
 	runs.map((r) => r.filter((x) => x.kind === kind)[nth]).filter((x): x is OgygiaReport => !!x);
 
 /** A finding's code and its line, the first time each code is seen. */
-function finding_lines(reports: OgygiaReport[], skip: Set<string>): Map<string, string> {
+function finding_lines(reports: OgygiaReport[], skip: ReadonlySet<string>): Map<string, string> {
 	const out = new Map<string, string>();
 	for (const r of reports)
 		for (const f of ('findings' in r ? r.findings : []) as { code: string; message: string }[])
@@ -1133,8 +1137,7 @@ function hydration_consensus(reports: OgygiaHydrationReport[]): OgygiaHydrationR
 }
 
 /** The session-only codes `compare` leaves to their own line: `navigation-blocked` IS `navigations`. */
-// static: the session-only codes, a fixed list
-const SESSION_LISTED = new Set(['navigation-blocked']);
+const SESSION_LISTED: ReadonlySet<string> = new Set(['navigation-blocked']);
 
 /**
  * What changed between two runs of the same tests (each: the `ogygia.json` bodies, parsed).

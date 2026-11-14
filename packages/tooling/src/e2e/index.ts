@@ -28,8 +28,9 @@ export async function rules(page: Page): Promise<BrokenRule[] | 'no rules' | nul
 			if (g.__ogygia_rules) return g.__ogygia_rules();
 			return g[Symbol.for('ogygia.messages')] ? 'no rules' : null;
 		});
+		// oxlint-disable-next-line ogygia/no-silent-failures -- closed, or navigating away: nothing to read
 	} catch {
-		return null; // ok: closed, or navigating away: nothing to read
+		return null;
 	}
 }
 
@@ -40,8 +41,9 @@ export async function moves(page: Page): Promise<string | null> {
 		return await page.evaluate(
 			() => (globalThis as { __ogygia_moves?: () => string }).__ogygia_moves?.() ?? null
 		);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- closed, or navigating away: nothing to read
 	} catch {
-		return null; // ok: closed, or navigating away: nothing to read
+		return null;
 	}
 }
 
@@ -108,6 +110,7 @@ export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
  *  replayed. The runtime replays a frame AFTER `data-hydrated` (the island's wiring settles first),
  *  so this waits for it instead of reading the counter the instant the island is marked. */
 export async function replayed_once(page: Page): Promise<boolean> {
+	// oxlint-disable-next-line ogygia/no-silent-failures -- not replayed within the wait is the answer the caller checks
 	return page
 		.waitForFunction(() => document.querySelector('[data-i-count]')?.textContent === '1', null, {
 			timeout: 2000
@@ -115,7 +118,7 @@ export async function replayed_once(page: Page): Promise<boolean> {
 		.then(
 			() => true,
 			() => false
-		); // ok: not replayed within the wait is the answer the caller checks
+		);
 }
 
 /** Every island graph script in a page's HTML, merged: entry → the chunks its code needs

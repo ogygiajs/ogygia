@@ -97,8 +97,9 @@ export function documentIsCsrTrue(error_render = false): boolean {
 		return error_render
 			? error_route_is_csr_true(event.route?.id)
 			: route_is_csr_true(event.route?.id);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- off-request (prerender helper, etc.) → not a Kit-hydrated document
 	} catch {
-		return false; // ok: off-request (prerender helper, etc.) → not a Kit-hydrated document
+		return false;
 	}
 }
 
@@ -171,8 +172,9 @@ export function claim_kit_island(entry: string): boolean {
 		if (seen.has(entry)) return false;
 		seen.add(entry);
 		return true;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- client / no request: nothing to stamp, as said above
 	} catch {
-		return false; // ok: client / no request: nothing to stamp, as said above
+		return false;
 	}
 }
 
@@ -198,8 +200,8 @@ export function claim_region_css(
 		const event = get_request_event() as object;
 		seen = region_css_claimed.get(event);
 		if (!seen) region_css_claimed.set(event, (seen = new Map()));
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no request (the client, or off-request): nothing to dedupe against, the caller decides
 	} catch {
-		// ok: no request (the client, or off-request): nothing to dedupe against, the caller decides
 		return null;
 	}
 	const fresh: string[] = [];
@@ -228,8 +230,9 @@ export function claimRuntimeEmit(): boolean {
 		if (runtime_claimed.has(event)) return false;
 		runtime_claimed.set(event, true);
 		return true;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- client / no request: SSR already emitted, as said above
 	} catch {
-		return false; // ok: client / no request: SSR already emitted, as said above
+		return false;
 	}
 }
 
@@ -248,9 +251,8 @@ export function note_early_hole(endpoint: string): void {
 		let seen = early_holes.get(request);
 		if (!seen) early_holes.set(request, (seen = new Set()));
 		seen.add(endpoint);
-	} catch {
-		// ok: no request (the client, a build step): no head to start it from
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no request (the client, a build step): no head to start it from
+	} catch {}
 }
 
 /** This request's noted `load` hole endpoints, taken once (the head that writes them). `request`: the
@@ -259,8 +261,9 @@ export function take_early_holes(request?: Request): string[] {
 	if (!request)
 		try {
 			request = (get_request_event() as { request: Request }).request;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no request, so no hole of it was noted
 		} catch {
-			return []; // ok: no request, so no hole of it was noted
+			return [];
 		}
 	const seen = early_holes.get(request);
 	if (!seen) return [];

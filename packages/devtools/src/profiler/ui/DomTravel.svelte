@@ -19,9 +19,10 @@
 	let looked = $state(false);
 	// read once, at setup: the page's latest visit from this browser's store
 	// svelte-ignore state_referenced_locally
+	// oxlint-disable-next-line ogygia/no-silent-failures -- the browser store never rejects (a store it cannot open reads as nothing)
 	void latest_visit(page)
 		.then((r) => (rec = r))
-		.finally(() => (looked = true)); // ok: the browser store never rejects (a store it cannot open reads as nothing)
+		.finally(() => (looked = true));
 	const v = $derived((rec?.visit as Visit | undefined) ?? visit);
 	const boxes = $derived(v ? shift_boxes(v.shifts, v.viewport) : []);
 	const cls_total = $derived(boxes.reduce((s, b) => s + b.value, 0));

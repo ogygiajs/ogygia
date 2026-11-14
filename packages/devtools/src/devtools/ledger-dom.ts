@@ -20,8 +20,9 @@ const abs = (href: string | null | undefined): string | null => {
 	if (!href) return null;
 	try {
 		return new URL(href, location.href).href;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: no file to name
 	} catch {
-		return null; // ok: not a URL: no file to name
+		return null;
 	}
 };
 
@@ -55,9 +56,10 @@ const DOCK_MARKS = [
 function runtime_parts(src: string): RuntimeParts | null {
 	if (parts?.src !== src) {
 		parts = { src, read: null };
+		// oxlint-disable-next-line ogygia/no-silent-failures -- read_parts never rejects (a file the network failed reads as empty)
 		void read_parts(src).then((read) => {
 			if (parts?.src === src) parts.read = read;
-		}); // ok: read_parts never rejects (a file the network failed reads as empty)
+		});
 	}
 	return parts.read;
 }
@@ -69,10 +71,11 @@ async function read_parts(src: string): Promise<RuntimeParts> {
 		run: (u: string) => tool_fetch(u, { cache: 'force-cache' }).then((r) => (r.ok ? r.text() : ''))
 	});
 	const text = (u: string): Promise<string> =>
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a file that will not load has no imports to follow; flights asks again next time
 		texts.get(u).then(
 			(t) => (t === STALE ? '' : t),
 			() => ''
-		); // ok: a file that will not load has no imports to follow; flights asks again next time
+		);
 	const self = import.meta.url;
 	const roots = new Map<string, Set<string>>();
 	const dock: string[] = [];
@@ -105,8 +108,9 @@ async function read_parts(src: string): Promise<RuntimeParts> {
 const abs_from = (spec: string, base: string): string | null => {
 	try {
 		return new URL(spec, base).href;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: an import we cannot follow
 	} catch {
-		return null; // ok: not a URL: an import we cannot follow
+		return null;
 	}
 };
 

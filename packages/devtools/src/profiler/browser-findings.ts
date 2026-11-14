@@ -25,8 +25,7 @@ import type { Visit } from './visit.ts';
 /** codes the report makes from its own data (render-blocking only when it weighed the page's files:
  *  the report.ts caller drops the browser's then — on a dev server it weighs nothing, and the
  *  browser's timing of the blocking file is all there is) */
-// static: a fixed list of finding codes
-const SKIP = new Set([
+const SKIP: ReadonlySet<string> = new Set([
 	'recovered',
 	'never-woke',
 	'vital-ttfb',

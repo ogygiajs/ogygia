@@ -217,8 +217,9 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	function page_error_render() {
 		try {
 			return page.error != null;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- isolated render without a live page (a hole endpoint, a remote's region)
 		} catch {
-			return false; // ok: isolated render without a live page (a hole endpoint, a remote's region)
+			return false;
 		}
 	}
 	const is_csr = documentIsCsrTrue(page_error_render()) && !isInLake() && render_root !== 'ogygia';
@@ -268,9 +269,8 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 					remotes,
 					entry === '?' ? '' : entry
 				);
-			} catch {
-				// ok: an isolated render without a live page; the recorder is unset there anyway
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- an isolated render without a live page; the recorder is unset there anyway
+			} catch {}
 		});
 	}
 
@@ -475,7 +475,8 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 				props: { children: ogygiaFallback },
 				context: region_contexts
 			});
-			return () => void unmount(app); // ok: unmount's promise is its outros ending; it never rejects
+			// oxlint-disable-next-line ogygia/no-silent-failures -- unmount's promise is its outros ending; it never rejects
+			return () => void unmount(app);
 		}
 	);
 	const hole_frozen = adopt_region(
@@ -676,9 +677,8 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 						entry: __entry || undefined
 					});
 				}
-			} catch {
-				// ok: a devtools emit never breaks a render; the event is left out of the timeline
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a devtools emit never breaks a render; the event is left out of the timeline
+			} catch {}
 		});
 	}
 </script>

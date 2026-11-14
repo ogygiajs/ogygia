@@ -198,7 +198,8 @@ export async function serve_federation(event: RequestEvent): Promise<Response | 
 	unregistered.ok('unregistered');
 
 	if (path.endsWith(FRAGMENT_ROUTES_PATH)) {
-		void deploy_thaw_check(fed); // ok: a check never rejects (a failed one is tried again later)
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a check never rejects (a failed one is tried again later)
+		void deploy_thaw_check(fed);
 		return serve_expose(fed, event);
 	}
 	if (path.endsWith(HOLE_PATH)) return serve_hole(fed, event);
@@ -208,7 +209,8 @@ export async function serve_federation(event: RequestEvent): Promise<Response | 
 	if (frag_at !== -1) {
 		const name = path.slice(frag_at + FRAGMENT_BASE.length);
 		if (name && !name.includes('/')) {
-			void deploy_thaw_check(fed); // ok: a check never rejects (a failed one is tried again later)
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a check never rejects (a failed one is tried again later)
+			void deploy_thaw_check(fed);
 			return serve_widget(fed, event, name);
 		}
 	}
@@ -456,11 +458,12 @@ async function apply_thaw(n: Received): Promise<number> {
 	else if (n.tags === 'all') await fed_app()?.notify.invalidate([`a:${n.sender_name}`]);
 	// chain: tell MY consumers, with the tags I just applied, hop+1 (an outbox send, kept alive past
 	// this answer; a consumer that never took it is said)
+	// oxlint-disable-next-line ogygia/no-silent-failures -- broadcast_thaw never rejects (an outbox put never does)
 	void broadcast_thaw(n.fed, {
 		id: n.id || random.uuid(),
 		hop: n.hop + 1,
 		tags: n.tags === 'all' ? 'all' : local
-	}); // ok: broadcast_thaw never rejects (an outbox put never does)
+	});
 	return local.length;
 }
 
@@ -492,8 +495,9 @@ async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Respons
 	let notice: Notice | null;
 	try {
 		notice = thaw_notice(JSON.parse(new TextDecoder().decode(body ?? new Uint8Array())));
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not JSON is not the notice's shape: refused just below
 	} catch {
-		notice = null; // ok: not JSON is not the notice's shape: refused just below
+		notice = null;
 	}
 	// (not the notice's shape: refused, never asked again, never passed on — test/thaw-notice-shape)
 	if (notice === null) return json_error(400, 'bad notice');

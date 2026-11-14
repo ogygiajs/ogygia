@@ -135,7 +135,8 @@ function thaw_outbox(name: string, say: boolean): Outbox<Thaw> {
 		retry: PEER_POLICY,
 		giveUp: say
 			? (t, error) => warn('federation_thaw_notice_failed', t.peer_name, error)
-			: () => {}, // ok: the deploy thaw names the peers that missed it once its rounds are spent
+			: // oxlint-disable-next-line ogygia/no-silent-failures -- the deploy thaw names the peers that missed it once its rounds are spent
+				() => {},
 		waitUntil: (work) => fed_app()?.keepAlive(work)
 	});
 }

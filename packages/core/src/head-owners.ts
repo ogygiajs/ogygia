@@ -38,8 +38,8 @@ export function adopt_owner_record(doc: ParentNode, head: ParentNode): void {
 	let record: Record<string, unknown>;
 	try {
 		record = JSON.parse(script.textContent || '{}') as Record<string, unknown>;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a record that does not parse names no owner: its sheets keep the owners their tags name
 	} catch {
-		// ok: a record that does not parse names no owner: its sheets keep the owners their tags name
 		return;
 	}
 	if (record === null || typeof record !== 'object') return;

@@ -78,8 +78,9 @@ export function set_current_request(fn: (() => Request | undefined) | null): voi
 export function current_request(): Request | undefined {
 	try {
 		return slot.current?.();
+		// oxlint-disable-next-line ogygia/no-silent-failures -- outside a request, as said above
 	} catch {
-		return undefined; // ok: outside a request, as said above
+		return undefined;
 	}
 }
 

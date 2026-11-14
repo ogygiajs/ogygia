@@ -122,9 +122,8 @@ export function ingest_server_events(): number {
 		try {
 			const events: unknown = JSON.parse(text);
 			if (Array.isArray(events)) total += ingest_page_events(events);
-		} catch {
-			// ok: a malformed devtools side-channel never breaks boot; its events are left out
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a malformed devtools side-channel never breaks boot; its events are left out
+		} catch {}
 	}
 	return total;
 }

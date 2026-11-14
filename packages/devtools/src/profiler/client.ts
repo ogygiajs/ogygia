@@ -46,7 +46,7 @@ function beacon_mark(...args: MarkArgs): void {
 }
 
 const now = () =>
-	// wall: only where a page has no performance.now (this module ships alone, without machine)
+	// oxlint-disable-next-line ogygia/ports -- only where a page has no performance.now (this module ships alone, without machine)
 	typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
 const is_thenable = (v: unknown): v is PromiseLike<unknown> =>
 	!!v && typeof (v as { then?: unknown }).then === 'function';

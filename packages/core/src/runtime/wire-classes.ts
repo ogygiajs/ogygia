@@ -33,7 +33,8 @@ const loads = flights({
 
 function load(path: string): Promise<unknown> {
 	if (!loaders[path]) return Promise.resolve();
-	return loads.get(path).catch(() => undefined); // ok: its decode then says which class is missing
+	// oxlint-disable-next-line ogygia/no-silent-failures -- its decode then says which class is missing
+	return loads.get(path).catch(() => undefined);
 }
 
 function scan(text: string | null | undefined, want: Set<string>): void {

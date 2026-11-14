@@ -50,6 +50,7 @@
 	let looking = $state(look_in_store);
 	if (look_in_store) {
 		const id = location.pathname.split('/').filter(Boolean).pop() ?? '';
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the browser store never rejects (a store it cannot open reads as nothing)
 		void get_report(id)
 			.then(async (rec) => {
 				const dump = rec?.dump as
@@ -82,7 +83,7 @@
 					kept: true
 				};
 			})
-			.finally(() => (looking = false)); // ok: the browser store never rejects (a store it cannot open reads as nothing)
+			.finally(() => (looking = false));
 	}
 
 	async function unlock(e: Event) {
@@ -97,8 +98,9 @@
 				extras: ReportExtras;
 			};
 			report = { a: dump.analysis, meta: dump.meta, extras: dump.extras };
+			// oxlint-disable-next-line ogygia/no-silent-failures -- shown on the page
 		} catch {
-			error = 'Wrong password, or the link is corrupted.'; // ok: shown on the page
+			error = 'Wrong password, or the link is corrupted.';
 		} finally {
 			busy = false;
 		}

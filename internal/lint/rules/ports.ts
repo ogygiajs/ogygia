@@ -8,13 +8,14 @@
  * network (`net`), what is on screen (`seen`) and storage (`storage`). It grew out of
  * `ogygia/wall-clock`, which it replaces: `Date.now()` is `clock.wall()`.
  *
- * A raw call that must stay says why on its line, or alone on the line before: `// port-ok: <why>`
- * (`reason_notes`). Code that
+ * A raw call that must stay says why on the line before:
+ * `// oxlint-disable-next-line ogygia/ports -- <why>` (the old `// port-ok:` mark excuses nothing:
+ * internal/lint/reason-notes.test.ts). Code that
  * runs at build time (the compiler, Vite plugins, the CLI, test tooling) is not part of a running
  * app and is not simulated: `.oxlintrc.json` turns the rule off there.
  */
 
-import { reason_notes, type Context, type Node } from './shared.ts';
+import type { Context, Node } from './shared.ts';
 
 const PORT_CALLS: Record<string, string> = {
 	setTimeout: 'timers.after()',
@@ -57,7 +58,7 @@ const PORTS_FILE = /(^|\/)packages\/machine\/src\/ports(\.ts$|\/)/;
 const IN_PACKAGE_SOURCE = /(^|\/)packages\/[^/]+\/src\//;
 
 const port_message = (raw: string, port: string): string =>
-	`${raw} is nondeterministic: go through the port, ${port} from @ogygia/machine (a simulated run owns it), or say why it stays raw with \`// port-ok: <why>\` on its line, or alone on the line before.`;
+	`${raw} is nondeterministic: go through the port, ${port} from @ogygia/machine (a simulated run owns it), or say why it stays raw on the line before: \`// oxlint-disable-next-line ogygia/ports -- <why>\`.`;
 
 export const ports = {
 	meta: {
@@ -67,7 +68,7 @@ export const ports = {
 	create(context: Context) {
 		const file = (context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/');
 		if (!IN_PACKAGE_SOURCE.test(file) || PORTS_FILE.test(file)) return {};
-		const found: Array<{ node: Node; message: string }> = [];
+		const report = (f: { node: Node; message: string }) => context.report(f);
 		const name_of = (n: unknown): string | undefined =>
 			(n as Node | undefined)?.type === 'Identifier' ? (n as { name?: string }).name : undefined;
 		/** `x` itself, or `window.x` / `globalThis.x` / `self.x`: the global's name, if it is one. */
@@ -93,7 +94,7 @@ export const ports = {
 				for (const s of (node as { specifiers?: Node[] }).specifiers ?? []) {
 					const name = name_of((s as { imported?: Node }).imported);
 					if (name !== undefined && Object.hasOwn(PORT_IMPORTS, name))
-						found.push({
+						report({
 							node: s,
 							message: port_message(`${from}'s ${name}()`, PORT_IMPORTS[name])
 						});
@@ -104,20 +105,20 @@ export const ports = {
 				const m = member(callee);
 				if (m !== undefined) {
 					const [raw, port] = m.split('|');
-					found.push({ node, message: port_message(raw, port) });
+					report({ node, message: port_message(raw, port) });
 					return;
 				}
 				const name = global_name(callee);
 				if (name !== undefined && Object.hasOwn(PORT_CALLS, name))
-					found.push({ node, message: port_message(`${name}()`, PORT_CALLS[name]) });
+					report({ node, message: port_message(`${name}()`, PORT_CALLS[name]) });
 			},
 			NewExpression(node: Node) {
 				const name = global_name(node.callee as Node);
 				if (name !== undefined && Object.hasOwn(PORT_NEWS, name))
-					found.push({ node, message: port_message(`new ${name}()`, PORT_NEWS[name]) });
+					report({ node, message: port_message(`new ${name}()`, PORT_NEWS[name]) });
 				// (`new Date(x)` is a plain value; with no argument it reads the clock)
 				else if (name === 'Date' && !(node as { arguments?: unknown[] }).arguments?.length)
-					found.push({ node, message: port_message('new Date()', 'new Date(clock.wall())') });
+					report({ node, message: port_message('new Date()', 'new Date(clock.wall())') });
 			},
 			Identifier(node: Node) {
 				const name = (node as { name?: string }).name;
@@ -129,12 +130,7 @@ export const ports = {
 					if (realm === undefined || !REALMS.has(realm)) return;
 				}
 				if (parent?.type === 'Property' && parent.key === node) return;
-				found.push({ node, message: port_message(name, PORT_READS[name]) });
-			},
-			'Program:exit'() {
-				if (!found.length) return;
-				const excused = reason_notes(context, /^\s*port-ok:\s*\S/);
-				for (const f of found) if (!excused(f.node)) context.report(f);
+				report({ node, message: port_message(name, PORT_READS[name]) });
 			}
 		};
 	}

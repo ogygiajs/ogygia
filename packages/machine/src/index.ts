@@ -73,4 +73,5 @@ export {
 	type Signer
 } from './capability.ts';
 export { trace, type Trace, type TraceOptions } from './trace.ts';
+export { decisions, type Decisions, type DecisionsDef } from './decisions.ts';
 export { MachineError, MACHINE_ERRORS, MACHINE_WARNINGS } from './messages.ts';

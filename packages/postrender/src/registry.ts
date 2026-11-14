@@ -127,9 +127,10 @@ export function reset_for_tests(): void {
 // hook; a `federate()` implements it and tells the peers that baked this app's fragments (see
 // internal/notes/federation.md §4). Fire-and-forget: a peer that is down never fails a publish.
 function notify_thaw(tags: string[] | 'all'): void {
+	// oxlint-disable-next-line ogygia/no-silent-failures -- notify said each failed hook (plugin_hook_failed); a publish never fails on a peer
 	void postrender_app()
 		?.notify.invalidated(tags)
-		.catch(() => {}); // ok: notify said each failed hook (plugin_hook_failed); a publish never fails on a peer
+		.catch(() => {});
 }
 
 /** Evict every stored page carrying ANY of `tags` (origin + every edge). The receiving half of a
@@ -226,8 +227,9 @@ async function guarded<T>(
 ): Promise<T> {
 	try {
 		return await store_call(op, key, work);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- store_call said it
 	} catch {
-		return fallback; // ok: store_call said it
+		return fallback;
 	}
 }
 
