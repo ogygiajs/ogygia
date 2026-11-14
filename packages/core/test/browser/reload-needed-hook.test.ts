@@ -19,9 +19,9 @@ beforeEach(() => {
 		false
 	);
 	host = document.createElement('div');
-	host.innerHTML =
-		'<ogygia-region src="/_app/immutable/og-region.a.js"></ogygia-region>' +
-		'<ogygia-region src="/_app/immutable/og-region.b.js"></ogygia-region>';
+	host.innerHTML = ['a', 'b']
+		.map((k) => `<ogygia-region src="/_app/immutable/og-region.${k}.js"></ogygia-region>`)
+		.join('');
 	document.body.append(host);
 });
 afterEach(() => {
