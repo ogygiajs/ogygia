@@ -1,10 +1,9 @@
 name: ci labels
 
 # Adds the `ci:*` labels a pull request earns as it is opened and pushed (.github/scripts/ci-labels.ts):
-# `ci:bench` and `ci:preview` into main, `ci:engines` for the runtime, router, morph, hydration or
-# restore, `ci:bench` for a bench or a hot path. It only adds; a label is the PR's to remove. The
-# workflows those labels drive read the same answer for themselves, so this run racing them changes
-# nothing: the labels are for people to see, and to keep for later pushes.
+# `ci:bench` and `ci:preview` into main, `ci:bench` for a bench or a hot path. It only adds; a label
+# is the PR's to remove. The workflows those labels drive read the same answer for themselves, so
+# this run racing them changes nothing: the labels are for people to see, and to keep for later pushes.
 
 on:
   pull_request:

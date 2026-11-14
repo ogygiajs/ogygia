@@ -13,11 +13,6 @@ export function is_batched(carried: readonly string[]): boolean {
 	return carried.includes(BATCHED);
 }
 
-const ENGINES_PATHS = [
-	/^packages\/[^/]+\/src\/runtime\//,
-	/^packages\/router\//,
-	/(^|\/)[^/]*(morph|hydrate|restore)[^/]*$/i
-];
 const BENCH_PATHS = [
 	/(^|\/)bench\//,
 	/^packages\/core\/src\/runtime\//,
@@ -41,7 +36,6 @@ export function labels_for(base: string, files: readonly string[]): string[] {
 		out.add('ci:bench');
 		out.add('ci:preview');
 	}
-	if (files.some((f) => ENGINES_PATHS.some((re) => re.test(f)))) out.add('ci:engines');
 	if (files.some((f) => BENCH_PATHS.some((re) => re.test(f)))) out.add('ci:bench');
 	return [...out].sort();
 }
