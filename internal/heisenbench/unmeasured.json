@@ -2737,18 +2737,6 @@
 			"reason": "dev only: sets one response header and passes on, constant work"
 		},
 		{
-			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b",
-			"reason": "dev only: the dock's meta endpoint over the dev server's module graph (not recorded); its work is island_subgraph_bytes, measured in core"
-		},
-		{
-			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b > island_subgraph_bytes:2~0b61a8",
-			"reason": "dev only: hands one barrel question to the regions seam, constant work of its own"
-		},
-		{
-			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b > read",
-			"reason": "dev only: reads one component source once per request (a file read, not recorded), constant work of its own"
-		},
-		{
 			"id": "packages/devtools/src/vite.ts > devtools > dev_meta_plugin:0~479109",
 			"reason": "dev only: hands the build's regions seam to the dev meta plugin, constant work"
 		},
@@ -2953,14 +2941,6 @@
 			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why",
-			"reason": "the client tables' why for one barrel row, over ogygia()'s closure (not replayable), at most two lookups; the join is benched in packages/core/bench/compiler.bench.ts and proven in packages/core/test/barrel-left.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why > filter:0~cf3029",
-			"reason": "orders at most nine reasons (constant work); the same filter in the table is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host",
 			"reason": "builds one Vite plugin object per stage (constant work, over ogygia()'s closure); the stage's transforms are benched in packages/barrels/bench/barrels.bench.ts"
 		},
@@ -3021,16 +3001,8 @@
 			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/insights/test/profiler-page-assets.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > barrelWhy",
-			"reason": "dev only: the regions seam hands the dock one barrel answer from the build's index, constant work of its own"
-		},
-		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > names",
 			"reason": "dev only: the regions seam lists the build's region entries, linear in the regions"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > barrelWhy",
-			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
 		},
 		{
 			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > names",
@@ -4789,6 +4761,18 @@
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
 		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > observeReads",
+			"reason": "hands a live RequestEvent (not cloneable) and its request's read set to observe_reads, constant work of its own; observe_reads is measured on its own"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn",
+			"reason": "a plugin's dev warning: one say().once per message, printed through console.warn (not replayable), constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn > once:1~c9a4aa",
+			"reason": "prints a plugin's warning once through console.warn (not replayable), constant work"
+		},
+		{
 			"id": "packages/postrender/src/registry.ts > shared:0~4e63eb > make",
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
@@ -5267,14 +5251,6 @@
 		{
 			"id": "packages/compiler/src/leg.ts > new_leg",
 			"reason": "once per leg per build: an object of empty Maps, constant work"
-		},
-		{
-			"id": "packages/compiler/src/leg.ts > new_leg > barrels_left",
-			"reason": "one Map read (a table made on first use), constant work; the table's own work is measured in the barrel-left bench"
-		},
-		{
-			"id": "packages/compiler/src/leg.ts > new_leg > barrels_said",
-			"reason": "one Map read, constant work"
 		},
 		{
 			"id": "packages/compiler/src/link/emit-gate.ts > parse_server_handoff > filter:0~4b42c1",
@@ -5789,10 +5765,6 @@
 			"reason": "one hole_identity fingerprint of a lake's props per lake render, measured with hole_identity's own bench; lake-identity.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~6b3ec1 > prescan",
-			"reason": "build only: a plugin's prescan registration, once per plugin per build, constant work"
-		},
-		{
 			"id": "packages/compiler/src/driver.ts > Compiler > relocate > relocate:3~0b2c47 > public_url",
 			"reason": "one island's public url from the context, constant work, once per island token patched"
 		},
@@ -5827,10 +5799,6 @@
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > writeBundle > settle:0~e8e319",
 			"reason": "build only, once per client build: one bundler resolve per helper the page is handed to, Vite's own work"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~6b3ec1 > pageReads",
-			"reason": "build only: a plugin's seed-shaping claim, once per plugin per build, constant work"
 		},
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_seed_key_unshipped > text",
@@ -6005,26 +5973,6 @@
 			"reason": "dev only (the warning folds out of production); one bounded scan of the body's last 64 KB, the scan kit_gate's bench case already counts; kit-gate.test.ts and test/canary/kit-start-script.test.ts run it"
 		},
 		{
-			"id": "packages/core/src/snippet-render.ts > SnippetRender > static install",
-			"reason": "runs once per module load (hooks.ts, region.ts): one slot write, constant work; snippet.bench.ts and every freeze test run it"
-		},
-		{
-			"id": "packages/core/src/region-snippet.ts > install_snippet_renderer",
-			"reason": "one slot write when a renderer is installed, once per module load; snippet.bench.ts and every freeze test run it"
-		},
-		{
-			"id": "packages/core/src/region-snippet.ts > shared:0~ef144f > make",
-			"reason": "a slot's maker: builds the renderer slot's empty starting value, once per process, constant work"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > snippet_freeze_not_installed > text",
-			"reason": "an error's one-line text: one template string, only when a snippet freezes with no renderer installed"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > snippet_freeze_not_installed > details",
-			"reason": "an error's details: one constant string, on the error path only"
-		},
-		{
 			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static event",
 			"reason": "one read of Kit's AsyncLocalStorage store, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts and plugin-request-end.test.ts run it"
 		},
@@ -6039,18 +5987,6 @@
 		{
 			"id": "packages/core/src/server/live-event.ts > live_event",
 			"reason": "one call to Kit's getRequestEvent, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts runs it"
-		},
-		{
-			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > observeReads",
-			"reason": "hands a live RequestEvent (not cloneable) and its request's read set to observe_reads, constant work of its own; observe_reads is measured on its own"
-		},
-		{
-			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn",
-			"reason": "a plugin's dev warning: one say().once per message, printed through console.warn (not replayable), constant work"
-		},
-		{
-			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn > once:1~c9a4aa",
-			"reason": "prints a plugin's warning once through console.warn (not replayable), constant work"
 		},
 		{
 			"id": "packages/devtools/src/devtools/highlight.ts > Highlighter > show > defer:0~248bad",
@@ -6171,6 +6107,46 @@
 		{
 			"id": "packages/compiler/src/scan-facts.ts > ScanFacts > input:2~ea66dc",
 			"reason": "the scan db input for a file's facts, read by every query over the scan (not replayable), constant work"
+		},
+		{
+			"id": "packages/core/src/snippet-render.ts > SnippetRender > static install",
+			"reason": "runs once per module load (hooks.ts, region.ts): one slot write, constant work; snippet.bench.ts and every freeze test run it"
+		},
+		{
+			"id": "packages/core/src/region-snippet.ts > install_snippet_renderer",
+			"reason": "one slot write when a renderer is installed, once per module load; snippet.bench.ts and every freeze test run it"
+		},
+		{
+			"id": "packages/core/src/region-snippet.ts > shared:0~ef144f > make",
+			"reason": "a slot's maker: builds the renderer slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > snippet_freeze_not_installed > text",
+			"reason": "an error's one-line text: one template string, only when a snippet freezes with no renderer installed"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > snippet_freeze_not_installed > details",
+			"reason": "an error's details: one constant string, on the error path only"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > whyStayed",
+			"reason": "the regions seam hands a reader the plugins' why-stayed answer, constant work of its own"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > why_stayed",
+			"reason": "asks each plugin's why-stayed answer (one per plugin, barrels() today) and orders the union; the answer's own work is measured in the barrel-left bench; a closure over the build's plugin list, not replayable"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > why_stayed > filter:0~cf3029",
+			"reason": "one Set read per reason (nine), constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~3a93bb > stayed",
+			"reason": "once per plugin at config time: one array push, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > whyStayed",
+			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
 		}
 	]
 }
