@@ -12,7 +12,7 @@ import type { Component, Snippet } from 'svelte';
 import { og_portable } from '../../src/region-snippet.ts';
 import { PORTABLE_FORM } from '../../src/portable-form.ts';
 import { broke, type Internal } from './upstream.ts';
-import { greeting } from './_fixtures/SnippetHost.svelte';
+import * as SnippetHost from './_fixtures/SnippetHost.svelte';
 import ArgEntry from './_fixtures/ArgEntry.svelte';
 import Caller from './_fixtures/Caller.svelte';
 import Lifter from './_fixtures/Lifter.svelte';
@@ -58,7 +58,7 @@ describe('the server shapes region-snippet.ts writes by hand', () => {
 	it('a compiled snippet renders through a hand-written `($$renderer, $$props)` component', () => {
 		const out: { frozen?: unknown } = {};
 		void render(Lifter as Component<Record<string, unknown>>, {
-			props: { snippet: greeting, out }
+			props: { snippet: (SnippetHost as unknown as { greeting: Snippet }).greeting, out }
 		}).body;
 		const frozen = out.frozen;
 		expect(frozen, broke(SIGNATURE, 'a snippet no longer renders through RenderSnippet')).toEqual({

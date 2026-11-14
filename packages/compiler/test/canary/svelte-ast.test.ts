@@ -105,7 +105,7 @@ const ROOT = path.resolve(import.meta.dirname, '../../../..');
 function sources(dir: string): string[] {
 	return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
 		const p = path.join(dir, e.name);
-		return e.isDirectory() ? sources(p) : /\.ts$/.test(e.name) ? [p] : [];
+		return e.isDirectory() ? sources(p) : e.name.endsWith('.ts') ? [p] : [];
 	});
 }
 
