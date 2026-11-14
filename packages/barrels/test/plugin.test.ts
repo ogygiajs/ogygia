@@ -75,14 +75,14 @@ const config = (f: Fixture, extra: BarrelsOptions | true = {}, packages = ['@sco
 	] as PluginOption[]
 });
 
-const module_ids = (out: Rollup.RollupOutput) =>
+const module_ids = (out: Rollup.RolldownOutput) =>
 	out.output.flatMap((c) => (c.type === 'chunk' ? Object.keys(c.modules) : []));
 
 const build_ids = async (cfg: InlineConfig) => {
 	const out = (await build({
 		...cfg,
 		build: { write: false, minify: false }
-	})) as Rollup.RollupOutput;
+	})) as Rollup.RolldownOutput;
 	return { out, ids: module_ids(out).map((m) => m.split('?')[0]) };
 };
 

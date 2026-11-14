@@ -106,7 +106,7 @@ export function restore(root: Document | DocumentFragment | Element, lite?: numb
 
 	// 0. head assets an answer carries (`data-og-head`): into the page's head once per key
 	const from: ParentNode | null = root === document ? document.body : (root as ParentNode);
-	if (from?.querySelectorAll) {
+	if (from && 'querySelectorAll' in from) {
 		for (const el of Array.from(from.querySelectorAll('[data-og-head],style[data-og-stand-ins]'))) {
 			const key = el.getAttribute('data-og-head');
 			const sel = key === null ? 'style[data-og-stand-ins]' : `[data-og-head="${esc(key)}"]`;

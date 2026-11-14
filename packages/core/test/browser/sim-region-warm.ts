@@ -4,6 +4,7 @@
 // replay half. A gate or a chunk first asked for inside a run would wait on that run's clock after
 // the run ended.
 import { inject } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { after_document_painted } from '../../src/runtime/schedule.ts';
 import { critical_settled } from '../../src/runtime/load-scheduler.ts';
@@ -11,10 +12,8 @@ import { critical_settled } from '../../src/runtime/load-scheduler.ts';
 export const COUNTER = '/test/browser/fixtures/Counter.svelte';
 export const LABEL = '/test/browser/fixtures/Label.svelte';
 export const PROBE = '/test/browser/fixtures/LiveProbe.svelte';
-export const counter_html = (): string =>
-	decodeURIComponent(escape(atob(inject('counter_render_b64'))));
-export const label_html = (): string =>
-	decodeURIComponent(escape(atob(inject('label_render_b64'))));
+export const counter_html = (): string => from_b64(inject('counter_render_b64'));
+export const label_html = (): string => from_b64(inject('label_render_b64'));
 
 export type LiveRegion = HTMLElement & { applyLive(desc: Record<string, unknown>): Promise<void> };
 
@@ -27,7 +26,7 @@ export async function warm_up(): Promise<void> {
 	bootDev();
 	await after_document_painted();
 	await critical_settled();
-	const ssr = decodeURIComponent(escape(atob(inject('counter_ssr_b64'))));
+	const ssr = from_b64(inject('counter_ssr_b64'));
 	// a scheduled wake (the hydrate core) and a visitor's (the replay half)
 	document.body.innerHTML = ssr;
 	const woke = document.querySelector('ogygia-region')!;
