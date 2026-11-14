@@ -7,12 +7,15 @@
  */
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { prebundled_packages, vary_of } from '../src/devtools/page.ts';
 import { record_realm } from '../src/devtools/hook-record.ts';
 
 let server: Server | null = null;
+const unhandled = vi.fn();
+process.on('unhandledRejection', unhandled);
 afterEach(async () => {
+	unhandled.mockClear();
 	server?.closeAllConnections();
 	await new Promise<void>((r) => (server ? server.close(() => r()) : r()));
 	server = null;
@@ -56,6 +59,7 @@ it("a file's Vary header is asked again after a failed ask", async () => {
 	await new Promise((r) => setTimeout(r, 200));
 	await s.start();
 	expect(await until(() => vary_of(url))).toBe('Origin');
+	expect(unhandled, 'the failed ask is never an unhandled rejection').not.toHaveBeenCalled();
 }, 10_000);
 
 it("the dev server's pre-bundled packages are asked again after a failed ask", async () => {
@@ -72,4 +76,5 @@ it("the dev server's pre-bundled packages are asked again after a failed ask", a
 	await new Promise((r) => setTimeout(r, 200));
 	await s.start();
 	expect(await until(() => prebundled_packages(scripts))).toEqual(['svelte', '@scope/pkg']);
+	expect(unhandled, 'the failed ask is never an unhandled rejection').not.toHaveBeenCalled();
 }, 10_000);

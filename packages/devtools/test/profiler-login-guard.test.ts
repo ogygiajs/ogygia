@@ -84,9 +84,14 @@ describe('profiler login: the secret', () => {
 describe('profiler login: wrong keys per address', () => {
 	it('after ten wrong keys an address is refused, even with the right key; another address is not', async () => {
 		const { login } = prod();
-		for (let i = 0; i < 10; i++) expect((await login(`wrong-${i}`)).status).toBe(401);
+		for (let i = 0; i < 10; i++) {
+			const wrong = await login(`wrong-${i}`);
+			expect(wrong.status).toBe(401);
+			expect(await wrong.json()).toEqual({ ok: false });
+		}
 		const refused = await login(SECRET);
 		expect(refused.status).toBe(429);
+		expect(await refused.json()).toEqual({ ok: false });
 		expect(refused.headers.getSetCookie()).toEqual([]);
 		expect((await login(SECRET, '198.51.100.7')).status).toBe(200);
 	});

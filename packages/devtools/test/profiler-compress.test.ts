@@ -52,4 +52,11 @@ describe('gzip_large', () => {
 			)
 		).toBeNull();
 	});
+
+	it('hands back an answer with no body as it is (a 204, a 304)', async () => {
+		for (const status of [204, 304]) {
+			const empty = new Response(null, { status, headers: { 'content-type': 'text/html' } });
+			expect(await gzip_large(req(), empty)).toBe(empty);
+		}
+	});
 });
