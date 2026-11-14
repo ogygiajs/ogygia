@@ -26,6 +26,10 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"default": "./src/index.ts"
+		},
+		"./testing": {
+			"types": "./dist/testing.d.ts",
+			"default": "./src/testing.ts"
 		}
 	},
 	"publishConfig": {
@@ -33,6 +37,10 @@
 			".": {
 				"types": "./dist/index.d.ts",
 				"default": "./dist/index.js"
+			},
+			"./testing": {
+				"types": "./dist/testing.d.ts",
+				"default": "./dist/testing.js"
 			}
 		},
 		"access": "public"
@@ -52,6 +60,7 @@
 		"@typescript/native": "catalog:tsgo",
 		"@vitest/browser": "catalog:",
 		"@vitest/browser-playwright": "catalog:",
+		"fast-check": "catalog:",
 		"playwright": "catalog:",
 		"tsdown": "catalog:",
 		"typescript": "catalog:",

@@ -129,6 +129,10 @@ describe('html sent', () => {
 		expect(tree.roots[0].attr('title')).toBe('a > b');
 		expect(tree.roots[0].kids.map((k) => k.tag)).toEqual(['p']);
 	});
+
+	it('finds the end of a raw-text element after text whose lower case is longer (a dotted capital I)', () => {
+		expect(rules(page('<p>İstanbul</p><script>var a = "İİ";</script><p>after</p>'))).toEqual([]);
+	});
 });
 
 describe('html kept', () => {

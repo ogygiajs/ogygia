@@ -40,19 +40,20 @@ Anything with a lifecycle is a state machine from `@ogygia/machine`. No boolean 
 `loading` plus `loaded`, no generation counters, no "if it is still the same one" checks by hand.
 The primitives exist so that whole families of bugs cannot be written:
 
-| Need                                                        | Use                                  | What it rules out                                                                      |
-| ----------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------- |
-| A thing that moves between named states                     | `machine()`                          | illegal moves (a type error, and a coded refusal at runtime)                           |
-| Async work that must not land late                          | `m.scope.task()` / `scope().task()`  | a stale answer applied after the state moved on: it returns `STALE`                    |
-| Cleanups, listeners, timers, observers                      | `scope()` (or the visit's `m.scope`) | leaks and double cleanups: each runs exactly once, when the owner ends                 |
-| One in-flight job per key, shared by every caller           | `flights()`                          | duplicate fetches, failed results cached forever (a failure is never kept)             |
-| Retries and backoff                                         | `policy()`                           | ad hoc retry loops with different rules in different places                            |
-| Work that must be sent, in order, and survive failures      | `outbox()`                           | silently dropped or reordered sends                                                    |
-| Several changes that land together or not at all            | `stage()`                            | half-applied updates                                                                   |
-| Freshness ("is this answer still about the current thing?") | `world()` stamps                     | comparing stale ids by hand. A `world` is about freshness; a `scope` is about lifetime |
-| Events on one owner handled one at a time                   | `mailbox()`                          | two handlers seeing each other's half-done work                                        |
-| Exclusive access                                            | `lock()`                             | two owners writing at once                                                             |
-| A cap on work in flight, first come first served            | `queue()`                            | hand-written semaphores; a freed place taken out of turn; a waiter that waits forever  |
+| Need                                                           | Use                                  | What it rules out                                                                                                                                  |
+| -------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A thing that moves between named states                        | `machine()`                          | illegal moves (a type error, and a coded refusal at runtime)                                                                                       |
+| Async work that must not land late                             | `m.scope.task()` / `scope().task()`  | a stale answer applied after the state moved on: it returns `STALE`                                                                                |
+| Cleanups, listeners, timers, observers                         | `scope()` (or the visit's `m.scope`) | leaks and double cleanups: each runs exactly once, when the owner ends                                                                             |
+| One in-flight job per key, shared by every caller              | `flights()`                          | duplicate fetches, failed results cached forever (a failure is never kept)                                                                         |
+| Retries and backoff                                            | `policy()`                           | ad hoc retry loops with different rules in different places                                                                                        |
+| Work that must be sent, in order, and survive failures         | `outbox()`                           | silently dropped or reordered sends                                                                                                                |
+| Several changes that land together or not at all               | `stage()`                            | half-applied updates                                                                                                                               |
+| Freshness ("is this answer still about the current thing?")    | `world()` stamps                     | comparing stale ids by hand. A `world` is about freshness; a `scope` is about lifetime                                                             |
+| Events on one owner handled one at a time                      | `mailbox()`                          | two handlers seeing each other's half-done work                                                                                                    |
+| Exclusive access                                               | `lock()`                             | two owners writing at once                                                                                                                         |
+| A cap on work in flight, first come first served               | `queue()`                            | hand-written semaphores; a freed place taken out of turn; a waiter that waits forever                                                              |
+| A choice made from several finite inputs (flags, small unions) | `decisions()`                        | unhandled or contradictory combinations, dead flags, and choices scattered over nested ternaries: every row can be listed, snapshotted and checked |
 
 Rules for using them:
 
