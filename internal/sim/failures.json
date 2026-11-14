@@ -3573,19 +3573,19 @@
 			"name": "a macro or a route config key two plugins both claim is refused, naming the first"
 		},
 		{
-			"site": "packages/compiler/src/queries.ts > queries > set_input > throw:0",
+			"site": "packages/compiler/src/queries.ts > Queries > set_input > throw:0",
 			"reason": "`throw new Error(`query ${query.name} is not an input`);`: proved: the throw removed turns the test red, twice",
 			"test": "packages/compiler/test/queries.test.ts",
 			"name": "an answer, not an input, cannot be set"
 		},
 		{
-			"site": "packages/compiler/src/queries.ts > queries > moved > catch:0",
+			"site": "packages/compiler/src/queries.ts > Queries > moved > catch:0",
 			"reason": "`catch { return true; // ok: an answer that now throws has changed; it…`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/compiler/test/queries.test.ts",
 			"name": "an answer that now throws has moved, for a watcher and for answers_changed_since"
 		},
 		{
-			"site": "packages/compiler/src/queries.ts > queries > answers_changed_since > catch:0",
+			"site": "packages/compiler/src/queries.ts > Queries > answers_changed_since > catch:0",
 			"reason": "`catch { return true; // ok: an answer that now throws has changed; it…`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/compiler/test/queries.test.ts",
 			"name": "an answer that now throws has moved, for a watcher and for answers_changed_since"
@@ -3915,19 +3915,19 @@
 			"name": "refuses a name, an interpolation, and a literal inside an expression"
 		},
 		{
-			"site": "packages/compiler/src/queries.ts > queries > compute > throw:0",
+			"site": "packages/compiler/src/queries.ts > Queries > compute > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/queries.test.ts",
 			"name": "a query that reads itself throws, and the database still answers after"
 		},
 		{
-			"site": "packages/compiler/src/queries.ts > queries > compute > catch:0",
+			"site": "packages/compiler/src/queries.ts > Queries > compute > catch:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
 			"test": "packages/compiler/test/queries.test.ts",
 			"name": "a query that reads itself throws, and the database still answers after"
 		},
 		{
-			"site": "packages/compiler/src/queries.ts > queries > compute > throw:1",
+			"site": "packages/compiler/src/queries.ts > Queries > compute > throw:1",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/queries.test.ts",
 			"name": "a query that reads itself throws, and the database still answers after"
