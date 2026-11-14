@@ -1,18 +1,6 @@
 {
 	"exempt": [
 		{
-			"id": "packages/core/src/runtime/reload-needed.ts > say_reload_needed",
-			"reason": "browser only, once per page at most (the first chunk no retry loads); test/browser/reload-needed-hook.test.ts runs it"
-		},
-		{
-			"id": "packages/core/src/runtime/reload-needed.ts > regions_of_file",
-			"reason": "a DOM query, browser only, once per page at most and only with a reloadNeeded subscriber; test/browser/reload-needed-hook.test.ts runs it"
-		},
-		{
-			"id": "packages/core/src/runtime/reload-needed.ts > file_without_retry_mark",
-			"reason": "one URL parse per region on the page, browser only, once per page at most; test/browser/reload-needed-hook.test.ts runs it"
-		},
-		{
 			"id": "packages/core/src/server/html-scan.ts > kit_boot_script > is_kit_boot_script:1~dc8962",
 			"reason": "one attribute lookup on a tag the walk already read, constant work; kit-gate.test.ts runs it"
 		},
@@ -5233,14 +5221,6 @@
 			"reason": "one patch's text from the chunk's file name, constant work"
 		},
 		{
-			"id": "packages/compiler/src/link/relocations.ts > FN_MANIFEST > value",
-			"reason": "once per chunk that carries the token: a closure over the build's fn hoists, constant work"
-		},
-		{
-			"id": "packages/compiler/src/link/relocations.ts > FN_MANIFEST > value > <anonymous>~787be9",
-			"reason": "the fn manifest's registrations, once per build (fn_manifest_registrations does the work)"
-		},
-		{
 			"id": "packages/compiler/src/link/relocations.ts > ISLAND_DEPS > value",
 			"reason": "once per chunk that carries the token: a closure over the chunk graph, constant work"
 		},
@@ -5733,10 +5713,6 @@
 			"reason": "one hole_identity fingerprint of a lake's props per lake render, measured with hole_identity's own bench; lake-identity.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/driver.ts > Compiler > relocate > relocate:3~0b2c47 > public_url",
-			"reason": "one island's public url from the context, constant work, once per island token patched"
-		},
-		{
 			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > page_reads_claimed > text",
 			"reason": "a build error's text, built once when two plugins claim seed shaping, then the build stops; constant work"
 		},
@@ -6115,6 +6091,18 @@
 		{
 			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > whyStayed",
 			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/reload-needed.ts > say_reload_needed",
+			"reason": "browser only, once per page at most (the first chunk no retry loads); test/browser/reload-needed-hook.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/reload-needed.ts > regions_of_file",
+			"reason": "a DOM query, browser only, once per page at most and only with a reloadNeeded subscriber; test/browser/reload-needed-hook.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/reload-needed.ts > file_without_retry_mark",
+			"reason": "one URL parse per region on the page, browser only, once per page at most; test/browser/reload-needed-hook.test.ts runs it"
 		},
 		{
 			"id": "packages/core/src/runtime/morph.ts > carry_shadows",

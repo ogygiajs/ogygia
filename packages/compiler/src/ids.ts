@@ -2,7 +2,6 @@ import { specifier } from './virtual/specifier.ts';
 
 /** Generated sticky entry — static-imports only the features selected from build marks. */
 export const V_RUNTIME_ENTRY: string = specifier('boot', 'runtime-entry');
-export const V_FN_MANIFEST: string = specifier('boot', 'fn-manifest');
 export const V_SERVER_MANIFEST: string = specifier('server', 'server-manifest');
 /** The server regions' loaders (`id → () => import(entry)`), reached only through the manifest's
  *  `load_server_regions()` — see link/server-manifest.ts for why they live one dynamic import away. */
