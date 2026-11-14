@@ -187,7 +187,9 @@ describe('element rewrites: the restore', () => {
 		const shadow = '<template shadowrootmode="open">';
 		const around = chunked([scoped()]);
 		await around.chunk(doc(island('<demo-card>a</demo-card>')), { done: false });
-		const here = await around.chunk(island(`<div>${shadow}<demo-card>b</demo-card></template></div>`));
+		const here = await around.chunk(
+			island(`<div>${shadow}<demo-card>b</demo-card></template></div>`)
+		);
 		expect(here.html.endsWith(RESTORE_CALL_FULL)).toBe(true);
 		const earlier = chunked([scoped()]);
 		await earlier.chunk(doc(island('<demo-card>a</demo-card>')), { done: false });
@@ -196,7 +198,9 @@ describe('element rewrites: the restore', () => {
 		expect(later.html.endsWith(RESTORE_CALL_FULL)).toBe(true);
 		const flat = chunked([scoped()]);
 		await flat.chunk(doc(island('<demo-card>a</demo-card>')), { done: false });
-		const none = await flat.chunk(island('<div><template><demo-card>b</demo-card></template></div>'));
+		const none = await flat.chunk(
+			island('<div><template><demo-card>b</demo-card></template></div>')
+		);
 		expect(none.html.endsWith(RESTORE_CALL)).toBe(true);
 	});
 
