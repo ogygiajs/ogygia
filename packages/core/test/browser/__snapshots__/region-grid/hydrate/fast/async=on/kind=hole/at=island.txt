@@ -1,0 +1,87 @@
+# Region hydration grid · async=on · kind=hole · at=island (fast)
+# 6720 cases, 2 distinct outputs; per part: kept_body 1, head_gone 1, body_hydrated 2, body_after 2, live 1, thrown 1, said 1, unhandled 1.
+# axes: csr=off|on page=ok|error env=prod when=load|idle|visible wake=none|module-only|load|idle|visible|interaction|media attrs=none|all ttl=0|60 fallback=none|text|island|hole props=absent|empty|json|devalue|snippet component=tiny|none
+
+################ kept_body · 1 distinct ################
+
+════ kept_body 1 · 6720 cases ════
+true
+──── no hashes · 6720:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=*
+
+################ head_gone · 1 distinct ################
+
+════ head_gone 1 · 6720 cases ════
+[
+ "<!--<id1>-->"
+]
+──── with <id1>=rtd3wb · 6720:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=*
+
+################ body_hydrated · 2 distinct ################
+
+════ body_hydrated 1 · 3360 cases ════
+<!--[--><!--[--><!--[1--><!--[0--><ogygia-region entry="hole-a" wake="none" remount="cache" data-og-lake="<fp1>"><b data-tiny="">tiny</b><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=a57a6f3934f191c3 · 2016:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=absent|empty|snippet component=tiny
+──── with <fp1>=cb07bf30d01ae950 · 672:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=json component=tiny
+──── with <fp1>=3629c9bcb8a43a64 · 672:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=devalue component=tiny
+
+════ body_hydrated 2 · 3360 cases ════
+<!--[--><!--[--><!--[1--><!--[0--><ogygia-region entry="hole-a" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=a57a6f3934f191c3 · 2016:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=absent|empty|snippet component=none
+──── with <fp1>=cb07bf30d01ae950 · 672:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=json component=none
+──── with <fp1>=3629c9bcb8a43a64 · 672:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=devalue component=none
+
+################ body_after · 2 distinct ################
+
+════ body_after 1 · 3360 cases ════
+<!--[--><!--[--><!--[1--><!--[0--><ogygia-region entry="hole-a" wake="none" remount="cache" data-og-lake="<fp1>"><b data-tiny="">tiny</b><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=a57a6f3934f191c3 · 2016:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=absent|empty|snippet component=tiny
+──── with <fp1>=cb07bf30d01ae950 · 672:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=json component=tiny
+──── with <fp1>=3629c9bcb8a43a64 · 672:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=devalue component=tiny
+
+════ body_after 2 · 3360 cases ════
+<!--[--><!--[--><!--[1--><!--[0--><ogygia-region entry="hole-a" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=a57a6f3934f191c3 · 2016:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=absent|empty|snippet component=none
+──── with <fp1>=cb07bf30d01ae950 · 672:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=json component=none
+──── with <fp1>=3629c9bcb8a43a64 · 672:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=devalue component=none
+
+################ live · 1 distinct ################
+
+════ live 1 · 6720 cases ════
+[]
+──── no hashes · 6720:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 6720 cases ════
+null
+──── no hashes · 6720:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=*
+
+################ said · 1 distinct ################
+
+════ said 1 · 6720 cases ════
+[]
+──── no hashes · 6720:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=*
+
+################ unhandled · 1 distinct ################
+
+════ unhandled 1 · 6720 cases ════
+[]
+──── no hashes · 6720:
+csr=* page=ok env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=*

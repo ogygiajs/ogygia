@@ -25,8 +25,12 @@ type Slice = {
 	adapters: boolean;
 };
 
+/** Region's full grid (packages/core `e2e`, scripts/region-grid.ts) in this many parts. */
+const REGION_GRID_PARTS = ['1/4', '2/4', '3/4', '4/4'];
+
 /** The e2e slices (one runner each): core's suite in three Playwright shards (it holds the
- *  adapter suite, so bun and wrangler are its alone), devtools' in two, every other suite in one. */
+ *  adapter suite, so bun and wrangler are its alone), devtools' in two, Region's grid in its parts,
+ *  every other suite in one. */
 const SLICES: Slice[] = [
 	{ name: 'core 1/3', id: 'core-1', filter: '--filter=palaestra', shard: '1/3', adapters: true },
 	{ name: 'core 2/3', id: 'core-2', filter: '--filter=palaestra', shard: '2/3', adapters: true },
@@ -45,10 +49,17 @@ const SLICES: Slice[] = [
 		shard: '2/2',
 		adapters: false
 	},
+	...REGION_GRID_PARTS.map((shard, i) => ({
+		name: `region grid ${shard}`,
+		id: `region-grid-${i + 1}`,
+		filter: '--filter=@ogygia/core',
+		shard,
+		adapters: false
+	})),
 	{
 		name: 'the rest',
 		id: 'rest',
-		filter: '--filter=!palaestra --filter=!@ogygia/devtools',
+		filter: '--filter=!palaestra --filter=!@ogygia/devtools --filter=!@ogygia/core',
 		shard: '',
 		adapters: false
 	}

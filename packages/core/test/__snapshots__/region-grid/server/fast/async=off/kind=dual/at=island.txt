@@ -1,0 +1,167 @@
+# Region server grid · async=off · kind=dual · at=island (fast)
+# 12288 cases, 20 distinct outputs; per part: head 9, body 10, thrown 1, tail 1, tail holes 1, tail islands 1, early holes 1, page records 2, devtools 1, said 1.
+# axes: kit=none|pass|pass-inner|ogygia csr=off|on page=ok|error env=prod wake=none|load|idle|visible|interaction|media margin=none|9px thenable=no|yes module=dual|none component=tiny|wrap children=none|text|island|hole placeholder=none|text
+
+################ head · 9 distinct ################
+
+════ head 1 · 768 cases ════
+<!--<id1>--><!--<id2>--><link rel="stylesheet" href="/islands/dual.js~sheet.css" data-ogygia-region-css><!----><!---->
+──── with <id1>=rtd3wb <id2>=8szjbq · 768:
+kit=* csr=* page=* env=* wake=none margin=* thenable=* module=dual component=tiny children=* placeholder=*
+kit=* csr=* page=* env=* wake=none margin=* thenable=* module=dual component=wrap children=none|text placeholder=*
+
+════ head 2 · 128 cases ════
+<!--<id1>--><!--<id2>--><link rel="stylesheet" href="/islands/dual.js~sheet.css" data-ogygia-region-css><!----><!----><!--<id1>--><!--<id3>--><link rel="stylesheet" href="/islands/inner.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/inner.js"><!----><!---->
+──── with <id1>=rtd3wb <id2>=8szjbq <id3>=1v07hc5 · 128:
+kit=* csr=* page=* env=* wake=none margin=* thenable=* module=dual component=wrap children=island placeholder=*
+
+════ head 3 · 128 cases ════
+<!--<id1>--><!--<id2>--><link rel="stylesheet" href="/islands/dual.js~sheet.css" data-ogygia-region-css><!----><!----><!--<id1>--><!--<id3>--><link rel="stylesheet" href="/holes/hole-in.css" data-ogygia-region-css><!----><!---->
+──── with <id1>=rtd3wb <id2>=8szjbq <id3>=jwz1bl · 128:
+kit=* csr=* page=* env=* wake=none margin=* thenable=* module=dual component=wrap children=hole placeholder=*
+
+════ head 4 · 4608 cases ════
+<!--<id1>--><!--<id2>--><!----><!---->
+──── with <id1>=rtd3wb <id2>=45h · 4608:
+kit=* csr=* page=* env=* wake=* margin=* thenable=* module=none component=tiny children=* placeholder=*
+kit=* csr=* page=* env=* wake=* margin=* thenable=* module=none component=wrap children=none|text placeholder=*
+
+════ head 5 · 768 cases ════
+<!--<id1>--><!--<id2>--><!----><!----><!--<id1>--><!--<id3>--><link rel="stylesheet" href="/islands/inner.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/inner.js"><!----><!---->
+──── with <id1>=rtd3wb <id2>=45h <id3>=1v07hc5 · 768:
+kit=* csr=* page=* env=* wake=* margin=* thenable=* module=none component=wrap children=island placeholder=*
+
+════ head 6 · 768 cases ════
+<!--<id1>--><!--<id2>--><!----><!----><!--<id1>--><!--<id3>--><link rel="stylesheet" href="/holes/hole-in.css" data-ogygia-region-css><!----><!---->
+──── with <id1>=rtd3wb <id2>=45h <id3>=jwz1bl · 768:
+kit=* csr=* page=* env=* wake=* margin=* thenable=* module=none component=wrap children=hole placeholder=*
+
+════ head 7 · 3840 cases ════
+<!--<id1>--><!--<id2>--><meta name="ogygia-kit-island" content="/islands/dual.js"><link rel="stylesheet" href="/islands/dual.js~sheet.css" data-ogygia-region-css><!----><!---->
+──── with <id1>=rtd3wb <id2>=15qdil3 · 3840:
+kit=* csr=* page=* env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=dual component=tiny children=* placeholder=*
+kit=* csr=* page=* env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=dual component=wrap children=none|text placeholder=*
+
+════ head 8 · 640 cases ════
+<!--<id1>--><!--<id2>--><meta name="ogygia-kit-island" content="/islands/dual.js"><link rel="stylesheet" href="/islands/dual.js~sheet.css" data-ogygia-region-css><!----><!----><!--<id1>--><!--<id3>--><link rel="stylesheet" href="/islands/inner.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/inner.js"><!----><!---->
+──── with <id1>=rtd3wb <id2>=15qdil3 <id3>=1v07hc5 · 640:
+kit=* csr=* page=* env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=dual component=wrap children=island placeholder=*
+
+════ head 9 · 640 cases ════
+<!--<id1>--><!--<id2>--><meta name="ogygia-kit-island" content="/islands/dual.js"><link rel="stylesheet" href="/islands/dual.js~sheet.css" data-ogygia-region-css><!----><!----><!--<id1>--><!--<id3>--><link rel="stylesheet" href="/holes/hole-in.css" data-ogygia-region-css><!----><!---->
+──── with <id1>=rtd3wb <id2>=15qdil3 <id3>=jwz1bl · 640:
+kit=* csr=* page=* env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=dual component=wrap children=hole placeholder=*
+
+################ body · 10 distinct ################
+
+════ body 1 · 1024 cases ════
+<!--[--><!--[--><!--[4--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 1024:
+kit=* csr=* page=* env=* wake=none margin=* thenable=* module=* component=tiny children=* placeholder=*
+
+════ body 2 · 256 cases ════
+<!--[--><!--[--><!--[4--><!--[--><section data-wrap=""><!--[-1--><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 256:
+kit=* csr=* page=* env=* wake=none margin=* thenable=* module=* component=wrap children=none placeholder=*
+
+════ body 3 · 256 cases ════
+<!--[--><!--[--><!--[4--><!--[--><section data-wrap=""><!--[0--><i>kid</i><!----><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 256:
+kit=* csr=* page=* env=* wake=none margin=* thenable=* module=* component=wrap children=text placeholder=*
+
+════ body 4 · 256 cases ════
+<!--[--><!--[--><!--[4--><!--[--><section data-wrap=""><!--[0--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!----><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 256:
+kit=* csr=* page=* env=* wake=none margin=* thenable=* module=* component=wrap children=island placeholder=*
+
+════ body 5 · 256 cases ════
+<!--[--><!--[--><!--[4--><!--[--><section data-wrap=""><!--[0--><!--[1--><!--[0--><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"><b data-tiny="">tiny</b><!----></ogygia-region><!--]--><!--]--><!----><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=3b84af65b32bfb2e · 256:
+kit=* csr=* page=* env=* wake=none margin=* thenable=* module=* component=wrap children=hole placeholder=*
+
+════ body 6 · 5120 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 5120:
+kit=* csr=* page=* env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=tiny children=* placeholder=*
+
+════ body 7 · 1280 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 1280:
+kit=* csr=* page=* env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=none placeholder=*
+
+════ body 8 · 1280 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><i>kid</i><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 1280:
+kit=* csr=* page=* env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=text placeholder=*
+
+════ body 9 · 1280 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── no hashes · 1280:
+kit=* csr=* page=* env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=island placeholder=*
+
+════ body 10 · 1280 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><!--[1--><!--[0--><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"><b data-tiny="">tiny</b><!----></ogygia-region><!--]--><!--]--><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=3b84af65b32bfb2e · 1280:
+kit=* csr=* page=* env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=hole placeholder=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 12288 cases ════
+
+──── no hashes · 12288:
+kit=* csr=* page=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
+
+################ tail · 1 distinct ################
+
+════ tail 1 · 12288 cases ════
+
+──── no hashes · 12288:
+kit=* csr=* page=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
+
+################ tail holes · 1 distinct ################
+
+════ tail holes 1 · 12288 cases ════
+[]
+──── no hashes · 12288:
+kit=* csr=* page=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
+
+################ tail islands · 1 distinct ################
+
+════ tail islands 1 · 12288 cases ════
+[]
+──── no hashes · 12288:
+kit=* csr=* page=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
+
+################ early holes · 1 distinct ################
+
+════ early holes 1 · 12288 cases ════
+
+──── no hashes · 12288:
+kit=* csr=* page=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
+
+################ page records · 2 distinct ################
+
+════ page records 1 · 9216 cases ════
+[{"seed":false,"remotes":[],"entry":""}]
+──── no hashes · 9216:
+kit=* csr=* page=* env=* wake=* margin=* thenable=* module=* component=tiny children=* placeholder=*
+kit=* csr=* page=* env=* wake=* margin=* thenable=* module=* component=wrap children=none|text placeholder=*
+
+════ page records 2 · 3072 cases ════
+[{"seed":false,"remotes":[],"entry":""},{"seed":false,"remotes":[],"entry":""}]
+──── no hashes · 3072:
+kit=* csr=* page=* env=* wake=* margin=* thenable=* module=* component=wrap children=island|hole placeholder=*
+
+################ devtools · 1 distinct ################
+
+════ devtools 1 · 12288 cases ════
+[]
+──── no hashes · 12288:
+kit=* csr=* page=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
+
+################ said · 1 distinct ################
+
+════ said 1 · 12288 cases ════
+[]
+──── no hashes · 12288:
+kit=* csr=* page=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*

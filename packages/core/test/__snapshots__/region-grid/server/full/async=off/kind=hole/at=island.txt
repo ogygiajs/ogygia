@@ -1,0 +1,91 @@
+# Region server grid · async=off · kind=hole · at=island (full)
+# 430080 cases, 4 distinct outputs; per part: head 1, body 2, thrown 1, tail 1, tail holes 1, tail islands 1, early holes 1, page records 1, devtools 1, said 2.
+# axes: kit=none|pass|pass-inner|ogygia csr=off|on page=ok|error env=dev|prod when=load|idle|visible wake=none|module-only|load|idle|visible|interaction|media attrs=none|all ttl=0|60 fallback=none|text|island|hole props=absent|empty|json|devalue|snippet component=tiny|none building=no|yes page_version=no|yes
+
+################ head · 1 distinct ################
+
+════ head 1 · 430080 cases ════
+<!--<id1>--><!--<id2>--><link rel="stylesheet" href="/holes/hole-a.css" data-ogygia-region-css><!----><!---->
+──── with <id1>=rtd3wb <id2>=8wrexz · 430080:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ body · 2 distinct ################
+
+════ body 1 · 215040 cases ════
+<!--[--><!--[--><!--[1--><!--[0--><ogygia-region entry="hole-a" wake="none" remount="cache" data-og-lake="<fp1>"><b data-tiny="">tiny</b><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=a57a6f3934f191c3 · 129024:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=absent|empty|snippet component=tiny building=* page_version=*
+──── with <fp1>=cb07bf30d01ae950 · 43008:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=json component=tiny building=* page_version=*
+──── with <fp1>=3629c9bcb8a43a64 · 43008:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=devalue component=tiny building=* page_version=*
+
+════ body 2 · 215040 cases ════
+<!--[--><!--[--><!--[1--><!--[0--><ogygia-region entry="hole-a" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=a57a6f3934f191c3 · 129024:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=absent|empty|snippet component=none building=* page_version=*
+──── with <fp1>=cb07bf30d01ae950 · 43008:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=json component=none building=* page_version=*
+──── with <fp1>=3629c9bcb8a43a64 · 43008:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=devalue component=none building=* page_version=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 430080 cases ════
+
+──── no hashes · 430080:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ tail · 1 distinct ################
+
+════ tail 1 · 430080 cases ════
+
+──── no hashes · 430080:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ tail holes · 1 distinct ################
+
+════ tail holes 1 · 430080 cases ════
+[]
+──── no hashes · 430080:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ tail islands · 1 distinct ################
+
+════ tail islands 1 · 430080 cases ════
+[]
+──── no hashes · 430080:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ early holes · 1 distinct ################
+
+════ early holes 1 · 430080 cases ════
+
+──── no hashes · 430080:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ page records · 1 distinct ################
+
+════ page records 1 · 430080 cases ════
+[{"seed":false,"remotes":[],"entry":""}]
+──── no hashes · 430080:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ devtools · 1 distinct ################
+
+════ devtools 1 · 430080 cases ════
+[]
+──── no hashes · 430080:
+kit=* csr=* page=* env=* when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+################ said · 2 distinct ################
+
+════ said 1 · 215040 cases ════
+["[ogygia] nested server island \"hole-a\" is inside another island; it renders inline as frozen HTML (no JS ships; islands inside it wake on their own) — 'deferred' ignored.\nhttps://ogygiajs.dev/e/nested_server_island_inline?entry=hole-a"]
+──── no hashes · 215040:
+kit=* csr=* page=* env=dev when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*
+
+════ said 2 · 215040 cases ════
+[]
+──── no hashes · 215040:
+kit=* csr=* page=* env=prod when=* wake=* attrs=* ttl=* fallback=* props=* component=* building=* page_version=*

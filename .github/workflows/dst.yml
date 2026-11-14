@@ -18,6 +18,8 @@ on:
     - cron: '43 3 * * *'
     # once a day: the differential (the `differ` job), the simulator against real browsers
     - cron: '29 5 * * *'
+    # once a day: Region's whole grid in all three engines, and its fuzz at length (`region-grid`)
+    - cron: '11 4 * * *'
   workflow_dispatch:
     inputs:
       ref:
@@ -30,7 +32,7 @@ on:
         description: Queued runs in the repository past which DST yields to CI
         default: '50'
       job:
-        description: 'simulate (the sweep, then seeds back to back), mutate (the mutation run) or differ (the simulator against real browsers)'
+        description: "simulate (the sweep, then seeds back to back), mutate (the mutation run), differ (the simulator against real browsers) or region-grid (Region's whole grid and its long fuzz)"
         default: simulate
 
 permissions: {}
@@ -44,7 +46,7 @@ jobs:
   simulate:
     if: >-
       github.repository == 'ogygiajs/ogygia' && github.event.schedule != '43 3 * * *' &&
-      github.event.schedule != '29 5 * * *' &&
+      github.event.schedule != '29 5 * * *' && github.event.schedule != '11 4 * * *' &&
       (inputs.job || 'simulate') == 'simulate'
     runs-on: ubuntu-latest
     timeout-minutes: 350
@@ -299,3 +301,49 @@ jobs:
           path: ${{ runner.temp }}/differ
           retention-days: 30
           if-no-files-found: ignore
+
+  # Region's whole grid (packages/core scripts/region-grid.ts: server, client and hydration, async
+  # on and off) in one run, in all three engines, then its fuzz at length on both legs. Fixed seed:
+  # a red run replays. (Every PR runs the grid too, cut into e2e slices; this is the nightly whole.)
+  region-grid:
+    if: >-
+      github.repository == 'ogygiajs/ogygia' &&
+      (github.event.schedule == '11 4 * * *' || inputs.job == 'region-grid')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || 'main' }}
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Install the browsers
+        working-directory: packages/core
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
+
+      - name: The whole grid
+        working-directory: packages/core
+        env:
+          OGYGIA_BROWSERS: chromium,firefox,webkit
+        run: node scripts/region-grid.ts
+
+      - name: The fuzz at length
+        working-directory: packages/core
+        env:
+          OGYGIA_BROWSERS: chromium,firefox,webkit
+          OGYGIA_FUZZ_RUNS: '100000'
+        run: >-
+          pnpm exec vitest run --project node --project node-no-async --project browser
+          --project browser-no-async test/region-grid-fuzz.test.ts test/browser/region-grid-fuzz.test.ts

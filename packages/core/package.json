@@ -211,6 +211,7 @@
 		"test": "vitest run",
 		"test:node": "vitest run --project node",
 		"test:browser": "vitest run --project 'browser*'",
+		"e2e": "node scripts/region-grid.ts",
 		"check": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.check.json --fail-on-warnings && tsc -p test && vitest run",
 		"prepublishOnly": "pnpm run build && pnpm run verify:package",
 		"verify:package": "node scripts/verify-package.ts"

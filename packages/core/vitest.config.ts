@@ -92,6 +92,33 @@ const keep_downloads: BrowserCommand<[path: string]> = async (ctx, path) => {
 	for (const send of r.held.splice(0)) await send().catch(() => {}); // ok: a held request whose page closed has no one to answer
 };
 
+/** Which of the region grids' cases run (test/region-grid.test.ts): `full`, or the fast subset; and
+ *  which part of them, `<i>/<n>`. */
+const GRID = {
+	region_grid: process.env.OGYGIA_REGION_GRID === 'full' ? 'full' : 'fast',
+	region_grid_shard: process.env.OGYGIA_REGION_GRID_SHARD ?? '1/1',
+	// (the browser's fuzz reads these here: it has no process.env)
+	fuzz_runs: process.env.OGYGIA_FUZZ_RUNS ?? '',
+	fuzz_seed: process.env.OGYGIA_FUZZ_SEED ?? ''
+};
+
+/** The hydration grid's server HTML for one kind at one place (test/_region-grid-ssr.ts), rendered
+ *  through the calling project's own Vite server: compiled with the Svelte options of the client
+ *  that hydrates it. */
+const region_grid_ssr: BrowserCommand<[kind: string, place: unknown]> = async (
+	ctx,
+	kind,
+	place
+) => {
+	const mod = await ctx.project.vite.ssrLoadModule('/test/_region-grid-ssr.ts');
+	return (mod.ssr_cell as (k: string, p: unknown) => unknown)(kind, place);
+};
+/** The hydration fuzz's server HTML for each of its inputs, the same way. */
+const region_grid_ssr_specs: BrowserCommand<[inputs: unknown[]]> = async (ctx, inputs) => {
+	const mod = await ctx.project.vite.ssrLoadModule('/test/_region-grid-ssr.ts');
+	return (mod.ssr_specs as (i: unknown[]) => unknown)(inputs);
+};
+
 // Two projects, one config:
 //
 // - `node`   — unit tests for the library internals (the transform, the content pipeline, the pure
@@ -130,7 +157,27 @@ export default defineConfig({
 					exclude: ['test/browser/**', 'test/browser-no-async/**', '**/node_modules/**'],
 					environment: 'node',
 					// the runtime's messages, published as the runtime's boot and the server's handle do
-					setupFiles: ['./test/_setup/messages.ts']
+					setupFiles: ['./test/_setup/messages.ts'],
+					provide: { svelte_async: true, ...GRID }
+				}
+			},
+			{
+				extends: true,
+				// the region grid's server leg as an app without Svelte's async compile renders it
+				plugins: [
+					svelte({
+						configFile: false,
+						compilerOptions: { experimental: { async: false } }
+					})
+				],
+				test: {
+					name: 'node-no-async',
+					include: ['test/region-grid*.test.ts'],
+					environment: 'node',
+					setupFiles: ['./test/_setup/messages.ts'],
+					provide: { svelte_async: false, ...GRID },
+					resolveSnapshotPath: (path, extension) =>
+						path.replace(/\/test\/([^/]+)$/, `/test/__snapshots__/no-async/$1${extension}`)
 				}
 			},
 			{
@@ -144,6 +191,7 @@ export default defineConfig({
 					name: 'browser',
 					include: ['test/browser/**/*.test.ts'],
 					globalSetup: ['./test/browser/setup.ts'],
+					provide: { svelte_async: true, ...GRID },
 					// a failing test prints its machine moves
 					setupFiles: ['@ogygia/tooling/vitest/trace-setup'],
 					browser: {
@@ -152,9 +200,11 @@ export default defineConfig({
 						...(await browser_runs()),
 						// (network routes are Playwright's: real Firefox runs without them, and the tests
 						// that need them say so, test/browser/_browsers.ts)
-						...(playwright_run()
-							? { commands: { drop_downloads, hold_downloads, keep_downloads } }
-							: {})
+						commands: {
+							region_grid_ssr,
+							region_grid_ssr_specs,
+							...(playwright_run() ? { drop_downloads, hold_downloads, keep_downloads } : {})
+						}
 					}
 				}
 			},
@@ -168,8 +218,20 @@ export default defineConfig({
 				],
 				test: {
 					name: 'browser-no-async',
-					include: ['test/browser-no-async/**/*.test.ts'],
-					browser: { enabled: true, headless: true, ...(await browser_runs()) }
+					// (and the region grids, as an app without Svelte's async compile hydrates them)
+					include: ['test/browser-no-async/**/*.test.ts', 'test/browser/region-grid*.test.ts'],
+					provide: { svelte_async: false, ...GRID },
+					resolveSnapshotPath: (path, extension) =>
+						path.replace(
+							/\/test\/browser\/([^/]+)$/,
+							`/test/browser/__snapshots__/no-async/$1${extension}`
+						),
+					browser: {
+						enabled: true,
+						headless: true,
+						...(await browser_runs()),
+						commands: { region_grid_ssr, region_grid_ssr_specs }
+					}
 				}
 			}
 		]

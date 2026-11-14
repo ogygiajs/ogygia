@@ -1,0 +1,73 @@
+# Region server grid · async=off · kind=nothing · at=island (full)
+# 256 cases, 1 distinct outputs; per part: head 1, body 1, thrown 1, tail 1, tail holes 1, tail islands 1, early holes 1, page records 1, devtools 1, said 1.
+# axes: kit=none|pass|pass-inner|ogygia csr=off|on page=ok|error env=dev|prod children=none|text|island|hole placeholder=none|text
+
+################ head · 1 distinct ################
+
+════ head 1 · 256 cases ════
+<!--<id1>--><!--<id2>--><!----><!---->
+──── with <id1>=rtd3wb <id2>=45h · 256:
+kit=* csr=* page=* env=* children=* placeholder=*
+
+################ body · 1 distinct ################
+
+════ body 1 · 256 cases ════
+<!--[--><!--[--><!--[-1--><!--]--><!--]--><!--]-->
+──── no hashes · 256:
+kit=* csr=* page=* env=* children=* placeholder=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 256 cases ════
+
+──── no hashes · 256:
+kit=* csr=* page=* env=* children=* placeholder=*
+
+################ tail · 1 distinct ################
+
+════ tail 1 · 256 cases ════
+
+──── no hashes · 256:
+kit=* csr=* page=* env=* children=* placeholder=*
+
+################ tail holes · 1 distinct ################
+
+════ tail holes 1 · 256 cases ════
+[]
+──── no hashes · 256:
+kit=* csr=* page=* env=* children=* placeholder=*
+
+################ tail islands · 1 distinct ################
+
+════ tail islands 1 · 256 cases ════
+[]
+──── no hashes · 256:
+kit=* csr=* page=* env=* children=* placeholder=*
+
+################ early holes · 1 distinct ################
+
+════ early holes 1 · 256 cases ════
+
+──── no hashes · 256:
+kit=* csr=* page=* env=* children=* placeholder=*
+
+################ page records · 1 distinct ################
+
+════ page records 1 · 256 cases ════
+[{"seed":false,"remotes":[],"entry":""}]
+──── no hashes · 256:
+kit=* csr=* page=* env=* children=* placeholder=*
+
+################ devtools · 1 distinct ################
+
+════ devtools 1 · 256 cases ════
+[]
+──── no hashes · 256:
+kit=* csr=* page=* env=* children=* placeholder=*
+
+################ said · 1 distinct ################
+
+════ said 1 · 256 cases ════
+[]
+──── no hashes · 256:
+kit=* csr=* page=* env=* children=* placeholder=*

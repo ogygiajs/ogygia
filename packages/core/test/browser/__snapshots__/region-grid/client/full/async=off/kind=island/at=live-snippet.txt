@@ -1,0 +1,110 @@
+# Region client grid · async=off · kind=island · at=live-snippet (full)
+# 10752 cases, 14 distinct outputs; per part: body 6, live 1, head_changed 1, thrown 1, said 6, unhandled 1.
+# axes: csr=off|on env=dev|prod wake=load|idle|visible|visible-margin|interaction|media keep=none|nav children=none|text|island|hole component=tiny|wrap|late|tiny+late props=absent|empty|json|devalue|snippet|live|ref ttl=0|60
+
+################ body · 6 distinct ################
+
+════ body 1 · 5376 cases ════
+<!----><!----><!----><!----><!----><b data-tiny="">tiny</b>
+──── no hashes · 5376:
+csr=* env=* wake=* keep=* children=* component=tiny|tiny+late props=* ttl=*
+
+════ body 2 · 672 cases ════
+<!----><!----><!----><!----><!----><section data-wrap=""><!----><!----></section>
+──── no hashes · 672:
+csr=* env=* wake=* keep=* children=none component=wrap props=* ttl=*
+
+════ body 3 · 2688 cases ════
+<!----><!----><!----><!----><!----><!----><b data-tiny="">tiny</b>
+──── no hashes · 2688:
+csr=* env=* wake=* keep=* children=* component=late props=* ttl=*
+
+════ body 4 · 672 cases ════
+<!----><!----><!----><!----><!----><section data-wrap=""><!----><i>kid</i><!----></section>
+──── no hashes · 672:
+csr=* env=* wake=* keep=* children=text component=wrap props=* ttl=*
+
+════ body 5 · 672 cases ════
+<!----><!----><!----><!----><!----><section data-wrap=""><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></section>
+──── no hashes · 672:
+csr=* env=* wake=* keep=* children=island component=wrap props=* ttl=*
+
+════ body 6 · 672 cases ════
+<!----><!----><!----><!----><!----><section data-wrap=""><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></section>
+──── with <fp1>=3b84af65b32bfb2e · 672:
+csr=* env=* wake=* keep=* children=hole component=wrap props=* ttl=*
+
+################ live · 1 distinct ################
+
+════ live 1 · 10752 cases ════
+[]
+──── no hashes · 10752:
+csr=* env=* wake=* keep=* children=* component=* props=* ttl=*
+
+################ head_changed · 1 distinct ################
+
+════ head_changed 1 · 10752 cases ════
+false
+──── no hashes · 10752:
+csr=* env=* wake=* keep=* children=* component=* props=* ttl=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 10752 cases ════
+null
+──── no hashes · 10752:
+csr=* env=* wake=* keep=* children=* component=* props=* ttl=*
+
+################ said · 6 distinct ################
+
+════ said 1 · 6160 cases ════
+[]
+──── no hashes · 6160:
+csr=* env=dev wake=load keep=* children=none|text component=* props=* ttl=*
+csr=* env=dev wake=load keep=* children=island|hole component=tiny|late|tiny+late props=* ttl=*
+csr=* env=prod wake=* keep=* children=* component=* props=* ttl=*
+
+════ said 2 · 56 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Finner.js"
+]
+──── no hashes · 56:
+csr=* env=dev wake=load keep=* children=island component=wrap props=* ttl=*
+
+════ said 3 · 56 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_server_island_inline?entry=hole-in"
+]
+──── no hashes · 56:
+csr=* env=dev wake=load keep=* children=hole component=wrap props=* ttl=*
+
+════ said 4 · 3920 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Ftiny.js"
+]
+──── no hashes · 3920:
+csr=* env=dev wake=idle|visible|visible-margin|interaction|media keep=* children=none|text component=* props=* ttl=*
+csr=* env=dev wake=idle|visible|visible-margin|interaction|media keep=* children=island|hole component=tiny|late|tiny+late props=* ttl=*
+
+════ said 5 · 280 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Ftiny.js",
+ "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Finner.js"
+]
+──── no hashes · 280:
+csr=* env=dev wake=idle|visible|visible-margin|interaction|media keep=* children=island component=wrap props=* ttl=*
+
+════ said 6 · 280 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Ftiny.js",
+ "[ogygia] https://ogygiajs.dev/e/nested_server_island_inline?entry=hole-in"
+]
+──── no hashes · 280:
+csr=* env=dev wake=idle|visible|visible-margin|interaction|media keep=* children=hole component=wrap props=* ttl=*
+
+################ unhandled · 1 distinct ################
+
+════ unhandled 1 · 10752 cases ════
+[]
+──── no hashes · 10752:
+csr=* env=* wake=* keep=* children=* component=* props=* ttl=*

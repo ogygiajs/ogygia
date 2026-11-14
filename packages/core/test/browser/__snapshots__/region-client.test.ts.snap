@@ -1,0 +1,307 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`held baked value created fresh 1`] = `
+"{
+ "body": "<!----><!----><!----><ogygia-region live=\\"\\"></ogygia-region>",
+ "head_tags": [],
+ "apply_live": [
+  {
+   "id": "held-a",
+   "module": "",
+   "props": {
+    "h": 1
+   },
+   "html": "<b>baked</b>",
+   "url": "/__ogygia__?id=held-a"
+  }
+ ],
+ "console": []
+}"
+`;
+
+exports[`held deferred value 1`] = `
+"{
+ "body": "<!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"/__ogygia__?id=held-a\\"><!----><p>wait</p><!----></ogygia-region><!---->",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`held deferred value that wakes 1`] = `
+"{
+ "body": "<!----><!----><!----><ogygia-region entry=\\"/islands/held.js\\" render=\\"defer\\" when=\\"load\\" wake=\\"load\\" endpoint=\\"/__ogygia__?id=held-a\\"><!----></ogygia-region><script type=\\"application/ogygia-props\\" data-ogygia-props=\\"\\">[{\\"h\\":1},1]</script><!---->",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`held inline value 1`] = `
+"{
+ "body": "<!----><!----><!----><b data-tiny=\\"\\">tiny</b>",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`held interactive dual 1`] = `
+"{
+ "body": "<!----><!----><!----><ogygia-region entry=\\"/islands/dual.js\\" wake=\\"idle\\"><b data-tiny=\\"\\">tiny</b><!----></ogygia-region><script type=\\"application/ogygia-props\\" data-ogygia-props=\\"\\" data-og-format=\\"json\\">{\\"d\\":1}</script><!---->",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`held live value 1`] = `
+"{
+ "body": "<!----><!----><!----><ogygia-region live=\\"true\\"><!----><p>wait</p><!----></ogygia-region>",
+ "head_tags": [],
+ "apply_live": [
+  {
+   "id": "held-a",
+   "module": "/islands/held.js",
+   "props": {
+    "h": 1
+   },
+   "html": "<b>live</b>",
+   "url": "/__ogygia__?id=held-a",
+   "hydrate": "load"
+  }
+ ],
+ "console": []
+}"
+`;
+
+exports[`held live value with only children 1`] = `
+"{
+ "body": "<!----><!----><!----><ogygia-region live=\\"true\\"><!----><p>kid</p><!----></ogygia-region>",
+ "head_tags": [],
+ "apply_live": [
+  {
+   "id": "held-a",
+   "module": "",
+   "props": {
+    "h": 1
+   },
+   "html": "<b>live</b>",
+   "url": "/__ogygia__?id=held-a"
+  }
+ ],
+ "console": []
+}"
+`;
+
+exports[`held live value written to the frame store 1`] = `
+"{
+ "body": "<!----><!----><!----><ogygia-region live=\\"true\\"><!----></ogygia-region>",
+ "head_tags": [],
+ "apply_live": [
+  {
+   "id": "held-a",
+   "module": "",
+   "props": {
+    "h": 1
+   },
+   "html": "<b>live</b>",
+   "url": "/__ogygia__?id=held-a",
+   "written": {
+    "v": 7,
+    "d": 2
+   }
+  }
+ ],
+ "console": []
+}"
+`;
+
+exports[`held promise 1`] = `
+"{
+ "body": "<!----><!----><!----><!----><!----><ogygia-region live=\\"true\\"><!----><p>wait</p><!----></ogygia-region>",
+ "head_tags": [],
+ "apply_live": [
+  {
+   "id": "held-a",
+   "module": "",
+   "props": {
+    "h": 1
+   },
+   "html": "<b>late</b>",
+   "url": "/__ogygia__?id=held-a"
+  }
+ ],
+ "console": []
+}"
+`;
+
+exports[`held promise that never lands 1`] = `
+"{
+ "body": "<!----><!----><!----><!----><p>wait</p>",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`held static dual 1`] = `
+"{
+ "body": "<!----><!----><!----><b data-tiny=\\"\\">tiny</b>",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`hole 1`] = `
+"{
+ "body": "<!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"<fp1>\\"><!----><!----><p>wait</p><!----></ogygia-region><!---->",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`hole in a live snippet with no fallback 1`] = `
+"{
+ "body": "<!----><!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"<fp1>\\"></ogygia-region><!----><!---->",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`hole in a live snippet, created fresh: its fallback reads the page contexts 1`] = `
+"{
+ "body": "<!----><!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"<fp1>\\"><!----><p>page-value</p></ogygia-region><!----><!---->",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`hole in a live snippet, created fresh: its fallback, with the page contexts 1`] = `
+"{
+ "body": "<!----><!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"<fp1>\\"><!----><p>wait</p></ogygia-region><!----><!---->",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`hole nested in an island 1`] = `
+"{
+ "body": "<!----><!----><!----><ogygia-region entry=\\"hole-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"<fp1>\\"></ogygia-region>",
+ "head_tags": [],
+ "apply_live": [],
+ "console": [
+  "[ogygia] https://ogygiajs.dev/e/nested_server_island_inline?entry=hole-a"
+ ]
+}"
+`;
+
+exports[`hole on a csr=true page 1`] = `
+"{
+ "body": "<!----><!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"<fp1>\\"><!----><p>wait</p></ogygia-region><!----><!---->",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`island 1`] = `
+"{
+ "body": "<!----><!----><!----><ogygia-region entry=\\"/islands/tiny.js\\" wake=\\"load\\"><b data-tiny=\\"\\">tiny</b><!----></ogygia-region><script type=\\"application/ogygia-props\\" data-ogygia-props=\\"\\" data-og-format=\\"json\\">{\\"n\\":1}</script><!---->",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`island at the top whose wrapper has no component 1`] = `
+"{
+ "body": "<!----><!----><!----><ogygia-region entry=\\"/islands/tiny.js\\" wake=\\"load\\"><!----></ogygia-region><script type=\\"application/ogygia-props\\" data-ogygia-props=\\"\\" data-og-format=\\"json\\">{\\"n\\":1}</script><!---->",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`island in a live snippet, with a hole in it 1`] = `
+"{
+ "body": "<!----><!----><!----><!----><!----><div data-host=\\"\\"><!----><!----><ogygia-region entry=\\"hole-in-island\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"<fp1>\\"></ogygia-region><!----></div>",
+ "head_tags": [],
+ "apply_live": [],
+ "console": [
+  "[ogygia] https://ogygiajs.dev/e/nested_server_island_inline?entry=hole-in-island"
+ ]
+}"
+`;
+
+exports[`island nested in an island 1`] = `
+"{
+ "body": "<!----><!----><!----><!----><!----><b data-tiny=\\"\\">tiny</b>",
+ "head_tags": [],
+ "apply_live": [],
+ "console": [
+  "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Ftiny.js"
+ ]
+}"
+`;
+
+exports[`island nested whose wrapper loads late 1`] = `
+"{
+ "body": "<!----><!----><!----><!----><!----><!----><b data-tiny=\\"\\">tiny</b>",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`island on a csr=true page 1`] = `
+"{
+ "body": "<!----><!----><!----><!----><!----><b data-tiny=\\"\\">tiny</b>",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`island with children 1`] = `
+"{
+ "body": "<!----><!----><!----><ogygia-region entry=\\"/islands/tiny.js\\" wake=\\"load\\"><b data-tiny=\\"\\">tiny</b><!----></ogygia-region><script type=\\"application/ogygia-props\\" data-ogygia-props=\\"\\">[{\\"n\\":1,\\"children\\":2},1,[\\"OgygiaRef\\",3],{\\"k\\":4,\\"i\\":5,\\"d\\":6},\\"snippet\\",\\"slot:og2\\",{\\"m\\":7,\\"id\\":8},\\"slot\\",\\"og2\\"]</script><!---->",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`lake in an island 1`] = `
+"{
+ "body": "<!----><!----><!----><ogygia-region entry=\\"lake-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"<fp1>\\"></ogygia-region>",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`lake in the shell 1`] = `
+"{
+ "body": "<!----><!----><!----><!----><p>lake</p>",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
+exports[`lake on a csr=true page, created fresh 1`] = `
+"{
+ "body": "<!----><!----><!----><ogygia-region entry=\\"lake-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"<fp1>\\"></ogygia-region>",
+ "head_tags": [],
+ "apply_live": [],
+ "console": [
+  "[ogygia] https://ogygiajs.dev/e/lake_mounted_without_html?entry=lake-a"
+ ]
+}"
+`;

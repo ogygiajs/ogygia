@@ -1,0 +1,149 @@
+# Region client grid · async=on · kind=promise · at=answer (full)
+# 128 cases, 22 distinct outputs; per part: body 16, live 2, head_changed 1, thrown 1, said 2, unhandled 2.
+# axes: csr=off|on env=dev|prod settles=never|live|deferred|rejects children=none|text|island|hole placeholder=none|text
+
+################ body · 16 distinct ################
+
+════ body 1 · 32 cases ════
+<!----><!----><!----><!---->
+──── no hashes · 32:
+csr=* env=* settles=never|rejects children=* placeholder=none
+
+════ body 2 · 32 cases ════
+<!----><!----><!----><!----><p>wait</p>
+──── no hashes · 32:
+csr=* env=* settles=never|rejects children=* placeholder=text
+
+════ body 3 · 4 cases ════
+<!----><!----><!----><!----><!----><ogygia-region live="true"><!----></ogygia-region>
+──── no hashes · 4:
+csr=* env=* settles=live children=none placeholder=none
+
+════ body 4 · 16 cases ════
+<!----><!----><!----><!----><!----><ogygia-region live="true"><!----><p>wait</p><!----></ogygia-region>
+──── no hashes · 16:
+csr=* env=* settles=live children=* placeholder=text
+
+════ body 5 · 4 cases ════
+<!----><!----><!----><!----><!----><ogygia-region live="true"><!----><p>kid</p><!----></ogygia-region>
+──── no hashes · 4:
+csr=* env=* settles=live children=text placeholder=none
+
+════ body 6 · 2 cases ════
+<!----><!----><!----><!----><!----><ogygia-region live="true"><!----><!----><!----><ogygia-region entry="/islands/inner.js" wake="idle"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"inner":1}</script><!----><!----></ogygia-region>
+──── no hashes · 2:
+csr=off env=* settles=live children=island placeholder=none
+
+════ body 7 · 2 cases ════
+<!----><!----><!----><!----><!----><ogygia-region live="true"><!----><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="" data-og-hole="<fp1>"><!----></ogygia-region><!----><!----></ogygia-region>
+──── with <fp1>=3b84af65b32bfb2e · 2:
+csr=off env=* settles=live children=hole placeholder=none
+
+════ body 8 · 4 cases ════
+<!----><!----><!----><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----></ogygia-region><!---->
+──── no hashes · 4:
+csr=* env=* settles=deferred children=none placeholder=none
+
+════ body 9 · 16 cases ════
+<!----><!----><!----><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----><p>wait</p><!----></ogygia-region><!---->
+──── no hashes · 16:
+csr=* env=* settles=deferred children=* placeholder=text
+
+════ body 10 · 4 cases ════
+<!----><!----><!----><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----><p>kid</p><!----></ogygia-region><!---->
+──── no hashes · 4:
+csr=* env=* settles=deferred children=text placeholder=none
+
+════ body 11 · 2 cases ════
+<!----><!----><!----><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----><!----><!----><ogygia-region entry="/islands/inner.js" wake="idle"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="" data-og-format="json">{"inner":1}</script><!----><!----></ogygia-region><!---->
+──── no hashes · 2:
+csr=off env=* settles=deferred children=island placeholder=none
+
+════ body 12 · 2 cases ════
+<!----><!----><!----><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="" data-og-hole="<fp1>"><!----></ogygia-region><!----><!----></ogygia-region><!---->
+──── with <fp1>=3b84af65b32bfb2e · 2:
+csr=off env=* settles=deferred children=hole placeholder=none
+
+════ body 13 · 2 cases ════
+<!----><!----><!----><!----><!----><ogygia-region live="true"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region>
+──── no hashes · 2:
+csr=on env=* settles=live children=island placeholder=none
+
+════ body 14 · 2 cases ════
+<!----><!----><!----><!----><!----><ogygia-region live="true"><!----><!----><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="" data-og-hole="<fp1>"></ogygia-region><!----><!----><!----></ogygia-region>
+──── with <fp1>=3b84af65b32bfb2e · 2:
+csr=on env=* settles=live children=hole placeholder=none
+
+════ body 15 · 2 cases ════
+<!----><!----><!----><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><!---->
+──── no hashes · 2:
+csr=on env=* settles=deferred children=island placeholder=none
+
+════ body 16 · 2 cases ════
+<!----><!----><!----><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----><!----><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="" data-og-hole="<fp1>"></ogygia-region><!----><!----><!----></ogygia-region><!---->
+──── with <fp1>=3b84af65b32bfb2e · 2:
+csr=on env=* settles=deferred children=hole placeholder=none
+
+################ live · 2 distinct ################
+
+════ live 1 · 96 cases ════
+[]
+──── no hashes · 96:
+csr=* env=* settles=never|deferred|rejects children=* placeholder=*
+
+════ live 2 · 32 cases ════
+[
+ {
+  "id": "held-p",
+  "module": "",
+  "props": {},
+  "html": "<b>late</b>",
+  "url": "/__ogygia__?id=held-p"
+ }
+]
+──── no hashes · 32:
+csr=* env=* settles=live children=* placeholder=*
+
+################ head_changed · 1 distinct ################
+
+════ head_changed 1 · 128 cases ════
+false
+──── no hashes · 128:
+csr=* env=* settles=* children=* placeholder=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 128 cases ════
+null
+──── no hashes · 128:
+csr=* env=* settles=* children=* placeholder=*
+
+################ said · 2 distinct ################
+
+════ said 1 · 8 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/region_promise_no_placeholder"
+]
+──── no hashes · 8:
+csr=* env=dev settles=* children=none placeholder=none
+
+════ said 2 · 120 cases ════
+[]
+──── no hashes · 120:
+csr=* env=dev settles=* children=none placeholder=text
+csr=* env=dev settles=* children=text|island|hole placeholder=*
+csr=* env=prod settles=* children=* placeholder=*
+
+################ unhandled · 2 distinct ################
+
+════ unhandled 1 · 96 cases ════
+[]
+──── no hashes · 96:
+csr=* env=* settles=never|live|deferred children=* placeholder=*
+
+════ unhandled 2 · 32 cases ════
+[
+ "Error: the remote call failed\n\n  in $effect\n  in PromiseRegion.svelte\n  in Region.svelte\n  in RegionUnder.svelte\n  in undefined\n"
+]
+──── no hashes · 32:
+csr=* env=* settles=rejects children=* placeholder=*

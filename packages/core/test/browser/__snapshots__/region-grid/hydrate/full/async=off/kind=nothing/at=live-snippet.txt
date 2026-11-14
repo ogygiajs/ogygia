@@ -1,0 +1,61 @@
+# Region hydration grid · async=off · kind=nothing · at=live-snippet (full)
+# 32 cases, 1 distinct outputs; per part: kept_body 1, head_gone 1, body_hydrated 1, body_after 1, live 1, thrown 1, said 1, unhandled 1.
+# axes: csr=off|on page=ok|error env=dev|prod children=none|text|island|hole placeholder=none|text
+
+################ kept_body · 1 distinct ################
+
+════ kept_body 1 · 32 cases ════
+true
+──── no hashes · 32:
+csr=* page=ok env=* children=* placeholder=*
+
+################ head_gone · 1 distinct ################
+
+════ head_gone 1 · 32 cases ════
+[
+ "<!--<id1>-->"
+]
+──── with <id1>=rtd3wb · 32:
+csr=* page=ok env=* children=* placeholder=*
+
+################ body_hydrated · 1 distinct ################
+
+════ body_hydrated 1 · 32 cases ════
+<!--[--><!--[--><!--[-1--><!--]--><!--]--><!--]-->
+──── no hashes · 32:
+csr=* page=ok env=* children=* placeholder=*
+
+################ body_after · 1 distinct ################
+
+════ body_after 1 · 32 cases ════
+<!--[--><!--[--><!--[-1--><!--]--><!--]--><!--]-->
+──── no hashes · 32:
+csr=* page=ok env=* children=* placeholder=*
+
+################ live · 1 distinct ################
+
+════ live 1 · 32 cases ════
+[]
+──── no hashes · 32:
+csr=* page=ok env=* children=* placeholder=*
+
+################ thrown · 1 distinct ################
+
+════ thrown 1 · 32 cases ════
+null
+──── no hashes · 32:
+csr=* page=ok env=* children=* placeholder=*
+
+################ said · 1 distinct ################
+
+════ said 1 · 32 cases ════
+[]
+──── no hashes · 32:
+csr=* page=ok env=* children=* placeholder=*
+
+################ unhandled · 1 distinct ################
+
+════ unhandled 1 · 32 cases ════
+[]
+──── no hashes · 32:
+csr=* page=ok env=* children=* placeholder=*
