@@ -485,6 +485,25 @@ test("an island's graph lists each chunk once, leaving out the island's own modu
 	});
 });
 
+test("an island with a live snippet writes no graph when neither has chunks and the snippet's module has no location", () => {
+	vi.spyOn(console, 'warn').mockImplementation(() => {});
+	deps.set_island_deps({});
+	deps.set_entry_locations({});
+	let html: string;
+	try {
+		html = out([{ ...ISLAND, __props: { s: live() } }]);
+	} finally {
+		deps.set_island_deps(
+			Object.fromEntries(ENTRIES.map((e) => [e, [`${e}~dep-a.js`, `${e}~dep-b.js`]]))
+		);
+		deps.set_entry_locations(Object.fromEntries(ENTRIES.map((e) => [e, `${e}.hashed.js`])));
+		vi.restoreAllMocks();
+	}
+	const [head, body] = html.split('<!-- body -->');
+	expect(body).toContain('<ogygia-region');
+	expect(head).not.toContain('data-ogygia-graph');
+});
+
 test('the real hashes: what the tables show as placeholders, for a few inputs', () => {
 	vi.spyOn(console, 'warn').mockImplementation(() => {});
 	try {
