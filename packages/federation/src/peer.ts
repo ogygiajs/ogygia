@@ -48,9 +48,6 @@ declare const __OGYGIA_RULES__: boolean | undefined;
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
-/** How many fetches one page read makes while thaws or mutations drop each one before it lands,
- *  before it gives up with a 504 (`federation_peer_read_dropped`): its sources moving all the time
- *  never keeps a read, or the upstream, busy forever (#1792). */
 const DROPPED_READS = 16;
 
 const HOST_UNSAFE_G = /[^a-zA-Z0-9_-]/g;
