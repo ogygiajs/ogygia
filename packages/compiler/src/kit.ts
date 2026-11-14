@@ -272,8 +272,10 @@ function page_option(program: AstNode, name: string): AstNode | null {
 		}
 		return null;
 	};
-	const name_of = (n: AstNode | null | undefined) =>
-		n?.type === 'Identifier' ? n.name : typeof n?.value === 'string' ? n.value : null;
+	const name_of = (n: AstNode | null | undefined) => {
+		if (n?.type === 'Identifier') return n.name;
+		return typeof n?.value === 'string' ? n.value : null;
+	};
 	for (const statement of body) {
 		if (statement.type !== 'ExportNamedDeclaration') continue;
 		for (const d of statement.declaration?.declarations ?? [])
@@ -430,10 +432,10 @@ function build_route_tree(r: Routes, routesDir: string): RouteTree {
 			if (!e.is_file) continue;
 			const component = route_component(e.name);
 			const kind = component?.kind ?? ROUTE_MODULE_RE.exec(e.name)?.[1];
-			if (kind === 'error') route.error ??= node('error', route);
-			else if (kind === 'layout') route.layout ??= node('layout', route);
-			else if (kind === 'page') route.leaf ??= node('leaf', route);
-			const owner = kind === 'page' ? route.leaf : kind === 'layout' ? route.layout : route.error;
+			let owner = route.error;
+			if (kind === 'error') owner = route.error ??= node('error', route);
+			else if (kind === 'layout') owner = route.layout ??= node('layout', route);
+			else if (kind === 'page') owner = route.leaf ??= node('leaf', route);
 			if (component && owner) {
 				owner.component = e.name;
 				owner.reset = component.reset;

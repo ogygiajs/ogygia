@@ -5245,10 +5245,6 @@
 			"reason": "one table row per late server region, constant work"
 		},
 		{
-			"id": "packages/compiler/src/link/relocations.ts > LATE_SERVER_REGIONS > value > sort:0~60d5a8",
-			"reason": "one string compare in a sort of the late server regions (a handful), constant work"
-		},
-		{
 			"id": "packages/compiler/src/link/relocations.ts > PAGE_DATA_READS > value",
 			"reason": "once per chunk that carries the token: a closure over the program, constant work"
 		},
@@ -5321,7 +5317,7 @@
 			"reason": "dev only: one region's loader path, constant work"
 		},
 		{
-			"id": "packages/compiler/src/link/server-manifest.ts > server_regions > sort:0~60d5a8",
+			"id": "packages/compiler/src/link/server-manifest.ts > server_regions > sort:0~107bc2",
 			"reason": "one string compare in the server regions' sort, constant work, once per build"
 		},
 		{
