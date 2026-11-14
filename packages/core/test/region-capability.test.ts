@@ -1,7 +1,7 @@
 // A region capability is signed through capability() (@ogygia/machine), deterministic: its message
 // names the capability, its version and its audience (the app's islands endpoint), a page's region
-// links stay byte-identical between renders in one expiry window, and URLs signed before it (v1, v2)
-// still verify, so pages cached before an upgrade keep their holes.
+// links stay byte-identical between renders in one expiry window, and only v3 verifies (a URL signed
+// before it is an earlier build's page's: test/older-build-capability.test.ts).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { capability } from '@ogygia/machine';
 
@@ -68,37 +68,29 @@ describe('region capability, signed through capability()', () => {
 		).toBe(false);
 	});
 
-	it('a v3 signature never verifies as v1 or v2 (its version marker stripped), nor the other way', () => {
+	it('a v3 capability with its expiry or props changed is refused', () => {
 		const p = params(mint_server_region('abcdef012345', { n: 1 }));
 		const { secret } = signing_key();
 		const c = claim_of(p);
-		expect(hmac.region_verify(secret, '/__ogygia__', '', p.get('exp')!, c, p.get('sig')!)).toBe(
+		const exp = p.get('exp')!;
+		const sig = p.get('sig')!;
+		expect(hmac.region_verify(secret, '/__ogygia__', '3', exp, c, sig)).toBe(true);
+		expect(hmac.region_verify(secret, '/__ogygia__', '3', String(Number(exp) + 1), c, sig)).toBe(
 			false
 		);
-		const v2 = hmac.sign(
-			secret,
-			hmac.region_mac_message(c.id, p.get('exp')!, c.payload, '', '', c.render)
-		);
-		expect(hmac.region_verify(secret, '/__ogygia__', '', p.get('exp')!, c, v2)).toBe(true);
-		expect(hmac.region_verify(secret, '/__ogygia__', '3', p.get('exp')!, c, v2)).toBe(false);
-		expect(hmac.region_verify(secret, '/__ogygia__', '4', p.get('exp')!, c, p.get('sig')!)).toBe(
-			false
-		);
+		expect(
+			hmac.region_verify(secret, '/__ogygia__', '3', exp, { ...c, payload: `${c.payload}x` }, sig)
+		).toBe(false);
 	});
 
-	it('URLs signed before v3 (v1, without a render identity) still verify', () => {
+	it('a v3 signature verifies only as v3: with its version marker stripped, or another, it is refused', () => {
+		const p = params(mint_server_region('abcdef012345', { n: 1 }));
 		const { secret } = signing_key();
-		const exp = String(WINDOW_START + 3600);
-		const c = {
-			id: 'abcdef012345',
-			payload: 'W3t9XQ',
-			session: '',
-			ttl: '',
-			render: '',
-			wakes: ''
-		};
-		const v1 = hmac.sign(secret, hmac.region_mac_message(c.id, exp, c.payload));
-		expect(hmac.region_verify(secret, '/__ogygia__', '', exp, c, v1)).toBe(true);
+		const c = claim_of(p);
+		for (const v of ['', '2', '4'])
+			expect(hmac.region_verify(secret, '/__ogygia__', v, p.get('exp')!, c, p.get('sig')!)).toBe(
+				false
+			);
 	});
 
 	it('a hole that wakes signs it: its w=1 rides the URL, and stripping or adding it breaks the signature', () => {
@@ -123,27 +115,6 @@ describe('region capability, signed through capability()', () => {
 				still.get('sig')!
 			)
 		).toBe(false);
-	});
-
-	it('a hole that wakes, signed before v3 (its v3| MAC, #906), still verifies', () => {
-		const { secret } = signing_key();
-		const exp = String(WINDOW_START + 3600);
-		const c = {
-			id: 'abcdef012345',
-			payload: 'W3t9XQ',
-			session: '',
-			ttl: '',
-			render: 'r1',
-			wakes: '1'
-		};
-		const mac = hmac.sign(
-			secret,
-			hmac.region_mac_message(c.id, exp, c.payload, '', '', c.render, c.wakes)
-		);
-		expect(hmac.region_verify(secret, '/__ogygia__', '', exp, c, mac)).toBe(true);
-		expect(hmac.region_verify(secret, '/__ogygia__', '', exp, { ...c, wakes: '' }, mac)).toBe(
-			false
-		);
 	});
 
 	it('a v3 capability claiming more than the longest lifetime the app mints is refused', () => {

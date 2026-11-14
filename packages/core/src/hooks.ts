@@ -1718,7 +1718,7 @@ class OgygiaHandle {
 			cap.payload.length > MAX_REGION_PROPS_LEN ||
 			!is_region_ttl(cap.ttl) ||
 			!is_signed_number(cap.exp, REGION_EXP_DIGITS) ||
-			(cap.v !== '' && cap.v !== REGION_CAPABILITY_VERSION) ||
+			cap.v !== REGION_CAPABILITY_VERSION ||
 			(cap.wakes !== '' && cap.wakes !== '1')
 		)
 			return 'shape';
@@ -1748,12 +1748,10 @@ class OgygiaHandle {
 		const late = app_lifetime.renew_window;
 		if (!region_verify(key.secret, islands_endpoint(), cap.v, cap.exp, claim, cap.sig, late))
 			return null;
-		// (re-signed as the current version, whichever it was minted as)
 		const exp = app_lifetime.renewed_expiry();
 		return {
 			...cap,
 			exp: String(exp),
-			v: REGION_CAPABILITY_VERSION,
 			sig: region_sign(key.secret, islands_endpoint(), exp, claim),
 			k: key.fp
 		};
