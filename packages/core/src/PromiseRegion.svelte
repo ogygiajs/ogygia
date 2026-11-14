@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	/**
 	 * A `<Region of={promise}>` (Region.svelte hands the promise here): the region owns the whole wait.
 	 * This one works anywhere — the server cannot wait without Svelte's async mode, so it renders the
@@ -12,17 +12,22 @@
 	 * LAG, don't clear: a NEW promise (a re-search) keeps the previous value on screen until it lands,
 	 * so the old content morphs instead of flashing through empty.
 	 */
-	import { flushSync } from 'svelte';
+	import { flushSync, type Snippet } from 'svelte';
 	import Region from './Region.svelte';
 	import { register_late_region } from './late-region-registry.ts';
+	import type { RegionValue } from './region.ts';
 
-	/** @type {{ of: Promise<import('./region.ts').RegionValue>, placeholder?: import('svelte').Snippet, children?: import('svelte').Snippet }} */
-	let { of, placeholder, children } = $props();
+	interface Props {
+		of: Promise<RegionValue>;
+		placeholder?: Snippet;
+		children?: Snippet;
+	}
+
+	let { of, placeholder, children }: Props = $props();
 
 	// svelte-ignore state_referenced_locally
 	const late_slot = typeof window === 'undefined' ? register_late_region(of) : null;
-	/** @type {{ value?: import('./region.ts').RegionValue, failed?: { error: unknown } }} */
-	let settled = $state.raw({});
+	let settled: { value?: RegionValue; failed?: { error: unknown } } = $state.raw({});
 	$effect(() => {
 		const p = of;
 		let live = true;
