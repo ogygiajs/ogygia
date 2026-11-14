@@ -104,7 +104,7 @@ beforeAll(() => {
 	);
 
 	// (1) wide fan-out over a deep shared chain, reaching no registry
-	let barrel = '';
+	const barrel: string[] = [];
 	for (let i = 0; i < FAN; i++) {
 		write(
 			`src/lib/fan/m${i}.ts`,
@@ -113,9 +113,9 @@ beforeAll(() => {
 			export const m${i} = c;
 		`}\n`
 		);
-		barrel = `${barrel}export * from './fan/m${i}';\n`;
+		barrel.push(`export * from './fan/m${i}';\n`);
 	}
-	write('src/lib/barrel.ts', barrel);
+	write('src/lib/barrel.ts', barrel.join(''));
 	for (let d = 0; d < DEPTH; d++) {
 		const next =
 			d + 1 < DEPTH

@@ -38,18 +38,17 @@ export function tokenize(html: string): string[] {
 		}
 		const next = html.indexOf('<', i);
 		const stop = next === -1 ? html.length : next;
-		let text = '';
-		let space = false;
+		const words: string[] = [];
+		let word = -1;
 		for (let k = i; k < stop; k++) {
 			const c = html.charCodeAt(k);
-			if (c === 32 || c === 9 || c === 10 || c === 13) space = true;
-			else {
-				if (space && text) text = `${text} `;
-				space = false;
-				text += html[k];
-			}
+			if (c === 32 || c === 9 || c === 10 || c === 13) {
+				if (word !== -1) words.push(html.slice(word, k));
+				word = -1;
+			} else if (word === -1) word = k;
 		}
-		if (text) out.push(text);
+		if (word !== -1) words.push(html.slice(word, stop));
+		if (words.length) out.push(words.join(' '));
 		i = stop;
 	}
 	return out;
