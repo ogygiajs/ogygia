@@ -160,6 +160,9 @@ describe('the search worker: a failed query is answered with its id', () => {
 		await import('../src/site/search-worker.ts');
 		await self_fake.onmessage!({ data: { type: 'load', url: '/search.json' } } as MessageEvent);
 		expect(posted.at(-1)).toMatchObject({ type: 'error' });
+		expect((posted.at(-1) as { message: string }).message).toContain(
+			'content_search_index_fetch_failed'
+		);
 		await self_fake.onmessage!({ data: { type: 'query', id: 8, q: 'install' } } as MessageEvent);
 		expect(fetches).toBe(2);
 		expect(posted.at(-1)).toMatchObject({ type: 'result', id: 8 });

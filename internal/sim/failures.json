@@ -254,6 +254,18 @@
 	],
 	"covered": [
 		{
+			"site": "packages/content/src/site/search-worker.ts > run > not-ok:0",
+			"reason": "an index download that is not ok fails as content_search_index_fetch_failed, not as a parse of its error body; proved by hand: the check made never true turns the test red, twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "the index failed to download once: the next query downloads it again and is answered"
+		},
+		{
+			"site": "packages/content/src/site/search-worker.ts > run > throw:0",
+			"reason": "an index download that is not ok throws its own code; proved by hand: the throw removed turns the test red, twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "the index failed to download once: the next query downloads it again and is answered"
+		},
+		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > refuse_unknown_attributes > throw:0",
 			"reason": "an attribute ogygia does not know on a component import fails the build instead of leaving a plain import",
 			"test": "packages/compiler/test/partial-transform.test.ts",
@@ -5119,8 +5131,6 @@
 		"packages/content/src/site/search-client.ts > SearchClient > constructor > message:0",
 		"packages/content/src/site/search-client.ts > SearchClient > query > message:0",
 		"packages/content/src/site/search-worker.ts > run > fetch:0",
-		"packages/content/src/site/search-worker.ts > run > not-ok:0",
-		"packages/content/src/site/search-worker.ts > run > throw:0",
 		"packages/content/src/site/search-worker.ts > onmessage > message:0",
 		"packages/content/src/site/search-worker.ts > onmessage > message:1",
 		"packages/content/src/site/search-worker.ts > onmessage > message:2",
