@@ -4866,6 +4866,12 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the timer's callback made to do nothing turns the test red",
 			"test": "packages/flags/test/source-failed.test.ts",
 			"name": "a source that never answers holds no request: past its deadline the flags fall to their native rule, and it is said"
+		},
+		{
+			"site": "packages/cli/src/perf/cli.ts > serve > stop > timer:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the timer's callback made to do nothing turns the test red",
+			"test": "packages/cli/test/serve.test.ts",
+			"name": "a server that ignores SIGTERM is killed after the grace time"
 		}
 	],
 	"impossible": [
@@ -4968,7 +4974,6 @@
 		"packages/cli/src/perf/cli.ts > serve > on_exit > refused:3",
 		"packages/cli/src/perf/cli.ts > serve > stop > refused:0",
 		"packages/cli/src/perf/cli.ts > serve > stop > refused:1",
-		"packages/cli/src/perf/cli.ts > serve > stop > timer:0",
 		"packages/cli/src/perf/cli.ts > serve > abort:0",
 		"packages/cli/src/perf/cli.ts > serve > fetch:0",
 		"packages/cli/src/perf/cli.ts > serve > timer:0",
