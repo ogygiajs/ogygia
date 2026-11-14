@@ -6257,6 +6257,10 @@
 			"reason": "dev and rules builds only: words a repeated field list in a refusal, when a table is made; packages/machine/test/decisions.test.ts runs it"
 		},
 		{
+			"id": "packages/core/src/runtime/reconcile.ts > swap_reason",
+			"reason": "once per client navigation: three flag tests and the opt-out lookup the commit already made, on live DOM bodies (not replayable); test/browser/nav-fallback-reason.test.ts runs it"
+		},
+		{
 			"id": "packages/rewrite/src/pass.ts > call_render > map:0~2fef46",
 			"reason": "rules builds only (buggify): each result of a render checked once for the malformed and strips-marks points, constant work per result (the render's own output: not replayable); folds out of production"
 		}
