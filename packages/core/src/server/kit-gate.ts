@@ -36,3 +36,10 @@ export function kit_gate(html: string, body_end: number): KitGate | null {
 		delta: gated.length - found[0].length
 	};
 }
+
+/** Whether `html` carries Kit's start script, not gated yet, in a shape {@link kit_gate} cannot
+ *  gate (no `import("…")` of Kit's entry): Kit then starts without waiting for the runtime. */
+export function kit_start_ungated(html: string, body_end: number): boolean {
+	const boot = kit_boot_script(html, body_end);
+	return boot !== null && !boot.text.includes(KIT_START_WAIT) && !KIT_IMPORT_RE.test(boot.text);
+}

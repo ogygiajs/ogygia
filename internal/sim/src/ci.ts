@@ -27,11 +27,12 @@ import { createHash } from 'node:crypto';
 import {
 	appendFileSync,
 	existsSync,
-	mkdirSync,
+	mkdtempSync,
 	readFileSync,
 	rmSync,
 	writeFileSync
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const SIM = join(import.meta.dirname, '..');
@@ -235,68 +236,106 @@ export function free_branch(sig: string, taken: ReadonlySet<string>): string {
 	for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
 }
 
-/** The token reaches git through its environment (an auth header in `GIT_CONFIG_*`), never its
- *  arguments, so no command line or error carries it. */
-function git_env(): NodeJS.ProcessEnv {
-	if (!env.GH_TOKEN) return env;
-	const basic = Buffer.from(`x-access-token:${env.GH_TOKEN}`).toString('base64');
-	return {
-		...env,
-		GIT_CONFIG_COUNT: '1',
-		GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
-		GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}`
-	};
-}
-
-/** Runs git in the checkout; a failure's message has every secret taken out. */
-function git(...a: string[]): string {
-	try {
-		return execFileSync('git', a, { cwd: ROOT, stdio: 'pipe', env: git_env() }).toString();
-	} catch (error) {
-		const e = error as { message?: string; stderr?: Buffer | string };
-		const said = `${e.message ?? String(error)}\n${e.stderr?.toString() ?? ''}`;
-		const basic = env.GH_TOKEN
-			? Buffer.from(`x-access-token:${env.GH_TOKEN}`).toString('base64')
-			: undefined;
-		throw new Error(redact(`git ${a[0]} failed: ${said}`, [env.GH_TOKEN, basic]));
-	}
-}
-
 /**
- * Pushes a new `sim/found-<sig>[-n]` branch: this checkout's commit plus the test. The checkout is
- * back on its commit afterwards, whatever happened, so the next finding's branch starts there too.
+ * Pushes found branches to `remote`. A branch is the remote's default branch as it is at the push
+ * plus one seeded test, never the simulated commit: GitHub refuses a token without the `workflows`
+ * permission a new branch whose difference from the default branch touches a workflow, and the
+ * default branch moves on during a six-hour run (run 43495274517). The branch is built with a
+ * scratch index, so the checkout, its HEAD and its working tree are never touched.
  */
-function push_branch(f: Finding, sig: string): string {
-	const remote = `https://github.com/${REPO}.git`;
-	const taken = new Set(
-		git('ls-remote', '--heads', remote)
-			.split('\n')
-			.map((l) => l.split('refs/heads/')[1])
-			.filter((b): b is string => !!b && b.startsWith(`sim/found-${sig}`))
-	);
-	const branch = free_branch(sig, taken);
-	const head = git('rev-parse', 'HEAD').trim();
-	try {
-		git('checkout', '-q', '-B', branch, head);
-		const dir = join(SIM, 'test', 'found');
-		mkdirSync(dir, { recursive: true });
-		writeFileSync(join(dir, `${sig}.test.ts`), test_source(f, sig));
-		git('add', join(dir, `${sig}.test.ts`));
-		git(
-			'-c',
-			'user.name=ogygia-dst',
-			'-c',
-			'user.email=dst@users.noreply.github.com',
-			'commit',
-			'-q',
-			'-m',
-			`test(sim): found ${sig}: ${f.oracle} (seed ${f.seed})`
-		);
-		git('push', '-q', remote, `${branch}:refs/heads/${branch}`);
-	} finally {
-		git('checkout', '-q', '-f', head);
+export class FoundBranches {
+	readonly #remote: string;
+	readonly #cwd: string;
+	readonly #token: string | undefined;
+
+	constructor(remote: string, cwd: string, token: string | undefined) {
+		this.#remote = remote;
+		this.#cwd = cwd;
+		this.#token = token;
 	}
-	return branch;
+
+	#basic(): string | undefined {
+		return this.#token
+			? Buffer.from(`x-access-token:${this.#token}`).toString('base64')
+			: undefined;
+	}
+
+	/** The token reaches git through its environment (an auth header in `GIT_CONFIG_*`), never its
+	 *  arguments, so no command line or error carries it. */
+	#env(extra: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+		const basic = this.#basic();
+		if (!basic) return { ...env, ...extra };
+		return {
+			...env,
+			...extra,
+			GIT_CONFIG_COUNT: '1',
+			GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
+			GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}`
+		};
+	}
+
+	/** Runs git in the checkout; a failure's message has every secret taken out. */
+	#git(a: string[], extra: NodeJS.ProcessEnv = {}, input?: string): string {
+		try {
+			return execFileSync('git', a, {
+				cwd: this.#cwd,
+				stdio: 'pipe',
+				env: this.#env(extra),
+				input
+			}).toString();
+		} catch (error) {
+			const e = error as { message?: string; stderr?: Buffer | string };
+			const said = `${e.message ?? String(error)}\n${e.stderr?.toString() ?? ''}`;
+			throw new Error(redact(`git ${a[0]} failed: ${said}`, [this.#token, this.#basic()]));
+		}
+	}
+
+	#default_branch(): string {
+		const said = this.#git(['ls-remote', '--symref', this.#remote, 'HEAD']);
+		const name = /^ref: refs\/heads\/(\S+)\s+HEAD$/m.exec(said)?.[1];
+		if (!name) throw new Error(`the default branch of ${this.#remote} is unknown: ${said}`);
+		return name;
+	}
+
+	/** Pushes a new `sim/found-<sig>[-n]` branch: the default branch plus `file` (relative to the
+	 *  checkout) holding `source`. Returns the branch's name. */
+	push(sig: string, file: string, source: string, message: string): string {
+		const taken = new Set(
+			this.#git(['ls-remote', '--heads', this.#remote])
+				.split('\n')
+				.map((l) => l.split('refs/heads/')[1])
+				.filter((b): b is string => !!b && b.startsWith(`sim/found-${sig}`))
+		);
+		const branch = free_branch(sig, taken);
+		const base_branch = this.#default_branch();
+		this.#git(['fetch', '-q', '--depth', '1', this.#remote, `refs/heads/${base_branch}`]);
+		const base = this.#git(['rev-parse', 'FETCH_HEAD']).trim();
+		const scratch = mkdtempSync(join(tmpdir(), 'dst-found-'));
+		try {
+			const index = { GIT_INDEX_FILE: join(scratch, 'index') };
+			this.#git(['read-tree', base], index);
+			const blob = this.#git(['hash-object', '-w', '--stdin'], {}, source).trim();
+			this.#git(['update-index', '--add', '--cacheinfo', `100644,${blob},${file}`], index);
+			const tree = this.#git(['write-tree'], index).trim();
+			const commit = this.#git(['commit-tree', tree, '-p', base, '-m', message], {
+				GIT_AUTHOR_NAME: 'ogygia-dst',
+				GIT_AUTHOR_EMAIL: 'dst@users.noreply.github.com',
+				GIT_COMMITTER_NAME: 'ogygia-dst',
+				GIT_COMMITTER_EMAIL: 'dst@users.noreply.github.com'
+			}).trim();
+			this.#git(['push', '-q', this.#remote, `${commit}:refs/heads/${branch}`]);
+		} finally {
+			rmSync(scratch, { recursive: true, force: true });
+		}
+		return branch;
+	}
+}
+
+/** What a run says when a finding could not be filed: an error annotation the job's page shows,
+ *  naming the finding and why, so a red job is never read as only its seeds' findings. */
+export function filing_error_line(sig: string, why: string): string {
+	const first = why.split('\n').find((l) => l.includes('[remote rejected]')) ?? why.split('\n')[0];
+	return `::error title=DST could not file ${sig}::${first.trim().replaceAll('%', '%25')}`;
 }
 
 interface Open {
@@ -341,6 +380,7 @@ function file(groups: Map<string, Finding[]>): Filed[] {
 		} catch (error) {
 			const why = redact(String((error as Error)?.message ?? error), [env.GH_TOKEN]);
 			log(`filing ${sig} failed: ${why.split('\n')[0]}`);
+			console.log(filing_error_line(sig, why));
 			out.push({ sig, issue: null, repeat: false, error: why.slice(0, 500) });
 		}
 	}
@@ -380,7 +420,12 @@ function file_one(open: Open[]): (sig: string, list: Finding[]) => Filed {
 		}
 		if (!FILE || made >= MAX_NEW) return { sig, issue: null, repeat: false };
 		made++;
-		const branch = push_branch(f, sig);
+		const branch = new FoundBranches(`https://github.com/${REPO}.git`, ROOT, env.GH_TOKEN).push(
+			sig,
+			`internal/sim/test/found/${sig}.test.ts`,
+			test_source(f, sig),
+			`test(sim): found ${sig}: ${f.oracle} (seed ${f.seed}, simulated at ${env.GITHUB_SHA ?? 'an unknown commit'})`
+		);
 		const body = [
 			`The scheduled simulator run found something new. Oracle: \`${f.oracle}\`. Not yet read by a person: the description below is the oracle's, and the next step is to shrink it and say in plain words what a user sees.`,
 			'',
@@ -531,6 +576,9 @@ async function main(): Promise<void> {
 				`${quality.charAt(0).toUpperCase()}${quality.slice(1)}.`,
 				'',
 				failed ? `**A batch failed** (${failed}): the run stopped there.\n` : '',
+				filed.some((x) => x.error)
+					? `**Filing failed** for ${filed.filter((x) => x.error).length} finding(s): no branch or issue was made for them, and the job fails. Each one's reason is in the results file (\`filing_error\`).\n`
+					: '',
 				results.findings.length === 0
 					? 'No new findings.'
 					: [

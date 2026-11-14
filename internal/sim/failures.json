@@ -255,6 +255,12 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/server/live-event.ts > live_event > catch:0",
+			"reason": "Kit's getRequestEvent throws outside a request, and every reader answers no request instead; proved by hand: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/kit-request-reads.test.ts",
+			"name": "outside any Kit request every reader answers null, and recording throws nothing"
+		},
+		{
 			"site": "packages/content/src/site/search-worker.ts > run > not-ok:0",
 			"reason": "an index download that is not ok fails as content_search_index_fetch_failed, not as a parse of its error body; proved by hand: the check made never true turns the test red, twice",
 			"test": "packages/content/test/search-client.test.ts",
