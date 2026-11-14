@@ -1,8 +1,19 @@
 import { after_document_painted, yield_task } from './schedule.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
-import { clock, flights, machine, type InFlight, type Stale } from '@ogygia/machine';
+import {
+	clock,
+	flights,
+	machine,
+	queue,
+	scope,
+	type InFlight,
+	type Place,
+	type Queue,
+	type Scope,
+	type Stale
+} from '@ogygia/machine';
 import { emit as dt_emit } from '../events/bus.ts';
-import { class_at, CLASSES, PRIORITY, type LoadClass } from './load-class.ts';
+import { class_at, PRIORITY, type LoadClass } from './load-class.ts';
 import { on_screen, watch_viewport } from './viewport.ts';
 import type { CriticalOutcome } from '../contract/runtime-hooks.ts';
 import { slots } from './slots.ts';
@@ -25,6 +36,7 @@ export const CRITICAL_CAP_MS = 2500;
 export const BACKGROUND_WINDOW = 3;
 /** Hole answers in flight at once, whatever their class: what one page asks of the origin. */
 export const HOLE_WINDOW = 3;
+const START_BUDGET_MS = 16;
 
 /**
  * `visible` when `el` is on screen now, else `ahead`: the one viewport tracker's answer
@@ -53,45 +65,119 @@ const gate_definition = machine<{
 		settled: []
 	}
 });
-let gate = gate_definition.create();
 
-const on_first_input = () => {
-	const kind = gate.now.kind;
-	if (kind === 'fresh') gate.go('touched');
-	else if (kind === 'waiting') settle_critical('input');
-};
+const is_background = (cls: LoadClass): boolean => cls === 'ahead' || cls === 'speculative';
+
+function waits_for_critical(kind: LoadKind, cls: LoadClass): boolean {
+	if (cls === 'user') return false;
+	if (kit_hydrates_page()) return false;
+	return !(kind === 'content' && cls === 'visible');
+}
+
+class LoadScheduler {
+	gate = gate_definition.create();
+	readonly critical = flights({ name: 'critical resources', run: () => this.#until_critical() });
+	#owner: Scope = scope();
+	line: Queue<LoadSlot> = this.#open_line();
+
+	#open_line(): Queue<LoadSlot> {
+		return queue<LoadSlot>({
+			name: 'downloads',
+			owner: this.#owner,
+			priority: (s) => PRIORITY[s.cls()],
+			ready: (s) => this.critical_done() || !waits_for_critical(s.kind, s.cls()),
+			windows: [
+				{ max: BACKGROUND_WINDOW, holds: (s) => is_background(s.cls()) },
+				{ max: HOLE_WINDOW, holds: (s) => s.window === 'holes' }
+			],
+			budget: {
+				ms: START_BUDGET_MS,
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a task yield never rejects
+				yield: (resume) => void yield_task().then(resume),
+				settle: true
+			},
+			start: (s, place) => s.start(place),
+			stale: (s) => s.leave()
+		});
+	}
+
+	critical_done(): boolean {
+		return this.gate.now.kind === 'settled';
+	}
+
+	on_first_input(): void {
+		const kind = this.gate.now.kind;
+		if (kind === 'fresh') this.gate.go('touched');
+		else if (kind === 'waiting') this.settle_critical('input');
+	}
+
+	settle_critical(outcome: CriticalOutcome): void {
+		const s = this.gate.now;
+		if (s.kind === 'settled') return;
+		const report: CriticalReport =
+			s.kind === 'waiting'
+				? { outcome, resources: s.resources, waited_ms: Math.round(now() - s.t0) }
+				: { outcome, resources: 0, waited_ms: 0 };
+		this.gate.go('settled', { report });
+		if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'load.critical', ...report });
+		if (HOOK_CRITICAL_SETTLED)
+			slots.hooks?.criticalSettled?.({
+				outcome: report.outcome,
+				resources: report.resources,
+				waitedMs: report.waited_ms
+			});
+		this.line.recheck();
+	}
+
+	#until_critical(): Promise<void> {
+		return after_document_painted().then(async () => {
+			const gate = this.gate;
+			const s = gate.now;
+			if (s.kind === 'settled') return;
+			const waiting =
+				s.kind === 'touched' || document.visibilityState === 'hidden' ? [] : pending_critical();
+			if (!waiting.length) return this.settle_critical('none');
+			gate.go('waiting', { t0: now(), resources: waiting.length });
+			const wait = gate.scope;
+			wait.timeout(() => this.settle_critical('cap'), CRITICAL_CAP_MS);
+			let left = waiting.length;
+			const one = () => {
+				if (--left === 0) this.settle_critical('arrived');
+			};
+			for (const el of waiting) {
+				wait.on(el, 'load', one, { once: true });
+				wait.on(el, 'error', one, { once: true });
+			}
+			await gate.wait('settled');
+		});
+	}
+
+	reset(): void {
+		this.#owner.close();
+		this.#owner = scope();
+		this.line = this.#open_line();
+		this.critical.drop(() => true);
+		this.gate.stop();
+		this.gate = gate_definition.create();
+	}
+}
+
+const scheduler = new LoadScheduler();
+
 if (typeof document !== 'undefined') {
 	for (const type of ['pointerdown', 'keydown'] as const)
 		// oxlint-disable-next-line ogygia/owned-effects -- the visitor's first click or key, once for the document (`once`): it ends whichever critical wait is up
-		addEventListener(type, on_first_input, { capture: true, passive: true, once: true });
+		addEventListener(type, () => scheduler.on_first_input(), {
+			capture: true,
+			passive: true,
+			once: true
+		});
 }
-
-const critical = flights({ name: 'critical resources', run: () => until_critical() });
-
-const critical_done = () => gate.now.kind === 'settled';
 
 /** The critical wait's outcome once it settled (the profiler's beacon reads it), else `null`. */
 export function critical_outcome(): CriticalReport | null {
-	const s = gate.now;
+	const s = scheduler.gate.now;
 	return s.kind === 'settled' ? s.report : null;
-}
-
-function settle_critical(outcome: CriticalOutcome): void {
-	const s = gate.now;
-	if (s.kind === 'settled') return;
-	const report: CriticalReport =
-		s.kind === 'waiting'
-			? { outcome, resources: s.resources, waited_ms: Math.round(now() - s.t0) }
-			: { outcome, resources: 0, waited_ms: 0 };
-	gate.go('settled', { report });
-	if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'load.critical', ...report });
-	if (HOOK_CRITICAL_SETTLED)
-		slots.hooks?.criticalSettled?.({
-			outcome: report.outcome,
-			resources: report.resources,
-			waitedMs: report.waited_ms
-		});
-	drain();
 }
 
 function pending_critical(): Element[] {
@@ -139,37 +225,8 @@ export function preload_urls(link: HTMLLinkElement): string[] {
  * wait. A page with no marked resource resolves right after the paint. Once resolved it stays so.
  */
 export function critical_settled(): Promise<void | Stale> {
-	return critical.get();
+	return scheduler.critical.get();
 }
-function until_critical(): Promise<void> {
-	return after_document_painted().then(async () => {
-		const s = gate.now;
-		if (s.kind === 'settled') return;
-		const waiting =
-			s.kind === 'touched' || document.visibilityState === 'hidden' ? [] : pending_critical();
-		if (!waiting.length) return settle_critical('none');
-		gate.go('waiting', { t0: now(), resources: waiting.length });
-		const wait = gate.scope;
-		wait.timeout(() => settle_critical('cap'), CRITICAL_CAP_MS);
-		let left = waiting.length;
-		const one = () => {
-			if (--left === 0) settle_critical('arrived');
-		};
-		for (const el of waiting) {
-			wait.on(el, 'load', one, { once: true });
-			wait.on(el, 'error', one, { once: true });
-		}
-		await gate.wait('settled');
-	});
-}
-
-class LoadQueue {
-	readonly slots: LoadSlot[] = [];
-}
-const Q = new LoadQueue();
-let waiting = 0;
-let in_flight_background = 0;
-let in_flight_holes = 0;
 
 /**
  * A queued download: asking for one queues it. `ready` resolves with a `release` to call when the
@@ -208,14 +265,14 @@ export class LoadSlot {
 		this.#read = typeof o.cls === 'function' ? o.cls : () => o.cls as LoadClass;
 		this.#flight = o.flight ?? null;
 		this.ready = new Promise<() => void>((r) => (this.#resolve = r));
-		Q.slots.push(this);
-		waiting++;
-		if (o.el) this.unwatch = watch_viewport(o.el, '0px', drain);
+		const line = scheduler.line;
+		if (o.el) this.unwatch = watch_viewport(o.el, '0px', () => line.recheck());
 		this.#flight?.onRaise(() => {
-			if (this.queued) drain();
+			if (this.queued) line.recheck();
 		});
-		if (!critical_done() && waits_for_critical(this.kind, this.cls())) void critical_settled(); // ok: the critical wait only waits on timers and resources' events; it never rejects
-		drain();
+		if (!scheduler.critical_done() && waits_for_critical(this.kind, this.cls()))
+			void critical_settled(); // ok: the critical wait only waits on timers and resources' events; it never rejects
+		line.push(this);
 	}
 
 	/** Its class now: the getter's, or its flight's when that is more urgent. */
@@ -225,14 +282,11 @@ export class LoadSlot {
 		return flight !== null && flight.priority > PRIORITY[c] ? class_at(flight.priority) : c;
 	}
 
-	/** Out of the queue: the holder's `ready` resolves, counted in the background window when it
-	 *  is one of the guesses. */
-	start(cls: LoadClass, background: boolean): void {
+	/** Out of the queue: the holder's `ready` resolves with its place's release. */
+	start(place: Place): void {
+		this.queued = false;
 		this.unwatch();
-		if (background) in_flight_background++;
-		const hole = this.window === 'holes';
-		if (hole) in_flight_holes++;
-		let released = false;
+		const cls = this.cls();
 		if (DEVTOOLS)
 			dt_emit({
 				domain: 'runtime',
@@ -249,94 +303,14 @@ export class LoadSlot {
 				...(this.label !== undefined ? { label: this.label } : {}),
 				waitedMs: Math.round(now() - this.queued_at)
 			});
-		this.#resolve(() => {
-			if (released) return;
-			released = true;
-			if (background) in_flight_background--;
-			if (hole) in_flight_holes--;
-			drain();
-		});
+		this.#resolve(place.release);
 	}
-}
 
-function waits_for_critical(kind: LoadKind, cls: LoadClass): boolean {
-	if (cls === 'user') return false;
-	if (kit_hydrates_page()) return false;
-	return !(kind === 'content' && cls === 'visible');
-}
-
-const START_BUDGET_MS = 16;
-const drain_definition = machine<{ idle: {}; draining: {}; again: {} }>()({
-	name: 'load-drain',
-	initial: 'idle',
-	steps: { idle: ['draining'], draining: ['idle', 'again'], again: ['idle', 'draining'] }
-});
-let drainer = drain_definition.create();
-
-function drain(): void {
-	const kind = drainer.now.kind;
-	if (kind !== 'idle') {
-		if (kind === 'draining') drainer.go('again');
-		return;
+	/** Out of the queue without a start (a fresh document): it stops watching, and never starts. */
+	leave(): void {
+		this.queued = false;
+		this.unwatch();
 	}
-	if (!waiting) return;
-	drainer.go('draining');
-	const mine = drainer;
-	// oxlint-disable-next-line ogygia/no-silent-failures -- a drain only hands out slots and yields; it never rejects
-	void drain_queue().finally(() => {
-		if (drainer !== mine) return;
-		const again = drainer.now.kind === 'again';
-		drainer.go('idle');
-		if (again) drain();
-	});
-}
-
-async function drain_queue(): Promise<void> {
-	let until = now() + START_BUDGET_MS;
-	for (;;) {
-		if (drainer.now.kind === 'again') drainer.go('draining');
-		const asked = Q.slots.length;
-		const by_class: LoadSlot[][] = [[], [], [], []];
-		for (let i = 0; i < asked; i++) by_class[3 - PRIORITY[Q.slots[i].cls()]].push(Q.slots[i]);
-		let ran = false;
-		let started = false;
-		let yielded = false;
-		pass: for (let r = 0; r <= 4; r++) {
-			const list = r < 4 ? by_class[r] : Q.slots;
-			for (let i = r < 4 ? 0 : asked; i < list.length; i++) {
-				const e = list[i];
-				if (!e.queued) continue;
-				const cls = r < 4 && !ran ? CLASSES[r] : e.cls();
-				if (!critical_done() && waits_for_critical(e.kind, cls)) continue;
-				const background = cls === 'ahead' || cls === 'speculative';
-				if (background && in_flight_background >= BACKGROUND_WINDOW) continue;
-				if (e.window === 'holes' && in_flight_holes >= HOLE_WINDOW) continue;
-				e.queued = false;
-				waiting--;
-				started = true;
-				e.start(cls, background);
-				await Promise.resolve();
-				ran = true;
-				if (now() >= until) {
-					leave_queue();
-					await yield_task();
-					until = now() + START_BUDGET_MS;
-					yielded = true;
-					break pass;
-				}
-			}
-		}
-		if (!yielded) {
-			if (started) leave_queue();
-			if (drainer.now.kind !== 'again') return;
-		}
-	}
-}
-
-function leave_queue(): void {
-	let w = 0;
-	for (let i = 0; i < Q.slots.length; i++) if (Q.slots[i].queued) Q.slots[w++] = Q.slots[i];
-	Q.slots.length = w;
 }
 
 function noop(): void {}
@@ -345,17 +319,5 @@ const now = clock.mono;
 
 /** Test seam: a fresh document. */
 export function reset_load_scheduler(): void {
-	for (const s of Q.slots) {
-		s.queued = false;
-		s.unwatch();
-	}
-	Q.slots.length = 0;
-	waiting = 0;
-	in_flight_background = 0;
-	in_flight_holes = 0;
-	drainer.stop();
-	drainer = drain_definition.create();
-	critical.drop(() => true);
-	gate.stop();
-	gate = gate_definition.create();
+	scheduler.reset();
 }
