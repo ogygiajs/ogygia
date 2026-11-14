@@ -142,13 +142,6 @@ export type ServerEventInput =
 export type WireEventInput =
 	| {
 			domain: 'wire';
-			name: 'wire.props';
-			entry?: string;
-			/** devalue payload size (bytes). */
-			bytes: number;
-	  }
-	| {
-			domain: 'wire';
 			name: 'wire.context';
 			bytes: number;
 	  }

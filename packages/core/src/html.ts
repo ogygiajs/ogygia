@@ -1,4 +1,5 @@
 import { escape_attr, escape_text } from './escape.ts';
+import { is_script_url } from './script-url.ts';
 
 const MADE_HERE: unique symbol = Symbol('html');
 
@@ -42,9 +43,6 @@ const URL_ATTRS: ReadonlySet<string> = new Set([
 	'background',
 	'xlink:href'
 ]);
-// oxlint-disable-next-line no-control-regex -- leading control characters a browser skips in a URL
-const UNSAFE_URL = /^[\s\u0000-\u001f]*(?:javascript|vbscript|data)\s*:/i;
-const URL_DROPPED = /[\t\n\r]/g;
 const ATTR_NAME = /^[a-zA-Z_:][a-zA-Z0-9_:.-]*$/;
 // markup-ok: the html`` template's own source as its author wrote it, read to place a hole
 const NAME_BEFORE_QUOTE = /([^\s"'<>/=]+)\s*=\s*$/;
@@ -85,7 +83,7 @@ function escape_single(s: string): string {
 }
 
 function safe_url(s: string): string {
-	return UNSAFE_URL.test(s.replace(URL_DROPPED, '')) ? 'about:invalid#unsafe' : s;
+	return is_script_url(s) ? 'about:invalid#unsafe' : s;
 }
 
 function place(value: HtmlValue, at: Place): string {
@@ -141,8 +139,8 @@ function svelte_html(parts: TemplateStringsArray, ...values: HtmlValue[]): Html 
  * - between tags: `&`, `<`, `>`;
  * - inside a double-quoted attribute: `&`, `"`, `<`; single-quoted: `&`, `'`, `<`;
  * - inside a URL attribute (`href`, `src`, `action`, …): the same, and a `javascript:`,
- *   `vbscript:` or `data:` URL becomes `about:invalid#unsafe` (read as a URL parser reads it: tab,
- *   LF and CR dropped anywhere, the scheme included);
+ *   `vbscript:` or `data:` URL becomes `about:invalid#unsafe` (its scheme read as a URL parser
+ *   reads it: leading controls and spaces skipped, tab, LF and CR dropped anywhere);
  * - anywhere else in a tag (an unquoted attribute, a tag name): refused, it throws.
  *
  * An `Html` value (from `html`, `attr` or `trusted_html`) is placed as is between tags, and escaped

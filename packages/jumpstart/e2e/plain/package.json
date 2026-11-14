@@ -1,0 +1,22 @@
+{
+	"name": "jumpstart-e2e-plain",
+	"version": "0.0.1",
+	"private": true,
+	"description": "@ogygia/jumpstart's e2e app with no regions (two light pages), on SvelteKit 2. Also the strictExecutionOrder canary's app (JUMPSTART_STRICT=1).",
+	"type": "module",
+	"scripts": {
+		"build": "vite build",
+		"preview": "vite preview"
+	},
+	"dependencies": {
+		"jumpstart-e2e-many-files": "file:../deps/many-files",
+		"ogygia": "workspace:*"
+	},
+	"devDependencies": {
+		"@ogygia/jumpstart": "workspace:*",
+		"@sveltejs/kit": "catalog:",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"svelte": "catalog:",
+		"vite": "catalog:"
+	}
+}

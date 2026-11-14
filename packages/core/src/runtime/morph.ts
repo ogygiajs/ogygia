@@ -56,8 +56,9 @@ export function install(): void {
  *   repaired), is entered.
  * - After the morph, `aria-hidden="true"` is taken off the focused element's ancestors up to the
  *   root, never above it: the browser blocks an aria-hidden ancestor of focus.
- * - A copy of a host restored with its open shadow root keeps it: its children, its adopted sheets,
- *   and the sheets still waiting for the restorer.
+ * - A copy of a host keeps its open shadow root (a declarative one the parse attached, a restored
+ *   one): its children, its adopted sheets, and the sheets still waiting for the restorer. The
+ *   caller gives the inserted roots the page's registry (html-sink.ts `init_shadow_registries`).
  */
 export function morph_children(
 	parent: Element,
@@ -643,34 +644,34 @@ function sync_form_props(from: Element, to: Element): void {
 
 function clone(node: Node): Node {
 	const copy = owner_document(node).importNode(node, true);
-	if (node.nodeType === ELEMENT && (globalThis as PageGlobals).__og_restore)
-		carry_shadows(node as Element, copy as Element);
+	if (node.nodeType === ELEMENT) carry_shadows_under(node as Element, copy as Element);
 	return copy;
 }
 
-function carry_shadows(src: Element, dst: Element): void {
-	const a = owner_document(src).createTreeWalker(src, 1);
-	const b = owner_document(dst).createTreeWalker(dst, 1);
-	for (let s: Node | null = src, d: Node | null = dst; s && d; s = a.nextNode(), d = b.nextNode()) {
-		const root = (s as Element).shadowRoot;
-		if (!root || root.mode !== 'open' || (d as Element).shadowRoot) continue;
-		const copy = (d as Element).attachShadow({ mode: 'open', delegatesFocus: root.delegatesFocus });
-		if ((copy as ShadowRoot & { customElementRegistry?: unknown }).customElementRegistry === null) {
-			const w = globalThis as PageGlobals;
-			(w.__og_init ??= []).push(copy);
-		}
-		for (const c of Array.from(root.childNodes)) copy.appendChild(clone(c));
-		try {
-			if (root.adoptedStyleSheets.length) copy.adoptedStyleSheets = [...root.adoptedStyleSheets];
-		} catch {
-			// ok: sheets made for another document; the restorer's pending list covers ours
-		}
-		const pending = (root as PendingShadow).__og_pending;
-		if (pending) {
-			(copy as PendingShadow).__og_pending = pending;
-			const w = globalThis as PageGlobals;
-			(w.__og_adopt ??= []).push({ shadow: copy, sheets: pending });
-		}
+function carry_shadows_under(src: Element, dst: Element): void {
+	const root = src.shadowRoot;
+	if (root && root.mode === 'open' && !dst.shadowRoot) carry_shadows(root, dst);
+	for (
+		let s = src.firstElementChild, d = dst.firstElementChild;
+		s && d;
+		s = s.nextElementSibling, d = d.nextElementSibling
+	)
+		carry_shadows_under(s, d);
+}
+
+function carry_shadows(root: ShadowRoot, dst: Element): void {
+	const copy = dst.attachShadow({ mode: 'open', delegatesFocus: root.delegatesFocus });
+	for (const c of Array.from(root.childNodes)) copy.appendChild(clone(c));
+	try {
+		if (root.adoptedStyleSheets.length) copy.adoptedStyleSheets = [...root.adoptedStyleSheets];
+	} catch {
+		// ok: sheets made for another document; the restorer's pending list covers ours
+	}
+	const pending = (root as PendingShadow).__og_pending;
+	if (pending) {
+		(copy as PendingShadow).__og_pending = pending;
+		const w = globalThis as PageGlobals;
+		(w.__og_adopt ??= []).push({ shadow: copy, sheets: pending });
 	}
 }
 

@@ -137,7 +137,7 @@ function hash_subtree(
 
 /** Exact structural equality for the shapes `hash_subtree` accepts — the check behind a hash hit. */
 export function deep_equal_plain(a: unknown, b: unknown): boolean {
-	if (a === b) return true;
+	if (Object.is(a, b)) return true;
 	if (a instanceof Date || b instanceof Date)
 		return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
 	if (is_leaf(a) || is_leaf(b)) return false;
@@ -145,7 +145,8 @@ export function deep_equal_plain(a: unknown, b: unknown): boolean {
 	if (Array.isArray(a) !== Array.isArray(b)) return false;
 	if (Array.isArray(a) && Array.isArray(b)) {
 		if (a.length !== b.length) return false;
-		for (let i = 0; i < a.length; i++) if (!deep_equal_plain(a[i], b[i])) return false;
+		for (let i = 0; i < a.length; i++)
+			if (i in a !== i in b || !deep_equal_plain(a[i], b[i])) return false;
 		return true;
 	}
 	const ka = Object.keys(a as object);

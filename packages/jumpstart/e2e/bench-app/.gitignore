@@ -1,0 +1,5 @@
+.svelte-kit-jumpstart/
+build/
+build-jumpstart/
+src/
+deploy/

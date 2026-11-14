@@ -5,9 +5,16 @@
 import path from 'node:path';
 import MagicString from 'magic-string';
 import { bench } from '@bench/heisenbench/bench';
-import { ExportIndex, Shapes } from '@ogygia/compiler';
-import type { BuildContext, PluginDefinition, StageTransform } from '@ogygia/compiler/vite';
+import { ExportIndex, Shapes, type Policy } from '@ogygia/compiler';
+import type {
+	BuildContext,
+	PluginDefinition,
+	StageTransform,
+	StayedAnswer
+} from '@ogygia/compiler/vite';
+import { BARREL_LEFT_REASONS } from '@ogygia/core/contract';
 import { barrels } from '../src/index.ts';
+import { BarrelLeftTable } from '../src/left.ts';
 import { BARRELS_WARNINGS } from '../src/messages.ts';
 import { format_report, fresh_report } from '../src/report.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
@@ -73,10 +80,12 @@ function plugin_over(a: ReturnType<typeof app>, options: Parameters<typeof barre
 	const [definition, report] = barrels(options);
 	const index = new ExportIndex<void>((s, importer) => a.resolve(s, importer), new Shapes(a.read));
 	let stage: StageTransform | null = null;
+	let stayed: StayedAnswer = () => [];
 	const b = {
 		root: '/app',
 		dev: false,
 		transform: (s: StageTransform) => void (stage = s),
+		stayed: (answer: StayedAnswer) => void (stayed = answer),
 		exports: { map: (file, spec, policy) => index.map(file, spec, policy) },
 		pinnedImports: () => (decl) => decl.attribute_keys.includes('wake')
 	} as Partial<BuildContext> as BuildContext;
@@ -90,7 +99,7 @@ function plugin_over(a: ReturnType<typeof app>, options: Parameters<typeof barre
 		command: 'build',
 		logger: { info: (m: string) => void lines.push(m) }
 	});
-	return { stage: stage!, report, lines };
+	return { stage: stage!, report, lines, stayed: (file: string) => stayed(file, [], 'client') };
 }
 
 bench(
@@ -99,7 +108,7 @@ bench(
 		const quiet = console.warn;
 		console.warn = () => {};
 		try {
-			const { stage, report, lines } = plugin_over(a, { debug: true, keep: [/never/] });
+			const { stage, report, lines, stayed } = plugin_over(a, { debug: true, keep: [/never/] });
 			let edits = 0;
 			for (const id of [
 				'/app/src/main.ts',
@@ -117,13 +126,14 @@ bench(
 					edit,
 					environment: 'client',
 					resolve: (s, importer) => a.resolve(s, importer),
-					watch: () => {},
-					emit: () => {}
+					watch: () => {}
 				});
 				if (edit.hasChanged()) edits++;
 			}
+			const why = stayed('/app/lib/own.ts').length + stayed('/app/lib/index.ts').length;
+			(report.buildStart as (this: unknown) => void).call({ environment: { name: 'client' } });
 			(report.closeBundle as () => void)();
-			return edits + lines.length;
+			return edits + lines.length + why + stayed('/app/lib/own.ts').length;
 		} finally {
 			console.warn = quiet;
 		}
@@ -163,5 +173,77 @@ bench(
 	{
 		setup: () => ({ n: 40 }),
 		scale: (_ctx, k) => ({ n: 40 * k })
+	}
+);
+
+/** `barrels` barrels of five leaves each under one top barrel, as in-memory files, and the host the
+ *  barrel index reads them through (a relative resolve, every module a candidate). */
+function barrel_tree(barrels: number) {
+	const files = new Map<string, string>();
+	for (let b = 0; b < barrels; b++) {
+		for (let l = 0; l < 5; l++)
+			files.set(`/app/lib/b${b}/l${l}.ts`, `export const n${b}_${l} = ${l};`);
+		files.set(
+			`/app/lib/b${b}/index.ts`,
+			Array.from({ length: 5 }, (_, l) => `export * from './l${l}';`).join('\n')
+		);
+	}
+	files.set(
+		'/app/lib/index.ts',
+		Array.from({ length: barrels }, (_, b) => `export * from './b${b}';`).join('\n')
+	);
+	const read = (id: string): string | null => files.get(id) ?? null;
+	const resolve = async (spec: string, importer: string): Promise<string | null> => {
+		const base = path.posix.join(path.posix.dirname(importer), spec);
+		return files.has(`${base}.ts`)
+			? `${base}.ts`
+			: files.has(`${base}/index.ts`)
+				? `${base}/index.ts`
+				: null;
+	};
+	const policy: Policy = {
+		candidate: () => true,
+		forced: () => false,
+		kept: () => false,
+		follow_packages: false
+	};
+	return { read, resolve, policy };
+}
+
+// Why a barrel stayed: a policy that keeps half the barrels and refuses the rest answers each with a
+// map that says why; a leg's table records what every importer said, a re-transform forgets it, the
+// rows join it by barrel and importers, and a full table drops what comes past its cap.
+bench(
+	'why a barrel stayed: the left maps, a leg of importers recorded, re-transforms, the join, the cap',
+	async ({ barrels, read, resolve, policy }) => {
+		const index = new ExportIndex<void>(resolve, new Shapes(read));
+		const refusing: Policy = {
+			...policy,
+			kept: (id) => id.endsWith('0/index.ts'),
+			candidate: (id) => !id.endsWith('1/index.ts')
+		};
+		const table = new BarrelLeftTable(barrels * 2);
+		for (let i = 0; i < barrels * 4; i++) {
+			const barrel = `/app/lib/b${i % barrels}/index.ts`;
+			const map = await index.map(barrel, 'x', refusing);
+			const importer = `/app/src/I${i}.svelte`;
+			table.forget(importer);
+			if (map?.left) table.record(importer, map.id, map.left);
+			table.record(importer, barrel, BARREL_LEFT_REASONS[i % BARREL_LEFT_REASONS.length]);
+			if (i % 7 === 0) table.record(importer, null, 'unparsable');
+		}
+		for (let i = 0; i < barrels; i += 3) table.forget(`/app/src/I${i}.svelte`);
+		let reasons = 0;
+		for (let b = 0; b < barrels; b++)
+			reasons += table.why(`/app/lib/b${b}/index.ts`, [`/app/src/I${b}.svelte?v=1`]).length;
+		for (let i = 0; i < barrels * 3; i++)
+			table.record(`/app/src/J${i}.ts`, `/app/lib/extra${i}.ts`, 'impure');
+		const size = table.size;
+		table.clear();
+		return reasons + size + table.size;
+	},
+	{
+		setup: () => ({ barrels: 10, ...barrel_tree(10) }),
+		scale: (_ctx, k) => ({ barrels: 10 * k, ...barrel_tree(10 * k) })
 	}
 );

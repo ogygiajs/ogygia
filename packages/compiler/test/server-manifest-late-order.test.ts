@@ -47,7 +47,6 @@ function program_of(order: readonly string[]): Program {
 function cx(program: Program, order: readonly string[]): RelocateCx {
 	return {
 		program,
-		dollar_hoists: new Map(),
 		public_url: (iid) => `/_app/${iid}.js`,
 		late_server_regions: new Map(order.map((host) => [ID[host], `ref-${ID[host]}`])),
 		chunk_file: 'chunks/manifest.js',
