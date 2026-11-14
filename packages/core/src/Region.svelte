@@ -164,6 +164,7 @@
 		// LOCATION, the content-hashed file to load, the server finds in the build handoff.
 		__entry = '',
 		__component,
+		__css,
 		// The client wrapper's on-demand component fetch (its lazy module answered `undefined`: a
 		// Kit document that did not render this island). See `late_load`.
 		__load,
@@ -190,6 +191,10 @@
 		__maxAge,
 		__onExpire
 	}: Props = $props();
+
+	// Keep entry `.svelte` imports alive for FOUC without rendering them (the virtual owns the tree).
+	// svelte-ignore state_referenced_locally
+	void __css;
 
 	const LT = String.fromCharCode(60); // <
 	const GT = String.fromCharCode(62); // >
@@ -235,13 +240,13 @@
 	// `of` may be a Promise<RegionValue> (a remote call). Note an awaitable dual IS thenable too —
 	// the brand tells a real region value apart from a bare promise. Whether a usage passes a value
 	// or a promise is fixed per instance, so reading `of` once here is intentional.
-	const of_is_promise = untrack(
-		() => !!of && typeof (of as { then?: unknown }).then === 'function' && !isRegion(of)
-	);
+	// svelte-ignore state_referenced_locally
+	const of_is_promise =
+		!!of && typeof (of as { then?: unknown }).then === 'function' && !isRegion(of);
 	// A promise with no placeholder guarantees a blank window on first load (nothing to show while
 	// the promise and its stylesheet resolve). The model is "loading UI lives on the region" — say so.
-	const no_waiting_ui = untrack(() => !placeholder && !children);
-	if (of_is_promise && no_waiting_ui && import.meta.env && import.meta.env.DEV) {
+	// svelte-ignore state_referenced_locally
+	if (of_is_promise && !placeholder && !children && import.meta.env && import.meta.env.DEV) {
 		warn('region_promise_no_placeholder');
 	}
 	// A promise is PromiseRegion's (the template hands it over): how it waits — in the render where the
@@ -252,20 +257,23 @@
 	const resolved = $derived(of_is_promise ? undefined : (of as RegionValue | undefined));
 	// A LIVE region (a wire value with HTML, a deferred hole) is the runtime's to paint, on a Kit-hydrated
 	// page too; so is the one a promise will resolve to.
-	const holds_live =
-		of_is_promise || untrack(() => (of as { kind?: string } | undefined)?.kind === 'deferred');
+	// svelte-ignore state_referenced_locally
+	const holds_live = of_is_promise || (of as { kind?: string } | undefined)?.kind === 'deferred';
 
 	// A held interactive dual renders exactly like a placed island — same SSR-inline + self-hydrate —
 	// so both feed the island branch. A held static dual (no schedule) renders bare, like inline.
 	// These read fixed-per-instance props (`of`/`__mode` never change for a given wrapper), so reading
 	// them once is intentional — not a missed reactive capture. A Promise `of` is never a dual here:
 	// a promise resolves to a wire value (deferred) — only a same-pass VALUE can be a dual.
-	const of_init = of_is_promise ? undefined : untrack(() => of as RegionValue | undefined);
+	// svelte-ignore state_referenced_locally
+	const of_init = of_is_promise ? undefined : (of as RegionValue | undefined);
 	const held_dual_island = !!(of_init && of_init.kind === 'dual' && of_init.hydrate);
-	const mode = untrack(() => __mode);
-	const is_island = mode === 'island' || held_dual_island;
-	const is_server = mode === 'server';
-	const is_lake = mode === 'lake';
+	// svelte-ignore state_referenced_locally
+	const is_island = __mode === 'island' || held_dual_island;
+	// svelte-ignore state_referenced_locally
+	const is_server = __mode === 'server';
+	// svelte-ignore state_referenced_locally
+	const is_lake = __mode === 'lake';
 
 	// Nested rule (islands/server): a region inside an already-awake region hydrates with its parent,
 	// so it degrades to a plain inline render. Read once at init (a wrapper's mode is fixed per usage).
@@ -974,9 +982,8 @@
 	// A baked live region's FIRST HTML, read once: the markup the page was served with and hydrates
 	// against. Later values never re-render it (a re-render would recreate every node and remount the
 	// islands inside); the runtime morphs them in.
-	const baked_html = untrack(() =>
-		__baked ? ((resolved as { html?: string } | undefined)?.html ?? '') : ''
-	);
+	// svelte-ignore state_referenced_locally
+	const baked_html = __baked ? ((resolved as { html?: string } | undefined)?.html ?? '') : '';
 	// The baked region is OPAQUE (region-attrs.ts `OPAQUE_SELECTOR`): its HTML is server-only, never a
 	// Svelte tree the client could hydrate — the same as a lake's — so it is adopted (`adopt_region`). As
 	// an `{@html}`, Svelte walked its siblings to the first empty comment and the render's own top-level
@@ -1160,5 +1167,5 @@
 	{/key}
 {:else if of_is_promise}
 	<!-- A promise `of`: the region owns the whole wait — PromiseRegion decides how it waits. -->
-	<PromiseRegion of={of as Promise<RegionValue>} {placeholder} {children} />
+	<PromiseRegion {of} {placeholder} {children} />
 {/if}
