@@ -193,12 +193,10 @@ function make(desc: RegionSnippetDescriptor, live_entry: Component | null = null
 		const host = host_context();
 		// Snippet params arrive as getters (both legs). A live snippet forwards them to its entry as
 		// `__ogArgs`, so a parameterized `{#snippet row(item)}` crosses alive and renders per call.
-		const live_props = () =>
-			desc.m === 'live'
-				? params.length
-					? { ...desc.p, __ogArgs: params.map((g) => g()) }
-					: desc.p
-				: {};
+		const live_props = () => {
+			if (desc.m !== 'live') return {};
+			return params.length ? { ...desc.p, __ogArgs: params.map((g) => g()) } : desc.p;
+		};
 		return {
 			render: () => {
 				if (desc.m === 'static') return STATIC_OPEN + desc.h + WRAP_CLOSE;

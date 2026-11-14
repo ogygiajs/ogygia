@@ -74,6 +74,7 @@
 				"packages/compiler/src/**",
 				"packages/config/src/**",
 				"packages/content/src/**",
+				"packages/core/src/**",
 				"packages/data-shake/src/**",
 				"packages/federation/src/**",
 				"packages/flags/src/**",

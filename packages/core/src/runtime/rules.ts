@@ -226,8 +226,8 @@ function failure(reason: unknown): void {
 		R.uncoded.push('a STALE escaped as a rejection');
 		return;
 	}
-	const message =
-		reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : '';
+	let message = typeof reason === 'string' ? reason : '';
+	if (reason instanceof Error) message = reason.message;
 	const line = message.split('\n')[0].slice(0, 160);
 	if (message.startsWith('[ogygia]')) {
 		if (!CODE_LINK_RE.test(message)) R.uncoded.push(`an ogygia error with no code: ${line}`);

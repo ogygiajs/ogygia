@@ -49,8 +49,8 @@ export function shared_cache_lifetime(cache_control: string): number {
 		else if (name === 'max-age') max_age = n;
 		else if (name === 'stale-while-revalidate') swr = n;
 	}
-	const fresh = s_maxage >= 0 ? s_maxage : max_age >= 0 ? max_age : 0;
-	return fresh + swr;
+	if (s_maxage >= 0) return s_maxage + swr;
+	return (max_age >= 0 ? max_age : 0) + swr;
 }
 
 /** A delta-seconds value (optionally quoted), or null. */

@@ -112,10 +112,9 @@ export function compose_resolve_options(
 	return {
 		...inner,
 		...outer,
-		transformPageChunk: !a
-			? b
-			: !b
-				? a
+		transformPageChunk:
+			!a || !b
+				? (a ?? b)
 				: async (input) => {
 						const first = await a(input);
 						if (first === undefined) return first;

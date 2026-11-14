@@ -445,8 +445,8 @@ function reconcile_by_identity(parent: Element, new_nodes: ArrayLike<Node>, sets
 			claimed.add(match);
 			const before = match.previousSibling;
 			morph_node(match, next, sets, false);
-			const placed =
-				match.parentNode === parent ? match : before ? before.nextSibling : parent.firstChild;
+			let placed = before ? before.nextSibling : parent.firstChild;
+			if (match.parentNode === parent) placed = match;
 			if (placed) {
 				mark_render_made(placed);
 				anchor = placed;

@@ -66,7 +66,8 @@ function places_of(parts: TemplateStringsArray): Place[] {
 				else if (c === '"' || c === "'") {
 					const name = NAME_BEFORE_QUOTE.exec(part.slice(0, i))?.[1] ?? '';
 					const url = URL_ATTRS.has(name.toLowerCase());
-					state = c === '"' ? (url ? DOUBLE_URL : DOUBLE) : url ? SINGLE_URL : SINGLE;
+					if (c === '"') state = url ? DOUBLE_URL : DOUBLE;
+					else state = url ? SINGLE_URL : SINGLE;
 				}
 			} else if (state === DOUBLE || state === DOUBLE_URL) {
 				if (c === '"') state = TAG;

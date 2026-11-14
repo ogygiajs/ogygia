@@ -415,7 +415,9 @@ export class SpaRouter {
 	): Promise<void> {
 		const { push = true, type = 'link', replace = false } = opts;
 		const from = this.current_url;
-		const move: HistoryMove = opts.pop ? 'pop' : push && !replace ? 'push' : 'replace';
+		let move: HistoryMove = 'replace';
+		if (opts.pop) move = 'pop';
+		else if (push && !replace) move = 'push';
 
 		if (same_document(url, from) && !replace) {
 			if (!this.run_before(from, url, type)) return;

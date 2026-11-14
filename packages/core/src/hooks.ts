@@ -612,11 +612,10 @@ function csr_page_of(
 	event?: RequestEvent,
 	bag?: RequestBag
 ): boolean {
-	return event?.route?.id != null
-		? bag?.page?.error != null
-			? error_route_is_csr_true(event.route.id)
-			: route_is_csr_true(event.route.id)
-		: body_end !== -1 && html_has_kit_bootstrap(html, body_end);
+	if (event?.route?.id == null) return body_end !== -1 && html_has_kit_bootstrap(html, body_end);
+	return bag?.page?.error != null
+		? error_route_is_csr_true(event.route.id)
+		: route_is_csr_true(event.route.id);
 }
 
 /** The drop-in `setContext` page root (`<script data-ogygia-provide-page>`), or '' when the request
@@ -1474,21 +1473,17 @@ class OgygiaHandle {
 				const shipped = seed_keys === 'all' || (seed_keys !== null && seed_keys.has(key));
 				const read = [...(readers.get(key) ?? [])];
 				const refd = [...(referenced.get(key) ?? [])];
+				let reason: SeedKeyStat['reason'] = null;
+				if (shipped && !read.length && refd.length) reason = 'referenced';
+				else if (shipped && !read.length && whole_by.length) reason = 'whole';
+				else if (shipped) reason = 'read';
 				keys.push({
 					key,
 					bytes: analyze((data as Record<string, unknown>)[key]).bytes,
 					readers: read,
 					referenced_by: refd,
 					shipped,
-					reason: !shipped
-						? null
-						: read.length
-							? 'read'
-							: refd.length
-								? 'referenced'
-								: whole_by.length
-									? 'whole'
-									: 'read'
+					reason
 				});
 			}
 		}
