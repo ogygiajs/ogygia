@@ -28,7 +28,7 @@
 	const BASE = '/__profiler';
 	let path = $state('/');
 	let runs = $state(5);
-	let available = $state<boolean | null>(null); // null = probing
+	let available = $state<boolean | null>(null);
 	let running = $state(false);
 	let started = $state(0);
 	let error = $state('');
