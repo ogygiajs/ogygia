@@ -111,7 +111,7 @@ export default defineConfig({
 	// the island fixtures (client compile) and their SSR twin in `setup.ts` (server compile).
 	// heisenbench_record(): nothing, unless the measurement-source gate records the tests' inputs
 	// (internal/heisenbench/src/record.ts)
-	plugins: [svelte(), ...heisenbench_record()],
+	plugins: [...heisenbench_record()],
 	define: sim_define(process.env),
 	// The browser tests' dependencies, bundled before the first test file loads: found during the
 	// run, Vite bundles again and changes the URLs a test file still imports.
@@ -123,10 +123,11 @@ export default defineConfig({
 		projects: [
 			{
 				extends: true,
+				plugins: [svelte()],
 				test: {
 					name: 'node',
 					include: ['test/**/*.test.ts'],
-					exclude: ['test/browser/**', '**/node_modules/**'],
+					exclude: ['test/browser/**', 'test/browser-no-async/**', '**/node_modules/**'],
 					environment: 'node',
 					// the runtime's messages, published as the runtime's boot and the server's handle do
 					setupFiles: ['./test/_setup/messages.ts']
@@ -136,7 +137,7 @@ export default defineConfig({
 				extends: true,
 				// each lazy loader's own file, as an app's build hands it over (the ogygia plugin
 				// always carries it): a dropped download is asked for again there
-				plugins: [lazy_files()],
+				plugins: [svelte(), lazy_files()],
 				// as an app with a plugin's browser half builds: the runtime boots the plugins a test hands it
 				define: { __OGYGIA_CLIENT_PLUGINS__: 'true' },
 				test: {
@@ -155,6 +156,20 @@ export default defineConfig({
 							? { commands: { drop_downloads, hold_downloads, keep_downloads } }
 							: {})
 					}
+				}
+			},
+			{
+				extends: true,
+				plugins: [
+					svelte({
+						configFile: false,
+						compilerOptions: { experimental: { async: false } }
+					})
+				],
+				test: {
+					name: 'browser-no-async',
+					include: ['test/browser-no-async/**/*.test.ts'],
+					browser: { enabled: true, headless: true, ...(await browser_runs()) }
 				}
 			}
 		]

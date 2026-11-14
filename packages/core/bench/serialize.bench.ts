@@ -4,17 +4,17 @@
 import { bench } from '@bench/heisenbench/bench';
 import { stringify } from 'devalue';
 import { encode_island_graph, decode_island_graph } from '../src/island-graph.ts';
-import { SeedIndex, plan_seed_refs, __heisenbench as seed_refs } from '../src/seed-refs.ts';
+import { SeedIndex, SeedRefPlan, __heisenbench as seed_refs } from '../src/seed-refs.ts';
 import { DocumentTail } from '../src/server/document-tail.ts';
 import { region_fingerprint } from '../src/server/fingerprint.ts';
 import { PageSeed } from '../src/server/page-seed.ts';
-import { plan_props_wire, __heisenbench as props_wire } from '../src/server/props-wire.ts';
+import { PropsWire, __heisenbench as props_wire } from '../src/server/props-wire.ts';
 import { encode_region_props } from '../src/server/region-props.ts';
 import { block, header, island_entry, page_of, page_tree, rich_block } from './fixtures.ts';
 
 bench(
 	'props wire: a CMS block on the JSON lane',
-	({ props }) => plan_props_wire(props, 'block').wire(null),
+	({ props }) => new PropsWire(props, 'block').wire(null),
 	{
 		setup: () => ({ props: block(3) })
 	}
@@ -22,13 +22,13 @@ bench(
 
 bench(
 	'props wire: a block with a Date and a Map on the devalue lane',
-	({ props }) => plan_props_wire(props, 'block').wire(null),
+	({ props }) => new PropsWire(props, 'block').wire(null),
 	{ setup: () => ({ props: rich_block(3) }) }
 );
 
 bench(
 	'props wire: the header config (300 KB, not in the seed)',
-	({ props }) => plan_props_wire(props, 'header').wire(null),
+	({ props }) => new PropsWire(props, 'header').wire(null),
 	{ setup: () => ({ props: header() }) }
 );
 
@@ -69,7 +69,7 @@ bench(
 	({ data }) => {
 		const index = new SeedIndex(data, 96);
 		let count = 0;
-		for (const b of data.catalog.blocks) count += plan_seed_refs(index, { block: b }).count;
+		for (const b of data.catalog.blocks) count += new SeedRefPlan(index, { block: b }).count;
 		return count;
 	},
 	{ setup: () => ({ data: page_tree() }), scale: (_ctx, k) => ({ data: page_of(20 * k) }) }
@@ -80,7 +80,7 @@ bench(
 	({ data, props }) => {
 		const index = new SeedIndex(data, 96);
 		let count = 0;
-		for (const p of props) count += plan_seed_refs(index, p).count;
+		for (const p of props) count += new SeedRefPlan(index, p).count;
 		return count;
 	},
 	{
@@ -131,7 +131,7 @@ bench(
 		]);
 		islands.push([island_entry(99), header_props]);
 		for (const [entry, props] of islands) {
-			const plan = plan_props_wire(props, entry);
+			const plan = new PropsWire(props, entry);
 			const fp = region_fingerprint(entry, plan.canonical);
 			tail.props(fp, plan);
 			const hrefs = [

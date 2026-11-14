@@ -855,6 +855,21 @@ describe('hydrates as sent', () => {
 		} as unknown as Parameters<typeof hydrates_as_sent>[1];
 		expect(hydrates_as_sent(tab, world)).toBeNull();
 	});
+
+	it('a csr=true page whose web components edit their light DOM before Kit hydrates mismatches on purpose, so Kit remounts it (run 43495274517: 71 findings on /lake-twins-kit and 11 on /bench-cms/kit, each what its page is for)', () => {
+		const tab = (path: string) =>
+			({
+				realm: 'tab-1#1',
+				name: 'tab-1',
+				documents: 1,
+				errors: [],
+				console: ['warn: https://svelte.dev/e/hydration_mismatch'],
+				page: { mainFrame: { url: `https://app.test${path}` } }
+			}) as unknown as Parameters<typeof hydrates_as_sent>[0];
+		expect(hydrates_as_sent(tab('/lake-twins-kit'))).toBeNull();
+		expect(hydrates_as_sent(tab('/bench-cms/kit'))).toBeNull();
+		expect(hydrates_as_sent(tab('/bench-cms/holes'))?.oracle).toBe('ssr-hydrate');
+	});
 });
 
 describe('page rules', () => {

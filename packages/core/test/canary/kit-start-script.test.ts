@@ -1,20 +1,21 @@
 /**
- * CANARY (#1714, #1718): the shape of SvelteKit's inline start script, from the template in each
- * installed Kit's own page renderer (`src/runtime/server/page/render.js`). The start gate
- * (src/server/kit-gate.ts) rewrites the script's first `import("…")` so Kit starts after ogygia's
- * runtime, and `is_kit_boot_script` (src/runtime/kit-boot.ts) knows the script by its
- * `__sveltekit_*` global. Kit's `boot` expression is evaluated here for each way Kit loads its
- * client, and the gate is run over the script it makes.
+ * CANARY (#1714, #1718, #1719): how SvelteKit starts its client, asked of a real Kit app
+ * (kit-app.ts) for every Kit the workspace installs, in dev and in a build of each bundle strategy.
+ * The start gate (src/server/kit-gate.ts) rewrites the first `import("…")` of Kit's inline start
+ * script so Kit starts after ogygia's runtime; `is_kit_boot_script` (src/runtime/kit-boot.ts) knows
+ * the script by its `__sveltekit_*` global; and the Kit page thread (kit-page-thread.svelte.ts) waits
+ * for `page.status` to leave -1, which it reads in an effect.
  */
-import { describe, expect, it } from 'vitest';
-import fs from 'node:fs';
-import path from 'node:path';
-import { KIT_START_WAIT, kit_gate, kit_start_ungated } from '../../src/server/kit-gate.ts';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { Browser } from 'playwright';
+import { kit_gate, kit_start_ungated } from '../../src/server/kit-gate.ts';
+import { kit_boot_script } from '../../src/server/html-scan.ts';
 import { is_kit_boot_script } from '../../src/runtime/kit-boot.ts';
+import { KitApp, SLOW_RUNTIME, type KitAppOptions, type KitMode } from './kit-app.ts';
 import { broke, KITS, type Internal } from './upstream.ts';
 
 const START: Internal = {
-	upstream: "SvelteKit's inline start script (`boot` in src/runtime/server/page/render.js)",
+	upstream: 'SvelteKit\'s inline start script (the `import("…")` of its client entry)',
 	used_by: [
 		'packages/core/src/server/kit-gate.ts',
 		'packages/core/src/hooks.ts (the csr=true path)'
@@ -22,104 +23,95 @@ const START: Internal = {
 	issue: 1714
 };
 const GLOBAL: Internal = {
-	upstream:
-		"SvelteKit's `__sveltekit_*` global (its global name, src/runtime/server/utils.js or src/core/utils.js)",
+	upstream: "SvelteKit's `__sveltekit_*` global (assigned in its start script)",
 	used_by: [
 		'packages/core/src/runtime/kit-boot.ts (is_kit_boot_script)',
 		'packages/core/src/server/html-scan.ts'
 	],
 	issue: 1718
 };
+const PAGE: Internal = {
+	upstream:
+		"SvelteKit's client `page` state (`page.status` is -1 until Kit applies the first page)",
+	used_by: ['packages/core/src/runtime/kit-page-thread.svelte.ts'],
+	issue: 1719
+};
 
-/** The source of Kit's `const boot = …;` expression. */
-function boot_expression(render_js: string): string | null {
-	const from = render_js.indexOf('const boot =');
-	const to = render_js.indexOf('if (load_env_eagerly)', from);
-	if (from === -1 || to === -1) return null;
-	return render_js
-		.slice(from + 'const boot ='.length, to)
-		.trim()
-		.replace(/;$/, '');
-}
+const end_of = (html: string) => html.lastIndexOf('</body>');
+const gated = (html: string) => kit_gate(html, end_of(html))?.html ?? html;
+const with_runtime = (html: string) => html.replace('</head>', `${SLOW_RUNTIME}</head>`);
 
-const GLOBAL_NAME = '__sveltekit_abc123';
+const SERVED: ReadonlyArray<[string, KitMode, KitAppOptions]> = [
+	['dev', 'dev', {}],
+	['a build, split bundle', 'build', { bundle: 'split' }],
+	['a build, single bundle', 'build', { bundle: 'single' }]
+];
 
-/** Kit's start script for one way of loading its client, as the browser gets it. */
-function start_script(expr: string, client: object): string {
-	// oxlint-disable-next-line no-new-func, typescript/no-implied-eval -- evaluates Kit's own template expression, the point of the canary
-	const boot = new Function(
-		'client',
-		's',
-		'prefixed',
-		'args',
-		'serialized_data',
-		'global',
-		`return ${expr};`
-	)(client, JSON.stringify, (p: string) => `./${p}`, ['element', '{}'], '', GLOBAL_NAME) as string;
-	return [
-		'',
-		`${GLOBAL_NAME} = { base: "" };`,
-		'const element = document.currentScript.parentElement;',
-		boot,
-		''
-	].join('\n');
-}
+vi.setConfig({ hookTimeout: 120_000, testTimeout: 30_000 });
 
-const page_with = (script: string) =>
-	`<!doctype html><html><head></head><body><div><script>${script}</script></div></body></html>`;
-
-describe.each(Object.entries(KITS))("%s's start script", (_, root) => {
-	const render_js = fs.readFileSync(path.join(root, 'src/runtime/server/page/render.js'), 'utf8');
-	const expr = boot_expression(render_js);
-
-	it('builds its start script in one `boot` expression', () => {
-		expect(
-			expr,
-			broke(START, 'render.js has no `const boot = …` before `load_env_eagerly`')
-		).not.toBeNull();
+describe.each(Object.entries(KITS))('%s', (_, root) => {
+	let browser: Browser;
+	beforeAll(async () => {
+		browser = await KitApp.browser();
+	});
+	afterAll(async () => {
+		await browser.close();
 	});
 
-	it.each([
-		['a split bundle (start + app)', { start: 'start.js', app: 'app.js' }],
-		['a single entry', { start: 'start.js' }]
-	])('the gate holds its start, %s', (_, client) => {
-		const html = page_with(start_script(expr!, client));
-		const end = html.lastIndexOf('</body>');
-		const gate = kit_gate(html, end);
-		expect(
-			gate,
-			broke(START, `the gate finds no \`import("…")\` in: ${start_script(expr!, client)}`)
-		).not.toBeNull();
-		expect(gate!.html).toContain(`${KIT_START_WAIT}.then(() => import("./start.js"))`);
-		expect(kit_start_ungated(html, end)).toBe(false);
+	describe.each(SERVED)('served from %s', (_, mode, options) => {
+		const app = new KitApp(root, mode, options);
+		let html = '';
+		beforeAll(async () => {
+			await app.start();
+			html = await app.text('/');
+		});
+		afterAll(() => app.stop());
+
+		it('the gate finds the import in its start script, and Kit starts after a slow runtime', async () => {
+			expect(
+				kit_gate(html, end_of(html)),
+				broke(START, `the gate finds no \`import("…")\` in the page Kit sent:\n${html}`)
+			).not.toBeNull();
+			expect(kit_start_ungated(html, end_of(html))).toBe(false);
+			const start = await app.start_in(browser, '/', (h) => with_runtime(gated(h)));
+			expect(start.init_ran, broke(START, 'Kit did not start behind the gate')).toBe(true);
+			expect(
+				start.runtime_before_init,
+				broke(START, "Kit started before the page's deferred module script ran")
+			).toBe(true);
+		});
+
+		it('assigns its `__sveltekit_*` global in the start script', () => {
+			const script = kit_boot_script(html, end_of(html));
+			const name = mode === 'dev' ? /__sveltekit_dev\s*=/ : /__sveltekit_[a-z0-9]+\s*=/;
+			expect(
+				script?.text,
+				broke(GLOBAL, `the start script does not assign ${name.source}:\n${html}`)
+			).toMatch(name);
+			expect(
+				is_kit_boot_script('', () => false, script!.text),
+				broke(GLOBAL, 'is_kit_boot_script does not know the start script by its global')
+			).toBe(true);
+		});
+
+		it('its client page has status -1 until Kit applies the first page, which an effect sees', async () => {
+			const start = await app.start_in(browser, '/');
+			expect(start.status_at_init, broke(PAGE, '`page.status` is not -1 in `init`')).toBe(-1);
+			expect(
+				start.status_seen,
+				broke(PAGE, 'an effect on `page.status` did not see -1 and then 200')
+			).toEqual([-1, 200]);
+		});
 	});
 
-	it('an inline bundle (nothing imported) is said ungated, so dev warns', () => {
-		const html = page_with(start_script(expr!, { inline: { script: 'void 0;' } }));
-		expect(kit_start_ungated(html, html.lastIndexOf('</body>'))).toBe(true);
-	});
+	describe('served from a build, inline bundle', () => {
+		const app = new KitApp(root, 'build', { bundle: 'inline' });
+		beforeAll(() => app.start());
+		afterAll(() => app.stop());
 
-	it('names its global `__sveltekit_<hash>` (`__sveltekit_dev` in dev), assigned in the start script', () => {
-		const utils = ['src/runtime/server/utils.js', 'src/core/utils.js']
-			.map((f) => path.join(root, f))
-			.filter((f) => fs.existsSync(f))
-			.map((f) => fs.readFileSync(f, 'utf8'))
-			.join('\n');
-		expect(
-			/`__sveltekit_\$\{/.test(utils),
-			broke(GLOBAL, 'Kit no longer names its global `__sveltekit_${hash}`')
-		).toBe(true);
-		expect(
-			utils,
-			broke(GLOBAL, "get_global_name's dev name is no longer `__sveltekit_dev`")
-		).toContain("'__sveltekit_dev'");
-		expect(
-			render_js,
-			broke(GLOBAL, 'the start script no longer assigns `${global} = {`')
-		).toContain('${global} = {');
-		expect(
-			is_kit_boot_script('', () => false, start_script(expr!, { start: 'start.js' })),
-			broke(GLOBAL, 'is_kit_boot_script does not know the start script by its global')
-		).toBe(true);
+		it('imports nothing, so the gate says it ungated and dev warns', async () => {
+			const html = await app.text('/');
+			expect(kit_start_ungated(html, end_of(html))).toBe(true);
+		});
 	});
 });

@@ -7,9 +7,15 @@
  * for Svelte's client `hydrate` (svelte-hydrate.ts, below). And a bench page's island files, which a
  * browser fetches from the page's origin (runtime/code-origins.ts refuses any other), are the
  * stand-in island module, one instance per file: `<ISLAND_FILES><name>` -> island-module.ts?entry=<name>.
+ * And a `.svelte` file a module imports (core's RenderSnippet.svelte) is compiled for the server by
+ * core's own Svelte, as the app's Vite would.
  */
-import { existsSync } from 'node:fs';
-import { registerHooks } from 'node:module';
+import { existsSync, readFileSync } from 'node:fs';
+import { createRequire, registerHooks } from 'node:module';
+import { fileURLToPath } from 'node:url';
+
+const core_require = createRequire(new URL('../../../packages/core/package.json', import.meta.url));
+const { compile } = core_require('svelte/compiler') as typeof import('svelte/compiler');
 
 const STUBS = new URL('../../../packages/core/test/_stubs/', import.meta.url);
 /** Where the bench page's island files are (packages/core/bench/hydration-page.ts `island_file`). */
@@ -52,5 +58,11 @@ registerHooks({
 		if (!existsSync(file))
 			throw new Error(`heisenbench preload: no stub for ${specifier} (expected ${file.pathname})`);
 		return { url: file.href, shortCircuit: true };
+	},
+	load(url, context, next) {
+		if (!url.startsWith('file:') || !url.endsWith('.svelte')) return next(url, context);
+		const filename = fileURLToPath(url);
+		const { js } = compile(readFileSync(filename, 'utf8'), { generate: 'server', filename });
+		return { format: 'module', source: js.code, shortCircuit: true };
 	}
 });

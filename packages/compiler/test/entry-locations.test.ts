@@ -27,7 +27,7 @@ import {
 } from '../../core/src/island-graph.ts';
 import { DocumentTail, island_graph_script } from '../../core/src/server/document-tail.ts';
 import { entry_src, runtime_bootstrap } from '../../core/src/server/entry-location.ts';
-import { plan_props_wire } from '../../core/src/server/props-wire.ts';
+import { PropsWire } from '../../core/src/server/props-wire.ts';
 import { set_entry_locations, set_island_deps } from '../../core/test/_stubs/server.region-deps.ts';
 import Region from '../../core/src/Region.svelte';
 import Tiny from '../../core/test/_fixtures/Tiny.svelte';
@@ -299,7 +299,7 @@ describe('the document tail', () => {
 	});
 	it("an island's recorded JS closure leads with its location — the file the profiler weighs", () => {
 		const tail = new DocumentTail();
-		tail.props('fp1', plan_props_wire({}, '/id.js'), {
+		tail.props('fp1', new PropsWire({}, '/id.js'), {
 			entry: '/id.js',
 			name: 'T',
 			module_url: '/chunks/Loc.js',

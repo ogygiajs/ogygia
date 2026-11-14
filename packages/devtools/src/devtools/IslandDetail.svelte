@@ -13,7 +13,7 @@
 	import { parse } from 'devalue';
 	import { onDestroy } from 'svelte';
 	import { scope } from '@ogygia/machine';
-	import { highlight, clear_highlight } from './highlight.ts';
+	import { highlighter } from './highlight.ts';
 	import {
 		region_info,
 		region_name,
@@ -147,9 +147,9 @@
 	/** @type {(() => void) | null} */
 	let unflash = null;
 	function locate() {
-		highlight([el], model.name, true);
+		highlighter.show([el], model.name, true);
 		unflash?.();
-		unflash = owner.timeout(clear_highlight, 1400);
+		unflash = owner.timeout(() => highlighter.clear(), 1400);
 	}
 </script>
 
