@@ -4872,6 +4872,12 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
 			"test": "packages/federation/test/thaw-receive.test.ts",
 			"name": "answers an error and keeps no id; the retry with the same id is applied"
+		},
+		{
+			"site": "packages/flags/src/index.ts > ask_source > timer:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the timer's callback made to do nothing turns the test red",
+			"test": "packages/flags/test/source-failed.test.ts",
+			"name": "a source that never answers holds no request: past its deadline the flags fall to their native rule, and it is said"
 		}
 	],
 	"impossible": [
@@ -5723,7 +5729,6 @@
 		"packages/federation/src/wire.ts > pin_graph > parse:0",
 		"packages/flags/src/index.ts > (module) > policy:0",
 		"packages/flags/src/index.ts > send > refused:0",
-		"packages/flags/src/index.ts > ask_source > timer:0",
 		"packages/flags/src/index.ts > now > catch:0",
 		"packages/flags/src/inventory.ts > collect_from_source > not-ok:0",
 		"packages/flags/src/ofrep.ts > ofrep > timer:0",
