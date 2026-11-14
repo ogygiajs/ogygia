@@ -143,7 +143,8 @@
 				data-run-start
 				onclick={() => {
 					clicked = true;
-					void run(); // ok: run shows its own failure (error)
+					// oxlint-disable-next-line ogygia/no-silent-failures -- run shows its own failure (error)
+					void run();
 				}}>Start profiling {path}</button
 			>
 		</p>

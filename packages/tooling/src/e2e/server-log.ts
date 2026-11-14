@@ -65,7 +65,8 @@ export function said_rules(text: string): string[] {
 		try {
 			detail = m[2] === undefined ? '' : decodeURIComponent(m[2].replaceAll('+', ' '));
 		} catch {
-			detail = m[2] ?? ''; // ok: a detail that is not valid encoding is shown as it is
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a detail that is not valid encoding is shown as it is
+			detail = m[2] ?? '';
 		}
 		out.add(detail ? `${m[1]}: ${detail}` : m[1]!);
 	}

@@ -119,9 +119,8 @@ look, import the two stylesheets once (in the root layout); for your own, style 
 		try {
 			var t = localStorage.getItem(k);
 			if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
-		} catch (e) {
-			// ok: no storage (a private window); the page keeps its default theme
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no storage (a private window); the page keeps its default theme
+		} catch (e) {}
 	}, 'og-theme')}
 </svelte:head>
 

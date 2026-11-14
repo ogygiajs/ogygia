@@ -74,7 +74,8 @@ export class Dependencies {
 			try {
 				return fs.realpathSync(at).replace(BACKSLASH_G, '/');
 			} catch {
-				if (path.dirname(dir) === dir) return null; // ok: not installed anywhere above: no directory to add
+				// oxlint-disable-next-line ogygia/no-silent-failures -- not installed anywhere above: no directory to add
+				if (path.dirname(dir) === dir) return null;
 			}
 		}
 	}

@@ -56,7 +56,8 @@ async function load_flag_inventory(): Promise<FlagInventory | null | Error> {
 		return got === STALE ? null : got; // (nothing drops it, so it is never STALE)
 	} catch (e) {
 		const code = (e as { code?: unknown }).code;
-		if (code === 'MODULE_NOT_FOUND' || code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') return null; // ok: not installed; the tool says so
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not installed; the tool says so
+		if (code === 'MODULE_NOT_FOUND' || code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') return null;
 		return e instanceof Error ? e : new Error(String(e));
 	}
 }

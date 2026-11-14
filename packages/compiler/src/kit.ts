@@ -237,7 +237,8 @@ export function read_csr(r: Routes, file: string): boolean | undefined {
 }
 
 function csr_of_text(src: string | null, file: string): boolean | undefined {
-	if (src === null) return undefined; // ok: no such option file on this level
+	// oxlint-disable-next-line ogygia/no-silent-failures -- no such option file on this level
+	if (src === null) return undefined;
 	if (!src.includes('csr')) return undefined;
 	const { program } = parse_module(src, file);
 	if (!program) return undefined;

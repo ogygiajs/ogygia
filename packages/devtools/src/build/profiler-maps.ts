@@ -114,9 +114,8 @@ export function fill_profiler_maps(
 		let code = c.code;
 		try {
 			code = fs.readFileSync(path.join(dir, c.fileName), 'utf8');
-		} catch {
-			// ok: the generated code is kept
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the generated code is kept
+		} catch {}
 		on_disk[k] = { ...c, code };
 	}
 	const modules = build_module_map(on_disk, root).chunks;
@@ -130,9 +129,8 @@ export function fill_profiler_maps(
 			if (id in sources) continue;
 			try {
 				sources[id] = fs.readFileSync(path.join(root, id), 'utf8');
-			} catch {
-				// ok: a module the build made up: nothing to read
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a module the build made up: nothing to read
+			} catch {}
 		}
 		// and the chunk itself, for a host that re-bundles the output (adapter-node): its own map
 		// points back at this chunk, which it does not ship

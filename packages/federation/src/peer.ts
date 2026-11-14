@@ -518,7 +518,8 @@ export class PeerHandle implements Peer {
 				}
 			} catch {
 				if (signal?.aborted) return null;
-				continue; // ok: a replica that does not answer: the next is asked
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a replica that does not answer: the next is asked
+				continue;
 			}
 			if (res.status >= 500) continue;
 			if (res.status === 204) return { status: 204 };
