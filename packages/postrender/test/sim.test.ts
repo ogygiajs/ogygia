@@ -102,7 +102,7 @@ describe('postrender, simulated', () => {
 						const out = await server.response?.(c, res);
 						g.got = await (out ?? res).text();
 					} finally {
-						server.done?.(c);
+						await server.done?.(c);
 					}
 				};
 				const post = async (url: Url) => {
@@ -122,7 +122,7 @@ describe('postrender, simulated', () => {
 						);
 						floor[url] = Math.max(floor[url], version[url]); // its response went out
 					} finally {
-						server.done?.(c);
+						await server.done?.(c);
 					}
 				};
 				const publish = async (url: Url) => {

@@ -119,7 +119,7 @@ test('a region registered after the runtime entry that needs nothing new is not 
 	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	try {
 		const compiler = build_compiler();
-		load_runtime_entry(compiler);
+		await load_runtime_entry(compiler);
 		await transform_library_host(compiler, `wake: 'visible'`);
 		expect(late_lines(warn.mock.calls)).toEqual([]);
 	} finally {

@@ -21,7 +21,7 @@ describe('rewrite()', () => {
 		const el = rewrite({ match: 'x-', render: (els) => els.map((e) => e.html) });
 		const page = rewrite({ page: (html) => html });
 		expectTypeOf(el).toEqualTypeOf<Rewrite>();
-		expectTypeOf(el).toMatchTypeOf<Handle>();
+		expectTypeOf(el).toExtend<Handle>();
 		expectTypeOf(page).toEqualTypeOf<WholePageRewrite>();
 		expectTypeOf(el.check).returns.resolves.toEqualTypeOf<RewriteCheck>();
 		expectTypeOf(page.html).returns.resolves.toEqualTypeOf<string>();

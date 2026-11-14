@@ -155,7 +155,7 @@ describe('router pattern matching takes time in line with the path', () => {
 		];
 		const paths: string[] = [''];
 		for (let level = [''], n = 0; n < 7; n++) {
-			level = level.flatMap((p) => [...'a-x/'].map((ch) => p + ch));
+			level = level.flatMap((p) => 'a-x/'.split('').map((ch) => p + ch));
 			paths.push(...level);
 		}
 		// 131k cases: one RegExp per pattern and one expect at the end, or this runs 60x slower

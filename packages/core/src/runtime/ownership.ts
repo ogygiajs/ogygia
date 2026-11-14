@@ -1,4 +1,5 @@
 import { OG_BAKED, OG_HTML, OG_OPAQUE, OGYGIA_KEEP, OGYGIA_REGION_CSS } from '../wire-markup.ts';
+import { OPAQUE_SELECTOR } from './region-attrs.ts';
 
 /** The owner of an element, for the writers that consult it. */
 export type Owner = 'foreign' | 'region' | 'page' | 'static' | 'walk';
@@ -34,6 +35,7 @@ export function owner_of(el: Element): Owner {
 	if (is_region_owned(el)) return 'region';
 	if (el.localName === SLOT) return 'page';
 	if (el.hasAttribute(OG_OPAQUE)) return 'static';
+	if (el.localName === REGION && el.matches(OPAQUE_SELECTOR)) return 'static';
 	if (el.parentElement?.hasAttribute(OG_HTML) && !in_render_block(el)) return 'static';
 	return 'walk';
 }

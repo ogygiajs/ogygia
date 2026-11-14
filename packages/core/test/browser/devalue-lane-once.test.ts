@@ -6,11 +6,11 @@
 //
 // Its own file: whether devalue is loaded is module state shared by a file's tests.
 import { expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { devalue } from '../../src/runtime/devalue-lane.ts';
 
-const decode = (key: 'counter_tail_ssr_b64' | 'counter_json_lane_ssr_b64') =>
-	decodeURIComponent(escape(atob(inject(key))));
+const decode = (key: 'counter_tail_ssr_b64' | 'counter_json_lane_ssr_b64') => from_b64(inject(key));
 
 const HYDRATED = 'ogygia-region[data-hydrated]';
 const LANE_QUERY = 'application/ogygia-page-facts';
@@ -22,11 +22,12 @@ test('one document query for the page, another only when markup comes in', async
 	document.body.innerHTML = region.repeat(5) + json;
 
 	let asked = 0;
-	const query = Document.prototype.querySelector;
-	Document.prototype.querySelector = function (this: Document, selector: string) {
+	const proto = Document.prototype as { querySelector(selector: string): Element | null };
+	const query = proto.querySelector;
+	proto.querySelector = function (this: Document, selector: string) {
 		if (selector.includes(LANE_QUERY)) asked++;
-		return query.call(this, selector) as Element | null;
-	} as typeof query;
+		return query.call(this, selector);
+	};
 	try {
 		bootDev();
 		await expect
@@ -54,6 +55,6 @@ test('one document query for the page, another only when markup comes in', async
 			.toBe(8);
 		expect(asked).toBe(2);
 	} finally {
-		Document.prototype.querySelector = query;
+		proto.querySelector = query;
 	}
 });

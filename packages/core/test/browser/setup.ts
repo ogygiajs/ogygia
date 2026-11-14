@@ -23,6 +23,7 @@ import HoleKitHost from './fixtures/HoleKitHost.svelte';
 import LakePageReaderHost from './fixtures/LakePageReaderHost.svelte';
 import HeldHoleCard from './fixtures/HeldHoleCard.svelte';
 import NestPage from './fixtures/NestPage.svelte';
+import LakeIslandPage from './fixtures/LakeIslandPage.svelte';
 import { render_region_html } from '../../src/server/render-region-html.ts';
 import { region } from '../../src/region.ts';
 import { set_page, reset_page } from '../../src/shims/page-store.svelte.ts';
@@ -152,6 +153,9 @@ declare module 'vitest' {
 		/** NestPage: an interaction island (NestHost) with a Counter island nested in it, beside an
 		 *  `{@html}` — base64. */
 		nest_page_ssr_b64: string;
+		/** LakeIslandPage: an interaction island (LakeIslandHost) holding a lake with a custom
+		 *  element in it — base64. */
+		lake_island_page_ssr_b64: string;
 	}
 }
 
@@ -281,4 +285,8 @@ export default async function setup(project: TestProject) {
 		)
 	);
 	project.provide('nest_page_ssr_b64', b64(render(NestPage as unknown as Component).body));
+	project.provide(
+		'lake_island_page_ssr_b64',
+		b64(render(LakeIslandPage as unknown as Component).body)
+	);
 }
