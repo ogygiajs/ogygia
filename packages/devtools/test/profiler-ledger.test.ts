@@ -258,7 +258,7 @@ describe('line ledger', () => {
 			})
 		];
 		const ledger = build_ledger({ functions, source, code: (p, l) => source(p, l, l)?.lines[0] });
-		expect(ledger.map((l) => l.line).sort()).toEqual([6, 8]);
+		expect(ledger.map((l) => l.line).sort((a, b) => a - b)).toEqual([6, 8]);
 		expect(ledger[0]).toMatchObject({
 			lib_ms: 150,
 			fn: 'anon',

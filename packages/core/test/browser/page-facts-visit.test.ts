@@ -57,7 +57,7 @@ test('facts a hole brought join page.data at the next hydrate, once', async () =
 	);
 	seed_page_once();
 	expect((page_state.data as { who?: string }).who).toBe('hole');
-	set_page({ ...page_state, data: { who: 'changed since' } });
+	set_page({ data: { who: 'changed since' } });
 	seed_page_once();
 	expect((page_state.data as { who?: string }).who).toBe('changed since');
 });
@@ -65,7 +65,7 @@ test('facts a hole brought join page.data at the next hydrate, once', async () =
 test('on a Kit page the facts a hole brought stay out of page.data, and dev names the older keys', async () => {
 	await boot_link().load_devalue();
 	seed_page_once();
-	set_page({ ...page_state, data: { who: 'ours' } });
+	set_page({ data: { who: 'ours' } });
 	publish_kit_page({ who: 'kit', same: 1 });
 	const warns: string[] = [];
 	const real_warn = console.warn;

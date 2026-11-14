@@ -3,6 +3,7 @@
 // wait for the lake to settle; the refresh settles it and morphs them in place — the same nodes, so
 // nothing reconnects them. Settling the lake must wake them, whichever way it settles.
 import { afterEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset } from '../../src/runtime/frame-store.ts';
 
@@ -14,7 +15,7 @@ afterEach(() => {
 });
 
 /** The Counter island as a page carries it (shell + props sidecar). */
-const island = () => decodeURIComponent(escape(atob(inject('counter_ssr_b64'))));
+const island = () => from_b64(inject('counter_ssr_b64'));
 const ENDPOINT = '/__ogygia__?id=lakeswr00001&props=W3t9XQ&exp=9999999999&sig=stub';
 const lake = (inner: string) =>
 	`<ogygia-region wake="none" remount="swr" when="load" entry="lake-swr-remount" endpoint="${ENDPOINT}">${inner}</ogygia-region>`;

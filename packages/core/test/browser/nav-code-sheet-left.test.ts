@@ -3,12 +3,13 @@
 // chunks need). A navigation to a page with no such island takes it out, as a fresh load of that page
 // has none.
 import { afterEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
 
 const ENTRY = '/test/browser/fixtures/code-sheet-island.ts';
 const HYDRATED = 'ogygia-region[data-hydrated]';
-const counter_html = () => decodeURIComponent(escape(atob(inject('counter_ssr_b64'))));
+const counter_html = () => from_b64(inject('counter_ssr_b64'));
 const sheets = () =>
 	[...document.head.querySelectorAll('link[rel="stylesheet"]')].filter((l) =>
 		(l.getAttribute('href') ?? '').includes('region-sheet.css')

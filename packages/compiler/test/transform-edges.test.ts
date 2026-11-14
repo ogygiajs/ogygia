@@ -11,6 +11,7 @@ import {
 	wrapperVirtualId
 } from '../src/compiler/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
+import { code_fn } from './_code-fn.ts';
 
 type Ctx = Parameters<typeof transformHost>[2];
 function ctx(importKeys?: Record<string, string>): Ctx {
@@ -182,7 +183,7 @@ describe("render: 'live' carries only what the revalidate endpoint can serialize
 		const c = {
 			...ctx(),
 			visibleMargin: '50px',
-			presets: { p: new Function(`return ${preset}`)() }
+			presets: { p: code_fn(`return ${preset}`)() }
 		} as Ctx;
 		const out = transformHost(src, '/app/src/routes/+page.svelte', c)!;
 		expect(String(out.islands[0].identity).split('\u0000')[1]).toBe(want);

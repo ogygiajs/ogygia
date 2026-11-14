@@ -11,6 +11,7 @@ let reported = 0;
 /** The element names a late restore was said for on this page (once each, the latest 1024). */
 const late_said = say();
 const sheet_said = say();
+const invalid_said = say();
 
 function report(): void {
 	const log = (window as PageGlobals).__og_restore_log;
@@ -23,7 +24,7 @@ function report(): void {
 		!fresh.some(
 			(e) =>
 				(e.kind === 'mismatch' && e.diff) ||
-				(e.kind === 'late' && e.host) ||
+				((e.kind === 'late' || e.kind === 'invalid') && e.host) ||
 				(e.kind === 'sheet' && e.key)
 		)
 	)
@@ -39,6 +40,9 @@ function report(): void {
 			} else if (entry.kind === 'sheet' && entry.key) {
 				const { host, key } = entry;
 				sheet_said.once(key, () => warn('restore_sheet_missing', { host, key }));
+			} else if (entry.kind === 'invalid' && entry.host) {
+				const host = entry.host;
+				invalid_said.once(host, () => warn('restore_host_invalid', { host }));
 			}
 		}
 	};

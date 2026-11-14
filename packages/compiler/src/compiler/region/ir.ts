@@ -4,10 +4,12 @@ import type { AstNode } from '../parse/oxc.ts';
 /** A Svelte / ESTree node as the front-end walks it — dynamic access, loosely typed by design. */
 export type SvelteNode = AstNode;
 
+export type MarkOptions = Record<string, string | number | undefined>;
+
 /** A region mark — the `{ strategy, options }` a `with { … }` clause resolves to. */
 export interface RegionMark {
 	strategy: string;
-	options: Record<string, unknown>;
+	options: MarkOptions;
 }
 
 /** One host import the analyze pass indexed: its ImportDeclaration node + the `with {…}`-stripped text. */

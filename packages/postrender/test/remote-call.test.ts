@@ -36,15 +36,15 @@ describe('a remote call made from a stored page', () => {
 			first,
 			new Response(PAGE, { headers: { 'content-type': 'text/html' } })
 		);
-		server.done?.(first);
+		await server.done?.(first);
 		const again = request(false);
 		expect(await server.page?.(again)).toBeInstanceOf(Response); // stored: a page GET is a hit
-		server.done?.(again);
+		await server.done?.(again);
 
 		// the page's island calls a query: Kit gives the call the page's URL
 		const call = request(true);
 		expect(await server.page?.(call)).toBeUndefined();
-		server.done?.(call);
+		await server.done?.(call);
 	});
 
 	it('is never stored as the page on a miss', async () => {
@@ -62,7 +62,7 @@ describe('a remote call made from a stored page', () => {
 				headers: { 'content-type': 'text/html' }
 			})
 		);
-		server.done?.(c);
+		await server.done?.(c);
 		expect(await store.get('/q/')).toBeNull();
 	});
 });

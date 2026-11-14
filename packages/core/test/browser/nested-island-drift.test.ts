@@ -5,10 +5,11 @@
 // not `{@html}` content to leave alone. Before, the drift was never seen there, and the outer
 // island threw its hydration away (#1425).
 import { beforeEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { userEvent } from 'vitest/browser';
 import { bootDev } from '../../src/runtime/full.ts';
 
-const decode = (key: 'nest_page_ssr_b64') => decodeURIComponent(escape(atob(inject(key))));
+const decode = (key: 'nest_page_ssr_b64') => from_b64(inject(key));
 
 beforeEach(() => {
 	document.body.innerHTML = '';

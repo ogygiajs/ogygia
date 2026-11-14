@@ -6,6 +6,7 @@
 //
 // Its own file: the wire slot is module state shared by a file's tests.
 import { expect, inject, test, vi } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { page } from 'vitest/browser';
 import { writable } from 'svelte/store';
 
@@ -35,7 +36,7 @@ const HYDRATED = 'ogygia-region[data-hydrated]';
 
 test('an island whose props hold a live value hydrates in a build without the wire codec', async () => {
 	expect(slots.wire, 'no codec before the wake').toBeFalsy();
-	document.body.innerHTML = decodeURIComponent(escape(atob(inject('counter_ssr_b64'))));
+	document.body.innerHTML = from_b64(inject('counter_ssr_b64'));
 	const sidecar = document.querySelector('script[data-ogygia-props]')!;
 	sidecar.textContent = stringify_props({ start: 3, extra: writable(7) }, 'Counter');
 	expect(sidecar.textContent).toContain('OgygiaRef');
