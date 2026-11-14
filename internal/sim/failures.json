@@ -4362,6 +4362,150 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
 			"test": "packages/postrender/test/plugin.test.ts",
 			"name": "a stored page whose stitch throws sends the page it read, and says why"
+		},
+		{
+			"site": "packages/content/src/collection-base.ts > Collection > constructor > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/content.test.ts",
+			"name": "rejects a bare glob map (from must be a source)"
+		},
+		{
+			"site": "packages/content/src/collection-base.ts > Collection > reconnect > timer:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the timer's callback made to do nothing turns the test red",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "a dropped connection is opened again, and what changed meanwhile is read"
+		},
+		{
+			"site": "packages/content/src/macros/code.ts > static_string > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/constructs-stress.test.ts",
+			"name": "interpolated code source"
+		},
+		{
+			"site": "packages/content/src/macros/code.ts > static_string > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/og-code.test.ts",
+			"name": "rejects a non-literal lang"
+		},
+		{
+			"site": "packages/content/src/macros/code.ts > find_calls > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/og-code.test.ts",
+			"name": "rejects md() with wrong arity"
+		},
+		{
+			"site": "packages/content/src/macros/code.ts > find_calls > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/og-code.test.ts",
+			"name": "rejects wrong arity"
+		},
+		{
+			"site": "packages/content/src/macros/git.ts > parse_git_spec > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/loaders.test.ts",
+			"name": "throws on a spec with no owner/repo"
+		},
+		{
+			"site": "packages/content/src/macros/loaders.ts > extract_preset > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/config-surface.test.ts",
+			"name": "non-literal preset is a build error (the macro-argument law)"
+		},
+		{
+			"site": "packages/content/src/macros/loaders.ts > check_preset_name > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/config-surface.test.ts",
+			"name": "unknown preset name errors listing the configured names"
+		},
+		{
+			"site": "packages/content/src/macros/loaders.ts > emit > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/constructs-stress.test.ts",
+			"name": "unknown loader method → lists the valid loaders"
+		},
+		{
+			"site": "packages/content/src/macros/regions.ts > rewrite_regions > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/regions.test.ts",
+			"name": "throws build-voice on a duplicate key (same basename in nested dirs)"
+		},
+		{
+			"site": "packages/content/src/markdown/frontmatter.ts > indent_of > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/frontmatter.test.ts",
+			"name": "tabs used for indentation are rejected"
+		},
+		{
+			"site": "packages/content/src/markdown/frontmatter.ts > read_flow_plain > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/frontmatter-flow.test.ts",
+			"name": "a bracket or brace inside a plain item is the frontmatter error, as YAML rejects it (#620)"
+		},
+		{
+			"site": "packages/content/src/markdown/frontmatter.ts > parse_mapping > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/content.test.ts",
+			"name": "rejects broken yaml as invalid frontmatter, naming what the parser stopped at"
+		},
+		{
+			"site": "packages/content/src/markdown/frontmatter.ts > parseFrontmatter > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/content/test/content.test.ts",
+			"name": "rejects broken yaml as invalid frontmatter, naming what the parser stopped at"
+		},
+		{
+			"site": "packages/content/src/markdown/frontmatter.ts > parseFrontmatter > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/content.test.ts",
+			"name": "rejects broken yaml as invalid frontmatter, naming what the parser stopped at"
+		},
+		{
+			"site": "packages/content/src/markdown/index.ts > ogygiaPresetPreprocess > group_for > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/markdown.test.ts",
+			"name": "unknown preset on a variant errors listing the configured names"
+		},
+		{
+			"site": "packages/content/src/markdown/render-md.ts > render_markdown > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/markdown-bits.test.ts",
+			"name": "content that compiles to something dynamic is a build error"
+		},
+		{
+			"site": "packages/content/src/site/search-client.ts > SearchClient > constructor > error-event:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the error handler made to do nothing turns the test red",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "the worker crashes: waiting queries and later ones are rejected"
+		},
+		{
+			"site": "packages/content/src/vite/index.ts > content > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/content-config-order.test.ts",
+			"name": "markdown on, after the svelte config read its extensions: content() says so by code"
+		},
+		{
+			"site": "packages/content/src/vite/index.ts > validate_presets > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/config-surface.test.ts",
+			"name": "requires the markdown base"
+		},
+		{
+			"site": "packages/content/src/vite/index.ts > validate_presets > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/config-surface.test.ts",
+			"name": "rejects an empty preset and non-identifier names"
+		},
+		{
+			"site": "packages/content/src/vite/index.ts > validate_presets > throw:2",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/config-surface.test.ts",
+			"name": "rejects an empty preset and non-identifier names"
+		},
+		{
+			"site": "packages/content/src/vite/index.ts > validate_presets > throw:3",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/content/test/config-surface.test.ts",
+			"name": "rejects non-content vocabulary in a preset"
 		}
 	],
 	"impossible": [
@@ -4520,7 +4664,6 @@
 		"packages/content/src/blocks.ts > blocks > init > import:0",
 		"packages/content/src/collection-base.ts > (module) > policy:0",
 		"packages/content/src/collection-base.ts > Collection > constructor > throw:0",
-		"packages/content/src/collection-base.ts > Collection > constructor > throw:1",
 		"packages/content/src/collection-base.ts > Collection > awake > refused:0",
 		"packages/content/src/collection-base.ts > Collection > stop_following > .catch:0",
 		"packages/content/src/collection-base.ts > Collection > normalizeRef > throw:0",
@@ -4528,7 +4671,6 @@
 		"packages/content/src/collection-base.ts > Collection > reloadIds > catch:0",
 		"packages/content/src/collection-base.ts > Collection > follow > catch:1",
 		"packages/content/src/collection-base.ts > Collection > connect > .catch:0",
-		"packages/content/src/collection-base.ts > Collection > reconnect > timer:0",
 		"packages/content/src/collection-base.ts > Collection > reconnect > .catch:0",
 		"packages/content/src/folder.ts > folder > meta > stale:0",
 		"packages/content/src/folder.ts > folder > throw:1",
@@ -4536,26 +4678,12 @@
 		"packages/content/src/formats.ts > as_object > throw:0",
 		"packages/content/src/formats.ts > markdown_format > throw:0",
 		"packages/content/src/formats.ts > markdown_format > throw:1",
-		"packages/content/src/macros/code.ts > static_string > throw:0",
-		"packages/content/src/macros/code.ts > static_string > throw:1",
-		"packages/content/src/macros/code.ts > find_calls > throw:0",
-		"packages/content/src/macros/code.ts > find_calls > throw:1",
-		"packages/content/src/macros/git.ts > parse_git_spec > throw:0",
 		"packages/content/src/macros/git.ts > git_checkout_dir > throw:0",
 		"packages/content/src/macros/git.ts > materialize > throw:0",
 		"packages/content/src/macros/git.ts > safe > catch:0",
 		"packages/content/src/macros/loaders.ts > extract_preset > throw:0",
-		"packages/content/src/macros/loaders.ts > extract_preset > throw:1",
-		"packages/content/src/macros/loaders.ts > check_preset_name > throw:0",
-		"packages/content/src/macros/loaders.ts > emit > throw:0",
-		"packages/content/src/macros/regions.ts > rewrite_regions > throw:0",
 		"packages/content/src/macros/regions.ts > glob_relative > catch:0",
-		"packages/content/src/markdown/frontmatter.ts > indent_of > throw:0",
-		"packages/content/src/markdown/frontmatter.ts > read_flow_plain > throw:0",
-		"packages/content/src/markdown/frontmatter.ts > parse_mapping > throw:0",
-		"packages/content/src/markdown/frontmatter.ts > parseFrontmatter > catch:0",
 		"packages/content/src/markdown/frontmatter.ts > parseFrontmatter > throw:0",
-		"packages/content/src/markdown/frontmatter.ts > parseFrontmatter > throw:1",
 		"packages/content/src/markdown/index.ts > load_mdsvex > import:0",
 		"packages/content/src/markdown/index.ts > load_mdsvex > catch:0",
 		"packages/content/src/markdown/index.ts > load_mdsvex > throw:0",
@@ -4563,8 +4691,6 @@
 		"packages/content/src/markdown/index.ts > register_island_scanner > scan > import:1",
 		"packages/content/src/markdown/index.ts > register_island_scanner > scan > walk > catch:0",
 		"packages/content/src/markdown/index.ts > ogygiaPreprocess > markup > stale:0",
-		"packages/content/src/markdown/index.ts > ogygiaPresetPreprocess > group_for > throw:0",
-		"packages/content/src/markdown/render-md.ts > render_markdown > throw:0",
 		"packages/content/src/markdown/shiki.ts > run > import:0",
 		"packages/content/src/markdown/shiki.ts > get_highlighter > stale:0",
 		"packages/content/src/markdown/shiki.ts > highlight > throw:0",
@@ -4583,7 +4709,6 @@
 		"packages/content/src/site/outline.ts > materialize > groups_of > stale:0",
 		"packages/content/src/site/search-client.ts > SearchClient > constructor > .catch:0",
 		"packages/content/src/site/search-client.ts > SearchClient > constructor > onmessage > refused:0",
-		"packages/content/src/site/search-client.ts > SearchClient > constructor > error-event:0",
 		"packages/content/src/site/search-client.ts > SearchClient > constructor > message:0",
 		"packages/content/src/site/search-client.ts > SearchClient > query > message:0",
 		"packages/content/src/site/search-worker.ts > run > fetch:0",
@@ -4601,12 +4726,7 @@
 		"packages/content/src/source.ts > glob > throw:0",
 		"packages/content/src/source.ts > glob > throw:1",
 		"packages/content/src/vite/hmr.ts > content_hmr > configureServer > schedule > timer:0",
-		"packages/content/src/vite/index.ts > content > throw:0",
 		"packages/content/src/vite/index.ts > content_checks > transform > throw:0",
-		"packages/content/src/vite/index.ts > validate_presets > throw:0",
-		"packages/content/src/vite/index.ts > validate_presets > throw:1",
-		"packages/content/src/vite/index.ts > validate_presets > throw:2",
-		"packages/content/src/vite/index.ts > validate_presets > throw:3",
 		"packages/content/src/vite/leaks.ts > warn_content_leaks > catch:0",
 		"packages/core/src/context-bridge.ts > createContext > get > throw:0",
 		"packages/core/src/contract/core-files.ts > (module) > parse:0",
