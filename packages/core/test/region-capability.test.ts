@@ -68,6 +68,21 @@ describe('region capability, signed through capability()', () => {
 		).toBe(false);
 	});
 
+	it('a v3 capability with its expiry or props changed is refused', () => {
+		const p = params(mint_server_region('abcdef012345', { n: 1 }));
+		const { secret } = signing_key();
+		const c = claim_of(p);
+		const exp = p.get('exp')!;
+		const sig = p.get('sig')!;
+		expect(hmac.region_verify(secret, '/__ogygia__', '3', exp, c, sig)).toBe(true);
+		expect(hmac.region_verify(secret, '/__ogygia__', '3', String(Number(exp) + 1), c, sig)).toBe(
+			false
+		);
+		expect(
+			hmac.region_verify(secret, '/__ogygia__', '3', exp, { ...c, payload: `${c.payload}x` }, sig)
+		).toBe(false);
+	});
+
 	it('a v3 signature verifies only as v3: with its version marker stripped, or another, it is refused', () => {
 		const p = params(mint_server_region('abcdef012345', { n: 1 }));
 		const { secret } = signing_key();

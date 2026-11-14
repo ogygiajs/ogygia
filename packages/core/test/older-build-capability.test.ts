@@ -35,7 +35,7 @@ const lp = (s: string) => `${Buffer.byteLength(s, 'utf8')}:${s}`;
 
 /** A hole's capability as ogygia 0.12.3 mints it: this build's link with its `v` dropped and its
  *  signature the `v1|` MAC (`v2|` with a render identity) under the same key. */
-function released_link(props: unknown, render = ''): URL {
+function released_link(props: Record<string, unknown>, render = ''): URL {
 	const u = new URL(mint_server_region(ID, props), 'https://app.test');
 	const p = u.searchParams;
 	p.delete('v');

@@ -61,7 +61,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 - Put secrets in defer props and expect the URL to hide them — use Referrer-Policy (`no-referrer` on region responses) and keep secrets out of captured props.
 - Move props into `localStorage` “for confidentiality” — XSS then reads all of them.
 
-**Enforced by:** `packages/compiler/test/region-mac.test.ts > rejects expiry or props tampering`, `packages/core/test/capability-expiry.test.ts > is always valid for more than ttl/2 and at most ttl`
+**Enforced by:** `packages/core/test/region-capability.test.ts > a v3 capability with its expiry or props changed is refused`, `packages/core/test/capability-expiry.test.ts > is always valid for more than ttl/2 and at most ttl`
 
 ---
 
@@ -89,7 +89,7 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 **Do not:** Embed the real secret in a client chunk. Fail production builds only when you are ready to require env everywhere (local demos still need the fallback). Change the MAC version string without a deliberate invalidate of in-flight capability URLs.
 
-**Enforced by:** `packages/compiler/test/region-mac.test.ts > length-prefixes so embedded nulls cannot shift field boundaries`, `packages/core/test/signing-key.test.ts > falls back to the build key without a runtime OGYGIA_SECRET`
+**Enforced by:** `packages/machine/test/capability.test.ts > fields cannot trade text across a boundary`, `packages/core/test/signing-key.test.ts > falls back to the build key without a runtime OGYGIA_SECRET`
 
 ---
 
