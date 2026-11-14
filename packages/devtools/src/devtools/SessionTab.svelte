@@ -203,12 +203,11 @@
 		}
 	}
 	const ms = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(2)} s` : `${Math.round(n)} ms`);
-	const kb = (n: number) =>
-		n < 1024
-			? `${n} B`
-			: n < 1048576
-				? `${(n / 1024).toFixed(1)} KB`
-				: `${(n / 1048576).toFixed(1)} MB`;
+	const kb = (n: number) => {
+		if (n < 1024) return `${n} B`;
+		if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`;
+		return `${(n / 1048576).toFixed(1)} MB`;
+	};
 
 	onMount(() => () => {
 		highlighter.clear();
