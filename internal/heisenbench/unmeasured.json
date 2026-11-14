@@ -573,6 +573,18 @@
 			"reason": "browser only: the custom element's answer landing (two machine moves), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > turn > wait",
+			"reason": "browser only: one hydrate wait, the held turn's wait over a task of the visit's scope (constant work per wait); proven in packages/core/test/browser/region-left-mid-wake.test.ts and the core browser suite's every island wake"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > turn > wait > task:0~ae9e4a",
+			"reason": "browser only: hands the awaited work to the visit's task (returns it, no work of its own); proven in packages/core/test/browser/region-left-mid-wake.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > turn > wait > then:0~6e1ddd",
+			"reason": "browser only: maps a wait's answer to STALE when the region left the page (one isConnected read); proven in packages/core/test/browser/region-left-mid-wake.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #paint_next",
 			"reason": "browser only: a frame starts its visit of the element's paint machine (one move), constant work; the machine runs in packages/core/bench/runtime.bench.ts, the element in packages/core/test/browser/frame-paint-order.test.ts"
 		},
