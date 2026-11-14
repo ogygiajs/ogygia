@@ -4825,6 +4825,18 @@
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
 		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > observeReads",
+			"reason": "hands a live RequestEvent (not cloneable) and its request's read set to observe_reads, constant work of its own; observe_reads is measured on its own"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn",
+			"reason": "a plugin's dev warning: one say().once per message, printed through console.warn (not replayable), constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > LivePlugins > #start > app > warn > once:1~c9a4aa",
+			"reason": "prints a plugin's warning once through console.warn (not replayable), constant work"
+		},
+		{
 			"id": "packages/postrender/src/registry.ts > shared:0~4e63eb > make",
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
