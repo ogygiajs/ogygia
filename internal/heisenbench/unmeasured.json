@@ -6275,6 +6275,10 @@
 		{
 			"id": "packages/insights/src/page-insights.ts > analyze_page > map:0~e59b9a",
 			"reason": "a queued island's name and wait joined into a finding's message, inside analyze_page's pass, constant work per island"
+		},
+		{
+			"id": "packages/core/src/runtime/reconcile.ts > swap_reason",
+			"reason": "once per client navigation: three flag tests and the opt-out lookup the commit already made, on live DOM bodies (not replayable); test/browser/nav-fallback-reason.test.ts runs it"
 		}
 	]
 }
