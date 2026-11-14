@@ -105,13 +105,10 @@ export function load(
 	const fn = ((c: Ctx) =>
 		memo_of(c)
 			.get({ def: fn as LoadDef, c })
-			.then((v) =>
-				v === STALE
-					? Promise.reject(request_scope(c.request).signal.reason)
-					: v.ok
-						? v.value
-						: Promise.reject(v.error)
-			)) as LoadDef<unknown, string>;
+			.then((v) => {
+				if (v === STALE) return Promise.reject(request_scope(c.request).signal.reason);
+				return v.ok ? v.value : Promise.reject(v.error);
+			})) as LoadDef<unknown, string>;
 	(fn as { __ogload: boolean }).__ogload = true;
 	(fn as { pattern: string | undefined }).pattern = pattern;
 	(fn as { run: unknown }).run = run;
