@@ -1,6 +1,6 @@
 {
 	"name": "@ogygia/flags",
-	"version": "0.13.0",
+	"version": "0.14.0",
 	"description": "Feature flags and A/B tests for ogygia: one flag() primitive, decided server-side, zero JS",
 	"keywords": [
 		"ab-testing",

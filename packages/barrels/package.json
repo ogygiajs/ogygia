@@ -1,6 +1,6 @@
 {
 	"name": "@ogygia/barrels",
-	"version": "0.13.0",
+	"version": "0.14.0",
 	"description": "Barrel imports become leaf imports at transform time, for ogygia apps",
 	"keywords": [
 		"barrels",

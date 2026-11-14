@@ -1,6 +1,6 @@
 {
 	"name": "@ogygia/machine",
-	"version": "0.13.0",
+	"version": "0.14.0",
 	"description": "Tiny typed state machines for ogygia: one state value, checked moves, async work that cannot land late",
 	"keywords": [
 		"fsm",
