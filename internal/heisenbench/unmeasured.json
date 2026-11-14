@@ -2321,80 +2321,40 @@
 			"reason": "build-time: the plugin's manifest, once per build"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > describe",
+			"reason": "browser only, on a found difference: names one node for the restore log's diff text, constant work; the restorer's browser tests (packages/rewrite/test/browser) run it"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > comments",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > differ",
+			"reason": "browser only: compares the wanted tree with the one in the page for the restore log, linear in the nodes; the restorer's browser tests run it"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > describe",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > norm",
+			"reason": "browser only: one attribute's value normalized for the compare (class tokens sorted, style declarations trimmed), linear in the value"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > differ",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > norm > map:0~543c6f",
+			"reason": "browser only: one style declaration trimmed for the compare, constant work"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > esc",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > unmark",
+			"reason": "browser only: drops one key's og-c markers from a host's elements, linear in the marked elements; the restorer's browser tests run it"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > fix_text",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > unsafe_attr",
+			"reason": "browser only: one attribute's handler and script-URL check (is_script_url, benched in packages/core/bench/markup.bench.ts), constant work; test/browser/script-url.test.ts runs it"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > log",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > watch",
+			"reason": "browser only: adds a host to the document's one class watch (a MutationObserver, not recorded), constant work; the restorer's browser tests run it"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > map:0~54a21c",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > watch > MutationObserver:0~19a5fb",
+			"reason": "browser only: the class watch's callback over the DOM's mutation records (not recorded), linear in them"
 		},
 		{
-			"id": "packages/rewrite/src/restore.ts > restore > norm",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > norm > map:0~543c6f",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > original",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > reset",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > sheet_for",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > sort:0~178687",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > swap_stand_ins",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > verify",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > watch",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > watch > MutationObserver:0~19a5fb",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
-		},
-		{
-			"id": "packages/rewrite/src/restore.ts > restore > within",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_with > within",
+			"reason": "browser only: whether every wanted class token is in the page's class list, linear in the tokens; the restorer's browser tests run it"
 		},
 		{
 			"id": "packages/rewrite/src/restore.ts > restore_adopt",
