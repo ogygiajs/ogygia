@@ -147,6 +147,60 @@ describe('format source-builders', () => {
 		expect('body' in (byId.get('a') ?? {})).toBe(false);
 	});
 
+	it('a module of the wrong shape is refused with the code that names it', async () => {
+		const code = (p: Promise<unknown>) =>
+			p.then(
+				() => null,
+				(e: { code?: string }) => e.code
+			);
+		expect(await code(markdown({ './a.svx': 'not a module' }).refs())).toBe(
+			'content_markdown_not_module'
+		);
+		expect(await code(markdown({ './a.svx': { default: {} } }).refs())).toBe(
+			'content_markdown_no_metadata'
+		);
+		expect(await code(json({ './a.json': ['a', 'list'] }).refs())).toBe(
+			'content_format_not_object'
+		);
+	});
+
+	it('a glob key whose id climbs out, or repeats another, is refused as the source is made', () => {
+		const code = (f: () => unknown) => {
+			try {
+				f();
+				return null;
+			} catch (e) {
+				return (e as { code?: string }).code;
+			}
+		};
+		expect(code(() => glob({ './a.json': {} }, { id: () => '../a' }))).toBe(
+			'content_glob_illegal_id'
+		);
+		expect(code(() => glob({ './a.json': {}, './b.json': {} }, { id: () => 'same' }))).toBe(
+			'content_glob_duplicate_id'
+		);
+	});
+
+	it('a schema whose parse throws fails with its words; one with no parse at all is unsupported', async () => {
+		const code = (p: Promise<unknown>) =>
+			p.then(
+				() => null,
+				(e: { code?: string; message: string }) => [e.code, e.message.split('\n')[0]]
+			);
+		const loader = json({ './a.json': { name: 'Ada' } });
+		const throws = {
+			parse: () => {
+				throw new Error('name must be short');
+			}
+		};
+		const [failed, says] = (await code(content({ schema: throws, loader }).refs())) as string[];
+		expect(failed).toBe('content_schema_failed');
+		expect(says).toContain('name must be short');
+		expect((await code(content({ schema: {} as never, loader }).refs()))?.[0]).toBe(
+			'content_schema_unsupported'
+		);
+	});
+
 	// NB: no `yaml()` / `raw()` content sources are shipped — ogygia's YAML parser is
 	// frontmatter-only; a `.yaml` or raw-string loader is a short docs recipe.
 });

@@ -88,6 +88,14 @@ test('server nodes with no anchor pair around them get one, and are adopted', ()
 	expect(region.hasAttribute('data-og-recovered')).toBe(false);
 });
 
+test('server nodes with no anchor pair that start and end with comments of their own get a pair too, and are adopted', () => {
+	const region = region_with('<!----><!----><p>a</p><!---->');
+	const p = region.querySelector('p');
+	expect(hydrate_island(region, '/a', claims(4), null, false)).not.toBeNull();
+	expect(region.querySelector('p')).toBe(p);
+	expect(region.hasAttribute('data-og-recovered')).toBe(false);
+});
+
 test('the page’s seeds are read before the island renders, on both hydrate paths', () => {
 	const order: string[] = [];
 	slots.page = { ...saved.page!, seed_page_once: () => void order.push('page') };

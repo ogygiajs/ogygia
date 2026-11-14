@@ -45,11 +45,20 @@ it('a store whose init failed once is tried again by its next use, and the repor
 		deleteReport: (id) => memory.deleteReport(id)
 	};
 	const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+	const unhandled = vi.fn();
+	process.on('unhandledRejection', unhandled);
 	try {
 		const handle = profiler({ secret: 'k', store });
 		// the mount's init fails
 		await vi.waitFor(() => expect(inits).toBe(1));
-		await new Promise((r) => setTimeout(r, 0));
+		await new Promise((r) => setTimeout(r, 20));
+		expect(
+			unhandled,
+			'the failed init is said, never an unhandled rejection'
+		).not.toHaveBeenCalled();
+		expect(errors.mock.calls.map(([e]) => (e as { code?: string }).code)).toContain(
+			'devtools_profiler_store_init_failed'
+		);
 
 		const start = await (await call(handle, '/__profiler/window/start', { method: 'POST' })).json();
 		const stop = await call(handle, '/__profiler/window/stop', {
@@ -61,6 +70,7 @@ it('a store whose init failed once is tried again by its next use, and the repor
 		expect(inits).toBe(2);
 		expect(memory.listReports(10)).toHaveLength(1);
 	} finally {
+		process.off('unhandledRejection', unhandled);
 		errors.mockRestore();
 	}
 }, 30_000);

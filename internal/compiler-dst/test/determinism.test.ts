@@ -5,7 +5,7 @@ import { describe, test, expect } from 'vitest';
 import fc from 'fast-check';
 import { memory_fs } from '../../../packages/compiler/src/index.ts';
 import { app_files, app_shape } from '../src/app.ts';
-import { modules, session, snapshot, transform, type Leg } from '../src/session.ts';
+import { modules, session, snapshot, transform, type Leg, type Session } from '../src/session.ts';
 import { permute, rng } from '../src/order.ts';
 import { shuffled } from '../src/order.ts';
 
@@ -22,7 +22,15 @@ async function cold(files: Record<string, string>, order_seed: number | null): P
 	let jobs = modules(disk).flatMap((f) => LEGS.map((leg) => [f, leg] as const));
 	if (order_seed !== null) jobs = permute(jobs, rng(order_seed ^ 0x9e3779b9));
 	for (const [f, leg] of jobs) await transform(s, f, leg);
-	return snapshot(s);
+	return { compile: snapshot(s), entries: LEGS.map((leg) => entries(s, leg)) };
+}
+
+/** The leg's entry locations as the handoff writes them, in their order (bytes, not a set). */
+function entries(s: Session, name: Leg): string | null {
+	const leg = s.compiler.find_leg(name);
+	if (leg === undefined) return null;
+	const e = s.compiler.entry_locations(leg, (ref) => ref);
+	return JSON.stringify({ islands: [...e.islands], locations: e.locations });
 }
 
 describe('the compiler is deterministic', () => {

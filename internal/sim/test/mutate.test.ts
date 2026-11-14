@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { dedent } from '../../../packages/core/src/contract/dedent.ts';
+import { read_ledger_file } from '../src/ledger-json.ts';
 import {
 	apply_mutant,
 	baseline_packages,
@@ -137,7 +138,7 @@ describe('a mutant', () => {
 		const root = fileURLToPath(new URL('../../../', import.meta.url));
 		// (and the compiler simulator's list, judged with `--compiler-dst`)
 		const list = ['../mutants.json', '../../compiler-dst/mutants.json'].flatMap(
-			(at) => JSON.parse(readFileSync(new URL(at, import.meta.url), 'utf8')) as Mutant[]
+			(at) => read_ledger_file(fileURLToPath(new URL(at, import.meta.url))) as Mutant[]
 		);
 		for (const m of list) {
 			expect(m.code, `${m.id} names its line's code`).toBeTypeOf('string');

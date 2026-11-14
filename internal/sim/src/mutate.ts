@@ -39,6 +39,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { signature } from './ci.ts';
 import { function_at, functions_of } from './failures.ts';
+import { read_ledger_file } from './ledger-json.ts';
 
 export interface Mutant {
 	/** A name for it (the list's own, or `<file> > <in>:<operator>`). */
@@ -366,7 +367,7 @@ function main(): void {
 		throw new Error(
 			'--mutants <file.json>: a list of { file, in, code, nth?, operator, from?, to? }'
 		);
-	const mutants = (JSON.parse(readFileSync(list, 'utf8')) as Mutant[]).filter((m) => m.aim === AIM);
+	const mutants = (read_ledger_file(list) as Mutant[]).filter((m) => m.aim === AIM);
 	const run_on = targets(arg('--gens') ?? '191,192,193', process.argv.includes('--palaestra'));
 	const seeds = Number(arg('--seeds') ?? 20);
 	const jobs = Number(arg('--jobs') ?? 4);

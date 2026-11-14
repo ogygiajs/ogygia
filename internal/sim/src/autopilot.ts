@@ -21,6 +21,11 @@
  *
  *   node src/autopilot.ts --package core [--project node] [--project browser] [--out <dir>]
  *     [--skip <file of site ids>] [--only <text>] [--limit <n>] [--timeout-s <s>] [--remap] [--apply]
+ *     [--tests <folder>]
+ *
+ * The tests are the package's own, or `--tests` names the folder whose tests reach it (a package
+ * with no tests of its own, like a shared config other packages' tests import). That folder's
+ * vitest config is used, or vitest's defaults when it has none.
  *
  * `--apply` writes `patch.json` into internal/sim/failures.json (baseline to covered).
  * test/autopilot.test.ts.
@@ -407,7 +412,10 @@ export interface AutopilotOptions {
 	/** The baseline's site ids (the ones in other packages are ignored). */
 	readonly baseline: readonly string[];
 	readonly out: string;
-	/** The vitest binary (default: the package's own). */
+	/** The folder (from the root) whose tests run, under its vitest config or vitest's defaults
+	 *  (default: the package's own). */
+	readonly tests?: string;
+	/** The vitest binary (default: the tests folder's own). */
 	readonly vitest?: string;
 	/** The test projects to run, each on its own (`null`: the config's own, no `--project`). */
 	readonly projects: readonly (string | null)[];
@@ -453,20 +461,21 @@ function stop_child(): void {
 	}
 }
 
+const tests_dir = (o: AutopilotOptions): string => join(o.root, o.tests ?? join('packages', o.pkg));
+
 const CONFIGS: readonly string[] = ['vitest.config.ts', 'vitest.config.js', 'vite.config.ts'];
 
-/** The vitest config a run uses: the package's own, with the probe recorder in each project and
- *  the autopilot's reporter alone. */
-function wrapper_config(pkgdir: string, out: string): string {
-	const base = CONFIGS.map((c) => join(pkgdir, c)).find((c) => existsSync(c));
-	if (base === undefined) throw new Error(`${pkgdir}: no vitest config`);
+/** The vitest config a run uses: the tests folder's own (vitest's defaults when it has none), with
+ *  the probe recorder in each project and the autopilot's reporter alone. */
+function wrapper_config(testdir: string, out: string): string {
+	const base = CONFIGS.map((c) => join(testdir, c)).find((c) => existsSync(c));
 	const setup = resolve(import.meta.dirname, 'autopilot-setup.ts');
 	const reporter = resolve(import.meta.dirname, 'autopilot-reporter.ts');
 	const file = join(out, 'vitest.autopilot.config.mts');
 	writeFileSync(
 		file,
 		dedent`
-			import base from ${JSON.stringify(base)};
+			${base === undefined ? 'const base = {};' : `import base from ${JSON.stringify(base)};`}
 			const made: any = typeof base === 'function' ? await (base as any)({ command: 'serve', mode: 'test' }) : await base;
 			const test = (made.test ??= {});
 			const add = (t: any) => { t.setupFiles = [...[t.setupFiles ?? []].flat(), ${JSON.stringify(setup)}]; };
@@ -474,7 +483,7 @@ function wrapper_config(pkgdir: string, out: string): string {
 			if (projects) for (const p of test.projects) add((p.test ??= {}));
 			else add(test);
 			test.reporters = [${JSON.stringify(reporter)}];
-			made.root = ${JSON.stringify(pkgdir)};
+			made.root = ${JSON.stringify(testdir)};
 			export default made;
 		`
 	);
@@ -495,7 +504,7 @@ async function run_vitest(
 	label: string,
 	limit_ms: number
 ): Promise<Ran> {
-	const pkgdir = join(o.root, 'packages', o.pkg);
+	const testdir = tests_dir(o);
 	const result = join(o.out, 'run.jsonl');
 	rmSync(result, { force: true });
 	const log = openSync(join(o.out, 'run.log'), 'w');
@@ -503,31 +512,37 @@ async function run_vitest(
 	for (const [k, v] of Object.entries(process.env))
 		if (!k.startsWith('VITEST') && !k.startsWith('TINYPOOL')) env[k] = v;
 	env.OGYGIA_AUTOPILOT_OUT = result;
-	const vitest = o.vitest ?? join(pkgdir, 'node_modules', '.bin', 'vitest');
+	const vitest = o.vitest ?? join(testdir, 'node_modules', '.bin', 'vitest');
 	const args = ['run', '--config', config, '--maxWorkers=2'];
 	if (project !== null) args.push('--project', project);
 	args.push(...files);
 	const started = Date.now();
 	let timed_out = false;
-	await new Promise<void>((done) => {
-		const c = spawn(vitest, args, {
-			cwd: pkgdir,
-			env,
-			detached: true,
-			stdio: ['ignore', log, log]
+	try {
+		await new Promise<void>((done, fail) => {
+			const c = spawn(vitest, args, {
+				cwd: testdir,
+				env,
+				detached: true,
+				stdio: ['ignore', log, log]
+			});
+			child = c;
+			const timer = setTimeout(() => {
+				timed_out = true;
+				stop_child();
+			}, limit_ms);
+			const settle = (e?: Error) => {
+				clearTimeout(timer);
+				child = null;
+				if (e === undefined) done();
+				else fail(new Error(`${label}: vitest did not start (${vitest}): ${e.message}`));
+			};
+			c.on('exit', () => settle());
+			c.on('error', settle);
 		});
-		child = c;
-		const timer = setTimeout(() => {
-			timed_out = true;
-			stop_child();
-		}, limit_ms);
-		c.on('exit', () => {
-			clearTimeout(timer);
-			child = null;
-			done();
-		});
-	});
-	closeSync(log);
+	} finally {
+		closeSync(log);
+	}
 	if (!o.quiet)
 		console.log(
 			`  ${label}: ${Math.round((Date.now() - started) / 1000)}s${timed_out ? ' (timed out)' : ''}`
@@ -586,15 +601,17 @@ export function alone_pattern(full: string): string {
 		.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`;
 }
 
-/** What a map and its verdicts were made from: the sites asked about, the projects run, and every
- *  source file's text. A map or a verdict made from anything else is made again. */
+/** What a map and its verdicts were made from: the sites asked about, the tests folder and the
+ *  projects run, and every source file's text. A map or a verdict made from anything else is made
+ *  again. */
 function map_key(
 	ids: ReadonlySet<string>,
+	tests: string,
 	projects: readonly (string | null)[],
 	sources: ReadonlyMap<string, string>
 ): string {
 	const h = createHash('sha256');
-	h.update(JSON.stringify([[...ids].sort(), projects]));
+	h.update(JSON.stringify([[...ids].sort(), tests, projects]));
 	for (const [f, text] of [...sources].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
 		h.update(`\0${f}\0${text}`);
 	return h.digest('hex');
@@ -605,7 +622,6 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 	const root = realpathSync(o.root);
 	const opts = { ...o, root };
 	mkdirSync(o.out, { recursive: true });
-	const pkgdir = join(root, 'packages', o.pkg);
 	const baseline = new Set(o.baseline);
 	const files = scope_files(root, {
 		packages: [o.pkg],
@@ -630,7 +646,7 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 		}
 		return true;
 	});
-	const config = wrapper_config(pkgdir, o.out);
+	const config = wrapper_config(tests_dir(opts), o.out);
 
 	const on_signal = () => {
 		stop_child();
@@ -643,7 +659,7 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 		// map
 		const map_file = join(o.out, 'map.json');
 		const ids = new Set(wanted.map((s) => s.id));
-		const key = map_key(ids, o.projects, sources);
+		const key = map_key(ids, relative(root, tests_dir(opts)), o.projects, sources);
 		let reach: Record<string, Reach[]>;
 		const kept: { key?: string; reach?: Record<string, Reach[]> } | null =
 			!o.remap && existsSync(map_file) ? JSON.parse(readFileSync(map_file, 'utf8')) : null;
@@ -944,6 +960,7 @@ async function main(): Promise<void> {
 		pkg,
 		baseline: ledger.baseline,
 		out,
+		tests: args_of('--tests')[0],
 		projects: projects.length > 0 ? projects : [null],
 		exclude: ledger.scope.exclude,
 		skip,

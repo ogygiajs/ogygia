@@ -40,6 +40,7 @@ import { parseArgs } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { heisenbench_dir, bench_packages, link_heisenbench, REPO_ROOT } from './heisenbench.ts';
 import { gone_exemptions, unexempted_new_functions, type Exemption } from './stale.ts';
+import { read_ledger_file } from '../../sim/src/ledger-json.ts';
 
 const { values } = parseArgs({
 	options: {
@@ -165,7 +166,7 @@ heisenbench_cli([
 const { context_path } = (await import(
 	pathToFileURL(join(heisenbench, 'src', 'identity.ts')).href
 )) as { context_path: (id: string) => string };
-const exemptions = (JSON.parse(readFileSync(EXEMPT, 'utf8')) as { exempt: Exemption[] }).exempt;
+const exemptions = (read_ledger_file(EXEMPT) as { exempt: Exemption[] }).exempt;
 type Inventory = { functions: { id: string }[] };
 const read_inventory = (p: string) => JSON.parse(readFileSync(p, 'utf8')) as Inventory;
 const gone = gone_exemptions(exemptions, read_inventory(inventory), context_path);

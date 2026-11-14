@@ -24,8 +24,9 @@ async function host(answer: (path: string, hit: number) => number | 'hang') {
 		hits.set(path, hit);
 		const a = answer(path, hit);
 		if (a === 'hang') return; // never answers (the client gives up)
-		res.writeHead(a, { 'content-type': 'text/javascript' });
-		res.end(a === 200 ? 'export default 1;' : 'busy');
+		const body = a === 200 ? 'export default 1;' : 'busy';
+		res.writeHead(a, { 'content-type': 'text/javascript', 'content-length': body.length });
+		res.end(body);
 	});
 	await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
 	const origin = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;

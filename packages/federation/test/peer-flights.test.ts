@@ -1,6 +1,7 @@
 // A peer's document reads are one flight per key (#294): a thaw ends only what it names, and a
 // caller whose fetch a thaw or a mutation made stale fetches again, so it never gets the old page.
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { isHttpError } from '@ogygia/router';
 import { PeerHandle } from '../src/peer.ts';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -28,6 +29,7 @@ const peer = () =>
 
 afterEach(() => {
 	vi.unstubAllGlobals();
+	vi.restoreAllMocks();
 });
 
 describe('a peer read is one flight per key (#294)', () => {
@@ -98,5 +100,30 @@ describe('a peer read is one flight per key (#294)', () => {
 		expect(out).toHaveLength(3); // the copy from before the POST is not served
 		out[2].answer('after', []);
 		expect((await after).body).toBe('after');
+	});
+
+	it('a page whose sources move during every fetch of it: the read gives up with a 504 and the code said, and does not fetch it forever (#1792)', async () => {
+		const out = upstream();
+		const warned: string[] = [];
+		vi.spyOn(console, 'warn').mockImplementation(
+			(...a: unknown[]) => void warned.push(a.join(' '))
+		);
+		const cms = peer();
+		let ended: unknown = null;
+		cms.doc('/p', '').then(
+			() => (ended = 'a page'),
+			(e: unknown) => (ended = e)
+		);
+		for (let n = 0; n < 100; n++) {
+			await tick();
+			if (ended !== null) break;
+			expect(out).toHaveLength(n + 1);
+			cms.drop(new Set(['r:cms:x']));
+			out[n].answer(`p@${n}`, ['x']);
+		}
+		await tick();
+		expect(isHttpError(ended) && ended.status).toBe(504);
+		expect(out.length).toBeLessThan(100);
+		expect(warned.some((w) => w.includes('federation_peer_read_dropped'))).toBe(true);
 	});
 });
