@@ -1,4 +1,5 @@
 import { OG_BAKED } from '../wire-markup.ts';
+import { BLOCK_CLOSE, BLOCK_OPEN } from './svelte-markers.ts';
 
 /** CSS selector for frozen regions (`hydrate: 'none'`). */
 export const FROZEN_SELECTOR = 'ogygia-region[wake="none"]';
@@ -131,8 +132,8 @@ export function region_ssr_truncated(el: ParentNode): boolean {
 		for (const n of parent.childNodes) {
 			if (n.nodeType === 8) {
 				const d = (n.textContent ?? '').trim();
-				if (d[0] === '[') open++;
-				else if (d[0] === ']') close++;
+				if (d[0] === BLOCK_OPEN) open++;
+				else if (d[0] === BLOCK_CLOSE) close++;
 			} else if (n.nodeType === 1) {
 				scan(n as unknown as ParentNode);
 			}

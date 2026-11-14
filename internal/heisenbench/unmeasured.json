@@ -6079,6 +6079,10 @@
 		{
 			"id": "packages/core/src/server/live-event.ts > live_event",
 			"reason": "one call to Kit's getRequestEvent, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/region-snippet.ts > RenderSnippet > component:0~4930b4",
+			"reason": "calls the snippet with the renderer Svelte hands it, constant work of its own; its output is the snippet's, through Svelte's renderer, no replay holds it; region-snippet-freeze-dev.test.ts and test/canary/svelte-server-signature.test.ts run it"
 		}
 	]
 }
