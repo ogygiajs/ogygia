@@ -51,12 +51,9 @@ export function render_steps(t: Timeline, stacks?: StackIndex, max = 80): Render
 	const merged: (Segment & { folded: number })[] = [];
 	for (const s of segs) {
 		const kind = s.kind === 'gap' ? 'wait' : s.kind;
-		const label =
-			s.kind === 'gap'
-				? s.pending?.length
-					? s.pending.slice(0, 3).join(', ')
-					: 'nothing on the CPU, nothing named in flight'
-				: s.label;
+		let label = s.label;
+		if (s.kind === 'gap' && s.pending?.length) label = s.pending.slice(0, 3).join(', ');
+		else if (s.kind === 'gap') label = 'nothing on the CPU, nothing named in flight';
 		const last = merged[merged.length - 1];
 		if (
 			last &&

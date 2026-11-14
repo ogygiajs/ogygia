@@ -42,11 +42,13 @@ export class Sortable<T> {
 
 	/** The little arrow for a header: ▲/▼ when it's the active column, else empty. */
 	arrow(k: string): string {
-		return this.#key === k ? (this.#dir === 'asc' ? ' ▲' : ' ▼') : '';
+		if (this.#key !== k) return '';
+		return this.#dir === 'asc' ? ' ▲' : ' ▼';
 	}
 
 	/** The header's `aria-sort`: what a screen reader says the arrow means. */
 	aria(k: string): 'ascending' | 'descending' | 'none' {
-		return this.#key === k ? (this.#dir === 'asc' ? 'ascending' : 'descending') : 'none';
+		if (this.#key !== k) return 'none';
+		return this.#dir === 'asc' ? 'ascending' : 'descending';
 	}
 }

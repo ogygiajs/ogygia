@@ -72,7 +72,7 @@
 			if (width < 0.5) return;
 			const y = d * ROW;
 			ctx.fillStyle = CATEGORY_COLOR[node.c] || '#6b7280';
-			ctx.globalAlpha = q ? (is_match(node) ? 1 : 0.22) : 1;
+			ctx.globalAlpha = q && !is_match(node) ? 0.22 : 1;
 			ctx.beginPath();
 			if (ctx.roundRect) ctx.roundRect(x + 0.5, y + 1, Math.max(width - 1, 1), ROW - 2, 2);
 			else ctx.rect(x + 0.5, y + 1, Math.max(width - 1, 1), ROW - 2);

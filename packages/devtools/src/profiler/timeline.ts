@@ -714,12 +714,10 @@ export function build_timeline(
 			// a library's work is many small functions: one package, one owner (`render2 (@acme/ui)`,
 			// `getNamedItem (@acme/ui)` → `@acme/ui`), and Node's own the same
 			const open = s.label.lastIndexOf(' (');
-			const who =
-				s.category === 'dependency' && open !== -1 && s.label.endsWith(')')
-					? s.label.slice(open + 2, -1)
-					: s.category === 'node'
-						? 'node core'
-						: s.label;
+			let who = s.label;
+			if (s.category === 'dependency' && open !== -1 && s.label.endsWith(')'))
+				who = s.label.slice(open + 2, -1);
+			else if (s.category === 'node') who = 'node core';
 			m.set(who, (m.get(who) ?? 0) + len);
 		} else if (s.kind === 'wait') {
 			wait_ms += len;

@@ -78,18 +78,16 @@
 		}
 	}
 
-	const ms = (n: number) =>
-		n >= 1000
-			? `${(n / 1000).toFixed(2)} s`
-			: n >= 10
-				? `${Math.round(n)} ms`
-				: `${n.toFixed(1)} ms`;
-	const kb = (n: number) =>
-		n < 1024
-			? `${n} B`
-			: n < 1048576
-				? `${(n / 1024).toFixed(1)} KB`
-				: `${(n / 1048576).toFixed(2)} MB`;
+	const ms = (n: number) => {
+		if (n >= 1000) return `${(n / 1000).toFixed(2)} s`;
+		if (n >= 10) return `${Math.round(n)} ms`;
+		return `${n.toFixed(1)} ms`;
+	};
+	const kb = (n: number) => {
+		if (n < 1024) return `${n} B`;
+		if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`;
+		return `${(n / 1048576).toFixed(2)} MB`;
+	};
 	function el_of(fp: string | null) {
 		return fp ? document.querySelector(`ogygia-region[data-og-fp="${fp}"]`) : null;
 	}
@@ -109,7 +107,11 @@
 			return u;
 		}
 	}
-	const grade_class = (s: number) => (s >= 80 ? 'good' : s >= 50 ? 'fair' : 'poor');
+	const grade_class = (s: number) => {
+		if (s >= 80) return 'good';
+		if (s >= 50) return 'fair';
+		return 'poor';
+	};
 
 	// THE PROFILE ON THIS PAGE: costs with a place here (one DOM pass per profile, not per tick)
 	const anchors = $derived.by(() => {

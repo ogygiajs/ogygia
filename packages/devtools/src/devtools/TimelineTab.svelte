@@ -116,12 +116,10 @@ are left out: their clock has another origin.
 		const lanes: LaneRow[] = [];
 		for (const lane of laneMap.values()) {
 			const evs = [...lane.first.values()].sort((a, b) => a.t - b.t);
-			const label =
-				lane.key === 'page'
-					? 'page / nav'
-					: lane.entry
-						? region_name(lane.entry)
-						: region_name_by_fp(lane.key);
+			let label: string;
+			if (lane.key === 'page') label = 'page / nav';
+			else if (lane.entry) label = region_name(lane.entry);
+			else label = region_name_by_fp(lane.key);
 			const start =
 				lane.first.get('wake.scheduled') ||
 				lane.first.get('wake.fired') ||
