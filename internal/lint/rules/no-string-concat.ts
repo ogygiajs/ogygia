@@ -68,7 +68,7 @@ function loop_callback(fn: Node): boolean {
 	);
 }
 
-/** Does the append `node` to `name` (null: a member) run on more than one turn of a loop that the
+/** Does the append `node` to `name` (a member's: its object's name; null: `this`) run on more than one turn of a loop that the
  *  string outlives? The walk goes up to where `name` is declared; a loop passed on the way counts. */
 function across_turns(node: Node, name: string | null): boolean {
 	let looped = false;
@@ -158,14 +158,15 @@ function part(context: FixContext, e: Node): string {
 /** The chain `ops` (whose top node is `top`) as one template literal. */
 function as_template(context: FixContext, top: Node, ops: Node[]): string {
 	const first = ops.findIndex(stringy);
-	let out = '';
+	const parts: string[] = [];
 	if (first > 0) {
 		// the operands before the first string, as `+` adds them: one `${…}`
 		let prefix = top;
 		for (let i = ops.length - 1; i >= first; i--) prefix = prefix.left as Node;
-		out = `${out}\${${context.sourceCode.getText(prefix as Ranged)}}`;
+		parts.push(`\${${context.sourceCode.getText(prefix as Ranged)}}`);
 	}
-	for (let i = Math.max(first, 0); i < ops.length; i++) out += part(context, ops[i]!);
+	for (let i = Math.max(first, 0); i < ops.length; i++) parts.push(part(context, ops[i]!));
+	const out = parts.join('');
 	// ('</' + 'script>' is split on purpose: in a .svelte or HTML script block a whole one closes it;
 	// `\x3C` keeps it whole as a value, and no-useless-escape leaves a hex escape be)
 	return `\`${out.replace(CLOSE_SCRIPT_G, '\\x3C/$1')}\``;
@@ -233,8 +234,9 @@ export const no_string_concat = {
 			AssignmentExpression(node: Node) {
 				const target = appended(context, node);
 				if (target === null || concat_kept(node)) return;
-				const left = node.left as Node;
-				const name = left.type === 'Identifier' ? target : null;
+				let root = node.left as Node;
+				while (root.type === 'MemberExpression') root = root.object as Node;
+				const name = root.type === 'Identifier' ? (root as { name: string }).name : null;
 				context.report({
 					node,
 					message: across_turns(node, name) ? MESSAGE_APPEND_LOOP : MESSAGE_APPEND
