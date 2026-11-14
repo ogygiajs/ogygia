@@ -1,8 +1,15 @@
 // The always-on runner (src/ci.ts): a batch that did not run is never counted, a found branch never
 // needs a forced push, and no error it reports carries the token.
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { dedent } from '../../../packages/core/src/contract/dedent.ts';
 import {
 	batch_result,
+	FoundBranches,
+	filing_error_line,
 	free_branch,
 	quality_line,
 	redact,
@@ -45,6 +52,68 @@ describe('a batch', () => {
 });
 
 describe('a found branch', () => {
+	const git = (cwd: string, ...a: string[]) =>
+		execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], {
+			cwd,
+			stdio: 'pipe'
+		})
+			.toString()
+			.trim();
+
+	it('is the default branch at the push plus its test only, even when the default branch moved on during the run (run 43495274517: a branch from the simulated commit carried the default branch’s later workflow changes, and GitHub refused all five pushes)', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'dst-ci-'));
+		try {
+			const remote = `file://${join(dir, 'remote.git')}`;
+			git(dir, 'init', '-q', '--bare', '-b', 'main', 'remote.git');
+			git(dir, 'clone', '-q', remote, 'run');
+			const run = join(dir, 'run');
+			writeFileSync(join(run, 'a.txt'), 'a');
+			git(run, 'add', 'a.txt');
+			git(run, 'commit', '-q', '-m', 'simulated');
+			git(run, 'push', '-q', 'origin', 'HEAD:main');
+			const simulated = git(run, 'rev-parse', 'HEAD');
+			git(dir, 'clone', '-q', remote, 'later');
+			const later = join(dir, 'later');
+			mkdirSync(join(later, '.github', 'workflows'), { recursive: true });
+			writeFileSync(join(later, '.github', 'workflows', 'dst.yml'), 'on: push');
+			git(later, 'add', '.');
+			git(later, 'commit', '-q', '-m', 'a workflow changes on main');
+			git(later, 'push', '-q', 'origin', 'HEAD:main');
+			const tip = git(later, 'rev-parse', 'HEAD');
+
+			const found = new FoundBranches(remote, run, undefined);
+			const file = 'internal/sim/test/found/abc.test.ts';
+			expect(found.push('abc', file, 'test source', 'test(sim): found abc')).toBe('sim/found-abc');
+			expect(found.push('abc', file, 'test source', 'test(sim): found abc')).toBe(
+				'sim/found-abc-2'
+			);
+
+			const bare = join(dir, 'remote.git');
+			expect(git(bare, 'rev-parse', 'sim/found-abc^')).toBe(tip);
+			expect(git(bare, 'diff', '--name-only', 'main', 'sim/found-abc')).toBe(file);
+			expect(git(bare, 'show', `sim/found-abc:${file}`)).toBe('test source');
+			expect(git(run, 'rev-parse', 'HEAD')).toBe(simulated);
+			expect(git(run, 'status', '--porcelain')).toBe('');
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it('that could not be pushed is an error annotation naming the finding and the refusal', () => {
+		const why = dedent`
+			git push failed: Command failed: git push -q https://github.com/o/r.git x:refs/heads/x
+			To https://github.com/o/r.git
+			 ! [remote rejected] x -> x (refusing to allow a GitHub App to create or update workflow \`.github/workflows/dst.yml\` without \`workflows\` permission)
+			error: failed to push some refs
+		`;
+		expect(filing_error_line('abc', why)).toBe(
+			'::error title=DST could not file abc::! [remote rejected] x -> x (refusing to allow a GitHub App to create or update workflow `.github/workflows/dst.yml` without `workflows` permission)'
+		);
+		expect(filing_error_line('abc', 'gh failed: 100% broken')).toBe(
+			'::error title=DST could not file abc::gh failed: 100%25 broken'
+		);
+	});
+
 	it('is new even when its signature was filed before', () => {
 		expect(free_branch('abc', new Set())).toBe('sim/found-abc');
 		expect(free_branch('abc', new Set(['sim/found-abc']))).toBe('sim/found-abc-2');

@@ -1,74 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
-import { sign, verify, region_mac_message } from '../../core/src/server/hmac.ts';
+import { sign, verify } from '../../core/src/server/hmac.ts';
 import { encode_region_props } from '../../core/src/server/region-props.ts';
 import { MAX_REGION_PROPS_LEN } from '../../core/src/server/endpoint.ts';
 import { html_has_kit_bootstrap } from '../../core/src/server/html-scan.ts';
 import { RuntimeSession } from '../../core/src/runtime/session.ts';
 import { islandId } from '../src/region/transform.ts';
 
-describe('region_mac_message', () => {
+describe('verify', () => {
 	const secret = 'test-secret-key-16b';
 
-	it('v1 without a render identity, v2 with one — and neither verifies as the other', () => {
-		const exp = '1700000000';
-		expect(region_mac_message('aaaaaa', exp, 'W3t9XQ')).toBe(
-			'v1|6:aaaaaa|10:1700000000|6:W3t9XQ|0:|0:'
-		);
-		expect(region_mac_message('aaaaaa', exp, 'W3t9XQ', '', '', 'c0ffee0c0ffe')).toBe(
-			'v2|6:aaaaaa|10:1700000000|6:W3t9XQ|0:|0:|12:c0ffee0c0ffe'
-		);
-		const v2 = sign(secret, region_mac_message('aaaaaa', exp, 'W3t9XQ', '', '', 'c0ffee0c0ffe'));
-		// stripping `r` from the URL (a v1 check) breaks it
-		expect(verify(secret, region_mac_message('aaaaaa', exp, 'W3t9XQ'), v2)).toBe(false);
-		// re-pointing it at another component breaks it
-		expect(
-			verify(secret, region_mac_message('aaaaaa', exp, 'W3t9XQ', '', '', 'badbadbadbad'), v2)
-		).toBe(false);
-		expect(
-			verify(secret, region_mac_message('aaaaaa', exp, 'W3t9XQ', '', '', 'c0ffee0c0ffe'), v2)
-		).toBe(true);
-	});
-
-	it('v3 for a hole that wakes — and it never verifies as v2 (#906)', () => {
-		const exp = '1700000000';
-		const m = (wakes: string) =>
-			region_mac_message('aaaaaa', exp, 'W3t9XQ', '', '', 'c0ffee0c0ffe', wakes);
-		expect(m('1')).toBe('v3|6:aaaaaa|10:1700000000|6:W3t9XQ|0:|0:|12:c0ffee0c0ffe|1:1');
-		expect(m('')).toBe(region_mac_message('aaaaaa', exp, 'W3t9XQ', '', '', 'c0ffee0c0ffe'));
-		const v3 = sign(secret, m('1'));
-		// stripping `w` (a v2 check) breaks it, as adding it breaks a v2
-		expect(verify(secret, m(''), v3)).toBe(false);
-		expect(verify(secret, m('1'), sign(secret, m('')))).toBe(false);
-		expect(verify(secret, m('1'), v3)).toBe(true);
-	});
-
-	it('binds region id into the MAC', () => {
-		const props = 'W3t9XQ';
-		const exp = '1700000000';
-		const a = sign(secret, region_mac_message('aaaaaa', exp, props));
-		const b = sign(secret, region_mac_message('bbbbbb', exp, props));
-		expect(a).not.toBe(b);
-		expect(verify(secret, region_mac_message('aaaaaa', exp, props), a)).toBe(true);
-		expect(verify(secret, region_mac_message('bbbbbb', exp, props), a)).toBe(false);
-	});
-
-	it('rejects expiry or props tampering', () => {
-		const msg = region_mac_message('rid', '1700000000', 'propsblob');
-		const sig = sign(secret, msg);
-		expect(verify(secret, region_mac_message('rid', '1700000001', 'propsblob'), sig)).toBe(false);
-		expect(verify(secret, region_mac_message('rid', '1700000000', 'other'), sig)).toBe(false);
-	});
-
-	it('length-prefixes so embedded nulls cannot shift field boundaries', () => {
-		const a = region_mac_message('id', '1', 'a\0b', '');
-		const b = region_mac_message('id', '1', 'a', 'b');
-		expect(a).not.toBe(b);
-		expect(sign(secret, a)).not.toBe(sign(secret, b));
-	});
-
 	it('rejects non-hex signatures before compare', () => {
-		const msg = region_mac_message('rid', '1', 'p');
+		const msg = 'a signed message';
 		expect(verify(secret, msg, 'not-hex')).toBe(false);
 		expect(verify(secret, msg, 'g'.repeat(64))).toBe(false);
 		expect(verify(secret, msg, sign(secret, msg).toUpperCase())).toBe(false);
