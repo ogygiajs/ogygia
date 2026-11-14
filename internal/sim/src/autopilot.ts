@@ -518,25 +518,31 @@ async function run_vitest(
 	args.push(...files);
 	const started = Date.now();
 	let timed_out = false;
-	await new Promise<void>((done) => {
-		const c = spawn(vitest, args, {
-			cwd: testdir,
-			env,
-			detached: true,
-			stdio: ['ignore', log, log]
+	try {
+		await new Promise<void>((done, fail) => {
+			const c = spawn(vitest, args, {
+				cwd: testdir,
+				env,
+				detached: true,
+				stdio: ['ignore', log, log]
+			});
+			child = c;
+			const timer = setTimeout(() => {
+				timed_out = true;
+				stop_child();
+			}, limit_ms);
+			const settle = (e?: Error) => {
+				clearTimeout(timer);
+				child = null;
+				if (e === undefined) done();
+				else fail(new Error(`${label}: vitest did not start (${vitest}): ${e.message}`));
+			};
+			c.on('exit', () => settle());
+			c.on('error', settle);
 		});
-		child = c;
-		const timer = setTimeout(() => {
-			timed_out = true;
-			stop_child();
-		}, limit_ms);
-		c.on('exit', () => {
-			clearTimeout(timer);
-			child = null;
-			done();
-		});
-	});
-	closeSync(log);
+	} finally {
+		closeSync(log);
+	}
 	if (!o.quiet)
 		console.log(
 			`  ${label}: ${Math.round((Date.now() - started) / 1000)}s${timed_out ? ' (timed out)' : ''}`
