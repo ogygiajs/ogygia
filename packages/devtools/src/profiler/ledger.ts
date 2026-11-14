@@ -127,13 +127,9 @@ export const grows_of = (grown: number, one: number, renders: number): boolean |
 	// the heap sample is statistical (a quarter either way at a megabyte a render), so the middle
 	// band is no verdict: a 4-entry cache over 6 renders (0.67) must never read as a leak
 	const ratio = grown / (one * renders);
-	return ratio >= 0.85
-		? renders >= LEAK_MIN_RENDERS
-			? true
-			: undefined
-		: ratio <= 0.5
-			? false
-			: undefined;
+	if (ratio >= 0.85) return renders >= LEAK_MIN_RENDERS ? true : undefined;
+	if (ratio <= 0.5) return false;
+	return undefined;
 };
 const GROWS_MIN_RENDERS = 5;
 /** A LEAK verdict needs 6 renders. The check is cut short on a tight time budget, and over 5 a
@@ -608,8 +604,14 @@ export function build_ledger(input: LedgerInput): LedgerLine[] {
 		if (e) e.a.mem_via = pkg;
 		return e?.a;
 	};
-	const row_for = (at: { path: string; line: number } | undefined, url: string): Acc | undefined =>
-		at && at.line > 0 && is_app_path(at.path) ? mem_row(at) : !at ? pkg_row(url) : undefined;
+	const row_for = (
+		at: { path: string; line: number } | undefined,
+		url: string
+	): Acc | undefined => {
+		if (!at) return pkg_row(url);
+		if (at.line > 0 && is_app_path(at.path)) return mem_row(at);
+		return undefined;
+	};
 
 	// allocations + the GC they caused, on the app line each maker is charged to
 	for (const m of input.makers ?? []) {
