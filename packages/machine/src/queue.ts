@@ -35,7 +35,7 @@
  *
  * A pass reads the waiting jobs once, in priority order, then the jobs pushed while it runs, in the
  * order pushed. A push, a release or a `recheck()` while it runs asks for another pass after it.
- * The plain queue (none of these options) starts strictly from the front, a step per job.
+ * The plain queue (a `max`, none of these options) starts strictly from the front, a step per job.
  *
  * The queue keeps the jobs themselves, in the order pushed: no record per job. A start that pushes,
  * cancels or releases runs inside the drain safely: each start takes its job out of the line first.
@@ -119,92 +119,135 @@ type DrainState = 'idle' | 'deferred' | 'running' | 'again' | 'yielding' | 'endi
 
 const COUNTED_SPAN = 64;
 
-const UNCOUNTED: Place & { held: boolean } = Object.freeze({ held: false, release: () => {} });
+const UNCOUNTED: Place & { held: boolean } = Object.freeze({ held: false, release: noop });
 
 const IN_ORDER_PUSHED: readonly number[] = [];
 
-class QueueImpl<J> implements Queue<J> {
-	readonly #name: string;
-	readonly #max: number;
-	readonly #start: (job: J, place: Place) => void;
+function noop(): void {}
+
+abstract class Line<J> implements Queue<J> {
+	protected readonly _name: string;
+	protected readonly _max: number;
+	protected readonly _start: (job: J, place: Place) => void;
+	protected readonly _now: () => number;
+	protected readonly _owner: Scope | null;
+	protected readonly _jobs: Array<J | typeof GONE> = [];
+	protected readonly _deadlines: number[] = [];
+	protected _head = 0;
+	protected _waiting = 0;
+	protected _holding = 0;
 	readonly #stale: ((job: J) => void) | null;
-	readonly #now: () => number;
-	readonly #owner: Scope | null;
-	readonly #priority: ((job: J) => number) | null;
-	readonly #ready: ((job: J) => boolean) | null;
-	readonly #windows: readonly QueueWindow<J>[];
-	readonly #budget: QueueBudget | null;
-	readonly #passes: boolean;
-	readonly #counted: boolean;
-	/** The jobs in the order pushed; the ones before `#head` started. */
-	#jobs: Array<J | typeof GONE> = [];
-	/** Each job's deadline, beside it (`Infinity`: none). */
-	#deadlines: number[] = [];
-	#head = 0;
-	#waiting = 0;
-	#holding = 0;
-	readonly #counts: number[];
-	/** Waiting jobs with a deadline; the one timer, armed at `#armed_at`. */
 	#timed = 0;
 	#armed_at = Infinity;
 	#disarm: (() => void) | null = null;
 	#timers: Scope | null = null;
-	#state: DrainState = 'idle';
-	#pass: readonly number[] | null = null;
-	#at = 0;
-	#extra = 0;
-	#until = Infinity;
 
 	constructor(o: QueueOptions<J>) {
-		this.#name = o.name ?? 'queue';
-		this.#max = o.max ?? Infinity;
-		this.#start = o.start;
+		this._name = o.name ?? 'queue';
+		this._max = o.max ?? Infinity;
+		this._start = o.start;
 		this.#stale = o.stale ?? null;
-		this.#now = o.now ?? clock.mono;
-		this.#owner = o.owner ?? null;
-		this.#priority = o.priority ?? null;
-		this.#ready = o.ready ?? null;
-		this.#windows = o.windows ? [...o.windows] : [];
-		this.#counts = this.#windows.map(() => 0);
-		this.#budget = o.budget ? { ...o.budget } : null;
-		this.#passes =
-			this.#priority !== null ||
-			this.#ready !== null ||
-			this.#windows.length > 0 ||
-			this.#budget !== null;
-		this.#counted = this.#max !== Infinity || this.#windows.length > 0;
-		this.#owner?.defer(() => this.#leave_where(() => true));
+		this._now = o.now ?? clock.mono;
+		this._owner = o.owner ?? null;
+		this._owner?.defer(() => this.#leave_where(() => true));
 	}
 
 	get waiting(): number {
-		return this.#waiting;
+		return this._waiting;
 	}
 
 	get holding(): number {
-		return this.#holding;
+		return this._holding;
 	}
 
 	push(job: J, deadline = Infinity): void {
-		if (this.#owner?.closed) return this.#stale_job(job);
-		this.#jobs.push(job);
-		this.#deadlines.push(deadline);
-		this.#waiting++;
+		if (this._owner?.closed) return this._stale_job(job);
+		this._jobs.push(job);
+		this._deadlines.push(deadline);
+		this._waiting++;
 		if (deadline !== Infinity) this.#timed++;
-		if (this.#passes) this.#ask_pass();
-		else this.#drain();
-		if (deadline < this.#armed_at && this.#jobs.length > this.#head) this.#arm(deadline);
+		this._drain();
+		if (deadline < this.#armed_at && this._jobs.length > this._head) this.#arm(deadline);
 	}
 
 	cancel(job: J): void {
-		const at = this.#jobs.indexOf(job, this.#head);
-		if (at !== -1) this.#leave(at);
+		const at = this._jobs.indexOf(job, this._head);
+		if (at !== -1) this._leave(at);
 	}
 
 	recheck(): void {
-		if (this.#passes) this.#ask_pass();
-		else this.#drain();
+		this._drain();
 	}
 
+	protected abstract _drain(): void;
+
+	protected abstract _compact(): void;
+
+	/** The job at `at` leaves while it waits: stale. */
+	protected _leave(at: number): void {
+		const job = this._jobs[at] as J;
+		this._jobs[at] = GONE;
+		this._waiting--;
+		if (this._deadlines[at] !== Infinity) this._untime();
+		this._stale_job(job);
+	}
+
+	/** A job is stale: its hook hears it. One that throws is reported, and the others still go on. */
+	protected _stale_job(job: J): void {
+		try {
+			this.#stale?.(job);
+		} catch (error) {
+			report_thrown('machine_queue_stale_failed', { name: this._name }, error);
+		}
+	}
+
+	/** A waiting job with a deadline left: the last one takes the timer with it. */
+	protected _untime(): void {
+		if (--this.#timed > 0 || this.#disarm === null) return;
+		this.#disarm();
+		this.#disarm = null;
+		this.#armed_at = Infinity;
+	}
+
+	/** The one timer goes off at `at` (the earliest deadline waiting). */
+	#arm(at: number): void {
+		this.#disarm?.();
+		this.#armed_at = at;
+		const timers = (this.#timers ??= this._owner?.child() ?? scope());
+		const ms = Math.min(MAX_TIMEOUT_MS, Math.max(0, at - this._now()));
+		this.#disarm = timers.timeout(() => this.#expire(), ms);
+	}
+
+	/** The deadlines that came: those jobs are stale; the timer goes on to the next one. */
+	#expire(): void {
+		this.#disarm = null;
+		this.#armed_at = Infinity;
+		const now = this._now();
+		this.#leave_where((deadline) => deadline <= now);
+		let next = Infinity;
+		const jobs = this._jobs;
+		for (let i = this._head; i < jobs.length; i++)
+			if (jobs[i] !== GONE && this._deadlines[i] < next) next = this._deadlines[i];
+		if (next !== Infinity) this.#arm(next);
+		this._compact();
+	}
+
+	/** The waiting jobs `test` picks (by deadline) leave, stale. They are picked first and each is
+	 *  found again as it leaves: a `stale` that pushes or releases may compact the list under it. */
+	#leave_where(test: (deadline: number) => boolean): void {
+		const picked: J[] = []; // (one per call)
+		for (let i = this._head; i < this._jobs.length; i++) {
+			const job = this._jobs[i];
+			if (job !== GONE && test(this._deadlines[i])) picked.push(job);
+		}
+		for (const job of picked) {
+			const at = this._jobs.indexOf(job, this._head);
+			if (at !== -1) this._leave(at);
+		}
+	}
+}
+
+class PlainLine<J> extends Line<J> {
 	/** A place for a job starting now: given back once, by its job or by a start that threw. */
 	#place(): Place & { held: boolean } {
 		const place = {
@@ -212,96 +255,131 @@ class QueueImpl<J> implements Queue<J> {
 			release: () => {
 				if (!place.held) return;
 				place.held = false;
-				this.#holding--;
-				this.#drain();
+				this._holding--;
+				this._drain();
 			}
 		};
 		return place;
-	}
-
-	#pass_place(mask: number): Place & { held: boolean } {
-		const place = {
-			held: true,
-			release: () => {
-				if (!place.held) return;
-				place.held = false;
-				this.#give_back(mask);
-				this.#ask_pass();
-			}
-		};
-		return place;
-	}
-
-	#give_back(mask: number): void {
-		this.#holding--;
-		for (let w = 0; mask !== 0; w++, mask >>>= 1) if (mask & 1) this.#counts[w]--;
-	}
-
-	#hold(job: J, mask: number): void {
-		let place: Place & { held: boolean } = UNCOUNTED;
-		if (this.#counted) {
-			this.#holding++;
-			for (let w = 0, m = mask; m !== 0; w++, m >>>= 1) if (m & 1) this.#counts[w]++;
-			place = this.#pass_place(mask);
-		}
-		try {
-			this.#start(job, place);
-		} catch (error) {
-			report_thrown('machine_queue_start_failed', { name: this.#name }, error);
-			if (place.held) {
-				place.held = false;
-				this.#give_back(mask);
-			}
-		}
 	}
 
 	/** Starts jobs from the front while there is room. */
-	#drain(): void {
-		if (this.#owner?.closed) return; // (its waiting jobs are stale: none starts)
-		while (this.#holding < this.#max && this.#head < this.#jobs.length) {
-			const at = this.#head++;
-			const job = this.#jobs[at];
+	protected _drain(): void {
+		if (this._owner?.closed) return; // (its waiting jobs are stale: none starts)
+		while (this._holding < this._max && this._head < this._jobs.length) {
+			const at = this._head++;
+			const job = this._jobs[at];
 			if (job === GONE) continue;
-			const deadline = this.#deadlines[at];
-			this.#jobs[at] = GONE;
-			this.#waiting--;
+			const deadline = this._deadlines[at];
+			this._jobs[at] = GONE;
+			this._waiting--;
 			if (deadline !== Infinity) {
-				this.#untime();
-				if (deadline <= this.#now()) {
-					this.#stale_job(job);
+				this._untime();
+				if (deadline <= this._now()) {
+					this._stale_job(job);
 					continue;
 				}
 			}
-			let place = UNCOUNTED;
-			if (this.#counted) {
-				this.#holding++;
-				place = this.#place();
-			}
+			this._holding++;
+			const place = this.#place();
 			try {
-				this.#start(job, place);
+				this._start(job, place);
 			} catch (error) {
-				report_thrown('machine_queue_start_failed', { name: this.#name }, error);
+				report_thrown('machine_queue_start_failed', { name: this._name }, error);
 				if (place.held) {
 					place.held = false;
-					this.#holding--;
+					this._holding--;
 				}
 			}
 		}
-		this.#compact();
+		this._compact();
 	}
 
-	#ask_pass(): void {
+	/** The started and gone front of the list out, once it is the larger part. */
+	protected _compact(): void {
+		const head = this._head;
+		if (head < 32 || head * 2 < this._jobs.length) {
+			if (head === this._jobs.length && head > 0) {
+				this._jobs.length = this._deadlines.length = this._head = 0;
+			}
+			return;
+		}
+		this._jobs.splice(0, head);
+		this._deadlines.splice(0, head);
+		this._head = 0;
+	}
+}
+
+class PassLine<J> extends Line<J> {
+	readonly #priority: ((job: J) => number) | null;
+	readonly #ready: ((job: J) => boolean) | null;
+	readonly #windows: readonly QueueWindow<J>[];
+	readonly #counts: number[];
+	readonly #budget: QueueBudget | null;
+	readonly #counted: boolean;
+	#state: DrainState = 'idle';
+	#pass: readonly number[] | null = null;
+	#at = 0;
+	#extra = 0;
+	#until = Infinity;
+
+	constructor(o: QueueOptions<J>) {
+		super(o);
+		this.#priority = o.priority ?? null;
+		this.#ready = o.ready ?? null;
+		this.#windows = o.windows ? [...o.windows] : [];
+		this.#counts = this.#windows.map(() => 0);
+		this.#budget = o.budget ? { ...o.budget } : null;
+		this.#counted = this._max !== Infinity || this.#windows.length > 0;
+	}
+
+	protected _drain(): void {
 		const state = this.#state;
 		if (state === 'running' || state === 'ending') this.#state = 'again';
-		if (state !== 'idle' || this.#waiting === 0 || this.#owner?.closed) return;
+		if (state !== 'idle' || this._waiting === 0 || this._owner?.closed) return;
 		const budget = this.#budget;
 		if (budget?.defer) {
 			this.#state = 'deferred';
 			return this.#hand_back(budget);
 		}
 		this.#state = 'running';
-		this.#until = budget ? this.#now() + budget.ms : Infinity;
+		this.#until = budget ? this._now() + budget.ms : Infinity;
 		this.#run();
+	}
+
+	#place(mask: number): Place & { held: boolean } {
+		const place = {
+			held: true,
+			release: () => {
+				if (!place.held) return;
+				place.held = false;
+				this.#give_back(mask);
+				this._drain();
+			}
+		};
+		return place;
+	}
+
+	#give_back(mask: number): void {
+		this._holding--;
+		for (let w = 0; mask !== 0; w++, mask >>>= 1) if (mask & 1) this.#counts[w]--;
+	}
+
+	#hold(job: J, mask: number): void {
+		let place: Place & { held: boolean } = UNCOUNTED;
+		if (this.#counted) {
+			this._holding++;
+			for (let w = 0, m = mask; m !== 0; w++, m >>>= 1) if (m & 1) this.#counts[w]++;
+			place = this.#place(mask);
+		}
+		try {
+			this._start(job, place);
+		} catch (error) {
+			report_thrown('machine_queue_start_failed', { name: this._name }, error);
+			if (place.held) {
+				place.held = false;
+				this.#give_back(mask);
+			}
+		}
 	}
 
 	#run(): void {
@@ -315,14 +393,14 @@ class QueueImpl<J> implements Queue<J> {
 
 	#passes_run(): void {
 		const budget = this.#budget;
-		const jobs = this.#jobs;
-		const max = this.#max;
+		const jobs = this._jobs;
+		const max = this._max;
 		let pass = (this.#pass ??= this.#order());
 		let next = this.#at;
 		let extra = this.#extra;
 		for (;;) {
 			let at = -1;
-			if (this.#holding < max) {
+			if (this._holding < max) {
 				if (next < pass.length) at = pass[next++];
 				else if (extra < jobs.length) at = extra++;
 			}
@@ -341,13 +419,13 @@ class QueueImpl<J> implements Queue<J> {
 				this.#extra = extra;
 				return void Promise.resolve().then(() => this.#settled(budget));
 			}
-			if (this.#waiting > 0 && this.#now() >= this.#until) return this.#yield(budget);
+			if (this._waiting > 0 && this._now() >= this.#until) return this.#yield(budget);
 		}
 	}
 
 	#settled(budget: QueueBudget): void {
-		if (this.#owner?.closed) return this.#end();
-		if (this.#waiting > 0 && this.#now() >= this.#until) return this.#yield(budget);
+		if (this._owner?.closed) return this.#end();
+		if (this._waiting > 0 && this._now() >= this.#until) return this.#yield(budget);
 		this.#run();
 	}
 
@@ -364,9 +442,9 @@ class QueueImpl<J> implements Queue<J> {
 	}
 
 	#ended(): void {
-		if (this.#state !== 'again' || this.#waiting === 0 || this.#owner?.closed) return this.#end();
+		if (this.#state !== 'again' || this._waiting === 0 || this._owner?.closed) return this.#end();
 		this.#state = 'running';
-		this.#until = this.#now() + this.#budget!.ms;
+		this.#until = this._now() + this.#budget!.ms;
 		this.#run();
 	}
 
@@ -376,16 +454,16 @@ class QueueImpl<J> implements Queue<J> {
 		const resume = () => {
 			if (resumed || this.#state !== waited) return;
 			resumed = true;
-			if (this.#owner?.closed) return this.#end();
+			if (this._owner?.closed) return this.#end();
 			this.#state = 'running';
-			this.#until = this.#now() + budget.ms;
+			this.#until = this._now() + budget.ms;
 			this.#run();
 		};
 		try {
 			budget.yield(resume);
 		} catch (error) {
 			if (resumed) throw error;
-			report_thrown('machine_queue_yield_failed', { name: this.#name }, error);
+			report_thrown('machine_queue_yield_failed', { name: this._name }, error);
 			resume();
 		}
 	}
@@ -393,18 +471,18 @@ class QueueImpl<J> implements Queue<J> {
 	#end(): void {
 		this.#state = 'idle';
 		this.#pass = null;
-		this.#sweep();
+		this._compact();
 	}
 
 	#order(): readonly number[] {
-		const jobs = this.#jobs;
+		const jobs = this._jobs;
 		const n = jobs.length;
-		while (this.#head < n && jobs[this.#head] === GONE) this.#head++;
+		while (this._head < n && jobs[this._head] === GONE) this._head++;
 		this.#at = 0;
 		this.#extra = n;
 		const by = this.#priority;
 		if (by === null) {
-			this.#extra = this.#head;
+			this.#extra = this._head;
 			return IN_ORDER_PUSHED;
 		}
 		const places: number[] = [];
@@ -413,7 +491,7 @@ class QueueImpl<J> implements Queue<J> {
 		let lo = Infinity;
 		let hi = -Infinity;
 		let whole = true;
-		for (let i = this.#head; i < n; i++) {
+		for (let i = this._head; i < n; i++) {
 			const job = jobs[i];
 			if (job === GONE) continue;
 			let rank = by(job);
@@ -441,12 +519,12 @@ class QueueImpl<J> implements Queue<J> {
 	}
 
 	#take(at: number): boolean {
-		const jobs = this.#jobs;
+		const jobs = this._jobs;
 		const job = jobs[at];
 		if (job === GONE) return false;
-		const deadline = this.#deadlines[at];
-		if (deadline !== Infinity && deadline <= this.#now()) {
-			this.#leave(at);
+		const deadline = this._deadlines[at];
+		if (deadline !== Infinity && deadline <= this._now()) {
+			this._leave(at);
 			return false;
 		}
 		const ready = this.#ready;
@@ -459,102 +537,24 @@ class QueueImpl<J> implements Queue<J> {
 			mask |= 1 << w;
 		}
 		jobs[at] = GONE;
-		this.#waiting--;
-		if (deadline !== Infinity) this.#untime();
+		this._waiting--;
+		if (deadline !== Infinity) this._untime();
 		this.#hold(job, mask);
 		return true;
 	}
 
-	/** The job at `at` leaves while it waits: stale. */
-	#leave(at: number): void {
-		const job = this.#jobs[at] as J;
-		this.#jobs[at] = GONE;
-		this.#waiting--;
-		if (this.#deadlines[at] !== Infinity) this.#untime();
-		this.#stale_job(job);
-	}
-
-	/** A job is stale: its hook hears it. One that throws is reported, and the others still go on. */
-	#stale_job(job: J): void {
-		try {
-			this.#stale?.(job);
-		} catch (error) {
-			report_thrown('machine_queue_stale_failed', { name: this.#name }, error);
-		}
-	}
-
-	/** A waiting job with a deadline left: the last one takes the timer with it. */
-	#untime(): void {
-		if (--this.#timed > 0 || this.#disarm === null) return;
-		this.#disarm();
-		this.#disarm = null;
-		this.#armed_at = Infinity;
-	}
-
-	/** The one timer goes off at `at` (the earliest deadline waiting). */
-	#arm(at: number): void {
-		this.#disarm?.();
-		this.#armed_at = at;
-		const timers = (this.#timers ??= this.#owner?.child() ?? scope());
-		const ms = Math.min(MAX_TIMEOUT_MS, Math.max(0, at - this.#now()));
-		this.#disarm = timers.timeout(() => this.#expire(), ms);
-	}
-
-	/** The deadlines that came: those jobs are stale; the timer goes on to the next one. */
-	#expire(): void {
-		this.#disarm = null;
-		this.#armed_at = Infinity;
-		const now = this.#now();
-		this.#leave_where((deadline) => deadline <= now);
-		let next = Infinity;
-		const jobs = this.#jobs;
-		for (let i = this.#head; i < jobs.length; i++)
-			if (jobs[i] !== GONE && this.#deadlines[i] < next) next = this.#deadlines[i];
-		if (next !== Infinity) this.#arm(next);
-		if (this.#passes) this.#sweep();
-		else this.#compact();
-	}
-
-	/** The waiting jobs `test` picks (by deadline) leave, stale. They are picked first and each is
-	 *  found again as it leaves: a `stale` that pushes or releases may compact the list under it. */
-	#leave_where(test: (deadline: number) => boolean): void {
-		const picked: J[] = []; // (one per call)
-		for (let i = this.#head; i < this.#jobs.length; i++) {
-			const job = this.#jobs[i];
-			if (job !== GONE && test(this.#deadlines[i])) picked.push(job);
-		}
-		for (const job of picked) {
-			const at = this.#jobs.indexOf(job, this.#head);
-			if (at !== -1) this.#leave(at);
-		}
-	}
-
-	/** The started and gone front of the list out, once it is the larger part. */
-	#compact(): void {
-		const head = this.#head;
-		if (head < 32 || head * 2 < this.#jobs.length) {
-			if (head === this.#jobs.length && head > 0) {
-				this.#jobs.length = this.#deadlines.length = this.#head = 0;
-			}
+	protected _compact(): void {
+		const jobs = this._jobs;
+		if (this.#pass !== null || jobs.length === this._waiting) return;
+		const deadlines = this._deadlines;
+		if (this._waiting === 0) {
+			jobs.length = deadlines.length = this._head = 0;
 			return;
 		}
-		this.#jobs.splice(0, head);
-		this.#deadlines.splice(0, head);
-		this.#head = 0;
-	}
-
-	#sweep(): void {
-		const jobs = this.#jobs;
-		if (this.#pass !== null || jobs.length === this.#waiting) return;
-		const deadlines = this.#deadlines;
-		if (this.#waiting === 0) {
-			jobs.length = deadlines.length = this.#head = 0;
-			return;
-		}
-		let front = this.#head;
-		this.#head = 0;
+		let front = this._head;
+		this._head = 0;
 		while (jobs[front] === GONE) front++;
-		if (jobs.length - front === this.#waiting) {
+		if (jobs.length - front === this._waiting) {
 			jobs.splice(0, front);
 			deadlines.splice(0, front);
 			return;
@@ -583,7 +583,25 @@ function cap(option: string, value: number): void {
 /** A bounded queue of jobs: first come, first served, or by the rules its options give (see the
  *  module). */
 export function queue<J>(options: QueueOptions<J>): Queue<J> {
-	if (options.max !== undefined) cap('max', options.max);
+	const { max } = options;
+	if (max !== undefined && !(Number.isInteger(max) && max >= 1))
+		throw machine_error('machine_bad_option', {
+			option: 'max',
+			value: String(max),
+			rule: 'a whole number of at least 1'
+		});
+	if (
+		max === undefined ||
+		options.priority !== undefined ||
+		options.ready !== undefined ||
+		options.windows !== undefined ||
+		options.budget !== undefined
+	)
+		return passes(options);
+	return new PlainLine(options);
+}
+
+function passes<J>(options: QueueOptions<J>): Queue<J> {
 	const windows = options.windows ?? [];
 	if (windows.length > MAX_WINDOWS)
 		throw machine_error('machine_bad_option', {
@@ -599,5 +617,5 @@ export function queue<J>(options: QueueOptions<J>): Queue<J> {
 			value: String(ms),
 			rule: 'a time of at least 0 ms'
 		});
-	return new QueueImpl(options);
+	return new PassLine(options);
 }

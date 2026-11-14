@@ -474,7 +474,10 @@ bench(
 		const q = queue<() => void>({
 			now: () => clock,
 			budget: { ms: 30, yield: (resume) => void setTimeout(resume, 0), defer: true },
-			start: (fn) => fn()
+			start: (fn, place) => {
+				fn();
+				place.release(); // (no cap: nothing to give back)
+			}
 		});
 		for (let i = 0; i < n; i++)
 			q.push(() => {
