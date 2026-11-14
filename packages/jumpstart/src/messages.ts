@@ -1,7 +1,3 @@
-/**
- * Every message the jumpstart plugin prints, in one place: its code, its wording, what to do about
- * it. The plugin runs in Node, never in a page, so the wording always prints, then the code's page.
- */
 import { define_messages, prose, type MessagesOf } from '@ogygia/core/internal/messages';
 
 /** The errors: `throw new OgygiaError(code, args)`. */

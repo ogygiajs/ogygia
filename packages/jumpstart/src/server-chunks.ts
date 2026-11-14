@@ -5,7 +5,6 @@ import { Externals } from './externals.ts';
 import type { Options } from './options.ts';
 import { RegionGroups, SHARED_CHUNK, clean_id } from './regions.ts';
 
-/** The environment Kit builds the server in (Kit 2 and Kit 3). */
 const SERVER_ENVIRONMENT = 'ssr';
 /** The chunk the framework and every dependency go in. */
 export const SERVER_CHUNK = 'server';
@@ -13,7 +12,7 @@ export const SERVER_CHUNK = 'server';
 const NO_REGIONS: Pick<RegionsSeam, 'hosts'> = { hosts: () => new Map() };
 
 /** A server output chunk, as far as the external report reads it. */
-interface OutputChunk {
+export interface OutputChunk {
 	type: 'chunk' | 'asset';
 	imports?: readonly string[];
 	dynamicImports?: readonly string[];
