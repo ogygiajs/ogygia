@@ -161,12 +161,13 @@ const NO_REMOVE = new Set<string>();
 function parse_attrs(html: string, from: number): Attr[] {
 	const out: Attr[] = [];
 	visit_attrs(html, from, (ns, ne, vs, ve, vq) => {
+		let end = ne;
+		if (vq !== -1) end = vq === 0 ? ve : ve + 1;
 		out.push({
 			name: html.slice(ns, ne).toLowerCase(),
 			value: vq === -1 ? '' : decode(html.slice(vs, ve)),
 			start: ns,
-			// (past the closing quote of a quoted value)
-			end: vq === -1 ? ne : vq === 0 ? ve : ve + 1
+			end
 		});
 	});
 	return out;
@@ -1043,8 +1044,8 @@ export function settle(
 			const foreign = name === 'svg' || name === 'math' || !!parent?.foreign;
 			const is_host = !!og_h;
 			// the render introduced this element: inside a host, not a tagged child, or inherited
-			const introduced =
-				og_c || og_s ? false : parent ? (parent.host !== -1 ? true : parent.introduced) : false;
+			let introduced = false;
+			if (parent && !og_c && !og_s) introduced = parent.host !== -1 || parent.introduced;
 			// a start tag the parser would restructure, where the render made either side of it
 			let stand_in = false;
 			if ((close !== -1 || drop) && !foreign) {
@@ -1202,9 +1203,11 @@ export function root_attr(
 	let found: { start: number; end: number; value: string } | null = null;
 	visit_attrs(html, at.ne, (ns, ne, vs, ve, vq) => {
 		if (found !== null || html.slice(ns, ne).toLowerCase() !== name) return;
+		let end = ne;
+		if (vq !== -1) end = vq === 0 ? ve : ve + 1;
 		found = {
 			start: ns,
-			end: vq === -1 ? ne : vq === 0 ? ve : ve + 1,
+			end,
 			value: vq === -1 ? '' : html.slice(vs, ve)
 		};
 	});
