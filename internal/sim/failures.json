@@ -3926,37 +3926,37 @@
 			"name": "errors on strategy-less preset"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:17",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:15",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "a hole must fetch (fetch: none is rejected)"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:18",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:16",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "prefetch: 'interaction' is refused — that is the swap, fetch's job"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:19",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:17",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "prefetch equal to the fetch schedule is refused — it adds nothing"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:20",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:18",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "wake: 'false' suggests none"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:21",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:19",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/audit-fixes.test.ts",
 			"name": "rejects hydrate values with lone \"(\" as unknown (not media)"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:22",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:20",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "empty keep name is a build error"
@@ -4954,6 +4954,16 @@
 			"name": "\"svelte\": \"catalog:peers\""
 		}
 	],
+	"equivalent": [
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:1",
+			"why": "the loads' wait is STALE only when the region's mailbox closed: none of its parts can be STALE (the island file and the hydrate core, codec and devalue flights have no world, drop or dispose), and the mailbox closes only in #teardown, which first moves the wake off this waking visit. Without the check, destructuring STALE throws, the finally still releases the slot, and the catch returns quietly because the wake is no longer `mine`: no failure is said, no state moves."
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > stale:0",
+			"why": "the owner's task is STALE only when the stream's owner closed. Without the check, STALE.ok is undefined, so it is pushed as a failure, and push drops anything once the owner is closed: nothing reaches the stream, and nothing nested is staged."
+		}
+	],
 	"baseline": [
 		"packages/bake/src/bake.ts > resolve_file > catch:1",
 		"packages/bake/src/bake.ts > run > throw:0",
@@ -5051,8 +5061,6 @@
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:3",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:5",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:12",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:15",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:16",
 		"packages/config/src/sim.ts > macrotask > message:0",
 		"packages/config/src/sim.ts > macrotask > message:1",
 		"packages/config/src/sim.ts > env_number > throw:0",
@@ -5218,7 +5226,6 @@
 		"packages/core/src/runtime/core.ts > OgygiaRegion > on_idle > timer:1",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > on_idle > timer:2",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:1",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > .catch:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > apply_live > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > live_hydrate > ours > stale:0",
@@ -5315,7 +5322,6 @@
 		"packages/core/src/server/dead-kit-resolves.ts > drop_dead_kit_resolves > transform > stream:0",
 		"packages/core/src/server/hmac.ts > Hmac > verify > crypto:0",
 		"packages/core/src/server/hmac.ts > hex_equal > crypto:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > stale:0",
 		"packages/core/src/server/region-endpoint.ts > region_session > catch:0",
 		"packages/core/src/server/region-endpoint.ts > reuse_known_region > catch:1",
 		"packages/core/src/server/region-props.ts > encode_region_props > catch:0",
