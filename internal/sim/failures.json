@@ -4938,6 +4938,18 @@
 	],
 	"equivalent": [
 		{
+			"site": "packages/router/src/stream.ts > stream_document > start > stale:0",
+			"why": "the owner's task is STALE only when the owner closed (rest.next()'s answer is an iterator result, never STALE). Without the check, STALE.done is undefined, so `n.value.slot` throws, and the catch returns at once because the owner is closed: the same early end, with no tail and no close, as the check's return."
+		},
+		{
+			"site": "packages/cli/src/perf/cli.ts > sleep > .catch:0",
+			"why": "node's timers/promises setTimeout rejects only when its signal aborts, and the one sleep given a signal runs inside serve's m.scope.task, whose signal aborts only as the scope closes. Rethrowing there rejects the task's work after the close, which the task turns into the STALE it already gave: no unhandled rejection, and nobody reads the loop's answer."
+		},
+		{
+			"site": "packages/cli/src/perf/cli.ts > sleep > abort:0",
+			"why": "the same sleep: a rejection only comes with an aborted signal, so the check never sees a live signal. Taking it away rethrows inside serve's task after its scope closed, which the task turns into the STALE it already gave."
+		},
+		{
 			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:1",
 			"why": "the loads' wait is STALE only when the region's mailbox closed: none of its parts can be STALE (the island file and the hydrate core, codec and devalue flights have no world, drop or dispose), and the mailbox closes only in #teardown, which first moves the wake off this waking visit. Without the check, destructuring STALE throws, the finally still releases the slot, and the catch returns quietly because the wake is no longer `mine`: no failure is said, no state moves."
 		},
@@ -5016,8 +5028,6 @@
 		"packages/cli/src/mcp.ts > runMcp > catch:1",
 		"packages/cli/src/perf/cli.ts > read_json > parse:0",
 		"packages/cli/src/perf/cli.ts > runPerf > catch:0",
-		"packages/cli/src/perf/cli.ts > sleep > .catch:0",
-		"packages/cli/src/perf/cli.ts > sleep > abort:0",
 		"packages/cli/src/perf/cli.ts > sleep > throw:0",
 		"packages/cli/src/perf/cli.ts > port_held > timer:0",
 		"packages/cli/src/perf/cli.ts > serve > on_exit > refused:0",
@@ -5853,7 +5863,6 @@
 		"packages/router/src/stream.ts > bake_yield > throw:0",
 		"packages/router/src/stream.ts > bake_yield > throw:1",
 		"packages/router/src/stream.ts > stream_document > start > stream:0",
-		"packages/router/src/stream.ts > stream_document > start > stale:0",
 		"packages/router/src/stream.ts > stream_document > start > stream:1",
 		"packages/router/src/stream.ts > stream_document > start > stream:2",
 		"packages/router/src/stream.ts > stream_document > start > stream:3",
