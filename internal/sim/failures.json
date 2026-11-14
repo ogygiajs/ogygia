@@ -484,6 +484,12 @@
 		},
 		{
 			"site": "packages/core/src/runtime/entry-locations.ts > load_entry > throw:0",
+			"reason": "a file that failed while the browser is offline: no map is asked, the failure stands at once so the wake waits for online; proved: the test was red before this throw (#1923's failing-test commit)",
+			"test": "packages/core/test/browser/entry-location-offline.test.ts",
+			"name": "fails at once while offline, asking no map, so the wake hears it offline"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > load_entry > throw:1",
 			"reason": "a recovery that finds no other file: proved: no recovery at all turns entry-location-fallback.test.ts red, and a retry of the very file that failed turns this test red",
 			"test": "packages/core/test/browser/entry-location-head-dropped.test.ts",
 			"name": "the HEAD for the failed file gets no answer: the import’s own failure stands at once"

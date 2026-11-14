@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
+import { islands_wake } from '../src/oracles.ts';
 
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
@@ -30,6 +31,33 @@ describe.skipIf(!built)('a tab offline', () => {
 			await world.loop.run(100);
 			expect(window.navigator.onLine).toBe(true);
 			expect(heard).toEqual(['offline false', 'online true']);
+		} finally {
+			await world.end();
+		}
+	});
+
+	it('owes no island its wake while it is still offline (seed 270754442, /cart-b)', async () => {
+		const world = await World.make({ seed: 1, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const tab = world.tab(world.visitor('v'));
+			const send = world.network.send.bind(world.network);
+			let dropped = false;
+			world.network.send = (realm, request, handler, ended) => {
+				if (!dropped && new URL(request.url).pathname.startsWith('/_app/immutable/og-region.')) {
+					dropped = true;
+					world.network.offline(tab.name, true);
+				}
+				return send(realm, request, handler, ended);
+			};
+			await world.go(tab, 'goto', '/cart-b');
+			await world.loop.run(5_000);
+			const doc = tab.page.mainFrame.document as unknown as Document;
+			expect(dropped).toBe(true);
+			expect(
+				doc.querySelector('ogygia-region[entry][wake="load"]:not([data-hydrated])'),
+				'the case it is for: a load island its outage left asleep'
+			).not.toBeNull();
+			expect(islands_wake(tab, world)).toBeNull();
 		} finally {
 			await world.end();
 		}
