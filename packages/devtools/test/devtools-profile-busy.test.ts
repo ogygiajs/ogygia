@@ -6,8 +6,9 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, expect, it } from 'vitest';
-import { scope } from '@ogygia/machine';
+import { scope, STALE } from '@ogygia/machine';
 import { run_profile } from '../src/devtools/profile-store.ts';
+import { fetch_when_free } from '../src/profiler/busy.ts';
 
 let server: Server | null = null;
 afterEach(async () => {
@@ -40,6 +41,26 @@ it('stops asking once its owner ends', async () => {
 	await new Promise((r) => setTimeout(r, 2500)); // past the next 2 s wait
 	expect(p.at).toHaveLength(1);
 	expect(await done).toBe(null);
+}, 10_000);
+
+it('says it is asking only while its owner lives: an owner that ends during the wait hears no more', async () => {
+	const p = await busy_profiler();
+	const owner = scope();
+	let asking = 0;
+	let busy = 0;
+	const done = fetch_when_free(
+		owner,
+		`${p.base}/page`,
+		{},
+		{
+			asking: () => asking++,
+			busy: () => busy++
+		}
+	);
+	await new Promise((r) => setTimeout(r, 300));
+	owner.close();
+	expect(await done).toBe(STALE);
+	expect([asking, busy, p.at.length]).toEqual([1, 1, 1]);
 }, 10_000);
 
 it("asks again when the 409's Retry-After says", async () => {

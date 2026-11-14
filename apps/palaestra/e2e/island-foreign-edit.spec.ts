@@ -37,7 +37,7 @@ test('edited-while-asleep islands: first click counts, scroll wakes clean, nothi
 	const scripts = head.match(SCRIPT_TAG_RE) ?? [];
 	check(
 		'the runtime bootstrap is the FIRST script in <head> (the foreign tool comes after it)',
-		scripts.length >= 2 && RUNTIME_RE.test(scripts[0]) && !RUNTIME_RE.test(scripts[1]),
+		scripts.length >= 2 && RUNTIME_RE.test(scripts[0]!) && !RUNTIME_RE.test(scripts[1]),
 		scripts.slice(0, 2).join(' ')
 	);
 	await sleep(400);

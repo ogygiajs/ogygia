@@ -32,4 +32,20 @@ describe('invalid frontmatter is reported once', () => {
 			expect(e.message.split('\n')[0]).toBe(`[ogygia] invalid frontmatter YAML: ${says}`);
 		});
 	}
+
+	it('a block the parser itself calls invalid is said once, not wrapped in a second invalid-frontmatter error', () => {
+		const e = caught(() =>
+			parseFrontmatter(dedent`
+			---
+			tags: [see [a, b]]
+			---
+			body
+		`)
+		);
+		expect(e.code).toBe('content_frontmatter_invalid');
+		expect(e.message.match(/\[ogygia\]/g)).toHaveLength(1);
+		expect(e.message.split('\n')[0]).toBe(
+			'[ogygia] invalid frontmatter YAML: a `[` inside a list or map item (`[see [a, b]]`): quote the item, or the whole value'
+		);
+	});
 });

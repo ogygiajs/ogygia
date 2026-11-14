@@ -121,6 +121,19 @@ export const FEDERATION_WARNINGS = {
 			\`timeout\` fits how long it takes to answer.
 		`
 	},
+	federation_peer_read_dropped: {
+		text: (a: { peer: string; path: string; reads: number }): string => prose`
+			The page ${a.path} from the peer '${a.peer}' was fetched ${a.reads} times, and a thaw or
+			a mutation dropped every fetch before it landed, so the read gave up: it is a 504.
+		`,
+		details: (): string => prose`
+			A page read whose fetch is dropped by a thaw (a publish or a deploy) or by a mutation reads
+			again, so it never gets the page from before the change. This page's sources kept moving
+			while every one of its fetches was out, so the read stopped rather than fetch it forever.
+			Look for what thaws the page's sources so often: a source published on every request, or
+			a mutation that runs on every read of it.
+		`
+	},
 	federation_deploy_thaw_undelivered: {
 		text: (a: { peers: string; rounds: number }): string =>
 			`federation: the deploy thaw never reached ${a.peers} (${a.rounds} tries), so it is given up`,

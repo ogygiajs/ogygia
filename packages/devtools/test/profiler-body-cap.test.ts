@@ -95,4 +95,17 @@ describe('profiler request bodies are capped (#1150)', () => {
 			expect(res.status).toBe(400);
 		});
 	}
+
+	it('the login says it did not unlock (ok: false) for a body past its cap, and for one that breaks off', async () => {
+		dev_switch.dev = false;
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const handle = profiler({ secret: SECRET });
+		const login = (body: ReadableStream<Uint8Array>) =>
+			handle({
+				event: post('/__profiler/login', body, { 'content-type': 'application/json' }),
+				resolve: async () => new Response('app')
+			});
+		expect(await (await login(endless().body)).json()).toEqual({ ok: false });
+		expect(await (await login(breaks())).json()).toEqual({ ok: false });
+	});
 });

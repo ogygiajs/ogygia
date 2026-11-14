@@ -78,6 +78,20 @@ function liveSource(rows: SourceEntry<Meta>[] = []) {
 	};
 }
 
+/** Runs `body` and then fails if a promise was rejected meanwhile with nothing to handle it. */
+async function never_unhandled(body: () => Promise<void>): Promise<void> {
+	const unhandled = vi.fn();
+	process.on('unhandledRejection', unhandled);
+	try {
+		await body();
+		vi.useRealTimers();
+		await new Promise((r) => setTimeout(r, 20));
+		expect(unhandled).not.toHaveBeenCalled();
+	} finally {
+		process.off('unhandledRejection', unhandled);
+	}
+}
+
 const row = (id: string, title: unknown): SourceEntry<Meta> =>
 	({ id, data: { title }, meta: { headings: [] } }) as SourceEntry<Meta>;
 
@@ -136,24 +150,25 @@ describe('a live source keeps going (#190)', () => {
 		expect(error).toHaveBeenCalled();
 	});
 
-	it('a dropped connection is opened again, and what changed meanwhile is read', async () => {
-		vi.useFakeTimers();
-		vi.spyOn(console, 'error').mockImplementation(() => {});
-		const rows = [row('a', 'A')];
-		const { source, ctl, push } = liveSource(rows);
-		ctl.live_drops = 1;
-		const c = content({ schema, loader: source });
-		await c.refs();
-		await vi.advanceTimersByTimeAsync(0);
-		rows.push(row('b', 'B')); // changed while the connection was down: no event for it
-		await vi.advanceTimersByTimeAsync(60_000);
-		expect(ctl.subscribed).toBe(2);
-		expect((await c.refs()).map((e) => e.id)).toContain('b'); // read on reconnect
-		push(row('c', 'C')); // and the new connection carries the next change
-		await vi.advanceTimersByTimeAsync(0);
-		await vi.advanceTimersByTimeAsync(0);
-		expect((await c.refs()).map((e) => e.id)).toContain('c');
-	});
+	it('a dropped connection is opened again, and what changed meanwhile is read', () =>
+		never_unhandled(async () => {
+			vi.useFakeTimers();
+			vi.spyOn(console, 'error').mockImplementation(() => {});
+			const rows = [row('a', 'A')];
+			const { source, ctl, push } = liveSource(rows);
+			ctl.live_drops = 1;
+			const c = content({ schema, loader: source });
+			await c.refs();
+			await vi.advanceTimersByTimeAsync(0);
+			rows.push(row('b', 'B')); // changed while the connection was down: no event for it
+			await vi.advanceTimersByTimeAsync(60_000);
+			expect(ctl.subscribed).toBe(2);
+			expect((await c.refs()).map((e) => e.id)).toContain('b'); // read on reconnect
+			push(row('c', 'C')); // and the new connection carries the next change
+			await vi.advanceTimersByTimeAsync(0);
+			await vi.advanceTimersByTimeAsync(0);
+			expect((await c.refs()).map((e) => e.id)).toContain('c');
+		}));
 });
 
 describe('a source that is down never leaves live connections behind', () => {
@@ -173,21 +188,22 @@ describe('a source that is down never leaves live connections behind', () => {
 		expect(reads.mock.calls.length - before).toBe(1); // the change read once, by one connection
 	});
 
-	it('a reconnect whose read fails waits and tries again on the same connection', async () => {
-		vi.useFakeTimers();
-		vi.spyOn(console, 'error').mockImplementation(() => {});
-		const rows = [row('a', 'A')];
-		const { source, ctl } = liveSource(rows);
-		ctl.live_drops = 1;
-		const c = content({ schema, loader: source });
-		await c.refs();
-		ctl.refs_fail = 3; // the source is down for the next three reads
-		await vi.advanceTimersByTimeAsync(0);
-		rows.push(row('b', 'B'));
-		await vi.advanceTimersByTimeAsync(120_000);
-		expect((await c.refs()).map((e) => e.id)).toContain('b'); // it came back, and was read
-		expect(ctl.subscribed).toBe(2); // the first, and the one opened again: not one per retry
-	});
+	it('a reconnect whose read fails waits and tries again on the same connection', () =>
+		never_unhandled(async () => {
+			vi.useFakeTimers();
+			vi.spyOn(console, 'error').mockImplementation(() => {});
+			const rows = [row('a', 'A')];
+			const { source, ctl } = liveSource(rows);
+			ctl.live_drops = 1;
+			const c = content({ schema, loader: source });
+			await c.refs();
+			ctl.refs_fail = 3; // the source is down for the next three reads
+			await vi.advanceTimersByTimeAsync(0);
+			rows.push(row('b', 'B'));
+			await vi.advanceTimersByTimeAsync(120_000);
+			expect((await c.refs()).map((e) => e.id)).toContain('b'); // it came back, and was read
+			expect(ctl.subscribed).toBe(2); // the first, and the one opened again: not one per retry
+		}));
 });
 
 describe('a change made while the first value is built is not missed (#191)', () => {

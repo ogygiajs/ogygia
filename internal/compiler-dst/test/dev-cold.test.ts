@@ -28,6 +28,30 @@ function edits(
 }
 
 describe('dev matches a cold start', () => {
+	test('a page module added after another while dev runs gives the router css roots a cold start does', async () => {
+		const components = [
+			{ uses: [], state: false },
+			{ uses: [], state: false }
+		];
+		const routes = [
+			{
+				dir: '' as const,
+				page: true,
+				layout: false,
+				page_csr: 'unset' as const,
+				layout_csr: 'unset' as const,
+				uses: []
+			}
+		];
+		const first = app_files({ components, routes, pages: [null, [1]] });
+		const dev = dev_server(first);
+		await dev.serve();
+		const files = app_files({ components, routes, pages: [[0], [1]] });
+		for (const [f, text] of edits(first, files, 0)) edit(dev, f, text);
+		await dev.serve();
+		expect(seen(dev)).toEqual(seen(await cold_server(files, { dev: true, widen: dev.s })));
+	});
+
 	test('after any run of edits', async () => {
 		await fc.assert(
 			fc.asyncProperty(

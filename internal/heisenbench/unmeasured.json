@@ -573,6 +573,18 @@
 			"reason": "browser only: the custom element's answer landing (two machine moves), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > turn > wait",
+			"reason": "browser only: one hydrate wait, the held turn's wait over a task of the visit's scope (constant work per wait); proven in packages/core/test/browser/region-left-mid-wake.test.ts and the core browser suite's every island wake"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > turn > wait > task:0~ae9e4a",
+			"reason": "browser only: hands the awaited work to the visit's task (returns it, no work of its own); proven in packages/core/test/browser/region-left-mid-wake.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > turn > wait > then:0~6e1ddd",
+			"reason": "browser only: maps a wait's answer to STALE when the region left the page (one isConnected read); proven in packages/core/test/browser/region-left-mid-wake.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #paint_next",
 			"reason": "browser only: a frame starts its visit of the element's paint machine (one move), constant work; the machine runs in packages/core/bench/runtime.bench.ts, the element in packages/core/test/browser/frame-paint-order.test.ts"
 		},
@@ -1199,6 +1211,10 @@
 		{
 			"id": "packages/cli/src/mcp.ts > load_profiler_reading > catch:0",
 			"reason": "a failed load of the report reading: a constant null"
+		},
+		{
+			"id": "packages/cli/src/mcp.ts > render_story > map:0~b41403",
+			"reason": "one property read per event of a region with no connect or schedule event (the entry fallback), linear in that region's few events; an inline arrow over render_story's grouped events, so not replayable alone; proven in packages/cli/test/mcp-debug-story.test.ts"
 		},
 		{
 			"id": "packages/content/src/site/search.ts > create_search > search > map:0",
@@ -3709,12 +3725,12 @@
 			"reason": "SvelteKit's page transform (an async hook: not recorded): two indexOf calls and one join over the head, once per document"
 		},
 		{
-			"id": "packages/devtools/src/server.ts > after",
-			"reason": "joins two resolve options into one, once per request, constant work"
+			"id": "packages/core/src/plugin/server.ts > compose_resolve_options > a",
+			"reason": "SvelteKit's page transform (an async hook: not recorded): calls the inner options' transformPageChunk on its own object, one call"
 		},
 		{
-			"id": "packages/devtools/src/server.ts > after > transformPageChunk",
-			"reason": "SvelteKit's page transform (an async hook: not recorded): runs the inner then the outer transform, constant work of its own"
+			"id": "packages/core/src/plugin/server.ts > compose_resolve_options > b",
+			"reason": "SvelteKit's page transform (an async hook: not recorded): calls the outer options' transformPageChunk on its own object, one call"
 		},
 		{
 			"id": "packages/tooling/src/e2e/packed.ts > pack_ogygia > map:0~dfb3e5",
@@ -3793,7 +3809,7 @@
 			"reason": "sets one header on a Response (not cloneable), or copies its headers once when they are immutable; once per document that carries the beacon in a build; proven in packages/devtools/test/devtools-cache-headers.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/server.ts > defineServer:0~213cab > handle > next",
+			"id": "packages/devtools/src/server.ts > defineServer:0~334514 > handle > next",
 			"reason": "SvelteKit's resolve for a beacon page in a build (a RequestEvent's resolve: not cloneable), then never_stored, constant work of its own"
 		},
 		{
@@ -4365,6 +4381,14 @@
 			"reason": "a warning's longer wording for its error page, constant text"
 		},
 		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_read_dropped > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/peer-flights.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_read_dropped > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
 			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_unreachable > text",
 			"reason": "a warning's wording, constant text; said in packages/federation/test/peer-unreachable.test.ts"
 		},
@@ -4553,7 +4577,7 @@
 			"reason": "forwards to Profiler.measures (a RequestEvent, not cloneable), one call; proven in packages/devtools/test/profiler-measures.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/server.ts > defineServer:0~213cab > measures",
+			"id": "packages/devtools/src/server.ts > defineServer:0~334514 > measures",
 			"reason": "the shared hook: forwards to the mounted profiler's measures, one call; proven in packages/core/test/server-timing-measurer.test.ts"
 		},
 		{

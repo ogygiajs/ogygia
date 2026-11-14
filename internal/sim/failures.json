@@ -254,6 +254,18 @@
 	],
 	"covered": [
 		{
+			"site": "packages/content/src/site/search-worker.ts > run > not-ok:0",
+			"reason": "an index download that is not ok fails as content_search_index_fetch_failed, not as a parse of its error body; proved by hand: the check made never true turns the test red, twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "the index failed to download once: the next query downloads it again and is answered"
+		},
+		{
+			"site": "packages/content/src/site/search-worker.ts > run > throw:0",
+			"reason": "an index download that is not ok throws its own code; proved by hand: the throw removed turns the test red, twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "the index failed to download once: the next query downloads it again and is answered"
+		},
+		{
 			"site": "packages/testing/src/index.ts > Ogygia > constructor > .catch:0",
 			"reason": "an addInitScript that fails leaves no unhandled rejection: its failure is the first call's error; proved by hand: the handler made to rethrow turns the test red, twice",
 			"test": "packages/testing/test/driver-engine.test.ts",
@@ -2828,6 +2840,18 @@
 			"name": "a dropped connection is opened again, and what changed meanwhile is read"
 		},
 		{
+			"site": "packages/content/src/collection-base.ts > Collection > connect > .catch:0",
+			"reason": "`pending.catch(ignore)`: proved: the catch made to rethrow leaves an unhandled rejection the test listens for, red twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "a dropped connection is opened again, and what changed meanwhile is read"
+		},
+		{
+			"site": "packages/content/src/collection-base.ts > Collection > reconnect > .catch:0",
+			"reason": "`this.#follow(…).catch(ignore)`: proved: the catch made to rethrow leaves an unhandled rejection the test listens for, red twice",
+			"test": "packages/content/test/lifecycle.test.ts",
+			"name": "a reconnect whose read fails waits and tries again on the same connection"
+		},
+		{
 			"site": "packages/content/src/formats.ts > as_object > throw:0",
 			"reason": "`throw new OgygiaError('content_format_not_object', …)`: proved: the throw removed takes a list for data, red twice",
 			"test": "packages/content/test/content.test.ts",
@@ -4586,6 +4610,12 @@
 			"name": "rejects broken yaml as invalid frontmatter, naming what the parser stopped at"
 		},
 		{
+			"site": "packages/content/src/markdown/frontmatter.ts > parseFrontmatter > throw:0",
+			"reason": "`throw e;` (the parser's own invalid error passed on): proved: the throw removed wraps it twice and turns the test red, twice",
+			"test": "packages/content/test/frontmatter-errors.test.ts",
+			"name": "a block the parser itself calls invalid is said once, not wrapped in a second invalid-frontmatter error"
+		},
+		{
 			"site": "packages/content/src/markdown/index.ts > ogygiaPresetPreprocess > group_for > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/content/test/markdown.test.ts",
@@ -4602,6 +4632,12 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the error handler made to do nothing turns the test red",
 			"test": "packages/content/test/search-client.test.ts",
 			"name": "the worker crashes: waiting queries and later ones are rejected"
+		},
+		{
+			"site": "packages/content/src/site/search-client.ts > SearchClient > constructor > .catch:0",
+			"reason": "`this.ready.catch(() => {})`: proved: the catch made to rethrow leaves an unhandled rejection the test listens for, red twice",
+			"test": "packages/content/test/search-client.test.ts",
+			"name": "a client destroyed, or failed, before its index loads leaves no unhandled rejection when nothing awaits ready"
 		},
 		{
 			"site": "packages/content/src/vite/index.ts > content > throw:0",
@@ -4676,6 +4712,12 @@
 			"name": "a heap too full to profile: the profiler's sentence, not its JSON"
 		},
 		{
+			"site": "packages/devtools/src/devtools/page.ts > asked > .catch:0",
+			"reason": "`f.get(key).catch(() => {})`: proved: the catch made to rethrow leaves an unhandled rejection the test listens for, red twice",
+			"test": "packages/devtools/test/devtools-page-asks.test.ts",
+			"name": "a file's Vary header is asked again after a failed ask"
+		},
+		{
 			"site": "packages/devtools/src/devtools/styles.ts > read_styles > catch:1",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
 			"test": "packages/devtools/test/devtools-styles-read.test.ts",
@@ -4704,6 +4746,30 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
 			"test": "packages/devtools/test/profiler-browser-findings.test.ts",
 			"name": "the inline beacon names a preload the browser downloaded again (a Kit page has no runtime beacon)"
+		},
+		{
+			"site": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > catch:1",
+			"reason": "`catch { // ok: not a URL …`: proved: the catch made to rethrow loses the reloaded file's region, red twice",
+			"test": "packages/devtools/test/profiler-browser-findings.test.ts",
+			"name": "the inline beacon names a reloaded file's region, past a region whose src is not a URL"
+		},
+		{
+			"site": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db > catch:0",
+			"reason": "`catch { resolve(null); }` (no IndexedDB): proved: the catch made to rethrow leaves an unhandled rejection the test listens for, red twice",
+			"test": "packages/devtools/test/profiler-browser-findings.test.ts",
+			"name": "the inline beacon names a reloaded file's region, past a region whose src is not a URL"
+		},
+		{
+			"site": "packages/devtools/src/profiler/busy.ts > fetch_when_free > stale:1",
+			"reason": "`slept === STALE`: proved: the STALE check made never true says asking once more after the owner ended, red twice",
+			"test": "packages/devtools/test/devtools-profile-busy.test.ts",
+			"name": "says it is asking only while its owner lives: an owner that ends during the wait hears no more"
+		},
+		{
+			"site": "packages/devtools/src/profiler/compress.ts > gzip_large > body:0",
+			"reason": "`!res.body`: proved: the null-body check made never true throws on a 204, red twice",
+			"test": "packages/devtools/test/profiler-compress.test.ts",
+			"name": "hands back an answer with no body as it is (a 204, a 304)"
 		},
 		{
 			"site": "packages/devtools/src/profiler/crypto.ts > ogp_decode > catch:0",
@@ -4838,6 +4904,72 @@
 			"name": "the sink: the rows of a failed post go before the rows read while it was out"
 		},
 		{
+			"site": "packages/devtools/src/profiler/index.ts > Profiler > sink_post > result:0",
+			"reason": "`{ ok: false, … }` kept for the site view: proved: made ok: true, the site page no longer says the last post failed, red twice",
+			"test": "packages/devtools/test/profiler.test.ts",
+			"name": "the sink: request rows post as NDJSON with the bearer key; a failed post keeps the rows"
+		},
+		{
+			"site": "packages/devtools/src/profiler/index.ts > url_weights > run > throw:0",
+			"reason": "`throw new Error(`status ${res.status}`)`: proved: the throw removed keeps a 5xx's body length as the weight, red twice",
+			"test": "packages/devtools/test/profiler-weigh-urls.test.ts",
+			"name": "a 5xx is weighed again by the next report"
+		},
+		{
+			"site": "packages/devtools/src/profiler/index.ts > Profiler > capture_window > catch:5",
+			"reason": "`catch { heap_head = null; … }`: proved: the catch made to rethrow fails the older profile with a 500, red twice",
+			"test": "packages/devtools/test/profiler-recorder.test.ts",
+			"name": "two profilers in one process: the first page profile to end keeps the other's call stacks on"
+		},
+		{
+			"site": "packages/devtools/src/profiler/index.ts > Profiler > login > result:0",
+			"reason": "`{ ok: false }` on a 413: proved: made ok: true, red twice",
+			"test": "packages/devtools/test/profiler-body-cap.test.ts",
+			"name": "the login says it did not unlock (ok: false) for a body past its cap, and for one that breaks off"
+		},
+		{
+			"site": "packages/devtools/src/profiler/index.ts > Profiler > login > result:1",
+			"reason": "`{ ok: false }` on a 400: proved: made ok: true, red twice",
+			"test": "packages/devtools/test/profiler-body-cap.test.ts",
+			"name": "the login says it did not unlock (ok: false) for a body past its cap, and for one that breaks off"
+		},
+		{
+			"site": "packages/devtools/src/profiler/index.ts > Profiler > login > result:2",
+			"reason": "`{ ok: false }` on a 429: proved: made ok: true, red twice",
+			"test": "packages/devtools/test/profiler-login-guard.test.ts",
+			"name": "after ten wrong keys an address is refused, even with the right key; another address is not"
+		},
+		{
+			"site": "packages/devtools/src/profiler/index.ts > Profiler > login > result:3",
+			"reason": "`{ ok: false }` on a 401: proved: made ok: true, red twice",
+			"test": "packages/devtools/test/profiler-login-guard.test.ts",
+			"name": "after ten wrong keys an address is refused, even with the right key; another address is not"
+		},
+		{
+			"site": "packages/devtools/src/profiler/index.ts > Profiler > record_page > catch:3",
+			"reason": "`catch { … stop the loop … }` (a render cut by a reset): proved: the catch made to rethrow turns the 504 into a 500, red twice",
+			"test": "packages/devtools/test/profiler-recorder.test.ts",
+			"name": "a reset during a page profile: that profile ending leaves the window started after the reset recording"
+		},
+		{
+			"site": "packages/devtools/src/profiler/index.ts > Profiler > record_page > catch:15",
+			"reason": "`catch (e) { … return error(500, …) }`: proved: the catch made to rethrow throws the body's error instead of a 500 that says why, red twice",
+			"test": "packages/devtools/test/profiler-recorder.test.ts",
+			"name": "a page whose body breaks off mid-render is a 500 that says profiling failed, and why"
+		},
+		{
+			"site": "packages/devtools/src/profiler/index.ts > Profiler > record_page > throw:0",
+			"reason": "`throw e;` (an http error passed on): proved: the throw removed turns the 504 into a 500, red twice",
+			"test": "packages/devtools/test/profiler-recorder.test.ts",
+			"name": "a reset during a page profile: that profile ending leaves the window started after the reset recording"
+		},
+		{
+			"site": "packages/devtools/src/profiler/index.ts > Profiler > store_ready > catch:0",
+			"reason": "`catch (e) { console.error(…store_init_failed); return null; }`: proved: emptied, the code is not said; made to rethrow, an unhandled rejection; each red twice",
+			"test": "packages/devtools/test/profiler-store-init-retry.test.ts",
+			"name": "a store whose init failed once is tried again by its next use, and the report reaches it"
+		},
+		{
 			"site": "packages/devtools/src/profiler/net.ts > host_of > catch:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
 			"test": "packages/devtools/test/profiler.test.ts",
@@ -4941,13 +5073,13 @@
 		},
 		{
 			"site": "packages/federation/src/peer.ts > PeerHandle > doc > abort:0",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the abort check never true hangs the test past the run time limit",
+			"reason": "a read its request ended stops reading; proved by hand: the abort check made never true turns the test red, twice (the read fetches again until it gives up with a 504, #1792)",
 			"test": "packages/federation/test/sim-peer.test.ts",
 			"name": "fetches each page once per thaw, and never serves a page from before what it saw"
 		},
 		{
 			"site": "packages/federation/src/peer.ts > PeerHandle > doc > throw:1",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed hangs the test past the run time limit",
+			"reason": "`throw signal.reason;`: proved by hand: the throw removed turns the test red, twice (the read fetches again until it gives up with a 504, #1792)",
 			"test": "packages/federation/test/sim-peer.test.ts",
 			"name": "fetches each page once per thaw, and never serves a page from before what it saw"
 		},
@@ -5058,6 +5190,30 @@
 			"reason": "an answer that is not a failed hop (a body that breaks off) fails the mutation with its own error; proved by hand: the rethrow removed turns the test red, twice",
 			"test": "packages/federation/test/peer-unreachable.test.ts",
 			"name": "a mutation whose answer breaks off mid-body fails with that break, as it came"
+		},
+		{
+			"site": "packages/config/src/sim.ts > env_number > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/property-seeded.test.ts",
+			"name": "a property run reads its run count and seed from the sim knobs, else its own defaults"
+		},
+		{
+			"site": "packages/config/src/sim.ts > Run > fetch > fetch_stub > reject:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the rejection handler made to rethrow turns the test red",
+			"test": "packages/core/test/sim/frame-order.test.ts",
+			"name": "what is on screen moves forward in the order the requests went out"
+		},
+		{
+			"site": "packages/config/src/sim.ts > Run > fetch > fetch_stub > error-event:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the error handler made to do nothing turns the test red",
+			"test": "packages/federation/test/sim-deploy-thaw.test.ts",
+			"name": "reaches every peer once the store and the peers are back, sent once to each"
+		},
+		{
+			"site": "packages/config/src/sim.ts > Run > fetch > fetch_stub > abort:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the abort check never true turns the test red",
+			"test": "packages/federation/test/sim-deploy-thaw.test.ts",
+			"name": "reaches every peer once the store and the peers are back, sent once to each"
 		}
 	],
 	"impossible": [
@@ -5106,6 +5262,26 @@
 		{
 			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > stale:0",
 			"why": "the owner's task is STALE only when the stream's owner closed. Without the check, STALE.ok is undefined, so it is pushed as a failure, and push drops anything once the owner is closed: nothing reaches the stream, and nothing nested is staged."
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:2",
+			"why": "the hydrate's waits answer STALE only once its visit is over (the region left or moved: teardown closes the visit's scope). Without the check, `[mod, core] = STALE` throws, and the catch returns at once on `this.#wake.now !== mine`, and the finally skips on the same test: the same quiet end, the load slot released either way (test: region-left-mid-wake › a region taken out while it waits for its hydrate turn never comes alive)."
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:3",
+			"why": "the hydrate's waits answer STALE only once its visit is over, and stay STALE after. Without the check, the page's seeds parse (once per page, the same parse any island does) and the next wait, the visitor's replay or the hydrate turn, answers STALE and returns: nothing anyone sees changes (test: region-left-mid-wake, both cases)."
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:4",
+			"why": "the hydrate's waits answer STALE only once its visit is over, and stay STALE after. Without the check, the next wait, the hydrate turn, answers STALE and returns at the same point (test: region-left-mid-wake, both cases)."
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:5",
+			"why": "the hydrate turn answers STALE only once the visit is over. A region taken out: hydrate_island refuses a detached region and returns null, so `!this.#app` returns (test: hydrate-island-claims › an island taken off the page before its hydrate is left as it is, and its head watch ends; deleting that check instead makes this site prove alone, but the check is hydrate_island's own contract). A region moved: it comes alive once, by its new visit, with or without the check (test: region-left-mid-wake › a region moved while it waits for its hydrate turn comes alive once, by its new visit)."
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:6",
+			"why": "the snippets wait answers STALE only once the visit is over, and the visit's teardown unmounts the island and nulls `#app`, so the `!this.#app` beside it returns at the same point: no data-hydrated, no hydrated event (test: region-left-mid-wake, both cases)."
 		}
 	],
 	"baseline": [
@@ -5201,11 +5377,7 @@
 		"packages/compiler/src/region/transform.ts > FileCompilation > resolve_region_mark > throw:12",
 		"packages/config/src/sim.ts > macrotask > message:0",
 		"packages/config/src/sim.ts > macrotask > message:1",
-		"packages/config/src/sim.ts > env_number > throw:0",
 		"packages/config/src/sim.ts > Run > fetch > fetch_stub > abort:0",
-		"packages/config/src/sim.ts > Run > fetch > fetch_stub > error-event:0",
-		"packages/config/src/sim.ts > Run > fetch > fetch_stub > reject:0",
-		"packages/config/src/sim.ts > Run > fetch > fetch_stub > abort:1",
 		"packages/config/src/sim.ts > Run > stream > pull > stream:0",
 		"packages/config/src/sim.ts > Run > stream > pull > stream:1",
 		"packages/config/src/sim.ts > Run > track > reject:0",
@@ -5238,8 +5410,6 @@
 		"packages/content/src/collection-base.ts > Collection > normalizeRef > throw:1",
 		"packages/content/src/collection-base.ts > Collection > reloadIds > catch:0",
 		"packages/content/src/collection-base.ts > Collection > follow > catch:1",
-		"packages/content/src/collection-base.ts > Collection > connect > .catch:0",
-		"packages/content/src/collection-base.ts > Collection > reconnect > .catch:0",
 		"packages/content/src/folder.ts > folder > meta > stale:0",
 		"packages/content/src/folder.ts > folder > throw:1",
 		"packages/content/src/folder.ts > folder > throw:2",
@@ -5248,7 +5418,6 @@
 		"packages/content/src/macros/git.ts > safe > catch:0",
 		"packages/content/src/macros/loaders.ts > extract_preset > throw:0",
 		"packages/content/src/macros/regions.ts > glob_relative > catch:0",
-		"packages/content/src/markdown/frontmatter.ts > parseFrontmatter > throw:0",
 		"packages/content/src/markdown/index.ts > load_mdsvex > import:0",
 		"packages/content/src/markdown/index.ts > load_mdsvex > catch:0",
 		"packages/content/src/markdown/index.ts > load_mdsvex > throw:0",
@@ -5269,13 +5438,10 @@
 		"packages/content/src/site/fields.ts > (module) > throw:3",
 		"packages/content/src/site/outline.ts > OutlineImpl > ready > stale:0",
 		"packages/content/src/site/outline.ts > materialize > groups_of > stale:0",
-		"packages/content/src/site/search-client.ts > SearchClient > constructor > .catch:0",
 		"packages/content/src/site/search-client.ts > SearchClient > constructor > onmessage > refused:0",
 		"packages/content/src/site/search-client.ts > SearchClient > constructor > message:0",
 		"packages/content/src/site/search-client.ts > SearchClient > query > message:0",
 		"packages/content/src/site/search-worker.ts > run > fetch:0",
-		"packages/content/src/site/search-worker.ts > run > not-ok:0",
-		"packages/content/src/site/search-worker.ts > run > throw:0",
 		"packages/content/src/site/search-worker.ts > onmessage > message:0",
 		"packages/content/src/site/search-worker.ts > onmessage > message:1",
 		"packages/content/src/site/search-worker.ts > onmessage > message:2",
@@ -5505,7 +5671,6 @@
 		"packages/devtools/src/devtools/page.ts > shown_under_media > matches > catch:0",
 		"packages/devtools/src/devtools/page.ts > shown_under_media > catch:0",
 		"packages/devtools/src/devtools/page.ts > run > throw:0",
-		"packages/devtools/src/devtools/page.ts > asked > .catch:0",
 		"packages/devtools/src/devtools/page.ts > hole_waits > catch:0",
 		"packages/devtools/src/devtools/page.ts > batch_request_start > catch:0",
 		"packages/devtools/src/devtools/page.ts > hole_batches > catch:0",
@@ -5603,11 +5768,9 @@
 		"packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > preloads_never_used > read_sheets > catch:0",
 		"packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > unsupported_types > catch:0",
 		"packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > catch:0",
-		"packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > catch:1",
 		"packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > catch:2",
 		"packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db > storage:0",
 		"packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db > error-event:0",
-		"packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db > catch:0",
 		"packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > catch:0",
 		"packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > make_profiler > catch:0",
 		"packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > start_cpu > check > timer:0",
@@ -5638,14 +5801,12 @@
 		"packages/devtools/src/profiler/busy.ts > fetch_when_free > stale:0",
 		"packages/devtools/src/profiler/busy.ts > fetch_when_free > .catch:0",
 		"packages/devtools/src/profiler/busy.ts > fetch_when_free > timer:0",
-		"packages/devtools/src/profiler/busy.ts > fetch_when_free > stale:1",
 		"packages/devtools/src/profiler/byte-strip.ts > byte_strip > catch:0",
 		"packages/devtools/src/profiler/client-files.ts > client_file_finder > catch:0",
 		"packages/devtools/src/profiler/client.ts > mark_impl > catch:0",
 		"packages/devtools/src/profiler/client.ts > mark_impl > throw:0",
 		"packages/devtools/src/profiler/client.ts > mark_impl > reject:0",
 		"packages/devtools/src/profiler/client.ts > mark_impl > throw:1",
-		"packages/devtools/src/profiler/compress.ts > gzip_large > body:0",
 		"packages/devtools/src/profiler/compress.ts > gzip_large > import:0",
 		"packages/devtools/src/profiler/crypto.ts > node > import:0",
 		"packages/devtools/src/profiler/crypto.ts > node > import:1",
@@ -5664,7 +5825,6 @@
 		"packages/devtools/src/profiler/index.ts > read_timed > stream:0",
 		"packages/devtools/src/profiler/index.ts > (module) > policy:0",
 		"packages/devtools/src/profiler/index.ts > url_weights > run > .catch:0",
-		"packages/devtools/src/profiler/index.ts > url_weights > run > throw:0",
 		"packages/devtools/src/profiler/index.ts > url_weights > run > .catch:1",
 		"packages/devtools/src/profiler/index.ts > weigh_urls > timer:0",
 		"packages/devtools/src/profiler/index.ts > weigh_urls > worker > abort:0",
@@ -5688,7 +5848,6 @@
 		"packages/devtools/src/profiler/index.ts > Profiler > capture_window > catch:2",
 		"packages/devtools/src/profiler/index.ts > Profiler > capture_window > catch:3",
 		"packages/devtools/src/profiler/index.ts > Profiler > capture_window > catch:4",
-		"packages/devtools/src/profiler/index.ts > Profiler > capture_window > catch:5",
 		"packages/devtools/src/profiler/index.ts > Profiler > capture_window > catch:6",
 		"packages/devtools/src/profiler/index.ts > Profiler > capture_window > catch:7",
 		"packages/devtools/src/profiler/index.ts > Profiler > capture_window > catch:8",
@@ -5709,12 +5868,8 @@
 		"packages/devtools/src/profiler/index.ts > Profiler > finish_report > catch:2",
 		"packages/devtools/src/profiler/index.ts > Profiler > finish_report > catch:3",
 		"packages/devtools/src/profiler/index.ts > Profiler > finish_report > catch:4",
-		"packages/devtools/src/profiler/index.ts > Profiler > login > result:0",
-		"packages/devtools/src/profiler/index.ts > Profiler > login > result:1",
 		"packages/devtools/src/profiler/index.ts > Profiler > login > parse:0",
 		"packages/devtools/src/profiler/index.ts > Profiler > login > catch:0",
-		"packages/devtools/src/profiler/index.ts > Profiler > login > result:2",
-		"packages/devtools/src/profiler/index.ts > Profiler > login > result:3",
 		"packages/devtools/src/profiler/index.ts > Profiler > ui > fetch:0",
 		"packages/devtools/src/profiler/index.ts > Profiler > report_html > loader > catch:0",
 		"packages/devtools/src/profiler/index.ts > Profiler > report_html > import:0",
@@ -5760,7 +5915,6 @@
 		"packages/devtools/src/profiler/index.ts > Profiler > record_page > catch:1",
 		"packages/devtools/src/profiler/index.ts > Profiler > record_page > import:1",
 		"packages/devtools/src/profiler/index.ts > Profiler > record_page > catch:2",
-		"packages/devtools/src/profiler/index.ts > Profiler > record_page > catch:3",
 		"packages/devtools/src/profiler/index.ts > Profiler > record_page > catch:4",
 		"packages/devtools/src/profiler/index.ts > Profiler > record_page > catch:5",
 		"packages/devtools/src/profiler/index.ts > Profiler > record_page > catch:6",
@@ -5778,8 +5932,6 @@
 		"packages/devtools/src/profiler/index.ts > Profiler > record_page > catch:12",
 		"packages/devtools/src/profiler/index.ts > Profiler > record_page > catch:13",
 		"packages/devtools/src/profiler/index.ts > Profiler > record_page > catch:14",
-		"packages/devtools/src/profiler/index.ts > Profiler > record_page > catch:15",
-		"packages/devtools/src/profiler/index.ts > Profiler > record_page > throw:0",
 		"packages/devtools/src/profiler/index.ts > Profiler > upload > catch:0",
 		"packages/devtools/src/profiler/index.ts > Profiler > report_raw > import:0",
 		"packages/devtools/src/profiler/index.ts > Profiler > report_raw > catch:0",
@@ -5792,7 +5944,6 @@
 		"packages/devtools/src/profiler/index.ts > Profiler > since_for > catch:5",
 		"packages/devtools/src/profiler/index.ts > Profiler > since_for > catch:6",
 		"packages/devtools/src/profiler/index.ts > Profiler > store_ready > stale:0",
-		"packages/devtools/src/profiler/index.ts > Profiler > store_ready > catch:0",
 		"packages/devtools/src/profiler/index.ts > Profiler > persist > .catch:0",
 		"packages/devtools/src/profiler/index.ts > Profiler > report_load > parse:0",
 		"packages/devtools/src/profiler/index.ts > Profiler > report_load > catch:0",
@@ -5808,7 +5959,6 @@
 		"packages/devtools/src/profiler/index.ts > Profiler > handle > catch:3",
 		"packages/devtools/src/profiler/index.ts > Profiler > sink_post > fetch:0",
 		"packages/devtools/src/profiler/index.ts > Profiler > sink_post > timer:0",
-		"packages/devtools/src/profiler/index.ts > Profiler > sink_post > result:0",
 		"packages/devtools/src/profiler/index.ts > with_timeout > timer:0",
 		"packages/devtools/src/profiler/index.ts > pause > timer:0",
 		"packages/devtools/src/profiler/index.ts > entry_path > catch:0",

@@ -277,12 +277,10 @@ test.describe('defer fallback/endpoint/HMAC/cookie/CSS', () => {
 			'browser: fallback removed after swap',
 			(await page.locator('[data-fallback]').count()) === 0
 		);
-		const txt = (
-			await page
-				.locator('[data-server-greeting]')
-				.textContent()
-				.catch(() => '')
-		).trim();
+		const txt = (await page
+			.locator('[data-server-greeting]')
+			.textContent()
+			.catch(() => ''))!.trim();
 		check('browser: cookie-personalized greeting (Hello, Ada!)', HELLO_ADA_RE.test(txt), txt);
 
 		// CSS from the island component reached the page (via its import graph).
@@ -319,12 +317,10 @@ test.describe('defer fallback/endpoint/HMAC/cookie/CSS', () => {
 				{ timeout: 8000 }
 			)
 			.catch(() => {});
-		const txt = (
-			await page
-				.locator('[data-server-greeting]')
-				.textContent()
-				.catch(() => '')
-		).trim();
+		const txt = (await page
+			.locator('[data-server-greeting]')
+			.textContent()
+			.catch(() => ''))!.trim();
 		check(
 			'browser: personalization varies by cookie (Hello, Grace!)',
 			HELLO_GRACE_RE.test(txt),

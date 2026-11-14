@@ -83,10 +83,31 @@ describe('the recorder has one owner', () => {
 			call(handle, '/__profiler/window/stop', { method: 'POST', headers: { 'x-og-window': id } })
 		);
 		held.open();
-		await old.catch(() => undefined);
+		const old_res = await old;
+		// its render was cut by the reset: no runs, so it says the page did not return in time
+		expect(old_res.status).toBe(504);
+		expect((await old_res.json()).error).toMatch(/^The page did not return in time to profile it/);
 		// the window still records its spans, and still holds the recorder
 		expect(span_recording()).toBe(true);
 		expect((await page(handle)).status).toBe(409);
+	}, 30_000);
+
+	it('a page whose body breaks off mid-render is a 500 that says profiling failed, and why', async () => {
+		const handle = profiler({ secret: 'k' });
+		const res = await page(
+			handle,
+			(async () =>
+				new Response(
+					new ReadableStream({
+						start(c) {
+							c.enqueue(new TextEncoder().encode('<html><body>'));
+							c.error(new Error('the upstream hung up'));
+						}
+					})
+				)) as typeof fetch
+		);
+		expect(res.status).toBe(500);
+		expect((await res.json()).error).toBe('Profiling failed: the upstream hung up');
 	}, 30_000);
 
 	it('a reset during a window clears it: a page profile after it attributes each of its renders', async () => {
@@ -206,8 +227,9 @@ describe('the recorder has one owner', () => {
 		await entered.opened;
 		expect((await page(newer)).status).toBeLessThan(400);
 		held.open();
-		await slow;
+		const slow_res = await slow;
 		expect(stacks_after).toBe(true);
+		expect(slow_res.status, 'the older profile still makes its report').toBeLessThan(400);
 	}, 60_000);
 
 	it("a recording wedged past the hard cap is cut: the site's requests stop paying for its context", async () => {

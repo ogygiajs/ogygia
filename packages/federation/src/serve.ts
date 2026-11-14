@@ -68,7 +68,7 @@ const hole_message = (peer: string, kind: string, target: string, search: string
  * Idempotent.
  */
 export function install_federation(app: ServerApp): void {
-	set_hole_signer(({ peer, kind, target, search = '' }) => {
+	set_hole_signer(({ peer, kind, target, search }) => {
 		const { exp, sig, k } = app.capability.mint((e) => hole_message(peer, kind, target, search, e));
 		// `exp`, `sig` and `k` (the key it names, #1007) last: the volatile tail a region's identity
 		// cuts off

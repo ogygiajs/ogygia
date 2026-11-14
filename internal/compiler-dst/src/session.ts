@@ -18,7 +18,7 @@ import {
 	rootLayoutCsrTrue
 } from '../../../packages/compiler/src/kit.ts';
 import type { PageReadsSink } from '../../../packages/compiler/src/ctx.ts';
-import { LIB, ROOT, ROUTES } from './app.ts';
+import { LIB, PAGE_FILES, ROOT, ROUTES } from './app.ts';
 
 export interface Session {
 	readonly compiler: Compiler;
@@ -71,7 +71,8 @@ export function session(
 		app_shims: {},
 		devtools: false,
 		fs: files,
-		page_reads
+		page_reads,
+		page_files: PAGE_FILES
 	});
 	const compiler = new Compiler(
 		program,

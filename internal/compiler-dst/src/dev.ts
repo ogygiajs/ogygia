@@ -9,7 +9,7 @@
 import path from 'node:path';
 import { memory_fs, type Fs, type MemoryFs } from '../../../packages/compiler/src/index.ts';
 import { code_of, session, transform_module, type Leg, type Session } from './session.ts';
-import { LIB, ROOT } from './app.ts';
+import { LIB, PAGE_FILES, ROOT } from './app.ts';
 import { permute } from './order.ts';
 
 const LEGS: readonly Leg[] = ['ssr', 'client'];
@@ -76,7 +76,9 @@ export function entries(fs: MemoryFs): string[] {
 	return [
 		...fs
 			.files()
-			.filter((f) => f.startsWith(`${ROOT}/src/`) && f.endsWith('.svelte'))
+			.filter(
+				(f) => f.startsWith(`${ROOT}/src/`) && (f.endsWith('.svelte') || PAGE_FILES.includes(f))
+			)
 			.sort(),
 		...VIRTUALS.map((v) => `\0${v}`)
 	];

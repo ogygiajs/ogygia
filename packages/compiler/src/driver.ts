@@ -955,17 +955,14 @@ export class Compiler implements CoreApp {
 		const ctx = this.#ctx;
 		const build = this.#build;
 		if (ctx.is_build && build.router_css_roots) return build.router_css_roots;
-		const roots = new Set(
-			router_css_roots(
-				this.program.router_modules,
-				this.program.module_specs,
-				ctx.app_spec,
-				(p) => ctx.fs.stat(p) === 'file'
-			)
+		const roots = router_css_roots(
+			this.program.router_modules,
+			this.program.module_specs,
+			ctx.app_spec,
+			(p) => ctx.fs.stat(p) === 'file'
 		);
-		const sorted = [...roots].sort();
-		if (ctx.is_build) build.router_css_roots = sorted;
-		return sorted;
+		if (ctx.is_build) build.router_css_roots = roots;
+		return roots;
 	}
 
 	/**
