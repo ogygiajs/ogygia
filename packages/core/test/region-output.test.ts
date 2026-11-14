@@ -504,6 +504,26 @@ test("an island with a live snippet writes no graph when neither has chunks and 
 	expect(head).not.toContain('data-ogygia-graph');
 });
 
+test("in Kit's page pass, an island with no chunks puts no graph in the tail and no hints in its row", () => {
+	vi.spyOn(console, 'warn').mockImplementation(() => {});
+	deps.set_island_deps({});
+	let html: string;
+	try {
+		html = out([{ ...ISLAND, load: true }], { kit_pass: true });
+	} finally {
+		deps.set_island_deps(
+			Object.fromEntries(ENTRIES.map((e) => [e, [`${e}~dep-a.js`, `${e}~dep-b.js`]]))
+		);
+		vi.restoreAllMocks();
+	}
+	const tail = html.split('<!-- tail -->')[1]!.split('<!-- tail holes -->')[0]!;
+	const rows = JSON.parse(html.split('<!-- tail islands -->')[1]!.split('<!--')[0]!) as Array<{
+		hints: string[];
+	}>;
+	expect(tail).not.toContain('data-ogygia-graph');
+	expect(rows.map((r) => r.hints)).toEqual([[]]);
+});
+
 test('a region renders the same when there is no live page to read (an isolated render)', () => {
 	vi.spyOn(console, 'warn').mockImplementation(() => {});
 	const before = out([ISLAND, HOLE]);
