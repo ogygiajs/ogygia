@@ -5,18 +5,21 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # nightly: the released Firefox moves under us (`browsers (firefox-stable)` installs the latest)
+  schedule:
+    - cron: '30 21 * * *'
 
 # A STAGED JOB GRAPH: the expensive jobs run only when needed, and only after the cheap ones pass.
 #
-#   plan ─┬─ check ── e2e (Chromium slices)
+#   plan ─┬─ check ─┬─ e2e (Chromium slices) ── e2e (Firefox and WebKit slices)
+#         │         └─ browsers (Firefox, WebKit, released Firefox)
 #         └─ size
 #   ci ok: after all of them; THE required check
 #
 # `plan` asks turbo (`--dry=json`, `--affected` on a pull request) which tasks this push leaves to
 # run (.github/scripts/ci-plan.ts): a job, or an e2e slice, with nothing to run is left out, and a
 # push that changes only changesets, Markdown or other workflows runs nothing but `plan` and `ci ok`.
-# Firefox and WebKit are engines.yml's: on main, nightly, and on a PR with `ci:engines` or `ci:full`.
-# They report and are not part of `ci ok` yet (#392).
+# Firefox and WebKit block `ci ok` like Chromium does; their e2e slices start once Chromium's pass.
 
 # turbo's remote cache (Vercel, the purus-projects team): every runner, slice and machine shares one
 # cache. Without the secret (a fork's PR) turbo falls back to the local cache restored in each job.
@@ -268,6 +271,110 @@ jobs:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
+  # The e2e slices in Firefox and WebKit, once Chromium's passed (a red Chromium slice is fixed first,
+  # so the runners are not spent on it twice). Playwright's WebKit is the engine behind Safari, not Safari.
+  e2e-engines:
+    name: e2e (${{ matrix.name }}, ${{ matrix.browser }})
+    needs: [plan, check, e2e-chromium]
+    if: >-
+      ${{ !cancelled() && needs.plan.outputs.e2e_engines != '[]' && needs.check.result != 'failure' &&
+      needs.e2e-chromium.result != 'failure' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.e2e_engines) }}
+    uses: ./.github/workflows/e2e-slice.yml # zizmor: ignore[self-repository]
+    with:
+      name: ${{ matrix.name }}
+      id: ${{ matrix.id }}
+      filter: ${{ matrix.filter }}
+      shard: ${{ matrix.shard }}
+      adapters: ${{ matrix.adapters }}
+      browser: ${{ matrix.browser }}
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+
+  # The browser test projects (core, content, machine) in the engines beside Chromium (which `check`
+  # runs): Playwright's Firefox and WebKit, and Firefox as released (WebdriverIO and geckodriver:
+  # Playwright's Firefox build can lag the release, and #382 showed in the release). They run vitest
+  # directly (no turbo task to replay), so they always set up.
+  browsers:
+    name: browsers (${{ matrix.browser }})
+    needs: [plan, check]
+    if: ${{ !cancelled() && needs.plan.outputs.browsers != '[]' && needs.check.result != 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: ${{ fromJSON(needs.plan.outputs.browsers) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Playwright version
+        if: matrix.browser != 'firefox-stable'
+        id: playwright
+        run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
+
+      - name: Playwright browser cache
+        if: matrix.browser != 'firefox-stable'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
+
+      # WebKit needs system libraries the runner image lacks: --with-deps here
+      - name: Install Playwright ${{ matrix.browser }}
+        if: matrix.browser != 'firefox-stable'
+        env:
+          BROWSER: ${{ matrix.browser }}
+        run: pnpm exec playwright install --with-deps "$BROWSER"
+
+      # the released Firefox (the runner's own is replaced by the latest release); geckodriver is
+      # fetched by webdriverio when the run starts
+      - name: Install Firefox (release)
+        if: matrix.browser == 'firefox-stable'
+        id: firefox
+        uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
+        with:
+          firefox-version: latest
+
+      - name: Build the libraries
+        run: pnpm run build:lib
+
+      - name: Browser tests (core, content, machine)
+        run: |
+          for pkg in machine content core; do
+            echo "::group::$pkg"
+            (cd packages/$pkg && pnpm exec vitest run --project 'browser*') || failed=1
+            echo "::endgroup::"
+          done
+          exit ${failed:-0}
+        env:
+          OGYGIA_BROWSERS: ${{ matrix.browser }}
+          OGYGIA_FIREFOX: ${{ steps.firefox.outputs.firefox-path }}
+
+      # remembered: the same inputs in this engine passed (the plan leaves the job out next time)
+      - name: Remember the pass
+        run: echo "${{ needs.plan.outputs.browsers_hash }}" > .browsers-pass
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .browsers-pass
+          key: browsers-pass-${{ matrix.browser }}-${{ needs.plan.outputs.browsers_hash }}
+
   # The runtime's size against the PR's base branch, both measured here with this PR's tool
   # (apps/palaestra/e2e/bundle-size.ts: per page kind, brotli, as a production browser build ships it).
   # Growth past 0.5 % fails, unless the PR body says why on a line of its own: `Size baseline: <why>`.
@@ -340,7 +447,7 @@ jobs:
   # job name can be required: a name the plan leaves out would wait forever.
   ci-ok:
     name: ci ok
-    needs: [plan, check, e2e-chromium, size]
+    needs: [plan, check, e2e-chromium, e2e-engines, browsers, size]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

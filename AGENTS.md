@@ -153,8 +153,8 @@ path needs a bench or a listed exemption (the `unmeasured` gate).
 - Releases are automated (`.changeset/README.md`). The version PR and the release are the owner's
   call.
 - Main requires one check, `ci ok`. CI is a staged graph (`.github/workflows/e2e.yml`): plan, then
-  check and size, then Chromium e2e, then Firefox and WebKit. Firefox and WebKit report but do not
-  block yet. Turbo's remote cache replays unchanged work.
+  check and size, then Chromium e2e, then Firefox and WebKit. All three engines block `ci ok`.
+  Turbo's remote cache replays unchanged work.
 - Dependencies: shared versions come from pnpm catalogs (`catalog:`). Package scripts are `.ts` run
   by plain Node. No `.mjs` scripts. All package source lives in `src/`. No dependency cycles between
   packages.
