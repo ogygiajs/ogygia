@@ -739,6 +739,29 @@ test('a host whose tag name holds markup characters is restored with nothing par
 	expect(restored.shadowRoot?.querySelectorAll('img').length ?? 0).toBe(0);
 });
 
+test('a host that cannot have a shadow root is skipped and said; the hosts after it are restored', async () => {
+	await served('<demo-card class="own"> after </demo-card>');
+	(window as { __og_restore_log?: unknown[] }).__og_restore_log = [];
+	document.body.insertAdjacentHTML(
+		'beforeend',
+		'<a og-h="9" og-shadow="demo-card.shadow" og-r="{}"><b>server</b><slot><!--og-c 9.0 t--> hi </slot></a>'
+	);
+	const bad = document.body.lastElementChild!;
+	expect(bad.localName).toBe('a');
+	let restored = -1;
+	expect(() => (restored = restore(document))).not.toThrow();
+	expect(restored).toBe(1);
+	const host = document.querySelector('demo-card')!;
+	expect(host.shadowRoot).not.toBeNull();
+	expect(host.innerHTML).toBe(' after ');
+	expect(bad.shadowRoot).toBeNull();
+	expect([...bad.attributes].map((a) => a.name).filter((n) => n.startsWith('og-'))).toEqual([]);
+	expect(bad.innerHTML.includes('og-c')).toBe(false);
+	expect((window as { __og_restore_log?: unknown[] }).__og_restore_log).toContainEqual(
+		expect.objectContaining({ kind: 'invalid', host: 'a' })
+	);
+});
+
 test('a host with an attribute name only the HTML parser accepts (`=eq`) is restored, and so is every host after it', () => {
 	document.head.insertAdjacentHTML('beforeend', SHEET);
 	const host = (attrs: string) =>
