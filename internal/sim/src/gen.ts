@@ -130,6 +130,10 @@ export interface GenNode {
 	 *  `<a>` in an `<a>` is the render's own markup, which the stand-in keeps as the render wrote it
 	 *  (gen 24, seed 17: the good-HTML oracle took it for ogygia's). */
 	readonly boxed?: 'box' | 'link';
+	/** A boxed region's box holds a second `<x-gen-box>` (stream `gen reshape nest`): a matched
+	 *  element inside a matched element, which the rewrite renders with the outer one, never on its
+	 *  own (a chunk cut inside the outer one leaves both unrendered: oracles.ts `rewrite_rendered`). */
+	readonly nested?: boolean;
 	readonly children: readonly GenNode[];
 }
 
@@ -152,10 +156,12 @@ export function reshape_plan(seed: number): GenReshape | null {
  *  region renders nothing to hold. */
 export function boxing(seed: number, pass: GenReshape): (page: GenPage) => GenPage {
 	const r = rng(seed).fork('gen reshape boxes');
+	const nest = rng(seed).fork('gen reshape nest');
 	const box = (n: GenNode): GenNode => {
 		const children = n.children.map(box);
 		if (n.empty || !r.chance(0.5)) return { ...n, children };
-		return { ...n, children, boxed: pass.link && r.chance(0.5) ? 'link' : 'box' };
+		const boxed = pass.link && r.chance(0.5) ? 'link' : 'box';
+		return { ...n, children, boxed, ...(nest.chance(0.5) ? { nested: true } : {}) };
 	};
 	return (page) => ({ ...page, roots: page.roots.map(box) });
 }
@@ -997,6 +1003,9 @@ function component(n: GenNode): string {
 					// restore puts back: oracles.ts `text_restored`)
 					"\t\t<b data-gen-pad>{'  pad  '}</b>",
 					`\t\t<i>box n${n.id}</i>`,
+					...(n.nested
+						? [`\t\t<x-gen-box data-n="${n.id}-in"><i>in n${n.id}</i></x-gen-box>`]
+						: []),
 					'\t</x-gen-box>',
 					...(n.boxed === 'link'
 						? [`\t<a data-gen-link data-gen-messy><x-gen-link> go {label} </x-gen-link></a>`]
