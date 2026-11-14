@@ -5,7 +5,7 @@
  * bundler the app's build uses, at the defines the plugin sets.
  */
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -91,6 +91,13 @@ describe('rules never ship in a production build', () => {
 		expect(off.length).toBeLessThan(on.length);
 		expect(on).not.toBe(off);
 	}, 60_000);
+
+	it('the handle installs the server rules behind the very guard this build checks', () => {
+		const handle = readFileSync(`${SRC}hooks.ts`, 'utf8').replace(/\n\t+/g, ' ');
+		expect(handle).toContain(
+			"const RULES = import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);\nif (RULES) install_server_rules();"
+		);
+	});
 });
 
 // Buggify points (@ogygia/machine `buggify`): the rare branches a simulated run takes on purpose.
