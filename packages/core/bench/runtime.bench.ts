@@ -235,6 +235,24 @@ bench(
 );
 
 bench(
+	'morph: a navigation brings a page of new sections, each a fresh copy',
+	({ parent, next }) => {
+		morph_children(parent as unknown as Element, next as unknown as Node[]);
+		return parent.childNodes.length;
+	},
+	{
+		setup: () => {
+			const section = (k: number) =>
+				`<section><h2>Section ${k}</h2>${list(Array.from({ length: 10 }, (_, i) => k * 100 + i))}</section>`;
+			const parent = el('<main><h1>A</h1><p>intro</p></main>');
+			let next = '<h1>B</h1>';
+			for (let k = 0; k < 30; k++) next = `${next}${section(k)}`;
+			return { parent, next: frag(next) };
+		}
+	}
+);
+
+bench(
 	'region machines: holes fetch, retry and answer; their islands arm and wake; live regions switch modes',
 	({ n }) => {
 		let left = 0;

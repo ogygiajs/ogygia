@@ -4590,7 +4590,11 @@
 		},
 		{
 			"id": "packages/core/src/runtime/html-sink.ts > parse_page_document",
-			"reason": "browser only: one DOMParser call (the browser's parser, not ours)"
+			"reason": "browser only: one setHTMLUnsafe call into a fresh document with no browsing context (the browser's parser, not ours); proven in packages/core/test/browser/page-dsd-parse.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/morph.ts > carry_shadows",
+			"reason": "browser only: copies one open shadow root onto a morph's fresh copy (the unit tests' DOM shim has no shadow roots); proven in packages/core/test/browser/page-dsd-parse.test.ts and apps/palaestra/e2e/router-dsd.spec.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/html-sink.ts > set_inner_html",
