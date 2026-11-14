@@ -23,6 +23,8 @@ export {
 	type SeedKeyStat
 } from './server/request-stats.ts';
 export { mark_personal } from './server/personal-response.ts';
+/** Two `resolve()` option sets as one, each page transform called on its own object. */
+export { compose_resolve_options } from './plugin/server.ts';
 /** The hole render cache (the endpoint's cached render), for a plugin's tests. */
 export { cached_render, render_cache_clear, render_cache_key } from './server/render-cache.ts';
 /** The owner (a scope) of a server request: what the request starts goes when it ends. */

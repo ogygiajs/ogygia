@@ -3725,14 +3725,6 @@
 			"reason": "SvelteKit's page transform (an async hook: not recorded): two indexOf calls and one join over the head, once per document"
 		},
 		{
-			"id": "packages/devtools/src/server.ts > after",
-			"reason": "joins two resolve options into one, once per request, constant work"
-		},
-		{
-			"id": "packages/devtools/src/server.ts > after > transformPageChunk",
-			"reason": "SvelteKit's page transform (an async hook: not recorded): runs the inner then the outer transform, constant work of its own"
-		},
-		{
 			"id": "packages/tooling/src/e2e/packed.ts > pack_ogygia > map:0~dfb3e5",
 			"reason": "e2e tooling: one `pnpm pack` per released-together package (a child process), run once per suite by apps/palaestra/e2e/adapters.spec.ts and kit3.spec.ts"
 		},
@@ -3807,10 +3799,6 @@
 		{
 			"id": "packages/devtools/src/server.ts > never_stored",
 			"reason": "sets one header on a Response (not cloneable), or copies its headers once when they are immutable; once per document that carries the beacon in a build; proven in packages/devtools/test/devtools-cache-headers.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/server.ts > defineServer:0~213cab > handle > next",
-			"reason": "SvelteKit's resolve for a beacon page in a build (a RequestEvent's resolve: not cloneable), then never_stored, constant work of its own"
 		},
 		{
 			"id": "packages/core/src/runtime/rules.ts > watch_frames",
@@ -4567,10 +4555,6 @@
 		{
 			"id": "packages/devtools/src/profiler/index.ts > profiler > assign:1~aaa293 > measures",
 			"reason": "forwards to Profiler.measures (a RequestEvent, not cloneable), one call; proven in packages/devtools/test/profiler-measures.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/server.ts > defineServer:0~213cab > measures",
-			"reason": "the shared hook: forwards to the mounted profiler's measures, one call; proven in packages/core/test/server-timing-measurer.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #has_session",
@@ -6039,6 +6023,22 @@
 		{
 			"id": "packages/compiler/src/region/transform.ts > TsRegionCompilation > run > map:0~74ff48",
 			"reason": "one specifier's local name per attributed import in a .ts module, for region_attribute_unknown's message: constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > compose_resolve_options > a",
+			"reason": "SvelteKit's page transform (an async hook: not recorded): calls the inner options' transformPageChunk on its own object, one call"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > compose_resolve_options > b",
+			"reason": "SvelteKit's page transform (an async hook: not recorded): calls the outer options' transformPageChunk on its own object, one call"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > defineServer:0~334514 > handle > next",
+			"reason": "SvelteKit's resolve for a beacon page in a build (a RequestEvent's resolve: not cloneable), then never_stored, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > defineServer:0~334514 > measures",
+			"reason": "the shared hook: forwards to the mounted profiler's measures, one call; proven in packages/core/test/server-timing-measurer.test.ts"
 		}
 	]
 }
