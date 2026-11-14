@@ -18,6 +18,7 @@ import {
 } from '../src/compiler/link/relocations.ts';
 import { file_token } from '../src/compiler/link/file-token.ts';
 import { ISLAND_DEPS_INLINE_TOKEN } from '../src/compiler/link/island-deps.ts';
+import { code_fn } from './_code-fn.ts';
 
 const FN = '/*__OGYGIA_FN_MANIFEST__*/';
 
@@ -76,7 +77,7 @@ describe('relocate', () => {
 		const token = SERVER_MAP_TOKENS.region_name;
 		for (const q of ['"', "'", '`']) {
 			const out = relocate(`JSON.parse(${q}${token}${q})`, true, new Map(), c)!;
-			expect(new Function(`return ${out}`)()).toEqual({ aaaaaaaaaaaa: "It's" });
+			expect(code_fn(`return ${out}`)()).toEqual({ aaaaaaaaaaaa: "It's" });
 		}
 	});
 
@@ -117,7 +118,7 @@ describe('written relocations', () => {
 				counts,
 				{ island_deps: deps }
 			)!.s.toString();
-			expect(new Function(`${out.replace('export const d =', 'return')}`)()).toBe(deps);
+			expect(code_fn(`${out.replace('export const d =', 'return')}`)()).toBe(deps);
 		}
 		expect(counts.get('island deps')).toBe(2);
 	});

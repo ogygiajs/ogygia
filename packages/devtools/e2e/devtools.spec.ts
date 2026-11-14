@@ -118,6 +118,7 @@ async function wait_for_event(
 		.waitForFunction(
 			// serialize the predicate as a string so it runs in-page
 			(predSrc: string) => {
+				// oxlint-disable-next-line typescript/no-implied-eval -- a predicate crosses into the page only as source text
 				const p = new Function('e', `return (${predSrc})(e)`) as (e: unknown) => boolean;
 				const hook = (window as DtWindow).__ogygia_devtools;
 				if (!hook) return false;

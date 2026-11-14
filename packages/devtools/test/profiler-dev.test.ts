@@ -84,6 +84,7 @@ describe('the dev server', () => {
 		} as unknown as NodeJS.CallSite;
 		expect(file_of(real)).toBe('/app/a.js');
 		// and a real one read through `new Function` in this very process
+		// oxlint-disable-next-line typescript/no-implied-eval -- the test needs a real stack frame from code with its own sourceURL
 		const make = new Function(
 			'return (() => { const E = Error; let s; const o = E.prepareStackTrace; E.prepareStackTrace = (_, x) => x; const h = {}; E.captureStackTrace(h); s = h.stack; E.prepareStackTrace = o; return s; })();\n//# sourceURL=/app/src/made.ts'
 		) as () => NodeJS.CallSite[];

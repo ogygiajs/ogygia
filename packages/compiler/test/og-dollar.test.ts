@@ -11,6 +11,7 @@ import {
 	rewrite_dollar
 } from '../src/compiler/macros/dollar.ts';
 import { __register_fn, fn_handle } from '../../core/src/fn-transport.ts';
+import { code_fn } from './_code-fn.ts';
 
 const SVELTE = ['.svelte'];
 const run = (src: string, id = 'src/routes/x.ts') => rewrite_dollar(src, id, id, SVELTE);
@@ -161,12 +162,13 @@ describe('og.$ end-to-end (transform output executed against the real runtime)',
 		const { code } = run(src, 'src/lib/pricing.ts');
 		// execute the transformed module body with the real runtime in scope
 		const body = code.replace(`import { __og_$ } from 'ogygia/internal';`, '');
-		new Function('__og_$', body)(
-			(tag: string, bound: unknown[], factory: (...b: unknown[]) => unknown) => {
-				__register_fn(tag, factory);
-				return fn_handle(tag, bound);
-			}
-		);
+		code_fn(
+			'__og_$',
+			body
+		)((tag: string, bound: unknown[], factory: (...b: unknown[]) => unknown) => {
+			__register_fn(tag, factory);
+			return fn_handle(tag, bound);
+		});
 		const live = (globalThis as Record<string, unknown>).__dollar_out as (n: number) => number;
 		expect(live(100)).toBe(119);
 		delete (globalThis as Record<string, unknown>).__dollar_out;
@@ -414,9 +416,9 @@ describe('og.$ in a typed module hoists plain JS (#1556)', () => {
 		return hoists[0]!.factory_src;
 	};
 	const call = (factory: string, ...args: unknown[]): unknown =>
-		(new Function(`return (${factory});`)() as (...c: unknown[]) => (...a: unknown[]) => unknown)(
-			2
-		)(...args);
+		(code_fn(`return (${factory});`)() as (...c: unknown[]) => (...a: unknown[]) => unknown)(2)(
+			...args
+		);
 
 	it.each([
 		['a parameter annotation and a return type', '(n: number): number => n * rate', [3], 6],
@@ -524,9 +526,9 @@ describe('og.$ in a typed module hoists plain JS (#1556)', () => {
 		return hoists[0]!.factory_src;
 	};
 	const call = (factory: string, ...args: unknown[]): unknown =>
-		(new Function(`return (${factory});`)() as (...c: unknown[]) => (...a: unknown[]) => unknown)(
-			2
-		)(...args);
+		(code_fn(`return (${factory});`)() as (...c: unknown[]) => (...a: unknown[]) => unknown)(2)(
+			...args
+		);
 
 	it.each([
 		['a parameter annotation and a return type', '(n: number): number => n * rate', [3], 6],
