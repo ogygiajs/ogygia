@@ -22,7 +22,14 @@
 			"tsdown-plugin-svelte"
 		],
 		"exclude": [],
-		"build_time": ["bake", "barrels", "cli", "config", "tooling", "tsdown-plugin-svelte"]
+		"build_time": [
+			"bake",
+			"barrels",
+			"cli",
+			"config",
+			"tooling",
+			"tsdown-plugin-svelte"
+		]
 	},
 	"fired": [
 		{
@@ -3588,6 +3595,696 @@
 			"reason": "`server.pluginContainer .resolveId(specifier, importer, { ssr: true })…`: proved: the .catch removed turns the test red, twice",
 			"test": "packages/compiler/test/dev-maps.test.ts",
 			"name": "a helper the dev server cannot resolve is not followed, and the island still gets its keys"
+		},
+		{
+			"site": "packages/compiler/src/compiler/build-cache.ts > cache_root > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/build-cache.test.ts",
+			"name": "a root it cannot create is no cache, and nothing throws"
+		},
+		{
+			"site": "packages/compiler/src/compiler/build-cache.ts > BuildCache > get > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/compiler/test/build-cache.test.ts",
+			"name": "a torn or absent entry is a miss"
+		},
+		{
+			"site": "packages/compiler/src/compiler/driver.ts > Compiler > leg > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/build-legs.test.ts",
+			"name": "a build hook in an environment that never started is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/driver.ts > Compiler > leg > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/build-legs.test.ts",
+			"name": "a hook with no environment while two legs are open is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/driver.ts > Compiler > resolve_id > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/package-mark-resolve.test.ts",
+			"name": "resolveId throws an actionable [ogygia] error for the re-emitted specifier"
+		},
+		{
+			"site": "packages/compiler/src/compiler/driver.ts > Compiler > resolve_local_script_uncached > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/registry-reach.test.ts",
+			"name": "each edge is resolved once a build, and a resolver that refuses one forks nothing"
+		},
+		{
+			"site": "packages/compiler/src/compiler/exports/index.ts > Walk > map > stale:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the STALE check never true turns the test red",
+			"test": "packages/compiler/test/exports-index.test.ts",
+			"name": "an edit during a build makes its caller build again from the file as it is now"
+		},
+		{
+			"site": "packages/compiler/src/compiler/exports/index.ts > Walk > through > stale:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the STALE check never true turns the test red",
+			"test": "packages/compiler/test/exports-index.test.ts",
+			"name": "an edit under a nested barrel during its build leaves the outer map served once, not kept"
+		},
+		{
+			"site": "packages/compiler/src/compiler/fouc-css.ts > compileFoucScopedCss > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/compiler/test/fouc-scope-leak.test.ts",
+			"name": "a fallback that ships unscoped says so in the CSS, with the file name only"
+		},
+		{
+			"site": "packages/compiler/src/compiler/fouc-css.ts > listStaticImports > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/compiler/test/fouc-css-reach.test.ts",
+			"name": "markup that does not parse still yields its imports, every name taken"
+		},
+		{
+			"site": "packages/compiler/src/compiler/fs.ts > read > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/compiler/test/route-tree-kit.test.ts",
+			"name": "a csr = true `+page@.svelte` is a csr=true route"
+		},
+		{
+			"site": "packages/compiler/src/compiler/fs.ts > list > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/compiler/test/package-files.test.ts",
+			"name": "a dependency .ts with marks but NO declaration warns loudly (was silent death)"
+		},
+		{
+			"site": "packages/compiler/src/compiler/fs.ts > stat > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "an island's closure follows the app's aliases, in Vite's object form as in its array form"
+		},
+		{
+			"site": "packages/compiler/src/compiler/kit.ts > route_config_of_text > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/route-config-kit.test.ts",
+			"name": "a claimed key with a computed value is a build error naming the file and key"
+		},
+		{
+			"site": "packages/compiler/src/compiler/kit.ts > clean_stale_ogygia_dirs > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/compiler/test/package-files.test.ts",
+			"name": "a dependency .ts with marks but NO declaration warns loudly (was silent death)"
+		},
+		{
+			"site": "packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/client-secret-two-legs.test.ts",
+			"name": "a client chunk holding the server leg's per-build key fails the build, with one plugin instance per leg"
+		},
+		{
+			"site": "packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/client-secret-check.test.ts",
+			"name": "a chunk holding a signing module fails the build"
+		},
+		{
+			"site": "packages/compiler/src/compiler/link/emit-gate.ts > read_server_handoff > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/compiler/test/emit-gate.test.ts",
+			"name": "reads as none when the server leg wrote nothing"
+		},
+		{
+			"site": "packages/compiler/src/compiler/macros/dollar.ts > misuse > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/og-dollar.test.ts",
+			"name": "BUILD ERROR: zero or two arguments"
+		},
+		{
+			"site": "packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > refuse > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/macros-pipeline.test.ts",
+			"name": "one that would rewrite an installed file fails the build, by its name"
+		},
+		{
+			"site": "packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/macros-pipeline.test.ts",
+			"name": "one whose plugin is not listed fails the build, naming the package to list"
+		},
+		{
+			"site": "packages/compiler/src/compiler/macros/source.ts > misuse > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/source.test.ts",
+			"name": "errors on a non-exported declaration"
+		},
+		{
+			"site": "packages/compiler/src/compiler/macros/store.ts > misuse > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/og-store.test.ts",
+			"name": "BUILD ERRORS: arg count, non-function arg, bare access"
+		},
+		{
+			"site": "packages/compiler/src/compiler/macros/wire.ts > misuse > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/og-constructs-stress.test.ts",
+			"name": "wire as a bare value → [ogygia] + line + names the legal position"
+		},
+		{
+			"site": "packages/compiler/src/compiler/ownership-stamps.ts > opaque_stamp_edits > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/compiler/test/ownership-stamps.test.ts",
+			"name": "a custom element whose children Svelte walks is NOT stamped"
+		},
+		{
+			"site": "packages/compiler/src/compiler/parse/oxc.ts > parse_module > result:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the failed result made ok turns the test red",
+			"test": "packages/compiler/test/oxc-parse.test.ts",
+			"name": "is null, never a throw, on a syntax error"
+		},
+		{
+			"site": "packages/compiler/src/compiler/parse/scan.ts > split_first_string > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/scan-differential.test.ts",
+			"name": "refuses a name, an interpolation, and a literal inside an expression"
+		},
+		{
+			"site": "packages/compiler/src/compiler/parse/scan.ts > split_first_string > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/scan-differential.test.ts",
+			"name": "refuses a name, an interpolation, and a literal inside an expression"
+		},
+		{
+			"site": "packages/compiler/src/compiler/parse/scan.ts > split_first_string > throw:2",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/scan-differential.test.ts",
+			"name": "refuses a name, an interpolation, and a literal inside an expression"
+		},
+		{
+			"site": "packages/compiler/src/compiler/queries.ts > queries > compute > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/queries.test.ts",
+			"name": "a query that reads itself throws, and the database still answers after"
+		},
+		{
+			"site": "packages/compiler/src/compiler/queries.ts > queries > compute > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/compiler/test/queries.test.ts",
+			"name": "a query that reads itself throws, and the database still answers after"
+		},
+		{
+			"site": "packages/compiler/src/compiler/queries.ts > queries > compute > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/queries.test.ts",
+			"name": "a query that reads itself throws, and the database still answers after"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/named-region-imports.fuzz.test.ts",
+			"name": "every generated case"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/as-region-namespace.test.ts",
+			"name": "in a .svelte host"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:2",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/named-region-imports.fuzz.test.ts",
+			"name": "every generated case"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/marked-imports.ts > refuse_as_region > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/named-region-imports.test.ts",
+			"name": "in a .svelte host: a named import with the same options, aliased to the const"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/marked-imports.ts > check_marked_uses > fail > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/named-region-imports.test.ts",
+			"name": "the default form is held to the same rule"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > normalize_import_keys_uncached > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/transform.test.ts",
+			"name": "rejects collisions"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > normalize_region_value > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/partial-transform.test.ts",
+			"name": "rejects a region value other than 'raw'"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > normalize_hydrate_value > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/wire-gating.test.ts",
+			"name": "a .ts registry mints no lake: `wake: 'none'` there fails, so every .ts wake region wakes"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > reject_dynamic_region_imports > walk > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/dynamic-region-import.test.ts",
+			"name": "names each key once, in the order written"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/transform.test.ts",
+			"name": "render: live with children is an error (revalidate endpoint re-renders from props)"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > resolve_component_path > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/portable-snippet-origin.test.ts",
+			"name": "re-processing under a virtual id with no origin threaded throws a named [ogygia] error"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/partial-transform.test.ts",
+			"name": "rejects region combined with another import attribute"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/region-mark-refusals.test.ts",
+			"name": "a preset beside another attribute"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:7",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/named-region-imports.fuzz.test.ts",
+			"name": "every generated case"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:8",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/transform.test.ts",
+			"name": "wake on a render: deferred import fails the build, naming the fetch to write"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:9",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/transform.test.ts",
+			"name": "fetch pairs with render: deferred — alone, or with another render, it is refused"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:10",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/transform.test.ts",
+			"name": "render: 'static' alone marks nothing: the build says so, never leaves the attribute in"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:11",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/transform.test.ts",
+			"name": "keep on a hole, a lake or a live region (no island to keep) is refused, not dropped"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:14",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/audit-fixes.test.ts",
+			"name": "errors on strategy-less preset"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:17",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/transform.test.ts",
+			"name": "a hole must fetch (fetch: none is rejected)"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:18",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/transform.test.ts",
+			"name": "prefetch: 'interaction' is refused — that is the swap, fetch's job"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:19",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/transform.test.ts",
+			"name": "prefetch equal to the fetch schedule is refused — it adds nothing"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:20",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/transform.test.ts",
+			"name": "wake: 'false' suggests none"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:21",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/audit-fixes.test.ts",
+			"name": "rejects hydrate values with lone \"(\" as unknown (not media)"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:22",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/transform.test.ts",
+			"name": "empty keep name is a build error"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > assert_portable_children > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/audit-fixes.test.ts",
+			"name": "rejects host children on defer (lakes belong inside the island component)"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > visit_usages > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/audit-fixes.test.ts",
+			"name": "errors when marked import is used as dotted Menu.Item"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > analyze > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/compiler/test/csr-true-host.test.ts",
+			"name": "a host that does not parse is skipped once, with a warning that names it"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > lower > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/transform.test.ts",
+			"name": "an empty specifier still errors loudly"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > lower > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/portable-snippet-store-subs.test.ts",
+			"name": "errors loudly when a crossing snippet reads $$props"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/partial-transform.test.ts",
+			"name": "a lone fetch is refused (it is a deferred hole’s timing)"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/partial-transform.test.ts",
+			"name": "render: live is rejected on a .ts import (svelte-only)"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:2",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/partial-transform.test.ts",
+			"name": "wake on a render: deferred import fails the build, naming the fetch to write"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:3",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/partial-transform.test.ts",
+			"name": "render: deferred accepts fetch: interaction (an on-demand hole) and rejects none"
+		},
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/partial-transform.test.ts",
+			"name": "region beside another key, or render beside a key it does not take, is a mixed marker set"
+		},
+		{
+			"site": "packages/compiler/src/compiler/transportables.ts > exportedWireClassesFromBody > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/og-wire.test.ts",
+			"name": "an anonymous default wire class is a build error that asks for a name"
+		},
+		{
+			"site": "packages/compiler/src/compiler/virtual/core.ts > dev_runtime_of > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/virtual-core.test.ts",
+			"name": "installs every hydrate feature in dev, from the runtime the app resolves (a workspace’s .ts source)"
+		},
+		{
+			"site": "packages/compiler/src/compiler/virtual/resolver.ts > check_realm > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/virtual-table.test.ts",
+			"name": "refuses a module of a realm the leg may not import, with virtual_wrong_realm"
+		},
+		{
+			"site": "packages/compiler/src/compiler/virtual/resolver.ts > VirtualTable > constructor > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/virtual-table.test.ts",
+			"name": "refuses two declarations of one module with virtual_duplicate"
+		},
+		{
+			"site": "packages/compiler/src/compiler/virtual/resolver.ts > VirtualTable > constructor > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/virtual-table.test.ts",
+			"name": "refuses two entries that give their realm one name"
+		},
+		{
+			"site": "packages/compiler/src/compiler/virtual/resolver.ts > VirtualTable > resolve > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/virtual-table.test.ts",
+			"name": "fails an undeclared id in the namespace with virtual_unknown"
+		},
+		{
+			"site": "packages/compiler/src/compiler/virtual/resolver.ts > VirtualTable > load > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/virtual-types.test.ts",
+			"name": "refuse a value module whose names were not generated, or whose live names moved"
+		},
+		{
+			"site": "packages/compiler/src/compiler/virtual/table.ts > value_names > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/virtual-types.test.ts",
+			"name": "refuse a value module whose names were not generated, or whose live names moved"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > bundler_resolve > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a content module's asset: its own style from its source, then what no client chunk ships, as the bundler resolves it"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > resolve > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a stage resolves past this plugin, as a forward-slash id; an external or a throw is null"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > configResolved > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "an app-dir define that is not JSON keeps the `_app` default, and nothing throws"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > configResolved > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a build refuses a short OGYGIA_SECRET; the dev server takes it"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > buildEnd > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a handoff the server leg cannot write is a coded warning, never a failed build"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > load > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a lake's scoped CSS stays scoped when its template reads its script"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > generateBundle > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a content module's own style compiles with an await in its markup; one that does not compile goes unstyled, never a failed build"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > writeBundle > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a sheet the bundle dropped is left unlinked, never a failed build"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > writeBundle > catch:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a sheet the bundle dropped is left unlinked, never a failed build"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > writeBundle > catch:2",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a sheet the bundle dropped is left unlinked, never a failed build"
+		},
+		{
+			"site": "packages/compiler/src/vite/options.ts > validate_region_presets > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/config-surface.test.ts",
+			"name": "rejects an empty preset"
+		},
+		{
+			"site": "packages/compiler/src/vite/options.ts > validate_region_presets > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/config-surface.test.ts",
+			"name": "rejects unknown keys (closed vocabulary)"
+		},
+		{
+			"site": "packages/compiler/src/vite/options.ts > resolve_options > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/config-surface.test.ts",
+			"name": "rejects anything but seconds ≥ 0"
+		},
+		{
+			"site": "packages/compiler/src/vite/package-files.ts > read_manifest > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "dev pre-declares the deps every island imports; a build declares none"
+		},
+		{
+			"site": "packages/compiler/src/vite/package-files.ts > discover_package_files > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/package-files.test.ts",
+			"name": "rejects a malformed declaration loudly"
+		},
+		{
+			"site": "packages/compiler/src/vite/package-files.ts > discover_package_files > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/package-files.test.ts",
+			"name": "rejects a declaration that escapes the package"
+		},
+		{
+			"site": "packages/compiler/src/vite/package-files.ts > discover_package_files > catch:2",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/compiler/test/package-files.test.ts",
+			"name": "finds ONLY declared packages, expands dirs/globs/files, skips missing entries"
+		},
+		{
+			"site": "packages/compiler/src/vite/package-files.ts > discover_package_files > throw:2",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/package-files-realpath.test.ts",
+			"name": "a symlinked directory leading out of the package is not compile surface"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > definePlugin > configResolved > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "listed without ogygia(), it fails the build saying what to add"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "names the uncalled factory"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "ogygia() and its plugins come before sveltekit()"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > pinned_imports > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "`b.transform` collects stage transforms in plugin order; outside ogygia() the seams fail loudly"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "refuses a plugin listed twice, a nameless one, and non-JSON options"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "refuses a plugin listed twice, a nameless one, and non-JSON options"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:2",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a realm that is not a file, or not a location, fails loudly"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > check_plugins > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "refuses a plugin listed twice, a nameless one, and non-JSON options"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:3",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "refuses a plugin listed twice, a nameless one, and non-JSON options"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > realm_path > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a realm that is not a file, or not a location, fails loudly"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a client realm is read through casts and parentheses; a const that names itself is no answer"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:3",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a client realm whose plugin object, or its hooks, sit in a named const has its hooks read"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:4",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "the runtime hooks a client realm subscribes to are read from its file, and nothing else passes"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:5",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "the runtime hooks a client realm subscribes to are read from its file, and nothing else passes"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > package_resolves > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a plugin naming its `server` gets that module wired, options carried"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a name that is not a package the app resolves fails loudly"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > routeConfig > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "`b.routeConfig` collects keys, once each; a key that is not an identifier is refused"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > macro > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a plugin may not name a macro core defines (`wire`, `$`, `source`, `store`)"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > pageModules > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "`b.pageModules` collects importer specifiers and absolute files, once each"
+		},
+		{
+			"site": "packages/compiler/src/vite/session.ts > refuse > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugin-session.test.ts",
+			"name": "a hook before the build is resolved is refused, naming the hook and the state"
+		},
+		{
+			"site": "packages/compiler/src/vite/sourcemaps.ts > island_sourcemaps_plugin > transform > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/island-sourcemaps.test.ts",
+			"name": "an entry with no combined map, or an empty one, keeps what it has"
+		},
+		{
+			"site": "packages/compiler/src/vite/style-preprocess.ts > load_sass > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/style-preprocess-sass-missing.test.ts",
+			"name": "no sass compiler from the app root: the style is left as is, and sass_missing is said once"
 		}
 	],
 	"impossible": [
@@ -3705,129 +4402,14 @@
 		"packages/cli/src/perf/measure.ts > measure > catch:0",
 		"packages/cli/src/perf/measure.ts > measure > throw:1",
 		"packages/cli/src/perf/measure.ts > measure > throw:2",
-		"packages/compiler/src/compiler/build-cache.ts > cache_root > catch:0",
-		"packages/compiler/src/compiler/build-cache.ts > BuildCache > get > catch:0",
-		"packages/compiler/src/compiler/driver.ts > Compiler > leg > throw:0",
-		"packages/compiler/src/compiler/driver.ts > Compiler > leg > throw:1",
-		"packages/compiler/src/compiler/driver.ts > Compiler > resolve_id > throw:0",
-		"packages/compiler/src/compiler/driver.ts > Compiler > resolve_local_script_uncached > catch:0",
-		"packages/compiler/src/compiler/exports/index.ts > Walk > map > stale:0",
-		"packages/compiler/src/compiler/exports/index.ts > Walk > through > stale:0",
-		"packages/compiler/src/compiler/fouc-css.ts > compileFoucScopedCss > catch:0",
-		"packages/compiler/src/compiler/fouc-css.ts > listStaticImports > catch:0",
-		"packages/compiler/src/compiler/fs.ts > read > catch:0",
-		"packages/compiler/src/compiler/fs.ts > list > catch:0",
-		"packages/compiler/src/compiler/fs.ts > stat > catch:0",
-		"packages/compiler/src/compiler/kit.ts > route_config_of_text > throw:0",
-		"packages/compiler/src/compiler/kit.ts > clean_stale_ogygia_dirs > catch:0",
-		"packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > throw:0",
-		"packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > throw:1",
-		"packages/compiler/src/compiler/link/emit-gate.ts > read_server_handoff > catch:0",
-		"packages/compiler/src/compiler/macros/dollar.ts > misuse > throw:0",
-		"packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > refuse > throw:0",
-		"packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > throw:0",
-		"packages/compiler/src/compiler/macros/source.ts > misuse > throw:0",
-		"packages/compiler/src/compiler/macros/store.ts > misuse > throw:0",
-		"packages/compiler/src/compiler/macros/wire.ts > misuse > throw:0",
-		"packages/compiler/src/compiler/ownership-stamps.ts > opaque_stamp_edits > catch:0",
-		"packages/compiler/src/compiler/parse/oxc.ts > parse_module > result:0",
-		"packages/compiler/src/compiler/parse/scan.ts > split_first_string > throw:0",
-		"packages/compiler/src/compiler/parse/scan.ts > split_first_string > throw:1",
-		"packages/compiler/src/compiler/parse/scan.ts > split_first_string > throw:2",
-		"packages/compiler/src/compiler/queries.ts > queries > compute > throw:0",
-		"packages/compiler/src/compiler/queries.ts > queries > compute > catch:0",
-		"packages/compiler/src/compiler/queries.ts > queries > compute > throw:1",
-		"packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:0",
-		"packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:1",
-		"packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:2",
-		"packages/compiler/src/compiler/region/marked-imports.ts > refuse_as_region > throw:0",
-		"packages/compiler/src/compiler/region/marked-imports.ts > check_marked_uses > fail > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > normalize_import_keys_uncached > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > normalize_region_value > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > normalize_hydrate_value > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > reject_dynamic_region_imports > walk > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > resolve_component_path > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:1",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:3",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:5",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:7",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:8",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:9",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:10",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:11",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:12",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:14",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:15",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:16",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:17",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:18",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:19",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:20",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:21",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:22",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > assert_portable_children > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > visit_usages > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > analyze > catch:0",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > lower > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > lower > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:0",
-		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:2",
-		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:3",
-		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:1",
-		"packages/compiler/src/compiler/transportables.ts > exportedWireClassesFromBody > throw:0",
-		"packages/compiler/src/compiler/virtual/core.ts > dev_runtime_of > catch:0",
-		"packages/compiler/src/compiler/virtual/resolver.ts > check_realm > throw:0",
-		"packages/compiler/src/compiler/virtual/resolver.ts > VirtualTable > constructor > throw:0",
-		"packages/compiler/src/compiler/virtual/resolver.ts > VirtualTable > constructor > throw:1",
-		"packages/compiler/src/compiler/virtual/resolver.ts > VirtualTable > resolve > throw:0",
-		"packages/compiler/src/compiler/virtual/resolver.ts > VirtualTable > load > throw:0",
-		"packages/compiler/src/compiler/virtual/table.ts > value_names > throw:0",
-		"packages/compiler/src/vite/index.ts > bundler_resolve > catch:0",
-		"packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > resolve > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > arm_keep_client_cleanup > catch:0",
-		"packages/compiler/src/vite/index.ts > ogygia > configResolved > catch:0",
-		"packages/compiler/src/vite/index.ts > ogygia > configResolved > throw:0",
-		"packages/compiler/src/vite/index.ts > ogygia > buildEnd > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > resolveId > throw:0",
-		"packages/compiler/src/vite/index.ts > ogygia > load > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > generateBundle > import:0",
-		"packages/compiler/src/vite/index.ts > ogygia > generateBundle > catch:0",
-		"packages/compiler/src/vite/index.ts > ogygia > writeBundle > catch:0",
-		"packages/compiler/src/vite/index.ts > ogygia > writeBundle > catch:1",
-		"packages/compiler/src/vite/index.ts > ogygia > writeBundle > catch:2",
-		"packages/compiler/src/vite/options.ts > validate_region_presets > throw:0",
-		"packages/compiler/src/vite/options.ts > validate_region_presets > throw:1",
-		"packages/compiler/src/vite/options.ts > resolve_options > throw:0",
-		"packages/compiler/src/vite/package-files.ts > read_manifest > catch:0",
-		"packages/compiler/src/vite/package-files.ts > discover_package_files > throw:0",
-		"packages/compiler/src/vite/package-files.ts > discover_package_files > throw:1",
-		"packages/compiler/src/vite/package-files.ts > discover_package_files > catch:2",
-		"packages/compiler/src/vite/package-files.ts > discover_package_files > throw:2",
-		"packages/compiler/src/vite/plugin-api.ts > definePlugin > configResolved > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:1",
-		"packages/compiler/src/vite/plugin-api.ts > pinned_imports > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:1",
-		"packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:2",
-		"packages/compiler/src/vite/plugin-api.ts > check_plugins > catch:0",
-		"packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:3",
-		"packages/compiler/src/vite/plugin-api.ts > realm_path > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:1",
-		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:3",
-		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:4",
-		"packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:5",
-		"packages/compiler/src/vite/plugin-api.ts > package_resolves > catch:0",
-		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > routeConfig > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > macro > throw:0",
-		"packages/compiler/src/vite/plugin-api.ts > resolve_plugins > pageModules > throw:0",
-		"packages/compiler/src/vite/session.ts > refuse > throw:0",
-		"packages/compiler/src/vite/sourcemaps.ts > island_sourcemaps_plugin > transform > catch:0",
-		"packages/compiler/src/vite/style-preprocess.ts > load_sass > catch:0",
 		"packages/config/src/sim.ts > macrotask > message:0",
 		"packages/config/src/sim.ts > macrotask > message:1",
 		"packages/config/src/sim.ts > env_number > throw:0",
@@ -4813,17 +5395,25 @@
 	"step_points": [
 		{
 			"point": "flights.evicted-early",
-			"steps": ["render cache: kept -> gone", "router pages: kept -> gone"],
+			"steps": [
+				"render cache: kept -> gone",
+				"router pages: kept -> gone"
+			],
 			"how": "a kept answer's keep runs out at its next read: the entry goes and the caller runs the work again (any flights)"
 		},
 		{
 			"point": "flights.not-kept",
-			"steps": ["render cache: flying -> gone", "router pages: flying -> gone"],
+			"steps": [
+				"render cache: flying -> gone",
+				"router pages: flying -> gone"
+			],
 			"how": "an answer is not kept, as one too heavy for max: the next caller runs the work again (any flights)"
 		},
 		{
 			"point": "batch.part-lost",
-			"steps": ["frame-part: promised -> missed"],
+			"steps": [
+				"frame-part: promised -> missed"
+			],
 			"how": "a navigation batch's parcel for a hole is lost (as a body cut short would): its reservation is missed when the batch ends, and the hole fetches on its own. Batches are rare in a random run, so its kill is proved aimed (--buggify-aim batch.part-lost, gen 191: unreleased, the hole stands on its fallback and its binder is stuck)",
 			"killed_by": "batch-undelivered-never-released"
 		}
