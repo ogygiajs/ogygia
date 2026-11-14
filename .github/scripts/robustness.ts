@@ -39,22 +39,24 @@ export function count_steps(ledger: Ledger, total: number | null): Simulation['s
 /** The failure ledger's buckets, of `total` (every site; null: the buckets' sum). A fired site is
  *  proved when the mutant it names is in `live` (mutants.json, not equivalent). */
 export function count_failures(
-	ledger: Pick<FailureLedger, 'fired' | 'covered' | 'impossible' | 'baseline'>,
+	ledger: Pick<FailureLedger, 'fired' | 'covered' | 'impossible' | 'equivalent' | 'baseline'>,
 	live: ReadonlySet<string>,
 	total: number | null
 ): Simulation['failures'] {
 	const fired = ledger.fired.length;
 	const covered = ledger.covered.length;
 	const impossible = ledger.impossible.length;
+	const equivalent = ledger.equivalent.length;
 	const baseline = ledger.baseline.length;
 	const proved = ledger.fired.filter(
 		(f) => f.killed_by !== undefined && live.has(f.killed_by)
 	).length;
 	return {
-		total: total ?? fired + covered + impossible + baseline,
+		total: total ?? fired + covered + impossible + equivalent + baseline,
 		fired,
 		covered,
 		impossible,
+		equivalent,
 		baseline,
 		proved
 	};

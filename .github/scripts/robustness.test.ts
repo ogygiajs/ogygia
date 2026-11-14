@@ -46,6 +46,7 @@ const FAILURES = {
 	],
 	covered: [{ site: SITE(3), reason: 'r', test: 't.ts', name: 'n' }],
 	impossible: [{ site: SITE(4), why: 'w', by: 'b.ts', name: 'B' }],
+	equivalent: [{ site: SITE(7), why: 'w' }],
 	baseline: [SITE(5), SITE(6)]
 };
 
@@ -55,13 +56,14 @@ test('failures: each bucket counted; a fired site is proved only by a live mutan
 		fired: 3,
 		covered: 1,
 		impossible: 1,
+		equivalent: 1,
 		baseline: 2,
 		proved: 1
 	});
 });
 
 test('failures: with no inventory the total is the ledger’s buckets', () => {
-	assert.equal(count_failures(FAILURES, new Set(), null).total, 7);
+	assert.equal(count_failures(FAILURES, new Set(), null).total, 8);
 });
 
 const MUTANTS = [
