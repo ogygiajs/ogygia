@@ -297,8 +297,9 @@ export interface Running {
 }
 
 /**
- * What was running when each pause fell: the CPU segments over the whole capture (every run),
- * else the profiled window's CPU segments shifted onto the capture's clock; none without either.
+ * What was running at a moment of the capture (a GC pause, a heap step): the CPU segments over
+ * the whole capture (every run), else the profiled window's CPU segments shifted onto the
+ * capture's clock; none without either.
  * @heisenbench linear in input
  */
 export function gc_running(
