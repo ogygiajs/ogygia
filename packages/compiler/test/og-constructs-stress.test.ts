@@ -6,7 +6,7 @@
  * and packages/bake/test/stress.test.ts.)
  */
 import { describe, expect, it } from 'vitest';
-import { rewrite_wire } from '../src/compiler/macros/wire.ts';
+import { rewrite_wire } from '../src/macros/wire.ts';
 
 const MARKUP = ['.svelte'] as const;
 

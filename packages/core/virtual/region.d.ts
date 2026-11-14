@@ -1,5 +1,5 @@
 // The `ogygia:region` module and its entries' own ids. GENERATED from the virtual-module
-// table (packages/compiler/src/compiler/virtual/core.ts) by
+// table (packages/compiler/src/virtual/core.ts) by
 // `node packages/compiler/scripts/virtual-types.ts`; every type is core's contract
 // (src/contract/virtual-modules.ts). Do not edit.
 

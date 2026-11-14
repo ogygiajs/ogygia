@@ -2,8 +2,8 @@
 // `macro_needs_plugin`, naming the package and the plugin to list. Before, the call reached the
 // browser or the server untouched and threw a bare TypeError there.
 import { describe, expect, it } from 'vitest';
-import { run_module_macros, type MacroPipelineCtx } from '../src/compiler/macros/pipeline.ts';
-import type { Profiler } from '../src/compiler/driver.ts';
+import { run_module_macros, type MacroPipelineCtx } from '../src/macros/pipeline.ts';
+import type { Profiler } from '../src/driver.ts';
 
 const NO_PROFILE = { P: false } as unknown as Profiler;
 const APP = '/app/src/lib/x.ts';

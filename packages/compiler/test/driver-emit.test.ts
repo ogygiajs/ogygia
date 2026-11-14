@@ -1,11 +1,11 @@
 import { describe, test, expect } from 'vitest';
-import { Compiler } from '../src/compiler/driver.ts';
-import { Program } from '../src/compiler/program.ts';
-import { CompileCtx, type CompileCtxInit } from '../src/compiler/ctx.ts';
-import { normalize_import_keys, CLIENT_BINDING_STUB } from '../src/compiler/region/transform.ts';
-import { FOREIGN_HYDRATE_MARK } from '../src/compiler/region/emit.ts';
-import { FOUC_SCOPED_PREFIX } from '../src/compiler/fouc-css.ts';
-import { memory_fs } from '../src/compiler/fs.ts';
+import { Compiler } from '../src/driver.ts';
+import { Program } from '../src/program.ts';
+import { CompileCtx, type CompileCtxInit } from '../src/ctx.ts';
+import { normalize_import_keys, CLIENT_BINDING_STUB } from '../src/region/transform.ts';
+import { FOREIGN_HYDRATE_MARK } from '../src/region/emit.ts';
+import { FOUC_SCOPED_PREFIX } from '../src/fouc-css.ts';
+import { memory_fs } from '../src/fs.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 

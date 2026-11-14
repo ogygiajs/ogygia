@@ -5,11 +5,11 @@
 			"reason": "one attribute lookup on a tag the walk already read, constant work; kit-gate.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > hole_wake_removed > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > hole_wake_removed > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > hole_wake_removed > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > hole_wake_removed > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
@@ -573,6 +573,18 @@
 			"reason": "browser only: the custom element's answer landing (two machine moves), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > turn > wait",
+			"reason": "browser only: one hydrate wait, the held turn's wait over a task of the visit's scope (constant work per wait); proven in packages/core/test/browser/region-left-mid-wake.test.ts and the core browser suite's every island wake"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > turn > wait > task:0~ae9e4a",
+			"reason": "browser only: hands the awaited work to the visit's task (returns it, no work of its own); proven in packages/core/test/browser/region-left-mid-wake.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #hydrate > turn > wait > then:0~6e1ddd",
+			"reason": "browser only: maps a wait's answer to STALE when the region left the page (one isConnected read); proven in packages/core/test/browser/region-left-mid-wake.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #paint_next",
 			"reason": "browser only: a frame starts its visit of the element's paint machine (one move), constant work; the machine runs in packages/core/bench/runtime.bench.ts, the element in packages/core/test/browser/frame-paint-order.test.ts"
 		},
@@ -709,24 +721,32 @@
 			"reason": "browser only: the frames feature takes the head's early requests over at boot, linear in the load holes; proven in packages/core/test/browser/early-holes.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > catch:0~5fe629",
-			"reason": "browser only: an early flight's failure, held at its address when it is a refusal, constant work; proven in packages/core/test/browser/early-holes.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > ensure:1~1117e8",
+			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > start:1~1117e8",
 			"reason": "browser only: an early flight's work (the parked response read through read_hole), linear in the answer; proven in packages/core/test/browser/early-holes.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > ensure:1~1117e8 > on:2~6c2793",
+			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > start:1~1117e8 > on:2~6c2793",
 			"reason": "browser only: the flight's abort cancels the parked request (one abort call), constant work; proven in packages/core/test/browser/early-holes.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > ensure:1~1117e8 > read_hole:2~58a925 > renewed",
+			"id": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > start:1~1117e8 > read_hole:2~58a925 > renewed",
 			"reason": "browser only: a renewed capability handed to the address (one store write), constant work; proven by the renewal path in packages/core/test/browser/hole-renewal.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/frame-store.ts > hold_refusal",
-			"reason": "browser only: one field set when an early flight was refused, constant work; proven in packages/core/test/browser/early-holes.test.ts"
+			"reason": "browser only: one field set when a flight was refused, constant work; proven in packages/core/test/browser/early-holes.test.ts and packages/core/test/frame-store-claims.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > is_refusal",
+			"reason": "one name compare on a failed fetch, constant work; proven in packages/core/test/frame-store-claims.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > start",
+			"reason": "browser only: the page's early start made the flight at its address, once per load hole at boot, constant work each; proven in packages/core/test/browser/early-holes.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > start > settled",
+			"reason": "browser only: an early flight's end schedules its address's linger (one cache set), constant work; proven in packages/core/test/browser/early-holes.test.ts"
 		},
 		{
 			"id": "packages/core/src/context.ts > note_early_hole",
@@ -1193,6 +1213,10 @@
 			"reason": "a failed load of the report reading: a constant null"
 		},
 		{
+			"id": "packages/cli/src/mcp.ts > render_story > map:0~b41403",
+			"reason": "one property read per event of a region with no connect or schedule event (the entry fallback), linear in that region's few events; an inline arrow over render_story's grouped events, so not replayable alone; proven in packages/cli/test/mcp-debug-story.test.ts"
+		},
+		{
 			"id": "packages/content/src/site/search.ts > create_search > search > map:0",
 			"reason": "a scope's collections (live handles, not cloneable) to their tags, constant work per collection; run by the search tests in packages/content/test/site.test.ts"
 		},
@@ -1231,6 +1255,14 @@
 		{
 			"id": "packages/core/src/runtime/router.ts > SpaRouter > hand_off",
 			"reason": "browser only: ends the visit, then one history replace and a document navigation; proven in apps/palaestra/e2e/mixed.spec.ts (#259) and router-document-fetch.spec.ts (#266: a download and a 204 link, clicked twice)"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > navigate > task:0~1a8181",
+			"reason": "browser only: the claimed navigation's wait for the navigation chunk, on the visit's own scope (one import, constant work); proven in packages/core/test/browser/router-claim-superseded.test.ts and apps/palaestra/e2e/router-race.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > navigate > task:0~1a8181 > then:0~54592b",
+			"reason": "browser only: maps the chunk loader's STALE to null (one comparison); proven in packages/core/test/browser/router-claim-superseded.test.ts and apps/palaestra/e2e/router-race.spec.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/router.ts > SpaRouter > #on_click",
@@ -2893,35 +2925,35 @@
 			"reason": "browser only, an error path: says one coded console error for an island that could not start (an Error, not cloneable), constant work; proven in packages/core/test/browser/live-region-failed-file.test.ts (#942)"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > virtual_wrong_realm > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > virtual_wrong_realm > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_unknown > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > virtual_unknown > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_duplicate > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > virtual_duplicate > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > family",
+			"id": "packages/compiler/src/virtual/table.ts > virtual > family",
 			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
 		},
 		{
-			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > request",
+			"id": "packages/compiler/src/virtual/table.ts > virtual > request",
 			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > barrels_option_removed > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
@@ -2977,11 +3009,11 @@
 			"reason": "a constant throw for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/exports/index.ts > EVERY_BARREL > forced",
+			"id": "packages/compiler/src/exports/index.ts > EVERY_BARREL > forced",
 			"reason": "a constant answer (false) of the allow-everything policy"
 		},
 		{
-			"id": "packages/compiler/src/compiler/exports/parse.ts > attribute_keys > map:0~781359",
+			"id": "packages/compiler/src/exports/parse.ts > attribute_keys > map:0~781359",
 			"reason": "one attribute node to its key name (an oxc AST node: not replayable), constant work; the parse is benched in packages/core/bench/compiler.bench.ts"
 		},
 		{
@@ -2989,11 +3021,11 @@
 			"reason": "the app's file read for its shared shapes (a BOM-stripped read over the plugin's closure: not replayable); the shapes are benched in packages/core/bench/compiler.bench.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/fouc-css.ts > through_caller",
+			"id": "packages/compiler/src/fouc-css.ts > through_caller",
 			"reason": "hands one specifier to the walk's resolver (a function argument: not cloneable); proven in packages/core/test/exports-index.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/fouc-css.ts > collectFoucCssReachable > Shapes:0~3bebf5",
+			"id": "packages/compiler/src/fouc-css.ts > collectFoucCssReachable > Shapes:0~3bebf5",
 			"reason": "the walk's own file read for a fresh index's shapes (a pass-through to the caller's reader: not replayable); proven in packages/core/test/exports-index.test.ts"
 		},
 		{
@@ -3053,19 +3085,19 @@
 			"reason": "one realpath on the file system (not replayable) and one replace, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
@@ -3077,7 +3109,7 @@
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > hook_gate",
+			"id": "packages/compiler/src/virtual/core.ts > hook_gate",
 			"reason": "declares one hook constant (its from is a lambda: not cloneable), once per hook as core.ts loads; constant, never per build"
 		},
 		{
@@ -4389,11 +4421,11 @@
 			"reason": "browser only, an error path: reads one header of a live Response (not cloneable) and parses it, constant work; proven in packages/core/test/browser/hole-rate-limited.test.ts (#959)"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/transform.ts > say_unparsed",
+			"id": "packages/compiler/src/region/transform.ts > say_unparsed",
 			"reason": "the build warning for a host the parser cannot read, said once per file, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/transform.ts > warn_unparsed > once:1~087a4c",
+			"id": "packages/compiler/src/region/transform.ts > warn_unparsed > once:1~087a4c",
 			"reason": "say(): one build warning per unparsed file, constant work"
 		},
 		{
@@ -4401,11 +4433,11 @@
 			"reason": "say(): one build warning for the process, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > refuse",
+			"id": "packages/compiler/src/macros/pipeline.ts > run_module_macros > refuse",
 			"reason": "throws the coded build error (not replayable), constant work; proven in packages/core/test/macros-own-source.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/ctx.ts > CompileCtx > is_own_source",
+			"id": "packages/compiler/src/ctx.ts > CompileCtx > is_own_source",
 			"reason": "one substring test and the declared-package lookup (a CompileCtx, hidden state), constant work per declared root"
 		},
 		{
@@ -4465,11 +4497,11 @@
 			"reason": "browser only: the navigation's call into region-sheets.ts release_head_nodes (the live head, not cloneable), constant work around it (#806)"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > macro_outside_app > text",
 			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > macro_outside_app > details",
 			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
 		},
 		{
@@ -4593,23 +4625,23 @@
 			"reason": "checks each session cookie of a RequestEvent (not cloneable), one HMAC per cookie; proven in packages/devtools/test/profiler.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > filter:0~63949f",
+			"id": "packages/compiler/src/link/build-output.ts > refuse_client_secrets > filter:0~63949f",
 			"reason": "an inline length test over the build's secrets (closure, not replayable), constant work; proven in packages/compiler/test/client-secret-check.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > some:0~386dc6",
+			"id": "packages/compiler/src/link/build-output.ts > refuse_client_secrets > some:0~386dc6",
 			"reason": "an inline includes() per secret over one chunk (closure, not replayable), linear in the chunk; proven in packages/compiler/test/client-secret-check.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > find:0~8cd7fa",
+			"id": "packages/compiler/src/link/build-output.ts > refuse_client_secrets > find:0~8cd7fa",
 			"reason": "an inline regex test per module id (closure, not replayable), constant work; proven in packages/compiler/test/client-secret-check.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > secret_in_client_chunk > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > secret_in_client_chunk > text",
 			"reason": "a message's wording, constant text; said in packages/compiler/test/client-secret-check.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > secret_in_client_chunk > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > secret_in_client_chunk > details",
 			"reason": "a message's wording, constant text; said in packages/compiler/test/client-secret-check.test.ts"
 		},
 		{
@@ -5057,71 +5089,71 @@
 			"reason": "browser only: one console.error argument as text, constant work per argument; proven in packages/devtools/test/devtools-session-console.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > transform_module > edit",
+			"id": "packages/compiler/src/driver.ts > Compiler > transform_module > edit",
 			"reason": "one splice_text per pass that changed the module, plus a deferred map step; splice_text and splice_map are measured in the source maps bench"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > transform_module > edit > step:0~db8375",
+			"id": "packages/compiler/src/driver.ts > Compiler > transform_module > edit > step:0~db8375",
 			"reason": "one splice_map call, measured in the source maps bench"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > transform_module > map:0~b19893",
+			"id": "packages/compiler/src/driver.ts > Compiler > transform_module > map:0~b19893",
 			"reason": "one $app shim import's edit, constant work per import (three specifiers at most); test/source-map.test.ts runs the client leg"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > result_map",
+			"id": "packages/compiler/src/driver.ts > result_map",
 			"reason": "one field read, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > result_map > <anonymous>~967d44",
+			"id": "packages/compiler/src/driver.ts > result_map > <anonymous>~967d44",
 			"reason": "returns the transform's own map, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/dollar.ts > dollar_edits > find:0~5a7f30",
+			"id": "packages/compiler/src/macros/dollar.ts > dollar_edits > find:0~5a7f30",
 			"reason": "was rewrite_dollar's (renamed, same work): one edit test while merging the import, measured by the dollar macros bench's module"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/dollar.ts > dollar_edits > in_region",
+			"id": "packages/compiler/src/macros/dollar.ts > dollar_edits > in_region",
 			"reason": "was rewrite_dollar's (renamed, same work): a few offset compares per mark"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/dollar.ts > dollar_edits > in_region > some:0~558dc5",
+			"id": "packages/compiler/src/macros/dollar.ts > dollar_edits > in_region > some:0~558dc5",
 			"reason": "was rewrite_dollar's (renamed, same work): one offset compare"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/dollar.ts > dollar_edits > some:0~9d1a3b",
+			"id": "packages/compiler/src/macros/dollar.ts > dollar_edits > some:0~9d1a3b",
 			"reason": "was rewrite_dollar's (renamed, same work): one prefix test per edit"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > apply > push:0~63cdc9",
+			"id": "packages/compiler/src/macros/pipeline.ts > run_module_macros > apply > push:0~63cdc9",
 			"reason": "one splice_map call, measured in the source maps bench"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/store.ts > auto_brand_edits > has_subscribe_prop",
+			"id": "packages/compiler/src/macros/store.ts > auto_brand_edits > has_subscribe_prop",
 			"reason": "was auto_brand_stores' (renamed, same work): one property scan of an object literal"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/store.ts > auto_brand_edits > has_subscribe_prop > some:0~c025ff",
+			"id": "packages/compiler/src/macros/store.ts > auto_brand_edits > has_subscribe_prop > some:0~c025ff",
 			"reason": "was auto_brand_stores' (renamed, same work): one property name test"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/store.ts > auto_brand_edits > provable_factory > collect",
+			"id": "packages/compiler/src/macros/store.ts > auto_brand_edits > provable_factory > collect",
 			"reason": "was auto_brand_stores' (renamed, same work): one return statement collected per node of a factory body"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/store.ts > auto_brand_edits > provable_factory > every:0~28c69d",
+			"id": "packages/compiler/src/macros/store.ts > auto_brand_edits > provable_factory > every:0~28c69d",
 			"reason": "was auto_brand_stores' (renamed, same work): one proof per return of a factory"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/store.ts > auto_brand_edits > provable_value",
+			"id": "packages/compiler/src/macros/store.ts > auto_brand_edits > provable_value",
 			"reason": "was auto_brand_stores' (renamed, same work): one expression shape test"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/store.ts > auto_brand_edits > some:0~9d1a3b",
+			"id": "packages/compiler/src/macros/store.ts > auto_brand_edits > some:0~9d1a3b",
 			"reason": "was auto_brand_stores' (renamed, same work): one prefix test per edit"
 		},
 		{
-			"id": "packages/compiler/src/compiler/map-chain.ts > MapChain > steps",
+			"id": "packages/compiler/src/map-chain.ts > MapChain > steps",
 			"reason": "one push per macro pass that changed the module, constant work per pass"
 		},
 		{
@@ -5177,15 +5209,15 @@
 			"reason": "CLI tool only: one import of the flag inventory per server, kept once it lands; run by packages/cli/test/mcp-flags-trust.test.ts in a child process"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > prescan_rel",
+			"id": "packages/compiler/src/driver.ts > prescan_rel",
 			"reason": "build only: one path relativize per prescanned module a plugin hook claims, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > WARNED > plugin_not_listed > details",
+			"id": "packages/compiler/src/messages.ts > WARNED > plugin_not_listed > details",
 			"reason": "a message's prose for its docs page and build warning: constant text, printed once per unlisted plugin"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > WARNED > plugin_not_listed > text",
+			"id": "packages/compiler/src/messages.ts > WARNED > plugin_not_listed > text",
 			"reason": "a message's one line for the build warning: a template over its detail, printed once per unlisted plugin"
 		},
 		{
@@ -5213,295 +5245,295 @@
 			"reason": "build only, once per build: writes the flags manifest file, linear in flag sites"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scan > once:1~8ca9a8",
+			"id": "packages/compiler/src/driver.ts > Compiler > #scan > once:1~8ca9a8",
 			"reason": "build only: one plugin_not_listed warning per unlisted plugin package, once per build"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scan > read_for_plugins > some:0~fcb899",
+			"id": "packages/compiler/src/driver.ts > Compiler > #scan > read_for_plugins > some:0~fcb899",
 			"reason": "build only: a lookup of one prescan hook's imports per prescanned module specifier, a handful of plugins"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #emit_late_server_regions",
+			"id": "packages/compiler/src/driver.ts > Compiler > #emit_late_server_regions",
 			"reason": "once per registration in a build: a loop over the result's islands that emits a server region reached after the leg wrote server-regions (#1420), constant work per island; a real build runs it (test/late-server-regions.test.ts)"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > end_leg",
+			"id": "packages/compiler/src/driver.ts > Compiler > end_leg",
 			"reason": "once per leg per build (closeBundle): a filter over the open legs (two at most), constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > end_leg > filter:0~ab7572",
+			"id": "packages/compiler/src/driver.ts > Compiler > end_leg > filter:0~ab7572",
 			"reason": "one state read per leg (two at most), constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > find_leg",
+			"id": "packages/compiler/src/driver.ts > Compiler > find_leg",
 			"reason": "one Map read, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > leg",
+			"id": "packages/compiler/src/driver.ts > Compiler > leg",
 			"reason": "once per build hook: one Map read, or a filter over the open legs (two at most), constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > leg > filter:0~ab7572",
+			"id": "packages/compiler/src/driver.ts > Compiler > leg > filter:0~ab7572",
 			"reason": "one state read per leg (two at most), constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > relocate",
+			"id": "packages/compiler/src/driver.ts > Compiler > relocate",
 			"reason": "once per finished chunk (renderChunk): builds the relocation context and calls link/relocations.ts relocate, whose own cost is the token scan; a real build runs it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > start_leg",
+			"id": "packages/compiler/src/driver.ts > Compiler > start_leg",
 			"reason": "once per leg per build (buildStart): one Map write and a flag, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > with_ctx",
+			"id": "packages/compiler/src/driver.ts > Compiler > with_ctx",
 			"reason": "once per environment of a builder that shares one plugin: a new Compiler over the same build, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/leg.ts > new_leg",
+			"id": "packages/compiler/src/leg.ts > new_leg",
 			"reason": "once per leg per build: an object of empty Maps, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/leg.ts > new_leg > barrels_left",
+			"id": "packages/compiler/src/leg.ts > new_leg > barrels_left",
 			"reason": "one Map read (a table made on first use), constant work; the table's own work is measured in the barrel-left bench"
 		},
 		{
-			"id": "packages/compiler/src/compiler/leg.ts > new_leg > barrels_said",
+			"id": "packages/compiler/src/leg.ts > new_leg > barrels_said",
 			"reason": "one Map read, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/emit-gate.ts > parse_server_handoff > filter:0~4b42c1",
+			"id": "packages/compiler/src/link/emit-gate.ts > parse_server_handoff > filter:0~4b42c1",
 			"reason": "once per server region in the build's server handoff (read once per client build): four typeof checks, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > FILE > value",
+			"id": "packages/compiler/src/link/relocations.ts > FILE > value",
 			"reason": "once per chunk that carries the token: a closure over the chunk's file name, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > FILE > value > <anonymous>~397f04",
+			"id": "packages/compiler/src/link/relocations.ts > FILE > value > <anonymous>~397f04",
 			"reason": "one patch's text from the chunk's file name, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > FN_MANIFEST > value",
+			"id": "packages/compiler/src/link/relocations.ts > FN_MANIFEST > value",
 			"reason": "once per chunk that carries the token: a closure over the build's fn hoists, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > FN_MANIFEST > value > <anonymous>~787be9",
+			"id": "packages/compiler/src/link/relocations.ts > FN_MANIFEST > value > <anonymous>~787be9",
 			"reason": "the fn manifest's registrations, once per build (fn_manifest_registrations does the work)"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > ISLAND_DEPS > value",
+			"id": "packages/compiler/src/link/relocations.ts > ISLAND_DEPS > value",
 			"reason": "once per chunk that carries the token: a closure over the chunk graph, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > ISLAND_DEPS > value > <anonymous>~d63cf2",
+			"id": "packages/compiler/src/link/relocations.ts > ISLAND_DEPS > value > <anonymous>~d63cf2",
 			"reason": "one island's dependency list from the finished graph, once per island token in the runtime chunk"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > LATE_SERVER_REGIONS > value",
+			"id": "packages/compiler/src/link/relocations.ts > LATE_SERVER_REGIONS > value",
 			"reason": "once per chunk that carries the token: a closure over the leg's late regions, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > LATE_SERVER_REGIONS > value > <anonymous>~ede5b3",
+			"id": "packages/compiler/src/link/relocations.ts > LATE_SERVER_REGIONS > value > <anonymous>~ede5b3",
 			"reason": "the late server regions' loader table, once per build, linear in the late regions (a handful, #1420)"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > LATE_SERVER_REGIONS > value > map:0~45f7e5",
+			"id": "packages/compiler/src/link/relocations.ts > LATE_SERVER_REGIONS > value > map:0~45f7e5",
 			"reason": "one table row per late server region, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > LATE_SERVER_REGIONS > value > sort:0~60d5a8",
+			"id": "packages/compiler/src/link/relocations.ts > LATE_SERVER_REGIONS > value > sort:0~60d5a8",
 			"reason": "one string compare in a sort of the late server regions (a handful), constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > PAGE_DATA_READS > value",
+			"id": "packages/compiler/src/link/relocations.ts > PAGE_DATA_READS > value",
 			"reason": "once per chunk that carries the token: a closure over the program, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > PAGE_DATA_READS > value > <anonymous>~76fd15",
+			"id": "packages/compiler/src/link/relocations.ts > PAGE_DATA_READS > value > <anonymous>~76fd15",
 			"reason": "the page-data reads table, once per build; the per-module key analysis it reads is measured in the page data keys benches"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > PAGE_DATA_READS > value > clean",
+			"id": "packages/compiler/src/link/relocations.ts > PAGE_DATA_READS > value > clean",
 			"reason": "one module id's query and hash stripped, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > PAGE_DATA_READS > value > imports_kit_page",
+			"id": "packages/compiler/src/link/relocations.ts > PAGE_DATA_READS > value > imports_kit_page",
 			"reason": "one module's import list against Kit's page module ids, constant work per module"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > PAGE_DATA_READS > value > imports_kit_page > some:0~c46626",
+			"id": "packages/compiler/src/link/relocations.ts > PAGE_DATA_READS > value > imports_kit_page > some:0~c46626",
 			"reason": "one specifier test, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > PAGE_DATA_READS > value > reads",
+			"id": "packages/compiler/src/link/relocations.ts > PAGE_DATA_READS > value > reads",
 			"reason": "one module's recorded keys from the program, a Map read, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > PAGE_DATA_READS > value > reads_itself",
+			"id": "packages/compiler/src/link/relocations.ts > PAGE_DATA_READS > value > reads_itself",
 			"reason": "one module's plugin answer (reads.keys), constant work per module"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > relocate",
+			"id": "packages/compiler/src/link/relocations.ts > relocate",
 			"reason": "once per finished chunk (renderChunk): an includes() per relocation token (a fixed table), then the patches; a real build runs it (test/relocations.test.ts)"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > relocate > patch",
+			"id": "packages/compiler/src/link/relocations.ts > relocate > patch",
 			"reason": "one MagicString overwrite per token found, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > relocations_of",
+			"id": "packages/compiler/src/link/relocations.ts > relocations_of",
 			"reason": "a filter of the fixed relocation table, once per chunk, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > relocations_of > filter:0~7b65ad",
+			"id": "packages/compiler/src/link/relocations.ts > relocations_of > filter:0~7b65ad",
 			"reason": "one flag read per relocation of a fixed table, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > server_map",
+			"id": "packages/compiler/src/link/relocations.ts > server_map",
 			"reason": "once per build: makes the server-manifest relocation for one map, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > server_map > value",
+			"id": "packages/compiler/src/link/relocations.ts > server_map > value",
 			"reason": "once per chunk that carries the token: a closure over the program, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > server_map > value > <anonymous>~76fd15",
+			"id": "packages/compiler/src/link/relocations.ts > server_map > value > <anonymous>~76fd15",
 			"reason": "one server map's text, once per build (server_manifest_maps does the work)"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > server_map > value > server_manifest_maps:1~948e26",
+			"id": "packages/compiler/src/link/relocations.ts > server_map > value > server_manifest_maps:1~948e26",
 			"reason": "one region's loader path from the finished graph, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/relocations.ts > unpatched > filter:0~209606",
+			"id": "packages/compiler/src/link/relocations.ts > unpatched > filter:0~209606",
 			"reason": "once per build's end: one count read per relocation of a fixed table, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/server-manifest.ts > server_island_ids > map:0~2660cd",
+			"id": "packages/compiler/src/link/server-manifest.ts > server_island_ids > map:0~2660cd",
 			"reason": "one region's id, constant work, once per server region per build"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/server-manifest.ts > server_manifest_module > server_manifest_maps:1~a45221",
+			"id": "packages/compiler/src/link/server-manifest.ts > server_manifest_module > server_manifest_maps:1~a45221",
 			"reason": "dev only: one region's loader path, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/server-manifest.ts > server_regions > sort:0~60d5a8",
+			"id": "packages/compiler/src/link/server-manifest.ts > server_regions > sort:0~60d5a8",
 			"reason": "one string compare in the server regions' sort, constant work, once per build"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > as_region_removed > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > as_region_removed > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > as_region_removed > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > as_region_removed > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > build_leg_unclear > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > build_leg_unclear > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > build_leg_unclear > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > build_leg_unclear > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_session_order > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > plugin_session_order > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_session_order > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > plugin_session_order > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_binding_not_component > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > region_binding_not_component > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_binding_not_component > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > region_binding_not_component > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_import_bare > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > region_import_bare > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_import_bare > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > region_import_bare > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_import_namespace > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > region_import_namespace > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_import_namespace > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > region_import_namespace > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_import_type_only > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > region_import_type_only > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_import_type_only > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > region_import_type_only > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > WARNED > relocation_unpatched > details",
+			"id": "packages/compiler/src/messages.ts > WARNED > relocation_unpatched > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > WARNED > relocation_unpatched > text",
+			"id": "packages/compiler/src/messages.ts > WARNED > relocation_unpatched > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > WARNED > runtime_marks_late > details",
+			"id": "packages/compiler/src/messages.ts > WARNED > runtime_marks_late > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > WARNED > runtime_marks_late > text",
+			"id": "packages/compiler/src/messages.ts > WARNED > runtime_marks_late > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/program.ts > Program > #check_late",
+			"id": "packages/compiler/src/program.ts > Program > #check_late",
 			"reason": "once per registration after the runtime entry was made: a filter of the features (a fixed, short list), constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/program.ts > Program > #check_late > filter:0~d2085d",
+			"id": "packages/compiler/src/program.ts > Program > #check_late > filter:0~d2085d",
 			"reason": "two Set reads per feature, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/program.ts > Program > fresh",
+			"id": "packages/compiler/src/program.ts > Program > fresh",
 			"reason": "once per build: an empty Program, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/marked-imports.ts > check_marked_uses > fail",
+			"id": "packages/compiler/src/region/marked-imports.ts > check_marked_uses > fail",
 			"reason": "error path only: throws region_binding_not_component once"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > OgygiaError:1~d432b3 > map:0~aec972",
+			"id": "packages/compiler/src/region/marked-imports.ts > marked_import_bindings > OgygiaError:1~d432b3 > map:0~aec972",
 			"reason": "error path only: one binding's name for the refusal"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/marked-imports.ts > misuse_of > some:0~49a88e",
+			"id": "packages/compiler/src/region/marked-imports.ts > misuse_of > some:0~49a88e",
 			"reason": "error path only: names how a refused binding is used"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/marked-imports.ts > refuse_as_region > walk:1~703860",
+			"id": "packages/compiler/src/region/marked-imports.ts > refuse_as_region > walk:1~703860",
 			"reason": "error path only: runs when the source holds 'asRegion' (the removed spelling), to list its replacements"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/marked-imports.ts > refuse_as_region > walk:1~ca52a2",
+			"id": "packages/compiler/src/region/marked-imports.ts > refuse_as_region > walk:1~ca52a2",
 			"reason": "error path only: runs when the source holds 'asRegion' (the removed spelling), to list its replacements"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/marked-imports.ts > refuse_as_region > walk:1~ca52a2 > find:0~20e58c",
+			"id": "packages/compiler/src/region/marked-imports.ts > refuse_as_region > walk:1~ca52a2 > find:0~20e58c",
 			"reason": "error path only: one specifier test while listing an asRegion call's replacement"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > OgygiaError:1~5017d8 > map:0~58bf65",
+			"id": "packages/compiler/src/region/transform.ts > TsRegionCompilation > run > OgygiaError:1~5017d8 > map:0~58bf65",
 			"reason": "error path only: one re-exported name for region_import_invalid"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > map:0~68f2a7",
+			"id": "packages/compiler/src/region/transform.ts > TsRegionCompilation > run > map:0~68f2a7",
 			"reason": "one binding's local name per marked import in a .ts module, constant work"
 		},
 		{
@@ -5565,15 +5597,15 @@
 			"reason": "one machine move per configResolved, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/context-detect.ts > context_keys > walk",
+			"id": "packages/compiler/src/link/context-detect.ts > context_keys > walk",
 			"reason": "the AST walk that finds context calls and their keys in one module: recursive over the parsed tree (not replayable), linear in its nodes; context-detect tests run it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > WARNED > region_context_key_one_off > details",
+			"id": "packages/compiler/src/messages.ts > WARNED > region_context_key_one_off > details",
 			"reason": "a warning's longer wording for its error page, constant text"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > WARNED > region_context_key_one_off > text",
+			"id": "packages/compiler/src/messages.ts > WARNED > region_context_key_one_off > text",
 			"reason": "a warning's wording, constant text"
 		},
 		{
@@ -5621,131 +5653,131 @@
 			"reason": "browser only: reads the page's fixed bottom chrome under the launcher through elementsFromPoint and getComputedStyle, linear in the hit elements' ancestors; docs e2e shellbar-keep.spec.ts proves it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > #resolve_region_mark > map:0~3a7f2a",
+			"id": "packages/compiler/src/region/transform.ts > FileCompilation > #resolve_region_mark > map:0~3a7f2a",
 			"reason": "maps a preset's keys to their standard names once per marked import (not replayable inside the file compilation), linear in its keys"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #regions_print",
+			"id": "packages/compiler/src/driver.ts > Compiler > #regions_print",
 			"reason": "dev only: one host's registry rows and the runtime marks as text, to see whether a transform moved what regions readers read (reads the session's program: not replayable), linear in the host's regions; dev-regions-reload.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #regions_print > map:0~cca2d8",
+			"id": "packages/compiler/src/driver.ts > Compiler > #regions_print > map:0~cca2d8",
 			"reason": "one registry row as a tuple for #regions_print, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #register",
+			"id": "packages/compiler/src/driver.ts > Compiler > #register",
 			"reason": "registers a transform's regions on the session's program; in dev, compares two #regions_print texts (not replayable), linear in the host's regions"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scan_facts > facts > some:0~b5645b",
+			"id": "packages/compiler/src/driver.ts > Compiler > #scan_facts > facts > some:0~b5645b",
 			"reason": "does one module spec name a page importer, constant work per spec"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scans",
+			"id": "packages/compiler/src/driver.ts > Compiler > #scans",
 			"reason": "how the prescan reads one id: path tests against the app root and the declared package dirs (reads the session ctx: not replayable), linear in the declared dirs"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scans > find:0~145c92",
+			"id": "packages/compiler/src/driver.ts > Compiler > #scans > find:0~145c92",
 			"reason": "the declared package dir an id sits under, constant work per dir"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scans > flatMap:0~910586",
+			"id": "packages/compiler/src/driver.ts > Compiler > #scans > flatMap:0~910586",
 			"reason": "the declared packages' scan dirs, linear in them"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > moved",
+			"id": "packages/compiler/src/driver.ts > Compiler > moved",
 			"reason": "the virtual modules a dev change moved, read off the build's virtual table (not replayable), linear in them; dev-scan-facts.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > router_css_roots > router_css_roots:3~858a4d",
+			"id": "packages/compiler/src/driver.ts > Compiler > router_css_roots > router_css_roots:3~858a4d",
 			"reason": "the query that reads the router CSS roots from the session's queries db (not replayable), linear in the roots"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > routes_changed",
+			"id": "packages/compiler/src/driver.ts > Compiler > routes_changed",
 			"reason": "dev only: a route file event through the routes db, invalidating the hosts whose csr world moved (reads the session's worlds: not replayable), linear in the worlds"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > routes_changed > invalidate",
+			"id": "packages/compiler/src/driver.ts > Compiler > routes_changed > invalidate",
 			"reason": "adds one module id to the set routes_changed returns, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/fs.ts > memory_fs > stat",
+			"id": "packages/compiler/src/fs.ts > memory_fs > stat",
 			"reason": "the in-memory fs seam's stat: one map read (the seam's own state: not replayable), constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/fs.ts > node_fs > stat",
+			"id": "packages/compiler/src/fs.ts > node_fs > stat",
 			"reason": "the node fs seam's stat: one fs.statSync call (the disk: not replayable), constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/kit.ts > route_reader > input:2~e5742d",
+			"id": "packages/compiler/src/kit.ts > route_reader > input:2~e5742d",
 			"reason": "the routes db input that reads one route file through the fs seam (not replayable), linear in its text"
 		},
 		{
-			"id": "packages/compiler/src/compiler/queries.ts > queries > db > changed_since",
+			"id": "packages/compiler/src/queries.ts > queries > db > changed_since",
 			"reason": "compares one slot's changed stamp to a revision (the db's slots: not cloneable), constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/queries.ts > queries > db > holds",
+			"id": "packages/compiler/src/queries.ts > queries > db > holds",
 			"reason": "is an answer held for this query and arg: one slot lookup (the db's state: not replayable), constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/queries.ts > queries > db > reread",
+			"id": "packages/compiler/src/queries.ts > queries > db > reread",
 			"reason": "reruns every held input once (a new build of the same session), linear in the held inputs; queries tests and the queries bench run it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/scan-facts.ts > scan_facts > has",
+			"id": "packages/compiler/src/scan-facts.ts > scan_facts > has",
 			"reason": "does the scan hold facts for a file: one db read (the scan db's state: not replayable), constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/scan-facts.ts > scan_facts > input:2~ae0427",
+			"id": "packages/compiler/src/scan-facts.ts > scan_facts > input:2~ae0427",
 			"reason": "the scan db input for a file's facts, set by the prescan and the dev transform (not replayable), constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/scan-facts.ts > scan_facts > input:2~ea66dc",
+			"id": "packages/compiler/src/scan-facts.ts > scan_facts > input:2~ea66dc",
 			"reason": "the scan db input for a file's facts, read by every query over the scan (not replayable), constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/fouc-css.ts > extractRawStyleBodies > filter:0~e6fdc6",
+			"id": "packages/compiler/src/fouc-css.ts > extractRawStyleBodies > filter:0~e6fdc6",
 			"reason": "a filter over one component's blocks (a handful), constant work per block; component-blocks.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/fouc-css.ts > scoped_component_css",
+			"id": "packages/compiler/src/fouc-css.ts > scoped_component_css",
 			"reason": "one preprocess then one Svelte compile per component, the compile's own cost; router-css-dev-preprocess.test.ts runs it through the compiler"
 		},
 		{
-			"id": "packages/compiler/src/compiler/link/own-reach.ts > pattern_keys",
+			"id": "packages/compiler/src/link/own-reach.ts > pattern_keys",
 			"reason": "the keys of one destructuring pattern on a dynamic import, a handful, constant work per key; own-reach.test.ts runs it through the prescan"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/dollar.ts > dollar_edits > refuse_at",
+			"id": "packages/compiler/src/macros/dollar.ts > dollar_edits > refuse_at",
 			"reason": "builds one refusal error at one site, cold path; og-dollar.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/dollar.ts > dollar_edits > strip_ts_types:2~2a7829",
+			"id": "packages/compiler/src/macros/dollar.ts > dollar_edits > strip_ts_types:2~2a7829",
 			"reason": "a callback over one og.$ body's type nodes, constant work per node; og-dollar.test.ts covers the TS erasure"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/dollar.ts > strip_ts_types > blank_mark",
+			"id": "packages/compiler/src/macros/dollar.ts > strip_ts_types > blank_mark",
 			"reason": "blanks one type mark in place, constant work per mark; og-dollar.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/dollar.ts > strip_ts_types > blank_words",
+			"id": "packages/compiler/src/macros/dollar.ts > strip_ts_types > blank_words",
 			"reason": "blanks one span of type words, linear in the span; og-dollar.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/dollar.ts > type_only_namespace > every:0~7b9c9b",
+			"id": "packages/compiler/src/macros/dollar.ts > type_only_namespace > every:0~7b9c9b",
 			"reason": "a test over one namespace's statements, a handful; og-dollar.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/parse/scan.ts > og_js_regions > filter:0~c0fc36",
+			"id": "packages/compiler/src/parse/scan.ts > og_js_regions > filter:0~c0fc36",
 			"reason": "a filter over one component's blocks (a handful), constant work per block; component-blocks.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/parse/scan.ts > og_js_regions > map:0~69761c",
+			"id": "packages/compiler/src/parse/scan.ts > og_js_regions > map:0~69761c",
 			"reason": "maps one component's script blocks to regions, constant work per block; component-blocks.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/transportables.ts > moduleScriptOf > find:0~9b8e10",
+			"id": "packages/compiler/src/transportables.ts > moduleScriptOf > find:0~9b8e10",
 			"reason": "finds the module script among one component's blocks (a handful); component-blocks.test.ts runs it"
 		},
 		{
@@ -5773,23 +5805,23 @@
 			"reason": "drops the failed probes from at most `limit` probes, constant work per probe; devtools-cache-headers.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/ctx.ts > CompileCtx > get app_spec > stat",
+			"id": "packages/compiler/src/ctx.ts > CompileCtx > get app_spec > stat",
 			"reason": "a forwarder to the compiler's fs seam (`fs.stat`), no work of its own; region-identity-canonical.test.ts runs the root-absolute case"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/source.ts > ast_edits_or_null_unparsed > sort:0~c12a84",
+			"id": "packages/compiler/src/macros/source.ts > ast_edits_or_null_unparsed > sort:0~c12a84",
 			"reason": "a sort comparator over one module's macro edits (a handful), constant work per compare"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/source.ts > ast_edits_or_null_unparsed > walk:1~30be9a",
+			"id": "packages/compiler/src/macros/source.ts > ast_edits_or_null_unparsed > walk:1~30be9a",
 			"reason": "the AST walk's per-node visitor, constant work per node; the macro tests run it on every module they rewrite"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/wire.ts > ast_edits_or_null_unparsed > sort:0~c12a84",
+			"id": "packages/compiler/src/macros/wire.ts > ast_edits_or_null_unparsed > sort:0~c12a84",
 			"reason": "a sort comparator over one module's wire edits (a handful), constant work per compare"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/wire.ts > ast_edits_or_null_unparsed > walk:1~8d2430",
+			"id": "packages/compiler/src/macros/wire.ts > ast_edits_or_null_unparsed > walk:1~8d2430",
 			"reason": "the AST walk's per-node visitor, constant work per node; og-wire tests run it on every module they rewrite"
 		},
 		{
@@ -5809,23 +5841,23 @@
 			"reason": "build only: a plugin's prescan registration, once per plugin per build, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > relocate > relocate:3~0b2c47 > public_url",
+			"id": "packages/compiler/src/driver.ts > Compiler > relocate > relocate:3~0b2c47 > public_url",
 			"reason": "one island's public url from the context, constant work, once per island token patched"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > page_reads_claimed > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > page_reads_claimed > text",
 			"reason": "a build error's text, built once when two plugins claim seed shaping, then the build stops; constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > page_reads_claimed > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > page_reads_claimed > details",
 			"reason": "a build error's details, built once when two plugins claim seed shaping, then the build stops; constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_needs_plugin > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > plugin_needs_plugin > text",
 			"reason": "a build error's text, built once when a plugin is listed without one it needs, then the build stops; constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_needs_plugin > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > plugin_needs_plugin > details",
 			"reason": "a build error's details, built once when a plugin is listed without one it needs, then the build stops; constant work"
 		},
 		{
@@ -5961,11 +5993,11 @@
 			"reason": "a message table entry: wording only (#1687)"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > option_unknown > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > option_unknown > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > option_unknown > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > option_unknown > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
@@ -5977,35 +6009,35 @@
 			"reason": "builds the unknown-option message, once, as the build fails"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_attribute_unknown > details",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > region_attribute_unknown > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_attribute_unknown > text",
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > region_attribute_unknown > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/transform.ts > component_attribute_keys",
+			"id": "packages/compiler/src/region/transform.ts > component_attribute_keys",
 			"reason": "builds an eight-name list, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/transform.ts > foreign_attribute",
+			"id": "packages/compiler/src/region/transform.ts > foreign_attribute",
 			"reason": "two lookups per attribute key, constant work"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/transform.ts > has_unknown_component_attribute",
+			"id": "packages/compiler/src/region/transform.ts > has_unknown_component_attribute",
 			"reason": "only for a host with no region key: one includes() and one linear regex pass over its .svelte import clauses; a bench would count the regex engine, not ours"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/transform.ts > refuse_unknown_attributes",
+			"id": "packages/compiler/src/region/transform.ts > refuse_unknown_attributes",
 			"reason": "once per attributed import a host already parses, over its few attribute keys"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/transform.ts > refuse_unknown_attributes > OgygiaError:1~5816b6 > map:0~86ff3f",
+			"id": "packages/compiler/src/region/transform.ts > refuse_unknown_attributes > OgygiaError:1~5816b6 > map:0~86ff3f",
 			"reason": "builds the message once, as the build fails"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > map:0~74ff48",
+			"id": "packages/compiler/src/region/transform.ts > TsRegionCompilation > run > map:0~74ff48",
 			"reason": "one specifier's local name per attributed import in a .ts module, for region_attribute_unknown's message: constant work"
 		}
 	]

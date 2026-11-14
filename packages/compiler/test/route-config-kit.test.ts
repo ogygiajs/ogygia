@@ -3,8 +3,8 @@ import { dedent } from '@ogygia/core/contract';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { read_route_config, page_route_config, route_reader } from '../src/compiler/kit.ts';
-import { node_fs } from '../src/compiler/fs.ts';
+import { read_route_config, page_route_config, route_reader } from '../src/kit.ts';
+import { node_fs } from '../src/fs.ts';
 import {
 	route_config,
 	set_page_route_config,

@@ -8,7 +8,7 @@
 import {
 	transformHost,
 	wrapperVirtualId
-} from '../../../packages/compiler/dist/compiler/region/transform.js';
+} from '../../../packages/compiler/dist/region/transform.js';
 import { CTX_EXTRA } from './_ctx-extra.ts';
 import { test, check } from '@ogygia/tooling/e2e';
 import { dedent } from 'ogygia/plugin/utils';

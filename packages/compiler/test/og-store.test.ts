@@ -6,7 +6,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
 import { get, writable, derived } from 'svelte/store';
 import { parse, stringify } from 'devalue';
-import { rewrite_store, auto_brand_stores } from '../src/compiler/macros/store.ts';
+import { rewrite_store, auto_brand_stores } from '../src/macros/store.ts';
 import {
 	__og_store,
 	__register_store_factory,

@@ -21,6 +21,11 @@
  *
  *   node src/autopilot.ts --package core [--project node] [--project browser] [--out <dir>]
  *     [--skip <file of site ids>] [--only <text>] [--limit <n>] [--timeout-s <s>] [--remap] [--apply]
+ *     [--tests <folder>]
+ *
+ * The tests are the package's own, or `--tests` names the folder whose tests reach it (a package
+ * with no tests of its own, like a shared config other packages' tests import). That folder's
+ * vitest config is used, or vitest's defaults when it has none.
  *
  * `--apply` writes `patch.json` into internal/sim/failures.json (baseline to covered).
  * test/autopilot.test.ts.
@@ -86,6 +91,11 @@ const wrap = (n: { start: number; end: number }, open: string, close: string): E
 	];
 };
 
+/** The opening of a wrap that runs probe `p` before a handler, with its `this` and arguments (a
+ *  value that is not a function goes through as it is). */
+const CALL_THROUGH = (p: string): string =>
+	`((h: any) => typeof h === 'function' ? function (this: any, ...a: any[]) { ${p}; return h.apply(this, a); } : h)(`;
+
 const truthy = (id: string) => `((v: any) => (v && ${probe_call(id)}, v))(`;
 const falsy = (id: string) => `((v: any) => (!v && ${probe_call(id)}, v))(`;
 const NEGATED: ReadonlySet<string> = new Set(['!==', '!=']);
@@ -97,11 +107,58 @@ function handler_of(s: SiteNode): Node | null {
 	return h === undefined || h.type === 'SpreadElement' ? null : h;
 }
 
-/** The condition a check site is (`!res.ok`, `x === STALE`, `!x.body`, `x.body === null`), and
- *  whether it holds on the recovery path when true. */
+const FUNCTION_TYPES: ReadonlySet<string> = new Set([
+	'ArrowFunctionExpression',
+	'FunctionExpression'
+]);
+
+/** The callback a timer runs when it fires (its give-up path): `setTimeout`'s first argument, or the
+ *  function a scope's `timeout(ms, fn)` is handed. Null when it has none (`AbortSignal.timeout`). */
+function timer_callback(s: SiteNode): Node | null {
+	const args = (s.node.arguments as Node[] | undefined) ?? [];
+	const callee = s.node.callee as Node;
+	if (callee.type === 'Identifier' && callee.name === 'setTimeout')
+		return args[0] !== undefined && args[0].type !== 'SpreadElement' ? args[0] : null;
+	return args.find((a) => FUNCTION_TYPES.has(a.type)) ?? null;
+}
+
+/** The handler an error event runs: a listener's (the argument after the event's name), an
+ *  `onerror = h`'s or an `{ onerror: h }`'s. */
+function error_handler(s: SiteNode): Node | null {
+	if (s.node.type === 'CallExpression') {
+		const args = s.node.arguments as Node[];
+		const at = args.findIndex((a) => a.type === 'Literal');
+		const h = args[at + 1];
+		return at === -1 || h === undefined || h.type === 'SpreadElement' ? null : h;
+	}
+	if (s.node.type === 'Property') return s.node.value as Node;
+	if (s.node.type === 'MemberExpression' && s.parent?.type === 'AssignmentExpression')
+		return s.parent.right as Node;
+	return null;
+}
+
+/** The condition a check site is (`!res.ok`, `x === STALE`, `!x.body`, `x.body === null`,
+ *  `signal.aborted`, `e.name === 'AbortError'`), and whether it holds on the recovery path when
+ *  true. */
 function check_of(s: SiteNode): { node: Node; when: boolean } | null {
 	if (s.kind === 'not-ok')
 		return s.parent?.type === 'UnaryExpression' ? { node: s.parent, when: true } : null;
+	if (s.kind === 'abort') {
+		if (s.node.type === 'MemberExpression') {
+			const p = s.parent;
+			const written =
+				(p?.type === 'AssignmentExpression' && p.left === s.node) ||
+				p?.type === 'UpdateExpression' ||
+				(p?.type === 'CallExpression' && p.callee === s.node);
+			return written ? null : { node: s.node, when: true };
+		}
+		if (s.node.type === 'Literal' && s.parent?.type === 'BinaryExpression') {
+			const op = String(s.parent.operator);
+			if (!['===', '!==', '==', '!='].includes(op)) return null;
+			return { node: s.parent, when: !NEGATED.has(op) };
+		}
+		return null;
+	}
 	if (s.node.type === 'UnaryExpression') return { node: s.node, when: true };
 	if (s.node.type === 'BinaryExpression')
 		return { node: s.node, when: !NEGATED.has(String(s.node.operator)) };
@@ -121,13 +178,7 @@ export function probe_of(s: SiteNode): Edit[] | null {
 		case '.catch':
 		case 'reject': {
 			const h = handler_of(s);
-			return h === null
-				? null
-				: wrap(
-						h,
-						`((h: any) => typeof h === 'function' ? (...a: any[]) => (${p}, h(...a)) : h)(`,
-						')'
-					);
+			return h === null ? null : wrap(h, CALL_THROUGH(p), ')');
 		}
 		case 'not-ok':
 		case 'stale':
@@ -137,6 +188,15 @@ export function probe_of(s: SiteNode): Edit[] | null {
 		}
 		case 'result':
 			return wrap(s.node.value as Node, `(${p}, `, ')');
+		case 'abort': {
+			const c = check_of(s);
+			return c === null ? null : wrap(c.node, c.when ? truthy(s.id) : falsy(s.id), ')');
+		}
+		case 'timer':
+		case 'error-event': {
+			const h = s.kind === 'timer' ? timer_callback(s) : error_handler(s);
+			return h === null ? null : wrap(h, CALL_THROUGH(p), ')');
+		}
 		default:
 			return null;
 	}
@@ -151,7 +211,10 @@ export const AUTOPILOT_KINDS: ReadonlySet<SiteKind> = new Set([
 	'stale',
 	'body',
 	'throw',
-	'result'
+	'result',
+	'abort',
+	'timer',
+	'error-event'
 ]);
 
 const RETHROW = '(e: unknown) => { throw e; }';
@@ -232,6 +295,39 @@ export function mutants_of(s: SiteNode): SiteMutant[] {
 					edits: [replace(s.node, '{}')]
 				}
 			];
+		case 'abort': {
+			const c = check_of(s);
+			if (c === null) return [];
+			return [
+				{
+					operator: 'never',
+					says: 'the abort check never true',
+					edits: [replace(c.node, c.when ? 'false' : 'true')]
+				}
+			];
+		}
+		case 'timer': {
+			const h = timer_callback(s);
+			if (h === null) return [];
+			return [
+				{
+					operator: 'silent',
+					says: "the timer's callback made to do nothing",
+					edits: [replace(h, '() => {}')]
+				}
+			];
+		}
+		case 'error-event': {
+			const h = error_handler(s);
+			if (h === null) return [];
+			return [
+				{
+					operator: 'silent',
+					says: 'the error handler made to do nothing',
+					edits: [replace(h, '() => {}')]
+				}
+			];
+		}
 		case 'result':
 			return [
 				{
@@ -306,6 +402,8 @@ export interface AutopilotReport {
 	readonly unhandled: string[];
 	/** Sites left out (`--skip`) or not judged yet (`--limit`, `--only`). */
 	readonly skipped: string[];
+	/** Sites a mutant killed whose failing tests' names the ledger could not find in their files. */
+	readonly unnamed: { readonly site: string; readonly tests: readonly string[] }[];
 }
 
 export interface AutopilotOptions {
@@ -314,7 +412,10 @@ export interface AutopilotOptions {
 	/** The baseline's site ids (the ones in other packages are ignored). */
 	readonly baseline: readonly string[];
 	readonly out: string;
-	/** The vitest binary (default: the package's own). */
+	/** The folder (from the root) whose tests run, under its vitest config or vitest's defaults
+	 *  (default: the package's own). */
+	readonly tests?: string;
+	/** The vitest binary (default: the tests folder's own). */
 	readonly vitest?: string;
 	/** The test projects to run, each on its own (`null`: the config's own, no `--project`). */
 	readonly projects: readonly (string | null)[];
@@ -360,20 +461,21 @@ function stop_child(): void {
 	}
 }
 
+const tests_dir = (o: AutopilotOptions): string => join(o.root, o.tests ?? join('packages', o.pkg));
+
 const CONFIGS: readonly string[] = ['vitest.config.ts', 'vitest.config.js', 'vite.config.ts'];
 
-/** The vitest config a run uses: the package's own, with the probe recorder in each project and
- *  the autopilot's reporter alone. */
-function wrapper_config(pkgdir: string, out: string): string {
-	const base = CONFIGS.map((c) => join(pkgdir, c)).find((c) => existsSync(c));
-	if (base === undefined) throw new Error(`${pkgdir}: no vitest config`);
+/** The vitest config a run uses: the tests folder's own (vitest's defaults when it has none), with
+ *  the probe recorder in each project and the autopilot's reporter alone. */
+function wrapper_config(testdir: string, out: string): string {
+	const base = CONFIGS.map((c) => join(testdir, c)).find((c) => existsSync(c));
 	const setup = resolve(import.meta.dirname, 'autopilot-setup.ts');
 	const reporter = resolve(import.meta.dirname, 'autopilot-reporter.ts');
 	const file = join(out, 'vitest.autopilot.config.mts');
 	writeFileSync(
 		file,
 		dedent`
-			import base from ${JSON.stringify(base)};
+			${base === undefined ? 'const base = {};' : `import base from ${JSON.stringify(base)};`}
 			const made: any = typeof base === 'function' ? await (base as any)({ command: 'serve', mode: 'test' }) : await base;
 			const test = (made.test ??= {});
 			const add = (t: any) => { t.setupFiles = [...[t.setupFiles ?? []].flat(), ${JSON.stringify(setup)}]; };
@@ -381,7 +483,7 @@ function wrapper_config(pkgdir: string, out: string): string {
 			if (projects) for (const p of test.projects) add((p.test ??= {}));
 			else add(test);
 			test.reporters = [${JSON.stringify(reporter)}];
-			made.root = ${JSON.stringify(pkgdir)};
+			made.root = ${JSON.stringify(testdir)};
 			export default made;
 		`
 	);
@@ -402,7 +504,7 @@ async function run_vitest(
 	label: string,
 	limit_ms: number
 ): Promise<Ran> {
-	const pkgdir = join(o.root, 'packages', o.pkg);
+	const testdir = tests_dir(o);
 	const result = join(o.out, 'run.jsonl');
 	rmSync(result, { force: true });
 	const log = openSync(join(o.out, 'run.log'), 'w');
@@ -410,31 +512,37 @@ async function run_vitest(
 	for (const [k, v] of Object.entries(process.env))
 		if (!k.startsWith('VITEST') && !k.startsWith('TINYPOOL')) env[k] = v;
 	env.OGYGIA_AUTOPILOT_OUT = result;
-	const vitest = o.vitest ?? join(pkgdir, 'node_modules', '.bin', 'vitest');
+	const vitest = o.vitest ?? join(testdir, 'node_modules', '.bin', 'vitest');
 	const args = ['run', '--config', config, '--maxWorkers=2'];
 	if (project !== null) args.push('--project', project);
 	args.push(...files);
 	const started = Date.now();
 	let timed_out = false;
-	await new Promise<void>((done) => {
-		const c = spawn(vitest, args, {
-			cwd: pkgdir,
-			env,
-			detached: true,
-			stdio: ['ignore', log, log]
+	try {
+		await new Promise<void>((done, fail) => {
+			const c = spawn(vitest, args, {
+				cwd: testdir,
+				env,
+				detached: true,
+				stdio: ['ignore', log, log]
+			});
+			child = c;
+			const timer = setTimeout(() => {
+				timed_out = true;
+				stop_child();
+			}, limit_ms);
+			const settle = (e?: Error) => {
+				clearTimeout(timer);
+				child = null;
+				if (e === undefined) done();
+				else fail(new Error(`${label}: vitest did not start (${vitest}): ${e.message}`));
+			};
+			c.on('exit', () => settle());
+			c.on('error', settle);
 		});
-		child = c;
-		const timer = setTimeout(() => {
-			timed_out = true;
-			stop_child();
-		}, limit_ms);
-		c.on('exit', () => {
-			clearTimeout(timer);
-			child = null;
-			done();
-		});
-	});
-	closeSync(log);
+	} finally {
+		closeSync(log);
+	}
 	if (!o.quiet)
 		console.log(
 			`  ${label}: ${Math.round((Date.now() - started) / 1000)}s${timed_out ? ' (timed out)' : ''}`
@@ -448,13 +556,41 @@ async function run_vitest(
 
 interface Judged {
 	readonly site: string;
-	readonly verdict: 'proved' | 'survived' | 'no-mutant';
+	/** `unnamed`: a mutant killed it, but no failing test's name is in its file (the ledger could not
+	 *  find it): never a survivor. */
+	readonly verdict: 'proved' | 'survived' | 'no-mutant' | 'unnamed';
+	/** For `unnamed`: the tests that failed, by their full names. */
+	readonly tests?: readonly string[];
 	readonly proof?: Proof;
 	readonly operators?: readonly string[];
 }
 
 const has_name = (text: string, name: string): boolean =>
 	text.includes(`'${name}'`) || text.includes(`"${name}"`) || text.includes(`\`${name}\``);
+
+const STRINGS = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\$]|\\.|\$(?!\{))*)`/g;
+const EACH_MARK = /%[sdifjoOc#%]|\$[A-Za-z_][\w.]*/;
+
+/** The name a test has in its file (`text`), as the ledger's check finds it: `name` itself, or the
+ *  each template (`'%j gives %d'`, `'$a is $b'`) a parameterized test's `name` was made from. Null
+ *  when neither is there. */
+export function test_name_in(text: string, name: string): string | null {
+	if (has_name(text, name)) return name;
+	for (const m of text.matchAll(STRINGS)) {
+		const literal = m[1] ?? m[2] ?? m[3];
+		if (!EACH_MARK.test(literal)) continue;
+		let pattern = '';
+		let at = 0;
+		for (const mark of literal.matchAll(new RegExp(EACH_MARK.source, 'g'))) {
+			pattern += literal.slice(at, mark.index).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			pattern += mark[0] === '%%' ? '%' : '[\\s\\S]*?';
+			at = mark.index + mark[0].length;
+		}
+		pattern += literal.slice(at).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		if (new RegExp(`^${pattern}$`).test(name) && has_name(text, literal)) return literal;
+	}
+	return null;
+}
 
 /** The `-t` pattern that picks one test alone, by its full name (vitest joins a test's suites and
  *  its name with spaces). */
@@ -465,15 +601,17 @@ export function alone_pattern(full: string): string {
 		.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`;
 }
 
-/** What a map and its verdicts were made from: the sites asked about, the projects run, and every
- *  source file's text. A map or a verdict made from anything else is made again. */
+/** What a map and its verdicts were made from: the sites asked about, the tests folder and the
+ *  projects run, and every source file's text. A map or a verdict made from anything else is made
+ *  again. */
 function map_key(
 	ids: ReadonlySet<string>,
+	tests: string,
 	projects: readonly (string | null)[],
 	sources: ReadonlyMap<string, string>
 ): string {
 	const h = createHash('sha256');
-	h.update(JSON.stringify([[...ids].sort(), projects]));
+	h.update(JSON.stringify([[...ids].sort(), tests, projects]));
 	for (const [f, text] of [...sources].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
 		h.update(`\0${f}\0${text}`);
 	return h.digest('hex');
@@ -484,7 +622,6 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 	const root = realpathSync(o.root);
 	const opts = { ...o, root };
 	mkdirSync(o.out, { recursive: true });
-	const pkgdir = join(root, 'packages', o.pkg);
 	const baseline = new Set(o.baseline);
 	const files = scope_files(root, {
 		packages: [o.pkg],
@@ -509,7 +646,7 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 		}
 		return true;
 	});
-	const config = wrapper_config(pkgdir, o.out);
+	const config = wrapper_config(tests_dir(opts), o.out);
 
 	const on_signal = () => {
 		stop_child();
@@ -522,7 +659,7 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 		// map
 		const map_file = join(o.out, 'map.json');
 		const ids = new Set(wanted.map((s) => s.id));
-		const key = map_key(ids, o.projects, sources);
+		const key = map_key(ids, relative(root, tests_dir(opts)), o.projects, sources);
 		let reach: Record<string, Reach[]>;
 		const kept: { key?: string; reach?: Record<string, Reach[]> } | null =
 			!o.remap && existsSync(map_file) ? JSON.parse(readFileSync(map_file, 'utf8')) : null;
@@ -593,10 +730,12 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 		const proved: Proof[] = [];
 		const survived: Survivor[] = [];
 		const unreached: string[] = [];
+		const unnamed: AutopilotReport['unnamed'] = [];
 		for (const s of wanted) {
 			const j = judged.get(s.id);
 			if (reach[s.id] === undefined) unreached.push(s.id);
 			else if (j?.verdict === 'proved' && j.proof) proved.push(j.proof);
+			else if (j?.verdict === 'unnamed') unnamed.push({ site: s.id, tests: j.tests ?? [] });
 			else if (j?.verdict === 'survived')
 				survived.push({
 					site: s.id,
@@ -611,7 +750,8 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 			survived,
 			unreached,
 			unhandled,
-			skipped
+			skipped,
+			unnamed
 		};
 		writeFileSync(join(o.out, 'patch.json'), `${JSON.stringify(proved, null, '\t')}\n`);
 		writeFileSync(join(o.out, 'report.json'), `${JSON.stringify(report, null, '\t')}\n`);
@@ -634,6 +774,7 @@ async function judge(
 ): Promise<Judged> {
 	const abs = join(o.root, s.file);
 	const tried: string[] = [];
+	const unnamed: string[] = [];
 	for (const m of mutants_of(s)) {
 		const text = apply_edits(source, m.edits);
 		if (!parses(s.file, text)) continue;
@@ -693,20 +834,32 @@ async function judge(
 		const both = first
 			.filter((t) => again.some((a) => a.test === t.test && a.full === t.full))
 			.sort((a, b) => Number(a.hung) - Number(b.hung));
-		const named = both.find((t) => has_name(readFileSync(join(o.root, t.test), 'utf8'), t.name));
-		if (named === undefined) continue;
-		const red = named.hung ? 'hangs the test past the run time limit' : 'turns the test red';
+		let named: { t: (typeof both)[number]; name: string } | null = null;
+		for (const t of both) {
+			const name = test_name_in(readFileSync(join(o.root, t.test), 'utf8'), t.name);
+			if (name !== null) {
+				named = { t, name };
+				break;
+			}
+		}
+		if (named === null) {
+			if (both.length > 0) unnamed.push(...both.map((t) => `${t.test} › ${t.full}`));
+			continue;
+		}
+		const red = named.t.hung ? 'hangs the test past the run time limit' : 'turns the test red';
 		return {
 			site: s.id,
 			verdict: 'proved',
 			proof: {
 				site: s.id,
 				reason: `a test reaches its recovery path; proved by the autopilot: ${m.says} ${red}`,
-				test: named.test,
+				test: named.t.test,
 				name: named.name
 			}
 		};
 	}
+	if (unnamed.length > 0)
+		return { site: s.id, verdict: 'unnamed', operators: tried, tests: [...new Set(unnamed)] };
 	return {
 		site: s.id,
 		verdict: tried.length === 0 ? 'no-mutant' : 'survived',
@@ -720,7 +873,7 @@ export function report_md(r: AutopilotReport): string {
 	return [
 		`# Autopilot: packages/${r.package}`,
 		'',
-		`Baseline sites: ${r.baseline}. Proved: ${r.proved.length}. Survived: ${r.survived.length}. Unreached: ${r.unreached.length}. No operator: ${r.unhandled.length}. Skipped: ${r.skipped.length}.`,
+		`Baseline sites: ${r.baseline}. Proved: ${r.proved.length}. Survived: ${r.survived.length}. Killed but unnamed: ${r.unnamed.length}. Unreached: ${r.unreached.length}. No operator: ${r.unhandled.length}. Skipped: ${r.skipped.length}.`,
 		'',
 		'## Proved (baseline to covered)',
 		'',
@@ -737,6 +890,10 @@ export function report_md(r: AutopilotReport): string {
 						.join('; ')}${s.tests.length > 3 ? `; +${s.tests.length - 3}` : ''}`
 			)
 			.join('\n'),
+		'',
+		'## Killed, but no failing test has a name the ledger finds',
+		'',
+		r.unnamed.map((u) => `- \`${u.site}\`: ${u.tests.slice(0, 3).join('; ')}`).join('\n'),
 		'',
 		'## Unreached (no test runs the recovery path)',
 		'',
@@ -803,6 +960,7 @@ async function main(): Promise<void> {
 		pkg,
 		baseline: ledger.baseline,
 		out,
+		tests: args_of('--tests')[0],
 		projects: projects.length > 0 ? projects : [null],
 		exclude: ledger.scope.exclude,
 		skip,
@@ -812,7 +970,7 @@ async function main(): Promise<void> {
 		remap: process.argv.includes('--remap')
 	});
 	console.log(
-		`packages/${pkg}: ${report.baseline} in the baseline; proved ${report.proved.length}, survived ${report.survived.length}, unreached ${report.unreached.length}, no operator ${report.unhandled.length}, skipped ${report.skipped.length} (${out})`
+		`packages/${pkg}: ${report.baseline} in the baseline; proved ${report.proved.length}, survived ${report.survived.length}, unnamed ${report.unnamed.length}, unreached ${report.unreached.length}, no operator ${report.unhandled.length}, skipped ${report.skipped.length} (${out})`
 	);
 	if (process.argv.includes('--apply')) {
 		const next = merge_patch(read_failure_ledger(), report.proved);

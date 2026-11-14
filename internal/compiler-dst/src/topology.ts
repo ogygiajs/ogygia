@@ -4,7 +4,7 @@
  * `vite build --watch` builds again in the same instance. What each leg is served must not depend on
  * which (compiler study G.4, "topology").
  */
-import { memory_fs } from '../../../packages/compiler/src/compiler/index.ts';
+import { memory_fs } from '../../../packages/compiler/src/index.ts';
 import { Server, type Served } from './dev.ts';
 import { session, type Leg } from './session.ts';
 import { rng } from './order.ts';

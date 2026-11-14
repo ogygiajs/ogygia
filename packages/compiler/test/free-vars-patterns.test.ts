@@ -6,8 +6,8 @@ import { describe, expect, it } from 'vitest';
 import path from 'node:path';
 import { parse } from 'svelte/compiler';
 import { dedent } from '@ogygia/core/contract';
-import { collectFreeIdentifiers } from '../src/compiler/free-vars.ts';
-import { transformHost } from '../src/compiler/region/transform.ts';
+import { collectFreeIdentifiers } from '../src/free-vars.ts';
+import { transformHost } from '../src/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 const free = (markup: string) =>

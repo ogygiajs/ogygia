@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { parse } from 'svelte/compiler';
 import { fc } from '@ogygia/config/sim';
-import { transformHost, normalize_import_keys } from '../src/compiler/region/transform.ts';
+import { transformHost, normalize_import_keys } from '../src/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 

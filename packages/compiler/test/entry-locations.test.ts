@@ -18,11 +18,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { render } from 'svelte/server';
 import type { Component } from 'svelte';
-import { location_map_files } from '../src/compiler/link/location-map.ts';
-import {
-	collectIslandDepModulepreloads,
-	island_deps_module
-} from '../src/compiler/link/island-deps.ts';
+import { location_map_files } from '../src/link/location-map.ts';
+import { collectIslandDepModulepreloads, island_deps_module } from '../src/link/island-deps.ts';
 import {
 	decode_island_graph,
 	decode_island_locations,
@@ -34,7 +31,7 @@ import { plan_props_wire } from '../../core/src/server/props-wire.ts';
 import { set_entry_locations, set_island_deps } from '../../core/test/_stubs/server.region-deps.ts';
 import Region from '../../core/src/Region.svelte';
 import Tiny from '../../core/test/_fixtures/Tiny.svelte';
-import { Compiler, Program, CompileCtx, normalize_import_keys } from '../src/compiler/index.ts';
+import { Compiler, Program, CompileCtx, normalize_import_keys } from '../src/index.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 

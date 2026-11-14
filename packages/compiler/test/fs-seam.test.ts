@@ -4,18 +4,18 @@
 import { describe, test, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { Compiler } from '../src/compiler/driver.ts';
-import { Program } from '../src/compiler/program.ts';
-import { CompileCtx } from '../src/compiler/ctx.ts';
-import { normalize_import_keys } from '../src/compiler/region/transform.ts';
-import { memory_fs } from '../src/compiler/fs.ts';
+import { Compiler } from '../src/driver.ts';
+import { Program } from '../src/program.ts';
+import { CompileCtx } from '../src/ctx.ts';
+import { normalize_import_keys } from '../src/region/transform.ts';
+import { memory_fs } from '../src/fs.ts';
 import {
 	clientBuildWillSkip,
 	csrTrueRouteIds,
 	page_route_config,
 	routeCsrIsFalse,
 	route_reader
-} from '../src/compiler/kit.ts';
+} from '../src/kit.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 
@@ -154,10 +154,10 @@ const DIRECT_FS: Record<string, { calls: number; why: string }> = {
 };
 
 test('the compiler reads app files only through its fs seam', () => {
-	const dir = path.join(import.meta.dirname, '../src/compiler');
+	const dir = path.join(import.meta.dirname, '../src');
 	const found: Record<string, number> = {};
 	for (const rel of fs.readdirSync(dir, { recursive: true, encoding: 'utf8' })) {
-		if (!rel.endsWith('.ts')) continue;
+		if (!rel.endsWith('.ts') || rel.split(path.sep)[0] === 'vite') continue;
 		const src = fs.readFileSync(path.join(dir, rel), 'utf8');
 		// (`ctx.fs.read(` and `r.fs.stat(` are the seam: a dot before `fs` is not a direct call)
 		const n = src.match(/(?<![\w.])fs\s*\.\s*\w+\(/g)?.length ?? 0;

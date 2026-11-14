@@ -5,6 +5,7 @@
  * browser), never the plugin's inner maps, so the per-leg rework of vite/index.ts keeps them.
  */
 import {
+	chmodSync,
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
@@ -31,16 +32,12 @@ import {
 import { dedent } from '@ogygia/core/contract';
 import { ogygia } from '../src/vite/index.ts';
 import { definePlugin } from '../src/vite/plugin-api.ts';
-import { keep_client_dir } from '../src/compiler/kit.ts';
-import { server_handoff_json, server_handoff_path } from '../src/compiler/link/emit-gate.ts';
-import {
-	foucCssVirtualId,
-	foucScopedVirtualId,
-	FOUC_CSS_PREFIX
-} from '../src/compiler/fouc-css.ts';
-import { EVERY_BARREL } from '../src/compiler/exports/index.ts';
-import { remote_hash_of } from '../src/compiler/link/island-deps.ts';
-import { BuildCache, __set_build_cache_root } from '../src/compiler/build-cache.ts';
+import { keep_client_dir } from '../src/kit.ts';
+import { server_handoff_json, server_handoff_path } from '../src/link/emit-gate.ts';
+import { foucCssVirtualId, foucScopedVirtualId, FOUC_CSS_PREFIX } from '../src/fouc-css.ts';
+import { EVERY_BARREL } from '../src/exports/index.ts';
+import { remote_hash_of } from '../src/link/island-deps.ts';
+import { BuildCache, __set_build_cache_root } from '../src/build-cache.ts';
 import { scan_entry_pattern } from '../src/vite/paths.ts';
 import { load_kit_config } from '../src/vite/kit-dirs.ts';
 import { DEV_CLIENT_MAPS, DEV_MAPS, DEV_PAGE_KEYS } from '../src/vite/dev-maps.ts';
@@ -341,6 +338,22 @@ describe('the config hook', () => {
 		expect(existsSync(keep())).toBe(false);
 	});
 
+	it('a keep-client route the exit cannot remove stays on disk, and the exit goes on', async () => {
+		app();
+		const before = new Set(process.listeners('exit'));
+		await setup('build');
+		const armed = process.listeners('exit').filter((l) => !before.has(l));
+		expect(armed).toHaveLength(1);
+		process.off('exit', armed[0]);
+		chmodSync(keep(), 0o555);
+		try {
+			expect(() => (armed[0] as () => void)()).not.toThrow();
+		} finally {
+			chmodSync(keep(), 0o755);
+		}
+		expect(existsSync(path.join(keep(), '+layout.ts'))).toBe(true);
+	});
+
 	it('a keep-client route left on disk is not one of the routes that decide it', async () => {
 		app();
 		write(path.relative(root, path.join(keep(), '+layout.ts')), 'export const csr = true;\n');
@@ -600,6 +613,16 @@ describe('resolveId', () => {
 		app();
 		const { p } = await setup('serve');
 		expect(await resolve(p, '__sveltekit/remote', 'client')).toMatch(/remote-functions/);
+		expect(await resolve(p, '__sveltekit/remote', 'ssr')).toBe(null);
+	});
+
+	it("a Kit without its client remote functions fails the browser's remote runtime by name", async () => {
+		app();
+		write('node_modules/@sveltejs/kit/package.json', JSON.stringify({ name: '@sveltejs/kit' }));
+		const { p } = await setup('serve');
+		await expect(resolve(p, '__sveltekit/remote', 'client')).rejects.toThrow(
+			/kit_remote_src_missing/
+		);
 		expect(await resolve(p, '__sveltekit/remote', 'ssr')).toBe(null);
 	});
 
@@ -1849,7 +1872,7 @@ describe('the dev server', () => {
 	});
 
 	it("every stylesheet kind the browser's bridge can join goes out as a scoped join, and only those", async () => {
-		const { dev_hmr_client_source } = await import('../src/compiler/dev/dev-hmr.ts');
+		const { dev_hmr_client_source } = await import('../src/dev/dev-hmr.ts');
 		const glob = /import\.meta\.glob\("\/src\/\*\*\/\*\.\{([^}]+)\}"/.exec(dev_hmr_client_source());
 		const kinds = glob![1].split(',');
 		app();

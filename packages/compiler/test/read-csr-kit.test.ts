@@ -9,8 +9,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fc } from '@ogygia/config/sim';
-import { node_fs } from '../src/compiler/fs.ts';
-import { read_csr, route_reader } from '../src/compiler/kit.ts';
+import { node_fs } from '../src/fs.ts';
+import { read_csr, route_reader } from '../src/kit.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'og-read-csr-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));

@@ -4,7 +4,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { kit_major, resolve_kit_paths } from '../src/compiler/kit.ts';
+import { kit_major, resolve_kit_paths } from '../src/kit.ts';
 
 const made: string[] = [];
 const dir = () => {

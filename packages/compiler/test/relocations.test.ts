@@ -2,22 +2,22 @@
 // replaced, each patch is counted on the leg, and a leg whose output still holds a token, or holds
 // the module that writes one with no patch counted, is said (`relocation_unpatched`).
 import { describe, expect, test } from 'vitest';
-import { Program } from '../src/compiler/program.ts';
-import { V_FN_MANIFEST } from '../src/compiler/ids.ts';
+import { Program } from '../src/program.ts';
+import { V_FN_MANIFEST } from '../src/ids.ts';
 import {
 	LATE_SERVER_REGIONS_TOKEN,
 	PAGE_DATA_READS_TOKEN,
 	SERVER_MAP_TOKENS
-} from '../src/compiler/link/server-manifest.ts';
+} from '../src/link/server-manifest.ts';
 import {
 	WRITTEN_RELOCATIONS,
 	relocate as relocate_table,
 	relocations_of,
 	unpatched,
 	type RelocateCx
-} from '../src/compiler/link/relocations.ts';
-import { file_token } from '../src/compiler/link/file-token.ts';
-import { ISLAND_DEPS_INLINE_TOKEN } from '../src/compiler/link/island-deps.ts';
+} from '../src/link/relocations.ts';
+import { file_token } from '../src/link/file-token.ts';
+import { ISLAND_DEPS_INLINE_TOKEN } from '../src/link/island-deps.ts';
 import { code_fn } from './_code-fn.ts';
 
 const FN = '/*__OGYGIA_FN_MANIFEST__*/';

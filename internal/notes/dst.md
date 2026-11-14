@@ -448,8 +448,10 @@ their lines. The ledger `internal/sim/failures.json` puts each in exactly one bu
 buggify point, a sim fault, or an app shape (`shape`: a gen stream, as `gen messy` draws a hole whose
 render throws) reaches it; the sweep fails when the point did not fire; `killed_by`
 names the mutant of mutants.json that breaks its recovery and the simulator kills, the proof that a
-broken recovery is noticed), `covered` (a named real test, which the check finds) or `impossible` (a
-rule or type, by its file and name, which the check finds). Sites nobody has bucketed yet are the
+broken recovery is noticed), `covered` (a named real test, which the check finds), `impossible` (a
+rule or type, by its file and name, which the check finds) or `equivalent` (breaking its handling
+changes nothing anyone can see, as mutants.json's `equivalent`: `why` says how, and the check
+refuses an entry without it). Sites nobody has bucketed yet are the
 `baseline`: allowed, but it only shrinks (an id no site has fails, and the PR check, `--base
 HEAD^1`, fails a baseline id its base did not list: a new site goes in a bucket). The PR check job
 runs it ("Every failure site accounted for"); 4/1820 at the start (2026-11-13): hole.fetch-lost,
@@ -461,10 +463,12 @@ nobody notices wants an oracle or a test first.
 
 THE LEDGER AUTOPILOT (`src/autopilot.ts`, test/autopilot.test.ts) moves baseline sites a real test
 already checks to `covered` in bulk. It puts a probe on each baseline site's recovery path (a catch
-body, a `.catch` or rejection handler, a `!res.ok`, STALE or null-body check when it holds, a throw,
-an `{ ok: false }`), runs a package's tests once per project to learn which tests reach it, takes
-the probes out, then breaks each reached recovery (a catch emptied or made to rethrow, a handler made
-to rethrow, a check never true, a throw removed, a failed result made ok) and reruns only the tests
+body, a `.catch` or rejection handler, a `!res.ok`, STALE, null-body, `.aborted` or `'AbortError'`
+check when it holds, a throw, an `{ ok: false }`, a timer's callback, an error event's handler), runs
+a package's tests once per project to learn which tests reach it, takes the probes out, then breaks
+each reached recovery (a catch emptied or made to rethrow, a handler made to rethrow, a check never
+true, a throw removed, a failed result made ok, a timer's callback or an error handler made to do
+nothing) and reruns only the tests
 that reached it, under a time limit. A reaching test that fails twice on the same mutant (the re-run
 rule) is the site's `covered` test. A site whose mutants all leave its tests green SURVIVED (a test
 runs the path and checks nothing: a buggify or test gap), and one no test reaches is left for a

@@ -6,6 +6,7 @@ import {
 	registry,
 	STALE,
 	tasks,
+	type Fresh,
 	type Mailbox,
 	type Scope,
 	type Stale,
@@ -32,6 +33,7 @@ import {
 	capability_expired,
 	is_allowed_region_endpoint,
 	island_module_url,
+	OTHER_BUILD_DENIALS,
 	RegionAnswerLater,
 	RegionAnswerRefused
 } from './region-endpoint-url.ts';
@@ -76,7 +78,7 @@ import {
 	type Wake
 } from './region-machines.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
-import { download, region_fetch, region_rate_limited } from '../policies.ts';
+import { download, region_fetch, region_other_build, region_rate_limited } from '../policies.ts';
 import {
 	install_rules,
 	note_handed,
@@ -657,7 +659,9 @@ class OgygiaRegion extends HTMLElement {
 		const s = this.#hole.now;
 		if (s.kind === 'armed') return true;
 		if (s.kind === 'fetching') return false;
-		return this.#hole.go('armed', { attempts: s.kind === 'retrying' ? s.attempts : 0 });
+		return s.kind === 'retrying'
+			? this.#hole.go('armed', { attempts: s.attempts, denied: s.denied })
+			: this.#hole.go('armed', { attempts: 0, denied: 0 });
 	}
 
 	/**
@@ -1115,8 +1119,9 @@ class OgygiaRegion extends HTMLElement {
 		this.#bind(endpoint);
 		const address = frameAddress(endpoint);
 		const s = this.#hole.now;
-		const attempts = s.kind === 'armed' || s.kind === 'retrying' ? s.attempts : 0;
-		this.#hole.go('fetching', { attempts, revalidate });
+		const before = s.kind === 'armed' || s.kind === 'retrying' ? s : { attempts: 0, denied: 0 };
+		const { attempts, denied } = before;
+		this.#hole.go('fetching', { attempts, denied, revalidate });
 		const mine = this.#hole.now;
 		try {
 			if (RULES && buggify.fires('hole.fetch-lost')) throw new TypeError('Failed to fetch');
@@ -1127,7 +1132,7 @@ class OgygiaRegion extends HTMLElement {
 			);
 		} catch (err) {
 			if (this.#hole.now !== mine) return;
-			return this.#fetch_failed(turn, err, endpoint, revalidate, attempts + 1);
+			return this.#fetch_failed(turn, err, endpoint, revalidate, attempts + 1, denied);
 		}
 		if (this.#hole.now === mine) this.#hole.go('idle');
 	}
@@ -1155,13 +1160,19 @@ class OgygiaRegion extends HTMLElement {
 		err: unknown,
 		endpoint: string,
 		revalidate: boolean,
-		attempts: number
+		attempts: number,
+		denied_before: number
 	): Promise<void> {
 		const refused = err instanceof RegionAnswerRefused;
 		const deny = refused && err.reason === 'forbidden' ? err.deny || 'no reason given' : undefined;
+		const other_build = deny !== undefined && OTHER_BUILD_DENIALS.has(deny.split(':', 1)[0]);
+		const denied = other_build ? denied_before + 1 : denied_before;
+		const out_of_tries = other_build
+			? denied >= region_other_build.attempts
+			: attempts >= region_fetch.attempts;
 		const offline = !refused && this.isConnected && no_response(err) && browser_offline();
-		const final = !offline && (refused || !this.isConnected || attempts >= region_fetch.attempts);
-		if (import.meta.env.DEV || final) {
+		const final = !offline && ((refused && !other_build) || !this.isConnected || out_of_tries);
+		if (final || (import.meta.env.DEV && !other_build)) {
 			if (deny !== undefined) {
 				warn('region_answer_denied', { endpoint, deny });
 			} else if (refused) {
@@ -1236,12 +1247,14 @@ class OgygiaRegion extends HTMLElement {
 				if (revalidate) return this.#fetch_html(turn, true);
 				return this.#connect(turn);
 			}
-			this.#hole.go('retrying', { attempts, revalidate });
+			this.#hole.go('retrying', { attempts, denied, revalidate });
 			const retrying = this.#hole.scope;
 			const later = err instanceof RegionAnswerLater ? err.wait_ms : null;
 			const wait =
 				later === null
-					? backoffAfter(region_fetch, attempts)
+					? other_build
+						? backoffAfter(region_other_build, denied)
+						: backoffAfter(region_fetch, attempts)
 					: Math.min(later, backoffAfter(region_rate_limited, attempts));
 			const waited = await turn.wait(
 				retrying.task(() => new Promise<void>((resolve) => retrying.timeout(resolve, wait)))
@@ -1293,13 +1306,18 @@ class OgygiaRegion extends HTMLElement {
 		});
 	}
 
-	async #hydrate(turn: Turn) {
+	async #hydrate(held: Turn) {
 		const from = this.#wake.now.kind;
 		if (this.#app || (from !== 'cold' && from !== 'armed')) return;
 		this.#wake.go('waking');
 		const mine = this.#wake.now;
 		const visit = this.#wake.scope;
-		const gone = () => !this.isConnected || this.#wake.now !== mine;
+		const turn = {
+			wait: <T>(work: PromiseLike<T> | T): Promise<Fresh<T> | Stale> =>
+				held
+					.wait(visit.task(() => work))
+					.then((v) => (this.isConnected ? (v as Fresh<T> | Stale) : STALE))
+		};
 		let failure: { error: unknown } | null = null;
 		let offline: { error: unknown } | null = null;
 		const t0 = now_ms();
@@ -1312,9 +1330,9 @@ class OgygiaRegion extends HTMLElement {
 			// wait for full parse so the end-of-body props sidecars (and the seed) are in the DOM. On an
 			// SPA swap (and any post-load hydrate) the document is already parsed, so skip the await
 			// entirely — no need to burn a microtask turn before every island wakes.
-			if (typeof document !== 'undefined' && document.readyState === 'loading')
-				await turn.wait(dom_ready());
-			if (gone()) return;
+			if (typeof document !== 'undefined' && document.readyState === 'loading') {
+				if ((await turn.wait(dom_ready())) === STALE) return;
+			} else if (!this.isConnected) return;
 			const entry = island_entry_of(this);
 			if (!entry) return;
 			const cls = () => (this.#visitor ? 'user' : viewport_class(this));
@@ -1325,7 +1343,6 @@ class OgygiaRegion extends HTMLElement {
 			if (release === STALE) return void slot.ready.then(hand_back);
 			let mod: IslandModule, core: HydrateCore;
 			try {
-				if (gone()) return;
 				hydrate_started(this); // a viewport island in flight holds ready islands below the fold
 				// The island's module first: its graph links go in before the lazy runtime chunks' own preloads.
 				const loaded = await turn.wait(
@@ -1343,10 +1360,8 @@ class OgygiaRegion extends HTMLElement {
 				release();
 			}
 			t_loaded = now_ms();
-			if (gone()) return;
 			use_code_sheets(this, mod);
-			await turn.wait(this.#kit_page_ready(core, visit));
-			if (gone()) return;
+			if ((await turn.wait(this.#kit_page_ready(core, visit))) === STALE) return;
 			// The page's seeds parse now, BEFORE the turn: data arriving is not the hydrate step. The
 			// first island parses the seed once (700 KB on a large CMS page), and inside its turn that
 			// parse plus the hydrate made one long task. (The step calls these again: a no-op by then.)
@@ -1360,10 +1375,8 @@ class OgygiaRegion extends HTMLElement {
 			do {
 				visitor = this.#visitor;
 				// (a replay that failed says so itself)
-				if (visitor) await turn.wait(visitor.catch(nothing));
-				if (gone()) return;
-				await turn.wait(hydrate_turn(this));
-				if (gone() || this.#app) return;
+				if (visitor && (await turn.wait(visitor.catch(nothing))) === STALE) return;
+				if ((await turn.wait(hydrate_turn(this))) === STALE || this.#app) return;
 			} while (this.#visitor !== visitor);
 			t_turn = now_ms();
 			const ssr_html = this.#ssr_html;
@@ -1382,8 +1395,7 @@ class OgygiaRegion extends HTMLElement {
 			// awaited now runs after it — mounted means they ran)
 			await Promise.resolve();
 			const t_mounted = now_ms();
-			await turn.wait(snippets_settled(this, visit));
-			if (gone() || !this.#app) return;
+			if ((await turn.wait(snippets_settled(this, visit))) === STALE || !this.#app) return;
 			this.setAttribute('data-hydrated', '');
 			if (HOOK_REGION_HYDRATED)
 				slots.hooks?.regionHydrated?.({

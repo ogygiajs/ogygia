@@ -1,7 +1,7 @@
-// The queries database (src/compiler/queries.ts) on its own: a deep chain of answers checked after
+// The queries database (src/queries.ts) on its own: a deep chain of answers checked after
 // an edit, and a database past its bound letting its oldest answers go.
 import { bench } from '@bench/heisenbench/bench';
-import { derived, input, queries } from '../src/compiler/queries.ts';
+import { derived, input, queries } from '../src/queries.ts';
 
 const DEPTH = 2_000;
 

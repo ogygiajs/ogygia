@@ -15,7 +15,7 @@
  * packages/content/test/island-ownership.test.ts.
  */
 import { describe, expect, it } from 'vitest';
-import { transformHost } from '../src/compiler/region/transform.ts';
+import { transformHost } from '../src/region/transform.ts';
 
 // A csr=false route host: a marked server island with a fallback snippet child.
 const ROUTE_HOST = `<script lang="ts">

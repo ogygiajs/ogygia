@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { context_keys } from '../src/compiler/link/context-detect.ts';
+import { context_keys } from '../src/link/context-detect.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const keys = (src: string) => context_keys(src, 'script');

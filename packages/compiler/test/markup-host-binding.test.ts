@@ -7,7 +7,7 @@ import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Compiler, Program, CompileCtx, normalize_import_keys } from '../src/compiler/index.ts';
+import { Compiler, Program, CompileCtx, normalize_import_keys } from '../src/index.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 
 let root = '';

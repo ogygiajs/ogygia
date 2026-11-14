@@ -7,7 +7,7 @@ import {
 	transformHost,
 	transformTsRegions,
 	wrapperVirtualId
-} from '../src/compiler/region/transform.ts';
+} from '../src/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 type Ctx = Parameters<typeof transformHost>[2];

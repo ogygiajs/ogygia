@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { rolldown } from 'rolldown';
 import { lazy_files } from '../src/vite/lazy-files.ts';
-import { FILE, relocate, type RelocateCx } from '../src/compiler/link/relocations.ts';
+import { FILE, relocate, type RelocateCx } from '../src/link/relocations.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'og-lazy-files-'));

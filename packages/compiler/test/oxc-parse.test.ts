@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 describe('parse_module', () => {
 	it('reads TypeScript, with every span exact against the source', async () => {
-		const { parse_module } = await import('../src/compiler/parse/oxc.ts');
+		const { parse_module } = await import('../src/parse/oxc.ts');
 		const code = `const a: number = 1;\nexport const b = <T,>(x: T) => x;`;
 		const r = parse_module(code, '/a/b.ts');
 		expect(r.ok).toBe(true);
@@ -11,12 +11,12 @@ describe('parse_module', () => {
 	});
 
 	it('is null, never a throw, on a syntax error', async () => {
-		const { parse_module } = await import('../src/compiler/parse/oxc.ts');
+		const { parse_module } = await import('../src/parse/oxc.ts');
 		expect(parse_module(`const a = (;`, '/a/b.ts')).toMatchObject({ program: null, ok: false });
 	});
 
 	it('a source the parser refuses outright (a read that came back null) is a failed parse, never a throw', async () => {
-		const { parse_module } = await import('../src/compiler/parse/oxc.ts');
+		const { parse_module } = await import('../src/parse/oxc.ts');
 		expect(parse_module(null as unknown as string, '/a/b.ts')).toEqual({
 			program: null,
 			ok: false,
@@ -30,7 +30,7 @@ describe('parse_module', () => {
 			throw new Error('vite loaded');
 		});
 		try {
-			const mod = await import('../src/compiler/parse/oxc.ts');
+			const mod = await import('../src/parse/oxc.ts');
 			expect(typeof mod.parse_module).toBe('function');
 		} finally {
 			vi.doUnmock('vite');

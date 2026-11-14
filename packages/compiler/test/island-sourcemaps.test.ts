@@ -3,7 +3,7 @@
 // the full virtual id and carries the generated source, so devtools show it and Vite reads no disk.
 import { describe, expect, it } from 'vitest';
 import { island_sourcemaps_plugin } from '../src/vite/sourcemaps.ts';
-import { Program } from '../src/compiler/program.ts';
+import { Program } from '../src/program.ts';
 
 const ENTRY = 'ogygia:region/entry/abc.svelte';
 const WRAPPER = 'ogygia:region/wrapper/abc.svelte';

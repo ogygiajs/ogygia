@@ -14,6 +14,7 @@
  */
 import { createInterface } from 'node:readline';
 import { dedent } from '@ogygia/core/plugin/utils';
+import type { DevtoolsEvent } from '@ogygia/core/contract';
 // (an error page's words, cut where the browser cuts its tags)
 import { markup_text } from '@ogygia/core/internal/instruments';
 import { createRequire } from 'node:module';
@@ -555,21 +556,13 @@ function tool_explain(args: Args): ToolResult {
 
 // ── ogygia_debug — the RUNTIME half: drive a headless browser over a real page ─────────────────────
 
-/** One event off `window.__ogygia_devtools` — the fp-correlated devtools stream (schema in devtools/). */
-type DtEvent = {
-	name: string;
-	fp?: string;
-	entry?: string;
-	realm?: string;
-	seq?: number;
-	t?: number;
-	[k: string]: unknown;
-};
+type DtEvent = DevtoolsEvent;
+type DtEventNamed<N extends DtEvent['name']> = Extract<DtEvent, { name: N }>;
 
 const short = (fp: string) => fp.slice(0, 8);
 
 /** Turn the raw event stream into a per-island runtime story + invariant warnings an AI can act on. */
-function render_story(url: string, events: DtEvent[]): string {
+export function render_story(url: string, events: DtEvent[]): string {
 	if (!events.length)
 		return `Loaded ${url}, but the devtools bus emitted no events — no islands on this page, or nothing had happened yet.`;
 
@@ -587,16 +580,18 @@ function render_story(url: string, events: DtEvent[]): string {
 		const a = at(e);
 		return a ? ` (${a})` : '';
 	};
-	const has = (evs: DtEvent[], n: string) => evs.find((e) => e.name === n);
+	const has = <N extends DtEvent['name']>(evs: DtEvent[], n: N) =>
+		evs.find((e): e is DtEventNamed<N> => e.name === n);
 
 	const by_fp = new Map<string, DtEvent[]>();
 	const global: DtEvent[] = [];
 	for (const e of events) {
 		// (a hole's server render carries no fingerprint: it is not an island, and never "connects")
-		if (typeof e.fp === 'string' && e.fp) {
-			const arr = by_fp.get(e.fp) ?? [];
+		const fp = 'fp' in e ? e.fp : undefined;
+		if (typeof fp === 'string' && fp) {
+			const arr = by_fp.get(fp) ?? [];
 			arr.push(e);
-			by_fp.set(e.fp, arr);
+			by_fp.set(fp, arr);
 		} else {
 			global.push(e);
 		}
@@ -616,7 +611,10 @@ function render_story(url: string, events: DtEvent[]): string {
 		const scheduled = has(evs, 'wake.scheduled');
 		const replay = has(evs, 'interaction.replay');
 		const strategy = String(connected?.wake ?? scheduled?.when ?? '(unknown)');
-		const entry = connected?.entry ?? scheduled?.entry ?? evs.find((e) => e.entry)?.entry;
+		const entry =
+			connected?.entry ??
+			scheduled?.entry ??
+			evs.map((e) => ('entry' in e ? e.entry : undefined)).find(Boolean);
 		const label = entry ? base(String(entry)) : `#${short(fp)}`;
 
 		let status = '✅';
@@ -645,8 +643,7 @@ function render_story(url: string, events: DtEvent[]): string {
 			);
 		if (replay)
 			lines.push(`  · replayed ${String(replay.clicks ?? '?')} queued click(s) after wake`);
-		if (failed)
-			lines.push(`  · HYDRATION FAILED${failed.error ? `: ${String(failed.error)}` : ''}`);
+		if (failed) lines.push(`  · HYDRATION FAILED${failed.message ? `: ${failed.message}` : ''}`);
 
 		blocks.push(
 			`### ${status}  ${label}${strategy !== '(unknown)' ? ` — wake:${strategy}` : ''}${entry ? `  (#${short(fp)})` : ''}\n${lines.join('\n')}`
@@ -654,7 +651,7 @@ function render_story(url: string, events: DtEvent[]): string {
 
 		if (failed)
 			warnings.push(
-				`#${short(fp)}: hydration failed${failed.error ? ` — ${String(failed.error)}` : ''}.`
+				`#${short(fp)}: hydration failed${failed.message ? ` — ${failed.message}` : ''}.`
 			);
 		else if (ssr && !connected)
 			warnings.push(
@@ -666,11 +663,9 @@ function render_story(url: string, events: DtEvent[]): string {
 			);
 	}
 
-	const boot = global.find((e) => e.name === 'runtime.boot');
+	const boot = has(global, 'runtime.boot');
 	const navs = global.filter((e) => e.name.startsWith('nav.'));
-	const booted = boot
-		? ` · runtime booted (${(boot.installers as string[] | undefined)?.join(', ') || 'installers ran'})`
-		: '';
+	const booted = boot ? ` · runtime booted (${boot.features.join(', ') || 'no features'})` : '';
 	const navigated = navs.length
 		? ` · ${navs.filter((n) => n.name === 'nav.finish').length} navigation(s)`
 		: '';

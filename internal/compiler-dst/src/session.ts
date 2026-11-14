@@ -9,15 +9,15 @@ import {
 	Program,
 	normalize_import_keys,
 	type Fs
-} from '../../../packages/compiler/src/compiler/index.ts';
+} from '../../../packages/compiler/src/index.ts';
 import {
 	clientBuildWillSkip,
 	csrTrueRouteIds,
 	errorCsrTrueRouteIds,
 	hasAnyCsrFalseRoute,
 	rootLayoutCsrTrue
-} from '../../../packages/compiler/src/compiler/kit.ts';
-import type { PageReadsSink } from '../../../packages/compiler/src/compiler/ctx.ts';
+} from '../../../packages/compiler/src/kit.ts';
+import type { PageReadsSink } from '../../../packages/compiler/src/ctx.ts';
 import { LIB, ROOT, ROUTES } from './app.ts';
 
 export interface Session {

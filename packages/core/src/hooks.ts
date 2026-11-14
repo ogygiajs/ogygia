@@ -26,7 +26,6 @@ import type { Handle } from './kit-handle.ts';
 import { try_get_request_store } from '@sveltejs/kit/internal/server';
 import type { RequestState } from '@sveltejs/kit/internal/server';
 import * as devalue from 'devalue';
-// (the islands' loaders come through `load_islands()`, a dynamic import — link/server-manifest.ts)
 import {
 	load_server_regions,
 	region_url,
@@ -75,7 +74,6 @@ import { read_capped } from './server/capped-body.ts';
 import { KEEP_FALLBACK_HTML, is_keep_fallback } from './keep-fallback.ts';
 import { set_source_recorder } from './source.ts';
 import { building, dev } from '$app/env';
-// Kit's `asset()`, taking ogygia's base-less `/…` URLs on Kit 2 and Kit 3 alike
 import { kit_asset } from './kit-paths.ts';
 import {
 	sign,
@@ -112,7 +110,6 @@ import {
 } from './plugin/server.ts';
 import type { HtmlPass } from './plugin/index.ts';
 import { end_request_scope, own_response, request_scope } from './plugin/request-scope.ts';
-// PULL-registration at decode time (idempotent; no import-time side effects).
 import { register_wire_kind } from './live-transport.ts';
 import { register_store_kind, register_derived_kind } from './store-transport.ts';
 import { register_snippet_kind } from './region-snippet.ts';
@@ -238,11 +235,7 @@ import { ERRORS, WARNINGS } from './messages/core.ts';
 import { define_messages, dev_or_prerender } from './contract/messages.ts';
 import { ask } from './plugin/hooks.ts';
 
-// A prerender words every message, the link after it (contract/messages.ts `dev_or_prerender`).
 (globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.prerendering')] = building;
-// The server's render runs the same shared code as the island (a transport, `Region`), which words
-// its messages through the runtime's own (messages/island.ts): published here as the runtime's boot
-// publishes them in the browser — with the tables, worded in dev and while prerendering.
 (globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.messages')] ??=
 	define_messages(
 		import.meta.env?.DEV || import.meta.env?.SSR ? ERRORS : null,
@@ -250,11 +243,7 @@ import { ask } from './plugin/hooks.ts';
 		dev_or_prerender
 	);
 
-/** Is devtools on for this request's browser (a devtools BUILD): the URL's `?og-devtools=on|off`
- *  wins and is written to the response's cookie, else the cookie (contract/switch.ts). */
 function devtools_switch(event: RequestEvent): boolean {
-	// (a prerendered page has no visitor, and a prerender may not read the query: off, and the browser
-	// applies the param itself — devtools/ui.ts)
 	if (building) return false;
 	const want = switch_in_url(event.url);
 	if (want === null) return event.cookies.get(DEVTOOLS_COOKIE) === DEVTOOLS_ON;
@@ -263,99 +252,38 @@ function devtools_switch(event: RequestEvent): boolean {
 	return want;
 }
 
-/** Hard cap on rendered region HTML (bytes). */
 const MAX_REGION_BODY = 2_000_000;
 
-// DEVTOOLS gate — server realm. The SSR bundle carries the `__OGYGIA_DEVTOOLS__` define; off → the
-// recorder is never installed and every `if (DEVTOOLS)` folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 const DEVTOOLS_LAZY =
 	typeof __OGYGIA_DEVTOOLS_LAZY__ !== 'undefined' ? __OGYGIA_DEVTOOLS_LAZY__ : false;
-// the server's rules (./server/rules.ts): checked after each response in dev and in a build made with
-// OGYGIA_RULES=1; folds out of any other build
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 if (RULES) install_server_rules();
-/** The monotonic clock, for server-realm devtools timestamps. */
 const dt_now = clock.mono;
 
-// Drop-in `setContext` bridge. A layout that imports `setContext` from `ogygia` records each string
-// key into this per-request bag during SSR; `inject_client_seeds` reads it back and emits ONE
-// `<script data-ogygia-provide-page>` before `</body>` that every island seeds `getContext` from —
-// so a plain `setContext` in a csr=false layout reaches child islands (separate hydration roots).
-// Server-only (this file never ships to the browser); on the client the recorder is never installed
-// and `record_ctx` is a no-op.
-// One per-request bag holds every SSR-time ogygia capture the handle needs back at seed time:
-//   ctx  — drop-in `setContext(key, value)` values (see above).
-//   page — the page snapshot ($page.data / form / error / status). The handle can't read the
-//          resolved load data (Kit merges it locally in render.js, never on RequestState, and
-//          `$app/state.page` throws in a hook), so Region.svelte reads Kit's REAL page during SSR
-//          and records it here; the seed below merges it in. That's how `$page.data` works in islands.
-//   deferred — page.data/form promises staged for STREAMING (real browser loads only). Set during
-//          the render; `handle` streams a resolve script per promise after the doc ships.
-/** An open late-region scope: the regions not yet drained, and the next slot id (`r<n>`). */
 type LateCapture = { regions: LateRegion[]; next: number };
 type RequestBag = {
-	/** The request this bag is for: its response's mark is keyed on it (server/response-mark.ts). */
 	request: Request;
 	ctx: Map<string, unknown>;
 	page: PageSnapshot | null;
 	csp_sources?: string[];
-	/** SEED SHAPING: the union of the regions' asks — the `page.data` keys to ship, or `'all'`
-	 *  (some region's reads could not be pinned). `null` until a region reads `$page` on the client
-	 *  (Region.svelte × `islandReadsPage`): not null, the `application/ogygia-page` seed must ship.
-	 *  The snapshot itself is recorded regardless. */
 	seed_keys: import('./server/seed-shape.ts').SeedKeys | null;
-	/** each region's own ask, by entry — the seed explainer's "who reads what" (detail only) */
 	seed_asks: Map<string, SeedAsk> | null;
-	/** The remote modules (Kit id-hashes) some region's client code on this page can call — the
-	 *  union of every `record_page` (Region.svelte × `islandRemotes`). Gates the
-	 *  `application/ogygia-remote` seed: an SSR-resolved remote outside the set ships no seed.
-	 *  `null` once any region answered fail-open ("may call anything") → every remote seeds. */
 	remotes_wanted: Set<string> | null;
-	/** THE DOCUMENT TAIL (server/document-tail.ts): the module-preload hints and props sidecars the
-	 *  regions of this Kit page render defer to the end of the body. Emitted once, before the seeds. */
 	tail: DocumentTail;
-	/** ONE WALK PER NODE PER REQUEST (seed-refs.ts): every tree measured during this request — the
-	 *  page seed, each island's props, the shaped seed — shares this memo, so a block island whose
-	 *  props ARE a seed node costs a lookup, not a second walk of the block. */
 	measure_memo: MeasureMemo;
 	deferred: Deferred[] | null;
-	/** Next free defer id after data+form staging — re-staging (nested promises) continues from here. */
 	defer_next_id: number;
-	/** LATE REGIONS (`<Region of={promise}>` on a streamed router page): null until the router's
-	 *  streamed document opens the scope (`open_late_scope`), since nothing else would ever fill a
-	 *  slot. Open, it holds the regions registered and not yet drained (the router drains them into
-	 *  completion-order template chunks, again while it bakes) and the next slot id. */
 	late: LateCapture | null;
-	/** devalue reducers for streamed resolve scripts (app transport encoders + defer marker). */
 	seed_reducers: Record<string, (v: unknown) => unknown> | null;
-	/** the document carries Kit's client bootstrap (`__sveltekit_*` defined): Kit's streamed resolve
-	 *  scripts are live then. Without it (csr=false) they are dead, and throw — the handle drops them. */
 	kit_client?: boolean;
-	/** a Kit-hydrated document that still carries ogygia's runtime: some region on it is ogygia's to
-	 *  wake (inside a lake, a hole) — the only islands on such a page the context marker can feed. */
 	kit_with_runtime?: boolean;
-	/** the app's own pass (#pass_document): what goes before `</head>` and first before `</body>` —
-	 *  in the one assembly */
 	transform_head?: string;
 	transform_body?: string;
-	/** The request's shared facts (plugin/facts.ts): what plugins and core learn about this render
-	 *  (may it be stored, why it is per-visitor, which data sources it read). */
 	facts: RequestFacts;
 };
-// ONE REQUEST STORE: Kit's. Kit runs every request inside its own AsyncLocalStorage
-// (`with_request_store`): the handle, every `await` of the Svelte render, the streamed tail chunks
-// all see it. Kit re-enters a NEW store object for the render (`render_response` wraps the render
-// in `{ event, state }` of its own, with a traced copy of the event), so the one identity that is
-// stable across the whole request is the `Request` itself — the bag hangs off it in a WeakMap, and
-// every reader below resolves it through `try_get_request_store().event.request`. No second ALS:
-// on Node 20/22 each ALS in flight copies its store on every async hop, and a 2.6 MB async Svelte
-// render is hundreds of thousands of hops (~0.2 s measured for one ALS on such a page). The bag
-// dies with the request (WeakMap), so nothing is deleted or leaked.
 const bags = new WeakMap<Request, RequestBag>();
-/** This request's bag, or `undefined` outside a Kit page request (a hole endpoint, a remote-function
- *  call, a render with no Kit store around it). */
 function bag_of(): RequestBag | undefined {
 	const request = (try_get_request_store() as { event?: RequestEvent } | undefined)?.event?.request;
 	return request ? bags.get(request) : undefined;
@@ -364,15 +292,9 @@ set_ctx_recorder((key, value) => {
 	const bag = bag_of();
 	if (bag) bag.ctx.set(key, value);
 });
-// THE SERVER ROUTER'S DOCUMENT asks too: a router page (the profiler's own, an app's) is answered
-// before a Kit page bag exists, so its regions' asks are collected here, off the same `Request` (the
-// one stable identity, and no second ALS). The document reads them back and seeds like a Kit page.
-// (the asks' keys, `null` until one asks: present once the document opened its ask scope)
 const doc_asks = new WeakMap<Request, SeedKeys | null>();
 const request_of = () =>
 	(try_get_request_store() as { event?: RequestEvent } | undefined)?.event?.request;
-// THE NAMES OF A RENDER (ref.ts RefNames): every ref one request mints is named by it, off the same
-// `Request` — any request, page or hole or remote call, so two answers in one tab never share an id.
 const ref_names_of = new WeakMap<Request, RefNames>();
 set_ref_names_reader(() => {
 	const request = request_of();
@@ -385,7 +307,6 @@ set_ask_scope_opener(() => {
 	const request = request_of();
 	if (request && !bags.has(request) && !doc_asks.has(request)) doc_asks.set(request, null);
 });
-// the regions' asks so far, for the server router's document (it builds its own seed)
 set_seed_ask_reader(() => {
 	const bag = bag_of();
 	if (bag) return { wanted: bag.seed_keys !== null, keys: bag.seed_keys };
@@ -401,41 +322,21 @@ set_page_recorder((snapshot, seed, remotes, entry) => {
 	if (event && note_render_page_ask(event, seed)) return;
 	const bag = bag_of();
 	if (!bag) {
-		// a router document's render: only the asks matter (it builds its own seed from its snapshot)
 		const request = request_of();
 		if (request && doc_asks.has(request) && seed !== false)
 			doc_asks.set(request, merge_seed_ask(doc_asks.get(request) ?? null, seed));
 		return;
 	}
-	// MERGE: the routeless document root records url/params/route from the router's seed first;
-	// Region.svelte's data/form/error/status record must not wipe them (and vice versa).
 	bag.page = { ...bag.page, ...snapshot };
-	// SEED ONLY WHEN READ, AND ONLY WHAT IS READ: one island whose client code reads `$page` is
-	// enough to ship the seed; the union of the islands' key asks decides how much of `page.data`.
 	if (seed !== false) bag.seed_keys = merge_seed_ask(bag.seed_keys, seed);
-	// the profiler's seed explainer: who asked for what (detail only — a Map write per region)
 	if (bag.seed_asks && entry && seed !== false) bag.seed_asks.set(entry, seed);
-	// REMOTE SEED ONLY WHEN REACHABLE: union the remotes this region's client can call; one
-	// fail-open record (`null`) opens the whole set for the request.
 	if (remotes === null) bag.remotes_wanted = null;
 	else if (bag.remotes_wanted) for (const h of remotes) bag.remotes_wanted.add(h);
 });
-// THE DOCUMENT TAIL (server/document-tail.ts): hints + props sidecars a Kit page render defers to
-// the end of the body. One per request, created with the bag; only a render inside a Kit PAGE
-// request has a bag, so a hole endpoint, a remote-function render or a router document keeps its
-// hints in the head and its sidecars adjacent.
 set_tail_reader(() => bag_of()?.tail ?? null);
-// The request's shared measure memo (seed-refs.ts): a hole endpoint, a remote-function render or a
-// router document has no bag, so each of its roots is measured on its own — as before.
 set_measure_memo_reader(() => bag_of()?.measure_memo ?? null);
-// THE PAGE OF A RENDER (server/render-page.ts): Kit's `__request__` context for every server render
-// root ogygia starts (document root, inline region, hole, snippet body, a remote call's region) is
-// built by ONE model — in the page (the recorded snapshot), for a page (a hole or a remote call: the
-// Referer's page, its facts looked up once), or its own. Here only the request state is handed in.
 configure_render_page({ warn: dev ? (m) => console.warn(m) : null });
 
-// The live event for `requestEvent()` (public): what a server island reads its `locals` /
-// `cookies` / `url` from, in the request that renders it — no `$app/server` in the component.
 set_kit_event_reader(
 	() => (try_get_request_store() as { event?: RequestEvent } | undefined)?.event ?? null
 );
@@ -476,9 +377,6 @@ set_kit_page_reader(() => {
 		(try_get_request_store() as { event?: RequestEvent } | undefined)?.event
 	);
 });
-// LATE REGIONS: a promise `of` registers per request; the id keys the region's slot wrapper AND
-// its later template chunk. The taker DRAINS and leaves the scope open (the router drains again while
-// it bakes, so a late region inside a late region still lands).
 set_late_scope_opener(() => {
 	const bag = bag_of();
 	if (bag) bag.late ??= { regions: [], next: 0 };
@@ -497,19 +395,12 @@ set_late_taker(() => {
 	late.regions = [];
 	return list;
 });
-// FACTS (plugin/facts.ts): the region-endpoint mint (prerender-grade holes in a storable render)
-// and the data-source recorder find the running code's request the way the bag does — through
-// Kit's request store.
 set_current_request(
 	() => (try_get_request_store() as { event?: RequestEvent } | undefined)?.event?.request
 );
-// DATA SOURCES: every `__og_source`-wrapped call files its `(id, fingerprint)` tag with the running
-// request's facts — when a plugin asked for them (`facts.sources` set to a list: a storable render's
-// invalidation reverse index, a federated fragment reporting what it read).
 set_source_recorder((tag) => {
 	current_facts()?.sources?.push(tag);
 });
-// ROUTE CONFIG: each Kit page's merged `config`, the keys plugins claim, baked by the compiler
 set_page_route_config(route_config);
 // PLUGINS (listed beside `ogygia()`): each one's server half, live — its app made, its shared hooks
 // registered, its `setup` run — once, when this module loads. A run of this module again (dev) makes
@@ -560,12 +451,8 @@ function dt_record(bag: RequestBag | undefined, input: DevtoolsEventInput): void
 // transform outside it, passes its bag to `dt_record` directly)
 if (DEVTOOLS) set_server_devtools_recorder((input) => dt_record(bag_of(), input));
 
-/** Cap on a batch POST body. 32 endpoints × ~8.5kB (props cap 8192 + URL overhead) ≈ 270kB;
- *  512kB leaves margin. Read no further than the cap (server/capped-body.ts). */
 const MAX_BATCH_BODY = 512 * 1024;
 
-/** Abort waiting on slow region SSR (work may continue — see INVARIANTS · RENDER-TIMEOUT): the
- *  `render` policy's deadline (./policies.ts). */
 const RENDER_TIMEOUT_MS = render_policy.deadline;
 
 /** Process-local cap on concurrent region SSR (M1 CPU amp under valid MAC). */
@@ -573,14 +460,8 @@ const render_gate = new ConcurrencyGate(REGION_RENDER_CONCURRENCY);
 /** The abandoned renders already told (one render's timeout reaches every call that joined it). */
 const told_abandoned = new WeakSet<Error>();
 
-/** The per-plugin contexts of an app with no plugins (shared: never written to). */
-// static: the empty list, shared and never written
 const NO_CTXS: readonly RequestContext<unknown, unknown>[] = [];
 
-/**
- * Anti-framing + MIME + Referrer on every region response.
- * Referrer-Policy strips capability query strings from third-party asset requests (H6).
- */
 const REGION_FRAME_HEADERS = {
 	'X-Frame-Options': 'DENY',
 	'Content-Security-Policy': "frame-ancestors 'none'",
@@ -588,8 +469,6 @@ const REGION_FRAME_HEADERS = {
 	'Referrer-Policy': 'no-referrer'
 } as const;
 
-/** Every region response, with those headers. It says how it may be cached: `no-store` (a refusal,
- *  an error, a dynamic hole) unless the caller names the hole's own policy (HOLE-CACHE). */
 function region_response(
 	body: BodyInit | null,
 	init: { status: number; headers?: Record<string, string> }
@@ -600,8 +479,6 @@ function region_response(
 	});
 }
 
-/** A visitor over a budget: the 429 says when its window resets, so a hole asks again after it
- *  instead of spending its tries inside the window (#959, test/browser/hole-rate-limited.test.ts). */
 function over_budget(limiter: RateLimiter, ip: string): Response {
 	return region_response('Too Many Requests', {
 		status: 429,
@@ -609,8 +486,6 @@ function over_budget(limiter: RateLimiter, ip: string): Response {
 	});
 }
 
-/** Why a region request was refused. `foreign-key`: the capability names another signing key than
- *  this deployment's — the page and its islands endpoint came from different deployments. */
 type RegionDeny =
 	| 'cross-site'
 	| 'shape'
@@ -623,12 +498,6 @@ type RegionDeny =
 	| 'props'
 	| 'oversize';
 
-/**
- * Every refused region request: a 403 that says why (`x-ogygia-deny`) and which key answered
- * (`x-ogygia-key`, the fingerprint a capability carries as `&k=`). Neither is an oracle: every
- * reason past `sig` is reached only with a capability this key signed (an unknown id still never
- * tells from a bad MAC, SEC-01), and the fingerprint is an HMAC of a constant.
- */
 function region_denied(why: RegionDeny) {
 	return region_response('Forbidden', {
 		status: 403,
@@ -636,31 +505,22 @@ function region_denied(why: RegionDeny) {
 	});
 }
 
-/** A capability minted under another key than this deployment's (its `&k=` fingerprint). One
- *  without `k` (minted before capabilities named their key) is left to the MAC. */
 function foreign_key(k: string | null): boolean {
 	return k !== null && k !== signing_key().fp;
 }
 
-/** A region capability's fields, as its URL carries them (server/region-endpoint.ts mints them). */
 interface Capability {
-	/** the region id: the wrapper that minted it */
 	id: string;
-	/** its render identity (`r`): what the endpoint renders; '' when minted before render ids */
 	render: string;
 	payload: string;
 	exp: string;
-	/** the signature's version (`v`): '' when minted before v3 (its `v1|`/`v2|` MAC) */
 	v: string;
 	ttl: string;
-	/** `'1'`: the hole's component hydrates over the answer (`w`, signed); '' when it does not */
 	wakes: string;
 	sig: string;
-	/** the minter's key fingerprint; null when minted before capabilities named their key */
 	k: string | null;
 }
 
-/** What a capability signs beside its expiry, with the session it must be sealed to. */
 function claim_of(cap: Capability, session: string): RegionClaim {
 	return {
 		id: cap.id,
@@ -686,12 +546,6 @@ function capability_of(params: URLSearchParams): Capability {
 	};
 }
 
-/**
- * The server entry that answers a verified capability: its own id when this build has it, else an
- * entry of this build rendering the same component (its signed render identity) — the capability
- * came from another build: an older cached page, another deployment, a changed schedule or salt.
- * Null when this build renders neither: the component is gone, moved or renamed.
- */
 function capability_target(cap: Capability): string | null {
 	if (Object.hasOwn(region_url, cap.id)) return cap.id;
 	if (cap.render !== '' && Object.hasOwn(render_region, cap.render))
@@ -699,10 +553,6 @@ function capability_target(cap: Capability): string | null {
 	return null;
 }
 
-/**
- * Decode a request pathname without throwing on malformed percent-encoding (SEC-05).
- * @returns decoded path, or null if the encoding is invalid
- */
 function decode_pathname(pathname: string): string | null {
 	try {
 		return decodeURIComponent(pathname);
@@ -711,8 +561,6 @@ function decode_pathname(pathname: string): string | null {
 	}
 }
 
-/** Resolve a rate-limit key; fail closed (null) when the adapter cannot identify the client.
- * Never trust X-Forwarded-For / spoofable proxy headers — adapters must provide getClientAddress(). */
 function client_ip(event: RequestEvent): string | null {
 	try {
 		return event.getClientAddress();
@@ -721,45 +569,24 @@ function client_ip(event: RequestEvent): string | null {
 	}
 }
 
-/**
- * Stylesheet `<link>`s a server-picked region needs so a page that never imported the component
- * still styles the fetched HTML (the whole point of a held region — the page can't know which
- * component the server will choose). Tagged `data-ogygia-region-css` so the client runtime HOISTS
- * them into `<head>`: a body `<link>` wouldn't load inside a `<template>` batch parcel, and a head
- * link loads once and is deduped across regions. Empty for a plain island (its CSS is already in the
- * page's own stylesheet) or before a build (`region_css` reads the build-time handoff).
- */
 function region_css_links(id: string): string {
 	const url = region_url[id];
 	if (!url) return '';
 	let out = '';
 	for (const href of region_css(url)) {
-		// `asset()` supplies base/assets — region_css hrefs are baked base-less (see Region.svelte).
-		// Inline under Kit's `inlineStyleThreshold`, a link otherwise (server/region-css.ts).
 		out += region_css_tag(href, kit_asset(href));
 	}
 	return out;
 }
 
-/**
- * Wrap a payload as an `application/ogygia-*` side-channel `<script>` the runtime reads. The
- * `payload` MUST be `<`-safe already: devalue output is by construction (it writes `<`), a
- * JSON payload goes through `escape_script_text` first — so this only builds the tag. One spot for
- * the side-channel shape (page / remote / ctx / devtools).
- */
 function emit_ogygia_script(subtype: string, escaped_payload: string, marker = ''): string {
 	return `<script type="application/ogygia-${subtype}"${marker ? ` ${marker}` : ''}>${escaped_payload}</script>`;
 }
 
-/** Stamped into the head of a csr=true document: the runtime reads it (`kit_hydrates_page`)
- *  instead of scanning the page's inline scripts for Kit's bootstrap. */
 const CSR_META = '<meta name="ogygia-csr" content="true">';
 const CSR_FALSE_META = '<meta name="ogygia-csr" content="false">';
-/** the og.$ factory script, per manifest object (the build's, the same every request) */
 const fnm_script_cache = new WeakMap<object, string>();
 
-/** A document fetched by ogygia's router (runtime/router-nav.ts `nav_headers`: a navigation or a
- *  prefetch) — morphed into the live page rather than loaded as one. */
 function router_fetched(event: RequestEvent): boolean {
 	return event.request.headers.get('x-ogygia-spa') !== null;
 }
@@ -779,8 +606,6 @@ type SeedCodecs = {
 const NO_TRANSPORT = {};
 const seed_codec_cache = new WeakMap<object, SeedCodecs>();
 
-/** The seed's devalue reducers — the app's transport encoders merged with the defer markers — and a
- *  stringify bound to them, made once per transport object (Kit hands the same one every request). */
 function seed_codecs(
 	transport: Record<string, { encode: (v: unknown) => unknown }> | undefined
 ): SeedCodecs {

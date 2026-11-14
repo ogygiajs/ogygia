@@ -9,7 +9,7 @@ vi.mock('node:worker_threads', async (load) => ({
 }));
 
 const { ogygia } = await import('../src/vite/index.ts');
-const { keep_client_dir } = await import('../src/compiler/kit.ts');
+const { keep_client_dir } = await import('../src/kit.ts');
 
 let root = '';
 afterEach(() => rmSync(root, { recursive: true, force: true }));

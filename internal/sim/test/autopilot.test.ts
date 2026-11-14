@@ -2,7 +2,7 @@
 // package's tests once to learn which tests reach it, then breaks each reached recovery and reruns
 // only those tests. A test that fails twice proves the site `covered`; one that stays green is a
 // test gap; a site no test reaches is left for a buggify point. The source is always put back.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -15,6 +15,7 @@ import {
 	mutants_of,
 	probed,
 	merge_patch,
+	test_name_in,
 	type Proof
 } from '../src/autopilot.ts';
 import { site_nodes, type FailureLedger } from '../src/failures.ts';
@@ -39,7 +40,12 @@ describe('probes', () => {
 				p.catch(() => 0);
 				p.then(ok, bad);
 				if (x) throw new Error("x");
-				return { ok: false };
+				setTimeout(() => res.give_up(), 5);
+				p.addEventListener('error', () => res.said());
+				p.onerror = () => res.said();
+				if (res.aborted) return 4;
+				if (x.name === 'AbortError') return 5;
+				return { ok: false, onerror: () => 0 };
 			}
 		`;
 		const ids = new Set(site_nodes(FILE, source).map((s) => s.id));
@@ -113,7 +119,44 @@ describe('mutants', () => {
 		['stale, negated', 'if (x !== STALE) k();', 'f > stale:0', /if \(true\) k\(\);/],
 		['body', 'if (!res.body) return 3;', 'f > body:0', /if \(false\) return 3;/],
 		['throw', 'if (x) throw new Error("x");', 'f > throw:0', /if \(x\) \{\}/],
-		['result', 'return { ok: false };', 'f > result:0', /return \{ ok: true \};/]
+		['result', 'return { ok: false };', 'f > result:0', /return \{ ok: true \};/],
+		[
+			'timer',
+			'setTimeout(() => res.give_up(), 5);',
+			'f > timer:0',
+			/setTimeout\(\(\) => \{\}, 5\);/
+		],
+		[
+			"scope's timer",
+			'p.timeout(5, () => res.give_up());',
+			'f > timer:0',
+			/p\.timeout\(5, \(\) => \{\}\);/
+		],
+		[
+			'error listener',
+			"p.addEventListener('error', () => res.said());",
+			'f > error-event:0',
+			/p\.addEventListener\('error', \(\) => \{\}\);/
+		],
+		[
+			'error handler',
+			'p.onerror = () => res.said();',
+			'f > error-event:0',
+			/p\.onerror = \(\) => \{\};/
+		],
+		[
+			'error handler property',
+			'return { onerror: () => res.said() };',
+			'f > error-event:0',
+			/return \{ onerror: \(\) => \{\} \};/
+		],
+		['aborted check', 'if (res.aborted) return 4;', 'f > abort:0', /if \(false\) return 4;/],
+		[
+			'AbortError check',
+			"if (x.name === 'AbortError') return 5;",
+			'f > abort:0',
+			/if \(false\) return 5;/
+		]
 	];
 	for (const [what, line, site, want] of cases)
 		it(`break the recovery of a ${what} site`, () => {
@@ -142,6 +185,20 @@ describe('mutants', () => {
 	});
 });
 
+describe('a test named in its file', () => {
+	it('is its own name, or the each template that made it', () => {
+		const text = dedent`
+			it('plain', () => {});
+			it.each([['x', 1]])('%j gives %d', () => {});
+			it.each([{ a: 'q' }])("$a stays 100%%", () => {});
+		`;
+		expect(test_name_in(text, 'plain')).toBe('plain');
+		expect(test_name_in(text, '"x" gives 1')).toBe('%j gives %d');
+		expect(test_name_in(text, 'q stays 100%')).toBe('$a stays 100%%');
+		expect(test_name_in(text, 'nothing here')).toBe(null);
+	});
+});
+
 describe('the ledger patch', () => {
 	it('moves proved sites from the baseline to covered and leaves the rest', () => {
 		const ledger = {
@@ -149,6 +206,7 @@ describe('the ledger patch', () => {
 			fired: [],
 			covered: [],
 			impossible: [],
+			equivalent: [],
 			baseline: ['a', 'b', 'c']
 		} as FailureLedger;
 		const proofs: Proof[] = [{ site: 'b', reason: 'r', test: 't.test.ts', name: 'n' }];
@@ -163,6 +221,7 @@ describe('the ledger patch', () => {
 			fired: [],
 			covered: [],
 			impossible: [],
+			equivalent: [],
 			baseline: ['a']
 		} as FailureLedger;
 		expect(() => merge_patch(ledger, [{ site: 'z', reason: 'r', test: 't', name: 'n' }])).toThrow(
@@ -198,9 +257,22 @@ export function guard(n: number): number {
 	if (n < 0) throw new Error('negative');
 	return n;
 }
+
+export function digits(text: string): string {
+	if (!/^\\d+$/.test(text)) throw new Error('not digits');
+	return text;
+}
+
+export function late(): Promise<string> {
+	return new Promise((answer) => setTimeout(() => answer('late'), 1));
+}
 `;
 
-const SPEC = `import { parse_or_null, status, guard } from '../src/a.ts';
+const SPEC = `import { parse_or_null, status, guard, digits, late } from '../src/a.ts';
+
+test.each(['x', 'y'])('%j is refused as digits', (text) => {
+	expect(() => digits(text)).toThrow('not digits');
+});
 
 test('a bad text parses to null', () => {
 	expect(parse_or_null('{')).toBe(null);
@@ -213,6 +285,10 @@ test('a failed answer still says done', () => {
 test('a negative number is refused', () => {
 	expect(() => guard(-1)).toThrow('negative');
 });
+
+test('a deadline gives up late', async () => {
+	expect(await late()).toBe('late');
+}, 1000);
 `;
 
 describe('a run over a package', () => {
@@ -247,7 +323,9 @@ describe('a run over a package', () => {
 		expect(readFileSync(join(root, 'packages/fx/src/a.ts'), 'utf8')).toBe(SOURCE);
 		expect(report.proved.map((p) => [p.site, p.name])).toEqual([
 			[`${FILE} > parse_or_null > catch:0`, 'a bad text parses to null'],
-			[`${FILE} > guard > throw:0`, 'a negative number is refused']
+			[`${FILE} > guard > throw:0`, 'a negative number is refused'],
+			[`${FILE} > digits > throw:0`, '%j is refused as digits'],
+			[`${FILE} > late > timer:0`, 'a deadline gives up late']
 		]);
 		expect(report.proved[0].test).toBe('packages/fx/test/a.spec.ts');
 		expect(report.survived.map((s) => s.site)).toEqual([`${FILE} > status > not-ok:0`]);
@@ -280,6 +358,81 @@ describe('a run over a package', () => {
 		const all = await autopilot({ ...o, ...run });
 		expect(all.unreached).toEqual([`${FILE} > never > catch:0`]);
 		expect(all.proved.map((p) => p.site)).toContain(`${FILE} > parse_or_null > catch:0`);
+	}, 180_000);
+
+	const NO_GLOBALS = `import { expect, test } from 'vitest';\n${SPEC}`;
+	const bare_root = (): string => {
+		const root = mkdtempSync(join(tmpdir(), 'autopilot-'));
+		dirs.push(root);
+		mkdirSync(join(root, 'node_modules'), { recursive: true });
+		symlinkSync(
+			resolve(import.meta.dirname, '../node_modules/vitest'),
+			join(root, 'node_modules/vitest')
+		);
+		mkdirSync(join(root, 'packages/fx/src'), { recursive: true });
+		writeFileSync(join(root, FILE), SOURCE);
+		return root;
+	};
+
+	it('fails a run whose vitest cannot start, and puts every byte back', async () => {
+		const root = bare_root();
+		const run = autopilot({
+			root,
+			pkg: 'fx',
+			baseline: [`${FILE} > guard > throw:0`],
+			out: join(root, 'out'),
+			vitest: join(root, 'no-vitest-here'),
+			projects: [null],
+			timeout_ms: 60_000,
+			quiet: true
+		});
+		await expect(run).rejects.toThrow('no-vitest-here');
+		expect(readFileSync(join(root, FILE), 'utf8')).toBe(SOURCE);
+	}, 180_000);
+
+	it('runs a package with no vitest config under vitest defaults', async () => {
+		const root = bare_root();
+		mkdirSync(join(root, 'packages/fx/test'), { recursive: true });
+		writeFileSync(join(root, 'packages/fx/test/a.test.ts'), NO_GLOBALS);
+		const report = await autopilot({
+			root,
+			pkg: 'fx',
+			baseline: [`${FILE} > guard > throw:0`],
+			out: join(root, 'out'),
+			vitest: VITEST,
+			projects: [null],
+			timeout_ms: 60_000,
+			quiet: true
+		});
+		expect(readFileSync(join(root, FILE), 'utf8')).toBe(SOURCE);
+		expect(report.proved.map((p) => [p.test, p.name])).toEqual([
+			['packages/fx/test/a.test.ts', 'a negative number is refused']
+		]);
+	}, 180_000);
+
+	it("proves a package's sites by the tests of another folder it names", async () => {
+		const root = bare_root();
+		mkdirSync(join(root, 'packages/uses/test'), { recursive: true });
+		writeFileSync(
+			join(root, 'packages/uses/test/a.test.ts'),
+			NO_GLOBALS.replace("'../src/a.ts'", "'../../fx/src/a.ts'")
+		);
+		const report = await autopilot({
+			root,
+			pkg: 'fx',
+			tests: 'packages/uses',
+			baseline: [`${FILE} > guard > throw:0`, `${FILE} > never > catch:0`],
+			out: join(root, 'out'),
+			vitest: VITEST,
+			projects: [null],
+			timeout_ms: 60_000,
+			quiet: true
+		});
+		expect(readFileSync(join(root, FILE), 'utf8')).toBe(SOURCE);
+		expect(report.proved.map((p) => [p.site, p.test, p.name])).toEqual([
+			[`${FILE} > guard > throw:0`, 'packages/uses/test/a.test.ts', 'a negative number is refused']
+		]);
+		expect(report.unreached).toEqual([`${FILE} > never > catch:0`]);
 	}, 180_000);
 
 	it('names the test that hung when a run is stopped, never one that passed before it', async () => {

@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { island_entry_source, FOREIGN_HYDRATE_MARK } from '../src/compiler/region/emit.ts';
+import { island_entry_source, FOREIGN_HYDRATE_MARK } from '../src/region/emit.ts';
 
 describe('island_entry_source — the foreign-hydrate contract', () => {
 	const src = island_entry_source('/src/lib/Tiny.svelte', 'abc123');

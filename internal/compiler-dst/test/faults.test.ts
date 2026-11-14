@@ -11,7 +11,7 @@ import { cold_server, dev_server, edit, grow_only_missing, type Server } from '.
 import { dedent } from '../../../packages/core/src/contract/dedent.ts';
 import { permute, rng } from '../src/order.ts';
 import { faulty_fs, owed, WATCH_FAULTS, watched, type FaultyFs } from '../src/faults.ts';
-import { memory_fs } from '../../../packages/compiler/src/compiler/index.ts';
+import { memory_fs } from '../../../packages/compiler/src/index.ts';
 
 const RUNS = (ci: number) => Number(process.env.DST_RUNS) || ci;
 

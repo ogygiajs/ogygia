@@ -3,7 +3,7 @@
 // code, and a pass that took them for it ran the Svelte parser over CSS and warned for every styled
 // component. A cache query or ogygia's own is still the script.
 import { describe, expect, it } from 'vitest';
-import { is_script_request } from '../src/compiler/script-request.ts';
+import { is_script_request } from '../src/script-request.ts';
 
 describe('is_script_request', () => {
 	it.each([

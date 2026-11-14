@@ -11,7 +11,7 @@ import {
 	regionIdentity,
 	regionId,
 	CLIENT_BINDING_STUB
-} from '../../../packages/compiler/dist/compiler/region/transform.js';
+} from '../../../packages/compiler/dist/region/transform.js';
 import { test, check } from '@ogygia/tooling/e2e';
 import { WRAPPER_VIRTUAL_RE } from '@ogygia/tooling/e2e/re.ts';
 import { dedent } from 'ogygia/plugin/utils';
