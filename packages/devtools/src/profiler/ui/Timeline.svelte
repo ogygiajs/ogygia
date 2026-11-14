@@ -29,20 +29,17 @@
 	const IO = '#d9a03d';
 	const GAP = '#2a2f38';
 	const is_http = (s: ViewSegment) => !!s.calls?.some((c) => /^[A-Z]+ /.test(c.label));
-	const fill = (s: ViewSegment) =>
-		s.kind === 'cpu'
-			? CATEGORY_COLOR[s.category] || '#6b7280'
-			: s.kind === 'wait'
-				? `repeating-linear-gradient(135deg, ${is_http(s) ? WAIT : IO} 0 4px, #0d1014 4px 6px)`
-				: GAP;
-	const dot = (s: ViewSegment) =>
-		s.kind === 'cpu'
-			? CATEGORY_COLOR[s.category] || '#6b7280'
-			: s.kind === 'wait'
-				? is_http(s)
-					? WAIT
-					: IO
-				: GAP;
+	const fill = (s: ViewSegment) => {
+		if (s.kind === 'cpu') return CATEGORY_COLOR[s.category] || '#6b7280';
+		if (s.kind === 'wait')
+			return `repeating-linear-gradient(135deg, ${is_http(s) ? WAIT : IO} 0 4px, #0d1014 4px 6px)`;
+		return GAP;
+	};
+	const dot = (s: ViewSegment) => {
+		if (s.kind === 'cpu') return CATEGORY_COLOR[s.category] || '#6b7280';
+		if (s.kind === 'wait') return is_http(s) ? WAIT : IO;
+		return GAP;
+	};
 
 	const view = $derived(coalesce(t));
 	const steps = $derived(chain_steps(t));
