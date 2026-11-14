@@ -6083,6 +6083,18 @@
 		{
 			"id": "packages/core/src/region-snippet.ts > RenderSnippet > component:0~4930b4",
 			"reason": "calls the snippet with the renderer Svelte hands it, constant work of its own; its output is the snippet's, through Svelte's renderer, no replay holds it; region-snippet-freeze-dev.test.ts and test/canary/svelte-server-signature.test.ts run it"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > kit_start_ungated > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > kit_start_ungated > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/server/kit-gate.ts > kit_start_ungated",
+			"reason": "dev only (the warning folds out of production); one bounded scan of the body's last 64 KB, the scan kit_gate's bench case already counts; kit-gate.test.ts and test/canary/kit-start-script.test.ts run it"
 		}
 	]
 }
