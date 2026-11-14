@@ -19,7 +19,7 @@ class BetterSqlite {
 }
 
 vi.mock('node:module', async (original) => ({
-	...(await original<typeof import('node:module')>()),
+	...(await original<Record<string, unknown>>()),
 	createRequire: () => (id: string) => {
 		if (!installed.has(id)) throw new Error(`Cannot find module '${id}'`);
 		return BetterSqlite;
