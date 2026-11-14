@@ -496,10 +496,34 @@
 			"name": "a refused answer stays at its address: the hole that wakes later is refused too, and asks nothing"
 		},
 		{
-			"site": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > .catch:0",
-			"reason": "as above; proved: the refusal dropped (catch -> nothing) turns the test red",
+			"site": "packages/core/src/runtime/frame-store.ts > fetch_frame > catch:0",
+			"reason": "as above; proved: the refusal not held (catch -> rethrow only) turns the test red",
 			"test": "packages/core/test/browser/early-holes.test.ts",
 			"name": "a refused answer stays at its address: the hole that wakes later is refused too, and asks nothing"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > start > reject:0",
+			"reason": "as above; proved: the early flight's rejection not handled (then without its reject) fails the file with unhandled rejections",
+			"test": "packages/core/test/browser/early-holes.test.ts",
+			"name": "a refused answer stays at its address: the hole that wakes later is refused too, and asks nothing"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > fetch_frame > throw:0",
+			"reason": "a refusal its caller heard through the flight: the sim's apps do not refuse a hole; proved: the rethrow swallowed turns the test red",
+			"test": "packages/core/test/frame-store-claims.test.ts",
+			"name": "a refusal its caller heard through the flight is not held: that caller asks again past it"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > ensure > throw:1",
+			"reason": "as above; proved: the rethrow swallowed turns the test red",
+			"test": "packages/core/test/frame-store-claims.test.ts",
+			"name": "a refusal its caller heard through the flight is not held: that caller asks again past it"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > ensure > catch:0",
+			"reason": "a refused early hole the hole joined while it was out (#1752): the sim's apps do not refuse an early hole; proved: the heard refusal left held turns the test red (it failed so before the fix)",
+			"test": "packages/core/test/browser/early-holes.test.ts",
+			"name": "a refused answer the hole joined while it was out is not handed to it again: its next ask goes to the network (#1752)"
 		},
 		{
 			"site": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > error-event:0",
