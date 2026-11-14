@@ -3,7 +3,7 @@ const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 1280, height: 850 }, colorScheme: 'dark' });
 const probe = () =>
 	p.evaluate(() => {
-		const out = [];
+		const out: Record<string, unknown>[] = [];
 		document.querySelectorAll('.og-body pre').forEach((pre) => {
 			const acts = pre.querySelectorAll('.og-code-actions');
 			const wrap = pre.closest('.code-only');
