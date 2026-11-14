@@ -42,20 +42,7 @@ import { import_entry } from './runtime/entry-locations.ts';
 import { OgygiaError } from './messages/island.ts';
 import { OG_SLOT, OG_STATIC, OGYGIA_REGION_CSS } from './wire-markup.ts';
 import { escape_attr } from './escape.ts';
-
-type ComponentRenderer = { component(fn: (r: unknown) => void, of: unknown): void };
-/**
- * A hand-written SERVER component that renders a bare snippet: svelte has no public API to
- * stringify a snippet, but a server component is just `($$renderer, $$props) => void` and a server
- * snippet is `($$renderer) => void` — so the component simply invokes the snippet. Hand-written
- * (not a `.svelte` file) so this module stays importable from plain node (endpoints, tests)
- * without a svelte compiler in the loader.
- */
-const RenderSnippet = (($$renderer: ComponentRenderer, $$props: { s: Snippet }) => {
-	$$renderer.component(($$renderer) => {
-		($$props.s as unknown as (r: unknown) => void)($$renderer);
-	}, RenderSnippet);
-}) as unknown as Component;
+import RenderSnippet from './RenderSnippet.svelte';
 
 /** Devalue custom-type name a region snippet crosses under (wire-stable; was `OgygiaS`). */
 export const REGION_SNIPPET_WIRE_KEY = 'OgygiaS';
@@ -266,7 +253,7 @@ function make(desc: RegionSnippetDescriptor, live_entry: Component | null = null
 function capture_static(snippet: Snippet, label?: string): RegionSnippet {
 	let body: string;
 	try {
-		body = ssr_render(RenderSnippet, { props: { s: snippet }, context: kit_render_context() }).body;
+		body = ssr_render(RenderSnippet, { props: { snippet }, context: kit_render_context() }).body;
 	} catch (e) {
 		// A Svelte snippet is just a function, so ogygia can't tell a real snippet from a plain
 		// callback until it tries to render it — which is HERE. Lead with "function" (not "snippet"):
