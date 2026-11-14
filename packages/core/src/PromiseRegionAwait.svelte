@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	/**
 	 * PromiseRegion.svelte, for an app that runs Svelte's async mode: the build imports this one in its
 	 * place (vite/late-island.ts). The promise is AWAITED IN THE RENDER: the server render waits for it
@@ -12,11 +12,18 @@
 	 * compile, which is why it is never the default.
 	 */
 	import Region from './Region.svelte';
+	import type { Snippet } from 'svelte';
 	import { register_late_region } from './late-region-registry.ts';
+	import type { RegionValue } from './region.ts';
 	import { wire_form } from './transport.ts';
 
-	/** @type {{ of: Promise<import('./region.ts').RegionValue>, placeholder?: import('svelte').Snippet, children?: import('svelte').Snippet }} */
-	let { of, placeholder, children } = $props();
+	interface Props {
+		of: Promise<RegionValue>;
+		placeholder?: Snippet;
+		children?: Snippet;
+	}
+
+	let { of, placeholder, children }: Props = $props();
 
 	// svelte-ignore state_referenced_locally
 	const late_slot = typeof window === 'undefined' ? register_late_region(of) : null;
