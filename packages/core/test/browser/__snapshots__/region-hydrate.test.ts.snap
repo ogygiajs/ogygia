@@ -2,9 +2,9 @@
 
 exports[`held baked value on a csr=true page 1`] = `
 "{
- "server_head": "<!--rtd3wb--><!--u7pura--><script type=\\"module\\" data-ogygia-runtime src=\\"/og-runtime.js\\" onerror=\\"console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')\\"></script><!----><!---->",
+ "server_head": "<!--<id1>--><!--<id2>--><script type=\\"module\\" data-ogygia-runtime src=\\"/og-runtime.js\\" onerror=\\"console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')\\"></script><!----><!---->",
  "head_gone": [
-  "<!--rtd3wb-->"
+  "<!--<id1>-->"
  ],
  "server_body": "<!--[--><!--[--><!--[5--><!--[0--><ogygia-region live data-og-baked><b>baked</b></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
  "body_after": "<!--[--><!--[--><!--[5--><!--[0--><ogygia-region live=\\"\\" data-og-baked=\\"\\"><b>baked</b></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
@@ -16,12 +16,12 @@ exports[`held baked value on a csr=true page 1`] = `
 
 exports[`held deferred value on a csr=true page 1`] = `
 "{
- "server_head": "<!--rtd3wb--><!--u7pura--><script type=\\"module\\" data-ogygia-runtime src=\\"/og-runtime.js\\" onerror=\\"console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')\\"></script><!----><!---->",
+ "server_head": "<!--<id1>--><!--<id2>--><script type=\\"module\\" data-ogygia-runtime src=\\"/og-runtime.js\\" onerror=\\"console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')\\"></script><!----><!---->",
  "head_gone": [
-  "<!--rtd3wb-->"
+  "<!--<id1>-->"
  ],
- "server_body": "<!--[--><!--[--><!--[6--><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"/__ogygia__?id=held-a\\"><!--[0--><p>wait</p><!----><!--]--></ogygia-region><!--45h--><!----><!----><!--]--><!--]--><!--]-->",
- "body_after": "<!--[--><!--[--><!--[6--><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"/__ogygia__?id=held-a\\"><!--[0--><p>wait</p><!----><!--]--></ogygia-region><!--45h--><!----><!----><!--]--><!--]--><!--]-->",
+ "server_body": "<!--[--><!--[--><!--[6--><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"/__ogygia__?id=held-a\\"><!--[0--><p>wait</p><!----><!--]--></ogygia-region><!--<id3>--><!----><!----><!--]--><!--]--><!--]-->",
+ "body_after": "<!--[--><!--[--><!--[6--><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"/__ogygia__?id=held-a\\"><!--[0--><p>wait</p><!----><!--]--></ogygia-region><!--<id3>--><!----><!----><!--]--><!--]--><!--]-->",
  "kept_body": true,
  "kept_head": false,
  "said": []
@@ -30,12 +30,12 @@ exports[`held deferred value on a csr=true page 1`] = `
 
 exports[`held deferred value that wakes on a csr=true page 1`] = `
 "{
- "server_head": "<!--rtd3wb--><!--u7pura--><script type=\\"module\\" data-ogygia-runtime src=\\"/og-runtime.js\\" onerror=\\"console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')\\"></script><!----><!---->",
+ "server_head": "<!--<id1>--><!--<id2>--><script type=\\"module\\" data-ogygia-runtime src=\\"/og-runtime.js\\" onerror=\\"console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')\\"></script><!----><!---->",
  "head_gone": [
-  "<!--rtd3wb-->"
+  "<!--<id1>-->"
  ],
- "server_body": "<!--[--><!--[--><!--[6--><!----><ogygia-region entry=\\"/islands/held.js\\" render=\\"defer\\" when=\\"load\\" wake=\\"load\\" endpoint=\\"/__ogygia__?id=held-a\\"><!--[-1--><!--]--></ogygia-region><!--3ntvr3--><script type=\\"application/ogygia-props\\" data-ogygia-props>[{\\"h\\":1},1]</script><!----><!----><!--]--><!--]--><!--]-->",
- "body_after": "<!--[--><!--[--><!--[6--><!----><ogygia-region entry=\\"/islands/held.js\\" render=\\"defer\\" when=\\"load\\" wake=\\"load\\" endpoint=\\"/__ogygia__?id=held-a\\"><!--[-1--><!--]--></ogygia-region><!--3ntvr3--><script type=\\"application/ogygia-props\\" data-ogygia-props=\\"\\">[{\\"h\\":1},1]</script><!----><!----><!--]--><!--]--><!--]-->",
+ "server_body": "<!--[--><!--[--><!--[6--><!----><ogygia-region entry=\\"/islands/held.js\\" render=\\"defer\\" when=\\"load\\" wake=\\"load\\" endpoint=\\"/__ogygia__?id=held-a\\"><!--[-1--><!--]--></ogygia-region><!--<id3>--><script type=\\"application/ogygia-props\\" data-ogygia-props>[{\\"h\\":1},1]</script><!----><!----><!--]--><!--]--><!--]-->",
+ "body_after": "<!--[--><!--[--><!--[6--><!----><ogygia-region entry=\\"/islands/held.js\\" render=\\"defer\\" when=\\"load\\" wake=\\"load\\" endpoint=\\"/__ogygia__?id=held-a\\"><!--[-1--><!--]--></ogygia-region><!--<id3>--><script type=\\"application/ogygia-props\\" data-ogygia-props=\\"\\">[{\\"h\\":1},1]</script><!----><!----><!--]--><!--]--><!--]-->",
  "kept_body": true,
  "kept_head": false,
  "said": []
@@ -44,9 +44,9 @@ exports[`held deferred value that wakes on a csr=true page 1`] = `
 
 exports[`held inline value on a csr=true page 1`] = `
 "{
- "server_head": "<!--rtd3wb--><!--45h--><!----><!---->",
+ "server_head": "<!--<id1>--><!--<id2>--><!----><!---->",
  "head_gone": [
-  "<!--rtd3wb-->"
+  "<!--<id1>-->"
  ],
  "server_body": "<!--[--><!--[--><!--[3--><!--[--><b data-tiny=\\"\\">tiny</b><!--]--><!--]--><!--]--><!--]-->",
  "body_after": "<!--[--><!--[--><!--[3--><!--[--><b data-tiny=\\"\\">tiny</b><!--]--><!--]--><!--]--><!--]-->",
@@ -58,9 +58,9 @@ exports[`held inline value on a csr=true page 1`] = `
 
 exports[`held interactive dual on a csr=true page 1`] = `
 "{
- "server_head": "<!--rtd3wb--><!--1emds23--><meta name=\\"ogygia-kit-island\\" content=\\"/islands/dual.js\\"><link rel=\\"stylesheet\\" href=\\"/islands/dual.css\\" data-ogygia-region-css><!----><!---->",
+ "server_head": "<!--<id1>--><!--<id2>--><meta name=\\"ogygia-kit-island\\" content=\\"/islands/dual.js\\"><link rel=\\"stylesheet\\" href=\\"/islands/dual.css\\" data-ogygia-region-css><!----><!---->",
  "head_gone": [
-  "<!--rtd3wb-->"
+  "<!--<id1>-->"
  ],
  "server_body": "<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny=\\"\\">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->",
  "body_after": "<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny=\\"\\">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->",
@@ -72,9 +72,9 @@ exports[`held interactive dual on a csr=true page 1`] = `
 
 exports[`held live value on a csr=true page 1`] = `
 "{
- "server_head": "<!--rtd3wb--><!--u7pura--><script type=\\"module\\" data-ogygia-runtime src=\\"/og-runtime.js\\" onerror=\\"console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')\\"></script><!----><!---->",
+ "server_head": "<!--<id1>--><!--<id2>--><script type=\\"module\\" data-ogygia-runtime src=\\"/og-runtime.js\\" onerror=\\"console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')\\"></script><!----><!---->",
  "head_gone": [
-  "<!--rtd3wb-->"
+  "<!--<id1>-->"
  ],
  "server_body": "<!--[--><!--[--><!--[5--><!--[-1--><ogygia-region live=\\"\\"><!--[0--><p>wait</p><!----><!--]--></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
  "body_after": "<!--[--><!--[--><!--[5--><!--[-1--><ogygia-region live=\\"true\\"><!--[0--><p>wait</p><!----><!--]--></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
@@ -86,9 +86,9 @@ exports[`held live value on a csr=true page 1`] = `
 
 exports[`held static dual on a csr=true page 1`] = `
 "{
- "server_head": "<!--rtd3wb--><!--17oin0a--><link rel=\\"stylesheet\\" href=\\"/islands/dual.css\\" data-ogygia-region-css><!----><!---->",
+ "server_head": "<!--<id1>--><!--<id2>--><link rel=\\"stylesheet\\" href=\\"/islands/dual.css\\" data-ogygia-region-css><!----><!---->",
  "head_gone": [
-  "<!--rtd3wb-->"
+  "<!--<id1>-->"
  ],
  "server_body": "<!--[--><!--[--><!--[4--><!--[--><b data-tiny=\\"\\">tiny</b><!--]--><!--]--><!--]--><!--]-->",
  "body_after": "<!--[--><!--[--><!--[4--><!--[--><b data-tiny=\\"\\">tiny</b><!--]--><!--]--><!--]--><!--]-->",
@@ -100,12 +100,12 @@ exports[`held static dual on a csr=true page 1`] = `
 
 exports[`hole in a live snippet 1`] = `
 "{
- "server_head": "<!--rtd3wb--><!--u7pura--><script type=\\"module\\" data-ogygia-runtime src=\\"/og-runtime.js\\" onerror=\\"console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')\\"></script><!----><!---->",
+ "server_head": "<!--<id1>--><!--<id2>--><script type=\\"module\\" data-ogygia-runtime src=\\"/og-runtime.js\\" onerror=\\"console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')\\"></script><!----><!---->",
  "head_gone": [
-  "<!--rtd3wb-->"
+  "<!--<id1>-->"
  ],
- "server_body": "<!--[--><!--[--><!--[1--><!--[1--><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"6c88c728d5741256\\"><p>wait</p><!----></ogygia-region><!----><!--45h--><!----><!--]--><!--]--><!--]--><!--]-->",
- "body_after": "<!--[--><!--[--><!--[1--><!--[1--><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"6c88c728d5741256\\"><p>wait</p><!----></ogygia-region><!----><!--45h--><!----><!--]--><!--]--><!--]--><!--]-->",
+ "server_body": "<!--[--><!--[--><!--[1--><!--[1--><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"<fp1>\\"><p>wait</p><!----></ogygia-region><!----><!--<id3>--><!----><!--]--><!--]--><!--]--><!--]-->",
+ "body_after": "<!--[--><!--[--><!--[1--><!--[1--><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"<fp1>\\"><p>wait</p><!----></ogygia-region><!----><!--<id3>--><!----><!--]--><!--]--><!--]--><!--]-->",
  "kept_body": true,
  "kept_head": false,
  "said": []
@@ -114,12 +114,12 @@ exports[`hole in a live snippet 1`] = `
 
 exports[`hole nested in an island 1`] = `
 "{
- "server_head": "<!--rtd3wb--><!--45h--><!----><!---->",
+ "server_head": "<!--<id1>--><!--<id2>--><!----><!---->",
  "head_gone": [
-  "<!--rtd3wb-->"
+  "<!--<id1>-->"
  ],
- "server_body": "<!--[--><!--[--><!--[1--><!--[0--><ogygia-region entry=\\"hole-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"6c88c728d5741256\\"><b data-tiny=\\"\\">tiny</b><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
- "body_after": "<!--[--><!--[--><!--[1--><!--[0--><ogygia-region entry=\\"hole-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"6c88c728d5741256\\"><b data-tiny=\\"\\">tiny</b><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
+ "server_body": "<!--[--><!--[--><!--[1--><!--[0--><ogygia-region entry=\\"hole-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"<fp1>\\"><b data-tiny=\\"\\">tiny</b><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
+ "body_after": "<!--[--><!--[--><!--[1--><!--[0--><ogygia-region entry=\\"hole-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"<fp1>\\"><b data-tiny=\\"\\">tiny</b><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
  "kept_body": true,
  "kept_head": false,
  "said": [
@@ -130,12 +130,12 @@ exports[`hole nested in an island 1`] = `
 
 exports[`hole that wakes on a csr=true page 1`] = `
 "{
- "server_head": "<!--rtd3wb--><!--u7pura--><script type=\\"module\\" data-ogygia-runtime src=\\"/og-runtime.js\\" onerror=\\"console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')\\"></script><!----><!---->",
+ "server_head": "<!--<id1>--><!--<id2>--><script type=\\"module\\" data-ogygia-runtime src=\\"/og-runtime.js\\" onerror=\\"console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')\\"></script><!----><!---->",
  "head_gone": [
-  "<!--rtd3wb-->"
+  "<!--<id1>-->"
  ],
- "server_body": "<!--[--><!--[--><!--[1--><!--[1--><ogygia-region entry=\\"/islands/hole.js\\" render=\\"defer\\" when=\\"load\\" wake=\\"load\\" endpoint=\\"\\" data-og-hole=\\"6c88c728d5741256\\"><p>wait</p><!----></ogygia-region><!----><!--6220ky--><script type=\\"application/ogygia-props\\" data-ogygia-props data-og-format=\\"json\\">{\\"q\\":\\"x\\"}</script><!----><!--]--><!--]--><!--]--><!--]-->",
- "body_after": "<!--[--><!--[--><!--[1--><!--[1--><ogygia-region entry=\\"/islands/hole.js\\" render=\\"defer\\" when=\\"load\\" wake=\\"load\\" endpoint=\\"\\" data-og-hole=\\"6c88c728d5741256\\"><p>wait</p><!----></ogygia-region><!----><!--6220ky--><script type=\\"application/ogygia-props\\" data-ogygia-props=\\"\\" data-og-format=\\"json\\">{\\"q\\":\\"x\\"}</script><!----><!--]--><!--]--><!--]--><!--]-->",
+ "server_body": "<!--[--><!--[--><!--[1--><!--[1--><ogygia-region entry=\\"/islands/hole.js\\" render=\\"defer\\" when=\\"load\\" wake=\\"load\\" endpoint=\\"\\" data-og-hole=\\"<fp1>\\"><p>wait</p><!----></ogygia-region><!----><!--<id3>--><script type=\\"application/ogygia-props\\" data-ogygia-props data-og-format=\\"json\\">{\\"q\\":\\"x\\"}</script><!----><!--]--><!--]--><!--]--><!--]-->",
+ "body_after": "<!--[--><!--[--><!--[1--><!--[1--><ogygia-region entry=\\"/islands/hole.js\\" render=\\"defer\\" when=\\"load\\" wake=\\"load\\" endpoint=\\"\\" data-og-hole=\\"<fp1>\\"><p>wait</p><!----></ogygia-region><!----><!--<id3>--><script type=\\"application/ogygia-props\\" data-ogygia-props=\\"\\" data-og-format=\\"json\\">{\\"q\\":\\"x\\"}</script><!----><!--]--><!--]--><!--]--><!--]-->",
  "kept_body": true,
  "kept_head": false,
  "said": []
@@ -144,9 +144,9 @@ exports[`hole that wakes on a csr=true page 1`] = `
 
 exports[`island nested in an island 1`] = `
 "{
- "server_head": "<!--rtd3wb--><!--2a0ssh--><link rel=\\"stylesheet\\" href=\\"/islands/tiny.css\\" data-ogygia-region-css><meta name=\\"ogygia-kit-island\\" content=\\"/islands/tiny.js\\"><!----><!---->",
+ "server_head": "<!--<id1>--><!--<id2>--><link rel=\\"stylesheet\\" href=\\"/islands/tiny.css\\" data-ogygia-region-css><meta name=\\"ogygia-kit-island\\" content=\\"/islands/tiny.js\\"><!----><!---->",
  "head_gone": [
-  "<!--rtd3wb-->"
+  "<!--<id1>-->"
  ],
  "server_body": "<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny=\\"\\">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->",
  "body_after": "<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny=\\"\\">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->",
@@ -160,9 +160,9 @@ exports[`island nested in an island 1`] = `
 
 exports[`island on a csr=true page 1`] = `
 "{
- "server_head": "<!--rtd3wb--><!--2a0ssh--><link rel=\\"stylesheet\\" href=\\"/islands/tiny.css\\" data-ogygia-region-css><meta name=\\"ogygia-kit-island\\" content=\\"/islands/tiny.js\\"><!----><!---->",
+ "server_head": "<!--<id1>--><!--<id2>--><link rel=\\"stylesheet\\" href=\\"/islands/tiny.css\\" data-ogygia-region-css><meta name=\\"ogygia-kit-island\\" content=\\"/islands/tiny.js\\"><!----><!---->",
  "head_gone": [
-  "<!--rtd3wb-->"
+  "<!--<id1>-->"
  ],
  "server_body": "<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny=\\"\\">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->",
  "body_after": "<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny=\\"\\">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->",
@@ -174,9 +174,9 @@ exports[`island on a csr=true page 1`] = `
 
 exports[`island with children on a csr=true page 1`] = `
 "{
- "server_head": "<!--rtd3wb--><!--2a0ssh--><link rel=\\"stylesheet\\" href=\\"/islands/tiny.css\\" data-ogygia-region-css><meta name=\\"ogygia-kit-island\\" content=\\"/islands/tiny.js\\"><!----><!---->",
+ "server_head": "<!--<id1>--><!--<id2>--><link rel=\\"stylesheet\\" href=\\"/islands/tiny.css\\" data-ogygia-region-css><meta name=\\"ogygia-kit-island\\" content=\\"/islands/tiny.js\\"><!----><!---->",
  "head_gone": [
-  "<!--rtd3wb-->"
+  "<!--<id1>-->"
  ],
  "server_body": "<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny=\\"\\">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->",
  "body_after": "<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny=\\"\\">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->",
@@ -188,12 +188,12 @@ exports[`island with children on a csr=true page 1`] = `
 
 exports[`lake nested in an island 1`] = `
 "{
- "server_head": "<!--rtd3wb--><!--45h--><!----><!---->",
+ "server_head": "<!--<id1>--><!--<id2>--><!----><!---->",
  "head_gone": [
-  "<!--rtd3wb-->"
+  "<!--<id1>-->"
  ],
- "server_body": "<!--[--><!--[--><!--[2--><!--[0--><ogygia-region entry=\\"lake-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"7c63ab05a88aab38\\"><p>lake</p><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
- "body_after": "<!--[--><!--[--><!--[2--><!--[0--><ogygia-region entry=\\"lake-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"7c63ab05a88aab38\\"><p>lake</p><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
+ "server_body": "<!--[--><!--[--><!--[2--><!--[0--><ogygia-region entry=\\"lake-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"<fp1>\\"><p>lake</p><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
+ "body_after": "<!--[--><!--[--><!--[2--><!--[0--><ogygia-region entry=\\"lake-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"<fp1>\\"><p>lake</p><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
  "kept_body": true,
  "kept_head": false,
  "said": []
@@ -202,12 +202,12 @@ exports[`lake nested in an island 1`] = `
 
 exports[`lake on a csr=true page 1`] = `
 "{
- "server_head": "<!--rtd3wb--><!--45h--><!----><!---->",
+ "server_head": "<!--<id1>--><!--<id2>--><!----><!---->",
  "head_gone": [
-  "<!--rtd3wb-->"
+  "<!--<id1>-->"
  ],
- "server_body": "<!--[--><!--[--><!--[2--><!--[0--><ogygia-region entry=\\"lake-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"7c63ab05a88aab38\\"><p>lake</p><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
- "body_after": "<!--[--><!--[--><!--[2--><!--[0--><ogygia-region entry=\\"lake-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"7c63ab05a88aab38\\"><p>lake</p><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
+ "server_body": "<!--[--><!--[--><!--[2--><!--[0--><ogygia-region entry=\\"lake-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"<fp1>\\"><p>lake</p><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
+ "body_after": "<!--[--><!--[--><!--[2--><!--[0--><ogygia-region entry=\\"lake-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"<fp1>\\"><p>lake</p><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->",
  "kept_body": true,
  "kept_head": false,
  "said": []

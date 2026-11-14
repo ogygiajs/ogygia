@@ -5,6 +5,7 @@
 // stand-ins that name their inputs, so a change to what Region asks for shows in the output.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, test, vi } from 'vitest';
 import { render } from 'svelte/server';
+import { normalize_hashes } from './_normalize-hashes.ts';
 import { setContext, type Component } from 'svelte';
 
 const build = vi.hoisted(() => ({ known: new Set<string>() }));
@@ -413,7 +414,7 @@ for (const dev of [true, false])
 		});
 		for (const [name, regions, place] of CASES)
 			it(name, () => {
-				expect(out(regions, place)).toMatchSnapshot();
+				expect(normalize_hashes(out(regions, place))).toMatchSnapshot();
 			});
 		const KNOWN: Array<[name: string, island: Props]> = [
 			['island the browser already has, on a navigation that names it', ISLAND],
@@ -429,7 +430,7 @@ for (const dev of [true, false])
 				try {
 					const fp = /data-og-fp="([0-9a-f]+)"/.exec(out([island]))![1];
 					build.known.add(fp);
-					expect(out([island])).toMatchSnapshot();
+					expect(normalize_hashes(out([island]))).toMatchSnapshot();
 				} finally {
 					delete (globalThis as { __OGYGIA_SERVER_DELTA__?: boolean }).__OGYGIA_SERVER_DELTA__;
 				}
@@ -457,4 +458,25 @@ test("in Kit's page pass, a page with an island three times asks the build for i
 		vi.restoreAllMocks();
 	}
 	expect(asked.filter((k) => k === ISLAND.__entry)).toEqual([ISLAND.__entry]);
+});
+
+test('the real hashes: what the tables show as placeholders, for a few inputs', () => {
+	vi.spyOn(console, 'warn').mockImplementation(() => {});
+	try {
+		const hashes = (regions: Props[], place: Place = {}) =>
+			out(regions, place).match(
+				/data-og-(?:fp|hole|lake)="[0-9a-f]{16}"|"s[0-9a-f]{16}"|slot:og[0-9a-z]+-1/g
+			);
+		expect(hashes([{ ...ISLAND, load: true }])).toEqual(['data-og-fp="7dd6306730e68332"']);
+		expect(hashes([HOLE])).toContain('data-og-hole="6c88c728d5741256"');
+		expect(hashes([LAKE], { nested: true })).toContain('data-og-lake="7c63ab05a88aab38"');
+		expect(hashes([{ ...ISLAND, __props: { s: snippet('<u>s</u>') } }])).toContain(
+			'"se9de2e38b5c3313b"'
+		);
+		expect(hashes([{ ...ISLAND, children: snippet('<i>kid</i>') }])).toEqual(
+			expect.arrayContaining(['data-og-fp="c2690e78672f61b6"', 'slot:ogsrnm90-1'])
+		);
+	} finally {
+		vi.restoreAllMocks();
+	}
 });

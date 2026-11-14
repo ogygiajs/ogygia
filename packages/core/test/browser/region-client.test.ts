@@ -14,6 +14,7 @@ import { setInLake, setInLiveSnippet } from '../../src/context.ts';
 import { runtime_session } from '../../src/runtime/session.ts';
 import { mark_written } from '../../src/frame.ts';
 import RegionSet from '../_fixtures/RegionSet.svelte';
+import { normalize_hashes } from '../_normalize-hashes.ts';
 import * as ProbeFallback from './fixtures/ProbeFallback.svelte';
 
 const { probe_fallback } = ProbeFallback as unknown as { probe_fallback: unknown };
@@ -206,7 +207,7 @@ const CASES: Array<[name: string, regions: Props[], place?: Place]> = [
 
 for (const [name, regions, place] of CASES)
 	test(name, async () => {
-		expect(await out(regions, place)).toMatchSnapshot();
+		expect(normalize_hashes(await out(regions, place))).toMatchSnapshot();
 	});
 
 /** Mount one region, then hand it each next set of props: the `<ogygia-region>` after each. */

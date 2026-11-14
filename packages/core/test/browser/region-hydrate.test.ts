@@ -8,6 +8,7 @@ import { from_b64 } from './b64.ts';
 import RegionUnder from '../_fixtures/RegionUnder.svelte';
 import { HYDRATE_CASES, place_setup } from './fixtures/hydrate-cases.ts';
 import { runtime_session } from '../../src/runtime/session.ts';
+import { normalize_hashes } from '../_normalize-hashes.ts';
 
 const SSR: Record<string, { head: string; body: string }> = JSON.parse(
 	from_b64(inject('region_hydrate_cases_b64'))
@@ -55,5 +56,5 @@ for (const [name, regions, place] of HYDRATE_CASES)
 		await unmount(app);
 		for (const n of server_head) n.remove();
 		expect(said.filter((s) => s.includes('hydration'))).toEqual([]);
-		expect(JSON.stringify(result, null, 1)).toMatchSnapshot();
+		expect(normalize_hashes(JSON.stringify(result, null, 1))).toMatchSnapshot();
 	});

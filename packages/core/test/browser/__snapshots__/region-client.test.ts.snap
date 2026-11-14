@@ -156,7 +156,7 @@ exports[`held static dual 1`] = `
 
 exports[`hole 1`] = `
 "{
- "body": "<!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"6c88c728d5741256\\"><!----><!----><p>wait</p><!----></ogygia-region><!---->",
+ "body": "<!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"<fp1>\\"><!----><!----><p>wait</p><!----></ogygia-region><!---->",
  "head_tags": [],
  "apply_live": [],
  "console": []
@@ -165,7 +165,7 @@ exports[`hole 1`] = `
 
 exports[`hole in a live snippet with no fallback 1`] = `
 "{
- "body": "<!----><!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"6c88c728d5741256\\"></ogygia-region><!----><!---->",
+ "body": "<!----><!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"<fp1>\\"></ogygia-region><!----><!---->",
  "head_tags": [],
  "apply_live": [],
  "console": []
@@ -174,7 +174,7 @@ exports[`hole in a live snippet with no fallback 1`] = `
 
 exports[`hole in a live snippet, created fresh: its fallback reads the page contexts 1`] = `
 "{
- "body": "<!----><!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"6c88c728d5741256\\"><!----><p>page-value</p></ogygia-region><!----><!---->",
+ "body": "<!----><!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"<fp1>\\"><!----><p>page-value</p></ogygia-region><!----><!---->",
  "head_tags": [],
  "apply_live": [],
  "console": []
@@ -183,7 +183,7 @@ exports[`hole in a live snippet, created fresh: its fallback reads the page cont
 
 exports[`hole in a live snippet, created fresh: its fallback, with the page contexts 1`] = `
 "{
- "body": "<!----><!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"6c88c728d5741256\\"><!----><p>wait</p></ogygia-region><!----><!---->",
+ "body": "<!----><!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"<fp1>\\"><!----><p>wait</p></ogygia-region><!----><!---->",
  "head_tags": [],
  "apply_live": [],
  "console": []
@@ -192,7 +192,7 @@ exports[`hole in a live snippet, created fresh: its fallback, with the page cont
 
 exports[`hole nested in an island 1`] = `
 "{
- "body": "<!----><!----><!----><ogygia-region entry=\\"hole-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"6c88c728d5741256\\"></ogygia-region>",
+ "body": "<!----><!----><!----><ogygia-region entry=\\"hole-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"<fp1>\\"></ogygia-region>",
  "head_tags": [],
  "apply_live": [],
  "console": [
@@ -203,7 +203,7 @@ exports[`hole nested in an island 1`] = `
 
 exports[`hole on a csr=true page 1`] = `
 "{
- "body": "<!----><!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"6c88c728d5741256\\"><!----><p>wait</p></ogygia-region><!----><!---->",
+ "body": "<!----><!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"<fp1>\\"><!----><p>wait</p></ogygia-region><!----><!---->",
  "head_tags": [],
  "apply_live": [],
  "console": []
@@ -230,7 +230,7 @@ exports[`island at the top whose wrapper has no component 1`] = `
 
 exports[`island in a live snippet, with a hole in it 1`] = `
 "{
- "body": "<!----><!----><!----><!----><!----><div data-host=\\"\\"><!----><!----><ogygia-region entry=\\"hole-in-island\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"0d5750a509a81bfb\\"></ogygia-region><!----></div>",
+ "body": "<!----><!----><!----><!----><!----><div data-host=\\"\\"><!----><!----><ogygia-region entry=\\"hole-in-island\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"<fp1>\\"></ogygia-region><!----></div>",
  "head_tags": [],
  "apply_live": [],
  "console": [
@@ -279,7 +279,7 @@ exports[`island with children 1`] = `
 
 exports[`lake in an island 1`] = `
 "{
- "body": "<!----><!----><!----><ogygia-region entry=\\"lake-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"7c63ab05a88aab38\\"></ogygia-region>",
+ "body": "<!----><!----><!----><ogygia-region entry=\\"lake-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"<fp1>\\"></ogygia-region>",
  "head_tags": [],
  "apply_live": [],
  "console": []
@@ -297,7 +297,7 @@ exports[`lake in the shell 1`] = `
 
 exports[`lake on a csr=true page, created fresh 1`] = `
 "{
- "body": "<!----><!----><!----><ogygia-region entry=\\"lake-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"7c63ab05a88aab38\\"></ogygia-region>",
+ "body": "<!----><!----><!----><ogygia-region entry=\\"lake-a\\" wake=\\"none\\" remount=\\"cache\\" data-og-lake=\\"<fp1>\\"></ogygia-region>",
  "head_tags": [],
  "apply_live": [],
  "console": [
