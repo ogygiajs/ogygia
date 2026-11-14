@@ -1,45 +1,45 @@
 # Region hydration grid · async=on · kind=promise · at=island (fast)
-# 48 cases, 12 distinct outputs; per part: kept_body 1, head_gone 1, body_hydrated 2, body_after 10, live 2, thrown 1, said 1, unhandled 2.
-# axes: csr=off|on page=ok|error env=prod settles=never|live|deferred|rejects children=none|text|island placeholder=none|text
+# 64 cases, 14 distinct outputs; per part: kept_body 1, head_gone 1, body_hydrated 2, body_after 12, live 2, thrown 1, said 1, unhandled 2.
+# axes: csr=off|on page=ok|error env=prod settles=never|live|deferred|rejects children=none|text|island|hole placeholder=none|text
 
 ################ kept_body · 1 distinct ################
 
-════ kept_body 1 · 48 cases ════
+════ kept_body 1 · 64 cases ════
 true
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* page=ok env=* settles=* children=* placeholder=*
 
 ################ head_gone · 1 distinct ################
 
-════ head_gone 1 · 48 cases ════
+════ head_gone 1 · 64 cases ════
 [
  "<!--<id1>-->"
 ]
-──── with <id1>=rtd3wb · 48:
+──── with <id1>=rtd3wb · 64:
 csr=* page=ok env=* settles=* children=* placeholder=*
 
 ################ body_hydrated · 2 distinct ################
 
-════ body_hydrated 1 · 24 cases ════
+════ body_hydrated 1 · 32 cases ════
 <!--[--><!--[--><!--[7--><!--[-1--><!----><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* page=ok env=* settles=* children=* placeholder=none
 
-════ body_hydrated 2 · 24 cases ════
+════ body_hydrated 2 · 32 cases ════
 <!--[--><!--[--><!--[7--><!--[-1--><p>wait</p><!----><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* page=ok env=* settles=* children=* placeholder=text
 
-################ body_after · 10 distinct ################
+################ body_after · 12 distinct ################
 
-════ body_after 1 · 12 cases ════
+════ body_after 1 · 16 cases ════
 <!--[--><!--[--><!--[7--><!--[-1--><!----><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 12:
+──── no hashes · 16:
 csr=* page=ok env=* settles=never|rejects children=* placeholder=none
 
-════ body_after 2 · 12 cases ════
+════ body_after 2 · 16 cases ════
 <!--[--><!--[--><!--[7--><!--[-1--><p>wait</p><!----><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 12:
+──── no hashes · 16:
 csr=* page=ok env=* settles=never|rejects children=* placeholder=text
 
 ════ body_after 3 · 2 cases ════
@@ -47,9 +47,9 @@ csr=* page=ok env=* settles=never|rejects children=* placeholder=text
 ──── no hashes · 2:
 csr=* page=ok env=* settles=live children=none placeholder=none
 
-════ body_after 4 · 6 cases ════
+════ body_after 4 · 8 cases ════
 <!--[--><!--[--><!--[7--><!--[-1--><!----><!----><ogygia-region live="true"><!----><p>wait</p><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 6:
+──── no hashes · 8:
 csr=* page=ok env=* settles=live children=* placeholder=text
 
 ════ body_after 5 · 2 cases ════
@@ -63,33 +63,43 @@ csr=* page=ok env=* settles=live children=text placeholder=none
 csr=* page=ok env=* settles=live children=island placeholder=none
 
 ════ body_after 7 · 2 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><!----><!----><ogygia-region live="true"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=3b84af65b32bfb2e · 2:
+csr=* page=ok env=* settles=live children=hole placeholder=none
+
+════ body_after 8 · 2 cases ════
 <!--[--><!--[--><!--[7--><!--[-1--><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----></ogygia-region><!----><!--]--><!--]--><!--]--><!--]-->
 ──── no hashes · 2:
 csr=* page=ok env=* settles=deferred children=none placeholder=none
 
-════ body_after 8 · 6 cases ════
+════ body_after 9 · 8 cases ════
 <!--[--><!--[--><!--[7--><!--[-1--><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----><p>wait</p><!----></ogygia-region><!----><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 6:
+──── no hashes · 8:
 csr=* page=ok env=* settles=deferred children=* placeholder=text
 
-════ body_after 9 · 2 cases ════
+════ body_after 10 · 2 cases ════
 <!--[--><!--[--><!--[7--><!--[-1--><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----><p>kid</p><!----></ogygia-region><!----><!--]--><!--]--><!--]--><!--]-->
 ──── no hashes · 2:
 csr=* page=ok env=* settles=deferred children=text placeholder=none
 
-════ body_after 10 · 2 cases ════
+════ body_after 11 · 2 cases ════
 <!--[--><!--[--><!--[7--><!--[-1--><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><!----><!--]--><!--]--><!--]--><!--]-->
 ──── no hashes · 2:
 csr=* page=ok env=* settles=deferred children=island placeholder=none
 
+════ body_after 12 · 2 cases ════
+<!--[--><!--[--><!--[7--><!--[-1--><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-p"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><!----><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=3b84af65b32bfb2e · 2:
+csr=* page=ok env=* settles=deferred children=hole placeholder=none
+
 ################ live · 2 distinct ################
 
-════ live 1 · 36 cases ════
+════ live 1 · 48 cases ════
 []
-──── no hashes · 36:
+──── no hashes · 48:
 csr=* page=ok env=* settles=never|deferred|rejects children=* placeholder=*
 
-════ live 2 · 12 cases ════
+════ live 2 · 16 cases ════
 [
  {
   "id": "held-p",
@@ -99,33 +109,33 @@ csr=* page=ok env=* settles=never|deferred|rejects children=* placeholder=*
   "url": "/__ogygia__?id=held-p"
  }
 ]
-──── no hashes · 12:
+──── no hashes · 16:
 csr=* page=ok env=* settles=live children=* placeholder=*
 
 ################ thrown · 1 distinct ################
 
-════ thrown 1 · 48 cases ════
+════ thrown 1 · 64 cases ════
 null
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* page=ok env=* settles=* children=* placeholder=*
 
 ################ said · 1 distinct ################
 
-════ said 1 · 48 cases ════
+════ said 1 · 64 cases ════
 []
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* page=ok env=* settles=* children=* placeholder=*
 
 ################ unhandled · 2 distinct ################
 
-════ unhandled 1 · 36 cases ════
+════ unhandled 1 · 48 cases ════
 []
-──── no hashes · 36:
+──── no hashes · 48:
 csr=* page=ok env=* settles=never|live|deferred children=* placeholder=*
 
-════ unhandled 2 · 12 cases ════
+════ unhandled 2 · 16 cases ════
 [
  "Error: the remote call failed\n\n  in $effect\n  in PromiseRegion.svelte\n  in Region.svelte\n  in RegionUnder.svelte\n  in undefined\n"
 ]
-──── no hashes · 12:
+──── no hashes · 16:
 csr=* page=ok env=* settles=rejects children=* placeholder=*

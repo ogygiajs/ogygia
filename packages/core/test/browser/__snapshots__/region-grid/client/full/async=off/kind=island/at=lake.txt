@@ -1,6 +1,6 @@
 # Region client grid · async=off · kind=island · at=lake (full)
-# 8064 cases, 398 distinct outputs; per part: body 397, live 1, head_changed 1, thrown 3, said 1, unhandled 1.
-# axes: csr=off|on env=dev|prod wake=load|idle|visible|visible-margin|interaction|media keep=none|nav children=none|text|island component=tiny|wrap|late|tiny+late props=absent|empty|json|devalue|snippet|live|ref ttl=0|60
+# 10752 cases, 398 distinct outputs; per part: body 397, live 1, head_changed 1, thrown 3, said 1, unhandled 1.
+# axes: csr=off|on env=dev|prod wake=load|idle|visible|visible-margin|interaction|media keep=none|nav children=none|text|island|hole component=tiny|wrap|late|tiny+late props=absent|empty|json|devalue|snippet|live|ref ttl=0|60
 
 ################ body · 397 distinct ################
 
@@ -24,9 +24,9 @@ csr=* env=* wake=load keep=none children=none component=tiny|tiny+late props=jso
 ──── no hashes · 16:
 csr=* env=* wake=load keep=none children=none component=tiny|tiny+late props=devalue ttl=*
 
-════ body 5 · 1152 cases ════
+════ body 5 · 1536 cases ════
 
-──── no hashes · 1152:
+──── no hashes · 1536:
 csr=* env=* wake=* keep=* children=* component=* props=snippet ttl=*
 
 ════ body 6 · 16 cases ════
@@ -99,80 +99,80 @@ csr=* env=* wake=load keep=none children=none component=late props=live ttl=*
 ──── no hashes · 8:
 csr=* env=* wake=load keep=none children=none component=late props=ref ttl=*
 
-════ body 20 · 64 cases ════
+════ body 20 · 96 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 64:
-csr=* env=* wake=load keep=none children=text|island component=tiny|tiny+late props=absent|empty ttl=*
+──── no hashes · 96:
+csr=* env=* wake=load keep=none children=text|island|hole component=tiny|tiny+late props=absent|empty ttl=*
 
-════ body 21 · 32 cases ════
+════ body 21 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=load keep=none children=text|island component=tiny|tiny+late props=json ttl=*
+──── no hashes · 48:
+csr=* env=* wake=load keep=none children=text|island|hole component=tiny|tiny+late props=json ttl=*
 
-════ body 22 · 32 cases ════
+════ body 22 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=load keep=none children=text|island component=tiny|tiny+late props=devalue ttl=*
+──── no hashes · 48:
+csr=* env=* wake=load keep=none children=text|island|hole component=tiny|tiny+late props=devalue ttl=*
 
-════ body 23 · 32 cases ════
+════ body 23 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 32:
-csr=* env=* wake=load keep=none children=text|island component=tiny|tiny+late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 48:
+csr=* env=* wake=load keep=none children=text|island|hole component=tiny|tiny+late props=live ttl=*
 
-════ body 24 · 32 cases ════
+════ body 24 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=load keep=none children=text|island component=tiny|tiny+late props=ref ttl=*
+──── no hashes · 48:
+csr=* env=* wake=load keep=none children=text|island|hole component=tiny|tiny+late props=ref ttl=*
 
-════ body 25 · 32 cases ════
+════ body 25 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=load keep=none children=text|island component=wrap props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=load keep=none children=text|island|hole component=wrap props=absent|empty ttl=*
 
-════ body 26 · 16 cases ════
+════ body 26 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=load keep=none children=text|island component=wrap props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=load keep=none children=text|island|hole component=wrap props=json ttl=*
 
-════ body 27 · 16 cases ════
+════ body 27 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=load keep=none children=text|island component=wrap props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=load keep=none children=text|island|hole component=wrap props=devalue ttl=*
 
-════ body 28 · 16 cases ════
+════ body 28 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=load keep=none children=text|island component=wrap props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=load keep=none children=text|island|hole component=wrap props=live ttl=*
 
-════ body 29 · 16 cases ════
+════ body 29 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=load keep=none children=text|island component=wrap props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=load keep=none children=text|island|hole component=wrap props=ref ttl=*
 
-════ body 30 · 32 cases ════
+════ body 30 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=load keep=none children=text|island component=late props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=load keep=none children=text|island|hole component=late props=absent|empty ttl=*
 
-════ body 31 · 16 cases ════
+════ body 31 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=load keep=none children=text|island component=late props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=load keep=none children=text|island|hole component=late props=json ttl=*
 
-════ body 32 · 16 cases ════
+════ body 32 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=load keep=none children=text|island component=late props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=load keep=none children=text|island|hole component=late props=devalue ttl=*
 
-════ body 33 · 16 cases ════
+════ body 33 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=load keep=none children=text|island component=late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=load keep=none children=text|island|hole component=late props=live ttl=*
 
-════ body 34 · 16 cases ════
+════ body 34 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=load keep=none children=text|island component=late props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=load keep=none children=text|island|hole component=late props=ref ttl=*
 
 ════ body 35 · 16 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">-1</script><!---->
@@ -264,80 +264,80 @@ csr=* env=* wake=load keep=nav children=none component=late props=live ttl=*
 ──── no hashes · 8:
 csr=* env=* wake=load keep=nav children=none component=late props=ref ttl=*
 
-════ body 53 · 64 cases ════
+════ body 53 · 96 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 64:
-csr=* env=* wake=load keep=nav children=text|island component=tiny|tiny+late props=absent|empty ttl=*
+──── no hashes · 96:
+csr=* env=* wake=load keep=nav children=text|island|hole component=tiny|tiny+late props=absent|empty ttl=*
 
-════ body 54 · 32 cases ════
+════ body 54 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=load keep=nav children=text|island component=tiny|tiny+late props=json ttl=*
+──── no hashes · 48:
+csr=* env=* wake=load keep=nav children=text|island|hole component=tiny|tiny+late props=json ttl=*
 
-════ body 55 · 32 cases ════
+════ body 55 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=load keep=nav children=text|island component=tiny|tiny+late props=devalue ttl=*
+──── no hashes · 48:
+csr=* env=* wake=load keep=nav children=text|island|hole component=tiny|tiny+late props=devalue ttl=*
 
-════ body 56 · 32 cases ════
+════ body 56 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 32:
-csr=* env=* wake=load keep=nav children=text|island component=tiny|tiny+late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 48:
+csr=* env=* wake=load keep=nav children=text|island|hole component=tiny|tiny+late props=live ttl=*
 
-════ body 57 · 32 cases ════
+════ body 57 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=load keep=nav children=text|island component=tiny|tiny+late props=ref ttl=*
+──── no hashes · 48:
+csr=* env=* wake=load keep=nav children=text|island|hole component=tiny|tiny+late props=ref ttl=*
 
-════ body 58 · 32 cases ════
+════ body 58 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=load keep=nav children=text|island component=wrap props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=load keep=nav children=text|island|hole component=wrap props=absent|empty ttl=*
 
-════ body 59 · 16 cases ════
+════ body 59 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=load keep=nav children=text|island component=wrap props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=load keep=nav children=text|island|hole component=wrap props=json ttl=*
 
-════ body 60 · 16 cases ════
+════ body 60 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=load keep=nav children=text|island component=wrap props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=load keep=nav children=text|island|hole component=wrap props=devalue ttl=*
 
-════ body 61 · 16 cases ════
+════ body 61 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=load keep=nav children=text|island component=wrap props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=load keep=nav children=text|island|hole component=wrap props=live ttl=*
 
-════ body 62 · 16 cases ════
+════ body 62 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=load keep=nav children=text|island component=wrap props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=load keep=nav children=text|island|hole component=wrap props=ref ttl=*
 
-════ body 63 · 32 cases ════
+════ body 63 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=load keep=nav children=text|island component=late props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=load keep=nav children=text|island|hole component=late props=absent|empty ttl=*
 
-════ body 64 · 16 cases ════
+════ body 64 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=load keep=nav children=text|island component=late props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=load keep=nav children=text|island|hole component=late props=json ttl=*
 
-════ body 65 · 16 cases ════
+════ body 65 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=load keep=nav children=text|island component=late props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=load keep=nav children=text|island|hole component=late props=devalue ttl=*
 
-════ body 66 · 16 cases ════
+════ body 66 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=load keep=nav children=text|island component=late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=load keep=nav children=text|island|hole component=late props=live ttl=*
 
-════ body 67 · 16 cases ════
+════ body 67 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="load" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=load keep=nav children=text|island component=late props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=load keep=nav children=text|island|hole component=late props=ref ttl=*
 
 ════ body 68 · 16 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">-1</script><!---->
@@ -429,80 +429,80 @@ csr=* env=* wake=idle keep=none children=none component=late props=live ttl=*
 ──── no hashes · 8:
 csr=* env=* wake=idle keep=none children=none component=late props=ref ttl=*
 
-════ body 86 · 64 cases ════
+════ body 86 · 96 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 64:
-csr=* env=* wake=idle keep=none children=text|island component=tiny|tiny+late props=absent|empty ttl=*
+──── no hashes · 96:
+csr=* env=* wake=idle keep=none children=text|island|hole component=tiny|tiny+late props=absent|empty ttl=*
 
-════ body 87 · 32 cases ════
+════ body 87 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=idle keep=none children=text|island component=tiny|tiny+late props=json ttl=*
+──── no hashes · 48:
+csr=* env=* wake=idle keep=none children=text|island|hole component=tiny|tiny+late props=json ttl=*
 
-════ body 88 · 32 cases ════
+════ body 88 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=idle keep=none children=text|island component=tiny|tiny+late props=devalue ttl=*
+──── no hashes · 48:
+csr=* env=* wake=idle keep=none children=text|island|hole component=tiny|tiny+late props=devalue ttl=*
 
-════ body 89 · 32 cases ════
+════ body 89 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 32:
-csr=* env=* wake=idle keep=none children=text|island component=tiny|tiny+late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 48:
+csr=* env=* wake=idle keep=none children=text|island|hole component=tiny|tiny+late props=live ttl=*
 
-════ body 90 · 32 cases ════
+════ body 90 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=idle keep=none children=text|island component=tiny|tiny+late props=ref ttl=*
+──── no hashes · 48:
+csr=* env=* wake=idle keep=none children=text|island|hole component=tiny|tiny+late props=ref ttl=*
 
-════ body 91 · 32 cases ════
+════ body 91 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=idle keep=none children=text|island component=wrap props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=idle keep=none children=text|island|hole component=wrap props=absent|empty ttl=*
 
-════ body 92 · 16 cases ════
+════ body 92 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=idle keep=none children=text|island component=wrap props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=idle keep=none children=text|island|hole component=wrap props=json ttl=*
 
-════ body 93 · 16 cases ════
+════ body 93 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=idle keep=none children=text|island component=wrap props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=idle keep=none children=text|island|hole component=wrap props=devalue ttl=*
 
-════ body 94 · 16 cases ════
+════ body 94 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=idle keep=none children=text|island component=wrap props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=idle keep=none children=text|island|hole component=wrap props=live ttl=*
 
-════ body 95 · 16 cases ════
+════ body 95 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=idle keep=none children=text|island component=wrap props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=idle keep=none children=text|island|hole component=wrap props=ref ttl=*
 
-════ body 96 · 32 cases ════
+════ body 96 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=idle keep=none children=text|island component=late props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=idle keep=none children=text|island|hole component=late props=absent|empty ttl=*
 
-════ body 97 · 16 cases ════
+════ body 97 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=idle keep=none children=text|island component=late props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=idle keep=none children=text|island|hole component=late props=json ttl=*
 
-════ body 98 · 16 cases ════
+════ body 98 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=idle keep=none children=text|island component=late props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=idle keep=none children=text|island|hole component=late props=devalue ttl=*
 
-════ body 99 · 16 cases ════
+════ body 99 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=idle keep=none children=text|island component=late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=idle keep=none children=text|island|hole component=late props=live ttl=*
 
-════ body 100 · 16 cases ════
+════ body 100 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=idle keep=none children=text|island component=late props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=idle keep=none children=text|island|hole component=late props=ref ttl=*
 
 ════ body 101 · 16 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">-1</script><!---->
@@ -594,80 +594,80 @@ csr=* env=* wake=idle keep=nav children=none component=late props=live ttl=*
 ──── no hashes · 8:
 csr=* env=* wake=idle keep=nav children=none component=late props=ref ttl=*
 
-════ body 119 · 64 cases ════
+════ body 119 · 96 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 64:
-csr=* env=* wake=idle keep=nav children=text|island component=tiny|tiny+late props=absent|empty ttl=*
+──── no hashes · 96:
+csr=* env=* wake=idle keep=nav children=text|island|hole component=tiny|tiny+late props=absent|empty ttl=*
 
-════ body 120 · 32 cases ════
+════ body 120 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=idle keep=nav children=text|island component=tiny|tiny+late props=json ttl=*
+──── no hashes · 48:
+csr=* env=* wake=idle keep=nav children=text|island|hole component=tiny|tiny+late props=json ttl=*
 
-════ body 121 · 32 cases ════
+════ body 121 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=idle keep=nav children=text|island component=tiny|tiny+late props=devalue ttl=*
+──── no hashes · 48:
+csr=* env=* wake=idle keep=nav children=text|island|hole component=tiny|tiny+late props=devalue ttl=*
 
-════ body 122 · 32 cases ════
+════ body 122 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 32:
-csr=* env=* wake=idle keep=nav children=text|island component=tiny|tiny+late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 48:
+csr=* env=* wake=idle keep=nav children=text|island|hole component=tiny|tiny+late props=live ttl=*
 
-════ body 123 · 32 cases ════
+════ body 123 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=idle keep=nav children=text|island component=tiny|tiny+late props=ref ttl=*
+──── no hashes · 48:
+csr=* env=* wake=idle keep=nav children=text|island|hole component=tiny|tiny+late props=ref ttl=*
 
-════ body 124 · 32 cases ════
+════ body 124 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=idle keep=nav children=text|island component=wrap props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=idle keep=nav children=text|island|hole component=wrap props=absent|empty ttl=*
 
-════ body 125 · 16 cases ════
+════ body 125 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=idle keep=nav children=text|island component=wrap props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=idle keep=nav children=text|island|hole component=wrap props=json ttl=*
 
-════ body 126 · 16 cases ════
+════ body 126 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=idle keep=nav children=text|island component=wrap props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=idle keep=nav children=text|island|hole component=wrap props=devalue ttl=*
 
-════ body 127 · 16 cases ════
+════ body 127 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=idle keep=nav children=text|island component=wrap props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=idle keep=nav children=text|island|hole component=wrap props=live ttl=*
 
-════ body 128 · 16 cases ════
+════ body 128 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=idle keep=nav children=text|island component=wrap props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=idle keep=nav children=text|island|hole component=wrap props=ref ttl=*
 
-════ body 129 · 32 cases ════
+════ body 129 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=idle keep=nav children=text|island component=late props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=idle keep=nav children=text|island|hole component=late props=absent|empty ttl=*
 
-════ body 130 · 16 cases ════
+════ body 130 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=idle keep=nav children=text|island component=late props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=idle keep=nav children=text|island|hole component=late props=json ttl=*
 
-════ body 131 · 16 cases ════
+════ body 131 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=idle keep=nav children=text|island component=late props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=idle keep=nav children=text|island|hole component=late props=devalue ttl=*
 
-════ body 132 · 16 cases ════
+════ body 132 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=idle keep=nav children=text|island component=late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=idle keep=nav children=text|island|hole component=late props=live ttl=*
 
-════ body 133 · 16 cases ════
+════ body 133 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="idle" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=idle keep=nav children=text|island component=late props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=idle keep=nav children=text|island|hole component=late props=ref ttl=*
 
 ════ body 134 · 16 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">-1</script><!---->
@@ -759,80 +759,80 @@ csr=* env=* wake=visible keep=none children=none component=late props=live ttl=*
 ──── no hashes · 8:
 csr=* env=* wake=visible keep=none children=none component=late props=ref ttl=*
 
-════ body 152 · 64 cases ════
+════ body 152 · 96 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 64:
-csr=* env=* wake=visible keep=none children=text|island component=tiny|tiny+late props=absent|empty ttl=*
+──── no hashes · 96:
+csr=* env=* wake=visible keep=none children=text|island|hole component=tiny|tiny+late props=absent|empty ttl=*
 
-════ body 153 · 32 cases ════
+════ body 153 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible keep=none children=text|island component=tiny|tiny+late props=json ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible keep=none children=text|island|hole component=tiny|tiny+late props=json ttl=*
 
-════ body 154 · 32 cases ════
+════ body 154 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible keep=none children=text|island component=tiny|tiny+late props=devalue ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible keep=none children=text|island|hole component=tiny|tiny+late props=devalue ttl=*
 
-════ body 155 · 32 cases ════
+════ body 155 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 32:
-csr=* env=* wake=visible keep=none children=text|island component=tiny|tiny+late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 48:
+csr=* env=* wake=visible keep=none children=text|island|hole component=tiny|tiny+late props=live ttl=*
 
-════ body 156 · 32 cases ════
+════ body 156 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible keep=none children=text|island component=tiny|tiny+late props=ref ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible keep=none children=text|island|hole component=tiny|tiny+late props=ref ttl=*
 
-════ body 157 · 32 cases ════
+════ body 157 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible keep=none children=text|island component=wrap props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible keep=none children=text|island|hole component=wrap props=absent|empty ttl=*
 
-════ body 158 · 16 cases ════
+════ body 158 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible keep=none children=text|island component=wrap props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible keep=none children=text|island|hole component=wrap props=json ttl=*
 
-════ body 159 · 16 cases ════
+════ body 159 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible keep=none children=text|island component=wrap props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible keep=none children=text|island|hole component=wrap props=devalue ttl=*
 
-════ body 160 · 16 cases ════
+════ body 160 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=visible keep=none children=text|island component=wrap props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=visible keep=none children=text|island|hole component=wrap props=live ttl=*
 
-════ body 161 · 16 cases ════
+════ body 161 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible keep=none children=text|island component=wrap props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible keep=none children=text|island|hole component=wrap props=ref ttl=*
 
-════ body 162 · 32 cases ════
+════ body 162 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible keep=none children=text|island component=late props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible keep=none children=text|island|hole component=late props=absent|empty ttl=*
 
-════ body 163 · 16 cases ════
+════ body 163 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible keep=none children=text|island component=late props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible keep=none children=text|island|hole component=late props=json ttl=*
 
-════ body 164 · 16 cases ════
+════ body 164 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible keep=none children=text|island component=late props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible keep=none children=text|island|hole component=late props=devalue ttl=*
 
-════ body 165 · 16 cases ════
+════ body 165 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=visible keep=none children=text|island component=late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=visible keep=none children=text|island|hole component=late props=live ttl=*
 
-════ body 166 · 16 cases ════
+════ body 166 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible keep=none children=text|island component=late props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible keep=none children=text|island|hole component=late props=ref ttl=*
 
 ════ body 167 · 16 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">-1</script><!---->
@@ -924,80 +924,80 @@ csr=* env=* wake=visible keep=nav children=none component=late props=live ttl=*
 ──── no hashes · 8:
 csr=* env=* wake=visible keep=nav children=none component=late props=ref ttl=*
 
-════ body 185 · 64 cases ════
+════ body 185 · 96 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 64:
-csr=* env=* wake=visible keep=nav children=text|island component=tiny|tiny+late props=absent|empty ttl=*
+──── no hashes · 96:
+csr=* env=* wake=visible keep=nav children=text|island|hole component=tiny|tiny+late props=absent|empty ttl=*
 
-════ body 186 · 32 cases ════
+════ body 186 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible keep=nav children=text|island component=tiny|tiny+late props=json ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible keep=nav children=text|island|hole component=tiny|tiny+late props=json ttl=*
 
-════ body 187 · 32 cases ════
+════ body 187 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible keep=nav children=text|island component=tiny|tiny+late props=devalue ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible keep=nav children=text|island|hole component=tiny|tiny+late props=devalue ttl=*
 
-════ body 188 · 32 cases ════
+════ body 188 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 32:
-csr=* env=* wake=visible keep=nav children=text|island component=tiny|tiny+late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 48:
+csr=* env=* wake=visible keep=nav children=text|island|hole component=tiny|tiny+late props=live ttl=*
 
-════ body 189 · 32 cases ════
+════ body 189 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible keep=nav children=text|island component=tiny|tiny+late props=ref ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible keep=nav children=text|island|hole component=tiny|tiny+late props=ref ttl=*
 
-════ body 190 · 32 cases ════
+════ body 190 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible keep=nav children=text|island component=wrap props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible keep=nav children=text|island|hole component=wrap props=absent|empty ttl=*
 
-════ body 191 · 16 cases ════
+════ body 191 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible keep=nav children=text|island component=wrap props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible keep=nav children=text|island|hole component=wrap props=json ttl=*
 
-════ body 192 · 16 cases ════
+════ body 192 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible keep=nav children=text|island component=wrap props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible keep=nav children=text|island|hole component=wrap props=devalue ttl=*
 
-════ body 193 · 16 cases ════
+════ body 193 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=visible keep=nav children=text|island component=wrap props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=visible keep=nav children=text|island|hole component=wrap props=live ttl=*
 
-════ body 194 · 16 cases ════
+════ body 194 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible keep=nav children=text|island component=wrap props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible keep=nav children=text|island|hole component=wrap props=ref ttl=*
 
-════ body 195 · 32 cases ════
+════ body 195 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible keep=nav children=text|island component=late props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible keep=nav children=text|island|hole component=late props=absent|empty ttl=*
 
-════ body 196 · 16 cases ════
+════ body 196 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible keep=nav children=text|island component=late props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible keep=nav children=text|island|hole component=late props=json ttl=*
 
-════ body 197 · 16 cases ════
+════ body 197 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible keep=nav children=text|island component=late props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible keep=nav children=text|island|hole component=late props=devalue ttl=*
 
-════ body 198 · 16 cases ════
+════ body 198 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=visible keep=nav children=text|island component=late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=visible keep=nav children=text|island|hole component=late props=live ttl=*
 
-════ body 199 · 16 cases ════
+════ body 199 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible keep=nav children=text|island component=late props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible keep=nav children=text|island|hole component=late props=ref ttl=*
 
 ════ body 200 · 16 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">-1</script><!---->
@@ -1089,80 +1089,80 @@ csr=* env=* wake=visible-margin keep=none children=none component=late props=liv
 ──── no hashes · 8:
 csr=* env=* wake=visible-margin keep=none children=none component=late props=ref ttl=*
 
-════ body 218 · 64 cases ════
+════ body 218 · 96 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 64:
-csr=* env=* wake=visible-margin keep=none children=text|island component=tiny|tiny+late props=absent|empty ttl=*
+──── no hashes · 96:
+csr=* env=* wake=visible-margin keep=none children=text|island|hole component=tiny|tiny+late props=absent|empty ttl=*
 
-════ body 219 · 32 cases ════
+════ body 219 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible-margin keep=none children=text|island component=tiny|tiny+late props=json ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible-margin keep=none children=text|island|hole component=tiny|tiny+late props=json ttl=*
 
-════ body 220 · 32 cases ════
+════ body 220 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible-margin keep=none children=text|island component=tiny|tiny+late props=devalue ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible-margin keep=none children=text|island|hole component=tiny|tiny+late props=devalue ttl=*
 
-════ body 221 · 32 cases ════
+════ body 221 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 32:
-csr=* env=* wake=visible-margin keep=none children=text|island component=tiny|tiny+late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 48:
+csr=* env=* wake=visible-margin keep=none children=text|island|hole component=tiny|tiny+late props=live ttl=*
 
-════ body 222 · 32 cases ════
+════ body 222 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible-margin keep=none children=text|island component=tiny|tiny+late props=ref ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible-margin keep=none children=text|island|hole component=tiny|tiny+late props=ref ttl=*
 
-════ body 223 · 32 cases ════
+════ body 223 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible-margin keep=none children=text|island component=wrap props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible-margin keep=none children=text|island|hole component=wrap props=absent|empty ttl=*
 
-════ body 224 · 16 cases ════
+════ body 224 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible-margin keep=none children=text|island component=wrap props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible-margin keep=none children=text|island|hole component=wrap props=json ttl=*
 
-════ body 225 · 16 cases ════
+════ body 225 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible-margin keep=none children=text|island component=wrap props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible-margin keep=none children=text|island|hole component=wrap props=devalue ttl=*
 
-════ body 226 · 16 cases ════
+════ body 226 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=visible-margin keep=none children=text|island component=wrap props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=visible-margin keep=none children=text|island|hole component=wrap props=live ttl=*
 
-════ body 227 · 16 cases ════
+════ body 227 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible-margin keep=none children=text|island component=wrap props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible-margin keep=none children=text|island|hole component=wrap props=ref ttl=*
 
-════ body 228 · 32 cases ════
+════ body 228 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible-margin keep=none children=text|island component=late props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible-margin keep=none children=text|island|hole component=late props=absent|empty ttl=*
 
-════ body 229 · 16 cases ════
+════ body 229 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible-margin keep=none children=text|island component=late props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible-margin keep=none children=text|island|hole component=late props=json ttl=*
 
-════ body 230 · 16 cases ════
+════ body 230 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible-margin keep=none children=text|island component=late props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible-margin keep=none children=text|island|hole component=late props=devalue ttl=*
 
-════ body 231 · 16 cases ════
+════ body 231 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=visible-margin keep=none children=text|island component=late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=visible-margin keep=none children=text|island|hole component=late props=live ttl=*
 
-════ body 232 · 16 cases ════
+════ body 232 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible-margin keep=none children=text|island component=late props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible-margin keep=none children=text|island|hole component=late props=ref ttl=*
 
 ════ body 233 · 16 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">-1</script><!---->
@@ -1254,80 +1254,80 @@ csr=* env=* wake=visible-margin keep=nav children=none component=late props=live
 ──── no hashes · 8:
 csr=* env=* wake=visible-margin keep=nav children=none component=late props=ref ttl=*
 
-════ body 251 · 64 cases ════
+════ body 251 · 96 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 64:
-csr=* env=* wake=visible-margin keep=nav children=text|island component=tiny|tiny+late props=absent|empty ttl=*
+──── no hashes · 96:
+csr=* env=* wake=visible-margin keep=nav children=text|island|hole component=tiny|tiny+late props=absent|empty ttl=*
 
-════ body 252 · 32 cases ════
+════ body 252 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible-margin keep=nav children=text|island component=tiny|tiny+late props=json ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible-margin keep=nav children=text|island|hole component=tiny|tiny+late props=json ttl=*
 
-════ body 253 · 32 cases ════
+════ body 253 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible-margin keep=nav children=text|island component=tiny|tiny+late props=devalue ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible-margin keep=nav children=text|island|hole component=tiny|tiny+late props=devalue ttl=*
 
-════ body 254 · 32 cases ════
+════ body 254 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 32:
-csr=* env=* wake=visible-margin keep=nav children=text|island component=tiny|tiny+late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 48:
+csr=* env=* wake=visible-margin keep=nav children=text|island|hole component=tiny|tiny+late props=live ttl=*
 
-════ body 255 · 32 cases ════
+════ body 255 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible-margin keep=nav children=text|island component=tiny|tiny+late props=ref ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible-margin keep=nav children=text|island|hole component=tiny|tiny+late props=ref ttl=*
 
-════ body 256 · 32 cases ════
+════ body 256 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible-margin keep=nav children=text|island component=wrap props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible-margin keep=nav children=text|island|hole component=wrap props=absent|empty ttl=*
 
-════ body 257 · 16 cases ════
+════ body 257 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible-margin keep=nav children=text|island component=wrap props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible-margin keep=nav children=text|island|hole component=wrap props=json ttl=*
 
-════ body 258 · 16 cases ════
+════ body 258 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible-margin keep=nav children=text|island component=wrap props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible-margin keep=nav children=text|island|hole component=wrap props=devalue ttl=*
 
-════ body 259 · 16 cases ════
+════ body 259 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=visible-margin keep=nav children=text|island component=wrap props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=visible-margin keep=nav children=text|island|hole component=wrap props=live ttl=*
 
-════ body 260 · 16 cases ════
+════ body 260 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible-margin keep=nav children=text|island component=wrap props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible-margin keep=nav children=text|island|hole component=wrap props=ref ttl=*
 
-════ body 261 · 32 cases ════
+════ body 261 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=visible-margin keep=nav children=text|island component=late props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=visible-margin keep=nav children=text|island|hole component=late props=absent|empty ttl=*
 
-════ body 262 · 16 cases ════
+════ body 262 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible-margin keep=nav children=text|island component=late props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible-margin keep=nav children=text|island|hole component=late props=json ttl=*
 
-════ body 263 · 16 cases ════
+════ body 263 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible-margin keep=nav children=text|island component=late props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible-margin keep=nav children=text|island|hole component=late props=devalue ttl=*
 
-════ body 264 · 16 cases ════
+════ body 264 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=visible-margin keep=nav children=text|island component=late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=visible-margin keep=nav children=text|island|hole component=late props=live ttl=*
 
-════ body 265 · 16 cases ════
+════ body 265 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="visible" margin="200px" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=visible-margin keep=nav children=text|island component=late props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=visible-margin keep=nav children=text|island|hole component=late props=ref ttl=*
 
 ════ body 266 · 16 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">-1</script><!---->
@@ -1419,80 +1419,80 @@ csr=* env=* wake=interaction keep=none children=none component=late props=live t
 ──── no hashes · 8:
 csr=* env=* wake=interaction keep=none children=none component=late props=ref ttl=*
 
-════ body 284 · 64 cases ════
+════ body 284 · 96 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 64:
-csr=* env=* wake=interaction keep=none children=text|island component=tiny|tiny+late props=absent|empty ttl=*
+──── no hashes · 96:
+csr=* env=* wake=interaction keep=none children=text|island|hole component=tiny|tiny+late props=absent|empty ttl=*
 
-════ body 285 · 32 cases ════
+════ body 285 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=interaction keep=none children=text|island component=tiny|tiny+late props=json ttl=*
+──── no hashes · 48:
+csr=* env=* wake=interaction keep=none children=text|island|hole component=tiny|tiny+late props=json ttl=*
 
-════ body 286 · 32 cases ════
+════ body 286 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=interaction keep=none children=text|island component=tiny|tiny+late props=devalue ttl=*
+──── no hashes · 48:
+csr=* env=* wake=interaction keep=none children=text|island|hole component=tiny|tiny+late props=devalue ttl=*
 
-════ body 287 · 32 cases ════
+════ body 287 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 32:
-csr=* env=* wake=interaction keep=none children=text|island component=tiny|tiny+late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 48:
+csr=* env=* wake=interaction keep=none children=text|island|hole component=tiny|tiny+late props=live ttl=*
 
-════ body 288 · 32 cases ════
+════ body 288 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=interaction keep=none children=text|island component=tiny|tiny+late props=ref ttl=*
+──── no hashes · 48:
+csr=* env=* wake=interaction keep=none children=text|island|hole component=tiny|tiny+late props=ref ttl=*
 
-════ body 289 · 32 cases ════
+════ body 289 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=interaction keep=none children=text|island component=wrap props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=interaction keep=none children=text|island|hole component=wrap props=absent|empty ttl=*
 
-════ body 290 · 16 cases ════
+════ body 290 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=interaction keep=none children=text|island component=wrap props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=interaction keep=none children=text|island|hole component=wrap props=json ttl=*
 
-════ body 291 · 16 cases ════
+════ body 291 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=interaction keep=none children=text|island component=wrap props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=interaction keep=none children=text|island|hole component=wrap props=devalue ttl=*
 
-════ body 292 · 16 cases ════
+════ body 292 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=interaction keep=none children=text|island component=wrap props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=interaction keep=none children=text|island|hole component=wrap props=live ttl=*
 
-════ body 293 · 16 cases ════
+════ body 293 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=interaction keep=none children=text|island component=wrap props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=interaction keep=none children=text|island|hole component=wrap props=ref ttl=*
 
-════ body 294 · 32 cases ════
+════ body 294 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=interaction keep=none children=text|island component=late props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=interaction keep=none children=text|island|hole component=late props=absent|empty ttl=*
 
-════ body 295 · 16 cases ════
+════ body 295 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=interaction keep=none children=text|island component=late props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=interaction keep=none children=text|island|hole component=late props=json ttl=*
 
-════ body 296 · 16 cases ════
+════ body 296 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=interaction keep=none children=text|island component=late props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=interaction keep=none children=text|island|hole component=late props=devalue ttl=*
 
-════ body 297 · 16 cases ════
+════ body 297 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=interaction keep=none children=text|island component=late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=interaction keep=none children=text|island|hole component=late props=live ttl=*
 
-════ body 298 · 16 cases ════
+════ body 298 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=interaction keep=none children=text|island component=late props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=interaction keep=none children=text|island|hole component=late props=ref ttl=*
 
 ════ body 299 · 16 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">-1</script><!---->
@@ -1584,80 +1584,80 @@ csr=* env=* wake=interaction keep=nav children=none component=late props=live tt
 ──── no hashes · 8:
 csr=* env=* wake=interaction keep=nav children=none component=late props=ref ttl=*
 
-════ body 317 · 64 cases ════
+════ body 317 · 96 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 64:
-csr=* env=* wake=interaction keep=nav children=text|island component=tiny|tiny+late props=absent|empty ttl=*
+──── no hashes · 96:
+csr=* env=* wake=interaction keep=nav children=text|island|hole component=tiny|tiny+late props=absent|empty ttl=*
 
-════ body 318 · 32 cases ════
+════ body 318 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=interaction keep=nav children=text|island component=tiny|tiny+late props=json ttl=*
+──── no hashes · 48:
+csr=* env=* wake=interaction keep=nav children=text|island|hole component=tiny|tiny+late props=json ttl=*
 
-════ body 319 · 32 cases ════
+════ body 319 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=interaction keep=nav children=text|island component=tiny|tiny+late props=devalue ttl=*
+──── no hashes · 48:
+csr=* env=* wake=interaction keep=nav children=text|island|hole component=tiny|tiny+late props=devalue ttl=*
 
-════ body 320 · 32 cases ════
+════ body 320 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 32:
-csr=* env=* wake=interaction keep=nav children=text|island component=tiny|tiny+late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 48:
+csr=* env=* wake=interaction keep=nav children=text|island|hole component=tiny|tiny+late props=live ttl=*
 
-════ body 321 · 32 cases ════
+════ body 321 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=interaction keep=nav children=text|island component=tiny|tiny+late props=ref ttl=*
+──── no hashes · 48:
+csr=* env=* wake=interaction keep=nav children=text|island|hole component=tiny|tiny+late props=ref ttl=*
 
-════ body 322 · 32 cases ════
+════ body 322 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=interaction keep=nav children=text|island component=wrap props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=interaction keep=nav children=text|island|hole component=wrap props=absent|empty ttl=*
 
-════ body 323 · 16 cases ════
+════ body 323 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=interaction keep=nav children=text|island component=wrap props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=interaction keep=nav children=text|island|hole component=wrap props=json ttl=*
 
-════ body 324 · 16 cases ════
+════ body 324 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=interaction keep=nav children=text|island component=wrap props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=interaction keep=nav children=text|island|hole component=wrap props=devalue ttl=*
 
-════ body 325 · 16 cases ════
+════ body 325 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=interaction keep=nav children=text|island component=wrap props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=interaction keep=nav children=text|island|hole component=wrap props=live ttl=*
 
-════ body 326 · 16 cases ════
+════ body 326 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=interaction keep=nav children=text|island component=wrap props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=interaction keep=nav children=text|island|hole component=wrap props=ref ttl=*
 
-════ body 327 · 32 cases ════
+════ body 327 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=interaction keep=nav children=text|island component=late props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=interaction keep=nav children=text|island|hole component=late props=absent|empty ttl=*
 
-════ body 328 · 16 cases ════
+════ body 328 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=interaction keep=nav children=text|island component=late props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=interaction keep=nav children=text|island|hole component=late props=json ttl=*
 
-════ body 329 · 16 cases ════
+════ body 329 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=interaction keep=nav children=text|island component=late props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=interaction keep=nav children=text|island|hole component=late props=devalue ttl=*
 
-════ body 330 · 16 cases ════
+════ body 330 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=interaction keep=nav children=text|island component=late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=interaction keep=nav children=text|island|hole component=late props=live ttl=*
 
-════ body 331 · 16 cases ════
+════ body 331 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="interaction" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=interaction keep=nav children=text|island component=late props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=interaction keep=nav children=text|island|hole component=late props=ref ttl=*
 
 ════ body 332 · 16 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">-1</script><!---->
@@ -1749,80 +1749,80 @@ csr=* env=* wake=media keep=none children=none component=late props=live ttl=*
 ──── no hashes · 8:
 csr=* env=* wake=media keep=none children=none component=late props=ref ttl=*
 
-════ body 350 · 64 cases ════
+════ body 350 · 96 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 64:
-csr=* env=* wake=media keep=none children=text|island component=tiny|tiny+late props=absent|empty ttl=*
+──── no hashes · 96:
+csr=* env=* wake=media keep=none children=text|island|hole component=tiny|tiny+late props=absent|empty ttl=*
 
-════ body 351 · 32 cases ════
+════ body 351 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=media keep=none children=text|island component=tiny|tiny+late props=json ttl=*
+──── no hashes · 48:
+csr=* env=* wake=media keep=none children=text|island|hole component=tiny|tiny+late props=json ttl=*
 
-════ body 352 · 32 cases ════
+════ body 352 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=media keep=none children=text|island component=tiny|tiny+late props=devalue ttl=*
+──── no hashes · 48:
+csr=* env=* wake=media keep=none children=text|island|hole component=tiny|tiny+late props=devalue ttl=*
 
-════ body 353 · 32 cases ════
+════ body 353 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 32:
-csr=* env=* wake=media keep=none children=text|island component=tiny|tiny+late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 48:
+csr=* env=* wake=media keep=none children=text|island|hole component=tiny|tiny+late props=live ttl=*
 
-════ body 354 · 32 cases ════
+════ body 354 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=media keep=none children=text|island component=tiny|tiny+late props=ref ttl=*
+──── no hashes · 48:
+csr=* env=* wake=media keep=none children=text|island|hole component=tiny|tiny+late props=ref ttl=*
 
-════ body 355 · 32 cases ════
+════ body 355 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=media keep=none children=text|island component=wrap props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=media keep=none children=text|island|hole component=wrap props=absent|empty ttl=*
 
-════ body 356 · 16 cases ════
+════ body 356 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=media keep=none children=text|island component=wrap props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=media keep=none children=text|island|hole component=wrap props=json ttl=*
 
-════ body 357 · 16 cases ════
+════ body 357 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=media keep=none children=text|island component=wrap props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=media keep=none children=text|island|hole component=wrap props=devalue ttl=*
 
-════ body 358 · 16 cases ════
+════ body 358 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=media keep=none children=text|island component=wrap props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=media keep=none children=text|island|hole component=wrap props=live ttl=*
 
-════ body 359 · 16 cases ════
+════ body 359 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=media keep=none children=text|island component=wrap props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=media keep=none children=text|island|hole component=wrap props=ref ttl=*
 
-════ body 360 · 32 cases ════
+════ body 360 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=media keep=none children=text|island component=late props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=media keep=none children=text|island|hole component=late props=absent|empty ttl=*
 
-════ body 361 · 16 cases ════
+════ body 361 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=media keep=none children=text|island component=late props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=media keep=none children=text|island|hole component=late props=json ttl=*
 
-════ body 362 · 16 cases ════
+════ body 362 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=media keep=none children=text|island component=late props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=media keep=none children=text|island|hole component=late props=devalue ttl=*
 
-════ body 363 · 16 cases ════
+════ body 363 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=media keep=none children=text|island component=late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=media keep=none children=text|island|hole component=late props=live ttl=*
 
-════ body 364 · 16 cases ════
+════ body 364 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=media keep=none children=text|island component=late props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=media keep=none children=text|island|hole component=late props=ref ttl=*
 
 ════ body 365 · 16 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">-1</script><!---->
@@ -1914,103 +1914,103 @@ csr=* env=* wake=media keep=nav children=none component=late props=live ttl=*
 ──── no hashes · 8:
 csr=* env=* wake=media keep=nav children=none component=late props=ref ttl=*
 
-════ body 383 · 64 cases ════
+════ body 383 · 96 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 64:
-csr=* env=* wake=media keep=nav children=text|island component=tiny|tiny+late props=absent|empty ttl=*
+──── no hashes · 96:
+csr=* env=* wake=media keep=nav children=text|island|hole component=tiny|tiny+late props=absent|empty ttl=*
 
-════ body 384 · 32 cases ════
+════ body 384 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=media keep=nav children=text|island component=tiny|tiny+late props=json ttl=*
+──── no hashes · 48:
+csr=* env=* wake=media keep=nav children=text|island|hole component=tiny|tiny+late props=json ttl=*
 
-════ body 385 · 32 cases ════
+════ body 385 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=media keep=nav children=text|island component=tiny|tiny+late props=devalue ttl=*
+──── no hashes · 48:
+csr=* env=* wake=media keep=nav children=text|island|hole component=tiny|tiny+late props=devalue ttl=*
 
-════ body 386 · 32 cases ════
+════ body 386 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 32:
-csr=* env=* wake=media keep=nav children=text|island component=tiny|tiny+late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 48:
+csr=* env=* wake=media keep=nav children=text|island|hole component=tiny|tiny+late props=live ttl=*
 
-════ body 387 · 32 cases ════
+════ body 387 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=media keep=nav children=text|island component=tiny|tiny+late props=ref ttl=*
+──── no hashes · 48:
+csr=* env=* wake=media keep=nav children=text|island|hole component=tiny|tiny+late props=ref ttl=*
 
-════ body 388 · 32 cases ════
+════ body 388 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=media keep=nav children=text|island component=wrap props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=media keep=nav children=text|island|hole component=wrap props=absent|empty ttl=*
 
-════ body 389 · 16 cases ════
+════ body 389 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=media keep=nav children=text|island component=wrap props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=media keep=nav children=text|island|hole component=wrap props=json ttl=*
 
-════ body 390 · 16 cases ════
+════ body 390 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=media keep=nav children=text|island component=wrap props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=media keep=nav children=text|island|hole component=wrap props=devalue ttl=*
 
-════ body 391 · 16 cases ════
+════ body 391 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=media keep=nav children=text|island component=wrap props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=media keep=nav children=text|island|hole component=wrap props=live ttl=*
 
-════ body 392 · 16 cases ════
+════ body 392 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><section data-wrap=""><!----></section><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=media keep=nav children=text|island component=wrap props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=media keep=nav children=text|island|hole component=wrap props=ref ttl=*
 
-════ body 393 · 32 cases ════
+════ body 393 · 48 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"children":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","slot:og#1",{"m":6,"id":7},"slot","og#1"]</script><!---->
-──── no hashes · 32:
-csr=* env=* wake=media keep=nav children=text|island component=late props=absent|empty ttl=*
+──── no hashes · 48:
+csr=* env=* wake=media keep=nav children=text|island|hole component=late props=absent|empty ttl=*
 
-════ body 394 · 16 cases ════
+════ body 394 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"n":1,"s":2,"children":3},1,"a",["OgygiaRef",4],{"k":5,"i":6,"d":7},"snippet","slot:og#1",{"m":8,"id":9},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=media keep=nav children=text|island component=late props=json ttl=*
+──── no hashes · 24:
+csr=* env=* wake=media keep=nav children=text|island|hole component=late props=json ttl=*
 
-════ body 395 · 16 cases ════
+════ body 395 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"d":1,"m":2,"children":5},["Date","1970-01-01T00:00:00.000Z"],["Map",3,4],1,2,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=media keep=nav children=text|island component=late props=devalue ttl=*
+──── no hashes · 24:
+csr=* env=* wake=media keep=nav children=text|island|hole component=late props=devalue ttl=*
 
-════ body 396 · 16 cases ════
+════ body 396 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"s":1,"children":10},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","l<snip1>",{"m":6,"e":7,"p":8},"live","/_app/ogygia/og-region.abc123.js",{"k":9},1,["OgygiaRef",11],{"k":3,"i":12,"d":13},"slot:og#1",{"m":14,"id":15},"slot","og#1"]</script><!---->
-──── with <snip1>=e58913d6b89e9258 · 16:
-csr=* env=* wake=media keep=nav children=text|island component=late props=live ttl=*
+──── with <snip1>=e58913d6b89e9258 · 24:
+csr=* env=* wake=media keep=nav children=text|island|hole component=late props=live ttl=*
 
-════ body 397 · 16 cases ════
+════ body 397 · 24 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/tiny.js" wake="(min-width: 600px)" data-ogygia-keep="nav"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"card":1,"children":5},{"title":2,"body":3,"n":4},"a card the page loaded, long enough to be worth a reference","and a body, so the node clears the size a reference needs",7,["OgygiaRef",6],{"k":7,"i":8,"d":9},"snippet","slot:og#1",{"m":10,"id":11},"slot","og#1"]</script><!---->
-──── no hashes · 16:
-csr=* env=* wake=media keep=nav children=text|island component=late props=ref ttl=*
+──── no hashes · 24:
+csr=* env=* wake=media keep=nav children=text|island|hole component=late props=ref ttl=*
 
 ################ live · 1 distinct ################
 
-════ live 1 · 8064 cases ════
+════ live 1 · 10752 cases ════
 []
-──── no hashes · 8064:
+──── no hashes · 10752:
 csr=* env=* wake=* keep=* children=* component=* props=* ttl=*
 
 ################ head_changed · 1 distinct ################
 
-════ head_changed 1 · 8064 cases ════
+════ head_changed 1 · 10752 cases ════
 false
-──── no hashes · 8064:
+──── no hashes · 10752:
 csr=* env=* wake=* keep=* children=* component=* props=* ttl=*
 
 ################ thrown · 3 distinct ################
 
-════ thrown 1 · 6912 cases ════
+════ thrown 1 · 9216 cases ════
 null
-──── no hashes · 6912:
+──── no hashes · 9216:
 csr=* env=* wake=* keep=* children=* component=* props=absent|empty|json|devalue|live|ref ttl=*
 
-════ thrown 2 · 576 cases ════
+════ thrown 2 · 768 cases ════
 OgygiaError: [ogygia] island "/islands/tiny.js": a captured prop is not serializable — Cannot stringify a function. Captured host values cross the boundary via devalue; functions/Promises cannot, and a class instance only can when the class declares a static [ogygia.wire] codec. Pass a serializable value, add a codec, or move that logic inside the island component.
 https://ogygiajs.dev/e/prop_not_serializable?entry=%2Fislands%2Ftiny.js&detail=Cannot+stringify+a+function
 
@@ -2018,29 +2018,29 @@ https://ogygiajs.dev/e/prop_not_serializable?entry=%2Fislands%2Ftiny.js&detail=C
   in RegionUnder.svelte
   in undefined
 
-──── no hashes · 576:
+──── no hashes · 768:
 csr=* env=dev wake=* keep=* children=* component=* props=snippet ttl=*
 
-════ thrown 3 · 576 cases ════
+════ thrown 3 · 768 cases ════
 OgygiaError: [ogygia] https://ogygiajs.dev/e/prop_not_serializable?entry=%2Fislands%2Ftiny.js&detail=Cannot+stringify+a+function
 
   in <unknown>
   in RegionUnder.svelte
   in undefined
 
-──── no hashes · 576:
+──── no hashes · 768:
 csr=* env=prod wake=* keep=* children=* component=* props=snippet ttl=*
 
 ################ said · 1 distinct ################
 
-════ said 1 · 8064 cases ════
+════ said 1 · 10752 cases ════
 []
-──── no hashes · 8064:
+──── no hashes · 10752:
 csr=* env=* wake=* keep=* children=* component=* props=* ttl=*
 
 ################ unhandled · 1 distinct ################
 
-════ unhandled 1 · 8064 cases ════
+════ unhandled 1 · 10752 cases ════
 []
-──── no hashes · 8064:
+──── no hashes · 10752:
 csr=* env=* wake=* keep=* children=* component=* props=* ttl=*

@@ -1,37 +1,37 @@
 # Region hydration grid · async=off · kind=island · at=island (fast)
-# 4032 cases, 5 distinct outputs; per part: kept_body 1, head_gone 2, body_hydrated 5, body_after 5, live 1, thrown 1, said 1, unhandled 1.
-# axes: csr=off|on page=ok|error env=prod wake=load|idle|visible|visible-margin|interaction|media keep=none|nav children=none|text|island component=tiny|wrap|late|tiny+late props=absent|empty|json|devalue|snippet|live|ref ttl=0|60
+# 5376 cases, 6 distinct outputs; per part: kept_body 1, head_gone 2, body_hydrated 6, body_after 6, live 1, thrown 1, said 1, unhandled 1.
+# axes: csr=off|on page=ok|error env=prod wake=load|idle|visible|visible-margin|interaction|media keep=none|nav children=none|text|island|hole component=tiny|wrap|late|tiny+late props=absent|empty|json|devalue|snippet|live|ref ttl=0|60
 
 ################ kept_body · 1 distinct ################
 
-════ kept_body 1 · 4032 cases ════
+════ kept_body 1 · 5376 cases ════
 true
-──── no hashes · 4032:
+──── no hashes · 5376:
 csr=* page=ok env=* wake=* keep=* children=* component=* props=* ttl=*
 
 ################ head_gone · 2 distinct ################
 
-════ head_gone 1 · 3696 cases ════
+════ head_gone 1 · 4704 cases ════
 [
  "<!--<id1>-->"
 ]
-──── with <id1>=rtd3wb · 3696:
+──── with <id1>=rtd3wb · 4704:
 csr=* page=ok env=* wake=* keep=* children=none|text component=* props=* ttl=*
-csr=* page=ok env=* wake=* keep=* children=island component=tiny|late|tiny+late props=* ttl=*
+csr=* page=ok env=* wake=* keep=* children=island|hole component=tiny|late|tiny+late props=* ttl=*
 
-════ head_gone 2 · 336 cases ════
+════ head_gone 2 · 672 cases ════
 [
  "<!--<id1>-->",
  "<!--<id1>-->"
 ]
-──── with <id1>=rtd3wb · 336:
-csr=* page=ok env=* wake=* keep=* children=island component=wrap props=* ttl=*
+──── with <id1>=rtd3wb · 672:
+csr=* page=ok env=* wake=* keep=* children=island|hole component=wrap props=* ttl=*
 
-################ body_hydrated · 5 distinct ################
+################ body_hydrated · 6 distinct ################
 
-════ body_hydrated 1 · 2016 cases ════
+════ body_hydrated 1 · 2688 cases ════
 <!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 2016:
+──── no hashes · 2688:
 csr=* page=ok env=* wake=* keep=* children=* component=tiny|tiny+late props=* ttl=*
 
 ════ body_hydrated 2 · 336 cases ════
@@ -39,9 +39,9 @@ csr=* page=ok env=* wake=* keep=* children=* component=tiny|tiny+late props=* tt
 ──── no hashes · 336:
 csr=* page=ok env=* wake=* keep=* children=none component=wrap props=* ttl=*
 
-════ body_hydrated 3 · 1008 cases ════
+════ body_hydrated 3 · 1344 cases ════
 <!--[--><!--[--><!--[0--><!--[0--><!--[-1--><!----><!--]--><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 1008:
+──── no hashes · 1344:
 csr=* page=ok env=* wake=* keep=* children=* component=late props=* ttl=*
 
 ════ body_hydrated 4 · 336 cases ════
@@ -54,11 +54,16 @@ csr=* page=ok env=* wake=* keep=* children=text component=wrap props=* ttl=*
 ──── no hashes · 336:
 csr=* page=ok env=* wake=* keep=* children=island component=wrap props=* ttl=*
 
-################ body_after · 5 distinct ################
+════ body_hydrated 6 · 336 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><!--[1--><!--[0--><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"><b data-tiny="">tiny</b><!----></ogygia-region><!--]--><!--]--><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=3b84af65b32bfb2e · 336:
+csr=* page=ok env=* wake=* keep=* children=hole component=wrap props=* ttl=*
 
-════ body_after 1 · 2016 cases ════
+################ body_after · 6 distinct ################
+
+════ body_after 1 · 2688 cases ════
 <!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 2016:
+──── no hashes · 2688:
 csr=* page=ok env=* wake=* keep=* children=* component=tiny|tiny+late props=* ttl=*
 
 ════ body_after 2 · 336 cases ════
@@ -66,9 +71,9 @@ csr=* page=ok env=* wake=* keep=* children=* component=tiny|tiny+late props=* tt
 ──── no hashes · 336:
 csr=* page=ok env=* wake=* keep=* children=none component=wrap props=* ttl=*
 
-════ body_after 3 · 1008 cases ════
+════ body_after 3 · 1344 cases ════
 <!--[--><!--[--><!--[0--><!--[0--><!--[-1--><!----><!----><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 1008:
+──── no hashes · 1344:
 csr=* page=ok env=* wake=* keep=* children=* component=late props=* ttl=*
 
 ════ body_after 4 · 336 cases ════
@@ -81,30 +86,35 @@ csr=* page=ok env=* wake=* keep=* children=text component=wrap props=* ttl=*
 ──── no hashes · 336:
 csr=* page=ok env=* wake=* keep=* children=island component=wrap props=* ttl=*
 
+════ body_after 6 · 336 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><!--[1--><!--[0--><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"><b data-tiny="">tiny</b><!----></ogygia-region><!--]--><!--]--><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=3b84af65b32bfb2e · 336:
+csr=* page=ok env=* wake=* keep=* children=hole component=wrap props=* ttl=*
+
 ################ live · 1 distinct ################
 
-════ live 1 · 4032 cases ════
+════ live 1 · 5376 cases ════
 []
-──── no hashes · 4032:
+──── no hashes · 5376:
 csr=* page=ok env=* wake=* keep=* children=* component=* props=* ttl=*
 
 ################ thrown · 1 distinct ################
 
-════ thrown 1 · 4032 cases ════
+════ thrown 1 · 5376 cases ════
 null
-──── no hashes · 4032:
+──── no hashes · 5376:
 csr=* page=ok env=* wake=* keep=* children=* component=* props=* ttl=*
 
 ################ said · 1 distinct ################
 
-════ said 1 · 4032 cases ════
+════ said 1 · 5376 cases ════
 []
-──── no hashes · 4032:
+──── no hashes · 5376:
 csr=* page=ok env=* wake=* keep=* children=* component=* props=* ttl=*
 
 ################ unhandled · 1 distinct ################
 
-════ unhandled 1 · 4032 cases ════
+════ unhandled 1 · 5376 cases ════
 []
-──── no hashes · 4032:
+──── no hashes · 5376:
 csr=* page=ok env=* wake=* keep=* children=* component=* props=* ttl=*

@@ -1,12 +1,12 @@
 # Region client grid · async=on · kind=dual · at=island (fast)
-# 1152 cases, 8 distinct outputs; per part: body 8, live 1, head_changed 1, thrown 1, said 1, unhandled 1.
-# axes: csr=off|on env=prod wake=none|load|idle|visible|interaction|media margin=none|9px thenable=no|yes module=dual|none component=tiny|wrap children=none|text|island placeholder=none|text
+# 1536 cases, 10 distinct outputs; per part: body 10, live 1, head_changed 1, thrown 1, said 1, unhandled 1.
+# axes: csr=off|on env=prod wake=none|load|idle|visible|interaction|media margin=none|9px thenable=no|yes module=dual|none component=tiny|wrap children=none|text|island|hole placeholder=none|text
 
-################ body · 8 distinct ################
+################ body · 10 distinct ################
 
-════ body 1 · 96 cases ════
+════ body 1 · 128 cases ════
 <!----><!----><!----><b data-tiny="">tiny</b>
-──── no hashes · 96:
+──── no hashes · 128:
 csr=* env=* wake=none margin=* thenable=* module=* component=tiny children=* placeholder=*
 
 ════ body 2 · 32 cases ════
@@ -24,57 +24,67 @@ csr=* env=* wake=none margin=* thenable=* module=* component=wrap children=text 
 ──── no hashes · 32:
 csr=* env=* wake=none margin=* thenable=* module=* component=wrap children=island placeholder=*
 
-════ body 5 · 480 cases ════
+════ body 5 · 32 cases ════
+<!----><!----><!----><section data-wrap=""><!----><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></section>
+──── with <fp1>=3b84af65b32bfb2e · 32:
+csr=* env=* wake=none margin=* thenable=* module=* component=wrap children=hole placeholder=*
+
+════ body 6 · 640 cases ════
 <!----><!----><!----><!----><!----><b data-tiny="">tiny</b>
-──── no hashes · 480:
+──── no hashes · 640:
 csr=* env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=tiny children=* placeholder=*
 
-════ body 6 · 160 cases ════
+════ body 7 · 160 cases ════
 <!----><!----><!----><!----><!----><section data-wrap=""><!----><!----></section>
 ──── no hashes · 160:
 csr=* env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=none placeholder=*
 
-════ body 7 · 160 cases ════
+════ body 8 · 160 cases ════
 <!----><!----><!----><!----><!----><section data-wrap=""><!----><i>kid</i><!----></section>
 ──── no hashes · 160:
 csr=* env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=text placeholder=*
 
-════ body 8 · 160 cases ════
+════ body 9 · 160 cases ════
 <!----><!----><!----><!----><!----><section data-wrap=""><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></section>
 ──── no hashes · 160:
 csr=* env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=island placeholder=*
 
+════ body 10 · 160 cases ════
+<!----><!----><!----><!----><!----><section data-wrap=""><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></section>
+──── with <fp1>=3b84af65b32bfb2e · 160:
+csr=* env=* wake=load|idle|visible|interaction|media margin=* thenable=* module=* component=wrap children=hole placeholder=*
+
 ################ live · 1 distinct ################
 
-════ live 1 · 1152 cases ════
+════ live 1 · 1536 cases ════
 []
-──── no hashes · 1152:
+──── no hashes · 1536:
 csr=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
 
 ################ head_changed · 1 distinct ################
 
-════ head_changed 1 · 1152 cases ════
+════ head_changed 1 · 1536 cases ════
 false
-──── no hashes · 1152:
+──── no hashes · 1536:
 csr=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
 
 ################ thrown · 1 distinct ################
 
-════ thrown 1 · 1152 cases ════
+════ thrown 1 · 1536 cases ════
 null
-──── no hashes · 1152:
+──── no hashes · 1536:
 csr=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
 
 ################ said · 1 distinct ################
 
-════ said 1 · 1152 cases ════
+════ said 1 · 1536 cases ════
 []
-──── no hashes · 1152:
+──── no hashes · 1536:
 csr=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*
 
 ################ unhandled · 1 distinct ################
 
-════ unhandled 1 · 1152 cases ════
+════ unhandled 1 · 1536 cases ════
 []
-──── no hashes · 1152:
+──── no hashes · 1536:
 csr=* env=* wake=* margin=* thenable=* module=* component=* children=* placeholder=*

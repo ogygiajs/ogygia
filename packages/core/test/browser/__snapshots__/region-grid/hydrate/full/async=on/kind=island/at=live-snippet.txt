@@ -1,37 +1,37 @@
 # Region hydration grid · async=on · kind=island · at=live-snippet (full)
-# 8064 cases, 11 distinct outputs; per part: kept_body 1, head_gone 2, body_hydrated 5, body_after 5, live 1, thrown 1, said 4, unhandled 1.
-# axes: csr=off|on page=ok|error env=dev|prod wake=load|idle|visible|visible-margin|interaction|media keep=none|nav children=none|text|island component=tiny|wrap|late|tiny+late props=absent|empty|json|devalue|snippet|live|ref ttl=0|60
+# 10752 cases, 14 distinct outputs; per part: kept_body 1, head_gone 2, body_hydrated 6, body_after 6, live 1, thrown 1, said 6, unhandled 1.
+# axes: csr=off|on page=ok|error env=dev|prod wake=load|idle|visible|visible-margin|interaction|media keep=none|nav children=none|text|island|hole component=tiny|wrap|late|tiny+late props=absent|empty|json|devalue|snippet|live|ref ttl=0|60
 
 ################ kept_body · 1 distinct ################
 
-════ kept_body 1 · 8064 cases ════
+════ kept_body 1 · 10752 cases ════
 true
-──── no hashes · 8064:
+──── no hashes · 10752:
 csr=* page=ok env=* wake=* keep=* children=* component=* props=* ttl=*
 
 ################ head_gone · 2 distinct ################
 
-════ head_gone 1 · 7392 cases ════
+════ head_gone 1 · 9408 cases ════
 [
  "<!--<id1>-->"
 ]
-──── with <id1>=rtd3wb · 7392:
+──── with <id1>=rtd3wb · 9408:
 csr=* page=ok env=* wake=* keep=* children=none|text component=* props=* ttl=*
-csr=* page=ok env=* wake=* keep=* children=island component=tiny|late|tiny+late props=* ttl=*
+csr=* page=ok env=* wake=* keep=* children=island|hole component=tiny|late|tiny+late props=* ttl=*
 
-════ head_gone 2 · 672 cases ════
+════ head_gone 2 · 1344 cases ════
 [
  "<!--<id1>-->",
  "<!--<id1>-->"
 ]
-──── with <id1>=rtd3wb · 672:
-csr=* page=ok env=* wake=* keep=* children=island component=wrap props=* ttl=*
+──── with <id1>=rtd3wb · 1344:
+csr=* page=ok env=* wake=* keep=* children=island|hole component=wrap props=* ttl=*
 
-################ body_hydrated · 5 distinct ################
+################ body_hydrated · 6 distinct ################
 
-════ body_hydrated 1 · 4032 cases ════
+════ body_hydrated 1 · 5376 cases ════
 <!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 4032:
+──── no hashes · 5376:
 csr=* page=ok env=* wake=* keep=* children=* component=tiny|tiny+late props=* ttl=*
 
 ════ body_hydrated 2 · 672 cases ════
@@ -39,9 +39,9 @@ csr=* page=ok env=* wake=* keep=* children=* component=tiny|tiny+late props=* tt
 ──── no hashes · 672:
 csr=* page=ok env=* wake=* keep=* children=none component=wrap props=* ttl=*
 
-════ body_hydrated 3 · 2016 cases ════
+════ body_hydrated 3 · 2688 cases ════
 <!--[--><!--[--><!--[0--><!--[0--><!--[-1--><!----><!--]--><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 2016:
+──── no hashes · 2688:
 csr=* page=ok env=* wake=* keep=* children=* component=late props=* ttl=*
 
 ════ body_hydrated 4 · 672 cases ════
@@ -54,11 +54,16 @@ csr=* page=ok env=* wake=* keep=* children=text component=wrap props=* ttl=*
 ──── no hashes · 672:
 csr=* page=ok env=* wake=* keep=* children=island component=wrap props=* ttl=*
 
-################ body_after · 5 distinct ################
+════ body_hydrated 6 · 672 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><!--[1--><!--[0--><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"><b data-tiny="">tiny</b><!----></ogygia-region><!--]--><!--]--><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=3b84af65b32bfb2e · 672:
+csr=* page=ok env=* wake=* keep=* children=hole component=wrap props=* ttl=*
 
-════ body_after 1 · 4032 cases ════
+################ body_after · 6 distinct ################
+
+════ body_after 1 · 5376 cases ════
 <!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 4032:
+──── no hashes · 5376:
 csr=* page=ok env=* wake=* keep=* children=* component=tiny|tiny+late props=* ttl=*
 
 ════ body_after 2 · 672 cases ════
@@ -66,9 +71,9 @@ csr=* page=ok env=* wake=* keep=* children=* component=tiny|tiny+late props=* tt
 ──── no hashes · 672:
 csr=* page=ok env=* wake=* keep=* children=none component=wrap props=* ttl=*
 
-════ body_after 3 · 2016 cases ════
+════ body_after 3 · 2688 cases ════
 <!--[--><!--[--><!--[0--><!--[0--><!--[-1--><!----><!----><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 2016:
+──── no hashes · 2688:
 csr=* page=ok env=* wake=* keep=* children=* component=late props=* ttl=*
 
 ════ body_after 4 · 672 cases ════
@@ -81,27 +86,32 @@ csr=* page=ok env=* wake=* keep=* children=text component=wrap props=* ttl=*
 ──── no hashes · 672:
 csr=* page=ok env=* wake=* keep=* children=island component=wrap props=* ttl=*
 
+════ body_after 6 · 672 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><!--[1--><!--[0--><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"><b data-tiny="">tiny</b><!----></ogygia-region><!--]--><!--]--><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=3b84af65b32bfb2e · 672:
+csr=* page=ok env=* wake=* keep=* children=hole component=wrap props=* ttl=*
+
 ################ live · 1 distinct ################
 
-════ live 1 · 8064 cases ════
+════ live 1 · 10752 cases ════
 []
-──── no hashes · 8064:
+──── no hashes · 10752:
 csr=* page=ok env=* wake=* keep=* children=* component=* props=* ttl=*
 
 ################ thrown · 1 distinct ################
 
-════ thrown 1 · 8064 cases ════
+════ thrown 1 · 10752 cases ════
 null
-──── no hashes · 8064:
+──── no hashes · 10752:
 csr=* page=ok env=* wake=* keep=* children=* component=* props=* ttl=*
 
-################ said · 4 distinct ################
+################ said · 6 distinct ################
 
-════ said 1 · 4648 cases ════
+════ said 1 · 6160 cases ════
 []
-──── no hashes · 4648:
+──── no hashes · 6160:
 csr=* page=ok env=dev wake=load keep=* children=none|text component=* props=* ttl=*
-csr=* page=ok env=dev wake=load keep=* children=island component=tiny|late|tiny+late props=* ttl=*
+csr=* page=ok env=dev wake=load keep=* children=island|hole component=tiny|late|tiny+late props=* ttl=*
 csr=* page=ok env=prod wake=* keep=* children=* component=* props=* ttl=*
 
 ════ said 2 · 56 cases ════
@@ -111,15 +121,22 @@ csr=* page=ok env=prod wake=* keep=* children=* component=* props=* ttl=*
 ──── no hashes · 56:
 csr=* page=ok env=dev wake=load keep=* children=island component=wrap props=* ttl=*
 
-════ said 3 · 3080 cases ════
+════ said 3 · 56 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_server_island_inline?entry=hole-in"
+]
+──── no hashes · 56:
+csr=* page=ok env=dev wake=load keep=* children=hole component=wrap props=* ttl=*
+
+════ said 4 · 3920 cases ════
 [
  "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Ftiny.js"
 ]
-──── no hashes · 3080:
+──── no hashes · 3920:
 csr=* page=ok env=dev wake=idle|visible|visible-margin|interaction|media keep=* children=none|text component=* props=* ttl=*
-csr=* page=ok env=dev wake=idle|visible|visible-margin|interaction|media keep=* children=island component=tiny|late|tiny+late props=* ttl=*
+csr=* page=ok env=dev wake=idle|visible|visible-margin|interaction|media keep=* children=island|hole component=tiny|late|tiny+late props=* ttl=*
 
-════ said 4 · 280 cases ════
+════ said 5 · 280 cases ════
 [
  "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Ftiny.js",
  "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Finner.js"
@@ -127,9 +144,17 @@ csr=* page=ok env=dev wake=idle|visible|visible-margin|interaction|media keep=* 
 ──── no hashes · 280:
 csr=* page=ok env=dev wake=idle|visible|visible-margin|interaction|media keep=* children=island component=wrap props=* ttl=*
 
+════ said 6 · 280 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_island_with_parent?entry=%2Fislands%2Ftiny.js",
+ "[ogygia] https://ogygiajs.dev/e/nested_server_island_inline?entry=hole-in"
+]
+──── no hashes · 280:
+csr=* page=ok env=dev wake=idle|visible|visible-margin|interaction|media keep=* children=hole component=wrap props=* ttl=*
+
 ################ unhandled · 1 distinct ################
 
-════ unhandled 1 · 8064 cases ════
+════ unhandled 1 · 10752 cases ════
 []
-──── no hashes · 8064:
+──── no hashes · 10752:
 csr=* page=ok env=* wake=* keep=* children=* component=* props=* ttl=*

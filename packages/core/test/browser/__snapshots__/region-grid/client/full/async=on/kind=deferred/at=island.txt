@@ -1,17 +1,17 @@
 # Region client grid · async=on · kind=deferred · at=island (full)
-# 2304 cases, 264 distinct outputs; per part: body 101, live 25, head_changed 1, thrown 1, said 2, unhandled 1.
-# axes: csr=off|on env=dev|prod html=none|live baked=no|yes wake=none|load|idle|visible|interaction|media margin=none|3px module=none|held children=none|text|island placeholder=none|text
+# 3072 cases, 360 distinct outputs; per part: body 126, live 25, head_changed 1, thrown 1, said 3, unhandled 1.
+# axes: csr=off|on env=dev|prod html=none|live baked=no|yes wake=none|load|idle|visible|interaction|media margin=none|3px module=none|held children=none|text|island|hole placeholder=none|text
 
-################ body · 101 distinct ################
+################ body · 126 distinct ################
 
 ════ body 1 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=none margin=none module=none children=none placeholder=none
 
-════ body 2 · 24 cases ════
+════ body 2 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=none margin=none module=none children=* placeholder=text
 
 ════ body 3 · 8 cases ════
@@ -25,498 +25,623 @@ csr=* env=* html=none baked=* wake=none margin=none module=none children=text pl
 csr=* env=* html=none baked=* wake=none margin=none module=none children=island placeholder=none
 
 ════ body 5 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=none margin=none module=none children=hole placeholder=none
+
+════ body 6 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=none margin=none module=held children=none placeholder=none
 
-════ body 6 · 24 cases ════
+════ body 7 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=none margin=none module=held children=* placeholder=text
 
-════ body 7 · 8 cases ════
+════ body 8 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=none margin=none module=held children=text placeholder=none
 
-════ body 8 · 8 cases ════
+════ body 9 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=none margin=none module=held children=island placeholder=none
 
-════ body 9 · 8 cases ════
+════ body 10 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=none margin=none module=held children=hole placeholder=none
+
+════ body 11 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=none margin=3px module=none children=none placeholder=none
 
-════ body 10 · 24 cases ════
+════ body 12 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=none margin=3px module=none children=* placeholder=text
 
-════ body 11 · 8 cases ════
+════ body 13 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=none margin=3px module=none children=text placeholder=none
 
-════ body 12 · 8 cases ════
+════ body 14 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=none margin=3px module=none children=island placeholder=none
 
-════ body 13 · 8 cases ════
+════ body 15 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" render="defer" when="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=none margin=3px module=none children=hole placeholder=none
+
+════ body 16 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=none margin=3px module=held children=none placeholder=none
 
-════ body 14 · 24 cases ════
+════ body 17 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=none margin=3px module=held children=* placeholder=text
 
-════ body 15 · 8 cases ════
+════ body 18 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=none margin=3px module=held children=text placeholder=none
 
-════ body 16 · 8 cases ════
+════ body 19 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=none margin=3px module=held children=island placeholder=none
 
-════ body 17 · 8 cases ════
+════ body 20 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=none margin=3px module=held children=hole placeholder=none
+
+════ body 21 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="load" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=load margin=none module=none children=none placeholder=none
 
-════ body 18 · 24 cases ════
+════ body 22 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="load" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=load margin=none module=none children=* placeholder=text
 
-════ body 19 · 8 cases ════
+════ body 23 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="load" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=load margin=none module=none children=text placeholder=none
 
-════ body 20 · 8 cases ════
+════ body 24 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="load" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=load margin=none module=none children=island placeholder=none
 
-════ body 21 · 8 cases ════
+════ body 25 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="load" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=load margin=none module=none children=hole placeholder=none
+
+════ body 26 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="load" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=load margin=none module=held children=none placeholder=none
 
-════ body 22 · 24 cases ════
+════ body 27 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="load" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=load margin=none module=held children=* placeholder=text
 
-════ body 23 · 8 cases ════
+════ body 28 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="load" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=load margin=none module=held children=text placeholder=none
 
-════ body 24 · 8 cases ════
+════ body 29 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="load" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=load margin=none module=held children=island placeholder=none
 
-════ body 25 · 8 cases ════
+════ body 30 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="load" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=load margin=none module=held children=hole placeholder=none
+
+════ body 31 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=load margin=3px module=none children=none placeholder=none
 
-════ body 26 · 24 cases ════
+════ body 32 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=load margin=3px module=none children=* placeholder=text
 
-════ body 27 · 8 cases ════
+════ body 33 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=load margin=3px module=none children=text placeholder=none
 
-════ body 28 · 8 cases ════
+════ body 34 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=load margin=3px module=none children=island placeholder=none
 
-════ body 29 · 8 cases ════
+════ body 35 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=load margin=3px module=none children=hole placeholder=none
+
+════ body 36 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=load margin=3px module=held children=none placeholder=none
 
-════ body 30 · 24 cases ════
+════ body 37 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=load margin=3px module=held children=* placeholder=text
 
-════ body 31 · 8 cases ════
+════ body 38 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=load margin=3px module=held children=text placeholder=none
 
-════ body 32 · 8 cases ════
+════ body 39 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=load margin=3px module=held children=island placeholder=none
 
-════ body 33 · 8 cases ════
+════ body 40 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="load" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=load margin=3px module=held children=hole placeholder=none
+
+════ body 41 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="idle" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=idle margin=none module=none children=none placeholder=none
 
-════ body 34 · 24 cases ════
+════ body 42 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="idle" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=idle margin=none module=none children=* placeholder=text
 
-════ body 35 · 8 cases ════
+════ body 43 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="idle" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=idle margin=none module=none children=text placeholder=none
 
-════ body 36 · 8 cases ════
+════ body 44 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="idle" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=idle margin=none module=none children=island placeholder=none
 
-════ body 37 · 8 cases ════
+════ body 45 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="idle" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=idle margin=none module=none children=hole placeholder=none
+
+════ body 46 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="idle" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=idle margin=none module=held children=none placeholder=none
 
-════ body 38 · 24 cases ════
+════ body 47 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="idle" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=idle margin=none module=held children=* placeholder=text
 
-════ body 39 · 8 cases ════
+════ body 48 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="idle" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=idle margin=none module=held children=text placeholder=none
 
-════ body 40 · 8 cases ════
+════ body 49 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="idle" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=idle margin=none module=held children=island placeholder=none
 
-════ body 41 · 8 cases ════
+════ body 50 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="idle" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=idle margin=none module=held children=hole placeholder=none
+
+════ body 51 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="idle" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=idle margin=3px module=none children=none placeholder=none
 
-════ body 42 · 24 cases ════
+════ body 52 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="idle" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=idle margin=3px module=none children=* placeholder=text
 
-════ body 43 · 8 cases ════
+════ body 53 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="idle" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=idle margin=3px module=none children=text placeholder=none
 
-════ body 44 · 8 cases ════
+════ body 54 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="idle" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=idle margin=3px module=none children=island placeholder=none
 
-════ body 45 · 8 cases ════
+════ body 55 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="idle" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=idle margin=3px module=none children=hole placeholder=none
+
+════ body 56 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="idle" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=idle margin=3px module=held children=none placeholder=none
 
-════ body 46 · 24 cases ════
+════ body 57 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="idle" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=idle margin=3px module=held children=* placeholder=text
 
-════ body 47 · 8 cases ════
+════ body 58 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="idle" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=idle margin=3px module=held children=text placeholder=none
 
-════ body 48 · 8 cases ════
+════ body 59 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="idle" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=idle margin=3px module=held children=island placeholder=none
 
-════ body 49 · 8 cases ════
+════ body 60 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="idle" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=idle margin=3px module=held children=hole placeholder=none
+
+════ body 61 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="visible" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=visible margin=none module=none children=none placeholder=none
 
-════ body 50 · 24 cases ════
+════ body 62 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="visible" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=visible margin=none module=none children=* placeholder=text
 
-════ body 51 · 8 cases ════
+════ body 63 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="visible" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=visible margin=none module=none children=text placeholder=none
 
-════ body 52 · 8 cases ════
+════ body 64 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="visible" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=visible margin=none module=none children=island placeholder=none
 
-════ body 53 · 8 cases ════
+════ body 65 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="visible" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=visible margin=none module=none children=hole placeholder=none
+
+════ body 66 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="visible" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=visible margin=none module=held children=none placeholder=none
 
-════ body 54 · 24 cases ════
+════ body 67 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="visible" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=visible margin=none module=held children=* placeholder=text
 
-════ body 55 · 8 cases ════
+════ body 68 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="visible" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=visible margin=none module=held children=text placeholder=none
 
-════ body 56 · 8 cases ════
+════ body 69 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="visible" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=visible margin=none module=held children=island placeholder=none
 
-════ body 57 · 8 cases ════
+════ body 70 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="visible" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=visible margin=none module=held children=hole placeholder=none
+
+════ body 71 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="visible" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=visible margin=3px module=none children=none placeholder=none
 
-════ body 58 · 24 cases ════
+════ body 72 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="visible" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=visible margin=3px module=none children=* placeholder=text
 
-════ body 59 · 8 cases ════
+════ body 73 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="visible" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=visible margin=3px module=none children=text placeholder=none
 
-════ body 60 · 8 cases ════
+════ body 74 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="visible" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=visible margin=3px module=none children=island placeholder=none
 
-════ body 61 · 8 cases ════
+════ body 75 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="visible" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=visible margin=3px module=none children=hole placeholder=none
+
+════ body 76 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="visible" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=visible margin=3px module=held children=none placeholder=none
 
-════ body 62 · 24 cases ════
+════ body 77 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="visible" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=visible margin=3px module=held children=* placeholder=text
 
-════ body 63 · 8 cases ════
+════ body 78 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="visible" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=visible margin=3px module=held children=text placeholder=none
 
-════ body 64 · 8 cases ════
+════ body 79 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="visible" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=visible margin=3px module=held children=island placeholder=none
 
-════ body 65 · 8 cases ════
+════ body 80 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="visible" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=visible margin=3px module=held children=hole placeholder=none
+
+════ body 81 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="interaction" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=interaction margin=none module=none children=none placeholder=none
 
-════ body 66 · 24 cases ════
+════ body 82 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="interaction" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=interaction margin=none module=none children=* placeholder=text
 
-════ body 67 · 8 cases ════
+════ body 83 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="interaction" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=interaction margin=none module=none children=text placeholder=none
 
-════ body 68 · 8 cases ════
+════ body 84 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="interaction" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=interaction margin=none module=none children=island placeholder=none
 
-════ body 69 · 8 cases ════
+════ body 85 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="interaction" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=interaction margin=none module=none children=hole placeholder=none
+
+════ body 86 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="interaction" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=interaction margin=none module=held children=none placeholder=none
 
-════ body 70 · 24 cases ════
+════ body 87 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="interaction" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=interaction margin=none module=held children=* placeholder=text
 
-════ body 71 · 8 cases ════
+════ body 88 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="interaction" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=interaction margin=none module=held children=text placeholder=none
 
-════ body 72 · 8 cases ════
+════ body 89 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="interaction" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=interaction margin=none module=held children=island placeholder=none
 
-════ body 73 · 8 cases ════
+════ body 90 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="interaction" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=interaction margin=none module=held children=hole placeholder=none
+
+════ body 91 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="interaction" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=interaction margin=3px module=none children=none placeholder=none
 
-════ body 74 · 24 cases ════
+════ body 92 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="interaction" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=interaction margin=3px module=none children=* placeholder=text
 
-════ body 75 · 8 cases ════
+════ body 93 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="interaction" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=interaction margin=3px module=none children=text placeholder=none
 
-════ body 76 · 8 cases ════
+════ body 94 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="interaction" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=interaction margin=3px module=none children=island placeholder=none
 
-════ body 77 · 8 cases ════
+════ body 95 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="interaction" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=interaction margin=3px module=none children=hole placeholder=none
+
+════ body 96 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="interaction" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=interaction margin=3px module=held children=none placeholder=none
 
-════ body 78 · 24 cases ════
+════ body 97 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="interaction" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=interaction margin=3px module=held children=* placeholder=text
 
-════ body 79 · 8 cases ════
+════ body 98 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="interaction" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=interaction margin=3px module=held children=text placeholder=none
 
-════ body 80 · 8 cases ════
+════ body 99 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="interaction" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=interaction margin=3px module=held children=island placeholder=none
 
-════ body 81 · 8 cases ════
+════ body 100 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="interaction" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=interaction margin=3px module=held children=hole placeholder=none
+
+════ body 101 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="(min-width: 600px)" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=media margin=none module=none children=none placeholder=none
 
-════ body 82 · 24 cases ════
+════ body 102 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="(min-width: 600px)" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=media margin=none module=none children=* placeholder=text
 
-════ body 83 · 8 cases ════
+════ body 103 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="(min-width: 600px)" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=media margin=none module=none children=text placeholder=none
 
-════ body 84 · 8 cases ════
+════ body 104 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="(min-width: 600px)" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=media margin=none module=none children=island placeholder=none
 
-════ body 85 · 8 cases ════
+════ body 105 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="(min-width: 600px)" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=media margin=none module=none children=hole placeholder=none
+
+════ body 106 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="(min-width: 600px)" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=media margin=none module=held children=none placeholder=none
 
-════ body 86 · 24 cases ════
+════ body 107 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="(min-width: 600px)" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=media margin=none module=held children=* placeholder=text
 
-════ body 87 · 8 cases ════
+════ body 108 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="(min-width: 600px)" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=media margin=none module=held children=text placeholder=none
 
-════ body 88 · 8 cases ════
+════ body 109 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="(min-width: 600px)" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=media margin=none module=held children=island placeholder=none
 
-════ body 89 · 8 cases ════
+════ body 110 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="(min-width: 600px)" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=media margin=none module=held children=hole placeholder=none
+
+════ body 111 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="(min-width: 600px)" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=media margin=3px module=none children=none placeholder=none
 
-════ body 90 · 24 cases ════
+════ body 112 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="(min-width: 600px)" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=media margin=3px module=none children=* placeholder=text
 
-════ body 91 · 8 cases ════
+════ body 113 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="(min-width: 600px)" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=media margin=3px module=none children=text placeholder=none
 
-════ body 92 · 8 cases ════
+════ body 114 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="(min-width: 600px)" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=media margin=3px module=none children=island placeholder=none
 
-════ body 93 · 8 cases ════
+════ body 115 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="" render="defer" when="load" wake="(min-width: 600px)" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=media margin=3px module=none children=hole placeholder=none
+
+════ body 116 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="(min-width: 600px)" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=media margin=3px module=held children=none placeholder=none
 
-════ body 94 · 24 cases ════
+════ body 117 · 32 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="(min-width: 600px)" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>wait</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
-──── no hashes · 24:
+──── no hashes · 32:
 csr=* env=* html=none baked=* wake=media margin=3px module=held children=* placeholder=text
 
-════ body 95 · 8 cases ════
+════ body 118 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="(min-width: 600px)" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><p>kid</p><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=media margin=3px module=held children=text placeholder=none
 
-════ body 96 · 8 cases ════
+════ body 119 · 8 cases ════
 <!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="(min-width: 600px)" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
 ──── no hashes · 8:
 csr=* env=* html=none baked=* wake=media margin=3px module=held children=island placeholder=none
 
-════ body 97 · 96 cases ════
+════ body 120 · 8 cases ════
+<!----><!----><!----><ogygia-region entry="/islands/held.js" render="defer" when="load" wake="(min-width: 600px)" hydrate-margin="3px" endpoint="/__ogygia__?id=held-a"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region><script type="application/ogygia-props" data-ogygia-props="">[{"h":1},1]</script><!---->
+──── with <fp1>=3b84af65b32bfb2e · 8:
+csr=* env=* html=none baked=* wake=media margin=3px module=held children=hole placeholder=none
+
+════ body 121 · 96 cases ════
 <!----><!----><!----><ogygia-region live="true"><!----></ogygia-region>
 ──── no hashes · 96:
 csr=* env=* html=live baked=no wake=* margin=* module=* children=none placeholder=none
 
-════ body 98 · 288 cases ════
+════ body 122 · 384 cases ════
 <!----><!----><!----><ogygia-region live="true"><!----><p>wait</p><!----></ogygia-region>
-──── no hashes · 288:
+──── no hashes · 384:
 csr=* env=* html=live baked=no wake=* margin=* module=* children=* placeholder=text
 
-════ body 99 · 96 cases ════
+════ body 123 · 96 cases ════
 <!----><!----><!----><ogygia-region live="true"><!----><p>kid</p><!----></ogygia-region>
 ──── no hashes · 96:
 csr=* env=* html=live baked=no wake=* margin=* module=* children=text placeholder=none
 
-════ body 100 · 96 cases ════
+════ body 124 · 96 cases ════
 <!----><!----><!----><ogygia-region live="true"><!----><!----><!----><!----><!----><b data-tiny="">tiny</b><!----></ogygia-region>
 ──── no hashes · 96:
 csr=* env=* html=live baked=no wake=* margin=* module=* children=island placeholder=none
 
-════ body 101 · 576 cases ════
+════ body 125 · 96 cases ════
+<!----><!----><!----><ogygia-region live="true"><!----><!----><!----><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"></ogygia-region><!----></ogygia-region>
+──── with <fp1>=3b84af65b32bfb2e · 96:
+csr=* env=* html=live baked=no wake=* margin=* module=* children=hole placeholder=none
+
+════ body 126 · 768 cases ════
 <!----><!----><!----><ogygia-region live=""></ogygia-region>
-──── no hashes · 576:
+──── no hashes · 768:
 csr=* env=* html=live baked=yes wake=* margin=* module=* children=* placeholder=*
 
 ################ live · 25 distinct ################
 
-════ live 1 · 1152 cases ════
+════ live 1 · 1536 cases ════
 []
-──── no hashes · 1152:
+──── no hashes · 1536:
 csr=* env=* html=none baked=* wake=* margin=* module=* children=* placeholder=*
 
-════ live 2 · 48 cases ════
+════ live 2 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -528,10 +653,10 @@ csr=* env=* html=none baked=* wake=* margin=* module=* children=* placeholder=*
   "url": "/__ogygia__?id=held-a"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=none margin=none module=none children=* placeholder=*
 
-════ live 3 · 48 cases ════
+════ live 3 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -543,10 +668,10 @@ csr=* env=* html=live baked=* wake=none margin=none module=none children=* place
   "url": "/__ogygia__?id=held-a"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=none margin=none module=held children=* placeholder=*
 
-════ live 4 · 48 cases ════
+════ live 4 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -559,10 +684,10 @@ csr=* env=* html=live baked=* wake=none margin=none module=held children=* place
   "hydrateMargin": "3px"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=none margin=3px module=none children=* placeholder=*
 
-════ live 5 · 48 cases ════
+════ live 5 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -575,10 +700,10 @@ csr=* env=* html=live baked=* wake=none margin=3px module=none children=* placeh
   "hydrateMargin": "3px"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=none margin=3px module=held children=* placeholder=*
 
-════ live 6 · 48 cases ════
+════ live 6 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -591,10 +716,10 @@ csr=* env=* html=live baked=* wake=none margin=3px module=held children=* placeh
   "hydrate": "load"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=load margin=none module=none children=* placeholder=*
 
-════ live 7 · 48 cases ════
+════ live 7 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -607,10 +732,10 @@ csr=* env=* html=live baked=* wake=load margin=none module=none children=* place
   "hydrate": "load"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=load margin=none module=held children=* placeholder=*
 
-════ live 8 · 48 cases ════
+════ live 8 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -624,10 +749,10 @@ csr=* env=* html=live baked=* wake=load margin=none module=held children=* place
   "hydrateMargin": "3px"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=load margin=3px module=none children=* placeholder=*
 
-════ live 9 · 48 cases ════
+════ live 9 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -641,10 +766,10 @@ csr=* env=* html=live baked=* wake=load margin=3px module=none children=* placeh
   "hydrateMargin": "3px"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=load margin=3px module=held children=* placeholder=*
 
-════ live 10 · 48 cases ════
+════ live 10 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -657,10 +782,10 @@ csr=* env=* html=live baked=* wake=load margin=3px module=held children=* placeh
   "hydrate": "idle"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=idle margin=none module=none children=* placeholder=*
 
-════ live 11 · 48 cases ════
+════ live 11 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -673,10 +798,10 @@ csr=* env=* html=live baked=* wake=idle margin=none module=none children=* place
   "hydrate": "idle"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=idle margin=none module=held children=* placeholder=*
 
-════ live 12 · 48 cases ════
+════ live 12 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -690,10 +815,10 @@ csr=* env=* html=live baked=* wake=idle margin=none module=held children=* place
   "hydrateMargin": "3px"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=idle margin=3px module=none children=* placeholder=*
 
-════ live 13 · 48 cases ════
+════ live 13 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -707,10 +832,10 @@ csr=* env=* html=live baked=* wake=idle margin=3px module=none children=* placeh
   "hydrateMargin": "3px"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=idle margin=3px module=held children=* placeholder=*
 
-════ live 14 · 48 cases ════
+════ live 14 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -723,10 +848,10 @@ csr=* env=* html=live baked=* wake=idle margin=3px module=held children=* placeh
   "hydrate": "visible"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=visible margin=none module=none children=* placeholder=*
 
-════ live 15 · 48 cases ════
+════ live 15 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -739,10 +864,10 @@ csr=* env=* html=live baked=* wake=visible margin=none module=none children=* pl
   "hydrate": "visible"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=visible margin=none module=held children=* placeholder=*
 
-════ live 16 · 48 cases ════
+════ live 16 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -756,10 +881,10 @@ csr=* env=* html=live baked=* wake=visible margin=none module=held children=* pl
   "hydrateMargin": "3px"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=visible margin=3px module=none children=* placeholder=*
 
-════ live 17 · 48 cases ════
+════ live 17 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -773,10 +898,10 @@ csr=* env=* html=live baked=* wake=visible margin=3px module=none children=* pla
   "hydrateMargin": "3px"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=visible margin=3px module=held children=* placeholder=*
 
-════ live 18 · 48 cases ════
+════ live 18 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -789,10 +914,10 @@ csr=* env=* html=live baked=* wake=visible margin=3px module=held children=* pla
   "hydrate": "interaction"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=interaction margin=none module=none children=* placeholder=*
 
-════ live 19 · 48 cases ════
+════ live 19 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -805,10 +930,10 @@ csr=* env=* html=live baked=* wake=interaction margin=none module=none children=
   "hydrate": "interaction"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=interaction margin=none module=held children=* placeholder=*
 
-════ live 20 · 48 cases ════
+════ live 20 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -822,10 +947,10 @@ csr=* env=* html=live baked=* wake=interaction margin=none module=held children=
   "hydrateMargin": "3px"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=interaction margin=3px module=none children=* placeholder=*
 
-════ live 21 · 48 cases ════
+════ live 21 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -839,10 +964,10 @@ csr=* env=* html=live baked=* wake=interaction margin=3px module=none children=*
   "hydrateMargin": "3px"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=interaction margin=3px module=held children=* placeholder=*
 
-════ live 22 · 48 cases ════
+════ live 22 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -855,10 +980,10 @@ csr=* env=* html=live baked=* wake=interaction margin=3px module=held children=*
   "hydrate": "(min-width: 600px)"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=media margin=none module=none children=* placeholder=*
 
-════ live 23 · 48 cases ════
+════ live 23 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -871,10 +996,10 @@ csr=* env=* html=live baked=* wake=media margin=none module=none children=* plac
   "hydrate": "(min-width: 600px)"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=media margin=none module=held children=* placeholder=*
 
-════ live 24 · 48 cases ════
+════ live 24 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -888,10 +1013,10 @@ csr=* env=* html=live baked=* wake=media margin=none module=held children=* plac
   "hydrateMargin": "3px"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=media margin=3px module=none children=* placeholder=*
 
-════ live 25 · 48 cases ════
+════ live 25 · 64 cases ════
 [
  {
   "id": "held-a",
@@ -905,32 +1030,32 @@ csr=* env=* html=live baked=* wake=media margin=3px module=none children=* place
   "hydrateMargin": "3px"
  }
 ]
-──── no hashes · 48:
+──── no hashes · 64:
 csr=* env=* html=live baked=* wake=media margin=3px module=held children=* placeholder=*
 
 ################ head_changed · 1 distinct ################
 
-════ head_changed 1 · 2304 cases ════
+════ head_changed 1 · 3072 cases ════
 false
-──── no hashes · 2304:
+──── no hashes · 3072:
 csr=* env=* html=* baked=* wake=* margin=* module=* children=* placeholder=*
 
 ################ thrown · 1 distinct ################
 
-════ thrown 1 · 2304 cases ════
+════ thrown 1 · 3072 cases ════
 null
-──── no hashes · 2304:
+──── no hashes · 3072:
 csr=* env=* html=* baked=* wake=* margin=* module=* children=* placeholder=*
 
-################ said · 2 distinct ################
+################ said · 3 distinct ################
 
-════ said 1 · 2160 cases ════
+════ said 1 · 2784 cases ════
 []
-──── no hashes · 2160:
+──── no hashes · 2784:
 csr=* env=dev html=none baked=* wake=* margin=* module=* children=none|text placeholder=*
-csr=* env=dev html=none baked=* wake=* margin=* module=* children=island placeholder=text
+csr=* env=dev html=none baked=* wake=* margin=* module=* children=island|hole placeholder=text
 csr=* env=dev html=live baked=no wake=* margin=* module=* children=none|text placeholder=*
-csr=* env=dev html=live baked=no wake=* margin=* module=* children=island placeholder=text
+csr=* env=dev html=live baked=no wake=* margin=* module=* children=island|hole placeholder=text
 csr=* env=dev html=live baked=yes wake=* margin=* module=* children=* placeholder=*
 csr=* env=prod html=* baked=* wake=* margin=* module=* children=* placeholder=*
 
@@ -942,9 +1067,17 @@ csr=* env=prod html=* baked=* wake=* margin=* module=* children=* placeholder=*
 csr=* env=dev html=none baked=* wake=* margin=* module=* children=island placeholder=none
 csr=* env=dev html=live baked=no wake=* margin=* module=* children=island placeholder=none
 
+════ said 3 · 144 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_server_island_inline?entry=hole-in"
+]
+──── no hashes · 144:
+csr=* env=dev html=none baked=* wake=* margin=* module=* children=hole placeholder=none
+csr=* env=dev html=live baked=no wake=* margin=* module=* children=hole placeholder=none
+
 ################ unhandled · 1 distinct ################
 
-════ unhandled 1 · 2304 cases ════
+════ unhandled 1 · 3072 cases ════
 []
-──── no hashes · 2304:
+──── no hashes · 3072:
 csr=* env=* html=* baked=* wake=* margin=* module=* children=* placeholder=*

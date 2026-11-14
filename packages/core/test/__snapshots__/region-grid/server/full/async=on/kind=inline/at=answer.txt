@@ -1,12 +1,12 @@
 # Region server grid · async=on · kind=inline · at=answer (full)
-# 1152 cases, 20 distinct outputs; per part: head 8, body 6, thrown 1, tail 3, tail holes 2, tail islands 3, early holes 1, page records 2, devtools 2, said 1.
-# axes: kit=none|pass|pass-inner|ogygia csr=off|on page=ok|error env=dev|prod content=none|post-1|unknown component=tiny|wrap children=none|text|island placeholder=none|text
+# 1536 cases, 20 distinct outputs; per part: head 10, body 8, thrown 1, tail 3, tail holes 2, tail islands 2, early holes 2, page records 3, devtools 3, said 1.
+# axes: kit=none|pass|pass-inner|ogygia csr=off|on page=ok|error env=dev|prod content=none|post-1|unknown component=tiny|wrap children=none|text|island|hole placeholder=none|text
 
-################ head · 8 distinct ################
+################ head · 10 distinct ################
 
-════ head 1 · 640 cases ════
+════ head 1 · 768 cases ════
 <!--<id1>--><!--<id2>--><!----><!---->
-──── with <id1>=rtd3wb <id2>=45h · 640:
+──── with <id1>=rtd3wb <id2>=45h · 768:
 kit=* csr=* page=* env=* content=none|unknown component=tiny children=* placeholder=*
 kit=* csr=* page=* env=* content=none|unknown component=wrap children=none|text placeholder=*
 
@@ -16,43 +16,53 @@ kit=* csr=* page=* env=* content=none|unknown component=wrap children=none|text 
 kit=none csr=off page=* env=* content=none|unknown component=wrap children=island placeholder=*
 kit=ogygia csr=* page=* env=* content=none|unknown component=wrap children=island placeholder=*
 
-════ head 3 · 320 cases ════
+════ head 3 · 128 cases ════
+<!--<id1>--><!--<id2>--><!----><!----><!--<id1>--><!--<id3>--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><!----><!---->
+──── with <id1>=rtd3wb <id2>=45h <id3>=u7pura · 128:
+kit=* csr=* page=* env=* content=none|unknown component=wrap children=hole placeholder=*
+
+════ head 4 · 384 cases ════
 <!--<id1>--><!--<id2>--><link rel="stylesheet" href="/content/post-1.css" data-ogygia-region-css><!----><!---->
-──── with <id1>=rtd3wb <id2>=14y388p · 320:
+──── with <id1>=rtd3wb <id2>=14y388p · 384:
 kit=* csr=* page=* env=* content=post-1 component=tiny children=* placeholder=*
 kit=* csr=* page=* env=* content=post-1 component=wrap children=none|text placeholder=*
 
-════ head 4 · 24 cases ════
+════ head 5 · 24 cases ════
 <!--<id1>--><!--<id2>--><link rel="stylesheet" href="/content/post-1.css" data-ogygia-region-css><!----><!----><!--<id1>--><!--<id3>--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/inner.js~dep-a.js","/islands/inner.js~dep-b.js"],"e":{"/islands/inner.js":[0,1]}}</script><link rel="stylesheet" href="/islands/inner.js~sheet.css" data-ogygia-region-css data-og-owner="<fp1>"><!----><!---->
 ──── with <id1>=rtd3wb <id2>=14y388p <id3>=1qwqsre <fp1>=f4c59de12a7a309d · 24:
 kit=none csr=off page=* env=* content=post-1 component=wrap children=island placeholder=*
 kit=ogygia csr=* page=* env=* content=post-1 component=wrap children=island placeholder=*
 
-════ head 5 · 48 cases ════
+════ head 6 · 64 cases ════
+<!--<id1>--><!--<id2>--><link rel="stylesheet" href="/content/post-1.css" data-ogygia-region-css><!----><!----><!--<id1>--><!--<id3>--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><!----><!---->
+──── with <id1>=rtd3wb <id2>=14y388p <id3>=u7pura · 64:
+kit=* csr=* page=* env=* content=post-1 component=wrap children=hole placeholder=*
+
+════ head 7 · 48 cases ════
 <!--<id1>--><!--<id2>--><!----><!----><!--<id1>--><!--<id3>--><link rel="stylesheet" href="/islands/inner.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/inner.js"><!----><!---->
 ──── with <id1>=rtd3wb <id2>=45h <id3>=1v07hc5 · 48:
 kit=none|pass|pass-inner csr=on page=* env=* content=none|unknown component=wrap children=island placeholder=*
 
-════ head 6 · 24 cases ════
+════ head 8 · 24 cases ════
 <!--<id1>--><!--<id2>--><link rel="stylesheet" href="/content/post-1.css" data-ogygia-region-css><!----><!----><!--<id1>--><!--<id3>--><link rel="stylesheet" href="/islands/inner.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/inner.js"><!----><!---->
 ──── with <id1>=rtd3wb <id2>=14y388p <id3>=1v07hc5 · 24:
 kit=none|pass|pass-inner csr=on page=* env=* content=post-1 component=wrap children=island placeholder=*
 
-════ head 7 · 32 cases ════
+════ head 9 · 32 cases ════
 <!--<id1>--><!--<id2>--><!----><!----><!--<id1>--><!--<id3>--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><link rel="stylesheet" href="/islands/inner.js~sheet.css" data-ogygia-region-css data-og-owner="<fp1>"><!----><!---->
 ──── with <id1>=rtd3wb <id2>=45h <id3>=gn7ki3 <fp1>=f4c59de12a7a309d · 32:
 kit=pass|pass-inner csr=off page=* env=* content=none|unknown component=wrap children=island placeholder=*
 
-════ head 8 · 16 cases ════
+════ head 10 · 16 cases ════
 <!--<id1>--><!--<id2>--><link rel="stylesheet" href="/content/post-1.css" data-ogygia-region-css><!----><!----><!--<id1>--><!--<id3>--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><link rel="stylesheet" href="/islands/inner.js~sheet.css" data-ogygia-region-css data-og-owner="<fp1>"><!----><!---->
 ──── with <id1>=rtd3wb <id2>=14y388p <id3>=gn7ki3 <fp1>=f4c59de12a7a309d · 16:
 kit=pass|pass-inner csr=off page=* env=* content=post-1 component=wrap children=island placeholder=*
 
-################ body · 6 distinct ################
+################ body · 8 distinct ################
 
-════ body 1 · 576 cases ════
+════ body 1 · 768 cases ════
 <!--[--><!--[--><!--[3--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 576:
+──── no hashes · 768:
 kit=* csr=* page=* env=* content=* component=tiny children=* placeholder=*
 
 ════ body 2 · 192 cases ════
@@ -71,85 +81,101 @@ kit=* csr=* page=* env=* content=* component=wrap children=text placeholder=*
 kit=none csr=off page=* env=* content=* component=wrap children=island placeholder=*
 kit=ogygia csr=* page=* env=* content=* component=wrap children=island placeholder=*
 
-════ body 5 · 72 cases ════
+════ body 5 · 120 cases ════
+<!--[--><!--[--><!--[3--><!--[--><section data-wrap=""><!--[0--><!--[1--><!--[-1--><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=hole-in&amp;p=%7B%22inner%22%3A2%7D&amp;ttl=0&amp;w=false" data-og-hole="<fp1>"><!--[-1--><!--]--></ogygia-region><!--<id1>--><!----><!--]--><!--]--><!----><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=3b84af65b32bfb2e <id1>=45h · 120:
+kit=none|pass|pass-inner csr=off page=* env=* content=* component=wrap children=hole placeholder=*
+kit=ogygia csr=* page=* env=* content=* component=wrap children=hole placeholder=*
+
+════ body 6 · 72 cases ════
 <!--[--><!--[--><!--[3--><!--[--><section data-wrap=""><!--[0--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!----><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
 ──── no hashes · 72:
 kit=none|pass|pass-inner csr=on page=* env=* content=* component=wrap children=island placeholder=*
 
-════ body 6 · 48 cases ════
+════ body 7 · 72 cases ════
+<!--[--><!--[--><!--[3--><!--[--><section data-wrap=""><!--[0--><!--[1--><!--[1--><ogygia-region entry="" render="defer" when="load" endpoint="/__ogygia__?id=hole-in&amp;p=%7B%22inner%22%3A2%7D&amp;ttl=0&amp;w=false" data-og-hole="<fp1>"></ogygia-region><!----><!--<id1>--><!----><!--]--><!--]--><!----><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=3b84af65b32bfb2e <id1>=45h · 72:
+kit=none|pass|pass-inner csr=on page=* env=* content=* component=wrap children=hole placeholder=*
+
+════ body 8 · 48 cases ════
 <!--[--><!--[--><!--[3--><!--[--><section data-wrap=""><!--[0--><!--[0--><!--[-1--><ogygia-region entry="/islands/inner.js" wake="idle" data-og-fp="<fp1>" src="/islands/inner.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--<id1>--><!----><!--]--><!--]--><!----><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
 ──── with <fp1>=f4c59de12a7a309d <id1>=45h · 48:
 kit=pass|pass-inner csr=off page=* env=* content=* component=wrap children=island placeholder=*
 
 ################ thrown · 1 distinct ################
 
-════ thrown 1 · 1152 cases ════
+════ thrown 1 · 1536 cases ════
 
-──── no hashes · 1152:
+──── no hashes · 1536:
 kit=* csr=* page=* env=* content=* component=* children=* placeholder=*
 
 ################ tail · 3 distinct ################
 
-════ tail 1 · 576 cases ════
-(no tail)
-──── no hashes · 576:
+════ tail 1 · 1440 cases ════
+
+──── no hashes · 1440:
 kit=none|ogygia csr=* page=* env=* content=* component=* children=* placeholder=*
+kit=pass|pass-inner csr=* page=* env=* content=* component=tiny children=* placeholder=*
+kit=pass|pass-inner csr=off page=* env=* content=* component=wrap children=none|text|hole placeholder=*
+kit=pass|pass-inner csr=on page=* env=* content=* component=wrap children=none|text|island placeholder=*
 
-════ tail 2 · 528 cases ════
-
-──── no hashes · 528:
-kit=pass|pass-inner csr=off page=* env=* content=* component=tiny children=* placeholder=*
-kit=pass|pass-inner csr=off page=* env=* content=* component=wrap children=none|text placeholder=*
-kit=pass|pass-inner csr=on page=* env=* content=* component=* children=* placeholder=*
-
-════ tail 3 · 48 cases ════
+════ tail 2 · 48 cases ════
 <script type="application/json" data-ogygia-graph>{"h":["/islands/inner.js~dep-a.js","/islands/inner.js~dep-b.js"],"e":{"/islands/inner.js":[0,1]}}</script><script type="application/ogygia-props" data-ogygia-props="<fp1>" id="og-props-<fp1>" data-og-format="json">{"inner":1}</script>
 ──── with <fp1>=f4c59de12a7a309d · 48:
 kit=pass|pass-inner csr=off page=* env=* content=* component=wrap children=island placeholder=*
 
+════ tail 3 · 48 cases ════
+<script type="application/ogygia-holes" data-ogygia-holes>{"<fp1>":{"endpoint":"/__ogygia__?id=hole-in&p=%7B%22inner%22%3A2%7D&ttl=0&w=false","sidecar":""}}</script>
+──── with <fp1>=3b84af65b32bfb2e · 48:
+kit=pass|pass-inner csr=on page=* env=* content=* component=wrap children=hole placeholder=*
+
 ################ tail holes · 2 distinct ################
 
-════ tail holes 1 · 576 cases ════
-
-──── no hashes · 576:
-kit=none|ogygia csr=* page=* env=* content=* component=* children=* placeholder=*
-
-════ tail holes 2 · 576 cases ════
+════ tail holes 1 · 1440 cases ════
 []
-──── no hashes · 576:
-kit=pass|pass-inner csr=* page=* env=* content=* component=* children=* placeholder=*
-
-################ tail islands · 3 distinct ################
-
-════ tail islands 1 · 576 cases ════
-
-──── no hashes · 576:
+──── no hashes · 1440:
 kit=none|ogygia csr=* page=* env=* content=* component=* children=* placeholder=*
+kit=pass|pass-inner csr=* page=* env=* content=* component=tiny children=* placeholder=*
+kit=pass|pass-inner csr=* page=* env=* content=* component=wrap children=none|text|island placeholder=*
 
-════ tail islands 2 · 528 cases ════
+════ tail holes 2 · 96 cases ════
+[{"id":"hole-in","name":"Tiny","props":"{\"inner\":2}","when":"load","hydrate":null,"ttl":0,"count":1}]
+──── no hashes · 96:
+kit=pass|pass-inner csr=* page=* env=* content=* component=wrap children=hole placeholder=*
+
+################ tail islands · 2 distinct ################
+
+════ tail islands 1 · 1488 cases ════
 []
-──── no hashes · 528:
+──── no hashes · 1488:
+kit=none|ogygia csr=* page=* env=* content=* component=* children=* placeholder=*
 kit=pass|pass-inner csr=off page=* env=* content=* component=tiny children=* placeholder=*
-kit=pass|pass-inner csr=off page=* env=* content=* component=wrap children=none|text placeholder=*
+kit=pass|pass-inner csr=off page=* env=* content=* component=wrap children=none|text|hole placeholder=*
 kit=pass|pass-inner csr=on page=* env=* content=* component=* children=* placeholder=*
 
-════ tail islands 3 · 48 cases ════
+════ tail islands 2 · 48 cases ════
 [{"fp":"<fp1>","entry":"/islands/inner.js","name":"Tiny","module_url":"/islands/inner.js.hashed.js","wake":"idle","props_bytes":11,"canonical_bytes":11,"canonical":"{\"inner\":1}","json":true,"culprit":null,"refs":0,"ref_keys":[],"hints":["/islands/inner.js.hashed.js","/islands/inner.js~dep-a.js","/islands/inner.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=f4c59de12a7a309d · 48:
 kit=pass|pass-inner csr=off page=* env=* content=* component=wrap children=island placeholder=*
 
-################ early holes · 1 distinct ################
+################ early holes · 2 distinct ################
 
-════ early holes 1 · 1152 cases ════
+════ early holes 1 · 1344 cases ════
 
-──── no hashes · 1152:
-kit=* csr=* page=* env=* content=* component=* children=* placeholder=*
+──── no hashes · 1344:
+kit=* csr=* page=* env=* content=* component=tiny children=* placeholder=*
+kit=* csr=* page=* env=* content=* component=wrap children=none|text|island placeholder=*
 
-################ page records · 2 distinct ################
+════ early holes 2 · 192 cases ════
+/__ogygia__?id=hole-in&p=%7B%22inner%22%3A2%7D&ttl=0&w=false
+──── no hashes · 192:
+kit=* csr=* page=* env=* content=* component=wrap children=hole placeholder=*
 
-════ page records 1 · 960 cases ════
+################ page records · 3 distinct ################
+
+════ page records 1 · 1152 cases ════
 [{"seed":false,"remotes":[],"entry":""}]
-──── no hashes · 960:
+──── no hashes · 1152:
 kit=* csr=* page=* env=* content=* component=tiny children=* placeholder=*
 kit=* csr=* page=* env=* content=* component=wrap children=none|text placeholder=*
 
@@ -158,15 +184,19 @@ kit=* csr=* page=* env=* content=* component=wrap children=none|text placeholder
 ──── no hashes · 192:
 kit=* csr=* page=* env=* content=* component=wrap children=island placeholder=*
 
-################ devtools · 2 distinct ################
+════ page records 3 · 192 cases ════
+[{"seed":false,"remotes":[],"entry":""},{"seed":false,"remotes":[],"entry":""}]
+──── no hashes · 192:
+kit=* csr=* page=* env=* content=* component=wrap children=hole placeholder=*
 
-════ devtools 1 · 1032 cases ════
+################ devtools · 3 distinct ################
+
+════ devtools 1 · 1224 cases ════
 []
-──── no hashes · 1032:
-kit=none|pass|pass-inner csr=off page=* env=* content=* component=tiny children=* placeholder=*
+──── no hashes · 1224:
+kit=* csr=* page=* env=* content=* component=tiny children=* placeholder=*
 kit=none|pass|pass-inner csr=off page=* env=* content=* component=wrap children=none|text placeholder=*
-kit=none|pass|pass-inner csr=on page=* env=* content=* component=* children=* placeholder=*
-kit=ogygia csr=* page=* env=* content=* component=tiny children=* placeholder=*
+kit=none|pass|pass-inner csr=on page=* env=* content=* component=wrap children=none|text|island placeholder=*
 kit=ogygia csr=* page=* env=* content=* component=wrap children=none|text placeholder=*
 
 ════ devtools 2 · 120 cases ════
@@ -175,9 +205,14 @@ kit=ogygia csr=* page=* env=* content=* component=wrap children=none|text placeh
 kit=none|pass|pass-inner csr=off page=* env=* content=* component=wrap children=island placeholder=*
 kit=ogygia csr=* page=* env=* content=* component=wrap children=island placeholder=*
 
+════ devtools 3 · 192 cases ════
+[{"domain":"server","name":"server.region.rendered","fp":"","mode":"server","propsBytes":0}]
+──── no hashes · 192:
+kit=* csr=* page=* env=* content=* component=wrap children=hole placeholder=*
+
 ################ said · 1 distinct ################
 
-════ said 1 · 1152 cases ════
+════ said 1 · 1536 cases ════
 []
-──── no hashes · 1152:
+──── no hashes · 1536:
 kit=* csr=* page=* env=* content=* component=* children=* placeholder=*

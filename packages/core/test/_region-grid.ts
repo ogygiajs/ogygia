@@ -72,11 +72,17 @@ export const PAGE_DATA = {
 export const LIVE_ENTRY = '/_app/ogygia/og-region.abc123.js';
 
 const text = (html: string) => createRawSnippet(() => ({ render: () => html }));
-const { island_in } = GridSnippets as unknown as { island_in: unknown };
+const { island_in, hole_in } = GridSnippets as unknown as { island_in: unknown; hole_in: unknown };
 
-/** A snippet axis value: none, a text snippet, or a snippet holding an island. */
+/** A snippet axis value: none, a text snippet, a snippet holding an island, or one holding a hole. */
 function snippet_of(v: string, html: string): unknown {
-	return v === 'none' ? undefined : v === 'text' ? text(html) : island_in;
+	return v === 'none'
+		? undefined
+		: v === 'text'
+			? text(html)
+			: v === 'island'
+				? island_in
+				: hole_in;
 }
 
 /** Props of each shape: absent, empty, plain JSON, devalue-only, a snippet, a live snippet, a
@@ -145,7 +151,7 @@ export type Kind = {
 const WAKES = ['load', 'idle', 'visible', 'visible-margin', 'interaction', 'media'] as const;
 const HELD_WAKES = ['none', 'load', 'idle', 'visible', 'interaction', 'media'] as const;
 const PROPS = ['absent', 'empty', 'json', 'devalue', 'snippet', 'live', 'ref'] as const;
-const SNIPPETS = ['none', 'text', 'island'] as const;
+const SNIPPETS = ['none', 'text', 'island', 'hole'] as const;
 
 export const KINDS: Readonly<Record<string, Kind>> = {
 	island: {

@@ -1,88 +1,73 @@
 # Region server grid · async=off · kind=promise · at=answer (full)
-# 768 cases, 6 distinct outputs; per part: head 1, body 2, thrown 1, tail 2, tail holes 2, tail islands 2, early holes 1, page records 1, devtools 1, said 2.
-# axes: kit=none|pass|pass-inner|ogygia csr=off|on page=ok|error env=dev|prod settles=never|live|deferred|rejects children=none|text|island placeholder=none|text
+# 1024 cases, 3 distinct outputs; per part: head 1, body 2, thrown 1, tail 1, tail holes 1, tail islands 1, early holes 1, page records 1, devtools 1, said 2.
+# axes: kit=none|pass|pass-inner|ogygia csr=off|on page=ok|error env=dev|prod settles=never|live|deferred|rejects children=none|text|island|hole placeholder=none|text
 
 ################ head · 1 distinct ################
 
-════ head 1 · 768 cases ════
+════ head 1 · 1024 cases ════
 <!--<id1>--><!--<id2>--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><!----><!---->
-──── with <id1>=rtd3wb <id2>=u7pura · 768:
+──── with <id1>=rtd3wb <id2>=u7pura · 1024:
 kit=* csr=* page=* env=* settles=* children=* placeholder=*
 
 ################ body · 2 distinct ################
 
-════ body 1 · 384 cases ════
+════ body 1 · 512 cases ════
 <!--[--><!--[--><!--[7--><!--[-1--><!----><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 384:
+──── no hashes · 512:
 kit=* csr=* page=* env=* settles=* children=* placeholder=none
 
-════ body 2 · 384 cases ════
+════ body 2 · 512 cases ════
 <!--[--><!--[--><!--[7--><!--[-1--><p>wait</p><!----><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 384:
+──── no hashes · 512:
 kit=* csr=* page=* env=* settles=* children=* placeholder=text
 
 ################ thrown · 1 distinct ################
 
-════ thrown 1 · 768 cases ════
+════ thrown 1 · 1024 cases ════
 
-──── no hashes · 768:
+──── no hashes · 1024:
 kit=* csr=* page=* env=* settles=* children=* placeholder=*
 
-################ tail · 2 distinct ################
+################ tail · 1 distinct ################
 
-════ tail 1 · 384 cases ════
-(no tail)
-──── no hashes · 384:
-kit=none|ogygia csr=* page=* env=* settles=* children=* placeholder=*
+════ tail 1 · 1024 cases ════
 
-════ tail 2 · 384 cases ════
+──── no hashes · 1024:
+kit=* csr=* page=* env=* settles=* children=* placeholder=*
 
-──── no hashes · 384:
-kit=pass|pass-inner csr=* page=* env=* settles=* children=* placeholder=*
+################ tail holes · 1 distinct ################
 
-################ tail holes · 2 distinct ################
-
-════ tail holes 1 · 384 cases ════
-
-──── no hashes · 384:
-kit=none|ogygia csr=* page=* env=* settles=* children=* placeholder=*
-
-════ tail holes 2 · 384 cases ════
+════ tail holes 1 · 1024 cases ════
 []
-──── no hashes · 384:
-kit=pass|pass-inner csr=* page=* env=* settles=* children=* placeholder=*
+──── no hashes · 1024:
+kit=* csr=* page=* env=* settles=* children=* placeholder=*
 
-################ tail islands · 2 distinct ################
+################ tail islands · 1 distinct ################
 
-════ tail islands 1 · 384 cases ════
-
-──── no hashes · 384:
-kit=none|ogygia csr=* page=* env=* settles=* children=* placeholder=*
-
-════ tail islands 2 · 384 cases ════
+════ tail islands 1 · 1024 cases ════
 []
-──── no hashes · 384:
-kit=pass|pass-inner csr=* page=* env=* settles=* children=* placeholder=*
+──── no hashes · 1024:
+kit=* csr=* page=* env=* settles=* children=* placeholder=*
 
 ################ early holes · 1 distinct ################
 
-════ early holes 1 · 768 cases ════
+════ early holes 1 · 1024 cases ════
 
-──── no hashes · 768:
+──── no hashes · 1024:
 kit=* csr=* page=* env=* settles=* children=* placeholder=*
 
 ################ page records · 1 distinct ################
 
-════ page records 1 · 768 cases ════
+════ page records 1 · 1024 cases ════
 [{"seed":"all","remotes":null,"entry":""}]
-──── no hashes · 768:
+──── no hashes · 1024:
 kit=* csr=* page=* env=* settles=* children=* placeholder=*
 
 ################ devtools · 1 distinct ################
 
-════ devtools 1 · 768 cases ════
+════ devtools 1 · 1024 cases ════
 []
-──── no hashes · 768:
+──── no hashes · 1024:
 kit=* csr=* page=* env=* settles=* children=* placeholder=*
 
 ################ said · 2 distinct ################
@@ -92,9 +77,9 @@ kit=* csr=* page=* env=* settles=* children=* placeholder=*
 ──── no hashes · 64:
 kit=* csr=* page=* env=dev settles=* children=none placeholder=none
 
-════ said 2 · 704 cases ════
+════ said 2 · 960 cases ════
 []
-──── no hashes · 704:
+──── no hashes · 960:
 kit=* csr=* page=* env=dev settles=* children=none placeholder=text
-kit=* csr=* page=* env=dev settles=* children=text|island placeholder=*
+kit=* csr=* page=* env=dev settles=* children=text|island|hole placeholder=*
 kit=* csr=* page=* env=prod settles=* children=* placeholder=*

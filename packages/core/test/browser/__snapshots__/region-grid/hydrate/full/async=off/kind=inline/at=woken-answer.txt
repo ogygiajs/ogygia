@@ -1,37 +1,37 @@
 # Region hydration grid · async=off · kind=inline · at=woken-answer (full)
-# 144 cases, 5 distinct outputs; per part: kept_body 1, head_gone 2, body_hydrated 4, body_after 4, live 1, thrown 1, said 2, unhandled 1.
-# axes: csr=off|on page=ok|error env=dev|prod content=none|post-1|unknown component=tiny|wrap children=none|text|island placeholder=none|text
+# 192 cases, 7 distinct outputs; per part: kept_body 1, head_gone 2, body_hydrated 5, body_after 5, live 1, thrown 1, said 3, unhandled 1.
+# axes: csr=off|on page=ok|error env=dev|prod content=none|post-1|unknown component=tiny|wrap children=none|text|island|hole placeholder=none|text
 
 ################ kept_body · 1 distinct ################
 
-════ kept_body 1 · 144 cases ════
+════ kept_body 1 · 192 cases ════
 true
-──── no hashes · 144:
+──── no hashes · 192:
 csr=* page=ok env=* content=* component=* children=* placeholder=*
 
 ################ head_gone · 2 distinct ################
 
-════ head_gone 1 · 120 cases ════
+════ head_gone 1 · 144 cases ════
 [
  "<!--<id1>-->"
 ]
-──── with <id1>=rtd3wb · 120:
+──── with <id1>=rtd3wb · 144:
 csr=* page=ok env=* content=* component=tiny children=* placeholder=*
 csr=* page=ok env=* content=* component=wrap children=none|text placeholder=*
 
-════ head_gone 2 · 24 cases ════
+════ head_gone 2 · 48 cases ════
 [
  "<!--<id1>-->",
  "<!--<id1>-->"
 ]
-──── with <id1>=rtd3wb · 24:
-csr=* page=ok env=* content=* component=wrap children=island placeholder=*
+──── with <id1>=rtd3wb · 48:
+csr=* page=ok env=* content=* component=wrap children=island|hole placeholder=*
 
-################ body_hydrated · 4 distinct ################
+################ body_hydrated · 5 distinct ################
 
-════ body_hydrated 1 · 72 cases ════
+════ body_hydrated 1 · 96 cases ════
 <!--[--><!--[--><!--[3--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 72:
+──── no hashes · 96:
 csr=* page=ok env=* content=* component=tiny children=* placeholder=*
 
 ════ body_hydrated 2 · 24 cases ════
@@ -49,11 +49,16 @@ csr=* page=ok env=* content=* component=wrap children=text placeholder=*
 ──── no hashes · 24:
 csr=* page=ok env=* content=* component=wrap children=island placeholder=*
 
-################ body_after · 4 distinct ################
+════ body_hydrated 5 · 24 cases ════
+<!--[--><!--[--><!--[3--><!--[--><section data-wrap=""><!--[0--><!--[1--><!--[0--><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"><b data-tiny="">tiny</b><!----></ogygia-region><!--]--><!--]--><!----><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=3b84af65b32bfb2e · 24:
+csr=* page=ok env=* content=* component=wrap children=hole placeholder=*
 
-════ body_after 1 · 72 cases ════
+################ body_after · 5 distinct ################
+
+════ body_after 1 · 96 cases ════
 <!--[--><!--[--><!--[3--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 72:
+──── no hashes · 96:
 csr=* page=ok env=* content=* component=tiny children=* placeholder=*
 
 ════ body_after 2 · 24 cases ════
@@ -71,25 +76,30 @@ csr=* page=ok env=* content=* component=wrap children=text placeholder=*
 ──── no hashes · 24:
 csr=* page=ok env=* content=* component=wrap children=island placeholder=*
 
+════ body_after 5 · 24 cases ════
+<!--[--><!--[--><!--[3--><!--[--><section data-wrap=""><!--[0--><!--[1--><!--[0--><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"><b data-tiny="">tiny</b><!----></ogygia-region><!--]--><!--]--><!----><!--]--><!----></section><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=3b84af65b32bfb2e · 24:
+csr=* page=ok env=* content=* component=wrap children=hole placeholder=*
+
 ################ live · 1 distinct ################
 
-════ live 1 · 144 cases ════
+════ live 1 · 192 cases ════
 []
-──── no hashes · 144:
+──── no hashes · 192:
 csr=* page=ok env=* content=* component=* children=* placeholder=*
 
 ################ thrown · 1 distinct ################
 
-════ thrown 1 · 144 cases ════
+════ thrown 1 · 192 cases ════
 null
-──── no hashes · 144:
+──── no hashes · 192:
 csr=* page=ok env=* content=* component=* children=* placeholder=*
 
-################ said · 2 distinct ################
+################ said · 3 distinct ################
 
-════ said 1 · 132 cases ════
+════ said 1 · 168 cases ════
 []
-──── no hashes · 132:
+──── no hashes · 168:
 csr=* page=ok env=dev content=* component=tiny children=* placeholder=*
 csr=* page=ok env=dev content=* component=wrap children=none|text placeholder=*
 csr=* page=ok env=prod content=* component=* children=* placeholder=*
@@ -101,9 +111,16 @@ csr=* page=ok env=prod content=* component=* children=* placeholder=*
 ──── no hashes · 12:
 csr=* page=ok env=dev content=* component=wrap children=island placeholder=*
 
+════ said 3 · 12 cases ════
+[
+ "[ogygia] https://ogygiajs.dev/e/nested_server_island_inline?entry=hole-in"
+]
+──── no hashes · 12:
+csr=* page=ok env=dev content=* component=wrap children=hole placeholder=*
+
 ################ unhandled · 1 distinct ################
 
-════ unhandled 1 · 144 cases ════
+════ unhandled 1 · 192 cases ════
 []
-──── no hashes · 144:
+──── no hashes · 192:
 csr=* page=ok env=* content=* component=* children=* placeholder=*

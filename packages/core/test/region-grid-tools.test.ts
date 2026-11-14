@@ -2,7 +2,9 @@
 import { expect, test } from 'vitest';
 import { fold, GridReport } from './_region-grid-report.ts';
 import { html_findings, unbalanced_markers } from './_region-grid-checks.ts';
-import { cases_of, KINDS, product } from './_region-grid.ts';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { AT, cases_of, KINDS, product } from './_region-grid.ts';
 
 const expand = (blocks: number[][][]) =>
 	blocks
@@ -80,6 +82,25 @@ test('the marker check finds an unclosed and an unopened block, per parent', () 
 test('the HTML check finds what a parser would repair, and passes good HTML', () => {
 	expect(html_findings('', '<p><div></div></p>')).not.toEqual([]);
 	expect(html_findings('<meta name="a">', '<ogygia-region><p>a</p></ogygia-region>')).toEqual([]);
+});
+
+test('every grid file of both sets, every kind, place and async setting, is on disk', () => {
+	const sets = { fast: ['page', 'island'], full: [...AT] };
+	const hydrate_at = ['page', 'island', 'live-snippet', 'woken-answer'];
+	const missing: string[] = [];
+	for (const [set, ats] of Object.entries(sets))
+		for (const async of ['on', 'off'])
+			for (const kind of Object.keys(KINDS))
+				for (const [dir, places] of [
+					['__snapshots__/region-grid/server', ats],
+					['browser/__snapshots__/region-grid/client', ats],
+					['browser/__snapshots__/region-grid/hydrate', ats.filter((a) => hydrate_at.includes(a))]
+				] as const)
+					for (const at of places) {
+						const file = `${dir}/${set}/async=${async}/kind=${kind}/at=${at}.txt`;
+						if (!existsSync(fileURLToPath(new URL(file, import.meta.url)))) missing.push(file);
+					}
+	expect(missing).toEqual([]);
 });
 
 test('each kind has the full product of its axes, every case named by every axis', () => {

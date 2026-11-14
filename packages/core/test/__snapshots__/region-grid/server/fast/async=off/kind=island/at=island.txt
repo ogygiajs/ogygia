@@ -1,25 +1,30 @@
 # Region server grid · async=off · kind=island · at=island (fast)
-# 64512 cases, 10 distinct outputs; per part: head 2, body 5, thrown 1, tail 2, tail holes 2, tail islands 2, early holes 1, page records 2, devtools 1, said 1.
-# axes: kit=none|pass|pass-inner|ogygia csr=off|on page=ok|error env=prod wake=load|idle|visible|visible-margin|interaction|media keep=none|nav children=none|text|island component=tiny|wrap|late|tiny+late props=absent|empty|json|devalue|snippet|live|ref ttl=0|60 known=no|yes
+# 86016 cases, 6 distinct outputs; per part: head 3, body 6, thrown 1, tail 1, tail holes 1, tail islands 1, early holes 1, page records 2, devtools 1, said 1.
+# axes: kit=none|pass|pass-inner|ogygia csr=off|on page=ok|error env=prod wake=load|idle|visible|visible-margin|interaction|media keep=none|nav children=none|text|island|hole component=tiny|wrap|late|tiny+late props=absent|empty|json|devalue|snippet|live|ref ttl=0|60 known=no|yes
 
-################ head · 2 distinct ################
+################ head · 3 distinct ################
 
-════ head 1 · 59136 cases ════
+════ head 1 · 75264 cases ════
 <!--<id1>--><!--<id2>--><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/tiny.js"><!----><!---->
-──── with <id1>=rtd3wb <id2>=7uu6nv · 59136:
+──── with <id1>=rtd3wb <id2>=7uu6nv · 75264:
 kit=* csr=* page=* env=* wake=* keep=* children=none|text component=* props=* ttl=* known=*
-kit=* csr=* page=* env=* wake=* keep=* children=island component=tiny|late|tiny+late props=* ttl=* known=*
+kit=* csr=* page=* env=* wake=* keep=* children=island|hole component=tiny|late|tiny+late props=* ttl=* known=*
 
 ════ head 2 · 5376 cases ════
 <!--<id1>--><!--<id2>--><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/tiny.js"><!----><!----><!--<id1>--><!--<id3>--><link rel="stylesheet" href="/islands/inner.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/inner.js"><!----><!---->
 ──── with <id1>=rtd3wb <id2>=7uu6nv <id3>=1v07hc5 · 5376:
 kit=* csr=* page=* env=* wake=* keep=* children=island component=wrap props=* ttl=* known=*
 
-################ body · 5 distinct ################
+════ head 3 · 5376 cases ════
+<!--<id1>--><!--<id2>--><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css><meta name="ogygia-kit-island" content="/islands/tiny.js"><!----><!----><!--<id1>--><!--<id3>--><link rel="stylesheet" href="/holes/hole-in.css" data-ogygia-region-css><!----><!---->
+──── with <id1>=rtd3wb <id2>=7uu6nv <id3>=jwz1bl · 5376:
+kit=* csr=* page=* env=* wake=* keep=* children=hole component=wrap props=* ttl=* known=*
 
-════ body 1 · 32256 cases ════
+################ body · 6 distinct ################
+
+════ body 1 · 43008 cases ════
 <!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><b data-tiny="">tiny</b><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 32256:
+──── no hashes · 43008:
 kit=* csr=* page=* env=* wake=* keep=* children=* component=tiny|tiny+late props=* ttl=* known=*
 
 ════ body 2 · 5376 cases ════
@@ -27,9 +32,9 @@ kit=* csr=* page=* env=* wake=* keep=* children=* component=tiny|tiny+late props
 ──── no hashes · 5376:
 kit=* csr=* page=* env=* wake=* keep=* children=none component=wrap props=* ttl=* known=*
 
-════ body 3 · 16128 cases ════
+════ body 3 · 21504 cases ════
 <!--[--><!--[--><!--[0--><!--[0--><!--[-1--><!--]--><!--]--><!--]--><!--]--><!--]-->
-──── no hashes · 16128:
+──── no hashes · 21504:
 kit=* csr=* page=* env=* wake=* keep=* children=* component=late props=* ttl=* known=*
 
 ════ body 4 · 5376 cases ════
@@ -42,79 +47,69 @@ kit=* csr=* page=* env=* wake=* keep=* children=text component=wrap props=* ttl=
 ──── no hashes · 5376:
 kit=* csr=* page=* env=* wake=* keep=* children=island component=wrap props=* ttl=* known=*
 
+════ body 6 · 5376 cases ════
+<!--[--><!--[--><!--[0--><!--[0--><!--[0--><!--[--><section data-wrap=""><!--[1--><!--[0--><ogygia-region entry="hole-in" wake="none" remount="cache" data-og-lake="<fp1>"><b data-tiny="">tiny</b><!----></ogygia-region><!--]--><!--]--><!----><!----></section><!--]--><!--]--><!--]--><!--]--><!--]--><!--]-->
+──── with <fp1>=3b84af65b32bfb2e · 5376:
+kit=* csr=* page=* env=* wake=* keep=* children=hole component=wrap props=* ttl=* known=*
+
 ################ thrown · 1 distinct ################
 
-════ thrown 1 · 64512 cases ════
+════ thrown 1 · 86016 cases ════
 
-──── no hashes · 64512:
+──── no hashes · 86016:
 kit=* csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
 
-################ tail · 2 distinct ################
+################ tail · 1 distinct ################
 
-════ tail 1 · 32256 cases ════
-(no tail)
-──── no hashes · 32256:
-kit=none|ogygia csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
+════ tail 1 · 86016 cases ════
 
-════ tail 2 · 32256 cases ════
+──── no hashes · 86016:
+kit=* csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
 
-──── no hashes · 32256:
-kit=pass|pass-inner csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
+################ tail holes · 1 distinct ################
 
-################ tail holes · 2 distinct ################
-
-════ tail holes 1 · 32256 cases ════
-
-──── no hashes · 32256:
-kit=none|ogygia csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
-
-════ tail holes 2 · 32256 cases ════
+════ tail holes 1 · 86016 cases ════
 []
-──── no hashes · 32256:
-kit=pass|pass-inner csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
+──── no hashes · 86016:
+kit=* csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
 
-################ tail islands · 2 distinct ################
+################ tail islands · 1 distinct ################
 
-════ tail islands 1 · 32256 cases ════
-
-──── no hashes · 32256:
-kit=none|ogygia csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
-
-════ tail islands 2 · 32256 cases ════
+════ tail islands 1 · 86016 cases ════
 []
-──── no hashes · 32256:
-kit=pass|pass-inner csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
+──── no hashes · 86016:
+kit=* csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
 
 ################ early holes · 1 distinct ################
 
-════ early holes 1 · 64512 cases ════
+════ early holes 1 · 86016 cases ════
 
-──── no hashes · 64512:
+──── no hashes · 86016:
 kit=* csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
 
 ################ page records · 2 distinct ################
 
-════ page records 1 · 59136 cases ════
+════ page records 1 · 75264 cases ════
 [{"seed":false,"remotes":[],"entry":""}]
-──── no hashes · 59136:
+──── no hashes · 75264:
 kit=* csr=* page=* env=* wake=* keep=* children=none|text component=* props=* ttl=* known=*
-kit=* csr=* page=* env=* wake=* keep=* children=island component=tiny|late|tiny+late props=* ttl=* known=*
+kit=* csr=* page=* env=* wake=* keep=* children=island|hole component=tiny|late|tiny+late props=* ttl=* known=*
 
-════ page records 2 · 5376 cases ════
+════ page records 2 · 10752 cases ════
 [{"seed":false,"remotes":[],"entry":""},{"seed":false,"remotes":[],"entry":""}]
-──── no hashes · 5376:
-kit=* csr=* page=* env=* wake=* keep=* children=island component=wrap props=* ttl=* known=*
+──── no hashes · 10752:
+kit=* csr=* page=* env=* wake=* keep=* children=island|hole component=wrap props=* ttl=* known=*
 
 ################ devtools · 1 distinct ################
 
-════ devtools 1 · 64512 cases ════
+════ devtools 1 · 86016 cases ════
 []
-──── no hashes · 64512:
+──── no hashes · 86016:
 kit=* csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*
 
 ################ said · 1 distinct ################
 
-════ said 1 · 64512 cases ════
+════ said 1 · 86016 cases ════
 []
-──── no hashes · 64512:
+──── no hashes · 86016:
 kit=* csr=* page=* env=* wake=* keep=* children=* component=* props=* ttl=* known=*

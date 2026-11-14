@@ -181,10 +181,9 @@ function render_once(
 	set_request_event_stub(() => event);
 	set_kit_event_reader(() => event);
 	let tail: DocumentTail | null = null;
-	if (place.kit === 'pass' || place.kit === 'pass-inner') {
-		const t = (tail = new DocumentTail());
-		set_tail_reader(() => t);
-	}
+	// (every request carries a document tail, whichever root renders: only Kit's pass writes to it)
+	const t = (tail = new DocumentTail());
+	set_tail_reader(() => t);
 	if (req.page_version)
 		set_render_page_port({ ready: () => {}, tail: () => '', version: (id) => `&pv=${id}` });
 	const events: unknown[] = [];
