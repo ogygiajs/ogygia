@@ -103,6 +103,31 @@ describe('a refused page is stamped no-store when the app set nothing', () => {
 	});
 });
 
+describe('a request that joined a render', () => {
+	it('an invalidation ends the render it joined: it renders the page anew, and that render is stored', async () => {
+		const runtime = install({ store: new MemoryStore() });
+		const open = (path: string) => {
+			const c = ctx(new Request(`http://x.test${path}`), { cookies: jar as never });
+			mark_handled(c.event, runtime);
+			return c;
+		};
+		const a = open('/news/');
+		expect(await server.page?.(a)).toBeUndefined();
+		const b = open('/news/');
+		const joined = server.page?.(b);
+		await new Promise((r) => setTimeout(r, 0));
+		await invalidate('/news/');
+		expect(await joined).toBeUndefined();
+		await server.response?.(b, html_response());
+		await server.done?.(b);
+		const late = html_response();
+		await server.response?.(a, late);
+		expect(late.headers.get('cache-control')).toBe('private, no-store');
+		await server.done?.(a);
+		expect((await visit(runtime, '/news/')).hit).toBe(true);
+	});
+});
+
 describe('the ttl backstop', () => {
 	it('a page 1 ms under ttl old is served; exactly ttl old is a miss', async () => {
 		const store = new MemoryStore();

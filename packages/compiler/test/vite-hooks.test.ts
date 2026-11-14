@@ -5,6 +5,7 @@
  * browser), never the plugin's inner maps, so the per-leg rework of vite/index.ts keeps them.
  */
 import {
+	chmodSync,
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
@@ -341,6 +342,22 @@ describe('the config hook', () => {
 		expect(existsSync(keep())).toBe(false);
 	});
 
+	it('a keep-client route the exit cannot remove stays on disk, and the exit goes on', async () => {
+		app();
+		const before = new Set(process.listeners('exit'));
+		await setup('build');
+		const armed = process.listeners('exit').filter((l) => !before.has(l));
+		expect(armed).toHaveLength(1);
+		process.off('exit', armed[0]);
+		chmodSync(keep(), 0o555);
+		try {
+			expect(() => (armed[0] as () => void)()).not.toThrow();
+		} finally {
+			chmodSync(keep(), 0o755);
+		}
+		expect(existsSync(path.join(keep(), '+layout.ts'))).toBe(true);
+	});
+
 	it('a keep-client route left on disk is not one of the routes that decide it', async () => {
 		app();
 		write(path.relative(root, path.join(keep(), '+layout.ts')), 'export const csr = true;\n');
@@ -600,6 +617,16 @@ describe('resolveId', () => {
 		app();
 		const { p } = await setup('serve');
 		expect(await resolve(p, '__sveltekit/remote', 'client')).toMatch(/remote-functions/);
+		expect(await resolve(p, '__sveltekit/remote', 'ssr')).toBe(null);
+	});
+
+	it("a Kit without its client remote functions fails the browser's remote runtime by name", async () => {
+		app();
+		write('node_modules/@sveltejs/kit/package.json', JSON.stringify({ name: '@sveltejs/kit' }));
+		const { p } = await setup('serve');
+		await expect(resolve(p, '__sveltekit/remote', 'client')).rejects.toThrow(
+			/kit_remote_src_missing/
+		);
 		expect(await resolve(p, '__sveltekit/remote', 'ssr')).toBe(null);
 	});
 

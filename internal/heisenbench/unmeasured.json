@@ -1241,6 +1241,14 @@
 			"reason": "browser only: ends the visit, then one history replace and a document navigation; proven in apps/palaestra/e2e/mixed.spec.ts (#259) and router-document-fetch.spec.ts (#266: a download and a 204 link, clicked twice)"
 		},
 		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > navigate > task:0~1a8181",
+			"reason": "browser only: the claimed navigation's wait for the navigation chunk, on the visit's own scope (one import, constant work); proven in packages/core/test/browser/router-claim-superseded.test.ts and apps/palaestra/e2e/router-race.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > navigate > task:0~1a8181 > then:0~54592b",
+			"reason": "browser only: maps the chunk loader's STALE to null (one comparison); proven in packages/core/test/browser/router-claim-superseded.test.ts and apps/palaestra/e2e/router-race.spec.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/router.ts > SpaRouter > #on_click",
 			"reason": "browser only: the router's click handling on a live document (prevents and navigates); proven in apps/palaestra/e2e/router-document-fetch.spec.ts, router-race.spec.ts and mixed.spec.ts"
 		},

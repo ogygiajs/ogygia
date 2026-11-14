@@ -254,6 +254,48 @@
 	],
 	"covered": [
 		{
+			"site": "packages/testing/src/index.ts > Ogygia > constructor > .catch:0",
+			"reason": "an addInitScript that fails leaves no unhandled rejection: its failure is the first call's error; proved by hand: the handler made to rethrow turns the test red, twice",
+			"test": "packages/testing/test/driver-engine.test.ts",
+			"name": "an addInitScript that fails is the error the first call gives"
+		},
+		{
+			"site": "packages/testing/src/index.ts > Ogygia > record > catch:0",
+			"reason": "a recording stop that fails on another document is kept and named in the error; proved by hand: the catch made to rethrow turns the test red, twice",
+			"test": "packages/testing/test/testing-primitives.test.ts",
+			"name": "record(): a page that left for another document says so, with the actions’ own error as the cause"
+		},
+		{
+			"site": "packages/tooling/src/e2e/servers.ts > spawn_server > kill > timer:0",
+			"reason": "a server that ignores SIGTERM is SIGKILLed after the grace time, not left until it exits on its own; proved by hand: the timer dropped turns the test red, twice",
+			"test": "packages/tooling/test/servers.test.ts",
+			"name": "a server that ignores SIGTERM is killed after the grace time"
+		},
+		{
+			"site": "packages/cli/src/mcp.ts > parse_marks > catch:0",
+			"reason": "a file Svelte cannot parse is left out of a scan, and the other files are still scanned; proved by hand: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/mcp-scan.test.ts",
+			"name": "ogygia_scan: a file Svelte cannot parse is left out, and the other files are still scanned"
+		},
+		{
+			"site": "packages/cli/src/perf/cli.ts > serve > abort:0",
+			"reason": "the readiness loop stops asking once its spawning visit is over; proved by hand: the check made never true turns the test red (the loop asks on), twice",
+			"test": "packages/cli/test/serve.test.ts",
+			"name": "a server that exits at once fails at once, with its output"
+		},
+		{
+			"site": "packages/cli/src/perf/cli.ts > serve > throw:1",
+			"reason": "a server that exits before it answers fails as cli_server_exited_early, not as one that never got ready; proved by hand: the throw removed turns the test red, twice",
+			"test": "packages/cli/test/serve.test.ts",
+			"name": "a server that exits at once fails at once, with its output"
+		},
+		{
+			"site": "packages/cli/src/perf/measure.ts > measure > throw:2",
+			"reason": "a 409 says the profiler is busy on that server; proved by hand: the throw removed turns the test red (a plain 'answered 409'), twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "drives the profiler over HTTP with the key, one page at a time, and explains failures"
+		},
+		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > refuse_unknown_attributes > throw:0",
 			"reason": "an attribute ogygia does not know on a component import fails the build instead of leaving a plain import",
 			"test": "packages/compiler/test/partial-transform.test.ts",
@@ -2144,6 +2186,12 @@
 			"name": "a navigation hook (before, after, and after at once as it is added)"
 		},
 		{
+			"site": "packages/core/src/runtime/router.ts > SpaRouter > navigate > stale:1",
+			"reason": "a newer click ends the claim while the navigation chunk loads; its wait answers STALE and it stops: the check removed turns the test red",
+			"test": "packages/core/test/browser/router-claim-superseded.test.ts",
+			"name": "two navigations while the navigation chunk loads: the first claim stops at the chunk, and only the last one fetches its page"
+		},
+		{
 			"site": "packages/core/src/runtime/schedule.ts > post_background > catch:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
 			"test": "packages/core/test/schedule-background.test.ts",
@@ -3926,37 +3974,37 @@
 			"name": "errors on strategy-less preset"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:17",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:15",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "a hole must fetch (fetch: none is rejected)"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:18",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:16",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "prefetch: 'interaction' is refused — that is the swap, fetch's job"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:19",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:17",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "prefetch equal to the fetch schedule is refused — it adds nothing"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:20",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:18",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "wake: 'false' suggests none"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:21",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:19",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/audit-fixes.test.ts",
 			"name": "rejects hydrate values with lone \"(\" as unknown (not media)"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:22",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:20",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "empty keep name is a build error"
@@ -4914,6 +4962,54 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/testing/test/driver-engine.test.ts",
 			"name": "addInitScript gets the engine script once, as the Ogygia is made, before any evaluate"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > arm_keep_client_cleanup > catch:0",
+			"reason": "a keep-client route the exit cannot remove is left for the next run, and the exit handler never throws; proved by hand: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a keep-client route the exit cannot remove stays on disk, and the exit goes on"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > resolveId > throw:0",
+			"reason": "a Kit with no client remote functions fails the browser's remote runtime with kit_remote_src_missing instead of resolving to nothing; proved by hand: the throw removed turns the test red, twice",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a Kit without its client remote functions fails the browser's remote runtime by name"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > task > reject:0",
+			"reason": "a task whose work closed its own scope and then failed leaves no unhandled rejection; proved by hand: the handler made to rethrow turns the test red in node and every browser, twice",
+			"test": "packages/machine/test/scope.test.ts",
+			"name": "a task whose work closes its own scope and then fails is STALE, its failure never unhandled"
+		},
+		{
+			"site": "packages/postrender/src/server.ts > page > stale:0",
+			"reason": "a request whose joined render an invalidation ended asks again and opens the new render, which is stored; proved by hand: the check made never true turns the test red, twice",
+			"test": "packages/postrender/test/refusals-and-ages.test.ts",
+			"name": "an invalidation ends the render it joined: it renders the page anew, and that render is stored"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > answer > abort:0",
+			"reason": "a hop its own request ended is not said as an unreachable peer; proved by hand: the check made never true turns the test red, twice",
+			"test": "packages/federation/test/peer-unreachable.test.ts",
+			"name": "a page read: the fetch ends unsaid, and no other origin is asked"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > answer > throw:0",
+			"reason": "a hop its own request ended throws its own error, unsaid; proved by hand: the throw removed turns the test red, twice",
+			"test": "packages/federation/test/peer-unreachable.test.ts",
+			"name": "a page read: the fetch ends unsaid, and no other origin is asked"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > raw_doc > abort:0",
+			"reason": "a read its request ended asks no other origin; proved by hand: the check made never true turns the test red, twice",
+			"test": "packages/federation/test/peer-unreachable.test.ts",
+			"name": "a page read: the fetch ends unsaid, and no other origin is asked"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > raw_doc > throw:0",
+			"reason": "an answer that is not a failed hop (a body that breaks off) fails the mutation with its own error; proved by hand: the rethrow removed turns the test red, twice",
+			"test": "packages/federation/test/peer-unreachable.test.ts",
+			"name": "a mutation whose answer breaks off mid-body fails with that break, as it came"
 		}
 	],
 	"impossible": [
@@ -4934,6 +5030,22 @@
 			"why": "the import of vite runs only inside the ogygia Vite plugin (vite/index.ts hands each component to preprocess_component_for_css), and vite is a required peer of @ogygia/compiler: a process running the plugin has vite to import.",
 			"by": "packages/compiler/package.json",
 			"name": "\"vite\": \"catalog:peers\""
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > generateBundle > import:0",
+			"why": "the import of svelte/compiler runs only inside the ogygia Vite plugin's own generateBundle hook, and svelte is a required peer of @ogygia/compiler: a process running the plugin has svelte to import (it compiled the app's components with it already).",
+			"by": "packages/compiler/package.json",
+			"name": "\"svelte\": \"catalog:peers\""
+		}
+	],
+	"equivalent": [
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:1",
+			"why": "the loads' wait is STALE only when the region's mailbox closed: none of its parts can be STALE (the island file and the hydrate core, codec and devalue flights have no world, drop or dispose), and the mailbox closes only in #teardown, which first moves the wake off this waking visit. Without the check, destructuring STALE throws, the finally still releases the slot, and the catch returns quietly because the wake is no longer `mine`: no failure is said, no state moves."
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > stale:0",
+			"why": "the owner's task is STALE only when the stream's owner closed. Without the check, STALE.ok is undefined, so it is pushed as a failure, and push drops anything once the owner is closed: nothing reaches the stream, and nothing nested is staged."
 		}
 	],
 	"equivalent": [
@@ -4988,7 +5100,6 @@
 		"packages/cli/src/mcp.ts > load_flag_inventory > catch:0",
 		"packages/cli/src/mcp.ts > run > import:1",
 		"packages/cli/src/mcp.ts > load_profiler_reading > stale:0",
-		"packages/cli/src/mcp.ts > parse_marks > catch:0",
 		"packages/cli/src/mcp.ts > tool_compile > catch:0",
 		"packages/cli/src/mcp.ts > tool_islands > catch:0",
 		"packages/cli/src/mcp.ts > tool_check > catch:0",
@@ -5036,11 +5147,9 @@
 		"packages/cli/src/perf/cli.ts > serve > on_exit > refused:3",
 		"packages/cli/src/perf/cli.ts > serve > stop > refused:0",
 		"packages/cli/src/perf/cli.ts > serve > stop > refused:1",
-		"packages/cli/src/perf/cli.ts > serve > abort:0",
 		"packages/cli/src/perf/cli.ts > serve > fetch:0",
 		"packages/cli/src/perf/cli.ts > serve > timer:0",
 		"packages/cli/src/perf/cli.ts > serve > refused:0",
-		"packages/cli/src/perf/cli.ts > serve > throw:1",
 		"packages/cli/src/perf/cli.ts > serve > throw:2",
 		"packages/cli/src/perf/cli.ts > runBisect > measure_sha > catch:0",
 		"packages/cli/src/perf/cli.ts > runBisect > measure_sha > catch:1",
@@ -5049,15 +5158,9 @@
 		"packages/cli/src/perf/measure.ts > measure > timer:0",
 		"packages/cli/src/perf/measure.ts > measure > catch:0",
 		"packages/cli/src/perf/measure.ts > measure > throw:1",
-		"packages/cli/src/perf/measure.ts > measure > throw:2",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:3",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:5",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:12",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:15",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:16",
-		"packages/compiler/src/vite/index.ts > ogygia > arm_keep_client_cleanup > catch:0",
-		"packages/compiler/src/vite/index.ts > ogygia > resolveId > throw:0",
-		"packages/compiler/src/vite/index.ts > ogygia > generateBundle > import:0",
 		"packages/config/src/sim.ts > macrotask > message:0",
 		"packages/config/src/sim.ts > macrotask > message:1",
 		"packages/config/src/sim.ts > env_number > throw:0",
@@ -5755,15 +5858,11 @@
 		"packages/federation/src/mount.ts > mount_fn > stream_slot > import:0",
 		"packages/federation/src/mount.ts > kit_mount > kit > import:0",
 		"packages/federation/src/peer.ts > PeerHandle > widgetDoc > abort:0",
-		"packages/federation/src/peer.ts > PeerHandle > answer > abort:0",
-		"packages/federation/src/peer.ts > PeerHandle > answer > throw:0",
 		"packages/federation/src/peer.ts > PeerHandle > answer > reject:0",
 		"packages/federation/src/peer.ts > PeerHandle > answer > parse:0",
 		"packages/federation/src/peer.ts > PeerHandle > widget > throw:0",
 		"packages/federation/src/peer.ts > PeerHandle > signed_fetch > fetch:0",
 		"packages/federation/src/peer.ts > PeerHandle > signed_fetch > timer:0",
-		"packages/federation/src/peer.ts > PeerHandle > raw_doc > abort:0",
-		"packages/federation/src/peer.ts > PeerHandle > raw_doc > throw:0",
 		"packages/federation/src/peer.ts > PeerHandle > own_url > catch:0",
 		"packages/federation/src/peer.ts > PeerHandle > own_target > catch:0",
 		"packages/federation/src/peer.ts > PeerHandle > endpoint > ask > fetch:0",
@@ -5816,7 +5915,6 @@
 		"packages/machine/src/ports/timers.ts > keep > timer:0",
 		"packages/machine/src/ports/timers.ts > timeout > abort:0",
 		"packages/machine/src/scope.ts > Scoped > signal > abort:0",
-		"packages/machine/src/scope.ts > Scoped > task > reject:0",
 		"packages/machine/src/stage.ts > Staged > constructor > refused:0",
 		"packages/ogygia/src/cli.ts > installed > catch:0",
 		"packages/postrender/src/adapters/akamai.ts > AkamaiEdge > signed_post > fetch:0",
@@ -5851,7 +5949,6 @@
 		"packages/postrender/src/server.ts > dev_postrender_note > catch:0",
 		"packages/postrender/src/server.ts > capture_page > catch:0",
 		"packages/postrender/src/server.ts > page > reject:0",
-		"packages/postrender/src/server.ts > page > stale:0",
 		"packages/postrender/src/server.ts > response > catch:1",
 		"packages/postrender/src/server.ts > invalidate > throw:1",
 		"packages/postrender/src/server.ts > lastBuild > stale:0",
@@ -5868,11 +5965,9 @@
 		"packages/router/src/stream.ts > stream_document > start > stream:3",
 		"packages/router/src/stream.ts > stream_document > start > stream:4",
 		"packages/testing/src/client.ts > boot > lend > import:0",
-		"packages/testing/src/index.ts > Ogygia > constructor > .catch:0",
 		"packages/testing/src/index.ts > Ogygia > page > throw:0",
 		"packages/testing/src/index.ts > Ogygia > record > parse:0",
 		"packages/testing/src/index.ts > Ogygia > record > .catch:0",
-		"packages/testing/src/index.ts > Ogygia > record > catch:0",
 		"packages/testing/src/index.ts > Ogygia > record > throw:1",
 		"packages/testing/src/index.ts > Ogygia > record > parse:1",
 		"packages/testing/src/index.ts > Ogygia > record > .catch:2",
@@ -5911,7 +6006,6 @@
 		"packages/tooling/src/e2e/servers.ts > spawn_server > on_exit > refused:3",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > kill > refused:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > kill > refused:1",
-		"packages/tooling/src/e2e/servers.ts > spawn_server > kill > timer:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > abort:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > fetch:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > refused:0",
