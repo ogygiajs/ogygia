@@ -1,5 +1,5 @@
 import type { RequestEvent } from '@sveltejs/kit';
-import { with_request_store } from '@sveltejs/kit/internal/server';
+import { KitRequestStore } from '../server/kit-request-store.ts';
 import type { RequestContext, ServerApp, ServerPlugin } from './index.ts';
 // port-ok: a test helper's own key, made once per test process (never a running app's)
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
@@ -46,7 +46,7 @@ const TEST_SIGNER: AppSigner = {
  * `platform.context` or `platform.ctx`).
  */
 export function inRequest<T>(event: Partial<RequestEvent>, fn: () => T): T {
-	return with_request_store({ event, state: {} as never }, fn);
+	return KitRequestStore.run(event, fn);
 }
 
 export interface StartedPlugin<Options, State> {

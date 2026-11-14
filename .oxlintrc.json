@@ -99,6 +99,26 @@
 			"rules": { "ogygia/structured-comments": "error" }
 		},
 		{
+			"files": ["packages/*/src/**"],
+			"rules": {
+				"no-restricted-imports": [
+					"error",
+					{
+						"patterns": [
+							{
+								"group": ["@sveltejs/kit/internal", "@sveltejs/kit/internal/*"],
+								"message": "Kit's private modules are imported only by packages/core/src/server/kit-request-store.ts (#1724): read the event through server/live-event.ts (Kit's public getRequestEvent), or add the read there with its canary"
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": ["packages/core/src/server/kit-request-store.ts"],
+			"rules": { "no-restricted-imports": "off" }
+		},
+		{
 			"files": ["packages/core/test/wire-markup.test.ts"],
 			"rules": { "ogygia/tests-read-source": "off" }
 		}
