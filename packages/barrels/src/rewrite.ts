@@ -13,7 +13,7 @@ import {
 	type ImportSpec,
 	type Leaf
 } from '@ogygia/compiler';
-import type { TransformEvent } from '@ogygia/compiler/vite';
+import type { BarrelLeftReason } from '@ogygia/core/contract';
 
 export interface RewriteMove {
 	barrel: string;
@@ -35,7 +35,7 @@ export interface RewritePolicy {
 
 /** Why an import stayed on its barrel, as the rewrite sees it (the importer's own parse failing is
  *  the Svelte reader's to say). */
-export type LeftReason = Exclude<TransformEvent['reason'], 'unparsable'>;
+export type LeftReason = Exclude<BarrelLeftReason, 'unparsable'>;
 
 /** A map with something to bypass: a barrel left whole, or one with a name that lives elsewhere. */
 function is_barrel(map: ExportMap): boolean {

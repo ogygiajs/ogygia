@@ -2181,16 +2181,22 @@
 			"name": "DEV: a live region snippet’s portable form threads its entry region-css link into <head>"
 		},
 		{
-			"site": "packages/core/src/region-snippet.ts > capture_static > catch:0",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"site": "packages/core/src/snippet-render.ts > SnippetRender > freeze > catch:0",
+			"reason": "a test reaches its recovery path: the catch body emptied turns the test red",
+			"test": "packages/core/test/plain-function-prop.test.ts",
+			"name": "errors as a FUNCTION (not a snippet), naming the prop and the callback case"
+		},
+		{
+			"site": "packages/core/src/snippet-render.ts > SnippetRender > freeze > throw:0",
+			"reason": "a test reaches its recovery path: the throw removed turns the test red",
 			"test": "packages/core/test/plain-function-prop.test.ts",
 			"name": "errors as a FUNCTION (not a snippet), naming the prop and the callback case"
 		},
 		{
 			"site": "packages/core/src/region-snippet.ts > capture_static > throw:0",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/core/test/plain-function-prop.test.ts",
-			"name": "errors as a FUNCTION (not a snippet), naming the prop and the callback case"
+			"reason": "a test reaches it: with no snippet renderer installed the throw removed turns the test red",
+			"test": "packages/core/test/snippet-freeze-not-installed.test.ts",
+			"name": "a bare snippet encoded with no snippet renderer installed says snippet_freeze_not_installed"
 		},
 		{
 			"site": "packages/core/src/region.ts > to_version > throw:0",
@@ -3627,7 +3633,7 @@
 			"name": "without ogygia() a plugin reading the region table is told so"
 		},
 		{
-			"site": "packages/compiler/src/vite/plugin-api.ts > barrelWhy > throw:0",
+			"site": "packages/compiler/src/vite/plugin-api.ts > whyStayed > throw:0",
 			"reason": "`throw new Error('resolve_plugins: no region table without ogygia()');`: proved: the throw removed turns the test red, twice",
 			"test": "packages/compiler/test/plugins.test.ts",
 			"name": "without ogygia() a plugin reading the region table is told so"
