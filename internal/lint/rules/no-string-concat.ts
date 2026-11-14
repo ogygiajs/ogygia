@@ -180,7 +180,8 @@ function appended(context: FixContext, node: Node): string | null {
 	const left = node.left as Node;
 	if (left.type !== 'Identifier' && left.type !== 'MemberExpression') return null;
 	const right = unwrap(node.right as Node);
-	if (node.operator === '+=') return stringy(right) ? context.sourceCode.getText(left as Ranged) : null;
+	if (node.operator === '+=')
+		return stringy(right) ? context.sourceCode.getText(left as Ranged) : null;
 	if (node.operator !== '=') return null;
 	const target = context.sourceCode.getText(left as Ranged);
 	const is_target = (e: Node | undefined) =>

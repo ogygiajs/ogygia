@@ -18,28 +18,33 @@ const ORIGIN = 'https://cms.example.test';
 
 /** A remote app's rendered page: head hints and meta, `regions` islands, the island graph script. */
 function remote_document(regions: number): string {
-	let head = '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width">';
-	head = `${head}<meta name="description" content="Catalog"><meta property="og:image" content="/img/og.png">`;
-	head = `${head}<link rel="canonical" href="/catalog"><title>Catalog</title>`;
+	const head = [
+		'<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta name="description" content="Catalog"><meta property="og:image" content="/img/og.png"><link rel="canonical" href="/catalog"><title>Catalog</title>'
+	];
 	for (let i = 0; i < 12; i++)
-		head = `${head}<link rel="stylesheet" href="/_app/immutable/assets/s${i}.css">`;
-	head = `${head}<style>.x{color:red}</style>`;
-	head = `${head}<script type="module" data-ogygia-runtime src="/_app/ogygia/runtime.js"></script></head>`;
+		head.push(`<link rel="stylesheet" href="/_app/immutable/assets/s${i}.css">`);
+	head.push(
+		'<style>.x{color:red}</style><script type="module" data-ogygia-runtime src="/_app/ogygia/runtime.js"></script></head>'
+	);
 	const graph: { h: string[]; e: Record<string, number[]>; s: Record<string, string> } = {
 		h: [],
 		e: {},
 		s: {}
 	};
 	for (let c = 0; c < 30; c++) graph.h.push(`/_app/immutable/chunks/c${c}.js`);
-	let body = '<body><div style="display: contents">';
+	const body = ['<body><div style="display: contents">'];
 	for (let i = 0; i < regions; i++) {
 		const entry = `/_app/ogygia/og-region.${(i * 2654435761).toString(16).slice(0, 12)}.js`;
 		graph.e[entry] = [i % 30, (i * 7) % 30, (i * 13) % 30];
 		if (i % 10 === 0) graph.s[entry] = `/_app/immutable/og-region.${i}.X1.js`;
-		body = `${body}<ogygia-region entry="${entry}" wake="visible"><article><img src="/img/${i}.webp" alt=""><a href="/catalog/${i}">Item ${i}</a><p>${'Lorem ipsum dolor sit amet. '.repeat(8)}</p></article></ogygia-region>`;
+		body.push(
+			`<ogygia-region entry="${entry}" wake="visible"><article><img src="/img/${i}.webp" alt=""><a href="/catalog/${i}">Item ${i}</a><p>${'Lorem ipsum dolor sit amet. '.repeat(8)}</p></article></ogygia-region>`
+		);
 	}
-	body = `${body}<script type="application/json" data-ogygia-graph>${JSON.stringify(graph)}</script></div></body>`;
-	return `<!doctype html><html lang="en">${head}${body}</html>`;
+	body.push(
+		`<script type="application/json" data-ogygia-graph>${JSON.stringify(graph)}</script></div></body>`
+	);
+	return `<!doctype html><html lang="en">${head.join('')}${body.join('')}</html>`;
 }
 
 function keys(): { pub: string; priv: string } {
@@ -102,12 +107,14 @@ bench(
 	({ html }) => absolutize(html, ORIGIN).length,
 	{
 		setup: () => {
-			let html = '';
+			const parts: string[] = [];
 			for (let i = 0; i < 20; i++) {
-				html = `${html}<img src="/_app/a${i}.webp" SRC="/_app/b${i}.webp" alt="">`;
-				html = `${html}<x-widget data-Äsrc="/og/w${i}.js" href="/_app/w${i}.css"></x-widget>`;
+				parts.push(
+					`<img src="/_app/a${i}.webp" SRC="/_app/b${i}.webp" alt="">`,
+					`<x-widget data-Äsrc="/og/w${i}.js" href="/_app/w${i}.css"></x-widget>`
+				);
 			}
-			return { html };
+			return { html: parts.join('') };
 		}
 	}
 );
