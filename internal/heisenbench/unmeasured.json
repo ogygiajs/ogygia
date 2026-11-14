@@ -1161,14 +1161,6 @@
 			"reason": "browser only: the wait for Kit to apply its page (a global accessor and a Svelte effect root), once per wait; proven in packages/core/test/browser/kit-page-thread.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > until_critical",
-			"reason": "browser only: waits for the page's critical resources' load/error events, the first input or the cap, once per document; proven in packages/core/test/browser/load-scheduler.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > reset_load_scheduler > drop:0",
-			"reason": "a test seam: drops the critical wait, constant work"
-		},
-		{
 			"id": "packages/core/src/runtime/schedule.ts > register_region > defer:0~d7202d",
 			"reason": "browser only: a region's lifetime ends and stops its viewport snapshot if it is still the same one (an IntersectionObserver release), constant work; proven in packages/core/test/browser/region-orderings.test.ts and hole-lifecycle.test.ts"
 		},
@@ -6043,6 +6035,34 @@
 		{
 			"id": "packages/compiler/src/region/transform.ts > TsRegionCompilation > run > map:0~74ff48",
 			"reason": "one specifier's local name per attributed import in a .ts module, for region_attribute_unknown's message: constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > #until_critical > then:0~d52439 > one",
+			"reason": "browser only: a critical resource's load or error event, once per resource per document; proven in packages/core/test/browser/load-scheduler.test.ts and load-scheduler-critical-error.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > #until_critical > then:0~d52439 > timeout:0~301398",
+			"reason": "browser only: the critical wait's cap (2.5 s), once per document; proven in packages/core/test/browser/load-scheduler.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > on_first_input",
+			"reason": "browser only: the visitor's first click or key, once per document; proven in packages/core/test/browser/load-scheduler.test.ts and load-scheduler-touched.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > addEventListener:1~97a62a",
+			"reason": "browser only: the document's first pointerdown or keydown listener, once per document; proven in packages/core/test/browser/load-scheduler-touched.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > reset > drop:0~8b94d4",
+			"reason": "a test seam: drops the critical wait, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > #open_line > queue:0~e6e564 > stale",
+			"reason": "a test seam: a slot still queued when a test resets the document leaves unwatched, constant work per slot"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadSlot > leave",
+			"reason": "a test seam: a slot still queued when a test resets the document stops watching its element, constant work"
 		}
 	]
 }
