@@ -23,14 +23,16 @@ export interface Anchor {
 	count: number;
 }
 
-const ms = (n: number) =>
-	n >= 1000 ? `${(n / 1000).toFixed(2)} s` : n >= 10 ? `${Math.round(n)} ms` : `${n.toFixed(1)} ms`;
-const kb = (n: number) =>
-	n < 1024
-		? `${n} B`
-		: n < 1048576
-			? `${(n / 1024).toFixed(1)} KB`
-			: `${(n / 1048576).toFixed(2)} MB`;
+const ms = (n: number) => {
+	if (n >= 1000) return `${(n / 1000).toFixed(2)} s`;
+	if (n >= 10) return `${Math.round(n)} ms`;
+	return `${n.toFixed(1)} ms`;
+};
+const kb = (n: number) => {
+	if (n < 1024) return `${n} B`;
+	if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`;
+	return `${(n / 1048576).toFixed(2)} MB`;
+};
 
 /** a tag name we may put in a selector: letters, digits and dashes, starting with a letter */
 export function safe_tag(t: string): boolean {
