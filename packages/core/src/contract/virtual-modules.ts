@@ -144,10 +144,8 @@ export interface RouteConfigModule {
 	route_config: Record<string, Record<string, unknown>>;
 }
 
-/** Kit's own wire protocol (its transport-aware devalue codec), deep-imported. */
+/** Kit's own remote key helper, deep-imported from its shared runtime (the same in Kit 2 and 3). */
 export interface KitWireModule {
-	stringify_remote_arg(value: unknown, transport: unknown): string;
-	stringify_command_arg(value: unknown, transport: unknown): Promise<string>;
 	create_remote_key(id: string, payload: string): string;
 }
 

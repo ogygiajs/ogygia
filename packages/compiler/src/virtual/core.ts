@@ -384,15 +384,11 @@ export const region_endpoint: RequestEntry<CoreApp> = virtual.request({
 export const kit_wire: Family<KitWireModule> = virtual.family({
 	realm: 'server',
 	id: 'kit-wire',
-	exports: {
-		stringify_remote_arg: 'stringify_remote_arg',
-		stringify_command_arg: 'stringify_command_arg',
-		create_remote_key: 'create_remote_key'
-	},
+	exports: { create_remote_key: 'create_remote_key' },
 	load: ({ ctx }: CoreApp) =>
 		ctx.kit_wire_path === null
 			? null
-			: `export { stringify_remote_arg, stringify_command_arg, create_remote_key } from ${JSON.stringify(ctx.kit_wire_path)};`
+			: `export { create_remote_key } from ${JSON.stringify(ctx.kit_wire_path)};`
 });
 
 export const rate_limit: Value<RateLimitModule> = virtual.value({
