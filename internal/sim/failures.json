@@ -5058,6 +5058,26 @@
 		{
 			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > stale:0",
 			"why": "the owner's task is STALE only when the stream's owner closed. Without the check, STALE.ok is undefined, so it is pushed as a failure, and push drops anything once the owner is closed: nothing reaches the stream, and nothing nested is staged."
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:2",
+			"why": "the hydrate's waits answer STALE only once its visit is over (the region left or moved: teardown closes the visit's scope). Without the check, `[mod, core] = STALE` throws, and the catch returns at once on `this.#wake.now !== mine`, and the finally skips on the same test: the same quiet end, the load slot released either way (test: region-left-mid-wake › a region taken out while it waits for its hydrate turn never comes alive)."
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:3",
+			"why": "the hydrate's waits answer STALE only once its visit is over, and stay STALE after. Without the check, the page's seeds parse (once per page, the same parse any island does) and the next wait, the visitor's replay or the hydrate turn, answers STALE and returns: nothing anyone sees changes (test: region-left-mid-wake, both cases)."
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:4",
+			"why": "the hydrate's waits answer STALE only once its visit is over, and stay STALE after. Without the check, the next wait, the hydrate turn, answers STALE and returns at the same point (test: region-left-mid-wake, both cases)."
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:5",
+			"why": "the hydrate turn answers STALE only once the visit is over. A region taken out: hydrate_island refuses a detached region and returns null, so `!this.#app` returns (test: hydrate-island-claims › an island taken off the page before its hydrate is left as it is, and its head watch ends; deleting that check instead makes this site prove alone, but the check is hydrate_island's own contract). A region moved: it comes alive once, by its new visit, with or without the check (test: region-left-mid-wake › a region moved while it waits for its hydrate turn comes alive once, by its new visit)."
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:6",
+			"why": "the snippets wait answers STALE only once the visit is over, and the visit's teardown unmounts the island and nulls `#app`, so the `!this.#app` beside it returns at the same point: no data-hydrated, no hydrated event (test: region-left-mid-wake, both cases)."
 		}
 	],
 	"baseline": [

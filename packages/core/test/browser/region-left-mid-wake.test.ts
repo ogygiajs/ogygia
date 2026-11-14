@@ -32,3 +32,30 @@ test('a region taken out while it waits for its hydrate turn never comes alive',
 	expect(count.textContent, 'its island never ran').toBe(before);
 	expect(low.hasAttribute('data-hydrated')).toBe(false);
 });
+
+test('a region moved while it waits for its hydrate turn comes alive once, by its new visit', async () => {
+	await import(/* @vite-ignore */ COUNTER);
+	document.body.innerHTML = [
+		`<ogygia-region id="top" wake="load" entry="${SLOW}?moved">${counter()}</ogygia-region>`,
+		'<div style="height:30000px"></div>',
+		`<ogygia-region id="low" wake="load" entry="${COUNTER}">${counter()}</ogygia-region>`,
+		'<div id="elsewhere"></div>'
+	].join('');
+	const top = document.getElementById('top')!;
+	const low = document.getElementById('low')!;
+	const hydrated: Element[] = [];
+	document.addEventListener('ogygia:hydrated', (e) => hydrated.push(e.target as Element));
+	bootDev();
+	await tick(250);
+	expect(low.hasAttribute('data-hydrated'), 'held for the viewport island').toBe(false);
+	document.getElementById('elsewhere')!.append(low);
+	await expect.poll(() => low.hasAttribute('data-hydrated'), { timeout: 5_000 }).toBe(true);
+	await tick(100);
+	expect(hydrated.filter((el) => el === low)).toHaveLength(1);
+	expect(top.hasAttribute('data-hydrated')).toBe(true);
+	const count = low.querySelector('[data-testid="count"]')!;
+	const before = Number(count.textContent);
+	low.querySelector('button')!.click();
+	await tick(10);
+	expect(Number(count.textContent), 'one live island counts one click once').toBe(before + 1);
+});
