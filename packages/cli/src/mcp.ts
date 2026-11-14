@@ -556,7 +556,6 @@ function tool_explain(args: Args): ToolResult {
 
 // ── ogygia_debug — the RUNTIME half: drive a headless browser over a real page ─────────────────────
 
-/** One event off `window.__ogygia_devtools`, as core's devtools contract stamps it. */
 type DtEvent = DevtoolsEvent;
 type DtEventNamed<N extends DtEvent['name']> = Extract<DtEvent, { name: N }>;
 
