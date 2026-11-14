@@ -269,8 +269,6 @@ export function install_snippet_renderer(renderer: SnippetRenderer): void {
 	renderer_slot.renderer = renderer;
 }
 
-/** Freeze a plain snippet to a static region snippet by SSR-rendering it once (SERVER only), through
- *  the installed {@link SnippetRenderer}; `snippet_freeze_not_installed` when none is. */
 function capture_static(snippet: Snippet, label?: string): RegionSnippet {
 	const renderer = renderer_slot.renderer;
 	if (!renderer)

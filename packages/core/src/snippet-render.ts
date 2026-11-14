@@ -1,11 +1,3 @@
-/**
- * THE SERVER RENDER OF REGION SNIPPETS. A bare snippet freezes to the HTML it renders, through a
- * tiny component (`RenderSnippet.svelte`: `{@render snippet()}`) and `svelte/server`'s public
- * `render()`. This module imports a `.svelte` file, so only code that already loads them imports it
- * (ogygia's server hooks, `region`, Region.svelte), each calling {@link SnippetRender.install}; the
- * snippet codec (region-snippet.ts) asks for the installed renderer and never imports one, so it
- * stays importable from plain Node.
- */
 import { render } from 'svelte/server';
 import type { Snippet } from 'svelte';
 import { BROWSER } from 'esm-env';
@@ -14,6 +6,14 @@ import { kit_render_context } from './server/kit-context.ts';
 import { OgygiaError } from './messages/island.ts';
 import { install_snippet_renderer, type SnippetRenderer } from './region-snippet.ts';
 
+/**
+ * THE SERVER RENDER OF REGION SNIPPETS. A bare snippet freezes to the HTML it renders, through a
+ * tiny component (`RenderSnippet.svelte`: `{@render snippet()}`) and `svelte/server`'s public
+ * `render()`. This module imports a `.svelte` file, so only code that already loads them imports it
+ * (ogygia's server hooks, `region`, Region.svelte), each calling {@link SnippetRender.install}; the
+ * snippet codec (region-snippet.ts) asks for the installed renderer and never imports one, so it
+ * stays importable from plain Node.
+ */
 export class SnippetRender implements SnippetRenderer {
 	freeze(snippet: Snippet, label?: string): string {
 		try {
