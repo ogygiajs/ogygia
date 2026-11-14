@@ -10,7 +10,7 @@
 //
 // Appends a row to internal/notes/perf-checkpoints.md (## scale).
 // ─────────────────────────────────────────────────────────────────────────────
-import { transformHost } from '../../../packages/compiler/dist/compiler/region/transform.js';
+import { transformHost } from '../../../packages/compiler/dist/region/transform.js';
 import { CTX_EXTRA } from './_ctx-extra.ts';
 import { content } from '../../../packages/content/dist/factory.js';
 

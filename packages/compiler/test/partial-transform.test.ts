@@ -14,8 +14,8 @@ import {
 	regionIdentity,
 	regionId,
 	regionBindingVirtualId
-} from '../src/compiler/region/transform.ts';
-import type { MarkOptions } from '../src/compiler/region/ir.ts';
+} from '../src/region/transform.ts';
+import type { MarkOptions } from '../src/region/ir.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 const ROOT = '/app';

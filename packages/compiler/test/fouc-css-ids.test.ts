@@ -12,7 +12,7 @@ import {
 	foucScopedVirtualId,
 	isFoucCssId,
 	isFoucScopedId
-} from '../src/compiler/fouc-css.ts';
+} from '../src/fouc-css.ts';
 
 describe('fouc ids round-trip', () => {
 	it.each(['src/lib/A.svelte', 'src/routes/(app)/[slug]/+page.svelte', 'src/lib/a b%c.svelte'])(

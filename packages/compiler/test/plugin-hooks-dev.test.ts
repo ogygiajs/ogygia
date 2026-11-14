@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createServer, type Plugin, type RunnableDevEnvironment, type ViteDevServer } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { server_plugins_module } from '../src/compiler/link/caps.ts';
+import { server_plugins_module } from '../src/link/caps.ts';
 import { ask, notify } from '../../core/src/plugin/hooks.ts';
 import { edit as dev_edit } from './_dev-edit.ts';
 import { dedent } from '@ogygia/core/contract';

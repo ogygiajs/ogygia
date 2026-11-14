@@ -8,12 +8,8 @@ import { describe, expect, test } from 'vitest';
 import fc from 'fast-check';
 import ts from 'typescript';
 import { dedent } from '@ogygia/core/contract';
-import {
-	transformHost,
-	transformTsRegions,
-	wrapperVirtualId
-} from '../src/compiler/region/transform.ts';
-import type { IslandDescriptor } from '../src/compiler/program.ts';
+import { transformHost, transformTsRegions, wrapperVirtualId } from '../src/region/transform.ts';
+import type { IslandDescriptor } from '../src/program.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 type HostCtx = Parameters<typeof transformHost>[2];

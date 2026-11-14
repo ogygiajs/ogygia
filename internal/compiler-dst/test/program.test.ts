@@ -1,4 +1,4 @@
-// The program's region records (packages/compiler/src/compiler/program.ts), through the in-memory
+// The program's region records (packages/compiler/src/program.ts), through the in-memory
 // dev server: what serving a host registers, what an edit that drops a mark lets go (only when no
 // other host still holds the region), and the runtime marks each kind of region turns on.
 import { describe, expect, it } from 'vitest';
@@ -6,7 +6,7 @@ import { dedent } from '../../../packages/core/src/contract/dedent.ts';
 import { LIB, ROUTES } from '../src/app.ts';
 import { dev_server, edit, type Server } from '../src/dev.ts';
 import { session } from '../src/session.ts';
-import { memory_fs } from '../../../packages/compiler/src/compiler/fs.ts';
+import { memory_fs } from '../../../packages/compiler/src/fs.ts';
 
 const A = `${ROUTES}/a/+page.svelte`;
 const B = `${ROUTES}/b/+page.svelte`;

@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import path from 'node:path';
 import { dedent } from '@ogygia/core/contract';
-import { transformTsRegions } from '../src/compiler/region/transform.ts';
+import { transformTsRegions } from '../src/region/transform.ts';
 
 type Ctx = Parameters<typeof transformTsRegions>[2];
 const CTX = {

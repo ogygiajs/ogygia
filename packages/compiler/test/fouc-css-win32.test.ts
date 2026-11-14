@@ -1,13 +1,13 @@
 // On Windows a component on another drive than the app root has no root-relative path at all, so it
 // never rides the fouc module either.
 import { expect, test, vi } from 'vitest';
-import '../src/compiler/messages.ts';
+import '../src/messages.ts';
 
 vi.doMock('node:path', async () => {
 	const real = await vi.importActual<typeof import('node:path')>('node:path');
 	return { ...real.win32, default: real.win32 };
 });
-const { buildFoucCssModuleSource } = await import('../src/compiler/fouc-css.ts');
+const { buildFoucCssModuleSource } = await import('../src/fouc-css.ts');
 
 test('a styled component on another drive than the root is left out', async () => {
 	const files: Record<string, string> = {

@@ -21,9 +21,9 @@ import {
 	hasAnyCsrTrueRoute,
 	read_csr,
 	route_reader
-} from '../src/compiler/kit.ts';
-import { node_fs } from '../src/compiler/fs.ts';
-import { transformHost } from '../src/compiler/region/transform.ts';
+} from '../src/kit.ts';
+import { node_fs } from '../src/fs.ts';
+import { transformHost } from '../src/region/transform.ts';
 import { dedent } from '@ogygia/core/contract';
 
 /** The disk, read through a reader of its own per test (a fresh set of answers). */

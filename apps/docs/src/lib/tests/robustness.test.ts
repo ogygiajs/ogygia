@@ -13,7 +13,15 @@ const COMMIT = '0123456789abcdef0123456789abcdef01234567';
 const FULL: Robustness = {
 	simulation: {
 		steps: { total: 201, reached: 171, covered: 30, dead: 0 },
-		failures: { total: 1817, fired: 19, covered: 15, impossible: 0, baseline: 1783, proved: 14 },
+		failures: {
+			total: 1817,
+			fired: 19,
+			covered: 15,
+			impossible: 0,
+			equivalent: 2,
+			baseline: 1781,
+			proved: 14
+		},
 		mutants: {
 			groups: {
 				core: { total: 33, equivalent: 9, judged: 12, killed: 12 },
@@ -60,7 +68,7 @@ test('each tile counts from the report and links to its file at the report’s c
 		['simulation', 'compiler-simulation', 'fuzzing', 'speed', 'rules', 'comments']
 	);
 	assert.equal(tile(v, 'state machine steps')?.n, '201 of 201');
-	assert.equal(tile(v, 'places that can fail')?.n, '34 of 1,817');
+	assert.equal(tile(v, 'places that can fail')?.n, '36 of 1,817');
 	assert.equal(tile(v, 'made-to-fail places')?.n, '14 of 19');
 	assert.equal(tile(v, 'planted bugs caught')?.n, '13 of 14');
 	assert.match(tile(v, 'planted bugs caught')?.what ?? '', /2026-11-13/);

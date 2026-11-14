@@ -1,5 +1,5 @@
 // ogygia's switches, the `define`s its build inlines. GENERATED from the virtual-module
-// table's constants (packages/compiler/src/compiler/virtual/core.ts) by
+// table's constants (packages/compiler/src/virtual/core.ts) by
 // `node packages/compiler/scripts/virtual-types.ts`. Do not edit.
 
 declare const __OGYGIA_CLIENT_PLUGINS__: import('../dist/contract/virtual-modules.js').VirtualConstants['__OGYGIA_CLIENT_PLUGINS__'];

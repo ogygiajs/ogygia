@@ -1,8 +1,8 @@
-// The scan's facts (src/compiler/scan-facts.ts): a prescan handing in every file's facts, the
+// The scan's facts (src/scan-facts.ts): a prescan handing in every file's facts, the
 // app-wide folds read once, and a dev session's edits (one that changes no fact, one that does),
 // each followed by the folds read again.
 import { bench } from '@bench/heisenbench/bench';
-import { scan_facts, type FileFacts, type ScanFacts } from '../src/compiler/scan-facts.ts';
+import { scan_facts, type FileFacts, type ScanFacts } from '../src/scan-facts.ts';
 
 const N = 500;
 

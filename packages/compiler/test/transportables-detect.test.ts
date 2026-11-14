@@ -10,7 +10,7 @@ import {
 	appendTransportRegistrations,
 	moduleHasTransportable,
 	svelteModuleHasTransportable
-} from '../src/compiler/transportables.ts';
+} from '../src/transportables.ts';
 
 const CODEC = `{ encode: (c) => c.v, decode: (v) => new C(v) }`;
 const reg = (src: string) => appendTransportRegistrations(src, '/app/src/lib/m.ts', '/app');

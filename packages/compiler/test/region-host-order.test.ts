@@ -3,11 +3,11 @@
 // last: the emit gate (`island_host_loaded`), a virtual module's relative imports and dev's HMR
 // invalidation all read it. Found by the compiler DST harness (internal/compiler-dst, determinism).
 import { test, expect } from 'vitest';
-import { Compiler } from '../src/compiler/driver.ts';
-import { Program } from '../src/compiler/program.ts';
-import { CompileCtx } from '../src/compiler/ctx.ts';
-import { normalize_import_keys } from '../src/compiler/region/transform.ts';
-import { memory_fs, type MemoryFs } from '../src/compiler/fs.ts';
+import { Compiler } from '../src/driver.ts';
+import { Program } from '../src/program.ts';
+import { CompileCtx } from '../src/ctx.ts';
+import { normalize_import_keys } from '../src/region/transform.ts';
+import { memory_fs, type MemoryFs } from '../src/fs.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 

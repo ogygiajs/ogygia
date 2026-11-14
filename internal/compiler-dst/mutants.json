@@ -1,7 +1,7 @@
 [
 	{
 		"id": "compiler-island-scan-unsorted",
-		"file": "packages/compiler/src/compiler/driver.ts",
+		"file": "packages/compiler/src/driver.ts",
 		"in": "Compiler > island_scan_entries",
 		"code": "return [...out].sort();",
 		"operator": "statement",
@@ -10,7 +10,7 @@
 	},
 	{
 		"id": "compiler-server-island-css-unsorted",
-		"file": "packages/compiler/src/compiler/driver.ts",
+		"file": "packages/compiler/src/driver.ts",
 		"in": "Compiler > server_island_css_roots",
 		"code": "return out.sort((a, b) => (a.iid < b.iid ? -1 : a.iid > b.iid ? 1 : 0));",
 		"operator": "statement",
@@ -19,7 +19,7 @@
 	},
 	{
 		"id": "compiler-ssr-hosts-unsorted",
-		"file": "packages/compiler/src/compiler/driver.ts",
+		"file": "packages/compiler/src/driver.ts",
 		"in": "Compiler > ssr_transformed_hosts",
 		"code": "return [...this.program.ssr_transformed].sort();",
 		"operator": "statement",
@@ -28,7 +28,7 @@
 	},
 	{
 		"id": "compiler-affected-not-invalidated",
-		"file": "packages/compiler/src/compiler/driver.ts",
+		"file": "packages/compiler/src/driver.ts",
 		"in": "Compiler > invalidate_for_file",
 		"code": "for (const vpath of affected) invalidate(vpath);",
 		"operator": "statement",
@@ -37,7 +37,7 @@
 	},
 	{
 		"id": "compiler-regions-changed-not-invalidated",
-		"file": "packages/compiler/src/compiler/driver.ts",
+		"file": "packages/compiler/src/driver.ts",
 		"in": "Compiler > invalidate_for_file",
 		"code": "for (const id of this.changed('regions')) invalidate(id);",
 		"operator": "statement",
@@ -46,7 +46,7 @@
 	},
 	{
 		"id": "compiler-scan-unreadable-file",
-		"file": "packages/compiler/src/compiler/driver.ts",
+		"file": "packages/compiler/src/driver.ts",
 		"in": "Compiler > scan > scan_file",
 		"code": "if (src == null) return;",
 		"operator": "statement",
@@ -55,7 +55,7 @@
 	},
 	{
 		"id": "compiler-closure-unreadable-file",
-		"file": "packages/compiler/src/compiler/driver.ts",
+		"file": "packages/compiler/src/driver.ts",
 		"in": "Compiler > mark_island_closure > walk",
 		"code": "if (src == null) return;",
 		"operator": "statement",
@@ -64,7 +64,7 @@
 	},
 	{
 		"id": "compiler-context-keys-unreadable-file",
-		"file": "packages/compiler/src/compiler/driver.ts",
+		"file": "packages/compiler/src/driver.ts",
 		"in": "Compiler > scan",
 		"code": "if (src == null) continue;",
 		"operator": "statement",
@@ -73,7 +73,7 @@
 	},
 	{
 		"id": "compiler-read-file-null-stripped",
-		"file": "packages/compiler/src/compiler/ctx.ts",
+		"file": "packages/compiler/src/ctx.ts",
 		"in": "CompileCtx > read_file",
 		"code": "return text === null ? null : strip_bom(text);",
 		"operator": "statement",

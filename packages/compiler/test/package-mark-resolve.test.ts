@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Plugin } from 'vite';
 import { ogygia } from '../src/vite/index.ts';
-import { regionId, regionIdentity, wrapperVirtualId } from '../src/compiler/region/transform.ts';
+import { regionId, regionIdentity, wrapperVirtualId } from '../src/region/transform.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const ROOT = '/nonexistent-ogygia-test-app';

@@ -1,5 +1,5 @@
 // A custom page driver gets the testing engine through its own addInitScript, before the page is asked.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Ogygia, type OgygiaDriver } from '../src/index.ts';
 
 describe('the engine reaches a custom driver', () => {
@@ -25,15 +25,23 @@ describe('the engine reaches a custom driver', () => {
 	});
 
 	it('an addInitScript that fails is the error the first call gives', async () => {
-		const o = new Ogygia({
-			async addInitScript() {
-				throw new Error('no init scripts here');
-			},
-			async evaluate() {
-				return true;
-			}
-		});
-		await expect(o.settled()).rejects.toThrow('no init scripts here');
+		const unhandled = vi.fn();
+		process.on('unhandledRejection', unhandled);
+		try {
+			const o = new Ogygia({
+				async addInitScript() {
+					throw new Error('no init scripts here');
+				},
+				async evaluate() {
+					return true;
+				}
+			});
+			await new Promise((r) => setTimeout(r, 10));
+			expect(unhandled).not.toHaveBeenCalled();
+			await expect(o.settled()).rejects.toThrow('no init scripts here');
+		} finally {
+			process.off('unhandledRejection', unhandled);
+		}
 	});
 
 	it('a driver without addInitScript still works against a page that has the engine', async () => {

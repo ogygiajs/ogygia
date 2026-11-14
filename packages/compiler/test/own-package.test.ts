@@ -6,8 +6,8 @@ import {
 	OWN_PACKAGE_NAMES,
 	is_own_specifier
 } from '../../core/src/contract/own-package.ts';
-import { own_reach, reaches_context, reaches_wire } from '../src/compiler/link/own-reach.ts';
-import { summarize_chunk_contents } from '../src/compiler/link/island-deps.ts';
+import { own_reach, reaches_context, reaches_wire } from '../src/link/own-reach.ts';
+import { summarize_chunk_contents } from '../src/link/island-deps.ts';
 
 describe('own package identity', () => {
 	it('names both packages, and their subpaths', () => {

@@ -3,7 +3,7 @@
 // host and in a `.ts` / `.js` module alike, instead of being left in place to do nothing.
 import { describe, expect, it } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
-import { transformHost, transformTsRegions } from '../src/compiler/region/transform.ts';
+import { transformHost, transformTsRegions } from '../src/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 type Ctx = Parameters<typeof transformHost>[2];

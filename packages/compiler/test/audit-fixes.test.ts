@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { transformHost, islandId, wrapperVirtualId } from '../src/compiler/region/transform.ts';
+import { transformHost, islandId, wrapperVirtualId } from '../src/region/transform.ts';
 import { rewrite_lake_import_to_placeholder } from '../src/vite/index.ts';
 import { RateLimiter } from '../../core/src/server/rate-limit.ts';
 import { sign, verify, region_mac_message } from '../../core/src/server/hmac.ts';
