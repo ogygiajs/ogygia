@@ -1,7 +1,7 @@
 <!-- (its CSS injected into the dock's shadow root: see Devtools.svelte) -->
 <svelte:options css="injected" />
 
-<script>
+<script lang="ts">
 	/**
 	 * The per-island detail view — "inspect element" for an ogygia region. Selecting a region (a Lens
 	 * roster row, or picking it on the page) opens this over the tab body: one focused card that pulls
@@ -13,7 +13,7 @@
 	import { parse } from 'devalue';
 	import { onDestroy } from 'svelte';
 	import { scope } from '@ogygia/machine';
-	import { highlight, clear_highlight } from './highlight.ts';
+	import { highlighter } from './highlight.ts';
 	import {
 		region_info,
 		region_name,
@@ -27,19 +27,47 @@
 	import { get_last_session, last_session_version } from './session.ts';
 	import PropsTree from './PropsTree.svelte';
 	import { island_ledger } from './ledger-dom.ts';
+	import type { EventNamed } from './bus-events.ts';
+	import type { SessionReport } from '@ogygia/insights';
 
-	let { el, tick = 0, onclose } = $props();
+	interface Props {
+		el: Element;
+		tick?: number;
+		onclose: () => void;
+	}
 
-	const kb = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
+	type Phase = {
+		name:
+			| 'region.connected'
+			| 'wake.scheduled'
+			| 'wake.fired'
+			| 'region.hydrate.start'
+			| 'region.hydrate.done'
+			| 'interaction.replay';
+		label: string;
+		c: string;
+	};
+
+	let { el, tick = 0, onclose }: Props = $props();
+
+	const kb = (n: number) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
 
 	// Every transportable crosses under ONE devalue custom type ('OgygiaRef'). Decode it to a labelled
 	// placeholder — NOT the live instance (`wire.resolve` has side effects) — so the viewer stays inert.
 	const REVIVERS = {
-		OgygiaRef: (d) => ({ __ogRef: true, kind: d && d.k, id: d && d.i, tag: d && d.t }),
+		OgygiaRef: (d: { k?: string; i?: string; t?: string } | null) => ({
+			__ogRef: true,
+			kind: d && d.k,
+			id: d && d.i,
+			tag: d && d.t
+		}),
 		// A seed reference (seed-refs.ts): shown as the path it points at, not resolved — inert.
-		OgygiaSeedRef: (p) => ({ __ogSeedRef: true, path: Array.isArray(p) ? p.join('.') : String(p) })
+		OgygiaSeedRef: (p: unknown) => ({
+			__ogSeedRef: true,
+			path: Array.isArray(p) ? p.join('.') : String(p)
+		})
 	};
-	function decode_props(text) {
+	function decode_props(text: string | null): Record<string, unknown> | null {
 		if (!text || text.length < 3) return null;
 		try {
 			const v = parse(text, REVIVERS);
@@ -50,7 +78,7 @@
 	}
 
 	// Client lifecycle phases, in order, with the Timeline's colours.
-	const PHASES = [
+	const PHASES: Phase[] = [
 		{ name: 'region.connected', label: 'connected', c: '#64748b' },
 		{ name: 'wake.scheduled', label: 'scheduled', c: '#38bdf8' },
 		{ name: 'wake.fired', label: 'woke', c: '#2dd4bf' },
@@ -93,11 +121,17 @@
 		const chunk = info.entry ? chunk_bytes(info.entry) : null;
 		const ev = snapshot();
 		const rendered = info.fp
-			? (ev.findLast((e) => e.name === 'server.region.rendered' && e.fp === info.fp) ?? null)
+			? (ev.findLast(
+					(e): e is EventNamed<'server.region.rendered'> =>
+						e.name === 'server.region.rendered' && e.fp === info.fp
+				) ?? null)
 			: null;
-		const marks = [];
+		const marks: (Phase & { t: number })[] = [];
 		for (const ph of PHASES) {
-			const e = ev.find((x) => x.name === ph.name && x.fp === info.fp);
+			const e = ev.find(
+				(x): x is EventNamed<Phase['name']> =>
+					x.name === ph.name && (x as { fp?: string }).fp === info.fp
+			);
 			if (e) marks.push({ ...ph, t: e.t });
 		}
 		marks.sort((a, b) => a.t - b.t);
@@ -111,7 +145,7 @@
 			const view = info.fp ? read_page() : null;
 			if (view) {
 				const row = view.report.rows.find((r) => r.fp === info.fp) ?? null;
-				const findings = view.report.findings.filter((f) => f.fps.includes(info.fp));
+				const findings = view.report.findings.filter((f) => f.fps.includes(info.fp!));
 				if (row || findings.length) browser = { row, findings };
 			}
 		} catch {
@@ -121,7 +155,10 @@
 		// requests its clicks caused and the server's split of each
 		last_session_version();
 		const sess = get_last_session();
-		const in_session = info.fp && sess ? (sess.report?.by_island?.[info.fp] ?? null) : null;
+		const in_session =
+			info.fp && sess
+				? ((sess.report as SessionReport | undefined)?.by_island?.[info.fp] ?? null)
+				: null;
 		// what the last SSR profile of this page measured for it (the Profiler tab's run)
 		profiles_version();
 		const prof = profile_for(location.pathname);
@@ -135,7 +172,7 @@
 			marks: marks.map((m) => ({ ...m, off: m.t - t0 })),
 			hydrateMs,
 			browser,
-			server: server ? { row: server, at: prof.at, same: server.fp === info.fp } : null,
+			server: server ? { row: server, at: prof!.at, same: server.fp === info.fp } : null,
 			session: in_session,
 			props: decode_props(region_props_sidecar(el))
 		};
@@ -144,12 +181,11 @@
 	// scroll to it AND mark it for a moment: an island already on screen gave no sign at all
 	const owner = scope();
 	onDestroy(() => owner.close());
-	/** @type {(() => void) | null} */
-	let unflash = null;
+	let unflash: (() => void) | null = null;
 	function locate() {
-		highlight([el], model.name, true);
+		highlighter.show([el], model.name, true);
 		unflash?.();
-		unflash = owner.timeout(clear_highlight, 1400);
+		unflash = owner.timeout(() => highlighter.clear(), 1400);
 	}
 </script>
 

@@ -6,7 +6,7 @@ import { ISLAND_DIR } from './region/transform.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
 import { OgygiaError } from './messages.ts';
 import type { Fs, FsEntry } from './fs.ts';
-import { derived, input, queries, type Queries, type Query } from './queries.ts';
+import { derived, input, Queries, type Query } from './queries.ts';
 
 /** A file event, as the bundler's watcher names it. */
 export type FileEvent = 'create' | 'update' | 'delete';
@@ -57,7 +57,7 @@ const routes_by_fs = new WeakMap<Fs, Routes>();
 export function route_reader(files: Fs): Routes {
 	let r = routes_by_fs.get(files);
 	if (r) return r;
-	const db = queries('routes');
+	const db = new Queries('routes');
 	const text = input('route text', own, (abs: string) => files.read(abs));
 	const listing = input('route listing', own, (dir: string) => files.list(dir));
 	const at = input('route stat', own, (abs: string) => files.stat(abs));

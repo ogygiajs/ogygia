@@ -9,7 +9,6 @@ import type { ClientRealmFile, ServerRealm } from '../link/caps.ts';
 import {
 	RUNTIME_HOOK_CONSTANTS,
 	type BarrelLeftReason,
-	type CompileEventInput,
 	type RuntimeHookName
 } from '@ogygia/core/contract';
 import { OgygiaError } from '../messages.ts';
@@ -64,7 +63,7 @@ export interface MarkupSource {
 	extensions: readonly string[];
 	/** Discover the format's islands up front (build start, dev included): read each file, turn it
 	 *  into Svelte, and hand that to `transform` so its islands are registered before chunks emit. */
-	scan?(ctx: { root: string; readFile(abs: string): string | null }): void | Promise<void>;
+	scan?(ctx: { root: string; readFile: (abs: string) => string | null }): void | Promise<void>;
 	/** The format's modules, absolute path → their post-preprocess Svelte source. A module only ever
 	 *  renders on the server, so no client chunk carries its CSS: the build ships, as one client asset
 	 *  per module, the scoped CSS of its own `<style>` and of every component it imports (and plain
@@ -76,7 +75,7 @@ export interface MarkupSource {
 export interface MarkupRegions {
 	/** Rewrite the marked imports in already-preprocessed Svelte and register its regions. The code,
 	 *  or null when nothing changed. */
-	transform(source: string, filename: string): string | null;
+	transform: (source: string, filename: string) => string | null;
 }
 
 /** Where a plugin's transform runs: on the module as written, before the region transform
@@ -98,17 +97,16 @@ export interface TransformContext {
 	 *  (unresolvable, or external). */
 	resolve(spec: string, importer: string): Promise<string | null>;
 	/** Re-transform this module when `file` changes (dev). */
-	watch(file: string): void;
-	/** Tell the build what the transform did to this module (it is the event's importer): read back
-	 *  by the findings, and forgotten when the module is transformed again. */
-	emit(event: TransformEvent): void;
+	watch: (file: string) => void;
 }
 
-/** What a stage transform tells the build about the module it transformed. */
-export type TransformEvent = Omit<
-	Extract<CompileEventInput, { name: 'compile.barrel.left' }>,
-	'importer'
->;
+/** Why imports of the module at `file` stayed as written in these importers (ids, queries allowed),
+ *  in the bundler environment `environment`; none when this plugin left none of them. */
+export type StayedAnswer = (
+	file: string,
+	importers: readonly string[],
+	environment: string
+) => readonly BarrelLeftReason[];
 
 /** A transform at a stage around the region transform: ordering is the stage, not list position. */
 export interface StageTransform {
@@ -136,13 +134,17 @@ export interface PinnedDecl {
 export interface BuildContext {
 	/** Run `transform` on every module (that `filter` takes) at its `stage`. */
 	transform(transform: StageTransform): void;
+	/** Answer why a transform of this plugin left imports of a module as written: the findings that
+	 *  weigh a module an island still imports whole ask every plugin's answer
+	 *  ({@link RegionsSeam.whyStayed}). */
+	stayed(answer: StayedAnswer): void;
 	/** The app's export index (`compiler/exports/`), for a transform that follows names through
 	 *  barrels. */
 	readonly exports: ExportsSeam;
 	/** For a module's code: the imports that carry a region's identity (a region mark, on a default
 	 *  or a named import). A transform that rewrites imports leaves them as written, so the region
 	 *  the prescan keys on the raw import is the region the transform sees. */
-	pinnedImports(code: string): (decl: PinnedDecl) => boolean;
+	readonly pinnedImports: (code: string) => (decl: PinnedDecl) => boolean;
 	/** The app's regions as the build knows them now, for a tool that names or weighs them. */
 	readonly regions: RegionsSeam;
 	/** The app's root directory. */
@@ -315,6 +317,8 @@ export interface ResolvedPlugins {
 	page_modules: { importers: string[]; files: string[] };
 	/** stage transforms (`b.transform()`), in plugin order */
 	transforms: StageTransform[];
+	/** why-stayed answers (`b.stayed()`), in plugin order */
+	stayed: StayedAnswer[];
 	/** the plugin that answers seed shaping (`b.pageReads()`), or null: every region gets all */
 	page_reads: PageReads | null;
 }
@@ -323,14 +327,15 @@ export interface ResolvedPlugins {
 export interface RegionsSeam {
 	/** island id → its component's name */
 	names(): Record<string, string>;
-	/** Why `barrels()` left the barrel at `file` as these modules import it (none: it was rewritten,
-	 *  or no rewrite was asked for). */
-	barrelWhy(file: string, importers: Iterable<string>): BarrelLeftReason[];
+	/** Why the module at `file` stayed as these modules import it, in the browser's leg: every
+	 *  plugin's answer ({@link BuildContext.stayed}), in `BARREL_LEFT_REASONS` order (none: no plugin
+	 *  left it). */
+	whyStayed(file: string, importers: Iterable<string>): BarrelLeftReason[];
 }
 
 export interface BuildSeams {
 	exports: ExportsSeam;
-	pinned_imports(code: string): (decl: PinnedDecl) => boolean;
+	pinned_imports: (code: string) => (decl: PinnedDecl) => boolean;
 	regions: RegionsSeam;
 }
 
@@ -358,7 +363,7 @@ const NO_SEAMS: BuildSeams = {
 		names: () => {
 			throw new Error('resolve_plugins: no region table without ogygia()');
 		},
-		barrelWhy: () => {
+		whyStayed: () => {
 			throw new Error('resolve_plugins: no region table without ogygia()');
 		}
 	}
@@ -521,6 +526,7 @@ export function resolve_plugins(
 		files: [],
 		page_modules: { importers: [], files: [] },
 		transforms: [],
+		stayed: [],
 		page_reads: null
 	};
 	let page_reads_owner: string | null = null;
@@ -547,6 +553,9 @@ export function resolve_plugins(
 			regions: seams.regions,
 			transform(t) {
 				out.transforms.push(t);
+			},
+			stayed(answer) {
+				out.stayed.push(answer);
 			},
 			routeConfig(key) {
 				if (!ROUTE_CONFIG_KEY_RE.test(key))

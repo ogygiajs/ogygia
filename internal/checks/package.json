@@ -16,7 +16,10 @@
 	"devDependencies": {
 		"@ogygia/core": "workspace:*",
 		"@ogygia/devtools": "workspace:*",
+		"@ogygia/tsdown-plugin-svelte": "workspace:*",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
 		"devtools-e2e-app": "workspace:*",
-		"ogygia": "workspace:*"
+		"ogygia": "workspace:*",
+		"svelte": "catalog:"
 	}
 }

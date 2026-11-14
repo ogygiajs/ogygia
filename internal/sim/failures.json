@@ -86,7 +86,8 @@
 		{
 			"site": "packages/rewrite/src/pass.ts > rewrite_chunk > result:0",
 			"point": "rewrite.chunk-split",
-			"how": "the point reads a chunk as two, cut inside the first element a rewrite matches: that element goes out unrendered, said in dev, and the page after it is read as before (rewrite-rendered judges what goes out)"
+			"how": "the point reads a chunk as two, cut inside the first element a rewrite matches: that element goes out unrendered, said in dev, and the page after it is read as before (rewrite-rendered judges what goes out)",
+			"killed_by": "rewrite-split-element-forgotten"
 		},
 		{
 			"site": "packages/rewrite/src/pass.ts > cancelled > abort:0",
@@ -253,6 +254,30 @@
 		}
 	],
 	"covered": [
+		{
+			"site": "packages/core/src/server/live-event.ts > live_event > catch:0",
+			"reason": "Kit's getRequestEvent throws outside a request, and every reader answers no request instead; proved by hand: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/kit-request-reads.test.ts",
+			"name": "outside any Kit request every reader answers null, and recording throws nothing"
+		},
+		{
+			"site": "packages/flags/src/prescan.ts > Inventory > written > catch:0",
+			"reason": "a manifest that cannot be written never fails the build; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/flags/test/inventory-build.test.ts",
+			"name": "a root the manifest cannot be written under never fails the build"
+		},
+		{
+			"site": "packages/config/src/sim.ts > SimStream > constructor > pull > stream:0",
+			"reason": "a simulated stream hands its reader each chunk; proved by hand: the enqueue removed turns the test red",
+			"test": "packages/core/test/sim/request-scope.test.ts",
+			"name": "closes once its response ends, however it ends"
+		},
+		{
+			"site": "packages/config/src/sim.ts > SimStream > constructor > pull > stream:1",
+			"reason": "a simulated stream ends once its last chunk is read; proved by hand: the close removed turns the test red",
+			"test": "packages/core/test/sim/request-scope.test.ts",
+			"name": "closes once its response ends, however it ends"
+		},
 		{
 			"site": "packages/content/src/site/search-worker.ts > run > not-ok:0",
 			"reason": "an index download that is not ok fails as content_search_index_fetch_failed, not as a parse of its error body; proved by hand: the check made never true turns the test red, twice",
@@ -596,13 +621,13 @@
 			"name": "a request cancelled while the page function ran: the document goes out as ogygia rendered it"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > sheet_for > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > sheet_for > catch:0",
 			"reason": "an engine without constructable stylesheets: happy-dom has them",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a DOM without adoptable sheets or CSS.escape (jsdom): a <style> per root"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > watch > observer:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > watch > observer:0",
 			"reason": "a Kit-hydrated page (csr=true): the random app is csr=false",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a Kit-hydrated page: a watched host that leaves the document leaves the watch, a moved one stays, and the observer goes with the last one"
@@ -614,43 +639,43 @@
 			"name": "dev throws it"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > reset > parse:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > reset > parse:0",
 			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > reset > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > reset > catch:0",
 			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > original > parse:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > original > parse:0",
 			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > original > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > original > catch:0",
 			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > parse:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > parse:0",
 			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore_with > catch:0",
 			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
 		},
 		{
-			"site": "packages/rewrite/src/restore.ts > restore > catch:1",
+			"site": "packages/rewrite/src/restore.ts > restore_with > catch:1",
 			"reason": "a marked host that cannot have a shadow root (a built-in element or a name the engine refuses): the server marks only valid custom elements, so only markup a sanitizer let through carries one",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a host that cannot have a shadow root is skipped and said; the hosts after it are restored"
@@ -1514,16 +1539,76 @@
 			"name": "a wait that would end exactly at the deadline is out of time at once"
 		},
 		{
-			"site": "packages/machine/src/queue.ts > QueueImpl > drain > catch:0",
+			"site": "packages/machine/src/queue.ts > PlainLine > _drain > catch:0",
 			"reason": "`catch (error) { report_thrown('machine_queue_start_failed', { name: t…`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/machine/test/queue.test.ts",
 			"name": "a start that throws is reported, and the jobs after it still start"
 		},
 		{
-			"site": "packages/machine/src/queue.ts > QueueImpl > stale_job > catch:0",
+			"site": "packages/machine/src/queue.ts > PassLine > hold > catch:0",
+			"reason": "`catch (error) { report_thrown('machine_queue_start_failed', { name: t…`: a queue with passes: the jobs after a throwing start still start, and its window place goes back",
+			"test": "packages/machine/test/queue-passes.test.ts",
+			"name": "a start that throws is reported, its place and windows go back, and the pass goes on"
+		},
+		{
+			"site": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > until_critical > timer:0",
+			"reason": "`wait.timeout(() => this.settle_critical('cap'), CRITICAL_CAP_MS)`: a critical image that never arrives settles the wait as `cap`",
+			"test": "packages/core/test/browser/load-scheduler.test.ts",
+			"name": "a critical image that never arrives holds island code only up to the cap"
+		},
+		{
+			"site": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > until_critical > error-event:0",
+			"reason": "`wait.on(el, 'error', one, { once: true })`: proved by hand: without it a failed hero holds island code until the cap",
+			"test": "packages/core/test/browser/load-scheduler-critical-error.test.ts",
+			"name": "a critical image that fails to load ends the wait as one that arrived: island code starts"
+		},
+		{
+			"site": "packages/machine/src/queue.ts > PassLine > run > catch:0",
+			"reason": "`catch (error) { this.#end(); throw error; }`: proved by hand: without the end the drain stays running and the recheck starts nothing",
+			"test": "packages/machine/test/queue-passes.test.ts",
+			"name": "a rule that throws ends the drain and throws to the caller; the next wake drains again"
+		},
+		{
+			"site": "packages/machine/src/queue.ts > PassLine > run > throw:0",
+			"reason": "`throw error;`: the push that woke the drain throws the rule's error",
+			"test": "packages/machine/test/queue-passes.test.ts",
+			"name": "a rule that throws ends the drain and throws to the caller; the next wake drains again"
+		},
+		{
+			"site": "packages/machine/src/queue.ts > PassLine > hand_back > catch:0",
+			"reason": "`catch (error) { … report_thrown('machine_queue_yield_failed', …); resume(); }`: the jobs after a throwing yield still start, and the code is said",
+			"test": "packages/machine/test/queue-passes.test.ts",
+			"name": "a yield that throws is reported, and the drain goes on without it"
+		},
+		{
+			"site": "packages/machine/src/queue.ts > PassLine > hand_back > throw:0",
+			"reason": "`if (resumed) throw error;`: proved by hand: without it the rule's error is said as the yield's failure",
+			"test": "packages/machine/test/queue-passes.test.ts",
+			"name": "a rule that throws in a drain its yield resumed at once throws to the caller, not as the yield’s failure"
+		},
+		{
+			"site": "packages/machine/src/queue.ts > cap > throw:0",
+			"reason": "`throw machine_error('machine_bad_option', { option, value: Str…`: a window's bad max is refused",
+			"test": "packages/machine/test/queue-passes.test.ts",
+			"name": "a bad window max, too many windows or a bad budget is refused with machine_bad_option"
+		},
+		{
+			"site": "packages/machine/src/queue.ts > passes > throw:1",
+			"reason": "`throw machine_error('machine_bad_option', { option: 'budget.ms', …`: a budget below 0 or not finite is refused",
+			"test": "packages/machine/test/queue-passes.test.ts",
+			"name": "a bad window max, too many windows or a bad budget is refused with machine_bad_option"
+		},
+		{
+			"site": "packages/machine/src/queue.ts > Line > _stale_job > catch:0",
 			"reason": "`catch (error) { report_thrown('machine_queue_stale_failed', { name: t…`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/machine/test/queue.test.ts",
 			"name": "a stale hook that throws is reported, and the other waiting jobs still go stale and none hangs"
+		},
+		{
+			"site": "packages/machine/src/queue.ts > passes > throw:0",
+			"reason": "`throw machine_error('machine_bad_option', { option: 'windows', …`: 32 windows are refused",
+			"test": "packages/machine/test/queue-passes.test.ts",
+			"name": "a bad window max, too many windows or a bad budget is refused with machine_bad_option"
 		},
 		{
 			"site": "packages/machine/src/queue.ts > queue > throw:0",
@@ -2096,16 +2181,22 @@
 			"name": "DEV: a live region snippet’s portable form threads its entry region-css link into <head>"
 		},
 		{
-			"site": "packages/core/src/region-snippet.ts > capture_static > catch:0",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"site": "packages/core/src/snippet-render.ts > SnippetRender > freeze > catch:0",
+			"reason": "a test reaches its recovery path: the catch body emptied turns the test red",
+			"test": "packages/core/test/plain-function-prop.test.ts",
+			"name": "errors as a FUNCTION (not a snippet), naming the prop and the callback case"
+		},
+		{
+			"site": "packages/core/src/snippet-render.ts > SnippetRender > freeze > throw:0",
+			"reason": "a test reaches its recovery path: the throw removed turns the test red",
 			"test": "packages/core/test/plain-function-prop.test.ts",
 			"name": "errors as a FUNCTION (not a snippet), naming the prop and the callback case"
 		},
 		{
 			"site": "packages/core/src/region-snippet.ts > capture_static > throw:0",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/core/test/plain-function-prop.test.ts",
-			"name": "errors as a FUNCTION (not a snippet), naming the prop and the callback case"
+			"reason": "a test reaches it: with no snippet renderer installed the throw removed turns the test red",
+			"test": "packages/core/test/snippet-freeze-not-installed.test.ts",
+			"name": "a bare snippet encoded with no snippet renderer installed says snippet_freeze_not_installed"
 		},
 		{
 			"site": "packages/core/src/region.ts > to_version > throw:0",
@@ -3542,7 +3633,7 @@
 			"name": "without ogygia() a plugin reading the region table is told so"
 		},
 		{
-			"site": "packages/compiler/src/vite/plugin-api.ts > barrelWhy > throw:0",
+			"site": "packages/compiler/src/vite/plugin-api.ts > whyStayed > throw:0",
 			"reason": "`throw new Error('resolve_plugins: no region table without ogygia()');`: proved: the throw removed turns the test red, twice",
 			"test": "packages/compiler/test/plugins.test.ts",
 			"name": "without ogygia() a plugin reading the region table is told so"
@@ -3572,19 +3663,19 @@
 			"name": "a macro or a route config key two plugins both claim is refused, naming the first"
 		},
 		{
-			"site": "packages/compiler/src/queries.ts > queries > set_input > throw:0",
+			"site": "packages/compiler/src/queries.ts > Queries > set_input > throw:0",
 			"reason": "`throw new Error(`query ${query.name} is not an input`);`: proved: the throw removed turns the test red, twice",
 			"test": "packages/compiler/test/queries.test.ts",
 			"name": "an answer, not an input, cannot be set"
 		},
 		{
-			"site": "packages/compiler/src/queries.ts > queries > moved > catch:0",
+			"site": "packages/compiler/src/queries.ts > Queries > moved > catch:0",
 			"reason": "`catch { return true; // ok: an answer that now throws has changed; it…`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/compiler/test/queries.test.ts",
 			"name": "an answer that now throws has moved, for a watcher and for answers_changed_since"
 		},
 		{
-			"site": "packages/compiler/src/queries.ts > queries > answers_changed_since > catch:0",
+			"site": "packages/compiler/src/queries.ts > Queries > answers_changed_since > catch:0",
 			"reason": "`catch { return true; // ok: an answer that now throws has changed; it…`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/compiler/test/queries.test.ts",
 			"name": "an answer that now throws has moved, for a watcher and for answers_changed_since"
@@ -3914,19 +4005,19 @@
 			"name": "refuses a name, an interpolation, and a literal inside an expression"
 		},
 		{
-			"site": "packages/compiler/src/queries.ts > queries > compute > throw:0",
+			"site": "packages/compiler/src/queries.ts > Queries > compute > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/queries.test.ts",
 			"name": "a query that reads itself throws, and the database still answers after"
 		},
 		{
-			"site": "packages/compiler/src/queries.ts > queries > compute > catch:0",
+			"site": "packages/compiler/src/queries.ts > Queries > compute > catch:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
 			"test": "packages/compiler/test/queries.test.ts",
 			"name": "a query that reads itself throws, and the database still answers after"
 		},
 		{
-			"site": "packages/compiler/src/queries.ts > queries > compute > throw:1",
+			"site": "packages/compiler/src/queries.ts > Queries > compute > throw:1",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/queries.test.ts",
 			"name": "a query that reads itself throws, and the database still answers after"
@@ -4478,7 +4569,7 @@
 			"name": "storage that throws as it is read is no storage"
 		},
 		{
-			"site": "packages/machine/src/queue.ts > QueueImpl > arm > timer:0",
+			"site": "packages/machine/src/queue.ts > Line > arm > timer:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the timer's callback made to do nothing turns the test red",
 			"test": "packages/machine/test/queue.test.ts",
 			"name": "mid-expiry: every expired job is stale once, none skipped, after the list is compacted under it"
@@ -5378,8 +5469,6 @@
 		"packages/config/src/sim.ts > macrotask > message:0",
 		"packages/config/src/sim.ts > macrotask > message:1",
 		"packages/config/src/sim.ts > Run > fetch > fetch_stub > abort:0",
-		"packages/config/src/sim.ts > Run > stream > pull > stream:0",
-		"packages/config/src/sim.ts > Run > stream > pull > stream:1",
 		"packages/config/src/sim.ts > Run > track > reject:0",
 		"packages/config/src/sim.ts > Run > _check > catch:0",
 		"packages/config/src/sim.ts > Run > play > segment > reject:0",
@@ -5569,8 +5658,6 @@
 		"packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_imports > parse:0",
 		"packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_imports > catch:0",
 		"packages/core/src/runtime/load-scheduler.ts > preload_urls > catch:0",
-		"packages/core/src/runtime/load-scheduler.ts > until_critical > timer:0",
-		"packages/core/src/runtime/load-scheduler.ts > until_critical > error-event:0",
 		"packages/core/src/runtime/morph.ts > carry_shadows > catch:0",
 		"packages/core/src/runtime/nav-handle.ts > (module) > import:0",
 		"packages/core/src/runtime/nav-handle.ts > invalidate_all > stale:0",
@@ -6067,7 +6154,6 @@
 		"packages/flags/src/index.ts > now > catch:0",
 		"packages/flags/src/inventory.ts > collect_from_source > not-ok:0",
 		"packages/flags/src/ofrep.ts > ofrep > timer:0",
-		"packages/flags/src/vite.ts > inventory > written > catch:0",
 		"packages/insights/src/cpu.ts > host_of > catch:0",
 		"packages/insights/src/fp-drift.ts > props_diff > parse:0",
 		"packages/insights/src/fp-drift.ts > props_diff > parse:1",

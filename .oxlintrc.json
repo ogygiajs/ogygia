@@ -41,7 +41,7 @@
 		"typescript/no-useless-default-assignment": "error",
 		"typescript/require-array-sort-compare": "error",
 		"typescript/restrict-template-expressions": "error",
-		"typescript/unbound-method": "off",
+		"typescript/unbound-method": "error",
 		"ogygia/no-promise-cache": "error",
 		"ogygia/owned-effects": "error",
 		"ogygia/no-silent-failures": "error",
@@ -55,7 +55,8 @@
 		"ogygia/dispose-by-close": "error",
 		"ogygia/ports": "error",
 		"ogygia/tests-read-source": "error",
-		"ogygia/fake-timers-whole": "error"
+		"ogygia/fake-timers-whole": "error",
+		"ogygia/prefer-class-for-state": "warn"
 	},
 	"overrides": [
 		{
@@ -97,6 +98,26 @@
 		{
 			"files": ["packages/compiler/src/**"],
 			"rules": { "ogygia/structured-comments": "error" }
+		},
+		{
+			"files": ["packages/*/src/**"],
+			"rules": {
+				"no-restricted-imports": [
+					"error",
+					{
+						"patterns": [
+							{
+								"group": ["@sveltejs/kit/internal", "@sveltejs/kit/internal/*"],
+								"message": "Kit's private modules are imported only by packages/core/src/server/kit-request-store.ts (#1724): read the event through server/live-event.ts (Kit's public getRequestEvent), or add the read there with its canary"
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": ["packages/core/src/server/kit-request-store.ts"],
+			"rules": { "no-restricted-imports": "off" }
 		},
 		{
 			"files": ["packages/core/test/wire-markup.test.ts"],

@@ -197,7 +197,7 @@
 	{
 		"id": "reshape-children-not-put-back",
 		"file": "packages/rewrite/src/restore.ts",
-		"in": "restore",
+		"in": "restore_with",
 		"code": "host.appendChild(c.node);",
 		"operator": "statement",
 		"from": "host.appendChild(c.node);",
@@ -206,7 +206,7 @@
 	{
 		"id": "reshape-render-left-in-light-dom",
 		"file": "packages/rewrite/src/restore.ts",
-		"in": "restore",
+		"in": "restore_with",
 		"code": "if (shadow) shadow.appendChild(n);",
 		"operator": "statement",
 		"from": "shadow.appendChild(n);",
@@ -215,7 +215,7 @@
 	{
 		"id": "reshape-stand-in-kept",
 		"file": "packages/rewrite/src/restore.ts",
-		"in": "restore > swap_stand_ins",
+		"in": "restore_with > swap_stand_ins",
 		"code": "as.replaceWith(real);",
 		"operator": "statement",
 		"from": "as.replaceWith(real);",
@@ -224,7 +224,7 @@
 	{
 		"id": "reshape-trimmed-text-not-put-back",
 		"file": "packages/rewrite/src/restore.ts",
-		"in": "restore > fix_text",
+		"in": "restore_with > fix_text",
 		"code": "if (next && next.nodeType === 3) (next as Text).data = was;",
 		"operator": "statement",
 		"from": "(next as Text).data = was;",
@@ -636,7 +636,7 @@
 		"id": "rewrite-split-element-rendered",
 		"file": "packages/rewrite/src/scan.ts",
 		"in": "read",
-		"code": "if (start !== -1) spans.push({ start, end: at.end, name, owned, context });",
+		"code": "if (start !== -1) spans.push({ start, end: at.end, name, owned, context, shadow });",
 		"operator": "statement",
 		"from": "if (start !== -1)",
 		"to": "if (start !== -2)",
@@ -651,8 +651,7 @@
 		"operator": "statement",
 		"from": "state.open = open;",
 		"to": "state.open = null;",
-		"aim": "rewrite.chunk-split",
-		"equivalent": "for now: forgetting the element a chunk ended in renders the matched elements inside it on their own, which the rewrite-rendered oracle names, but the random app never nests a matched element in another (a box holds a region's label only), so no run can see it; it comes back when the app draws nested matches (rewrite-handoff-3)"
+		"aim": "rewrite.chunk-split"
 	},
 	{
 		"id": "rewrite-batch-throws",
@@ -867,11 +866,11 @@
 	{
 		"id": "reversible-localize-off",
 		"file": "packages/rewrite/src/reversible.ts",
-		"in": "localize_marks",
-		"code": "if (!moved) return { html, back: same };",
+		"in": "LocalMarks > constructor",
+		"code": "if (!moved) {",
 		"operator": "statement",
-		"from": "if (!moved) return",
-		"to": "return",
+		"from": "if (!moved) {",
+		"to": "{",
 		"equivalent": "no page can tell: without local numbering the render sees the page's own ids and hands them back, so what goes out is the same bytes; what is lost is the stable element.html an app's cache keys on and the one render of equal elements, which packages/rewrite/test/rewrite.test.ts ('run in order on one marking: the second sees the first one’s output, marks intact') kills"
 	},
 	{

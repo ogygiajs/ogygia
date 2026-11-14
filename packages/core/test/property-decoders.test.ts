@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
 import { read_parcel } from '../src/runtime/frame-nav.ts';
 import { build_parcel, done_parcel } from '../src/server/stream-regions.ts';
-import { plan_props_wire } from '../src/server/props-wire.ts';
+import { PropsWire } from '../src/server/props-wire.ts';
 import { parse_wire_text } from '../src/runtime/wire-format.ts';
 import { link_boot } from '../src/runtime/boot-link.ts';
 import { load_devalue } from '../src/runtime/devalue-lane.ts';
@@ -136,7 +136,7 @@ describe('island props', () => {
 	it('read back as the same data in either lane, and their text has no <', () => {
 		fc.assert(
 			fc.property(fc.oneof(props, json_props), (value) => {
-				const w = plan_props_wire(value, 'entry.svelte').wire(null);
+				const w = new PropsWire(value, 'entry.svelte').wire(null);
 				expect(w.text).not.toContain('<');
 				expect(parse_wire_text(w.text, w.json)).toEqual(value);
 			}),

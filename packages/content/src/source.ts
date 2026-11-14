@@ -1,4 +1,4 @@
-import type { RegionValue } from '@ogygia/core';
+import type { AwaitableRegion } from '@ogygia/core';
 import { OgygiaError } from './messages/runtime.ts';
 
 /** Directory/section decoration a source may expose (`groups()`), keyed by clean group path. */
@@ -7,7 +7,7 @@ export type GroupMeta = { label?: string };
 /** What a format computes from one raw record. `body` is already a region you render with `<Region>`. */
 export type EntryParts<Meta = Record<string, never>> = {
 	data: Record<string, unknown>;
-	body?: RegionValue;
+	body?: AwaitableRegion;
 	meta?: Meta;
 	/**
 	 * Lazy accessor for the entry's raw SOURCE text (the pre-compile `.svx` / `.json` / CMS payload).
@@ -34,7 +34,7 @@ export type SourceRef<Meta = Record<string, never>> = {
 
 /** One full entry a source yields from `get()` — a ref plus the two heavy faces. Never crosses a wire. */
 export type SourceEntry<Meta = Record<string, never>> = SourceRef<Meta> & {
-	body?: RegionValue;
+	body?: AwaitableRegion;
 	source?: () => Promise<string>;
 };
 

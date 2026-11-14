@@ -25,7 +25,7 @@ import {
 } from '../src/virtual/types.ts';
 import { CORE_VALUE_NAMES } from '../src/virtual/value-names.ts';
 import { VirtualTable } from '../src/virtual/resolver.ts';
-import { derived, input, queries } from '../src/queries.ts';
+import { derived, input, Queries } from '../src/queries.ts';
 import { BUILD_ERRORS } from '../src/messages.ts';
 import { specifier, virtual, type Realm } from '../src/virtual/table.ts';
 
@@ -174,7 +174,7 @@ bench(
 
 bench('virtual modules: a table built, an undeclared id and a duplicate refused', () => {
 	let refused = 0;
-	const db = queries('session');
+	const db = new Queries('session');
 	const table = new VirtualTable(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES, CORE_PARTS, db);
 	for (const id of ['ogygia:region/nope/x.js', 'ogygia:server/nope']) {
 		try {
@@ -203,7 +203,7 @@ bench('virtual modules: a table built, an undeclared id and a duplicate refused'
 
 bench('virtual modules: dev moves, each followed by the modules that moved', () => {
 	// fifty modules, each reading a part and one of ten folds; edits move a fold or a part
-	const db = queries('session');
+	const db = new Queries('session');
 	const size = input<string, number>(
 		'size',
 		(f) => f,

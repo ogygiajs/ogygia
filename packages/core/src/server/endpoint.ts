@@ -123,7 +123,8 @@ export function capability_query(
 	return `?id=${encodeURIComponent(c.id)}${r}&props=${c.payload}&exp=${exp}&v=${REGION_CAPABILITY_VERSION}${ttl}${w}&sig=${sig}&k=${k}`;
 }
 
-/** The version every region capability is minted as (its URL's `v`; `''` = minted before v3). */
+/** The version every region capability is minted as, and the only one the endpoint takes (its
+ *  URL's `v`; none = minted before v3, by an earlier build, #1769). */
 export const REGION_CAPABILITY_VERSION = '3';
 
 /** Region ids are always 12 lowercase hex chars from the transform. */

@@ -410,14 +410,25 @@ function implied_close(stack: Stack<{ name: string }>, name: string): number {
 
 /** The page's open elements around a matched element, as the parser keeps them: what
  *  {@link settle} needs (its `context`) to know a render's tag the page would restructure. */
-export type PageTags = Stack<{ name: string }>;
+export type PageTags = Stack<{ name: string; shadow?: true }>;
 
-/** A start tag of the page: the parser's implied closes, then the element opened. */
-export function page_open(tags: PageTags, name: string, self: boolean): void {
+/** A start tag of the page, its name ending at `name_end`: the parser's implied closes, then the
+ *  element opened (a `<template shadowrootmode>` marked `shadow`: a declarative shadow root). */
+export function page_open(
+	tags: PageTags,
+	html: string,
+	name: string,
+	name_end: number,
+	self: boolean
+): void {
 	const close = implied_close(tags, name);
 	if (close === DROP) return;
 	if (close !== -1) cut(tags, close);
-	if (!VOID.has(name) && !self) push(tags, { name });
+	if (VOID.has(name) || self) return;
+	if (name === 'template')
+		for (const a of parse_attrs(html, name_end))
+			if (a.name === 'shadowrootmode') return push(tags, { name, shadow: true });
+	push(tags, { name });
 }
 
 /** An end tag of the page. */
@@ -1204,25 +1215,34 @@ export function root_attr(
 
 /** An element's marks renumbered from 0 in order of appearance, so the same element has the same
  *  bytes wherever it sits; `back` puts the ids it had on whatever a render returns. */
-export function localize_marks(html: string): {
-	html: string;
-	back: (rendered: string) => string;
-} {
-	const to_local = new Map<number, number>();
-	let moved = false;
-	const local = remap(html, (id) => {
-		let l = to_local.get(id);
-		if (l === undefined) to_local.set(id, (l = to_local.size));
-		if (l !== id) moved = true;
-		return l;
-	});
-	if (!moved) return { html, back: same };
-	const to_doc = new Map<number, number>();
-	for (const [d, l] of to_local) to_doc.set(l, d);
-	return { html: local, back: (rendered) => remap(rendered, (id) => to_doc.get(id)) };
-}
+export class LocalMarks {
+	readonly html: string;
+	readonly #to_doc: Map<number, number> | null = null;
 
-const same = (html: string): string => html;
+	constructor(html: string) {
+		const to_local = new Map<number, number>();
+		let moved = false;
+		const local = remap(html, (id) => {
+			let l = to_local.get(id);
+			if (l === undefined) to_local.set(id, (l = to_local.size));
+			if (l !== id) moved = true;
+			return l;
+		});
+		if (!moved) {
+			this.html = html;
+			return;
+		}
+		const to_doc = new Map<number, number>();
+		for (const [d, l] of to_local) to_doc.set(l, d);
+		this.html = local;
+		this.#to_doc = to_doc;
+	}
+
+	back(rendered: string): string {
+		const to_doc = this.#to_doc;
+		return to_doc === null ? rendered : remap(rendered, (id) => to_doc.get(id));
+	}
+}
 
 /** The ids of the hosts ogygia restores (`og-h`) in `html`, quoted any way a serializer writes them. */
 export function restored_ids(html: string): Set<number> {

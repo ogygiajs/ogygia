@@ -417,12 +417,14 @@ export function first_difference(a: string, b: string, context = 3): string {
 }
 
 /** A hard load of `url` in a new browser with `v`'s cookies, on a network that does not fail it
- *  (a fault there is no finding about the tab), at rest, each leg `pace` ms slower. */
+ *  (a fault there is no finding about the tab), at rest, each leg `pace` ms slower, in a tab
+ *  `behind` another when the judged one was never shown. */
 async function load_fresh(
 	world: World,
 	v: Visitor,
 	url: string,
 	name: string,
+	behind: boolean,
 	pace = 0
 ): Promise<{ visitor: Visitor; tab: Tab }> {
 	const visitor = world.visitor(`${v.name}-${name}`);
@@ -438,6 +440,7 @@ async function load_fresh(
 	// (every cookie, httpOnly ones too: a request carries them all; `true` would be a script's view)
 	jar(visitor).addCookies(jar(v).getCookies(null, false));
 	const tab = world.tab(visitor);
+	tab.hidden = behind;
 	world.network.calm(tab.name, pace);
 	const path = new URL(url);
 	await world.go(tab, 'goto', path.pathname + path.search + path.hash);
@@ -506,8 +509,13 @@ export async function mpa_equivalent(
 	// (a page a build a deploy replaced answered is compared with a fresh load from that build: an
 	// old page is the old release's, whole)
 	const build = world.build_of(tab.realm);
+	const behind = tab.hidden && !tab.seen.has(tab.realm);
 	const fresh_load = (w: World, visitor: Visitor, at: string, name: string, pace = 0) =>
-		w.as_of(build, () => load_fresh(w, visitor, at, name, pace), world.answers_of(tab.realm));
+		w.as_of(
+			build,
+			() => load_fresh(w, visitor, at, name, behind, pace),
+			world.answers_of(tab.realm)
+		);
 	const fresh = await fresh_load(world, v, url, 'fresh');
 	// (no reference: the build the page is of could not give it again, its stored copies dropped and
 	// a newer build's handed out instead, gen 131, seed 131003)
@@ -1195,10 +1203,12 @@ export function document_faulted(world: World, tab: Tab): boolean {
  *  ("Invalid query.live response": seed 193, a changed byte in a live query's stream), and an
  *  inline handler a changed byte broke (the runtime script's `onerror`, as the DOM library says
  *  it fails to compile: generated-app seed 88), and the JSON parser's bare message for a changed
- *  byte in a JSON answer (a live query's client logs it without `SyntaxError`: palaestra seed 204).
+ *  byte in a JSON answer (a live query's client logs it without `SyntaxError`: palaestra seed 204),
+ *  and devalue's for a changed byte in a type name inside one (a held region's query answer: the
+ *  region's await hands the query's own error to the page; gen 10, seed 31, `Unknown type �egion`).
  *  An uncaught TypeError is never excused. */
 const EXPLAINED =
-	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response|Failed to read the 'on\w+' property| in JSON at position \d+/;
+	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response|Failed to read the 'on\w+' property| in JSON at position \d+|Error: Unknown type /;
 
 /** Whether `line` is a buggify point's own throw (a point's error says its name), reported by the
  *  document `realm` it fired in: what the runtime reports of a failure it recovers from. */
@@ -1416,6 +1426,14 @@ const UNHYDRATED_BY_DESIGN: ReadonlyArray<{ path: RegExp; why: string }> = [
 	{
 		path: /^\/detector$/,
 		why: "its hooks strip one region's hydration anchors, for the foreign-mutation detector's e2e"
+	},
+	{
+		path: /^\/lake-twins-kit\/?$/,
+		why: 'a csr=true page whose web component edits its light DOM before Kit hydrates, so Kit remounts the page (apps/palaestra/e2e/lake-twins-kit.spec.ts needs the remount)'
+	},
+	{
+		path: /^\/bench-cms\/kit\/?$/,
+		why: 'a csr=true page whose few hundred web components render into their light DOM before Kit hydrates: the remount is the cost its bench studies'
 	}
 ];
 

@@ -348,7 +348,18 @@ The pass also fails as an app's does, through buggify points in the app's code: 
 a fresh load the pass may not have failed on) are what say a failing pass leaves the page whole.
 Gens 24 (trims, links,
 no router), 10 (links, router) and 196 run it. Mutation of `packages/rewrite/src/restore.ts` runs
-on gens 24 and 10.
+on gens 24 and 10. Half of the boxes hold a second box (`gen reshape nest`): a matched element in a
+matched element, which the rewrite renders with the outer one, never alone; a chunk cut inside the
+outer one (`rewrite.chunk-split`) leaves both unrendered, and `rewrite-rendered` names an inner one
+rendered alone.
+
+The rewrite's own browser sim (`packages/rewrite/test/browser/rewrite-sim.test.ts`) judges what
+the app sim cannot see: pages cut into chunks at random, sheets, declarative shadow roots, stand-ins
+in a `<p>`, renders that leave an element as it came, each served page loaded in a frame so its own
+scripts run where they stand (a stand-in must paint as its tag before the restore, a page the router
+would swap in must restore every host it rendered, a pass that wrote nothing changes no byte). The
+daily job judges the rewrite's mutants on it first (`--suite rewrite-browser`), and the app sim run
+counts its kills (`--killed`) instead of building them again.
 
 ## Tabs behind, and engines without idle callbacks
 
@@ -624,7 +635,7 @@ Oracles: two cold compiles agree; directory listing order and transform order ch
 (`src/order.ts`). `DST_RUNS=3000 pnpm test` for a long search. Each finding becomes an issue and a
 failing test in the compiler (the first: #1358).
 
-Mutation: `internal/compiler-dst/mutants.json`, judged by `src/mutate.ts --compiler-dst` (the
+Mutation: `internal/compiler-dst/mutants.json`, judged by `src/mutate.ts --suite compiler-dst` (the
 simulator compiles the package sources, so nothing is built; a test that fails twice on the mutant
 and never on the baseline kills it), daily beside the sim's list. Its first kills are dev's
 invalidation (`invalidate_for_file`'s affected files and changed regions), and the driver's lists a

@@ -7,17 +7,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
 import { defineServer, type ServerApp } from '../src/plugin/index.ts';
-import { start_plugins, type AppSigner } from '../src/plugin/server.ts';
+import { LivePlugins, type AppSigner } from '../src/plugin/server.ts';
 import { capability_lifetime } from '../src/server/capability-lifetime.ts';
 import { RENEW_WINDOW_SEC } from '../src/server/shared-cache.ts';
-import {
-	region_mac_message,
-	region_sign,
-	region_verify,
-	sign,
-	verify,
-	type RegionClaim
-} from '../src/server/hmac.ts';
+import { region_sign, sign, verify, type RegionClaim } from '../src/server/hmac.ts';
 
 const SECRET = 'plugin-signing-test-secret-0123456789';
 const AUD = '/__ogygia__';
@@ -47,11 +40,11 @@ afterEach(() => {
 
 /** The live apps of plugins named `names`, started as the handle starts them. */
 function apps(...names: string[]): ServerApp<unknown>[] {
-	const started = start_plugins(
+	const started = new LivePlugins(
 		names.map((name) => ({ name, options: undefined, server: defineServer({}) })),
 		APP_SIGNER
 	);
-	leaves.push(started.leave);
+	leaves.push(() => started.leave());
 	return started.plugins.map((p) => p.app);
 }
 
@@ -65,20 +58,6 @@ const claim: RegionClaim = {
 };
 
 describe("a plugin's signature never verifies as a region capability", () => {
-	it('signing the exact message of a v1 or v2 region capability gives a signature the endpoint refuses', () => {
-		const [app] = apps('@ogygia/federation');
-		const exp = String(Math.floor(Date.now() / 1000) + 600);
-		for (const render of ['', claim.render]) {
-			const message = region_mac_message(claim.id, exp, claim.payload, '', '', render);
-			const sig = app!.sign(message);
-			expect(region_verify(SECRET, AUD, '', exp, { ...claim, render }, sig)).toBe(false);
-			// (the app's own key does sign it: the endpoint takes that one)
-			expect(region_verify(SECRET, AUD, '', exp, { ...claim, render }, sign(SECRET, message))).toBe(
-				true
-			);
-		}
-	});
-
 	it('no message a plugin signs gives the signature the app key gives that message', () => {
 		const [app] = apps('flags');
 		fc.assert(fc.property(fc.string(), (message) => app!.sign(message) !== sign(SECRET, message)));

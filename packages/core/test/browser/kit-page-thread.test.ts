@@ -209,7 +209,7 @@ test('once Kit publishes its page, the global is a plain value again: Kit can as
 	await expect(wait).resolves.toBeUndefined();
 	const d = Object.getOwnPropertyDescriptor(globalThis, Symbol.for('ogygia.kit-page'));
 	expect(d && 'value' in d).toBe(true);
-	expect(d?.get).toBeUndefined();
+	expect(d?.get === undefined).toBe(true);
 });
 
 test('a Kit page applied with no data is no wait: empty data is still an applied page', () => {

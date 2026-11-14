@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
 import { act } from '../src/workload.ts';
-import { islands_wake } from '../src/oracles.ts';
+import { islands_wake, mpa_equivalent } from '../src/oracles.ts';
 
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
@@ -76,6 +76,24 @@ describe.skipIf(!built)('a tab behind another', () => {
 			await world.rest();
 			expect(doc.readyState).toBe('complete');
 			expect(islands_wake(back, world)).toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
+
+	it('is judged against a fresh load behind another tab, so a visible island asleep in both is no difference', async () => {
+		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const v = world.visitor('v');
+			await world.go(world.tab(v), 'goto', '/');
+			await act(world, v, { kind: 'background', path: '/wake-gate' }, 'https://app.test');
+			const back = v.tabs[1];
+			await world.rest();
+			const doc = back.page.mainFrame.document as unknown as Document;
+			const visible = doc.querySelector('[data-gate-visible] > ogygia-region[wake="visible"]');
+			expect(visible, 'the case it is for: an on-screen visible island').not.toBeNull();
+			expect(visible!.hasAttribute('data-hydrated'), 'no frame behind, so no wake').toBe(false);
+			expect(await mpa_equivalent(world, v, back)).toBeNull();
 		} finally {
 			await world.end();
 		}

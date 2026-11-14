@@ -1,13 +1,13 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import type { HtmlPass } from '@ogygia/core/plugin';
-import { closeSafe, escapeAttr } from '@ogygia/core/plugin/utils';
+import { closeSafe, escapeAttr, isScriptUrl } from '@ogygia/core/plugin/utils';
 import { MarkupCursor, OG_HEAD, OG_RESTORE, OG_STAND_INS } from '@ogygia/core/internal/instruments';
 import { DEV } from 'esm-env';
 import { buggify } from '@ogygia/machine';
 import {
 	check_script,
 	closes_all,
-	localize_marks,
+	LocalMarks,
 	mark,
 	mark_with,
 	remap,
@@ -17,8 +17,16 @@ import {
 	STAND_IN_CSS,
 	type MarkRecord
 } from './reversible.ts';
-import { restore, restore_adopt } from './restore.ts';
-import { matcher, scan, scan_state, union, type Matcher, type ScanState } from './scan.ts';
+import { restore_adopt, restore_with } from './restore.ts';
+import {
+	matcher,
+	scan,
+	scan_state,
+	union,
+	type Matcher,
+	type ScanState,
+	type Span
+} from './scan.ts';
 import { OgygiaError, warn } from './messages.ts';
 import type {
 	ElementRewrite,
@@ -60,7 +68,7 @@ export interface PassOptions {
  *  the document now, and stays as `__og_restore` / `__og_restore_adopt` for later chunks, hole
  *  answers and router swaps. Its text closed-safe like every inline code ogygia writes
  *  (test/restorer-inline-safe.test.ts). */
-export const RESTORER_SCRIPT: string = `<script ${OG_RESTORE}>${closeSafe(`(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()`)}</script>`;
+export const RESTORER_SCRIPT: string = `<script ${OG_RESTORE}>${closeSafe(`(function(){var u=${isScriptUrl.toString()},w=${restore_with.toString()},r=function(d,l){return w(u,d,l)};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()`)}</script>`;
 /** @internal A later chunk's restore: the hosts not restored yet (`lite`: none inside a declarative
  *  shadow root), or every host in the document when the chunk put one inside such a root. */
 export const RESTORE_CALL: string = `<script ${OG_RESTORE}>__og_restore(document,1)</script>`;
@@ -367,12 +375,12 @@ async function run_steps(
 			for (const span of scan(unit.cur, step.match, state, whole?.csr ?? false).spans) {
 				const raw = unit.cur.slice(span.start, span.end);
 				const outer = outer_mark(raw);
-				const local = localize_marks(outer ? outer.html : raw);
+				const local = new LocalMarks(outer ? outer.html : raw);
 				targets.push({
 					unit,
 					start: span.start,
 					end: span.end,
-					back: outer ? (h) => with_outer_mark(local.back(h), outer.attr) : local.back,
+					back: outer ? (h) => with_outer_mark(local.back(h), outer.attr) : (h) => local.back(h),
 					element: { name: span.name, html: local.html, restored: starts_restored(local.html) }
 				});
 			}
@@ -441,7 +449,7 @@ interface UnitOut {
 	first_load: boolean;
 }
 
-function settle_unit(unit: Unit, res: Response, all: boolean, context: readonly string[]): UnitOut {
+function settle_unit(unit: Unit, res: Response, all: boolean, span: Span): UnitOut {
 	const record = unit.record;
 	if (!unit.changed || record === null)
 		return {
@@ -452,7 +460,7 @@ function settle_unit(unit: Unit, res: Response, all: boolean, context: readonly 
 			check: null,
 			first_load: false
 		};
-	const s = settle(unit.cur, record, { dev: res.dev, context });
+	const s = settle(unit.cur, record, { dev: res.dev, context: span.context });
 	const offset = res.ids;
 	res.ids += record.hosts.size;
 	const html = offset === 0 ? s.html : remap(s.html, (id) => id + offset);
@@ -467,7 +475,7 @@ function settle_unit(unit: Unit, res: Response, all: boolean, context: readonly 
 		html,
 		restored: s.planned,
 		stand_ins: s.stand_ins,
-		full: s.planned > 0 && html.indexOf('shadowrootmode') !== -1,
+		full: s.planned > 0 && (span.shadow || html.indexOf('shadowrootmode') !== -1),
 		check,
 		first_load
 	};
@@ -518,7 +526,7 @@ async function rewrite_chunk(
 	let style_at = -1;
 	for (let i = 0; i < units.length; i++) {
 		const span = scanned.spans[i];
-		const s = settle_unit(units[i], res, all, span.context);
+		const s = settle_unit(units[i], res, all, span);
 		out.push(html.slice(pos, span.start));
 		const slot = out.push('') - 1;
 		if (meta_at === -1 && s.first_load) meta_at = slot;

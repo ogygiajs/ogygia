@@ -855,6 +855,21 @@ describe('hydrates as sent', () => {
 		} as unknown as Parameters<typeof hydrates_as_sent>[1];
 		expect(hydrates_as_sent(tab, world)).toBeNull();
 	});
+
+	it('a csr=true page whose web components edit their light DOM before Kit hydrates mismatches on purpose, so Kit remounts it (run 43495274517: 71 findings on /lake-twins-kit and 11 on /bench-cms/kit, each what its page is for)', () => {
+		const tab = (path: string) =>
+			({
+				realm: 'tab-1#1',
+				name: 'tab-1',
+				documents: 1,
+				errors: [],
+				console: ['warn: https://svelte.dev/e/hydration_mismatch'],
+				page: { mainFrame: { url: `https://app.test${path}` } }
+			}) as unknown as Parameters<typeof hydrates_as_sent>[0];
+		expect(hydrates_as_sent(tab('/lake-twins-kit'))).toBeNull();
+		expect(hydrates_as_sent(tab('/bench-cms/kit'))).toBeNull();
+		expect(hydrates_as_sent(tab('/bench-cms/holes'))?.oracle).toBe('ssr-hydrate');
+	});
 });
 
 describe('page rules', () => {
@@ -963,6 +978,12 @@ describe('page errors', () => {
 		];
 		expect(page_errors(tab(json), world('https://app.test/_app/x.js'))).toBeNull();
 		expect(page_errors(tab(json), world('none'))?.oracle).toBe('page-errors');
+	});
+
+	it("a changed byte in a held region query's answer may be said as devalue's unknown type (gen 10, seed 31)", () => {
+		const tag = ['unhandled: Error: Unknown type �egion'];
+		expect(page_errors(tab(tag), world('https://app.test/_app/x.js'))).toBeNull();
+		expect(page_errors(tab(tag), world('none'))?.oracle).toBe('page-errors');
 	});
 
 	// (a server's hop for the document: a peer's page it was made from; gen 32, seed 32008)

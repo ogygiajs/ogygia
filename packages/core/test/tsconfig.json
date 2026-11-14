@@ -4,5 +4,8 @@
 		"declaration": false,
 		"isolatedDeclarations": false
 	},
-	"include": [".", "../src", "../scripts"]
+	"include": [".", "../src", "../scripts"],
+	// the canary app is type-checked by nothing but the Kit it boots on: its `$app/*` and `$lib/*`
+	// imports resolve only inside that app
+	"exclude": ["canary/_kit-app"]
 }

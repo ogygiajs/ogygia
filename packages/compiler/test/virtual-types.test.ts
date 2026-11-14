@@ -16,7 +16,7 @@ import {
 import { CORE_VALUE_NAMES } from '../src/virtual/value-names.ts';
 import { VirtualTable } from '../src/virtual/resolver.ts';
 import { virtual } from '../src/virtual/table.ts';
-import { queries } from '../src/queries.ts';
+import { Queries } from '../src/queries.ts';
 
 const names = probe_value_names(core.CORE_VIRTUALS, core.CORE_PROBE.app, core.CORE_PROBE.leg);
 const want = virtual_types(core, names);
@@ -33,7 +33,7 @@ describe('the virtual modules’ declarations', () => {
 
 	it('refuse a value module whose names were not generated, or whose live names moved', () => {
 		const e = virtual.value({ realm: 'server', id: 'v', from: () => ({ a: 1, b: 2 }) });
-		const db = queries('session');
+		const db = new Queries('session');
 		const stale = new VirtualTable<null>([e], () => '', { 'ogygia:server/v': ['a'] }, {}, db);
 		const leg = { ssr: true, universalHooks: null };
 		expect(() => stale.load('\0ogygia:server/v', null, leg)).toThrow(/virtual_names_stale/);

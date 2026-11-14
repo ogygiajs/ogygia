@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { VirtualTable } from '../src/virtual/resolver.ts';
-import { queries } from '../src/queries.ts';
+import { Queries } from '../src/queries.ts';
 import { CORE_PARTS, CORE_VIRTUALS, core_path, type CoreApp } from '../src/virtual/core.ts';
 import type { Leg } from '../src/virtual/table.ts';
 import { CORE_VALUE_NAMES } from '../src/virtual/value-names.ts';
@@ -13,7 +13,7 @@ const table = new VirtualTable<CoreApp>(
 	core_path,
 	CORE_VALUE_NAMES,
 	CORE_PARTS,
-	queries('session')
+	new Queries('session')
 );
 
 type Fake = {

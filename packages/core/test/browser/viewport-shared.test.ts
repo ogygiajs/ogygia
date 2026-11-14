@@ -6,7 +6,8 @@
 import { expect, test } from 'vitest';
 import { on_screen, once_on_screen, watch_viewport } from '../../src/runtime/viewport.ts';
 import { hydrate_turn, register_region, unregister_region } from '../../src/runtime/schedule.ts';
-import { scope } from '@ogygia/machine';
+import { scope, type Scope } from '@ogygia/machine';
+import { patch } from '../_patch.ts';
 
 const box = () => {
 	const el = document.createElement('div');
@@ -124,16 +125,27 @@ test('a child pushed out of the ones that stand for a box-less region is let go,
 	}
 	document.body.append(region);
 	const observed = new Set<Element>();
-	const observe = IntersectionObserver.prototype.observe;
-	const unobserve = IntersectionObserver.prototype.unobserve;
-	IntersectionObserver.prototype.observe = function (this: IntersectionObserver, t: Element) {
-		observed.add(t);
-		return observe.call(this, t);
-	};
-	IntersectionObserver.prototype.unobserve = function (this: IntersectionObserver, t: Element) {
-		observed.delete(t);
-		return unobserve.call(this, t);
-	};
+	const spies = scope();
+	patch(
+		spies,
+		IntersectionObserver.prototype,
+		'observe',
+		(observe) =>
+			function (this: IntersectionObserver, t: Element) {
+				observed.add(t);
+				return observe.call(this, t);
+			}
+	);
+	patch(
+		spies,
+		IntersectionObserver.prototype,
+		'unobserve',
+		(unobserve) =>
+			function (this: IntersectionObserver, t: Element) {
+				observed.delete(t);
+				return unobserve.call(this, t);
+			}
+	);
 	try {
 		const stop = watch_viewport(region, '0px', () => {});
 		await settle();
@@ -149,43 +161,46 @@ test('a child pushed out of the ones that stand for a box-less region is let go,
 		stop();
 		expect([...observed], 'nothing is held after the last watcher stops').toEqual([]);
 	} finally {
-		IntersectionObserver.prototype.observe = observe;
-		IntersectionObserver.prototype.unobserve = unobserve;
+		spies.close();
 		region.remove();
 	}
 });
 
-/** What each swap observer (a `MutationObserver`) observes now: its targets since its last
- *  `disconnect()`. Restored by the returned function. */
-function spy_mutation_targets(): { targets: () => Element[]; restore: () => void } {
+/** What each swap observer (a `MutationObserver`) observes now, kept until `owner` closes: its
+ *  targets since its last `disconnect()`. */
+function spy_mutation_targets(owner: Scope): Map<MutationObserver, Set<Element>> {
 	const by = new Map<MutationObserver, Set<Element>>();
-	const observe = MutationObserver.prototype.observe;
-	const disconnect = MutationObserver.prototype.disconnect;
-	MutationObserver.prototype.observe = function (
-		this: MutationObserver,
-		t: Node,
-		o?: MutationObserverInit
-	) {
-		let set = by.get(this);
-		if (!set) by.set(this, (set = new Set()));
-		set.add(t as Element);
-		return observe.call(this, t, o);
-	};
-	MutationObserver.prototype.disconnect = function (this: MutationObserver) {
-		by.delete(this);
-		return disconnect.call(this);
-	};
-	return {
-		targets: () => [...by.values()].flatMap((set) => [...set]),
-		restore: () => {
-			MutationObserver.prototype.observe = observe;
-			MutationObserver.prototype.disconnect = disconnect;
-		}
-	};
+	patch(
+		owner,
+		MutationObserver.prototype,
+		'observe',
+		(observe) =>
+			function (this: MutationObserver, t: Node, o?: MutationObserverInit) {
+				let set = by.get(this);
+				if (!set) by.set(this, (set = new Set()));
+				set.add(t as Element);
+				return observe.call(this, t, o);
+			}
+	);
+	patch(
+		owner,
+		MutationObserver.prototype,
+		'disconnect',
+		(disconnect) =>
+			function (this: MutationObserver) {
+				by.delete(this);
+				return disconnect.call(this);
+			}
+	);
+	return by;
 }
 
+const targets = (by: Map<MutationObserver, Set<Element>>): Element[] =>
+	[...by.values()].flatMap((set) => [...set]);
+
 test('a box-less region the tracker lets go is no longer observed for swaps (#1255)', async () => {
-	const spy = spy_mutation_targets();
+	const spies = scope();
+	const by = spy_mutation_targets(spies);
 	const region = document.createElement('div');
 	region.style.display = 'contents';
 	region.innerHTML = '<p style="margin:0">rendered</p>';
@@ -193,19 +208,20 @@ test('a box-less region the tracker lets go is no longer observed for swaps (#12
 	try {
 		const stop = watch_viewport(region, '7px', () => {});
 		await settle();
-		expect(spy.targets(), 'its content swaps are heard while it is watched').toContain(region);
+		expect(targets(by), 'its content swaps are heard while it is watched').toContain(region);
 		// the region leaves the page and its watch stops (a router navigation took it off)
 		region.remove();
 		stop();
 		await settle();
-		expect(spy.targets(), 'let go: the swap observer holds it no more').not.toContain(region);
+		expect(targets(by), 'let go: the swap observer holds it no more').not.toContain(region);
 	} finally {
-		spy.restore();
+		spies.close();
 	}
 });
 
 test('a box-less child swapped out of a box-less region is no longer observed for swaps (#1255)', async () => {
-	const spy = spy_mutation_targets();
+	const spies = scope();
+	const by = spy_mutation_targets(spies);
 	const region = document.createElement('div');
 	region.style.display = 'contents';
 	region.innerHTML = '<div style="display:contents"><p style="margin:0">inner</p></div>';
@@ -214,17 +230,17 @@ test('a box-less child swapped out of a box-less region is no longer observed fo
 	try {
 		const stop = watch_viewport(region, '9px', () => {});
 		await settle();
-		expect(spy.targets(), 'the box-less child it renders is followed too').toContain(inner);
+		expect(targets(by), 'the box-less child it renders is followed too').toContain(inner);
 		// its answer swaps in: the box-less child is gone, a plain one stands for it now
 		region.innerHTML = '<p style="margin:0">swapped</p>';
 		await settle();
-		expect(spy.targets(), 'still watched: the region itself').toContain(region);
-		expect(spy.targets(), 'the child that left is held no more').not.toContain(inner);
+		expect(targets(by), 'still watched: the region itself').toContain(region);
+		expect(targets(by), 'the child that left is held no more').not.toContain(inner);
 		stop();
 		await settle();
-		expect(spy.targets(), 'nothing is held after the last watcher stops').toEqual([]);
+		expect(targets(by), 'nothing is held after the last watcher stops').toEqual([]);
 	} finally {
-		spy.restore();
+		spies.close();
 		region.remove();
 	}
 });

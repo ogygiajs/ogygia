@@ -80,12 +80,6 @@ export interface Sim {
 	fetch(answer: (request: Request, n: number) => Response | PromiseLike<Response>): void;
 	/** The requests `fetch` was asked for so far. */
 	readonly fetches: readonly Request[];
-	/** A stream of `chunks`, each one read when the scheduler picks it. `cancelled()`: its reader
-	 *  let go of it before its end. */
-	stream(
-		label: string,
-		chunks: readonly string[]
-	): { body: ReadableStream<Uint8Array>; cancelled: () => boolean };
 	/** A rule checked after each step and at the end. */
 	always(name: string, check: SimRule): void;
 	/** A rule checked at the end, once nothing is left to run. */
@@ -99,6 +93,35 @@ export interface Sim {
 	play(steps: readonly SimStep[]): Promise<void>;
 	/** Runs everything left (answers, timers up to the horizon) to the end. */
 	settle(): Promise<void>;
+}
+
+/** A stream of `chunks` in a run, each one read when the run's scheduler picks it. */
+export class SimStream {
+	readonly body: ReadableStream<Uint8Array>;
+	#at = 0;
+	#cancelled = false;
+
+	constructor(sim: Sim, label: string, chunks: readonly string[]) {
+		this.body = new ReadableStream<Uint8Array>(
+			{
+				pull: (controller) =>
+					sim.later(`${label}: chunk ${this.#at + 1} of ${chunks.length}`, () => {
+						if (this.#cancelled) return;
+						if (this.#at < chunks.length) controller.enqueue(encoder.encode(chunks[this.#at++]));
+						if (this.#at >= chunks.length) controller.close();
+					}),
+				cancel: () => {
+					this.#cancelled = this.#at < chunks.length;
+				}
+			},
+			{ highWaterMark: 0 }
+		);
+	}
+
+	/** Whether its reader let go of it before its end. */
+	cancelled(): boolean {
+		return this.#cancelled;
+	}
 }
 
 type Timer = { id: number; due: number; seq: number; fn: () => void; every: number };
@@ -124,7 +147,6 @@ type TaskScheduler = {
 
 /** The host's own, taken before any run swaps them: a real task boundary between scheduler waits. */
 const real_now = Date.now;
-const real_abort_timeout = AbortSignal.timeout;
 const real_set_immediate = (globalThis as { setImmediate?: (fn: () => void) => unknown })
 	.setImmediate;
 const macrotask = (): Promise<void> =>
@@ -241,29 +263,6 @@ class Run implements Sim {
 		const was = host.fetch;
 		host.fetch = fetch_stub as typeof fetch;
 		this._restore.push(() => (host.fetch = was));
-	}
-
-	stream(
-		label: string,
-		chunks: readonly string[]
-	): { body: ReadableStream<Uint8Array>; cancelled: () => boolean } {
-		let at = 0;
-		let cancelled = false;
-		const body = new ReadableStream<Uint8Array>(
-			{
-				pull: (controller) =>
-					this.later(`${label}: chunk ${at + 1} of ${chunks.length}`, () => {
-						if (cancelled) return;
-						if (at < chunks.length) controller.enqueue(encoder.encode(chunks[at++]));
-						if (at >= chunks.length) controller.close();
-					}),
-				cancel: () => {
-					cancelled = at < chunks.length;
-				}
-			},
-			{ highWaterMark: 0 }
-		);
-		return { body, cancelled: () => cancelled };
 	}
 
 	always(name: string, check: SimRule): void {
@@ -494,7 +493,7 @@ class Run implements Sim {
 			perf.now = () => perf_base + this._clock;
 			this._restore.push(() => (perf.now = was_perf_now));
 		}
-		AbortSignal.timeout = (ms: number) => {
+		const timeout = (ms: number) => {
 			const abort = new AbortController();
 			this._add(
 				() => abort.abort(new DOMException('The operation timed out.', 'TimeoutError')),
@@ -503,7 +502,7 @@ class Run implements Sim {
 			);
 			return abort.signal;
 		};
-		this._restore.push(() => (AbortSignal.timeout = real_abort_timeout));
+		this._patch(AbortSignal, 'timeout', timeout);
 		// a rejection nobody hears is a broken rule of every area
 		const on_unheard = (reason: unknown) => this.broke('unhandled rejection', String(reason));
 		const proc = (globalThis as { process?: NodeJS.Process }).process;
@@ -516,6 +515,20 @@ class Run implements Sim {
 			window.addEventListener('unhandledrejection', on_event);
 			this._restore.push(() => window.removeEventListener('unhandledrejection', on_event));
 		}
+	}
+
+	_patch<T extends object, K extends keyof T>(target: T, key: K, value: T[K]): void {
+		const saved = Object.getOwnPropertyDescriptor(target, key);
+		Object.defineProperty(target, key, {
+			value,
+			configurable: true,
+			writable: true,
+			enumerable: saved?.enumerable ?? true
+		});
+		this._restore.push(() => {
+			if (saved) Object.defineProperty(target, key, saved);
+			else Reflect.deleteProperty(target, key);
+		});
 	}
 
 	_uninstall(): void {

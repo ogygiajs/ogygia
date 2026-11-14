@@ -16,7 +16,7 @@ import { slot as shared } from '@ogygia/machine';
  * runs in its own set under it, its `parent` (server/read-trace.ts): a read lands in the innermost
  * set and in every set around it, so a hole rendered into a page makes that page per-visitor too.
  * A plain shape, not a class: core's own types and its built types (and a plugin's copy of this
- * module) must agree on it.
+ * module) must agree on it. {@link ReadSet} is the one that keeps the state.
  */
 export interface Reads {
 	/** The first per-visitor input read (`flag:<name>`, `cookie:<name>`, `header:<name>`,
@@ -31,26 +31,34 @@ export interface Reads {
 	page(): void;
 }
 
-/** A new read set inside `parent` (its reads pass up to it). */
-export function read_set(parent: Reads | null = null): Reads {
-	let per_visitor: string | null = null;
-	let page_data = false;
-	return {
-		get perVisitor() {
-			return per_visitor;
-		},
-		get pageData() {
-			return page_data;
-		},
-		visitor(input) {
-			if (per_visitor === null) per_visitor = input;
-			parent?.visitor(input);
-		},
-		page() {
-			page_data = true;
-			parent?.page();
-		}
-	};
+/** A read set ({@link Reads}) that keeps its own reads and passes each up to `parent`. */
+export class ReadSet implements Reads {
+	readonly #parent: Reads | null;
+	#per_visitor: string | null = null;
+	#page_data = false;
+
+	/** A new read set inside `parent` (its reads pass up to it). */
+	constructor(parent: Reads | null = null) {
+		this.#parent = parent;
+	}
+
+	get perVisitor(): string | null {
+		return this.#per_visitor;
+	}
+
+	get pageData(): boolean {
+		return this.#page_data;
+	}
+
+	visitor(input: string): void {
+		if (this.#per_visitor === null) this.#per_visitor = input;
+		this.#parent?.visitor(input);
+	}
+
+	page(): void {
+		this.#page_data = true;
+		this.#parent?.page();
+	}
 }
 
 interface ReadsSlot {
@@ -223,8 +231,7 @@ export function observe_reads(event: RequestEvent, request_reads: Reads): void {
 
 /** `headers` holds any of `names` (or, with none given, any personal header). */
 function has_personal(headers: Headers, names?: readonly string[]): boolean {
-	const has = Headers.prototype.has;
-	if (names) return names.some((n) => has.call(headers, n));
+	if (names) return names.some((n) => Headers.prototype.has.call(headers, n));
 	for (const [name] of Headers.prototype.entries.call(headers))
 		if (is_personal_header(name)) return true;
 	return false;

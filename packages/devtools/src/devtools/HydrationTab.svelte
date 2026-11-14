@@ -1,7 +1,7 @@
 <!-- (its CSS injected into the dock's shadow root: see Devtools.svelte) -->
 <svelte:options css="injected" />
 
-<script>
+<script lang="ts">
 	/**
 	 * The Hydration tab: did every island wake from its server markup, and if not, what differed.
 	 * Per island: failed (threw), recovered (Svelte threw the server DOM away and rendered again),
@@ -11,22 +11,32 @@
 	 * (html-diff.ts). Hover a row: the island lights up. Sources: the bus (failed / recovered /
 	 * healed events), the beacon's before/after markup, the element's `data-og-recovered` reason.
 	 */
-	import { hydration_rows, STATUS_RANK as RANK } from './hydration.ts';
+	import {
+		hydration_rows,
+		STATUS_RANK as RANK,
+		type HydrationStatus,
+		type IslandHydration
+	} from './hydration.ts';
 	import { html_diff } from '@ogygia/insights';
-	import { highlight, clear_highlight } from './highlight.ts';
+	import { highlighter } from './highlight.ts';
 	import { onMount } from 'svelte';
 
-	let { tick = 0, selected = $bindable(null) } = $props();
+	interface Props {
+		tick?: number;
+		selected?: Element | null;
+	}
+
+	let { tick = 0, selected = $bindable(null) }: Props = $props();
 	// a row with a difference to show opens it; any other row opens the island's card (a click that
 	// did nothing on 8 of 9 rows is what the press-everything sweep found)
-	function press(/** @type {{ el: Element; snap?: unknown; status: string }} */ r) {
+	function press(r: IslandHydration) {
 		if (r.snap && r.status !== 'clean') open_el = open_el === r.el ? null : r.el;
 		else selected = r.el;
 	}
 	// (by element: two copies of one island with the same props share a fingerprint)
-	let open_el = $state(/** @type {Element | null} */ (null));
+	let open_el = $state<Element | null>(null);
 
-	const LABEL = {
+	const LABEL: Record<HydrationStatus, string> = {
 		failed: 'failed',
 		recovered: 'recovered',
 		healed: 'healed',
@@ -38,7 +48,7 @@
 	const model = $derived.by(() => {
 		void tick;
 		const { rows, measured } = hydration_rows();
-		const counts = {};
+		const counts: Partial<Record<HydrationStatus, number>> = {};
 		for (const r of rows) counts[r.status] = (counts[r.status] ?? 0) + 1;
 		return { rows, counts, measured };
 	});
@@ -48,7 +58,7 @@
 		return r?.snap ? html_diff(r.snap.ssr, r.snap.hydrated) : null;
 	});
 
-	onMount(() => () => clear_highlight());
+	onMount(() => () => highlighter.clear());
 </script>
 
 <div class="hy" data-og-hydration>
@@ -56,7 +66,7 @@
 		hydration <span class="muted">· did each island wake from its server markup</span>
 	</div>
 	<div class="counts">
-		{#each Object.keys(RANK) as s (s)}
+		{#each Object.keys(RANK) as HydrationStatus[] as s (s)}
 			{#if model.counts[s]}<span class="badge {s}">{LABEL[s]} {model.counts[s]}</span>{/if}
 		{/each}
 	</div>
@@ -73,8 +83,8 @@
 				<tr
 					class="row {r.status}"
 					data-status={r.status}
-					onmouseenter={() => highlight([r.el], `${r.name} — ${LABEL[r.status]}`)}
-					onmouseleave={() => clear_highlight()}
+					onmouseenter={() => highlighter.show([r.el], `${r.name} — ${LABEL[r.status]}`)}
+					onmouseleave={() => highlighter.clear()}
 					onclick={() => press(r)}
 					title={r.snap && r.status !== 'clean' ? 'show the difference' : "open the island's card"}
 				>
@@ -83,8 +93,8 @@
 					<td class="nm"
 						><button
 							class="rowbtn"
-							onfocus={() => highlight([r.el], `${r.name} — ${LABEL[r.status]}`)}
-							onblur={() => clear_highlight()}>{r.name}</button
+							onfocus={() => highlighter.show([r.el], `${r.name} — ${LABEL[r.status]}`)}
+							onblur={() => highlighter.clear()}>{r.name}</button
 						><span class="muted"> {r.wake}</span></td
 					>
 					<td class="why" title={r.reason}

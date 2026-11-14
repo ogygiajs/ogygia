@@ -173,7 +173,9 @@ export function watch_leftovers(): void {
 		return clear_interval.call(window, id);
 	} as unknown as typeof window.clearInterval;
 	const proto = EventTarget.prototype;
+	// oxlint-disable-next-line typescript/unbound-method -- the original, kept before the page-long patch; called with each listener's own receiver
 	const add = proto.addEventListener;
+	// oxlint-disable-next-line typescript/unbound-method -- the original, kept before the page-long patch; called with each listener's own receiver
 	const remove = proto.removeEventListener;
 	// (a bare `addEventListener(…)` — strict code, no receiver — reaches here with no `this`: the
 	// browser runs it on the window, and so is it counted)
