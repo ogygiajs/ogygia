@@ -48,6 +48,11 @@ declare const __OGYGIA_RULES__: boolean | undefined;
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
+/** How many fetches one page read makes while thaws or mutations drop each one before it lands,
+ *  before it gives up with a 504 (`federation_peer_read_dropped`): its sources moving all the time
+ *  never keeps a read, or the upstream, busy forever (#1792). */
+const DROPPED_READS = 16;
+
 const HOST_UNSAFE_G = /[^a-zA-Z0-9_-]/g;
 /** A region element's tag name, and a cheap test for whether `html` may hold one. */
 const REGION = 'ogygia-region';
@@ -162,7 +167,7 @@ export class PeerHandle implements Peer {
 		// the request reading it: once it ends it waits no more, and once every request waiting on
 		// a fetch has ended, the fetch is aborted
 		const signal = current_request_scope()?.signal;
-		for (;;) {
+		for (let reads = 1; ; reads++) {
 			const seen = docs.peek(key);
 			// wall: a flights entry's `at` is a wall timestamp
 			if (
@@ -185,6 +190,10 @@ export class PeerHandle implements Peer {
 			}
 			if (answer !== STALE) return this.#used(answer.doc);
 			if (signal?.aborted) throw signal.reason;
+			if (reads === DROPPED_READS) {
+				warn('federation_peer_read_dropped', { peer: this.name, path, reads });
+				error(504, 'This section is temporarily unavailable.');
+			}
 			// a mutation or a thaw dropped the flight this read joined: what it fetched may be the
 			// page from before, so read again
 		}
