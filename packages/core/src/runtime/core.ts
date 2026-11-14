@@ -6,6 +6,7 @@ import {
 	registry,
 	STALE,
 	tasks,
+	type Fresh,
 	type Mailbox,
 	type Scope,
 	type Stale,
@@ -1293,13 +1294,18 @@ class OgygiaRegion extends HTMLElement {
 		});
 	}
 
-	async #hydrate(turn: Turn) {
+	async #hydrate(held: Turn) {
 		const from = this.#wake.now.kind;
 		if (this.#app || (from !== 'cold' && from !== 'armed')) return;
 		this.#wake.go('waking');
 		const mine = this.#wake.now;
 		const visit = this.#wake.scope;
-		const gone = () => !this.isConnected || this.#wake.now !== mine;
+		const turn = {
+			wait: <T>(work: PromiseLike<T> | T): Promise<Fresh<T> | Stale> =>
+				held
+					.wait(visit.task(() => work))
+					.then((v) => (this.isConnected ? (v as Fresh<T> | Stale) : STALE))
+		};
 		let failure: { error: unknown } | null = null;
 		let offline: { error: unknown } | null = null;
 		const t0 = now_ms();
@@ -1312,9 +1318,9 @@ class OgygiaRegion extends HTMLElement {
 			// wait for full parse so the end-of-body props sidecars (and the seed) are in the DOM. On an
 			// SPA swap (and any post-load hydrate) the document is already parsed, so skip the await
 			// entirely — no need to burn a microtask turn before every island wakes.
-			if (typeof document !== 'undefined' && document.readyState === 'loading')
-				await turn.wait(dom_ready());
-			if (gone()) return;
+			if (typeof document !== 'undefined' && document.readyState === 'loading') {
+				if ((await turn.wait(dom_ready())) === STALE) return;
+			} else if (!this.isConnected) return;
 			const entry = island_entry_of(this);
 			if (!entry) return;
 			const cls = () => (this.#visitor ? 'user' : viewport_class(this));
@@ -1325,7 +1331,6 @@ class OgygiaRegion extends HTMLElement {
 			if (release === STALE) return void slot.ready.then(hand_back);
 			let mod: IslandModule, core: HydrateCore;
 			try {
-				if (gone()) return;
 				hydrate_started(this); // a viewport island in flight holds ready islands below the fold
 				// The island's module first: its graph links go in before the lazy runtime chunks' own preloads.
 				const loaded = await turn.wait(
@@ -1343,10 +1348,8 @@ class OgygiaRegion extends HTMLElement {
 				release();
 			}
 			t_loaded = now_ms();
-			if (gone()) return;
 			use_code_sheets(this, mod);
-			await turn.wait(this.#kit_page_ready(core, visit));
-			if (gone()) return;
+			if ((await turn.wait(this.#kit_page_ready(core, visit))) === STALE) return;
 			// The page's seeds parse now, BEFORE the turn: data arriving is not the hydrate step. The
 			// first island parses the seed once (700 KB on a large CMS page), and inside its turn that
 			// parse plus the hydrate made one long task. (The step calls these again: a no-op by then.)
@@ -1360,10 +1363,8 @@ class OgygiaRegion extends HTMLElement {
 			do {
 				visitor = this.#visitor;
 				// (a replay that failed says so itself)
-				if (visitor) await turn.wait(visitor.catch(nothing));
-				if (gone()) return;
-				await turn.wait(hydrate_turn(this));
-				if (gone() || this.#app) return;
+				if (visitor && (await turn.wait(visitor.catch(nothing))) === STALE) return;
+				if ((await turn.wait(hydrate_turn(this))) === STALE || this.#app) return;
 			} while (this.#visitor !== visitor);
 			t_turn = now_ms();
 			const ssr_html = this.#ssr_html;
@@ -1382,8 +1383,7 @@ class OgygiaRegion extends HTMLElement {
 			// awaited now runs after it — mounted means they ran)
 			await Promise.resolve();
 			const t_mounted = now_ms();
-			await turn.wait(snippets_settled(this, visit));
-			if (gone() || !this.#app) return;
+			if ((await turn.wait(snippets_settled(this, visit))) === STALE || !this.#app) return;
 			this.setAttribute('data-hydrated', '');
 			if (HOOK_REGION_HYDRATED)
 				slots.hooks?.regionHydrated?.({
