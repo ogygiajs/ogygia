@@ -1,5 +1,6 @@
 // Its own file: whether devalue and the hydrate core are loaded is module state its tests share, in order.
 import { afterEach, expect, inject, test, vi } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { stringify } from 'devalue';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset } from '../../src/runtime/frame-store.ts';
@@ -17,7 +18,7 @@ afterEach(() => {
 });
 
 test('facts an answer queued on a page of JSON-lane scripts load devalue for the next wake, and reach page.data', async () => {
-	document.body.innerHTML = decodeURIComponent(escape(atob(inject('counter_json_lane_ssr_b64'))));
+	document.body.innerHTML = from_b64(inject('counter_json_lane_ssr_b64'));
 	region_fragment(`${facts('first')}<p>hole</p>`);
 	bootDev();
 	await expect

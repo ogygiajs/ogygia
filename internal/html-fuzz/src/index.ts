@@ -116,7 +116,12 @@ function cased(name: string, exact: boolean): fc.Arbitrary<string> {
 			weight: 1,
 			arbitrary: fc
 				.array(fc.boolean(), { minLength: name.length, maxLength: name.length })
-				.map((up) => [...name].map((c, i) => (up[i] ? c.toUpperCase() : c)).join(''))
+				.map((up) =>
+					name
+						.split('')
+						.map((c, i) => (up[i] ? c.toUpperCase() : c))
+						.join('')
+				)
 		}
 	);
 }

@@ -3,6 +3,7 @@
 // sidecar, provided base64 — see the note there); the test boots the real runtime and watches the
 // island wake.
 import { afterEach, beforeEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { page } from 'vitest/browser';
 import { bootDev } from '../../src/runtime/full.ts';
 import { mark_live_head } from './_response-mark.ts';
@@ -17,7 +18,7 @@ const HYDRATED = 'ogygia-region[data-hydrated]';
 
 /** Decode a `provide()`d HTML string (base64 — a raw `</script>` cannot ride the orchestrator). */
 const inject_html = (key: 'counter_ssr_b64' | 'counter_tail_ssr_b64' | 'counter_seedref_ssr_b64') =>
-	decodeURIComponent(escape(atob(inject(key))));
+	from_b64(inject(key));
 
 // SEED REFERENCES: the props sidecar is a single reference into the page seed; the runtime must
 // resolve it against the seed script in the same document and hand the island its own copy.

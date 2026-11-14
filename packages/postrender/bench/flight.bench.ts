@@ -41,7 +41,7 @@ bench(
 		// the odd ones are still rendering: each invalidation ends the ones it evicts
 		await invalidate('/somewhere/'); // none
 		await invalidate(key(1));
-		self_evict(current_runtime(), key(5));
+		await self_evict(current_runtime(), key(5));
 		await invalidateWhere({ prefix: '/fr/' }); // the /fr/ ones
 		await invalidate_tags(['r:promo']); // the rest
 		for (let i = 1; i < flights.length; i += 2) flights[i].settle({ stored: null });

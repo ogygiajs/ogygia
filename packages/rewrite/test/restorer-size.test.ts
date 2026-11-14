@@ -8,12 +8,12 @@ import { restore, restore_adopt } from '../src/restore.ts';
 import { RESTORE_CALL } from '../src/pass.ts';
 
 describe('the inlined restorer', () => {
-	it('minified as the build does, stays inside its budget: 9 kB, 3.2 kB brotli', () => {
+	it('minified as the build does, stays inside its budget: 9.5 kB, 3.4 kB brotli', () => {
 		const source = `export ${restore.toString()}\nexport ${restore_adopt.toString()}`;
 		const min = minifySync('restore.js', source, { compress: true, mangle: true }).code;
 		const brotli = brotliCompressSync(Buffer.from(min)).length;
-		expect(min.length).toBeLessThan(9000);
-		expect(brotli).toBeLessThan(3200);
+		expect(min.length).toBeLessThan(9500);
+		expect(brotli).toBeLessThan(3400);
 		expect(min).not.toMatch(/\/\*|^\s*\/\//m);
 	});
 

@@ -3,6 +3,7 @@
 // render of the component, as its root), paints it, then the component hydrates over it. The inner
 // server island must show: rendered inline, or fetched as a hole.
 import { afterEach, beforeEach, expect, inject, test, vi } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset } from '../../src/runtime/frame-store.ts';
 
@@ -11,10 +12,7 @@ const OUTER_URL = '/__ogygia__?id=woken-hole-card&props=W3t9XQ&exp=9999999999&si
 const INNER_URL = '/__ogygia__?id=woken-hole-inner&props=W3t9XQ&exp=9999999999&sig=stub';
 // (no signer in this harness: the inner hole gets the address a server signs)
 const answer = () =>
-	decodeURIComponent(escape(atob(inject('woken_hole_answer_b64')))).replace(
-		'endpoint=""',
-		`endpoint="${INNER_URL}"`
-	);
+	from_b64(inject('woken_hole_answer_b64')).replace('endpoint=""', `endpoint="${INNER_URL}"`);
 
 let real_fetch: typeof fetch;
 beforeEach(() => {

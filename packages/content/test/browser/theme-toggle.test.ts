@@ -59,7 +59,7 @@ afterEach(() => {
 });
 
 describe('ThemeToggle', () => {
-	it('cycles system, light, dark, system and keeps the choice in localStorage', () => {
+	it('cycles system, light, dark, system and keeps the choice in localStorage', async () => {
 		no_transitions();
 		const t = toggle();
 		expect(theme()).toBe(null);
@@ -69,10 +69,10 @@ describe('ThemeToggle', () => {
 		expect([theme(), localStorage.getItem('og-theme')]).toEqual(['dark', 'dark']);
 		t.button.click();
 		expect([theme(), localStorage.getItem('og-theme')]).toEqual([null, null]);
-		t.done();
+		await t.done();
 	});
 
-	it('keeps the choice under its own key', () => {
+	it('keeps the choice under its own key', async () => {
 		no_transitions();
 		const t = toggle({ key: 'my-theme' });
 		t.button.click();
@@ -80,10 +80,10 @@ describe('ThemeToggle', () => {
 			'light',
 			null
 		]);
-		t.done();
+		await t.done();
 	});
 
-	it('still flips the theme when storage refuses', () => {
+	it('still flips the theme when storage refuses', async () => {
 		no_transitions();
 		vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
 			throw new DOMException('denied', 'SecurityError');
@@ -91,7 +91,7 @@ describe('ThemeToggle', () => {
 		const t = toggle();
 		t.button.click();
 		expect(theme()).toBe('light');
-		t.done();
+		await t.done();
 	});
 
 	it('flips inside a View Transition and marks the root until it ends', async () => {
@@ -109,10 +109,10 @@ describe('ThemeToggle', () => {
 		vt.end(false);
 		await settle();
 		expect(root.hasAttribute('data-ph-switching')).toBe(false);
-		t.done();
+		await t.done();
 	});
 
-	it('flips at once, with no View Transition, under reduced motion', () => {
+	it('flips at once, with no View Transition, under reduced motion', async () => {
 		reduced_motion(true);
 		const vt = transitions();
 		const t = toggle();
@@ -120,6 +120,6 @@ describe('ThemeToggle', () => {
 		expect(vt.calls.length).toBe(0);
 		expect(theme()).toBe('light');
 		expect(root.hasAttribute('data-ph-switching')).toBe(false);
-		t.done();
+		await t.done();
 	});
 });

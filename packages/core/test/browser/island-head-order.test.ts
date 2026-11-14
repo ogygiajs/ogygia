@@ -6,6 +6,7 @@
 // the later one wins, and that has to be the server's later one on every load. (A meta stands in
 // for the style here: the server and the client write it alike.)
 import { beforeAll, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import type { Component } from 'svelte';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { boot_link } from '../../src/runtime/slots.ts';
@@ -17,8 +18,7 @@ import {
 import { RuntimeSession } from '../../src/runtime/session.ts';
 import HeadStyle from './fixtures/HeadStyle.svelte';
 
-const decode = (key: 'head_style_head_b64' | 'head_style_body_b64') =>
-	decodeURIComponent(escape(atob(inject(key))));
+const decode = (key: 'head_style_head_b64' | 'head_style_body_b64') => from_b64(inject(key));
 const as_module = (c: unknown) => ({ default: c as Component<Record<string, unknown>> });
 
 beforeAll(async () => {

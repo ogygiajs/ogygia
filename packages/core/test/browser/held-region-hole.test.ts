@@ -4,12 +4,13 @@
 // island must show either way the two legs agree: rendered inline (the nested rule, as inside any
 // island) or fetched as a hole. It stayed an empty element, never fetched, nothing said.
 import { afterEach, beforeEach, expect, inject, test, vi } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset } from '../../src/runtime/frame-store.ts';
 
 const CARD = '/test/browser/fixtures/HeldHoleCard.svelte';
 const HOLE_URL = '/__ogygia__?id=held-hole-greeting&props=W3t9XQ&exp=9999999999&sig=stub';
-const card_html = () => decodeURIComponent(escape(atob(inject('held_hole_card_b64'))));
+const card_html = () => from_b64(inject('held_hole_card_b64'));
 
 type LiveRegion = HTMLElement & {
 	applyLive(desc: {

@@ -91,7 +91,7 @@ describe('frontmatter', () => {
 	it('a flat map of plain keys to quoted strings, numbers and booleans reads back as written', () => {
 		const key = fc.stringMatching(/^[a-z][a-z0-9_]{0,10}$/);
 		const value = fc.oneof(
-			fc.string().filter((s) => [...s].every(plain_char)),
+			fc.string().filter((s) => s.split('').every(plain_char)),
 			fc.integer(),
 			fc.boolean()
 		);

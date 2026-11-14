@@ -3,7 +3,9 @@
 import { expect, it, vi } from 'vitest';
 
 vi.mock('node:module', async (orig) => {
-	const real = await orig<typeof import('node:module')>();
+	const real = await orig<
+		Record<string, unknown> & Pick<typeof import('node:module'), 'createRequire'>
+	>();
 	const createRequire = (from: string) => {
 		const req = real.createRequire(from);
 		return Object.assign((id: string) => {
