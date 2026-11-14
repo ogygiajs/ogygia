@@ -70,3 +70,62 @@ describe('a peer that gives no answer at all', () => {
 		expect(said(warned)).toBe(true);
 	});
 });
+
+describe('a hop the asking request ended itself', () => {
+	it('a page read: the fetch ends unsaid, and no other origin is asked', async () => {
+		const asked: string[] = [];
+		vi.stubGlobal(
+			'fetch',
+			(url: URL, init?: RequestInit) =>
+				new Promise((_resolve, reject) => {
+					asked.push(url.origin);
+					const signal = init?.signal;
+					if (signal?.aborted) return reject(signal.reason);
+					signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+				})
+		);
+		const warned: string[] = [];
+		vi.spyOn(console, 'warn').mockImplementation(
+			(...a: unknown[]) => void warned.push(a.join(' '))
+		);
+		const dash = new PeerHandle(
+			'dash',
+			{ origin: ['https://a.example', 'https://b.example'] },
+			'shell'
+		);
+		const visitor = new AbortController();
+		const request = new Request('http://shell/x', { signal: visitor.signal });
+		set_current_request(() => request);
+		const read = dash.doc('/p', '').catch((e: unknown) => e);
+		set_current_request(null);
+		await new Promise((r) => setTimeout(r, 0));
+		expect(asked).toEqual(['https://a.example']);
+		visitor.abort();
+		const e = await read;
+		expect(isHttpError(e)).toBe(false);
+		await new Promise((r) => setTimeout(r, 10));
+		expect(asked).toEqual(['https://a.example']);
+		expect(warned.filter((w) => w.includes('federation_peer'))).toEqual([]);
+	});
+
+	it('a mutation whose answer breaks off mid-body fails with that break, as it came', async () => {
+		const cut = new Error('the answer broke off');
+		vi.stubGlobal(
+			'fetch',
+			async () =>
+				new Response(
+					new ReadableStream({
+						start(c) {
+							c.error(cut);
+						}
+					}),
+					{ status: 200, headers: { 'content-type': 'application/json' } }
+				)
+		);
+		const dash = new PeerHandle('dash', { origin: 'https://dash.example' }, 'shell');
+		const e = await dash
+			.postDoc('/p', '', new ArrayBuffer(0), 'text/plain')
+			.catch((err: unknown) => err);
+		expect(e).toBe(cut);
+	});
+});

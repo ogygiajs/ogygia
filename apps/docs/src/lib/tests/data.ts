@@ -49,6 +49,8 @@ export type Robustness = {
 			fired: number;
 			covered: number;
 			impossible: number;
+			/** Sites whose broken handling changes nothing (absent in reports from before the bucket). */
+			equivalent?: number;
 			baseline: number;
 			proved: number;
 		} | null;
@@ -273,9 +275,9 @@ export function robustness_view(r: Robustness | undefined, commit: string): Robu
 		if (sim.failures) {
 			const f = sim.failures;
 			tiles.push({
-				n: of(f.fired + f.covered + f.impossible, f.total),
+				n: of(f.fired + f.covered + f.impossible + (f.equivalent ?? 0), f.total),
 				what: 'places that can fail, each handled on purpose',
-				why: `A place where code can fail is made to fail by the simulator (${count(f.fired)}), checked by a test (${count(f.covered)}), or proved it cannot fail (${count(f.impossible)}). The other ${count(f.baseline)} are listed and wait their turn; that list may only shrink.`,
+				why: `A place where code can fail is made to fail by the simulator (${count(f.fired)}), checked by a test (${count(f.covered)}), or proved it cannot fail (${count(f.impossible)})${f.equivalent ? `, or shown that breaking it changes nothing (${count(f.equivalent)})` : ''}. The other ${count(f.baseline)} are listed and wait their turn; that list may only shrink.`,
 				...at('internal/sim/src/failures.ts')
 			});
 			tiles.push({
