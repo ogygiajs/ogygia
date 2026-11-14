@@ -32,9 +32,11 @@
 		sel ? range_hot(stacks, sel.t0, sel.t1) : range_hot(stacks, 0, stacks.window_ms)
 	);
 	const at = $derived<StackAt | null>(cursor === null ? null : stack_at(stacks, cursor));
-	const rows = $derived(
-		view === 'self' ? range.self : view === 'total' ? range.total : range.components
-	);
+	const rows = $derived.by(() => {
+		if (view === 'self') return range.self;
+		if (view === 'total') return range.total;
+		return range.components;
+	});
 	const row_max = $derived(
 		Math.max(...rows.map((r) => (view === 'self' ? r.self_ms : r.total_ms)), 0.001)
 	);

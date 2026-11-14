@@ -208,12 +208,12 @@ export function read_styles(
 		}
 		if (styles_the_panel(rules, doc, panel)) continue;
 		const r = href ? res.get(href) : undefined;
+		const dev_id = node?.getAttribute('data-vite-dev-id');
+		let label = 'inline <style>';
+		if (href) label = file_of(href);
+		else if (dev_id) label = file_of(dev_id);
 		const row: SheetRow = {
-			label: href
-				? file_of(href)
-				: node?.getAttribute('data-vite-dev-id')
-					? file_of(node.getAttribute('data-vite-dev-id')!)
-					: 'inline <style>',
+			label,
 			href,
 			rules: 0,
 			bytes: href ? (r?.decodedBodySize ?? 0) : (node?.textContent?.length ?? 0),

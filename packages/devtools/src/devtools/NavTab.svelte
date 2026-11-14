@@ -54,7 +54,9 @@
 	}
 	function origin_of(d: EventNamed<'nav.reconcile'>) {
 		const t = (d.key || '').slice(0, (d.key || '').indexOf('\0'));
-		return t === 'k' ? 'keep' : t === 'p' ? 'persist' : '';
+		if (t === 'k') return 'keep';
+		if (t === 'p') return 'persist';
+		return '';
 	}
 
 	const model: NavModel = $derived.by(() => {
