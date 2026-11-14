@@ -440,8 +440,6 @@ function common_fields(d: Record<string, unknown>): boolean {
 	);
 }
 
-/** The statuses a document that moves (has a `location`) may carry: the redirects a browser
- *  follows. Any other (a 304, a 200) is no move a shell can pass on. */
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 
 /** A parsed peer answer as the page document it is, or null when any field is another type (a
