@@ -78,6 +78,24 @@ test("a placed island an earlier build rendered (its host's {#if} pair around it
 	await expect.poll(() => region.querySelector('[data-testid="count"]')!.textContent).toBe('1');
 });
 
+test("an earlier build's placed island keeps no anchor of that build's pair: the region's anchors open and close as this build's", () => {
+	const region = region_with(`<!--[0-->${decode('counter_render_b64')}<!--]-->`, {
+		entry: '/counter'
+	});
+	hydrate_island(region, '/counter', as_module(Counter), null, false);
+	const anchors = document.createTreeWalker(region, NodeFilter.SHOW_COMMENT);
+	let opens = 0;
+	let closes = 0;
+	for (let n = anchors.nextNode(); n !== null; n = anchors.nextNode()) {
+		const data = (n as Comment).data;
+		expect(data, 'no earlier-build open is left').not.toBe('[0');
+		if (data.startsWith('[')) opens++;
+		else if (data === ']') closes++;
+	}
+	expect(closes).toBe(opens);
+	expect(region.hasAttribute('data-og-recovered')).toBe(false);
+});
+
 test('a live region adopts its server nodes, and a pushed tick shows on the same node', async () => {
 	const region = region_with(decode('label_render_b64'), { live: '' });
 	const p = region.querySelector('p')!;
