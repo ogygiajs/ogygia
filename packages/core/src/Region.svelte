@@ -1160,5 +1160,5 @@
 	{/key}
 {:else if of_is_promise}
 	<!-- A promise `of`: the region owns the whole wait — PromiseRegion decides how it waits. -->
-	<PromiseRegion {of} {placeholder} {children} />
+	<PromiseRegion of={of as Promise<RegionValue>} {placeholder} {children} />
 {/if}
