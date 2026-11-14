@@ -4,7 +4,7 @@
  * by hooks.ts only.
  */
 import type { RequestEvent } from '@sveltejs/kit';
-import { try_get_request_store } from '@sveltejs/kit/internal/server';
+import { KitRequestStore } from '../server/kit-request-store.ts';
 import type { Handle } from '../kit-handle.ts';
 import type { HtmlPass, RequestContext, ResolveOptions, ServerApp, ServerPlugin } from './index.ts';
 import { current_facts, facts_of, note_per_visitor, type RequestFacts } from './facts.ts';
@@ -188,7 +188,7 @@ function ignore(): void {}
 /** `app.keepAlive`: `work` handed to the `waitUntil` of the request the running code belongs to
  *  (Kit's request store knows it, through every await of the request), or left to run on. */
 function keep_alive(work: Promise<unknown>): void {
-	const event = (try_get_request_store() as { event?: RequestEvent } | null)?.event;
+	const event = KitRequestStore.event() as RequestEvent | null;
 	const wait_until = wait_until_of(event?.platform);
 	if (wait_until === null) return;
 	try {

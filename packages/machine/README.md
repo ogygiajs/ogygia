@@ -311,6 +311,39 @@ place.release();
 - **A wait never hangs.** A job still waiting at its deadline is stale and never starts; one whose deadline came is passed over at a release even before the timer runs. The deadlines share one timer, at the earliest one waiting, gone once none waits.
 - **No record per job.** The queue keeps the jobs themselves, in the order pushed. A `start` that throws is reported ([machine_queue_start_failed](https://ogygiajs.dev/e/machine_queue_start_failed)), its place goes back, and the jobs after it still start; a `stale` that throws is reported too ([machine_queue_stale_failed](https://ogygiajs.dev/e/machine_queue_stale_failed)), and the other waiting jobs still go stale.
 
+### Lines with more rules
+
+One queue also serves a line where "first come" is not the whole rule: downloads by urgency, some held back until the page's own resources arrive, some sharing a cap of their own, started a few at a time so the page stays responsive.
+
+```ts
+const downloads = queue<Download>({
+	priority: (d) => d.urgency(), // read again at every pass: a raise counts at the next one
+	ready: (d) => gate_open || !d.waits_for_gate, // not ready: passed over, the rest still start
+	windows: [
+		{ max: 3, holds: (d) => d.is_guess }, // at most 3 guesses at once
+		{ max: 3, holds: (d) => d.is_fragment }
+	],
+	budget: { ms: 16, yield: (resume) => void yield_task().then(resume), settle: true },
+	start: (d, place) => d.begin(place)
+});
+gate.on('open', () => downloads.recheck());
+```
+
+|                             |                                                                                                                                                                                                                                                                                              |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max`                       | Optional: no cap when left out. A queue with no `max` and no window counts no places: `holding` stays 0 and a release does nothing.                                                                                                                                                          |
+| `priority(job)`             | The higher starts first; ties keep the order pushed. Read for every waiting job at the start of each pass.                                                                                                                                                                                   |
+| `ready(job)`                | A job that is not ready is passed over, and the jobs behind it still start.                                                                                                                                                                                                                  |
+| `windows: [{ max, holds }]` | Caps beside `max`, each over the jobs it `holds`. A job is counted in its windows from its start until its place is released (once). A job may be in several.                                                                                                                                |
+| `budget: { ms, yield }`     | A drain that has started jobs for `ms` (by `now`) while jobs still wait calls `yield(resume)` and goes on with a new pass when resumed. The first start of a drain goes out at once.                                                                                                         |
+| `budget.defer`              | A drain begins with a yield: no job starts in the step that pushed it, and one yield starts every job queued before it.                                                                                                                                                                      |
+| `budget.settle`             | After each start the drain waits a microtask: work the start hands on by a promise takes its first step (and counts against the budget) before the next job is chosen. The drain ends a microtask after its last pass, so what those first steps ask for is one more pass, not a drain each. |
+| `recheck()`                 | What a pass reads (a priority, a job's readiness, its windows) changed: the queue drains again.                                                                                                                                                                                              |
+
+- **A pass reads the line once.** It orders the waiting jobs by priority (whole priorities close together are counted into order, not sorted), then reaches the jobs pushed while it runs, in the order pushed. A push, a release or a `recheck()` while it runs asks for one more pass after it.
+- **Plain queues pay nothing.** With a `max` and without `priority`, `ready`, `windows` and `budget`, the queue starts strictly from the front, a step per job, as above: the same steps as before these options.
+- **A drain never stalls.** A `yield` that throws is reported ([machine_queue_yield_failed](https://ogygiajs.dev/e/machine_queue_yield_failed)) and the drain goes on at once. A rule that throws (`priority`, `ready`, `holds`) ends the drain and throws to whoever woke it; the next push, release or `recheck()` drains again.
+
 ## Outbox
 
 Work that must happen after the response (a notice to a peer, a batch of events to a sink) goes through one place that keeps it alive, tries it again, sends it once, and calls it done only when the other side applied it.

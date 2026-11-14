@@ -296,6 +296,7 @@ export class World {
 			restore_env();
 			restore_symbols();
 			restore_platform();
+			host.end();
 		};
 		// a server's own `fetch` (Kit reads a prerendered remote answer from its own origin) goes
 		// through the world too, like a tab's: never the real network
