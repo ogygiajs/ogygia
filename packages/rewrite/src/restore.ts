@@ -34,9 +34,9 @@ export function restore(root: Document | DocumentFragment | Element, lite?: numb
 	return restore_with(isScriptUrl, root, lite);
 }
 
+/* oxlint-disable ogygia/markup-from-vocabulary -- restore_with() ships as its own source (restore_with.toString()): it may name nothing outside itself, so it spells its markers */
 /** The restorer itself, self-contained: the inline script ships its source and hands it the
  *  script-URL check's source beside it (src/pass.ts `RESTORER_SCRIPT`). */
-/* oxlint-disable ogygia/markup-from-vocabulary -- restore_with() ships as its own source (restore_with.toString()): it may name nothing outside itself, so it spells its markers */
 export function restore_with(
 	is_script_url: (value: string) => boolean,
 	root: Document | DocumentFragment | Element,
@@ -164,7 +164,6 @@ export function restore_with(
 		// (a handler is an `on…` name the element has an event-handler property for: `onclick`, not a
 		// component's own `online` or `once`)
 		if ((n.startsWith('on') && n in el) || n === 'srcdoc') return true;
-		// (a script URL in any attribute, not only the ones known to hold URLs today)
 		return is_script_url(value);
 	};
 	const reset = (el: Element) => {
@@ -394,7 +393,7 @@ export function restore_with(
 		list.push({
 			kind,
 			host: host.localName,
-			// port-ok: inlined as text by restore_with.toString() (no imports)
+			// oxlint-disable-next-line ogygia/ports -- inlined as text by restore_with.toString() (no imports)
 			t: Math.round(performance.now()),
 			...(diff ? { diff: diff.slice(0, 300) } : {}),
 			...(key ? { key } : {}),
