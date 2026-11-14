@@ -10,7 +10,7 @@ import {
 	make_wake_island,
 	rewrite_lake_import_to_placeholder,
 	server_wrapper_source
-} from '../src/compiler/region/emit.ts';
+} from '../src/region/emit.ts';
 
 const COMPONENT = '/app/src/lib/Block.svelte';
 const ENTRY = 'ogygia:region/entry/abc123.js';

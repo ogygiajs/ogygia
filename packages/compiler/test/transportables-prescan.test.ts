@@ -8,10 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
 import { dedent } from '@ogygia/core/contract';
-import {
-	appendTransportRegistrations,
-	moduleHasTransportable
-} from '../src/compiler/transportables.ts';
+import { appendTransportRegistrations, moduleHasTransportable } from '../src/transportables.ts';
 
 const FILE = '/app/src/lib/cart.ts';
 const registers = (src: string) =>

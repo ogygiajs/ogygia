@@ -3,7 +3,7 @@
 // shrunk app shape and the seed; it becomes a seeded test named for what differed.
 import { describe, test, expect } from 'vitest';
 import fc from 'fast-check';
-import { memory_fs } from '../../../packages/compiler/src/compiler/index.ts';
+import { memory_fs } from '../../../packages/compiler/src/index.ts';
 import { app_files, app_shape } from '../src/app.ts';
 import { modules, session, snapshot, transform, type Leg } from '../src/session.ts';
 import { permute, rng } from '../src/order.ts';

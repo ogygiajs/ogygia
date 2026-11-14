@@ -8,7 +8,7 @@ import { define_messages } from '../../core/src/contract/messages.ts';
 import { ERRORS, WARNINGS, OgygiaError, warn } from '../../core/src/messages/core.ts';
 import { prose } from '../../core/src/contract/prose.ts';
 import { SERVER_ERRORS, SERVER_WARNINGS } from '../../core/src/messages/server.ts';
-import { BUILD_ERRORS, BUILD_REPORTS, BUILD_WARNINGS } from '../src/compiler/messages.ts';
+import { BUILD_ERRORS, BUILD_REPORTS, BUILD_WARNINGS } from '../src/messages.ts';
 import type { MessageEntry } from '../../core/src/contract/messages.ts';
 
 const TABLES: Record<string, MessageEntry<never>> = {

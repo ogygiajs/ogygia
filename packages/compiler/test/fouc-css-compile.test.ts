@@ -16,7 +16,7 @@ vi.mock('svelte/compiler', async (orig) => {
 		}
 	};
 });
-const { compileFoucScopedCss } = await import('../src/compiler/fouc-css.ts');
+const { compileFoucScopedCss } = await import('../src/fouc-css.ts');
 
 const ABS = '/app/src/lib/C.svelte';
 beforeEach(() => {

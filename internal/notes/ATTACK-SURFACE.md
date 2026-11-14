@@ -144,14 +144,14 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/cli/src/mcp.ts` | `runMcp` | `JSON.parse` | 1 |
 | `packages/cli/src/mcp.ts` | `tool_flags` | `JSON.parse` | 1 |
 | `packages/cli/src/perf/cli.ts` | `read_json` | `JSON.parse` | 1 |
-| `packages/compiler/src/compiler/build-cache.ts` | `get` | `JSON.parse` | 1 |
-| `packages/compiler/src/compiler/fouc-css.ts` | `foucRelFromId` | `decodeURIComponent` | 1 |
-| `packages/compiler/src/compiler/kit.ts` | `kit_major` | `JSON.parse` | 1 |
-| `packages/compiler/src/compiler/link/emit-gate.ts` | `parse_server_handoff` | `JSON.parse` | 1 |
-| `packages/compiler/src/compiler/link/island-deps.ts` | `HANDLER_RE` | `JSON.parse` | 2 |
-| `packages/compiler/src/compiler/link/server-manifest.ts` | `(module)` | `JSON.parse` | 1 |
-| `packages/compiler/src/compiler/link/server-manifest.ts` | `PAGE_DATA_READS_PLACEHOLDER` | `JSON.parse` | 2 |
-| `packages/compiler/src/compiler/virtual/core.ts` | `dev_runtime_of` | `JSON.parse` | 1 |
+| `packages/compiler/src/build-cache.ts` | `get` | `JSON.parse` | 1 |
+| `packages/compiler/src/fouc-css.ts` | `foucRelFromId` | `decodeURIComponent` | 1 |
+| `packages/compiler/src/kit.ts` | `kit_major` | `JSON.parse` | 1 |
+| `packages/compiler/src/link/emit-gate.ts` | `parse_server_handoff` | `JSON.parse` | 1 |
+| `packages/compiler/src/link/island-deps.ts` | `HANDLER_RE` | `JSON.parse` | 2 |
+| `packages/compiler/src/link/server-manifest.ts` | `(module)` | `JSON.parse` | 1 |
+| `packages/compiler/src/link/server-manifest.ts` | `PAGE_DATA_READS_PLACEHOLDER` | `JSON.parse` | 2 |
+| `packages/compiler/src/virtual/core.ts` | `dev_runtime_of` | `JSON.parse` | 1 |
 | `packages/compiler/src/vite/index.ts` | `ogygia` | `JSON.parse` | 1 |
 | `packages/compiler/src/vite/package-files.ts` | `read_manifest` | `JSON.parse` | 1 |
 | `packages/core/src/contract/core-files.ts` | `(module)` | `JSON.parse` | 1 |
@@ -247,9 +247,9 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 | file | in | what | n |
 | --- | --- | --- | --- |
-| `packages/compiler/src/compiler/messages.ts` | `BUILD_ERRORS` | `{@html}` | 1 |
-| `packages/compiler/src/compiler/ownership-stamps.ts` | `(module)` | `{@html}` | 1 |
-| `packages/compiler/src/compiler/region/marked-imports.ts` | `misuse_of` | `{@html}` | 1 |
+| `packages/compiler/src/messages.ts` | `BUILD_ERRORS` | `{@html}` | 1 |
+| `packages/compiler/src/ownership-stamps.ts` | `(module)` | `{@html}` | 1 |
+| `packages/compiler/src/region/marked-imports.ts` | `misuse_of` | `{@html}` | 1 |
 | `packages/content/src/markdown/region-emit.ts` | `FENCE_EMBED_RE` | `{@html}` | 1 |
 | `packages/content/src/markdown/region-emit.ts` | `try_region_emit` | `{@html}` | 1 |
 | `packages/content/src/markdown/shiki.ts` | `escape_svelte` | `{@html}` | 1 |

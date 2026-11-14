@@ -2,18 +2,18 @@
 // the set of server regions, not of the order the bundler transformed their hosts in: two builds of
 // one app give the same server chunk bytes (#1399, here for the values a build relocates: #1421).
 import { expect, test } from 'vitest';
-import { Program } from '../src/compiler/program.ts';
+import { Program } from '../src/program.ts';
 import {
 	LATE_SERVER_REGIONS_TOKEN,
 	PAGE_DATA_READS_TOKEN,
 	server_manifest_maps,
 	server_regions_module
-} from '../src/compiler/link/server-manifest.ts';
+} from '../src/link/server-manifest.ts';
 import {
 	relocate as relocate_table,
 	relocations_of,
 	type RelocateCx
-} from '../src/compiler/link/relocations.ts';
+} from '../src/link/relocations.ts';
 
 const relocate = (code: string, c: RelocateCx) =>
 	relocate_table(code, relocations_of(true), new Map(), c)?.s.toString() ?? '';

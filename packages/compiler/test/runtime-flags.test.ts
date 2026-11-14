@@ -7,7 +7,7 @@ import {
 	generateRuntimeFlagsSource,
 	resolveFeatures,
 	type RuntimeMarks
-} from '../src/compiler/link/runtime-entry.ts';
+} from '../src/link/runtime-entry.ts';
 
 const RUNTIME_DIR = '/app/node_modules/@ogygia/core/dist/runtime';
 

@@ -1,14 +1,10 @@
-// The shared export index (src/compiler/exports/index.ts): one parse and one resolution per module
+// The shared export index (src/exports/index.ts): one parse and one resolution per module
 // for every caller of a resolver, and each policy's own answer over that one graph.
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
-import { EVERY_BARREL, ExportIndex, Shapes, type Policy } from '../src/compiler/exports/index.ts';
-import {
-	collectFoucCssReachable,
-	through_caller,
-	type WalkResolve
-} from '../src/compiler/fouc-css.ts';
+import { EVERY_BARREL, ExportIndex, Shapes, type Policy } from '../src/exports/index.ts';
+import { collectFoucCssReachable, through_caller, type WalkResolve } from '../src/fouc-css.ts';
 
 function graph(files: Record<string, string>) {
 	const reads = new Map<string, number>();

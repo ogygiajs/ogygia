@@ -7,9 +7,9 @@ import { describe, test, expect, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Compiler, Program, CompileCtx, normalize_import_keys } from '../src/compiler/index.ts';
+import { Compiler, Program, CompileCtx, normalize_import_keys } from '../src/index.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
-import { own_reach } from '../src/compiler/link/own-reach.ts';
+import { own_reach } from '../src/link/own-reach.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const roots: string[] = [];

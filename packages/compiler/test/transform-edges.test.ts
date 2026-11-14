@@ -9,7 +9,7 @@ import {
 	transformHost,
 	transformTsRegions,
 	wrapperVirtualId
-} from '../src/compiler/region/transform.ts';
+} from '../src/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 import { code_fn } from './_code-fn.ts';
 

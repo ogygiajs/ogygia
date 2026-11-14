@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const calls = vi.hoisted(() => ({ parse: 0, scan: 0 }));
 
-vi.mock('../src/compiler/parse/oxc.ts', async (orig) => {
-	const real = await orig<typeof import('../src/compiler/parse/oxc.ts')>();
+vi.mock('../src/parse/oxc.ts', async (orig) => {
+	const real = await orig<typeof import('../src/parse/oxc.ts')>();
 	return {
 		...real,
 		parse_module: (...a: Parameters<typeof real.parse_module>) => {
@@ -14,8 +14,8 @@ vi.mock('../src/compiler/parse/oxc.ts', async (orig) => {
 		}
 	};
 });
-vi.mock('../src/compiler/parse/scan.ts', async (orig) => {
-	const real = await orig<typeof import('../src/compiler/parse/scan.ts')>();
+vi.mock('../src/parse/scan.ts', async (orig) => {
+	const real = await orig<typeof import('../src/parse/scan.ts')>();
 	return {
 		...real,
 		component_blocks: (...a: Parameters<typeof real.component_blocks>) => {
@@ -30,7 +30,7 @@ const {
 	moduleHasTransportable,
 	svelteModuleHasTransportable,
 	svelte_module_registration
-} = await import('../src/compiler/transportables.ts');
+} = await import('../src/transportables.ts');
 
 beforeEach(() => {
 	calls.parse = 0;

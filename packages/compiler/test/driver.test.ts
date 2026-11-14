@@ -1,9 +1,9 @@
 import { describe, test, expect, vi, afterEach } from 'vitest';
-import { Compiler, app_shim_for } from '../src/compiler/driver.ts';
-import { Program } from '../src/compiler/program.ts';
-import { CompileCtx, type CompileCtxInit } from '../src/compiler/ctx.ts';
-import { normalize_import_keys } from '../src/compiler/region/transform.ts';
-import { memory_fs, type Fs } from '../src/compiler/fs.ts';
+import { Compiler, app_shim_for } from '../src/driver.ts';
+import { Program } from '../src/program.ts';
+import { CompileCtx, type CompileCtxInit } from '../src/ctx.ts';
+import { normalize_import_keys } from '../src/region/transform.ts';
+import { memory_fs, type Fs } from '../src/fs.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 

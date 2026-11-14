@@ -5,11 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-	BuildCache,
-	__set_build_cache_root,
-	configure_build_cache
-} from '../src/compiler/build-cache.ts';
+import { BuildCache, __set_build_cache_root, configure_build_cache } from '../src/build-cache.ts';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'og-cache-'));
 

@@ -1,4 +1,4 @@
-import type { CompileCtxInit } from '../src/compiler/ctx.ts';
+import type { CompileCtxInit } from '../src/ctx.ts';
 
 /** A suite that drives only the prescan / transform / resolve phases builds its `CompileCtx` from the
  *  fields those phases read, and leaves the rest of `CompileCtxInit` (mostly the virtual-module emit

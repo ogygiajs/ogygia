@@ -3,11 +3,8 @@
 // Found by the compiler DST harness (internal/compiler-dst, topology: modules requested in a seeded
 // order).
 import { expect, test } from 'vitest';
-import { Program } from '../src/compiler/program.ts';
-import {
-	server_manifest_module,
-	server_regions_module
-} from '../src/compiler/link/server-manifest.ts';
+import { Program } from '../src/program.ts';
+import { server_manifest_module, server_regions_module } from '../src/link/server-manifest.ts';
 
 const hole = (id: string, host: string) => ({
 	islands: [

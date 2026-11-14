@@ -10,7 +10,7 @@ import path from 'node:path';
 import { parse } from 'svelte/compiler';
 import { fc } from '@ogygia/config/sim';
 import { dedent } from '@ogygia/core/contract';
-import { transformHost, wrapperVirtualId } from '../src/compiler/region/transform.ts';
+import { transformHost, wrapperVirtualId } from '../src/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 const HOST = '/app/src/routes/gen/+page.svelte';

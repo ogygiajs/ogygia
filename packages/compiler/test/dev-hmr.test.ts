@@ -4,9 +4,9 @@ import {
 	needs_island_entry_full_reload,
 	same_module_path,
 	island_vpaths_affected_by_file
-} from '../src/compiler/dev/hmr.ts';
-import { dev_hmr_client_source } from '../src/compiler/dev/dev-hmr.ts';
-import { derive_css_scope_owners } from '../src/compiler/dev/css-scope.ts';
+} from '../src/dev/hmr.ts';
+import { dev_hmr_client_source } from '../src/dev/dev-hmr.ts';
+import { derive_css_scope_owners } from '../src/dev/css-scope.ts';
 import { rewrite_island_sourcemap_sources } from '../src/vite/sourcemaps.ts';
 
 describe('needs_csr_false_full_reload', () => {

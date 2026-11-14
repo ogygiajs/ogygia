@@ -1,7 +1,7 @@
 // The runtime features a build ships follow what its files registered: a plain app pays for no wire
 // decoder, no remote seeding and no live/morph runtime; a region turns on exactly what it needs.
 import { describe, expect, it } from 'vitest';
-import { Program, type IslandDescriptor } from '../src/compiler/program.ts';
+import { Program, type IslandDescriptor } from '../src/program.ts';
 
 const HOST = '/app/src/routes/+page.svelte';
 const marks = (islands: IslandDescriptor[], extra: { hasWireCrossing?: boolean } = {}) => {

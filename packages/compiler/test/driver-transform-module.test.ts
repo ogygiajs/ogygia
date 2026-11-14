@@ -1,9 +1,9 @@
 import { describe, test, expect } from 'vitest';
-import { Compiler } from '../src/compiler/driver.ts';
-import { Program } from '../src/compiler/program.ts';
-import { CompileCtx, type CompileCtxInit } from '../src/compiler/ctx.ts';
-import { normalize_import_keys } from '../src/compiler/region/transform.ts';
-import { memory_fs } from '../src/compiler/fs.ts';
+import { Compiler } from '../src/driver.ts';
+import { Program } from '../src/program.ts';
+import { CompileCtx, type CompileCtxInit } from '../src/ctx.ts';
+import { normalize_import_keys } from '../src/region/transform.ts';
+import { memory_fs } from '../src/fs.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 

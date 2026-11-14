@@ -6,7 +6,7 @@
 // that style it share one scope hash (the synth's own — it need not equal the host's).
 import { describe, it, expect } from 'vitest';
 import { compile } from 'svelte/compiler';
-import { transformHost } from '../src/compiler/region/transform.ts';
+import { transformHost } from '../src/region/transform.ts';
 
 const ctx = {
 	root: '/app',

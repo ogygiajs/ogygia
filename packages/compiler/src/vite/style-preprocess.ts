@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { warn } from '../compiler/messages.ts';
-import { component_blocks } from '../compiler/parse/scan.ts';
+import { warn } from '../messages.ts';
+import { component_blocks } from '../parse/scan.ts';
 import { attr_spans } from '@ogygia/core/contract';
 import { say } from '@ogygia/machine';
 

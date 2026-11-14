@@ -5,10 +5,10 @@
  * query whose answer changed, names the modules that read it, and no other.
  */
 import { describe, expect, it } from 'vitest';
-import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
-import { virtual, type Part } from '../src/compiler/virtual/table.ts';
-import { CORE_PARTS, type CoreApp } from '../src/compiler/virtual/core.ts';
-import { derived, input, queries, type Queries } from '../src/compiler/queries.ts';
+import { VirtualTable } from '../src/virtual/resolver.ts';
+import { virtual, type Part } from '../src/virtual/table.ts';
+import { CORE_PARTS, type CoreApp } from '../src/virtual/core.ts';
+import { derived, input, queries, type Queries } from '../src/queries.ts';
 
 /** A dev change to `part`: the modules it moved. */
 function bump<A>(t: VirtualTable<A>, part: Part): string[] {

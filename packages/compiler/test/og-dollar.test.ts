@@ -9,7 +9,7 @@ import {
 	fn_manifest_entries,
 	fn_manifest_registrations,
 	rewrite_dollar
-} from '../src/compiler/macros/dollar.ts';
+} from '../src/macros/dollar.ts';
 import { __register_fn, fn_handle } from '../../core/src/fn-transport.ts';
 import { code_fn } from './_code-fn.ts';
 

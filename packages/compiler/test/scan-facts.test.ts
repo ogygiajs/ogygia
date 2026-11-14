@@ -1,10 +1,10 @@
-// THE SCAN'S FACTS as queries (src/compiler/scan-facts.ts): the app-wide answers are folds over
+// THE SCAN'S FACTS as queries (src/scan-facts.ts): the app-wide answers are folds over
 // every scanned file's facts, computed again only when a fact they read changed. After any run of
 // fact changes (a file scanned, edited, deleted, scanned again), every fold equals the one a fresh
 // set of facts gives, fed the final facts in the same scan order.
 import { describe, expect, test } from 'vitest';
 import fc from 'fast-check';
-import { scan_facts, type FileFacts, type ScanFacts } from '../src/compiler/scan-facts.ts';
+import { scan_facts, type FileFacts, type ScanFacts } from '../src/scan-facts.ts';
 
 const FILES = ['/a/x.ts', '/a/y.svelte', '/a/z.remote.ts', '/a/w.ts'];
 

@@ -36,7 +36,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: "whether a server hole's tree reads page.data",
 		direction: 'over',
 		fallback: 'true (the hole looks page.data up)',
-		where: { file: 'compiler/src/compiler/link/relocations.ts', symbol: 'PAGE_DATA_READS' },
+		where: { file: 'compiler/src/link/relocations.ts', symbol: 'PAGE_DATA_READS' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -44,7 +44,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: "whether an island's code reaches Kit's page world",
 		direction: 'over',
 		fallback: 'a reader (the page shim is linked)',
-		where: { file: 'compiler/src/compiler/driver.ts', symbol: 'mark_island_closure' },
+		where: { file: 'compiler/src/driver.ts', symbol: 'mark_island_closure' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -52,7 +52,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: "whether the server encodes a live value into an island's props",
 		direction: 'over',
 		fallback: 'none in the build; the codec loads on use (#1306)',
-		where: { file: 'compiler/src/compiler/region/transform.ts', symbol: 'hasWireCrossing' },
+		where: { file: 'compiler/src/region/transform.ts', symbol: 'hasWireCrossing' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -60,7 +60,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: 'which modules define wire classes (loaders, eager list, the wire mark)',
 		direction: 'over',
 		fallback: 'true (the module counts)',
-		where: { file: 'compiler/src/compiler/transportables.ts', symbol: 'moduleHasTransportable' },
+		where: { file: 'compiler/src/transportables.ts', symbol: 'moduleHasTransportable' },
 		gap: null
 	},
 	{
@@ -68,7 +68,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: 'whether the app provides ogygia context (the bridge feature)',
 		direction: 'over',
 		fallback: 'all: a form the walk cannot narrow reaches every export',
-		where: { file: 'compiler/src/compiler/link/own-reach.ts', symbol: 'reaches_context' },
+		where: { file: 'compiler/src/link/own-reach.ts', symbol: 'reaches_context' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -76,7 +76,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: "whether Kit's transport must carry ogygia codecs",
 		direction: 'over',
 		fallback: 'all: a form the walk cannot narrow reaches every export',
-		where: { file: 'compiler/src/compiler/link/own-reach.ts', symbol: 'reaches_wire' },
+		where: { file: 'compiler/src/link/own-reach.ts', symbol: 'reaches_wire' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -84,7 +84,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: "Kit's csr for a route option file",
 		direction: 'exact',
 		fallback: "undefined (Kit's default)",
-		where: { file: 'compiler/src/compiler/kit.ts', symbol: 'read_csr' },
+		where: { file: 'compiler/src/kit.ts', symbol: 'read_csr' },
 		gap: null
 	},
 	{
@@ -92,7 +92,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: "each page's merged route config",
 		direction: 'exact',
 		fallback: 'no keys',
-		where: { file: 'compiler/src/compiler/kit.ts', symbol: 'page_route_config' },
+		where: { file: 'compiler/src/kit.ts', symbol: 'page_route_config' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -100,7 +100,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: 'the names a portable snippet must import or receive',
 		direction: 'over',
 		fallback: 'none: an unseen name is a miss',
-		where: { file: 'compiler/src/compiler/free-vars.ts', symbol: 'collectCaptureInfo' },
+		where: { file: 'compiler/src/free-vars.ts', symbol: 'collectCaptureInfo' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -108,7 +108,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: 'the names a hoisted og.$ factory closes over',
 		direction: 'exact',
 		fallback: 'none: a wrong capture throws at the site',
-		where: { file: 'compiler/src/compiler/macros/dollar.ts', symbol: 'rewrite_dollar' },
+		where: { file: 'compiler/src/macros/dollar.ts', symbol: 'rewrite_dollar' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -116,7 +116,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: 'a barrel import can be dropped',
 		direction: 'under',
 		fallback: 'impure (the import stays)',
-		where: { file: 'compiler/src/compiler/exports/parse.ts', symbol: 'analyze_exports' },
+		where: { file: 'compiler/src/exports/parse.ts', symbol: 'analyze_exports' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -124,7 +124,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: 'the module each exported name comes from (and the walk ends)',
 		direction: 'exact',
 		fallback: 'no map (the import stays as written)',
-		where: { file: 'compiler/src/compiler/exports/index.ts', symbol: 'Walk' },
+		where: { file: 'compiler/src/exports/index.ts', symbol: 'Walk' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -132,7 +132,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: 'the CSS a lake, hole, router page or content module needs',
 		direction: 'over',
 		fallback: 'none: an unseen stylesheet is a miss',
-		where: { file: 'compiler/src/compiler/fouc-css.ts', symbol: 'collectFoucCssReachable' },
+		where: { file: 'compiler/src/fouc-css.ts', symbol: 'collectFoucCssReachable' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -140,7 +140,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: 'the elements Svelte hydration never walks',
 		direction: 'under',
 		fallback: 'no stamps',
-		where: { file: 'compiler/src/compiler/ownership-stamps.ts', symbol: 'stamp_opaque' },
+		where: { file: 'compiler/src/ownership-stamps.ts', symbol: 'stamp_opaque' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -148,7 +148,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: 'which regions Kit owns on a csr=true page',
 		direction: 'exact',
 		fallback: 'none',
-		where: { file: 'compiler/src/compiler/region/transform.ts', symbol: '#kit_owns' },
+		where: { file: 'compiler/src/region/transform.ts', symbol: '#kit_owns' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -156,7 +156,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: 'whether a csr=false route edge reaches a region registry',
 		direction: 'over',
 		fallback: 'reaches (the full registry stays in the graph)',
-		where: { file: 'compiler/src/compiler/driver.ts', symbol: '#reaches_registry' },
+		where: { file: 'compiler/src/driver.ts', symbol: '#reaches_registry' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -164,7 +164,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: 'the islands whose host the server bundle loads',
 		direction: 'over',
 		fallback: 'every island (no handoff emits all)',
-		where: { file: 'compiler/src/compiler/link/emit-gate.ts', symbol: 'island_host_loaded' },
+		where: { file: 'compiler/src/link/emit-gate.ts', symbol: 'island_host_loaded' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -173,7 +173,7 @@ export const ANALYSES: readonly Analysis[] = [
 		direction: 'over',
 		fallback: 'all (no map fails open)',
 		where: {
-			file: 'compiler/src/compiler/link/island-deps.ts',
+			file: 'compiler/src/link/island-deps.ts',
 			symbol: 'collectIslandDepModulepreloads'
 		},
 		gap: ORACLE_GAPS
@@ -183,7 +183,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: 'the runtime features a page needs',
 		direction: 'over',
 		fallback: 'every feature (incomplete marks ship the full runtime)',
-		where: { file: 'compiler/src/compiler/link/runtime-entry.ts', symbol: 'resolveFeatures' },
+		where: { file: 'compiler/src/link/runtime-entry.ts', symbol: 'resolveFeatures' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -191,7 +191,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: 'the region config an import attribute or option asks for',
 		direction: 'exact',
 		fallback: 'a build error naming the option',
-		where: { file: 'compiler/src/compiler/region/transform.ts', symbol: 'transformHost' },
+		where: { file: 'compiler/src/region/transform.ts', symbol: 'transformHost' },
 		gap: ORACLE_GAPS
 	}
 ];

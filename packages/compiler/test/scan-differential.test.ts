@@ -1,11 +1,11 @@
-// The macro scanner (src/compiler/parse/scan.ts) against a real parser: `find_og_calls` finds exactly
+// The macro scanner (src/parse/scan.ts) against a real parser: `find_og_calls` finds exactly
 // the `import.meta.og.<name>(…)` calls oxc finds, at the same spans, in programs built from the
 // things a lexer can trip on (strings with quotes and parens, comments, regex literals in every
 // position a regex can start, division, templates with interpolations). Seeded (OGYGIA_FUZZ_SEED).
 import { describe, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
-import { find_og_calls, match_close, split_first_string } from '../src/compiler/parse/scan.ts';
-import { parse_module, type AstNode } from '../src/compiler/parse/oxc.ts';
+import { find_og_calls, match_close, split_first_string } from '../src/parse/scan.ts';
+import { parse_module, type AstNode } from '../src/parse/oxc.ts';
 
 const PREFIX = 'import.meta.og.';
 
