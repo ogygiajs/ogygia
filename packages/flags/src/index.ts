@@ -41,6 +41,10 @@ export type CtxLike = {
 	visitor?: (Record<string, unknown> & { sub?: string; vid?: string }) | undefined;
 };
 
+const BOOL_VARIANT: ReadonlyMap<unknown, string> = new Map([
+	[true, 'on'],
+	[false, 'off']
+]);
 /** Written by an upstream shell's identity hop (the fragment feature); absent = the tier is skipped. */
 const CLAIMS = Symbol.for('ogygia.claims');
 /** Per-request source resolution, cached on the Request (GC'd with it): its {@link Prime}. */
@@ -322,12 +326,9 @@ async function ask_source(c: CtxLike, source: NonNullable<typeof _source>): Prom
 		for (const q of queries) {
 			const raw = out?.[q.name];
 			if (raw === undefined) continue;
-			const norm =
-				typeof raw === 'boolean'
-					? { variant: raw ? 'on' : 'off' }
-					: typeof raw === 'string'
-						? { variant: raw }
-						: raw;
+			let norm: Decision | null = typeof raw === 'object' ? raw : null;
+			if (typeof raw === 'string') norm = { variant: raw };
+			else if (typeof raw === 'boolean') norm = { variant: BOOL_VARIANT.get(raw)! };
 			if (norm && q.variants.includes(norm.variant)) map[q.name] = norm;
 		}
 		set_prime(c, { kind: 'resolved', map });

@@ -69,6 +69,18 @@
 		},
 		{
 			"files": [
+				"packages/barrels/src/**",
+				"packages/config/src/**",
+				"packages/federation/src/**",
+				"packages/flags/src/**",
+				"packages/jumpstart/src/**",
+				"packages/machine/src/**",
+				"packages/testing/src/**"
+			],
+			"rules": { "no-nested-ternary": "error" }
+		},
+		{
+			"files": [
 				"packages/compiler/src/**",
 				"packages/cli/src/**",
 				"packages/tooling/src/**",
