@@ -59,7 +59,7 @@ describe('postrender() — the vite value', () => {
 			stayed: () => {},
 			exports: { map: () => Promise.resolve(null) },
 			pinnedImports: () => () => false,
-			regions: { names: () => ({}), whyStayed: () => [] },
+			regions: { names: () => ({}), hosts: () => new Map(), whyStayed: () => [] },
 			definers: () => {},
 			prescan: () => {}
 		});

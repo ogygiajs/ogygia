@@ -91,17 +91,6 @@ export class RegionGroups {
 		this.#shared = shared;
 	}
 
-	/** Each group's name → its modules, by name. */
-	groups(): Map<string, string[]> {
-		const out = new Map<string, string[]>();
-		for (const [id, name] of this.#table()) {
-			const list = out.get(name);
-			if (list) list.push(id);
-			else out.set(name, [id]);
-		}
-		return new Map([...out].sort(by_key));
-	}
-
 	#all(): Set<string> {
 		if (this.#members) return this.#members;
 		const members = new Set<string>();

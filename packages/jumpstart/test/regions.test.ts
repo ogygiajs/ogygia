@@ -22,14 +22,13 @@ describe('region groups', () => {
 				]
 			})
 		);
-		expect(Object.fromEntries(groups.groups())).toEqual({
-			'regions-registry': [
-				'/app/src/lib/registry.ts',
-				'ogygia:region/wrapper/a.svelte',
-				'/app/src/lib/A.svelte',
-				'/app/src/lib/B.svelte'
-			]
-		});
+		for (const id of [
+			'/app/src/lib/registry.ts',
+			'ogygia:region/wrapper/a.svelte',
+			'/app/src/lib/A.svelte',
+			'/app/src/lib/B.svelte'
+		])
+			expect(groups.group(id), id).toBe('regions-registry');
 		expect(groups.group('\0ogygia:region/wrapper/a.svelte'.slice(1))).toBe('regions-registry');
 	});
 
