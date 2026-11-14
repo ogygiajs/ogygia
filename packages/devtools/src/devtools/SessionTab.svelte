@@ -35,7 +35,6 @@
 		tick?: number;
 	}
 
-	/** What the tab shows of the profiler's window over the session: the requests the server saw. */
 	interface ServerWindow {
 		requests?: { method: string; path: string; route?: string; ms: number; status?: number }[];
 	}
