@@ -168,6 +168,7 @@ const ledger = (over: Partial<FailureLedger> = {}): FailureLedger => ({
 		{ site: 'f > fetch:0', reason: 'a real browser', test: 't/a.test.ts', name: 'retries a fetch' }
 	],
 	impossible: [{ site: 'g > stale:0', why: 'a rule', by: 'src/rules.ts', name: 'never_stale' }],
+	equivalent: [],
 	baseline: ['h > parse:0', 'k > catch:0'],
 	...over
 });
