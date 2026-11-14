@@ -20,6 +20,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { all_steps, universe } from './coverage.ts';
+import { read_ledger_file } from './ledger-json.ts';
 
 /** The standard sweep: what runs decide the `reached` bucket. */
 export interface Sweep {
@@ -171,7 +172,7 @@ const ROOT = resolve(import.meta.dirname, '..', '..', '..');
 export const LEDGER = join(ROOT, 'internal', 'sim', 'steps.json');
 
 export function read_ledger(): Ledger {
-	return JSON.parse(readFileSync(LEDGER, 'utf8')) as Ledger;
+	return read_ledger_file(LEDGER) as Ledger;
 }
 
 /** The steps a results.json reached (its coverage's `steps_reached`). */

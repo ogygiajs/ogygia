@@ -12,7 +12,7 @@ import {
 	type ServerPlugin
 } from '@ogygia/core/plugin';
 import type { RequestEvent } from '@sveltejs/kit';
-import { head_end } from '@ogygia/core/internal/server';
+import { compose_resolve_options, head_end } from '@ogygia/core/internal/server';
 import {
 	DEVTOOLS_COOKIE,
 	DEVTOOLS_ON,
@@ -112,19 +112,6 @@ function never_stored(res: Response): Response {
 	}
 }
 
-/** `outer`'s page transform after `inner`'s, the other options merged. */
-function after(inner: ResolveOptions | undefined, outer: ResolveOptions): ResolveOptions {
-	const a = inner?.transformPageChunk;
-	const b = outer.transformPageChunk!;
-	return {
-		...inner,
-		transformPageChunk: async (input) => {
-			const html = a ? await a(input) : input.html;
-			return html === undefined ? html : b({ ...input, html });
-		}
-	};
-}
-
 const server: ServerPlugin<DevtoolsServerOptions> = defineServer<DevtoolsServerOptions>({
 	setup(app) {
 		set_devtools_app(app as ServerApp<unknown>);
@@ -151,7 +138,7 @@ const server: ServerPlugin<DevtoolsServerOptions> = defineServer<DevtoolsServerO
 		if (!prof) return next(beacon);
 		return prof({
 			event,
-			resolve: (_event, opts) => next(beacon ? after(opts, beacon) : opts)
+			resolve: (_event, opts) => next(beacon ? compose_resolve_options(opts, beacon) : opts)
 		});
 	},
 	// SHARED HOOK: the profiler's logged-in user measures (core's `server-timing` on region answers).

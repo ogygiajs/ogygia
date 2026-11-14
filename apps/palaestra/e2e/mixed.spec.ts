@@ -24,16 +24,16 @@ test.describe('csr=true coexistence + opt-in router', () => {
 		await btn.click();
 		check(
 			'mixed: island interactive via Kit hydration',
-			(await btn.textContent()).includes('count is 44')
+			(await btn.textContent())!.includes('count is 44')
 		);
 		// real $app/state in a normal (non-island) component
 		check(
 			'mixed: normal component uses REAL $app/state',
-			(await page.locator('[data-kit-status] strong').textContent()).includes('/kit')
+			(await page.locator('[data-kit-status] strong').textContent())!.includes('/kit')
 		);
 		const ks = page.locator('[data-kit-status] button');
 		await ks.click();
-		check('mixed: normal component interactive', (await ks.textContent()).includes('count 1'));
+		check('mixed: normal component interactive', (await ks.textContent())!.includes('count 1'));
 		check('mixed: no page errors', errs.length === 0, errs.slice(0, 2).join('; '));
 	});
 
@@ -63,7 +63,7 @@ test.describe('csr=true coexistence + opt-in router', () => {
 		await pbtn.click();
 		check(
 			'router: island on /plain still hydrates & works',
-			(await pbtn.textContent()).includes('count is 6')
+			(await pbtn.textContent())!.includes('count is 6')
 		);
 	});
 

@@ -113,6 +113,20 @@ describe('SearchClient: a query is answered or rejected, never left waiting', ()
 		expect(() => s.destroy()).not.toThrow();
 	});
 
+	it('a client destroyed, or failed, before its index loads leaves no unhandled rejection when nothing awaits ready', async () => {
+		const unhandled = vi.fn();
+		process.on('unhandledRejection', unhandled);
+		try {
+			new SearchClient().destroy();
+			new SearchClient();
+			FakeWorker.last!.crash('worker died');
+			await new Promise((r) => setTimeout(r, 20));
+			expect(unhandled).not.toHaveBeenCalled();
+		} finally {
+			process.off('unhandledRejection', unhandled);
+		}
+	});
+
 	it('an empty query is [] at once, in any state', async () => {
 		const s = new SearchClient();
 		s.destroy();

@@ -47,7 +47,7 @@ const count = (s: string, re: RegExp) => (s.match(re) || []).length;
 
 test.describe('SSR island HTML, no Kit bootstrap', () => {
 	test('Home', async ({ baseURL }) => {
-		const { status, html } = await get(baseURL, '/');
+		const { status, html } = await get(baseURL!, '/');
 		check('/ returns 200', status === 200);
 		check(
 			'/ has 9 <ogygia-region> elements',
@@ -94,14 +94,14 @@ test.describe('SSR island HTML, no Kit bootstrap', () => {
 	});
 
 	test('About', async ({ baseURL }) => {
-		const { status, html } = await get(baseURL, '/about');
+		const { status, html } = await get(baseURL!, '/about');
 		check('/about returns 200', status === 200);
 		check('/about Clock island SSR', CLOCK_ISLAND_RE.test(html));
 		check('/about NO Kit bootstrap', !KIT_MARKER_RE.test(html));
 	});
 
 	test('Data (remote functions)', async ({ baseURL }) => {
-		const { status, html } = await get(baseURL, '/data');
+		const { status, html } = await get(baseURL!, '/data');
 		check('/data returns 200', status === 200);
 		check('/data mode (a): resolved query in SSR HTML (Hello, world!)', HELLO_WORLD_RE.test(html));
 		check('/data mode (b): pending snippet SSR (not resolved)', PENDING_SNIPPET_RE.test(html));
@@ -113,7 +113,7 @@ test.describe('SSR island HTML, no Kit bootstrap', () => {
 	test('Plain page: global router still applies, but this page opts OUT of view transitions', async ({
 		baseURL
 	}) => {
-		const { status, html } = await get(baseURL, '/plain');
+		const { status, html } = await get(baseURL!, '/plain');
 		check('/plain returns 200', status === 200);
 		check('/plain has an island (still hydrates)', count(html, REGION_OPEN_G_RE) === 1);
 		check('/plain router marker present (router is global)', ROUTER_MARKER_RE.test(html));
@@ -129,7 +129,7 @@ test.describe('SSR island HTML, no Kit bootstrap', () => {
 	test('Nested deep route: island CSS must reach the INITIAL <head> (no FOUC on hard reload)', async ({
 		baseURL
 	}) => {
-		const { status, html } = await get(baseURL, '/dashboard/orders/5');
+		const { status, html } = await get(baseURL!, '/dashboard/orders/5');
 		check('/dashboard/orders/5 returns 200', status === 200);
 		const head = html.slice(0, html.indexOf('</head>'));
 		// The island component's `.island` CSS is inlined into <head> at SSR (via the page import
@@ -144,7 +144,7 @@ test.describe('SSR island HTML, no Kit bootstrap', () => {
 	test('Kit page (csr=true coexistence demo): full Kit hydration + an island', async ({
 		baseURL
 	}) => {
-		const { status, html } = await get(baseURL, '/kit');
+		const { status, html } = await get(baseURL!, '/kit');
 		check('/kit returns 200', status === 200);
 		check('/kit IS a normal hydrated Kit page (has __sveltekit)', KIT_MARKER_RE.test(html));
 		// csr=true → ogygia steps aside entirely: the island compiles to a plain component (Kit hydrates

@@ -93,9 +93,9 @@ test.describe('frozen region, no client JS, island-in-lake, restore, remount cac
 		);
 
 		// Outer island hydrated + interactive (first LakeCounter).
-		const c0 = (await page.locator('[data-count-btn]').first().textContent()).trim();
+		const c0 = (await page.locator('[data-count-btn]').first().textContent())!.trim();
 		await page.locator('[data-count-btn]').first().click();
-		const c1 = (await page.locator('[data-count-btn]').first().textContent()).trim();
+		const c1 = (await page.locator('[data-count-btn]').first().textContent())!.trim();
 		check(
 			'outer island hydrates & is interactive',
 			c0 !== c1 && ISLAND_COUNT_1_RE.test(c1),
@@ -103,21 +103,17 @@ test.describe('frozen region, no client JS, island-in-lake, restore, remount cac
 		);
 
 		// Island-in-lake self-hydrates (the lake reset its subtree to dead — nearest-boundary rule).
-		const i0 = (
-			await page
-				.locator('[data-inner-btn]')
-				.first()
-				.textContent()
-				.catch(() => '')
-		).trim();
+		const i0 = (await page
+			.locator('[data-inner-btn]')
+			.first()
+			.textContent()
+			.catch(() => ''))!.trim();
 		await page.locator('[data-inner-btn]').first().click();
-		const i1 = (
-			await page
-				.locator('[data-inner-btn]')
-				.first()
-				.textContent()
-				.catch(() => '')
-		).trim();
+		const i1 = (await page
+			.locator('[data-inner-btn]')
+			.first()
+			.textContent()
+			.catch(() => ''))!.trim();
 		check(
 			'island INSIDE the lake self-hydrates & works (alternation)',
 			i0 !== i1 && INNER_COUNT_1_RE.test(i1),
@@ -125,10 +121,10 @@ test.describe('frozen region, no client JS, island-in-lake, restore, remount cac
 		);
 
 		// The lake itself is FROZEN: its own button is inert (no JS shipped).
-		const f0 = (await page.locator('[data-frozen-btn]').first().textContent()).trim();
+		const f0 = (await page.locator('[data-frozen-btn]').first().textContent())!.trim();
 		await page.locator('[data-frozen-btn]').first().click();
 		await sleep(150);
-		const f1 = (await page.locator('[data-frozen-btn]').first().textContent()).trim();
+		const f1 = (await page.locator('[data-frozen-btn]').first().textContent())!.trim();
 		check(
 			'lake is frozen: its button is inert (no client JS, events do nothing)',
 			f0 === f1 && FROZEN_BUTTON_0_RE.test(f1),

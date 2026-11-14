@@ -3725,12 +3725,12 @@
 			"reason": "SvelteKit's page transform (an async hook: not recorded): two indexOf calls and one join over the head, once per document"
 		},
 		{
-			"id": "packages/devtools/src/server.ts > after",
-			"reason": "joins two resolve options into one, once per request, constant work"
+			"id": "packages/core/src/plugin/server.ts > compose_resolve_options > a",
+			"reason": "SvelteKit's page transform (an async hook: not recorded): calls the inner options' transformPageChunk on its own object, one call"
 		},
 		{
-			"id": "packages/devtools/src/server.ts > after > transformPageChunk",
-			"reason": "SvelteKit's page transform (an async hook: not recorded): runs the inner then the outer transform, constant work of its own"
+			"id": "packages/core/src/plugin/server.ts > compose_resolve_options > b",
+			"reason": "SvelteKit's page transform (an async hook: not recorded): calls the outer options' transformPageChunk on its own object, one call"
 		},
 		{
 			"id": "packages/tooling/src/e2e/packed.ts > pack_ogygia > map:0~dfb3e5",
@@ -3809,7 +3809,7 @@
 			"reason": "sets one header on a Response (not cloneable), or copies its headers once when they are immutable; once per document that carries the beacon in a build; proven in packages/devtools/test/devtools-cache-headers.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/server.ts > defineServer:0~213cab > handle > next",
+			"id": "packages/devtools/src/server.ts > defineServer:0~334514 > handle > next",
 			"reason": "SvelteKit's resolve for a beacon page in a build (a RequestEvent's resolve: not cloneable), then never_stored, constant work of its own"
 		},
 		{
@@ -4381,6 +4381,14 @@
 			"reason": "a warning's longer wording for its error page, constant text"
 		},
 		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_read_dropped > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/peer-flights.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_read_dropped > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
 			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_unreachable > text",
 			"reason": "a warning's wording, constant text; said in packages/federation/test/peer-unreachable.test.ts"
 		},
@@ -4569,7 +4577,7 @@
 			"reason": "forwards to Profiler.measures (a RequestEvent, not cloneable), one call; proven in packages/devtools/test/profiler-measures.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/server.ts > defineServer:0~213cab > measures",
+			"id": "packages/devtools/src/server.ts > defineServer:0~334514 > measures",
 			"reason": "the shared hook: forwards to the mounted profiler's measures, one call; proven in packages/core/test/server-timing-measurer.test.ts"
 		},
 		{

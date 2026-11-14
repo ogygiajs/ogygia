@@ -96,6 +96,8 @@ export function start_app_plugins(
 	return plugins;
 }
 
+type ChunkInput = Parameters<NonNullable<ResolveOptions['transformPageChunk']>>[0];
+
 /** Two `resolve()` option sets as one: the inner transform (ogygia's document injection) runs first,
  *  the outer (a plugin's `handle`) sees the finished chunk; the other options merge, outer last. */
 export function compose_resolve_options(
@@ -104,8 +106,8 @@ export function compose_resolve_options(
 ): ResolveOptions | undefined {
 	if (!inner) return outer;
 	if (!outer) return inner;
-	const a = inner.transformPageChunk;
-	const b = outer.transformPageChunk;
+	const a = inner.transformPageChunk && ((input: ChunkInput) => inner.transformPageChunk!(input));
+	const b = outer.transformPageChunk && ((input: ChunkInput) => outer.transformPageChunk!(input));
 	return {
 		...inner,
 		...outer,
@@ -126,11 +128,10 @@ export function around(plugins: readonly LivePlugin[], core: Handle): Handle {
 	let inner = core;
 	for (let i = plugins.length - 1; i >= 0; i--) {
 		const { def, app } = plugins[i];
-		const handle = def.handle;
-		if (!handle) continue;
+		if (!def.handle) continue;
 		const next_handle = inner;
 		inner = async ({ event, resolve }) =>
-			handle({ event, options: app.options, app }, (outer) =>
+			def.handle!({ event, options: app.options, app }, (outer) =>
 				Promise.resolve(
 					next_handle({
 						event,

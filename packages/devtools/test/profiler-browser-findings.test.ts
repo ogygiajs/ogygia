@@ -1,7 +1,7 @@
 // The report's browser findings are the devtools Page tab's, run on the visit the beacon sent: each
 // planted problem is named on its island (by the render's own name), the report's own codes are
 // left to it, and a clean visit says nothing.
-import { expect, test } from 'vitest';
+import { expect, onTestFinished, test, vi } from 'vitest';
 import { parse_visit, merge_visits } from '../src/profiler/visit.ts';
 import { browser_findings, browser_page_report } from '../src/profiler/browser-findings.ts';
 
@@ -393,6 +393,88 @@ test('the inline beacon names a preload the browser downloaded again (a Kit page
 		{ url: font, type: 'font', bytes: 20_300, as: 'font', crossorigin: null }
 	]);
 	expect(parse_visit('/p', visit)!.preload_misses).toHaveLength(1);
+});
+
+test("the inline beacon names a reloaded file's region, past a region whose src is not a URL", async () => {
+	const unhandled = vi.fn();
+	process.on('unhandledRejection', unhandled);
+	onTestFinished(() => void process.off('unhandledRejection', unhandled));
+	const { BEACON_STANDALONE_TAG } = await import('../src/profiler/beacon-tag.ts');
+	const file = 'https://a.test/_app/immutable/entry.js';
+	const region = (src: string, entry: string) => ({
+		parentElement: null,
+		getAttribute: (n: string) => (n === 'src' ? src : n === 'entry' ? entry : null)
+	});
+	const regions = [region('http://[not-a-url', 'broken'), region(file, 'src/lib/Cart.svelte')];
+	const listeners: Record<string, () => void> = {};
+	const sent: string[] = [];
+	const doc = {
+		visibilityState: 'hidden',
+		baseURI: 'https://a.test/p',
+		querySelector: (s: string) =>
+			s.startsWith('head > meta') ? { getAttribute: () => '/__profiler/beacon' } : null,
+		querySelectorAll: (s: string) => (s.startsWith('ogygia-region') ? regions : []),
+		addEventListener: (t: string, f: () => void) => (listeners[t] = f)
+	};
+	class PO {
+		observe() {}
+		disconnect() {}
+		static supportedEntryTypes = ['paint'];
+	}
+	const resource = {
+		name: file,
+		initiatorType: 'script',
+		transferSize: 5_300,
+		encodedBodySize: 5_000,
+		decodedBodySize: 5_000,
+		startTime: 1,
+		responseEnd: 2,
+		duration: 1
+	};
+	const perf = {
+		timeOrigin: 0,
+		now: () => 0,
+		getEntriesByName: () => [],
+		getEntriesByType: (t: string) =>
+			t === 'navigation'
+				? [{ type: 'reload', requestStart: 1, responseStart: 5, responseEnd: 9 }]
+				: t === 'resource'
+					? [resource]
+					: [],
+		setResourceTimingBufferSize() {}
+	};
+	// oxlint-disable-next-line typescript/no-implied-eval -- runs the shipped beacon code against stand-in browser globals
+	new Function(
+		'document',
+		'performance',
+		'PerformanceObserver',
+		'navigator',
+		'location',
+		'innerWidth',
+		'innerHeight',
+		'addEventListener',
+		'fetch',
+		tag_code(BEACON_STANDALONE_TAG)
+	)(
+		doc,
+		perf,
+		PO,
+		{ userAgent: 'test', sendBeacon: (_: string, b: string) => (sent.push(b), true) },
+		{ pathname: '/p', origin: 'https://a.test', href: 'https://a.test/p' },
+		1,
+		1,
+		() => {},
+		() => Promise.resolve()
+	);
+	listeners.visibilitychange();
+	(globalThis as unknown as Record<symbol, { stop(): void }>)[Symbol.for('ogygia.beacon')].stop();
+	const visit = sent.map((b) => JSON.parse(b)).find((b) => b.visit)!.visit;
+	expect(visit.refetched).toEqual([
+		{ url: file, how: 'downloaded', bytes: 5_000, ms: 1, entry: 'src/lib/Cart.svelte' }
+	]);
+	// (no IndexedDB here: the visit is not kept, and that is no unhandled rejection)
+	await new Promise((r) => setTimeout(r, 20));
+	expect(unhandled).not.toHaveBeenCalled();
 });
 
 test('bad region records are dropped', () => {

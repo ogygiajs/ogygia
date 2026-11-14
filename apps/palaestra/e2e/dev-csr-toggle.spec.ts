@@ -80,8 +80,8 @@ test.describe('PAGE-CSR dev leg: a csr-export toggle refreshes ogygia:server/rou
 			expect(first, 'palaestra dev server never came up').not.toBeNull();
 
 			// Baseline: csr=true leaf → chrome degraded inline, Kit boots the page.
-			check('dev baseline: csr=true page has NO <ogygia-region>', !has_regions(first));
-			check('dev baseline: Kit bootstrap present', kit_booted(first));
+			check('dev baseline: csr=true page has NO <ogygia-region>', !has_regions(first!));
+			check('dev baseline: Kit bootstrap present', kit_booted(first!));
 
 			// ── flip the leaf to csr=false — the server's set must refresh, not desync ──────────────
 			writeFileSync(page_ts, 'export const csr = false;\n');
@@ -97,11 +97,11 @@ test.describe('PAGE-CSR dev leg: a csr-export toggle refreshes ogygia:server/rou
 				);
 
 			// ── flip back — the other direction must refresh too ────────────────────────────────────
-			writeFileSync(page_ts, orig);
+			writeFileSync(page_ts, orig!);
 			const restored = await wait_html((h) => !has_regions(h) && kit_booted(h), 30_000);
 			check('after restore → csr=true: degraded inline again (no stale island shells)', !!restored);
 		} finally {
-			writeFileSync(page_ts, orig);
+			writeFileSync(page_ts, orig!);
 		}
 	});
 });
