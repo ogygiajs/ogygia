@@ -1,7 +1,7 @@
 // The DOM-free HTML passes over a rendered document: the head's link dedupe and runtime placement,
 // the final assembly, a hole answer's URL rewrite, and the region-CSS scan. Per page or per hole, on
 // a CMS document of a few hundred regions. (The region splitter and the reversible-transform marks:
-// packages/reshape/bench.)
+// packages/rewrite/bench.)
 import { bench } from '@bench/heisenbench/bench';
 import { assemble, locate } from '../src/server/document-assembly.ts';
 import {
