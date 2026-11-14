@@ -32,8 +32,8 @@ export async function render_region_html(
 	// (test/browser/held-region-hole.test.ts)
 	const context = wakes ? nested_context(base) : base;
 	const r = await render(component, { props, context });
-	let own = '';
+	const own: string[] = [];
 	for (const href of region_css(module_url))
-		own = `${own}<link rel="stylesheet" href="${href}" ${OGYGIA_REGION_CSS}>`;
-	return `${own}${region_css_tags(r.head)}${r.body}${kit_page_facts_tail()}`;
+		own.push(`<link rel="stylesheet" href="${href}" ${OGYGIA_REGION_CSS}>`);
+	return `${own.join('')}${region_css_tags(r.head)}${r.body}${kit_page_facts_tail()}`;
 }

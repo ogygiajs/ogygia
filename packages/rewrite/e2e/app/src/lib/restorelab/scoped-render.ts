@@ -64,24 +64,27 @@ function render(
 	used: Set<string>,
 	tree: (inner: string) => string
 ): string {
-	let out = '';
+	const out: string[] = [];
 	let at = 0;
 	for (;;) {
 		const open = html.indexOf(`<${tag}`, at);
-		if (open === -1) return out + html.slice(at);
-		const gt = html.indexOf('>', open);
-		const close = html.indexOf(`</${tag}>`, gt);
-		if (close === -1) return out + html.slice(at);
-		let host = html.slice(open + tag.length + 1, gt);
-		if (/ og-h="/.test(host)) {
-			host = `${host} og-shadow="${tag}.shadow" og-keep="data-rendered"`;
-			used.add(`${tag}.shadow`);
+		const gt = open === -1 ? -1 : html.indexOf('>', open);
+		const close = open === -1 ? -1 : html.indexOf(`</${tag}>`, gt);
+		if (close === -1) {
+			out.push(html.slice(at));
+			return out.join('');
 		}
-		host = /\sclass="/.test(host)
-			? host.replace(/\sclass="([^"]*)"/, ` class="$1 sc-${tag}-h"`)
-			: `${host} class="sc-${tag}-h"`;
-		host = `${host} data-rendered=""`;
-		out = `${out}${html.slice(at, open)}<${tag}${host}>${tree(html.slice(gt + 1, close))}</${tag}>`;
+		const attrs = html.slice(open + tag.length + 1, gt);
+		const planned = / og-h="/.test(attrs);
+		if (planned) used.add(`${tag}.shadow`);
+		const marked = planned ? `${attrs} og-shadow="${tag}.shadow" og-keep="data-rendered"` : attrs;
+		const classed = /\sclass="/.test(marked)
+			? marked.replace(/\sclass="([^"]*)"/, ` class="$1 sc-${tag}-h"`)
+			: `${marked} class="sc-${tag}-h"`;
+		out.push(
+			html.slice(at, open),
+			`<${tag}${classed} data-rendered="">${tree(html.slice(gt + 1, close))}</${tag}>`
+		);
 		at = close + tag.length + 3;
 	}
 }

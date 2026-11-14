@@ -1,6 +1,17 @@
 import { OgygiaError } from '../messages/build.ts';
 
 const HEX4_RE = /^[0-9a-fA-F]{4}$/;
+const ESCAPES: ReadonlyMap<string, string> = new Map([
+	['n', '\n'],
+	['t', '\t'],
+	['r', '\r'],
+	['0', '\0'],
+	['b', '\b'],
+	['f', '\f'],
+	['"', '"'],
+	['\\', '\\'],
+	['/', '/']
+]);
 const YAML_INF_RE = /^[-+]?\.(inf|Inf|INF)$/;
 const YAML_NAN_RE = /^\.(nan|NaN|NAN)$/;
 const YAML_HEX_RE = /^[-+]?0x[0-9a-fA-F]+$/;
@@ -107,79 +118,49 @@ function strip_comment(s: string): string {
 
 function read_double_quoted(s: string, i: number): { value: string; i: number } {
 	i++;
-	let out = '';
+	const out: string[] = [];
+	let run = i;
 	while (i < s.length) {
 		const c = s[i];
 		if (c === '\\') {
+			out.push(s.slice(run, i));
 			const n = s[i + 1];
-			switch (n) {
-				case 'n':
-					out = `${out}\n`;
-					break;
-				case 't':
-					out = `${out}\t`;
-					break;
-				case 'r':
-					out = `${out}\r`;
-					break;
-				case '0':
-					out = `${out}\0`;
-					break;
-				case 'b':
-					out = `${out}\b`;
-					break;
-				case 'f':
-					out = `${out}\f`;
-					break;
-				case '"':
-					out = `${out}"`;
-					break;
-				case '\\':
-					out = `${out}\\`;
-					break;
-				case '/':
-					out = `${out}/`;
-					break;
-				case 'u': {
-					const hex = s.slice(i + 2, i + 6);
-					if (HEX4_RE.test(hex)) {
-						out += String.fromCharCode(parseInt(hex, 16));
-						i += 6;
-						continue;
-					}
-					out = `${out}u`;
-					break;
-				}
-				default:
-					out += n ?? '';
+			const hex = n === 'u' ? s.slice(i + 2, i + 6) : '';
+			if (HEX4_RE.test(hex)) {
+				out.push(String.fromCharCode(parseInt(hex, 16)));
+				i += 6;
+			} else {
+				out.push(n === undefined ? '' : (ESCAPES.get(n) ?? n));
+				i += 2;
 			}
-			i += 2;
+			run = i;
 			continue;
 		}
-		if (c === '"') return { value: out, i: i + 1 };
-		out += c;
+		if (c === '"') {
+			out.push(s.slice(run, i));
+			return { value: out.join(''), i: i + 1 };
+		}
 		i++;
 	}
-	return { value: out, i };
+	out.push(s.slice(run, i));
+	return { value: out.join(''), i };
 }
 
 function read_single_quoted(s: string, i: number): { value: string; i: number } {
 	i++;
-	let out = '';
+	const out: string[] = [];
+	let run = i;
 	while (i < s.length) {
-		const c = s[i];
-		if (c === "'") {
-			if (s[i + 1] === "'") {
-				out = `${out}'`;
-				i += 2;
-				continue;
-			}
-			return { value: out, i: i + 1 };
+		if (s[i] === "'") {
+			out.push(s.slice(run, i));
+			if (s[i + 1] !== "'") return { value: out.join(''), i: i + 1 };
+			i++;
+			run = i;
 		}
-		out += c;
 		i++;
 	}
-	return { value: out, i };
+	out.push(s.slice(run, i));
+	return { value: out.join(''), i };
 }
 
 function parse_plain(text: string): unknown {
@@ -414,14 +395,15 @@ function parse_block_scalar(ctx: Ctx, parent_indent: number, header: string): st
 	if (style === '|') {
 		text = body.join('\n');
 	} else {
-		text = '';
+		const parts: string[] = [];
 		for (let k = 0; k < body.length; k++) {
 			const cur = body[k];
-			if (k === 0) text += cur;
-			else if (cur === '') text = `${text}\n`;
-			else if (body[k - 1] === '') text += cur;
-			else text = `${text} ${cur}`;
+			if (k === 0) parts.push(cur);
+			else if (cur === '') parts.push('\n');
+			else if (body[k - 1] === '') parts.push(cur);
+			else parts.push(` ${cur}`);
 		}
+		text = parts.join('');
 	}
 
 	if (body.length === 0) return chomp === '+' ? '\n'.repeat(trailing_blanks) : '';
