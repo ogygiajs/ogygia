@@ -3627,6 +3627,12 @@
 			"name": "a marked import with no specifier in a .ts module"
 		},
 		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > hosts > throw:0",
+			"reason": "`throw new Error('resolve_plugins: no region table without ogygia()');`: proved: the throw removed turns the test red",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "without ogygia() a plugin reading the region table is told so"
+		},
+		{
 			"site": "packages/compiler/src/vite/plugin-api.ts > names > throw:0",
 			"reason": "`throw new Error('resolve_plugins: no region table without ogygia()');`: proved: the throw removed turns the test red, twice",
 			"test": "packages/compiler/test/plugins.test.ts",
