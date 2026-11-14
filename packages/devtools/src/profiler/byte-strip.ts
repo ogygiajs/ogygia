@@ -80,10 +80,9 @@ function script_kind(t: FoundTag): { kind: StripKind; label?: string } {
 	if (mime === 'application/ogygia-page') return { kind: 'seed' };
 	if (mime === 'application/ogygia-remote') return { kind: 'remote-seed' };
 	const src = t.attr('src');
-	return {
-		kind: 'script',
-		label: src ? `src ${src.split('/').pop()}` : type ? `type ${type}` : 'inline'
-	};
+	if (src) return { kind: 'script', label: `src ${src.split('/').pop()}` };
+	if (type) return { kind: 'script', label: `type ${type}` };
+	return { kind: 'script', label: 'inline' };
 }
 
 /** Where the element `t` opens ends: past its end tag (its raw text runs to the first `</name`),
@@ -147,14 +146,8 @@ export function byte_strip(html: string): ByteStrip {
 	try {
 		for (const r of scanRegions(html)) {
 			if (r.depth !== 0) continue;
-			const kind: StripKind =
-				r.kind === 'island'
-					? 'island'
-					: r.kind === 'lake'
-						? 'lake'
-						: r.kind === 'hole'
-							? 'hole'
-							: 'markup';
+			let kind: StripKind = 'markup';
+			if (r.kind === 'island' || r.kind === 'lake' || r.kind === 'hole') kind = r.kind;
 			spans.push({
 				kind,
 				start: r.start,
