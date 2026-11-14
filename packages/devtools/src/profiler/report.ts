@@ -1581,13 +1581,7 @@ export function derive_findings(a: Analysis, meta: ReportMeta, extras: ReportExt
 					top_share.share_ms >= s.wall_ms * 0.2
 				)
 					by_top = ` The biggest part is ${bk} ${top_share.value}: ${Math.round(top_share.count / runs)} of them, ${fmt_ms(top_share.share_ms / runs)} ms of the ${fmt_ms(wall_per_render)} ms (${fmt_pct(top_share.share_ms, s.wall_ms)}).`;
-			} else if (
-				// "most of it" only when it is: 1 of 16 equal lookups (a key per call, repeated each render) is not
-				top &&
-				bk &&
-				!top.value.startsWith('(') &&
-				top.wall_ms >= s.wall_ms * 0.2
-			)
+			} else if (top && bk && !top.value.startsWith('(') && top.wall_ms >= s.wall_ms * 0.2)
 				by_top = ` Most of it is ${bk} ${top.value}: ${Math.round(top.count / runs)} of them, ${fmt_ms(top.wall_ms / runs)} ms of wall.`;
 			// ran together (a Promise.all: the summed time is far above the wall) or one after another?
 			if (overlap) {
