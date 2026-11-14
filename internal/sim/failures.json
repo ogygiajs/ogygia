@@ -5010,6 +5010,30 @@
 			"reason": "an answer that is not a failed hop (a body that breaks off) fails the mutation with its own error; proved by hand: the rethrow removed turns the test red, twice",
 			"test": "packages/federation/test/peer-unreachable.test.ts",
 			"name": "a mutation whose answer breaks off mid-body fails with that break, as it came"
+		},
+		{
+			"site": "packages/config/src/sim.ts > env_number > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/property-seeded.test.ts",
+			"name": "a property run reads its run count and seed from the sim knobs, else its own defaults"
+		},
+		{
+			"site": "packages/config/src/sim.ts > Run > fetch > fetch_stub > reject:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the rejection handler made to rethrow turns the test red",
+			"test": "packages/core/test/sim/frame-order.test.ts",
+			"name": "what is on screen moves forward in the order the requests went out"
+		},
+		{
+			"site": "packages/config/src/sim.ts > Run > fetch > fetch_stub > error-event:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the error handler made to do nothing turns the test red",
+			"test": "packages/federation/test/sim-deploy-thaw.test.ts",
+			"name": "reaches every peer once the store and the peers are back, sent once to each"
+		},
+		{
+			"site": "packages/config/src/sim.ts > Run > fetch > fetch_stub > abort:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the abort check never true turns the test red",
+			"test": "packages/federation/test/sim-deploy-thaw.test.ts",
+			"name": "reaches every peer once the store and the peers are back, sent once to each"
 		}
 	],
 	"impossible": [
@@ -5153,11 +5177,7 @@
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:12",
 		"packages/config/src/sim.ts > macrotask > message:0",
 		"packages/config/src/sim.ts > macrotask > message:1",
-		"packages/config/src/sim.ts > env_number > throw:0",
 		"packages/config/src/sim.ts > Run > fetch > fetch_stub > abort:0",
-		"packages/config/src/sim.ts > Run > fetch > fetch_stub > error-event:0",
-		"packages/config/src/sim.ts > Run > fetch > fetch_stub > reject:0",
-		"packages/config/src/sim.ts > Run > fetch > fetch_stub > abort:1",
 		"packages/config/src/sim.ts > Run > stream > pull > stream:0",
 		"packages/config/src/sim.ts > Run > stream > pull > stream:1",
 		"packages/config/src/sim.ts > Run > track > reject:0",
