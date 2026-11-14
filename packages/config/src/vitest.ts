@@ -121,8 +121,9 @@ export function firefox_binary(): string | null {
 function firefox_version(binary: string): string {
 	try {
 		return execFileSync(binary, ['--version'], { encoding: 'utf8', timeout: 20_000 }).trim();
+		// oxlint-disable-next-line ogygia/no-silent-failures -- only a label in the run's header
 	} catch {
-		return 'unknown'; // ok: only a label in the run's header
+		return 'unknown';
 	}
 }
 
@@ -130,8 +131,9 @@ function firefox_version(binary: string): string {
 function on_path(name: string): string | null {
 	try {
 		return execFileSync('which', [name], { encoding: 'utf8' }).trim() || null;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- `which` fails for a name not on PATH: that is the answer
 	} catch {
-		return null; // ok: `which` fails for a name not on PATH: that is the answer
+		return null;
 	}
 }
 

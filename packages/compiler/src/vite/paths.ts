@@ -29,9 +29,8 @@ export function runtime_inputs(runtime_dir: string = RUNTIME_DIR): string[] {
 		for (const name of fs.readdirSync(runtime_dir)) {
 			if (name.endsWith('.js')) inputs.push(path.join(runtime_dir, name));
 		}
-	} catch {
-		// ok: dist may lack the runtime until its first build
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- dist may lack the runtime until its first build
+	} catch {}
 	return inputs;
 }
 
@@ -41,9 +40,8 @@ export function content_hash(files: readonly string[]): string {
 	for (const f of files) {
 		try {
 			h.update(fs.readFileSync(f));
-		} catch {
-			// ok: a missing input does not contribute; still the same across both builds
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a missing input does not contribute; still the same across both builds
+		} catch {}
 	}
 	return h.digest('hex').slice(0, 12);
 }

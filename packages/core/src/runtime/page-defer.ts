@@ -51,7 +51,8 @@ export function create_deferred(id: number): Promise<unknown> {
 	if (existing) return existing;
 	let settle_it!: Settle;
 	const promise = new Promise<unknown>((resolve, reject) => (settle_it = { resolve, reject }));
-	promise.catch(() => {}); // ok: the same promise is handed back, and its `{#await}` sees the rejection; no unhandled-rejection noise if a rejected leaf goes un-awaited
+	// oxlint-disable-next-line ogygia/no-silent-failures -- the same promise is handed back, and its `{#await}` sees the rejection; no unhandled-rejection noise if a rejected leaf goes un-awaited
+	promise.catch(() => {});
 	promises.set(id, promise);
 	(r.waiting ??= new Map()).set(id, settle_it);
 	if (r.loaded && !r.arriving?.has(id)) settle(id, false, unresolved('stream'));
@@ -82,7 +83,8 @@ function settle(id: number, ok: boolean, value: unknown): void {
 	const promises = (r.promises ??= new Map());
 	if (promises.has(id)) return;
 	const promise = ok ? Promise.resolve(value) : Promise.reject(to_error(value));
-	promise.catch(() => {}); // ok: the same promise is handed back, and its `{#await}` sees the rejection; resolve raced ahead of the island — guard before `{#await}` attaches its :catch
+	// oxlint-disable-next-line ogygia/no-silent-failures -- the same promise is handed back, and its `{#await}` sees the rejection; resolve raced ahead of the island — guard before `{#await}` attaches its :catch
+	promise.catch(() => {});
 	promises.set(id, promise);
 }
 
@@ -104,9 +106,8 @@ export function install_page_defer(
 				let value: unknown = null;
 				try {
 					value = parse(encoded, r.revivers as Parameters<typeof parse>[1]);
-				} catch {
-					// ok: a mangled chunk resolves to null, never hangs the `{#await}`
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- a mangled chunk resolves to null, never hangs the `{#await}`
+				} catch {}
 				settle(id, ok, value);
 			},
 			() => settle(id, false, unresolved('devalue'))
@@ -137,7 +138,8 @@ export function page_defer_revivers(
 			const [ok, value] = payload as [boolean, unknown];
 			if (ok) return Promise.resolve(value);
 			const p = Promise.reject(to_error(value));
-			p.catch(() => {}); // ok: the same promise is handed back, and its `{#await}` sees the rejection; no unhandled-rejection noise if a rejected leaf goes un-awaited
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the same promise is handed back, and its `{#await}` sees the rejection; no unhandled-rejection noise if a rejected leaf goes un-awaited
+			p.catch(() => {});
 			return p;
 		}
 	};

@@ -29,6 +29,7 @@ export function load_embedded_maps(): Promise<EmbeddedMaps | null> {
 const loaded = flights({
 	name: 'profiler embedded maps',
 	run: () =>
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no embedded maps in this build (or an unreadable payload): frames keep their generated places
 		read_profiler_maps()
 			.then(async (maps) => {
 				let raw: unknown = maps;
@@ -50,7 +51,7 @@ const loaded = flights({
 						})
 					: null;
 			})
-			.catch(() => null) // ok: no embedded maps in this build (or an unreadable payload): frames keep their generated places
+			.catch(() => null)
 });
 
 /** the maps once loaded (synchronous readers: the module map lookup), else null */
@@ -142,8 +143,9 @@ export function embedded_source(file: string): string | undefined {
 function cwd(): string | undefined {
 	try {
 		return process.cwd().split('\\').join('/');
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no process folder off Node: paths stay as the maps give them
 	} catch {
-		return undefined; // ok: no process folder off Node: paths stay as the maps give them
+		return undefined;
 	}
 }
 
@@ -160,8 +162,9 @@ function source_index(): Map<string, string> | undefined {
 			let map: { sources?: string[]; sourcesContent?: (string | null)[]; sourceRoot?: string };
 			try {
 				map = JSON.parse(raw);
+				// oxlint-disable-next-line ogygia/no-silent-failures -- an unreadable map: its files go without sources, the others keep theirs
 			} catch {
-				continue; // ok: an unreadable map: its files go without sources, the others keep theirs
+				continue;
 			}
 			// (a browser chunk's sources are relative to the client output: `client/…` under output/)
 			const dir =

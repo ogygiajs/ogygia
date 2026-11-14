@@ -92,7 +92,7 @@ function dock_measures(event: RequestEvent): boolean {
 const WITH_PAGE_BEACON: ResolveOptions = {
 	transformPageChunk: ({ html }) => {
 		const at = head_end(html);
-		// markup-ok: the profiler's own beacon tag, written byte for byte by beacon-tag.ts
+		// oxlint-disable-next-line ogygia/one-markup-walk -- the profiler's own beacon tag, written byte for byte by beacon-tag.ts
 		if (at === -1 || html.lastIndexOf(`<script ${OGYGIA_BEACON}>`, at) !== -1) return html;
 		return `${html.slice(0, at)}${BEACON_STANDALONE_TAG}${html.slice(at)}`;
 	}

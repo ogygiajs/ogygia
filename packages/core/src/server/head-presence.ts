@@ -187,9 +187,8 @@ function with_code_origins(tag: string, urls: readonly string[]): string {
 		try {
 			const u = new URL(url);
 			if (u.protocol === 'https:' || u.protocol === 'http:') origins.add(u.origin);
-		} catch {
-			// ok: not a URL: no origin to allow
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: no origin to allow
+		} catch {}
 	}
 	const bare = without_attr(tag, OG_ORIGINS);
 	if (!origins.size) return bare;

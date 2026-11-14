@@ -65,9 +65,8 @@ saved for the next one (./tab-groups.svelte.ts).
 			apply(i, focus);
 			try {
 				g.value = labels[i];
-			} catch {
-				// ok: the store's set only fails on storage, which it already handles; the tabs above are switched
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the store's set only fails on storage, which it already handles; the tabs above are switched
+			} catch {}
 		};
 
 		const off1 = on(bar, 'click', (e) => {

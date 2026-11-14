@@ -60,9 +60,8 @@ export function recover_ogp_bytes(bytes: Uint8Array): Uint8Array {
 			const decoded = new Uint8Array(Buffer.from(text, 'base64'));
 			if (is_ogp(decoded)) return decoded;
 		}
-	} catch {
-		// ok: not text or not base64; it is read as the bytes they are below
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not text or not base64; it is read as the bytes they are below
+	} catch {}
 	return bytes;
 }
 

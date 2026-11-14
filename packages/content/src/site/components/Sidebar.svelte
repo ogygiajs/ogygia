@@ -50,9 +50,8 @@ with the `item` snippet; style the rest through the `.og-*` classes.
 		if (scroller) {
 			try {
 				storage.session()?.setItem(`og:sidenav:${the_base}`, String(scroller.scrollTop));
-			} catch {
-				// ok: no storage (private mode); the scroll position is not kept
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- no storage (private mode); the scroll position is not kept
+			} catch {}
 		}
 	};
 	function find_scroller(from: HTMLElement): HTMLElement | null {
@@ -78,9 +77,8 @@ with the `item` snippet; style the rest through the `.og-*` classes.
 		try {
 			const raw = storage.session()?.getItem(`og:sidenav:${the_base}`);
 			saved = raw == null ? null : Number(raw);
-		} catch {
-			// ok: no storage (private mode); the scroll position is not kept
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no storage (private mode); the scroll position is not kept
+		} catch {}
 		if (saved != null && Number.isFinite(saved)) scroller.scrollTop = saved;
 		const active = el.querySelector<HTMLElement>('[aria-current="page"]');
 		if (active) {

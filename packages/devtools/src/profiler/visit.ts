@@ -302,8 +302,7 @@ const rect = (v: unknown): [number, number, number, number] | undefined => {
 		: undefined;
 };
 const FP_RE = /^[0-9a-f]{8,32}$/;
-// static: a fixed list of resource types
-const KNOWN_TYPES = new Set([
+const KNOWN_TYPES: ReadonlySet<string> = new Set([
 	'layout-shift',
 	'longtask',
 	'event',
@@ -484,7 +483,8 @@ export function parse_visit(page: unknown, raw: unknown): Visit | null {
 	}
 	const visit: Visit = {
 		page,
-		at: num(v.at, 1e14) ?? Date.now(), // wall: as the page sends it, an epoch time
+		// oxlint-disable-next-line ogygia/ports -- as the page sends it, an epoch time
+		at: num(v.at, 1e14) ?? Date.now(),
 		nav,
 		paints,
 		resources,

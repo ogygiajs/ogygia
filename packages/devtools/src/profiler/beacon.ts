@@ -237,9 +237,8 @@ export function hole_request_times(
 			...(queue !== undefined ? { queue } : {}),
 			...(render !== undefined ? { render } : {})
 		};
-	} catch {
-		// ok: no Resource Timing in this browser: no timing for it
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no Resource Timing in this browser: no timing for it
+	} catch {}
 	return null;
 }
 
@@ -281,8 +280,9 @@ export function beacon_hole_answered(
 	let id = '';
 	try {
 		id = new URL(el.getAttribute('endpoint') ?? '', location.href).searchParams.get('id') ?? '';
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: a hole with no id is skipped below
 	} catch {
-		id = ''; // ok: not a URL: a hole with no id is skipped below
+		id = '';
 	}
 	if (!id || C.holes_answered_els.has(el)) return;
 	C.holes_answered_els.add(el);
@@ -336,8 +336,9 @@ export function beacon_nav(n: NavigatedEvent): void {
 				...(e.startTime < n.t - 1 ? { prefetched: true as const } : {})
 			};
 		}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no resource timing in this browser: the navigation is kept without its split
 	} catch {
-		split = {}; // ok: no resource timing in this browser: the navigation is kept without its split
+		split = {};
 	}
 	if (!C.navs_seen) {
 		C.navs_seen = true;
@@ -506,9 +507,8 @@ function visit_regions(): Record<string, unknown>[] {
 					: {})
 			});
 		}
-	} catch {
-		// ok: a document this cannot read: the regions are left out of the visit
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a document this cannot read: the regions are left out of the visit
+	} catch {}
 	return out;
 }
 
@@ -558,9 +558,8 @@ const part: RegionPart = {
 				`ogygia-region[${OG_FP}]:not([data-hydrated]):not([wake]):not([render="defer"]), ogygia-region[${OG_FP}][wake="load"]:not([data-hydrated])`
 			))
 				if (!C.failed_fps.has(el.getAttribute(OG_FP) ?? '')) return true;
-		} catch {
-			// ok: no document to read: nothing is waking
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no document to read: nothing is waking
+		} catch {}
 		return false;
 	}
 };
@@ -733,9 +732,8 @@ export function install_beacon(dock: boolean): void {
 	let shifts_seen = false;
 	try {
 		shifts_seen = PerformanceObserver.supportedEntryTypes.includes('layout-shift');
-	} catch {
-		// ok: no PerformanceObserver: no layout shifts either
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no PerformanceObserver: no layout shifts either
+	} catch {}
 	if (!shifts_seen) note_island_boxes();
 }
 

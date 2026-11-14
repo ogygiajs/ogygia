@@ -12,8 +12,9 @@ export function parse_roots(code: string, id: string, kind: 'svelte' | 'script')
 	let ast: AST.Root;
 	try {
 		ast = parse(blank_styles(code), { modern: true, filename: id });
+		// oxlint-disable-next-line ogygia/no-silent-failures -- null is "did not parse"; seed shaping answers 'all' for it, the context hint says nothing
 	} catch {
-		return null; // ok: null is "did not parse"; seed shaping answers 'all' for it, the context hint says nothing
+		return null;
 	}
 	const roots: AstNode[] = [];
 	if (ast.module?.content) roots.push(ast.module.content);

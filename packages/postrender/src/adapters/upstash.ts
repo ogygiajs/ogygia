@@ -41,8 +41,9 @@ export class UpstashStore implements PostrenderStore {
 		if (!raw) return null;
 		try {
 			return JSON.parse(raw);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- an entry that does not parse is a miss: the page renders again
 		} catch {
-			return null; // ok: an entry that does not parse is a miss: the page renders again
+			return null;
 		}
 	}
 
@@ -104,7 +105,8 @@ export class UpstashStore implements PostrenderStore {
 			throw new OgygiaError('postrender_adapter_request_failed', {
 				what: 'upstash command',
 				status: res.status,
-				body: await res.text().catch(() => '') // ok: the failure is thrown just here; its body is only detail
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the failure is thrown just here; its body is only detail
+				body: await res.text().catch(() => '')
 			});
 		}
 		return ((await res.json()) as { result: T }).result;

@@ -27,9 +27,8 @@ function open(filename: string): SyncDb {
 			const path = require('node:path') as typeof import('node:path');
 			const dir = path.dirname(filename);
 			if (dir && dir !== '.') fs.mkdirSync(dir, { recursive: true });
-		} catch {
-			// ok: best effort; the open below fails with the real problem
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- best effort; the open below fails with the real problem
+		} catch {}
 	}
 	const built_in = load_driver<{ DatabaseSync: new (p: string) => SyncDb }>('node:sqlite');
 	if (built_in) return new built_in.DatabaseSync(filename);
@@ -43,8 +42,9 @@ function open(filename: string): SyncDb {
 function load_driver<T>(id: string): T | null {
 	try {
 		return require(id) as T;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not installed: the next driver is tried, and none says what to install
 	} catch {
-		return null; // ok: not installed: the next driver is tried, and none says what to install
+		return null;
 	}
 }
 

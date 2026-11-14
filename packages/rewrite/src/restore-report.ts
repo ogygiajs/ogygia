@@ -47,7 +47,8 @@ function report(): void {
 		}
 	};
 	// (the wording loads only when there is something to say: the boot carries none of it)
-	import('./messages.ts').then(say_them, () => {}); // ok: its chunk did not load; the log stays on window.__og_restore_log for the devtools and the beacon
+	// oxlint-disable-next-line ogygia/no-silent-failures -- its chunk did not load; the log stays on window.__og_restore_log for the devtools and the beacon
+	import('./messages.ts').then(say_them, () => {});
 }
 
 export function report_restores(): void {

@@ -166,8 +166,9 @@ export function resolve_kit_paths(root: string): KitPaths {
 			'index.js'
 		);
 		if (fs.existsSync(remoteIdx)) kit_remote_index = remoteIdx;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no Kit resolves (a standalone compile): the built-in devalue codec, no transport
 	} catch {
-		kit_wire_path = null; // ok: no Kit resolves (a standalone compile): the built-in devalue codec, no transport
+		kit_wire_path = null;
 	}
 	for (const f of ['hooks.ts', 'hooks.js']) {
 		const abs = path.join(root, 'src', f);
@@ -201,8 +202,9 @@ export function kit_major(root: string): number | null {
 		) as { version?: string };
 		const major = Number.parseInt(pkg.version ?? '', 10);
 		return Number.isFinite(major) ? major : null;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no Kit resolves from the app root: the documented null (a standalone compile)
 	} catch {
-		return null; // ok: no Kit resolves from the app root: the documented null (a standalone compile)
+		return null;
 	}
 }
 
@@ -235,7 +237,8 @@ export function read_csr(r: Routes, file: string): boolean | undefined {
 }
 
 function csr_of_text(src: string | null, file: string): boolean | undefined {
-	if (src === null) return undefined; // ok: no such option file on this level
+	// oxlint-disable-next-line ogygia/no-silent-failures -- no such option file on this level
+	if (src === null) return undefined;
 	if (!src.includes('csr')) return undefined;
 	const { program } = parse_module(src, file);
 	if (!program) return undefined;
@@ -704,8 +707,9 @@ export function clean_stale_ogygia_dirs(dir: string): void {
 	let entries;
 	try {
 		entries = fs.readdirSync(dir, { withFileTypes: true });
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a directory that is not there holds nothing stale
 	} catch {
-		return; // ok: a directory that is not there holds nothing stale
+		return;
 	}
 	for (const entry of entries) {
 		if (!entry.isDirectory()) continue;

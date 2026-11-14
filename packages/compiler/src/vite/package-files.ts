@@ -13,8 +13,9 @@ const GLOB_MAGIC_RE = /[*?{}[\]!]/;
 function read_manifest(dir: string): Record<string, unknown> | null {
 	try {
 		return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no manifest, or one that does not parse, declares nothing
 	} catch {
-		return null; // ok: no manifest, or one that does not parse, declares nothing
+		return null;
 	}
 }
 
@@ -31,8 +32,9 @@ export function discover_package_files(app_root: string): PackageScan[] {
 		let root: string;
 		try {
 			root = fs.realpathSync(path.join(app_root, 'node_modules', ...name.split('/')));
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a dependency not installed under this root declares nothing
 		} catch {
-			continue; // ok: a dependency not installed under this root declares nothing
+			continue;
 		}
 		const manifest = read_manifest(root);
 		const declared = (manifest?.ogygia as { files?: unknown } | undefined)?.files;
@@ -52,8 +54,9 @@ export function discover_package_files(app_root: string): PackageScan[] {
 					let real: string;
 					try {
 						real = fs.realpathSync(m);
+						// oxlint-disable-next-line ogygia/no-silent-failures -- a dangling symlink is no file to list
 					} catch {
-						continue; // ok: a dangling symlink is no file to list
+						continue;
 					}
 					if (inside(real)) files.add(posix(real));
 				}

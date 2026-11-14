@@ -311,6 +311,7 @@ class Run implements Sim {
 			let to = from;
 			while (to < steps.length - 1 && steps[to][2] !== 'then') to++;
 			let held: unknown;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a builder never rejects (it says what threw)
 			this.s
 				.scheduleSequence(
 					steps.slice(from, to + 1).map(([label, run], k) => ({
@@ -338,7 +339,7 @@ class Run implements Sim {
 						segment(to + 1);
 					};
 					Promise.resolve(held).then(next, next);
-				}, noop); // ok: a builder never rejects (it says what threw)
+				}, noop);
 		};
 		if (steps.length > 0) segment(0);
 		await this.settle();
@@ -412,7 +413,8 @@ class Run implements Sim {
 		if (first === null || first.due > this._horizon) return;
 		this._ticking = true;
 		// (it never rejects: a timer that throws is said by `_fire`)
-		this.s.schedule(Promise.resolve(), 'time passes').then(() => this._fire(), noop); // ok: never rejects
+		// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects
+		this.s.schedule(Promise.resolve(), 'time passes').then(() => this._fire(), noop);
 	}
 
 	_fire(): void {
@@ -473,7 +475,8 @@ class Run implements Sim {
 						}
 					};
 					if ((o?.delay ?? 0) > 0) this._add(run, o!.delay!, false);
-					else this.later('a posted task').then(run, noop); // ok: `run` says its own failure
+					// oxlint-disable-next-line ogygia/no-silent-failures -- `run` says its own failure
+					else this.later('a posted task').then(run, noop);
 				});
 			this._restore.push(() => {
 				tasks.yield = was_yield;

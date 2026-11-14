@@ -1,12 +1,4 @@
-import {
-	in_source,
-	ok_lines,
-	OK_NOTE,
-	reason_notes,
-	type Context,
-	type Located,
-	type Node
-} from './shared.ts';
+import { in_source, type Context, type Node } from './shared.ts';
 
 /** A value handed back in place of what failed: a literal (`null`, `''`, `0`, `false`), a template
  *  with nothing in it, `[]`, `{}`, `void 0`, `-1`, or a plain name (`undefined`, a fallback
@@ -95,7 +87,7 @@ function handled(call: Node): boolean {
 }
 
 const MESSAGE_SILENT =
-	'A failure swallowed with no word: report it (a message code), re-throw it, or move a machine. One that is truly fine says why on the same line: `// ok: <reason>`.';
+	'A failure swallowed with no word: report it (a message code), re-throw it, or move a machine. One that is truly fine says why on the line before: `// oxlint-disable-next-line ogygia/no-silent-failures -- <reason>`.';
 
 /**
  * `ogygia/no-silent-failures`: every caught failure reports a message code, re-throws, or moves a
@@ -104,8 +96,9 @@ const MESSAGE_SILENT =
  * error; a comment is not a body), a handler that only falls back (`.catch(() => {})`, `=> null`,
  * `=> ''`, `=> []`, `noop`; #1286), and a bare `void <call>()`,
  * whose rejection goes unhandled unless the callee catches it (`void p.catch(report)` is handled).
- * A site that is truly fine carries `// ok: <reason>` on its first or last line (for a catch, also
- * inside its body; for a `void` call, also alone on the line above). A `void` call is one through
+ * A site that is truly fine carries `// oxlint-disable-next-line ogygia/no-silent-failures -- <reason>`
+ * on the line before (a catch's is the `} catch` line's; the old `// ok:` mark excuses nothing:
+ * internal/lint/reason-notes.test.ts). A `void` call is one through
  * an optional chain or a cast too (`void s?.send?.()`); an awaited one (`void (await p())`) is not.
  */
 export const no_silent_failures = {
@@ -117,22 +110,7 @@ export const no_silent_failures = {
 	},
 	create(context: Context) {
 		if (!in_source(context)) return {};
-		let ok: Set<number> | null = null;
-		let noted: ((node: Node) => boolean) | null = null;
-		const marked = (node: Node): boolean => {
-			const n = node as Located;
-			ok ??= ok_lines(context);
-			for (let line = n.loc.start.line; line <= n.loc.end.line; line++) {
-				// (first and last line; a catch also inside its body)
-				if (line !== n.loc.start.line && line !== n.loc.end.line && n.type !== 'CatchClause')
-					continue;
-				if (ok.has(line)) return true;
-			}
-			return false;
-		};
-		const refuse = (node: Node) => {
-			if (!marked(node)) context.report({ node, message: MESSAGE_SILENT });
-		};
+		const refuse = (node: Node) => context.report({ node, message: MESSAGE_SILENT });
 		return {
 			CatchClause(node: Node) {
 				if (catch_falls_back(node)) refuse(node);
@@ -159,9 +137,7 @@ export const no_silent_failures = {
 					arg = arg.expression as Node;
 				// (`void p.catch(() => {})` is the `.catch` site's, said once there)
 				if (arg?.type !== 'CallExpression' || handled(arg) || swallowing_chain(arg)) return;
-				// (a note on the call's own line, or alone on the line above: reason-notes.test.ts)
-				noted ??= reason_notes(context, OK_NOTE);
-				if (!noted(node) && !marked(node)) context.report({ node, message: MESSAGE_SILENT });
+				refuse(node);
 			}
 		};
 	}
