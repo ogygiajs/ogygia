@@ -3,6 +3,7 @@ import { code_url_or_refuse, is_location_of } from './code-origins.ts';
 import { backoffAfter, cache, flights, net, scope, STALE } from '@ogygia/machine';
 import { rollover } from '../policies.ts';
 import { OG_LOCATIONS } from '../wire-markup.ts';
+import { browser_offline } from './network.ts';
 
 const locations = cache<string, string>({ name: 'entry locations', max: 10_000 });
 
@@ -216,6 +217,7 @@ function load_entry<T>(entry: string, url: string): Promise<T> {
 		return Promise.reject(refused);
 	}
 	return loaded.catch(async (error: unknown) => {
+		if (browser_offline()) throw error;
 		const failed = absolute(url);
 		const current = is_build_identity(entry)
 			? await recover_location(entry, failed)
