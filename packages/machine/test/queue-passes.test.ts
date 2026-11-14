@@ -93,15 +93,13 @@ describe('priority', () => {
 		const { q, started } = line({
 			...by_rank,
 			now: () => t,
-			budget: { ms: 1, yield: y.yield },
+			budget: { ms: 1, yield: y.yield, defer: true },
 			start: () => void t++
 		});
-		const a = job('a', { rank: 2 });
-		const b = job('b', { rank: 2 });
-		q.push(a); // starts at once, and its start uses up the budget
-		expect(started).toEqual(['a']);
-		q.push(b);
+		q.push(job('a', { rank: 2 }));
+		q.push(job('b', { rank: 2 }));
 		q.push(low);
+		y.resume(); // a starts, and its start uses up the budget
 		expect(started).toEqual(['a']);
 		low.rank = 5; // raised while the drain waits for its resume
 		y.resume();
@@ -203,15 +201,17 @@ describe('windows', () => {
 		const { q, started, release } = line({
 			windows,
 			now: () => t,
-			budget: { ms: 1, yield: y.yield },
+			budget: { ms: 1, yield: y.yield, defer: true },
 			start: () => void t++
 		});
 		q.push(job('bg1', { bg: true }));
-		expect(y.pending).toBe(1);
 		q.push(job('bg2', { bg: true }));
 		q.push(job('bg3', { bg: true }));
 		y.resume();
+		expect(started).toEqual(['bg1']);
+		y.resume();
 		expect(started).toEqual(['bg1', 'bg2']);
+		expect(y.pending).toBe(1);
 		release('bg1'); // while the drain yields: the place waits for the next pass
 		expect(started).toEqual(['bg1', 'bg2']);
 		y.resume();
@@ -239,6 +239,21 @@ describe('budget', () => {
 		y.resume();
 		expect(started).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g']);
 		expect(y.pending).toBe(0);
+	});
+
+	it('a drain whose last start runs past its budget ends there, with no yield for nothing', () => {
+		let t = 0;
+		const y = yields();
+		for (const settle of [false, true]) {
+			const { q, started } = line({
+				now: () => t,
+				budget: { ms: 1, yield: y.yield, settle },
+				start: () => void (t += 5)
+			});
+			q.push(job('a'));
+			expect(started).toEqual(['a']);
+		}
+		return Promise.resolve().then(() => expect(y.pending).toBe(0));
 	});
 
 	it('the first start goes out at once, without a yield before it', () => {
@@ -305,13 +320,15 @@ describe('budget', () => {
 						throw new Error('no task');
 					}
 				},
-				start: () => void t++
+				start: (j) => {
+					t++;
+					if (j.id === 'a') for (const id of ['b', 'c']) run.q.push(job(id));
+				}
 			});
 			started = run.started;
 			run.q.push(job('a'));
-			run.q.push(job('b'));
 		});
-		expect(started).toEqual(['a', 'b']);
+		expect(started).toEqual(['a', 'b', 'c']);
 		expect(thrown).toHaveLength(2);
 		expect(said[0]).toContain('machine_queue_yield_failed');
 	});
@@ -413,7 +430,7 @@ describe('passes', () => {
 		const { q, started } = line({
 			owner,
 			now: () => t,
-			budget: { ms: 1, yield: y.yield },
+			budget: { ms: 1, yield: y.yield, defer: true },
 			start: () => void t++,
 			stale: (j) => void stale.push(j.id)
 		});
@@ -421,6 +438,7 @@ describe('passes', () => {
 		const b = job('b');
 		q.push(b);
 		q.push(job('c'));
+		y.resume();
 		q.cancel(b);
 		owner.close();
 		y.resume();

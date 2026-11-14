@@ -334,14 +334,14 @@ class QueueImpl<J> implements Queue<J> {
 			}
 			if (!this.#take(at) || budget === null) continue;
 			if (budget.settle) return void Promise.resolve().then(() => this.#settled(budget));
-			if (this.#now() >= this.#until) return this.#yield(budget);
+			if (this.#waiting > 0 && this.#now() >= this.#until) return this.#yield(budget);
 		}
 	}
 
 	/** A start's microtask ran: the drain yields if its time is up, else goes on. */
 	#settled(budget: QueueBudget): void {
 		if (this.#owner?.closed) return this.#end();
-		if (this.#now() >= this.#until) return this.#yield(budget);
+		if (this.#waiting > 0 && this.#now() >= this.#until) return this.#yield(budget);
 		this.#run();
 	}
 
