@@ -23,8 +23,9 @@ import { clock, say, slot as shared, STALE } from '@ogygia/machine';
 import type { Component } from 'svelte';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { Handle } from './kit-handle.ts';
-import { try_get_request_store } from '@sveltejs/kit/internal/server';
-import type { RequestState } from '@sveltejs/kit/internal/server';
+import { KitRequestStore, type RequestState } from './server/kit-request-store.ts';
+import { live_event } from './server/live-event.ts';
+import { transport as app_transport } from 'ogygia:region';
 import * as devalue from 'devalue';
 import {
 	load_server_regions,
@@ -144,7 +145,7 @@ import {
 	EARLY_HOLES_SOURCE,
 	with_early_holes_meta_csp
 } from './server/early-holes-csp.ts';
-import { kit_gate } from './server/kit-gate.ts';
+import { kit_gate, kit_start_ungated } from './server/kit-gate.ts';
 import {
 	merge_seed_ask,
 	shape_page_data,
@@ -285,7 +286,7 @@ type RequestBag = {
 };
 const bags = new WeakMap<Request, RequestBag>();
 function bag_of(): RequestBag | undefined {
-	const request = (try_get_request_store() as { event?: RequestEvent } | undefined)?.event?.request;
+	const request = live_event()?.request;
 	return request ? bags.get(request) : undefined;
 }
 set_ctx_recorder((key, value) => {
@@ -293,8 +294,7 @@ set_ctx_recorder((key, value) => {
 	if (bag) bag.ctx.set(key, value);
 });
 const doc_asks = new WeakMap<Request, SeedKeys | null>();
-const request_of = () =>
-	(try_get_request_store() as { event?: RequestEvent } | undefined)?.event?.request;
+const request_of = () => live_event()?.request;
 const ref_names_of = new WeakMap<Request, RefNames>();
 set_ref_names_reader(() => {
 	const request = request_of();
@@ -318,7 +318,7 @@ set_seed_ask_reader(() => {
 set_page_recorder((snapshot, seed, remotes, entry) => {
 	// a render FOR a page (a hole, a remote call): its islands' asks are the render-page model's —
 	// the answer carries those keys of the looked-up page (server/render-page.ts)
-	const event = (try_get_request_store() as { event?: RequestEvent } | undefined)?.event;
+	const event = live_event();
 	if (event && note_render_page_ask(event, seed)) return;
 	const bag = bag_of();
 	if (!bag) {
@@ -337,45 +337,26 @@ set_tail_reader(() => bag_of()?.tail ?? null);
 set_measure_memo_reader(() => bag_of()?.measure_memo ?? null);
 configure_render_page({ warn: dev ? (m) => console.warn(m) : null });
 
-set_kit_event_reader(
-	() => (try_get_request_store() as { event?: RequestEvent } | undefined)?.event ?? null
-);
+set_kit_event_reader(live_event);
 /** Does this hole's server tree read `page.data` (the build's answer; unknown in dev → yes). */
 const hole_reads_page_data = (id: string): boolean =>
 	region_reads_page_data === null || region_reads_page_data[id] !== false;
-type TransportStore = {
-	event?: RequestEvent;
-	state?: {
-		transport?: Record<
-			string,
-			{ decode: (v: unknown) => unknown; encode: (v: unknown) => unknown }
-		>;
-	};
-};
 set_render_page_port({
 	ready(reads_data) {
-		const store = try_get_request_store() as TransportStore | undefined;
-		return prepare_render_page(store?.event, store?.state?.transport, reads_data);
+		return prepare_render_page(live_event() ?? undefined, app_transport, reads_data);
 	},
 	tail() {
-		const store = try_get_request_store() as TransportStore | undefined;
-		return render_page_facts_script(store?.event, store?.state?.transport);
+		return render_page_facts_script(live_event() ?? undefined, app_transport);
 	},
 	version(hole_id) {
 		if (!hole_reads_page_data(hole_id)) return '';
-		const v = render_page_version(
-			(try_get_request_store() as TransportStore | undefined)?.event,
-			bag_of()?.page ?? undefined
-		);
+		const v = render_page_version(live_event() ?? undefined, bag_of()?.page ?? undefined);
 		return v ? `&pv=${v}` : '';
 	}
 });
 set_kit_page_reader(() => {
 	const bag = bag_of();
-	return render_page(
-		bag ? (bag.page ?? {}) : undefined,
-		(try_get_request_store() as { event?: RequestEvent } | undefined)?.event
-	);
+	return render_page(bag ? (bag.page ?? {}) : undefined, live_event() ?? undefined);
 });
 set_late_scope_opener(() => {
 	const bag = bag_of();
@@ -395,9 +376,7 @@ set_late_taker(() => {
 	late.regions = [];
 	return list;
 });
-set_current_request(
-	() => (try_get_request_store() as { event?: RequestEvent } | undefined)?.event?.request
-);
+set_current_request(() => live_event()?.request);
 set_source_recorder((tag) => {
 	current_facts()?.sources?.push(tag);
 });
@@ -839,7 +818,7 @@ class OgygiaHandle {
 			// the reused client query cache BEFORE islands hydrate — so no re-fetch, no flash. The
 			// store is captured synchronously here (active inside Kit's `with_request_store`); it is
 			// the SAME object reference Kit mutates during the render inside `resolve`.
-			const store = try_get_request_store();
+			const kit_state = KitRequestStore.state();
 			// Per-request capture bag: `setContext` values + the page snapshot are recorded during the
 			// render (the readers above find it through Kit's store) and read back in
 			// `inject_client_seeds` via the SAME bag reference passed through as a closure.
@@ -898,7 +877,7 @@ class OgygiaHandle {
 				transformPageChunk: async ({ html, done }) =>
 					this.inject_client_seeds(
 						pass ? await this.#pass_document(pass, html, done, event, bag) : html,
-						store?.state,
+						kit_state ?? undefined,
 						event,
 						bag
 					)
@@ -1136,6 +1115,14 @@ class OgygiaHandle {
 					? kit_gate(html, spans.body_end)
 					: null;
 			if (gate) csp_sources.push(gate.source);
+			else if (
+				dev &&
+				head !== null &&
+				spans.body_end !== -1 &&
+				bag?.kit_with_runtime &&
+				kit_start_ungated(html, spans.body_end)
+			)
+				warn('kit_start_ungated', { path: event?.url.pathname ?? '/' });
 			const ordered =
 				head === null
 					? null
@@ -1282,7 +1269,7 @@ class OgygiaHandle {
 		// DeferRef/SettledRef marker reducers, so a load's custom types round-trip into islands — not
 		// just built-in devalue types. A no-op for the common promise-free / transport-free seed.
 		// (built once per app transport — the same object on every request — not per request)
-		const { seed_reducers, seed_stringify } = seed_codecs(state?.transport);
+		const { seed_reducers, seed_stringify } = seed_codecs(app_transport);
 		// ONE walk of the seed tree (seed-refs.ts `analyze`, against the request's shared memo — the
 		// tail's index above already measured every node; a shaped root is a few lookups) answers
 		// every question below: a streamed promise inside (stage or settle), JSON-exact (the native
@@ -1559,9 +1546,8 @@ class OgygiaHandle {
 
 		if (!Object.values(data).some((b) => Object.keys(b).length > 0)) return null;
 
-		const transport = state.transport || {};
 		const reducers = Object.fromEntries(
-			Object.entries(transport).map(([name, codec]) => [name, codec.encode])
+			Object.entries(app_transport).map(([name, codec]) => [name, codec.encode])
 		);
 		// devalue output is `<`-safe by itself (it writes `<`), so no second pass over the payload.
 		return emit_ogygia_script(
@@ -1718,7 +1704,7 @@ class OgygiaHandle {
 			cap.payload.length > MAX_REGION_PROPS_LEN ||
 			!is_region_ttl(cap.ttl) ||
 			!is_signed_number(cap.exp, REGION_EXP_DIGITS) ||
-			(cap.v !== '' && cap.v !== REGION_CAPABILITY_VERSION) ||
+			cap.v !== REGION_CAPABILITY_VERSION ||
 			(cap.wakes !== '' && cap.wakes !== '1')
 		)
 			return 'shape';
@@ -1748,12 +1734,10 @@ class OgygiaHandle {
 		const late = app_lifetime.renew_window;
 		if (!region_verify(key.secret, islands_endpoint(), cap.v, cap.exp, claim, cap.sig, late))
 			return null;
-		// (re-signed as the current version, whichever it was minted as)
 		const exp = app_lifetime.renewed_expiry();
 		return {
 			...cap,
 			exp: String(exp),
-			v: REGION_CAPABILITY_VERSION,
 			sig: region_sign(key.secret, islands_endpoint(), exp, claim),
 			k: key.fp
 		};

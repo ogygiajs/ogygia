@@ -45,7 +45,7 @@ const CAPABILITY = 'cap|';
 /**
  * A plugin's own signer: what it signs or checks is `plugin|<name length>:<name>|<message>` under the
  * app's key. The length prefix gives each (name, message) pair one spelling, and no region message
- * starts `plugin|` (theirs start `v1|`, `v2|` or a length), so a plugin signs neither for another
+ * starts `plugin|` (theirs start with a length), so a plugin signs neither for another
  * plugin nor for a region (test/plugin-signing.test.ts). `capabilities` is its capabilities' signer
  * ({@link plugin_capabilities}); the plain one refuses a capability message.
  */

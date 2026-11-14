@@ -69,7 +69,12 @@ function make_loader(window: Window): Loader {
 			importModuleDynamically: (async (specifier: string) => {
 				const href = new URL(specifier, url).href;
 				try {
-					return await ready(await load(href));
+					const m = await ready(await load(href));
+					// (a document the tab left meanwhile never runs its code again: its `import()` never
+					// settles, as below; gen 10, seed 50, test/modules.test.ts)
+					if ((window as unknown as { closed: boolean }).closed)
+						return new Promise<never>(() => {});
+					return m;
 				} catch (error) {
 					// a download anywhere in its graph failed: the browser names the module asked for,
 					// not the dependency (Chromium: "Failed to fetch dynamically imported module: <url>")

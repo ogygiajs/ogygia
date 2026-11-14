@@ -61,7 +61,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 - Put secrets in defer props and expect the URL to hide them — use Referrer-Policy (`no-referrer` on region responses) and keep secrets out of captured props.
 - Move props into `localStorage` “for confidentiality” — XSS then reads all of them.
 
-**Enforced by:** `packages/compiler/test/region-mac.test.ts > rejects expiry or props tampering`, `packages/core/test/capability-expiry.test.ts > is always valid for more than ttl/2 and at most ttl`
+**Enforced by:** `packages/core/test/region-capability.test.ts > a v3 capability with its expiry or props changed is refused`, `packages/core/test/capability-expiry.test.ts > is always valid for more than ttl/2 and at most ttl`
 
 ---
 
@@ -81,15 +81,15 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 ## SECRET-SPLIT — empty client secret, SSR-only mint
 
-**What:** `virtual:ogygia/secret` is `''` on the client; sign/verify stubs no-op. SSR uses `OGYGIA_SECRET` or a per-build baked fallback. Sign/verify **HKDF-derive** a MAC key (`ogygia-mac-v1`); when `OGYGIA_SECRET` is set, region ids use a separate HKDF salt (`ogygia-id-salt-v1`). Region capabilities are minted as v3 (`&v=3`): `capability()` from `@ogygia/machine` with no nonce, its length-prefixed message naming the capability, its version and its audience (the islands endpoint), so links stay byte-identical within an expiry window; the older `v1|`/`v2|` length-prefixed MACs are still verified (pages cached before the upgrade) and a renewal re-signs them as v3 (`packages/core/test/region-capability.test.ts`). Production builds reject an `OGYGIA_SECRET` shorter than 16 UTF-8 bytes.
+**What:** `virtual:ogygia/secret` is `''` on the client; sign/verify stubs no-op. SSR uses `OGYGIA_SECRET` or a per-build baked fallback. Sign/verify **HKDF-derive** a MAC key (`ogygia-mac-v1`); when `OGYGIA_SECRET` is set, region ids use a separate HKDF salt (`ogygia-id-salt-v1`). Region capabilities are minted as v3 (`&v=3`): `capability()` from `@ogygia/machine` with no nonce, its length-prefixed message naming the capability, its version and its audience (the islands endpoint), so links stay byte-identical within an expiry window (`packages/core/test/region-capability.test.ts`). Only v3 is verified: a capability without `v` (the older `v1|`/`v2|` MACs, ogygia 0.12.x and earlier) is an earlier build's page's, whose runtime cannot run this build's answer, so it is refused as `shape` before any HMAC, renewal and batch included, and its page keeps its fallback (#1769, `packages/core/test/older-build-capability.test.ts`). Production builds reject an `OGYGIA_SECRET` shorter than 16 UTF-8 bytes.
 
 **Why:** Browsers must never mint capabilities. Multi-instance deploys without a shared env need the baked fallback so all replicas agree. Domain-separated keys + length-prefixed fields close classic MAC footguns without requiring the env var on every local demo.
 
-A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a signing secret, or a chunk holds a module that signs. Messages are `v2|` (the render id signed too) for every current mint of a hole that does not wake, and `v3|` (the "wakes" mark `w=1` signed too, so the endpoint renders the answer inside an island, as its hydrate does) for one that does; `v1|` is still verified so pages cached before an upgrade keep their holes.
+A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a signing secret, or a chunk holds a module that signs. A capability signs its render id (`r`) and its "wakes" mark (`w=1`: the endpoint renders the answer inside an island, as its hydrate does) among its fields.
 
 **Do not:** Embed the real secret in a client chunk. Fail production builds only when you are ready to require env everywhere (local demos still need the fallback). Change the MAC version string without a deliberate invalidate of in-flight capability URLs.
 
-**Enforced by:** `packages/compiler/test/region-mac.test.ts > length-prefixes so embedded nulls cannot shift field boundaries`, `packages/core/test/signing-key.test.ts > falls back to the build key without a runtime OGYGIA_SECRET`
+**Enforced by:** `packages/machine/test/capability.test.ts > fields cannot trade text across a boundary`, `packages/core/test/signing-key.test.ts > falls back to the build key without a runtime OGYGIA_SECRET`
 
 ---
 
@@ -284,6 +284,42 @@ a kept island’s live query then freezes and its next read throws (#817,
 **Do not:** Delete a comment whose why has no test yet (flip the code; if nothing turns red, write the test first). Reword an old comment instead of moving it. Add a free comment to new code. Write a `@why` that names no test, or a test that does not exist.
 
 **Enforced by:** `internal/lint/structured-comments.test.ts > free comments and block comments are reported; tool directives pass`, `internal/lint/structured-comments.test.ts > a @why passes only above its statement and when its test exists`. The rule is an error in `.oxlintrc.json` for each package that has reached zero (the compiler first); elsewhere `internal/checks/new-comments.ts` refuses new ones while the sweep goes on.
+
+---
+
+## KIT-CLIENT-BUILD — a csr=false-only app still gets Kit's client build
+
+**What:** When every route node is `csr = false`, SvelteKit skips its client build, and the islands then have no `_app/immutable` output, no client manifest and no runtime to load. The compiler predicts Kit's skip with Kit's own rule (`clientBuildWillSkip` in packages/compiler/src/kit.ts: a node is `csr = false` by its option chain) and, when Kit would skip, injects a hidden `csr = true` route (`KEEP_CLIENT_DIR`) for the build, removed after. A worker build (Kit's analyse and prerender) neither injects it nor sweeps it.
+
+**Why:** Kit's skip is Kit's private build logic, not a promise. If the rule changes (another condition, another place), the prediction goes wrong without a word: either the keep-alive route is missing and a csr=false-only app ships islands with no client, or it is injected where it is not needed.
+
+**Do not:** Predict the skip by any other rule than Kit's, or keep the injected route after the build.
+
+**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > skips its client build exactly when every route node is csr=false`, `packages/compiler/test/csr-skip.test.ts > every node explicitly csr=false (layout AND pages) → skip (the adapters-fixture shape)`, `packages/compiler/test/csr-skip.test.ts > the injected keepalive dir is invisible to the prediction`, `packages/compiler/test/keep-client-worker.test.ts`, `apps/palaestra/e2e/adapters.spec.ts` (a built csr=false-only app loads its runtime on every adapter)
+
+---
+
+## KIT-CSR-FALSE-ASSETS — a csr=false page links the CSS of what it rendered
+
+**What:** SvelteKit links every route node's client `stylesheets` and `modulepreload`s from the node's CLIENT module graph, on csr=false pages too. A region host that imports many marked components (a block registry) would put every one of their sheets in the page's head, rendered or not. The compiler stubs a region host's client imports (packages/compiler/src/region/emit.ts, the render-nothing registry stubs), so the client graph holds only what the page placed, and the rendered islands' CSS reaches the page through the region-CSS channel.
+
+**Why:** Kit's linking is Kit's private render logic. If Kit starts linking by what the server rendered, the stubs become unneeded; if it starts linking more (another graph), unrendered CSS lands on the page again and first paint slows.
+
+**Do not:** Let a region host's client import reach Kit's client graph whole.
+
+**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > links every route node's client stylesheets and preloads, csr=false or not`, `apps/palaestra/e2e/head-budget.spec.ts > SSR: linked stylesheets carry the rendered islands only, within budget`, `apps/palaestra/e2e/head-budget.spec.ts > SSR: a registry behind a plain helper module gets the same treatment`
+
+---
+
+## KIT-CONFIG — the Kit options the compiler reads
+
+**What:** The compiler reads `kit.files.routes`, `kit.outDir`, `kit.appDir` and `kit.inlineStyleThreshold` from the app's config (`svelte.config.js` on Kit 2, the `sveltekit()` plugin options on Kit 3), each with Kit's default when unset, and says `kit_config_unreadable` when the config throws as it loads.
+
+**Why:** These are Kit's public options, but their place (Kit 3 moved them) and their defaults are Kit's. A renamed or moved option read with the old name falls back to the default without a word, and the compiler then scans the wrong routes or writes to the wrong dir.
+
+**Do not:** Read a Kit option without a default that matches Kit's, or from one place only.
+
+**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > has the config options the compiler reads`, `packages/compiler/test/kit-dirs.test.ts > reads both from svelte.config.js and resolves them against the root`, `packages/compiler/test/kit-dirs.test.ts > off Kit's own plugin: Kit 3's options at the top (vite.config only), Kit 2's under`, `packages/compiler/test/kit-dirs.test.ts > Kit's inlineStyleThreshold is read for the region CSS too`
 
 ---
 

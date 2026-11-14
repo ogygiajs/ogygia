@@ -4,6 +4,7 @@ import {
 	clock,
 	flights,
 	machine,
+	queue,
 	tasks,
 	timers,
 	type MachineGraph,
@@ -176,28 +177,19 @@ export function yield_task(): Promise<void> {
  * Holding island code back until the page has painted is `after_document_painted`'s job.
  */
 export function background_start(fn: () => void): void {
-	if (B.starts.push(fn) === 1) post_background(drain_background);
+	B.starts.push(fn);
 }
 
-class BackgroundStarts {
-	readonly starts: (() => void)[] = [];
-}
-const B = new BackgroundStarts();
 const BACKGROUND_BUDGET_MS = 30;
 
-function drain_background(): void {
-	const until = now() + BACKGROUND_BUDGET_MS;
-	let i = 0;
-	try {
-		while (i < B.starts.length) {
-			B.starts[i++]();
-			if (now() >= until) break;
-		}
-	} finally {
-		B.starts.splice(0, i);
-		if (B.starts.length) post_background(drain_background);
-	}
+class BackgroundStarts {
+	readonly starts = queue<() => void>({
+		name: 'background starts',
+		budget: { ms: BACKGROUND_BUDGET_MS, yield: post_background, defer: true },
+		start: (fn) => fn()
+	});
 }
+const B = new BackgroundStarts();
 
 function post_background(fn: () => void): void {
 	const s = (
@@ -212,7 +204,7 @@ function post_background(fn: () => void): void {
 			// oxlint-disable-next-line ogygia/no-silent-failures -- an older postTask throws on the priority: the macrotask below runs it
 		} catch {}
 	}
-	// oxlint-disable-next-line ogygia/owned-effects -- the process's one background drain (out while `B.starts` holds one), one task: it ends itself, and a start queued in it belongs to whoever queued it
+	// oxlint-disable-next-line ogygia/owned-effects -- the process's one background drain (out while its queue drains), one task: it ends itself, and a start queued in it belongs to whoever queued it
 	timers.after(fn, 0);
 }
 

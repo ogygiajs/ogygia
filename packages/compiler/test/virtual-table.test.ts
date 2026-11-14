@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VirtualTable } from '../src/virtual/resolver.ts';
-import { queries } from '../src/queries.ts';
+import { Queries } from '../src/queries.ts';
 import { route_reader } from '../src/kit.ts';
 import { node_fs } from '../src/fs.ts';
 import { CORE_PARTS, CORE_VIRTUALS, core_path, type CoreApp } from '../src/virtual/core.ts';
@@ -37,7 +37,7 @@ const table = new VirtualTable<CoreApp>(
 	core_path,
 	CORE_VALUE_NAMES,
 	CORE_PARTS,
-	queries('session')
+	new Queries('session')
 );
 const app = (ctx: Partial<CoreApp['ctx']>): CoreApp => ({ ctx }) as unknown as CoreApp;
 const leg = (ssr: boolean): Leg => ({ ssr, universalHooks: null });
@@ -176,14 +176,14 @@ describe('the virtual-module table', () => {
 
 	it('takes a constant among its entries as a define, never a module it resolves', () => {
 		const c = virtual.constant({ id: '__X__', from: () => true });
-		const t = new VirtualTable([c, c], core_path, {}, CORE_PARTS, queries('t'));
+		const t = new VirtualTable([c, c], core_path, {}, CORE_PARTS, new Queries('t'));
 		expect(t.claims('ogygia:server/__X__')).toBe(false);
 	});
 
 	it('refuses two declarations of one module with virtual_duplicate', () => {
 		const a = virtual.value({ realm: 'server', id: 'x', from: () => ({}) });
 		const names = { 'ogygia:server/x': [] };
-		expect(() => new VirtualTable([a, a], core_path, names, CORE_PARTS, queries('t'))).toThrow(
+		expect(() => new VirtualTable([a, a], core_path, names, CORE_PARTS, new Queries('t'))).toThrow(
 			/virtual_duplicate/
 		);
 	});
@@ -253,7 +253,7 @@ describe('the virtual-module table', () => {
 		const a = virtual.value({ realm: 'server', id: 'a', from: () => ({ x: 1 }) });
 		const b = virtual.value({ realm: 'server', id: 'b', from: () => ({ x: 2 }) });
 		const names = { 'ogygia:server/a': ['x'], 'ogygia:server/b': ['x'] };
-		expect(() => new VirtualTable([a, b], core_path, names, CORE_PARTS, queries('t'))).toThrow(
+		expect(() => new VirtualTable([a, b], core_path, names, CORE_PARTS, new Queries('t'))).toThrow(
 			/virtual_duplicate/
 		);
 	});
@@ -285,7 +285,7 @@ describe('the virtual-module table', () => {
 				core_path,
 				CORE_VALUE_NAMES,
 				CORE_PARTS,
-				queries('session')
+				new Queries('session')
 			);
 			for (const id of ['route-csr', 'route-config', 'server-plugins', 'rate-limit'])
 				expect(t.load(RESOLVED(`ogygia:server/${id}`), core_app, leg(true))).toBeTypeOf('string');
