@@ -2,7 +2,7 @@
 // package's tests once to learn which tests reach it, then breaks each reached recovery and reruns
 // only those tests. A test that fails twice proves the site `covered`; one that stays green is a
 // test gap; a site no test reaches is left for a buggify point. The source is always put back.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -358,6 +358,81 @@ describe('a run over a package', () => {
 		const all = await autopilot({ ...o, ...run });
 		expect(all.unreached).toEqual([`${FILE} > never > catch:0`]);
 		expect(all.proved.map((p) => p.site)).toContain(`${FILE} > parse_or_null > catch:0`);
+	}, 180_000);
+
+	const NO_GLOBALS = `import { expect, test } from 'vitest';\n${SPEC}`;
+	const bare_root = (): string => {
+		const root = mkdtempSync(join(tmpdir(), 'autopilot-'));
+		dirs.push(root);
+		mkdirSync(join(root, 'node_modules'), { recursive: true });
+		symlinkSync(
+			resolve(import.meta.dirname, '../node_modules/vitest'),
+			join(root, 'node_modules/vitest')
+		);
+		mkdirSync(join(root, 'packages/fx/src'), { recursive: true });
+		writeFileSync(join(root, FILE), SOURCE);
+		return root;
+	};
+
+	it('fails a run whose vitest cannot start, and puts every byte back', async () => {
+		const root = bare_root();
+		const run = autopilot({
+			root,
+			pkg: 'fx',
+			baseline: [`${FILE} > guard > throw:0`],
+			out: join(root, 'out'),
+			vitest: join(root, 'no-vitest-here'),
+			projects: [null],
+			timeout_ms: 60_000,
+			quiet: true
+		});
+		await expect(run).rejects.toThrow('no-vitest-here');
+		expect(readFileSync(join(root, FILE), 'utf8')).toBe(SOURCE);
+	}, 180_000);
+
+	it('runs a package with no vitest config under vitest defaults', async () => {
+		const root = bare_root();
+		mkdirSync(join(root, 'packages/fx/test'), { recursive: true });
+		writeFileSync(join(root, 'packages/fx/test/a.test.ts'), NO_GLOBALS);
+		const report = await autopilot({
+			root,
+			pkg: 'fx',
+			baseline: [`${FILE} > guard > throw:0`],
+			out: join(root, 'out'),
+			vitest: VITEST,
+			projects: [null],
+			timeout_ms: 60_000,
+			quiet: true
+		});
+		expect(readFileSync(join(root, FILE), 'utf8')).toBe(SOURCE);
+		expect(report.proved.map((p) => [p.test, p.name])).toEqual([
+			['packages/fx/test/a.test.ts', 'a negative number is refused']
+		]);
+	}, 180_000);
+
+	it("proves a package's sites by the tests of another folder it names", async () => {
+		const root = bare_root();
+		mkdirSync(join(root, 'packages/uses/test'), { recursive: true });
+		writeFileSync(
+			join(root, 'packages/uses/test/a.test.ts'),
+			NO_GLOBALS.replace("'../src/a.ts'", "'../../fx/src/a.ts'")
+		);
+		const report = await autopilot({
+			root,
+			pkg: 'fx',
+			tests: 'packages/uses',
+			baseline: [`${FILE} > guard > throw:0`, `${FILE} > never > catch:0`],
+			out: join(root, 'out'),
+			vitest: VITEST,
+			projects: [null],
+			timeout_ms: 60_000,
+			quiet: true
+		});
+		expect(readFileSync(join(root, FILE), 'utf8')).toBe(SOURCE);
+		expect(report.proved.map((p) => [p.site, p.test, p.name])).toEqual([
+			[`${FILE} > guard > throw:0`, 'packages/uses/test/a.test.ts', 'a negative number is refused']
+		]);
+		expect(report.unreached).toEqual([`${FILE} > never > catch:0`]);
 	}, 180_000);
 
 	it('names the test that hung when a run is stopped, never one that passed before it', async () => {
