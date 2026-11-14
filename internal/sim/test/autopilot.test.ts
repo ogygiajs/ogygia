@@ -374,6 +374,22 @@ describe('a run over a package', () => {
 		return root;
 	};
 
+	it('fails a run whose vitest cannot start, and puts every byte back', async () => {
+		const root = bare_root();
+		const run = autopilot({
+			root,
+			pkg: 'fx',
+			baseline: [`${FILE} > guard > throw:0`],
+			out: join(root, 'out'),
+			vitest: join(root, 'no-vitest-here'),
+			projects: [null],
+			timeout_ms: 60_000,
+			quiet: true
+		});
+		await expect(run).rejects.toThrow('no-vitest-here');
+		expect(readFileSync(join(root, FILE), 'utf8')).toBe(SOURCE);
+	}, 180_000);
+
 	it('runs a package with no vitest config under vitest defaults', async () => {
 		const root = bare_root();
 		mkdirSync(join(root, 'packages/fx/test'), { recursive: true });
