@@ -49,16 +49,20 @@ export const region_remotes = (_entry: string): string[] | null => remotes;
 export function set_island_remotes(v: string[] | null) {
 	remotes = v;
 }
-export const region_interactivity = (
-	_entry: string
-): {
+type Interactivity = {
 	handlers: number;
 	state: number;
 	effects: number;
 	binds: number;
 	actions: number;
 	files: number;
-} | null => null;
+};
+let interactivity: Record<string, Interactivity> = {};
+export const region_interactivity = (entry: string): Interactivity | null =>
+	interactivity[entry] ?? null;
+export function set_island_interactivity(map: Record<string, Interactivity>) {
+	interactivity = map;
+}
 let contents_by_chunk: Record<string, string[]> = {};
 export const chunk_contents = (href: string): string[] | null => contents_by_chunk[href] ?? null;
 export function set_chunk_contents(map: Record<string, string[]>) {
