@@ -199,14 +199,7 @@ function warn_once(key: string, speak: () => void): void {
 	store_warned.once(key, speak);
 }
 
-const ATTR_SCHEMA: ReadonlySet<string> = new Set([
-	'hydrate',
-	'defer',
-	'margin',
-	'keep',
-	'stitch',
-	'prefetch'
-]);
+type MarkAttr = 'hydrate' | 'defer' | 'margin' | 'keep' | 'stitch' | 'prefetch';
 const CHILD_KEYS: readonly string[] = [
 	'consequent',
 	'alternate',
@@ -819,7 +812,7 @@ class FileCompilation {
 			return { strategy: 'held', options: {} };
 		}
 
-		const attrs = new Map<string, string>();
+		const attrs = new Map<MarkAttr, string>();
 		let remount_opt:
 			| { policy: string; when?: string; maxAgeMs?: number; onExpire?: string }
 			| undefined;
@@ -957,19 +950,6 @@ class FileCompilation {
 			throw fail(
 				`${import_keys.preset} '${from_preset}' must set \`render\` or \`wake\` — a margin-only (or empty) preset is a no-op.`
 			);
-		}
-
-		for (const k of attrs.keys()) {
-			if (!ATTR_SCHEMA.has(k)) {
-				throw fail(
-					from_preset
-						? `unknown key \`${k}\` in preset '${from_preset}'.`
-						: `unknown import attribute \`${k}\`.`
-				);
-			}
-		}
-		if (remount_opt && attrs.get('hydrate') !== 'none') {
-			throw fail(`\`remount\` is only valid with \`${import_keys.wake}: 'none'\`.`);
 		}
 
 		if (attrs.has('defer')) {
