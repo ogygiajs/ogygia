@@ -3057,15 +3057,27 @@
 			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/insights/test/profiler-page-assets.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > barrelWhy",
-			"reason": "dev only: the regions seam hands the dock one barrel answer from the build's index, constant work of its own"
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > whyStayed",
+			"reason": "the regions seam hands a reader the plugins' why-stayed answer, constant work of its own"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > why_stayed",
+			"reason": "asks each plugin's why-stayed answer (one per plugin, barrels() today) and orders the union; the answer's own work is measured in the barrel-left bench; a closure over the build's plugin list, not replayable"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > why_stayed > filter:0~cf3029",
+			"reason": "one Set read per reason (nine), constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~3a93bb > stayed",
+			"reason": "once per plugin at config time: one array push, constant work"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > names",
 			"reason": "dev only: the regions seam lists the build's region entries, linear in the regions"
 		},
 		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > barrelWhy",
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > whyStayed",
 			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
 		},
 		{
@@ -5315,14 +5327,6 @@
 		{
 			"id": "packages/compiler/src/leg.ts > new_leg",
 			"reason": "once per leg per build: an object of empty Maps, constant work"
-		},
-		{
-			"id": "packages/compiler/src/leg.ts > new_leg > barrels_left",
-			"reason": "one Map read (a table made on first use), constant work; the table's own work is measured in the barrel-left bench"
-		},
-		{
-			"id": "packages/compiler/src/leg.ts > new_leg > barrels_said",
-			"reason": "one Map read, constant work"
 		},
 		{
 			"id": "packages/compiler/src/link/emit-gate.ts > parse_server_handoff > filter:0~4b42c1",

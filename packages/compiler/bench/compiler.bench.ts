@@ -8,8 +8,6 @@ import { blank_styles } from '../src/blank-styles.ts';
 import { component_blocks } from '../src/parse/scan.ts';
 import { EVERY_BARREL, ExportIndex, Shapes, type Policy } from '../src/exports/index.ts';
 import { analyze_exports, analyze_imports } from '../src/exports/parse.ts';
-import { barrel_left_table } from '../src/exports/left.ts';
-import { BARREL_LEFT_REASONS } from '@ogygia/core/contract';
 import { collectFreeIdentifiers } from '../src/free-vars.ts';
 import { own_reach, reaches_context, reaches_wire } from '../src/link/own-reach.ts';
 import { rewrite_dollar } from '../src/macros/dollar.ts';
@@ -410,44 +408,6 @@ bench(
 		for (const p of [policy, EVERY_BARREL])
 			names += (await index.map('/app/lib/index.ts', 'x', p))?.entries.size ?? 0;
 		return names;
-	},
-	{
-		setup: () => ({ barrels: 10, ...barrel_tree(10) }),
-		scale: (_ctx, k) => ({ barrels: 10 * k, ...barrel_tree(10 * k) })
-	}
-);
-
-// Why a barrel stayed: a policy that keeps half the barrels and refuses the rest answers each with a
-// map that says why; a leg's table records what every importer said, a re-transform forgets it, the
-// rows join it by barrel and importers, and a full table drops what comes past its cap.
-bench(
-	'why a barrel stayed: the left maps, a leg of importers recorded, re-transforms, the join, the cap',
-	async ({ barrels, read, resolve, policy }) => {
-		const index = new ExportIndex<void>(resolve, new Shapes(read));
-		const refusing: Policy = {
-			...policy,
-			kept: (id) => id.endsWith('0/index.ts'),
-			candidate: (id) => !id.endsWith('1/index.ts')
-		};
-		const table = barrel_left_table(barrels * 2);
-		for (let i = 0; i < barrels * 4; i++) {
-			const barrel = `/app/lib/b${i % barrels}/index.ts`;
-			const map = await index.map(barrel, 'x', refusing);
-			const importer = `/app/src/I${i}.svelte`;
-			table.forget(importer);
-			if (map?.left) table.record(importer, map.id, map.left);
-			table.record(importer, barrel, BARREL_LEFT_REASONS[i % BARREL_LEFT_REASONS.length]);
-			if (i % 7 === 0) table.record(importer, null, 'unparsable');
-		}
-		for (let i = 0; i < barrels; i += 3) table.forget(`/app/src/I${i}.svelte`);
-		let reasons = 0;
-		for (let b = 0; b < barrels; b++)
-			reasons += table.why(`/app/lib/b${b}/index.ts`, [`/app/src/I${b}.svelte?v=1`]).length;
-		for (let i = 0; i < barrels * 3; i++)
-			table.record(`/app/src/J${i}.ts`, `/app/lib/extra${i}.ts`, 'impure');
-		const size = table.size;
-		table.clear();
-		return reasons + size + table.size;
 	},
 	{
 		setup: () => ({ barrels: 10, ...barrel_tree(10) }),

@@ -44,7 +44,7 @@ export function dev_meta_plugin(regions: () => RegionsSeam | null): VitePlugin {
 				};
 				const bytes = client_modules
 					? island_subgraph_bytes(client_modules as Iterable<ByteGraphModule>, read, (f, i) =>
-							seam.barrelWhy(f, i)
+							seam.whyStayed(f, i)
 						)
 					: {};
 				res.setHeader('content-type', 'application/json');
