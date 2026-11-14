@@ -75,6 +75,7 @@
 				"packages/flags/src/**",
 				"packages/jumpstart/src/**",
 				"packages/machine/src/**",
+				"packages/router/src/**",
 				"packages/testing/src/**"
 			],
 			"rules": { "no-nested-ternary": "error" }

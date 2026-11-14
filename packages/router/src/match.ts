@@ -80,12 +80,10 @@ export function compile(pattern: string): CompiledPattern {
 				const next = pieces[j + 1];
 				const group = params.length + 1;
 				// @why a param with another after it takes the shortest run its literal follows, as an atomic group never backtracked into, so the match is linear and splits as Kit's lazy params do (test: test/router-match.test.ts › a segment with several params answers a long path that almost matches at once)
-				inner +=
-					params_left === 0
-						? '([^/]+)'
-						: next && 'text' in next
-							? `(?=([^/]+?)${escape_re(next.text)})\\${group}`
-							: '([^/])';
+				let capture = '([^/])';
+				if (params_left === 0) capture = '([^/]+)';
+				else if (next && 'text' in next) capture = `(?=([^/]+?)${escape_re(next.text)})\\${group}`;
+				inner += capture;
 				params.push({ name: p.name });
 				has_param = true;
 			});
@@ -114,6 +112,10 @@ export function compile_all(patterns: string[]): CompiledPattern[] {
 
 type Part = { type: 'static' | 'required' | 'optional' | 'rest'; content: string };
 const EMPTY_PART: Part = { type: 'static', content: '' };
+const PARAM_KIND: Readonly<Record<string, 'optional' | 'rest' | undefined>> = {
+	'[': 'optional',
+	'.': 'rest'
+};
 const NON_FINAL_OPTIONAL_G = /\[\[[^\]]+\]\](?!$)/g;
 
 /** A pattern as Kit sorts it: its segments, each split into parts that alternate static (first,
@@ -133,12 +135,7 @@ function route_segments(pattern: string): Part[][] {
 					return parts;
 				}
 				parts.push({ type: 'static', content: segment.slice(i, start) });
-				const type =
-					segment[start + 1] === '['
-						? 'optional'
-						: segment[start + 1] === '.'
-							? 'rest'
-							: 'required';
+				const type = PARAM_KIND[segment[start + 1]] ?? 'required';
 				i =
 					segment.indexOf(type === 'optional' ? ']]' : ']', start) + (type === 'optional' ? 2 : 1);
 				parts.push({ type, content: segment.slice(start, i) });
