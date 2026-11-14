@@ -2490,6 +2490,7 @@ export function derive_findings(a: Analysis, meta: ReportMeta, extras: ReportExt
 			);
 			const lines = [...entries].flatMap((e) => extras.hazards?.[e] ?? []);
 			if (lines.length) {
+				// oxlint-disable-next-line ogygia/no-string-concat -- the finding is made by its pattern; this adds its hazards to it, once
 				mc.message = `${mc.message} ${hazard_words(lines)}`;
 				mc.fix = `${hazard_fix(lines)} ${mc.fix ?? ''}`.trim();
 				mc.file ??= lines[0].file;

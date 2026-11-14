@@ -187,6 +187,7 @@ export function doc_diff(
 		if (fp && entry) entry_of_fp.set(fp, entry);
 	}
 	const groups = new Map<string, DocDiffGroup>();
+	const attr_tags = new Map<string, string[]>();
 	const add = (key: string, g: Omit<DocDiffGroup, 'count'>) => {
 		const cur = groups.get(key);
 		if (cur) cur.count++;
@@ -243,8 +244,9 @@ export function doc_diff(
 			// one group per attribute, whatever tags carry it: one cause (a renderer stamping an id)
 			for (const attr of changed) {
 				const key = `attr\0${attr}`;
-				const g = groups.get(key);
-				if (g && !g.tag.split(', ').includes(py.tag)) g.tag = `${g.tag}, ${py.tag}`;
+				const tags = attr_tags.get(key);
+				if (!tags) attr_tags.set(key, [py.tag]);
+				else if (!tags.includes(py.tag)) tags.push(py.tag);
 				add(key, {
 					what: '',
 					tag: py.tag,
@@ -263,9 +265,10 @@ export function doc_diff(
 		}
 	}
 	// an attribute group names its tags (the first few)
-	for (const g of groups.values()) {
+	for (const [key, g] of groups) {
 		if (!g.attr) continue;
-		const tags = g.tag.split(', ');
+		const tags = attr_tags.get(key) ?? [g.tag];
+		g.tag = tags.join(', ');
 		g.what = `${g.attr} on ${tags
 			.slice(0, 3)
 			.map((t) => `<${t}>`)

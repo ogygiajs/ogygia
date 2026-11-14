@@ -187,15 +187,18 @@ const NAMED: Record<string, string> = {
  *  serializations of the same text or attribute value. */
 export function decode(s: string): string {
 	if (s.indexOf('&') === -1) return s;
-	let out = '';
+	const out: string[] = [];
 	let i = 0;
 	for (;;) {
 		const amp = s.indexOf('&', i);
-		if (amp === -1) return out + s.slice(i);
-		out += s.slice(i, amp);
+		if (amp === -1) {
+			out.push(s.slice(i));
+			return out.join('');
+		}
+		out.push(s.slice(i, amp));
 		const semi = s.indexOf(';', amp);
 		if (semi === -1 || semi - amp > 10) {
-			out = `${out}&`;
+			out.push('&');
 			i = amp + 1;
 			continue;
 		}
@@ -207,10 +210,10 @@ export function decode(s: string): string {
 			if (Number.isFinite(code) && code > 0 && code <= 0x10ffff) ch = String.fromCodePoint(code);
 		} else ch = NAMED[ref];
 		if (ch === undefined) {
-			out = `${out}&`;
+			out.push('&');
 			i = amp + 1;
 		} else {
-			out += ch;
+			out.push(ch);
 			i = semi + 1;
 		}
 	}
@@ -676,15 +679,17 @@ export function mark_with(
 			if (name === 'ogygia-region') owned = region_kind(attrs) === 'island';
 			// the child tag: this element is child i of the custom element above it (a declarative
 			// shadow template is not a child once parsed: it becomes the host's shadow root)
-			let insert = escapes && in_body ? ' og-s' : '';
+			const s_mark = escapes && in_body ? ' og-s' : '';
+			let c_mark = '';
 			const shadow_tpl = name === 'template' && attrs.some((a) => a.name === 'shadowrootmode');
 			if (child_of_host && !shadow_tpl) {
 				const i = parent.next++;
-				insert = `${insert} og-c="${parent.host}.${i}"`;
+				c_mark = ` og-c="${parent.host}.${i}"`;
 				if (planned[parent.host])
 					hosts.get(parent.host)!.children.set(i, { attrs: attr_map(attrs) });
 			}
 			let host = -1;
+			let h_mark = '';
 			if (custom) {
 				host = next_k++;
 				const is_planned = planned[host] ?? false;
@@ -700,10 +705,10 @@ export function mark_with(
 					inner_start: tok.end,
 					inner_end: tok.end
 				});
-				insert += is_planned ? ` og-h="${host}"` : ` og-u="${host}"`;
+				h_mark = is_planned ? ` og-h="${host}"` : ` og-u="${host}"`;
 			}
-			if (insert) {
-				out.push(html.slice(pos, tok.name_end), insert);
+			if (s_mark || c_mark || h_mark) {
+				out.push(html.slice(pos, tok.name_end), `${s_mark}${c_mark}${h_mark}`);
 				pos = tok.name_end;
 			}
 			if (!(VOID.has(name) || (tok.self && foreign))) {
@@ -1054,7 +1059,6 @@ export function settle(
 			// the rewrite (a tag without ogygia's marks has nothing to remove: no Set made for it)
 			const remove = has_og ? new Set<string>() : NO_REMOVE;
 			if (og_s) remove.add('og-s');
-			let add = '';
 			// ONE attribute reset per element: a planned host's own (it honours og-keep) wins over its
 			// reset as a tagged child of the host above (the same attributes, without og-keep)
 			let reset: Record<string, string | null> | null = null;
@@ -1085,11 +1089,8 @@ export function settle(
 					reset = attr_diff(attrs, was, new Set());
 				}
 			}
-			if (reset) add = `${add} og-r="${escape_amp_quot(JSON.stringify(reset))}"`;
-			if (stand_in) {
-				add = `${add} tag="${name}"`;
-				stand_ins++;
-			}
+			const add = `${reset ? ` og-r="${escape_amp_quot(JSON.stringify(reset))}"` : ''}${stand_in ? ` tag="${name}"` : ''}`;
+			if (stand_in) stand_ins++;
 			if (remove.size || add || stand_in) {
 				out.push(
 					html.slice(pos, tok.start),

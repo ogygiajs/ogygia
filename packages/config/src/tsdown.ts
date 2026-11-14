@@ -123,14 +123,15 @@ export function inline_markup_names() {
 				if (kept.length + named.length === specifiers.length) continue;
 				if (named.length > 0) kept.push(`{ ${named.join(', ')} }`);
 				// (none left: the import goes, as core's modules carry no side effects)
-				let text =
-					kept.length === 0 ? '' : `import ${kept.join(', ')} from ${JSON.stringify(from)};`;
+				const parts =
+					kept.length === 0 ? [] : [`import ${kept.join(', ')} from ${JSON.stringify(from)};`];
 				for (const s of specifiers) {
 					const name = (s.local as { name: string }).name;
 					const value = local.get(name);
 					if (value !== undefined && exported.has(name))
-						text = `${text}const ${name} = ${JSON.stringify(value)};`;
+						parts.push(`const ${name} = ${JSON.stringify(value)};`);
 				}
+				const text = parts.join('');
 				const end = text === '' && code[decl.end] === '\n' ? decl.end + 1 : decl.end;
 				edits.push({ start: decl.start, end, text });
 			}
