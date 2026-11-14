@@ -21,7 +21,8 @@ import {
 } from '../../src/runtime/load-scheduler.ts';
 import { after_document_painted, reset_document_painted } from '../../src/runtime/schedule.ts';
 import { PRIORITY } from '../../src/runtime/load-class.ts';
-import { flights } from '@ogygia/machine';
+import { flights, scope } from '@ogygia/machine';
+import { patch } from '../_patch.ts';
 import { runtime_session } from '../../src/runtime/session.ts';
 
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
@@ -476,16 +477,22 @@ test('a queued slot stops watching its element once it starts', async () => {
 	);
 	await tick(40);
 	const unobserved: Element[] = [];
-	const unobserve = IntersectionObserver.prototype.unobserve;
-	IntersectionObserver.prototype.unobserve = function (this: IntersectionObserver, t: Element) {
-		unobserved.push(t);
-		return unobserve.call(this, t);
-	};
+	const spies = scope();
+	patch(
+		spies,
+		IntersectionObserver.prototype,
+		'unobserve',
+		(unobserve) =>
+			function (this: IntersectionObserver, t: Element) {
+				unobserved.push(t);
+				return unobserve.call(this, t);
+			}
+	);
 	try {
 		island.style.top = '0px';
 		await expect.poll(() => started, { timeout: 1_000 }).toBe(true);
 	} finally {
-		IntersectionObserver.prototype.unobserve = unobserve;
+		spies.close();
 	}
 	expect(unobserved).toContain(island);
 	island.remove();

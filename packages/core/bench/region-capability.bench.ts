@@ -1,13 +1,6 @@
-// Region capabilities (server/hmac.ts): a page's worth of v3 mints, the endpoint's checks of them,
-// and the check of a URL minted before v3 (the v2 MAC), for comparison.
+// Region capabilities (server/hmac.ts): a page's worth of v3 mints, and the endpoint's checks of them.
 import { bench } from '@bench/heisenbench/bench';
-import {
-	region_mac_message,
-	region_sign,
-	region_verify,
-	sign,
-	type RegionClaim
-} from '../src/server/hmac.ts';
+import { region_sign, region_verify, type RegionClaim } from '../src/server/hmac.ts';
 import { region_request } from '../src/server/region-request.ts';
 
 const SECRET = 'bench-secret-0123456789abcdef';
@@ -47,26 +40,6 @@ bench(
 				at: String(at),
 				sigs: Array.from({ length: 20 }, (_, i) => region_sign(SECRET, AUD, at, claim(i)))
 			};
-		}
-	}
-);
-
-bench(
-	'region_verify: each hole request of a page cached before v3 (v2)',
-	({ sigs, at }) => {
-		let ok = 0;
-		for (let i = 0; i < sigs.length; i++)
-			if (region_verify(SECRET, AUD, '', at, claim(i), sigs[i]!)) ok++;
-		return ok;
-	},
-	{
-		setup: () => {
-			const at = String(exp());
-			const sigs = Array.from({ length: 20 }, (_, i) => {
-				const c = claim(i);
-				return sign(SECRET, region_mac_message(c.id, at, c.payload, '', '', c.render));
-			});
-			return { at, sigs };
 		}
 	}
 );

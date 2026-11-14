@@ -8,13 +8,15 @@ import { bootDev } from '../../src/runtime/full.ts';
 import { _reset_beacon, beacon_nav } from '../../../devtools/src/profiler/beacon.ts';
 import { _restart_page_beacon } from '../../../devtools/src/profiler/beacon-standalone.ts';
 import devtools_client from '../../../devtools/src/client.ts';
+import { scope } from '@ogygia/machine';
+import { patch } from '../_patch.ts';
 
 const inject_html = () => from_b64(inject('counter_json_lane_ssr_b64'));
 
 type Body = { page: string; visit?: { navs?: { to: string }[] }; vitals?: object };
 let sent: Body[] = [];
 let meta: HTMLMetaElement;
-const orig_beacon = navigator.sendBeacon;
+let spies = scope();
 
 /** the tab's visibility as the browser reports it, with its event */
 function set_visibility(state: 'hidden' | 'visible'): void {
@@ -47,10 +49,10 @@ beforeEach(async () => {
 	document.head.appendChild(meta);
 	_restart_page_beacon();
 	sent = [];
-	navigator.sendBeacon = ((_url: string, body: string) => {
-		sent.push(JSON.parse(body) as Body);
+	patch(spies, navigator, 'sendBeacon', () => (_url: string | URL, body?: BodyInit | null) => {
+		sent.push(JSON.parse(body as string) as Body);
 		return true;
-	}) as typeof navigator.sendBeacon;
+	});
 	document.body.innerHTML = inject_html();
 	bootDev([{ name: '@ogygia/devtools', client: devtools_client }]);
 	await expect
@@ -61,7 +63,8 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-	navigator.sendBeacon = orig_beacon;
+	spies.close();
+	spies = scope();
 	delete (document as { visibilityState?: string }).visibilityState;
 	meta.remove();
 });

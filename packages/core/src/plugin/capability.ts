@@ -28,8 +28,8 @@ export type CapabilityDeny = 'expired' | 'renew-window' | 'foreign-key' | 'sig';
  *  gets. (Handed in, never imported: this module stays free of the app's virtual modules, so the
  *  plugin test harness runs it as it is.) */
 export interface CapabilitySigner {
-	sign(message: string): string;
-	verify(message: string, signature: string): boolean;
+	sign: (message: string) => string;
+	verify: (message: string, signature: string) => boolean;
 	/** The key's fingerprint, as a region capability carries it (`&k=`, server/signing-key.ts). */
 	fingerprint(): string;
 	lifetime: CapabilityLifetime;
@@ -45,7 +45,7 @@ const CAPABILITY = 'cap|';
 /**
  * A plugin's own signer: what it signs or checks is `plugin|<name length>:<name>|<message>` under the
  * app's key. The length prefix gives each (name, message) pair one spelling, and no region message
- * starts `plugin|` (theirs start `v1|`, `v2|` or a length), so a plugin signs neither for another
+ * starts `plugin|` (theirs start with a length), so a plugin signs neither for another
  * plugin nor for a region (test/plugin-signing.test.ts). `capabilities` is its capabilities' signer
  * ({@link plugin_capabilities}); the plain one refuses a capability message.
  */

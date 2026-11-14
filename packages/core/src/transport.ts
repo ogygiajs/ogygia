@@ -225,12 +225,12 @@ function ensure_all_kinds(): (value: unknown) => Ref | undefined {
  */
 export const ogygiaTransport: {
 	Region: {
-		encode(value: unknown): false | EncodedRegion;
-		decode(raw: EncodedRegion): unknown;
+		encode: (value: unknown) => false | EncodedRegion;
+		decode: (raw: EncodedRegion) => unknown;
 	};
 	[REF_WIRE_KEY]: {
-		encode(value: unknown): Ref | false;
-		decode(ref: Ref): unknown;
+		encode: (value: unknown) => Ref | false;
+		decode: (ref: Ref) => unknown;
 	};
 } = {
 	// FIRST in key order → Kit's first-match encode claims regions here, preserving the legacy
