@@ -17,7 +17,7 @@ A SvelteKit server build puts nearly every module in its own small file, and lea
 - Every dependency is bundled in (Vite's `noExternal`), except the packages listed in `external`.
 - The framework (Svelte, Kit, ogygia) and every dependency go in one chunk, `server`.
 - Each region registry, a `.ts` or `.js` module that marks region imports (a block registry), gets a chunk of its own, `regions-<name>`, with the blocks it renders. Only a page that imports the registry loads it, so a page with no blocks starts as fast as before.
-- App code that a registry shares with the rest of the app goes in `regions-shared`, so a page outside the registry never loads the registry.
+- App code that a registry shares with the rest of the app goes in `shared`, so a page outside the registry never loads the registry.
 
 The client build and dev are not touched, and pages are served byte for byte as without it. At the end of each build, one line names every package that stayed outside the server bundle and why (`jumpstart_external`).
 

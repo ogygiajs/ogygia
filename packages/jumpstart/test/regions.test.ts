@@ -92,7 +92,7 @@ describe('region groups', () => {
 					);
 					const groups = new RegionGroups(seam(hosts));
 					for (const host of Object.keys(hosts)) {
-						const name = groups.group(host);
+						const name = groups.group(clean_id(host));
 						expect(name).toMatch(REGISTRY_CHUNK_RE);
 						expect(RESERVED_CHUNKS).not.toContain(name);
 					}

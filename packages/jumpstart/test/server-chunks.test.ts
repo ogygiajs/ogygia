@@ -47,7 +47,7 @@ describe('the server chunks', () => {
 			])
 		).toEqual([
 			[SERVER_CHUNK, 3],
-			['regions-shared', 2],
+			['shared', 2],
 			['per registry', 1]
 		]);
 	});

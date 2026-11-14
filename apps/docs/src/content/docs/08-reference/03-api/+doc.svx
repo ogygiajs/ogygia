@@ -208,7 +208,7 @@ A SvelteKit server build puts nearly every module in its own small file and leav
 - **Dependencies are bundled in** (Vite's `noExternal`), except the packages in `external`.
 - **The framework and every dependency go in one chunk**, `server`.
 - **Each region registry gets a chunk of its own**, `regions-<name>`. A registry is a `.ts` or `.js` module that marks region imports (a block registry). Its chunk holds the registry and the blocks it renders, and only a page that imports the registry loads it, so a page with no blocks starts as it did before.
-- **App code a registry shares with the rest of the app** goes in `regions-shared`, so a page outside the registry never loads the registry. A component that a Svelte module also marks stays where the bundler puts it.
+- **App code a registry shares with the rest of the app** goes in `shared`, so a page outside the registry never loads the registry. A component that a Svelte module also marks stays where the bundler puts it.
 - **The client build and dev are not touched**, and every page is served byte for byte as without it.
 
 At the end of each build one line names each package that stayed outside the server bundle and why: listed in `external`, external in the Vite config, or kept out by Vite or another plugin (`jumpstart_external`; `jumpstart_external_none` when there is none).

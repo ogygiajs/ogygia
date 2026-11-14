@@ -13,8 +13,13 @@ export function clean_id(id: string): string {
 	return bare.replace(QUERY_RE, '').replace(BACKSLASH_G, '/');
 }
 
-/** The chunk of the app modules a registry shares with the rest of the app. */
-export const SHARED_CHUNK = 'regions-shared';
+/** The chunk of the app modules a registry shares with the rest of the app. Outside
+ *  {@link REGISTRY_CHUNK_RE}, so no registry's name can be it. */
+export const SHARED_CHUNK = 'shared';
+
+/** Every registry chunk's name: `regions-` and the registry's file name, sanitized to these
+ *  characters. A reserved chunk's name never matches it. */
+export const REGISTRY_CHUNK_RE: RegExp = /^regions-[A-Za-z0-9_-]+$/;
 
 const by_key = <T>([a]: [string, T], [b]: [string, T]): number => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -145,7 +150,7 @@ export class RegionGroups {
 		const taken = new Set<string>();
 		for (const host of hosts) {
 			const base = path.posix.basename(clean_id(host)).replace(SCRIPT_RE, '');
-			const stem = `regions-${base.replace(UNSAFE_NAME_G, '-')}`;
+			const stem = `regions-${base.replace(UNSAFE_NAME_G, '-') || 'registry'}`;
 			let name = stem;
 			for (let n = 2; taken.has(name); n++) name = `${stem}-${n}`;
 			taken.add(name);

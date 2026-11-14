@@ -9,6 +9,10 @@ const SERVER_ENVIRONMENT = 'ssr';
 /** The chunk the framework and every dependency go in. */
 export const SERVER_CHUNK = 'server';
 
+/** The chunks the build names itself: none matches `REGISTRY_CHUNK_RE`, so no registry's group
+ *  can share one's name (test/regions.test.ts). */
+export const RESERVED_CHUNKS: readonly string[] = [SERVER_CHUNK, SHARED_CHUNK];
+
 const NO_REGIONS: Pick<RegionsSeam, 'hosts'> = { hosts: () => new Map() };
 
 /** A server output chunk, as far as the external report reads it. */

@@ -90,9 +90,7 @@ for (const [kit, name] of [
 			expect(light).not.toContain('regions-registry');
 			const inline = read(built.on.server, 'entries/pages/inline/_page.svelte.js');
 			expect(inline).not.toContain('regions-registry');
-			expect(inline, 'a util the registry shares with the inline region').toContain(
-				'regions-shared'
-			);
+			expect(inline, 'a util the registry shares with the inline region').toContain('/shared.js');
 			const cms_off = await Fixture.files_loaded(page(built.off.server, 'p/_n_'));
 			const cms_on = await Fixture.files_loaded(page(built.on.server, 'p/_n_'));
 			expect(cms_off).toBeGreaterThan(MANY);
