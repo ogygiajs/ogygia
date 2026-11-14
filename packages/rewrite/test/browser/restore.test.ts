@@ -65,7 +65,8 @@ test('a host that names a shadow sheet the page does not carry is recorded, and 
 	const host = document.querySelector('demo-card')!;
 	host.setAttribute('og-shadow', 'demo-card.shadow demo-missing.shadow');
 	expect(restore(document)).toBe(1);
-	expect(host.shadowRoot!.adoptedStyleSheets.length).toBe(1);
+	const restored = document.querySelector('demo-card')!;
+	expect(restored.shadowRoot!.adoptedStyleSheets.length).toBe(1);
 	const log = (window as { __og_restore_log?: { kind: string; host: string; key?: string }[] })
 		.__og_restore_log!;
 	expect(log.map(({ kind, host, key }) => ({ kind, host, key }))).toEqual([
@@ -99,8 +100,7 @@ test('Svelte’s children put back into a host are known render output (a later 
 
 test('a host’s attribute reset (`og-r`) never sets an on* handler or a javascript: URL', async () => {
 	await served('<demo-card class="own"> hi </demo-card>');
-	const host = document.querySelector('demo-card')!;
-	host.setAttribute(
+	document.querySelector('demo-card')!.setAttribute(
 		'og-r',
 		JSON.stringify({
 			onclick: 'window.__og_ran++',
@@ -117,6 +117,7 @@ test('a host’s attribute reset (`og-r`) never sets an on* handler or a javascr
 		})
 	);
 	restore(document);
+	const host = document.querySelector('demo-card')!;
 	expect(host.hasAttribute('onclick')).toBe(false);
 	expect(host.hasAttribute('onfocus')).toBe(false);
 	expect(host.hasAttribute('href')).toBe(false);
@@ -203,9 +204,9 @@ test('a root that cannot adopt its sheet leaves the others in the answer theirs'
 
 test('a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone', async () => {
 	await served('<demo-card class="own" title="served"> hi </demo-card>');
-	const host = document.querySelector('demo-card')!;
-	host.setAttribute('og-r', '{"title": "svelte"');
+	document.querySelector('demo-card')!.setAttribute('og-r', '{"title": "svelte"');
 	expect(restore(document)).toBe(1);
+	const host = document.querySelector('demo-card')!;
 	expect(host.getAttribute('title')).toBe('served');
 	expect(host.hasAttribute('og-r')).toBe(false);
 	expect(host.shadowRoot!.querySelector('b')!.textContent).toBe('Card title');
@@ -625,6 +626,157 @@ test('a declarative shadow root parsed in an inert fragment gets the page’s re
 	document.body.appendChild(host);
 	init_shadow_registries(host);
 	expect(constructed).toBe(1);
+});
+
+/** A component in the most common shape: its constructor attaches its own root, unconditionally. */
+function define_attaching(tag: string): void {
+	customElements.define(
+		tag,
+		class extends HTMLElement {
+			constructor() {
+				super();
+				this.attachShadow({ mode: 'open' }).innerHTML = '<i class="own">own</i><slot></slot>';
+			}
+		}
+	);
+}
+
+/** A planned host's render: the server tree before Svelte's children, wrapped in a slot. */
+const attaching_render = (tag: string) => (h: string) =>
+	h.replace(
+		new RegExp(`(<${tag}[^>]*)>([\\s\\S]*?)</${tag}>`),
+		`$1 og-shadow="demo-card.shadow"><b>server</b><slot>$2</slot></${tag}>`
+	);
+
+/** Errors a component's upgrade reports (an upgrade never throws to its caller). */
+function upgrade_errors(): { list: unknown[]; stop: () => void } {
+	const list: unknown[] = [];
+	const heard = (e: ErrorEvent) => {
+		list.push(e.error ?? e.message);
+		e.preventDefault();
+	};
+	window.addEventListener('error', heard);
+	return { list, stop: () => window.removeEventListener('error', heard) };
+}
+
+test('a component that attaches its own root in its constructor upgrades over a restored host: the root comes back emptied, the light DOM stays Svelte’s', async () => {
+	const s = await transformMarkup(
+		doc(island('<demo-attach class="own"> hi <i>ok</i></demo-attach>')),
+		attaching_render('demo-attach'),
+		{ kind: 'document' }
+	);
+	expect(s.planned).toBe(1);
+	document.head.insertAdjacentHTML('beforeend', SHEET);
+	document.body.innerHTML = s.html.slice(
+		s.html.indexOf('<body>') + 6,
+		s.html.lastIndexOf('</body>')
+	);
+	expect(restore(document)).toBe(1);
+	expect(document.querySelector('demo-attach')!.shadowRoot!.querySelector('b')!.textContent).toBe(
+		'server'
+	);
+	const errors = upgrade_errors();
+	define_attaching('demo-attach');
+	errors.stop();
+	expect(errors.list).toEqual([]);
+	const host = document.querySelector('demo-attach')!;
+	expect(host.shadowRoot!.innerHTML).toBe('<i class="own">own</i><slot></slot>');
+	expect(host.innerHTML).toBe(' hi <i>ok</i>');
+});
+
+test('an answer restored in its inert fragment: a component that attaches its own root upgrades at insertion over the emptied root', async () => {
+	define_attaching('demo-attach-answer');
+	const s = await transformMarkup(
+		'<demo-attach-answer> hi </demo-attach-answer>',
+		(h) => SHEET + attaching_render('demo-attach-answer')(h),
+		{ kind: 'region' }
+	);
+	const tpl = document.createElement('template');
+	tpl.innerHTML = s.html;
+	restore(tpl.content);
+	expect(tpl.content.querySelector('demo-attach-answer')!.shadowRoot).not.toBeNull();
+	const errors = upgrade_errors();
+	document.body.appendChild(tpl.content);
+	restore_adopt();
+	errors.stop();
+	expect(errors.list).toEqual([]);
+	const host = document.querySelector('demo-attach-answer')!;
+	expect(host.shadowRoot!.innerHTML).toBe('<i class="own">own</i><slot></slot>');
+	expect(host.innerHTML).toBe(' hi ');
+});
+
+test('a host its component already upgraded (no root of its own yet) keeps its identity and gets the restored root', async () => {
+	customElements.define('demo-lazy', class extends HTMLElement {});
+	const s = await transformMarkup(
+		doc(island('<demo-lazy> hi </demo-lazy>')),
+		attaching_render('demo-lazy'),
+		{ kind: 'document' }
+	);
+	document.body.innerHTML = s.html.slice(
+		s.html.indexOf('<body>') + 6,
+		s.html.lastIndexOf('</body>')
+	);
+	const before = document.querySelector('demo-lazy')!;
+	expect(restore(document)).toBe(1);
+	expect(document.querySelector('demo-lazy')).toBe(before);
+	expect(before.shadowRoot!.querySelector('b')!.textContent).toBe('server');
+	expect(before.innerHTML).toBe(' hi ');
+});
+
+test('a host whose tag name holds markup characters is restored with nothing parsed out of its name', () => {
+	document.head.insertAdjacentHTML('beforeend', SHEET);
+	document.body.innerHTML =
+		'<x-a<img og-h="0" og-shadow="demo-card.shadow"><b>server</b><slot><!--og-c 0.0 t--> hi </slot></x-a<img>';
+	expect(document.body.firstElementChild!.localName).toBe('x-a<img');
+	try {
+		restore(document);
+	} catch {
+		expect(document.body.firstElementChild!.shadowRoot).toBeNull();
+	}
+	const restored = document.body.firstElementChild!;
+	expect(restored.localName).toBe('x-a<img');
+	expect(document.querySelectorAll('img').length).toBe(0);
+	expect(restored.shadowRoot?.querySelectorAll('img').length ?? 0).toBe(0);
+});
+
+test('a host that cannot have a shadow root is skipped and said; the hosts after it are restored', async () => {
+	await served('<demo-card class="own"> after </demo-card>');
+	(window as { __og_restore_log?: unknown[] }).__og_restore_log = [];
+	document.body.insertAdjacentHTML(
+		'beforeend',
+		'<a og-h="9" og-shadow="demo-card.shadow" og-r="{}"><b>server</b><slot><!--og-c 9.0 t--> hi </slot></a>'
+	);
+	const bad = document.body.lastElementChild!;
+	expect(bad.localName).toBe('a');
+	let restored = -1;
+	expect(() => (restored = restore(document))).not.toThrow();
+	expect(restored).toBe(1);
+	const host = document.querySelector('demo-card')!;
+	expect(host.shadowRoot).not.toBeNull();
+	expect(host.innerHTML).toBe(' after ');
+	expect(bad.shadowRoot).toBeNull();
+	expect([...bad.attributes].map((a) => a.name).filter((n) => n.startsWith('og-'))).toEqual([]);
+	expect(bad.innerHTML.includes('og-c')).toBe(false);
+	expect((window as { __og_restore_log?: unknown[] }).__og_restore_log).toContainEqual(
+		expect.objectContaining({ kind: 'invalid', host: 'a' })
+	);
+});
+
+test('a host with an attribute name only the HTML parser accepts (`=eq`) is restored, and so is every host after it', () => {
+	document.head.insertAdjacentHTML('beforeend', SHEET);
+	const host = (attrs: string) =>
+		`<x-widget og-h="0" og-shadow="demo-card.shadow" ${attrs}><b>server</b><slot><!--og-c 0.0 t--> hi </slot></x-widget>`;
+	document.body.innerHTML = host('@click="go" [prop]="x" =eq="y"') + host('data-n="2"');
+	restore(document);
+	const hosts = Array.from(document.querySelectorAll('x-widget'));
+	expect(hosts.length).toBe(2);
+	for (const h of hosts) {
+		expect(h.shadowRoot, 'restored').not.toBeNull();
+		expect(h.hasAttribute('og-h'), 'its mark gone').toBe(false);
+	}
+	expect(hosts[0].getAttribute('@click')).toBe('go');
+	expect(hosts[0].getAttribute('[prop]')).toBe('x');
+	expect(hosts[0].getAttribute('=eq')).toBe('y');
 });
 
 test('putting attributes back never adds an event handler, a srcdoc or a javascript: URL', () => {
