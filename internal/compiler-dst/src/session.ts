@@ -152,6 +152,12 @@ export function modules(files: Fs): string[] {
 const sorted_obj = (m: ReadonlyMap<string, unknown>) =>
 	Object.fromEntries([...m].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 
+const by_string = (a: unknown, b: unknown) => {
+	const x = String(a);
+	const y = String(b);
+	return x < y ? -1 : x > y ? 1 : 0;
+};
+
 /** What the compile decided: the registry, the island closure, the region kinds, the runtime
  *  marks, the route worlds, and each transform's output. Sorted, so order alone never differs. */
 export function snapshot(s: Session, out: ReadonlyMap<string, unknown> = s.out): unknown {
@@ -191,7 +197,7 @@ export function snapshot(s: Session, out: ReadonlyMap<string, unknown> = s.out):
 			},
 			(_k, v) =>
 				v instanceof Set
-					? [...v].sort()
+					? [...v].sort(by_string)
 					: v instanceof Map
 						? sorted_obj(v as Map<string, unknown>)
 						: v

@@ -20,6 +20,7 @@ import {
 } from '../../core/src/store-transport.ts';
 import { __register_fn, fn_handle } from '../../core/src/fn-transport.ts';
 import { REF_WIRE_KEY, ref_reducer, ref_reviver } from '../../core/src/ref.ts';
+import { code_fn } from './_code-fn.ts';
 
 const SVELTE = ['.svelte'];
 const run = (src: string, id = 'src/lib/cart.ts') => rewrite_store(src, id, id, SVELTE);
@@ -281,7 +282,7 @@ describe('auto-brand tier (zero-authoring provable factories)', () => {
 			.replace(`import { __og_store } from 'ogygia/internal';`, '')
 			.replace(`import { writable } from 'svelte/store';`, '')
 			.replace(/export const /g, 'globalThis.__ctr = ');
-		new Function('__og_store', 'writable', body)(__og_store, writable);
+		code_fn('__og_store', 'writable', body)(__og_store, writable);
 		const createCtr = (globalThis as Record<string, unknown>).__ctr as (s?: number) => {
 			bump: () => void;
 		};

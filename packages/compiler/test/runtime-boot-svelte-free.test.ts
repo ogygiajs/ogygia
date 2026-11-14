@@ -54,7 +54,10 @@ function scan(file: string): { specs: string[]; runes: boolean } {
 	const specs: string[] = [];
 	let runes = false;
 	for (const stmt of sf.statements) {
-		if (ts.isImportDeclaration(stmt) && !stmt.importClause?.isTypeOnly) {
+		if (
+			ts.isImportDeclaration(stmt) &&
+			stmt.importClause?.phaseModifier !== ts.SyntaxKind.TypeKeyword
+		) {
 			const named = stmt.importClause?.namedBindings;
 			const all_type =
 				!stmt.importClause?.name &&

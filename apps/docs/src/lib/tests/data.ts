@@ -137,7 +137,7 @@ export type TestEntry = [
 ];
 
 export type PackageReport = {
-	format: 1;
+	format: number;
 	where: Engine[];
 	files: string[];
 	tests: TestEntry[];

@@ -51,19 +51,19 @@ afterEach(() => {
 });
 
 describe('Switcher', () => {
-	it('shows one menu per axis, with its current value', () => {
+	it('shows one menu per axis, with its current value', async () => {
 		const p = picker();
 		expect(p.triggers().map((t) => [t.title, t.textContent?.trim()])).toEqual([
 			['Version', 'v2'],
 			['Language', 'en']
 		]);
-		p.done();
+		await p.done();
 	});
 
-	it('shows only the axes asked for', () => {
+	it('shows only the axes asked for', async () => {
 		const p = picker({ for: 'locale' });
 		expect(p.triggers().map((t) => t.title)).toEqual(['Language']);
-		p.done();
+		await p.done();
 	});
 
 	it('lists the options as one radio choice, the current one checked', async () => {
@@ -74,7 +74,7 @@ describe('Switcher', () => {
 			['fr', 'false']
 		]);
 		expect(items[1].classList.contains('og-missing')).toBe(true);
-		p.done();
+		await p.done();
 	});
 
 	it('navigates to the chosen option', async () => {
@@ -82,6 +82,6 @@ describe('Switcher', () => {
 		const items = await open(p.triggers()[0]);
 		await userEvent.click(items[0]);
 		await vi.waitFor(() => expect(goto).toHaveBeenCalledWith('/v1/intro'));
-		p.done();
+		await p.done();
 	});
 });

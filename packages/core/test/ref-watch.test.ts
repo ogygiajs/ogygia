@@ -40,13 +40,13 @@ describe('watch / notify primitive', () => {
 		const a = watch('id-1', () => hits.push(1));
 		const b = watch('id-1', () => hits.push(2));
 		notify('id-1', null);
-		expect(hits.sort()).toEqual([1, 2]);
+		expect(hits.sort((x, y) => x - y)).toEqual([1, 2]);
 		a();
 		notify('id-1', null);
-		expect(hits.sort()).toEqual([1, 2, 2]); // only b remained
+		expect(hits.sort((x, y) => x - y)).toEqual([1, 2, 2]);
 		b();
 		notify('id-1', null); // no watchers → no throw, no hit
-		expect(hits.sort()).toEqual([1, 2, 2]);
+		expect(hits.sort((x, y) => x - y)).toEqual([1, 2, 2]);
 	});
 
 	it('notify passes the settled value through; a throwing watcher does not starve others', () => {
@@ -145,7 +145,7 @@ describe('releasing every page id + Kind.dispose', () => {
 		resolve({ k: 'test-disposable', i: 'd2', d: { n: 2 } }, 'page');
 		dispose_ids(page_ids());
 		expect(page_ids()).toEqual([]);
-		expect(disposed.sort()).toEqual([1, 2]);
+		expect(disposed.sort((a, b) => a - b)).toEqual([1, 2]);
 		// bucket emptied: a re-resolve of the same id decodes FRESH (not the disposed instance)
 		disposed = [];
 		const again = resolve({ k: 'test-disposable', i: 'd1', d: { n: 9 } }, 'page') as { n: number };
@@ -233,7 +233,7 @@ describe('dispose_ids — selective disposal (reconciler R3)', () => {
 		resolve({ k: 'test-disp2', i: 'x2', d: { n: 2 } }, 'page');
 		resolve({ k: 'test-disp2', i: 'x3', d: { n: 3 } }, 'page');
 		dispose_ids(['x1', 'x3']);
-		expect(gone.sort()).toEqual([1, 3]);
+		expect(gone.sort((a, b) => a - b)).toEqual([1, 3]);
 		// x2 still resolvable to the SAME instance (not disposed)
 		const again = resolve({ k: 'test-disp2', i: 'x2', d: { n: 99 } }, 'page') as { n: number };
 		expect(again.n).toBe(2);

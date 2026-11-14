@@ -5,16 +5,17 @@
 // island on a csr=true page went empty (dev, timing-dependent). The wrapper's client leg ADOPTS the
 // server element verbatim instead: address and content survive.
 import { afterEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { hydrate, unmount } from 'svelte';
 import HoleKitHost from './fixtures/HoleKitHost.svelte';
 
-const inject_html = (key: 'hole_kit_ssr_b64') => decodeURIComponent(escape(atob(inject(key))));
+const inject_html = (key: 'hole_kit_ssr_b64') => from_b64(inject(key));
 
 afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-test('Kit hydration adopts the hole verbatim: its address and landed HTML survive', () => {
+test('Kit hydration adopts the hole verbatim: its address and landed HTML survive', async () => {
 	document.body.innerHTML = `<script>__sveltekit_lab = {};\x3C/script><div data-mount>${inject_html('hole_kit_ssr_b64')}</div>`;
 	const mount = document.querySelector('[data-mount]') as HTMLElement;
 	const hole = document.querySelector('ogygia-region[render="defer"]') as HTMLElement;
@@ -41,5 +42,5 @@ test('Kit hydration adopts the hole verbatim: its address and landed HTML surviv
 	expect(hole.getAttribute('endpoint'), 'its address kept').toBe(endpoint);
 	expect(hole.querySelector('[data-landed]'), 'its landed HTML kept').not.toBeNull();
 	expect(warns.filter((w) => w.includes('hydration_mismatch'))).toEqual([]);
-	unmount(app as never);
+	await unmount(app as never);
 });

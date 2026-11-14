@@ -7,7 +7,7 @@ import { foreign_region_prop_revivers } from './foreign-props.ts';
 import { SEED_REF_KEY, seed_ref_reviver } from '../seed-ref-reviver.ts';
 import { parse_sidecar_text } from './wire-format.ts';
 import { is_deferred, ours_on_kit_document, region_ssr_truncated } from './region-attrs.ts';
-import { boot_link, slots, type LiftedLake } from './slots.ts';
+import { boot_link, slots, type HeldLake } from './slots.ts';
 import { report_thrown } from '../report-thrown.ts';
 import type { HeadMark } from './session.ts';
 import { install_hydrate_features } from 'ogygia:boot';
@@ -278,7 +278,6 @@ export function repair_if_drifted(
 	const content = parse_own_html(ssr_html);
 	const want = content.ownerDocument.createElement('ogygia-region');
 	want.appendChild(content);
-	slots.lakes.lift(want);
 	if (!sequence_differs(region, want)) return { repaired: false, reason: null, conflict: null };
 	const reason =
 		import.meta.env.DEV || DEVTOOLS || (HOOK_REGION_MISMATCHED && slots.hooks?.regionMismatched)
@@ -548,7 +547,7 @@ export function hydrate_island(
 	}
 
 	let head_mark: HeadMark | null = null;
-	let lifted: LiftedLake[] | null = slots.lakes.lift(region);
+	let held: HeldLake[] | null = slots.lakes.hold(region);
 	const drift =
 		ssr_html !== null && touched && region.isConnected
 			? repair_if_drifted(region, ssr_html)
@@ -636,8 +635,8 @@ export function hydrate_island(
 			if (import.meta.env.DEV) warn('ownership_conflict', { element: drift.conflict }, entry);
 		}
 
-		slots.lakes.restore(region, lifted);
-		lifted = null;
+		slots.lakes.release(region, held);
+		held = null;
 
 		if (!region.isConnected) {
 			out.dispose();
@@ -676,7 +675,7 @@ export function hydrate_island(
 		return out;
 	} finally {
 		head_mark?.stop();
-		if (lifted) slots.lakes.restore(region, lifted);
+		if (held) slots.lakes.release(region, held);
 	}
 }
 

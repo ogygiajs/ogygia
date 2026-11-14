@@ -90,10 +90,23 @@ function table(): VirtualTable<App> {
 	);
 }
 
+/** Load `id` the way these tables' modules answer: at once. A module that answered later would be
+ *  read after the test looked, so it fails here instead. */
+function load_now(
+	t: VirtualTable<App>,
+	id: string,
+	l: Parameters<VirtualTable<App>['load']>[2] = leg
+): string | null | undefined {
+	const source = t.load(id, app, l);
+	if (source instanceof Promise)
+		throw new Error(`${id} answered later; these loads answer at once`);
+	return source;
+}
+
 function loaded(): VirtualTable<App> {
 	const t = table();
 	for (const id of ['opts', 'regs', 'routes', 'plugins', 'styles', 'routes-and-plugins', 'nothing'])
-		t.load(R(id), app, leg);
+		load_now(t, R(id));
 	return t;
 }
 
@@ -128,7 +141,7 @@ describe('a dev change reloads exactly the modules that read it', () => {
 		const t = loaded();
 		expect(bump(t, 'routes').length).toBe(2);
 		expect(bump(t, 'routes')).toEqual([]);
-		t.load(R('routes'), app, leg);
+		load_now(t, R('routes'));
 		expect(bump(t, 'routes')).toEqual([R('routes')]);
 	});
 
@@ -151,8 +164,8 @@ describe('a dev change reloads exactly the modules that read it', () => {
 			queries('session')
 		);
 		const id = '\0ogygia:region/server-reads';
-		t.load(id, app, { ssr: true, universalHooks: null });
-		t.load(id, app, { ssr: false, universalHooks: null });
+		load_now(t, id, { ssr: true, universalHooks: null });
+		load_now(t, id, { ssr: false, universalHooks: null });
 		expect(bump(t, 'routes')).toEqual([id]);
 	});
 });
@@ -198,7 +211,7 @@ describe('a load is a reader of the session’s queries', () => {
 			PARTS,
 			db
 		);
-		for (const id of ['total', 'big', 'regs']) t.load(R(id), app, leg);
+		for (const id of ['total', 'big', 'regs']) load_now(t, R(id));
 		return { t, size };
 	}
 
@@ -214,11 +227,11 @@ describe('a load is a reader of the session’s queries', () => {
 		const { t, size } = session(db);
 		db.set(size, 'a', 3);
 		t.moved();
-		t.load(R('total'), app, leg);
+		load_now(t, R('total'));
 		db.set(size, 'b', 20);
 		expect(t.moved().sort()).toEqual([R('big'), R('total')]);
-		t.load(R('total'), app, leg);
-		t.load(R('big'), app, leg);
+		load_now(t, R('total'));
+		load_now(t, R('big'));
 		db.set(size, 'b', 30);
 		expect(t.moved()).toEqual([R('total')]);
 	});

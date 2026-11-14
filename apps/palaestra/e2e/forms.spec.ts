@@ -85,7 +85,7 @@ test.describe('classic form actions (no-JS + JS)', () => {
 		await page.fill('[data-input-name]', 'Ada2');
 		await page.fill('[data-input-message]', unique);
 		await Promise.all([
-			page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+			page.waitForEvent('domcontentloaded').catch(() => {}),
 			page.click('[data-submit]')
 		]);
 		await page.waitForLoadState('domcontentloaded');

@@ -78,7 +78,7 @@ describe('capability: what checks', () => {
 		const { cap } = setup();
 		const token = cap.mint(AUD, ['x'], 10_000);
 		fc.assert(
-			fc.property(fc.nat(), fc.constantFrom(...'0123456789abcdefv._-AZ'), (at, ch) => {
+			fc.property(fc.nat(), fc.constantFrom(...'0123456789abcdefv._-AZ'.split('')), (at, ch) => {
 				const i = at % token.length;
 				const changed = token.slice(0, i) + ch + token.slice(i + 1);
 				fc.pre(changed !== token);

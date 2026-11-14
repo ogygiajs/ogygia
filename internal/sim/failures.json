@@ -22,14 +22,7 @@
 			"tsdown-plugin-svelte"
 		],
 		"exclude": [],
-		"build_time": [
-			"bake",
-			"barrels",
-			"cli",
-			"config",
-			"tooling",
-			"tsdown-plugin-svelte"
-		]
+		"build_time": ["bake", "barrels", "cli", "config", "tooling", "tsdown-plugin-svelte"]
 	},
 	"fired": [
 		{
@@ -260,6 +253,24 @@
 		}
 	],
 	"covered": [
+		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > refuse_unknown_attributes > throw:0",
+			"reason": "an attribute ogygia does not know on a component import fails the build instead of leaving a plain import",
+			"test": "packages/compiler/test/partial-transform.test.ts",
+			"name": "a misspelt key, alone on a .svelte import, is named with the keys there are"
+		},
+		{
+			"site": "packages/compiler/src/vite/options.ts > assert_known_options > throw:0",
+			"reason": "the barrels option points at its plugin until 0.15",
+			"test": "packages/compiler/test/config-surface.test.ts",
+			"name": "rejects barrels (now the @ogygia/barrels plugin), any value"
+		},
+		{
+			"site": "packages/compiler/src/vite/options.ts > assert_known_options > throw:1",
+			"reason": "a key ogygia() does not have fails the build instead of doing nothing",
+			"test": "packages/compiler/test/config-surface.test.ts",
+			"name": "`%s` is an unknown option, named with the keys there are"
+		},
 		{
 			"site": "packages/compiler/src/vite/paths.ts > runtime_inputs > catch:0",
 			"reason": "an unbuilt runtime directory cannot be read: it adds no input",
@@ -583,6 +594,12 @@
 			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
 			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
+		},
+		{
+			"site": "packages/rewrite/src/restore.ts > restore > catch:1",
+			"reason": "a marked host that cannot have a shadow root (a built-in element or a name the engine refuses): the server marks only valid custom elements, so only markup a sanitizer let through carries one",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
+			"name": "a host that cannot have a shadow root is skipped and said; the hosts after it are restored"
 		},
 		{
 			"site": "packages/rewrite/src/restore.ts > restore_adopt > catch:0",
@@ -3659,8 +3676,8 @@
 		{
 			"site": "packages/compiler/src/compiler/kit.ts > clean_stale_ogygia_dirs > catch:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
-			"test": "packages/compiler/test/driver.test.ts",
-			"name": "a plugin reader gets each module by its identity: package-relative in a declared package"
+			"test": "packages/compiler/test/package-files.test.ts",
+			"name": "a dependency .ts with marks but NO declaration warns loudly (was silent death)"
 		},
 		{
 			"site": "packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > throw:0",
@@ -3713,8 +3730,8 @@
 		{
 			"site": "packages/compiler/src/compiler/macros/wire.ts > misuse > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/og-transform-stress.test.ts",
-			"name": "used as a computed KEY directly (the impossible TS form) is caught as misuse"
+			"test": "packages/compiler/test/og-constructs-stress.test.ts",
+			"name": "wire as a bare value → [ogygia] + line + names the legal position"
 		},
 		{
 			"site": "packages/compiler/src/compiler/ownership-stamps.ts > opaque_stamp_edits > catch:0",
@@ -3773,8 +3790,8 @@
 		{
 			"site": "packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:1",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/named-region-imports.fuzz.test.ts",
-			"name": "every generated case"
+			"test": "packages/compiler/test/as-region-namespace.test.ts",
+			"name": "in a .svelte host"
 		},
 		{
 			"site": "packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:2",
@@ -3791,8 +3808,8 @@
 		{
 			"site": "packages/compiler/src/compiler/region/marked-imports.ts > check_marked_uses > fail > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/named-region-imports.fuzz.test.ts",
-			"name": "every generated case"
+			"test": "packages/compiler/test/named-region-imports.test.ts",
+			"name": "the default form is held to the same rule"
 		},
 		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > normalize_import_keys_uncached > throw:1",
@@ -3809,8 +3826,8 @@
 		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > normalize_hydrate_value > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/partial-transform.test.ts",
-			"name": "rejects an unknown wake value"
+			"test": "packages/compiler/test/wire-gating.test.ts",
+			"name": "a .ts registry mints no lake: `wake: 'none'` there fails, so every .ts wake region wakes"
 		},
 		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > reject_dynamic_region_imports > walk > throw:0",
@@ -3834,58 +3851,40 @@
 			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/partial-transform.test.ts",
-			"name": "the retired `partial:` key throws when alongside a live region import"
+			"name": "rejects region combined with another import attribute"
 		},
 		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:1",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/partial-transform.test.ts",
-			"name": "rejects region combined with another import attribute"
-		},
-		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:3",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/preset-options.test.ts",
-			"name": "an unknown preset names the ones there are, or says there are none"
-		},
-		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:5",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/audit-fixes.test.ts",
-			"name": "a preset's unknown key names every key a preset takes, keep among them (#1177)"
+			"test": "packages/compiler/test/region-mark-refusals.test.ts",
+			"name": "a preset beside another attribute"
 		},
 		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:7",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/transform.test.ts",
-			"name": "inline stitch takes the strings 'serve' or 'edge' only"
-		},
-		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:8",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/named-region-imports.fuzz.test.ts",
 			"name": "every generated case"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:9",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:8",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "wake on a render: deferred import fails the build, naming the fetch to write"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:10",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:9",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "fetch pairs with render: deferred — alone, or with another render, it is refused"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:11",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:10",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "render: 'static' alone marks nothing: the build says so, never leaves the attribute in"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:12",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:11",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "keep on a hole, a lake or a live region (no island to keep) is refused, not dropped"
@@ -3893,47 +3892,41 @@
 		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:14",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/transform.test.ts",
-			"name": "prefetch without render: deferred is refused (an island has modulepreload hints for its JS)"
-		},
-		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:15",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/audit-fixes.test.ts",
 			"name": "errors on strategy-less preset"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:18",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:17",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "a hole must fetch (fetch: none is rejected)"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:19",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:18",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "prefetch: 'interaction' is refused — that is the swap, fetch's job"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:20",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:19",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "prefetch equal to the fetch schedule is refused — it adds nothing"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:21",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:20",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "wake: 'false' suggests none"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:22",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:21",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/audit-fixes.test.ts",
 			"name": "rejects hydrate values with lone \"(\" as unknown (not media)"
 		},
 		{
-			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:23",
+			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:22",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
 			"name": "empty keep name is a build error"
@@ -3996,7 +3989,7 @@
 			"site": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:1",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/partial-transform.test.ts",
-			"name": "region beside another key, or render beside a foreign key, is a mixed marker set"
+			"name": "region beside another key, or render beside a key it does not take, is a mixed marker set"
 		},
 		{
 			"site": "packages/compiler/src/compiler/transportables.ts > exportedWireClassesFromBody > throw:0",
@@ -4105,18 +4098,6 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
 			"test": "packages/compiler/test/vite-hooks.test.ts",
 			"name": "a sheet the bundle dropped is left unlinked, never a failed build"
-		},
-		{
-			"site": "packages/compiler/src/vite/options.ts > assert_no_legacy_options > throw:0",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/island-graph.test.ts",
-			"name": "the key is a build error that says why"
-		},
-		{
-			"site": "packages/compiler/src/vite/options.ts > assert_no_legacy_options > throw:1",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/config-surface.test.ts",
-			"name": "rejects barrels (now the @ogygia/barrels plugin), any value"
 		},
 		{
 			"site": "packages/compiler/src/vite/options.ts > validate_region_presets > throw:0",
@@ -4942,8 +4923,11 @@
 		"packages/cli/src/perf/measure.ts > measure > catch:0",
 		"packages/cli/src/perf/measure.ts > measure > throw:1",
 		"packages/cli/src/perf/measure.ts > measure > throw:2",
+		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:3",
+		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:5",
+		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:12",
+		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:15",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:16",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:17",
 		"packages/compiler/src/vite/index.ts > ogygia > arm_keep_client_cleanup > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > resolveId > throw:0",
 		"packages/compiler/src/vite/index.ts > ogygia > generateBundle > import:0",
@@ -5844,25 +5828,17 @@
 	"step_points": [
 		{
 			"point": "flights.evicted-early",
-			"steps": [
-				"render cache: kept -> gone",
-				"router pages: kept -> gone"
-			],
+			"steps": ["render cache: kept -> gone", "router pages: kept -> gone"],
 			"how": "a kept answer's keep runs out at its next read: the entry goes and the caller runs the work again (any flights)"
 		},
 		{
 			"point": "flights.not-kept",
-			"steps": [
-				"render cache: flying -> gone",
-				"router pages: flying -> gone"
-			],
+			"steps": ["render cache: flying -> gone", "router pages: flying -> gone"],
 			"how": "an answer is not kept, as one too heavy for max: the next caller runs the work again (any flights)"
 		},
 		{
 			"point": "batch.part-lost",
-			"steps": [
-				"frame-part: promised -> missed"
-			],
+			"steps": ["frame-part: promised -> missed"],
 			"how": "a navigation batch's parcel for a hole is lost (as a body cut short would): its reservation is missed when the batch ends, and the hole fetches on its own. Batches are rare in a random run, so its kill is proved aimed (--buggify-aim batch.part-lost, gen 191: unreleased, the hole stands on its fallback and its binder is stuck)",
 			"killed_by": "batch-undelivered-never-released"
 		}

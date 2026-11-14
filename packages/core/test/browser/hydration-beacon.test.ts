@@ -3,6 +3,7 @@
 // idle / pagehide), keyed by its server-minted fingerprint; an island with no fingerprint (a
 // standalone render) and a page without the tag send nothing.
 import { expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset_beacon, _beacon_state } from '../../../devtools/src/profiler/beacon.ts';
 import { _restart_page_beacon } from '../../../devtools/src/profiler/beacon-standalone.ts';
@@ -11,7 +12,7 @@ import devtools_client from '../../../devtools/src/client.ts';
 const devtools = [{ name: '@ogygia/devtools', client: devtools_client }];
 
 const inject_html = (key: 'counter_json_lane_ssr_b64' | 'heavy_schedule_ssr_b64') =>
-	decodeURIComponent(escape(atob(inject(key))));
+	from_b64(inject(key));
 
 test('a fingerprinted island reports its hydration timing to the profiler beacon, batched, by fingerprint', async () => {
 	await Promise.all([

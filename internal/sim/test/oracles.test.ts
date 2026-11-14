@@ -83,7 +83,7 @@ describe('a live region whose tick changes its shape', () => {
 				'      "n10"'
 			].join('\n');
 		const moving = reshaped_live(held(other), held(still));
-		expect([...moving].sort()).toEqual([0, 1]);
+		expect([...moving].sort((a, b) => a - b)).toEqual([0, 1]);
 		const out = live_regions_out(held(other), moving);
 		expect(out).toBe(live_regions_out(held(still), moving));
 		expect(out.split('\n').slice(-3)).toEqual([
@@ -1347,7 +1347,7 @@ describe('leaks', () => {
 		const { Window } = await import('happy-dom');
 		const w = new Window();
 		const d = w.document as unknown as Document;
-		d.write('<html><head><title>t</title></head><body><p>hi</p></body></html>');
+		d.documentElement.innerHTML = '<head><title>t</title></head><body><p>hi</p></body>';
 		const leaks = new Leaks();
 		const count = () => d.getElementsByTagName('*').length;
 		const tab = {
