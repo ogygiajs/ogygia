@@ -84,3 +84,40 @@ bench(
 	({ a, chunks }) => chunks.externals(a.bundle, ['pg']).report(),
 	{ setup: () => shaped(10) }
 );
+
+type Group = { name: string | ((id: string) => string | null); test?: (id: string) => boolean };
+
+bench(
+	"jumpstart: the options checked, a misspelled one refused, and Rolldown's group closures asked about every module",
+	({ a, groups }) => {
+		let n = new Options({ external: ['sharp', 'pg', 'sharp'] }).external.length;
+		for (const bad of [{ externals: [] }, { external: [''] }])
+			try {
+				new Options(bad as never);
+			} catch (e) {
+				n += String(e).length;
+			}
+		for (const id of a.ids)
+			for (const g of groups) {
+				if (g.test?.(id)) n++;
+				if (typeof g.name === 'function' && g.name(id) !== null) n++;
+			}
+		return n + new Options().external.length;
+	},
+	{
+		setup: () => {
+			const { a, chunks } = shaped(225);
+			chunks.graph(a.ids, (id) => a.info.get(id) ?? null);
+			const env = chunks.environment() as {
+				build: { rolldownOptions: { output: { codeSplitting: { groups: Group[] } } } };
+			};
+			return { a, groups: env.build.rolldownOptions.output.codeSplitting.groups };
+		}
+	}
+);
+
+bench(
+	'jumpstart: the report when every dependency is inside the bundle',
+	({ chunks }) => chunks.externals({}, []).report(),
+	{ setup: () => shaped(1) }
+);

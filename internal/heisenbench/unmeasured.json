@@ -6157,15 +6157,7 @@
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/jumpstart/src/messages.ts > JUMPSTART_ERRORS > jumpstart_external_invalid > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
 			"id": "packages/jumpstart/src/messages.ts > JUMPSTART_ERRORS > jumpstart_option_unknown > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/jumpstart/src/messages.ts > JUMPSTART_ERRORS > jumpstart_option_unknown > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
@@ -6175,14 +6167,6 @@
 		{
 			"id": "packages/jumpstart/src/messages.ts > JUMPSTART_WARNINGS > jumpstart_external_none > details",
 			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/jumpstart/src/messages.ts > JUMPSTART_WARNINGS > jumpstart_external_none > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/jumpstart/src/options.ts > Options > constructor",
-			"reason": "checks the option keys and the external list, once per config load, linear in the list; packages/jumpstart/test/options.test.ts runs it"
 		},
 		{
 			"id": "packages/jumpstart/src/regions.ts > RegionGroups > constructor",
@@ -6203,18 +6187,6 @@
 		{
 			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > environment",
 			"reason": "builds the SSR environment's options (functions, not cloneable), once per build, constant work; packages/jumpstart/test/server-chunks.test.ts runs it"
-		},
-		{
-			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > environment > build > rolldownOptions > output > codeSplitting > name",
-			"reason": "Rolldown's per-module group name: a call to region(), which packages/jumpstart/bench/server-chunks.bench.ts counts; packages/jumpstart/e2e/jumpstart.spec.ts runs it in a real build"
-		},
-		{
-			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > environment > build > rolldownOptions > output > codeSplitting > test",
-			"reason": "Rolldown's per-module group test: a call to framework(), which packages/jumpstart/bench/server-chunks.bench.ts counts; packages/jumpstart/e2e/jumpstart.spec.ts runs it in a real build"
-		},
-		{
-			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > environment > build > rolldownOptions > output > codeSplitting > test~e0d388",
-			"reason": "Rolldown's per-module group test: a call to shared(), which packages/jumpstart/bench/server-chunks.bench.ts counts; packages/jumpstart/e2e/jumpstart.spec.ts runs it in a real build"
 		},
 		{
 			"id": "packages/jumpstart/src/server-chunks.ts > ServerChunks > plugin",
