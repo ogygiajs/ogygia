@@ -460,6 +460,31 @@ test("in Kit's page pass, a page with an island three times asks the build for i
 	expect(asked.filter((k) => k === ISLAND.__entry)).toEqual([ISLAND.__entry]);
 });
 
+test("an island's graph lists each chunk once, leaving out the island's own module, when a live snippet's module shares them", () => {
+	vi.spyOn(console, 'warn').mockImplementation(() => {});
+	const self = ISLAND.__entry;
+	deps.set_island_deps({
+		[ISLAND.__entry]: ['/chunks/shared.js', '/chunks/a.js'],
+		[LIVE_ENTRY]: ['/chunks/shared.js', self, '/chunks/b.js']
+	});
+	let head: string;
+	try {
+		head = out([{ ...ISLAND, __props: { s: live() } }]).split('<!-- body -->')[0]!;
+	} finally {
+		deps.set_island_deps(
+			Object.fromEntries(ENTRIES.map((e) => [e, [`${e}~dep-a.js`, `${e}~dep-b.js`]]))
+		);
+		vi.restoreAllMocks();
+	}
+	const graph = /<script type="application\/json" data-ogygia-graph>([^<]*)<\/script>/.exec(head);
+	expect(graph, head).not.toBeNull();
+	expect(JSON.parse(graph![1]!)).toEqual({
+		h: ['/chunks/shared.js', '/chunks/a.js', `${LIVE_ENTRY}.hashed.js`, '/chunks/b.js'],
+		e: { [ISLAND.__entry]: [0, 1, 2, 3] },
+		s: { [LIVE_ENTRY]: `${LIVE_ENTRY}.hashed.js` }
+	});
+});
+
 test('the real hashes: what the tables show as placeholders, for a few inputs', () => {
 	vi.spyOn(console, 'warn').mockImplementation(() => {});
 	try {
