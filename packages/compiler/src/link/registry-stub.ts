@@ -149,12 +149,12 @@ export function registry_stub_names(id: string): string[] {
 
 /** The stub module's source: every name as `undefined`, so the host links and nothing is shipped. */
 export function registry_stub_source(names: readonly string[]): string {
-	let out = '';
+	const out: string[] = [];
 	for (const n of names) {
-		if (n === 'default') out = `${out}export default undefined;\n`;
-		else if (/^[A-Za-z_$][\w$]*$/.test(n)) out = `${out}export const ${n} = undefined;\n`;
+		if (n === 'default') out.push('export default undefined;\n');
+		else if (/^[A-Za-z_$][\w$]*$/.test(n)) out.push(`export const ${n} = undefined;\n`);
 	}
-	return out || 'export {};\n';
+	return out.length ? out.join('') : 'export {};\n';
 }
 
 /**
