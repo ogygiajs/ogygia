@@ -1,0 +1,64 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`a frozen \`blocks\` snippet has the same bytes as before 1`] = `
+{
+  "h": "<!--[--><!--[0-->yes<!--]--><!--[--><i>10</i><i>21</i><!--]--><!--[-->wait<!--]--><!--]-->",
+  "m": "static",
+}
+`;
+
+exports[`a frozen \`component\` snippet has the same bytes as before 1`] = `
+{
+  "h": "<!--[--><section class="child svelte-6i3o15" title="c"><u>kid</u><!----></section><!----><section class="child svelte-6i3o15" title=""><!----></section><!----><!--]-->",
+  "m": "static",
+}
+`;
+
+exports[`a frozen \`elements\` snippet has the same bytes as before 1`] = `
+{
+  "h": "<!--[--><p class="scoped svelte-109kzay" title="t">a<b>b</b><br/><img alt="i"/></p><!--]-->",
+  "m": "static",
+}
+`;
+
+exports[`a frozen \`nested\` snippet has the same bytes as before 1`] = `
+{
+  "h": "<!--[--><div><em>k</em><!----><em>j</em><!----></div><!--]-->",
+  "m": "static",
+}
+`;
+
+exports[`a frozen \`null_default\` snippet has the same bytes as before 1`] = `
+{
+  "h": "<!--[--><!---->null<!--]-->",
+  "m": "static",
+}
+`;
+
+exports[`a frozen \`odd\` snippet has the same bytes as before 1`] = `
+{
+  "h": "<!--[--><!---->&lt;/script>&lt;!-- "q" 's' é 😀   &amp;amp;<span title="&lt;/script>&quot;&lt;">&lt;b></span><!--]-->",
+  "m": "static",
+}
+`;
+
+exports[`a frozen \`one_param\` snippet has the same bytes as before 1`] = `
+{
+  "h": "<!--[--><!---->none<!--]-->",
+  "m": "static",
+}
+`;
+
+exports[`a frozen \`text\` snippet has the same bytes as before 1`] = `
+{
+  "h": "<!--[--><!---->plain text<!--]-->",
+  "m": "static",
+}
+`;
+
+exports[`a frozen \`two_params\` snippet has the same bytes as before 1`] = `
+{
+  "h": "<!--[--><!---->undefined/undefined<!--]-->",
+  "m": "static",
+}
+`;
