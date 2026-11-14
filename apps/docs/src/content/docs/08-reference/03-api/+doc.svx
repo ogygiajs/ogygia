@@ -296,7 +296,7 @@ export const handle = ogygia.handle({ secret: OGYGIA_SECRET });
 
 The server decides its key the first time it signs or checks a capability, and keeps it for the life of the process. A different secret arriving after that (from a second `handle()`, or after a render) is an error: it throws in dev and is logged in production, and the first key stays.
 
-A hole's URL signs the component it renders, so a page cached across a deploy keeps its holes as long as their components still exist, regardless of a changed preset, `wake` or build-time `OGYGIA_SECRET`. A hole whose component was moved, renamed or removed is refused (`x-ogygia-deny: unknown-id`) and keeps its fallback.
+A hole's URL signs the component it renders, so a page cached across a deploy keeps its holes as long as their components still exist, regardless of a changed preset, `wake` or build-time `OGYGIA_SECRET`. A hole whose component was moved, renamed or removed is refused (`x-ogygia-deny: unknown-id`) and keeps its fallback. So is a hole of a page ogygia 0.12 or earlier served (`x-ogygia-deny: shape`): that page runs its own release's runtime, which cannot run this release's islands, so in a rolling upgrade from 0.12 its holes keep their fallback until the visitor loads the page again.
 
 Server islands and `render: 'live'` need the [server handle](/docs/start/install) installed to serve the endpoint.
 

@@ -1161,14 +1161,6 @@
 			"reason": "browser only: the wait for Kit to apply its page (a global accessor and a Svelte effect root), once per wait; proven in packages/core/test/browser/kit-page-thread.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > until_critical",
-			"reason": "browser only: waits for the page's critical resources' load/error events, the first input or the cap, once per document; proven in packages/core/test/browser/load-scheduler.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > reset_load_scheduler > drop:0",
-			"reason": "a test seam: drops the critical wait, constant work"
-		},
-		{
 			"id": "packages/core/src/runtime/schedule.ts > register_region > defer:0~d7202d",
 			"reason": "browser only: a region's lifetime ends and stops its viewport snapshot if it is still the same one (an IntersectionObserver release), constant work; proven in packages/core/test/browser/region-orderings.test.ts and hole-lifecycle.test.ts"
 		},
@@ -3849,34 +3841,6 @@
 			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
 		},
 		{
-			"id": "packages/machine/src/queue.ts > QueueImpl > #arm > timeout:0~5b3150",
-			"reason": "the deadlines' one timer firing: hands over to #expire, constant work"
-		},
-		{
-			"id": "packages/machine/src/queue.ts > QueueImpl > #expire",
-			"reason": "a timer's callback over the waiting jobs, linear in them; queue.test.ts runs it under fake timers (not replayable: it reads the clock)"
-		},
-		{
-			"id": "packages/machine/src/queue.ts > QueueImpl > #expire > leave_where:0~9dd123",
-			"reason": "the deadline test #leave_where applies, one comparison"
-		},
-		{
-			"id": "packages/machine/src/queue.ts > QueueImpl > #leave_where",
-			"reason": "the waiting jobs a deadline or the owner's close picks, linear in them; queue.test.ts runs it (not replayable: stale hooks with side effects)"
-		},
-		{
-			"id": "packages/machine/src/queue.ts > QueueImpl > constructor > defer:0~b785c2",
-			"reason": "the queue's owner closing: hands over to #leave_where, constant work"
-		},
-		{
-			"id": "packages/machine/src/queue.ts > QueueImpl > constructor > defer:0~b785c2 > leave_where:0~8b94d4",
-			"reason": "the owner's close picks every waiting job, constant work"
-		},
-		{
-			"id": "packages/machine/src/queue.ts > QueueImpl > get holding",
-			"reason": "a getter, one read"
-		},
-		{
 			"id": "packages/core/src/runtime/router.ts > SpaRouter > scan_preload_links > on_idle:1~4ff29d > once_on_screen:2~719a25",
 			"reason": "browser only: a viewport-preload link came on screen, one warm of its page (fetch_page, measured by the router benches)"
 		},
@@ -5725,30 +5689,6 @@
 			"reason": "the routes db input that reads one route file through the fs seam (not replayable), linear in its text"
 		},
 		{
-			"id": "packages/compiler/src/queries.ts > queries > db > changed_since",
-			"reason": "compares one slot's changed stamp to a revision (the db's slots: not cloneable), constant work"
-		},
-		{
-			"id": "packages/compiler/src/queries.ts > queries > db > holds",
-			"reason": "is an answer held for this query and arg: one slot lookup (the db's state: not replayable), constant work"
-		},
-		{
-			"id": "packages/compiler/src/queries.ts > queries > db > reread",
-			"reason": "reruns every held input once (a new build of the same session), linear in the held inputs; queries tests and the queries bench run it"
-		},
-		{
-			"id": "packages/compiler/src/scan-facts.ts > scan_facts > has",
-			"reason": "does the scan hold facts for a file: one db read (the scan db's state: not replayable), constant work"
-		},
-		{
-			"id": "packages/compiler/src/scan-facts.ts > scan_facts > input:2~ae0427",
-			"reason": "the scan db input for a file's facts, set by the prescan and the dev transform (not replayable), constant work"
-		},
-		{
-			"id": "packages/compiler/src/scan-facts.ts > scan_facts > input:2~ea66dc",
-			"reason": "the scan db input for a file's facts, read by every query over the scan (not replayable), constant work"
-		},
-		{
 			"id": "packages/compiler/src/fouc-css.ts > extractRawStyleBodies > filter:0~e6fdc6",
 			"reason": "a filter over one component's blocks (a handful), constant work per block; component-blocks.test.ts runs it"
 		},
@@ -6051,6 +5991,118 @@
 		{
 			"id": "packages/compiler/src/region/transform.ts > TsRegionCompilation > run > map:0~74ff48",
 			"reason": "one specifier's local name per attributed import in a .ts module, for region_attribute_unknown's message: constant work"
+		},
+		{
+			"id": "packages/compiler/src/queries.ts > Queries > changed_since",
+			"reason": "compares one slot's changed stamp to a revision (the db's slots: not cloneable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/queries.ts > Queries > holds",
+			"reason": "is an answer held for this query and arg: one slot lookup (the db's state: not replayable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/queries.ts > Queries > reread",
+			"reason": "reruns every held input once (a new build of the same session), linear in the held inputs; queries tests and the queries bench run it"
+		},
+		{
+			"id": "packages/compiler/src/scan-facts.ts > ScanFacts > has",
+			"reason": "does the scan hold facts for a file: one db read (the scan db's state: not replayable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/scan-facts.ts > ScanFacts > input:2~ae0427",
+			"reason": "the scan db input for a file's facts, set by the prescan and the dev transform (not replayable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/scan-facts.ts > ScanFacts > input:2~ea66dc",
+			"reason": "the scan db input for a file's facts, read by every query over the scan (not replayable), constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > #until_critical > then:0~d52439 > one",
+			"reason": "browser only: a critical resource's load or error event, once per resource per document; proven in packages/core/test/browser/load-scheduler.test.ts and load-scheduler-critical-error.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > #until_critical > then:0~d52439 > timeout:0~301398",
+			"reason": "browser only: the critical wait's cap (2.5 s), once per document; proven in packages/core/test/browser/load-scheduler.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > on_first_input",
+			"reason": "browser only: the visitor's first click or key, once per document; proven in packages/core/test/browser/load-scheduler.test.ts and load-scheduler-touched.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > addEventListener:1~97a62a",
+			"reason": "browser only: the document's first pointerdown or keydown listener, once per document; proven in packages/core/test/browser/load-scheduler-touched.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > reset > drop:0~8b94d4",
+			"reason": "a test seam: drops the critical wait, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadScheduler > #open_line > queue:0~e6e564 > stale",
+			"reason": "a test seam: a slot still queued when a test resets the document leaves unwatched, constant work per slot"
+		},
+		{
+			"id": "packages/core/src/runtime/load-scheduler.ts > LoadSlot > leave",
+			"reason": "a test seam: a slot still queued when a test resets the document stops watching its element, constant work"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > Line > #arm > timeout:0~5b3150",
+			"reason": "the deadlines' one timer firing: hands over to #expire, constant work"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > Line > #expire",
+			"reason": "a timer's callback over the waiting jobs, linear in them; queue.test.ts runs it under fake timers (not replayable: it reads the clock)"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > Line > #expire > leave_where:0~9dd123",
+			"reason": "the deadline test #leave_where applies, one comparison"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > Line > #leave_where",
+			"reason": "the waiting jobs a deadline or the owner's close picks, linear in them; queue.test.ts runs it (not replayable: stale hooks with side effects)"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > Line > constructor > defer:0~b785c2",
+			"reason": "the queue's owner closing: hands over to #leave_where, constant work"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > Line > constructor > defer:0~b785c2 > leave_where:0~8b94d4",
+			"reason": "the owner's close picks every waiting job, constant work"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > Line > get holding",
+			"reason": "a getter, one read"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > kit_start_ungated > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > kit_start_ungated > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/server/kit-gate.ts > kit_start_ungated",
+			"reason": "dev only (the warning folds out of production); one bounded scan of the body's last 64 KB, the scan kit_gate's bench case already counts; kit-gate.test.ts and test/canary/kit-start-script.test.ts run it"
+		},
+		{
+			"id": "packages/core/src/region-snippet.ts > RenderSnippet > component:0~4930b4",
+			"reason": "calls the snippet with the renderer Svelte hands it, constant work of its own; its output is the snippet's, through Svelte's renderer, no replay holds it; region-snippet-freeze-dev.test.ts and test/canary/svelte-server-signature.test.ts run it"
+		},
+		{
+			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static event",
+			"reason": "one read of Kit's AsyncLocalStorage store, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts and plugin-request-end.test.ts run it"
+		},
+		{
+			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static run",
+			"reason": "hands the call to Kit's with_request_store, constant work of its own; test/canary/kit-request-store.test.ts and plugin-request-end.test.ts run it"
+		},
+		{
+			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static state",
+			"reason": "one read of Kit's AsyncLocalStorage store, constant work; its answer is the live request's state, hidden state no replay holds; request-bag.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/server/live-event.ts > live_event",
+			"reason": "one call to Kit's getRequestEvent, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts runs it"
 		}
 	]
 }

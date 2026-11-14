@@ -75,33 +75,6 @@ const RUNNING = -2;
 const LET_GO = -3;
 const RUNNING_LET_GO = -4;
 
-export interface Queries extends QueryCtx {
-	/** The current revision: one more for each input change. */
-	readonly revision: number;
-	/** Give an input a value. False (and no new revision) when it equals the one it had. */
-	set<A, V>(query: Query<A, V>, arg: A, value: V): boolean;
-	/** Read an input again from the outside world, if anything read it: whether it changed. */
-	refresh<A, V>(query: Query<A, V>, arg: A): boolean;
-	/** Whether anything read this input or answer (and it is still remembered). */
-	holds<A, V>(query: Query<A, V>, arg: A): boolean;
-	/** Whether `query(arg)` is different now from what it was at revision `since` (one not held
-	 *  is computed now, as of the current revision). */
-	changed_since<A, V>(query: Query<A, V>, arg: A, since: number): boolean;
-	/** Whether any derived answer held now is different from what it was at revision `since`
-	 *  (each is checked, and computed again if what it read changed). */
-	answers_changed_since(since: number): boolean;
-	/** Read every input anything read again from the outside world (a new session starts from what
-	 *  is there now, not from what an earlier one saw): whether any changed. */
-	reread(): boolean;
-	/** Run a reader that is not a query (its answer is not kept: a generated module's load, say):
-	 *  what it reads through `cx`, and through any query it reads while it runs, is recorded in
-	 *  `reads`. `cx` records even after the reader's first await; a query read then is not. */
-	watch<V>(read: (cx: QueryCtx) => V): { value: V; reads: Reads };
-	/** Whether anything a watched reader read is different now (each is checked, and computed again
-	 *  if what it read changed: an answer that comes out the same has not moved). */
-	moved(reads: Reads): boolean;
-}
-
 /** What a watched reader read (`watch`), each as it was when read. */
 export type Reads = Frame;
 
@@ -128,36 +101,126 @@ const QUERIES_MAX = 100_000;
  *
  * Internal to the compiler: not exported from the package.
  */
-export function queries(name: string, max: number = QUERIES_MAX): Queries {
-	const table = new Map<Erased, Map<string, Slot>>();
-	let last_query: Erased | undefined;
-	let last_keyed = new Map<string, Slot>();
-	const held: Cache<Slot, Slot> = cache({ name, max, onEvict: let_go });
-	let revision = 0;
-	let current: Frame | undefined;
+export class Queries implements QueryCtx {
+	readonly #table = new Map<Erased, Map<string, Slot>>();
+	#last_query: Erased | undefined;
+	#last_keyed = new Map<string, Slot>();
+	readonly #held: Cache<Slot, Slot>;
+	#revision = 0;
+	#current: Frame | undefined;
 
-	function let_go(slot: Slot): void {
+	constructor(name: string, max: number = QUERIES_MAX) {
+		this.#held = cache({ name, max, onEvict: (slot) => this.#let_go(slot) });
+	}
+
+	/** The current revision: one more for each input change. */
+	get revision(): number {
+		return this.#revision;
+	}
+
+	get<A, V>(query: Query<A, V>, arg: A): V {
+		const slot = this.#slot_of(query as unknown as Erased, arg);
+		if (slot.verified !== this.#revision) this.#fresh(slot);
+		const into = this.#current;
+		if (into) link(into, slot);
+		return slot.value as V;
+	}
+
+	/** Run a reader that is not a query (its answer is not kept: a generated module's load, say):
+	 *  what it reads through `cx`, and through any query it reads while it runs, is recorded in
+	 *  `reads`. `cx` records even after the reader's first await; a query read then is not. */
+	watch<V>(reader: (cx: QueryCtx) => V): { value: V; reads: Reads } {
+		const reads: Frame = { deps: [], tail: 0 };
+		const outer = this.#current;
+		this.#current = reads;
+		try {
+			return { value: reader({ get: (query, arg) => this.#read(query, arg, reads) }), reads };
+		} finally {
+			this.#current = outer;
+		}
+	}
+
+	/** Whether anything a watched reader read is different now (each is checked, and computed again
+	 *  if what it read changed: an answer that comes out the same has not moved). */
+	moved(reads: Reads): boolean {
+		try {
+			return !this.#deps_unchanged(reads);
+		} catch {
+			return true; // ok: an answer that now throws has changed; its reader reports the error
+		}
+	}
+
+	/** Give an input a value. False (and no new revision) when it equals the one it had. */
+	set<A, V>(query: Query<A, V>, arg: A, value: V): boolean {
+		return this.#set_input(erase(query), arg, value);
+	}
+
+	/** Read an input again from the outside world, if anything read it: whether it changed. */
+	refresh<A, V>(typed: Query<A, V>, arg: A): boolean {
+		const query = erase(typed);
+		if (!this.#find(query, arg)) return false;
+		return this.#set_input(query, arg, query.run(this, arg));
+	}
+
+	/** Whether anything read this input or answer (and it is still remembered). */
+	holds<A, V>(query: Query<A, V>, arg: A): boolean {
+		return this.#find(erase(query), arg) !== undefined;
+	}
+
+	/** Whether `query(arg)` is different now from what it was at revision `since` (one not held
+	 *  is computed now, as of the current revision). */
+	changed_since<A, V>(typed: Query<A, V>, arg: A, since: number): boolean {
+		return this.#fresh(this.#slot_of(erase(typed), arg)).changed > since;
+	}
+
+	/** Whether any derived answer held now is different from what it was at revision `since`
+	 *  (each is checked, and computed again if what it read changed). */
+	answers_changed_since(since: number): boolean {
+		for (const [slot] of this.#held.entries()) {
+			if (slot.query.kind === 'input' || slot.verified === LET_GO) continue;
+			try {
+				if (this.#fresh(slot).changed > since) return true;
+			} catch {
+				return true; // ok: an answer that now throws has changed; its reader reports the error
+			}
+		}
+		return false;
+	}
+
+	/** Read every input anything read again from the outside world (a new session starts from what
+	 *  is there now, not from what an earlier one saw): whether any changed. */
+	reread(): boolean {
+		let moved = false;
+		for (const [query, keyed] of this.#table) {
+			if (query.kind !== 'input') continue;
+			for (const slot of keyed.values())
+				if (this.#set_input(query, slot.arg, query.run(this, slot.arg))) moved = true;
+		}
+		return moved;
+	}
+
+	#let_go(slot: Slot): void {
 		if (slot.verified === RUNNING) {
 			slot.verified = RUNNING_LET_GO;
 			return;
 		}
-		const keyed = table.get(slot.query);
+		const keyed = this.#table.get(slot.query);
 		if (keyed?.get(slot.key) === slot) keyed.delete(slot.key);
 		slot.verified = LET_GO;
 	}
 
-	function find(query: Erased, arg: unknown): Slot | undefined {
-		return table.get(query)?.get(query.key(arg));
+	#find(query: Erased, arg: unknown): Slot | undefined {
+		return this.#table.get(query)?.get(query.key(arg));
 	}
 
-	function slot_of(query: Erased, arg: unknown): Slot {
-		let keyed = last_keyed;
-		if (query !== last_query) {
-			const had = table.get(query);
-			if (had === undefined) table.set(query, (keyed = new Map()));
+	#slot_of(query: Erased, arg: unknown): Slot {
+		let keyed = this.#last_keyed;
+		if (query !== this.#last_query) {
+			const had = this.#table.get(query);
+			if (had === undefined) this.#table.set(query, (keyed = new Map()));
 			else keyed = had;
-			last_query = query;
-			last_keyed = keyed;
+			this.#last_query = query;
+			this.#last_keyed = keyed;
 		}
 		const key = query.key(arg);
 		let slot = keyed.get(key);
@@ -173,21 +236,23 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 				tail: 0
 			};
 			keyed.set(key, slot);
-			if (query.kind === 'derived') held.set(slot, slot);
+			if (query.kind === 'derived') this.#held.set(slot, slot);
 		}
 		return slot;
 	}
 
-	function fresh(slot: Slot): Slot {
+	#fresh(slot: Slot): Slot {
 		const v = slot.verified;
-		if (v === revision) return slot;
-		held.get(slot);
-		if (v >= 0 && (slot.query.kind === 'input' || deps_unchanged(slot))) slot.verified = revision;
-		else compute(slot);
+		if (v === this.#revision) return slot;
+		this.#held.get(slot);
+		if (v >= 0 && (slot.query.kind === 'input' || this.#deps_unchanged(slot)))
+			slot.verified = this.#revision;
+		else this.#compute(slot);
 		return slot;
 	}
 
-	function deps_unchanged(root: Frame): boolean {
+	#deps_unchanged(root: Frame): boolean {
+		const held = this.#held;
 		let node: Frame = root;
 		let i = 0;
 		let below: Array<Frame | number> | undefined;
@@ -198,14 +263,14 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 				const d = deps[i];
 				const s = d.slot;
 				const v = s.verified;
-				if (v !== revision) {
+				if (v !== this.#revision) {
 					if (v === LET_GO) {
 						same = false;
 						break;
 					}
 					held.get(s);
-					if (v < 0) compute(s);
-					else if (s.query.kind === 'input') s.verified = revision;
+					if (v < 0) this.#compute(s);
+					else if (s.query.kind === 'input') s.verified = this.#revision;
 					else {
 						(below ??= []).push(node, i);
 						node = s;
@@ -221,8 +286,8 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 			for (;;) {
 				if (node === root) return same;
 				const slot = node as Slot;
-				if (same) slot.verified = revision;
-				else compute(slot);
+				if (same) slot.verified = this.#revision;
+				else this.#compute(slot);
 				i = below!.pop() as number;
 				node = below!.pop() as Frame;
 				const d = node.deps[i];
@@ -236,117 +301,62 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 		}
 	}
 
-	function compute(slot: Slot): void {
+	#compute(slot: Slot): void {
 		if (slot.verified === RUNNING || slot.verified === RUNNING_LET_GO)
 			throw new Error(`query cycle: ${slot.query.name} ${slot.key}`);
-		const outer = current;
-		current = slot;
+		const outer = this.#current;
+		this.#current = slot;
 		slot.tail = 0;
 		slot.verified = RUNNING;
 		let value: unknown;
 		try {
-			value = slot.query.run(db, slot.arg);
+			value = slot.query.run(this, slot.arg);
 		} catch (e) {
 			const let_go_now = slot.verified === RUNNING_LET_GO;
 			slot.verified = MUST_RUN;
-			if (let_go_now) let_go(slot);
-			else if (slot.changed === NO_VALUE) held.delete(slot);
+			if (let_go_now) this.#let_go(slot);
+			else if (slot.changed === NO_VALUE) this.#held.delete(slot);
 			throw e;
 		} finally {
-			current = outer;
+			this.#current = outer;
 		}
 		if (slot.deps.length !== slot.tail) slot.deps.length = slot.tail;
 		if (slot.verified === RUNNING_LET_GO) {
 			slot.verified = MUST_RUN;
-			let_go(slot);
-		} else slot.verified = revision;
+			this.#let_go(slot);
+		} else slot.verified = this.#revision;
 		if (slot.changed !== NO_VALUE && slot.query.equal(slot.value, value)) return;
 		slot.value = value;
-		slot.changed = revision;
+		slot.changed = this.#revision;
 	}
 
-	function link(frame: Frame, slot: Slot): void {
-		const deps = frame.deps;
-		const i = frame.tail++;
-		if (i < deps.length) {
-			const d = deps[i];
-			if (d.slot === slot) d.seen = slot.changed;
-			else deps[i] = { slot, seen: slot.changed };
-		} else deps.push({ slot, seen: slot.changed });
-	}
-
-	function set_input(query: Erased, arg: unknown, value: unknown): boolean {
+	#set_input(query: Erased, arg: unknown, value: unknown): boolean {
 		if (query.kind !== 'input') throw new Error(`query ${query.name} is not an input`);
-		const had = find(query, arg);
+		const had = this.#find(query, arg);
 		if (had && query.equal(had.value, value)) return false;
-		revision++;
-		const slot = had ?? slot_of(query, arg);
+		const revision = ++this.#revision;
+		const slot = had ?? this.#slot_of(query, arg);
 		slot.value = value;
 		slot.changed = revision;
 		slot.verified = revision;
 		return true;
 	}
 
-	function read<A, V>(typed: Query<A, V>, arg: A, into: Frame | undefined): V {
-		const slot = fresh(slot_of(typed as unknown as Erased, arg));
+	#read<A, V>(typed: Query<A, V>, arg: A, into: Frame | undefined): V {
+		const slot = this.#fresh(this.#slot_of(typed as unknown as Erased, arg));
 		if (into) link(into, slot);
 		return slot.value as V;
 	}
+}
 
-	const db: Queries = {
-		get revision() {
-			return revision;
-		},
-		get: (query, arg) => read(query, arg, current),
-		watch(reader) {
-			const reads: Frame = { deps: [], tail: 0 };
-			const outer = current;
-			current = reads;
-			try {
-				return { value: reader({ get: (query, arg) => read(query, arg, reads) }), reads };
-			} finally {
-				current = outer;
-			}
-		},
-		moved(reads) {
-			try {
-				return !deps_unchanged(reads);
-			} catch {
-				return true; // ok: an answer that now throws has changed; its reader reports the error
-			}
-		},
-		set: (query, arg, value) => set_input(erase(query), arg, value),
-		refresh(typed, arg) {
-			const query = erase(typed);
-			if (!find(query, arg)) return false;
-			return set_input(query, arg, query.run(db, arg));
-		},
-		holds: (query, arg) => find(erase(query), arg) !== undefined,
-		changed_since(typed, arg, since) {
-			return fresh(slot_of(erase(typed), arg)).changed > since;
-		},
-		answers_changed_since(since) {
-			for (const [slot] of held.entries()) {
-				if (slot.query.kind === 'input' || slot.verified === LET_GO) continue;
-				try {
-					if (fresh(slot).changed > since) return true;
-				} catch {
-					return true; // ok: an answer that now throws has changed; its reader reports the error
-				}
-			}
-			return false;
-		},
-		reread() {
-			let moved = false;
-			for (const [query, keyed] of table) {
-				if (query.kind !== 'input') continue;
-				for (const slot of keyed.values())
-					if (set_input(query, slot.arg, query.run(db, slot.arg))) moved = true;
-			}
-			return moved;
-		}
-	};
-	return db;
+function link(frame: Frame, slot: Slot): void {
+	const deps = frame.deps;
+	const i = frame.tail++;
+	if (i < deps.length) {
+		const d = deps[i];
+		if (d.slot === slot) d.seen = slot.changed;
+		else deps[i] = { slot, seen: slot.changed };
+	} else deps.push({ slot, seen: slot.changed });
 }
 
 /** Structural equality over what answers are made of: primitives, arrays, plain objects, Maps and

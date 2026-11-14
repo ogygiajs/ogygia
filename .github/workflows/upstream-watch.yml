@@ -105,6 +105,23 @@ jobs:
           echo "svelte      = ${SVELTE_VERSION}"
           echo "@sveltejs/kit = ${KIT_VERSION}"
 
+      # THE CANARIES FIRST (#1723): one small test per Svelte or Kit internal ogygia relies on
+      # (`test/canary/` in core and the compiler). A red one names the internal, the ogygia code that
+      # relies on it and the issue that tracks it, and the report quotes those lines. The suites
+      # below still run, so one run says both what moved upstream and what it broke.
+      - name: Upstream canaries (each Svelte or Kit internal ogygia relies on)
+        id: canaries
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          status=0
+          pnpm -C packages/core exec vitest run test/canary --passWithNoTests 2>&1 | tee /tmp/canaries.log || status=1
+          pnpm -C packages/compiler exec vitest run test/canary --passWithNoTests 2>&1 | tee -a /tmp/canaries.log || status=1
+          exit "${status}"
+
+      - name: Record the canaries' verdict
+        run: echo "CANARIES=${{ steps.canaries.outcome }}" >> "$GITHUB_ENV"
+
       # wrangler (Cloudflare workerd) is fetched on demand by the suite via npx; warm it so the
       # cloudflare adapter boots the real Workers runtime instead of skipping.
       - name: Warm wrangler
@@ -126,6 +143,12 @@ jobs:
           # the probe's "stable secret → no warning" assertion fails on every scheduled run. NOT a
           # production secret; the Vercel deploy sets its own OGYGIA_SECRET.
           OGYGIA_SECRET: 3f9a2b7c1e5d8046af62c93b1d7e4058a6c2f19b3e8d70425c9a1f6b8d3e07c4
+
+      # a red canary fails the line even when every suite passed: the internal moved, and the
+      # suites only have not reached what it breaks yet
+      - name: Fail on a red canary
+        if: env.CANARIES == 'failure'
+        run: exit 1
 
       # ── Report ─────────────────────────────────────────────────────────────────────────────────
       # On failure, open (or comment on) a tracking issue so a green upstream never spams and a broken
@@ -159,9 +182,15 @@ jobs:
             printf -- '- `@sveltejs/kit` = `%s`\n' "${KIT_VERSION:-unknown}"
             printf -- '- baseline (pinned lockfile) = `%s`\n\n' "${BASELINE:-unknown}"
             printf '%s\n\n' "${VERDICT}"
+            if [ "${CANARIES:-}" = "failure" ] && [ -f /tmp/canaries.log ]; then
+              printf '**Red canaries** (each names the internal that changed, the ogygia code that relies on it, and its issue):\n\n'
+              grep -o 'UPSTREAM CANARY: .*issues/[0-9]*' /tmp/canaries.log | sort -u | sed 's/^/- /' || true
+              printf '\n'
+            fi
             printf 'Reproduce locally, on `%s`:\n\n' "${REF}"
             printf '%s\n' '```sh'
             printf 'pnpm -r update svelte@latest "@sveltejs/kit@%s"\n' "${KIT_SPEC}"
+            printf '%s\n' 'pnpm -C packages/core exec vitest run test/canary && pnpm -C packages/compiler exec vitest run test/canary'
             printf '%s\n' 'pnpm run check && pnpm turbo run e2e --concurrency=1 --force'
             printf '%s\n\n' '```'
             printf 'Failing run: %s\n' "${RUN_URL}"

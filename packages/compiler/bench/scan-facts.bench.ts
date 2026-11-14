@@ -2,7 +2,7 @@
 // app-wide folds read once, and a dev session's edits (one that changes no fact, one that does),
 // each followed by the folds read again.
 import { bench } from '@bench/heisenbench/bench';
-import { scan_facts, type FileFacts, type ScanFacts } from '../src/scan-facts.ts';
+import { ScanFacts, type FileFacts } from '../src/scan-facts.ts';
 
 const N = 500;
 
@@ -23,13 +23,13 @@ function read(s: ScanFacts): number {
 }
 
 bench('scan facts: a prescan of five hundred files, then every fold', () => {
-	const s = scan_facts();
+	const s = new ScanFacts();
 	for (let i = 0; i < N; i++) s.set(`/app/src/m${i}.ts`, facts_of(i));
 	return read(s) + read(s);
 });
 
 bench('scan facts: dev edits, each followed by every fold', () => {
-	const s = scan_facts();
+	const s = new ScanFacts();
 	for (let i = 0; i < N; i++) s.set(`/app/src/m${i}.ts`, facts_of(i));
 	let n = read(s);
 	for (let i = 0; i < 20; i++) {

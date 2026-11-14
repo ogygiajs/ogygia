@@ -7,7 +7,7 @@
 // Chromium ignores a rule for a URL already preloaded.)
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { KIT_START_WAIT, kit_gate } from '../src/server/kit-gate.ts';
+import { KIT_START_WAIT, kit_gate, kit_start_ungated } from '../src/server/kit-gate.ts';
 import { with_early_holes_csp, with_early_holes_meta_csp } from '../src/server/early-holes-csp.ts';
 
 const START = 'import("./_app/immutable/entry/start.AAA.js")';
@@ -117,5 +117,22 @@ describe('the Kit start gate', () => {
 		).toBe(
 			`<meta http-equiv="content-security-policy" content="script-src 'self' 'sha256-AAA' 'sha256-BBB'">`
 		);
+	});
+});
+
+describe("a Kit start script the gate cannot hold (the dev warning's question, #1714)", () => {
+	it('a start script with no import of the entry (an inline bundle) is said ungated', () => {
+		const html = page().replace(/Promise\.all[^]*?\}\);/, '__sveltekit_x1.app.start(element);');
+		expect(kit_gate(html, body_end(html))).toBeNull();
+		expect(kit_start_ungated(html, body_end(html))).toBe(true);
+	});
+
+	it('a start script the gate holds, or held already, or no Kit script at all, is not', () => {
+		const html = page();
+		expect(kit_start_ungated(html, body_end(html))).toBe(false);
+		const gated = kit_gate(html, body_end(html))!.html;
+		expect(kit_start_ungated(gated, body_end(gated))).toBe(false);
+		const plain = '<!doctype html><html><head></head><body><p>x</p></body></html>';
+		expect(kit_start_ungated(plain, body_end(plain))).toBe(false);
 	});
 });

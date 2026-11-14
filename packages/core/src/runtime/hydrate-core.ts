@@ -15,6 +15,7 @@ import { emit as dt_emit } from '../events/bus.ts';
 import { warn } from '../messages/lazy.ts';
 import { OG_FP, OG_HEALED, OG_RECOVERED, OGYGIA_KEEP } from '../wire-markup.ts';
 import { say } from '@ogygia/machine';
+import { ANCHOR, BLOCK_CLOSE, BLOCK_OPEN, FIRST_BRANCH_OPEN } from './svelte-markers.ts';
 
 export const seed_page_once = (): void => slots.page?.seed_page_once();
 export const seed_remote_once = (): void => slots.remoteSeeds?.seed_once();
@@ -68,23 +69,23 @@ function ensure_envelope(region: Element): void {
 		first &&
 		last &&
 		first !== last &&
-		is_comment(first, '[0') &&
-		is_comment(first.nextSibling, '[') &&
-		is_comment(last, ']')
+		is_comment(first, FIRST_BRANCH_OPEN) &&
+		is_comment(first.nextSibling, BLOCK_OPEN) &&
+		is_comment(last, BLOCK_CLOSE)
 	) {
 		first.remove();
 		last.remove();
 		return;
 	}
-	region.insertBefore(document.createComment('['), region.firstChild);
-	region.appendChild(document.createComment(']'));
+	region.insertBefore(document.createComment(BLOCK_OPEN), region.firstChild);
+	region.appendChild(document.createComment(BLOCK_CLOSE));
 }
 function is_comment(node: Node | null, data: string): boolean {
 	return !!node && node.nodeType === 8 && (node as Comment).data === data;
 }
 function has_envelope(region: Element): boolean {
 	const first = region.firstChild;
-	return !!first && first.nodeType === 8 && (first as Comment).data === '[';
+	return !!first && first.nodeType === 8 && (first as Comment).data === BLOCK_OPEN;
 }
 
 let head_markers_neutralized = false;
@@ -132,16 +133,16 @@ export function neutralize_head_hydration_markers(): void {
 	for (let n = head.firstChild; n; n = n.nextSibling) {
 		if (n.nodeType !== 8) continue;
 		const data = (n as Comment).data;
-		if (data[0] === '[') {
+		if (data[0] === BLOCK_OPEN) {
 			depth++;
 			continue;
 		}
-		if (data === ']') {
+		if (data === BLOCK_CLOSE) {
 			if (depth > 0) depth--;
 			continue;
 		}
 		if (depth !== 0) continue;
-		if (data === '') {
+		if (data === ANCHOR) {
 			if (pending_open) {
 				to_remove.push(pending_open);
 				pending_open = null;
