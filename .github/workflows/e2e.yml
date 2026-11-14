@@ -53,6 +53,7 @@ jobs:
       check_hash: ${{ steps.plan.outputs.check_hash }}
       size_hash: ${{ steps.plan.outputs.size_hash }}
       batched: ${{ steps.plan.outputs.batched }}
+      force: ${{ steps.plan.outputs.force }}
     # (reads the Actions cache list: a pass the browser and size jobs remembered)
     permissions:
       contents: read
@@ -109,6 +110,9 @@ jobs:
     if: needs.plan.outputs.check == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # (a change to the CI graph itself runs every task, none replayed from the cache: #1926)
+    env:
+      TURBO_FORCE: ${{ needs.plan.outputs.force == 'true' && 'true' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -167,7 +171,7 @@ jobs:
           node -e '
             const plan = JSON.parse(require("fs").readFileSync("turbo-plan.json", "utf8"));
             const checks = (plan.tasks ?? []).filter((t) => t.task === "check" && t.command !== "<NONEXISTENT>");
-            const left = checks.filter((t) => t.cache?.status !== "HIT");
+            const left = process.env.TURBO_FORCE === "true" ? checks : checks.filter((t) => t.cache?.status !== "HIT");
             console.log(`${checks.length} check task(s), ${left.length} to run: ${left.map((t) => t.taskId).join(", ") || "none"}`);
             require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `skip=${left.length === 0}\n`);
           '
@@ -267,6 +271,7 @@ jobs:
       shard: ${{ matrix.shard }}
       adapters: ${{ matrix.adapters }}
       browser: ${{ matrix.browser }}
+      force: ${{ needs.plan.outputs.force == 'true' }}
     secrets:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
@@ -291,6 +296,7 @@ jobs:
       shard: ${{ matrix.shard }}
       adapters: ${{ matrix.adapters }}
       browser: ${{ matrix.browser }}
+      force: ${{ needs.plan.outputs.force == 'true' }}
     secrets:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
