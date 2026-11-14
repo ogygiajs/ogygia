@@ -22,15 +22,15 @@ const NEEDS: Readonly<Record<string, Needs>> = {
 	'.': 'svelte',
 	'./contract': 'plain',
 	'./runtime': 'vite',
-	'./hooks': 'vite',
+	'./hooks': 'svelte',
 	'./app': 'plain',
-	'./internal': 'vite',
+	'./internal': 'svelte',
 	'./internal/server': 'vite',
 	'./internal/instruments': 'plain',
 	'./internal/messages': 'plain',
 	'./internal/register': 'plain',
 	'./internal/reconcile': 'plain',
-	'./server': 'vite',
+	'./server': 'svelte',
 	'./plugin': 'svelte',
 	'./plugin/utils': 'plain',
 	'./plugin/css': 'vite',
@@ -48,17 +48,37 @@ const CODEC: readonly string[] = [
 	'dist/server/region-props.js'
 ];
 
-/** What `file` needs to load, or what Node said when it failed for another reason. */
+const IMPORT_RE =
+	/^\s*(?:import|export)\s[^;]*?\bfrom\s*["']([^"']+)["']|^\s*import\s*["']([^"']+)["']/gm;
+
+/** Every specifier `file` reaches through its static imports, following the relative ones. */
+function reached(file: string, seen = new Set<string>(), out = new Set<string>()): Set<string> {
+	if (seen.has(file)) return out;
+	seen.add(file);
+	for (const m of fs.readFileSync(file, 'utf8').matchAll(IMPORT_RE)) {
+		const spec = (m[1] ?? m[2])!;
+		out.add(spec);
+		if (spec.startsWith('.') && !spec.endsWith('.svelte'))
+			reached(path.resolve(path.dirname(file), spec), seen, out);
+	}
+	return out;
+}
+
+/** What `file` needs to load, or what Node said when it failed for another reason. The heaviest
+ *  need its import graph holds decides, so the answer never depends on which import Node fails on
+ *  first (that order differs between Node versions). */
 function needs(file: string): string {
+	const specs = [...reached(path.join(ROOT, file))];
+	if (specs.some((s) => s.endsWith('.svelte'))) return 'svelte';
+	if (specs.some((s) => s.startsWith('ogygia:') || s.startsWith('$app/'))) return 'vite';
 	const res = spawnSync(
 		process.execPath,
 		['--input-type=module', '-e', `await import(${JSON.stringify(path.join(ROOT, file))})`],
 		{ encoding: 'utf8', cwd: ROOT, env: { ...process.env, NODE_OPTIONS: '' } }
 	);
 	if (res.status === 0) return 'plain';
-	if (/ERR_UNSUPPORTED_ESM_URL_SCHEME[\s\S]*'ogygia:'|Received protocol 'ogygia:'/.test(res.stderr))
-		return 'vite';
 	if (/ERR_UNKNOWN_FILE_EXTENSION[^\n]*\.svelte/.test(res.stderr)) return 'svelte';
+	if (/'ogygia:'|Cannot find package '\$app'/.test(res.stderr)) return 'vite';
 	return res.stderr.slice(0, 600);
 }
 

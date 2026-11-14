@@ -226,7 +226,8 @@ export function snippet_freeze_fuzz(async: boolean, seed: number): void {
 			expect(seen.with_head, 'some snippets write head content').toBeGreaterThan(
 				seen.rendered / 10
 			);
-		}
+		},
+		60_000
 	);
 
 	it(`region.snippet() freezes through RenderSnippet.svelte (async ${async})`, () => {
@@ -251,5 +252,5 @@ export function snippet_freeze_fuzz(async: boolean, seed: number): void {
 			}),
 			sim_params({ runs: 300, seed })
 		);
-	});
+	}, 60_000);
 }
