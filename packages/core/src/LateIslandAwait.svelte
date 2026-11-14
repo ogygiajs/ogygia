@@ -6,10 +6,17 @@ keeps the old page until the island's code is in, then swaps the whole new page 
 async mode this file does not compile, which is why it is never the default. A failed load renders
 nothing, and says `island_load_failed`.
 -->
-<script>
+<script lang="ts">
+	import type { Component as Loaded, Snippet } from 'svelte';
 	import { OgygiaError } from './messages/island.ts';
-	/** @type {{ load: () => Promise<import('svelte').Component>, props: Record<string, unknown>, children?: import('svelte').Snippet }} */
-	let { load, props, children } = $props();
+
+	interface Props {
+		load: () => Promise<Loaded>;
+		props: Record<string, unknown>;
+		children?: Snippet;
+	}
+
+	let { load, props, children }: Props = $props();
 	// svelte-ignore state_referenced_locally
 	const Component = await load().catch((error) => {
 		console.error(new OgygiaError('island_load_failed', { entry: null }), error);
