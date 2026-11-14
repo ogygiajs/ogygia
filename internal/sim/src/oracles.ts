@@ -1195,10 +1195,12 @@ export function document_faulted(world: World, tab: Tab): boolean {
  *  ("Invalid query.live response": seed 193, a changed byte in a live query's stream), and an
  *  inline handler a changed byte broke (the runtime script's `onerror`, as the DOM library says
  *  it fails to compile: generated-app seed 88), and the JSON parser's bare message for a changed
- *  byte in a JSON answer (a live query's client logs it without `SyntaxError`: palaestra seed 204).
+ *  byte in a JSON answer (a live query's client logs it without `SyntaxError`: palaestra seed 204),
+ *  and devalue's for a changed byte in a type name inside one (a held region's query answer: the
+ *  region's await hands the query's own error to the page; gen 10, seed 31, `Unknown type �egion`).
  *  An uncaught TypeError is never excused. */
 const EXPLAINED =
-	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response|Failed to read the 'on\w+' property| in JSON at position \d+/;
+	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response|Failed to read the 'on\w+' property| in JSON at position \d+|Error: Unknown type /;
 
 /** Whether `line` is a buggify point's own throw (a point's error says its name), reported by the
  *  document `realm` it fired in: what the runtime reports of a failure it recovers from. */
