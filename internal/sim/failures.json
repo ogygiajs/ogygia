@@ -255,6 +255,24 @@
 	],
 	"covered": [
 		{
+			"site": "packages/flags/src/prescan.ts > Inventory > written > catch:0",
+			"reason": "a manifest that cannot be written never fails the build; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/flags/test/inventory-build.test.ts",
+			"name": "a root the manifest cannot be written under never fails the build"
+		},
+		{
+			"site": "packages/config/src/sim.ts > SimStream > constructor > pull > stream:0",
+			"reason": "a simulated stream hands its reader each chunk; proved by hand: the enqueue removed turns the test red",
+			"test": "packages/core/test/sim/request-scope.test.ts",
+			"name": "closes once its response ends, however it ends"
+		},
+		{
+			"site": "packages/config/src/sim.ts > SimStream > constructor > pull > stream:1",
+			"reason": "a simulated stream ends once its last chunk is read; proved by hand: the close removed turns the test red",
+			"test": "packages/core/test/sim/request-scope.test.ts",
+			"name": "closes once its response ends, however it ends"
+		},
+		{
 			"site": "packages/content/src/site/search-worker.ts > run > not-ok:0",
 			"reason": "an index download that is not ok fails as content_search_index_fetch_failed, not as a parse of its error body; proved by hand: the check made never true turns the test red, twice",
 			"test": "packages/content/test/search-client.test.ts",
@@ -5379,8 +5397,6 @@
 		"packages/config/src/sim.ts > macrotask > message:0",
 		"packages/config/src/sim.ts > macrotask > message:1",
 		"packages/config/src/sim.ts > Run > fetch > fetch_stub > abort:0",
-		"packages/config/src/sim.ts > Run > stream > pull > stream:0",
-		"packages/config/src/sim.ts > Run > stream > pull > stream:1",
 		"packages/config/src/sim.ts > Run > track > reject:0",
 		"packages/config/src/sim.ts > Run > _check > catch:0",
 		"packages/config/src/sim.ts > Run > play > segment > reject:0",
@@ -6068,7 +6084,6 @@
 		"packages/flags/src/index.ts > now > catch:0",
 		"packages/flags/src/inventory.ts > collect_from_source > not-ok:0",
 		"packages/flags/src/ofrep.ts > ofrep > timer:0",
-		"packages/flags/src/vite.ts > inventory > written > catch:0",
 		"packages/insights/src/cpu.ts > host_of > catch:0",
 		"packages/insights/src/fp-drift.ts > props_diff > parse:0",
 		"packages/insights/src/fp-drift.ts > props_diff > parse:1",
