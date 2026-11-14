@@ -28,9 +28,8 @@ const WIN_SEP_RE = /\\/g;
 export function real_posix(p: string): string {
 	try {
 		p = fs.realpathSync(p);
-	} catch {
-		// ok: kept as given; a missing path never matches an id
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- kept as given; a missing path never matches an id
+	} catch {}
 	return p.replace(WIN_SEP_RE, '/');
 }
 

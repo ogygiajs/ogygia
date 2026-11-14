@@ -1155,9 +1155,8 @@ export class SourceMapResolver {
 							}
 						}
 					}
-				} catch {
-					// ok: an unusable source map; the miss is remembered and the frame keeps its generated place
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- an unusable source map; the miss is remembered and the frame keeps its generated place
+				} catch {}
 			}
 			this.#cache.set(path, entry);
 		}
@@ -2791,8 +2790,9 @@ export function chunk_component_renamer(
 		let path: string;
 		try {
 			path = new URL(url, 'http://x').pathname;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: the minified name stays as it is
 		} catch {
-			return undefined; // ok: not a URL: the minified name stays as it is
+			return undefined;
 		}
 		if (!cache.has(path)) {
 			const comps = (contents(path) ?? [])

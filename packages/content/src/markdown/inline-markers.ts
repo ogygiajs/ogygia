@@ -57,14 +57,18 @@ function highlight_all_spans(html: string, sub: string, classname: string): stri
 	const pattern = new RegExp(`${sub}([^ ]|[^ ][^]+?[^ ])${sub}`, 'g');
 	return html.replace(pattern, (_m, content: string, index: number) => {
 		// (Shiki's own output: its token spans, whose style values hold no `<` or `>`, and escaped text)
-		const a = content.indexOf('<span'); // markup-ok: Shiki's token spans
-		const b = content.indexOf('</span'); // markup-ok: Shiki's token spans
-		const c = content.lastIndexOf('<span'); // markup-ok: Shiki's token spans
-		const d = content.lastIndexOf('</span'); // markup-ok: Shiki's token spans
+		// oxlint-disable-next-line ogygia/one-markup-walk -- Shiki's token spans
+		const a = content.indexOf('<span');
+		// oxlint-disable-next-line ogygia/one-markup-walk -- Shiki's token spans
+		const b = content.indexOf('</span');
+		// oxlint-disable-next-line ogygia/one-markup-walk -- Shiki's token spans
+		const c = content.lastIndexOf('<span');
+		// oxlint-disable-next-line ogygia/one-markup-walk -- Shiki's token spans
+		const d = content.lastIndexOf('</span');
 		let adjusted = content;
 		if (b !== -1 && (a === -1 || b < a)) {
 			// content starts INSIDE a token span — close it, open ours, re-open the token
-			// markup-ok: Shiki's token spans
+			// oxlint-disable-next-line ogygia/one-markup-walk -- Shiki's token spans
 			const tag_start = html.lastIndexOf('<span', index);
 			const tag = html.slice(tag_start, html.indexOf('>', tag_start) + 1);
 			adjusted = `</span>${open}${tag}${adjusted}`;

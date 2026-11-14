@@ -62,8 +62,9 @@ export class Dependencies {
 	static #manifest(dir: string): Manifest | null {
 		try {
 			return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')) as Manifest;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a directory without a readable package.json lists no dependencies
 		} catch {
-			return null; // ok: a directory without a readable package.json lists no dependencies
+			return null;
 		}
 	}
 

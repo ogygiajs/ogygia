@@ -72,8 +72,9 @@
 		try {
 			const v = parse(text, REVIVERS);
 			return v && typeof v === 'object' && Object.keys(v).length ? v : null;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- props that do not decode are not shown; the panel shows the rest
 		} catch {
-			return null; // ok: props that do not decode are not shown; the panel shows the rest
+			return null;
 		}
 	}
 
@@ -98,8 +99,9 @@
 		const paths = urls.map((u) => {
 			try {
 				return new URL(u).pathname;
+				// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: kept as written
 			} catch {
-				return u; // ok: not a URL: kept as written
+				return u;
 			}
 		});
 		const out = [];
@@ -148,8 +150,9 @@
 				const findings = view.report.findings.filter((f) => f.fps.includes(info.fp!));
 				if (row || findings.length) browser = { row, findings };
 			}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the page could not be read: the detail shows without the browser's part
 		} catch {
-			browser = null; // ok: the page could not be read: the detail shows without the browser's part
+			browser = null;
 		}
 		// what happened to it in the last recorded session (the Record tab): clicks, slow handlers, the
 		// requests its clicks caused and the server's split of each

@@ -39,8 +39,9 @@ export async function componentCssHead(components: readonly unknown[]): Promise<
 	try {
 		// (nothing drops it, so it is never STALE)
 		await registry.get();
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no registry in this realm (bare node, `ogygia mcp`), as said above
 	} catch {
-		read = false; // ok: no registry in this realm (bare node, `ogygia mcp`), as said above
+		read = false;
 	}
 	if (DEV && read && components.length && !router_css_active())
 		inactive.once('router_css_inactive', () => warn('router_css_inactive'));

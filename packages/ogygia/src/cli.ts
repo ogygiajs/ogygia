@@ -18,9 +18,8 @@ function installed(): string | null {
 	for (const from of [path.join(process.cwd(), 'package.json'), import.meta.url]) {
 		try {
 			return createRequire(from).resolve('@ogygia/cli/bin');
-		} catch {
-			// ok: not installed there; the next place is tried, and none says how to install it
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not installed there; the next place is tried, and none says how to install it
+		} catch {}
 	}
 	return null;
 }

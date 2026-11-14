@@ -220,8 +220,8 @@ export function lake_identity(entry: string, props: Record<string, unknown> | un
 	for (const key in props) if (typeof props[key] !== 'function') rest[key] = props[key];
 	try {
 		return hole_identity(entry, rest);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a lake renders on the server alone, so any prop is allowed; one no wire carries leaves the lake known by its entry and place
 	} catch {
-		// ok: a lake renders on the server alone, so any prop is allowed; one no wire carries leaves the lake known by its entry and place
 		return '';
 	}
 }

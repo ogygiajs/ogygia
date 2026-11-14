@@ -837,8 +837,9 @@ function globHasSvx(dir: string): boolean {
 		let entries;
 		try {
 			entries = readdirSync(d, { withFileTypes: true });
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a folder that cannot be read adds nothing to the walk
 		} catch {
-			continue; // ok: a folder that cannot be read adds nothing to the walk
+			continue;
 		}
 		for (const e of entries) {
 			if (e.isDirectory()) stack.push(path.join(d, e.name));

@@ -145,8 +145,9 @@ export class Queries implements QueryCtx {
 	moved(reads: Reads): boolean {
 		try {
 			return !this.#deps_unchanged(reads);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- an answer that now throws has changed; its reader reports the error
 		} catch {
-			return true; // ok: an answer that now throws has changed; its reader reports the error
+			return true;
 		}
 	}
 
@@ -180,8 +181,9 @@ export class Queries implements QueryCtx {
 			if (slot.query.kind === 'input' || slot.verified === LET_GO) continue;
 			try {
 				if (this.#fresh(slot).changed > since) return true;
+				// oxlint-disable-next-line ogygia/no-silent-failures -- an answer that now throws has changed; its reader reports the error
 			} catch {
-				return true; // ok: an answer that now throws has changed; its reader reports the error
+				return true;
 			}
 		}
 		return false;

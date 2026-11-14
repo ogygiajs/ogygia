@@ -811,9 +811,8 @@ export function page_origin(pa: PageAssets | undefined): string {
 			if (a.via === via)
 				try {
 					return new URL(a.url).origin;
-				} catch {
-					// ok: not a URL, so no origin; the next asset is tried
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL, so no origin; the next asset is tried
+				} catch {}
 	return '';
 }
 
@@ -827,8 +826,9 @@ function cpu_by_host(extras: ReportExtras): Map<string, number> | null {
 		let host = '';
 		try {
 			host = new URL(f.path).host;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: no host to count it under
 		} catch {
-			continue; // ok: not a URL: no host to count it under
+			continue;
 		}
 		m.set(host, (m.get(host) ?? 0) + f.self_ms);
 	}
@@ -902,8 +902,9 @@ export function page_duplicates(
 	const path_of = (u: string) => {
 		try {
 			return new URL(u).pathname;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: kept as written
 		} catch {
-			return u; // ok: not a URL: kept as written
+			return u;
 		}
 	};
 	const loaded = new Set<string>();
@@ -3128,8 +3129,9 @@ function ogygia_findings(
 		const path_of_entry = (e: string) => {
 			try {
 				return new URL(e, 'http://x/').pathname;
+				// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: kept as written
 			} catch {
-				return e; // ok: not a URL: kept as written
+				return e;
 			}
 		};
 		const vh = extras.visit?.viewport?.[1];

@@ -132,8 +132,9 @@ export class IoRecorder {
 		let async_hooks: typeof import('node:async_hooks');
 		try {
 			async_hooks = await import('node:async_hooks');
+			// oxlint-disable-next-line ogygia/no-silent-failures -- off Node there is no async_hooks: the report has no I/O timing
 		} catch {
-			return null; // ok: off Node there is no async_hooks: the report has no I/O timing
+			return null;
 		}
 		return new IoRecorder(async_hooks);
 	}

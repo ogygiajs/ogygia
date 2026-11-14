@@ -63,9 +63,8 @@ export function page_url_of(event: RequestEvent): URL {
 	try {
 		const page = new URL(referer);
 		if (page.origin === event.url.origin) return page;
-	} catch {
-		// ok: a malformed referer: the request's own URL
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a malformed referer: the request's own URL
+	} catch {}
 	return event.url;
 }
 
@@ -258,9 +257,8 @@ export function render_page_version(
 	if (data && typeof data === 'object') {
 		try {
 			v = fnv1a(JSON.stringify(data));
-		} catch {
-			// ok: a value JSON cannot write (a cycle, a bigint): no version, the address is the call alone
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a value JSON cannot write (a cycle, a bigint): no version, the address is the call alone
+		} catch {}
 	}
 	// (no data yet — a hole minted before the page recorded its snapshot — is not remembered)
 	if (v) versions.set(event.request, v);
@@ -307,7 +305,8 @@ export function render_page_facts_script(
 	try {
 		// (devalue output is `<`-safe by itself: no second pass for the script element)
 		return `<script type="${PAGE_FACTS_SCRIPT_TYPE}">${devalue.stringify(shape_page_data(facts.data, keys), encoders)}</script>`;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- as said above, a value that does not serialize ships no facts
 	} catch {
-		return ''; // ok: as said above, a value that does not serialize ships no facts
+		return '';
 	}
 }

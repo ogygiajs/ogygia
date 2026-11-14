@@ -69,7 +69,8 @@ const label = (f: { code: string; names: string[] }) =>
 export function since_load(
 	prev: LoadSnapshot,
 	now: LoadSnapshot,
-	at: number = Date.now() // wall: compared with the last load's stored time
+	// oxlint-disable-next-line ogygia/ports -- compared with the last load's stored time
+	at: number = Date.now()
 ): SinceLoad | null {
 	if (prev.path !== now.path) return null;
 	const key = (f: { code: string; names: string[] }) =>

@@ -19,9 +19,8 @@ export function append_server_log(chunk: string | Uint8Array): void {
 	try {
 		mkdirSync(dirname(log), { recursive: true });
 		appendFileSync(log, chunk);
-	} catch {
-		// ok: the log is a report, never the test's own work; a server that cannot write it runs on
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the log is a report, never the test's own work; a server that cannot write it runs on
+	} catch {}
 }
 
 /** The log's size now (0 when there is none yet). */
@@ -30,8 +29,9 @@ export function server_log_size(): number {
 	if (log === undefined) return 0;
 	try {
 		return statSync(log).size;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- nothing written yet
 	} catch {
-		return 0; // ok: nothing written yet
+		return 0;
 	}
 }
 
@@ -47,8 +47,9 @@ export function server_log_since(from: number): string {
 		const buf = Buffer.alloc(size - from);
 		readSync(fd, buf, 0, buf.length, from);
 		return buf.toString('utf8');
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no log yet
 	} catch {
-		return ''; // ok: no log yet
+		return '';
 	} finally {
 		if (fd !== undefined) closeSync(fd);
 	}

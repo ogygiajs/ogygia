@@ -31,8 +31,9 @@ export function capability_expired(
 	try {
 		const exp = Number(new URL(endpoint, page_origin).searchParams.get('exp'));
 		return Number.isFinite(exp) && exp > 0 && exp <= now_ms / 1000 + CLOCK_SKEW_SEC;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- an address that does not parse has no `exp` to be past
 	} catch {
-		return false; // ok: an address that does not parse has no `exp` to be past
+		return false;
 	}
 }
 
@@ -123,9 +124,8 @@ export function deny_of(res: Response, endpoint: string): string {
 	let minted = '';
 	try {
 		minted = new URL(endpoint, location.href).searchParams.get('k') ?? '';
-	} catch {
-		// ok: the endpoint parsed to be fetched; the diagnosis goes without its key otherwise
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the endpoint parsed to be fetched; the diagnosis goes without its key otherwise
+	} catch {}
 	return `foreign-key: signed by ${minted || '?'}, answered by ${res.headers.get('x-ogygia-key') ?? '?'}`;
 }
 
@@ -177,8 +177,9 @@ const make_warms = () =>
 				preload_island_graph(entry, base, fetch_priority_of(slot.cls()));
 				flight.onRaise((p) => preload_island_graph(entry, base, fetch_priority_of(class_at(p))));
 				return await import_file(url);
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a warm that failed is not kept (STALE); the island's own load asks again and says its failure
 			} catch {
-				return STALE; // ok: a warm that failed is not kept (STALE); the island's own load asks again and says its failure
+				return STALE;
 			} finally {
 				release();
 			}
@@ -194,8 +195,9 @@ export function reset_island_warms(): void {
 function warm_key(url: string): string {
 	try {
 		return new URL(url, location.href).href;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: its own key
 	} catch {
-		return url; // ok: not a URL: its own key
+		return url;
 	}
 }
 
@@ -210,7 +212,8 @@ export function warm_island_module(
 	if (!entry_location(entry, base) && url.includes('/ogygia/og-region.')) return;
 	const code = code_url(url);
 	if (code === null) return;
-	void warms().get({ key: warm_key(url), entry, base, url: code }, { priority: PRIORITY[cls] }); // ok: a warm that failed answers STALE, never rejects: nothing to hear
+	// oxlint-disable-next-line ogygia/no-silent-failures -- a warm that failed answers STALE, never rejects: nothing to hear
+	void warms().get({ key: warm_key(url), entry, base, url: code }, { priority: PRIORITY[cls] });
 }
 
 /** Has this island module already been warmed (or imported through the warmer)? `entry` resolves

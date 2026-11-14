@@ -44,7 +44,7 @@ const URL_ATTRS: ReadonlySet<string> = new Set([
 	'xlink:href'
 ]);
 const ATTR_NAME = /^[a-zA-Z_:][a-zA-Z0-9_:.-]*$/;
-// markup-ok: the html`` template's own source as its author wrote it, read to place a hole
+// oxlint-disable-next-line ogygia/one-markup-walk -- the html`` template's own source as its author wrote it, read to place a hole
 const NAME_BEFORE_QUOTE = /([^\s"'<>/=]+)\s*=\s*$/;
 const TAG_START = /[a-zA-Z/!?]/;
 

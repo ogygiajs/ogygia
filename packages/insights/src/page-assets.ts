@@ -352,8 +352,9 @@ export function resolve_ref(ref: string, base: string): string | null {
 		const u = new URL(ref, base);
 		if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
 		return u.href;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: no asset to weigh
 	} catch {
-		return null; // ok: not a URL: no asset to weigh
+		return null;
 	}
 }
 
@@ -716,8 +717,9 @@ function serves(url: string, origin: string): string {
 	let u: URL;
 	try {
 		u = new URL(url);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: who serves it is unknown, and said so
 	} catch {
-		return 'unknown'; // ok: not a URL: who serves it is unknown, and said so
+		return 'unknown';
 	}
 	if (u.origin === origin) return 'this app';
 	const at = u.pathname.indexOf('/npm/');

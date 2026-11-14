@@ -519,8 +519,9 @@ export function defer_keys(html: string, marker = 'OgygiaDefer'): Map<number, st
 		const parsed = JSON.parse(text);
 		if (!Array.isArray(parsed)) return out;
 		arr = parsed;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a JSON list: nothing to read from it
 	} catch {
-		return out; // ok: not a JSON list: nothing to read from it
+		return out;
 	}
 	// (every value is an index into the array; a reducer is [name, index])
 	const id_of = (i: unknown): number | null => {
@@ -756,8 +757,9 @@ export function encoding_only(a: string, b: string): boolean {
 	if (a === b || (!a.includes('%') && !b.includes('%'))) return false;
 	try {
 		return decodeURIComponent(a) === decodeURIComponent(b);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a malformed escape is not the same URL written another way
 	} catch {
-		return false; // ok: a malformed escape is not the same URL written another way
+		return false;
 	}
 }
 
@@ -852,9 +854,8 @@ export function analyze_page(
 		try {
 			const u = new URL(path);
 			where = (page.visit?.origin && u.origin === page.visit.origin ? '' : u.host) + u.pathname;
-		} catch {
-			// ok: not a URL: the raw string is kept
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: the raw string is kept
+		} catch {}
 		return `; mostly ${where} (${Math.round(top.ms)} ms)`;
 	};
 	const findings: PageFinding[] = [];
@@ -2453,8 +2454,9 @@ export function analyze_page(
 			if (!u) return '';
 			try {
 				return new URL(u, 'http://x').pathname;
+				// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: shown as given
 			} catch {
-				return u; // ok: not a URL: shown as given
+				return u;
 			}
 		};
 		if (h.reason === 'forbidden') {
@@ -2501,8 +2503,9 @@ export function analyze_page(
 		let host = '';
 		try {
 			host = new URL(s.url).host;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- an inline or malformed script URL has no host to weigh
 		} catch {
-			continue; // ok: an inline or malformed script URL has no host to weigh
+			continue;
 		}
 		host_ms.set(host, Math.max(host_ms.get(host) ?? 0, 0) + (cpu?.by_host?.[host] ? 0 : s.ms));
 	}
@@ -3244,8 +3247,9 @@ function explain_interaction(
 		if (!origin) return true;
 		try {
 			return new URL(url, origin).origin === origin;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: counted as the page's own, as with no origin known
 		} catch {
-			return true; // ok: not a URL: counted as the page's own, as with no origin known
+			return true;
 		}
 	};
 	// SAMPLED: when a trace of this interaction was taken, the function that ran — by its real name
@@ -3356,8 +3360,9 @@ function path_of(url: string): string {
 	try {
 		const u = new URL(url, 'http://x');
 		return u.pathname + u.search;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: shown as given
 	} catch {
-		return url; // ok: not a URL: shown as given
+		return url;
 	}
 }
 

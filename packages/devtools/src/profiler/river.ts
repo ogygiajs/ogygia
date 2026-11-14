@@ -335,8 +335,9 @@ export function seed_key_bytes(seed_json: string): Record<string, number> {
 		const out: Record<string, number> = {};
 		for (const [k, v] of Object.entries(inner)) out[k] = JSON.stringify(v)?.length ?? 0;
 		return out;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a seed that does not parse has no key sizes to show
 	} catch {
-		return {}; // ok: a seed that does not parse has no key sizes to show
+		return {};
 	}
 }
 

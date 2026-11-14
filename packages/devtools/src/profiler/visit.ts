@@ -484,7 +484,8 @@ export function parse_visit(page: unknown, raw: unknown): Visit | null {
 	}
 	const visit: Visit = {
 		page,
-		at: num(v.at, 1e14) ?? Date.now(), // wall: as the page sends it, an epoch time
+		// oxlint-disable-next-line ogygia/ports -- as the page sends it, an epoch time
+		at: num(v.at, 1e14) ?? Date.now(),
 		nav,
 		paints,
 		resources,

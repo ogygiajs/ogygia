@@ -43,8 +43,9 @@ function looks_clickable(el: Element): boolean {
 	if (el.closest(CLICKABLE)) return true;
 	try {
 		return getComputedStyle(el).cursor === 'pointer';
+		// oxlint-disable-next-line ogygia/no-silent-failures -- an element with no style (detached) is not clickable
 	} catch {
-		return false; // ok: an element with no style (detached) is not clickable
+		return false;
 	}
 }
 
@@ -122,8 +123,9 @@ export function take_saved_session(): SavedPart[] | null {
 		const raw = sessionStorage.getItem(SAVED_KEY);
 		if (raw) parts = JSON.parse(raw) as SavedPart[];
 		sessionStorage.removeItem(SAVED_KEY);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- storage blocked or unreadable: no earlier page's session to go on with
 	} catch {
-		parts = null; // ok: storage blocked or unreadable: no earlier page's session to go on with
+		parts = null;
 	}
 	return parts?.length ? parts : null;
 }
@@ -145,8 +147,9 @@ export function resume_session_if_any(): boolean {
 export function session_waiting(): boolean {
 	try {
 		return !!sessionStorage.getItem(SAVED_KEY);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- storage blocked: nothing could have been saved
 	} catch {
-		return false; // ok: storage blocked: nothing could have been saved
+		return false;
 	}
 }
 
@@ -266,13 +269,11 @@ export function start_session(prior?: SavedPart[]): Recorder {
 				try {
 					const left = po.takeRecords();
 					if (left.length) cb(left);
-				} catch {
-					// ok: no takeRecords here; the entries already delivered count
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- no takeRecords here; the entries already delivered count
+				} catch {}
 			});
-		} catch {
-			// ok: an entry type this browser does not have; the session records without it
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- an entry type this browser does not have; the session records without it
+		} catch {}
 	};
 	watch(
 		'event',
@@ -451,9 +452,8 @@ export function start_session(prior?: SavedPart[]): Recorder {
 			characterData: true,
 			attributes: true
 		});
-	} catch {
-		// ok: no body yet: no DOM changes to count
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no body yet: no DOM changes to count
+	} catch {}
 	// (a window's `onerror` is typed for the legacy string form too: a listener gets the event)
 	const on_error = (e: Event | string) =>
 		errors.length < 200 &&
@@ -501,8 +501,9 @@ export function start_session(prior?: SavedPart[]): Recorder {
 	else
 		try {
 			prof = new Ctor({ sampleInterval: 10, maxBufferSize: 60_000 });
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the Session tab says why there are no CPU samples
 		} catch {
-			cpu_off = 'no-policy'; // ok: the Session tab says why there are no CPU samples
+			cpu_off = 'no-policy';
 		}
 	const heap0 =
 		(performance as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null;
@@ -565,9 +566,8 @@ export function start_session(prior?: SavedPart[]): Recorder {
 					{ origin: performance.timeOrigin, data: strip(collect(null)) }
 				])
 			);
-		} catch {
-			// ok: no storage: the session ends with this page
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no storage: the session ends with this page
+		} catch {}
 	};
 	s.on(globalThis, 'pagehide', on_hide);
 
@@ -585,16 +585,16 @@ export function start_session(prior?: SavedPart[]): Recorder {
 			if (prof) {
 				try {
 					cpu = await prof.stop();
+					// oxlint-disable-next-line ogygia/no-silent-failures -- the profiler would not stop: the session keeps the rest without CPU samples
 				} catch {
-					cpu = null; // ok: the profiler would not stop: the session keeps the rest without CPU samples
+					cpu = null;
 				}
 			}
 			const here = collect(cpu);
 			try {
 				sessionStorage.removeItem(SAVED_KEY);
-			} catch {
-				// ok: no storage: nothing was saved to remove
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- no storage: nothing was saved to remove
+			} catch {}
 			return prior?.length ? merge_parts(prior, here) : here;
 		}
 	});

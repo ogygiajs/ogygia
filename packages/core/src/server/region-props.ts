@@ -38,8 +38,9 @@ export function encode_region_props(props: Record<string, unknown>): string | nu
 		payload = B64Url.encode(
 			placed(stringify(props, { [REF_WIRE_KEY]: ref_reducer(PROP_FAMILIES) }))
 		);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- make_region_endpoint says live_props_not_serializable
 	} catch {
-		return null; // ok: make_region_endpoint says live_props_not_serializable
+		return null;
 	}
 	if (payload.length > MAX_REGION_PROPS_LEN) return null;
 	return payload;

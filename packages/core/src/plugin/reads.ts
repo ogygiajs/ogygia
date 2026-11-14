@@ -204,7 +204,7 @@ export function observe_reads(event: RequestEvent, request_reads: Reads): void {
 		(event as { fetch: typeof fetch }).fetch = ((input, init) => {
 			// Kit's fetch sends the visitor's cookies to its own origin and its subdomains
 			if (credentialed && carries_cookies(event.url, input)) note('fetch:credentials');
-			// port-ok: Kit's own event.fetch, wrapped (the platform's goes through the network port)
+			// oxlint-disable-next-line ogygia/ports -- Kit's own event.fetch, wrapped (the platform's goes through the network port)
 			return fetch(input, init);
 		}) as typeof fetch;
 
@@ -242,8 +242,9 @@ function carries_cookies(page: URL, input: RequestInfo | URL): boolean {
 	let target: URL;
 	try {
 		target = new URL(input instanceof Request ? input.url : String(input), page);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a URL Kit cannot fetch carries nothing
 	} catch {
-		return false; // ok: a URL Kit cannot fetch carries nothing
+		return false;
 	}
 	if (target.origin === page.origin) return true;
 	return target.protocol === page.protocol && target.hostname.endsWith(`.${page.hostname}`);

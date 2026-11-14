@@ -104,16 +104,14 @@
 						phase = 'Keeping the report in this browser…';
 						await put_report(keep.dump);
 					}
-				} catch {
-					// ok: an older server 303s to the report instead: res.url is it
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- an older server 303s to the report instead: res.url is it
+				} catch {}
 				await p.finish();
 				phase = 'Opening the report…';
 				try {
 					window.parent?.postMessage({ type: 'ogygia:profiled', url }, location.origin);
-				} catch {
-					// ok: no parent, or a cross-origin one: nobody to tell
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- no parent, or a cross-origin one: nobody to tell
+				} catch {}
 				location.href = url;
 			}
 		} catch (e) {
@@ -125,7 +123,8 @@
 	}
 
 	onMount(() => {
-		if (!waiting) void run(); // ok: run shows its own failure (error)
+		// oxlint-disable-next-line ogygia/no-silent-failures -- run shows its own failure (error)
+		if (!waiting) void run();
 		// unmounted (mid-run or in the queue): its request, its queue's waits and its bar's timers go
 		return () => {
 			owner.close();
