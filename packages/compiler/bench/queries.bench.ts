@@ -1,7 +1,7 @@
 // The queries database (src/queries.ts) on its own: a deep chain of answers checked after
 // an edit, and a database past its bound letting its oldest answers go.
 import { bench } from '@bench/heisenbench/bench';
-import { derived, input, queries } from '../src/queries.ts';
+import { derived, input, Queries } from '../src/queries.ts';
 
 const DEPTH = 2_000;
 
@@ -21,7 +21,7 @@ function chain_world() {
 
 bench('queries: a chain of answers two thousand deep, checked after each of three edits', () => {
 	const { cell, chain } = chain_world();
-	const db = queries('bench');
+	const db = new Queries('bench');
 	for (let n = 0; n <= DEPTH; n++) db.get(chain, n);
 	let sum = 0;
 	db.set(cell, 'a', 1);
@@ -34,7 +34,7 @@ bench('queries: a chain of answers two thousand deep, checked after each of thre
 
 bench('queries: a database bound to a hundred answers, read across three hundred', () => {
 	const { cell, chain } = chain_world();
-	const db = queries('bench', 100);
+	const db = new Queries('bench', 100);
 	let sum = 0;
 	for (let round = 0; round < 3; round++) {
 		db.set(cell, 'a', round);

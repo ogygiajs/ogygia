@@ -1,4 +1,5 @@
 import { net, outbox, policy, timers, type Outbox } from '@ogygia/machine';
+import type { ServerApp } from '@ogygia/core/plugin';
 import { fed_app } from './app.ts';
 import { warn } from './messages.ts';
 import { PeerHandle } from './peer.ts';
@@ -17,22 +18,26 @@ const HOP_MAX = 4;
 
 /** Collect the data-source receipts (`og.source`) an expose render files, so the fragment reports
  *  what it read: the request's `sources` fact is a fresh list for the render, then restored. */
-export function begin_source_capture(request: Request): {
-	readonly sources: Set<string>;
-	end(): void;
-} {
-	const facts = fed_app()?.facts(request);
-	const saved = facts ? facts.sources : null;
-	if (facts) facts.sources = [];
-	const sources = new Set<string>();
-	return {
-		sources,
-		end() {
-			if (!facts) return;
-			for (const tag of facts.sources ?? []) sources.add(tag);
-			facts.sources = saved ? [...saved, ...sources] : saved;
-		}
-	};
+export class SourceCapture {
+	readonly sources: Set<string> = new Set();
+	readonly #facts: ReturnType<ServerApp['facts']> | undefined;
+	readonly #saved: ReturnType<ServerApp['facts']>['sources'] | null;
+
+	constructor(request: Request) {
+		const facts = fed_app()?.facts(request);
+		this.#facts = facts;
+		this.#saved = facts ? facts.sources : null;
+		if (facts) facts.sources = [];
+	}
+
+	end(): void {
+		const facts = this.#facts;
+		if (!facts) return;
+		const sources = this.sources;
+		for (const tag of facts.sources ?? []) sources.add(tag);
+		const saved = this.#saved;
+		facts.sources = saved ? [...saved, ...sources] : saved;
+	}
 }
 
 /**
