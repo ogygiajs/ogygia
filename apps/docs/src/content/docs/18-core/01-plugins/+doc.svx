@@ -198,6 +198,7 @@ export default defineClient({
 | `holeFailed`       | A hole's answer never came, and no retry follows.                                                                                 |
 | `holeBatchMissed`  | A batch request carried fewer holes than it was sent for.                                                                         |
 | `entryFallback`    | A region's file was gone, and its fresh identity loaded instead.                                                                  |
+| `reloadNeeded`     | A chunk can load only after a reload (a download it needs failed, and the browser keeps that failure): `url`, `error`, `regions`. |
 | `navStarted`       | An in-app navigation started, before its page is fetched.                                                                         |
 | `navigated`        | An in-app navigation finished, with its timings and whether the regions were `reconciled` in place.                               |
 | `criticalSettled`  | The wait for the page's critical resources ended: how, how many it waited on, and for how long.                                   |

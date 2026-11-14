@@ -1,0 +1,102 @@
+---
+title: Web components that render on the server
+summary: A web component can paint before its JavaScript loads if the server renders it. Put its server output inside `{@html}` in a host that stays Svelte markup, and the island around it still hydrates. This page shows the pattern, when it works, and when to use `rewrite()` instead.
+related:
+  - regions/dom-ownership
+  - app/server-transforms
+  - regions/client-islands
+---
+
+A web component usually renders in the browser, once its definition loads. Until then its host is empty, or shows unstyled light DOM. Many component libraries can also render on the server: they give you HTML for the component, often as a [declarative shadow root](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/template#shadowrootmode) (`<template shadowrootmode="open">`). The browser turns that template into a real shadow root while it parses the page, so the component paints before any JavaScript runs.
+
+There are two ways to put that server output on an ogygia page. This page covers the simple one: the `{@html}` host pattern. The other is a server pass over the HTML, [`rewrite()`](/docs/app/server-transforms).
+
+## The `{@html}` host pattern
+
+Write the host element in your Svelte markup as usual. Put the component's server output inside it with `{@html}`, and render nothing there in the browser:
+
+```svelte
+<!-- src/lib/Card.svelte -->
+<script lang="ts">
+  import { browser } from '$app/environment';
+  import { renderCard } from '$lib/x-card/render';
+
+  let { title, onselect }: { title: string; onselect: () => void } = $props();
+  let card: HTMLElement;
+</script>
+
+<x-card {title} bind:this={card} {onselect}>
+  {@html browser ? '' : renderCard({ title })}
+  <p>The card's own content, from Svelte.</p>
+</x-card>
+```
+
+- **The host stays Svelte markup.** Its attributes, event handlers and `bind:this` are Svelte's, the same as on any element.
+- **The server output goes inside `{@html}`.** On the server, `renderCard()` returns the declarative shadow template. The browser's parser turns it into the host's shadow root, so nothing of it is left in the light DOM. Keep the output to that template alone: a node it leaves in the light DOM is one Svelte does not expect, and the island fails hydration.
+- **In the browser the `{@html}` is empty.** When the island hydrates, Svelte finds nothing to compare there. `browser` is a build-time constant, so the browser build drops the `renderCard()` call, and the renderer with it when its module has no side effects.
+- **The light DOM is Svelte's.** The `<p>` above is slotted into the shadow root like any other child, and it stays reactive.
+
+This works in a page's markup, inside an island (`wake: 'load'`, `'visible'` and the rest), inside a lake and in a hole's answer. It also works after a navigation with the [SPA router](/docs/app/spa-router): the next page is parsed the same way the first one was, so its hosts get their shadow roots too.
+
+When the component's definition loads, it finds its server shadow root already there and adopts it instead of rendering again. How it does that is up to the library; see the caveats below.
+
+## When it works
+
+The pattern fits a component when both of these are true:
+
+- **It renders into a shadow root.** Its server output is a declarative shadow template and nothing else.
+- **Its light DOM is Svelte's, or empty.** The children of the host are what you wrote in Svelte, and the component only shows them through `<slot>`s. It does not add, move or remove children of its own.
+
+Most design-system components built on shadow DOM (buttons, cards, badges, icons, dialogs) fit.
+
+## When to use `rewrite()` instead
+
+Use a [server transform](/docs/app/server-transforms) with `rewrite()` for a component that does any of these:
+
+- **It renders into its light DOM.** A "scoped" component, or one with no shadow root, writes its markup next to your children. The server output leaves nodes in the light DOM that the browser would not render, and Svelte's hydration trips on them.
+- **Its server render reads its children.** A carousel that counts its slides, or a list that sorts its items, needs to see the children while it renders. Inside `{@html}`, the renderer runs before the children exist, so it sees none.
+- **It changes its light DOM when it upgrades.** A component that adds a backdrop, wraps its children or reorders them changes nodes that Svelte's hydration reads. See [Who owns the DOM](/docs/regions/dom-ownership#conflicts).
+
+`rewrite()` runs after Svelte renders, sees each element whole, and puts back what hydration needs in the browser before anything hydrates. You can use both on one site: the `{@html}` pattern for the components that fit, `rewrite()` for the rest.
+
+## Caveats
+
+### Svelte owns `class`
+
+Svelte writes the whole `class` attribute of a custom element when the island hydrates, and again on every change. A class the component added to its own host is removed. Many libraries add one when they upgrade (`hydrated`, a mode or a state class) and use it in their CSS, for example to hide a host until it is ready.
+
+Add those classes to your own `class` list, so Svelte writes them too:
+
+```svelte
+<x-card class={['card', active && 'active', 'hydrated']}>
+  {@html browser ? '' : renderCard({ title })}
+</x-card>
+```
+
+A class that depends on the component's props has to be computed the same way on the server and in the browser, without the renderer.
+
+### Some libraries need a host id
+
+Some libraries adopt a server shadow root only when the host carries an id their server render wrote (an attribute such as `data-render-id`, with matching ids inside the template). Without it the component renders again over the server root, and its content shows twice. If your library's server output puts an attribute on the host, write it on the host in Svelte, from the same inputs:
+
+```svelte
+<x-card data-render-id={id}>
+  {@html browser ? '' : renderCard({ title }, { id })}
+</x-card>
+```
+
+### Load definitions deferred
+
+Load the component definitions with a module script or a deferred script, never with a blocking `<script>` in `<head>`. A definition that runs before the body is parsed upgrades each host as soon as its start tag is read, before the declarative template after it. The component attaches its own shadow root, and the server one is dropped.
+
+### Every copy carries its CSS
+
+A declarative shadow root holds its own `<style>`. Each instance of a component carries the component's whole stylesheet, so a page with fifty buttons sends the button CSS fifty times. Compression helps, but the page still parses every copy. For components with many instances per page, a light-DOM render with one shared stylesheet, through `rewrite()`, can be the smaller page.
+
+### A host kept across a navigation keeps its shadow root
+
+When the SPA router keeps an element across a navigation (the same tag in the same place on both pages), a web component's host is the component's: ogygia keeps its live shadow root and its attributes, and does not apply the next page's server shadow root. Give the host a different `id` or `data-key` on each page when it should take the new page's render instead.
+
+## Known gaps in Svelte
+
+The pattern relies on how Svelte hydrates `{@html}` and custom elements. The gaps that keep it from fitting every component (an `{@html}` whose server content left light-DOM nodes, declarative shadow roots created in the browser, and `class` on custom elements) are tracked in [sveltejs/svelte#19264](https://github.com/sveltejs/svelte/issues/19264).

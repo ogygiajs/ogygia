@@ -67,4 +67,13 @@ describe('runtime hooks', () => {
 			expect(hydrated, other).not.toMatch(named(other));
 		expect(none.length).toBeLessThan(hydrated.length);
 	}, 60_000);
+
+	it('reloadNeeded folds out unless a plugin subscribes, and brings its region lookup with it', async () => {
+		const none = await build([]);
+		const subscribed = await build(['reloadNeeded' as RuntimeHookName]);
+		expect(none).not.toMatch(/\breloadNeeded\b/);
+		expect(subscribed).toMatch(/\breloadNeeded\b/);
+		expect(subscribed).toContain('og-retry');
+		expect(none.length).toBeLessThan(subscribed.length);
+	}, 60_000);
 });
