@@ -34,6 +34,7 @@ export type MachineErrors = {
 	machine_flight_raise_failed: Entry<{ name: string }>;
 	machine_queue_start_failed: Entry<{ name: string }>;
 	machine_queue_stale_failed: Entry<{ name: string }>;
+	machine_queue_yield_failed: Entry<{ name: string }>;
 };
 
 /** The errors: thrown in dev (and tests), where a wrong move is a bug to fix now. */
@@ -187,6 +188,14 @@ Catch inside \`start\` to handle it there.`
 			`A \`queue()\` told a waiting job it was stale (its deadline came, it was cancelled, or the owner closed) through its \`stale\` option, and it threw. The job is the one at fault, so the queue goes on: the error goes to the page's error handler (\`reportError\`: the console and \`window.onerror\`), and the other waiting jobs still go stale or start, so none waits forever.
 
 Catch inside \`stale\` to handle it there.`
+	},
+	machine_queue_yield_failed: {
+		text: (a: { name: string }): string =>
+			`queue ${a.name}: its budget's \`yield\` threw as the drain handed the thread back.`,
+		details: (): string =>
+			`A \`queue()\` with a \`budget\` had started jobs for its \`ms\` and called the budget's \`yield\` to hand the thread back, and it threw. A drain that waits for a \`resume\` that never comes would leave every waiting job waiting forever, so the queue goes on at once instead: the error goes to the page's error handler (\`reportError\`: the console and \`window.onerror\`), and the drain resumes in this step, without the yield.
+
+Make \`yield\` call \`resume\` from a later task, and catch inside it what can fail.`
 	}
 };
 

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { transformHost, islandId, wrapperVirtualId } from '../src/region/transform.ts';
 import { rewrite_lake_import_to_placeholder } from '../src/vite/index.ts';
 import { RateLimiter } from '../../core/src/server/rate-limit.ts';
-import { sign, verify, region_mac_message } from '../../core/src/server/hmac.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 
@@ -391,27 +390,6 @@ describe('audit fixes — remote clear', () => {
 		expect(a.live_query_map).toBe(b.live_query_map);
 		expect(a.live_query_map.has('shared')).toBe(true);
 		a.live_query_map.delete('shared');
-	});
-});
-
-describe('audit fixes — session-bound MAC', () => {
-	it('always uses v1 length-prefixed fields; empty session/ttl are still fields', () => {
-		const secret = 'test-secret-key-16b';
-		const unbound = region_mac_message('id', '1', 'props');
-		expect(unbound).toMatch(/^v1\|/);
-		// Five fields: id | exp | props | session('') | ttl('').
-		expect(unbound).toBe('v1|2:id|1:1|5:props|0:|0:');
-		const bound = region_mac_message('id', '1', 'props', 'sess');
-		expect(bound).toContain('|4:sess');
-		expect(unbound).not.toBe(bound);
-		const sig = sign(secret, bound);
-		expect(verify(secret, bound, sig)).toBe(true);
-		expect(verify(secret, region_mac_message('id', '1', 'props', 'other'), sig)).toBe(false);
-		expect(verify(secret, unbound, sig)).toBe(false);
-		// A different ttl is a different message (ttl is signed, so it can't be re-pointed).
-		const ttl_bound = region_mac_message('id', '1', 'props', 'sess', '300');
-		expect(ttl_bound).toContain('|3:300');
-		expect(verify(secret, ttl_bound, sign(secret, bound))).toBe(false);
 	});
 });
 

@@ -965,6 +965,12 @@ describe('page errors', () => {
 		expect(page_errors(tab(json), world('none'))?.oracle).toBe('page-errors');
 	});
 
+	it("a changed byte in a held region query's answer may be said as devalue's unknown type (gen 10, seed 31)", () => {
+		const tag = ['unhandled: Error: Unknown type �egion'];
+		expect(page_errors(tab(tag), world('https://app.test/_app/x.js'))).toBeNull();
+		expect(page_errors(tab(tag), world('none'))?.oracle).toBe('page-errors');
+	});
+
 	// (a server's hop for the document: a peer's page it was made from; gen 32, seed 32008)
 	const hop = (change: 'tampered' | 'cut') =>
 		({

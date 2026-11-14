@@ -58,23 +58,56 @@ describe('background_start', () => {
 		expect(postTask).toHaveBeenCalledTimes(1);
 	});
 
-	it('a start that throws: the ones after it still run, in a task of their own', () => {
+	it('a start that throws is reported (machine_queue_start_failed), and the ones after it still run in the same task', () => {
 		const postTask = vi.fn();
 		g.scheduler = { postTask };
-		const after = vi.fn();
-		background_start(() => {
-			throw new Error('a start failed');
-		});
-		background_start(after);
-		expect(() => postTask.mock.calls[0][0]()).toThrow('a start failed');
-		expect(after).not.toHaveBeenCalled();
+		const said = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const page = globalThis as { reportError?: (e: unknown) => void };
+		const own = page.reportError;
+		const reported: unknown[] = [];
+		page.reportError = (e) => void reported.push(e);
+		try {
+			const after = vi.fn();
+			background_start(() => {
+				throw new Error('a start failed');
+			});
+			background_start(after);
+			expect(() => postTask.mock.calls[0][0]()).not.toThrow();
+			expect(after).toHaveBeenCalledTimes(1);
+			expect(postTask).toHaveBeenCalledTimes(1);
+			expect(String(said.mock.calls[0]?.[0])).toContain('machine_queue_start_failed');
+			expect(String(reported[0])).toContain('a start failed');
+			// drained: the next start posts a new task
+			background_start(after);
+			expect(postTask).toHaveBeenCalledTimes(2);
+			postTask.mock.calls[1][0]();
+		} finally {
+			page.reportError = own;
+			said.mockRestore();
+		}
+	});
+
+	it('a drain past its budget hands the thread back in another background task', () => {
+		const postTask = vi.fn();
+		g.scheduler = { postTask };
+		const ran: number[] = [];
+		const busy = (ms: number) => {
+			const until = performance.now() + ms;
+			while (performance.now() < until) {
+				/* a start that takes a while */
+			}
+		};
+		for (let i = 0; i < 4; i++)
+			background_start(() => {
+				ran.push(i);
+				busy(20);
+			});
+		postTask.mock.calls[0][0]();
+		expect(ran).toEqual([0, 1]);
 		expect(postTask).toHaveBeenCalledTimes(2);
+		expect(postTask.mock.calls[1][1]).toEqual({ priority: 'background' });
 		postTask.mock.calls[1][0]();
-		expect(after).toHaveBeenCalledTimes(1);
-		// drained: the next start posts a new task
-		background_start(after);
-		expect(postTask).toHaveBeenCalledTimes(3);
-		postTask.mock.calls[2][0]();
+		expect(ran).toEqual([0, 1, 2, 3]);
 	});
 
 	it('falls back to a macrotask when scheduler.postTask is absent — async, not sync', () => {
