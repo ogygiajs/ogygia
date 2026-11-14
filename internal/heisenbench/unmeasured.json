@@ -6259,6 +6259,10 @@
 		{
 			"id": "packages/core/src/frame.ts > frameAddress > sort:0~fd3bf5",
 			"reason": "the sort comparator of a call's parameters (a closure Array.sort calls, not replayable on its own), constant work per pair; frameAddress around it is proven in packages/core/test/frame-address.test.ts (#916)"
+		},
+		{
+			"id": "packages/core/src/runtime/reconcile.ts > swap_reason",
+			"reason": "once per client navigation: three flag tests and the opt-out lookup the commit already made, on live DOM bodies (not replayable); test/browser/nav-fallback-reason.test.ts runs it"
 		}
 	]
 }
