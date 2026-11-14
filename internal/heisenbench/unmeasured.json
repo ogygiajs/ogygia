@@ -1,6 +1,14 @@
 {
 	"exempt": [
 		{
+			"id": "packages/cli/src/cli.ts > installDeps > find:0~5e8663",
+			"reason": "the CLI's one-shot lockfile probe: a file check per known lockfile, run once per install"
+		},
+		{
+			"id": "packages/cli/src/cli.ts > preflight > find:0~8f7cb4",
+			"reason": "the CLI's one-shot vite config probe: a file check per name, run once per command"
+		},
+		{
 			"id": "packages/core/src/server/html-scan.ts > kit_boot_script > is_kit_boot_script:1~dc8962",
 			"reason": "one attribute lookup on a tag the walk already read, constant work; kit-gate.test.ts runs it"
 		},
