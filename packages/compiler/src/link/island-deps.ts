@@ -141,11 +141,9 @@ export function collectIslandDepModulepreloads(
 		const src = read_source(clean);
 		const at_src = clean.lastIndexOf('/src/');
 		const kit = SITE_KIT_RE.test(clean);
-		const file = kit
-			? `ogygia/${clean.slice(clean.lastIndexOf('/content/') + 1)}`
-			: at_src !== -1
-				? clean.slice(at_src + 1)
-				: clean.split('/').slice(-2).join('/');
+		let file = clean.split('/').slice(-2).join('/');
+		if (kit) file = `ogygia/${clean.slice(clean.lastIndexOf('/content/') + 1)}`;
+		else if (at_src !== -1) file = clean.slice(at_src + 1);
 		const out =
 			src === null
 				? []
@@ -237,14 +235,11 @@ export function collectIslandDepModulepreloads(
 		return deps;
 	};
 
-	const identity_of = (fileName: string): string | null =>
-		entries
-			? (entries.islands.get(fileName) ?? null)
-			: ISLAND_FACADE_RE.test(fileName)
-				? fileName.startsWith('/')
-					? fileName
-					: `/${fileName}`
-				: null;
+	const identity_of = (fileName: string): string | null => {
+		if (entries) return entries.islands.get(fileName) ?? null;
+		if (!ISLAND_FACADE_RE.test(fileName)) return null;
+		return fileName.startsWith('/') ? fileName : `/${fileName}`;
+	};
 	for (const [key, chunk] of Object.entries(bundle)) {
 		if (chunk.type !== 'chunk') continue;
 		const fileName = chunk.fileName || key;

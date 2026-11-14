@@ -83,6 +83,17 @@ type OptErr = (names: string, msg: string) => Error;
 const REGEXP_META = /[.*+?^${}()|[\]\\]/g;
 const PATH_SEP = /[/\\]/;
 const DURATION = /^(\d+(?:\.\d+)?)\s*(ms|s|m|h)?$/i;
+const MS_PER_UNIT: ReadonlyMap<string, number> = new Map([
+	['ms', 1],
+	['s', 1000],
+	['m', 60_000],
+	['h', 3_600_000]
+]);
+const SECONDS_PER_UNIT: ReadonlyMap<string, number> = new Map([
+	['s', 1],
+	['m', 60],
+	['h', 3600]
+]);
 const JS_EXT = /\.js$/;
 const VIRTUAL_HOST_RE = /^\0?(?:virtual|ogygia):/;
 
@@ -423,22 +434,16 @@ function region_keys_on_dynamic_import(node: SvelteNode, import_keys: ImportKeys
 	const found: string[] = [];
 	for (const prop of opts.properties) {
 		if (prop.type !== 'Property' || prop.computed) continue;
-		const bag_key =
-			prop.key.type === 'Identifier'
-				? prop.key.name
-				: prop.key.type === 'Literal'
-					? String(prop.key.value)
-					: null;
+		let bag_key: string | null = null;
+		if (prop.key.type === 'Identifier') bag_key = prop.key.name;
+		else if (prop.key.type === 'Literal') bag_key = String(prop.key.value);
 		if (bag_key !== 'with' && bag_key !== 'assert') continue;
 		if (prop.value.type !== 'ObjectExpression') continue;
 		for (const atr of prop.value.properties) {
 			if (atr.type !== 'Property' || atr.computed) continue;
-			const ak =
-				atr.key.type === 'Identifier'
-					? atr.key.name
-					: atr.key.type === 'Literal'
-						? String(atr.key.value)
-						: null;
+			let ak: string | null = null;
+			if (atr.key.type === 'Identifier') ak = atr.key.name;
+			else if (atr.key.type === 'Literal') ak = String(atr.key.value);
 			if (ak && claimed.has(ak) && !found.includes(ak)) found.push(ak);
 		}
 	}
@@ -499,8 +504,7 @@ function parse_max_age(raw: unknown, err: OptErr, names: string) {
 		}
 		const n = Number(m[1]);
 		const unit = (m[2] || 'ms').toLowerCase();
-		const mult = unit === 'ms' ? 1 : unit === 's' ? 1000 : unit === 'm' ? 60_000 : 3_600_000;
-		return Math.floor(n * mult);
+		return Math.floor(n * MS_PER_UNIT.get(unit)!);
 	}
 	throw err(names, `\`remount.maxAge\` must be a number (ms) or duration string.`);
 }
@@ -523,8 +527,8 @@ function parse_cache_ttl_sec(raw: unknown, err: OptErr, names: string) {
 		}
 		const n = Number(m[1]);
 		const unit = (m[2] || 's').toLowerCase();
-		const secs = unit === 'ms' ? n / 1000 : unit === 's' ? n : unit === 'm' ? n * 60 : n * 3600;
-		return Math.floor(secs);
+		if (unit === 'ms') return Math.floor(n / 1000);
+		return Math.floor(n * SECONDS_PER_UNIT.get(unit)!);
 	}
 	throw err(names, `\`maxAge\` must be a number of seconds or a duration string.`);
 }
@@ -672,7 +676,8 @@ function assert_swr_lake_crossable(node: SvelteNode, err: (name: string, msg: st
 			);
 		}
 		const val = attr.value;
-		const chunk_list = Array.isArray(val) ? val : val != null && val !== true ? [val] : [];
+		let chunk_list = val;
+		if (!Array.isArray(val)) chunk_list = val != null && val !== true ? [val] : [];
 		for (const chunk of chunk_list) {
 			const t = chunk?.expression?.type;
 			if (t === 'ArrowFunctionExpression' || t === 'FunctionExpression') {
@@ -2067,13 +2072,17 @@ class TsRegionCompilation {
 					held: true
 				});
 			}
-			const marker = has_render
-				? { render: attrs.get(renderKey), wake: attrs.get(wakeKey), fetch: attrs.get(fetchKey) }
-				: has_region
-					? { region: attrs.get(regionKey) }
-					: has_fetch
-						? { fetch: attrs.get(fetchKey) }
-						: { wake: attrs.get(wakeKey) };
+			let marker: { region?: string; wake?: string; render?: string; fetch?: string } = {
+				wake: attrs.get(wakeKey)
+			};
+			if (has_render)
+				marker = {
+					render: attrs.get(renderKey),
+					wake: attrs.get(wakeKey),
+					fetch: attrs.get(fetchKey)
+				};
+			else if (has_region) marker = { region: attrs.get(regionKey) };
+			else if (has_fetch) marker = { fetch: attrs.get(fetchKey) };
 			const lines: string[] = [];
 			for (const b of bindings) {
 				const { iid, record, importFrom } = this.#emit_ts_region(

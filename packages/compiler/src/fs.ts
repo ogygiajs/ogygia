@@ -23,8 +23,11 @@ export interface Fs {
 	stat(abs: string): 'file' | 'dir' | null;
 }
 
-const kind_of = (e: fs.Dirent): FsEntry['kind'] =>
-	e.isFile() ? 'file' : e.isDirectory() ? 'dir' : e.isSymbolicLink() ? 'link' : 'other';
+const kind_of = (e: fs.Dirent): FsEntry['kind'] => {
+	if (e.isFile()) return 'file';
+	if (e.isDirectory()) return 'dir';
+	return e.isSymbolicLink() ? 'link' : 'other';
+};
 
 /** The disk. */
 export const node_fs: Fs = {
@@ -47,7 +50,8 @@ export const node_fs: Fs = {
 	stat(abs) {
 		try {
 			const st = fs.statSync(abs);
-			return st.isFile() ? 'file' : st.isDirectory() ? 'dir' : null;
+			if (st.isFile()) return 'file';
+			return st.isDirectory() ? 'dir' : null;
 		} catch {
 			return null; // ok: nothing there, the contract above
 		}
@@ -87,12 +91,16 @@ export function memory_fs(initial: Record<string, string> = {}): MemoryFs {
 				else out.set(rest.slice(0, cut), 'dir');
 			}
 			return [...out]
-				.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+				.sort(([a], [b]) => {
+					if (a < b) return -1;
+					return a > b ? 1 : 0;
+				})
 				.map(([name, kind]) => ({ name, kind }));
 		},
 		stat(abs) {
 			const p = norm(abs);
-			return files.has(p) ? 'file' : is_dir(p) ? 'dir' : null;
+			if (files.has(p)) return 'file';
+			return is_dir(p) ? 'dir' : null;
 		},
 		set(abs, text) {
 			if (text === null) files.delete(norm(abs));

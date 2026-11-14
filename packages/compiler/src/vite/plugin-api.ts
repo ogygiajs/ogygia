@@ -470,14 +470,11 @@ export function client_hook_names(plugin: string, file: string): RuntimeHookName
 	);
 	if (value?.type === 'CallExpression') value = unwrap(value.arguments?.[0]);
 	if (value?.type !== 'ObjectExpression') throw unread();
-	const key_of = (p: AstNode): string | null =>
-		p.type !== 'Property' || p.computed
-			? null
-			: p.key.type === 'Identifier'
-				? p.key.name
-				: p.key.type === 'Literal' && typeof p.key.value === 'string'
-					? p.key.value
-					: null;
+	const key_of = (p: AstNode): string | null => {
+		if (p.type !== 'Property' || p.computed) return null;
+		if (p.key.type === 'Identifier') return p.key.name;
+		return p.key.type === 'Literal' && typeof p.key.value === 'string' ? p.key.value : null;
+	};
 	const props = value.properties as AstNode[];
 	if (props.some((p) => key_of(p) === null)) throw unread();
 	const hooks = unwrap(props.find((p) => key_of(p) === 'hooks')?.value);

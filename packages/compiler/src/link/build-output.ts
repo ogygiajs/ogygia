@@ -52,7 +52,8 @@ export function refuse_client_secrets(
 			moduleIds?: string[];
 		};
 		const file = o.fileName ?? key;
-		const text = o.type === 'chunk' ? o.code : typeof o.source === 'string' ? o.source : '';
+		let text: string | undefined = typeof o.source === 'string' ? o.source : '';
+		if (o.type === 'chunk') text = o.code;
 		const read = text ? unescaped(text) : '';
 		if (text && sought.some((s) => text.includes(s) || read.includes(s)))
 			throw new OgygiaError('secret_in_client_chunk', { file, what: 'a signing secret' });

@@ -264,14 +264,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				let css = compiled_css.get(e.abs);
 				if (css === undefined) {
 					const src = readFile(e.abs);
-					css =
-						src == null
-							? null
-							: e.kind === 'scoped'
-								? await scoped_component_css(e.abs, src, preprocess_css)
-								: CSS_EXT_RE.test(e.abs)
-									? src
-									: null;
+					css = null;
+					if (src != null && e.kind === 'scoped')
+						css = await scoped_component_css(e.abs, src, preprocess_css);
+					else if (src != null && CSS_EXT_RE.test(e.abs)) css = src;
 					compiled_css.set(e.abs, css);
 				}
 				if (css) parts.push(css);
@@ -585,12 +581,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					fs.rmSync(keep_client_dir(kit.dirs.routes_dir), { recursive: true, force: true });
 
 				if (!process.env.OGYGIA_SECRET?.trim()) {
-					const env_dir =
-						config.envDir === false
-							? false
-							: config.envDir
-								? path.resolve(root, config.envDir)
-								: root;
+					let env_dir: string | false = root;
+					if (config.envDir === false) env_dir = false;
+					else if (config.envDir) env_dir = path.resolve(root, config.envDir);
 					if (env_dir !== false) {
 						const from_file = loadEnv(config.mode, env_dir, '').OGYGIA_SECRET?.trim();
 						if (from_file) process.env.OGYGIA_SECRET = from_file;
@@ -666,11 +659,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					const opt = ((config as { optimizeDeps?: object }).optimizeDeps ??= {}) as {
 						entries?: string | string[];
 					};
-					const entries = Array.isArray(opt.entries)
-						? opt.entries
-						: opt.entries
-							? [opt.entries]
-							: [];
+					let entries: string[] = [];
+					if (Array.isArray(opt.entries)) entries = opt.entries;
+					else if (opt.entries) entries = [opt.entries];
 					opt.entries = entries;
 					const have = new Set(entries);
 					for (const abs of compiler.island_scan_entries()) {

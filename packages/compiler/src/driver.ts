@@ -35,7 +35,7 @@ import {
 	APP_SHIM_IMPORT,
 	FOREIGN_HYDRATE_MARK
 } from './region/emit.ts';
-import { by_key, location_map_files } from './link/location-map.ts';
+import { by_code_unit, by_key, location_map_files } from './link/location-map.ts';
 import { context_keys } from './link/context-detect.ts';
 import { own_reach, reaches_context, reaches_wire } from './link/own-reach.ts';
 import { router_css_roots } from './link/router-css.ts';
@@ -304,7 +304,8 @@ export class Compiler implements CoreApp {
 	end_leg(env: string | null): void {
 		const legs = this.#build.legs;
 		const open = [...legs.values()].filter((l) => l.life.now.kind === 'open');
-		const leg = env !== null ? legs.get(env) : open.length === 1 ? open[0] : undefined;
+		let leg = env !== null ? legs.get(env) : undefined;
+		if (env === null && open.length === 1) leg = open[0];
 		if (leg?.life.now.kind === 'open') leg.life.go('closed');
 	}
 
@@ -493,12 +494,16 @@ export class Compiler implements CoreApp {
 				: ssr ||
 					!routeCsrIsFalse(ctx.routes, id, routesDir) ||
 					(is_layout_host && hasAnyCsrTrueRoute(ctx.routes, routesDir));
-		const route_csr = routeCsrIsTrue(ctx.routes, id, routesDir)
-			? true
-			: routeCsrIsFalse(ctx.routes, id, routesDir)
-				? false
-				: undefined;
-		const key = `${link_virtual ? '1' : '0'}\0${route_csr === true ? 't' : route_csr === false ? 'f' : 'n'}`;
+		let route_csr: boolean | undefined;
+		let csr_key = 'n';
+		if (routeCsrIsTrue(ctx.routes, id, routesDir)) {
+			route_csr = true;
+			csr_key = 't';
+		} else if (routeCsrIsFalse(ctx.routes, id, routesDir)) {
+			route_csr = false;
+			csr_key = 'f';
+		}
+		const key = `${link_virtual ? '1' : '0'}\0${csr_key}`;
 		return { link_virtual, route_csr, key };
 	}
 
@@ -1000,7 +1005,7 @@ export class Compiler implements CoreApp {
 			if (this.program.region_kinds.get(iid) === 'hydrate') continue;
 			out.push({ iid, abs: host_key(entry.componentPath) });
 		}
-		return out.sort((a, b) => (a.iid < b.iid ? -1 : a.iid > b.iid ? 1 : 0));
+		return out.sort((a, b) => by_code_unit(a.iid, b.iid));
 	}
 
 	/** The public URL key a server island's CSS is handed off under (matches `island_url[id]`). */
