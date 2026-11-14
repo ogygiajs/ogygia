@@ -331,6 +331,20 @@ test('a lake with no entry, created empty on a csr=true page, warns with no entr
 	expect(text.console).toEqual(['[ogygia] https://ogygiajs.dev/e/lake_mounted_without_html']);
 });
 
+test('a baked live value that turns into an unbaked live one hands each value to one element only', async () => {
+	const [a, b] = await elements_over(
+		{ of: deferred({ html: '<b>one</b>' }), __baked: true },
+		{ of: deferred({ html: '<b>two</b>' }) },
+		{ of: deferred({ html: '<b>three</b>' }) }
+	);
+	expect(b).not.toBe(a);
+	expect(lived.map((v) => (v as { html: string }).html)).toEqual([
+		'<b>one</b>',
+		'<b>two</b>',
+		'<b>three</b>'
+	]);
+});
+
 test('a held live value hands each new value to its element, which stays', async () => {
 	const [a, b] = await elements_over(
 		{ of: deferred({ html: '<b>one</b>' }) },
