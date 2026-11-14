@@ -761,6 +761,7 @@ export function islands_wake(tab: Tab, world: World): Broken | null {
 	const url = tab.page.mainFrame.url;
 	if (!url.startsWith('http') || world.skewed_for(tab.realm)) return null;
 	if (faulted(world, tab) && !outage_only(world, tab)) return null;
+	if (!world.network.online(tab.name)) return null;
 	// (its document's files still coming is work in flight, not an island asleep: a stalled runtime
 	// chunk outlasted the action's quiesce; seed 97, test/hidden-tab.node.test.ts)
 	if (world.network.busy_for(tab.realm)) return null;
