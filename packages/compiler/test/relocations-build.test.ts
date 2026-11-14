@@ -29,7 +29,13 @@ function write(rel: string, text: string): void {
 function app(): void {
 	root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'og-relocations-build-')));
 	write('package.json', JSON.stringify({ name: 'app', type: 'module' }));
-	write('src/entry.ts', "import 'ogygia:boot/hydrate-features';\nexport const entry = 1;\n");
+	write(
+		'src/entry.ts',
+		`${dedent`
+			import 'ogygia:boot/hydrate-features';
+			export const entry = 1;
+		`}\n`
+	);
 	write('src/routes/+layout.ts', 'export const csr = false;\n');
 	write(
 		'src/routes/+page.svelte',
@@ -41,7 +47,13 @@ function app(): void {
 		`}\n`
 	);
 	write('src/lib/W.svelte', '<p>w</p>\n');
-	write('src/lib/ctx.ts', "import { setContext } from 'ogygia';\nexport const set = setContext;\n");
+	write(
+		'src/lib/ctx.ts',
+		`${dedent`
+			import { setContext } from 'ogygia';
+			export const set = setContext;
+		`}\n`
+	);
 	const svelte_dir = path.dirname(createRequire(import.meta.url).resolve('svelte/package.json'));
 	fs.mkdirSync(path.join(root, 'node_modules'), { recursive: true });
 	fs.symlinkSync(svelte_dir, path.join(root, 'node_modules', 'svelte'), 'dir');
