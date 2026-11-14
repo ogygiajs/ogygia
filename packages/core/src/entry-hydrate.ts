@@ -13,8 +13,10 @@
  * The component itself is hydrated, as the local runtime does (runtime/hydrate-core.ts), marked
  * "inside an island" through its context: the SSR children are its nodes in one anchor pair (the
  * placed island's dynamic-component pair). `options.recover === false`: the consumer's self-heal
- * asks THIS svelte to throw on a mismatch instead of re-rendering; the envelope is re-checked per
- * call because a restore from the server markup drops it.
+ * asks THIS svelte to throw on a mismatch instead of re-rendering; `options.context` is the
+ * cross-island context the consuming page provides the region (its keys are strings or
+ * `Symbol.for` names, the same in both builds). The envelope is re-checked per call because a
+ * restore from the server markup drops it.
  */
 import { hydrate, unmount, type Component } from 'svelte';
 import { nested_context } from './nested.ts';
@@ -23,7 +25,7 @@ export function og_entry_hydrate(
 	component: Component<Record<string, unknown>>,
 	target: Element,
 	props: Record<string, unknown>,
-	options?: { recover?: boolean }
+	options?: { recover?: boolean; context?: Map<string | symbol, unknown> }
 ): unknown {
 	const first = target.firstChild;
 	if (!(first && first.nodeType === 8 && (first as Comment).data === '[')) {
@@ -34,7 +36,7 @@ export function og_entry_hydrate(
 	return hydrate(component, {
 		target,
 		props,
-		context: nested_context(null, target),
+		context: nested_context(options?.context, target),
 		...recovery
 	});
 }
