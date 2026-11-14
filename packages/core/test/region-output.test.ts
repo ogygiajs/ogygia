@@ -504,6 +504,26 @@ test("an island with a live snippet writes no graph when neither has chunks and 
 	expect(head).not.toContain('data-ogygia-graph');
 });
 
+test("an island whose live snippet's module is served from the island's own file still says where that module is", () => {
+	vi.spyOn(console, 'warn').mockImplementation(() => {});
+	deps.set_island_deps({});
+	deps.set_entry_locations({ [LIVE_ENTRY]: ISLAND.__entry });
+	let html: string;
+	try {
+		html = out([{ ...ISLAND, __props: { s: live() } }]);
+	} finally {
+		deps.set_island_deps(
+			Object.fromEntries(ENTRIES.map((e) => [e, [`${e}~dep-a.js`, `${e}~dep-b.js`]]))
+		);
+		deps.set_entry_locations(Object.fromEntries(ENTRIES.map((e) => [e, `${e}.hashed.js`])));
+		vi.restoreAllMocks();
+	}
+	const head = html.split('<!-- body -->')[0]!;
+	const graph = /<script type="application\/json" data-ogygia-graph>([^<]*)<\/script>/.exec(head);
+	expect(graph, head).not.toBeNull();
+	expect(JSON.parse(graph![1]!)).toMatchObject({ s: { [LIVE_ENTRY]: ISLAND.__entry } });
+});
+
 test("in Kit's page pass, an island with no chunks puts no graph in the tail and no hints in its row", () => {
 	vi.spyOn(console, 'warn').mockImplementation(() => {});
 	deps.set_island_deps({});
