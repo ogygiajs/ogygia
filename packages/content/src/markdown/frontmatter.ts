@@ -501,15 +501,8 @@ function parse_mapping(ctx: Ctx, indent: number): Record<string, unknown> {
 		ctx.i++;
 		const clean = strip_comment(value_part).trim();
 
-		set_key(
-			obj,
-			key,
-			is_block_scalar_indicator(clean)
-				? parse_block_scalar(ctx, indent, clean)
-				: clean === ''
-					? parse_child(ctx, indent)
-					: parse_scalar(clean)
-		);
+		if (is_block_scalar_indicator(clean)) set_key(obj, key, parse_block_scalar(ctx, indent, clean));
+		else set_key(obj, key, clean === '' ? parse_child(ctx, indent) : parse_scalar(clean));
 	}
 	return obj;
 }

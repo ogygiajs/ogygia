@@ -356,11 +356,9 @@ export function ogygiaPreprocess(options?: MarkdownOptions): PreprocessorGroup {
 	} = options ?? (bridge.markdownConfig as MarkdownOptions | null) ?? {};
 
 	// Element overrides: which tags get wrapped in the ogygia slot (values live in `site()`).
-	const override_tags = overrides
-		? overrides === true
-			? [...DEFAULT_OVERRIDE_TAGS]
-			: (overrides.tags ?? [...DEFAULT_OVERRIDE_TAGS])
-		: [];
+	let override_tags: string[] = [];
+	if (overrides === true) override_tags = [...DEFAULT_OVERRIDE_TAGS];
+	else if (overrides) override_tags = overrides.tags ?? [...DEFAULT_OVERRIDE_TAGS];
 
 	// The fence pipeline's transformers ride the shiki config (applied at codeToHtml).
 	const cfg = configure_shiki({

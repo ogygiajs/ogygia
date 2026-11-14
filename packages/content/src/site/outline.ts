@@ -431,11 +431,7 @@ async function materialize(
 			slug_of.get(col_index)!.set(entry.id, slug);
 			order.push(slug);
 			const declared = read_redirects(entry);
-			for (const old of typeof declared === 'string'
-				? [declared]
-				: Array.isArray(declared)
-					? declared
-					: []) {
+			for (const old of Array.isArray(declared) ? declared : [declared]) {
 				if (typeof old === 'string' && old)
 					alias_claims.push({ alias: join_slug(ctx.base, normalize_slug(old)), canonical: slug });
 			}

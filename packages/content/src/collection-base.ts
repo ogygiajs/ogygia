@@ -194,8 +194,8 @@ export class Collection<
 		}
 		this.#opts = opts;
 		this.#source = opts.loader;
-		this.#schema =
-			opts.schema == null ? [] : Array.isArray(opts.schema) ? opts.schema : [opts.schema];
+		if (opts.schema == null) this.#schema = [];
+		else this.#schema = Array.isArray(opts.schema) ? opts.schema : [opts.schema];
 		this.#visible = opts.filter ?? (() => true);
 		// Dev: the run of the module whose content() call builds it (core marks each call: `content` is
 		// this plugin's definer). The module's next run ends it, and the collection with it: the new
