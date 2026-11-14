@@ -4872,6 +4872,18 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the timer's callback made to do nothing turns the test red",
 			"test": "packages/cli/test/serve.test.ts",
 			"name": "a server that ignores SIGTERM is killed after the grace time"
+		},
+		{
+			"site": "packages/testing/src/index.ts > Ogygia > wait > timer:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the timer's callback made to do nothing turns the test red",
+			"test": "packages/testing/test/driver-engine.test.ts",
+			"name": "addInitScript gets the engine script once, as the Ogygia is made, before any evaluate"
+		},
+		{
+			"site": "packages/testing/src/index.ts > Ogygia > call > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/testing/test/driver-engine.test.ts",
+			"name": "addInitScript gets the engine script once, as the Ogygia is made, before any evaluate"
 		}
 	],
 	"impossible": [
@@ -5819,8 +5831,6 @@
 		"packages/testing/src/index.ts > Ogygia > record > .catch:2",
 		"packages/testing/src/index.ts > Ogygia > profile > throw:0",
 		"packages/testing/src/index.ts > Ogygia > profile > parse:0",
-		"packages/testing/src/index.ts > Ogygia > wait > timer:0",
-		"packages/testing/src/index.ts > Ogygia > call > throw:0",
 		"packages/testing/src/index.ts > Ogygia > call > .catch:0",
 		"packages/testing/src/index.ts > Ogygia > post > fetch:0",
 		"packages/testing/src/index.ts > playwrightDriver > blockNavigation > .catch:0",
