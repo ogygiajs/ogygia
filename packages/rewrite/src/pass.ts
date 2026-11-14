@@ -241,9 +241,10 @@ export async function call_render(
 	return out.map((r: unknown) => {
 		const html = typeof r === 'string' ? r : (r as { html?: unknown } | null)?.html;
 		if (typeof html !== 'string') return r;
-		let bad = html;
-		if (buggify.fires('rewrite.render-malformed')) bad = `${bad}<div>`;
-		if (buggify.fires('rewrite.render-strips-marks')) bad = bad.replaceAll(' og-h=', ' data-gone=');
+		const malformed = buggify.fires('rewrite.render-malformed') ? `${html}<div>` : html;
+		const bad = buggify.fires('rewrite.render-strips-marks')
+			? malformed.replaceAll(' og-h=', ' data-gone=')
+			: malformed;
 		if (bad === html) return r;
 		return typeof r === 'string' ? bad : { ...(r as object), html: bad };
 	});
@@ -528,9 +529,9 @@ async function rewrite_chunk(
 		const span = scanned.spans[i];
 		const s = settle_unit(units[i], res, all, span);
 		out.push(html.slice(pos, span.start));
-		const slot = out.push('') - 1;
-		if (meta_at === -1 && s.first_load) meta_at = slot;
+		const slot = out.push('', '') - 2;
 		if (style_at === -1 && s.stand_ins) style_at = slot;
+		if (meta_at === -1 && s.first_load) meta_at = slot + 1;
 		if (units[i].changed) out.push(sheets_for(units[i], res, head));
 		out.push(s.html);
 		pos = span.end;
@@ -550,7 +551,7 @@ async function rewrite_chunk(
 	if (first_load && !res.first_load) {
 		res.first_load = true;
 		if (res.head_open) head.push(FIRST_LOAD);
-		else out[meta_at] = `${out[meta_at]}${FIRST_LOAD}`;
+		else out[meta_at] = FIRST_LOAD;
 	}
 	const script =
 		restored || stand_ins ? (check ? check_script(check) : '') + restore_script(res, full) : '';
@@ -654,12 +655,10 @@ export function rewrite_pass(
 				const b = html.slice(mid);
 				const second = (await rewrite_chunk(b, res, page)) ?? { html: b, head: '', body: '' };
 				if (page.head) res.head_open = false;
-				if (page.done && res.waiting) {
-					second.html = `${second.html}${res.waiting}`;
-					res.waiting = '';
-				}
+				const waiting = page.done ? res.waiting : '';
+				if (waiting) res.waiting = '';
 				return {
-					html: `${first.html}${second.html}`,
+					html: `${first.html}${second.html}${waiting}`,
 					head: `${first.head}${second.head}`,
 					body: second.body
 				};
@@ -670,11 +669,10 @@ export function rewrite_pass(
 				body: ''
 			};
 			if (page.head) res.head_open = false;
-			if (page.done && res.waiting) {
-				out.html = `${out.html}${res.waiting}`;
-				res.waiting = '';
-			}
-			return out;
+			const waiting = page.done ? res.waiting : '';
+			if (!waiting) return out;
+			res.waiting = '';
+			return { ...out, html: `${out.html}${waiting}` };
 		},
 		async region(html) {
 			return (await rewrite_whole(html, res, 'region', false, true)).html;

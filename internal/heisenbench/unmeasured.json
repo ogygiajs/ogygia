@@ -2429,7 +2429,7 @@
 			"reason": "a message table entry: wording only (a rule broken; rewrite.test.ts 'rule_rewrite_after_cancel: …' says it)"
 		},
 		{
-			"id": "packages/rewrite/src/pass.ts > call_render > map:0~ba4374",
+			"id": "packages/rewrite/src/pass.ts > call_render > map:0~2fef46",
 			"reason": "rules builds only (buggify): each result of a render checked once for the malformed and strips-marks points, constant work per result (the render's own output: not replayable); folds out of production"
 		},
 		{
