@@ -646,7 +646,7 @@ function main(): void {
 				encoding: 'utf8',
 				stdio: ['ignore', 'pipe', 'ignore']
 			});
-			base = new Set((JSON.parse(text) as FailureLedger).baseline);
+			base = base_after_renames((JSON.parse(text) as FailureLedger).baseline, renames_since(rev));
 		} catch {
 			console.log(`  (the base ${rev} has no failures.json: the baseline is not compared)`);
 		}
@@ -665,6 +665,37 @@ function main(): void {
 	console.log(failures_line(ledger, a));
 	for (const f of a.failures) console.log(`  ${f}`);
 	if (a.failures.length > 0) process.exitCode = 1;
+}
+
+/** The files git sees moved from `rev` to the working tree: old path -> new path. */
+function renames_since(rev: string): Map<string, string> {
+	const out = execFileSync('git', ['diff', '--name-status', '-M', rev], {
+		cwd: ROOT,
+		encoding: 'utf8',
+		maxBuffer: 1 << 26
+	});
+	const renames = new Map<string, string>();
+	for (const line of out.split('\n')) {
+		const [status, from, to] = line.split('\t');
+		if (status?.startsWith('R') && to !== undefined) renames.set(from, to);
+	}
+	return renames;
+}
+
+/** The base's baseline ids, each one in a file that moved read under the file's new name, so a
+ *  moved file's sites are not a baseline that grew. */
+export function base_after_renames(
+	baseline: Iterable<string>,
+	renames: ReadonlyMap<string, string>
+): Set<string> {
+	const out = new Set<string>();
+	for (const id of baseline) {
+		const at = id.indexOf(' > ');
+		const file = at === -1 ? id : id.slice(0, at);
+		const to = renames.get(file);
+		out.add(to === undefined ? id : to + id.slice(file.length));
+	}
+	return out;
 }
 
 /** The ledger against the repo as it is: its sites (else the inventory's), the points the
