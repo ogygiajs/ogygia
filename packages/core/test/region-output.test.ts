@@ -504,6 +504,27 @@ test("an island with a live snippet writes no graph when neither has chunks and 
 	expect(head).not.toContain('data-ogygia-graph');
 });
 
+test('a region renders the same when there is no live page to read (an isolated render)', () => {
+	vi.spyOn(console, 'warn').mockImplementation(() => {});
+	const before = out([ISLAND, HOLE]);
+	const own = Object.getOwnPropertyDescriptor(page, 'error')!;
+	Object.defineProperty(page, 'error', {
+		configurable: true,
+		get() {
+			throw new Error('no live page');
+		}
+	});
+	let after: string;
+	try {
+		after = out([ISLAND, HOLE]);
+	} finally {
+		Object.defineProperty(page, 'error', own);
+		vi.restoreAllMocks();
+	}
+	const records = (html: string) => html.split('<!-- page records -->');
+	expect(records(after)[0]).toBe(records(before)[0]);
+});
+
 test('the real hashes: what the tables show as placeholders, for a few inputs', () => {
 	vi.spyOn(console, 'warn').mockImplementation(() => {});
 	try {

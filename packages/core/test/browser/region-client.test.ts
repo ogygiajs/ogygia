@@ -250,6 +250,32 @@ test('a held deferred value with another id is a new element at its own address'
 	expect(b!.getAttribute('endpoint')).toBe('/__ogygia__?id=held-b');
 });
 
+test('a held deferred value whose props cannot be written keeps its element while its id stays', async () => {
+	const [a, b] = await elements_over(
+		{ of: deferred({ props: { f: () => 1 } }) },
+		{ of: deferred({ props: { f: () => 2 } }) }
+	);
+	expect(a).not.toBeNull();
+	expect(b).toBe(a);
+});
+
+test('a baked live value that turns into a plain held value hands its element nothing more', async () => {
+	const [a, b] = await elements_over(
+		{ of: deferred({ html: '<b>baked</b>' }), __baked: true },
+		{ of: deferred(), __baked: true }
+	);
+	expect(a).not.toBeNull();
+	expect(b).not.toBe(a);
+	expect(lived.map((v) => (v as { html: string }).html)).toEqual(['<b>baked</b>']);
+});
+
+test('a lake with no entry, created empty on a csr=true page, warns with no entry named', async () => {
+	const text = JSON.parse(await out([{ ...LAKE, __entry: '' }], { csr: true })) as {
+		console: string[];
+	};
+	expect(text.console).toEqual(['[ogygia] https://ogygiajs.dev/e/lake_mounted_without_html']);
+});
+
 test('a held live value hands each new value to its element, which stays', async () => {
 	const [a, b] = await elements_over(
 		{ of: deferred({ html: '<b>one</b>' }) },
