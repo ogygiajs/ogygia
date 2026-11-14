@@ -15,7 +15,9 @@ afterEach(() => {
 
 /** The fake clock: timers and `performance.now()` move only as a test advances them. */
 const fake_clock = () =>
-	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'Date'] });
+	vi.useFakeTimers({
+		toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'performance', 'Date']
+	});
 
 /** Whether `p` has settled, read after the microtasks queued so far have run. */
 async function settled(p: Promise<unknown>): Promise<boolean> {
