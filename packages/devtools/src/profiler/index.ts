@@ -2612,18 +2612,7 @@ class Profiler {
 		if (cap.heap_series?.length) {
 			try {
 				const window_offset_ms = cap.window ? round2(cap.window.start - cap.perf_start) : 0;
-				let running: Parameters<typeof alloc_timeline>[0]['running'];
-				if (analysis.capture_cpu) running = analysis.capture_cpu;
-				else if (analysis.timeline)
-					running = analysis.timeline.segments
-						.filter((s) => s.kind === 'cpu')
-						.map((s) => ({
-							t0: s.t0 + window_offset_ms,
-							t1: s.t1 + window_offset_ms,
-							label: s.label,
-							category: s.category,
-							file: s.file
-						}));
+				const running = gc_running(analysis, window_offset_ms);
 				alloc = alloc_timeline({
 					samples: cap.heap_series,
 					...(running ? { running } : {}),

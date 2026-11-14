@@ -42,7 +42,8 @@ test.afterAll(() => srv?.kill());
 
 test('page() and hydration(): the planted problems, as a test sees them', async ({
 	page,
-	ogygia
+	ogygia,
+	browserName
 }) => {
 	test.setTimeout(90_000);
 	await page.goto('/dt-lab');
@@ -81,7 +82,9 @@ test('page() and hydration(): the planted problems, as a test sees them', async 
 	expect(load.self!.phases.islands).toBeGreaterThan(0);
 	// (withOgygia injected the engine: the page downloaded none of it, and its start is measuring's own)
 	expect(load.self!.bytes).toBe(0);
-	expect(load.self!.phases.engine).toBeGreaterThan(0);
+	expect(load.self!.phases.engine).toBeGreaterThanOrEqual(0);
+	// @why Firefox and WebKit round performance.now() to 1 ms, so a short engine start can read 0 (test: ogygia-testing e2e › page() and hydration())
+	if (browserName === 'chromium') expect(load.self!.phases.engine).toBeGreaterThan(0);
 	expect(load.engine).toMatchObject({ version: 3, lean: false });
 	expect(new Set(hyd.islands.map((i) => i.key)).size).toBe(hyd.islands.length);
 
