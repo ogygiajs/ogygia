@@ -7,14 +7,52 @@ The Timeline tab: this page's client events on a time axis, one lane per region 
 page and its navigations, with a bar from a region's first schedule to its hydration. Server events
 are left out: their clock has another origin.
 -->
-<script>
+<script lang="ts">
 	import { snapshot } from '@ogygia/core/events';
 	import { last_nav } from './page.ts';
 	import { region_name, region_name_by_fp } from './regions.ts';
 
-	let { tick = 0 } = $props();
+	interface Props {
+		tick?: number;
+	}
 
-	const MARK = {
+	type MarkName =
+		| 'runtime.boot'
+		| 'region.connected'
+		| 'wake.scheduled'
+		| 'wake.fired'
+		| 'region.hydrate.start'
+		| 'region.hydrate.done'
+		| 'region.hydrate.failed'
+		| 'interaction.replay'
+		| 'nav.start'
+		| 'nav.finish';
+
+	interface Marked {
+		name: MarkName;
+		t: number;
+		fp?: string;
+		entry?: string;
+	}
+
+	interface Lane {
+		key: string;
+		first: Map<MarkName, Marked>;
+		entry: string | null;
+	}
+
+	interface LaneRow {
+		key: string;
+		label: string;
+		bar: { left: number; width: number; open: boolean; failed: boolean } | null;
+		dots: { left: number; color: string; title: string }[];
+		dur: number | null;
+		order: number;
+	}
+
+	let { tick = 0 }: Props = $props();
+
+	const MARK: Record<MarkName, { c: string; t: string }> = {
 		'runtime.boot': { c: '#64748b', t: 'boot' },
 		'region.connected': { c: '#64748b', t: 'connect' },
 		'wake.scheduled': { c: '#38bdf8', t: 'sched' },
@@ -26,7 +64,7 @@ are left out: their clock has another origin.
 		'nav.start': { c: '#ec4899', t: 'nav' },
 		'nav.finish': { c: '#ec4899', t: 'nav done' }
 	};
-	const LEGEND = [
+	const LEGEND: MarkName[] = [
 		'wake.scheduled',
 		'wake.fired',
 		'region.hydrate.start',
@@ -41,7 +79,9 @@ are left out: their clock has another origin.
 
 	const model = $derived.by(() => {
 		void tick;
-		const all = snapshot().filter((e) => e.realm === 'client' && MARK[e.name]);
+		const all = snapshot().filter(
+			(e) => e.realm === 'client' && MARK[e.name as MarkName]
+		) as Marked[];
 		const nav = last_nav();
 		const from = nav
 			? Math.max(
@@ -53,7 +93,7 @@ are left out: their clock has another origin.
 		const events = all.slice(from);
 		if (events.length === 0) return { events: [], lanes: [], span: 0 };
 
-		const laneMap = new Map();
+		const laneMap: Map<string, Lane> = new Map();
 		for (const e of events) {
 			const key = e.fp || 'page';
 			let lane = laneMap.get(key);
@@ -71,9 +111,9 @@ are left out: their clock has another origin.
 				if (e.t > t1) t1 = e.t;
 			}
 		const span = Math.max(1, t1 - t0);
-		const x = (t) => ((t - t0) / span) * trackW;
+		const x = (t: number) => ((t - t0) / span) * trackW;
 
-		const lanes = [];
+		const lanes: LaneRow[] = [];
 		for (const lane of laneMap.values()) {
 			const evs = [...lane.first.values()].sort((a, b) => a.t - b.t);
 			const label =

@@ -1,7 +1,7 @@
 <!-- (its CSS injected into the dock's shadow root: see Devtools.svelte) -->
 <svelte:options css="injected" />
 
-<script>
+<script lang="ts">
 	/**
 	 * The Hub tab (hub inspector, internal/notes/devtools.md, Rung 5 · 6): ogygia's identity spine made
 	 * visible. Every transportable that crosses an island boundary — a wired class, a store, a snippet,
@@ -13,20 +13,33 @@
 	 */
 	import { snapshot } from '@ogygia/core/events';
 
-	let { tick = 0 } = $props();
+	interface Props {
+		tick?: number;
+	}
+
+	interface HubRow {
+		id: string;
+		kind: string;
+		tag: string;
+		scope: string;
+		resolves: number;
+		reunions: number;
+	}
+
+	let { tick = 0 }: Props = $props();
 
 	// A transportable's registration tag is `<module path>#<ExportName>` — the class/const name is the
 	// part after `#`. That's the human label; the id is a mint hash (fall back to it when untagged).
-	function short_id(id) {
+	function short_id(id: string) {
 		return id && id.length > 12 ? `${id.slice(0, 8)}…` : id;
 	}
-	function name_of(m) {
+	function name_of(m: HubRow) {
 		if (m.tag) return m.tag.split('#').pop() || m.tag;
 		return short_id(m.id);
 	}
 
 	// Kind → colour, so wire / store / snippet / region / fn read at a glance.
-	const KIND = {
+	const KIND: Record<string, string> = {
 		wire: '#14b8a6',
 		store: '#8b5cf6',
 		snippet: '#f59e0b',
@@ -37,8 +50,8 @@
 	const model = $derived.by(() => {
 		void tick; // refresh with the panel tick
 		const ev = snapshot();
-		const byId = new Map();
-		const get = (id) => {
+		const byId: Map<string, HubRow> = new Map();
+		const get = (id: string) => {
 			let m = byId.get(id);
 			if (!m) byId.set(id, (m = { id, kind: '', tag: '', scope: '', resolves: 0, reunions: 0 }));
 			return m;

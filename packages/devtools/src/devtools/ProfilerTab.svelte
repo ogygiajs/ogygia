@@ -1,7 +1,7 @@
 <!-- (its CSS injected into the dock's shadow root: see Devtools.svelte) -->
 <svelte:options css="injected" />
 
-<script>
+<script lang="ts">
 	/**
 	 * The Profiler tab — the SSR profiler, native in the dock (no iframe). "Profile this page" asks the
 	 * profiler for its JSON answer (`/page?format=json`: the page rendered through the real server N
@@ -14,15 +14,21 @@
 	import { onMount } from 'svelte';
 	import { scope } from '@ogygia/machine';
 	import { run_profile, profile_for, profiles_version } from './profile-store.ts';
-	import { page_anchors } from './profile-anchors.ts';
+	import { page_anchors, type Anchor } from './profile-anchors.ts';
 	import { highlighter } from './highlight.ts';
 
-	let { tick = 0, focus = $bindable(null), selected = $bindable(null) } = $props();
+	interface Props {
+		tick?: number;
+		focus?: Element | null;
+		selected?: Element | null;
+	}
+
+	let { tick = 0, focus = $bindable(null), selected = $bindable(null) }: Props = $props();
 
 	const BASE = '/__profiler';
 	let path = $state('/');
 	let runs = $state(5);
-	let available = $state(/** @type {boolean | null} */ (null)); // null = probing
+	let available = $state<boolean | null>(null);
 	let running = $state(false);
 	let started = $state(0);
 	let error = $state('');
@@ -72,19 +78,19 @@
 		}
 	}
 
-	const ms = (/** @type {number} */ n) =>
+	const ms = (n: number) =>
 		n >= 1000
 			? `${(n / 1000).toFixed(2)} s`
 			: n >= 10
 				? `${Math.round(n)} ms`
 				: `${n.toFixed(1)} ms`;
-	const kb = (/** @type {number} */ n) =>
+	const kb = (n: number) =>
 		n < 1024
 			? `${n} B`
 			: n < 1048576
 				? `${(n / 1024).toFixed(1)} KB`
 				: `${(n / 1048576).toFixed(2)} MB`;
-	function el_of(/** @type {string | null} */ fp) {
+	function el_of(fp: string | null) {
 		return fp ? document.querySelector(`ogygia-region[data-og-fp="${fp}"]`) : null;
 	}
 	const on_page = $derived.by(() => {
@@ -94,7 +100,7 @@
 			set.add(el.getAttribute('data-og-fp'));
 		return set;
 	});
-	function short_url(/** @type {string} */ u) {
+	function short_url(u: string) {
 		try {
 			const x = new URL(u, location.href);
 			return (x.host === location.host ? '' : x.host) + x.pathname;
@@ -102,7 +108,7 @@
 			return u; // ok: not a URL: kept as written
 		}
 	}
-	const grade_class = (/** @type {number} */ s) => (s >= 80 ? 'good' : s >= 50 ? 'fair' : 'poor');
+	const grade_class = (s: number) => (s >= 80 ? 'good' : s >= 50 ? 'fair' : 'poor');
 
 	// THE PROFILE ON THIS PAGE: costs with a place here (one DOM pass per profile, not per tick)
 	const anchors = $derived.by(() => {
@@ -113,17 +119,17 @@
 			return []; // ok: no costs pinned on the page; the profile's own list still shows them
 		}
 	});
-	let pinned = $state(/** @type {string | null} */ (null));
-	function show(a, pin = false) {
+	let pinned = $state<string | null>(null);
+	function show(a: Anchor, pin = false) {
 		if (pin) pinned = pinned === a.key ? null : a.key;
 		if (pin && pinned === null) return highlighter.clear();
 		highlighter.show(a.find(), `${a.title} — ${a.detail}`, pin);
 	}
 	/** the islands on this page with these fingerprints (a browser finding's) */
-	function regions_of(fps) {
+	function regions_of(fps: string[]) {
 		const want = new Set(fps);
 		return [...document.querySelectorAll('ogygia-region[data-og-fp]')].filter((el) =>
-			want.has(el.getAttribute('data-og-fp'))
+			want.has(el.getAttribute('data-og-fp')!)
 		);
 	}
 	function unshow() {
@@ -316,7 +322,7 @@
 							class={f.severity}
 							class:lit={!!f.fps}
 							data-code={f.code}
-							onmouseenter={f.fps ? () => highlighter.show(regions_of(f.fps), f.code) : undefined}
+							onmouseenter={f.fps ? () => highlighter.show(regions_of(f.fps!), f.code) : undefined}
 							onmouseleave={f.fps ? unshow : undefined}
 						>
 							<p class="msg">{f.message}</p>
