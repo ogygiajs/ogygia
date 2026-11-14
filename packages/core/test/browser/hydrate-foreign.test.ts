@@ -80,6 +80,19 @@ test('a foreign island whose strict hydrate throws is hydrated again with its ow
 	expect(calls.map((c) => c.options)).toEqual([{ recover: false }, undefined]);
 });
 
+test('a foreign island is handed the context the page provides it, for its own build to hydrate with', () => {
+	const { mod, calls } = foreign_module();
+	const provided = new Map<string | symbol, unknown>([['theme', 'ocean']]);
+	const bridge = slots.context;
+	slots.context = () => provided;
+	try {
+		hydrate_island(region_with('<p>peer</p>'), FOREIGN, mod, null, false);
+	} finally {
+		slots.context = bridge;
+	}
+	expect(calls[0].options).toEqual({ recover: false, context: provided });
+});
+
 test('a foreign island’s props are its own: no guard of this build wraps them', () => {
 	const { mod, calls } = foreign_module();
 	hydrate_island(region_with('<p>peer</p>'), FOREIGN, mod, null, false);

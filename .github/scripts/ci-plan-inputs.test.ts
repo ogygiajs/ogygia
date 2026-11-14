@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cheap_plan, format_lint_inputs } from './ci-plan-inputs.ts';
+import { cheap_plan, format_lint_inputs, to_run, turbo_scope } from './ci-plan-inputs.ts';
 
 const TREE = [
 	'100644 blob aaa\t.oxlintrc.json',
@@ -26,7 +26,27 @@ test('a change only under internal/ changes what format and lint were remembered
 
 test('a PR of only Markdown, changesets or other workflows still runs format and lint (#1531)', () => {
 	assert.equal(cheap_plan(['README.md', '.changeset/x.md', '.github/workflows/dst.yml']), 'check');
-	assert.equal(cheap_plan(['internal/sim/src/gen.ts']), 'all');
-	assert.equal(cheap_plan(['README.md', 'packages/core/src/x.ts']), 'all');
-	assert.equal(cheap_plan(['.github/scripts/ci-plan.ts']), 'all');
+	assert.equal(cheap_plan(['internal/sim/src/gen.ts']), 'affected');
+	assert.equal(cheap_plan(['README.md', 'packages/core/src/x.ts']), 'affected');
+});
+
+test('a PR that changes only the CI graph (its workflows or scripts) plans every job, cache hits included (#1926)', () => {
+	for (const f of [
+		'.github/workflows/e2e.yml',
+		'.github/workflows/e2e-slice.yml',
+		'.github/scripts/ci-plan.ts',
+		'.github/scripts/built-no-eval.ts',
+		'turbo.json'
+	])
+		assert.equal(cheap_plan([f]), 'everything', f);
+	assert.equal(cheap_plan(['.github/workflows/e2e.yml', 'README.md']), 'everything');
+	assert.equal(cheap_plan(['.github/workflows/e2e.yml', 'packages/core/src/x.ts']), 'everything');
+	const tasks = [
+		{ taskId: 'a#e2e', status: 'HIT' },
+		{ taskId: 'b#e2e', status: 'MISS' }
+	];
+	assert.deepEqual(to_run(tasks, 'everything'), tasks);
+	assert.deepEqual(to_run(tasks, 'affected'), [tasks[1]]);
+	assert.deepEqual(turbo_scope('everything'), []);
+	assert.deepEqual(turbo_scope('affected'), ['--affected']);
 });

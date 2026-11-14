@@ -3,7 +3,9 @@
 //
 // 1. A cheap path check first: a push that changes only changesets, Markdown outside the docs site,
 //    or workflows other than the ones that run the tests needs no test run: `check` only, for
-//    format and lint, which every PR runs whatever it touches (#1531; ci-plan-inputs.ts).
+//    format and lint, which every PR runs whatever it touches (#1531; ci-plan-inputs.ts). A push
+//    that changes the test graph itself (its workflows, the CI scripts, turbo.json) runs every job,
+//    cache hits and remembered passes included: nothing else exercises the change (#1926).
 // 2. Then turbo is asked (`--dry=json`, `--affected` on a pull request, the hashed env each job sets):
 //    - `check`: any package affected;
 //    - `browsers`: the browser test projects (core, content, machine) affected;
@@ -14,7 +16,13 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
-import { cheap_plan, format_lint_inputs } from './ci-plan-inputs.ts';
+import {
+	cheap_plan,
+	format_lint_inputs,
+	to_run,
+	turbo_scope,
+	type PlanScope
+} from './ci-plan-inputs.ts';
 import { is_batched, is_stacked } from './ci-stack.ts';
 
 type Slice = {
@@ -105,6 +113,7 @@ function nothing(why: string, format_lint = { check: false, check_hash: '' }): v
 	output('browsers_hash', '');
 	output('check_hash', format_lint.check_hash);
 	output('size_hash', '');
+	output('force', 'false');
 	summary.push(`Nothing to run: ${why}.`);
 	done();
 }
@@ -116,7 +125,7 @@ function dry(
 ): { task: string; taskId: string; hash: string; status: string }[] {
 	const json = execFileSync(
 		'pnpm',
-		['exec', 'turbo', ...args, ...(pull_request ? ['--affected'] : []), '--dry=json'],
+		['exec', 'turbo', ...args, ...(pull_request ? turbo_scope(scope) : []), '--dry=json'],
 		{
 			encoding: 'utf8',
 			maxBuffer: 1 << 28,
@@ -157,7 +166,7 @@ function digest(parts: string[]): string {
 /** A pass was remembered under `key` (an Actions cache entry a passing job saved). Without a token
  *  (a local run), nothing is remembered. */
 function passed(key: string): boolean {
-	if (!env.GH_TOKEN || !env.GITHUB_REPOSITORY) return false;
+	if (scope === 'everything' || !env.GH_TOKEN || !env.GITHUB_REPOSITORY) return false;
 	try {
 		const n = execFileSync(
 			'gh',
@@ -177,12 +186,16 @@ if (env.HEAD_REF?.startsWith('changeset-release/')) {
 
 // 1. the cheap path check
 let changed: string[] = [];
+let scope: PlanScope = 'affected';
 if (pull_request) {
 	changed = execFileSync('git', ['diff', '--name-only', `${base}...HEAD`], { encoding: 'utf8' })
 		.split('\n')
 		.filter(Boolean);
 	summary.push(`${changed.length} file(s) changed against ${base}.`);
-	if (cheap_plan(changed) === 'check') {
+	scope = cheap_plan(changed);
+	if (scope === 'everything')
+		summary.push('The CI graph itself changed (#1926): every job runs, cache hits included.');
+	if (scope === 'check') {
 		// format and lint still read every file (#1531): only the test runs are left out
 		const check_hash = digest(format_lint_inputs(ls_tree()));
 		nothing('only changesets, Markdown or other workflows changed: format and lint only', {
@@ -194,11 +207,12 @@ if (pull_request) {
 }
 
 // 2. turbo's plan
+output('force', scope === 'everything' ? 'true' : 'false');
 const root_filters = ['--filter=./packages/*', '--filter=./packages/*/e2e/*', '--filter=./apps/*'];
 const checks = dry(['run', 'check', ...root_filters], { OGYGIA_BROWSERS: 'chromium' }).filter(
 	(t) => t.task === 'check'
 );
-const checks_left = checks.filter((t) => t.status !== 'HIT');
+const checks_left = to_run(checks, scope);
 // Format and lint read the whole repo, root files turbo does not hash too (the lint and format
 // config, the workflows): `check` passing is also remembered, under the check tasks' hashes and the
 // root's own tree (every top-level entry but the packages and apps, internal/ included: #1531).
@@ -238,7 +252,7 @@ for (const browser of ENGINES)
 			E2E_SHARD: slice.shard,
 			OGYGIA_BROWSERS: browser
 		}).filter((t) => t.task === 'e2e');
-		const left = e2e.filter((t) => t.status !== 'HIT');
+		const left = to_run(e2e, scope);
 		if (left.length > 0) (browser === 'chromium' ? chromium : engines).push({ ...slice, browser });
 		summary.push(
 			`e2e ${slice.name}, ${browser}: ${e2e.length} task(s), ${left.length} to run${left.length ? ` (${left.map((t) => t.taskId).join(', ')})` : ''}.`
