@@ -70,7 +70,7 @@ function liveSource(rows: SourceEntry<Meta>[] = []) {
 	return {
 		source,
 		ctl,
-		push(e: SourceEntry<Meta>) {
+		push: (e: SourceEntry<Meta>) => {
 			rows.push(e);
 			emit();
 		},

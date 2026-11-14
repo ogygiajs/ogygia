@@ -133,15 +133,15 @@ export interface ProfilerDeps {
 		/** recorded on a dev server — the source peek is available */
 		dev: boolean;
 	}>;
-	report_json(stored: StoredReport): Response | Promise<Response>;
-	report_dump_json(stored: StoredReport): Response;
+	report_json: (stored: StoredReport) => Response | Promise<Response>;
+	report_dump_json: (stored: StoredReport) => Response;
 	/** ONE self-contained HTML file of the report (styles, runtime and island chunks inlined) —
 	 *  opens from disk with the islands live. A built app only; dev answers 400. */
 	report_html(stored: StoredReport, c: Ctx): Promise<Response>;
 	/** A report's standalone file, agent JSON or plain dump, built from the report the request
 	 *  carries (the page's .ogp bytes or the browser's kept copy): works on any instance. */
 	report_posted(c: Ctx, as: 'html' | 'json' | 'dump' | 'ogp'): Promise<Response>;
-	report_raw(stored: StoredReport): Promise<Response>;
+	report_raw: (stored: StoredReport) => Promise<Response>;
 }
 
 async function report_or_404<R>(

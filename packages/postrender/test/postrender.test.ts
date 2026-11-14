@@ -288,7 +288,7 @@ describe.skipIf(!REDIS_URL)('store contract: valkey (REAL server via REDIS_URL)'
 		// a variable specifier: the typecheck never needs redis installed either
 		const redis = 'redis';
 		const { createClient } = (await import(/* @vite-ignore */ redis)) as {
-			createClient(options: { url?: string }): {
+			createClient: (options: { url?: string }) => {
 				connect(): Promise<unknown>;
 				quit(): Promise<unknown>;
 			};

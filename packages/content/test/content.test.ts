@@ -314,7 +314,7 @@ function liveSource() {
 	};
 	return {
 		source,
-		push(e: SourceEntry) {
+		push: (e: SourceEntry) => {
 			rows.push(e);
 			waiters.splice(0).forEach((w) => w());
 		}

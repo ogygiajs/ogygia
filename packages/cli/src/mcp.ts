@@ -33,8 +33,8 @@ import {
 type FlagSite = { name: string; kind: 'flag'; file: string; line: number };
 /** The flag inventory (`@ogygia/flags/internal/inventory`): the collector the build runs. */
 interface FlagInventory {
-	collect_flag_sites(code: string, id: string, file: string): FlagSite[];
-	flags_manifest(sites: readonly FlagSite[]): { flags: FlagSite[]; names: string[] };
+	collect_flag_sites: (code: string, id: string, file: string) => FlagSite[];
+	flags_manifest: (sites: readonly FlagSite[]) => { flags: FlagSite[]; names: string[] };
 }
 /** The inventory: loaded from the project this server was started in, never from a directory a
  *  tool is pointed at (that would run its code, test/mcp-flags-trust.test.ts). Core does not depend
@@ -64,16 +64,16 @@ import { line } from './messages.ts';
 /** The profiler's report reading (`@ogygia/devtools/report`), as these tools use it: loaded from the
  *  app's own install on first need — core does not depend on the plugin. */
 interface ProfilerReading {
-	is_ogp(bytes: Uint8Array): boolean;
-	ogp_decode(bytes: Uint8Array, key?: string): Promise<unknown>;
-	is_dump(dump: unknown): dump is { analysis: never; meta: never; extras?: never };
-	report_json(analysis: never, meta: never, base: string, extras?: never): unknown;
-	fix_impact(
+	is_ogp: (bytes: Uint8Array) => boolean;
+	ogp_decode: (bytes: Uint8Array, key?: string) => Promise<unknown>;
+	is_dump: (dump: unknown) => dump is { analysis: never; meta: never; extras?: never };
+	report_json: (analysis: never, meta: never, base: string, extras?: never) => unknown;
+	fix_impact: (
 		patterns: readonly { save_ms: number; wait?: boolean }[],
 		render_ms: number,
 		renders?: number,
 		wait_ms?: number
-	):
+	) =>
 		| { cpu_ms: number; wait_ms: number; render_ms: number; after_ms: number; pct: number }
 		| undefined;
 }
