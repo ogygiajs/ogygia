@@ -43,7 +43,9 @@ const natives = () =>
 		[
 			window.setInterval,
 			window.clearInterval,
+			// oxlint-disable-next-line typescript/unbound-method -- read for its identity (is it native?), never called
 			EventTarget.prototype.addEventListener,
+			// oxlint-disable-next-line typescript/unbound-method -- read for its identity (is it native?), never called
 			EventTarget.prototype.removeEventListener
 		].every((f) => Function.prototype.toString.call(f).includes('[native code]'))
 	);

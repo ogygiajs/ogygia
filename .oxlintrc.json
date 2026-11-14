@@ -41,7 +41,7 @@
 		"typescript/no-useless-default-assignment": "error",
 		"typescript/require-array-sort-compare": "error",
 		"typescript/restrict-template-expressions": "error",
-		"typescript/unbound-method": "off",
+		"typescript/unbound-method": "error",
 		"ogygia/no-promise-cache": "error",
 		"ogygia/owned-effects": "error",
 		"ogygia/no-silent-failures": "error",
@@ -55,7 +55,8 @@
 		"ogygia/dispose-by-close": "error",
 		"ogygia/ports": "error",
 		"ogygia/tests-read-source": "error",
-		"ogygia/fake-timers-whole": "error"
+		"ogygia/fake-timers-whole": "error",
+		"ogygia/prefer-class-for-state": "warn"
 	},
 	"overrides": [
 		{

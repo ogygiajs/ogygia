@@ -6,7 +6,9 @@
  * a bounded number of times, and never copy the body.
  */
 import { describe, expect, it } from 'vitest';
+import { scope } from '@ogygia/machine';
 import { assemble, locate } from '../src/server/document-assembly.ts';
+import { patch } from './_patch.ts';
 import { html_has_kit_bootstrap } from '../src/server/html-scan.ts';
 
 const doc = (body: string, head = '<title>t</title>') =>
@@ -112,22 +114,32 @@ describe('budget on a multi-MB document', () => {
 		const head_close = big.indexOf('</head>');
 		const forward: number[] = [];
 		const back: string[] = [];
-		const index_of = String.prototype.indexOf;
-		const last_index_of = String.prototype.lastIndexOf;
-		String.prototype.indexOf = function (this: string, ...args: [string, number?]) {
-			const at = index_of.apply(this, args);
-			if (this.length > 1_000_000) forward.push(at);
-			return at;
-		} as typeof String.prototype.indexOf;
-		String.prototype.lastIndexOf = function (this: string, ...args: [string, number?]) {
-			if (this.length > 1_000_000) back.push(args[0]);
-			return last_index_of.apply(this, args);
-		} as typeof String.prototype.lastIndexOf;
+		const spies = scope();
+		patch(
+			spies,
+			String.prototype,
+			'indexOf',
+			(index_of) =>
+				function (this: string, ...args: [string, number?]) {
+					const at = index_of.apply(this, args);
+					if (this.length > 1_000_000) forward.push(at);
+					return at;
+				}
+		);
+		patch(
+			spies,
+			String.prototype,
+			'lastIndexOf',
+			(last_index_of) =>
+				function (this: string, ...args: [string, number?]) {
+					if (this.length > 1_000_000) back.push(args[0]);
+					return last_index_of.apply(this, args);
+				}
+		);
 		try {
 			locate(big);
 		} finally {
-			String.prototype.indexOf = index_of;
-			String.prototype.lastIndexOf = last_index_of;
+			spies.close();
 		}
 		expect(forward.length).toBeLessThan(16);
 		for (const at of forward) expect(at).toBeLessThanOrEqual(head_close);

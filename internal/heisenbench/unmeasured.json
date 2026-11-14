@@ -1365,10 +1365,6 @@
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{
-			"id": "packages/config/src/sim.ts > Run > _install > push:0~45a4e7",
-			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
-		},
-		{
 			"id": "packages/config/src/sim.ts > Run > _install > push:0~789f90",
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
@@ -1421,11 +1417,11 @@
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{
-			"id": "packages/config/src/sim.ts > Run > _install > timeout",
+			"id": "packages/config/src/sim.ts > Run > _patch",
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{
-			"id": "packages/config/src/sim.ts > Run > _install > timeout > _add:0~355949",
+			"id": "packages/config/src/sim.ts > Run > _patch > push:0~94f71c",
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{

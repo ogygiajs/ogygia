@@ -8,9 +8,11 @@ import { link_boot } from '../../src/runtime/boot-link.ts';
 import { install as install_morph } from '../../src/runtime/morph.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
 import { prepare_spa_document } from '../../src/runtime/seeds.ts';
+import { scope } from '@ogygia/machine';
+import { patch } from '../_patch.ts';
 
 const real_fetch = window.fetch;
-const real_vt = document.startViewTransition;
+let spies = scope();
 const home = location.href;
 
 /** What a view transition captured: each element's inline name, by id, before and after the swap. */
@@ -27,17 +29,23 @@ const names = () => {
 function transition(seen: Captured[]): () => void {
 	let settle = () => {};
 	const finished = new Promise<void>((resolve) => (settle = resolve));
-	document.startViewTransition = ((update: () => void) => {
-		const before = names();
-		update();
-		seen.push({ before, after: names() });
-		return {
-			ready: Promise.resolve(),
-			finished,
-			updateCallbackDone: Promise.resolve(),
-			skipTransition() {}
-		};
-	}) as never;
+	patch(
+		spies,
+		document,
+		'startViewTransition',
+		() =>
+			((update: () => void) => {
+				const before = names();
+				update();
+				seen.push({ before, after: names() });
+				return {
+					ready: Promise.resolve(),
+					finished,
+					updateCallbackDone: Promise.resolve(),
+					skipTransition() {}
+				};
+			}) as never
+	);
 	return () => settle();
 }
 
@@ -55,7 +63,8 @@ beforeEach(() => {
 });
 afterEach(() => {
 	window.fetch = real_fetch;
-	document.startViewTransition = real_vt;
+	spies.close();
+	spies = scope();
 	history.replaceState(null, '', home);
 });
 

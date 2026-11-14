@@ -68,6 +68,8 @@ comment above (`// svelte-ignore <code>` or `// oxlint-disable-next-line <rule>`
 exception: the devtools fixture app's planted-problem folders, whose code shape is the test, are
 listed once in its `svelte.config.js` with the reason.
 
+**State is a class.** State and the functions around it belong in one class, and internal code exports the class itself (callers write `new X(…)`, no factory wrapper): `ogygia/prefer-class-for-state` (a warning) flags a closure that hands back an object of functions over its state, and module `let`s two or more functions write.
+
 **Comments.** New code in `packages/*/src` adds no unstructured comments: a comment is JSDoc on an
 export, a tool directive with ` -- <reason>`, an `// ok: <reason>` note, or a one-line
 `// @why <fact> (test: <file> › <name>)` whose test exists. CI's `check` job fails on any other

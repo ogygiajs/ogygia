@@ -138,13 +138,15 @@ jobs:
 
   # MUTATION TESTING once a day: each mutant (internal/sim/mutants.json) is built into a sandbox
   # clone and run against fixed seeds; the kill rate is the simulator's quality number. About an
-  # hour: no mutant starts after 60 minutes, and the result says how many it judged.
+  # hour: no mutant starts after 15 minutes on the rewrite browser sim and 45 on the app sim, and
+  # the result says how many it judged.
   mutate:
     if: >-
       github.repository == 'ogygiajs/ogygia' &&
       (github.event.schedule == '43 3 * * *' || inputs.job == 'mutate')
     runs-on: ubuntu-latest
-    # (the unaimed run's hour, the compiler's 15 minutes, then up to 10 minutes for each aim)
+    # (the rewrite browser sim's 15 minutes and the unaimed run's 45, which no longer builds the
+    # mutants the browser sim killed; the compiler's 15 minutes, then up to 10 minutes for each aim)
     timeout-minutes: 240
     permissions:
       contents: read
@@ -167,11 +169,28 @@ jobs:
       - name: Build the packages
         run: pnpm build:lib
 
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # (the rewrite's mutants first, on its browser sim: it runs the package's sources in Chromium, so
+      # no build; what it kills counts as killed in the run below, which does not build them again)
+      - name: Mutate, rewrite browser sim
+        working-directory: internal/sim
+        run: |
+          node --no-warnings src/mutate.ts --mutants mutants.json --suite rewrite-browser \
+            --suite-runs 1000 --budget-min 15 --sandbox "$RUNNER_TEMP/mutbox-rewrite" \
+            --out "$RUNNER_TEMP/dst-mutation-rewrite.jsonl"
+          tail -1 "$RUNNER_TEMP/dst-mutation-rewrite.jsonl" | node -e '
+            const t = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+              `Rewrite browser sim: ${t.killed}/${t.judged} killed.\n`);'
+
       - name: Mutate
         working-directory: internal/sim
         run: |
           node --no-warnings src/mutate.ts --mutants mutants.json --gens 1,7,10,24,25,121,188,191,192,193,220,262,550+33+36+65+74,734,1746 --seeds 20 \
-            --jobs 4 --budget-min 60 --sandbox "$RUNNER_TEMP/mutbox" \
+            --jobs 4 --budget-min 45 --sandbox "$RUNNER_TEMP/mutbox" \
+            --killed "$RUNNER_TEMP/dst-mutation-rewrite.jsonl" \
             --out "$RUNNER_TEMP/dst-mutation.jsonl"
           tail -1 "$RUNNER_TEMP/dst-mutation.jsonl" | node -e '
             const t = JSON.parse(require("fs").readFileSync(0, "utf8"));
@@ -182,8 +201,8 @@ jobs:
       - name: Mutate, compiler
         working-directory: internal/sim
         run: |
-          node --no-warnings src/mutate.ts --mutants ../compiler-dst/mutants.json --compiler-dst \
-            --dst-runs 100 --budget-min 15 --sandbox "$RUNNER_TEMP/mutbox-compiler" \
+          node --no-warnings src/mutate.ts --mutants ../compiler-dst/mutants.json --suite compiler-dst \
+            --suite-runs 100 --budget-min 15 --sandbox "$RUNNER_TEMP/mutbox-compiler" \
             --out "$RUNNER_TEMP/dst-mutation-compiler.jsonl"
           tail -1 "$RUNNER_TEMP/dst-mutation-compiler.jsonl" | node -e '
             const t = JSON.parse(require("fs").readFileSync(0, "utf8"));
@@ -219,6 +238,7 @@ jobs:
             ${{ runner.temp }}/dst-mutation.jsonl
             ${{ runner.temp }}/dst-mutation-aimed.jsonl
             ${{ runner.temp }}/dst-mutation-compiler.jsonl
+            ${{ runner.temp }}/dst-mutation-rewrite.jsonl
           retention-days: 30
           if-no-files-found: ignore
 

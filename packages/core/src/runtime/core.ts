@@ -369,7 +369,7 @@ export function region_fragment(html: VerifiedHtml): {
 		}
 	} else if (links.length) {
 		const existing = new Map(
-			Array.from(document.querySelectorAll('link[rel="stylesheet"]'), (l) => [
+			Array.from(document.head.querySelectorAll('link[rel="stylesheet"]'), (l) => [
 				l.getAttribute('href'),
 				l as HTMLLinkElement
 			])
