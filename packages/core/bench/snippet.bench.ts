@@ -4,7 +4,10 @@
 import { bench } from '@bench/heisenbench/bench';
 import type { Snippet } from 'svelte';
 import { prepare_region_props } from '../src/region-snippet.ts';
+import { SnippetRender } from '../src/snippet-render.ts';
 import * as FreezeHost from '../test/_fixtures/snippet-freeze/FreezeHost.svelte';
+
+SnippetRender.install();
 
 const SNIPPETS = FreezeHost as unknown as Record<string, Snippet>;
 const NAMES = ['text', 'elements', 'blocks', 'nested', 'component', 'odd', 'one_param'];

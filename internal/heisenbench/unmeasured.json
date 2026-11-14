@@ -6077,6 +6077,14 @@
 			"reason": "dev only (the warning folds out of production); one bounded scan of the body's last 64 KB, the scan kit_gate's bench case already counts; kit-gate.test.ts and test/canary/kit-start-script.test.ts run it"
 		},
 		{
+			"id": "packages/core/src/snippet-render.ts > SnippetRender > static install",
+			"reason": "runs once per module load (hooks.ts, region.ts): one slot write, constant work; snippet.bench.ts and every freeze test run it"
+		},
+		{
+			"id": "packages/core/src/region-snippet.ts > install_snippet_renderer",
+			"reason": "one slot write when a renderer is installed, once per module load; snippet.bench.ts and every freeze test run it"
+		},
+		{
 			"id": "packages/core/src/server/kit-request-store.ts > KitRequestStore > static event",
 			"reason": "one read of Kit's AsyncLocalStorage store, constant work; its answer is the live request, hidden state no replay holds; kit-request-reads.test.ts and plugin-request-end.test.ts run it"
 		},

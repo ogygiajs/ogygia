@@ -14,7 +14,7 @@ import { render } from 'svelte/server';
 import * as $ from 'svelte/internal/server';
 import type { Component, Snippet } from 'svelte';
 import { fc, sim_params } from '@ogygia/config/sim';
-import { region_snippet } from '../src/region-snippet.ts';
+import { region } from '../src/region.ts';
 
 /** What Svelte writes after a `{@render}` tag: the one byte difference the new path is allowed. */
 export const RENDER_ANCHOR = '<!---->';
@@ -244,7 +244,7 @@ export function snippet_freeze_fuzz(async: boolean, seed: number): void {
 					return;
 				}
 				const at = before.lastIndexOf(ROOT_CLOSE);
-				expect((region_snippet(s) as { __ogRegion?: unknown }).__ogRegion).toEqual({
+				expect((region.snippet(s) as { __ogRegion?: unknown }).__ogRegion).toEqual({
 					m: 'static',
 					h: before.slice(0, at) + RENDER_ANCHOR + before.slice(at)
 				});

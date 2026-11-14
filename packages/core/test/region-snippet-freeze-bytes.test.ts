@@ -5,12 +5,12 @@
  */
 import { expect, it } from 'vitest';
 import type { Snippet } from 'svelte';
-import { region_snippet } from '../src/region-snippet.ts';
+import { region } from '../src/region.ts';
 import * as FreezeHost from './_fixtures/snippet-freeze/FreezeHost.svelte';
 
 const SNIPPETS = FreezeHost as unknown as Record<string, Snippet>;
 const frozen = (name: string) =>
-	(region_snippet(SNIPPETS[name]!) as { __ogRegion?: unknown }).__ogRegion;
+	(region.snippet(SNIPPETS[name]!) as { __ogRegion?: unknown }).__ogRegion;
 
 it.each([
 	'text',

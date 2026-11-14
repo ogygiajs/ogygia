@@ -42,7 +42,7 @@ import { import_entry } from './runtime/entry-locations.ts';
 import { OgygiaError } from './messages/island.ts';
 import { OG_SLOT, OG_STATIC, OGYGIA_REGION_CSS } from './wire-markup.ts';
 import { escape_attr } from './escape.ts';
-import RenderSnippet from './RenderSnippet.svelte';
+import { slot as shared } from '@ogygia/machine';
 
 /** Devalue custom-type name a region snippet crosses under (wire-stable; was `OgygiaS`). */
 export const REGION_SNIPPET_WIRE_KEY = 'OgygiaS';
@@ -247,24 +247,37 @@ function make(desc: RegionSnippetDescriptor, live_entry: Component | null = null
 	return snip;
 }
 
-/** Freeze a plain snippet to a static region snippet by SSR-rendering it once (SERVER only). A snippet
- *  that needs parameters can't be frozen — surface that as the actionable boundary error. `label` names
- *  the island prop when known, so a plain function passed by mistake points at the right prop. */
+/**
+ * What renders region snippets on the server. It lives in snippet-render.ts, which imports a
+ * `.svelte` component, and only code that already loads `.svelte` files installs it (ogygia's server
+ * hooks, `region`, Region.svelte), so this codec stays importable from plain Node.
+ */
+export interface SnippetRenderer {
+	/** `snippet` rendered once, with no arguments, to the HTML it freezes to. Throws
+	 *  `function_prop_cannot_cross` for a function that does not render; `label` names the prop. */
+	freeze(snippet: Snippet, label?: string): string;
+}
+
+const renderer_slot = shared<{ renderer: SnippetRenderer | null }>({
+	name: 'ogygia.snippet-renderer',
+	version: 1,
+	make: () => ({ renderer: null })
+});
+
+/** Installs the server's snippet renderer (snippet-render.ts calls it). */
+export function install_snippet_renderer(renderer: SnippetRenderer): void {
+	renderer_slot.renderer = renderer;
+}
+
+/** Freeze a plain snippet to a static region snippet by SSR-rendering it once (SERVER only), through
+ *  the installed {@link SnippetRenderer}; `snippet_freeze_not_installed` when none is. */
 function capture_static(snippet: Snippet, label?: string): RegionSnippet {
-	let body: string;
-	try {
-		body = ssr_render(RenderSnippet, { props: { snippet }, context: kit_render_context() }).body;
-	} catch (e) {
-		// A Svelte snippet is just a function, so ogygia can't tell a real snippet from a plain
-		// callback until it tries to render it — which is HERE. Lead with "function" (not "snippet"):
-		// the most common cause is a plain function passed as a prop, which never crosses an island.
-		const where = label ? `prop \`${label}\`` : 'a function prop';
-		throw new OgygiaError('function_prop_cannot_cross', {
-			where,
-			reason: e instanceof Error ? e.message : String(e)
+	const renderer = renderer_slot.renderer;
+	if (!renderer)
+		throw new OgygiaError('snippet_freeze_not_installed', {
+			where: label ? `prop \`${label}\`` : 'a snippet'
 		});
-	}
-	return make({ m: 'static', h: body });
+	return make({ m: 'static', h: renderer.freeze(snippet, label) });
 }
 
 // ── live constructor: emitted by the compiler at a snippet's definition site ──
