@@ -62,9 +62,8 @@ export function client_file_finder(
 					}
 				}
 			}
-		} catch {
-			// ok: not a URL, so not a file of the page
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL, so not a file of the page
+		} catch {}
 		cache.set(url, file);
 		return file;
 	};

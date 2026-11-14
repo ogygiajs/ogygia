@@ -3,7 +3,7 @@ name: tests report
 # THE RELEASED VERSION'S TESTS REPORT, for the docs' tests page. When a release of `ogygia` is
 # published (release.yml's changesets publish makes the GitHub release), this runs every package's
 # unit and browser tests at the released commit in Chromium, Firefox and WebKit (Chromium with
-# coverage), reads that commit's e2e results from its own main runs (e2e.yml and engines.yml upload
+# coverage), reads that commit's e2e results from its own main run (e2e.yml uploads
 # them), and writes `apps/docs/static/tests/<version>/` (.github/scripts/test-report.ts).
 #
 # It reaches the site through main, like any docs change: it opens a PR from
@@ -71,8 +71,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # that commit's e2e results, from its own runs on main (Chromium in e2e.yml, Firefox and
-      # WebKit in engines.yml): waited for, at most two hours, then read as they are
+      # that commit's e2e results, from its own runs on main (every engine in e2e.yml; a commit from
+      # before Firefox and WebKit joined it has them in engines.yml): waited for, at most two hours,
+      # then read as they are
       - name: The released commit's e2e results
         env:
           GH_TOKEN: ${{ github.token }}

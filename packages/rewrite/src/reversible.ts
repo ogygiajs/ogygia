@@ -46,8 +46,7 @@ type Tok =
 	| { t: 'raw'; start: number; end: number }
 	| { t: 'other'; start: number; end: number };
 
-// static: HTML's void elements
-const VOID = new Set([
+const VOID: ReadonlySet<string> = new Set([
 	'area',
 	'base',
 	'br',
@@ -230,8 +229,7 @@ function replace_all(s: string, from: string, to: string): string {
 
 // ─── the open-element stack, with the parser's implied closes ──────────────────────────────────────
 
-// static: the elements whose start tag closes an open <p> (HTML's parser)
-const P_CLOSERS = new Set([
+const P_CLOSERS: ReadonlySet<string> = new Set([
 	'address',
 	'article',
 	'aside',
@@ -274,10 +272,8 @@ const P_CLOSERS = new Set([
 	'dt',
 	'plaintext'
 ]);
-// static: HTML's heading elements
-const HEADINGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
-// static: the elements that bound HTML's "in scope"
-const SCOPE = new Set([
+const HEADINGS: ReadonlySet<string> = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
+const SCOPE: ReadonlySet<string> = new Set([
 	'applet',
 	'caption',
 	'html',
@@ -320,13 +316,11 @@ type Stack<F extends { name: string } = Frame> = F[] & {
 	/** per tracked name, how many are open */
 	open?: number[];
 };
-// static: the elements the parser tracks, each with what it implies
-const TRACKED = new Map(
+const TRACKED: ReadonlyMap<string, number> = new Map(
 	['a', 'nobr', 'button', 'form', 'li', 'dd', 'dt', 'p', 'td', 'th', 'tr'].map((n, i) => [n, i])
 );
 /** Every tag `implied_close` acts on: the only tags settle ever writes as a stand-in, and the only
  *  ones the restorer swaps one back to (./restore.ts keeps its own copy; a test holds them equal). */
-// static: the tags settle writes as stand-ins
 export const STAND_IN_TAGS: ReadonlySet<string> = new Set([
 	...TRACKED.keys(),
 	...P_CLOSERS,
@@ -354,7 +348,11 @@ function cut<F extends { name: string }>(stack: Stack<F>, k: number): void {
 
 /** The index of the open `name` in scope, or -1. (A stand-in `<og-as tag="a">` is not an `<a>` to
  *  the parser: the element's own name is what counts.) */
-function in_scope(stack: Stack<{ name: string }>, name: string, extra?: Set<string>): number {
+function in_scope(
+	stack: Stack<{ name: string }>,
+	name: string,
+	extra?: ReadonlySet<string>
+): number {
 	const slot = TRACKED.get(name);
 	if (slot === undefined || !stack.open?.[slot]) return -1;
 	for (let k = stack.length - 1; k >= 0; k--) {
@@ -364,10 +362,8 @@ function in_scope(stack: Stack<{ name: string }>, name: string, extra?: Set<stri
 	}
 	return -1;
 }
-// static: the extra bound of "in button scope"
-const BUTTON_SCOPE = new Set(['button']);
-// static: the extra bound of "in list item scope"
-const LIST_SCOPE = new Set(['ol', 'ul']);
+const BUTTON_SCOPE: ReadonlySet<string> = new Set(['button']);
+const LIST_SCOPE: ReadonlySet<string> = new Set(['ol', 'ul']);
 /** `implied_close`: the parser ignores this start tag (a form in a form) */
 const DROP = -2;
 
@@ -585,7 +581,8 @@ function plan_hosts(html: string, o: MarkOptions): boolean[] {
 /** Is there any custom element (in a document: after `<body`) — a hop from `<` to `<` reading only
  *  tag names, no tokenization. Most pages of most apps have none, and then there is nothing to mark. */
 function has_custom_element(html: string, document: boolean): boolean {
-	let at = document ? html.indexOf('<body') : 0; // markup-ok: a prefilter, a false yes only
+	// oxlint-disable-next-line ogygia/one-markup-walk -- a prefilter, a false yes only
+	let at = document ? html.indexOf('<body') : 0;
 	if (at === -1) return false;
 	for (at = html.indexOf('<', at); at !== -1; at = html.indexOf('<', at + 1)) {
 		if (!is_alpha(html.charCodeAt(at + 1))) continue;

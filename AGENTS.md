@@ -40,19 +40,20 @@ Anything with a lifecycle is a state machine from `@ogygia/machine`. No boolean 
 `loading` plus `loaded`, no generation counters, no "if it is still the same one" checks by hand.
 The primitives exist so that whole families of bugs cannot be written:
 
-| Need                                                        | Use                                  | What it rules out                                                                      |
-| ----------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------- |
-| A thing that moves between named states                     | `machine()`                          | illegal moves (a type error, and a coded refusal at runtime)                           |
-| Async work that must not land late                          | `m.scope.task()` / `scope().task()`  | a stale answer applied after the state moved on: it returns `STALE`                    |
-| Cleanups, listeners, timers, observers                      | `scope()` (or the visit's `m.scope`) | leaks and double cleanups: each runs exactly once, when the owner ends                 |
-| One in-flight job per key, shared by every caller           | `flights()`                          | duplicate fetches, failed results cached forever (a failure is never kept)             |
-| Retries and backoff                                         | `policy()`                           | ad hoc retry loops with different rules in different places                            |
-| Work that must be sent, in order, and survive failures      | `outbox()`                           | silently dropped or reordered sends                                                    |
-| Several changes that land together or not at all            | `stage()`                            | half-applied updates                                                                   |
-| Freshness ("is this answer still about the current thing?") | `world()` stamps                     | comparing stale ids by hand. A `world` is about freshness; a `scope` is about lifetime |
-| Events on one owner handled one at a time                   | `mailbox()`                          | two handlers seeing each other's half-done work                                        |
-| Exclusive access                                            | `lock()`                             | two owners writing at once                                                             |
-| A cap on work in flight, first come first served            | `queue()`                            | hand-written semaphores; a freed place taken out of turn; a waiter that waits forever  |
+| Need                                                           | Use                                  | What it rules out                                                                                                                                  |
+| -------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A thing that moves between named states                        | `machine()`                          | illegal moves (a type error, and a coded refusal at runtime)                                                                                       |
+| Async work that must not land late                             | `m.scope.task()` / `scope().task()`  | a stale answer applied after the state moved on: it returns `STALE`                                                                                |
+| Cleanups, listeners, timers, observers                         | `scope()` (or the visit's `m.scope`) | leaks and double cleanups: each runs exactly once, when the owner ends                                                                             |
+| One in-flight job per key, shared by every caller              | `flights()`                          | duplicate fetches, failed results cached forever (a failure is never kept)                                                                         |
+| Retries and backoff                                            | `policy()`                           | ad hoc retry loops with different rules in different places                                                                                        |
+| Work that must be sent, in order, and survive failures         | `outbox()`                           | silently dropped or reordered sends                                                                                                                |
+| Several changes that land together or not at all               | `stage()`                            | half-applied updates                                                                                                                               |
+| Freshness ("is this answer still about the current thing?")    | `world()` stamps                     | comparing stale ids by hand. A `world` is about freshness; a `scope` is about lifetime                                                             |
+| Events on one owner handled one at a time                      | `mailbox()`                          | two handlers seeing each other's half-done work                                                                                                    |
+| Exclusive access                                               | `lock()`                             | two owners writing at once                                                                                                                         |
+| A cap on work in flight, first come first served               | `queue()`                            | hand-written semaphores; a freed place taken out of turn; a waiter that waits forever                                                              |
+| A choice made from several finite inputs (flags, small unions) | `decisions()`                        | unhandled or contradictory combinations, dead flags, and choices scattered over nested ternaries: every row can be listed, snapshotted and checked |
 
 Rules for using them:
 
@@ -92,7 +93,8 @@ no other comments (`ogygia/structured-comments`; COMMENTS-ARE-TESTS in
 A line that lets a check through is a waiver, and a waiver names the rule it waives:
 `// oxlint-disable-next-line ogygia/<rule> -- <reason>` (`@ts-expect-error` and `svelte-ignore`
 likewise). A quiet catch waives `ogygia/no-silent-failures` this way. No custom tags: the older
-`// ok:`, `// wall:` and `// hash:` marks are being moved to directives. Where a type can say it,
+`// ok:`, `// port-ok:`, `// markup-ok:`, `// wall:` and `// hash:` marks have moved to directives,
+and the rules no longer read them, so an old mark excuses nothing. Where a type can say it,
 the type is the mark and no comment is needed: a module-level table that never grows is declared
 `ReadonlySet`, `ReadonlyMap` or `readonly T[]`, which TypeScript enforces from every module (this
 replaces `// static:`). `@why` is the only tag, because it records a fact, not a waiver.
@@ -101,7 +103,8 @@ replaces `// static:`). `@why` is the only tag, because it records a fact, not a
 
 Every failure is either handled with a reason or reported with a message code. Console output from
 ogygia is a code plus a link (`https://ogygiajs.dev/e/<code>`), worded for the person who has to fix
-it. A deliberate swallow carries `// ok: <reason>`.
+it. A deliberate swallow carries
+`// oxlint-disable-next-line ogygia/no-silent-failures -- <reason>`.
 
 ### Every bug is proved first
 
@@ -153,8 +156,8 @@ path needs a bench or a listed exemption (the `unmeasured` gate).
 - Releases are automated (`.changeset/README.md`). The version PR and the release are the owner's
   call.
 - Main requires one check, `ci ok`. CI is a staged graph (`.github/workflows/e2e.yml`): plan, then
-  check and size, then Chromium e2e, then Firefox and WebKit. Firefox and WebKit report but do not
-  block yet. Turbo's remote cache replays unchanged work.
+  check and size, then Chromium e2e, then Firefox and WebKit. All three engines block `ci ok`.
+  Turbo's remote cache replays unchanged work.
 - Dependencies: shared versions come from pnpm catalogs (`catalog:`). Package scripts are `.ts` run
   by plain Node. No `.mjs` scripts. All package source lives in `src/`. No dependency cycles between
   packages.

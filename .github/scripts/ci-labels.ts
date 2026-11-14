@@ -1,19 +1,18 @@
-// THE CI LABELS (ci-labels.yml, and engines.yml / heisenbench.yml / pkg-pr-new.yml read the same
-// answer): which of the opt-in job sets a pull request runs.
+// THE CI LABELS (ci-labels.yml, and heisenbench.yml / pkg-pr-new.yml read the same answer): which
+// of the opt-in job sets a pull request runs. (Firefox and WebKit are no opt-in set: e2e.yml runs
+// them on every PR, and they block `ci ok`.)
 //
-//   ci:engines  Firefox and WebKit (the e2e slices and the browser test projects)
 //   ci:bench    Heisenbench and the unmeasured gate
 //   ci:preview  pkg.pr.new
-//   ci:full     all three
+//   ci:full     every opt-in set (and coverage.yml, mfe-built.yml)
 //
-// A PR into main gets `ci:bench` and `ci:preview`. A change to the runtime, the router, the morph,
-// hydration or restore gets `ci:engines`; a change to a bench or a hot path gets `ci:bench`. A stacked
-// PR (its base is another PR's branch) earns none: its stack's PR into main runs them (ci-stack.ts). The labels
-// a PR carries are its own to add or remove as well; this only adds.
+// A PR into main gets `ci:bench` and `ci:preview`; a change to a bench or a hot path gets `ci:bench`.
+// A stacked PR (its base is another PR's branch) earns none: its stack's PR into main runs them
+// (ci-stack.ts). The labels a PR carries are its own to add or remove as well; this only adds.
 //
 //   node .github/scripts/ci-labels.ts           print the labels this PR earns
 //   node .github/scripts/ci-labels.ts --apply   add them to the PR (`gh`, the job's token)
-//   node .github/scripts/ci-labels.ts --has ci:engines   exit 0 when the PR carries or earns it
+//   node .github/scripts/ci-labels.ts --has ci:bench   exit 0 when the PR carries or earns it
 // Reads PR, BASE_REF and LABELS (the PR's labels, JSON) from the env. Run by plain node.
 import { execFileSync } from 'node:child_process';
 import { has_label, labels_for } from './ci-stack.ts';

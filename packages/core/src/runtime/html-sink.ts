@@ -21,8 +21,9 @@ export function is_allowed_region_endpoint(
 		if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
 		if (url.origin !== page_origin) return false;
 		return true;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: refused (fail closed)
 	} catch {
-		return false; // ok: not a URL: refused (fail closed)
+		return false;
 	}
 }
 
@@ -34,8 +35,9 @@ export function is_same_origin_response(
 	if (!res.url) return true;
 	try {
 		return new URL(res.url).origin === page_origin;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: refused (fail closed)
 	} catch {
-		return false; // ok: not a URL: refused (fail closed)
+		return false;
 	}
 }
 

@@ -40,7 +40,8 @@ export function mount_app(
 	adopt_scoped_styles(root);
 	// the mounted dock and its style watch: the dock's `mounted` visit lets go of them (ui.ts)
 	const s = scope();
-	s.defer(() => void unmount(app)); // ok: unmount's promise is its outros ending; it never rejects
+	// oxlint-disable-next-line ogygia/no-silent-failures -- unmount's promise is its outros ending; it never rejects
+	s.defer(() => void unmount(app));
 	const mo = s.watch(new MutationObserver(() => adopt_scoped_styles(root)));
 	mo.observe(document.head, { childList: true });
 	mo.observe(root, { childList: true, subtree: true });
@@ -63,9 +64,8 @@ function remake_refused_styles(root: ShadowRoot): void {
 			const sheet = new CSSStyleSheet();
 			sheet.replaceSync(style.textContent);
 			add.push(sheet);
-		} catch {
-			// ok: a browser that cannot construct sheets: the dock goes unstyled by this one
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a browser that cannot construct sheets: the dock goes unstyled by this one
+		} catch {}
 	}
 	if (add.length) root.adoptedStyleSheets = [...root.adoptedStyleSheets, ...add];
 }

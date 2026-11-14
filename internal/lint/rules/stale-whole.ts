@@ -1,4 +1,4 @@
-import { in_source, ok_lines, type Context, type Located, type Node } from './shared.ts';
+import { in_source, type Context, type Node } from './shared.ts';
 
 /** The waits that make a stale part a stale whole (`scope.task`, a mailbox's `wait` / `ask`). */
 const WAITS = new Set(['task', 'wait', 'ask']);
@@ -92,7 +92,7 @@ function waited(e: Node): boolean {
 }
 
 const MESSAGE_STALE_PART =
-	'A STALE-returning call inside a Promise.all or an array is a slot that can be STALE: hand the whole to a wait (`scope.task(() => Promise.all([…]))`, `turn.wait(Promise.all([…]))`), which gives STALE when any part is. One that is truly checked slot by slot says why on the line: `// ok: <reason>`.';
+	'A STALE-returning call inside a Promise.all or an array is a slot that can be STALE: hand the whole to a wait (`scope.task(() => Promise.all([…]))`, `turn.wait(Promise.all([…]))`), which gives STALE when any part is. One that is truly checked slot by slot says why on the line before: `// oxlint-disable-next-line ogygia/stale-whole -- <reason>`.';
 const MESSAGE_STALE_FIELD =
 	'A wait looks one level deep: a STALE-returning call inside an object it is handed is not seen. Hand the wait an array (`Promise.all([…])`) and build the object after the check.';
 
@@ -115,7 +115,6 @@ export const stale_whole = {
 		if (!in_source(context)) return {};
 		const flights_names = new Set<string>();
 		const calls: Node[] = [];
-		let ok: Set<number> | null = null;
 		const stale_call = (e: Node | undefined): boolean => {
 			const n = bare(e);
 			if (n?.type !== 'CallExpression') return false;
@@ -163,7 +162,6 @@ export const stale_whole = {
 				calls.push(node);
 			},
 			'Program:exit'() {
-				ok = ok_lines(context);
 				for (const call of calls) {
 					// an object of STALE-returning calls handed to a wait
 					const m = method_of(call);
@@ -184,8 +182,6 @@ export const stale_whole = {
 					if (!stale_call(call)) continue;
 					const container = container_of(call);
 					if (container === null || waited(container)) continue;
-					const line = (call as Located).loc.start.line;
-					if (ok.has(line) || ok.has((container as Located).loc.start.line)) continue;
 					context.report({ node: call, message: MESSAGE_STALE_PART });
 				}
 			}

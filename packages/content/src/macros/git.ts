@@ -141,8 +141,9 @@ export function materialize(
 function safe<T>(fn: () => T): T | null {
 	try {
 		return fn();
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a checkout git cannot read is no checkout: it is cloned again (or frozen throws)
 	} catch {
-		return null; // ok: a checkout git cannot read is no checkout: it is cloned again (or frozen throws)
+		return null;
 	}
 }
 

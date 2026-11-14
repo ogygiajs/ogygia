@@ -63,8 +63,9 @@ function watch_unshipped(raw: PageSeed | null, attr: string | null): void {
 	let left: Set<string>;
 	try {
 		left = new Set(JSON.parse(attr) as string[]);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the attribute is ours; one that does not parse names nothing to watch
 	} catch {
-		return; // ok: the attribute is ours; one that does not parse names nothing to watch
+		return;
 	}
 	raw.data = new Proxy(raw.data as Record<string, unknown>, {
 		get(target, key, receiver) {
@@ -82,8 +83,9 @@ function apply_page_seed(raw: PageSeed | null): void {
 	else if (typeof raw.url === 'string') {
 		try {
 			url = new URL(raw.url);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the server writes `url.href`; only a hand-made seed lands here
 		} catch {
-			url = undefined; // ok: the server writes `url.href`; only a hand-made seed lands here
+			url = undefined;
 		}
 	}
 	set_page({ ...raw, url });

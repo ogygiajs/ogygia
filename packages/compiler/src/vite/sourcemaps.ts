@@ -55,8 +55,9 @@ export function island_sourcemaps_plugin(deps: {
 			};
 			try {
 				map = this.getCombinedSourcemap();
+				// oxlint-disable-next-line ogygia/no-silent-failures -- no combined map to touch up: the module keeps the map it has (a dev polish pass)
 			} catch {
-				return null; // ok: no combined map to touch up: the module keeps the map it has (a dev polish pass)
+				return null;
 			}
 			if (!map?.mappings || !map.sources?.length) return null;
 			const rewritten = rewrite_island_sourcemap_sources(bare, map.sources);

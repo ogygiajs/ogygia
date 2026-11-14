@@ -44,6 +44,7 @@
 	let from_input = $state(from ?? sink?.url ?? '');
 	// svelte-ignore state_referenced_locally
 	if (from) {
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the .catch above shows a failed read
 		void fetch(from, { credentials: 'omit' })
 			.then(async (r) => {
 				if (!r.ok) throw new Error(`${r.status}`);
@@ -53,7 +54,7 @@
 				(e) =>
 					(load_error = `Could not read ${from}: ${e instanceof Error ? e.message : e}. The URL must be readable by this browser (CORS).`)
 			)
-			.finally(() => (loading = false)); // ok: the .catch above shows a failed read
+			.finally(() => (loading = false));
 	}
 	const points = $derived(cloud_points(rows));
 	const cake = $derived(layer_cake(rows));

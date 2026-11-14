@@ -277,9 +277,8 @@ function stamp_no_store(response: Response): void {
 		if (!(response.headers.get('content-type') ?? '').includes('text/html')) return;
 		if (response.headers.get('cache-control')) return;
 		response.headers.set('cache-control', 'private, no-store');
-	} catch {
-		// ok: immutable headers; the app's platform's headers win
-	}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- immutable headers; the app's platform's headers win
+	} catch {}
 }
 
 /** A permanent redirect: stored as its status and location, never its body. */
@@ -316,9 +315,8 @@ function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): vo
 	if (why === null) {
 		try {
 			response.headers.set(VIA_HEADER, 'would-store');
-		} catch {
-			// ok: immutable headers; a dev hint only, the page is unchanged
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- immutable headers; a dev hint only, the page is unchanged
+		} catch {}
 		return;
 	}
 	// (once per path, for the latest 500 paths: a dev session's pages)
@@ -441,9 +439,8 @@ async function capture_page(
 		for (const edge of runtime.edges) {
 			try {
 				Object.assign(headers, edge.headers({ url: path, ttl }));
-			} catch {
-				// ok: an edge adapter never fails a render; the page is stored without that edge's headers, and the edge serves it by its own rules
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- an edge adapter never fails a render; the page is stored without that edge's headers, and the edge serves it by its own rules
+			} catch {}
 		}
 	}
 	const entry: PostrenderEntry = {
@@ -516,7 +513,8 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		}
 		// a deploy is a write: the entry's build label decides (servable); a boot's first read also
 		// starts the old build's pages' early cleanup, which no read waits for
-		deploy_check(runtime, version).then(undefined, () => {}); // ok: the store's failure was said; the next request checks again
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the store's failure was said; the next request checks again
+		deploy_check(runtime, version).then(undefined, () => {});
 		const hit = await store_get(runtime, path);
 		// (another build's entry, or one past its TTL, is a miss: the render below stores a fresh one
 		// over it; so is one a stale render is taking back out, which may be the page from before a

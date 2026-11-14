@@ -48,8 +48,8 @@ export function nested_context(
 export function island_region(): Element | null {
 	try {
 		return (getContext(ISLAND_REGION_KEY) as Element | undefined) ?? null;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not inside a component's run: no island to name
 	} catch {
-		// ok: not inside a component's run: no island to name
 		return null;
 	}
 }

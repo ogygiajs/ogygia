@@ -73,8 +73,9 @@ export async function page_json(cpu_fns = 15): Promise<{
 			| PerformanceNavigationTiming
 			| undefined;
 		route = nav?.serverTiming?.find((s) => s.name === 'og-route')?.description || null;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no navigation timing in this browser: the route goes unnamed
 	} catch {
-		route = null; // ok: no navigation timing in this browser: the route goes unnamed
+		route = null;
 	}
 	return {
 		url: location.pathname,
