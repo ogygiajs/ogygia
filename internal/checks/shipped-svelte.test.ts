@@ -8,7 +8,6 @@ import {
 	as_shipped,
 	compile_findings,
 	find_all,
-	PENDING,
 	shipped_components,
 	source_findings
 } from './shipped-svelte.ts';
@@ -125,8 +124,8 @@ test('the shipped components are every package src component, and nothing else',
 	assert.ok(files.includes('packages/core/src/Region.svelte'));
 	assert.ok(files.includes('packages/content/src/Blocks.svelte'));
 	assert.ok(files.includes('packages/devtools/src/profiler/ui/Report.svelte'));
+	assert.ok(files.includes('packages/router/src/LayoutChain.svelte'));
 	assert.ok(files.every((f) => /^packages\/[^/]+\/src\//.test(f)));
-	for (const pending of PENDING) assert.ok(files.includes(pending), pending);
 });
 
 test('every shipped component passes', async () => {

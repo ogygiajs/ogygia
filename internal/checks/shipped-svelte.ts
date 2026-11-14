@@ -112,26 +112,6 @@ export function shipped_components(root: string = ROOT): string[] {
 		.filter((file) => /^packages\/[^/]+\/src\//.test(file));
 }
 
-/** Components not yet moved to TypeScript: each still has a source finding, and the list only
- *  shrinks (one that has none must leave it). It compiles as shipped like every other. */
-export const PENDING: ReadonlySet<string> = new Set([
-	'packages/devtools/src/devtools/BoundaryOverlay.svelte',
-	'packages/devtools/src/devtools/Devtools.svelte',
-	'packages/devtools/src/devtools/HubTab.svelte',
-	'packages/devtools/src/devtools/HydrationTab.svelte',
-	'packages/devtools/src/devtools/IslandDetail.svelte',
-	'packages/devtools/src/devtools/LedgerTab.svelte',
-	'packages/devtools/src/devtools/LensTab.svelte',
-	'packages/devtools/src/devtools/NavTab.svelte',
-	'packages/devtools/src/devtools/PageTab.svelte',
-	'packages/devtools/src/devtools/ProfilerTab.svelte',
-	'packages/devtools/src/devtools/PropsTree.svelte',
-	'packages/devtools/src/devtools/SessionTab.svelte',
-	'packages/devtools/src/devtools/TimelineTab.svelte',
-	'packages/devtools/src/devtools/WireTab.svelte',
-	'packages/router/src/LayoutChain.svelte'
-]);
-
 /** Every finding over every shipped component, as `file:line: why`. */
 export async function find_all(root: string = ROOT): Promise<string[]> {
 	const pre = vitePreprocess({ script: true });
@@ -139,12 +119,7 @@ export async function find_all(root: string = ROOT): Promise<string[]> {
 	for (const file of shipped_components(root)) {
 		const abs = path.join(root, file);
 		const source = readFileSync(abs, 'utf8');
-		const findings = source_findings(source, abs);
-		if (!PENDING.has(file)) for (const f of findings) found.push(`${file}:${f}`);
-		else if (findings.length === 0)
-			found.push(
-				`${file}: is TypeScript now; take it off PENDING in internal/checks/shipped-svelte.ts`
-			);
+		for (const f of source_findings(source, abs)) found.push(`${file}:${f}`);
 		for (const f of compile_findings(await as_shipped(source, abs, pre), abs))
 			found.push(`${file}: ${f}`);
 	}
