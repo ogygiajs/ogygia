@@ -520,13 +520,23 @@ describe('watch and adopt', () => {
 	});
 
 	it('a task whose work closes its own scope and then fails is STALE, its failure never unhandled', async () => {
-		const s = scope();
-		const out = s.task(() => {
-			s.close();
-			return Promise.reject(new Error('failed after closing'));
-		});
-		expect(await out).toBe(STALE);
-		await macrotask();
+		const unhandled = vi.fn();
+		const on_node = typeof process !== 'undefined' && typeof process.on === 'function';
+		if (on_node) process.on('unhandledRejection', unhandled);
+		else window.addEventListener('unhandledrejection', unhandled);
+		try {
+			const s = scope();
+			const out = s.task(() => {
+				s.close();
+				return Promise.reject(new Error('failed after closing'));
+			});
+			expect(await out).toBe(STALE);
+			await wait(20);
+			expect(unhandled).not.toHaveBeenCalled();
+		} finally {
+			if (on_node) process.off('unhandledRejection', unhandled);
+			else window.removeEventListener('unhandledrejection', unhandled);
+		}
 	});
 
 	it('`await using` gets the errors of an async disposal; a plain close reports them', async () => {
