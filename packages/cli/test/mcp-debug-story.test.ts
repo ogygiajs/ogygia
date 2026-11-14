@@ -36,3 +36,17 @@ it('ogygia_debug: a failed hydration shows its reason in the region block and th
 	expect(story).toContain('HYDRATION FAILED: count is not defined');
 	expect(story).toContain(`#${FP.slice(0, 8)}: hydration failed — count is not defined.`);
 });
+
+it('ogygia_debug: the story header lists the features the runtime booted (#1813)', () => {
+	const boot: DevtoolsEvent = {
+		domain: 'runtime',
+		name: 'runtime.boot',
+		features: ['router', 'context'],
+		v: 1,
+		seq: 0,
+		t: 5,
+		realm: 'client'
+	};
+	const story = render_story('http://localhost/', [boot, ...failed_run]);
+	expect(story).toContain('runtime booted (router, context)');
+});
