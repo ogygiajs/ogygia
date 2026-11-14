@@ -21,7 +21,7 @@ import type { RequestEvent } from '@sveltejs/kit';
 import type { ServerApp } from '@ogygia/core/plugin';
 import { OG_MOVED } from '@ogygia/core/internal/server';
 import { current_federation } from './registry.ts';
-import { begin_source_capture, broadcast_thaw, deploy_thaws } from './federate.ts';
+import { broadcast_thaw, deploy_thaws, SourceCapture } from './federate.ts';
 import { set_hole_signer } from './hole.ts';
 import { fed_app } from './app.ts';
 import { warn } from './messages.ts';
@@ -256,7 +256,7 @@ async function serve_expose(fed: Federation, event: RequestEvent): Promise<Respo
 	fwd.headers.set('traceparent', trace.traceparent);
 	attach_claims(fwd, claims);
 
-	const capture = begin_source_capture(request);
+	const capture = new SourceCapture(request);
 	const sources = capture.sources;
 	let res: Response | null;
 	try {
@@ -317,7 +317,7 @@ async function serve_widget(fed: Federation, event: RequestEvent, name: string):
 	const props: Record<string, string> = {};
 	for (const [k, v] of url.searchParams) props[k] = v;
 
-	const capture = begin_source_capture(request);
+	const capture = new SourceCapture(request);
 	const sources = capture.sources;
 	let baked: { html: string | null };
 	try {
