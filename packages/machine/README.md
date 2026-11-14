@@ -341,7 +341,7 @@ gate.on('open', () => downloads.recheck());
 | `recheck()`                 | What a pass reads (a priority, a job's readiness, its windows) changed: the queue drains again.                                                                                                                                                                                              |
 
 - **A pass reads the line once.** It orders the waiting jobs by priority (whole priorities close together are counted into order, not sorted), then reaches the jobs pushed while it runs, in the order pushed. A push, a release or a `recheck()` while it runs asks for one more pass after it.
-- **Plain queues pay nothing.** Without `priority`, `ready`, `windows` and `budget`, the queue starts strictly from the front, a step per job, as above.
+- **Plain queues pay nothing.** With a `max` and without `priority`, `ready`, `windows` and `budget`, the queue starts strictly from the front, a step per job, as above: the same steps as before these options.
 - **A drain never stalls.** A `yield` that throws is reported ([machine_queue_yield_failed](https://ogygiajs.dev/e/machine_queue_yield_failed)) and the drain goes on at once. A rule that throws (`priority`, `ready`, `holds`) ends the drain and throws to whoever woke it; the next push, release or `recheck()` drains again.
 
 ## Outbox

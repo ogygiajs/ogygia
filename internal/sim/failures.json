@@ -1514,13 +1514,13 @@
 			"name": "a wait that would end exactly at the deadline is out of time at once"
 		},
 		{
-			"site": "packages/machine/src/queue.ts > QueueImpl > drain > catch:0",
+			"site": "packages/machine/src/queue.ts > PlainLine > _drain > catch:0",
 			"reason": "`catch (error) { report_thrown('machine_queue_start_failed', { name: t…`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/machine/test/queue.test.ts",
 			"name": "a start that throws is reported, and the jobs after it still start"
 		},
 		{
-			"site": "packages/machine/src/queue.ts > QueueImpl > hold > catch:0",
+			"site": "packages/machine/src/queue.ts > PassLine > hold > catch:0",
 			"reason": "`catch (error) { report_thrown('machine_queue_start_failed', { name: t…`: a queue with passes: the jobs after a throwing start still start, and its window place goes back",
 			"test": "packages/machine/test/queue-passes.test.ts",
 			"name": "a start that throws is reported, its place and windows go back, and the pass goes on"
@@ -1538,52 +1538,58 @@
 			"name": "a critical image that fails to load ends the wait as one that arrived: island code starts"
 		},
 		{
-			"site": "packages/machine/src/queue.ts > QueueImpl > run > catch:0",
+			"site": "packages/machine/src/queue.ts > PassLine > run > catch:0",
 			"reason": "`catch (error) { this.#end(); throw error; }`: proved by hand: without the end the drain stays running and the recheck starts nothing",
 			"test": "packages/machine/test/queue-passes.test.ts",
 			"name": "a rule that throws ends the drain and throws to the caller; the next wake drains again"
 		},
 		{
-			"site": "packages/machine/src/queue.ts > QueueImpl > run > throw:0",
+			"site": "packages/machine/src/queue.ts > PassLine > run > throw:0",
 			"reason": "`throw error;`: the push that woke the drain throws the rule's error",
 			"test": "packages/machine/test/queue-passes.test.ts",
 			"name": "a rule that throws ends the drain and throws to the caller; the next wake drains again"
 		},
 		{
-			"site": "packages/machine/src/queue.ts > QueueImpl > hand_back > catch:0",
+			"site": "packages/machine/src/queue.ts > PassLine > hand_back > catch:0",
 			"reason": "`catch (error) { … report_thrown('machine_queue_yield_failed', …); resume(); }`: the jobs after a throwing yield still start, and the code is said",
 			"test": "packages/machine/test/queue-passes.test.ts",
 			"name": "a yield that throws is reported, and the drain goes on without it"
 		},
 		{
-			"site": "packages/machine/src/queue.ts > QueueImpl > hand_back > throw:0",
+			"site": "packages/machine/src/queue.ts > PassLine > hand_back > throw:0",
 			"reason": "`if (resumed) throw error;`: proved by hand: without it the rule's error is said as the yield's failure",
 			"test": "packages/machine/test/queue-passes.test.ts",
 			"name": "a rule that throws in a drain its yield resumed at once throws to the caller, not as the yield’s failure"
 		},
 		{
 			"site": "packages/machine/src/queue.ts > cap > throw:0",
-			"reason": "`throw machine_error('machine_bad_option', { option, value: Str…`: the bad max is refused",
-			"test": "packages/machine/test/queue.test.ts",
-			"name": "a bad max is refused with machine_bad_option"
+			"reason": "`throw machine_error('machine_bad_option', { option, value: Str…`: a window's bad max is refused",
+			"test": "packages/machine/test/queue-passes.test.ts",
+			"name": "a bad window max, too many windows or a bad budget is refused with machine_bad_option"
 		},
 		{
-			"site": "packages/machine/src/queue.ts > queue > throw:1",
+			"site": "packages/machine/src/queue.ts > passes > throw:1",
 			"reason": "`throw machine_error('machine_bad_option', { option: 'budget.ms', …`: a budget below 0 or not finite is refused",
 			"test": "packages/machine/test/queue-passes.test.ts",
 			"name": "a bad window max, too many windows or a bad budget is refused with machine_bad_option"
 		},
 		{
-			"site": "packages/machine/src/queue.ts > QueueImpl > stale_job > catch:0",
+			"site": "packages/machine/src/queue.ts > Line > _stale_job > catch:0",
 			"reason": "`catch (error) { report_thrown('machine_queue_stale_failed', { name: t…`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/machine/test/queue.test.ts",
 			"name": "a stale hook that throws is reported, and the other waiting jobs still go stale and none hangs"
 		},
 		{
-			"site": "packages/machine/src/queue.ts > queue > throw:0",
+			"site": "packages/machine/src/queue.ts > passes > throw:0",
 			"reason": "`throw machine_error('machine_bad_option', { option: 'windows', …`: 32 windows are refused",
 			"test": "packages/machine/test/queue-passes.test.ts",
 			"name": "a bad window max, too many windows or a bad budget is refused with machine_bad_option"
+		},
+		{
+			"site": "packages/machine/src/queue.ts > queue > throw:0",
+			"reason": "`throw machine_error('machine_bad_option', { option: 'max', value: Str…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/queue.test.ts",
+			"name": "a bad max is refused with machine_bad_option"
 		},
 		{
 			"site": "packages/machine/src/say.ts > say > throw:0",
@@ -4532,7 +4538,7 @@
 			"name": "storage that throws as it is read is no storage"
 		},
 		{
-			"site": "packages/machine/src/queue.ts > QueueImpl > arm > timer:0",
+			"site": "packages/machine/src/queue.ts > Line > arm > timer:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the timer's callback made to do nothing turns the test red",
 			"test": "packages/machine/test/queue.test.ts",
 			"name": "mid-expiry: every expired job is stale once, none skipped, after the list is compacted under it"
