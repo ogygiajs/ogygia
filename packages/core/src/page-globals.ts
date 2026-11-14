@@ -7,7 +7,7 @@
 
 /** What the restorer recorded about one host. */
 export interface RestoreLogEntry {
-	kind: 'late' | 'mismatch' | 'sheet';
+	kind: 'late' | 'mismatch' | 'sheet' | 'invalid';
 	host: string;
 	t: number;
 	diff?: string;

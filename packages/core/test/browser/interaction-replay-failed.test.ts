@@ -4,6 +4,7 @@
 import { afterEach, expect, inject, vi } from 'vitest';
 import { commands } from 'vitest/browser';
 import { PLAYWRIGHT, it_with_network_routes } from './_browsers.ts';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 
 declare module 'vitest/browser' {
@@ -28,7 +29,7 @@ it_with_network_routes(
 		vi.spyOn(console, 'error').mockImplementation((...a: unknown[]) => {
 			errors.push(a.map(String).join(' '));
 		});
-		document.body.innerHTML = decodeURIComponent(escape(atob(inject('counter_ssr_b64')))).replace(
+		document.body.innerHTML = from_b64(inject('counter_ssr_b64')).replace(
 			'wake="load"',
 			'wake="interaction"'
 		);

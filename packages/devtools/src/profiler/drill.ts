@@ -65,8 +65,7 @@ export interface DrillNode {
 /** `lib/x.ts:42` or `lib/x.ts:42:7` → the file and the line; undefined when `at` names no line */
 export function at_line(at: string): { file: string; line: number } | undefined {
 	const parts = at.split(':');
-	const num = (s: string | undefined) =>
-		!!s && s.length > 0 && [...s].every((c) => c >= '0' && c <= '9');
+	const num = (s: string | undefined) => !!s && /^[0-9]+$/.test(s);
 	let n = parts.length;
 	// `file:line:col`: the column goes first
 	if (n >= 3 && num(parts[n - 1]) && num(parts[n - 2])) n--;

@@ -44,7 +44,7 @@ function held(dev: Server) {
 	const rows = [...p.registry].filter(([, e]) => e.componentPath?.endsWith('/Counter.svelte'));
 	const ids = [...new Set(rows.map(([, e]) => e.id))].sort();
 	return {
-		roles: rows.map(([, e]) => e.role).sort(),
+		roles: rows.map(([, e]) => e.role).sort((a, b) => String(a).localeCompare(String(b))),
 		in_graph: rows.filter(([v]) => p.island_graph.has(v)).length,
 		ids,
 		kinds: ids.map((id) => p.region_kinds.get(id)),

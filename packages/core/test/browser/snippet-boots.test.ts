@@ -1,4 +1,5 @@
 import { afterEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 
 const LABEL = '/test/browser/fixtures/Label.svelte';
@@ -6,7 +7,7 @@ const SNIPPET_BOOTS = Symbol.for('ogygia.snippet-boots');
 type Host = Element & { [SNIPPET_BOOTS]?: Promise<unknown>[] };
 
 const island = (): Host => {
-	const body = decodeURIComponent(escape(atob(inject('label_render_b64'))));
+	const body = from_b64(inject('label_render_b64'));
 	const wrap = document.createElement('div');
 	wrap.innerHTML = `<ogygia-region wake="load" entry="${LABEL}">${body}</ogygia-region>`;
 	return wrap.firstElementChild as Host;

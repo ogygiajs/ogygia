@@ -148,7 +148,7 @@ describe('a flight priority, simulated', () => {
 				const joined = s
 					.schedule(Promise.resolve(), 'the visitor joins')
 					.then(() => f.get('chunk', { priority: 3 }));
-				await s.waitAll();
+				await s.waitIdle();
 				expect(await warm).toBe('module');
 				const join = await joined;
 				expect(join).not.toBe(STALE);

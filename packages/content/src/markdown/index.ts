@@ -88,6 +88,7 @@ type UnifiedEntry = NonNullable<MdsvexOptions['remarkPlugins']>[number];
  * `{ enforce: 'pre', plugin }` runs before the built-in passes (`'post'` = the default, explicit).
  */
 export type StagedPlugin =
+	// oxlint-disable-next-line typescript/no-redundant-type-constituents -- mdsvex's entry type is any (unified does not resolve from mdsvex); a real type narrows a public option, owner call
 	| UnifiedEntry
 	| {
 			enforce: 'pre' | 'post';
@@ -492,7 +493,7 @@ export function ogygiaPreprocess(options?: MarkdownOptions): PreprocessorGroup {
 			// taken pre-load would give the same doc a second address on the next run.
 			let doc_key: string | null = null;
 			if (isContent) {
-				await Promise.all(pipeline.variants.map((g) => g.ready?.()));
+				await Promise.all(pipeline.variants.map((g) => g.ready?.() ?? Promise.resolve()));
 				// keyed by what the cached code embeds: the CSS key (`content_css_key`, the src-relative
 				// path, whose last part is the base name the source line reads), so a moved file with the
 				// same content is compiled again, never handed the old path's CSS key (#292)

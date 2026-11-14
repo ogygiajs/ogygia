@@ -51,7 +51,7 @@ describe('the server realm', () => {
 			const c = ctx(request);
 			await server.request!(c);
 			expect(gate({ request, url: new URL(request.url) })).toBe(true);
-			server.done!(c);
+			await server.done!(c);
 			expect(sent.flat().some((e) => (e as { name: string }).name === 'plugin-test-gate')).toBe(
 				true
 			);

@@ -13,6 +13,7 @@ import {
 	transformTsRegions,
 	wrapperVirtualId
 } from '../src/compiler/region/transform.ts';
+import type { IslandDescriptor } from '../src/compiler/program.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 type HostCtx = Parameters<typeof transformHost>[2];
@@ -243,8 +244,7 @@ describe('generated region-import shapes match the model', () => {
 					return;
 				}
 				expect('value' in got).toBe(true);
-				const r = (got as { value: { code: string; islands: Array<Record<string, unknown>> } })
-					.value;
+				const r = (got as { value: { code: string; islands: IslandDescriptor[] } }).value;
 				const kept = c.bindings.filter((b) => c.kind === 'ts' || b.use !== 'unused');
 				if (kept.length === 0) {
 					// nothing used: the dead import is dropped and no region is made

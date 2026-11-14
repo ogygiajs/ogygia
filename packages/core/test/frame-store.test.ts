@@ -41,7 +41,9 @@ describe('frame-store: dedupe', () => {
 
 	it('different addresses fetch independently', () => {
 		const spy = vi.fn(deferred().fetcher);
+		// oxlint-disable-next-line typescript/no-floating-promises -- the test asks only that the fetch starts; its answer never comes
 		frames.ensure('/r?sig=1', spy);
+		// oxlint-disable-next-line typescript/no-floating-promises -- as above, for the second address
 		frames.ensure('/r?sig=2', spy);
 		expect(spy).toHaveBeenCalledTimes(2);
 	});
@@ -246,6 +248,7 @@ describe('frame-store: lifecycle', () => {
 		await expect(b).rejects.toThrow('net');
 		// A later ensure starts a fresh fetch (in-flight was cleared on failure).
 		const spy = vi.fn(deferred('RETRY').fetcher);
+		// oxlint-disable-next-line typescript/no-floating-promises -- the test asks only that a fresh fetch starts; its answer never comes
 		frames.ensure('/r?sig=1', spy);
 		expect(spy).toHaveBeenCalledTimes(1);
 	});

@@ -12,7 +12,7 @@ export interface MountOptions {
 	user?: (c: Ctx) => Claims | undefined;
 	/** STREAM the mount: the shell's page flushes immediately with `fallback` in the slot, and the
 	 *  fragment swaps in down the SAME response when the peer answers. GET only. */
-	stream?: boolean | { fallback?: string | unknown };
+	stream?: boolean | { fallback?: unknown };
 }
 
 function claims_for(c: Ctx, user_override?: (c: Ctx) => Claims | undefined): Claims | undefined {

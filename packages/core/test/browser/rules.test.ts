@@ -4,6 +4,7 @@
 //
 // Its own file: the rules are module state shared by a file's tests.
 import { afterEach, expect, inject, test, vi } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { STALE } from '@ogygia/machine';
 import { bootDev } from '../../src/runtime/full.ts';
 import {
@@ -26,7 +27,7 @@ const rules = (): Broken =>
 	(globalThis as unknown as { __ogygia_rules: () => Broken }).__ogygia_rules();
 const codes = () => rules().map((b) => b.code);
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
-const counter_html = () => decodeURIComponent(escape(atob(inject('counter_ssr_b64'))));
+const counter_html = () => from_b64(inject('counter_ssr_b64'));
 
 afterEach(() => vi.restoreAllMocks());
 

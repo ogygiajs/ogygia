@@ -3,6 +3,7 @@
 // static tick morphs HTML in from the frame store. Whatever order the ticks come in, the region has
 // at most one island, and each mode lets go of the other's machinery when it takes over.
 import { afterEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset, stamp, write } from '../_frames.ts';
 import { frameAddress } from '../../src/frame.ts';
@@ -10,7 +11,7 @@ import { frameAddress } from '../../src/frame.ts';
 const LABEL = '/test/browser/fixtures/Label.svelte';
 const PROBE = '/test/browser/fixtures/LiveProbe.svelte';
 /** `render(Label, { text: 'one' })` — LiveProbe renders the very same markup. */
-const label_html = () => decodeURIComponent(escape(atob(inject('label_render_b64'))));
+const label_html = () => from_b64(inject('label_render_b64'));
 const LIVE_URL = (id: string) => `/__ogygia__?id=${id}&props=W3t9XQ&exp=9999999999&sig=stub`;
 
 type LiveTick = {

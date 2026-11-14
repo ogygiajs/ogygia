@@ -35,7 +35,7 @@ export interface KitPage {
 }
 
 type Reader = () => KitPage | null;
-type EventReader = () => unknown | null;
+type EventReader = () => unknown;
 /** THE PAGE OF A RENDER, as a render root uses it (server/render-page.ts behind it). */
 interface RenderPagePort {
 	/** Before the root renders: its page ready for the reader. `reads_data` — `true`: this render
@@ -97,7 +97,7 @@ export function kit_page_version(hole_id: string): string {
 }
 
 /** The live event the installed reader answers (null off-request / on the client). */
-export function kit_request_event(): unknown | null {
+export function kit_request_event(): unknown {
 	return slots.event_reader?.() ?? null;
 }
 

@@ -19,7 +19,7 @@ import ts from 'typescript';
 import type { ShikiTransformer } from 'shiki';
 import { createTransformerFactory, rendererRich } from '@shikijs/twoslash';
 import { createTwoslasher } from 'twoslash';
-import { createTwoslasherSvelte } from 'twoslash-svelte';
+import { createTwoslasher as createTwoslasherSvelte } from 'twoslash-svelte';
 import { fromMarkdown } from 'mdast-util-from-markdown';
 
 /** Absolute app root — its `node_modules` is twoslash's VFS (svelte + @sveltejs/kit `.d.ts` live there). */

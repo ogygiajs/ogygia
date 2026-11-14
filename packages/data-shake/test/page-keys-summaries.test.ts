@@ -150,7 +150,10 @@ describe('a read in a branch the browser can take counts', () => {
 	])('%s', (body) => {
 		const code = `import { page } from '$app/state';\n${body}`;
 		const keys = page_data_keys(code, '/app/src/lib/x.ts', 'script');
-		expect(keys === 'all' || keys?.has('b'), JSON.stringify(keys && [...keys])).toBe(true);
+		expect(
+			keys === 'all' || keys?.has('b'),
+			JSON.stringify(keys === 'all' ? keys : keys && [...keys])
+		).toBe(true);
 	});
 
 	it.each([
@@ -191,7 +194,10 @@ describe('a followed function rebound by destructuring is not followed', () => {
 			use(f(page));
 		`;
 		const keys = page_data_keys(code, '/app/src/lib/x.ts', 'script');
-		expect(keys === 'all' || keys?.has('b'), JSON.stringify(keys && [...keys])).toBe(true);
+		expect(
+			keys === 'all' || keys?.has('b'),
+			JSON.stringify(keys === 'all' ? keys : keys && [...keys])
+		).toBe(true);
 	});
 });
 
