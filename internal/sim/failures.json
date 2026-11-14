@@ -4806,6 +4806,60 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the rejection handler made to rethrow turns the test red",
 			"test": "packages/devtools/test/profiler-mount-once.test.ts",
 			"name": "a mount whose import failed is tried again by the next request"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > doc > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/federation/test/federation.test.ts",
+			"name": "widgetDoc throws a plain Error; doc() throws http errors; a network failure is a 504"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > doc > abort:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the abort check never true hangs the test past the run time limit",
+			"test": "packages/federation/test/sim-peer.test.ts",
+			"name": "fetches each page once per thaw, and never serves a page from before what it saw"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > doc > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed hangs the test past the run time limit",
+			"test": "packages/federation/test/sim-peer.test.ts",
+			"name": "fetches each page once per thaw, and never serves a page from before what it saw"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > answer > not-ok:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the not-ok branch never taken turns the test red",
+			"test": "packages/federation/test/federation.test.ts",
+			"name": "widgetDoc throws a plain Error; doc() throws http errors; a network failure is a 504"
+		},
+		{
+			"site": "packages/federation/src/serve.ts > check_deploy > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/federation/test/owners.test.ts",
+			"name": "the store is down for the first check: a later request checks again and thaws"
+		},
+		{
+			"site": "packages/federation/src/serve.ts > serve_hole > not-ok:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the not-ok branch never taken turns the test red",
+			"test": "packages/federation/test/federation.test.ts",
+			"name": "an expired hole is answered as an expired local one, and the runtime’s renewal re-signs it"
+		},
+		{
+			"site": "packages/federation/src/serve.ts > serve_hole > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/federation/test/peer-unreachable.test.ts",
+			"name": "a deferred widget's hole: a 504, and the code said"
+		},
+		{
+			"site": "packages/federation/src/serve.ts > serve_thaw > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/federation/test/property-thaw.test.ts",
+			"name": "answers 200 for a notice of the notice’s shape and 400 for anything else, never throws"
+		},
+		{
+			"site": "packages/federation/src/serve.ts > serve_thaw > catch:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/federation/test/thaw-receive.test.ts",
+			"name": "answers an error and keeps no id; the retry with the same id is applied"
 		}
 	],
 	"impossible": [
@@ -5629,13 +5683,9 @@
 		"packages/federation/src/federate.ts > post_thaw > timer:0",
 		"packages/federation/src/mount.ts > mount_fn > stream_slot > import:0",
 		"packages/federation/src/mount.ts > kit_mount > kit > import:0",
-		"packages/federation/src/peer.ts > PeerHandle > doc > catch:0",
-		"packages/federation/src/peer.ts > PeerHandle > doc > abort:0",
-		"packages/federation/src/peer.ts > PeerHandle > doc > throw:1",
 		"packages/federation/src/peer.ts > PeerHandle > widgetDoc > abort:0",
 		"packages/federation/src/peer.ts > PeerHandle > answer > abort:0",
 		"packages/federation/src/peer.ts > PeerHandle > answer > throw:0",
-		"packages/federation/src/peer.ts > PeerHandle > answer > not-ok:0",
 		"packages/federation/src/peer.ts > PeerHandle > answer > reject:0",
 		"packages/federation/src/peer.ts > PeerHandle > answer > parse:0",
 		"packages/federation/src/peer.ts > PeerHandle > widget > throw:0",
@@ -5652,13 +5702,8 @@
 		"packages/federation/src/serve.ts > deploy_thaw_check > refused:0",
 		"packages/federation/src/serve.ts > checked > refused:0",
 		"packages/federation/src/serve.ts > checked > refused:1",
-		"packages/federation/src/serve.ts > check_deploy > catch:0",
 		"packages/federation/src/serve.ts > serve_expose > fetch:0",
-		"packages/federation/src/serve.ts > serve_hole > not-ok:0",
-		"packages/federation/src/serve.ts > serve_hole > catch:0",
 		"packages/federation/src/serve.ts > serve_thaw > parse:0",
-		"packages/federation/src/serve.ts > serve_thaw > catch:0",
-		"packages/federation/src/serve.ts > serve_thaw > catch:1",
 		"packages/federation/src/shared-state.ts > read_seed > parse:0",
 		"packages/federation/src/shared-state.ts > read_seed > catch:0",
 		"packages/federation/src/wire.ts > any_key > catch:0",
