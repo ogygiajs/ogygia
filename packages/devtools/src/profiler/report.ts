@@ -617,8 +617,11 @@ export interface RouteAgg {
 	net_p50: number;
 }
 
-const fmt_ms = (n: number): string =>
-	n >= 100 ? n.toFixed(0) : n >= 10 ? n.toFixed(1) : n.toFixed(2);
+const fmt_ms = (n: number): string => {
+	if (n >= 100) return n.toFixed(0);
+	if (n >= 10) return n.toFixed(1);
+	return n.toFixed(2);
+};
 const fmt_pct = (part: number, whole: number): string =>
 	whole > 0 ? `${((part / whole) * 100).toFixed(1)}%` : '—';
 const round1 = (n: number): number => Math.round(n * 10) / 10;
@@ -1491,11 +1494,9 @@ export function derive_findings(a: Analysis, meta: ReportMeta, extras: ReportExt
 		);
 		// (close behind the top one: within a quarter of it — the next profile may rank them the other way)
 		const close = own.slice(1, 3).filter((f) => f.self_ms >= 5 && f.self_ms >= hot.self_ms * 0.75);
-		const spot_lead = crowd
-			? `In ${hot.name}, the biggest part`
-			: spot && share_word(spot.ms, hot.self_ms) === 'most of it'
-				? 'Most of it'
-				: 'The biggest part';
+		let spot_lead = 'The biggest part';
+		if (crowd) spot_lead = `In ${hot.name}, the biggest part`;
+		else if (spot && share_word(spot.ms, hot.self_ms) === 'most of it') spot_lead = 'Most of it';
 		warn(
 			'hot-function',
 			(crowd
@@ -1571,17 +1572,23 @@ export function derive_findings(a: Analysis, meta: ReportMeta, extras: ReportExt
 			// ran together, each value's part of the wall is its fair share (the shares add up to the
 			// wall); summed start-to-ends would count every instant once per span open in it
 			const top_share = top ? [...s.by[bk]].sort((x, y) => y.share_ms - x.share_ms)[0] : undefined;
-			const by_top = overlap
-				? top_share &&
+			let by_top = '';
+			if (overlap) {
+				if (
+					top_share &&
 					bk &&
 					!top_share.value.startsWith('(') &&
 					top_share.share_ms >= s.wall_ms * 0.2
-					? ` The biggest part is ${bk} ${top_share.value}: ${Math.round(top_share.count / runs)} of them, ${fmt_ms(top_share.share_ms / runs)} ms of the ${fmt_ms(wall_per_render)} ms (${fmt_pct(top_share.share_ms, s.wall_ms)}).`
-					: ''
-				: // "most of it" only when it is: 1 of 16 equal lookups (a key per call, repeated each render) is not
-					top && bk && !top.value.startsWith('(') && top.wall_ms >= s.wall_ms * 0.2
-					? ` Most of it is ${bk} ${top.value}: ${Math.round(top.count / runs)} of them, ${fmt_ms(top.wall_ms / runs)} ms of wall.`
-					: '';
+				)
+					by_top = ` The biggest part is ${bk} ${top_share.value}: ${Math.round(top_share.count / runs)} of them, ${fmt_ms(top_share.share_ms / runs)} ms of the ${fmt_ms(wall_per_render)} ms (${fmt_pct(top_share.share_ms, s.wall_ms)}).`;
+			} else if (
+				// "most of it" only when it is: 1 of 16 equal lookups (a key per call, repeated each render) is not
+				top &&
+				bk &&
+				!top.value.startsWith('(') &&
+				top.wall_ms >= s.wall_ms * 0.2
+			)
+				by_top = ` Most of it is ${bk} ${top.value}: ${Math.round(top.count / runs)} of them, ${fmt_ms(top.wall_ms / runs)} ms of wall.`;
 			// ran together (a Promise.all: the summed time is far above the wall) or one after another?
 			if (overlap) {
 				warn(
@@ -2120,14 +2127,20 @@ export function derive_findings(a: Analysis, meta: ReportMeta, extras: ReportExt
 						fix: `Render fewer pieces${many.length ? ` — ${many[0].split(' ×')[0]} first` : ''}: inline a small component an \`{#each}\` repeats into the loop's own markup, stop a component that renders itself sooner, or send a page of the list. The renderer goes async for every page when Svelte's \`experimental.async\` is on: an app with no \`await\` in its markup can turn it off and render with none of them.`
 					}
 				);
-			} else
+			} else {
+				let makers = '';
+				if (top) makers = ` Mostly from: ${top}.`;
+				else if (left_out)
+					makers =
+						' Their makers are spread thin: no one origin of the app’s stands out in the sample — profile again warm (the dev server’s loading crowds a first render).';
 				warn(
 					'promise-storm',
-					`${Math.round(per).toLocaleString()} promises per render${left_out}. Each is an allocation and a microtask; at this volume they are a cost no single function shows.${top ? ` Mostly from: ${top}.` : left_out ? ' Their makers are spread thin: no one origin of the app’s stands out in the sample — profile again warm (the dev server’s loading crowds a first render).' : ''}`,
+					`${Math.round(per).toLocaleString()} promises per render${left_out}. Each is an allocation and a microtask; at this volume they are a cost no single function shows.${makers}`,
 					{
 						fix: 'Find the loop that awaits per item (a render per tag, a fetch per row) and do the work in one call, or on a plain array without async at all.'
 					}
 				);
+			}
 		}
 	}
 	// A TIMER EACH RENDER STARTS AND NEVER ENDS: still open after every render, from the same line
@@ -2249,9 +2262,14 @@ export function derive_findings(a: Analysis, meta: ReportMeta, extras: ReportExt
 			// profiled render's, so they cannot be set aside like another page's are
 			const page_path = meta.page?.split('?')[0];
 			const same = page_path ? others.filter((r) => r.path === page_path).length : 0;
+			let same_page = '';
+			if (same && meta.runs_set_aside)
+				same_page = ` ${same} of them asked for this same page; the ${meta.runs_set_aside} render${meta.runs_set_aside === 1 ? '' : 's'} they overlapped ${meta.runs_set_aside === 1 ? 'was' : 'were'} left out, so this report reads the ${meta.runs?.length ?? 0} that ran clean.`;
+			else if (same)
+				same_page = ` ${same} of them asked for this same page: their work runs through the same lines and cannot be told apart from the profiled render's (every render overlapped one), so this report's CPU reads high — up to ${same + 1}× on the lines they share.`;
 			warn(
 				'busy-instance',
-				`${others_n} other request${others_n === 1 ? '' : 's'} ran on this instance during the profiled render${win > 1 ? 's' : ''} (${top}${others_n > 3 ? ', …' : ''}), in flight for ${Math.round(ct.busy_share * 100)}% of the window: up to ${fmt_ms(ct.cpu_max_ms)} ms of its wall time was the event loop serving them, and the render's own numbers carry that wait.${a.other_requests_ms ? ` The samples under other pages' code (${fmt_ms(a.other_requests_ms / win)} ms a render) were set aside, and so were the slow lines in their page files — but a shared helper they called after an await has no frame of theirs left to tell it by, and may still show here: profile again on a quiet instance to be sure.` : ''}${same ? (meta.runs_set_aside ? ` ${same} of them asked for this same page; the ${meta.runs_set_aside} render${meta.runs_set_aside === 1 ? '' : 's'} they overlapped ${meta.runs_set_aside === 1 ? 'was' : 'were'} left out, so this report reads the ${meta.runs?.length ?? 0} that ran clean.` : ` ${same} of them asked for this same page: their work runs through the same lines and cannot be told apart from the profiled render's (every render overlapped one), so this report's CPU reads high — up to ${same + 1}× on the lines they share.`) : ''}`,
+				`${others_n} other request${others_n === 1 ? '' : 's'} ran on this instance during the profiled render${win > 1 ? 's' : ''} (${top}${others_n > 3 ? ', …' : ''}), in flight for ${Math.round(ct.busy_share * 100)}% of the window: up to ${fmt_ms(ct.cpu_max_ms)} ms of its wall time was the event loop serving them, and the render's own numbers carry that wait.${a.other_requests_ms ? ` The samples under other pages' code (${fmt_ms(a.other_requests_ms / win)} ms a render) were set aside, and so were the slow lines in their page files — but a shared helper they called after an await has no frame of theirs left to tell it by, and may still show here: profile again on a quiet instance to be sure.` : ''}${same_page}`,
 				{
 					fix: 'Record again on a quiet instance, or read the CPU numbers (they exclude the others) rather than the wall time. Sustained, this is what horizontal scaling or a worker pool is for.'
 				}
@@ -2320,19 +2338,19 @@ export function derive_findings(a: Analysis, meta: ReportMeta, extras: ReportExt
 			// every key is unread — the part to cut, in one render's ms, not the whole load's wait
 			const rows = unread_rows(extras.drill);
 			const cut = rows.reduce((s, r) => s + r.ms, 0);
-			const exact = rows.length
-				? ` Exactly what builds only ${unread.length === 1 ? 'it' : 'them'}: ${rows
-						.slice(0, 4)
-						.map(
-							(r) =>
-								`${r.label} ${fmt_ms(r.ms)} ms (${r.kind === 'wait' ? 'waiting' : 'CPU'}) → ${r.keys.join(', ')}`
-						)
-						.join(
-							', '
-						)}${rows.length > 4 ? ', …' : ''} — ${fmt_ms(cut)} ms of one render for nothing.`
-				: wait > 0
-					? ` The load${loads > 1 ? 's' : ''} returning ${unread.length === 1 ? 'it' : 'them'} waited ${fmt_ms(wait)} ms on upstream calls per render in all; the calls that feed only ${unread.length === 1 ? 'this key' : 'these keys'} are the part to cut.`
-					: '';
+			let exact = '';
+			if (rows.length)
+				exact = ` Exactly what builds only ${unread.length === 1 ? 'it' : 'them'}: ${rows
+					.slice(0, 4)
+					.map(
+						(r) =>
+							`${r.label} ${fmt_ms(r.ms)} ms (${r.kind === 'wait' ? 'waiting' : 'CPU'}) → ${r.keys.join(', ')}`
+					)
+					.join(
+						', '
+					)}${rows.length > 4 ? ', …' : ''} — ${fmt_ms(cut)} ms of one render for nothing.`;
+			else if (wait > 0)
+				exact = ` The load${loads > 1 ? 's' : ''} returning ${unread.length === 1 ? 'it' : 'them'} waited ${fmt_ms(wait)} ms on upstream calls per render in all; the calls that feed only ${unread.length === 1 ? 'this key' : 'these keys'} are the part to cut.`;
 			warn(
 				'key-unread',
 				`${unread.length} page.data key${unread.length === 1 ? '' : 's'} no component reads: ${names}${unread.length > 4 ? ', …' : ''}.${exact}`,
@@ -2574,11 +2592,9 @@ export function link_patterns(
 			...(f.file && f.line ? [{ file: f.file, line: f.line }] : []),
 			...places_in(f.message)
 		];
-		const anchor_fn = f.anchor?.startsWith('fn:')
-			? f.anchor.slice(3)
-			: f.anchor?.startsWith('comp:')
-				? `C:${f.anchor.slice(5)}`
-				: undefined;
+		let anchor_fn: string | undefined;
+		if (f.anchor?.startsWith('fn:')) anchor_fn = f.anchor.slice(3);
+		else if (f.anchor?.startsWith('comp:')) anchor_fn = `C:${f.anchor.slice(5)}`;
 		const hit = places.findIndex(
 			(p) =>
 				(anchor_fn !== undefined && p.fns.has(anchor_fn)) ||
@@ -2830,11 +2846,9 @@ function ogygia_findings(
 				island_name(renders[0].find((r) => r.entry === entry) ?? entry);
 			const m = moved[0];
 			const whose = moved.length === 1 ? 'its' : `${name_of(m.entry)}'s`;
-			const said = m.path
-				? `${whose} prop \`${m.path}\` was ${m.was}, then ${m.now}`
-				: m.was !== undefined
-					? `${whose} props went from …${m.was}… to …${m.now}…`
-					: `${whose} props changed`;
+			let said = `${whose} props changed`;
+			if (m.path) said = `${whose} prop \`${m.path}\` was ${m.was}, then ${m.now}`;
+			else if (m.was !== undefined) said = `${whose} props went from …${m.was}… to …${m.now}…`;
 			info(
 				'fp-unstable',
 				`${names(moved.map((x) => name_of(x.entry)))} rendered with a different fingerprint on the profiler's renders of the same page: ${said}${moved.length > 1 ? ` (and ${moved.length - 1} more)` : ''}. If the page's data did not change between them, that value is made fresh on every render.`,
@@ -2857,12 +2871,10 @@ function ogygia_findings(
 				}
 			);
 		} else if (top && top.bytes >= 20 * 1024) {
-			const why =
-				top.reason === 'read'
-					? `read by ${names(top.readers.map(island_name))}`
-					: top.reason === 'referenced'
-						? `props of ${names(top.referenced_by.map(island_name))} point into it`
-						: 'shipped';
+			let why = 'shipped';
+			if (top.reason === 'read') why = `read by ${names(top.readers.map(island_name))}`;
+			else if (top.reason === 'referenced')
+				why = `props of ${names(top.referenced_by.map(island_name))} point into it`;
 			info(
 				'seed-explainer',
 				`The seed's biggest key is ${top.key} (${fmt_kb(top.bytes)} of ${fmt_kb(og.seed_bytes)}): ${why}.${shipped.length > 1 ? ` ${shipped.length} keys ship in all.` : ''}`,
@@ -2925,17 +2937,18 @@ function ogygia_findings(
 		const they = inert.length === 1 ? 'it loads' : 'they load';
 		// (a lake that saves a few KB saves a hydration, worth a note, not a warning)
 		const say = lake && lake.loads && lake.saves < LAKE_WARN_BYTES ? info : warn;
+		let saved = '.';
+		if (lake && lake.loads) {
+			if (lake.saves >= lake.loads)
+				saved = ` — ${fmt_kb(lake.saves)} of JS loads for markup that never changes.`;
+			else if (lake.saves > 0)
+				saved = ` — ${they} ${fmt_kb(lake.loads)} of JS for markup that never changes; ${fmt_kb(lake.saves)} of it is ${inert.length === 1 ? 'its' : 'theirs'} alone (the rest the page's other islands load too), what a lake saves.`;
+			else
+				saved = ` — ${they} ${fmt_kb(lake.loads)} of JS for markup that never changes, all of it shared with the page's other islands: a lake saves ${inert.length === 1 ? 'its' : 'their'} hydration, not bytes.`;
+		}
 		say(
 			'wake-inert',
-			`${names(inert.map(island_name))} wake${inert.length === 1 ? 's' : ''} (${names([...new Set(inert.map((r) => r.wake))])}) but the build found no event handlers, $state, $effect, bind:, use:, remote function, await or shared state in ${inert.length === 1 ? 'its' : 'their'} components${
-				!lake || !lake.loads
-					? '.'
-					: lake.saves >= lake.loads
-						? ` — ${fmt_kb(lake.saves)} of JS loads for markup that never changes.`
-						: lake.saves > 0
-							? ` — ${they} ${fmt_kb(lake.loads)} of JS for markup that never changes; ${fmt_kb(lake.saves)} of it is ${inert.length === 1 ? 'its' : 'theirs'} alone (the rest the page's other islands load too), what a lake saves.`
-							: ` — ${they} ${fmt_kb(lake.loads)} of JS for markup that never changes, all of it shared with the page's other islands: a lake saves ${inert.length === 1 ? 'its' : 'their'} hydration, not bytes.`
-			}`,
+			`${names(inert.map(island_name))} wake${inert.length === 1 ? 's' : ''} (${names([...new Set(inert.map((r) => r.wake))])}) but the build found no event handlers, $state, $effect, bind:, use:, remote function, await or shared state in ${inert.length === 1 ? 'its' : 'their'} components${saved}`,
 			{
 				fix: "Ship them as lakes (wake: 'none'): the server markup stays, the module never downloads."
 			}
@@ -3258,7 +3271,9 @@ function ogygia_findings(
 			? med(mine.map((i) => Math.max(i.done, i.fx ?? 0) - (i.turn ?? i.loaded)))
 			: Math.max(0, slow.p50_ms - slow.load_p50_ms);
 		const whole = load + wait + step || slow.p50_ms;
-		const why = load >= whole * 0.6 ? 'load' : wait >= whole * 0.5 ? 'wait' : 'step';
+		let why: 'load' | 'wait' | 'step' = 'step';
+		if (load >= whole * 0.6) why = 'load';
+		else if (wait >= whole * 0.5) why = 'wait';
 		// who it waited behind: the islands whose hydrate step ran inside its wait, summed by component
 		let behind = '';
 		let behind_name = '';
@@ -3286,27 +3301,28 @@ function ogygia_findings(
 			}
 		}
 		const slow_wake = rows.find((r) => r.entry === slow.entry)?.wake;
+		let split = '.';
+		if (mine.length)
+			split = `: ${fmt_ms(load)} ms loading its modules, ${fmt_ms(wait)} ms waiting its turn behind other islands${behind}, ${fmt_ms(step)} ms hydrating.`;
+		else if (load >= slow.p50_ms * 0.6)
+			split = `, mostly loading its ${fmt_ms(load)} ms of modules.`;
+		let fix =
+			'The hydrate step itself is slow: fewer elements per island, or split the island so the interactive part is small.';
+		if (why === 'load')
+			fix =
+				'Module load dominates: a smaller closure (see the Islands table) or an earlier preload helps more than faster code.';
+		else if (why === 'wait' && behind)
+			fix = `It waited for its turn: islands hydrate one per task, and ${behind_name} held the queue. Make that hydrate step short (fewer elements, split the island), or wake it later.`;
+		else if (why === 'wait' && slow_wake === 'visible')
+			fix =
+				'It waited for its turn: islands hydrate one per task, and many became visible at once (a fast scroll, a tall screen). Make the copies with nothing to click lakes, or render the list as one island.';
+		else if (why === 'wait')
+			fix =
+				'It waited for its turn: islands hydrate one per task, so many waking at once queue behind each other. Wake the ones below the first screen when visible, the rest when idle, and make the ones with nothing to click lakes.';
 		info(
 			'client-hydrate',
-			`In the browser, ${copies} island${copies === 1 ? '' : 's'} of ${client.length} component${client.length === 1 ? '' : 's'} reported hydration. The slowest, ${island_name(slow)}${n_slow > 1 ? ` (${n_slow} copies)` : ''}, took ${fmt_ms(slow.p50_ms)} ms from wake to hydrated at the median${
-				mine.length
-					? `: ${fmt_ms(load)} ms loading its modules, ${fmt_ms(wait)} ms waiting its turn behind other islands${behind}, ${fmt_ms(step)} ms hydrating.`
-					: load >= slow.p50_ms * 0.6
-						? `, mostly loading its ${fmt_ms(load)} ms of modules.`
-						: '.'
-			}`,
-			{
-				fix:
-					why === 'load'
-						? 'Module load dominates: a smaller closure (see the Islands table) or an earlier preload helps more than faster code.'
-						: why === 'wait'
-							? behind
-								? `It waited for its turn: islands hydrate one per task, and ${behind_name} held the queue. Make that hydrate step short (fewer elements, split the island), or wake it later.`
-								: slow_wake === 'visible'
-									? 'It waited for its turn: islands hydrate one per task, and many became visible at once (a fast scroll, a tall screen). Make the copies with nothing to click lakes, or render the list as one island.'
-									: 'It waited for its turn: islands hydrate one per task, so many waking at once queue behind each other. Wake the ones below the first screen when visible, the rest when idle, and make the ones with nothing to click lakes.'
-							: 'The hydrate step itself is slow: fewer elements per island, or split the island so the interactive part is small.'
-			}
+			`In the browser, ${copies} island${copies === 1 ? '' : 's'} of ${client.length} component${client.length === 1 ? '' : 's'} reported hydration. The slowest, ${island_name(slow)}${n_slow > 1 ? ` (${n_slow} copies)` : ''}, took ${fmt_ms(slow.p50_ms)} ms from wake to hydrated at the median${split}`,
+			{ fix }
 		);
 	}
 }
@@ -3351,13 +3367,11 @@ function kit_findings(a: Analysis, meta: ReportMeta, info: Say, warn: Say): void
 		// from the source: what the page waited for, and when it first used it
 		const u = c.parent_use;
 		const names = u ? u.names.join(', ') : '';
-		const used = !u
-			? ''
-			: u.first_use === null
-				? ` Nothing after line ${u.line} reads ${names}: the page waited on the layout for nothing.`
-				: u.awaits_before_use > 0
-					? ` It takes ${names} from parent() on line ${u.line} but first reads ${u.names.length === 1 ? 'it' : 'them'} on line ${u.first_use}; the ${u.awaits_before_use} await${u.awaits_before_use === 1 ? '' : 's'} between never needed the layout.`
-					: '';
+		let used = '';
+		if (u?.first_use === null)
+			used = ` Nothing after line ${u.line} reads ${names}: the page waited on the layout for nothing.`;
+		else if (u && u.awaits_before_use > 0)
+			used = ` It takes ${names} from parent() on line ${u.line} but first reads ${u.names.length === 1 ? 'it' : 'them'} on line ${u.first_use}; the ${u.awaits_before_use} await${u.awaits_before_use === 1 ? '' : 's'} between never needed the layout.`;
 		warn(
 			'parent-chain',
 			// the source saying `await parent()` is as good as seeing its frame
@@ -3690,8 +3704,12 @@ function accuracy_findings(
 		const kept =
 			extras.retained && extras.retained.total_bytes >= 256 * 1024 ? extras.retained : undefined;
 		const g = extras.growth;
+		let grows = '';
+		if (g?.levels_off)
+			grows = ', and it levels off, so the climb should stop once that cache is full';
+		else if (g) grows = ', and it keeps growing, so the climb will not stop';
 		const why = kept
-			? ` One render leaves ${Math.round((kept.total_bytes / 1048576) * 10) / 10} MB alive after a full collection${g ? (g.levels_off ? ', and it levels off, so the climb should stop once that cache is full' : ', and it keeps growing, so the climb will not stop') : ''}: the bigger heap makes every collection, and every lookup in what is kept, cost more.`
+			? ` One render leaves ${Math.round((kept.total_bytes / 1048576) * 10) / 10} MB alive after a full collection${grows}: the bigger heap makes every collection, and every lookup in what is kept, cost more.`
 			: ' Nothing this report measured was left alive by a render, so look for a list, map or cache the page adds to on every request (a memo keyed by something new each time), or a timer or listener it registers again each render.';
 		warn(
 			'slower-each-run',
@@ -3842,26 +3860,24 @@ function accuracy_findings(
 			const words = part ? PART_WORDS[part.key] : undefined;
 			// (a download, a late start or a font wait that shared the network with images nobody saw yet)
 			const rivals = font || part?.key === 'load' || part?.key === 'delay' ? lcp_rivals(own) : null;
+			let after_html = 'assets, fonts, hydration.';
+			let gap_fix =
+				'Make the hero markup static (a lake), preload its image and font, and keep the islands above the fold small: the server is not the bottleneck here.';
+			if (font) {
+				after_html = `the largest paint is text that waited for its font '${font.family}' (${font.file}, in at ${fmt_ms(font.end)} ms), invisible until it came.`;
+				gap_fix =
+					"Give the font's @font-face `font-display: swap` (or `optional`) and preload the file: the text paints with the HTML, and the server is not the bottleneck here.";
+			} else if (words) [after_html, gap_fix] = words;
 			warn(
 				'lcp-gap',
-				`In the browser LCP is ${fmt_ms(v.lcp)} ms while the server answered in ${fmt_ms(ttfb)} ms (TTFB; the render itself ${fmt_ms(server)} ms): ${fmt_ms(v.lcp - ttfb)} ms of the user's wait is after the HTML arrived — ${
-					font
-						? `the largest paint is text that waited for its font '${font.family}' (${font.file}, in at ${fmt_ms(font.end)} ms), invisible until it came.`
-						: words
-							? words[0]
-							: 'assets, fonts, hydration.'
-				}${
+				`In the browser LCP is ${fmt_ms(v.lcp)} ms while the server answered in ${fmt_ms(ttfb)} ms (TTFB; the render itself ${fmt_ms(server)} ms): ${fmt_ms(v.lcp - ttfb)} ms of the user's wait is after the HTML arrived — ${after_html}${
 					rivals
 						? ` Beside it, ${fmt_bytes(rivals.bytes)} of images far below the first screen downloaded (${rivals.files.join(', ')}).`
 						: ''
 				}`,
 				{
 					fix:
-						(font
-							? "Give the font's @font-face `font-display: swap` (or `optional`) and preload the file: the text paints with the HTML, and the server is not the bottleneck here."
-							: words
-								? words[1]
-								: 'Make the hero markup static (a lake), preload its image and font, and keep the islands above the fold small: the server is not the bottleneck here.') +
+						gap_fix +
 						(rivals
 							? ' And give the images below the first screen `loading="lazy"`: they took a share of the network the largest paint needed.'
 							: '')
@@ -3881,29 +3897,29 @@ function accuracy_findings(
 					(ph.redirect ?? 0) + (ph.worker ?? 0) + (ph.dns ?? 0) + (ph.connect ?? 0) + (ph.tls ?? 0);
 				const before = Math.max(0, (ph.wait ?? 0) - held);
 				const inside = Math.max(0, held - server);
-				where =
-					connect >= before && connect >= inside
-						? 'connect'
-						: before >= inside
-							? 'before'
-							: 'inside';
+				if (connect >= before && connect >= inside) where = 'connect';
+				else if (before >= inside) where = 'before';
+				else where = 'inside';
 				split = ` In the report's own visit (TTFB ${fmt_ms(own!.res_start)} ms): ${fmt_ms(connect)} ms redirecting and connecting, ${fmt_ms(before)} ms before the server's handler took the request, and ${fmt_ms(inside)} ms inside the handler beyond the render.`;
 			}
+			let fix =
+				'Look at the cold-start section and at what fronts the server (a CDN, an auth proxy): the render is not where that time goes.';
+			if (where === 'connect')
+				fix =
+					'The connection is the cost: redirects to drop, or a server far from the visitor (serve it from the edge, keep TLS and HTTP modern).';
+			else if (where === 'before')
+				fix =
+					'The request waited before this server took it: a proxy or CDN in front, a cold instance starting, or the network. Look at what fronts the server, and at the cold-start section.';
+			else if (where === 'inside' && meta.dev)
+				fix =
+					'The server held the request past its render: on the dev server a first request compiles the page (profile a build for its real TTFB), or a hook before the render awaits something.';
+			else if (where === 'inside')
+				fix =
+					'The server held the request past its render: a hook before or after the render (auth, a session lookup, a redirect check) awaits something. Profile it with the handle, not only the page.';
 			warn(
 				'ttfb-gap',
 				`TTFB in the browser is ${fmt_ms(ttfb)} ms but this server rendered the page in ${fmt_ms(server)} ms: ${fmt_ms(ttfb - server)} ms sits between the two${where ? '.' : ' — a cold instance, a proxy, or the network.'}${split}`,
-				{
-					fix:
-						where === 'connect'
-							? 'The connection is the cost: redirects to drop, or a server far from the visitor (serve it from the edge, keep TLS and HTTP modern).'
-							: where === 'before'
-								? 'The request waited before this server took it: a proxy or CDN in front, a cold instance starting, or the network. Look at what fronts the server, and at the cold-start section.'
-								: where === 'inside'
-									? meta.dev
-										? 'The server held the request past its render: on the dev server a first request compiles the page (profile a build for its real TTFB), or a hook before the render awaits something.'
-										: 'The server held the request past its render: a hook before or after the render (auth, a session lookup, a redirect check) awaits something. Profile it with the handle, not only the page.'
-									: 'Look at the cold-start section and at what fronts the server (a CDN, an auth proxy): the render is not where that time goes.'
-				}
+				{ fix }
 			);
 		} else {
 			info(
@@ -4000,13 +4016,26 @@ export function page_score_of(meta: ReportMeta, extras: ReportExtras): PageScore
 	// the same for layout shifts and CLS)
 	const no_longtasks = !!visit?.unsupported?.includes('longtask');
 	const no_shifts = !!visit?.unsupported?.includes('layout-shift');
-	const tbt = no_longtasks
-		? null
-		: visit?.longtasks?.length
-			? Math.round(visit.longtasks.reduce((s, t) => s + Math.max(0, t.ms - 50), 0))
-			: visit
-				? 0
-				: null;
+	let tbt: number | null = null;
+	if (!no_longtasks && visit?.longtasks?.length)
+		tbt = Math.round(visit.longtasks.reduce((s, t) => s + Math.max(0, t.ms - 50), 0));
+	else if (!no_longtasks && visit) tbt = 0;
+	let vitals: ScoreInputs['vitals'] = null;
+	if (v) vitals = { lcp: v.lcp, cls: v.cls, inp: v.inp, fcp: v.fcp, ttfb: v.ttfb };
+	else if (visit) {
+		let cls: number | null = null;
+		if (!no_shifts)
+			cls = visit.shifts?.length
+				? Math.round(visit.shifts.reduce((s, x) => s + x.value, 0) * 1000) / 1000
+				: 0;
+		vitals = {
+			lcp: visit.paints?.lcp ?? null,
+			fcp: visit.paints?.fcp ?? null,
+			ttfb: visit.nav?.start_hidden ? null : (visit.nav?.res_start ?? null),
+			cls,
+			inp: null
+		};
+	}
 	const unmeasured: ScoreInputs['unmeasured'] = {
 		...(no_longtasks
 			? {
@@ -4057,21 +4086,7 @@ export function page_score_of(meta: ReportMeta, extras: ReportExtras): PageScore
 		serverMs: server_ms,
 		// the vitals beacon goes out when the page hides; the visit (sent early too) carries the
 		// same paints, so a visit whose vitals never arrived still scores its loading
-		vitals: v
-			? { lcp: v.lcp, cls: v.cls, inp: v.inp, fcp: v.fcp, ttfb: v.ttfb }
-			: visit
-				? {
-						lcp: visit.paints?.lcp ?? null,
-						fcp: visit.paints?.fcp ?? null,
-						ttfb: visit.nav?.start_hidden ? null : (visit.nav?.res_start ?? null),
-						cls: no_shifts
-							? null
-							: visit.shifts?.length
-								? Math.round(visit.shifts.reduce((s, x) => s + x.value, 0) * 1000) / 1000
-								: 0,
-						inp: null
-					}
-				: null,
+		vitals,
 		tbt,
 		unmeasured
 	};
@@ -4721,8 +4736,12 @@ export function report_json(
 		alloc_by_name.set(h.name, (alloc_by_name.get(h.name) ?? 0) + h.self_bytes);
 	for (const c of extras.heap_components ?? []) alloc_by_name.set(c.name, c.bytes);
 
-	const verdict =
-		a.idle_ms > dur * 0.5 ? 'waiting' : (a.busy_ms / dur) * 100 > 60 ? 'compute-bound' : 'mixed';
+	let verdict: 'waiting' | 'compute-bound' | 'mixed' = 'mixed';
+	if (a.idle_ms > dur * 0.5) verdict = 'waiting';
+	else if ((a.busy_ms / dur) * 100 > 60) verdict = 'compute-bound';
+	let prerendered: 'file' | 'route' | null = null;
+	if (meta.prerendered) prerendered = meta.run_static ? 'file' : 'route';
+	const assets_missing = extras.assets_missing ? { missing: extras.assets_missing } : null;
 	const hosts = top_hosts(net);
 
 	return {
@@ -4750,7 +4769,7 @@ export function report_json(
 			cache_control: meta.run_cache_control ?? null,
 			// a prerendered page: 'file' (served as the build's file, no render ran), 'route' (its route
 			// prerenders; this server rendered it anyway), or null
-			prerendered: meta.prerendered ? (meta.run_static ? 'file' : 'route') : null,
+			prerendered,
 			budget_note: meta.budget_note ?? null,
 			// what the clock said per run, before the profiler's own share was taken out of `runs`
 			runs_measured: meta.runs_measured ?? null,
@@ -5195,9 +5214,7 @@ export function report_json(
 						return twice.length ? { twice } : {};
 					})()
 				}
-			: extras.assets_missing
-				? { missing: extras.assets_missing }
-				: null,
+			: assets_missing,
 		strip: extras.strip
 			? {
 					total: extras.strip.total,

@@ -428,12 +428,10 @@ export function find_same_answers(input: {
 	// (a row is a kind of request at a line: one helper line fetching eleven endpoints is eleven rows,
 	// and "12 places" said twelve lines where there were two)
 	const lines = new Set(sites.map((s) => `${s.path}:${s.line}`)).size;
-	const where =
-		sites.length < 2
-			? ''
-			: lines === sites.length
-				? ` (${lines} places)`
-				: ` (${sites.length} requests from ${lines} line${lines === 1 ? '' : 's'})`;
+	let where = '';
+	if (sites.length >= 2 && lines === sites.length) where = ` (${lines} places)`;
+	else if (sites.length >= 2)
+		where = ` (${sites.length} requests from ${lines} line${lines === 1 ? '' : 's'})`;
 	const more =
 		sites.length < 2
 			? ''
@@ -1614,6 +1612,9 @@ export function find_patterns(input: PatternInput): Pattern[] {
 	for (const l of input.ledger) {
 		if (!l.code) continue;
 		const f = (l.fn ? fns.get(l.fn) : undefined) ?? starts.get(`${l.path}\0${l.line}`);
+		let fn_of: { fn: string; fn_name?: string } | Record<string, never> = {};
+		if (f) fn_of = { fn: f.key, fn_name: f.name };
+		else if (l.fn) fn_of = { fn: l.fn };
 		const svelte = l.path.endsWith('.svelte');
 		// a COMPILED component's line (a build without sourcemaps: the module map says the chunk line
 		// is a .svelte module's, inside a function): its instance script, which runs on every render —
@@ -1709,7 +1710,7 @@ export function find_patterns(input: PatternInput): Pattern[] {
 				file: l.file,
 				line,
 				code: built?.code ?? l.code,
-				...(f ? { fn: f.key, fn_name: f.name } : l.fn ? { fn: l.fn } : {}),
+				...fn_of,
 				cpu_ms: l.cpu_ms,
 				alloc_bytes: l.alloc_bytes,
 				gc_ms: l.gc_ms,
@@ -1745,7 +1746,7 @@ export function find_patterns(input: PatternInput): Pattern[] {
 						file: short_file(inner.path),
 						line: inner.line,
 						code: inner.code,
-						...(f ? { fn: f.key, fn_name: f.name } : l.fn ? { fn: l.fn } : {}),
+						...fn_of,
 						cpu_ms: l.cpu_ms,
 						alloc_bytes: l.alloc_bytes,
 						gc_ms: l.gc_ms,
@@ -1880,11 +1881,11 @@ function kept_pattern(input: PatternInput): Pattern | undefined {
 	const g = input.growth;
 	const mb = (b: number) => (b / MB).toFixed(0);
 	// the growth check, when it ran: a measured climb over several renders, or a plateau
-	const confirm = !g
-		? ''
-		: g.levels_off
-			? ` Over ${g.renders} more renders it levelled off (${mb(g.start_bytes)} → ${mb(g.end_bytes)} MB): most likely a cache with a size limit filling up, not a leak.`
-			: ` Confirmed over ${g.renders} more renders, a full collection after each: the heap went ${mb(g.start_bytes)} → ${mb(g.end_bytes)} MB, about ${fmt_mb(g.per_render_bytes)} a render, and kept climbing.`;
+	let confirm = '';
+	if (g?.levels_off)
+		confirm = ` Over ${g.renders} more renders it levelled off (${mb(g.start_bytes)} → ${mb(g.end_bytes)} MB): most likely a cache with a size limit filling up, not a leak.`;
+	else if (g)
+		confirm = ` Confirmed over ${g.renders} more renders, a full collection after each: the heap went ${mb(g.start_bytes)} → ${mb(g.end_bytes)} MB, about ${fmt_mb(g.per_render_bytes)} a render, and kept climbing.`;
 	// a confirmed rate counts down better than one render's sample
 	const rate = g && !g.levels_off && g.per_render_bytes > 0 ? g.per_render_bytes : kept;
 	const room =
@@ -1945,12 +1946,11 @@ function kept_pattern(input: PatternInput): Pattern | undefined {
 	};
 }
 
-const fmt_mb = (b: number) =>
-	b >= MB
-		? `${(b / MB).toFixed(b >= 100 * MB ? 0 : 1)} MB`
-		: b >= 1024
-			? `${Math.round(b / 1024)} KB`
-			: `${Math.round(b)} bytes`;
+const fmt_mb = (b: number) => {
+	if (b >= MB) return `${(b / MB).toFixed(b >= 100 * MB ? 0 : 1)} MB`;
+	if (b >= 1024) return `${Math.round(b / 1024)} KB`;
+	return `${Math.round(b)} bytes`;
+};
 
 /** "183 ms of CPU, 1.8 GB made, 53 ms cleanup; formatPrice ran 480 times" */
 /** UNITS: the CPU, bytes and GC add up every profiled render (`renders`); the run count comes from
@@ -2810,12 +2810,12 @@ export function almost_same_document_pattern(input: {
 	code?: string;
 }): Pattern {
 	const g = input.diff.groups;
-	const origin = (x: (typeof g)[number]) =>
-		x.sources?.length
-			? `, set at ${x.sources.map((s) => `${s.file}:${s.line}`).join(', ')}`
-			: x.library
-				? ', stamped by a library as it renders (no file of yours sets it)'
-				: '';
+	const origin = (x: (typeof g)[number]) => {
+		if (x.sources?.length)
+			return `, set at ${x.sources.map((s) => `${s.file}:${s.line}`).join(', ')}`;
+		if (x.library) return ', stamped by a library as it renders (no file of yours sets it)';
+		return '';
+	};
 	const parts = g.map(
 		(x) =>
 			`${x.what} (${x.count} place${x.count === 1 ? '' : 's'}: ${x.a || '""'} → ${x.b || '""'}${origin(x)})`
