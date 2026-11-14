@@ -1,5 +1,5 @@
 import { PRESET_KEYS, type ImportKeys } from '../compiler/region/transform.ts';
-import { OgygiaError, RETIRED_OPTIONS } from '../compiler/messages.ts';
+import { OgygiaError } from '../compiler/messages.ts';
 
 /**
  * Named strategy bundle referenced from source via `with { preset: 'name' }`
@@ -170,16 +170,31 @@ export interface OgygiaOptions {
 	standalone?: boolean;
 }
 
-/** The rename map (`RETIRED_OPTIONS`, with the messages): a legacy key errors with its new
- *  spelling, never silently no-ops. */
-export function assert_no_legacy_options(options: OgygiaOptions): void {
-	for (const key of Object.keys(RETIRED_OPTIONS)) {
-		if (key in (options as Record<string, unknown>)) {
-			throw new OgygiaError('option_retired', { option: key });
-		}
+const OPTION_KEYS: Readonly<Record<keyof OgygiaOptions, true>> = {
+	visible: true,
+	presets: true,
+	ttl: true,
+	maxPageAge: true,
+	router: true,
+	importKeys: true,
+	rateLimit: true,
+	sessionCookie: true,
+	standalone: true
+};
+
+/** Every key of `options` is one `ogygia()` has: any other fails the build (`option_unknown`), so
+ *  a misspelt or removed option never silently does nothing. */
+export function assert_known_options(options: OgygiaOptions): void {
+	for (const key of Object.keys(options)) {
+		if (key in OPTION_KEYS) continue;
+		if (key === 'barrels') throw new OgygiaError('barrels_option_removed');
+		throw new OgygiaError('option_unknown', {
+			option: key,
+			known: Object.keys(OPTION_KEYS)
+				.filter((k) => k !== 'standalone')
+				.join(', ')
+		});
 	}
-	if ('barrels' in (options as Record<string, unknown>))
-		throw new OgygiaError('barrels_option_removed');
 }
 
 /**
