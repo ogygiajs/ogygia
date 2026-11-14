@@ -14,11 +14,11 @@
  */
 export function prose(strings: TemplateStringsArray, ...values: unknown[]): string {
 	const paragraphs: string[] = [];
-	let current = '';
+	const current: string[] = [];
 	const end_paragraph = () => {
-		const text = current.trim();
+		const text = current.join('').trim();
 		if (text) paragraphs.push(text);
-		current = '';
+		current.length = 0;
 	};
 	strings.forEach((part, i) => {
 		const lines = part.split('\n');
@@ -27,16 +27,15 @@ export function prose(strings: TemplateStringsArray, ...values: unknown[]): stri
 			if (j > 0) {
 				// a blank line ends the paragraph; a line break inside one is a space
 				if (line.trim() === '' && j < last) end_paragraph();
-				else current = `${current} `;
+				else current.push(' ');
 			}
 			// (a line's own trailing spaces go, except right before a value: `for ${x}`)
 			const text = j === 0 ? line : line.trimStart();
-			current += j === last ? text : text.trimEnd();
+			current.push(j === last ? text : text.trimEnd());
 		});
 		if (i < values.length) {
 			const value = values[i];
-			if (value !== null && value !== undefined && value !== false)
-				current = `${current}${String(value)}`;
+			if (value !== null && value !== undefined && value !== false) current.push(String(value));
 		}
 	});
 	end_paragraph();

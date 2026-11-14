@@ -181,9 +181,9 @@ export function restore_with(
 					if (custom && name === 'class') {
 						svelte_class = v;
 						const own = new Set((v ?? '').split(' '));
-						let theirs = '';
-						for (const t of Array.from(el.classList)) if (!own.has(t)) theirs = `${theirs} ${t}`;
-						const merged = ((v ?? '') + theirs).trim();
+						const theirs = [v ?? ''];
+						for (const t of Array.from(el.classList)) if (!own.has(t)) theirs.push(t);
+						const merged = theirs.join(' ').trim();
 						if (merged) el.setAttribute('class', merged);
 						else el.removeAttribute('class');
 					} else if (v === null) el.removeAttribute(name);

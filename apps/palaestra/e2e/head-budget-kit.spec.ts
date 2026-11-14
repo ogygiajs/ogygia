@@ -67,14 +67,15 @@ test.describe('HEAD BUDGET (csr=true): a Kit page links only what it renders, Ki
 			preloads.length <= MAX_MODULEPRELOADS,
 			preloads.join('\n')
 		);
-		let css = '';
+		const parts: string[] = [];
 		for (const href of sheets) {
 			const r = await fetch(new URL(href, baseURL).href);
-			css = `${css}${await r.text()}\n`;
+			parts.push(`${await r.text()}\n`);
 		}
 		// The region-css channel's other shape: a rendered island's sheet under the palaestra's
 		// `kit.inlineStyleThreshold` is a `<style data-ogygia-region-css>` in the head, not a link.
-		for (const m of html.matchAll(INLINE_REGION_STYLE_G)) css = `${css}${m[1]}\n`;
+		for (const m of html.matchAll(INLINE_REGION_STYLE_G)) parts.push(`${m[1]}\n`);
+		const css = parts.join('');
 		const has = (tok: string) => new RegExp(`${tok}(?![a-z])`).test(css);
 		for (const tok of RENDERED)
 			check(`rendered island CSS is linked (${tok})`, has(tok), `sheets: ${sheets.join(', ')}`);

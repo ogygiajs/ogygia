@@ -50,6 +50,7 @@ export function read_changelog(pkg: string, markdown: string): Release[] {
 	let release: Release | null = null;
 	let group: Release['groups'][number] | null = null;
 	let in_deps = false;
+	const wrapped = new Map<{ html: string }, string[]>();
 	for (const line of markdown.split('\n')) {
 		const v = VERSION.exec(line);
 		if (v) {
@@ -93,9 +94,13 @@ export function read_changelog(pkg: string, markdown: string): Release[] {
 		}
 		// a wrapped line goes on with the item above it
 		const last = group?.lines.at(-1);
-		if (last && line.startsWith('  ') && line.trim() && !in_deps)
-			last.html = `${last.html} ${inline(line.trim())}`;
+		if (last && line.startsWith('  ') && line.trim() && !in_deps) {
+			const parts = wrapped.get(last);
+			if (parts) parts.push(inline(line.trim()));
+			else wrapped.set(last, [last.html, inline(line.trim())]);
+		}
 	}
+	for (const [line, parts] of wrapped) line.html = parts.join(' ');
 	for (const r of out) r.groups = r.groups.filter((g) => g.lines.length > 0);
 	return out;
 }
@@ -136,14 +141,14 @@ const escape = (s: string) => s.replace(/[&<>"]/g, (c) => ESCAPES[c]);
 
 /** A line's own markdown: links (http/https only), `code`, **bold**; everything else escaped. */
 function inline(md: string): string {
-	let out = '';
+	const out: string[] = [];
 	let i = 0;
 	while (i < md.length) {
 		const c = md[i];
 		if (c === '`') {
 			const end = md.indexOf('`', i + 1);
 			if (end > i) {
-				out = `${out}<code>${escape(md.slice(i + 1, end))}</code>`;
+				out.push(`<code>${escape(md.slice(i + 1, end))}</code>`);
 				i = end + 1;
 				continue;
 			}
@@ -151,7 +156,7 @@ function inline(md: string): string {
 		if (c === '*' && md[i + 1] === '*') {
 			const end = md.indexOf('**', i + 2);
 			if (end > i) {
-				out = `${out}<strong>${inline(md.slice(i + 2, end))}</strong>`;
+				out.push(`<strong>${inline(md.slice(i + 2, end))}</strong>`);
 				i = end + 2;
 				continue;
 			}
@@ -160,15 +165,17 @@ function inline(md: string): string {
 			const link = read_link(md, i);
 			if (link) {
 				const text = inline(link.text);
-				out += /^https?:\/\//.test(link.href) ? `<a href="${escape(link.href)}">${text}</a>` : text;
+				out.push(
+					/^https?:\/\//.test(link.href) ? `<a href="${escape(link.href)}">${text}</a>` : text
+				);
 				i = link.end;
 				continue;
 			}
 		}
-		out += escape(c);
+		out.push(escape(c));
 		i++;
 	}
-	return out;
+	return out.join('');
 }
 
 /** `[text](href)` at `at` (the text may hold one level of `[…]`), or `null`. */

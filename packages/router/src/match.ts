@@ -38,7 +38,7 @@ export function compile(pattern: string): CompiledPattern {
 	}
 	const segs = pattern.split('/').filter((s) => s !== '');
 	const params: ParamSpec[] = [];
-	let rx = '';
+	const rx: string[] = [];
 
 	segs.forEach((seg, i) => {
 		let m: RegExpMatchArray | null;
@@ -49,10 +49,10 @@ export function compile(pattern: string): CompiledPattern {
 				);
 			}
 			params.push({ name: m[1], rest: true });
-			rx = `${rx}(?:/(.*))?`;
+			rx.push('(?:/(.*))?');
 		} else if ((m = seg.match(OPTIONAL))) {
 			params.push({ name: m[1], optional: true });
-			rx = `${rx}(?:/([^/]+))?`;
+			rx.push('(?:/([^/]+))?');
 		} else {
 			const pieces: Array<{ text: string } | { name: string }> = [];
 			let last = 0;
@@ -92,12 +92,11 @@ export function compile(pattern: string): CompiledPattern {
 			if (has_stray_bracket(seg) || (!has_static && !has_param)) {
 				throw new Error(`[@ogygia/router] malformed segment ${JSON.stringify(seg)} in ${pattern}`);
 			}
-			rx += inner;
+			rx.push(inner);
 		}
 	});
 
-	if (rx === '') rx = '/?';
-	const regex = new RegExp(`^${rx}/?$`);
+	const regex = new RegExp(`^${rx.length ? rx.join('') : '/?'}/?$`);
 	return { pattern, regex, params };
 }
 

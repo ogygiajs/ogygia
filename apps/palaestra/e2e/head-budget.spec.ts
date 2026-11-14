@@ -49,13 +49,13 @@ const MAX_MODULEPRELOADS = 24;
 /** Every CSS byte a document carries: its linked sheets (fetched, resolved against the PAGE url —
  *  Kit's hrefs are relative to it) + its inline `<style>` blocks. */
 async function page_css(page_url: string, html: string, sheets: string[]): Promise<string> {
-	let css = '';
+	const css: string[] = [];
 	for (const href of sheets) {
 		const r = await fetch(new URL(href, page_url).href);
-		css = `${css}${await r.text()}\n`;
+		css.push(`${await r.text()}\n`);
 	}
-	for (const m of html.matchAll(INLINE_STYLE_G)) css = `${css}${m[1]}\n`;
-	return css;
+	for (const m of html.matchAll(INLINE_STYLE_G)) css.push(`${m[1]}\n`);
+	return css.join('');
 }
 /** Whole-token match: `hbtoken-d` must not match inside `hbtoken-direct`. */
 const has_token = (css: string, tok: string) => new RegExp(`${tok}(?![a-z-])`).test(css);
