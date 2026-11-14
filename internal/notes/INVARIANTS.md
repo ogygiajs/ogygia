@@ -61,7 +61,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 - Put secrets in defer props and expect the URL to hide them — use Referrer-Policy (`no-referrer` on region responses) and keep secrets out of captured props.
 - Move props into `localStorage` “for confidentiality” — XSS then reads all of them.
 
-**Enforced by:** `packages/compiler/test/region-mac.test.ts > rejects expiry or props tampering`, `packages/core/test/capability-expiry.test.ts > is always valid for more than ttl/2 and at most ttl`
+**Enforced by:** `packages/core/test/region-capability.test.ts > a v3 capability with its expiry or props changed is refused`, `packages/core/test/capability-expiry.test.ts > is always valid for more than ttl/2 and at most ttl`
 
 ---
 
@@ -81,15 +81,15 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 ## SECRET-SPLIT — empty client secret, SSR-only mint
 
-**What:** `virtual:ogygia/secret` is `''` on the client; sign/verify stubs no-op. SSR uses `OGYGIA_SECRET` or a per-build baked fallback. Sign/verify **HKDF-derive** a MAC key (`ogygia-mac-v1`); when `OGYGIA_SECRET` is set, region ids use a separate HKDF salt (`ogygia-id-salt-v1`). Region capabilities are minted as v3 (`&v=3`): `capability()` from `@ogygia/machine` with no nonce, its length-prefixed message naming the capability, its version and its audience (the islands endpoint), so links stay byte-identical within an expiry window; the older `v1|`/`v2|` length-prefixed MACs are still verified (pages cached before the upgrade) and a renewal re-signs them as v3 (`packages/core/test/region-capability.test.ts`). Production builds reject an `OGYGIA_SECRET` shorter than 16 UTF-8 bytes.
+**What:** `virtual:ogygia/secret` is `''` on the client; sign/verify stubs no-op. SSR uses `OGYGIA_SECRET` or a per-build baked fallback. Sign/verify **HKDF-derive** a MAC key (`ogygia-mac-v1`); when `OGYGIA_SECRET` is set, region ids use a separate HKDF salt (`ogygia-id-salt-v1`). Region capabilities are minted as v3 (`&v=3`): `capability()` from `@ogygia/machine` with no nonce, its length-prefixed message naming the capability, its version and its audience (the islands endpoint), so links stay byte-identical within an expiry window (`packages/core/test/region-capability.test.ts`). Only v3 is verified: a capability without `v` (the older `v1|`/`v2|` MACs, ogygia 0.12.x and earlier) is an earlier build's page's, whose runtime cannot run this build's answer, so it is refused as `shape` before any HMAC, renewal and batch included, and its page keeps its fallback (#1769, `packages/core/test/older-build-capability.test.ts`). Production builds reject an `OGYGIA_SECRET` shorter than 16 UTF-8 bytes.
 
 **Why:** Browsers must never mint capabilities. Multi-instance deploys without a shared env need the baked fallback so all replicas agree. Domain-separated keys + length-prefixed fields close classic MAC footguns without requiring the env var on every local demo.
 
-A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a signing secret, or a chunk holds a module that signs. Messages are `v2|` (the render id signed too) for every current mint of a hole that does not wake, and `v3|` (the "wakes" mark `w=1` signed too, so the endpoint renders the answer inside an island, as its hydrate does) for one that does; `v1|` is still verified so pages cached before an upgrade keep their holes.
+A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a signing secret, or a chunk holds a module that signs. A capability signs its render id (`r`) and its "wakes" mark (`w=1`: the endpoint renders the answer inside an island, as its hydrate does) among its fields.
 
 **Do not:** Embed the real secret in a client chunk. Fail production builds only when you are ready to require env everywhere (local demos still need the fallback). Change the MAC version string without a deliberate invalidate of in-flight capability URLs.
 
-**Enforced by:** `packages/compiler/test/region-mac.test.ts > length-prefixes so embedded nulls cannot shift field boundaries`, `packages/core/test/signing-key.test.ts > falls back to the build key without a runtime OGYGIA_SECRET`
+**Enforced by:** `packages/machine/test/capability.test.ts > fields cannot trade text across a boundary`, `packages/core/test/signing-key.test.ts > falls back to the build key without a runtime OGYGIA_SECRET`
 
 ---
 
