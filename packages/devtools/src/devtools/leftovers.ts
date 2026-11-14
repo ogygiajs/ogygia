@@ -219,7 +219,6 @@ export function watch_leftovers(): void {
 // `<body>` the browser treats them as passive unless `passive: false` is asked for; anywhere else
 // they block unless `passive: true` is ──
 
-// static: a fixed list of event types
 const SCROLL_TYPES: ReadonlySet<string> = new Set([
 	'wheel',
 	'mousewheel',

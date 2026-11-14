@@ -1,12 +1,5 @@
 import { readFileSync } from 'node:fs';
-import {
-	ALL_SOURCE,
-	OK_NOTE,
-	type Comment,
-	type Context,
-	type Node,
-	type Ranged
-} from './shared.ts';
+import { ALL_SOURCE, type Comment, type Context, type Node, type Ranged } from './shared.ts';
 
 type FullComment = Comment & { range: [number, number]; loc: { start: { line: number } } };
 
@@ -24,7 +17,7 @@ const TYPE_ONLY = /^@(type|satisfies)\s*\{[\s\S]*\}$/;
 const PACKAGE_DOC = /(^|\s)@packageDocumentation(\s|$)/;
 
 const MESSAGE_FREE =
-	'A comment in package source is JSDoc on an export, a tool directive (`-- <reason>`), an `// ok: <reason>` note on a failure that is fine, or `// @why <fact> (test: <file> › <name>)`. Make this one a test, a rule, a type or clearer code, or delete it (#512).';
+	'A comment in package source is JSDoc on an export, a tool directive (`-- <reason>`; a waiver is `oxlint-disable-next-line ogygia/<rule> -- <reason>`, never an old `// ok:` mark), or `// @why <fact> (test: <file> › <name>)`. Make this one a test, a rule, a type or clearer code, or delete it (#512).';
 const MESSAGE_JSDOC =
 	'JSDoc documents an export (or a member of an exported class or type). This one sits on something not exported: make it a clearer name, a test or a type, or delete it (#512).';
 const MESSAGE_REASON =
@@ -143,8 +136,8 @@ function why_test_exists(file: string, test: string, test_name: string): boolean
  * component's props type and its members, or a `@packageDocumentation` block before any code), a
  * tool directive (`oxlint-disable…` and
  * `@ts-expect-error` with ` -- <reason>`; `svelte-ignore`, `@__PURE__`, `@vite-ignore`, formatter
- * ignores, `/// <reference>` as they are; a JSDoc that is only `@type {…}` or `@satisfies {…}`), a
- * line `// ok: <reason>` (the note the no-silent-failures rules ask for), or a one-line
+ * ignores, `/// <reference>` as they are; a JSDoc that is only `@type {…}` or `@satisfies {…}`; an
+ * old `// ok:` mark is none of these: its waiver is the rule's directive), or a one-line
  * `// @why <fact> (test: <file> › <name>)` directly above its statement, whose test
  * exists. A bin's `#!` line is not a comment. Anything else is a finding. `.d.ts` files are
  * documented like exports and are not read.
@@ -177,7 +170,6 @@ export const structured_comments = {
 						continue;
 					}
 					if (FREE.test(value)) continue;
-					if (c.type === 'Line' && OK_NOTE.test(value)) continue;
 					if (c.type === 'Block' && value.startsWith('*')) {
 						if (PACKAGE_DOC.test(value) && text.slice(0, c.range[0]).trim() === '') continue;
 						if (TYPE_ONLY.test(value.replace(/^[^\S\n]*\*/gm, '').trim())) continue;

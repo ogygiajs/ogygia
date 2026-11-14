@@ -260,8 +260,9 @@ export function analyze_cpu(
 function host_of(url: string): string {
 	try {
 		return url ? new URL(url).host : '';
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: no host to group by
 	} catch {
-		return ''; // ok: not a URL: no host to group by
+		return '';
 	}
 }
 

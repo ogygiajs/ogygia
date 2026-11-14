@@ -16,9 +16,8 @@
 		try {
 			const saved = localStorage.getItem(KEY) as Mode | null;
 			saved_mode = saved === 'light' || saved === 'dark' ? saved : 'system';
-		} catch {
-			// ok: no storage (private mode); the theme holds for this page
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no storage (private mode); the theme holds for this page
+		} catch {}
 		mode = saved_mode;
 		apply(saved_mode);
 	}
@@ -30,9 +29,8 @@
 		try {
 			if (m === 'system') localStorage.removeItem(KEY);
 			else localStorage.setItem(KEY, m);
-		} catch {
-			// ok: no storage (private mode); the theme holds for this page
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no storage (private mode); the theme holds for this page
+		} catch {}
 	}
 	function cycle() {
 		const next = NEXT[mode];

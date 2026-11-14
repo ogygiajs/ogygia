@@ -37,6 +37,7 @@
 	let looked = $state(!!visit);
 	// svelte-ignore state_referenced_locally
 	if (!visit) {
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the browser store never rejects (a store it cannot open reads as nothing)
 		void latest_visit(page)
 			.then((rec) => {
 				if (rec?.visit) {
@@ -44,7 +45,7 @@
 					source = 'browser';
 				}
 			})
-			.finally(() => (looked = true)); // ok: the browser store never rejects (a store it cannot open reads as nothing)
+			.finally(() => (looked = true));
 	}
 	const clock = $derived(v ? one_clock(v, server, names, hole_names) : null);
 

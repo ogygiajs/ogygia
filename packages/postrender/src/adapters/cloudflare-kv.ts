@@ -40,8 +40,9 @@ export class CloudflareKvStore implements PostrenderStore {
 		if (!raw) return null;
 		try {
 			return JSON.parse(raw);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- an entry that does not parse is a miss: the page renders again
 		} catch {
-			return null; // ok: an entry that does not parse is a miss: the page renders again
+			return null;
 		}
 	}
 

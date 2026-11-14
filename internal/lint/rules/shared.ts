@@ -15,45 +15,6 @@ export function in_source(context: Context): boolean {
 export type Comment = { type: string; value: string; loc: { start: { line: number } } };
 export type Located = Node & { loc: { start: { line: number }; end: { line: number } } };
 
-/** An `// ok: <reason>` note: a reason, not just `ok:`. */
-export const OK_NOTE = /^\s*ok:\s*\S/;
-
-/** The lines of this file that carry an `// ok: <reason>` comment. */
-export function ok_lines(context: Context): Set<number> {
-	const comments =
-		(
-			context as { sourceCode?: { getAllComments?: () => Comment[] } }
-		).sourceCode?.getAllComments?.() ?? [];
-	const lines = new Set<number>();
-	for (const c of comments) if (OK_NOTE.test(c.value)) lines.add(c.loc.start.line);
-	return lines;
-}
-
-type PlacedComment = {
-	value: string;
-	loc: { start: { line: number; column: number }; end: { line: number } };
-};
-
-/**
- * What a reason note (`// <tag>: <why>`, matched by `note`) excuses: a node on the note's own line,
- * and on the line below a note that stands alone on its line. A note trailing a statement is that
- * statement's, never the next one's (#1033, internal/lint/reason-notes.test.ts).
- */
-export function reason_notes(context: Context, note: RegExp): (node: Node) => boolean {
-	const source = (
-		context as { sourceCode?: { getAllComments?: () => PlacedComment[]; lines?: string[] } }
-	).sourceCode;
-	const lines = new Set<number>();
-	for (const c of source?.getAllComments?.() ?? []) {
-		if (!note.test(c.value)) continue;
-		const { line, column } = c.loc.start;
-		lines.add(line);
-		if ((source?.lines?.[line - 1] ?? '').slice(0, column).trim() === '')
-			lines.add(c.loc.end.line + 1);
-	}
-	return (node) => lines.has((node as Located).loc.start.line);
-}
-
 /** All of `packages/<pkg>/src`, `@ogygia/machine` included: every package's source holds the
  *  comment shapes. */
 export const ALL_SOURCE = /(^|\/)packages\/([^/]+)\/src\//;

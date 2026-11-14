@@ -23,9 +23,8 @@
 				location.href = d.next || base;
 				return;
 			}
-		} catch {
-			// ok: a network error is a failed unlock, shown below
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a network error is a failed unlock, shown below
+		} catch {}
 		wrong = true;
 		key = '';
 	}

@@ -43,9 +43,8 @@
 			await navigator.clipboard.writeText(location);
 			copied = true;
 			owner.timeout(() => (copied = false), 1200);
-		} catch {
-			// ok: no clipboard (insecure context); the text is selectable
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no clipboard (insecure context); the text is selectable
+		} catch {}
 	}
 	// SOURCE PEEK: the code around the hot lines. The report carries it (`f.src`, captured at report
 	// time from the sourcemap's embedded copy), so it shows on a deployed host, in an export and in a
@@ -58,12 +57,13 @@
 		const to = last_hot > f.line ? `&to=${Math.min(last_hot, f.line + 60)}` : '';
 		const url = `${base}/source?p=${encodeURIComponent(f.path)}&l=${f.line}${to}`;
 		let live = true;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- no source peek; the frame shows its location alone
 		fetch(url, { headers: { accept: 'application/json' } })
 			.then((r) => (r.ok ? r.json() : null))
 			.then((j) => {
 				if (live && j && Array.isArray(j.lines)) fetched = j;
 			})
-			.catch(() => {}); // ok: no source peek; the frame shows its location alone
+			.catch(() => {});
 		return () => {
 			live = false;
 		};

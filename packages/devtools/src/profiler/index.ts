@@ -731,7 +731,8 @@ export const url_weights = (): UrlWeights =>
 		run: async ({ url, fetch_url }, signal) => {
 			const res = await fetch_url(url, signal);
 			if (!res.ok) {
-				void res.body?.cancel().catch(noop); // ok: only the status is read
+				// oxlint-disable-next-line ogygia/no-silent-failures -- only the status is read
+				void res.body?.cancel().catch(noop);
 				if (gone_for_good(res.status)) return null;
 				throw new Error(`status ${res.status}`);
 			}
@@ -740,7 +741,8 @@ export const url_weights = (): UrlWeights =>
 			// bytes the browser parses. Read it when it is not already known to be identity.
 			const enc = res.headers.get('content-encoding');
 			if (!enc && Number.isFinite(len) && len > 0) {
-				void res.body?.cancel().catch(noop); // ok: the length is known
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the length is known
+				void res.body?.cancel().catch(noop);
 				return len;
 			}
 			return (await res.arrayBuffer()).byteLength;
@@ -766,9 +768,8 @@ export async function weigh_urls(
 			try {
 				const bytes = await weights.get({ url, fetch_url }, { signal: budget });
 				if (typeof bytes === 'number') out[url] = bytes;
-			} catch {
-				// ok: not weighed this time (a 5xx, the network); left out, and the next report asks again
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- not weighed this time (a 5xx, the network); left out, and the next report asks again
+			} catch {}
 		}
 	};
 	await Promise.all(Array.from({ length: Math.min(6, todo.length) }, worker));
@@ -1050,7 +1051,6 @@ type DevIslandKeys = {
 };
 
 /** the main thread's work in a render: the code on the sampled stacks and the collector's pauses */
-// static: a fixed list of frame categories
 const MAIN_THREAD_CPU: ReadonlySet<string> = new Set([
 	'app',
 	'component',
@@ -1238,7 +1238,7 @@ class Profiler {
 		inOrder: true,
 		giveUp: (post, error) => {
 			// (kept for the site view, as every post's outcome is; the rows themselves are gone)
-			// wall: shown as a time
+			// oxlint-disable-next-line ogygia/ports -- shown as a time
 			this.#sink_last = { at: Date.now(), ok: false, rows: post.rows, error: error_text(error) };
 			warn('devtools_profiler_sink_undelivered', { rows: String(post.rows) }, error);
 		},
@@ -1325,7 +1325,8 @@ class Profiler {
 					await store.init?.();
 				}
 			});
-			void this.#store_ready(); // ok: never rejects (a failed init is said: devtools_profiler_store_init_failed)
+			// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects (a failed init is said: devtools_profiler_store_init_failed)
+			void this.#store_ready();
 		}
 		this.#client_cpu = options.clientCpu !== false;
 		if (options.sink?.url) {
@@ -1334,7 +1335,8 @@ class Profiler {
 			this.#sink_every = Math.max(1000, options.sink.every ?? 10_000);
 			// a long-lived host flushes on a timer; a serverless one flushes after each request (below)
 			if (!Number.isFinite(serverless_work_budget_ms())) {
-				this.#sink_timer = this.#background.every(() => void this.#sink_flush(), this.#sink_every); // ok: a flush never rejects (its failure is kept for the site view)
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a flush never rejects (its failure is kept for the site view)
+				this.#sink_timer = this.#background.every(() => void this.#sink_flush(), this.#sink_every);
 			}
 		}
 		this.#sample = options.sample ? options.sample : null;
@@ -1384,7 +1386,8 @@ class Profiler {
 		for (const loop of [this.#trap_loop, this.#sample_loop])
 			if (loop.now.kind !== 'retired') loop.go('retired', { caught: caught_of(loop) });
 		this.#background.close();
-		if (sinking) void this.#sink_flush(); // ok: a flush never rejects (its failure is kept for the site view)
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a flush never rejects (its failure is kept for the site view)
+		if (sinking) void this.#sink_flush();
 	}
 
 	/** A background window's length: `ms`, or less when the profiler stands down meanwhile. */
@@ -1421,7 +1424,8 @@ class Profiler {
 		const s = loop.now;
 		if (s.kind !== 'idle' && s.kind !== 'scheduled' && s.kind !== 'capturing') return;
 		loop.go('scheduled', { caught: caught_of(loop) });
-		loop.scope.timeout(() => void cycle(), delay_ms); // ok: a cycle catches its own failure
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a cycle catches its own failure
+		loop.scope.timeout(() => void cycle(), delay_ms);
 	}
 
 	/** A window failed: the loop stops, and says why (on the dashboard, and once as a message). */
@@ -1497,7 +1501,8 @@ class Profiler {
 						id,
 						dump: report_dump(stored.analysis, stored.meta, this.#report_extras(stored))
 					});
-					void this.#sink_flush(); // ok: a flush never rejects (its failure is kept for the site view)
+					// oxlint-disable-next-line ogygia/no-silent-failures -- a flush never rejects (its failure is kept for the site view)
+					void this.#sink_flush();
 				}
 				caught++;
 			}
@@ -1651,9 +1656,8 @@ class Profiler {
 					// replaced since install (late undici init / a polyfill / HMR), which silently drops
 					// capture. This is what makes a run RELIABLY see network instead of sometimes.
 					this.#ensure_net = ensure_fetch_patched;
-				} catch {
-					// ok: a platform without patchable modules; wall timing still works
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- a platform without patchable modules; wall timing still works
+				} catch {}
 			}
 		}
 	});
@@ -1664,7 +1668,7 @@ class Profiler {
 	#recording_active(): boolean {
 		// (by its start too: a process frozen mid-profile and thawed may answer before its timer runs)
 		const s = this.#holder.now;
-		// wall: a frozen process's monotonic clock does not advance, and the freeze is what this catches
+		// oxlint-disable-next-line ogygia/ports -- a frozen process's monotonic clock does not advance, and the freeze is what this catches
 		return s.kind === 'recording' && Date.now() - s.since < RECORDING_MAX_MS;
 	}
 
@@ -1678,7 +1682,8 @@ class Profiler {
 	#take(kind: 'background' | 'recording'): LockToken | null {
 		const token = this.#recorder.take();
 		if (token === null) return null;
-		this.#holder.go(kind, { token, since: Date.now() }); // wall: read across a freeze (above)
+		// oxlint-disable-next-line ogygia/ports -- read across a freeze (above)
+		this.#holder.go(kind, { token, since: Date.now() });
 		// (leaving it, to `cut` or `free`, detaches the attribution context)
 		this.#holder.scope.defer(() => this.#release_als());
 		return token;
@@ -1698,7 +1703,8 @@ class Profiler {
 				? null
 				: {
 						kind: this.#win.now.kind !== 'idle' ? 'window' : s.kind,
-						age_ms: Date.now() - s.since, // wall: `since` is a wall time (a freeze counts)
+						// oxlint-disable-next-line ogygia/ports -- `since` is a wall time (a freeze counts)
+						age_ms: Date.now() - s.since,
 						stale: s.kind === 'cut' || (s.kind === 'recording' && !this.#recording_active())
 					};
 		return new Response(JSON.stringify({ busy: true, message, holder }), {
@@ -1794,18 +1800,19 @@ class Profiler {
 		try {
 			observer = new perf_hooks.PerformanceObserver((list) => ingest(list.getEntries()));
 			observer.observe({ entryTypes: ['gc', 'measure'] });
-		} catch {
-			// ok: entry types unavailable on this runtime; the sampler still covers GC
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- entry types unavailable on this runtime; the sampler still covers GC
+		} catch {}
 
 		const mem: MemSample[] = [];
 		// (the window's t0 and t1 are matched against the request ring's epoch `ts`, and become the
 		// report's `created`)
-		const t0 = Date.now(); // wall: see above
+		// oxlint-disable-next-line ogygia/ports -- see above
+		const t0 = Date.now();
 		const sample_mem = () => {
 			const m = process.memoryUsage();
 			mem.push({
-				t: Date.now() - t0, // wall: on the window's own t0 (above)
+				// oxlint-disable-next-line ogygia/ports -- on the window's own t0 (above)
+				t: Date.now() - t0,
 				rss: Math.round(m.rss / 1048576),
 				heap_used: Math.round(m.heapUsed / 1048576)
 			});
@@ -1830,9 +1837,8 @@ class Profiler {
 					});
 				};
 				sampling.every(sample_heap, HEAP_SERIES_PERIOD_MS);
-			} catch {
-				// ok: no v8 module (edge): no heap series
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- no v8 module (edge): no heap series
+			} catch {}
 		}
 
 		// this capture's own: its network log, and its asks for stacks and spans (another capture
@@ -1840,7 +1846,8 @@ class Profiler {
 		// (each turned on right at the `try` whose `finally` turns it off)
 		const owner = {};
 		const window_net: NetCall[] = [];
-		const netmod = await import('./net.ts').catch(() => null); // ok: a runtime with no network module: no network capture, the window still records
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a runtime with no network module: no network capture, the window still records
+		const netmod = await import('./net.ts').catch(() => null);
 		// SPANS (`span()` / `tag()` from ogygia/profiler): recorded only while this window runs.
 		// A span rides the same async context as the fetch patch — the request it belongs to, and
 		// for nesting a child store carrying the span's id (only during a recording, so the per-hop
@@ -1852,7 +1859,8 @@ class Profiler {
 		const span_als = new SpanALS<number>();
 		const window_spans = new WindowSpans(this.#als, span_als, netmod);
 		const { spans } = window_spans;
-		const iomod = opts.light ? null : await import('./async-io.ts').catch(() => null); // ok: a runtime with no async hooks: no I/O lanes, the window still records
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a runtime with no async hooks: no I/O lanes, the window still records
+		const iomod = opts.light ? null : await import('./async-io.ts').catch(() => null);
 		let io_rec = iomod ? await iomod.IoRecorder.start() : null;
 
 		let heap_head: HeapNode | null = null;
@@ -1897,9 +1905,8 @@ class Profiler {
 							}
 						}
 					} else await session.post('HeapProfiler.startSampling', { samplingInterval: 16384 });
-				} catch {
-					// ok: heap sampling unsupported here; the window records without it
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- heap sampling unsupported here; the window records without it
+				} catch {}
 			}
 			// The samples' clock: V8 stamps the profile's `startTime` when the profile is created, at
 			// the START of this call — then scans every compiled function before the call returns
@@ -1936,19 +1943,20 @@ class Profiler {
 						for (const [k, v] of cur) if (v > 0) bytes[k] = v;
 						gc_slices.push({ t0: 0, t1: round2(perf_end - perf_start), bytes });
 					}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- no heap samples this window: the report goes without allocations
 				} catch {
-					heap_head = null; // ok: no heap samples this window: the report goes without allocations
+					heap_head = null;
 				}
 			}
-			const t1 = Date.now(); // wall: matched against the request ring's epoch `ts` (t0, above)
+			// oxlint-disable-next-line ogygia/ports -- matched against the request ring's epoch `ts` (t0, above)
+			const t1 = Date.now();
 			sample_mem();
 			// drain entries the observer buffered but hasn't delivered to its
 			// callback yet (deferred batching would otherwise lose the last GCs)
 			try {
 				if (observer) ingest(observer.takeRecords());
-			} catch {
-				// ok: takeRecords unsupported; callback-delivered entries are still counted
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- takeRecords unsupported; callback-delivered entries are still counted
+			} catch {}
 
 			const cpu = process.cpuUsage(cpu0);
 			const elu = perf_hooks.performance.eventLoopUtilization(elu0);
@@ -2012,15 +2020,13 @@ class Profiler {
 			io_rec?.stop();
 			try {
 				observer?.disconnect();
-			} catch {
-				// ok: already disconnected, which is what this was for
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- already disconnected, which is what this was for
+			} catch {}
 			this.#window_nets.delete(window_net);
 			try {
 				session.disconnect();
-			} catch {
-				// ok: already disconnected, which is what this was for
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- already disconnected, which is what this was for
+			} catch {}
 		}
 	}
 
@@ -2060,8 +2066,9 @@ class Profiler {
 					if (with_profile) {
 						try {
 							profile = ((await session.post('Profiler.stop')) as { profile: CpuProfile }).profile;
+							// oxlint-disable-next-line ogygia/no-silent-failures -- the profiler would not stop: this pass goes without a CPU profile
 						} catch {
-							profile = undefined; // ok: the profiler would not stop: this pass goes without a CPU profile
+							profile = undefined;
 						}
 					}
 				}
@@ -2099,9 +2106,8 @@ class Profiler {
 			} finally {
 				session.disconnect();
 			}
-		} catch {
-			// ok: no inspector or coverage here; the call counts are left out
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no inspector or coverage here; the call counts are left out
+		} catch {}
 		return { counts, ...(profile ? { profile } : {}) };
 	}
 
@@ -2115,8 +2121,9 @@ class Profiler {
 			const entry = process.argv[1] ? path.dirname(process.argv[1]) : undefined;
 			const dirs = client_dir_candidates(entry, process.cwd(), path.join);
 			return client_file_finder(origin, dirs, (p) => fs.existsSync(p), path.join);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- off Node there are no local files: browser frames keep their URLs
 		} catch {
-			return undefined; // ok: off Node there are no local files: browser frames keep their URLs
+			return undefined;
 		}
 	}
 
@@ -2136,8 +2143,9 @@ class Profiler {
 		if (path.startsWith('file://'))
 			try {
 				path = decodeURIComponent(new URL(path).pathname);
+				// oxlint-disable-next-line ogygia/no-silent-failures -- not a file URL: no chunk line to name
 			} catch {
-				return undefined; // ok: not a file URL: no chunk line to name
+				return undefined;
 			}
 		// (a relative name too: the map lookup resolves it — `./chunks/x.js` on Lambda)
 		if (!may_be_chunk(path)) return undefined;
@@ -2196,9 +2204,8 @@ class Profiler {
 					for (const base of is_abs(p) ? [''] : bases) {
 						try {
 							return fs.readFileSync(base ? path.join(base, p) : p, 'utf8');
-						} catch {
-							// ok: not under this base; the next is tried
-						}
+							// oxlint-disable-next-line ogygia/no-silent-failures -- not under this base; the next is tried
+						} catch {}
 					}
 					// a map the host left behind; a source file it did not ship (a build without maps
 					// matches its chunks to the app's sources by text: the copies the build carried)
@@ -2223,8 +2230,9 @@ class Profiler {
 				// (in dev a `.ts` / `.svelte` module has a map too: its transformed code's)
 				{ any_ext: !!dev_map }
 			);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no resolver (off Node, or its setup failed): frames keep their built positions
 		} catch {
-			return undefined; // ok: no resolver (off Node, or its setup failed): frames keep their built positions
+			return undefined;
 		}
 	}
 
@@ -2261,8 +2269,9 @@ class Profiler {
 			if (u.startsWith('/')) return u;
 			try {
 				return new URL(u).pathname;
+				// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: kept as written
 			} catch {
-				return u; // ok: not a URL: kept as written
+				return u;
 			}
 		};
 		cap.net = cap.net.filter((c) => !path_of(c.url).startsWith(own));
@@ -2565,9 +2574,8 @@ class Profiler {
 		try {
 			const { gzipSync } = await import('node:zlib');
 			raw = gzipSync(raw_json);
-		} catch {
-			// ok: no zlib (unlikely); the string is kept as it is
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no zlib (unlikely); the string is kept as it is
+		} catch {}
 		// THE ISLANDS' JS WEIGHT: every module / preload href the page's islands pull, fetched once
 		// through the app (a built app's hashed assets; dev URLs are unbundled and say nothing).
 		let weights: Record<string, number> | undefined;
@@ -2649,8 +2657,9 @@ class Profiler {
 							}
 						: {})
 				});
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the heap timeline is left out; the rest of the report stands
 			} catch {
-				alloc = undefined; // ok: the heap timeline is left out; the rest of the report stands
+				alloc = undefined;
 			}
 		}
 		// THE INSTANCE WAS NOT ALONE: the other requests that overlapped the profiled window(s)
@@ -2679,8 +2688,9 @@ class Profiler {
 						),
 						self_paths
 					});
+					// oxlint-disable-next-line ogygia/no-silent-failures -- the overlap section is left out; the rest of the report stands
 				} catch {
-					contended = undefined; // ok: the overlap section is left out; the rest of the report stands
+					contended = undefined;
 				}
 			}
 		}
@@ -2713,12 +2723,12 @@ class Profiler {
 			const s = this.#reports.get(id)!;
 			try {
 				await this.#lines_for(s, undefined, cap.window?.start);
-			} catch {
-				// ok: a report without its line ledger; the rest of the report stands
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a report without its line ledger; the rest of the report stands
+			} catch {}
 		}
 		// page mode writes once, at its end, with every extra in (and waits for the write)
-		if (meta_partial.trigger !== 'page') void this.#persist(this.#reports.get(id)!); // ok: never rejects (a failed write is said: devtools_profiler_put_report_failed)
+		// oxlint-disable-next-line ogygia/no-silent-failures -- never rejects (a failed write is said: devtools_profiler_put_report_failed)
+		if (meta_partial.trigger !== 'page') void this.#persist(this.#reports.get(id)!);
 		while (this.#reports.size > this.max_reports) {
 			const oldest = this.#reports.keys().next().value;
 			if (oldest === undefined) break;
@@ -2788,8 +2798,9 @@ class Profiler {
 	#address(event: RequestEvent): string {
 		try {
 			return event.getClientAddress();
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no address on this platform: every attempt shares one budget
 		} catch {
-			return ''; // ok: no address on this platform: every attempt shares one budget
+			return '';
 		}
 	}
 
@@ -2886,9 +2897,8 @@ class Profiler {
 		let sent: unknown = null;
 		try {
 			sent = JSON.parse(new TextDecoder().decode(raw));
-		} catch {
-			// ok: a body that is not JSON is a failed unlock, answered below
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a body that is not JSON is a failed unlock, answered below
+		} catch {}
 		const body = sent as {
 			key?: unknown;
 			next?: unknown;
@@ -3195,9 +3205,8 @@ class Profiler {
 					try {
 						const res = await f(url, { headers });
 						if (res.ok) return await res.text();
-					} catch {
-						// ok: this way could not fetch it; the next way is tried
-					}
+						// oxlint-disable-next-line ogygia/no-silent-failures -- this way could not fetch it; the next way is tried
+					} catch {}
 				}
 				return null;
 			};
@@ -3328,8 +3337,9 @@ class Profiler {
 			else
 				try {
 					keys = region_page_keys(r.entry);
+					// oxlint-disable-next-line ogygia/no-silent-failures -- an entry we cannot read counts as reading every key (the safe side)
 				} catch {
-					keys = null; // ok: an entry we cannot read counts as reading every key (the safe side)
+					keys = null;
 				}
 			by_entry.set(r.entry, { name: island_name(r), keys });
 		}
@@ -3367,8 +3377,9 @@ class Profiler {
 					undefined,
 					this.#module_hint
 				).functions;
+				// oxlint-disable-next-line ogygia/no-silent-failures -- merged lines go without their split; the ledger still shows them
 			} catch {
-				uninlined = undefined; // ok: merged lines go without their split; the ledger still shows them
+				uninlined = undefined;
 			}
 		}
 		// every analysed frame once: a component row can carry hot lines its function row did not
@@ -3425,9 +3436,8 @@ class Profiler {
 					function: true
 				};
 			}
-		} catch {
-			// ok: no node:v8 (not Node): no memory limit to read
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- no node:v8 (not Node): no memory limit to read
+		} catch {}
 		const patterns = ledger.length
 			? find_patterns({
 					ledger,
@@ -3940,9 +3950,8 @@ class Profiler {
 				}
 				const p = counted_sync_io(s.call_counts, files);
 				if (p) patterns.push(p);
-			} catch {
-				// ok: no file system: nothing to read the route's files from
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- no file system: nothing to read the route's files from
+			} catch {}
 		}
 		// biggest saving first — except a severe leak (8 MB+ kept per render), which leads: it ends
 		// in an out-of-memory crash, not a slow page
@@ -4103,8 +4112,9 @@ class Profiler {
 		const dot = rest.indexOf('.');
 		try {
 			return await ask(dot === -1 ? rest : rest.slice(0, dot));
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the plugin could not say: the keys are read from the built entry instead
 		} catch {
-			return undefined; // ok: the plugin could not say: the keys are read from the built entry instead
+			return undefined;
 		}
 	}
 
@@ -4114,8 +4124,9 @@ class Profiler {
 		try {
 			fs = await import('node:fs');
 			path = await import('node:path');
+			// oxlint-disable-next-line ogygia/no-silent-failures -- off Node there is no file system: the reader reads nothing
 		} catch {
-			fs = undefined; // ok: off Node there is no file system: the reader reads nothing
+			fs = undefined;
 		}
 		const cache = new Map<string, string | undefined>();
 		return (file: string): string | undefined => {
@@ -4129,9 +4140,8 @@ class Profiler {
 				try {
 					out = fs.readFileSync(c, 'utf8');
 					break;
-				} catch {
-					// ok: not this candidate; the next is tried
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- not this candidate; the next is tried
+				} catch {}
 			}
 			// a deployed host has no src/: the text the build's maps carry (embedded-maps.ts)
 			out ??= embedded_source(file);
@@ -4274,8 +4284,9 @@ class Profiler {
 			} else {
 				try {
 					keys = region_page_keys(r.entry);
+					// oxlint-disable-next-line ogygia/no-silent-failures -- the entry's source is read for its keys just below
 				} catch {
-					keys = undefined; // ok: the entry's source is read for its keys just below
+					keys = undefined;
 				}
 				if (keys === undefined) {
 					const src = read(r.entry);
@@ -4437,9 +4448,8 @@ class Profiler {
 		} finally {
 			try {
 				session.disconnect();
-			} catch {
-				// ok: already disconnected, which is what this was for
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- already disconnected, which is what this was for
+			} catch {}
 		}
 	}
 
@@ -4465,9 +4475,8 @@ class Profiler {
 		} finally {
 			try {
 				session.disconnect();
-			} catch {
-				// ok: already disconnected, which is what this was for
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- already disconnected, which is what this was for
+			} catch {}
 		}
 	}
 
@@ -4610,8 +4619,9 @@ class Profiler {
 		let u: URL;
 		try {
 			u = new URL(next ?? fallback, SAME_ORIGIN);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL is no place to go back to
 		} catch {
-			return fallback; // ok: not a URL is no place to go back to
+			return fallback;
 		}
 		// (a path that reads `//host` once set as an address would leave the origin again)
 		if (u.origin !== SAME_ORIGIN || u.pathname.startsWith('//')) return fallback;
@@ -4674,8 +4684,9 @@ class Profiler {
 					if (!s || s.meta.trigger !== 'page') return undefined;
 					try {
 						return page_score_of(s.meta, this.#report_extras(s)).score;
+						// oxlint-disable-next-line ogygia/no-silent-failures -- that point shows on the trend without a score
 					} catch {
-						return undefined; // ok: that point shows on the trend without a score
+						return undefined;
 					}
 				}
 			),
@@ -4780,7 +4791,8 @@ class Profiler {
 			cpu_ms: entry.cpu_ms,
 			net_ms: entry.net_ms ?? null,
 			net_count: entry.net_count ?? 0,
-			at: Date.now(), // wall: stored, and read by other instances
+			// oxlint-disable-next-line ogygia/ports -- stored, and read by other instances
+			at: Date.now(),
 			instance: this.#instance_id
 		};
 		const store = await this.#store_ready();
@@ -4792,9 +4804,8 @@ class Profiler {
 				at: rec.at,
 				visit: JSON.stringify(rec)
 			});
-		} catch {
-			// ok: the store is down: this request is missing from the window, and the window's own report write says the store failed
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the store is down: this request is missing from the window, and the window's own report write says the store failed
+		} catch {}
 	}
 
 	/** The requests every instance wrote for a window. */
@@ -4817,8 +4828,9 @@ class Profiler {
 		try {
 			const rows = await store.listVisits(WINDOW_PAGE_PREFIX + id, MAX_VISITS_PER_KEY);
 			return rows.map((r) => JSON.parse(r.visit)).sort((a, b) => a.at - b.at);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the store could not list them: the report shows no stored visits
 		} catch {
-			return []; // ok: the store could not list them: the report shows no stored visits
+			return [];
 		}
 	}
 
@@ -5063,8 +5075,9 @@ class Profiler {
 			let heap_now: { used_heap_size: number; heap_size_limit: number } | null = null;
 			try {
 				heap_now = (await import('node:v8')).getHeapStatistics();
+				// oxlint-disable-next-line ogygia/no-silent-failures -- off Node there is no node:v8: no heap check before starting
 			} catch {
-				heap_now = null; // ok: off Node there is no node:v8: no heap check before starting
+				heap_now = null;
 			}
 			if (
 				heap_now &&
@@ -5162,8 +5175,9 @@ class Profiler {
 						body = await res.text();
 						warmup_ms = round2(performance.now() - t);
 					}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- a warm-up failure surfaces on the real runs below
 				} catch {
-					break; // ok: a warm-up failure surfaces on the real runs below
+					break;
 				}
 				if (!res) break;
 				warm_status = res.status;
@@ -5221,8 +5235,9 @@ class Profiler {
 			let v8_stats: (() => { used_heap_size: number; heap_size_limit: number }) | null = null;
 			try {
 				v8_stats = (await import('node:v8')).getHeapStatistics;
+				// oxlint-disable-next-line ogygia/no-silent-failures -- off Node there is no node:v8: the renders run without the heap stop
 			} catch {
-				v8_stats = null; // ok: off Node there is no node:v8: the renders run without the heap stop
+				v8_stats = null;
 			}
 			const heap_fill = () => {
 				const s = v8_stats?.();
@@ -5351,9 +5366,8 @@ class Profiler {
 			for (const c of cap.net) {
 				try {
 					own_calls.add(new URL(c.url, 'http://x').pathname);
-				} catch {
-					// ok: not a URL, so not a path the renders called
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL, so not a path the renders called
+				} catch {}
 			}
 			const outside = this.#ring.filter(
 				(e) =>
@@ -5400,7 +5414,7 @@ class Profiler {
 			let answers: ReportMeta['answers'];
 			if (stable.size && this.#kept) {
 				const state = {
-					// wall: unique across restarts
+					// oxlint-disable-next-line ogygia/ports -- unique across restarts
 					token: `${fnv1a32(`${Math.random()}:${Date.now()}`).toString(36)}${fnv1a32(String(performance.now())).toString(36)}`,
 					keys: stable
 				};
@@ -5416,8 +5430,9 @@ class Profiler {
 						ms.push(round2(performance.now() - t));
 					}
 					if (ms.length) answers = { runs_ms: ms, calls: stable.size };
+					// oxlint-disable-next-line ogygia/no-silent-failures -- an extra render failed: the report goes without the cached-answers estimate
 				} catch {
-					answers = undefined; // ok: an extra render failed: the report goes without the cached-answers estimate
+					answers = undefined;
 				} finally {
 					if (this.#answers === state) this.#answers = null;
 					this.#kept.drop(kept_owner);
@@ -5492,8 +5507,9 @@ class Profiler {
 						...(owners.length ? { owners } : {}),
 						calls: cold_cap.net.length
 					};
+					// oxlint-disable-next-line ogygia/no-silent-failures -- the cold-against-warm split is left out; the rest of the report stands
 				} catch {
-					cold = undefined; // ok: the cold-against-warm split is left out; the rest of the report stands
+					cold = undefined;
 				}
 			}
 			// call counts come from ONE extra render under precise coverage — a
@@ -5525,8 +5541,9 @@ class Profiler {
 						await fetch_render(target).then((r) => r.text());
 					});
 					retain_ms = clock.mono() - t;
+					// oxlint-disable-next-line ogygia/no-silent-failures -- the retention render failed: the report goes without what a render keeps
 				} catch {
-					retained = undefined; // ok: the retention render failed: the report goes without what a render keeps
+					retained = undefined;
 				}
 			}
 			// DOES IT KEEP GROWING? When one more render left memory behind, a few more renders with a
@@ -5559,8 +5576,9 @@ class Profiler {
 							n,
 							clock.mono() + room
 						);
+						// oxlint-disable-next-line ogygia/no-silent-failures -- the growth check failed: the report goes without it
 					} catch {
-						growth = undefined; // ok: the growth check failed: the report goes without it
+						growth = undefined;
 					}
 				}
 			}
@@ -5581,9 +5599,8 @@ class Profiler {
 				try {
 					const r = await event.fetch(u, { headers: { 'x-og-profiler-internal': '1' }, signal });
 					if (r.ok) return r;
-				} catch {
-					// ok: not answered internally; the origin is asked below
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- not answered internally; the origin is asked below
+				} catch {}
 				return fetch(new URL(u, event.url.origin), {
 					headers: { 'x-og-profiler-internal': '1' },
 					signal
@@ -5666,9 +5683,8 @@ class Profiler {
 					};
 					const diff = doc_diff(first_body, last_body, name_of);
 					if (diff) s.meta.doc_diff = diff;
-				} catch {
-					// ok: a report without the documents' diff; the rest stands
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- a report without the documents' diff; the rest stands
+				} catch {}
 			}
 			// THE DOCUMENT AS BYTES and THE DATA RIVER, from the last run's body
 			if (last_body) {
@@ -5680,9 +5696,8 @@ class Profiler {
 						const tail = stream_tail(last_body, s.strip, last_chunks);
 						if (tail) s.strip.tail = tail;
 					}
-				} catch {
-					// ok: a document the scanner cannot walk: no byte strip
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- a document the scanner cannot walk: no byte strip
+				} catch {}
 				// THE PAGE'S WEIGHT: every file the document loads at start (whatever built it) and
 				// the islands' modules, weighed through the app — the score's JS / weight / blocking.
 				// A dev server serves modules one by one: its graph says nothing about a build.
@@ -5725,8 +5740,9 @@ class Profiler {
 									const path = new URL(u).pathname;
 									const rel = app_asset_rel(path);
 									return chunk_contents(rel ? `/${rel}` : path);
+									// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: no contents list for that chunk
 								} catch {
-									return null; // ok: not a URL: no contents list for that chunk
+									return null;
 								}
 							}
 						});
@@ -5736,21 +5752,18 @@ class Profiler {
 				}
 				try {
 					s.river = await this.#river_for(s, last_body, run_windows[run_windows.length - 1]);
-				} catch {
-					// ok: a report without its river; the rest stands
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- a report without its river; the rest stands
+				} catch {}
 				try {
 					s.lineage = await this.#lineage_for(s, last_body);
-				} catch {
-					// ok: a report without its lineage; the rest stands
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- a report without its lineage; the rest stands
+				} catch {}
 			}
 			// THE LINE LEDGER, now that the retained sites are in: the app lines that cost the most
 			try {
 				await this.#lines_for(s, counted.profile, cap.window?.start, stable, wait_runs, almost);
-			} catch {
-				// ok: a report without its line ledger; the rest of the report stands
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a report without its line ledger; the rest of the report stands
+			} catch {}
 			// the durable copy, with every extra in, so a report read back from the store (another
 			// instance, a restart) carries all of them. AWAITED, up to a bound: on a serverless host the
 			// process freezes once the response is out, and a write still running then may never land
@@ -5959,8 +5972,9 @@ class Profiler {
 		try {
 			const bytes = await ogp_encode(report_dump(a, meta, extras), this.secret);
 			ogpB64 = Buffer.from(bytes).toString('base64');
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the page goes without its .ogp copy; keep and share ask the server by id
 		} catch {
-			ogpB64 = undefined; // ok: the page goes without its .ogp copy; keep and share ask the server by id
+			ogpB64 = undefined;
 		}
 		// this page's other page-mode reports (oldest first) and the one just before this one — the
 		// history line + the "compare with previous" link
@@ -6000,9 +6014,8 @@ class Profiler {
 					.filter((r) => r.page === meta.page && r.id !== meta.id && r.created < meta.created)
 					.sort((a, b) => b.created - a.created)[0];
 				if (earlier) prev = earlier.id;
-			} catch {
-				// ok: no store to list: no earlier report to compare with
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- no store to list: no earlier report to compare with
+			} catch {}
 		}
 		const P = prev ? (this.#reports.get(prev) ?? (await this.#report_load(prev))) : undefined;
 		if (!P) return null;
@@ -6025,8 +6038,9 @@ class Profiler {
 					.sort((x, y) => Math.abs(y.b - y.a) - Math.abs(x.b - x.a))
 					.slice(0, 3);
 				score = { a: sa.score, b: sb.score, a_grade: sa.grade, b_grade: sb.grade, moved };
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the comparison goes without the score line; the rest stands
 			} catch {
-				score = undefined; // ok: the comparison goes without the score line; the rest stands
+				score = undefined;
 			}
 			// the files behind a JS move (both builds weighed)
 			let assets: Since['assets'];
@@ -6043,8 +6057,9 @@ class Profiler {
 					)
 						assets = d;
 				}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the comparison goes without the files behind a JS move
 			} catch {
-				assets = undefined; // ok: the comparison goes without the files behind a JS move
+				assets = undefined;
 			}
 			// the browser's findings then and now (each report with its own visit): fixed and new, by
 			// finding and island — "clicked before it woke" gone after a wake change is the answer to
@@ -6069,8 +6084,9 @@ class Profiler {
 					const added = now.filter((x) => !was.includes(x));
 					if (fixed.length || added.length) browser = { fixed, added };
 				}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the comparison goes without the browser's fixed and new findings
 			} catch {
-				browser = undefined; // ok: the comparison goes without the browser's fixed and new findings
+				browser = undefined;
 			}
 			// THE VITALS THAT MOVED (each report's own visit), and the part of each that moved most
 			let vitals: Since['vitals'];
@@ -6097,8 +6113,9 @@ class Profiler {
 					);
 					if (moved.length) vitals = moved;
 				}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the comparison goes without the vitals that moved
 			} catch {
-				vitals = undefined; // ok: the comparison goes without the vitals that moved
+				vitals = undefined;
 			}
 			// which islands changed file between the two builds: what a returning visitor downloads again
 			let islands: Since['islands'];
@@ -6109,8 +6126,9 @@ class Profiler {
 						island_rows_of(stored.meta),
 						(u) => stored.weights?.[u]
 					) ?? undefined;
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the comparison goes without the changed files list
 			} catch {
-				islands = undefined; // ok: the comparison goes without the changed files list
+				islands = undefined;
 			}
 			return {
 				prev: P.meta.id,
@@ -6125,8 +6143,9 @@ class Profiler {
 				...(cmp.order ? { order: cmp.order } : {}),
 				...(cmp.fix_check ? { fix_check: cmp.fix_check } : {})
 			};
+			// oxlint-disable-next-line ogygia/no-silent-failures -- two reports that will not compare: the report shows without the "since" block
 		} catch {
-			return null; // ok: two reports that will not compare: the report shows without the "since" block
+			return null;
 		}
 	}
 
@@ -6293,8 +6312,9 @@ class Profiler {
 				page: r.page ?? undefined,
 				created: r.created
 			}));
+			// oxlint-disable-next-line ogygia/no-silent-failures -- the store could not list them: the sidebar shows only this instance's reports
 		} catch {
-			return []; // ok: the store could not list them: the sidebar shows only this instance's reports
+			return [];
 		}
 	}
 
@@ -6624,8 +6644,9 @@ class Profiler {
 				// whatever its function names look like — named by the package in its path, else the host
 				if (origin && u.host !== 'x' && u.origin !== origin)
 					return { category: 'dependency', pkg: CDN_PKG_RE.exec(path)?.[1] ?? u.host };
+				// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: the frame is placed by its name alone
 			} catch {
-				return undefined; // ok: not a URL: the frame is placed by its name alone
+				return undefined;
 			}
 			// the handoff keys chunks by their served path; a rewritten local file still carries it
 			const rel = app_asset_rel(path);
@@ -6667,7 +6688,8 @@ class Profiler {
 				this.#interaction_cpus.delete(this.#interaction_cpus.keys().next().value!);
 			this.#interaction_cpus.set(page, {
 				...interaction_windows(profile, interaction, run),
-				at: Date.now() // wall: stored with the report, shown as a time
+				// oxlint-disable-next-line ogygia/ports -- stored with the report, shown as a time
+				at: Date.now()
 			});
 			return true;
 		}
@@ -6675,7 +6697,7 @@ class Profiler {
 		// CUT BY ISLAND: the same load's visit (the trace goes out 8–20 s after the page started, the
 		// visit before it) gives each island's hydrate window — what ran inside it, by name
 		const visit = this.#visits.get(page)?.at(-1);
-		// wall: a visit's `at` is the page's epoch time, as its beacon sent it
+		// oxlint-disable-next-line ogygia/ports -- a visit's `at` is the page's epoch time, as its beacon sent it
 		const recent = visit !== undefined && Date.now() - visit.at < 120_000;
 		const windows = recent ? client_windows(profile, visit, run) : undefined;
 		// a slow interaction DURING the load (the load trace holds it; the interaction sampler starts
@@ -6696,14 +6718,16 @@ class Profiler {
 					{ t: i.t, wait: [i.t, at], handler: [at, at + i.processing] },
 					run
 				),
-				at: Date.now() // wall: stored with the report, shown as a time
+				// oxlint-disable-next-line ogygia/ports -- stored with the report, shown as a time
+				at: Date.now()
 			});
 		}
 		if (this.#client_cpus.size >= 50 && !this.#client_cpus.has(page))
 			this.#client_cpus.delete(this.#client_cpus.keys().next().value!);
 		this.#client_cpus.set(page, {
 			analysis,
-			at: Date.now(), // wall: stored with the report, shown as a time
+			// oxlint-disable-next-line ogygia/ports -- stored with the report, shown as a time
+			at: Date.now(),
 			sample_ms: analysis.duration_ms,
 			...(windows ? { windows } : {})
 		});
@@ -6980,11 +7004,13 @@ class Profiler {
 		if (remote)
 			try {
 				remote_url = new URL(event.request.url);
+				// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: the entry keeps Kit's url
 			} catch {
-				remote_url = null; // ok: not a URL: the entry keeps Kit's url
+				remote_url = null;
 			}
 		const entry: RequestEntry = {
-			ts: Date.now(), // wall: a request's time, shown and stored
+			// oxlint-disable-next-line ogygia/ports -- a request's time, shown and stored
+			ts: Date.now(),
 			method: event.request.method,
 			path: remote_url ? remote_url.pathname : event.url.pathname,
 			...(remote ? { remote: true as const } : {}),
@@ -7001,9 +7027,8 @@ class Profiler {
 		try {
 			const search = remote_url ? remote_url.search : event.url.search;
 			if (search) entry.search = search;
-		} catch {
-			// ok: prerendering: no query to keep
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- prerendering: no query to keep
+		} catch {}
 		// the inputs a caught request is replayed with: only the headers the trap config names
 		if (this.#trap?.replay?.length) {
 			const kept: Record<string, string> = {};
@@ -7066,9 +7091,8 @@ class Profiler {
 			try {
 				// (SvelteKit 3 types `fetch` as readonly; at runtime it is a plain property on 2 and 3)
 				(event as { fetch: typeof fetch }).fetch = this.#wrap_event_fetch(event.fetch);
-			} catch {
-				// ok: a frozen event (a test double); the global patch still covers real HTTP
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a frozen event (a test double); the global patch still covers real HTTP
+			} catch {}
 		}
 		const beacon_tag = await this.#beacon_tag(event);
 		const resolve_page = () =>
@@ -7088,9 +7112,8 @@ class Profiler {
 			if (beacon_tag && this.#client_cpu) {
 				try {
 					res.headers.set('document-policy', 'js-profiling');
-				} catch {
-					// ok: immutable headers; the response goes as it is
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- immutable headers; the response goes as it is
+				} catch {}
 			}
 			// (the beacon is this user's: no shared cache may keep the page that carries it)
 			if (beacon_tag && !this.dev) mark_personal(res);
@@ -7106,9 +7129,8 @@ class Profiler {
 							'Server-Timing',
 							`cpu;desc="process CPU while it ran";dur=${((c.user + c.system) / 1000).toFixed(1)}`
 						);
-					} catch {
-						// ok: no cpuUsage on this runtime: no CPU timing
-					}
+						// oxlint-disable-next-line ogygia/no-silent-failures -- no cpuUsage on this runtime: no CPU timing
+					} catch {}
 					if (ctx?.net.length) {
 						const net_ms = ctx.net.reduce((a, c) => a + Math.max(c.ms, 0) + (c.body_ms ?? 0), 0);
 						res.headers.append(
@@ -7126,9 +7148,8 @@ class Profiler {
 							try {
 								const u = new URL(x.url, 'http://relative.invalid');
 								where = (u.host === 'relative.invalid' ? '' : u.host) + u.pathname;
-							} catch {
-								// ok: not a URL: the stripped string is kept
-							}
+								// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: the stripped string is kept
+							} catch {}
 							const desc = `${x.method ?? 'GET'} ${where}`
 								.slice(0, 120)
 								.split('"')
@@ -7162,9 +7183,8 @@ class Profiler {
 							})
 						);
 					}
-				} catch {
-					// ok: immutable headers (a cached Response); the timing header is left out
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- immutable headers (a cached Response); the timing header is left out
+				} catch {}
 			}
 			return res;
 		};
@@ -7192,9 +7212,8 @@ class Profiler {
 					};
 				try {
 					res?.headers.append('x-profile-report', `${this.base}/report/${id}`);
-				} catch {
-					// ok: immutable headers; the response goes as it is
-				}
+					// oxlint-disable-next-line ogygia/no-silent-failures -- immutable headers; the response goes as it is
+				} catch {}
 				return res!;
 			} finally {
 				this.#free(header_token);
@@ -7261,7 +7280,8 @@ class Profiler {
 				...(entry.og ? { og: entry.og.seed_bytes + entry.og.tail_bytes } : {})
 			});
 			// serverless: this instance may be frozen after the response — post now, best effort
-			if (Number.isFinite(serverless_work_budget_ms())) void this.#sink_flush(); // ok: a flush never rejects (its failure is kept for the site view)
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a flush never rejects (its failure is kept for the site view)
+			if (Number.isFinite(serverless_work_budget_ms())) void this.#sink_flush();
 		}
 	}
 
@@ -7320,9 +7340,10 @@ class Profiler {
 				signal: AbortSignal.any([signal, AbortSignal.timeout(SINK_TRY_MS)])
 			});
 			if (!res.ok) throw new Error(`the sink answered ${res.status}`);
-			this.#sink_last = { at: Date.now(), ok: true, rows: post.rows }; // wall: shown as a time
+			// oxlint-disable-next-line ogygia/ports -- shown as a time
+			this.#sink_last = { at: Date.now(), ok: true, rows: post.rows };
 		} catch (error) {
-			// wall: shown as a time
+			// oxlint-disable-next-line ogygia/ports -- shown as a time
 			this.#sink_last = { at: Date.now(), ok: false, rows: post.rows, error: error_text(error) };
 			throw error;
 		}
@@ -7538,8 +7559,9 @@ export function route_prerendered(
 function entry_path(entry: string): string {
 	try {
 		return new URL(entry, 'http://x/').pathname;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: kept as written
 	} catch {
-		return entry; // ok: not a URL: kept as written
+		return entry;
 	}
 }
 

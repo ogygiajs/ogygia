@@ -98,9 +98,8 @@ class Box<T> implements Outbox<T> {
 		if (this._wait_until !== undefined) {
 			try {
 				this._wait_until(sent);
-			} catch {
-				// ok: a platform that refuses it: the send runs on in the process
-			}
+				// oxlint-disable-next-line ogygia/no-silent-failures -- a platform that refuses it: the send runs on in the process
+			} catch {}
 		}
 		return sent;
 	}

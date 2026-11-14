@@ -173,9 +173,8 @@ function region_urls(el: Element, entry: string): string[] {
 	for (const u of [entry, el.getAttribute('src')]) {
 		try {
 			if (u) urls.push(new URL(u, document.baseURI).href);
-		} catch {
-			// ok: not a URL, so not a script of the page
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL, so not a script of the page
+		} catch {}
 	}
 	return urls;
 }

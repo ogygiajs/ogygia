@@ -90,14 +90,16 @@ both skipped under reduced motion.
 	}
 
 	function openMenu() {
-		if (open) void set_view('nav'); // ok: a view switch only waits a tick and sets styles
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a view switch only waits a tick and sets styles
+		if (open) void set_view('nav');
 		else {
 			view = 'nav';
 			open = true;
 		}
 	}
 	function openSearch() {
-		if (open) void set_view('search'); // ok: a view switch only waits a tick and sets styles
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a view switch only waits a tick and sets styles
+		if (open) void set_view('search');
 		else {
 			view = 'search';
 			open = true;

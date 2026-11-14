@@ -28,13 +28,15 @@ export async function read_capped(
 			if (done) break;
 			size += value.byteLength;
 			if (size > max) {
-				await reader.cancel().catch(() => {}); // ok: the rest is unwanted; a failed cancel frees nothing more
+				// oxlint-disable-next-line ogygia/no-silent-failures -- the rest is unwanted; a failed cancel frees nothing more
+				await reader.cancel().catch(() => {});
 				return 'too large';
 			}
 			pieces.push(value);
 		}
+		// oxlint-disable-next-line ogygia/no-silent-failures -- the caller answers it (a 400)
 	} catch {
-		return 'unreadable'; // ok: the caller answers it (a 400)
+		return 'unreadable';
 	}
 	const out = new Uint8Array(size);
 	let at = 0;

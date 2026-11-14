@@ -68,9 +68,8 @@ export function parse_sink(text: string): SinkRow[] {
 		try {
 			const r = JSON.parse(s) as SinkRow;
 			if (r && (r.k === 'req' || r.k === 'win' || r.k === 'trap')) out.push(r);
-		} catch {
-			// ok: a row that does not parse is left out (a sink file may end mid-line)
-		}
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a row that does not parse is left out (a sink file may end mid-line)
+		} catch {}
 	}
 	return out;
 }
