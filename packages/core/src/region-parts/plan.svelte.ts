@@ -1,6 +1,6 @@
 import { getContext, setContext, untrack } from 'svelte';
 import { page } from '$app/state';
-import { KIT_REQUEST_CONTEXT } from '../server/kit-context.ts';
+import { KIT_REQUEST_CONTEXT, kit_request_event } from '../server/kit-context.ts';
 import { document_tail, type DocumentTail } from '../server/document-tail.ts';
 import { warn } from '../messages/island.ts';
 import {
@@ -120,6 +120,11 @@ export class RegionPlan {
 		}
 		if (plan.leave_live_snippet) setInLiveSnippet(false);
 		if (plan.mark_pass) setContext(KIT_PAGE_PASS, true);
+		if (plan.fill_event) {
+			const event = kit_request_event();
+			if (event)
+				setContext(KIT_REQUEST_CONTEXT, { ...getContext<object>(KIT_REQUEST_CONTEXT), event });
+		}
 		if (plan.set_nested) setNested(true, this.#wake);
 		if (plan.hole_inline) setHoleInline();
 	}

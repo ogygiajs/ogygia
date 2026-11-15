@@ -85,6 +85,7 @@ export interface RegionDecision {
 	csr: boolean;
 	root: 'none' | 'kit' | 'ogygia';
 	mark_pass: boolean;
+	fill_event: boolean;
 	set_nested: boolean;
 	hole_inline: boolean;
 	leave_live_snippet: boolean;
@@ -268,6 +269,7 @@ function decide(i: RegionInputs): RegionDecision {
 		csr,
 		root,
 		mark_pass: tail && !i.pass_mark,
+		fill_event: i.server && i.request === 'no-event',
 		set_nested: island && !nested,
 		hole_inline: hole && nested,
 		leave_live_snippet: island && nested && i.live_snippet,
