@@ -46,7 +46,26 @@ const FULL: Robustness = {
 			engines: ['chromium', 'firefox-stable']
 		},
 		{ suite: 'apps/palaestra e2e', kind: 'e2e', engines: ['chromium', 'firefox', 'webkit'] }
-	]
+	],
+	region: {
+		grid: {
+			server: 8623104,
+			client: 465024,
+			hydrate: 310016,
+			engines: ['chromium', 'firefox', 'webkit'],
+			parts: 4
+		},
+		snapshots: { files: 352, fullFiles: 256, distinct: 225594 },
+		fuzz: {
+			serverProperties: 5,
+			serverRuns: 2000,
+			browserProperties: 1,
+			browserRuns: 600,
+			nightlyRuns: 100000
+		},
+		mutants: { total: 240, killed: 219, equivalent: 21 },
+		branches: { covered: 726, total: 737 }
+	}
 };
 
 const tile = (v: RobustnessView, what: string) =>
@@ -65,7 +84,7 @@ test('each tile counts from the report and links to its file at the report’s c
 	assert.ok(v);
 	assert.deepEqual(
 		v.groups.map((g) => g.id),
-		['simulation', 'compiler-simulation', 'fuzzing', 'speed', 'rules', 'comments']
+		['region', 'simulation', 'compiler-simulation', 'fuzzing', 'speed', 'rules', 'comments']
 	);
 	assert.equal(tile(v, 'state machine steps')?.n, '201 of 201');
 	assert.equal(tile(v, 'places that can fail')?.n, '36 of 1,817');
@@ -88,6 +107,66 @@ test('each tile counts from the report and links to its file at the report’s c
 		['node', 'chromium', 'firefox', 'webkit', 'firefox-stable']
 	);
 	assert.deepEqual(v.suites[1].runs, [false, true, false, false, true]);
+});
+
+const region_tiles = (v: RobustnessView) => v.groups.find((g) => g.id === 'region')?.tiles ?? [];
+
+test('the Region tiles: each number from the report, each linked to the file that proves it', () => {
+	const v = robustness_view(FULL, COMMIT);
+	assert.ok(v);
+	assert.deepEqual(
+		region_tiles(v).map((t) => [t.n, t.file]),
+		[
+			['8,623,104', 'packages/core/test/_region-grid-axes.ts'],
+			['775,040', 'packages/core/test/browser/_region-grid-client.ts'],
+			['352', 'packages/core/test/__snapshots__/region-grid'],
+			['225,594', 'packages/core/test/_region-grid-report.ts'],
+			['6', 'packages/core/test/region-grid-fuzz.test.ts'],
+			['100,000', '.github/workflows/dst.yml'],
+			['240 of 240', 'packages/core/test/region-mutants.json'],
+			['726 of 737', 'packages/core/src/Region.svelte']
+		]
+	);
+	const browser = tile(v, 'browser cases');
+	assert.match(browser?.what ?? '', /Chromium, Firefox and WebKit/);
+	assert.match(browser?.why ?? '', /465,024/);
+	assert.match(browser?.why ?? '', /310,016/);
+	assert.match(browser?.why ?? '', /4 parts/);
+	assert.match(tile(v, 'snapshot files')?.why ?? '', /256/);
+	assert.match(tile(v, 'fuzz properties')?.what ?? '', /5 on the server, 1 in the browser/);
+	assert.match(tile(v, 'fuzz properties')?.why ?? '', /2,000.*600/);
+	assert.match(tile(v, 'inputs each fuzz property')?.what ?? '', /every night/);
+	const mutants = tile(v, 'planted bugs in Region');
+	assert.match(mutants?.why ?? '', /219 .*21 /);
+	assert.match(tile(v, 'branches of Region.svelte')?.what ?? '', /98\.5%/);
+	assert.equal(
+		tile(v, 'server cases')?.href,
+		`https://github.com/ogygiajs/ogygia/blob/${COMMIT}/packages/core/test/_region-grid-axes.ts`
+	);
+});
+
+test('the Region tiles leave out what the report could not count', () => {
+	const region = FULL.region!;
+	const v = robustness_view(
+		{
+			...FULL,
+			region: {
+				...region,
+				fuzz: { ...region.fuzz, nightlyRuns: null },
+				mutants: null,
+				branches: null
+			}
+		},
+		COMMIT
+	);
+	assert.ok(v);
+	assert.deepEqual(
+		region_tiles(v).map((t) => t.n),
+		['8,623,104', '775,040', '352', '225,594', '6']
+	);
+	assert.match(tile(v, 'fuzz properties')?.why ?? '', /2,000.*600/);
+	const none = robustness_view({ ...FULL, region: undefined }, COMMIT);
+	assert.ok(none && !none.groups.some((g) => g.id === 'region'));
 });
 
 test('parts the report could not count say so instead of showing a zero', () => {
