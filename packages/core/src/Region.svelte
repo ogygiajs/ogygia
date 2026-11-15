@@ -44,11 +44,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		unmount,
 		type Snippet
 	} from 'svelte';
-	import {
-		KIT_REQUEST_CONTEXT,
-		kit_page_version,
-		kit_request_event
-	} from './server/kit-context.ts';
+	import { KIT_REQUEST_CONTEXT, kit_page_version } from './server/kit-context.ts';
 	import { stringify } from 'devalue';
 	import { dev_hmr_url } from './dev-hmr-url.ts';
 	import {
@@ -239,10 +235,6 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	if (plan.leave_live_snippet) setInLiveSnippet(false);
 	const region_contexts = plan.contexts ? getAllContexts() : undefined;
 	if (plan.mark_pass) setContext(KIT_PAGE_PASS, true);
-	if (plan.reset_event) {
-		const event = kit_request_event();
-		if (event) setContext(KIT_REQUEST_CONTEXT, { ...req, event });
-	}
 	const tail = plan.tail ? document_tail() : null;
 	if (plan.set_nested === 'island') setNested(true, () => hydrate_attr);
 	else if (plan.set_nested === 'plain') setNested();
