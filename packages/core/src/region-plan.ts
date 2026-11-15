@@ -65,7 +65,6 @@ export interface RegionPlan {
 	set_nested: 'none' | 'island' | 'plain';
 	hole_inline: boolean;
 	leave_live_snippet: boolean;
-	contexts: boolean;
 	tail: boolean;
 	seed: 'none' | 'island' | 'hole' | 'promise' | 'held';
 	runtime: boolean;
@@ -203,7 +202,6 @@ function decide(i: RegionInputs): RegionPlan {
 		set_nested,
 		hole_inline: hole && nested,
 		leave_live_snippet: island && nested && i.live_snippet,
-		contexts: !i.server && hole,
 		tail,
 		seed: seed_of(i, nested),
 		runtime: !nested && ((island && !csr) || hole || HELD_LIVE.has(i.kind)),

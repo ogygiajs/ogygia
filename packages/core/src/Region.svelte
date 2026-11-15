@@ -37,7 +37,6 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	import {
 		untrack,
 		getContext,
-		getAllContexts,
 		setContext,
 		createRawSnippet,
 		mount,
@@ -233,7 +232,6 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		warn('region_promise_no_placeholder');
 	}
 	if (plan.leave_live_snippet) setInLiveSnippet(false);
-	const region_contexts = plan.contexts ? getAllContexts() : undefined;
 	if (plan.mark_pass) setContext(KIT_PAGE_PASS, true);
 	const tail = plan.tail ? document_tail() : null;
 	if (plan.set_nested === 'island') setNested(true, () => hydrate_attr);
@@ -467,8 +465,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 			if (el.firstChild || !ogygiaFallback) return;
 			const app = mount(SlotBoundary, {
 				target: el,
-				props: { children: ogygiaFallback },
-				context: region_contexts
+				props: { children: ogygiaFallback }
 			});
 			// oxlint-disable-next-line ogygia/no-silent-failures -- unmount's promise is its outros ending; it never rejects
 			return () => void unmount(app);
