@@ -2,6 +2,8 @@ import { expect, test } from 'vitest';
 import { check, count, dead_fields, rows, table, type Row } from '@ogygia/machine/testing';
 import {
 	REGION,
+	RegionPlans,
+	region_input_key,
 	region_kind,
 	request_state,
 	type RegionInputs,
@@ -94,6 +96,34 @@ test("Kit's request context reads as none, a pass with no event yet, or an event
 	expect(request_state(undefined)).toBe('none');
 	expect(request_state({ event: undefined })).toBe('no-event');
 	expect(request_state({ event: {} })).toBe('event');
+});
+
+test("every row has its own key, from 0 to one below the table's row count", () => {
+	const keys = [...rows(REGION)].map((r) => region_input_key(r.input));
+	expect(new Set(keys).size).toBe(9216);
+	expect(Math.min(...keys)).toBe(0);
+	expect(Math.max(...keys)).toBe(9215);
+});
+
+test('an input outside the lists has no key', () => {
+	const input = [...rows(REGION)][0]!.input;
+	expect(region_input_key({ ...input, kind: 'other' as never })).toBe(-1);
+	expect(region_input_key({ ...input, request: 'other' as never })).toBe(-1);
+	expect(region_input_key({ ...input, server: undefined as never })).toBe(-1);
+});
+
+test('the kept plans answer as the table does, the same plan for the same input', () => {
+	const plans = new RegionPlans();
+	for (const r of rows(REGION)) {
+		if (!planned(r)) {
+			expect(() => plans.decide(r.input)).toThrow(/machine_decision_refused/);
+			expect(() => plans.decide(r.input)).toThrow(/machine_decision_refused/);
+			continue;
+		}
+		const first = plans.decide({ ...r.input });
+		expect(first).toEqual(r.plan);
+		expect(plans.decide({ ...r.input })).toBe(first);
+	}
 });
 
 test('a refused input throws a coded refusal that names it', () => {

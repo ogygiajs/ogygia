@@ -14,7 +14,7 @@ import {
 } from '../context.ts';
 import { isRegion, type RegionValue } from '../region.ts';
 import {
-	REGION,
+	REGION_PLANS,
 	region_kind,
 	request_state,
 	type RegionArm,
@@ -108,7 +108,7 @@ export class RegionPlan {
 			module: !!settings.module,
 			wakes: !!settings.wake
 		};
-		const plan = REGION.decide(inputs);
+		const plan = REGION_PLANS.decide(inputs);
 		if (plan.warn === 'promise' && import.meta.env && import.meta.env.DEV) {
 			warn('region_promise_no_placeholder');
 		}
@@ -138,6 +138,6 @@ export class RegionPlan {
 			this.#baked(),
 			this.waiting_ui
 		);
-		return REGION.decide({ ...this.inputs, kind }).arm;
+		return REGION_PLANS.decide({ ...this.inputs, kind }).arm;
 	}
 }

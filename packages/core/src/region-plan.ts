@@ -156,6 +156,52 @@ export function request_state(req: { event?: unknown } | undefined): RegionInput
 	return req.event == null ? 'no-event' : 'event';
 }
 
+const KIND_INDEX: ReadonlyMap<string, number> = new Map(
+	REGION_INPUTS.kind.map((kind, n) => [kind, n])
+);
+const REQUEST_INDEX: ReadonlyMap<string, number> = new Map(
+	REGION_INPUTS.request.map((request, n) => [request, n])
+);
+
+function bit(v: boolean): number {
+	if (v === true) return 1;
+	if (v === false) return 0;
+	return Number.NaN;
+}
+
+/** An input's row number in the table, from 0 to one below its row count, or -1 for an input
+ *  outside the table's lists. */
+export function region_input_key(i: RegionInputs): number {
+	let key = (KIND_INDEX.get(i.kind) ?? Number.NaN) * 2 + bit(i.in_island);
+	key = key * 2 + bit(i.live_snippet);
+	key = key * 2 + bit(i.in_lake);
+	key = key * 2 + bit(i.pass_mark);
+	key = key * 3 + (REQUEST_INDEX.get(i.request) ?? Number.NaN);
+	key = key * 2 + bit(i.csr_doc);
+	key = key * 2 + bit(i.server);
+	key = key * 2 + bit(i.module);
+	key = key * 2 + bit(i.wakes);
+	return key >= 0 ? key : -1;
+}
+
+/** The table's plans, each decided once per input: a plan is pure, so the first answer for an
+ *  input is every answer. A refused input is never kept, so it throws each time. */
+export class RegionPlans {
+	readonly #plans: Map<number, RegionDecision> = new Map();
+
+	/** The plan for `i`, as `REGION.decide` gives it. */
+	decide(i: RegionInputs): RegionDecision {
+		const key = region_input_key(i);
+		if (key < 0) return REGION.decide(i);
+		let plan = this.#plans.get(key);
+		if (plan === undefined) {
+			plan = REGION.decide(i);
+			this.#plans.set(key, plan);
+		}
+		return plan;
+	}
+}
+
 function root_of(i: RegionInputs): RegionDecision['root'] {
 	if (!i.server) return 'none';
 	if (i.pass_mark || i.request === 'no-event') return 'kit';
@@ -260,3 +306,6 @@ export const REGION: Decisions<RegionInputs, RegionDecision> = decisions<
 	refuse,
 	decide
 });
+
+/** Every region's plans, kept for the life of the module (at most one per row). */
+export const REGION_PLANS: RegionPlans = new RegionPlans();
