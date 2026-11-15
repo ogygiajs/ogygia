@@ -210,6 +210,15 @@ exports[`hole on a csr=true page 1`] = `
 }"
 `;
 
+exports[`hole on a csr=true page, created fresh: its fallback reads the page contexts 1`] = `
+"{
+ "body": "<!----><!----><!----><!----><ogygia-region entry=\\"\\" render=\\"defer\\" when=\\"load\\" endpoint=\\"\\" data-og-hole=\\"<fp1>\\"><!----><p>page-value</p></ogygia-region><!----><!---->",
+ "head_tags": [],
+ "apply_live": [],
+ "console": []
+}"
+`;
+
 exports[`island 1`] = `
 "{
  "body": "<!----><!----><!----><ogygia-region entry=\\"/islands/tiny.js\\" wake=\\"load\\"><b data-tiny=\\"\\">tiny</b><!----></ogygia-region><script type=\\"application/ogygia-props\\" data-ogygia-props=\\"\\" data-og-format=\\"json\\">{\\"n\\":1}</script><!---->",

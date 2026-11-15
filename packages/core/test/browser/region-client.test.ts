@@ -198,6 +198,11 @@ const CASES: Array<[name: string, regions: Props[], place?: Place]> = [
 	['island on a csr=true page', [ISLAND], { csr: true }],
 	['hole on a csr=true page', [{ ...HOLE, ogygiaFallback: snippet('<p>wait</p>') }], { csr: true }],
 	[
+		'hole on a csr=true page, created fresh: its fallback reads the page contexts',
+		[{ ...HOLE, ogygiaFallback: probe_fallback }],
+		{ csr: true, context: ['probe', 'page-value'] }
+	],
+	[
 		'hole in a live snippet, created fresh: its fallback reads the page contexts',
 		[{ ...HOLE, ogygiaFallback: probe_fallback }],
 		{ nested: true, live_snippet: true, context: ['probe', 'page-value'] }
