@@ -333,14 +333,14 @@ describe('the compiled wrappers, rendered on the server through Region', () => {
 		expect(body).toContain('<p>wait</p>');
 	});
 
-	it('a lake in an island with a max age of zero writes it on its element', async () => {
+	it('a lake in an island with a max age of zero and an expiry writes both on its element', async () => {
 		const Lake = await compiled(
 			'lake',
-			lake_wrapper_source('abc123', TINY, { maxAgeMs: 0 }, undefined)
+			lake_wrapper_source('abc123', TINY, { maxAgeMs: 0, onExpire: 'fetch' }, undefined)
 		);
 		const in_island = new Map([[Symbol.for('ogygia.nested-island'), true]]);
 		const { body } = render(Lake, { props: { l: 1 }, context: in_island });
-		expect(body).toContain('max-age="0"');
+		expect(body).toContain('max-age="0" on-expire="fetch"');
 		expect(body).toContain('<b data-tiny="">tiny</b>');
 	});
 });
