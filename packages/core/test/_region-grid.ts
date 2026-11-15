@@ -407,8 +407,7 @@ export const FOREIGN: Readonly<Record<string, readonly string[]>> = {
 		'og.remount',
 		'og.maxAge',
 		'og.onExpire',
-		'og.css',
-		'og.module'
+		'og.css'
 	],
 	hole: [
 		'og.keep',
@@ -433,8 +432,7 @@ export const FOREIGN: Readonly<Record<string, readonly string[]>> = {
 		'placeholder',
 		'og.baked',
 		'og.cacheTtl',
-		'og.css',
-		'og.module'
+		'og.css'
 	]
 };
 const HELD_FOREIGN = [
@@ -452,8 +450,7 @@ const HELD_FOREIGN = [
 	'og.remount',
 	'og.maxAge',
 	'og.onExpire',
-	'og.css',
-	'og.module'
+	'og.css'
 ];
 for (const k of ['inline', 'dual', 'deferred', 'promise', 'nothing'])
 	(FOREIGN as Record<string, readonly string[]>)[k] = HELD_FOREIGN;

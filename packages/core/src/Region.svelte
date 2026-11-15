@@ -102,8 +102,15 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		next_slot_id,
 		HOLE_SLOT_SEQUENCE
 	} from './region-snippet.ts';
-	import { isRegion, type DeferredRegion, type DualRegion, type RegionValue } from './region.ts';
+	import {
+		isRegion,
+		type DeferredRegion,
+		type DualRegion,
+		type InlineRegion,
+		type RegionValue
+	} from './region.ts';
 	import { written_order } from './frame.ts';
+	import { REGION, region_kind, request_state, type RegionInputs } from './region-plan.ts';
 	import LateIsland from './LateIsland.svelte';
 	import PromiseRegion from './PromiseRegion.svelte';
 	import LakeBoundary from './LakeBoundary.svelte';
@@ -174,43 +181,15 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	const of_is_promise = untrack(
 		() => !!of && typeof (of as { then?: unknown }).then === 'function' && !isRegion(of)
 	);
-	const no_waiting_ui = untrack(() => !placeholder && !children);
-	if (of_is_promise && no_waiting_ui && import.meta.env && import.meta.env.DEV) {
-		warn('region_promise_no_placeholder');
-	}
-	const resolved = $derived(of_is_promise ? undefined : (of as RegionValue | undefined));
-	const holds_live =
-		of_is_promise || untrack(() => (of as { kind?: string } | undefined)?.kind === 'deferred');
+	const waiting_ui = untrack(() => !!placeholder || !!children);
+	const placed = __mode !== undefined;
+	const resolved = $derived(of_is_promise || placed ? undefined : (of as RegionValue | undefined));
+	const of_init = untrack(() => resolved);
 
-	const of_init = of_is_promise ? undefined : untrack(() => of as RegionValue | undefined);
-	const held_dual_island = !!(of_init && of_init.kind === 'dual' && of_init.hydrate);
-	const mode = untrack(() => __mode);
-	const is_island = mode === 'island' || held_dual_island;
-	const is_server = mode === 'server';
-	const is_lake = mode === 'lake';
-
-	const in_live_snippet = isInLiveSnippet();
-	const nested = isNested() && !(is_server && in_live_snippet);
-	if (is_island && nested && in_live_snippet) setInLiveSnippet(false);
-	const region_contexts = typeof window !== 'undefined' && is_server ? getAllContexts() : undefined;
-
-	let render_root: 'kit' | 'ogygia' | null = null;
-	if (typeof window === 'undefined') {
-		const req = getContext(KIT_REQUEST_CONTEXT) as { page?: unknown; event?: unknown } | undefined;
-		render_root =
-			getContext(KIT_PAGE_PASS) === true || (req && req.event == null)
-				? 'kit'
-				: req
-					? 'ogygia'
-					: null;
-		if (render_root === 'kit' && getContext(KIT_PAGE_PASS) !== true)
-			setContext(KIT_PAGE_PASS, true);
-		if (req && req.event == null) {
-			const event = kit_request_event();
-			if (event) setContext(KIT_REQUEST_CONTEXT, { ...req, event });
-		}
-	}
-	const tail = typeof window === 'undefined' && render_root === 'kit' ? document_tail() : null;
+	const SERVER = typeof window === 'undefined';
+	const req = SERVER
+		? (getContext(KIT_REQUEST_CONTEXT) as { page?: unknown; event?: unknown } | undefined)
+		: undefined;
 	function page_error_render() {
 		try {
 			return page.error != null;
@@ -219,37 +198,75 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 			return false;
 		}
 	}
-	const is_csr = documentIsCsrTrue(page_error_render()) && !isInLake() && render_root !== 'ogygia';
-	const island_inline = nested || is_csr;
-	if (is_island && !nested) setNested(true, () => hydrate_attr);
-	else if (is_server && !nested) setNested();
-	if (is_server && nested) setHoleInline();
+	const inputs: RegionInputs = {
+		kind: region_kind(
+			__mode,
+			of_init,
+			of_is_promise,
+			untrack(() => __baked),
+			waiting_ui
+		),
+		in_island: isNested(),
+		live_snippet: isInLiveSnippet(),
+		in_lake: isInLake(),
+		pass_mark: SERVER && getContext(KIT_PAGE_PASS) === true,
+		request: request_state(req),
+		csr_doc: documentIsCsrTrue(page_error_render()),
+		server: SERVER,
+		module: !!__module,
+		wakes: !!__wake
+	};
+	const plan = REGION.decide(inputs);
+	const arm = $derived(
+		placed
+			? plan.arm
+			: REGION.decide({
+					...inputs,
+					kind: region_kind(undefined, resolved, of_is_promise, __baked, waiting_ui)
+				}).arm
+	);
+	const is_island = plan.family === 'island';
+	const is_server = plan.family === 'hole';
+	const is_lake = plan.family === 'lake';
+	const nested = plan.nested;
+	const is_csr = plan.csr;
+	const island_inline = plan.inline;
+
+	if (plan.warn === 'promise' && import.meta.env && import.meta.env.DEV) {
+		warn('region_promise_no_placeholder');
+	}
+	if (plan.leave_live_snippet) setInLiveSnippet(false);
+	const region_contexts = plan.contexts ? getAllContexts() : undefined;
+	if (plan.mark_pass) setContext(KIT_PAGE_PASS, true);
+	if (plan.reset_event) {
+		const event = kit_request_event();
+		if (event) setContext(KIT_REQUEST_CONTEXT, { ...req, event });
+	}
+	const tail = plan.tail ? document_tail() : null;
+	if (plan.set_nested === 'island') setNested(true, () => hydrate_attr);
+	else if (plan.set_nested === 'plain') setNested();
+	if (plan.hole_inline) setHoleInline();
 
 	const as_dual: DualRegion | undefined = $derived(
-		held_dual_island && resolved?.kind === 'dual' ? resolved : undefined
+		is_island && resolved?.kind === 'dual' ? resolved : undefined
 	);
 	const island_entry = $derived(as_dual ? as_dual.module : __mode === 'island' ? __entry : '');
 	const island_component = $derived(as_dual ? as_dual.component : __component);
-	const late_load = $derived(
-		typeof window !== 'undefined' && island_inline && !__component ? __load : undefined
-	);
+	const late_load = $derived(plan.late_load && !__component ? __load : undefined);
 	const island_props = $derived(as_dual ? as_dual.props : __props);
 	const island_children = $derived(children);
 
-	if (typeof window === 'undefined') {
+	if (SERVER) {
 		untrack(() => {
-			const entry = nested
-				? ''
-				: is_island
+			const entry =
+				plan.seed === 'island'
 					? island_entry
-					: is_server
-						? __hydrate
-							? __module
-							: ''
-						: of_is_promise
+					: plan.seed === 'hole'
+						? __module
+						: plan.seed === 'promise'
 							? '?'
-							: of_init && of_init.kind === 'deferred'
-								? of_init.module
+							: plan.seed === 'held'
+								? (of_init as DeferredRegion).module
 								: '';
 			const seed = !entry
 				? false
@@ -295,10 +312,11 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	const hydrate_attr = $derived(as_dual ? as_dual.hydrate! : __wake || 'load');
 	const root_margin = $derived(as_dual ? as_dual.hydrateMargin || undefined : __wakeMargin);
 
-	if (nested && (is_island || is_server) && import.meta.env && import.meta.env.DEV) {
+	if (import.meta.env && import.meta.env.DEV) {
 		untrack(() => {
-			if (is_server) warn('nested_server_island_inline', { entry: __entry || '' });
-			else if (hydrate_attr !== nested_wake())
+			if (plan.warn === 'hole-inline')
+				warn('nested_server_island_inline', { entry: __entry || '' });
+			else if (plan.warn === 'island-parent' && hydrate_attr !== nested_wake())
 				warn('nested_island_with_parent', { entry: island_entry || '' });
 		});
 	}
@@ -311,7 +329,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	const island_src = $derived(nested || !island_entry ? '' : location_of(island_entry));
 
 	const island_wire = $derived(
-		nested || !is_island || island_inline ? null : new PropsWire(island_props_wire, island_entry)
+		plan.wire === 'island' ? new PropsWire(island_props_wire, island_entry) : null
 	);
 	const island_fp = $derived(
 		island_wire ? region_fingerprint(island_module_url, island_wire.canonical) : ''
@@ -380,7 +398,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		return hrefs;
 	}
 	const island_live_locations = $derived.by(() => {
-		const live = nested || !is_island ? null : island_wire?.live_entries;
+		const live = plan.island_graph ? island_wire?.live_entries : null;
 		if (!live?.length) return null;
 		const out: Map<string, string> = new Map();
 		for (const m of live) {
@@ -390,7 +408,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		return out.size ? out : null;
 	});
 	const island_graph_hrefs = $derived.by(() =>
-		nested || !is_island || !island_module_url
+		!plan.island_graph || !island_module_url
 			? []
 			: graph_hrefs(island_entry, island_module_url, island_wire?.live_entries)
 	);
@@ -432,7 +450,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	const server_region_entry = $derived(!nested && __module ? kit_asset(__module) : '');
 	const server_region_src = $derived(!nested && __module ? location_of(__module) : '');
 
-	const server_wire = $derived(nested || !__hydrate ? null : new PropsWire(__props, __entry));
+	const server_wire = $derived(plan.wire === 'hole' ? new PropsWire(__props, __entry) : null);
 	const server_props_script = $derived(
 		server_wire
 			? props_sidecar('', server_wire.wire(null), 'adjacent', server_wire.wire_modules)
@@ -476,16 +494,16 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		}
 	);
 	const hole_css_html = $derived.by(() => {
-		if (!is_server || !nested) return '';
+		if (!plan.hole_css) return '';
 		return sheet_tags(hole_css(__entry || ''));
 	});
-	if (tail && (is_csr || in_live_snippet) && is_server && !nested) {
+	if (tail && plan.hole_tail) {
 		untrack(() => {
 			const endpoint = server_endpoint;
 			if (endpoint) tail.hole(server_identity, endpoint, server_props_script);
 		});
 	}
-	if (tail && is_server && !nested)
+	if (tail && plan.note_hole)
 		untrack(() =>
 			tail.note_hole(
 				__entry,
@@ -499,11 +517,9 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		);
 
 	const server_graph_hrefs = $derived.by(() =>
-		nested || !__module || !__hydrate || !server_region_entry
-			? []
-			: graph_hrefs(__module, server_region_entry, null)
+		!plan.hole_graph || !server_region_entry ? [] : graph_hrefs(__module, server_region_entry, null)
 	);
-	if (typeof window === 'undefined' && is_server && !nested && !building)
+	if (plan.early_hole && !building)
 		untrack(() => {
 			if (__defer === 'load' && server_endpoint) note_early_hole(server_endpoint);
 		});
@@ -519,7 +535,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 			: island_graph_script(new Map([[server_region_entry, server_graph_hrefs]]))
 	);
 
-	const lake_inside = is_lake && nested;
+	const lake_inside = plan.lake_inside;
 	const lake_swr = $derived(__remount === 'swr');
 	const lake_endpoint = $derived(
 		lake_inside && lake_swr ? make_region_endpoint(__entry || '', __props || {}) : ''
@@ -546,7 +562,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	);
 
 	const runtime_script =
-		!nested && ((is_island && !is_csr) || is_server || holds_live) && claimRuntimeEmit()
+		plan.runtime && claimRuntimeEmit()
 			? runtime_bootstrap(kit_asset) +
 				(dev_hmr_url
 					? `${LT}script type="module" data-ogygia-dev-hmr src="${kit_asset(dev_hmr_url)}"${GT}${LT}/script${GT}`
@@ -557,11 +573,11 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		return sheet_tags(region_css(resolved.module));
 	});
 	const island_css_html = $derived.by(() => {
-		if (__mode !== 'island' || !island_entry) return '';
+		if (!plan.island_css || !island_entry) return '';
 		return sheet_tags(region_css(island_entry));
 	});
 	const kit_island_meta = $derived.by(() => {
-		if (!is_island || !island_inline || !island_entry || !claim_kit_island(island_entry)) return '';
+		if (!plan.kit_meta || !island_entry || !claim_kit_island(island_entry)) return '';
 		const content = escape_amp_quot(String(island_entry));
 		return `${LT}meta name="ogygia-kit-island" content="${content}"${head_owner_attr(tag_owner)}${GT}`;
 	});
@@ -572,11 +588,11 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	});
 
 	const head_html = $derived(
-		typeof window !== 'undefined'
+		plan.head === 'none'
 			? ''
-			: (is_island
+			: (plan.head === 'island'
 					? runtime_script + island_preload_head + island_css_html + kit_island_meta
-					: is_server
+					: plan.head === 'hole'
 						? runtime_script + server_preload + hole_css_html
 						: runtime_script) +
 					region_css_html +
@@ -624,10 +640,10 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		if (!resolved || resolved.kind !== 'deferred' || !resolved.hydrate || !resolved.url) return '';
 		return props_sidecar('', { text: stringify_devalue(resolved.props), json: false });
 	});
-	if (DEVTOOLS && typeof window === 'undefined') {
+	if (DEVTOOLS && plan.devtools !== 'none') {
 		untrack(() => {
 			try {
-				if (is_island && !island_inline) {
+				if (plan.devtools === 'island') {
 					record_server_event({
 						domain: 'server',
 						name: 'server.region.rendered',
@@ -642,7 +658,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 							name: 'server.delta.skip',
 							fp: island_fp || ''
 						});
-				} else if (is_server && !nested) {
+				} else if (plan.devtools === 'hole') {
 					record_server_event({
 						domain: 'server',
 						name: 'server.region.rendered',
@@ -651,7 +667,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 						entry: server_region_entry || undefined,
 						propsBytes: server_wire?.canonical.length ?? 0
 					});
-				} else if (is_lake && lake_inside) {
+				} else {
 					record_server_event({
 						domain: 'server',
 						name: 'server.region.rendered',
@@ -694,7 +710,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		><!-- svelte-ignore hydration_html_changed -->{@html island_props_inline}{/if}
 {:else if is_server}
 	{@const Component = __component}
-	{#if nested}{@render hole_frozen()}{:else if in_live_snippet || is_csr}{@render hole_adopt()}<!-- svelte-ignore hydration_html_changed -->{@html server_props_script}{:else}<ogygia-region
+	{#if plan.arm === 'hole-frozen'}{@render hole_frozen()}{:else if plan.arm === 'hole-adopt'}{@render hole_adopt()}<!-- svelte-ignore hydration_html_changed -->{@html server_props_script}{:else}<ogygia-region
 			entry={server_region_entry}
 			render="defer"
 			stitch={__stitch || undefined}
@@ -710,24 +726,26 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 				>{/if}</ogygia-region
 		><!-- svelte-ignore hydration_html_changed -->{@html server_props_script}{/if}
 {:else if is_lake}
-	{#if is_csr || lake_inside}{@render lake_adopt()}{:else}
+	{#if plan.arm === 'lake-adopt'}{@render lake_adopt()}{:else}
 		{@render children?.()}
 	{/if}
-{:else if resolved?.kind === 'inline'}
-	{@const Component = resolved.component}
-	<Component {...resolved.props}
+{:else if arm === 'inline'}
+	{@const held = resolved as InlineRegion}
+	{@const Component = held.component}
+	<Component {...held.props}
 		>{#if children}{@render children()}{/if}</Component
 	>
-{:else if resolved?.kind === 'dual'}
-	{@const Component = resolved.component}
-	<Component {...resolved.props}
+{:else if arm === 'dual'}
+	{@const held = resolved as DualRegion}
+	{@const Component = held.component}
+	<Component {...held.props}
 		>{#if children}{@render children()}{/if}</Component
 	>
-{:else if resolved?.html != null}
-	{#if __baked}{@render baked_adopt()}{:else}<ogygia-region live {@attach apply_live}
+{:else if arm === 'live' || arm === 'live-baked'}
+	{#if arm === 'live-baked'}{@render baked_adopt()}{:else}<ogygia-region live {@attach apply_live}
 			>{#if placeholder}{@render placeholder()}{:else if children}{@render children()}{/if}</ogygia-region
 		>{/if}
-{:else if resolved}
+{:else if arm === 'deferred'}
 	{@const d = resolved as DeferredRegion}
 	{#key identity(d)}
 		<ogygia-region
@@ -741,6 +759,6 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 			>{#if placeholder}{@render placeholder()}{:else if children}{@render children()}{/if}</ogygia-region
 		><!-- svelte-ignore hydration_html_changed -->{@html held_props_script}
 	{/key}
-{:else if of_is_promise}
+{:else if arm === 'promise'}
 	<PromiseRegion of={of as Promise<RegionValue>} {placeholder} {children} />
 {/if}
