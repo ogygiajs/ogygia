@@ -234,8 +234,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	if (plan.leave_live_snippet) setInLiveSnippet(false);
 	if (plan.mark_pass) setContext(KIT_PAGE_PASS, true);
 	const tail = plan.tail ? document_tail() : null;
-	if (plan.set_nested === 'island') setNested(true, () => hydrate_attr);
-	else if (plan.set_nested === 'plain') setNested();
+	if (plan.set_nested) setNested(true, () => hydrate_attr);
 	if (plan.hole_inline) setHoleInline();
 
 	const as_dual: DualRegion | undefined = $derived(

@@ -62,7 +62,7 @@ export interface RegionPlan {
 	csr: boolean;
 	root: 'none' | 'kit' | 'ogygia';
 	mark_pass: boolean;
-	set_nested: 'none' | 'island' | 'plain';
+	set_nested: boolean;
 	hole_inline: boolean;
 	leave_live_snippet: boolean;
 	tail: boolean;
@@ -185,9 +185,6 @@ function decide(i: RegionInputs): RegionPlan {
 	const tail = root === 'kit';
 	const csr = i.csr_doc && !i.in_lake && root !== 'ogygia';
 	const inline = nested || csr;
-	let set_nested: RegionPlan['set_nested'] = 'none';
-	if (!nested && island) set_nested = 'island';
-	else if (!nested && hole) set_nested = 'plain';
 	let wire: RegionPlan['wire'] = 'none';
 	if (island && !inline) wire = 'island';
 	else if (hole && !nested && i.wakes) wire = 'hole';
@@ -199,7 +196,7 @@ function decide(i: RegionInputs): RegionPlan {
 		csr,
 		root,
 		mark_pass: tail && !i.pass_mark,
-		set_nested,
+		set_nested: island && !nested,
 		hole_inline: hole && nested,
 		leave_live_snippet: island && nested && i.live_snippet,
 		tail,

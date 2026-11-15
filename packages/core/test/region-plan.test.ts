@@ -59,7 +59,7 @@ test('every row keeps the rules a region lives by', () => {
 			r.input.kind === 'hole' ||
 			(!r.plan.hole_tail && !r.plan.note_hole && !r.plan.early_hole && !r.plan.hole_graph),
 		'a nested island hands its children over in its own render, so it marks nothing': (r) =>
-			!planned(r) || !r.plan.nested || r.plan.set_nested === 'none'
+			!planned(r) || !r.plan.nested || !r.plan.set_nested
 	});
 	expect(checked).toBe(9216);
 });
