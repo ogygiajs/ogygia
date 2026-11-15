@@ -76,11 +76,14 @@ export function session_timeline(s: SessionData, names: (fp: string) => string):
 	s.interactions.forEach((x, i) => {
 		if (!x.id || seen.has(x.id)) return;
 		seen.add(x.id);
+		let tone: TimelineItem['tone'] = 'ok';
+		if (x.duration >= SLOW) tone = 'bad';
+		else if (x.duration >= SLUGGISH) tone = 'warn';
 		input.push({
 			t0: x.t - z,
 			t1: x.t - z + x.duration,
 			label: `${x.name} ${x.target} — ${Math.round(x.duration)} ms (handlers ${Math.round(x.processing)} ms)`,
-			tone: x.duration >= SLOW ? 'bad' : x.duration >= SLUGGISH ? 'warn' : 'ok',
+			tone,
 			ref: { kind: 'interaction', i }
 		});
 	});
@@ -98,11 +101,14 @@ export function session_timeline(s: SessionData, names: (fp: string) => string):
 			path = new URL(r.url).pathname;
 			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: the raw string is kept
 		} catch {}
+		let tone: TimelineItem['tone'] = 'info';
+		if (r.status !== null && r.status >= 400) tone = 'bad';
+		else if (r.ms >= 1000) tone = 'warn';
 		return {
 			t0: r.t - z,
 			t1: r.t - z + r.ms,
 			label: `${path} — ${Math.round(r.ms)} ms${ssr !== undefined ? ` (server ${Math.round(ssr)} ms${up ? `, waiting ${Math.round(up)} ms` : ''})` : ''}${r.status && r.status >= 400 ? ` · ${r.status}` : ''}`,
-			tone: r.status !== null && r.status >= 400 ? 'bad' : r.ms >= 1000 ? 'warn' : 'info',
+			tone,
 			...(ssr !== undefined ? { server: { ms: ssr, up } } : {})
 		};
 	});
@@ -140,13 +146,17 @@ export function session_timeline(s: SessionData, names: (fp: string) => string):
 			});
 		}
 	}
-	const layout: TimelineItem[] = s.shifts.map((x, i) => ({
-		t0: x.t - z,
-		t1: x.t - z,
-		label: `layout shift ${x.value}${x.input ? ' (after input)' : ''}${x.fp ? ` in ${names(x.fp)}` : ''}`,
-		tone: x.input ? 'info' : x.value >= 0.05 ? 'bad' : 'warn',
-		ref: { kind: 'shift', i }
-	}));
+	const layout: TimelineItem[] = s.shifts.map((x, i) => {
+		let tone: TimelineItem['tone'] = 'info';
+		if (!x.input) tone = x.value >= 0.05 ? 'bad' : 'warn';
+		return {
+			t0: x.t - z,
+			t1: x.t - z,
+			label: `layout shift ${x.value}${x.input ? ' (after input)' : ''}${x.fp ? ` in ${names(x.fp)}` : ''}`,
+			tone,
+			ref: { kind: 'shift', i }
+		};
+	});
 	const errors: TimelineItem[] = s.errors.map((e) => ({
 		t0: e.t - z,
 		t1: e.t - z,
@@ -218,12 +228,18 @@ export interface SessionReport {
 }
 
 const ms = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(2)} s` : `${Math.round(n)} ms`);
-const kb = (n: number) =>
-	n < 1024
-		? `${n} B`
-		: n < 1048576
-			? `${(n / 1024).toFixed(1)} KB`
-			: `${(n / 1048576).toFixed(1)} MB`;
+const INTERACTION_FIX = {
+	processing:
+		'The handlers are the cost: do less before the next paint (update the screen first, then do the rest in a later task), or move the work off the main thread.',
+	input:
+		'The click waited for other work to finish: something else held the main thread when it came (see the long tasks).',
+	paint:
+		'Rendering the result is the cost: a big DOM change or an expensive style/layout after it. Change less at once.'
+} as const;
+const kb = (n: number) => {
+	if (n < 1024) return `${n} B`;
+	return n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+};
 const path_of = (u: string) => {
 	try {
 		const x = new URL(u);
@@ -309,22 +325,14 @@ export function analyze_session(
 		.sort((a, b) => s.interactions[b].duration - s.interactions[a].duration);
 	for (const i of slow.slice(0, 5)) {
 		const x = s.interactions[i];
-		const part =
-			x.processing >= x.input_delay && x.processing >= x.presentation
-				? 'processing'
-				: x.input_delay >= x.presentation
-					? 'input'
-					: 'paint';
+		let part: keyof typeof INTERACTION_FIX = 'paint';
+		if (x.processing >= x.input_delay && x.processing >= x.presentation) part = 'processing';
+		else if (x.input_delay >= x.presentation) part = 'input';
 		findings.push({
 			code: 'slow-interaction',
 			severity: x.duration >= SLOW ? 'warn' : 'info',
 			message: `${x.name} on ${x.target}${x.fp ? ` in ${name_of(x.fp)}` : ''} took ${ms(x.duration)} to show a result (waiting ${ms(x.input_delay)} · handlers ${ms(x.processing)} · painting ${ms(x.presentation)})${why(i)}.`,
-			fix:
-				part === 'processing'
-					? 'The handlers are the cost: do less before the next paint (update the screen first, then do the rest in a later task), or move the work off the main thread.'
-					: part === 'input'
-						? 'The click waited for other work to finish: something else held the main thread when it came (see the long tasks).'
-						: 'Rendering the result is the cost: a big DOM change or an expensive style/layout after it. Change less at once.',
+			fix: INTERACTION_FIX[part],
 			refs: [{ kind: 'interaction', i }]
 		});
 	}

@@ -25,7 +25,7 @@ import {
 import { hazard_words } from '@ogygia/insights';
 import type { HoleStat, IslandStat, SeedKeyStat } from '@ogygia/core/internal/server';
 import { io_kind } from '../async-io.ts';
-import { CATEGORY_LABEL, CATEGORY_COLOR, fmt_bytes } from './format.ts';
+import { CATEGORY_LABEL, CATEGORY_COLOR, fmt_bytes, fmt_ms } from './format.ts';
 
 // ── the ogygia side of a page: islands, the seed, the holes ─────────────────────────────────
 
@@ -194,14 +194,11 @@ export function hole_rows(meta: ReportMeta): HoleRow[] {
 	return (og?.hole_rows ?? []).map((h) => {
 		const e = econ.get(h.id);
 		const requests = e ? e.hit + e.miss + e.none : 0;
-		const verdict =
-			h.ttl > 0 && requests >= 2 && e!.hit === 0
-				? 'maxAge set, cache never hit'
-				: h.ttl > 0 && e && e.hit > 0
-					? `${Math.round((e.hit / requests) * 100)}% from cache`
-					: h.ttl > 0
-						? 'cached (no requests in the window)'
-						: 'renders fresh on every visit';
+		let verdict = 'renders fresh on every visit';
+		if (h.ttl > 0 && requests >= 2 && e!.hit === 0) verdict = 'maxAge set, cache never hit';
+		else if (h.ttl > 0 && e && e.hit > 0)
+			verdict = `${Math.round((e.hit / requests) * 100)}% from cache`;
+		else if (h.ttl > 0) verdict = 'cached (no requests in the window)';
 		return {
 			...h,
 			hit: e?.hit ?? 0,
@@ -460,7 +457,7 @@ export function waterfall_rows(net: NetCall[]): WfRow[] {
 			bodyPct: dur > 0 && c.body_ms ? (c.body_ms / dur) * 100 : 0,
 			err: !!c.error,
 			title: c.url,
-			label: `${c.method} ${wf_url(c.url)} — ${dur >= 100 ? dur.toFixed(0) : dur >= 10 ? dur.toFixed(1) : dur.toFixed(2)} ms`,
+			label: `${c.method} ${wf_url(c.url)} — ${fmt_ms(dur)} ms`,
 			rightAnchored: left + width > 62,
 			sizeLabel: sz != null ? fmt_bytes(sz) : '',
 			call: {

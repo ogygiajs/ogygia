@@ -393,13 +393,13 @@ class DomElement extends DomNode {
 		this.innerHTML = html;
 	}
 	get innerHTML(): string {
-		let s = '';
+		const s: string[] = [];
 		for (let n = this._first; n; n = n._next) {
-			if (n.nodeType === 1) s += (n as DomElement).outerHTML;
-			else if (n.nodeType === 8) s = `${s}<!--${n.nodeValue}-->`;
-			else s += n.nodeValue;
+			if (n.nodeType === 1) s.push((n as DomElement).outerHTML);
+			else if (n.nodeType === 8) s.push(`<!--${n.nodeValue}-->`);
+			else s.push(String(n.nodeValue));
 		}
-		return s;
+		return s.join('');
 	}
 }
 

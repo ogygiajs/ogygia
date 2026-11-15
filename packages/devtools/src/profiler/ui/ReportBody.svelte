@@ -159,20 +159,19 @@
 	const old = $derived(
 		fc ? undefined : fix_impact(extras.patterns ?? [], render_ms, renders, a.timeline?.wait_ms)
 	);
-	const impact = $derived(
-		fc
-			? {
-					render_ms: fc.now_ms,
-					after_ms: fc.after_ms,
-					pct: fc.now_ms > 0 ? Math.round(((fc.now_ms - fc.after_ms) / fc.now_ms) * 100) : 0,
-					cpu_ms: fc.cpu_ms,
-					wait_ms: fc.wait_ms,
-					delete_ms: fc.delete_ms
-				}
-			: old
-				? { ...old, delete_ms: 0 }
-				: undefined
-	);
+	const impact = $derived.by(() => {
+		if (fc)
+			return {
+				render_ms: fc.now_ms,
+				after_ms: fc.after_ms,
+				pct: fc.now_ms > 0 ? Math.round(((fc.now_ms - fc.after_ms) / fc.now_ms) * 100) : 0,
+				cpu_ms: fc.cpu_ms,
+				wait_ms: fc.wait_ms,
+				delete_ms: fc.delete_ms
+			};
+		if (old) return { ...old, delete_ms: 0 };
+		return undefined;
+	});
 	/** fixes whose saving another on the same lines already covers: counted once */
 	const covered = $derived((fc?.parts ?? []).filter((p) => p.with?.length));
 	// START HERE: the first three patterns (already ranked: a severe leak, then the biggest saving),
@@ -194,28 +193,22 @@
 			const s = p.sites[0];
 			// the caller that loops, else (a wait in a helper) the first line that called the helper
 			const at = s?.via?.find((v) => v.in_loop) ?? (p.wait ? s?.via?.[0] : undefined) ?? s;
-			const worth = p.kept_bytes
-				? `keeps ${fmt_bytes(p.kept_bytes)} a render${p.requests_left !== undefined ? `, heap full in ~${p.requests_left} requests` : ''}`
-				: p.seed_bytes
-					? `ships ${fmt_bytes(p.seed_bytes)} a page view`
-					: p.kind === 'sync-io' && !p.cost_ms
-						? 'blocks the server on every request (too quick to time here)'
-						: p.wait
-							? p.kind === 'same-document' || p.kind === 'almost-same-document'
-								? `~${fmt_ms(p.save_ms)} ms: the whole render, served from a cache`
-								: `~${fmt_ms(p.save_ms)} ms less waiting`
-							: `~${fmt_ms(p.save_ms / renders)} ms less CPU a render`;
+			let worth = `~${fmt_ms(p.save_ms / renders)} ms less CPU a render`;
+			if (p.kept_bytes)
+				worth = `keeps ${fmt_bytes(p.kept_bytes)} a render${p.requests_left !== undefined ? `, heap full in ~${p.requests_left} requests` : ''}`;
+			else if (p.seed_bytes) worth = `ships ${fmt_bytes(p.seed_bytes)} a page view`;
+			else if (p.kind === 'sync-io' && !p.cost_ms)
+				worth = 'blocks the server on every request (too quick to time here)';
+			else if (p.wait && (p.kind === 'same-document' || p.kind === 'almost-same-document'))
+				worth = `~${fmt_ms(p.save_ms)} ms: the whole render, served from a cache`;
+			else if (p.wait) worth = `~${fmt_ms(p.save_ms)} ms less waiting`;
 			// memory and seed lead where they are (they are sorted first for a reason); time, by ms a render
 			// (a leak that crashes the server, 8 MB+ a render, and a whole shipped seed lead; a small kept
 			// amount waits behind the time savings — the same rule as the agent's plan)
-			const value =
-				(p.kept_bytes ?? 0) >= 8 * 1048576 || p.seed_bytes
-					? Infinity
-					: p.kept_bytes
-						? -1
-						: p.wait
-							? p.save_ms
-							: p.save_ms / renders;
+			let value = p.save_ms / renders;
+			if ((p.kept_bytes ?? 0) >= 8 * 1048576 || p.seed_bytes) value = Infinity;
+			else if (p.kept_bytes) value = -1;
+			else if (p.wait) value = p.save_ms;
 			return {
 				i,
 				label: PATTERN_LABEL[p.kind],
@@ -322,7 +315,10 @@
 			label,
 			items: findings
 				.filter((f) => fcat(f.code) === label)
-				.sort((x, y) => (x.severity === y.severity ? 0 : x.severity === 'warn' ? -1 : 1))
+				.sort((x, y) => {
+					if (x.severity === y.severity) return 0;
+					return x.severity === 'warn' ? -1 : 1;
+				})
 		})).filter((g) => g.items.length)
 	);
 	const warn_count = $derived(findings.filter((f) => f.severity === 'warn').length);

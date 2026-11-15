@@ -34,23 +34,25 @@ export function fake_scoped(html: string): string {
 
 /** Rewrite every `<tag …>inner</tag>` (innermost first is enough for these fixtures: no self-nesting). */
 function render(html: string, tag: string, tree: (inner: string) => string): string {
-	let out = '';
+	const out: string[] = [];
 	let at = 0;
 	for (;;) {
 		const open = html.indexOf(`<${tag}`, at);
-		if (open === -1) return out + html.slice(at);
+		if (open === -1) {
+			out.push(html.slice(at));
+			return out.join('');
+		}
 		const gt = html.indexOf('>', open);
 		const close = html.indexOf(`</${tag}>`, gt);
 		const attrs = html.slice(open + tag.length + 1, gt);
 		const inner = html.slice(gt + 1, close);
-		const planned = / og-h="/.test(attrs);
-		let host = attrs;
-		if (planned) host = `${host} og-shadow="${tag}.shadow" og-keep="data-title"`;
-		host = /\sclass="/.test(host)
-			? host.replace(/\sclass="([^"]*)"/, ` class="$1 sc-${tag}-h"`)
-			: `${host} class="sc-${tag}-h"`;
-		host = `${host} data-title="Card"`;
-		out = `${out}${html.slice(at, open)}<${tag}${host}>${tree(inner)}</${tag}>`;
+		const marked = / og-h="/.test(attrs)
+			? `${attrs} og-shadow="${tag}.shadow" og-keep="data-title"`
+			: attrs;
+		const classed = /\sclass="/.test(marked)
+			? marked.replace(/\sclass="([^"]*)"/, ` class="$1 sc-${tag}-h"`)
+			: `${marked} class="sc-${tag}-h"`;
+		out.push(html.slice(at, open), `<${tag}${classed} data-title="Card">${tree(inner)}</${tag}>`);
 		at = close + tag.length + 3;
 	}
 }

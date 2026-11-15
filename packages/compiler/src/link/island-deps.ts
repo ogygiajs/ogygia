@@ -141,11 +141,9 @@ export function collectIslandDepModulepreloads(
 		const src = read_source(clean);
 		const at_src = clean.lastIndexOf('/src/');
 		const kit = SITE_KIT_RE.test(clean);
-		const file = kit
-			? `ogygia/${clean.slice(clean.lastIndexOf('/content/') + 1)}`
-			: at_src !== -1
-				? clean.slice(at_src + 1)
-				: clean.split('/').slice(-2).join('/');
+		let file = clean.split('/').slice(-2).join('/');
+		if (kit) file = `ogygia/${clean.slice(clean.lastIndexOf('/content/') + 1)}`;
+		else if (at_src !== -1) file = clean.slice(at_src + 1);
 		const out =
 			src === null
 				? []
@@ -237,14 +235,11 @@ export function collectIslandDepModulepreloads(
 		return deps;
 	};
 
-	const identity_of = (fileName: string): string | null =>
-		entries
-			? (entries.islands.get(fileName) ?? null)
-			: ISLAND_FACADE_RE.test(fileName)
-				? fileName.startsWith('/')
-					? fileName
-					: `/${fileName}`
-				: null;
+	const identity_of = (fileName: string): string | null => {
+		if (entries) return entries.islands.get(fileName) ?? null;
+		if (!ISLAND_FACADE_RE.test(fileName)) return null;
+		return fileName.startsWith('/') ? fileName : `/${fileName}`;
+	};
 	for (const [key, chunk] of Object.entries(bundle)) {
 		if (chunk.type !== 'chunk') continue;
 		const fileName = chunk.fileName || key;
@@ -635,6 +630,12 @@ export function collect_inline_css(
 	return out;
 }
 
+/** The global (by `Symbol.for` name) the dev server's plugin fills with a reader of the og.$
+ *  factories the compiler holds now (tag → factory source): the dev `fn_manifest()` asks it, so a
+ *  page carries the factories of a module that never runs in the browser, as a build's handoff
+ *  does (apps/palaestra/e2e/dev-dollar-fn.spec.ts). */
+export const DEV_FN_MANIFEST_KEY = 'ogygia.dev.fn-manifest';
+
 /**
  * `ogygia:server/region-deps` emitter — the SSR-render-time reader of the deps handoff.
  * Client: every reader answers none (the SSR HTML carries every hint). Dev: a region's CSS is its
@@ -688,7 +689,10 @@ export function island_deps_module(
 			export function chunk_heavy(_href) { return null; }
 			export function chunk_barrels(_href) { return null; }
 			export function chunk_duplicates() { return null; }
-			export function fn_manifest() { return null; }
+			export function fn_manifest() {
+				const m = globalThis[Symbol.for(${JSON.stringify(DEV_FN_MANIFEST_KEY)})]?.();
+				return m && Object.keys(m).length > 0 ? m : null;
+			}
 			export function entry_location(identity) { return identity || null; }
 			export function location_map() { return null; }
 			export function handoff_problem() { return null; }

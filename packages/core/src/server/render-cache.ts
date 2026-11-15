@@ -117,17 +117,17 @@ export async function cached_render(
 		return body;
 	}
 	// (the flight runs the render of the call that opened it: this one, when its own render ran)
-	let mine = false;
+	let outcome: 'miss' | 'hit' = 'hit';
 	const ask: Ask = {
 		...cache.key,
 		render_body: (render_signal) => {
-			mine = true;
+			outcome = 'miss';
 			return render_body(render_signal);
 		},
 		ttl: cache.ttl
 	};
 	for (;;) {
-		mine = false;
+		outcome = 'hit';
 		let r: TracedRender | typeof STALE;
 		try {
 			r = await renders.get(ask, { signal });
@@ -138,12 +138,12 @@ export async function cached_render(
 		if (r !== STALE) {
 			// Another visitor's render (it read what the key does not cover, a flag say): this call
 			// renders its own, kept by nobody
-			if (r.unkeyed_read !== null && !mine) {
+			if (r.unkeyed_read !== null && outcome === 'hit') {
 				const body = await render_body(signal);
 				report?.('none');
 				return body;
 			}
-			report?.(r.html === null || r.unkeyed_read !== null ? 'none' : mine ? 'miss' : 'hit');
+			report?.(r.html === null || r.unkeyed_read !== null ? 'none' : outcome);
 			return r.html;
 		}
 		if (signal?.aborted) throw signal.reason;

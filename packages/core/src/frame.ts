@@ -97,7 +97,10 @@ export function frameAddress(endpoint: string): string {
 	const call: [string, string][] = [];
 	for (const [k, v] of new URLSearchParams(url.slice(q + 1)))
 		if (!CAPABILITY_PARAMS.has(k)) call.push([k, v]);
-	call.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+	call.sort(([a], [b]) => {
+		if (a < b) return -1;
+		return a > b ? 1 : 0;
+	});
 	return `${path}?${new URLSearchParams(call)}`;
 }
 

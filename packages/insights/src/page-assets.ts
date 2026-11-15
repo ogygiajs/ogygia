@@ -542,13 +542,13 @@ export async function weigh_assets(opts: WeighOptions): Promise<PageAssets> {
 /** The text of every inline `<style>` in the document (only there is a marker the build's: a page
  *  that quotes one in its content is not a fallback). */
 function inline_style_text(html: string): string {
-	let out = '';
+	const out: string[] = [];
 	for (const tag of tags(html, 'style')) {
 		const text = text_of(html, tag, 'style');
 		if (text === null) break;
-		out = `${out}${text}\n`;
+		out.push(`${text}\n`);
 	}
-	return out;
+	return out.join('');
 }
 
 export interface AssetChange {
@@ -790,12 +790,9 @@ async function weigh_one(
 		const len = Number(res.headers.get('content-length'));
 		const buf = new Uint8Array(await res.arrayBuffer());
 		// the body is decoded by fetch; a compressed response's content-length is its wire size
-		const wire =
-			enc && Number.isFinite(len) && len > 0
-				? len
-				: opts.gzip && buf.byteLength > 256
-					? opts.gzip(buf)
-					: buf.byteLength;
+		let wire = buf.byteLength;
+		if (enc && Number.isFinite(len) && len > 0) wire = len;
+		else if (opts.gzip && buf.byteLength > 256) wire = opts.gzip(buf);
 		const w: Weight = { bytes: buf.byteLength, wire };
 		if (r.kind === 'script') {
 			const code = new TextDecoder().decode(buf);

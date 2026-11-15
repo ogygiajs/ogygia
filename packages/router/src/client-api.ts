@@ -73,13 +73,14 @@ export function api<App>(base: string, opts: ApiClientOptions = {}): ApiClient<A
 	const f = opts.fetch ?? fetch;
 	const root = base.replace(TRAILING_SLASH_RE, '');
 	const call = async (method: string, path: string, o: Record<string, unknown> = {}) => {
-		let url = root + fill(path, (o.params as Record<string, string | number>) ?? {});
+		let search = '';
 		if (o.search) {
 			const qs = new URLSearchParams();
 			for (const [k, v] of Object.entries(o.search as Record<string, string | number>))
 				qs.set(k, String(v));
-			url = `${url}?${qs}`;
+			search = `?${qs}`;
 		}
+		const url = `${root}${fill(path, (o.params as Record<string, string | number>) ?? {})}${search}`;
 		const has_body = o.body !== undefined;
 		const res = await f(url, {
 			method,

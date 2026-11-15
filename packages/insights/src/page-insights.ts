@@ -576,6 +576,27 @@ export interface PageReport {
 }
 
 // web-vitals thresholds: [good up to, poor from]
+const EXPLAINED_VITAL_CODE: Readonly<Record<RatedVital['key'], string>> = {
+	inp: 'slow-interaction',
+	lcp: 'slow-lcp',
+	ttfb: 'slow-ttfb',
+	fcp: 'slow-fcp',
+	cls: 'shift-cause'
+};
+const SERVER_WAIT_FIX: ReadonlyMap<string | null, string> = new Map([
+	[
+		'cpu',
+		"The server's own code is the wait: profile that page (its report names the slow load or component and the lines in it), and render less on it."
+	],
+	[
+		'net',
+		"The page's outbound calls are the wait: run them in parallel instead of one after another, cache the ones that repeat, or move the slow one out of the page's load (stream it, or a hole)."
+	],
+	[
+		'other',
+		"The server waited on something that is neither its code nor an outbound call it could see: a timer, a lock, a connection pool, a database driver that does not use fetch. Look at what that page's load awaits."
+	]
+]);
 const LIMITS: Record<RatedVital['key'], [number, number, string]> = {
 	ttfb: [800, 1800, 'TTFB'],
 	fcp: [1800, 3000, 'FCP'],
@@ -745,7 +766,8 @@ const round = (n: number, d = 1) => {
 
 export function rate(key: RatedVital['key'], value: number): Rating {
 	const [good, poor] = LIMITS[key];
-	return value <= good ? 'good' : value < poor ? 'fair' : 'poor';
+	if (value <= good) return 'good';
+	return value < poor ? 'fair' : 'poor';
 }
 
 /** Two markups that differ, and differ only in percent-encoding (`a/b` against `a%2Fb`): equal
@@ -803,7 +825,9 @@ export function boolean_attr_at(
 		server.charCodeAt(at) !== 34
 	)
 		return null;
-	const v = now.startsWith('true"', at) ? 'true' : now.startsWith('false"', at) ? 'false' : null;
+	let v: 'true' | 'false' | null = null;
+	if (now.startsWith('true"', at)) v = 'true';
+	else if (now.startsWith('false"', at)) v = 'false';
 	if (!v) return null;
 	let s = at - 2;
 	while (s > 0) {
@@ -1008,6 +1032,9 @@ export function analyze_page(
 					page,
 					recovered.map((r) => r.name)
 				);
+		const lines_fix = lines.length
+			? `${hazard_fix(lines)} If it is none of them, look for a rewrite on the way (a transformPageChunk, an HTML middleware or edge rewriter).`
+			: null;
 		findings.push({
 			code: 'recovered',
 			severity: 'error',
@@ -1018,9 +1045,8 @@ export function analyze_page(
 			}`,
 			fix: touched
 				? 'Look for a script that edits the page before islands wake (an A/B tool, a DOM injector), or markup the browser rewrites (invalid nesting like a <div> in a <p>).'
-				: lines.length
-					? `${hazard_fix(lines)} If it is none of them, look for a rewrite on the way (a transformPageChunk, an HTML middleware or edge rewriter).`
-					: "Look for a rewrite on the way (a transformPageChunk, an HTML middleware or edge rewriter), then in its components for what the browser sees differently: a block ({#if}, {#each}, {#await}) whose condition reads `window`, `Date`, `Math.random()` or storage; a context set only on the server (a csr=false layout's setContext); an `await` at the top of its script; or markup the browser rewrites (a <div> in a <p>).",
+				: (lines_fix ??
+					"Look for a rewrite on the way (a transformPageChunk, an HTML middleware or edge rewriter), then in its components for what the browser sees differently: a block ({#if}, {#each}, {#await}) whose condition reads `window`, `Date`, `Math.random()` or storage; a context set only on the server (a csr=false layout's setContext); an `await` at the top of its script; or markup the browser rewrites (a <div> in a <p>)."),
 			fps: recovered.map((r) => r.fp)
 		});
 	}
@@ -1059,6 +1085,7 @@ export function analyze_page(
 			page,
 			changed.map((r) => r.name)
 		);
+		const lines_fix = changed_lines.length ? hazard_fix(changed_lines) : null;
 		findings.push({
 			code: 'markup-changed',
 			severity: 'warn',
@@ -1069,9 +1096,8 @@ export function analyze_page(
 			}${changed_lines.length && !bool ? ` ${hazard_words(changed_lines)}` : ''}`,
 			fix: bool
 				? `\`${bool.name}\` on <${bool.tag}> is written bare: the server writes ${bool.name}="" and Svelte's hydrate sets it to "${bool.now}" — Svelte hands a custom element its attributes as values, and a bare attribute's value is \`true\`. So the island's markup changes as it wakes, and CSS or the component reading the value sees two. Give it a value, the same on both sides: \`${bool.name}=""\` (or \`${bool.name}="true"\` when the component reads it as a flag).`
-				: changed_lines.length
-					? hazard_fix(changed_lines)
-					: 'Render the same thing on both sides: move time, random values, and browser-only reads (window, localStorage) into an effect or an event, or pass them in as props.',
+				: (lines_fix ??
+					'Render the same thing on both sides: move time, random values, and browser-only reads (window, localStorage) into an effect or an event, or pass them in as props.'),
 			fps: changed.map((r) => r.fp)
 		});
 	}
@@ -1167,15 +1193,17 @@ export function analyze_page(
 		}
 		const holders = [...held_for].sort((x, y) => y[1].ms - x[1].ms).slice(0, 3);
 		const held_ms = holders[0]?.[1].ms ?? 0;
+		const behind =
+			top.length && top[0][1] >= 10
+				? `, behind ${list(top.map(([n, m]) => `${n} (${Math.round(m)} ms)`))}: islands hydrate one per task, viewport first.`
+				: ': islands hydrate after the page is parsed and painted, one per task, viewport first.';
 		findings.push({
 			code: 'queued',
 			severity: 'info',
 			message: `${list(queued.map((r) => `${r.name} (${r.queue_ms} ms)`))} had its code but waited for its turn${
 				holders.length && held_ms >= (top[0]?.[1] ?? 0)
 					? `, held for ${list(holders.map(([n, h]) => `${n} (${Math.round(h.ms)} ms${h.failed ? ', which then failed' : ''})`))} on the first screen, still loading ${holders.length === 1 ? 'its' : 'their'} code: viewport first, the islands a visitor sees wake before the ones below.`
-					: top.length && top[0][1] >= 10
-						? `, behind ${list(top.map(([n, m]) => `${n} (${Math.round(m)} ms)`))}: islands hydrate one per task, viewport first.`
-						: ': islands hydrate after the page is parsed and painted, one per task, viewport first.'
+					: behind
 			}`,
 			fix:
 				holders.length && held_ms >= (top[0]?.[1] ?? 0)
@@ -1297,17 +1325,16 @@ export function analyze_page(
 		const kb = (n: number) => (n >= 1024 ? `${(n / 1024).toFixed(1)} KB` : `${n} B`);
 		// (by island, not copy: two copies of one island read as one name)
 		const one = new Set(eager_below.map((r) => r.name)).size === 1;
+		let own_note = '';
+		if (own_total >= EAGER_BELOW_SMALL)
+			own_note = ` ${kb(own_total)} of it ${one ? 'is its own' : 'is theirs alone'} (no other island loads it): that much leaves the first load with a later wake.`;
+		else if (own_total)
+			own_note = ` Only ${kb(own_total)} of it is ${one ? 'its own' : 'theirs alone'} (the rest other islands load too): a later wake saves ${one ? 'its' : 'their'} hydration on the first load more than bytes.`;
 		findings.push({
 			code: 'eager-offscreen',
 			// (its own code a big share of the first load: a warning past 50 KB moved off it)
 			severity: own_total >= EAGER_BELOW_WARN ? 'warn' : 'info',
-			message: `${list(eager_below.map((r) => r.name))} start${one ? 's' : ''} below the first screen but load${one ? 's' : ''} code at page load.${
-				!own_total
-					? ''
-					: own_total < EAGER_BELOW_SMALL
-						? ` Only ${kb(own_total)} of it is ${one ? 'its own' : 'theirs alone'} (the rest other islands load too): a later wake saves ${one ? 'its' : 'their'} hydration on the first load more than bytes.`
-						: ` ${kb(own_total)} of it ${one ? 'is its own' : 'is theirs alone'} (no other island loads it): that much leaves the first load with a later wake.`
-			}`,
+			message: `${list(eager_below.map((r) => r.name))} start${one ? 's' : ''} below the first screen but load${one ? 's' : ''} code at page load.${own_note}`,
 			fix: "Use wake='visible': its code loads when it scrolls into view, and the islands on the first screen wake sooner.",
 			fps: eager_below.map((r) => r.fp)
 		});
@@ -1386,12 +1413,16 @@ export function analyze_page(
 						: `the page's CSS shows ${shown.map((n) => `${n} only at ${query_of.get(n)}`).join(', ')}`
 				]
 			: [];
-		const bare = unknown.length
-			? one
-				? 'no box of its own, hidden by its CSS or empty'
-				: `${list(unknown)} ${unknown.length === 1 ? 'has' : 'have'} no box of ${unknown.length === 1 ? 'its' : 'their'} own (hidden by CSS, or empty)`
-			: '';
+		let bare = '';
+		if (unknown.length && one) bare = 'no box of its own, hidden by its CSS or empty';
+		else if (unknown.length)
+			bare = `${list(unknown)} ${unknown.length === 1 ? 'has' : 'have'} no box of ${unknown.length === 1 ? 'its' : 'their'} own (hidden by CSS, or empty)`;
 		const first_q = shown.length ? query_of.get(shown[0])! : '';
+		let shown_fix = '';
+		if (shown.length === 1)
+			shown_fix = `Wake ${one ? 'it' : shown[0]} by that media query (\`with { wake: '${first_q}' }\`): the code loads only on the screens that show it, and wakes there as the screen changes.`;
+		else if (shown.length)
+			shown_fix = `Wake each by its media query (${shown.map((n) => `${n}: \`with { wake: '${query_of.get(n)}' }\``).join(', ')}): the code loads only on the screens that show them, and wakes there as the screen changes.`;
 		findings.push({
 			code: 'eager-hidden',
 			severity: own_total >= EAGER_BELOW_WARN ? 'warn' : 'info',
@@ -1399,11 +1430,7 @@ export function analyze_page(
 				own_total ? ` ${kb(own_total)} of that code ${one ? 'is its own' : 'is theirs alone'}.` : ''
 			}`,
 			fix:
-				(shown.length === 1
-					? `Wake ${one ? 'it' : shown[0]} by that media query (\`with { wake: '${first_q}' }\`): the code loads only on the screens that show it, and wakes there as the screen changes.`
-					: shown.length
-						? `Wake each by its media query (${shown.map((n) => `${n}: \`with { wake: '${query_of.get(n)}' }\``).join(', ')}): the code loads only on the screens that show them, and wakes there as the screen changes.`
-						: '') +
+				shown_fix +
 				(unknown.length
 					? `${shown.length ? ` For ${list(unknown)}: if` : 'If'} it shows only on some screens, wake it by a media query (\`with { wake: '(max-width: …)' }\`); if it opens on a click, \`wake: 'interaction'\`.`
 					: ''),
@@ -1732,41 +1759,37 @@ export function analyze_page(
 	for (const v of vitals) {
 		if (v.rating === 'good') continue;
 		const head = `${v.label} is ${v.key === 'cls' ? v.value : `${Math.round(v.value)} ms`} (${v.rating === 'poor' ? 'poor' : 'needs work'}; good is ${v.key === 'cls' ? `≤ ${LIMITS[v.key][0]}` : `≤ ${LIMITS[v.key][0]} ms`}).`;
-		const why =
-			v.key === 'inp'
-				? explain_interaction(
-						page.visit?.interaction,
-						rows,
-						name_of,
-						page.visit?.origin,
-						page.interaction_cpu
-					)
-				: v.key === 'lcp'
-					? explain_lcp(page, name_of)
-					: v.key === 'cls'
-						? explain_cls(page, rows, name_of)
-						: v.key === 'ttfb'
-							? explain_ttfb(page)
-							: v.key === 'fcp'
-								? explain_fcp(page)
-								: null;
+		let why;
+		switch (v.key) {
+			case 'inp':
+				why = explain_interaction(
+					page.visit?.interaction,
+					rows,
+					name_of,
+					page.visit?.origin,
+					page.interaction_cpu
+				);
+				break;
+			case 'lcp':
+				why = explain_lcp(page, name_of);
+				break;
+			case 'cls':
+				why = explain_cls(page, rows, name_of);
+				break;
+			case 'ttfb':
+				why = explain_ttfb(page);
+				break;
+			case 'fcp':
+				why = explain_fcp(page);
+				break;
+		}
 		// (the slowest interaction, the largest paint and the worst shifts, explained, are their own
 		// findings in place of the bare vital: the profiler words the vitals from all its visits, and
 		// keeps this visit's why)
 		findings.push({
-			code: why
-				? v.key === 'inp'
-					? 'slow-interaction'
-					: v.key === 'lcp'
-						? 'slow-lcp'
-						: v.key === 'ttfb'
-							? 'slow-ttfb'
-							: v.key === 'fcp'
-								? 'slow-fcp'
-								: 'shift-cause'
-				: `vital-${v.key}`,
+			code: why ? EXPLAINED_VITAL_CODE[v.key] : `vital-${v.key}`,
 			// (a why that is the dev server's own cost — a page compiling on its first request — is a note)
-			severity: why && 'note' in why && why.note ? 'info' : v.rating === 'poor' ? 'warn' : 'info',
+			severity: v.rating === 'poor' && !(why && 'note' in why && why.note) ? 'warn' : 'info',
 			message: why ? `${head} ${why.message}` : head,
 			...(why ? { fix: why.fix } : {}),
 			fps:
@@ -2025,23 +2048,28 @@ export function analyze_page(
 			known.length === splits.length &&
 			splits.every((s, i) => s.server! < slow_holes[i].wait_ms * 0.4);
 		const ahead = Math.max(...splits.map((s) => s.ahead));
+		let fix =
+			'The hole’s server render or its data is slow: give it a maxAge if its answer is the same for a while, start its data sooner, or render it with the page if it is the same for every visitor. The profiler’s Holes section has its server time.';
+		if (slotted)
+			fix = `It waited on the server for a render slot: a server process renders ${REGION_RENDER_CONCURRENCY} holes at a time, and each holds its slot while it awaits its data, so slow holes make the next one wait (every visitor’s, on that process). Make the slow holes answer sooner (a maxAge, faster data), or put fewer of them on one page. The Server-Timing on its answer has the split.`;
+		else if (gated)
+			fix = `It waited for its turn: the runtime runs ${HOLE_GATE} hole requests at a time, and ${ahead} were ahead of it. Put fewer holes on the first screen (render the ones that are the same for every visitor with the page, or merge small ones into one), or make the ones ahead answer sooner (a maxAge).`;
+		else if (late)
+			fix =
+				'Its request left late: the page was busy (long tasks) when it was due, or the hole woke late. The long tasks and the wake order on this tab show which.';
+		else if (render_bound)
+			fix = `${splits.every((s) => s.rendered) ? 'The server render' : 'The server'} is the wait: give the hole a maxAge if its answer is the same for a while, start its data sooner (or in parallel), or render it with the page if it is the same for every visitor.`;
+		else if (elsewhere && splits.every((s) => s.before !== undefined))
+			fix =
+				'The server answered quickly and the request left on time: the wait came after the first byte (a large answer, its styles, or the swap) or on the network.';
+		else if (elsewhere)
+			fix =
+				'The server answered quickly: the wait came before or around the request. Its request started late (the page was busy, or the hole woke late), or the network or something in front of the server held it. The report’s One clock section shows when it left.';
 		findings.push({
 			code: 'hole-slow',
 			severity: slow_holes[0].wait_ms >= SLOW_HOLE_MS * 1.5 ? 'warn' : 'info',
 			message: `${list(slow_holes.map((h) => `${h.name} (${secs(h.wait_ms)}${parts(h)})`))} showed ${slow_holes.length === 1 ? 'its' : 'their'} fallback on the first screen that long before ${slow_holes.length === 1 ? 'its' : 'their'} answer came.`,
-			fix: slotted
-				? `It waited on the server for a render slot: a server process renders ${REGION_RENDER_CONCURRENCY} holes at a time, and each holds its slot while it awaits its data, so slow holes make the next one wait (every visitor’s, on that process). Make the slow holes answer sooner (a maxAge, faster data), or put fewer of them on one page. The Server-Timing on its answer has the split.`
-				: gated
-					? `It waited for its turn: the runtime runs ${HOLE_GATE} hole requests at a time, and ${ahead} were ahead of it. Put fewer holes on the first screen (render the ones that are the same for every visitor with the page, or merge small ones into one), or make the ones ahead answer sooner (a maxAge).`
-					: late
-						? 'Its request left late: the page was busy (long tasks) when it was due, or the hole woke late. The long tasks and the wake order on this tab show which.'
-						: render_bound
-							? `${splits.every((s) => s.rendered) ? 'The server render' : 'The server'} is the wait: give the hole a maxAge if its answer is the same for a while, start its data sooner (or in parallel), or render it with the page if it is the same for every visitor.`
-							: elsewhere
-								? splits.every((s) => s.before !== undefined)
-									? 'The server answered quickly and the request left on time: the wait came after the first byte (a large answer, its styles, or the swap) or on the network.'
-									: 'The server answered quickly: the wait came before or around the request. Its request started late (the page was busy, or the hole woke late), or the network or something in front of the server held it. The report’s One clock section shows when it left.'
-								: 'The hole’s server render or its data is slow: give it a maxAge if its answer is the same for a while, start its data sooner, or render it with the page if it is the same for every visitor. The profiler’s Holes section has its server time.',
+			fix,
 			fps: []
 		});
 	}
@@ -2051,12 +2079,11 @@ export function analyze_page(
 	if (drift.length) {
 		const first = drift[0];
 		const whose = (d: (typeof drift)[number]) => (drift.length === 1 ? 'its' : `${d.name}'s`);
-		const said = (d: (typeof drift)[number]) =>
-			d.path
-				? `${whose(d)} prop \`${d.path}\` was ${d.was}, now ${d.now}`
-				: d.was !== undefined
-					? `${whose(d)} props went from …${d.was}… to …${d.now}…`
-					: `${whose(d)} props changed`;
+		const said = (d: (typeof drift)[number]) => {
+			if (d.path) return `${whose(d)} prop \`${d.path}\` was ${d.was}, now ${d.now}`;
+			if (d.was !== undefined) return `${whose(d)} props went from …${d.was}… to …${d.now}…`;
+			return `${whose(d)} props changed`;
+		};
 		findings.push({
 			code: 'fp-unstable',
 			severity: 'info',
@@ -2095,15 +2122,17 @@ export function analyze_page(
 	const ns = page.server_profile?.no_store;
 	if ((bf && (bf.unload.length || bf.not_restored?.length)) || ns) {
 		const unload = bf?.unload ?? [];
+		const unload_lead = unload.length
+			? `${list(unload)} ${unload.length === 1 ? 'adds' : 'add'} an 'unload' listener: the browser keeps no page with one in its back/forward cache, so Back and Forward load this page from the server again instead of showing it at once.`
+			: null;
 		findings.push({
 			code: 'bfcache-blocked',
 			severity: 'warn',
 			message:
-				(unload.length
-					? `${list(unload)} ${unload.length === 1 ? 'adds' : 'add'} an 'unload' listener: the browser keeps no page with one in its back/forward cache, so Back and Forward load this page from the server again instead of showing it at once.`
-					: ns
+				(unload_lead ??
+					(ns
 						? `The page answers with Cache-Control: ${ns} (the profiler's last run of it saw so): the browser keeps no page marked no-store in its back/forward cache, so Back and Forward load it from the server again instead of showing it at once.`
-						: 'This load came from Back or Forward, and the browser did not restore the page from its back/forward cache: it loaded from the server again.') +
+						: 'This load came from Back or Forward, and the browser did not restore the page from its back/forward cache: it loaded from the server again.')) +
 				(unload.length && ns
 					? ` It also answers with Cache-Control: ${ns}, which keeps it out too.`
 					: '') +
@@ -2164,16 +2193,13 @@ export function analyze_page(
 	for (const b of page.hole_batches ?? []) {
 		const missed = b.sent - b.delivered;
 		if (missed <= 0) continue;
-		const what =
-			b.refused === 'redirected'
-				? `was redirected${b.final_url ? ` to ${path_of(b.final_url)}` : ''}`
-				: b.refused === 'document'
-					? `was answered with a page${b.final_url ? ` (${path_of(b.final_url)})` : ''}, not the holes`
-					: b.status === 0
-						? 'failed (the request itself)'
-						: b.status >= 400
-							? `was answered ${b.status}`
-							: `ended without ${missed === b.sent ? 'any of them' : `${missed} of them`}`;
+		let what = `ended without ${missed === b.sent ? 'any of them' : `${missed} of them`}`;
+		if (b.refused === 'redirected')
+			what = `was redirected${b.final_url ? ` to ${path_of(b.final_url)}` : ''}`;
+		else if (b.refused === 'document')
+			what = `was answered with a page${b.final_url ? ` (${path_of(b.final_url)})` : ''}, not the holes`;
+		else if (b.status === 0) what = 'failed (the request itself)';
+		else if (b.status >= 400) what = `was answered ${b.status}`;
 		const front =
 			b.refused !== undefined ||
 			b.status === 405 ||
@@ -2217,21 +2243,25 @@ export function analyze_page(
 				.some((v) => v.trim() === 'origin' || v.trim() === '*');
 		const safari_font = (m: PreloadMiss) =>
 			safari && m.type === 'font' && m.crossorigin !== null && varies(m);
-		const why = (m: PreloadMiss) =>
-			safari_font(m)
-				? `its answer says \`Vary: ${m.vary}\`: ${page.browser} does not reuse a font preload that varies by Origin once the @font-face asking for it comes from a stylesheet added after the page parsed${page.dev ? " (on a dev server both are common: it answers every file with Vary: Origin and adds the page's CSS by script)" : ''}`
-				: safari_fetch(m)
-					? `${page.browser} never hands a fetch preload to a later fetch(), whatever its crossorigin, credentials or Cache-Control: in Safari it is always a second download (Chromium uses it)`
-					: m.type === 'font' && m.crossorigin === null
-						? 'a font always loads in CORS mode: its preload needs `crossorigin`'
-						: m.type === 'fetch' && m.crossorigin === null
-							? 'a fetch preload needs `crossorigin` (`anonymous` for a same-origin `fetch()`, `use-credentials` for `credentials: "include"`)'
-							: m.type === 'fetch' || m.type === 'font'
-								? `its \`crossorigin="${m.crossorigin}"\`${m.crossorigin ? '' : ' (anonymous)'} does not match the request's credentials`
-								: m.type === 'script'
-									? 'a module script is preloaded with `<link rel="modulepreload">`, not `rel="preload" as="script"`'
-									: 'its `as` or `crossorigin` does not match how the page requests the file';
+		const why = (m: PreloadMiss) => {
+			if (safari_font(m))
+				return `its answer says \`Vary: ${m.vary}\`: ${page.browser} does not reuse a font preload that varies by Origin once the @font-face asking for it comes from a stylesheet added after the page parsed${page.dev ? " (on a dev server both are common: it answers every file with Vary: Origin and adds the page's CSS by script)" : ''}`;
+			if (safari_fetch(m))
+				return `${page.browser} never hands a fetch preload to a later fetch(), whatever its crossorigin, credentials or Cache-Control: in Safari it is always a second download (Chromium uses it)`;
+			if (m.type === 'font' && m.crossorigin === null)
+				return 'a font always loads in CORS mode: its preload needs `crossorigin`';
+			if (m.type === 'fetch' && m.crossorigin === null)
+				return 'a fetch preload needs `crossorigin` (`anonymous` for a same-origin `fetch()`, `use-credentials` for `credentials: "include"`)';
+			if (m.type === 'fetch' || m.type === 'font')
+				return `its \`crossorigin="${m.crossorigin}"\`${m.crossorigin ? '' : ' (anonymous)'} does not match the request's credentials`;
+			if (m.type === 'script')
+				return 'a module script is preloaded with `<link rel="modulepreload">`, not `rel="preload" as="script"`';
+			return 'its `as` or `crossorigin` does not match how the page requests the file';
+		};
 		const wasted = misses.reduce((a, m) => a + m.bytes, 0);
+		const font_note = page.dev
+			? " For the fonts: a build drops the dev server's habits (its CSS linked, its files answered by the host), so check whether the host also answers fonts with Vary: Origin and whether a stylesheet naming them is added by script."
+			: ' For the fonts: answer them without `Vary: Origin` (a font is the same whoever asks; a CORS header alone does not need it), or name them in a stylesheet the HTML links.';
 		findings.push({
 			code: 'preload-unused',
 			severity: 'warn',
@@ -2241,11 +2271,7 @@ export function analyze_page(
 				misses.some(safari_fetch)
 					? ' No attribute changes a fetch preload in Safari: to start the request early there too, begin it in an inline script and hand its promise to the code that reads it — or drop the preload where Safari is most of the traffic.'
 					: '',
-				misses.some(safari_font)
-					? page.dev
-						? " For the fonts: a build drops the dev server's habits (its CSS linked, its files answered by the host), so check whether the host also answers fonts with Vary: Origin and whether a stylesheet naming them is added by script."
-						: ' For the fonts: answer them without `Vary: Origin` (a font is the same whoever asks; a CORS header alone does not need it), or name them in a stylesheet the HTML links.'
-					: '',
+				misses.some(safari_font) ? font_note : '',
 				misses.some((m) => !safari_fetch(m) && !safari_font(m))
 					? ' The preload and the request must match exactly, or the browser fetches the file again.'
 					: ''
@@ -2369,16 +2395,23 @@ export function analyze_page(
 		// or waiting on something that is neither
 		const srv = n.on_server;
 		const srv_other = srv ? Math.max(0, srv.ms - srv.cpu_ms - srv.net_ms) : 0;
-		const srv_top = !srv
-			? null
-			: srv.cpu_ms >= srv.net_ms && srv.cpu_ms >= srv_other
-				? 'cpu'
-				: srv.net_ms >= srv_other
-					? 'net'
-					: 'other';
+		let srv_top: 'cpu' | 'net' | 'other' | null = null;
+		if (srv && srv.cpu_ms >= srv.net_ms && srv.cpu_ms >= srv_other) srv_top = 'cpu';
+		else if (srv) srv_top = srv.net_ms >= srv_other ? 'net' : 'other';
 		const server_sentence = srv
 			? ` On the server that page took ${srv.ms} ms: ${srv.cpu_ms} ms running code, ${srv.net_count ? `${srv.net_ms} ms waiting on ${srv.net_count} outbound call${srv.net_count === 1 ? '' : 's'}` : 'no outbound calls'}, and ${srv_other} ms waiting on something else${srv.inflight ? ` (${srv.inflight} other request${srv.inflight === 1 ? ' was' : 's were'} running: its CPU is shared)` : ''}.`
 			: '';
+		let nav_fix =
+			'The swap itself is heavy: a large page body to parse and put in, or many islands to reconcile. Send less HTML (render below-the-fold parts later), or split the page.';
+		if (top.key === 'fetch' && heavy_page)
+			nav_fix = `The page itself is the wait: ${n.bytes ? `${kb_of(n.bytes)} of HTML` : 'its HTML'} took longer to download than the server took to answer. Send less (render below-the-fold parts later, trim repeated markup and inline data), and make sure it is compressed.`;
+		else if (top.key === 'fetch')
+			nav_fix =
+				SERVER_WAIT_FIX.get(srv_top) ??
+				"The server's answer is the wait: make that page's load faster (profile the page itself: its report names the slow load), or render it with less. The router starts the fetch at the click, so the server's time is the visitor's.";
+		else if (top.key === 'styles')
+			nav_fix =
+				"Its stylesheets were not in the browser yet: the router waits for them so the page never shows unstyled. Share one stylesheet across pages, or keep each page's small, so the next page's are cached or quick.";
 		findings.push({
 			code: 'slow-navigation',
 			severity: ms >= SLOW_NAV_WARN_MS ? 'warn' : 'info',
@@ -2393,20 +2426,7 @@ export function analyze_page(
 					? ` Then ${woke.length === 1 ? 'its island woke' : `${woke.length} islands woke`} over ${Math.round(Math.max(0, wake_end - n.swapped))} ms${heaviest && heaviest.ms >= 20 ? ` (${heaviest.name} ${Math.round(heaviest.ms)} ms to hydrate)` : ''}.`
 					: ''
 			].join(''),
-			fix:
-				top.key === 'fetch' && heavy_page
-					? `The page itself is the wait: ${n.bytes ? `${kb_of(n.bytes)} of HTML` : 'its HTML'} took longer to download than the server took to answer. Send less (render below-the-fold parts later, trim repeated markup and inline data), and make sure it is compressed.`
-					: top.key === 'fetch' && srv_top === 'cpu'
-						? "The server's own code is the wait: profile that page (its report names the slow load or component and the lines in it), and render less on it."
-						: top.key === 'fetch' && srv_top === 'net'
-							? "The page's outbound calls are the wait: run them in parallel instead of one after another, cache the ones that repeat, or move the slow one out of the page's load (stream it, or a hole)."
-							: top.key === 'fetch' && srv_top === 'other'
-								? "The server waited on something that is neither its code nor an outbound call it could see: a timer, a lock, a connection pool, a database driver that does not use fetch. Look at what that page's load awaits."
-								: top.key === 'fetch'
-									? "The server's answer is the wait: make that page's load faster (profile the page itself: its report names the slow load), or render it with less. The router starts the fetch at the click, so the server's time is the visitor's."
-									: top.key === 'styles'
-										? "Its stylesheets were not in the browser yet: the router waits for them so the page never shows unstyled. Share one stylesheet across pages, or keep each page's small, so the next page's are cached or quick."
-										: 'The swap itself is heavy: a large page body to parse and put in, or many islands to reconcile. Send less HTML (render below-the-fold parts later), or split the page.',
+			fix: nav_fix,
 			fps: []
 		});
 	}
@@ -2462,19 +2482,23 @@ export function analyze_page(
 			const why = h.message ?? 'no reason given';
 			const split = why.startsWith('foreign-key');
 			const front = why.startsWith('not ogygia');
+			let refused_fix: string | null = null;
+			if (split)
+				refused_fix =
+					'The page and its islands endpoint came from different deployments, each signing with its own key: route the islands endpoint to the deployment that served the page, and give every deployment the same OGYGIA_SECRET at runtime.';
+			else if (front)
+				refused_fix = `ogygia's handle never saw this request: a proxy, CDN or firewall in front of it (bot protection, a WAF rule) refused ${path(h.endpoint)}. Let that path through there.`;
 			findings.push({
 				code: 'hole-failed',
 				severity: 'error',
 				message: front
 					? `${h.name} never got its answer: something in front of ogygia's handle refused the request (403 without x-ogygia-deny), and the fallback stands.`
 					: `${h.name} never got its answer: the islands endpoint refused its capability (403: ${why}), and the fallback stands.`,
-				fix: split
-					? 'The page and its islands endpoint came from different deployments, each signing with its own key: route the islands endpoint to the deployment that served the page, and give every deployment the same OGYGIA_SECRET at runtime.'
-					: front
-						? `ogygia's handle never saw this request: a proxy, CDN or firewall in front of it (bot protection, a WAF rule) refused ${path(h.endpoint)}. Let that path through there.`
-						: why === 'unknown-id'
-							? 'The page names a hole the answering deployment does not have: the page came from a build whose holes differ (a hole component moved or was renamed, or its import options changed), kept by a cache across a deploy or served by another backend.'
-							: `Open ${h.endpoint ?? 'the hole’s endpoint'} (signed for this page): its x-ogygia-deny header says why the server refused it.`,
+				fix:
+					refused_fix ??
+					(why === 'unknown-id'
+						? 'The page names a hole the answering deployment does not have: the page came from a build whose holes differ (a hole component moved or was renamed, or its import options changed), kept by a cache across a deploy or served by another backend.'
+						: `Open ${h.endpoint ?? 'the hole’s endpoint'} (signed for this page): its x-ogygia-deny header says why the server refused it.`),
 				fps: h.fp ? [h.fp] : []
 			});
 			continue;
@@ -2709,16 +2733,20 @@ function explain_lcp(
 		];
 	}
 	const top = parts.reduce((a, b) => (b.ms > a.ms ? b : a));
-	const fix =
-		top.key === 'ttfb'
-			? "The server's first byte is most of it: make the page's own render faster (the profiler's report of this page names the slow load), or cache it."
-			: top.key === 'font'
-				? 'The text was there, hidden by its font: give the @font-face `font-display: swap` (or `optional`) and preload the font file, so the text paints at once.'
-				: top.key === 'delay'
-					? late_found(p, res, page.islands, name_of)
-					: top.key === 'load'
-						? 'The file itself is slow to download: make it smaller (a modern format, sized to how it is shown, `srcset`), and serve it from close by.'
-						: 'It was ready but did not paint: render-blocking stylesheets or scripts held the first paint, or a script (an island waking) shows the element. Render it with the server HTML, and inline or trim what blocks.';
+	let fix: string;
+	if (top.key === 'ttfb')
+		fix =
+			"The server's first byte is most of it: make the page's own render faster (the profiler's report of this page names the slow load), or cache it.";
+	else if (top.key === 'font')
+		fix =
+			'The text was there, hidden by its font: give the @font-face `font-display: swap` (or `optional`) and preload the font file, so the text paints at once.';
+	else if (top.key === 'delay') fix = late_found(p, res, page.islands, name_of);
+	else if (top.key === 'load')
+		fix =
+			'The file itself is slow to download: make it smaller (a modern format, sized to how it is shown, `srcset`), and serve it from close by.';
+	else
+		fix =
+			'It was ready but did not paint: render-blocking stylesheets or scripts held the first paint, or a script (an island waking) shows the element. Render it with the server HTML, and inline or trim what blocks.';
 	// (a download or a late start that shared the network with images nobody saw yet)
 	const rivals =
 		top.key === 'load' || top.key === 'delay' || top.key === 'font' ? lcp_rivals(page.visit) : null;
@@ -2908,21 +2936,20 @@ export function explain_held_open(
 		const first = Math.min(...waited.map((r) => r.done - r.hydrate_ms));
 		const names = waited.slice(0, 4).map((r) => name_of(r.fp) || r.name);
 		const more = waited.length > names.length ? ` and ${waited.length - names.length} more` : '';
-		const why = holder_text
-			? held!.side === 'server'
-				? `; on the server the last ${kb(held!.late_bytes ?? 0)} left ${ms((held!.late_ms ?? 0) - (held!.early_ms ?? 0))} after the rest, held by ${holder_text}`
-				: `; it was held by ${holder_text}, settled at ${ms(last_at!)}`
-			: '';
+		let why = '';
+		if (holder_text && held!.side === 'server')
+			why = `; on the server the last ${kb(held!.late_bytes ?? 0)} left ${ms((held!.late_ms ?? 0) - (held!.early_ms ?? 0))} after the rest, held by ${holder_text}`;
+		else if (holder_text) why = `; it was held by ${holder_text}, settled at ${ms(last_at!)}`;
 		const big = !holder_text && (nav.size ?? 0) >= 300_000;
 		return {
 			code: 'html-held-open',
 			severity: end - fcp >= 300 ? 'warn' : 'info',
 			message: `The page painted at ${ms(fcp)}, but its HTML kept coming until ${ms(end)} (${ms(open)} after its first byte)${why}. Islands wake only once the whole document is in (DOMContentLoaded${nav.dcl ? ` at ${ms(nav.dcl)}` : ''}), so ${names.join(', ')}${more} waited: the first hydrated at ${ms(first)}, ${ms(first - fcp)} after the paint.`,
-			fix: holder_text
-				? fix_streamed
-				: big
+			fix:
+				(holder_text && fix_streamed) ||
+				(big
 					? `The HTML itself is large (${kb(nav.size!)}): its download is the wait. Ship less markup: page long lists, move what is below the fold into a server island (\`render: 'deferred'\`), and keep big data out of the page seed.`
-					: `Something kept the response open after its first part: usually a promise a load returns without awaiting (it streams, and the document ends only when it settles), or a proxy that buffers. The profiler's report of this page names what the late bytes were. ${fix_streamed}`,
+					: `Something kept the response open after its first part: usually a promise a load returns without awaiting (it streams, and the document ends only when it settles), or a proxy that buffers. The profiler's report of this page names what the late bytes were. ${fix_streamed}`),
 			fps: waited.map((r) => r.fp)
 		};
 	}
@@ -2981,14 +3008,18 @@ function explain_fcp(page: PageInput): { message: string; fix: string; fps: stri
 		}
 	].filter((p) => p.ms >= 1 || p.key === 'ttfb');
 	const top = parts.reduce((a, b) => (b.ms > a.ms ? b : a));
-	const fix =
-		top.key === 'ttfb'
-			? "The server's first byte is most of it: see the first-byte finding (and the profiler's report of this page) for where the server's time went."
-			: top.key === 'html'
-				? 'The HTML itself is slow to arrive: send less of it (render below-the-fold parts later, trim inline data), and make sure it is compressed.'
-				: top.key === 'blocking'
-					? `The paint waits for ${slowest ? file(slowest.url) : 'blocking files'}: inline the few rules the first screen needs and load the rest without blocking, and give scripts in the head \`defer\` or \`type="module"\`.`
-					: 'Everything had arrived, but the main thread was busy: a script ran before the first paint. Move it after (defer it, or run it on idle).';
+	let fix: string;
+	if (top.key === 'ttfb')
+		fix =
+			"The server's first byte is most of it: see the first-byte finding (and the profiler's report of this page) for where the server's time went.";
+	else if (top.key === 'html')
+		fix =
+			'The HTML itself is slow to arrive: send less of it (render below-the-fold parts later, trim inline data), and make sure it is compressed.';
+	else if (top.key === 'blocking')
+		fix = `The paint waits for ${slowest ? file(slowest.url) : 'blocking files'}: inline the few rules the first screen needs and load the rest without blocking, and give scripts in the head \`defer\` or \`type="module"\`.`;
+	else
+		fix =
+			'Everything had arrived, but the main thread was busy: a script ran before the first paint. Move it after (defer it, or run it on idle).';
 	return {
 		message: `The first paint came after ${parts.map((p) => p.text).join(', ')}.`,
 		fix,
@@ -3048,17 +3079,25 @@ function explain_ttfb(
 		top.key === 'wait' && ssr && beyond >= 200
 			? ` Of the ${ms(p.wait ?? 0)} wait, the render was ${ms(ssr.ms)}; the other ${ms(beyond)} came before it${compiling ? ' — on the dev server, the page compiling on its first request' : ' (a hook, a proxy, a cold start)'}.`
 			: '';
-	const fix = compiling
-		? 'Reload the page: on the dev server a page is compiled on its first request, and that is most of this first byte. A build (or a second visit) shows the real one.'
-		: top.key === 'redirect'
-			? 'The redirects are the cost: link to the final address (the trailing slash, https, the locale) so the browser asks once.'
-			: top.key === 'worker'
-				? "The service worker's start is the cost: keep it small, or turn on navigation preload so the page's request leaves while it starts."
-				: top.key === 'dns' || top.key === 'connect'
-					? 'Reaching the server is the cost: serve the page from closer to the visitor (a CDN at the edge), and keep the connection modern (HTTP/2 or 3, TLS 1.3).'
-					: page.server_profiles && page.server_profile?.prerendered
-						? 'The page is a prerendered file, and still slow to arrive: serve it from close to the visitor (a CDN keeps the built files at the edge), and check what stands in front of the files — a function or a middleware answering them first, a cold start, a slow origin.'
-						: "The server's answer is the cost: profile the page (its report names the slow load and the lines in it), cache the HTML where it is the same for everyone, or stream it so the first byte leaves before the slow part.";
+	let fix: string;
+	if (compiling)
+		fix =
+			'Reload the page: on the dev server a page is compiled on its first request, and that is most of this first byte. A build (or a second visit) shows the real one.';
+	else if (top.key === 'redirect')
+		fix =
+			'The redirects are the cost: link to the final address (the trailing slash, https, the locale) so the browser asks once.';
+	else if (top.key === 'worker')
+		fix =
+			"The service worker's start is the cost: keep it small, or turn on navigation preload so the page's request leaves while it starts.";
+	else if (top.key === 'dns' || top.key === 'connect')
+		fix =
+			'Reaching the server is the cost: serve the page from closer to the visitor (a CDN at the edge), and keep the connection modern (HTTP/2 or 3, TLS 1.3).';
+	else if (page.server_profiles && page.server_profile?.prerendered)
+		fix =
+			'The page is a prerendered file, and still slow to arrive: serve it from close to the visitor (a CDN keeps the built files at the edge), and check what stands in front of the files — a function or a middleware answering them first, a cold start, a slow origin.';
+	else
+		fix =
+			"The server's answer is the cost: profile the page (its report names the slow load and the lines in it), cache the HTML where it is the same for everyone, or stream it so the first byte leaves before the slow part.";
 	// (devtools: the server's side from the Profiler tab's last run of this page, when the wait is it)
 	const profiled =
 		page.server_profiles && top.key === 'wait' && !compiling
@@ -3137,28 +3176,36 @@ function explain_cls(
 	let cause: Cause | undefined;
 	for (const c of causes)
 		if (c.at <= big.t + 5 && big.t - c.at <= WINDOW && (!cause || c.at > cause.at)) cause = c;
-	const because = !cause
-		? ''
-		: cause.kind === 'hole'
-			? ` It came right after ${cause.name.startsWith('the hole') ? cause.name : `the hole ${cause.name}`}'s answer swapped in: the answer is not the size of its fallback.`
-			: cause.kind === 'img'
-				? ` It came right after the image ${cause.name} arrived: it had no size set, so the page made room when it loaded.`
-				: cause.kind === 'font'
-					? ` It came right after the web font ${cause.name} arrived: text re-laid out in it.`
-					: cause.kind === 'devcss'
-						? ` It came right after ${cause.name}'s styles arrived: the dev server adds a component's CSS with JavaScript after the first paint, so the page re-laid out in them. A build links that CSS in the head — this shift is the dev server's, not your page's.`
-						: ` It came right after ${cause.name} hydrated: the island's size changed as it woke.`;
-	const fix = !cause
-		? 'Nothing the page timed explains it: look for content added above what is on screen (a banner, an ad, a late script), or an animation that moves layout instead of `transform`.'
-		: cause.kind === 'hole'
-			? 'Give the hole a fallback the size of its answer (a placeholder with a fixed or `min-height`), so the swap changes nothing around it.'
-			: cause.kind === 'img'
-				? "Set the image's `width` and `height` (or an `aspect-ratio`) so its space is kept before it loads."
-				: cause.kind === 'font'
-					? "Match the fallback font's metrics (`size-adjust`, `ascent-override`), or preload the font, so the swap does not move text."
-					: cause.kind === 'devcss'
-						? 'Nothing to fix for this shift: check the page on a build (preview or deploy), where the CSS is in the head before the first paint.'
-						: 'Render the island at its final size on the server (the same content, or a placeholder of that height), so waking it changes nothing on screen.';
+	let because = '';
+	if (cause?.kind === 'hole')
+		because = ` It came right after ${cause.name.startsWith('the hole') ? cause.name : `the hole ${cause.name}`}'s answer swapped in: the answer is not the size of its fallback.`;
+	else if (cause?.kind === 'img')
+		because = ` It came right after the image ${cause.name} arrived: it had no size set, so the page made room when it loaded.`;
+	else if (cause?.kind === 'font')
+		because = ` It came right after the web font ${cause.name} arrived: text re-laid out in it.`;
+	else if (cause?.kind === 'devcss')
+		because = ` It came right after ${cause.name}'s styles arrived: the dev server adds a component's CSS with JavaScript after the first paint, so the page re-laid out in them. A build links that CSS in the head — this shift is the dev server's, not your page's.`;
+	else if (cause)
+		because = ` It came right after ${cause.name} hydrated: the island's size changed as it woke.`;
+	let fix: string;
+	if (!cause)
+		fix =
+			'Nothing the page timed explains it: look for content added above what is on screen (a banner, an ad, a late script), or an animation that moves layout instead of `transform`.';
+	else if (cause.kind === 'hole')
+		fix =
+			'Give the hole a fallback the size of its answer (a placeholder with a fixed or `min-height`), so the swap changes nothing around it.';
+	else if (cause.kind === 'img')
+		fix =
+			"Set the image's `width` and `height` (or an `aspect-ratio`) so its space is kept before it loads.";
+	else if (cause.kind === 'font')
+		fix =
+			"Match the fallback font's metrics (`size-adjust`, `ascent-override`), or preload the font, so the swap does not move text.";
+	else if (cause.kind === 'devcss')
+		fix =
+			'Nothing to fix for this shift: check the page on a build (preview or deploy), where the CSS is in the head before the first paint.';
+	else
+		fix =
+			'Render the island at its final size on the server (the same content, or a placeholder of that height), so waking it changes nothing on screen.';
 	return {
 		message: `The worst burst of shifts added ${round3(best_sum)}, ${best.length === 1 ? 'in one shift' : `over ${best.length} shifts in ${Math.round(best[best.length - 1].t - best[0].t)} ms`}: what moved was ${list(top.map(([n, v]) => `${n} (${round3(v)})`))}.${because}`,
 		fix,
@@ -3182,17 +3229,11 @@ function describe_script(s: NonNullable<PageInteraction['scripts']>[number]): st
 
 /** What ran a long-frame script, from its invoker: a timer, an animation frame, a promise, … */
 function script_kind(inv: string): string {
-	return inv.startsWith('TimerHandler')
-		? 'a timer'
-		: inv.startsWith('FrameRequestCallback')
-			? 'an animation frame'
-			: inv.includes('requestIdleCallback')
-				? 'an idle callback'
-				: inv.includes('.then') || inv.startsWith('Promise')
-					? 'a promise'
-					: inv.includes('.on')
-						? 'an event handler'
-						: '';
+	if (inv.startsWith('TimerHandler')) return 'a timer';
+	if (inv.startsWith('FrameRequestCallback')) return 'an animation frame';
+	if (inv.includes('requestIdleCallback')) return 'an idle callback';
+	if (inv.includes('.then') || inv.startsWith('Promise')) return 'a promise';
+	return inv.includes('.on') ? 'an event handler' : '';
 }
 
 /** THE SLOWEST INTERACTION, explained: where it landed, which phase cost the time, and what held
@@ -3205,12 +3246,10 @@ function explain_interaction(
 	cpu?: InteractionCpuInput
 ): { message: string; fix: string; fps: string[] } | null {
 	if (!i || !(i.delay + i.processing + i.presentation > 0)) return null;
-	const what =
-		i.name === 'click' || i.name.startsWith('pointer') || i.name.startsWith('mouse')
-			? 'a click'
-			: i.name.startsWith('key')
-				? 'a key press'
-				: `a ${i.name}`;
+	let what = `a ${i.name}`;
+	if (i.name === 'click' || i.name.startsWith('pointer') || i.name.startsWith('mouse'))
+		what = 'a click';
+	else if (i.name.startsWith('key')) what = 'a key press';
 	const where = i.fp ? `in ${name_of(i.fp)}` : 'outside any island';
 	const on = i.target ? ` on ${i.target}` : '';
 	const ms = (n: number) => `${Math.round(n)} ms`;
@@ -3232,11 +3271,11 @@ function explain_interaction(
 	const hydrating = rows.filter(
 		(r) => r.fp !== i.fp && Math.min(r.done, wait_end) - Math.max(r.done - r.hydrate_ms, i.t) > 1
 	);
-	const behind = hydrating.length
-		? `${list(hydrating.map((r) => r.name))} ${hydrating.length === 1 ? 'was' : 'were'} hydrating`
-		: of_phase('delay').length
-			? `the main thread was running ${list(of_phase('delay').slice(0, 3).map(describe_script))}`
-			: '';
+	let behind = '';
+	if (hydrating.length)
+		behind = `${list(hydrating.map((r) => r.name))} ${hydrating.length === 1 ? 'was' : 'were'} hydrating`;
+	else if (of_phase('delay').length)
+		behind = `the main thread was running ${list(of_phase('delay').slice(0, 3).map(describe_script))}`;
 	const handler = of_phase('handler')[0];
 	// Svelte delegates events: the frame names its one dispatcher (or, built, a minified function in
 	// a chunk), never the island's handler it called. A page-origin event handler for a click inside
@@ -3268,18 +3307,15 @@ function explain_interaction(
 	const fn_label = (f: CpuFn) => (sampled?.mapped ? label_of(f) : label_of({ ...f, line: null }));
 	const own_handler =
 		!!handler && !!i.fp && handler.invoker.includes('.on') && own_origin(handler.url);
-	const handler_text = handler_fn
-		? `${own_handler || (!handler && i.fp) ? `${name_of(i.fp)}'s ${fn_label(handler_fn)}` : fn_label(handler_fn)}, ${Math.round(handler_fn.self_ms)} ms sampled`
-		: !handler
-			? ''
-			: own_handler
-				? `${name_of(i.fp)}'s own ${i.name} handler`
-				: describe_script(handler);
+	let handler_text = '';
+	if (handler_fn)
+		handler_text = `${own_handler || (!handler && i.fp) ? `${name_of(i.fp)}'s ${fn_label(handler_fn)}` : fn_label(handler_fn)}, ${Math.round(handler_fn.self_ms)} ms sampled`;
+	else if (handler && own_handler) handler_text = `${name_of(i.fp)}'s own ${i.name} handler`;
+	else if (handler) handler_text = describe_script(handler);
 	// the wait: an island hydrating says it all; else the sampled function, with what the frames
 	// add (the timer or promise that ran it)
-	const wait_text = hydrating.length
-		? behind
-		: wait_fn
+	const wait_text =
+		!hydrating.length && wait_fn
 			? `the main thread was running ${fn_label(wait_fn)}, ${Math.round(wait_fn.self_ms)} ms sampled${of_phase('delay')[0] && script_kind(of_phase('delay')[0].invoker) ? `, run by ${script_kind(of_phase('delay')[0].invoker)}` : ''}`
 			: behind;
 	// THE HANDLERS' FORCED LAYOUT: of their time, the browser laying the page out mid-run because the
@@ -3298,16 +3334,22 @@ function explain_interaction(
 		return p.text;
 	});
 	const message = `The slowest was ${what}${on} ${where}: ${parts[0]}, ${parts[1]}, ${parts[2]}.`;
-	const fix =
-		top.key === 'delay'
-			? hydrating.length
-				? 'The input waited for islands to hydrate: wake the ones not needed at once later (wake="visible" or "idle"), or make their hydration lighter, so a click is never queued behind it.'
-				: 'The input waited for other work on the main thread: split that long task (yield between steps with `await new Promise(r => setTimeout(r))`), or move it off the main thread, or run it when the visitor is not interacting.'
-			: top.key === 'handler'
-				? forced
-					? 'Much of the handler is forced layout: it reads a size or position (offsetHeight, getBoundingClientRect, getComputedStyle) after changing the page, and the browser lays the page out again for each read. Read every size first, then make the changes (or batch them in one requestAnimationFrame); never read between writes in a loop.'
-					: 'The handler itself is the cost: update the screen first and do the heavy part after the next frame (`requestAnimationFrame` then `setTimeout`), do less per event, or move the work to a worker.'
-				: 'Painting the result is the cost: the handler changed a lot of the page. Change less per update (a shorter list, `content-visibility: auto` for off-screen parts), and avoid reading layout right after writing it.';
+	let fix: string;
+	if (top.key === 'delay' && hydrating.length)
+		fix =
+			'The input waited for islands to hydrate: wake the ones not needed at once later (wake="visible" or "idle"), or make their hydration lighter, so a click is never queued behind it.';
+	else if (top.key === 'delay')
+		fix =
+			'The input waited for other work on the main thread: split that long task (yield between steps with `await new Promise(r => setTimeout(r))`), or move it off the main thread, or run it when the visitor is not interacting.';
+	else if (top.key === 'handler' && forced)
+		fix =
+			'Much of the handler is forced layout: it reads a size or position (offsetHeight, getBoundingClientRect, getComputedStyle) after changing the page, and the browser lays the page out again for each read. Read every size first, then make the changes (or batch them in one requestAnimationFrame); never read between writes in a loop.';
+	else if (top.key === 'handler')
+		fix =
+			'The handler itself is the cost: update the screen first and do the heavy part after the next frame (`requestAnimationFrame` then `setTimeout`), do less per event, or move the work to a worker.';
+	else
+		fix =
+			'Painting the result is the cost: the handler changed a lot of the page. Change less per update (a shorter list, `content-visibility: auto` for off-screen parts), and avoid reading layout right after writing it.';
 	return { message, fix, fps: i.fp ? [i.fp] : [] };
 }
 

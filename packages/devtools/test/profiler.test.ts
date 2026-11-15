@@ -5711,6 +5711,21 @@ describe('span + tag (ogygia/profiler)', () => {
 		expect(fb.message).toContain(
 			'The biggest part is tag ds-chip: 6 of them, 49.1 ms of the 50.0 ms (98'
 		);
+		// one after another, by key: "most of it" only when one value is a real part of the wall
+		const in_turn = (key: (i: number) => string) =>
+			derive_findings(
+				analyze(p),
+				meta as never,
+				{
+					net: [],
+					mem: [],
+					spans: Array.from({ length: 32 }, (_, i) =>
+						s('stock.lookup', 7, { start: i * 7, attrs: { key: key(i) } })
+					)
+				} as never
+			).find((x) => x.code === 'span-repeat')!.message;
+		expect(in_turn((i) => `K${i % 2}`)).toContain('Most of it is key K0');
+		expect(in_turn((i) => `K${i % 16}`)).not.toContain('Most of it');
 		// SELF: a parent span minus the child spans inside it
 		const nested = [
 			s('ds.pass', 250, { id: 1, start: 0 }),

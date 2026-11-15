@@ -225,7 +225,9 @@ export function line_deltas(
 			Math.abs(c.kept - r.a_kept) >= 0.5 * Math.max(r.a_kept, 1) &&
 			Math.abs(c.kept - r.a_kept) >= 128 * 1024;
 		const worse = r.d_ms > 0 || c.bytes > r.a_bytes || c.kept > r.a_kept;
-		r.status = !(t || m || k) ? 'same' : worse && !(r.d_ms < 0 && t) ? 'worse' : 'better';
+		if (!(t || m || k)) r.status = 'same';
+		else if (worse && !(r.d_ms < 0 && t)) r.status = 'worse';
+		else r.status = 'better';
 	}
 	// a line that left the ledger was either fixed or just fell below its top 40: only a line
 	// that cost something is called fixed, the rest drop out of the table
@@ -520,6 +522,10 @@ export function drill_deltas(a: DrillNode | undefined, b: DrillNode | undefined)
 			.filter((c) => c.runs_a && c.runs_b && !moved(c))
 			.reduce((s, c) => s + (c.b - c.a), 0);
 		if (Math.abs(noise) >= 0.7 * Math.abs(d)) continue;
+		let status: 'new' | 'fixed' | 'better' | 'worse' = 'worse';
+		if (r.a < 0.05) status = 'new';
+		else if (r.b < 0.05) status = 'fixed';
+		else if (d < 0) status = 'better';
 		out.push({
 			path: r.path,
 			kind: r.kind,
@@ -529,7 +535,7 @@ export function drill_deltas(a: DrillNode | undefined, b: DrillNode | undefined)
 			d_ms: round2(d),
 			...(r.upto ? { upto: r.upto } : {}),
 			...(r.waiting ? { waiting: true } : {}),
-			status: r.a < 0.05 ? 'new' : r.b < 0.05 ? 'fixed' : d < 0 ? 'better' : 'worse'
+			status
 		});
 	}
 	return out.sort((x, y) => Math.abs(y.d_ms) - Math.abs(x.d_ms)).slice(0, 20);
@@ -610,7 +616,9 @@ export function pattern_deltas(
 		// run-to-run noise moves a pattern's cost by a tenth easily: a change must clear a fifth of
 		// it AND 2 ms to count as one
 		const moved = Math.abs(r.d_ms) >= Math.max(0.2 * r.a_ms, 2);
-		r.status = !moved ? 'same' : r.d_ms < 0 ? 'better' : 'worse';
+		if (!moved) r.status = 'same';
+		else if (r.d_ms < 0) r.status = 'better';
+		else r.status = 'worse';
 	}
 	const rank = { fixed: 0, new: 1, worse: 2, better: 3, shifted: 4, same: 5 };
 	// a pattern near the reporting floor comes and goes between runs of the same code: one that
@@ -754,12 +762,9 @@ export function fix_check_of(
 		: summed_promise(patterns);
 	if (predicted < 2) return undefined;
 	const measured = median(a.runs) - median(b.runs);
-	const verdict =
-		measured >= predicted * 0.6 && measured <= predicted * 1.6
-			? 'as-expected'
-			: measured < predicted * 0.6
-				? 'less'
-				: 'more';
+	let verdict: 'as-expected' | 'less' | 'more' = 'more';
+	if (measured >= predicted * 0.6 && measured <= predicted * 1.6) verdict = 'as-expected';
+	else if (measured < predicted * 0.6) verdict = 'less';
 	return { predicted_ms: round2(predicted), measured_ms: round2(measured), verdict };
 }
 

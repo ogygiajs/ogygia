@@ -8,10 +8,10 @@ let seed = 0x1234abcd;
 const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 
 function keyedList(n, gen) {
-	let s = '<ul>';
+	const s = [];
 	for (let i = 0; i < n; i++)
-		s = `${s}<li id="row-${i}" class="r${gen & 1}">Item ${i} · v${gen}</li>`;
-	return `${s}</ul>`;
+		s.push(`<li id="row-${i}" class="r${gen & 1}">Item ${i} · v${gen}</li>`);
+	return `<ul>${s.join('')}</ul>`;
 }
 function shuffledList(n, gen) {
 	const order = Array.from({ length: n }, (_, i) => i);
@@ -19,26 +19,26 @@ function shuffledList(n, gen) {
 		const j = Math.floor(rnd() * (i + 1));
 		[order[i], order[j]] = [order[j], order[i]];
 	}
-	let s = '<ul>';
-	for (const i of order) s = `${s}<li id="row-${i}" class="r${gen & 1}">Item ${i} · v${gen}</li>`;
-	return `${s}</ul>`;
+	const s = [];
+	for (const i of order) s.push(`<li id="row-${i}" class="r${gen & 1}">Item ${i} · v${gen}</li>`);
+	return `<ul>${s.join('')}</ul>`;
 }
 function positionalList(n, gen) {
-	let s = '<div>';
-	for (let i = 0; i < n; i++) s = `${s}<p>line ${i} gen ${gen}</p>`;
-	return `${s}</div>`;
+	const s = [];
+	for (let i = 0; i < n; i++) s.push(`<p>line ${i} gen ${gen}</p>`);
+	return `<div>${s.join('')}</div>`;
 }
 // Structured reorder where LIS shines: a rotate keeps one long in-order run, so only O(1) nodes move.
 // Row CONTENT is stable across gens (a pure reorder, e.g. drag/sort) so the bench isolates move cost
 // from per-row content morphing — the exact work LIS reduces.
 function rotatedList(n, gen) {
 	const shift = 1 + (gen % 3);
-	let s = '<ul>';
+	const s = [];
 	for (let i = 0; i < n; i++) {
 		const k = (i + shift) % n;
-		s = `${s}<li id="row-${k}">Item ${k}</li>`;
+		s.push(`<li id="row-${k}">Item ${k}</li>`);
 	}
-	return `${s}</ul>`;
+	return `<ul>${s.join('')}</ul>`;
 }
 // A handful of items yanked to the front — the common "pin / move a few" edit. Stable content.
 function moveFewList(n, gen) {
@@ -48,36 +48,42 @@ function moveFewList(n, gen) {
 		order.splice(from, 1);
 		order.unshift(from);
 	}
-	let s = '<ul>';
-	for (const i of order) s = `${s}<li id="row-${i}">Item ${i}</li>`;
-	return `${s}</ul>`;
+	const s = [];
+	for (const i of order) s.push(`<li id="row-${i}">Item ${i}</li>`);
+	return `<ul>${s.join('')}</ul>`;
 }
 function table(rows, cols, gen) {
-	let s = '<table><tbody>';
+	const s = ['<table><tbody>'];
 	for (let r = 0; r < rows; r++) {
-		s = `${s}<tr id="tr-${r}">`;
-		for (let c = 0; c < cols; c++) s = `${s}<td class="c${(gen + c) & 3}">${r},${c}:${gen}</td>`;
-		s = `${s}</tr>`;
+		s.push(`<tr id="tr-${r}">`);
+		for (let c = 0; c < cols; c++) s.push(`<td class="c${(gen + c) & 3}">${r},${c}:${gen}</td>`);
+		s.push('</tr>');
 	}
-	return `${s}</tbody></table>`;
+	s.push('</tbody></table>');
+	return s.join('');
 }
 function deepTree(sections, cardsPer, gen) {
-	let s = '<main>';
+	const s = ['<main>'];
 	for (let a = 0; a < sections; a++) {
-		s = `${s}<section id="s-${a}"><header class="g${gen & 1}"><h2>Section ${a}</h2></header>`;
+		s.push(`<section id="s-${a}"><header class="g${gen & 1}"><h2>Section ${a}</h2></header>`);
 		for (let b = 0; b < cardsPer; b++) {
-			s = `${s}<article id="c-${a}-${b}" class="card v${gen & 3}"><h3>Card ${b}</h3><p>body ${a}/${b} rev ${gen}</p><footer><span>meta ${gen}</span></footer></article>`;
+			s.push(
+				`<article id="c-${a}-${b}" class="card v${gen & 3}"><h3>Card ${b}</h3><p>body ${a}/${b} rev ${gen}</p><footer><span>meta ${gen}</span></footer></article>`
+			);
 		}
-		s = `${s}</section>`;
+		s.push('</section>');
 	}
-	return `${s}</main>`;
+	s.push('</main>');
+	return s.join('');
 }
 function attrChurn(n, gen) {
-	let s = '<div>';
+	const s = [];
 	for (let i = 0; i < n; i++) {
-		s = `${s}<span id="a-${i}" class="x${gen & 3}" data-a="${gen}" data-b="${i}" data-c="${(gen + i) & 7}" title="t${gen}" role="cell" aria-label="l${gen}">x</span>`;
+		s.push(
+			`<span id="a-${i}" class="x${gen & 3}" data-a="${gen}" data-b="${i}" data-c="${(gen + i) & 7}" title="t${gen}" role="cell" aria-label="l${gen}">x</span>`
+		);
 	}
-	return `${s}</div>`;
+	return `<div>${s.join('')}</div>`;
 }
 
 /** Parse an HTML string into a detached array of real DOM child nodes of its single root. */

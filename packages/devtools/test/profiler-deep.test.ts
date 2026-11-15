@@ -21,6 +21,7 @@ import {
 	slice_delta,
 	attribute_gc,
 	gc_kind,
+	gc_running,
 	type AllocSite
 } from '../src/profiler/gc.ts';
 import { analyze } from '../src/profiler/analyze.ts';
@@ -624,6 +625,19 @@ describe('who caused the GC', () => {
 		expect(Object.values(dict).find((x) => x.name === 'set_text')!.component).toBeNull();
 		// the same stack reads the same key across reads
 		expect([...s1.keys()].sort()).toEqual([...s2.keys()].sort());
+	});
+
+	it('gc_running takes the whole capture CPU first, else the window CPU segments shifted onto the capture clock', () => {
+		const whole = [{ t0: 0, t1: 900, label: 'Page', category: 'app' as const }];
+		const segments = [
+			{ t0: 1, t1: 4, kind: 'cpu', label: 'Card', category: 'app' as const, file: 'Card.svelte:3' },
+			{ t0: 4, t1: 9, kind: 'wait', label: 'fetch', category: 'app' as const }
+		];
+		expect(gc_running({ capture_cpu: whole, timeline: { segments } }, 100)).toBe(whole);
+		expect(gc_running({ timeline: { segments } }, 100)).toEqual([
+			{ t0: 101, t1: 104, label: 'Card', category: 'app', file: 'Card.svelte:3' }
+		]);
+		expect(gc_running({}, 100)).toBeUndefined();
 	});
 
 	it('attribute_gc charges each pause to what was allocated since the previous one, and each maker its share of pause time', () => {

@@ -64,25 +64,22 @@ function highlight_all_spans(html: string, sub: string, classname: string): stri
 		const c = content.lastIndexOf('<span');
 		// oxlint-disable-next-line ogygia/one-markup-walk -- Shiki's token spans
 		const d = content.lastIndexOf('</span');
-		let adjusted = content;
+		let lead = open;
 		if (b !== -1 && (a === -1 || b < a)) {
 			// content starts INSIDE a token span — close it, open ours, re-open the token
 			// oxlint-disable-next-line ogygia/one-markup-walk -- Shiki's token spans
 			const tag_start = html.lastIndexOf('<span', index);
 			const tag = html.slice(tag_start, html.indexOf('>', tag_start) + 1);
-			adjusted = `</span>${open}${tag}${adjusted}`;
-		} else {
-			adjusted = `${open}${adjusted}`;
+			lead = `</span>${open}${tag}`;
 		}
+		let tail = '</span>';
 		if (c !== -1 && (d === -1 || c > d)) {
 			// content ends INSIDE a token span — close ours + the token, re-open the token
 			const tag = content.slice(c, content.indexOf('>', c) + 1);
-			adjusted = `${adjusted}</span></span>${tag}`;
-		} else {
-			adjusted = `${adjusted}</span>`;
+			tail = `</span></span>${tag}`;
 		}
 		// a multi-line highlight must close/re-open at every newline (spans can't cross lines)
-		return adjusted.replace(LF_G, `</span>\n${open}`);
+		return `${lead}${content}${tail}`.replace(LF_G, `</span>\n${open}`);
 	});
 }
 

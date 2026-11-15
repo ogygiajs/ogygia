@@ -302,8 +302,9 @@ export function standalone_beacon(): void {
 	};
 	const fp_of = (node: unknown): string | undefined => {
 		const n = node as Node | null | undefined;
-		const el =
-			n && n.nodeType === 1 ? (n as Element) : n && n.nodeType === 3 ? n.parentElement : null;
+		let el: Element | null = null;
+		if (n && n.nodeType === 1) el = n as Element;
+		else if (n && n.nodeType === 3) el = n.parentElement;
 		// oxlint-disable-next-line ogygia/markup-from-vocabulary -- inlined through toString(): it names nothing outside itself
 		return el?.closest?.(ISLAND_SEL)?.getAttribute('data-og-fp') ?? undefined;
 	};
@@ -897,12 +898,15 @@ export function standalone_beacon(): void {
 			if (f.end < i.t || f.start > end) continue;
 			for (const s of f.scripts) {
 				if (s.start + s.ms < i.t || s.start > end || !(s.ms > 0)) continue;
+				let phase = 'paint';
+				if (s.start < handlers_at) phase = 'delay';
+				else if (s.start <= paint_at) phase = 'handler';
 				out.push({
 					url: s.url,
 					fn: s.fn,
 					invoker: s.invoker,
 					ms: s.ms,
-					phase: s.start < handlers_at ? 'delay' : s.start <= paint_at ? 'handler' : 'paint',
+					phase,
 					...(s.forced ? { forced: s.forced } : {})
 				});
 			}
@@ -1075,7 +1079,9 @@ export function standalone_beacon(): void {
 						c = x;
 						break;
 					}
-				return `${el.tagName.toLowerCase()}${el.id ? `#${el.id.slice(0, 30)}` : c ? `.${c.slice(0, 30)}` : ''}`;
+				let mark = c ? `.${c.slice(0, 30)}` : '';
+				if (el.id) mark = `#${el.id.slice(0, 30)}`;
+				return `${el.tagName.toLowerCase()}${mark}`;
 			};
 			let depth = 0;
 			const root = document.documentElement;
@@ -1290,9 +1296,10 @@ export function standalone_beacon(): void {
 					continue;
 				const body = r.encodedBodySize;
 				if (!(r.transferSize > 0)) continue;
-				const how =
-					body === 0 || r.transferSize < body ? 'revalidated' : reload ? 'downloaded' : null;
-				if (!how) continue;
+				let how: 'revalidated' | 'downloaded';
+				if (body === 0 || r.transferSize < body) how = 'revalidated';
+				else if (reload) how = 'downloaded';
+				else continue;
 				counted.add(r.name);
 				const region = entry_of.get(r.name);
 				refetched.push({
@@ -1798,6 +1805,9 @@ export function standalone_beacon(): void {
 		attr_changes,
 		copy_of,
 		page() {
+			let state: 'recording' | 'done' | 'off' = 'off';
+			if (cpu) state = 'recording';
+			else if (cpu_kept.length) state = 'done';
 			return {
 				vitals: { ...vitals },
 				visit: build_visit(),
@@ -1807,7 +1817,7 @@ export function standalone_beacon(): void {
 				...(longtasks_from_frames ? { longtasks_from: 'frames' as const } : {}),
 				marks: visit_marks.slice(),
 				cpu: {
-					state: cpu ? 'recording' : cpu_kept.length ? 'done' : 'off',
+					state,
 					off: cpu_off,
 					traces: cpu_kept.slice()
 				}
