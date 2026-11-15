@@ -74,6 +74,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	import { building } from '$app/env';
 	import { page } from '$app/state';
 	import { record_page } from './page-seed-registry.ts';
+	import type { SeedAsk } from './server/seed-shape.ts';
 	import { document_tail, island_graph_script, modulepreload_tag } from './server/document-tail.ts';
 	import { hole_identity, lake_identity, PropsWire, props_sidecar } from './server/props-wire.ts';
 	import { escape_amp_quot, escape_attr } from './escape.ts';
@@ -250,38 +251,38 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	const as_dual: DualRegion | undefined = $derived(
 		is_island && resolved?.kind === 'dual' ? resolved : undefined
 	);
-	const island_entry = $derived(as_dual ? as_dual.module : __mode === 'island' ? __entry : '');
+	const island_entry = $derived(as_dual?.module ?? (__mode === 'island' ? __entry : ''));
 	const island_component = $derived(as_dual ? as_dual.component : __component);
 	const late_load = $derived(plan.late_load && !__component ? __load : undefined);
 	const island_props = $derived(as_dual ? as_dual.props : __props);
 	const island_children = $derived(children);
 
+	function seed_entry(): string | null {
+		if (plan.seed === 'island') return island_entry;
+		if (plan.seed === 'hole') return __module;
+		if (plan.seed === 'held') return (of_init as DeferredRegion).module;
+		return plan.seed === 'promise' ? null : '';
+	}
+	function seed_ask(entry: string | null): {
+		entry: string;
+		seed: SeedAsk;
+		remotes: readonly string[] | null;
+	} {
+		if (entry === null) return { entry: '', seed: 'all', remotes: null };
+		if (!entry) return { entry, seed: false, remotes: [] };
+		const remotes = region_remotes(entry);
+		if (!region_reads_page(entry)) return { entry, seed: false, remotes };
+		return { entry, seed: region_page_keys(entry) ?? 'all', remotes };
+	}
 	if (SERVER) {
 		untrack(() => {
-			const entry =
-				plan.seed === 'island'
-					? island_entry
-					: plan.seed === 'hole'
-						? __module
-						: plan.seed === 'promise'
-							? '?'
-							: plan.seed === 'held'
-								? (of_init as DeferredRegion).module
-								: '';
-			const seed = !entry
-				? false
-				: entry === '?' || !region_reads_page(entry)
-					? entry === '?'
-						? 'all'
-						: false
-					: (region_page_keys(entry) ?? 'all');
-			const remotes = !entry ? [] : entry === '?' ? null : region_remotes(entry);
+			const ask = seed_ask(seed_entry());
 			try {
 				record_page(
 					{ data: page.data, form: page.form, error: page.error, status: page.status },
-					seed,
-					remotes,
-					entry === '?' ? '' : entry
+					ask.seed,
+					ask.remotes,
+					ask.entry
 				);
 				// oxlint-disable-next-line ogygia/no-silent-failures -- an isolated render without a live page; the recorder is unset there anyway
 			} catch {}
@@ -309,8 +310,12 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 			? { ...island_props_ready, children: slot_pointer(slot_id) }
 			: island_props_ready
 	);
-	const hydrate_attr = $derived(as_dual ? as_dual.hydrate! : __wake || 'load');
-	const root_margin = $derived(as_dual ? as_dual.hydrateMargin || undefined : __wakeMargin);
+	const wake: { on: string; margin: string | undefined } = $derived(
+		as_dual
+			? { on: as_dual.hydrate!, margin: as_dual.hydrateMargin || undefined }
+			: { on: __wake || 'load', margin: __wakeMargin }
+	);
+	const hydrate_attr = $derived(wake.on);
 
 	if (import.meta.env && import.meta.env.DEV) {
 		untrack(() => {
@@ -426,18 +431,15 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 			}
 			return true;
 		});
-	const island_preload_head = $derived(
-		island_graph_tail
-			? ''
-			: island_kit_hint_hrefs.length
-				? island_kit_hint_hrefs.map(modulepreload_tag).join('')
-				: !is_csr && (island_graph_hrefs.length || island_live_locations)
-					? island_graph_script(
-							new Map([[island_module_url, island_graph_hrefs]]),
-							island_live_locations
-						)
-					: ''
-	);
+	const island_preload_head = $derived(island_graph_tail ? '' : preload_head());
+	function preload_head(): string {
+		if (island_kit_hint_hrefs.length) return island_kit_hint_hrefs.map(modulepreload_tag).join('');
+		if (is_csr || (!island_graph_hrefs.length && !island_live_locations)) return '';
+		return island_graph_script(
+			new Map([[island_module_url, island_graph_hrefs]]),
+			island_live_locations
+		);
+	}
 
 	const server_endpoint = $derived.by(() => {
 		if (!is_server || nested) return '';
@@ -587,17 +589,14 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		return sheet_tags(content_css(resolved.content_id));
 	});
 
-	const head_html = $derived(
-		plan.head === 'none'
-			? ''
-			: (plan.head === 'island'
-					? runtime_script + island_preload_head + island_css_html + kit_island_meta
-					: plan.head === 'hole'
-						? runtime_script + server_preload + hole_css_html
-						: runtime_script) +
-					region_css_html +
-					content_css_html
-	);
+	const head_html = $derived.by(() => {
+		if (plan.head === 'none') return '';
+		let own = runtime_script;
+		if (plan.head === 'island')
+			own = `${own}${island_preload_head}${island_css_html}${kit_island_meta}`;
+		else if (plan.head === 'hole') own = `${own}${server_preload}${hole_css_html}`;
+		return `${own}${region_css_html}${content_css_html}`;
+	});
 
 	const stringify_devalue = stringify;
 	const baked_html = untrack(() =>
@@ -694,7 +693,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 			/>{/if}{:else if island_skip}<ogygia-region
 			entry={island_module_url}
 			wake={hydrate_attr}
-			margin={root_margin || undefined}
+			margin={wake.margin || undefined}
 			data-ogygia-keep={__keep || undefined}
 			data-og-fp={island_fp || undefined}
 			data-og-skipped
@@ -703,7 +702,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		></ogygia-region><!-- svelte-ignore hydration_html_changed -->{@html island_props_inline}{:else}<ogygia-region
 			entry={island_module_url}
 			wake={hydrate_attr}
-			margin={root_margin || undefined}
+			margin={wake.margin || undefined}
 			data-ogygia-keep={__keep || undefined}
 			data-og-fp={island_fp || undefined}
 			src={island_src || undefined}><Component {...island_props_body} /></ogygia-region
