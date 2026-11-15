@@ -71,6 +71,14 @@ function plan_of(
 	);
 }
 
+function wire_of(
+	rp: RegionPlan,
+	props: () => Record<string, unknown>,
+	children: () => (() => void) | undefined
+): IslandWire {
+	return IslandWire.place(rp, props, children as never)!;
+}
+
 afterEach(() => {
 	set_island_deps({});
 	set_island_css({});
@@ -130,7 +138,7 @@ describe('IslandWire', () => {
 		let island!: IslandWire;
 		inside(() => {
 			const rp = plan_of(ISLAND_SETTINGS);
-			island = IslandWire.place(
+			island = wire_of(
 				rp,
 				() => ({ n: 1 }),
 				() => undefined
@@ -149,7 +157,7 @@ describe('IslandWire', () => {
 		let island!: IslandWire;
 		inside(() => {
 			const rp = plan_of(ISLAND_SETTINGS);
-			island = IslandWire.place(
+			island = wire_of(
 				rp,
 				() => ({}),
 				() => (() => {}) as never
@@ -164,7 +172,7 @@ describe('IslandWire', () => {
 		let island!: IslandWire;
 		inside(() => {
 			const rp = plan_of({ ...ISLAND_SETTINGS, wake: 'visible', wakeMargin: '10px' });
-			island = IslandWire.place(
+			island = wire_of(
 				rp,
 				() => ({}),
 				() => undefined
@@ -177,7 +185,7 @@ describe('IslandWire', () => {
 		let island!: IslandWire;
 		inside(() => {
 			const rp = plan_of(ISLAND_SETTINGS);
-			island = IslandWire.place(
+			island = wire_of(
 				rp,
 				() => ({ n: 1 }),
 				() => undefined
@@ -194,7 +202,7 @@ describe('IslandGraph', () => {
 		let graph!: IslandGraph;
 		last_tail = inside(() => {
 			const rp = plan_of(ISLAND_SETTINGS);
-			const island = IslandWire.place(
+			const island = wire_of(
 				rp,
 				() => ({}),
 				() => undefined
@@ -234,7 +242,7 @@ describe('HoleFacts', () => {
 	function hole_of(settings: RegionSettings): HoleFacts {
 		let hole!: HoleFacts;
 		inside(() => {
-			hole = HoleFacts.place(plan_of(settings), () => ({ zone: 'utc' }));
+			hole = HoleFacts.place(plan_of(settings), () => ({ zone: 'utc' }))!;
 		});
 		return hole;
 	}
@@ -266,10 +274,23 @@ describe('HoleFacts', () => {
 		expect(hole.props_script).toBe('');
 	});
 
-	it('a region that is not a hole mints no endpoint', () => {
-		const hole = hole_of(ISLAND_SETTINGS);
-		expect(hole.endpoint).toBe('');
-		expect(hole.identity).toBe('');
+	it('a region that is not a hole has no hole facts', () => {
+		let hole: HoleFacts | null = null;
+		inside(() => (hole = HoleFacts.place(plan_of(ISLAND_SETTINGS), () => ({}))));
+		expect(hole).toBeNull();
+	});
+
+	it('a region that is not an island has no island wire, and still claims its slot id', () => {
+		let island: IslandWire | null = null;
+		inside(
+			() =>
+				(island = IslandWire.place(
+					plan_of(HOLE),
+					() => ({}),
+					() => undefined
+				))
+		);
+		expect(island).toBeNull();
 	});
 });
 
@@ -282,7 +303,7 @@ describe('RegionHead', () => {
 			inside(() => {
 				for (let n = 0; n < count; n++) {
 					const rp = plan_of(ISLAND_SETTINGS);
-					const island = IslandWire.place(
+					const island = wire_of(
 						rp,
 						() => ({}),
 						() => undefined

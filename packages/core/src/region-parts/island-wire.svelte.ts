@@ -101,20 +101,18 @@ export class IslandWire {
 		return this.#rp.plan.late_load ? this.#rp.settings.load : undefined;
 	}
 
-	/** An island in its place: it claims its slot id, warns about a wake its parent overrides, and
+	/** An island in its place (`null` for a region that is not an island, which claims a slot id
+	 *  all the same, so the ids after it stay put): it claims its slot id, warns about a wake its parent overrides, and
 	 *  hands its props to Kit's tail when the page has one. */
 	static place(
 		rp: RegionPlan,
 		props: () => Props,
 		children: () => Snippet | undefined
-	): IslandWire {
+	): IslandWire | null {
 		const entry = IslandWire.#entry_of(rp, IslandWire.#dual_of(rp, rp.of_init));
-		const island = new IslandWire(
-			rp,
-			props,
-			children,
-			next_slot_id(entry, getContext(HOLE_SLOT_SEQUENCE))
-		);
+		const slot_id = next_slot_id(entry, getContext(HOLE_SLOT_SEQUENCE));
+		if (rp.plan.family !== 'island') return null;
+		const island = new IslandWire(rp, props, children, slot_id);
 		untrack(() => island.#record());
 		return island;
 	}

@@ -54,10 +54,10 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		() => of,
 		() => __og.baked ?? false,
 		untrack(() => !!placeholder || !!children),
-		(): string => island.wake.on
+		(): string => island!.wake.on
 	);
 	const plan = rp.plan;
-	const island: IslandWire = IslandWire.place(
+	const island: IslandWire | null = IslandWire.place(
 		rp,
 		() => __props,
 		() => children
@@ -67,14 +67,14 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 			const held = rp.of_init as DeferredRegion | undefined;
 			const entry = PageSeedAsk.entry_of(
 				plan.seed,
-				island.entry,
+				island?.entry ?? '',
 				rp.settings.module ?? '',
 				held?.module
 			);
 			new PageSeedAsk(entry).record();
 		});
 	}
-	const graph = IslandGraph.place(rp, island);
+	const graph = island && IslandGraph.place(rp, island);
 	const hole = HoleFacts.place(rp, () => __props);
 	const head = RegionHead.claim(rp, { island, graph, hole });
 
@@ -97,8 +97,8 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	if (DEVTOOLS && plan.devtools !== 'none') {
 		untrack(() => {
 			try {
-				if (plan.devtools === 'island') island.record_devtools();
-				else if (plan.devtools === 'hole') hole.record_devtools();
+				if (plan.devtools === 'island') island?.record_devtools();
+				else if (plan.devtools === 'hole') hole?.record_devtools();
 				else
 					record_server_event({
 						domain: 'server',
@@ -114,7 +114,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 </script>
 
 <svelte:head>{@html head.html}</svelte:head>
-{#if plan.family === 'island'}
+{#if island}
 	{@const Component = island.component}
 	{#if plan.inline}{#if Component}<Component {...island.props_ready}
 				>{@render children?.()}</Component
@@ -138,7 +138,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 			data-og-fp={island.fp || undefined}
 			src={island.src || undefined}><Component {...island.props_body} /></ogygia-region
 		><!-- svelte-ignore hydration_html_changed -->{@html island.props_inline}{/if}
-{:else if plan.family === 'hole'}
+{:else if hole}
 	<HoleRegion {rp} {hole} props={__props} fallback={ogygiaFallback} />
 {:else if plan.family === 'lake'}
 	<LakeRegion {rp} props={__props} {children} />

@@ -27,9 +27,9 @@ import type { RegionPlan } from './plan.svelte.ts';
  *  Kit's island mark, each claimed once per page and tagged with the island that owns them. */
 export class RegionHead {
 	readonly #rp: RegionPlan;
-	readonly #island: IslandWire;
-	readonly #graph: IslandGraph;
-	readonly #hole: HoleFacts;
+	readonly #island: IslandWire | null;
+	readonly #graph: IslandGraph | null;
+	readonly #hole: HoleFacts | null;
 	readonly owner: string;
 	readonly runtime: string;
 
@@ -37,13 +37,12 @@ export class RegionHead {
 		const value = this.#rp.resolved;
 		return value?.kind === 'dual' ? this.sheet_tags(region_css(value.module)) : '';
 	});
-	#island_css: string = $derived.by(() =>
-		!this.#rp.plan.island_css || !this.#island.entry
-			? ''
-			: this.sheet_tags(region_css(this.#island.entry))
-	);
+	#island_css: string = $derived.by(() => {
+		const entry = this.#island?.entry;
+		return !this.#rp.plan.island_css || !entry ? '' : this.sheet_tags(region_css(entry));
+	});
 	#kit_meta: string = $derived.by(() => {
-		const entry = this.#island.entry;
+		const entry = this.#island?.entry;
 		if (!this.#rp.plan.kit_meta || !entry || !claim_kit_island(entry)) return '';
 		const content = escape_amp_quot(String(entry));
 		return `<meta name="ogygia-kit-island" content="${content}"${head_owner_attr(this.owner)}>`;
@@ -55,21 +54,21 @@ export class RegionHead {
 			: this.sheet_tags(content_css(value.content_id));
 	});
 	#hole_css: string = $derived.by(() =>
-		this.#rp.plan.hole_css ? this.sheet_tags(hole_css(this.#hole.entry)) : ''
+		this.#rp.plan.hole_css && this.#hole ? this.sheet_tags(hole_css(this.#hole.entry)) : ''
 	);
 	html: string = $derived.by(() => {
 		const head = this.#rp.plan.head;
 		if (head === 'none') return '';
 		let own = this.runtime;
 		if (head === 'island')
-			own = `${own}${this.#graph.preload_head}${this.#island_css}${this.#kit_meta}`;
-		else if (head === 'hole') own = `${own}${this.#hole.preload}${this.#hole_css}`;
+			own = `${own}${this.#graph?.preload_head ?? ''}${this.#island_css}${this.#kit_meta}`;
+		else if (head === 'hole') own = `${own}${this.#hole?.preload ?? ''}${this.#hole_css}`;
 		return `${own}${this.#dual_css}${this.#content_css}`;
 	});
 
 	constructor(
 		rp: RegionPlan,
-		parts: { island: IslandWire; graph: IslandGraph; hole: HoleFacts },
+		parts: { island: IslandWire | null; graph: IslandGraph | null; hole: HoleFacts | null },
 		owner: string,
 		runtime: string
 	) {
@@ -85,11 +84,11 @@ export class RegionHead {
 	 *  island) and claims the page's runtime script when its plan asks for it. */
 	static claim(
 		rp: RegionPlan,
-		parts: { island: IslandWire; graph: IslandGraph; hole: HoleFacts }
+		parts: { island: IslandWire | null; graph: IslandGraph | null; hole: HoleFacts | null }
 	): RegionHead {
 		const server = typeof window === 'undefined';
 		const outer = server ? head_owner() : '';
-		const owner = outer || (server ? untrack(() => parts.island.fp) : '');
+		const owner = outer || (server ? untrack(() => parts.island?.fp ?? '') : '');
 		if (!outer && owner) set_head_owner(owner);
 		const runtime =
 			rp.plan.runtime && claimRuntimeEmit()

@@ -88,8 +88,10 @@ export class HoleFacts {
 		return this.#rp.settings.mode === 'server' ? this.#rp.settings.wakeMargin : undefined;
 	}
 
-	/** A hole in its place: it warns when it renders inline, and leaves its records in Kit's tail. */
-	static place(rp: RegionPlan, props: () => Props): HoleFacts {
+	/** A hole in its place (`null` for a region that is not a hole): it warns when it renders
+	 *  inline, and leaves its records in Kit's tail. */
+	static place(rp: RegionPlan, props: () => Props): HoleFacts | null {
+		if (rp.plan.family !== 'hole') return null;
 		const hole = new HoleFacts(rp, props);
 		untrack(() => hole.#record());
 		return hole;
