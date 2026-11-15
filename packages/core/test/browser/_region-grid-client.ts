@@ -61,6 +61,14 @@ async function settle(): Promise<void> {
  *  one engine writes a tab, another spaces, and the three engines share one file. */
 const one_stack = (text: string) => text.replace(/\n[\t ]+in /g, '\n  in ');
 
+/** A task, then an idle turn (bounded): the browser has reported the rejections nobody handled. */
+async function after_rejections(): Promise<void> {
+	await new Promise((r) => setTimeout(r, 0));
+	// @why on a busy machine Firefox can report an unhandled rejection after a timer task queued later; an idle turn comes after it (test: test/browser/region-grid-client.test.ts › async=on › kind=promise at=live-snippet)
+	if (typeof requestIdleCallback === 'function')
+		await new Promise<void>((r) => requestIdleCallback(() => r(), { timeout: 1000 }));
+}
+
 /**
  * `fn`, with what reached the console kept, and each rejection nobody handled (a held promise that
  * fails with no boundary hands the page its error that way: test/browser/_held-promise-fails.ts).
@@ -89,7 +97,7 @@ async function with_console<T>(
 	window.addEventListener('unhandledrejection', rejected, { capture: true });
 	try {
 		const value = await fn();
-		if (task) await new Promise((r) => setTimeout(r, 0));
+		if (task) await after_rejections();
 		return { value, said, unhandled };
 	} finally {
 		console.warn = warn;
