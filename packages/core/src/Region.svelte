@@ -281,7 +281,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	);
 
 	const slot_id = next_slot_id(untrack(() => island_entry) ?? '', getContext(HOLE_SLOT_SEQUENCE));
-	const has_slot_children = $derived(!nested && island_children != null);
+	const has_slot_children = $derived(island_children != null);
 	const slot_children = (renderer: { push(html: string): void }) => {
 		renderer.push(slot_marker_open(slot_id));
 		SlotBoundary(renderer as never, { children: island_children });
