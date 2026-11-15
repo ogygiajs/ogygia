@@ -4,5 +4,5 @@
 		"declaration": false,
 		"isolatedDeclarations": false
 	},
-	"include": [".", "../src"]
+	"include": [".", "../src", "../heisenbench.config.ts"]
 }
