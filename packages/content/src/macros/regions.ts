@@ -52,7 +52,7 @@ export function rewrite_regions(src: string, id: string): string {
 	const dir = path.dirname(id.split('?')[0]!);
 	const imports: string[] = [];
 	let alias_n = 0;
-	let out = '';
+	const out: string[] = [];
 	let last = 0;
 
 	for (const c of region_calls) {
@@ -78,11 +78,11 @@ export function rewrite_regions(src: string, id: string): string {
 			imports.push(`import ${alias} from ${JSON.stringify(spec)} with { region: 'raw' };`);
 			entries.push(`${JSON.stringify(key)}: ${alias}`);
 		}
-		out = `${out}${src.slice(last, c.start)}{ ${entries.join(', ')} }`;
+		out.push(src.slice(last, c.start), `{ ${entries.join(', ')} }`);
 		last = c.end;
 	}
-	out += src.slice(last);
-	return `${imports.join('\n')}\n${out}`;
+	out.push(src.slice(last));
+	return `${imports.join('\n')}\n${out.join('')}`;
 }
 
 /** Resolve a LITERAL glob (relative to `dir`) to sorted absolute file paths. Supports the shapes a

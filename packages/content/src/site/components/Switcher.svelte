@@ -22,7 +22,10 @@ href with Kit's `goto`. Interactive, so import it as an island (`with { wake: 'l
 		for?: string | string[];
 	} = $props();
 
-	const wanted = $derived(forAxis ? (Array.isArray(forAxis) ? forAxis : [forAxis]) : null);
+	const wanted = $derived.by(() => {
+		if (!forAxis) return null;
+		return Array.isArray(forAxis) ? forAxis : [forAxis];
+	});
 	const axes = $derived(wanted ? switcher.filter((a) => wanted.includes(a.axis)) : switcher);
 </script>
 

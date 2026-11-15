@@ -967,6 +967,14 @@ export function merge_visits(a: Visit, b: Visit): Visit {
 		for (const y of ys) m.set(key(y), y);
 		return [...m.values()].slice(0, LIST_MAX[name]);
 	};
+	let totals: Pick<Visit, 'resource_totals' | 'resources_all'> = {};
+	if ((b.resources_all ?? 0) >= (a.resources_all ?? 0)) {
+		if (b.resource_totals)
+			totals = { resource_totals: b.resource_totals, resources_all: b.resources_all };
+	} else totals = { resource_totals: a.resource_totals, resources_all: a.resources_all };
+	let slower = a.interaction;
+	if (!a.interaction) slower = b.interaction;
+	else if (b.interaction && b.interaction.ms >= a.interaction.ms) slower = b.interaction;
 	return {
 		page: a.page,
 		at: a.at,
@@ -974,11 +982,7 @@ export function merge_visits(a: Visit, b: Visit): Visit {
 		paints: { ...a.paints, ...b.paints },
 		resources: b.resources.length >= a.resources.length ? b.resources : a.resources,
 		// (the record that saw more files: the later one, as a rule)
-		...((b.resources_all ?? 0) >= (a.resources_all ?? 0)
-			? b.resource_totals
-				? { resource_totals: b.resource_totals, resources_all: b.resources_all }
-				: {}
-			: { resource_totals: a.resource_totals, resources_all: a.resources_all }),
+		...totals,
 		longtasks: by('longtasks', a.longtasks, b.longtasks, (l) => `${l.t}|${l.ms}`),
 		...(a.longtasks_from || b.longtasks_from ? { longtasks_from: 'frames' as const } : {}),
 		...(a.shifts_from || b.shifts_from ? { shifts_from: 'boxes' as const } : {}),
@@ -1048,17 +1052,7 @@ export function merge_visits(a: Visit, b: Visit): Visit {
 			? { navs: by('navs', a.navs ?? [], b.navs ?? [], (n) => `${n.t}|${n.to}`) }
 			: {}),
 		// (the slower interaction of the two records: INP is the worst)
-		...(a.interaction || b.interaction
-			? {
-					interaction: !a.interaction
-						? b.interaction
-						: !b.interaction
-							? a.interaction
-							: b.interaction.ms >= a.interaction.ms
-								? b.interaction
-								: a.interaction
-				}
-			: {}),
+		...(a.interaction || b.interaction ? { interaction: slower } : {}),
 		...(a.entry_fallbacks || b.entry_fallbacks
 			? {
 					entry_fallbacks: by(

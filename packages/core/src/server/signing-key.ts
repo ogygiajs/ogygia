@@ -61,12 +61,15 @@ export function signing_key(): SigningKey {
 	const s = slot();
 	if (s.kind === 'decided') return s.key;
 	const from_env = (typeof process !== 'undefined' && process.env?.OGYGIA_SECRET) || '';
-	const [secret, source] =
-		s.kind === 'secret'
-			? [s.option, 'option' as const]
-			: from_env
-				? [from_env, 'env' as const]
-				: [build_key, 'build' as const];
+	let secret = build_key;
+	let source: 'option' | 'env' | 'build' = 'build';
+	if (s.kind === 'secret') {
+		secret = s.option;
+		source = 'option';
+	} else if (from_env) {
+		secret = from_env;
+		source = 'env';
+	}
 	const key: SigningKey = {
 		secret,
 		stable: source !== 'build',

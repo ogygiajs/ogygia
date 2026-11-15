@@ -11,10 +11,13 @@ bench(
 	({ source }) => page_data_keys_answer(source, '/app/src/lib/Catalog.svelte', 'svelte').keys,
 	{
 		setup: () => {
-			let body = '';
+			const lines: string[] = [];
 			for (let i = 0; i < 60; i++) {
-				body = `${body}\tconst v${i} = page.data.section${i % 15}?.items?.[${i}]?.title ?? page.data.fallback;\n`;
+				lines.push(
+					`\tconst v${i} = page.data.section${i % 15}?.items?.[${i}]?.title ?? page.data.fallback;\n`
+				);
 			}
+			const body = lines.join('');
 			return {
 				source: `${dedent`
 					<script lang="ts">

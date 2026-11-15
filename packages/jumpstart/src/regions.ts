@@ -21,7 +21,7 @@ export const SHARED_CHUNK = 'shared';
  *  characters. A reserved chunk's name never matches it. */
 export const REGISTRY_CHUNK_RE: RegExp = /^regions-[A-Za-z0-9_-]+$/;
 
-const by_key = <T>([a]: [string, T], [b]: [string, T]): number => (a < b ? -1 : a > b ? 1 : 0);
+const by_key = <T>([a]: [string, T], [b]: [string, T]): number => Number(a > b) - Number(a < b);
 
 /**
  * The region registries of the app and the server chunk each one gets. A registry is a script

@@ -57,21 +57,24 @@ export const dedent: {
 /** A template's text with a placeholder per value (a character no template text holds), so it is
  *  de-indented as plain text and the values go in after. */
 function slotted(strings: TemplateStringsArray): string {
-	let text = strings[0];
-	for (let i = 1; i < strings.length; i++) text = `${text}${SLOT}${i - 1}${SLOT}${strings[i]}`;
-	return text;
+	const text = [strings[0]];
+	for (let i = 1; i < strings.length; i++) text.push(`${SLOT}${i - 1}${SLOT}`, strings[i]);
+	return text.join('');
 }
 
 /** `flat` with each placeholder replaced by its value. */
 function fill(flat: string, values: unknown[]): string {
 	if (values.length === 0) return flat;
-	let out = '';
+	const out: string[] = [];
 	let at = 0;
 	for (;;) {
 		const open = flat.indexOf(SLOT, at);
-		if (open === -1) return `${out}${flat.slice(at)}`;
+		if (open === -1) {
+			out.push(flat.slice(at));
+			return out.join('');
+		}
 		const close = flat.indexOf(SLOT, open + 1);
-		out = `${out}${flat.slice(at, open)}${String(values[Number(flat.slice(open + 1, close))])}`;
+		out.push(flat.slice(at, open), String(values[Number(flat.slice(open + 1, close))]));
 		at = close + 1;
 	}
 }

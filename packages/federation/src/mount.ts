@@ -32,8 +32,7 @@ function mount_fn(
 	target: Peer | ComponentPick | ((c: Ctx) => Peer),
 	opts: MountOptions = {}
 ): PageDef<readonly [], unknown, unknown, unknown, unknown> {
-	const fixed =
-		typeof target === 'function' ? null : '__ogpick' in target ? null : (target as Peer);
+	const fixed = typeof target === 'function' || '__ogpick' in target ? null : (target as Peer);
 	const resolve_peer = (c: Ctx): Peer => {
 		if (fixed) return fixed;
 		const got =
@@ -67,6 +66,10 @@ function mount_fn(
 				);
 				if (doc.location) {
 					yield String(moved_card(OG_MOUNT_MOVED, 'page', doc.location));
+					return;
+				}
+				if (doc.status >= 400) {
+					yield FAILED;
 					return;
 				}
 				yield (doc.css?.join('') ?? '') + (doc.head ?? '') + doc.body;

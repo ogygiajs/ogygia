@@ -54,15 +54,11 @@ export function hydration_rows(): { rows: IslandHydration[]; measured: boolean }
 		if (r.kind !== 'island' || !r.fp) continue;
 		const w = why.get(r.fp);
 		const attr = r.el.getAttribute(OG_RECOVERED);
-		const status: HydrationStatus =
-			w?.status ??
-			(attr !== null
-				? 'recovered'
-				: changed.has(r.fp)
-					? 'changed'
-					: r.hydrated
-						? 'clean'
-						: 'asleep');
+		let seen: HydrationStatus = 'asleep';
+		if (attr !== null) seen = 'recovered';
+		else if (changed.has(r.fp)) seen = 'changed';
+		else if (r.hydrated) seen = 'clean';
+		const status: HydrationStatus = w?.status ?? seen;
 		const s = snaps.get(r.fp);
 		rows.push({
 			fp: r.fp,

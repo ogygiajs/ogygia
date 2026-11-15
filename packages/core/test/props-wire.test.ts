@@ -97,7 +97,7 @@ describe('plan_props_wire · lanes', () => {
 	it('plain props take the JSON lane: canonical is JSON.stringify, the wire text is `<`-escaped', () => {
 		const props = { label: '<b>hi</b>', n: [1, 2] };
 		const w = new PropsWire(props, '/islands/x.js');
-		expect(w.json).toBe(true);
+		expect(w.json_exact).toBe(true);
 		expect(w.canonical).toBe(JSON.stringify(props));
 		const out = w.wire(null);
 		expect(out.json).toBe(true);
@@ -108,7 +108,7 @@ describe('plan_props_wire · lanes', () => {
 	it('anything devalue exists for keeps devalue, and needs no second escape', () => {
 		const props = { when: new Date(1_700_000_000_000), tag: '</script>' };
 		const w = new PropsWire(props, '/islands/x.js');
-		expect(w.json).toBe(false);
+		expect(w.json_exact).toBe(false);
 		const out = w.wire(null);
 		expect(out.json).toBe(false);
 		expect(out.text).not.toContain('<');
@@ -154,7 +154,7 @@ describe('plan_props_wire · seed references at wire time', () => {
 			n: 7
 		};
 		const w = new PropsWire(props, '/islands/x.js');
-		expect(w.json).toBe(true); // plain props: JSON canonical …
+		expect(w.json_exact).toBe(true); // plain props: JSON canonical …
 		const out = w.wire(SeedIndex.of(data));
 		expect(out.json).toBe(false); // … but devalue on the wire once references apply
 		expect(out.text.split(SEED_REF_KEY).length - 1).toBe(2);
@@ -174,7 +174,7 @@ describe('plan_props_wire · seed references at wire time', () => {
 	it('devalue-lane props reference too (a Date next to a seed node)', () => {
 		const props = { block: data.catalog.blocks[1], at: new Date(5) };
 		const w = new PropsWire(props, '/islands/x.js');
-		expect(w.json).toBe(false);
+		expect(w.json_exact).toBe(false);
 		const out = w.wire(SeedIndex.of(data));
 		expect(out.text).toContain(SEED_REF_KEY);
 		expect(parse(out.text, { [SEED_REF_KEY]: seed_ref_reviver(() => data) })).toEqual(props);

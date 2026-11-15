@@ -34,7 +34,9 @@ export type RuntimeMarks = {
 	page?: boolean;
 	/** The page can carry regions this build never compiled (federation: a peer's fragment brings its
 	 *  own islands, holes and lakes, at run time). Their kinds are unknown here, so every feature a
-	 *  region in the HTML can need is in: test/page-mark.test.ts › "foreign regions" (#909). */
+	 *  region in the HTML can need is in: test/page-mark.test.ts › "foreign regions" (#909, #1931).
+	 *  Two are not: `wire` loads on use (`load_wire_codec`), and `wire-classes` loads only this
+	 *  build's own classes, which a peer's props never name. */
 	foreign?: boolean;
 };
 
@@ -118,7 +120,11 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 		module: 'live.js',
 		deps: [],
 		phase: 'hydrate',
-		detect: (m) => m.live === true || m.persist === true || (m.persistKeys || []).length > 0
+		detect: (m) =>
+			m.foreign === true ||
+			m.live === true ||
+			m.persist === true ||
+			(m.persistKeys || []).length > 0
 	},
 	wire: {
 		module: '../live-transport.js',
@@ -157,7 +163,7 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 		module: 'context.js',
 		deps: [],
 		phase: 'hydrate',
-		detect: (m) => m.context === true
+		detect: (m) => m.foreign === true || m.context === true
 	}
 };
 

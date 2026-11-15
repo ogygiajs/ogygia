@@ -100,6 +100,8 @@ export function stringify_props(
 /** A sidecar's text and the lane it is in. */
 export interface WireText {
 	text: string;
+	/** The lane taken: plain JSON, or devalue. Props that qualify for JSON (`PropsWire.json_exact`)
+	 *  still take devalue once seed references are written into them. */
 	json: boolean;
 }
 
@@ -113,8 +115,9 @@ export class PropsWire {
 	/** The canonical, seed-independent text — what the fingerprint hashes. Its refs are in place
 	 *  form (ref.ts `placed`), so the same props give the same text on every render. */
 	readonly canonical: string;
-	/** Whether the canonical text is plain JSON (the lane the props qualify for). */
-	readonly json: boolean;
+	/** Whether the canonical text is plain JSON (the lane the props qualify for). The lane the wire
+	 *  takes is `WireText.json`: seed references move qualifying props onto devalue. */
+	readonly json_exact: boolean;
 	/** Live region-snippet entry URLs riding in these props (the preloads they need). Only a
 	 *  devalue payload can carry one — a live snippet is a branded function, never plain JSON. */
 	readonly live_entries: readonly string[];
@@ -136,7 +139,7 @@ export class PropsWire {
 		const shape = analyze(value);
 		if (shape.json) {
 			this.canonical = JSON.stringify(value);
-			this.json = true;
+			this.json_exact = true;
 			this.live_entries = [];
 			this.wire_modules = [];
 			return;
@@ -146,7 +149,7 @@ export class PropsWire {
 		const canonical = placed(text);
 		this.#plain = { text, json: false };
 		this.canonical = canonical;
-		this.json = false;
+		this.json_exact = false;
 		this.live_entries = live_entries_in(canonical);
 		this.wire_modules = [...wire_modules];
 	}
@@ -161,10 +164,14 @@ export class PropsWire {
 			(this.#plain ??= { text: escape_script_text(this.canonical), json: true }));
 	}
 
-	/** Why the canonical text is not JSON (the first disqualifying leaf); `null` on the JSON lane.
-	 *  A separate walk, run on demand — the profiler's explainer, never the render path. */
+	/** Why the last `wire()` left the JSON lane: the seed references it wrote into props that
+	 *  qualify, or the first leaf that disqualifies them; `null` on the JSON lane. A separate walk,
+	 *  run on demand — the profiler's explainer, never the render path. */
 	culprit(): string | null {
-		if (this.json) return null;
+		if (this.json_exact)
+			return this.refs.count === 0
+				? null
+				: `seed references (${this.refs.count}, into ${this.refs.keys.join(', ')})`;
 		return this.#culprit === undefined
 			? (this.#culprit = json_culprit(this.#value))
 			: this.#culprit;

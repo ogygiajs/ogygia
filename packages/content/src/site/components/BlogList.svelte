@@ -26,7 +26,10 @@ snippet draws it.
 	} = $props();
 
 	const sorted = $derived(
-		[...posts].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+		[...posts].sort((a, b) => {
+			if (a.date < b.date) return 1;
+			return a.date > b.date ? -1 : 0;
+		})
 	);
 	const byYear = $derived.by(() => {
 		const groups: Array<[string, BlogPostRef[]]> = [];

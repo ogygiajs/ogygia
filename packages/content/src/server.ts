@@ -76,11 +76,7 @@ export function withRemotes<T extends Record<string, unknown> = Record<string, u
 	handle: unknown
 ): WithRemotes<T> {
 	const c = collection_of<T>(handle);
-	const default_mode: ContentMode = c.streaming
-		? 'query'
-		: c.fromIsFunction
-			? 'query'
-			: 'prerender';
+	const default_mode: ContentMode = c.streaming || c.fromIsFunction ? 'query' : 'prerender';
 
 	return {
 		refs: () => c.refs(),

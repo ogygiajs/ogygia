@@ -20,16 +20,17 @@ export const CLASSES: readonly LoadClass[] = ['user', 'visible', 'ahead', 'specu
 
 /** The class a flight at `priority` downloads at (a priority above `user` is `user`). */
 export function class_at(priority: number): LoadClass {
-	return priority >= 3
-		? 'user'
-		: priority >= 2
-			? 'visible'
-			: priority >= 1
-				? 'ahead'
-				: 'speculative';
+	if (priority >= 3) return 'user';
+	if (priority >= 2) return 'visible';
+	return priority >= 1 ? 'ahead' : 'speculative';
 }
+
+const FETCH_PRIORITY: ReadonlyMap<string, 'high' | 'auto'> = new Map([
+	['user', 'high'],
+	['visible', 'auto']
+]);
 
 /** The fetch priority a class downloads at (`fetch(…, { priority })`, `<link fetchpriority>`). */
 export function fetch_priority_of(cls: LoadClass): 'high' | 'auto' | 'low' {
-	return cls === 'user' ? 'high' : cls === 'visible' ? 'auto' : 'low';
+	return FETCH_PRIORITY.get(cls) ?? 'low';
 }

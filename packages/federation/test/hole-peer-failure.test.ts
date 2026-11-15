@@ -81,6 +81,20 @@ describe("a deferred region's hole: the status names the failure", () => {
 		['no answer at all', failures[2][1], 504],
 		['a 500', async () => new Response('boom', { status: 500 }), 502]
 	];
+	it('a page hole whose peer page is not found: a 404 with no body, so the region keeps its fallback, never stored', async () => {
+		vi.stubGlobal(
+			'fetch',
+			async () =>
+				new Response(JSON.stringify({ status: 404, body: '<p>not found</p>', css: [] }), {
+					status: 404
+				})
+		);
+		const res = (await ask(await widget_hole('page')))!;
+		expect(res.status).toBe(404);
+		expect(await res.text()).toBe('');
+		expect(res.headers.get('cache-control')).toBe('no-store');
+	});
+
 	for (const kind of ['widget', 'page'] as const)
 		for (const [what, peer, status] of statuses)
 			it(`a ${kind} hole after ${what}: a ${status}, never stored`, async () => {

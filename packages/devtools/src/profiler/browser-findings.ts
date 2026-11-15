@@ -58,14 +58,19 @@ function name_from_entry(entry: string): string {
 	return base.endsWith('.svelte') ? base.slice(0, -7) : base || entry;
 }
 
-const kind_of = (c: FrameCategory): CodeKind =>
-	c === 'component' || c === 'app'
-		? 'app'
-		: c === 'dependency'
-			? 'dependency'
-			: c === 'svelte'
-				? 'svelte'
-				: 'browser';
+const kind_of = (c: FrameCategory): CodeKind => {
+	switch (c) {
+		case 'component':
+		case 'app':
+			return 'app';
+		case 'dependency':
+			return 'dependency';
+		case 'svelte':
+			return 'svelte';
+		default:
+			return 'browser';
+	}
+};
 const as_fn = (f: WindowFn): CpuFn => ({
 	name: f.name,
 	file: f.file,
@@ -155,7 +160,9 @@ export function browser_page_report(
 	const name_of = (fp: string, entry?: string) =>
 		by_fp.get(fp) ?? (entry ? named(entry) : fp.slice(0, 8));
 	const regions: RegionFact[] = (visit.regions ?? []).map((r) => {
-		const kind = r.defer ? 'hole' : r.wake === 'none' ? 'lake' : 'island';
+		let kind: 'hole' | 'lake' | 'island' = 'island';
+		if (r.defer) kind = 'hole';
+		else if (r.wake === 'none') kind = 'lake';
 		// (its own bytes by fingerprint, else by entry: another copy's props, the same files)
 		const own =
 			kind === 'island'
@@ -349,17 +356,11 @@ export function browser_page_report(
 	};
 	const cpu = windows ? cpu_summary(windows) : null;
 	const by_host = third?.by_host ? Object.fromEntries(third.by_host) : undefined;
-	return analyze_page(
-		input,
-		regions,
-		failures,
-		Infinity,
-		cpu
-			? { ...cpu, by_host }
-			: by_host
-				? { ...cpu_summary({ islands: {}, outside: { ms: 0, top: [] } }), by_host }
-				: null
-	);
+	let cpu_with_hosts: Parameters<typeof analyze_page>[4] = null;
+	if (cpu) cpu_with_hosts = { ...cpu, by_host };
+	else if (by_host)
+		cpu_with_hosts = { ...cpu_summary({ islands: {}, outside: { ms: 0, top: [] } }), by_host };
+	return analyze_page(input, regions, failures, Infinity, cpu_with_hosts);
 }
 
 /** The report's share of them: the codes it does not already make, severities in its two levels. */

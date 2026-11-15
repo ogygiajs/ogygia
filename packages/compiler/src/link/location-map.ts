@@ -11,7 +11,14 @@ function relative_specifier(from_file: string, to_file: string): string {
 /** Orders `[key, value]` pairs by key: what the build writes from the bundler's entries, which it
  *  emits in no stable order, is written in one order every build (#490). */
 export function by_key(a: readonly [string, unknown], b: readonly [string, unknown]): number {
-	return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0;
+	return by_code_unit(a[0], b[0]);
+}
+
+/** Orders strings by UTF-16 code unit, the order a plain `.sort()` gives, but usable as a comparator
+ *  on a field. */
+export function by_code_unit(a: string, b: string): number {
+	if (a < b) return -1;
+	return a > b ? 1 : 0;
 }
 
 function map_source(file: string, pairs: readonly (readonly [string, string])[]): string {

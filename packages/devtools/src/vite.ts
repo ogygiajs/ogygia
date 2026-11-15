@@ -44,11 +44,9 @@ export function devtools(
 	options: DevtoolsOptions = {}
 ): [OgygiaPlugin<DevtoolsServerOptions>, ...VitePlugin[]] {
 	const dock = options.dock !== false;
-	const profiler: ProfilerOptions | null = options.profiler
-		? options.profiler === true
-			? {}
-			: { ...options.profiler }
-		: null;
+	let profiler: ProfilerOptions | null = null;
+	if (options.profiler === true) profiler = {};
+	else if (options.profiler) profiler = { ...options.profiler };
 	let regions: RegionsSeam | null = null;
 	const plugin = definePlugin<DevtoolsServerOptions>({
 		name: '@ogygia/devtools',

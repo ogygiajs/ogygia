@@ -59,14 +59,12 @@
 		return `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
 	};
 	const stroke = (n: PathNode, total: number) => 1 + 7 * Math.min(1, n.ms / Math.max(total, 0.01));
-	const href = (n: PathNode) =>
-		!n.key
-			? null
-			: n.category === 'component'
-				? row_href(`comp:${n.name}`)
-				: known && !known.has(n.key)
-					? null
-					: row_href(`fn:${n.key}`);
+	const href = (n: PathNode) => {
+		if (!n.key) return null;
+		if (n.category === 'component') return row_href(`comp:${n.name}`);
+		if (known && !known.has(n.key)) return null;
+		return row_href(`fn:${n.key}`);
+	};
 	const short = (s: string, max = 19) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
 </script>
 

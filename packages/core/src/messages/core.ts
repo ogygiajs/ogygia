@@ -14,7 +14,15 @@ import { prose } from '../contract/prose.ts';
 import { OG_PREFIX, OGYGIA_KEEP, OGYGIA_PREFIX } from '../wire-markup.ts';
 
 const BUG = 'An ogygia bug: please report it with the page that shows it.';
-
+const PROMISE_UNRESOLVED: ReadonlyMap<string, string> = new Map([
+	['stream', 'a streamed page.data promise never got its value: the page loaded without it.'],
+	[
+		'answer',
+		"a streamed page.data promise never got its value: the page's data answer ended without it."
+	]
+]);
+const PROMISE_UNRESOLVED_DEVALUE =
+	"a streamed page.data promise's value came, but the code to read it never loaded.";
 /** Each message's arguments are its `text`'s: the one place they are written. */
 /** The errors: `throw new OgygiaError(code, args)`, or `console.error(new OgygiaError(…), err)` for a
  *  failure that is caught. */
@@ -171,11 +179,7 @@ export const ERRORS = {
 	},
 	page_promise_unresolved: {
 		text: (a: { why: 'stream' | 'devalue' | 'answer' }): string =>
-			a.why === 'stream'
-				? 'a streamed page.data promise never got its value: the page loaded without it.'
-				: a.why === 'answer'
-					? "a streamed page.data promise never got its value: the page's data answer ended without it."
-					: "a streamed page.data promise's value came, but the code to read it never loaded.",
+			PROMISE_UNRESOLVED.get(a.why) ?? PROMISE_UNRESOLVED_DEVALUE,
 		details: (): string => prose`
 			A promise in \`page.data\` streams into islands: the page carries it pending, and a script
 			later in the same response settles it. Here that can no longer happen, so the promise is
@@ -622,7 +626,20 @@ export const WARNINGS = {
 		`
 	},
 	hydration_discarded: {
-		text: (a: { entry: string; drift?: string | null; strict?: string | null }): string => prose`
+		text: (a: { entry: string; drift?: string | null; strict?: string | null }): string => {
+			let verdict: string;
+			if (a.strict) verdict = `Svelte threw on the strict attempt (after repair): ${a.strict}`;
+			else if (a.drift)
+				verdict =
+					'Svelte did not throw after the repair — the mismatch is one this walk does not model.';
+			else
+				verdict = prose`
+					The server node sequence was INTACT and Svelte did not throw: nothing mutated
+					this region's DOM, so this is (3) (or (2)). Find the block whose branch
+					differs: in the server markup its anchor reads <!--[N--> where N is the
+					branch the SERVER chose.
+				`;
+			return prose`
 			island "${a.entry}" discarded its ENTIRE server-rendered DOM during hydration and
 			re-rendered client-side (Svelte hydration-mismatch recovery). Three things cause this.
 			(1) Something changed this region's HTML between SSR and wake — a post-SSR transform
@@ -643,16 +660,7 @@ export const WARNINGS = {
 				// The walk's own verdict, after any repair — the one line that separates "repair left a
 				// residue" (1) from "the sequence was fine and Svelte failed for a reason this walk
 				// can't see" (2/3). No drift AND no throw is the signature of (3).
-				a.strict
-					? `Svelte threw on the strict attempt (after repair): ${a.strict}`
-					: a.drift
-						? 'Svelte did not throw after the repair — the mismatch is one this walk does not model.'
-						: prose`
-							The server node sequence was INTACT and Svelte did not throw: nothing mutated
-							this region's DOM, so this is (3) (or (2)). Find the block whose branch
-							differs: in the server markup its anchor reads <!--[N--> where N is the
-							branch the SERVER chose.
-						`
+				verdict
 			}
 
 			Fix: for (1) make the mutation invisible to hydration (mutate only <head>, attributes, or
@@ -661,7 +669,8 @@ export const WARNINGS = {
 			/ createContext imported from 'ogygia', read it with the same getContext(key); for (3)
 			make the condition read the same value on both sides (a prop / page.data), or move the
 			browser-only branch behind an $effect / hydratedBy().
-		`,
+		`;
+		},
 		details: (): string => prose`
 			Svelte could not adopt the island's server HTML, so it threw it away and rendered the
 			island again in the browser: a flash, and anything injected into that HTML is gone. Three

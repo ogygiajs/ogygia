@@ -191,17 +191,17 @@ export const prefer_dedent = {
 			if (n.type !== 'TemplateLiteral') return null;
 			const quasis = n.quasis as { value: { cooked: string | null } }[];
 			const expressions = n.expressions as Node[];
-			let out = '';
+			const out: string[] = [];
 			for (let i = 0; i < quasis.length; i++) {
 				const c = quasis[i]!.value.cooked;
 				if (c === null || c.includes(VALUE_MARK)) return null;
-				out = `${out}${c}`;
+				out.push(c);
 				if (i < expressions.length) {
-					out = `${out}${VALUE_MARK}${values.length}${VALUE_MARK}`;
+					out.push(`${VALUE_MARK}${values.length}${VALUE_MARK}`);
 					values.push(text(expressions[i]!));
 				}
 			}
-			return out;
+			return out.join('');
 		};
 		const report = (node: Node, cooked: string | null, values: string[]) => {
 			// (newlines only at its edges: one line of text, set apart; no block to write)

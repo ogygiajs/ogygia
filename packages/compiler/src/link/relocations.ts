@@ -10,6 +10,7 @@ import {
 import MagicString from 'magic-string';
 import { FILE_TOKEN_MARK, FILE_TOKEN_RE, file_token_id } from './file-token.ts';
 import { ISLAND_DEPS_INLINE_TOKEN } from './island-deps.ts';
+import { by_key } from './location-map.ts';
 import type { Program } from '../program.ts';
 import type { PageReadsSink } from '../ctx.ts';
 
@@ -17,18 +18,24 @@ const KIT_PAGE_MODULE_RE = /\/@sveltejs\/kit\/src\/runtime\/app\/(?:state|stores
 
 const LINE_SEPARATOR = String.fromCharCode(0x2028);
 const PARAGRAPH_SEPARATOR = String.fromCharCode(0x2029);
+const ANY_LITERAL_ESCAPE: ReadonlyMap<string, string> = new Map([
+	['\\', '\\\\'],
+	["'", "\\'"],
+	['"', '\\"'],
+	[LINE_SEPARATOR, '\\u2028'],
+	[PARAGRAPH_SEPARATOR, '\\u2029']
+]);
+const LITERAL_ESCAPE: ReadonlyMap<string, string> = new Map([
+	['\\', '\\\\'],
+	['\n', '\\n'],
+	['\r', '\\r'],
+	[LINE_SEPARATOR, '\\u2028'],
+	[PARAGRAPH_SEPARATOR, '\\u2029']
+]);
 
 function in_any_literal(text: string): string {
 	let out = '';
-	for (const c of text)
-		out +=
-			c === '\\' || c === "'" || c === '"'
-				? `\\${c}`
-				: c === LINE_SEPARATOR
-					? '\\u2028'
-					: c === PARAGRAPH_SEPARATOR
-						? '\\u2029'
-						: c;
+	for (const c of text) out += ANY_LITERAL_ESCAPE.get(c) ?? c;
 	return out;
 }
 
@@ -144,18 +151,7 @@ const PAGE_DATA_READS: Relocation = {
 function in_literal(text: string, quote: string): string {
 	let out = '';
 	for (const c of text)
-		out +=
-			c === '\\' || c === quote || (quote === '`' && c === '$')
-				? `\\${c}`
-				: c === '\n'
-					? '\\n'
-					: c === '\r'
-						? '\\r'
-						: c === ' '
-							? '\\u2028'
-							: c === ' '
-								? '\\u2029'
-								: c;
+		out += c === quote || (quote === '`' && c === '$') ? `\\${c}` : (LITERAL_ESCAPE.get(c) ?? c);
 	return out;
 }
 
@@ -177,7 +173,7 @@ const LATE_SERVER_REGIONS: Relocation = {
 	server_only: true,
 	value(cx) {
 		const from = path.posix.dirname(cx.chunk_file);
-		const late = [...cx.late_server_regions].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+		const late = [...cx.late_server_regions].sort(by_key);
 		const loaders = late.map(([iid, ref]) => {
 			const rel = path.posix.relative(from, cx.file_name(ref));
 			const spec = rel.startsWith('.') ? rel : `./${rel}`;
