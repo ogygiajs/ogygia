@@ -435,7 +435,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	});
 
 	const server_region_entry = $derived(!nested && __module ? kit_asset(__module) : '');
-	const server_region_src = $derived(!nested && __module ? location_of(__module) : '');
+	const server_region_src = $derived(__module ? location_of(__module) : '');
 
 	const server_wire = $derived(plan.wire === 'hole' ? new PropsWire(__props, __entry) : null);
 	const server_props_script = $derived(
