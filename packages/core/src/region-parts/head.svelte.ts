@@ -67,22 +67,38 @@ export class RegionHead {
 		return `${own}${this.#dual_css}${this.#content_css}`;
 	});
 
-	constructor(rp: RegionPlan, island: IslandWire, graph: IslandGraph, hole: HoleFacts) {
+	constructor(
+		rp: RegionPlan,
+		parts: { island: IslandWire; graph: IslandGraph; hole: HoleFacts },
+		owner: string,
+		runtime: string
+	) {
 		this.#rp = rp;
-		this.#island = island;
-		this.#graph = graph;
-		this.#hole = hole;
+		this.#island = parts.island;
+		this.#graph = parts.graph;
+		this.#hole = parts.hole;
+		this.owner = owner;
+		this.runtime = runtime;
+	}
+
+	/** A region's head: it names the owner of its head tags (the island around it, else its own
+	 *  island) and claims the page's runtime script when its plan asks for it. */
+	static claim(
+		rp: RegionPlan,
+		parts: { island: IslandWire; graph: IslandGraph; hole: HoleFacts }
+	): RegionHead {
 		const server = typeof window === 'undefined';
 		const outer = server ? head_owner() : '';
-		this.owner = outer || (server ? untrack(() => island.fp) : '');
-		if (!outer && this.owner) set_head_owner(this.owner);
-		this.runtime =
+		const owner = outer || (server ? untrack(() => parts.island.fp) : '');
+		if (!outer && owner) set_head_owner(owner);
+		const runtime =
 			rp.plan.runtime && claimRuntimeEmit()
 				? runtime_bootstrap(kit_asset) +
 					(dev_hmr_url
 						? `<script type="module" ${OGYGIA_DEV_HMR} src="${kit_asset(dev_hmr_url)}"></script>`
 						: '')
 				: '';
+		return new RegionHead(rp, parts, owner, runtime);
 	}
 
 	/** The `<link>` tags for the sheets this region is the first to claim on the page. */

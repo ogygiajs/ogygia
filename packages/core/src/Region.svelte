@@ -49,7 +49,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 
 	let { of, placeholder, children, __og = NO_SETTINGS, __props, ogygiaFallback }: Props = $props();
 
-	const rp: RegionPlan = new RegionPlan(
+	const rp: RegionPlan = RegionPlan.read(
 		untrack(() => __og),
 		() => of,
 		() => __og.baked ?? false,
@@ -57,7 +57,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		(): string => island.wake.on
 	);
 	const plan = rp.plan;
-	const island: IslandWire = new IslandWire(
+	const island: IslandWire = IslandWire.place(
 		rp,
 		() => __props,
 		() => children
@@ -74,9 +74,9 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 			new PageSeedAsk(entry).record();
 		});
 	}
-	const graph = new IslandGraph(rp, island);
-	const hole = new HoleFacts(rp, () => __props);
-	const head = new RegionHead(rp, island, graph, hole);
+	const graph = IslandGraph.place(rp, island);
+	const hole = HoleFacts.place(rp, () => __props);
+	const head = RegionHead.claim(rp, { island, graph, hole });
 
 	const live = new LiveValue(rp);
 	const baked = live.baked;

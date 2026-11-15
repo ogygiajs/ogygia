@@ -13,7 +13,7 @@ import {
 	next_slot_id,
 	HOLE_SLOT_SEQUENCE
 } from '../region-snippet.ts';
-import type { DualRegion } from '../region.ts';
+import type { DualRegion, RegionValue } from '../region.ts';
 import SlotBoundary from '../SlotBoundary.svelte';
 import { location_of } from './locate.ts';
 import type { RegionPlan } from './plan.svelte.ts';
@@ -24,93 +24,128 @@ type Props = Record<string, unknown> | undefined;
 /** An island's code and props as the page carries them: its module, its component and props, its
  *  wake, the wire its props travel in, and its fingerprint. */
 export class IslandWire {
+	readonly #rp: RegionPlan;
+	readonly #props: () => Props;
 	readonly #children: () => Snippet | undefined;
 	readonly slot_id: string;
-	readonly late_load: (() => Promise<Component>) | undefined;
-	readonly in_tail: boolean;
-	as_dual: DualRegion | undefined;
-	entry: string;
-	component: Component | undefined;
-	props: Props;
-	props_ready: Props;
-	has_slot_children: boolean;
-	props_body: Props;
-	wake: { on: string; margin: string | undefined };
-	module_url: string;
-	src: string;
-	wire: PropsWire | null;
-	fp: string;
-	skip: boolean;
-	props_inline: string;
 
-	constructor(rp: RegionPlan, props: () => Props, children: () => Snippet | undefined) {
+	as_dual: DualRegion | undefined = $derived.by(() =>
+		IslandWire.#dual_of(this.#rp, this.#rp.resolved)
+	);
+	entry: string = $derived.by(() => IslandWire.#entry_of(this.#rp, this.as_dual));
+	component: Component | undefined = $derived.by(() =>
+		this.as_dual ? (this.as_dual.component as Component) : this.#rp.settings.component
+	);
+	props: Props = $derived.by(() => (this.as_dual ? (this.as_dual.props as Props) : this.#props()));
+	props_ready: Props = $derived.by(() =>
+		this.#rp.plan.inline ? this.props : prepare_region_props(this.props!)
+	);
+	has_slot_children: boolean = $derived.by(() => this.#children() != null);
+	props_body: Props = $derived.by(() =>
+		this.has_slot_children && typeof window === 'undefined'
+			? { ...this.props_ready, children: this.#slot_children }
+			: this.props_ready
+	);
+	wake: { on: string; margin: string | undefined } = $derived.by(() =>
+		this.as_dual
+			? { on: this.as_dual.hydrate!, margin: this.as_dual.hydrateMargin || undefined }
+			: { on: this.#rp.settings.wake || 'load', margin: this.#rp.settings.wakeMargin }
+	);
+	module_url: string = $derived.by(() =>
+		this.#rp.plan.nested || !this.entry ? '' : kit_asset(this.entry)
+	);
+	src: string = $derived.by(() =>
+		this.#rp.plan.nested || !this.entry ? '' : location_of(this.entry)
+	);
+	wire: PropsWire | null = $derived.by(() =>
+		this.#rp.plan.wire === 'island'
+			? new PropsWire(
+					this.has_slot_children
+						? { ...this.props_ready, children: slot_pointer(this.slot_id) }
+						: this.props_ready,
+					this.entry
+				)
+			: null
+	);
+	fp: string = $derived.by(() =>
+		this.wire ? region_fingerprint(this.module_url, this.wire.canonical) : ''
+	);
+	skip: boolean = $derived.by(
+		() =>
+			!this.has_slot_children &&
+			(this.#rp.settings.cacheTtl ?? 0) <= 0 &&
+			!!this.fp &&
+			reuse_known_region(this.fp)
+	);
+	in_tail: boolean = $derived.by(() => !!this.#rp.tail && !!this.wire && !!this.fp);
+	props_inline: string = $derived.by(() =>
+		this.in_tail || !this.wire
+			? ''
+			: props_sidecar(this.fp, this.wire.wire(null), 'adjacent', this.wire.wire_modules)
+	);
+
+	constructor(
+		rp: RegionPlan,
+		props: () => Props,
+		children: () => Snippet | undefined,
+		slot_id: string
+	) {
+		this.#rp = rp;
+		this.#props = props;
 		this.#children = children;
-		const plan = rp.plan;
-		const s = rp.settings;
-		this.as_dual = $derived.by(() => {
-			const value = rp.resolved;
-			return plan.family === 'island' && value?.kind === 'dual' ? value : undefined;
+		this.slot_id = slot_id;
+	}
+
+	/** A late island's loader, where the browser renders the island inline with no component yet. */
+	get late_load(): (() => Promise<Component>) | undefined {
+		return this.#rp.plan.late_load ? this.#rp.settings.load : undefined;
+	}
+
+	/** An island in its place: it claims its slot id, warns about a wake its parent overrides, and
+	 *  hands its props to Kit's tail when the page has one. */
+	static place(
+		rp: RegionPlan,
+		props: () => Props,
+		children: () => Snippet | undefined
+	): IslandWire {
+		const entry = IslandWire.#entry_of(rp, IslandWire.#dual_of(rp, rp.of_init));
+		const island = new IslandWire(
+			rp,
+			props,
+			children,
+			next_slot_id(entry, getContext(HOLE_SLOT_SEQUENCE))
+		);
+		untrack(() => island.#record());
+		return island;
+	}
+
+	static #dual_of(rp: RegionPlan, value: RegionValue | undefined): DualRegion | undefined {
+		return rp.plan.family === 'island' && value?.kind === 'dual' ? value : undefined;
+	}
+
+	static #entry_of(rp: RegionPlan, dual: DualRegion | undefined): string {
+		if (dual) return dual.module;
+		return rp.settings.mode === 'island' ? (rp.settings.entry ?? '') : '';
+	}
+
+	#record(): void {
+		const plan = this.#rp.plan;
+		if (
+			import.meta.env &&
+			import.meta.env.DEV &&
+			plan.warn === 'island-parent' &&
+			this.wake.on !== nested_wake()
+		)
+			warn('nested_island_with_parent', { entry: this.entry || '' });
+		const tail = this.#rp.tail;
+		if (!tail || !this.in_tail) return;
+		tail.props(this.fp, this.wire!, {
+			entry: this.entry,
+			name: this.component?.name ?? '',
+			module_url: this.src || this.module_url,
+			wake: this.wake.on,
+			interactivity: region_interactivity(this.entry)
 		});
-		this.entry = $derived(this.as_dual?.module ?? (s.mode === 'island' ? (s.entry ?? '') : ''));
-		this.component = $derived(this.as_dual ? (this.as_dual.component as Component) : s.component);
-		this.props = $derived(this.as_dual ? (this.as_dual.props as Props) : props());
-		this.props_ready = $derived(plan.inline ? this.props : prepare_region_props(this.props!));
-		this.has_slot_children = $derived(children() != null);
-		this.props_body = $derived(
-			this.has_slot_children && typeof window === 'undefined'
-				? { ...this.props_ready, children: this.#slot_children }
-				: this.props_ready
-		);
-		this.wake = $derived(
-			this.as_dual
-				? { on: this.as_dual.hydrate!, margin: this.as_dual.hydrateMargin || undefined }
-				: { on: s.wake || 'load', margin: s.wakeMargin }
-		);
-		this.module_url = $derived(plan.nested || !this.entry ? '' : kit_asset(this.entry));
-		this.src = $derived(plan.nested || !this.entry ? '' : location_of(this.entry));
-		this.wire = $derived.by(() =>
-			plan.wire === 'island'
-				? new PropsWire(
-						this.has_slot_children
-							? { ...this.props_ready, children: slot_pointer(this.slot_id) }
-							: this.props_ready,
-						this.entry
-					)
-				: null
-		);
-		this.fp = $derived(this.wire ? region_fingerprint(this.module_url, this.wire.canonical) : '');
-		this.skip = $derived(
-			!this.has_slot_children && (s.cacheTtl ?? 0) <= 0 && !!this.fp && reuse_known_region(this.fp)
-		);
-		this.props_inline = $derived.by(() =>
-			this.in_tail || !this.wire
-				? ''
-				: props_sidecar(this.fp, this.wire.wire(null), 'adjacent', this.wire.wire_modules)
-		);
-		this.late_load = plan.late_load ? s.load : undefined;
-		this.slot_id = next_slot_id(untrack(() => this.entry) ?? '', getContext(HOLE_SLOT_SEQUENCE));
-		if (import.meta.env && import.meta.env.DEV) {
-			untrack(() => {
-				if (plan.warn === 'island-parent' && this.wake.on !== nested_wake())
-					warn('nested_island_with_parent', { entry: this.entry || '' });
-			});
-		}
-		const tail = rp.tail;
-		this.in_tail =
-			!!tail &&
-			untrack(() => {
-				const wire = this.wire;
-				const fp = this.fp;
-				if (!wire || !fp) return false;
-				tail.props(fp, wire, {
-					entry: this.entry,
-					name: this.component?.name ?? '',
-					module_url: this.src || this.module_url,
-					wake: this.wake.on,
-					interactivity: region_interactivity(this.entry)
-				});
-				return true;
-			});
 	}
 
 	#slot_children = (renderer: Renderer): void => {

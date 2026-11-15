@@ -62,7 +62,7 @@ function plan_of(
 	of?: RegionValue | Promise<RegionValue>,
 	baked = false
 ): RegionPlan {
-	return new RegionPlan(
+	return RegionPlan.read(
 		settings,
 		() => of,
 		() => baked,
@@ -130,7 +130,7 @@ describe('IslandWire', () => {
 		let island!: IslandWire;
 		inside(() => {
 			const rp = plan_of(ISLAND_SETTINGS);
-			island = new IslandWire(
+			island = IslandWire.place(
 				rp,
 				() => ({ n: 1 }),
 				() => undefined
@@ -149,7 +149,7 @@ describe('IslandWire', () => {
 		let island!: IslandWire;
 		inside(() => {
 			const rp = plan_of(ISLAND_SETTINGS);
-			island = new IslandWire(
+			island = IslandWire.place(
 				rp,
 				() => ({}),
 				() => (() => {}) as never
@@ -164,7 +164,7 @@ describe('IslandWire', () => {
 		let island!: IslandWire;
 		inside(() => {
 			const rp = plan_of({ ...ISLAND_SETTINGS, wake: 'visible', wakeMargin: '10px' });
-			island = new IslandWire(
+			island = IslandWire.place(
 				rp,
 				() => ({}),
 				() => undefined
@@ -177,7 +177,7 @@ describe('IslandWire', () => {
 		let island!: IslandWire;
 		inside(() => {
 			const rp = plan_of(ISLAND_SETTINGS);
-			island = new IslandWire(
+			island = IslandWire.place(
 				rp,
 				() => ({ n: 1 }),
 				() => undefined
@@ -189,16 +189,17 @@ describe('IslandWire', () => {
 });
 
 describe('IslandGraph', () => {
+	let last_tail: DocumentTail | null = null;
 	function graph_of(on_kit_pass: boolean): IslandGraph {
 		let graph!: IslandGraph;
-		inside(() => {
+		last_tail = inside(() => {
 			const rp = plan_of(ISLAND_SETTINGS);
-			const island = new IslandWire(
+			const island = IslandWire.place(
 				rp,
 				() => ({}),
 				() => undefined
 			);
-			graph = new IslandGraph(rp, island);
+			graph = IslandGraph.place(rp, island);
 		}, on_kit_pass);
 		return graph;
 	}
@@ -219,7 +220,7 @@ describe('IslandGraph', () => {
 	it("on Kit's page pass the graph goes to the tail, not the head", () => {
 		set_island_deps({ [ISLAND]: ['/chunks/dep.js'] });
 		const graph = graph_of(true);
-		expect(graph.in_tail).toBe(true);
+		expect(last_tail?.graph_of(kit_asset(ISLAND))).toEqual([kit_asset('/chunks/dep.js')]);
 		expect(graph.preload_head).toBe('');
 	});
 });
@@ -233,7 +234,7 @@ describe('HoleFacts', () => {
 	function hole_of(settings: RegionSettings): HoleFacts {
 		let hole!: HoleFacts;
 		inside(() => {
-			hole = new HoleFacts(plan_of(settings), () => ({ zone: 'utc' }));
+			hole = HoleFacts.place(plan_of(settings), () => ({ zone: 'utc' }));
 		});
 		return hole;
 	}
@@ -281,13 +282,14 @@ describe('RegionHead', () => {
 			inside(() => {
 				for (let n = 0; n < count; n++) {
 					const rp = plan_of(ISLAND_SETTINGS);
-					const island = new IslandWire(
+					const island = IslandWire.place(
 						rp,
 						() => ({}),
 						() => undefined
 					);
-					const graph = new IslandGraph(rp, island);
-					const head = new RegionHead(rp, island, graph, new HoleFacts(rp, () => ({})));
+					const graph = IslandGraph.place(rp, island);
+					const hole = HoleFacts.place(rp, () => ({}));
+					const head = RegionHead.claim(rp, { island, graph, hole });
 					out.push({ runtime: head.runtime, owner: head.owner, html: head.html });
 				}
 			});

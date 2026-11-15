@@ -14,89 +14,107 @@ import { note_early_hole } from '../context.ts';
 import { graph_hrefs, location_of } from './locate.ts';
 import type { RegionPlan } from './plan.svelte.ts';
 
+type Props = Record<string, unknown> | undefined;
+
 /** A hole's facts: the endpoint that renders it, its module and identity, the wire its props travel
  *  in, and the records it leaves in the document tail. */
 export class HoleFacts {
 	readonly #rp: RegionPlan;
-	readonly entry: string;
-	readonly module: string;
-	readonly when: string;
-	readonly wake: string | undefined;
-	readonly wake_margin: string | undefined;
-	readonly graph_in_tail: boolean;
+	readonly #props: () => Props;
 
-	endpoint: string;
-	entry_url: string;
-	src: string;
-	wire: PropsWire | null;
-	props_script: string;
-	identity: string;
-	graph: string[];
-	preload: string;
+	endpoint: string = $derived.by(() =>
+		this.#rp.plan.family !== 'hole'
+			? ''
+			: mint_server_region(
+					this.entry,
+					this.#props() || {},
+					this.#rp.settings.cacheTtl || 0,
+					!!this.wake
+				) + kit_page_version(this.entry)
+	);
+	entry_url: string = $derived.by(() =>
+		!this.#rp.plan.nested && this.module ? kit_asset(this.module) : ''
+	);
+	src: string = $derived.by(() => (this.module ? location_of(this.module) : ''));
+	wire: PropsWire | null = $derived.by(() =>
+		this.#rp.plan.wire === 'hole' ? new PropsWire(this.#props(), this.entry) : null
+	);
+	props_script: string = $derived.by(() =>
+		this.wire ? props_sidecar('', this.wire.wire(null), 'adjacent', this.wire.wire_modules) : ''
+	);
+	identity: string = $derived.by(() =>
+		this.#rp.plan.nested || this.#rp.plan.family !== 'hole'
+			? ''
+			: hole_identity(this.entry, this.#props(), this.wire)
+	);
+	graph: string[] = $derived.by(() =>
+		!this.#rp.plan.hole_graph || !this.entry_url
+			? []
+			: graph_hrefs(this.module, this.entry_url, null)
+	);
+	preload: string = $derived.by(() =>
+		this.#rp.tail || !this.graph.length
+			? ''
+			: island_graph_script(new Map([[this.entry_url, this.graph]]))
+	);
 
-	constructor(rp: RegionPlan, props: () => Record<string, unknown> | undefined) {
+	constructor(rp: RegionPlan, props: () => Props) {
 		this.#rp = rp;
-		const s = rp.settings;
-		const plan = rp.plan;
-		this.entry = s.entry ?? '';
-		this.module = s.module ?? '';
-		this.when = s.when ?? 'load';
-		this.wake = s.mode === 'server' ? s.wake : undefined;
-		this.wake_margin = s.mode === 'server' ? s.wakeMargin : undefined;
-		this.endpoint = $derived(
-			plan.family !== 'hole'
-				? ''
-				: mint_server_region(this.entry, props() || {}, s.cacheTtl || 0, !!this.wake) +
-						kit_page_version(this.entry)
-		);
-		this.entry_url = $derived(!plan.nested && this.module ? kit_asset(this.module) : '');
-		this.src = $derived(this.module ? location_of(this.module) : '');
-		this.wire = $derived(plan.wire === 'hole' ? new PropsWire(props(), this.entry) : null);
-		this.props_script = $derived(
-			this.wire ? props_sidecar('', this.wire.wire(null), 'adjacent', this.wire.wire_modules) : ''
-		);
-		this.identity = $derived(
-			plan.nested || plan.family !== 'hole' ? '' : hole_identity(this.entry, props(), this.wire)
-		);
-		this.graph = $derived(
-			!plan.hole_graph || !this.entry_url ? [] : graph_hrefs(this.module, this.entry_url, null)
-		);
-		this.preload = $derived.by(() =>
-			this.graph_in_tail || !this.graph.length
-				? ''
-				: island_graph_script(new Map([[this.entry_url, this.graph]]))
-		);
+		this.#props = props;
+	}
+
+	/** The component that renders the hole. */
+	get entry(): string {
+		return this.#rp.settings.entry ?? '';
+	}
+
+	/** The module that wakes the hole's HTML, or `''`. */
+	get module(): string {
+		return this.#rp.settings.module ?? '';
+	}
+
+	/** When the hole's endpoint is fetched. */
+	get when(): string {
+		return this.#rp.settings.when ?? 'load';
+	}
+
+	/** The hole's wake, when it has a module that wakes. */
+	get wake(): string | undefined {
+		return this.#rp.settings.mode === 'server' ? this.#rp.settings.wake : undefined;
+	}
+
+	/** The hole's wake margin. */
+	get wake_margin(): string | undefined {
+		return this.#rp.settings.mode === 'server' ? this.#rp.settings.wakeMargin : undefined;
+	}
+
+	/** A hole in its place: it warns when it renders inline, and leaves its records in Kit's tail. */
+	static place(rp: RegionPlan, props: () => Props): HoleFacts {
+		const hole = new HoleFacts(rp, props);
+		untrack(() => hole.#record());
+		return hole;
+	}
+
+	#record(): void {
+		const plan = this.#rp.plan;
 		if (import.meta.env && import.meta.env.DEV && plan.warn === 'hole-inline')
 			warn('nested_server_island_inline', { entry: this.entry });
-		const tail = rp.tail;
-		if (tail && plan.hole_tail) {
-			untrack(() => {
-				const endpoint = this.endpoint;
-				if (endpoint) tail.hole(this.identity, endpoint, this.props_script);
-			});
-		}
+		const tail = this.#rp.tail;
+		if (tail && plan.hole_tail && this.endpoint)
+			tail.hole(this.identity, this.endpoint, this.props_script);
 		if (tail && plan.note_hole)
-			untrack(() =>
-				tail.note_hole(
-					this.entry,
-					this.when,
-					this.wake || null,
-					s.cacheTtl || 0,
-					s.component?.name ?? '',
-					props(),
-					this.endpoint ? hole_copy_of(this.endpoint) : ''
-				)
+			tail.note_hole(
+				this.entry,
+				this.when,
+				this.wake || null,
+				this.#rp.settings.cacheTtl || 0,
+				this.#rp.settings.component?.name ?? '',
+				this.#props(),
+				this.endpoint ? hole_copy_of(this.endpoint) : ''
 			);
-		if (plan.early_hole && !building)
-			untrack(() => {
-				if (this.when === 'load' && this.endpoint) note_early_hole(this.endpoint);
-			});
-		this.graph_in_tail =
-			!!tail &&
-			untrack(() => {
-				if (this.graph.length) tail.graph(this.entry_url, this.graph);
-				return true;
-			});
+		if (plan.early_hole && !building && this.when === 'load' && this.endpoint)
+			note_early_hole(this.endpoint);
+		if (tail && this.graph.length) tail.graph(this.entry_url, this.graph);
 	}
 
 	/** The attributes of the hole's own `<ogygia-region>`, as the shell and the adopted element write them. */

@@ -12,20 +12,19 @@ type LiveElement = Element & { applyLive?: (v: unknown) => void };
  *  is handed to that element while the snippet lives, and none once it is gone. */
 export class LiveValue {
 	readonly #rp: RegionPlan;
-	readonly baked: Snippet;
+	readonly baked: Snippet = adopt_region(
+		() => (typeof window === 'undefined' ? ` live ${OG_BAKED}` : ' live'),
+		(renderer) => (renderer as { push(html: string): void }).push(this.#value().html ?? ''),
+		(el) => {
+			// @why Svelte defers a $effect made in a branch before mount to the component, which outlives the branch (test: test/browser/region-client.test.ts › a baked live value that turns into an unbaked live one hands each value to one element only)
+			$effect.pre(() => {
+				$effect(() => this.attach(el));
+			});
+		}
+	);
 
 	constructor(rp: RegionPlan) {
 		this.#rp = rp;
-		this.baked = adopt_region(
-			() => (typeof window === 'undefined' ? ` live ${OG_BAKED}` : ' live'),
-			(renderer) => (renderer as { push(html: string): void }).push(this.#value().html ?? ''),
-			(el) => {
-				// @why Svelte defers a $effect made in a branch before mount to the component, which outlives the branch (test: test/browser/region-client.test.ts › a baked live value that turns into an unbaked live one hands each value to one element only)
-				$effect.pre(() => {
-					$effect(() => this.attach(el));
-				});
-			}
-		);
 	}
 
 	#value(): DeferredRegion {
