@@ -58,9 +58,11 @@ export class HoleFacts {
 			: island_graph_script(new Map([[this.entry_url, this.graph]]))
 	);
 
+	/** A hole in its place: it warns when it renders inline, and leaves its records in Kit's tail. */
 	constructor(rp: RegionPlan, props: () => Props) {
 		this.#rp = rp;
 		this.#props = props;
+		untrack(() => this.#record());
 	}
 
 	/** The component that renders the hole. */
@@ -88,19 +90,11 @@ export class HoleFacts {
 		return this.#rp.settings.mode === 'server' ? this.#rp.settings.wakeMargin : undefined;
 	}
 
-	/** A hole in its place (`null` for a region that is not a hole): it warns when it renders
-	 *  inline, and leaves its records in Kit's tail. */
-	static place(rp: RegionPlan, props: () => Props): HoleFacts | null {
-		if (rp.plan.family !== 'hole') return null;
-		const hole = new HoleFacts(rp, props);
-		untrack(() => hole.#record());
-		return hole;
-	}
-
 	#record(): void {
 		const plan = this.#rp.plan;
 		if (import.meta.env && import.meta.env.DEV && plan.warn === 'hole-inline')
 			warn('nested_server_island_inline', { entry: this.entry });
+		if (!(import.meta.env?.SSR ?? typeof window === 'undefined')) return;
 		const tail = this.#rp.tail;
 		if (tail && plan.hole_tail && this.endpoint)
 			tail.hole(this.identity, this.endpoint, this.props_script);

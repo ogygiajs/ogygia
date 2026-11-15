@@ -1,4 +1,4 @@
-import { getContext, untrack, type Component, type Snippet } from 'svelte';
+import { untrack, type Component, type Snippet } from 'svelte';
 import { region_fingerprint, region_interactivity, reuse_known_region } from '#region-server';
 import { kit_asset } from '../kit-paths.ts';
 import { PropsWire, props_sidecar } from '../server/props-wire.ts';
@@ -9,11 +9,9 @@ import {
 	prepare_region_props,
 	slot_pointer,
 	slot_marker_open,
-	SLOT_MARKER_CLOSE,
-	next_slot_id,
-	HOLE_SLOT_SEQUENCE
+	SLOT_MARKER_CLOSE
 } from '../region-snippet.ts';
-import type { DualRegion, RegionValue } from '../region.ts';
+import type { DualRegion } from '../region.ts';
 import SlotBoundary from '../SlotBoundary.svelte';
 import { location_of } from './locate.ts';
 import type { RegionPlan } from './plan.svelte.ts';
@@ -27,12 +25,16 @@ export class IslandWire {
 	readonly #rp: RegionPlan;
 	readonly #props: () => Props;
 	readonly #children: () => Snippet | undefined;
-	readonly slot_id: string;
 
-	as_dual: DualRegion | undefined = $derived.by(() =>
-		IslandWire.#dual_of(this.#rp, this.#rp.resolved)
-	);
-	entry: string = $derived.by(() => IslandWire.#entry_of(this.#rp, this.as_dual));
+	as_dual: DualRegion | undefined = $derived.by(() => {
+		const value = this.#rp.resolved;
+		return value?.kind === 'dual' ? value : undefined;
+	});
+	entry: string = $derived.by(() => {
+		if (this.as_dual) return this.as_dual.module;
+		const s = this.#rp.settings;
+		return s.mode === 'island' ? (s.entry ?? '') : '';
+	});
 	component: Component | undefined = $derived.by(() =>
 		this.as_dual ? (this.as_dual.component as Component) : this.#rp.settings.component
 	);
@@ -42,7 +44,7 @@ export class IslandWire {
 	);
 	has_slot_children: boolean = $derived.by(() => this.#children() != null);
 	props_body: Props = $derived.by(() =>
-		this.has_slot_children && typeof window === 'undefined'
+		this.has_slot_children && (import.meta.env?.SSR ?? typeof window === 'undefined')
 			? { ...this.props_ready, children: this.#slot_children }
 			: this.props_ready
 	);
@@ -84,46 +86,23 @@ export class IslandWire {
 			: props_sidecar(this.fp, this.wire.wire(null), 'adjacent', this.wire.wire_modules)
 	);
 
-	constructor(
-		rp: RegionPlan,
-		props: () => Props,
-		children: () => Snippet | undefined,
-		slot_id: string
-	) {
+	/** An island in its place: it warns about a wake its parent overrides, and hands its props to
+	 *  Kit's tail when the page has one. */
+	constructor(rp: RegionPlan, props: () => Props, children: () => Snippet | undefined) {
 		this.#rp = rp;
 		this.#props = props;
 		this.#children = children;
-		this.slot_id = slot_id;
+		untrack(() => this.#record());
+	}
+
+	/** The slot id the island's children are written under. */
+	get slot_id(): string {
+		return this.#rp.slot_id;
 	}
 
 	/** A late island's loader, where the browser renders the island inline with no component yet. */
 	get late_load(): (() => Promise<Component>) | undefined {
 		return this.#rp.plan.late_load ? this.#rp.settings.load : undefined;
-	}
-
-	/** An island in its place (`null` for a region that is not an island, which claims a slot id
-	 *  all the same, so the ids after it stay put): it claims its slot id, warns about a wake its parent overrides, and
-	 *  hands its props to Kit's tail when the page has one. */
-	static place(
-		rp: RegionPlan,
-		props: () => Props,
-		children: () => Snippet | undefined
-	): IslandWire | null {
-		const entry = IslandWire.#entry_of(rp, IslandWire.#dual_of(rp, rp.of_init));
-		const slot_id = next_slot_id(entry, getContext(HOLE_SLOT_SEQUENCE));
-		if (rp.plan.family !== 'island') return null;
-		const island = new IslandWire(rp, props, children, slot_id);
-		untrack(() => island.#record());
-		return island;
-	}
-
-	static #dual_of(rp: RegionPlan, value: RegionValue | undefined): DualRegion | undefined {
-		return rp.plan.family === 'island' && value?.kind === 'dual' ? value : undefined;
-	}
-
-	static #entry_of(rp: RegionPlan, dual: DualRegion | undefined): string {
-		if (dual) return dual.module;
-		return rp.settings.mode === 'island' ? (rp.settings.entry ?? '') : '';
 	}
 
 	#record(): void {
@@ -136,7 +115,7 @@ export class IslandWire {
 		)
 			warn('nested_island_with_parent', { entry: this.entry || '' });
 		const tail = this.#rp.tail;
-		if (!tail || !this.in_tail) return;
+		if (!(import.meta.env?.SSR ?? typeof window === 'undefined') || !tail || !this.in_tail) return;
 		tail.props(this.fp, this.wire!, {
 			entry: this.entry,
 			name: this.component?.name ?? '',

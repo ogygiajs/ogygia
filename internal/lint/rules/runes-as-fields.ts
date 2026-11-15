@@ -1,12 +1,13 @@
 // ── ogygia/runes-as-fields ────────────────────────────────────────────────
 // A class in a .svelte.ts or .svelte file of package source declares its $state and $derived values
-// as fields at the top of the class. Its constructor only stores its inputs: a derived is lazy, so
-// a field's first read comes after the constructor has stored what it reads.
+// as fields at the top of the class. Its constructor stores its inputs first: a derived is lazy, so
+// a field's first read comes after the constructor has stored what it reads. A value computed once
+// is a plain `readonly` field the constructor sets.
 
 import { ALL_SOURCE, type Context, type Node } from './shared.ts';
 
 const MESSAGE =
-	'Declare this $state / $derived as a class field (`x = $derived(...)`), not inside the constructor: the constructor only stores its inputs.';
+	'Declare this $state / $derived as a class field (`x = $derived(...)`), not inside the constructor: the constructor stores its inputs.';
 const RUNES: ReadonlySet<string> = new Set(['$state', '$derived']);
 const MEMBERS: ReadonlySet<string> = new Set(['$state.raw', '$derived.by']);
 

@@ -32,16 +32,11 @@ export class IslandGraph {
 	);
 	preload_head: string = $derived.by(() => (this.#rp.tail ? '' : this.#preload()));
 
+	/** An island's graph in its place: on Kit's pass it goes to the page's tail. */
 	constructor(rp: RegionPlan, island: IslandWire) {
 		this.#rp = rp;
 		this.#island = island;
-	}
-
-	/** An island's graph in its place: on Kit's pass it goes to the page's tail. */
-	static place(rp: RegionPlan, island: IslandWire): IslandGraph {
-		const graph = new IslandGraph(rp, island);
-		untrack(() => graph.#record());
-		return graph;
+		untrack(() => this.#record());
 	}
 
 	#record(): void {

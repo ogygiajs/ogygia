@@ -16,7 +16,7 @@ import {
 import { set_region_endpoints } from './_stubs/server.region-endpoint.ts';
 import { kit_asset } from '../src/kit-paths.ts';
 import { region, type RegionValue } from '../src/region.ts';
-import { REGION, type RegionSettings } from '../src/region-plan.ts';
+import { REGION, type RegionDecision, type RegionSettings } from '../src/region-plan.ts';
 import { RegionPlan } from '../src/region-parts/plan.svelte.ts';
 import { IslandWire } from '../src/region-parts/island-wire.svelte.ts';
 import { IslandGraph } from '../src/region-parts/island-graph.svelte.ts';
@@ -62,7 +62,7 @@ function plan_of(
 	of?: RegionValue | Promise<RegionValue>,
 	baked = false
 ): RegionPlan {
-	return RegionPlan.read(
+	return new RegionPlan(
 		settings,
 		() => of,
 		() => baked,
@@ -76,7 +76,7 @@ function wire_of(
 	props: () => Record<string, unknown>,
 	children: () => (() => void) | undefined
 ): IslandWire {
-	return IslandWire.place(rp, props, children as never)!;
+	return new IslandWire(rp, props, children as never);
 }
 
 afterEach(() => {
@@ -207,7 +207,7 @@ describe('IslandGraph', () => {
 				() => ({}),
 				() => undefined
 			);
-			graph = IslandGraph.place(rp, island);
+			graph = new IslandGraph(rp, island);
 		}, on_kit_pass);
 		return graph;
 	}
@@ -242,7 +242,7 @@ describe('HoleFacts', () => {
 	function hole_of(settings: RegionSettings): HoleFacts {
 		let hole!: HoleFacts;
 		inside(() => {
-			hole = HoleFacts.place(plan_of(settings), () => ({ zone: 'utc' }))!;
+			hole = new HoleFacts(plan_of(settings), () => ({ zone: 'utc' }));
 		});
 		return hole;
 	}
@@ -274,23 +274,15 @@ describe('HoleFacts', () => {
 		expect(hole.props_script).toBe('');
 	});
 
-	it('a region that is not a hole has no hole facts', () => {
-		let hole: HoleFacts | null = null;
-		inside(() => (hole = HoleFacts.place(plan_of(ISLAND_SETTINGS), () => ({}))));
-		expect(hole).toBeNull();
-	});
-
-	it('a region that is not an island has no island wire, and still claims its slot id', () => {
-		let island: IslandWire | null = null;
-		inside(
-			() =>
-				(island = IslandWire.place(
-					plan_of(HOLE),
-					() => ({}),
-					() => undefined
-				))
-		);
-		expect(island).toBeNull();
+	it('a region that is not an island still claims its slot id, so the ids after it stay put', () => {
+		const ids: string[] = [];
+		inside(() => {
+			ids.push(plan_of(ISLAND_SETTINGS).slot_id);
+			plan_of(HOLE);
+			ids.push(plan_of(ISLAND_SETTINGS).slot_id);
+		});
+		const [first, last] = ids.map((id) => parseInt(id.slice(2), 36));
+		expect(last).toBe(first! + 2);
 	});
 });
 
@@ -308,9 +300,8 @@ describe('RegionHead', () => {
 						() => ({}),
 						() => undefined
 					);
-					const graph = IslandGraph.place(rp, island);
-					const hole = HoleFacts.place(rp, () => ({}));
-					const head = RegionHead.claim(rp, { island, graph, hole });
+					const graph = new IslandGraph(rp, island);
+					const head = new RegionHead(rp, { island, graph, hole: null });
 					out.push({ runtime: head.runtime, owner: head.owner, html: head.html });
 				}
 			});
@@ -324,6 +315,28 @@ describe('RegionHead', () => {
 		const [first, second] = heads(2);
 		expect(first!.runtime).not.toBe('');
 		expect(second!.runtime).toBe('');
+	});
+
+	it('the runtime goes to the first region made, even when a later one is read first', () => {
+		set_region_endpoints({ mint_server_region: (entry) => `/_og/hole${entry}` });
+		const event = { route: { id: '/heads' } };
+		set_request_event_stub(() => event);
+		const made: RegionHead[] = [];
+		try {
+			inside(() => {
+				for (let n = 0; n < 2; n++) {
+					const rp = plan_of({ mode: 'server', entry: '/holes/clock', component: Tiny as never });
+					const hole = new HoleFacts(rp, () => ({}));
+					made.push(new RegionHead(rp, { island: null, graph: null, hole }));
+				}
+			});
+		} finally {
+			set_request_event_stub(null);
+			set_region_endpoints(null);
+		}
+		const [first, second] = made;
+		expect(second!.runtime).toBe('');
+		expect(first!.runtime).not.toBe('');
 	});
 
 	it("an island's sheets are written once per page, owned by the first island", () => {
@@ -381,36 +394,43 @@ describe('LiveValue', () => {
 });
 
 describe('PageSeedAsk', () => {
+	type Seed = RegionDecision['seed'];
+	function ask(seed: Seed, island = '/m.js'): PageSeedAsk {
+		const rp = { plan: { seed }, settings: { module: '/h.js' }, of_init: { module: '/d.js' } };
+		return new PageSeedAsk(rp as unknown as RegionPlan, { entry: island } as IslandWire);
+	}
+	const fields = (a: PageSeedAsk) => ({ entry: a.entry, seed: a.seed, remotes: a.remotes });
+
 	it("a plan's seed names the module it asks about", () => {
-		expect(PageSeedAsk.entry_of('island', '/i.js', '/h.js', '/d.js')).toBe('/i.js');
-		expect(PageSeedAsk.entry_of('hole', '/i.js', '/h.js', '/d.js')).toBe('/h.js');
-		expect(PageSeedAsk.entry_of('held', '/i.js', '/h.js', '/d.js')).toBe('/d.js');
-		expect(PageSeedAsk.entry_of('promise', '/i.js', '/h.js', '/d.js')).toBeNull();
-		expect(PageSeedAsk.entry_of('none', '/i.js', '/h.js', '/d.js')).toBe('');
+		expect(ask('island', '/i.js').entry).toBe('/i.js');
+		expect(ask('hole').entry).toBe('/h.js');
+		expect(ask('held').entry).toBe('/d.js');
+		expect(ask('none').entry).toBe('');
+	});
+
+	it('a region with no island asks about no module', () => {
+		const rp = { plan: { seed: 'island' }, settings: {} };
+		expect(new PageSeedAsk(rp as unknown as RegionPlan, null).entry).toBe('');
 	});
 
 	it('a promise asks for the whole seed and any remote', () => {
-		expect(new PageSeedAsk(null)).toMatchObject({ entry: '', seed: 'all', remotes: null });
+		expect(fields(ask('promise'))).toEqual({ entry: '', seed: 'all', remotes: null });
 	});
 
 	it('no module asks for nothing', () => {
-		expect(new PageSeedAsk('')).toMatchObject({ entry: '', seed: false, remotes: [] });
+		expect(fields(ask('none'))).toEqual({ entry: '', seed: false, remotes: [] });
 	});
 
 	it('a module that reads no page asks for no seed, only its remotes', () => {
 		set_island_remotes(['r1']);
-		expect(new PageSeedAsk('/m.js')).toMatchObject({
-			entry: '/m.js',
-			seed: false,
-			remotes: ['r1']
-		});
+		expect(fields(ask('island'))).toEqual({ entry: '/m.js', seed: false, remotes: ['r1'] });
 	});
 
 	it('a module that reads the page asks for its keys, or all of it when the keys are unknown', () => {
 		set_reads_page(true);
 		set_page_keys(['user']);
-		expect(new PageSeedAsk('/m.js').seed).toEqual(['user']);
+		expect(ask('island').seed).toEqual(['user']);
 		set_page_keys(null);
-		expect(new PageSeedAsk('/m.js').seed).toBe('all');
+		expect(ask('island').seed).toBe('all');
 	});
 });

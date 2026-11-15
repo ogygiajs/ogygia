@@ -7,7 +7,7 @@ export function adopt_region(
 	inner?: (renderer: never) => void,
 	setup?: (el: Element) => void | (() => void)
 ): Snippet {
-	return typeof window === 'undefined'
+	return (import.meta.env?.SSR ?? typeof window === 'undefined')
 		? (((renderer: { push(html: string): void }) => {
 				renderer.push(`<ogygia-region${attrs()}>`);
 				inner?.(renderer as never);

@@ -49,7 +49,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 
 	let { of, placeholder, children, __og = NO_SETTINGS, __props, ogygiaFallback }: Props = $props();
 
-	const rp: RegionPlan = RegionPlan.read(
+	const rp: RegionPlan = new RegionPlan(
 		untrack(() => __og),
 		() => of,
 		() => __og.baked ?? false,
@@ -57,26 +57,25 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		(): string => island!.wake.on
 	);
 	const plan = rp.plan;
-	const island: IslandWire | null = IslandWire.place(
-		rp,
-		() => __props,
-		() => children
-	);
-	if (typeof window === 'undefined') {
-		untrack(() => {
-			const held = rp.of_init as DeferredRegion | undefined;
-			const entry = PageSeedAsk.entry_of(
-				plan.seed,
-				island?.entry ?? '',
-				rp.settings.module ?? '',
-				held?.module
-			);
-			new PageSeedAsk(entry).record();
-		});
-	}
-	const graph = island && IslandGraph.place(rp, island);
-	const hole = HoleFacts.place(rp, () => __props);
-	const head = RegionHead.claim(rp, { island, graph, hole });
+	const island: IslandWire | null =
+		plan.family === 'island'
+			? new IslandWire(
+					rp,
+					() => __props,
+					() => children
+				)
+			: null;
+	if (import.meta.env?.SSR ?? typeof window === 'undefined')
+		untrack(() => new PageSeedAsk(rp, island).record());
+	const graph =
+		(import.meta.env?.SSR ?? typeof window === 'undefined') && island
+			? new IslandGraph(rp, island)
+			: null;
+	const hole = plan.family === 'hole' ? new HoleFacts(rp, () => __props) : null;
+	const head =
+		(import.meta.env?.SSR ?? typeof window === 'undefined')
+			? new RegionHead(rp, { island, graph, hole })
+			: null;
 
 	const live = new LiveValue(rp);
 	const baked = live.baked;
@@ -113,7 +112,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	}
 </script>
 
-<svelte:head>{@html head.html}</svelte:head>
+<svelte:head>{@html head?.html ?? ''}</svelte:head>
 {#if island}
 	{@const Component = island.component}
 	{#if plan.inline}{#if Component}<Component {...island.props_ready}
