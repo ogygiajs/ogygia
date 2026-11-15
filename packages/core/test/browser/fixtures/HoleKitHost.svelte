@@ -10,11 +10,8 @@
 
 <div data-shell>
 	<Region
-		__mode="server"
-		__entry="hole-kit"
-		__component={Counter}
+		__og={{ mode: 'server', entry: 'hole-kit', component: Counter, when: 'load' }}
 		__props={{ start: 1 }}
-		__defer="load"
 		ogygiaFallback={fallback}
 	/>
 </div>

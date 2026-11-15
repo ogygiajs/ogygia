@@ -16,7 +16,7 @@ test('in dev, the runtime a region ships brings the soft-HMR bridge beside it', 
 		request: new Request('https://app.test/plain')
 	}));
 	const { head } = render(Region as unknown as Component<Record<string, unknown>>, {
-		props: { __mode: 'island', __entry: '/islands/tiny.js', __component: Tiny, __props: {} }
+		props: { __og: { mode: 'island', entry: '/islands/tiny.js', component: Tiny }, __props: {} }
 	});
 	expect(head).toContain(
 		'<script type="module" data-ogygia-dev-hmr src="/@id/__x00__ogygia:dev/hmr"></script>'

@@ -9,11 +9,8 @@
 
 <div data-held-card>
 	<Region
-		__mode="server"
-		__entry="held-hole-greeting"
-		__component={Label}
+		__og={{ mode: 'server', entry: 'held-hole-greeting', component: Label, when: 'load' }}
 		__props={{ text: 'held greeting' }}
-		__defer="load"
 		ogygiaFallback={fallback}
 	/>
 </div>

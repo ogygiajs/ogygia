@@ -7,6 +7,6 @@
 </script>
 
 <div data-shell>
-	<Region __mode="island" __entry="/islands/tiny.js" __component={Tiny} __props={{}} />
-	<Region __mode="island" __entry="/islands/tiny.js" __component={Tiny} __props={{}} />
+	<Region __og={{ mode: 'island', entry: '/islands/tiny.js', component: Tiny }} __props={{}} />
+	<Region __og={{ mode: 'island', entry: '/islands/tiny.js', component: Tiny }} __props={{}} />
 </div>

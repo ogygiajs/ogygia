@@ -11,6 +11,7 @@ import type { Component } from 'svelte';
 import Region from '../src/Region.svelte';
 import Tiny from './_fixtures/Tiny.svelte';
 import KitPagePass from './_fixtures/KitPagePass.svelte';
+import { region_props } from './_region-settings.ts';
 import { DocumentTail, set_tail_reader } from '../src/server/document-tail.ts';
 import { set_island_css } from './_stubs/server.region-deps.ts';
 import { set_request_event_stub } from './_stubs/server.request-event.ts';
@@ -20,13 +21,14 @@ const kit_pass = KitPagePass as unknown as Component<Record<string, unknown>>;
 const ENTRY = '/islands/tiny.js';
 const SHARED = '/islands/shared.css';
 
-const island = (props: Record<string, unknown>) => ({
-	__mode: 'island',
-	__entry: ENTRY,
-	__component: Tiny,
-	__props: props,
-	load: true
-});
+const island = (props: Record<string, unknown>) =>
+	region_props({
+		__mode: 'island',
+		__entry: ENTRY,
+		__component: Tiny,
+		__props: props,
+		load: true
+	});
 
 /** One page render in Kit's page pass, with its tail: the head, the body, and the tail's HTML. */
 function page(list: Array<Record<string, unknown>>) {

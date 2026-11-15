@@ -4,5 +4,8 @@
 </script>
 
 <div data-host>
-	<Region __mode="island" __entry="/islands/inner.js" __component={Tiny} __props={{ inner: 1 }} />
+	<Region
+		__og={{ mode: 'island', entry: '/islands/inner.js', component: Tiny }}
+		__props={{ inner: 1 }}
+	/>
 </div>

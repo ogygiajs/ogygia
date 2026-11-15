@@ -13,6 +13,7 @@ import { DocumentTail, set_tail_reader } from '../src/server/document-tail.ts';
 import { hole_copy_of } from '../src/contract/hash.ts';
 import { set_region_endpoints } from './_stubs/server.region-endpoint.ts';
 import { set_request_event_stub } from './_stubs/server.request-event.ts';
+import { region_props } from './_region-settings.ts';
 
 const region = Region as unknown as Component<Record<string, unknown>>;
 const kit_pass = KitPagePass as unknown as Component<Record<string, unknown>>;
@@ -28,7 +29,7 @@ function holes(list: Array<Record<string, unknown>>) {
 	try {
 		const children = (renderer: { push(html: string): void }) => {
 			for (const props of list)
-				(region as unknown as (r: unknown, p: unknown) => void)(renderer, props);
+				(region as unknown as (r: unknown, p: unknown) => void)(renderer, region_props(props));
 		};
 		void render(kit_pass, { props: { children } }).body;
 		return tail.hole_rows();

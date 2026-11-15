@@ -4,7 +4,10 @@
 </script>
 
 <div data-host>
-	<Region __mode="server" __entry="hole-in-island" __component={Tiny} __props={{}} __defer="load">
+	<Region
+		__og={{ mode: 'server', entry: 'hole-in-island', component: Tiny, when: 'load' }}
+		__props={{}}
+	>
 		{#snippet ogygiaFallback()}<p data-fallback>wait</p>{/snippet}
 	</Region>
 </div>

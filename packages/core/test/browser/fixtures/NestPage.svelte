@@ -6,9 +6,11 @@
 </script>
 
 <Region
-	__mode="island"
-	__entry="/test/browser/fixtures/NestHost.svelte"
-	__component={NestHost}
+	__og={{
+		mode: 'island',
+		entry: '/test/browser/fixtures/NestHost.svelte',
+		component: NestHost,
+		wake: 'interaction'
+	}}
 	__props={{}}
-	interaction={true}
 />

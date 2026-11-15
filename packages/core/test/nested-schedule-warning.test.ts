@@ -4,19 +4,20 @@ import type { Component } from 'svelte';
 import Region from '../src/Region.svelte';
 import NestScheduleHost from './_fixtures/NestScheduleHost.svelte';
 import { nested_context } from '../src/nested.ts';
+import { region_props } from './_region-settings.ts';
 
 const region = Region as unknown as Component<Record<string, unknown>>;
 
 function warnings_of(outer: Record<string, unknown>, inner_idle: boolean): string[] {
 	const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	void render(region, {
-		props: {
+		props: region_props({
 			__mode: 'island',
 			__entry: '/islands/host.js',
 			__component: NestScheduleHost,
 			__props: { idle: inner_idle },
 			...outer
-		}
+		})
 	}).body;
 	return spy.mock.calls.map((c) => String(c[0]));
 }

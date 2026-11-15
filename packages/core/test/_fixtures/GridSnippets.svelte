@@ -7,17 +7,11 @@ fallback or a placeholder. -->
 </script>
 
 {#snippet hole_in()}<Region
-		__mode="server"
-		__entry="hole-in"
-		__component={Tiny}
+		__og={{ mode: 'server', entry: 'hole-in', component: Tiny, when: 'load' }}
 		__props={{ inner: 2 }}
-		__defer="load"
 	/>{/snippet}
 
 {#snippet island_in()}<Region
-		__mode="island"
-		__entry="/islands/inner.js"
-		__component={Tiny}
+		__og={{ mode: 'island', entry: '/islands/inner.js', component: Tiny, wake: 'idle' }}
 		__props={{ inner: 1 }}
-		idle
 	/>{/snippet}

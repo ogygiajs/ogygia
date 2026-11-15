@@ -27,6 +27,7 @@ import {
 import Region from '../src/Region.svelte';
 import Tiny from './_fixtures/Tiny.svelte';
 import KitPagePass from './_fixtures/KitPagePass.svelte';
+import { region_props } from './_region-settings.ts';
 import { DocumentTail, set_tail_reader } from '../src/server/document-tail.ts';
 import { page } from '$app/state';
 
@@ -279,13 +280,14 @@ function render_in_kit_pass(list: Array<Record<string, unknown>>) {
 	void out.body;
 	return out;
 }
-const island = (props: Record<string, unknown>) => ({
-	__mode: 'island',
-	__entry: '/islands/tiny.js',
-	__component: Tiny,
-	__props: props,
-	load: true
-});
+const island = (props: Record<string, unknown>) =>
+	region_props({
+		__mode: 'island',
+		__entry: '/islands/tiny.js',
+		__component: Tiny,
+		__props: props,
+		load: true
+	});
 
 let tail: DocumentTail;
 afterEach(() => {

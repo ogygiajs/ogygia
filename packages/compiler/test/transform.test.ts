@@ -166,10 +166,10 @@ describe('portable binding rewrite', () => {
 		expect(String(r.islands[0].bindingClientSource)).not.toContain('makeRegionEndpoint');
 		expect(r.islands[0].kind).toBe('hydrate');
 		expect(r.islands[0].source).toMatch(/export default __OgygiaComp_/);
-		expect(r.islands[0].wrapperSource).toMatch(/OgygiaRegion__Wrapper __mode="island" load/);
+		expect(r.islands[0].wrapperSource).toMatch(/const __og = \{ mode: "island", wake: "load", /);
 		expect(r.islands[0].wrapperSource).toMatch(
 			new RegExp(
-				`__entry=\\{${JSON.stringify(islandPublicUrl(iid)).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\}`
+				`entry: ${JSON.stringify(islandPublicUrl(iid)).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`
 			)
 		);
 	});
@@ -178,12 +178,12 @@ describe('portable binding rewrite', () => {
 		const iid = idFor(C_REL, loadMark);
 		// Default ctx (no appDir): /_app/ogygia/… (the stable names live outside immutable/).
 		const def = run(wrap(LOAD, '<C />'))!;
-		expect(def.islands[0].wrapperSource).toContain(`__entry={"/_app/ogygia/og-region.${iid}.js"}`);
+		expect(def.islands[0].wrapperSource).toContain(`entry: "/_app/ogygia/og-region.${iid}.js"`);
 		// Custom SvelteKit appDir: it rides the URL, no `_app` leaks. base is NOT baked here — Region's
 		// asset() adds it at SSR — so the URL stays a leading-slash app path.
 		const custom = run(wrap(LOAD, '<C />'), makeCtx({ appDir: 'internal' }))!;
 		expect(custom.islands[0].wrapperSource).toContain(
-			`__entry={"/internal/ogygia/og-region.${iid}.js"}`
+			`entry: "/internal/ogygia/og-region.${iid}.js"`
 		);
 		expect(custom.islands[0].wrapperSource).not.toContain('/_app/');
 	});
@@ -204,15 +204,15 @@ describe('portable binding rewrite', () => {
 			wrap(`import C from './C.svelte' with { preset: 'cachedIsland' };`, '<C />'),
 			makeCtx({ presets: { cachedIsland: { wake: 'load', maxAge: '5m' } } })
 		)!;
-		expect(r.islands[0].wrapperSource).toContain('__mode="island"');
-		expect(r.islands[0].wrapperSource).not.toContain('__cacheTtl'); // inline islands don't cache
+		expect(r.islands[0].wrapperSource).toContain('mode: "island"');
+		expect(r.islands[0].wrapperSource).not.toContain('cacheTtl'); // inline islands don't cache
 	});
 
 	test('idle / visible / media strategies bake into wrapper', () => {
 		const cases: Array<[string, RegExp]> = [
-			['idle', /OgygiaRegion__Wrapper __mode="island" idle /],
-			['visible', /OgygiaRegion__Wrapper __mode="island" visible="0px"/],
-			['(min-width: 768px)', /OgygiaRegion__Wrapper __mode="island" media="\(min-width: 768px\)"/]
+			['idle', /const __og = \{ mode: "island", wake: "idle", /],
+			['visible', /const __og = \{ mode: "island", wake: "visible", wakeMargin: "0px"/],
+			['(min-width: 768px)', /const __og = \{ mode: "island", wake: "\(min-width: 768px\)", /]
 		];
 		for (const [val, re] of cases) {
 			const r = run(wrap(`import C from './C.svelte' with { wake: '${val}' };`, '<C />'))!;
@@ -414,8 +414,8 @@ describe('defer / server islands', () => {
 		expect(r.islands[0].id).toBe(iid);
 		expect(r.islands[0].kind).toBe('defer');
 		expect(r.islands[0].server).toBe(true);
-		expect(r.islands[0].wrapperSource).toMatch(/OgygiaRegion__Wrapper __mode="server"/);
-		expect(r.islands[0].wrapperSource).toMatch(/__defer=\{"load"\}/);
+		expect(r.islands[0].wrapperSource).toMatch(/const __og = \{ mode: "server"/);
+		expect(r.islands[0].wrapperSource).toMatch(/when: "load"/);
 		expect(r.code).toMatch(/<G name="w"/);
 	});
 
@@ -443,9 +443,9 @@ describe('defer / server islands', () => {
 		)!;
 		expect(r.islands[0].kind).toBe('defer');
 		expect(r.islands[0].server).toBe(true);
-		expect(r.islands[0].wrapperSource).toMatch(/__defer=\{"idle"\}/);
+		expect(r.islands[0].wrapperSource).toMatch(/when: "idle"/);
 		// content-only: no client hydrate module is emitted
-		expect(r.islands[0].wrapperSource).not.toMatch(/__hydrate=/);
+		expect(r.islands[0].wrapperSource).not.toMatch(/wake: /);
 	});
 
 	test("a hole's client wrapper never imports its component or entry (a hole ships no JS)", () => {
@@ -461,7 +461,7 @@ describe('defer / server islands', () => {
 		const b = run(
 			wrap(`import C from './C.svelte' with { render: 'deferred', fetch: 'load' };`, '<C />')
 		)!;
-		expect(a.islands[0].wrapperSource).toMatch(/__defer=\{"load"\}/);
+		expect(a.islands[0].wrapperSource).toMatch(/when: "load"/);
 		expect(a.islands[0].id).toBe(b.islands[0].id);
 	});
 
@@ -523,7 +523,7 @@ describe('defer / server islands', () => {
 
 	test('deferred is no-store by default (no __cacheTtl emitted)', () => {
 		const r = run(wrap(`import C from './C.svelte' with { render: 'deferred' };`, '<C />'))!;
-		expect(r.islands[0].wrapperSource).not.toMatch(/__cacheTtl/);
+		expect(r.islands[0].wrapperSource).not.toMatch(/cacheTtl: /);
 	});
 
 	test('preset maxAge → __cacheTtl in seconds (duration string)', () => {
@@ -531,7 +531,7 @@ describe('defer / server islands', () => {
 			wrap(`import C from './C.svelte' with { preset: 'cached' };`, '<C />'),
 			makeCtx({ presets: { cached: { render: 'deferred', maxAge: '1h' } } })
 		)!;
-		expect(r.islands[0].wrapperSource).toMatch(/__cacheTtl=\{3600\}/);
+		expect(r.islands[0].wrapperSource).toMatch(/cacheTtl: 3600/);
 	});
 
 	test('preset maxAge → __cacheTtl in seconds (bare number is seconds)', () => {
@@ -539,7 +539,7 @@ describe('defer / server islands', () => {
 			wrap(`import C from './C.svelte' with { preset: 'cached' };`, '<C />'),
 			makeCtx({ presets: { cached: { render: 'deferred', maxAge: 45 } } })
 		)!;
-		expect(r.islands[0].wrapperSource).toMatch(/__cacheTtl=\{45\}/);
+		expect(r.islands[0].wrapperSource).toMatch(/cacheTtl: 45/);
 	});
 
 	test('preset maxAge: 0 stays no-store (no __cacheTtl)', () => {
@@ -547,7 +547,7 @@ describe('defer / server islands', () => {
 			wrap(`import C from './C.svelte' with { preset: 'fresh' };`, '<C />'),
 			makeCtx({ presets: { fresh: { render: 'deferred', maxAge: 0 } } })
 		)!;
-		expect(r.islands[0].wrapperSource).not.toMatch(/__cacheTtl/);
+		expect(r.islands[0].wrapperSource).not.toMatch(/cacheTtl: /);
 	});
 });
 
@@ -563,8 +563,8 @@ describe('deferred `prefetch` (the warm schedule)', () => {
 				'<C />'
 			)
 		)!;
-		expect(r.islands[0].wrapperSource).toMatch(/__defer=\{"interaction"\}/);
-		expect(r.islands[0].wrapperSource).toMatch(/__prefetch=\{"idle"\}/);
+		expect(r.islands[0].wrapperSource).toMatch(/when: "interaction"/);
+		expect(r.islands[0].wrapperSource).toMatch(/prefetch: "idle"/);
 	});
 
 	test('preset: the same, with maxAge alongside', () => {
@@ -576,8 +576,8 @@ describe('deferred `prefetch` (the warm schedule)', () => {
 				}
 			})
 		)!;
-		expect(r.islands[0].wrapperSource).toMatch(/__prefetch=\{"idle"\}/);
-		expect(r.islands[0].wrapperSource).toMatch(/__cacheTtl=\{3600\}/);
+		expect(r.islands[0].wrapperSource).toMatch(/prefetch: "idle"/);
+		expect(r.islands[0].wrapperSource).toMatch(/cacheTtl: 3600/);
 	});
 
 	test('prefetch: visible carries the margin (its IntersectionObserver lead), a media query is a schedule too', () => {
@@ -589,22 +589,22 @@ describe('deferred `prefetch` (the warm schedule)', () => {
 				}
 			})
 		)!;
-		expect(r.islands[0].wrapperSource).toMatch(/__prefetch=\{"visible"\}/);
-		expect(r.islands[0].wrapperSource).toMatch(/__margin=\{"300px"\}/);
+		expect(r.islands[0].wrapperSource).toMatch(/prefetch: "visible"/);
+		expect(r.islands[0].wrapperSource).toMatch(/margin: "300px"/);
 		const m = run(
 			wrap(
 				`import C from './C.svelte' with { render: 'deferred', fetch: 'interaction', prefetch: '(min-width: 900px)' };`,
 				'<C />'
 			)
 		)!;
-		expect(m.islands[0].wrapperSource).toMatch(/__prefetch=\{"\(min-width: 900px\)"\}/);
+		expect(m.islands[0].wrapperSource).toMatch(/prefetch: "\(min-width: 900px\)"/);
 	});
 
 	test('no prefetch → no __prefetch (the default is the hover warm an interaction hole already has)', () => {
 		const r = run(
 			wrap(`import C from './C.svelte' with { render: 'deferred', fetch: 'interaction' };`, '<C />')
 		)!;
-		expect(r.islands[0].wrapperSource).not.toMatch(/__prefetch/);
+		expect(r.islands[0].wrapperSource).not.toMatch(/prefetch: /);
 	});
 
 	test("prefetch: 'interaction' is refused — that is the swap, fetch's job", () => {
@@ -661,7 +661,7 @@ describe('lakes', () => {
 		const r = run(wrap(`import L from './L.svelte' with { wake: 'none' };`, '<L />'))!;
 		expect(r.islands).toHaveLength(1);
 		expect(r.islands[0].kind).toBe('lake');
-		expect(r.islands[0].wrapperSource).toMatch(/OgygiaRegion__Wrapper __mode="lake"/);
+		expect(r.islands[0].wrapperSource).toMatch(/const __og = \{ mode: "lake"/);
 		expect(r.islands[0].wrapperSource).toMatch(/OgygiaLakeInner/);
 		expect(r.islands[0].lakes).toEqual(['OgygiaLakeInner']);
 		expect(r.code).toMatch(/ogygia:region\/wrapper\//);
@@ -732,7 +732,7 @@ describe('presets', () => {
 			wrap(`import C from './C.svelte' with { preset: 'lazy' };`, '<C />'),
 			makeCtx({ presets: { lazy: { wake: 'visible', margin: '200px' } } })
 		)!;
-		expect(r.islands[0].wrapperSource).toMatch(/visible="200px"/);
+		expect(r.islands[0].wrapperSource).toMatch(/wake: "visible", wakeMargin: "200px"/);
 	});
 });
 
@@ -897,7 +897,7 @@ describe('interaction schedule', () => {
 		expect(r.islands).toHaveLength(1);
 		expect(r.islands[0].kind).toBe('hydrate');
 		expect(r.islands[0].wrapperSource).toMatch(
-			/OgygiaRegion__Wrapper __mode="island" interaction /
+			/const __og = \{ mode: "island", wake: "interaction", /
 		);
 	});
 
@@ -913,7 +913,7 @@ describe('interaction schedule', () => {
 		const ctx = makeCtx({ presets: { lazy: { wake: 'interaction' } } });
 		const r = run(wrap(`import C from './C.svelte' with { preset: 'lazy' };`, '<C />'), ctx)!;
 		expect(r.islands[0].wrapperSource).toMatch(
-			/OgygiaRegion__Wrapper __mode="island" interaction /
+			/const __og = \{ mode: "island", wake: "interaction", /
 		);
 	});
 
@@ -921,9 +921,9 @@ describe('interaction schedule', () => {
 		const r = run(
 			wrap(`import G from './G.svelte' with { render: 'deferred', fetch: 'interaction' };`, '<G />')
 		)!;
-		expect(r.islands[0].wrapperSource).toMatch(/__mode="server"/);
-		expect(r.islands[0].wrapperSource).toMatch(/__defer=\{?"interaction"\}?/);
-		expect(r.islands[0].wrapperSource).not.toMatch(/__margin/);
+		expect(r.islands[0].wrapperSource).toMatch(/mode: "server"/);
+		expect(r.islands[0].wrapperSource).toMatch(/when: "interaction"/);
+		expect(r.islands[0].wrapperSource).not.toMatch(/margin: /);
 	});
 
 	test("render: deferred + fetch: 'none' is rejected (a hole must fetch)", () => {
@@ -942,7 +942,7 @@ describe('interaction schedule', () => {
 		)!;
 		expect(r.islands[0].virtualPath).toMatch(/\.js$/);
 		expect(r.islands[0].wrapperSource).toMatch(
-			/OgygiaRegion__Wrapper __mode="island" interaction /
+			/const __og = \{ mode: "island", wake: "interaction", /
 		);
 	});
 });
@@ -955,17 +955,17 @@ describe('keep attribute', () => {
 		const r = run(
 			wrap(`import P from './P.svelte' with { wake: 'load', keep: 'player' };`, '<P />')
 		)!;
-		expect(r.islands[0].wrapperSource).toMatch(/__keep=\{"player"\}/);
+		expect(r.islands[0].wrapperSource).toMatch(/keep: "player"/);
 		// keep rides on the hydrate strategy (still a load island)
-		expect(r.islands[0].wrapperSource).toMatch(/OgygiaRegion__Wrapper __mode="island" load/);
+		expect(r.islands[0].wrapperSource).toMatch(/const __og = \{ mode: "island", wake: "load", /);
 	});
 
 	test('keep alone (default load schedule) is allowed', () => {
 		const r = run(
 			wrap(`import P from './P.svelte' with { wake: 'visible', keep: 'x' };`, '<P />')
 		)!;
-		expect(r.islands[0].wrapperSource).toMatch(/__keep=\{"x"\}/);
-		expect(r.islands[0].wrapperSource).toMatch(/OgygiaRegion__Wrapper __mode="island" visible/);
+		expect(r.islands[0].wrapperSource).toMatch(/keep: "x"/);
+		expect(r.islands[0].wrapperSource).toMatch(/const __og = \{ mode: "island", wake: "visible"/);
 	});
 
 	test('empty keep name is a build error', () => {
@@ -978,7 +978,7 @@ describe('keep attribute', () => {
 	test('keep in a preset works', () => {
 		const ctx = makeCtx({ presets: { pl: { wake: 'load', keep: 'player' } } });
 		const r = run(wrap(`import P from './P.svelte' with { preset: 'pl' };`, '<P />'), ctx)!;
-		expect(r.islands[0].wrapperSource).toMatch(/__keep=\{"player"\}/);
+		expect(r.islands[0].wrapperSource).toMatch(/keep: "player"/);
 	});
 });
 

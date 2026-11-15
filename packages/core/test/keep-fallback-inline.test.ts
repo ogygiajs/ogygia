@@ -11,11 +11,12 @@ import Region from '../src/Region.svelte';
 import KeepHole from './_fixtures/KeepHole.svelte';
 import HostWithHole from './_fixtures/HostWithHole.svelte';
 import { is_keep_fallback } from '../src/keep-fallback.ts';
+import { region_props } from './_region-settings.ts';
 
 const region = Region as unknown as Component<Record<string, unknown>>;
 // `render()`'s body is a LAZY getter — the component runs on first read.
 const body_of = (c: Component<Record<string, unknown>>, props: Record<string, unknown>) =>
-	render(c, { props }).body;
+	render(c, { props: region_props(props) }).body;
 
 describe('keepFallback() placement', () => {
 	it('on the endpoint (the hole is the render root): the branded signal, as before', () => {

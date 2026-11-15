@@ -5,7 +5,10 @@
 </script>
 
 <div data-host>
-	<Region __mode="server" __entry="hole-keep" __component={KeepHole} __props={{}} __defer="load">
+	<Region
+		__og={{ mode: 'server', entry: 'hole-keep', component: KeepHole, when: 'load' }}
+		__props={{}}
+	>
 		{#snippet ogygiaFallback()}<p data-fallback>anonymous</p>{/snippet}
 	</Region>
 </div>

@@ -5,5 +5,13 @@
 </script>
 
 <div data-host>
-	<Region __mode="island" __entry="/islands/tiny.js" __component={Tiny} __props={{}} {idle} />
+	<Region
+		__og={{
+			mode: 'island',
+			entry: '/islands/tiny.js',
+			component: Tiny,
+			wake: idle ? 'idle' : 'load'
+		}}
+		__props={{}}
+	/>
 </div>

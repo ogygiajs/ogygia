@@ -5,6 +5,34 @@ schedule. `<Region of={value} />` renders a held region value from `region()`, o
 remote call); `placeholder` shows while it is not ready yet. Placed regions (`wake`, `render`,
 `'none'` on an import) render through it too, through the props the compiler writes.
 -->
+<script lang="ts" module>
+	import type { Component } from 'svelte';
+
+	/** A placed region's settings, written by the compiler once per wrapper module (`__og`). */
+	export interface RegionSettings {
+		mode?: 'island' | 'server' | 'lake';
+		baked?: boolean;
+		wake?: string;
+		wakeMargin?: string;
+		keep?: string;
+		entry?: string;
+		component?: Component;
+		css?: unknown;
+		load?: () => Promise<Component>;
+		when?: string;
+		margin?: string;
+		module?: string;
+		cacheTtl?: number;
+		stitch?: string;
+		prefetch?: string;
+		remount?: string;
+		maxAge?: number;
+		onExpire?: 'empty' | 'fetch';
+	}
+
+	const NO_SETTINGS: RegionSettings = {};
+</script>
+
 <script lang="ts">
 	import {
 		untrack,
@@ -14,7 +42,6 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		createRawSnippet,
 		mount,
 		unmount,
-		type Component,
 		type Snippet
 	} from 'svelte';
 	import {
@@ -85,7 +112,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 
 	const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 
-	/** A region's props: `of` and its waiting UI for a held region; the `__*` props, from the compiler, for a placed one. */
+	/** A region's props: `of` and its waiting UI for a held region; `__og` and the `__props` it renders, from the compiler, for a placed one. */
 	interface Props {
 		/** The region to render: a value from `region()`, or a promise of one (a remote call). */
 		of?: RegionValue | Promise<RegionValue>;
@@ -93,64 +120,34 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		placeholder?: Snippet;
 		/** The rendered component's children; where there is no `placeholder`, the waiting UI. */
 		children?: Snippet;
-		__mode?: 'island' | 'server' | 'lake';
-		__baked?: boolean;
-		visible?: string | boolean;
-		idle?: boolean;
-		media?: string;
-		load?: boolean;
-		interaction?: boolean;
-		__keep?: string;
-		__entry?: string;
-		__component?: Component;
-		__css?: unknown;
-		__load?: () => Promise<Component>;
+		__og?: RegionSettings;
 		__props?: Record<string, unknown>;
-		__defer?: string;
-		__margin?: string;
-		__hydrate?: string;
-		__hydrateMargin?: string;
-		__module?: string;
-		__cacheTtl?: number;
-		__stitch?: string;
-		__prefetch?: string;
 		ogygiaFallback?: Snippet;
-		__remount?: string;
-		__when?: string;
-		__maxAge?: number;
-		__onExpire?: 'empty' | 'fetch';
 	}
 
-	let {
-		of,
-		placeholder,
-		children,
-		__baked = false,
-		__mode,
-		visible,
-		idle,
-		media,
-		load,
-		interaction,
-		__keep,
-		__entry = '',
-		__component,
-		__load,
-		__props,
-		__defer = 'load',
-		__margin,
-		__hydrate,
-		__hydrateMargin,
-		__module = '',
-		__cacheTtl,
-		__stitch = '',
-		__prefetch = '',
-		ogygiaFallback,
-		__remount = 'cache',
-		__when = 'load',
-		__maxAge,
-		__onExpire
-	}: Props = $props();
+	let { of, placeholder, children, __og = NO_SETTINGS, __props, ogygiaFallback }: Props = $props();
+	const __baked = $derived(__og.baked ?? false);
+	const {
+		mode: __mode,
+		wake: __wake,
+		wakeMargin: __wakeMargin,
+		keep: __keep,
+		entry: __entry = '',
+		component: __component,
+		load: __load,
+		when: __defer = 'load',
+		margin: __margin,
+		module: __module = '',
+		cacheTtl: __cacheTtl,
+		stitch: __stitch = '',
+		prefetch: __prefetch = '',
+		remount: __remount = 'cache',
+		maxAge: __maxAge,
+		onExpire: __onExpire
+	} = untrack(() => __og);
+	const __hydrate = __mode === 'server' ? __wake : undefined;
+	const __hydrateMargin = __mode === 'server' ? __wakeMargin : undefined;
+	const __when = __defer;
 
 	// @why a closing script tag written out inside a script ends it, even in a comment (test: internal/checks/shipped-svelte.test.ts › every shipped component passes)
 	const LT = String.fromCharCode(60);
@@ -295,22 +292,8 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 			? { ...island_props_ready, children: slot_pointer(slot_id) }
 			: island_props_ready
 	);
-	const hydrate_attr = $derived(
-		as_dual
-			? as_dual.hydrate!
-			: media
-				? media
-				: idle
-					? 'idle'
-					: visible
-						? 'visible'
-						: interaction
-							? 'interaction'
-							: 'load'
-	);
-	const root_margin = $derived(
-		as_dual ? as_dual.hydrateMargin || undefined : typeof visible === 'string' ? visible : undefined
-	);
+	const hydrate_attr = $derived(as_dual ? as_dual.hydrate! : __wake || 'load');
+	const root_margin = $derived(as_dual ? as_dual.hydrateMargin || undefined : __wakeMargin);
 
 	if (nested && (is_island || is_server) && import.meta.env && import.meta.env.DEV) {
 		untrack(() => {

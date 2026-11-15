@@ -11,11 +11,13 @@
 <div data-og-html data-host>
 	<span>outer</span>
 	<Region
-		__mode="island"
-		__entry="/test/browser/fixtures/Counter.svelte"
-		__component={Counter}
+		__og={{
+			mode: 'island',
+			entry: '/test/browser/fixtures/Counter.svelte',
+			component: Counter,
+			wake: 'idle'
+		}}
 		__props={{ start: 1 }}
-		idle={true}
 	/>
 	{@html note}
 </div>

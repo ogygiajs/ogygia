@@ -16,6 +16,7 @@ import { runtime_session } from '../../src/runtime/session.ts';
 import { mark_written } from '../../src/frame.ts';
 import RegionSet from '../_fixtures/RegionSet.svelte';
 import { normalize_hashes } from '../_normalize-hashes.ts';
+import { region_props } from '../_region-settings.ts';
 import * as ProbeFallback from './fixtures/ProbeFallback.svelte';
 
 const { probe_fallback } = ProbeFallback as unknown as { probe_fallback: unknown };
@@ -103,7 +104,7 @@ async function out(regions: Props[], place: Place = {}): Promise<string> {
 	const head_before = document.head.children.length;
 	const app = mount(RegionUnder as unknown as Component<Props>, {
 		target,
-		props: { setup: setup(place), regions }
+		props: { setup: setup(place), regions: regions.map(region_props) }
 	});
 	flushSync();
 	await settle();
@@ -216,12 +217,12 @@ async function elements_over(first: Props, ...next: Props[]): Promise<Array<Elem
 	const target = document.body.appendChild(document.createElement('div'));
 	const app = mount(RegionSet as unknown as Component<{ first: Props }>, {
 		target,
-		props: { first }
+		props: { first: region_props(first) }
 	}) as { set: (r: Props) => void };
 	flushSync();
 	const seen = [target.querySelector('ogygia-region')];
 	for (const r of next) {
-		app.set(r);
+		app.set(region_props(r));
 		flushSync();
 		seen.push(target.querySelector('ogygia-region'));
 	}
@@ -314,7 +315,10 @@ for (const [where, place] of [
 		const target = document.body.appendChild(document.createElement('div'));
 		const app = mount(RegionUnder as unknown as Component<Props>, {
 			target,
-			props: { setup: setup(place), regions: [{ ...HOLE, ogygiaFallback: fallback }] }
+			props: {
+				setup: setup(place),
+				regions: [region_props({ ...HOLE, ogygiaFallback: fallback })]
+			}
 		});
 		flushSync();
 		expect(target.querySelector('ogygia-region p')?.textContent).toBe('wait');

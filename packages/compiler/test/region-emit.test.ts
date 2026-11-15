@@ -122,8 +122,8 @@ describe('the server-region wrapper', () => {
 	it('its client leg imports no component: a hole ships no JS', () => {
 		const ssr = server_wrapper_source('abc123', COMPONENT, ENTRY, {}, undefined, URL);
 		const client = server_wrapper_source('abc123', COMPONENT, ENTRY, {}, undefined, URL, false);
-		expect(ssr).toContain('__component={__OgygiaEntry} __css={__OgygiaCss}');
-		for (const banned of [COMPONENT, ENTRY, '__component', '__css'])
+		expect(ssr).toContain('component: __OgygiaEntry, css: __OgygiaCss');
+		for (const banned of [COMPONENT, ENTRY, 'component: ', 'css: '])
 			expect(client).not.toContain(banned);
 	});
 
@@ -136,13 +136,13 @@ describe('the server-region wrapper', () => {
 			undefined,
 			URL
 		);
-		expect(src).toContain('__stitch={"edge"}');
+		expect(src).toContain('stitch: "edge"');
 	});
 
 	it('a deferred region that hydrates carries its module and its hydrate margin', () => {
 		const options = { hydrate: 'visible', hydrateMargin: '50px' };
 		const src = server_wrapper_source('abc123', COMPONENT, ENTRY, options, undefined, URL);
-		expect(src).toContain(`__hydrate={"visible"} __module={"${URL}"} __hydrateMargin={"50px"}`);
+		expect(src).toContain(`wake: "visible", module: "${URL}", wakeMargin: "50px"`);
 	});
 });
 
@@ -154,10 +154,12 @@ describe('the lake wrapper', () => {
 			{ remount: 'swr', margin: '10px' },
 			undefined
 		);
-		expect(swr).toContain('__props={__props} __when={"load"} __margin={"10px"}');
+		expect(swr).toContain('remount: "swr", when: "load", margin: "10px" }');
+		expect(swr).toContain('{__og} {__props}>');
 		const cache = lake_wrapper_source('abc123', COMPONENT, { margin: '10px' }, undefined);
-		expect(cache).toContain('__remount={"cache"} __props={__props}');
-		for (const banned of ['__when', '__margin']) expect(cache).not.toContain(banned);
+		expect(cache).toContain('remount: "cache" }');
+		expect(cache).toContain('{__og} {__props}>');
+		for (const banned of ['when: ', 'margin: ']) expect(cache).not.toContain(banned);
 	});
 
 	it('the placeholder rewrite matches a named import by its local name, not its exported one', () => {

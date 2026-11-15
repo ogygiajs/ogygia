@@ -29,7 +29,9 @@ const { default: IslandWithHole } = await import('./_fixtures/IslandWithHole.sve
 const { default: Wrap } = await import('./_fixtures/Wrap.svelte');
 const { default: EventProbe } = await import('./_fixtures/EventProbe.svelte');
 const { default: RegionC } = await import('../src/Region.svelte');
-const region_fn = RegionC as unknown as (r: unknown, p: unknown) => void;
+const { region_props } = await import('./_region-settings.ts');
+const region_raw = RegionC as unknown as (r: unknown, p: unknown) => void;
+const region_fn = (r: unknown, p: Props) => region_raw(r, region_props(p));
 const { REGION_BRAND } = await import('../src/region.ts');
 const { set_request_event_stub } = await import('./_stubs/server.request-event.ts');
 const { csr_true_routes, error_csr_true_routes } = await import('./_stubs/server.route-csr.ts');
@@ -185,7 +187,7 @@ function out(regions: Props[], place: Place = {}): string {
 	warned.mockClear();
 	let r: { head: string; body: string };
 	try {
-		r = render(under, { props: { setup: setup(place), regions } });
+		r = render(under, { props: { setup: setup(place), regions: regions.map(region_props) } });
 		r = { head: r.head, body: r.body };
 	} finally {
 		set_server_devtools_recorder(null);

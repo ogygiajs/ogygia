@@ -36,27 +36,27 @@ function raw_of(kind: string): fc.Arbitrary<Record<string, unknown>> {
 		case 'island':
 			return fc.record(
 				{
-					__entry: module_url,
-					__keep: text,
-					visible: text,
-					media: text,
+					'og.entry': module_url,
+					'og.keep': text,
+					'og.wake': text,
+					'og.wakeMargin': text,
 					__props: json_props,
-					__cacheTtl: ttl
+					'og.cacheTtl': ttl
 				},
 				{ requiredKeys: [] }
 			);
 		case 'hole':
 			return fc.record(
 				{
-					__entry: text,
-					__defer: text,
-					__hydrate: text,
-					__module: fc.oneof(fc.constant(''), module_url),
-					__margin: text,
-					__hydrateMargin: text,
-					__stitch: text,
-					__prefetch: text,
-					__cacheTtl: ttl,
+					'og.entry': text,
+					'og.when': text,
+					'og.wake': text,
+					'og.module': fc.oneof(fc.constant(''), module_url),
+					'og.margin': text,
+					'og.wakeMargin': text,
+					'og.stitch': text,
+					'og.prefetch': text,
+					'og.cacheTtl': ttl,
 					__props: json_props
 				},
 				{ requiredKeys: [] }
@@ -64,12 +64,12 @@ function raw_of(kind: string): fc.Arbitrary<Record<string, unknown>> {
 		case 'lake':
 			return fc.record(
 				{
-					__entry: text,
-					__remount: fc.oneof(fc.constantFrom('cache', 'empty', 'swr'), text),
-					__when: text,
-					__maxAge: ttl,
-					__onExpire: fc.oneof(fc.constantFrom('empty', 'fetch'), text),
-					__margin: text,
+					'og.entry': text,
+					'og.remount': fc.oneof(fc.constantFrom('cache', 'empty', 'swr'), text),
+					'og.when': text,
+					'og.maxAge': ttl,
+					'og.onExpire': fc.oneof(fc.constantFrom('empty', 'fetch'), text),
+					'og.margin': text,
 					__props: json_props
 				},
 				{ requiredKeys: [] }

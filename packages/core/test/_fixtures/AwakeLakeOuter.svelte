@@ -4,4 +4,4 @@
 	import LakeKitInner from './LakeKitInner.svelte';
 </script>
 
-<Region __mode="lake" __entry="lake-in-island"><LakeKitInner /></Region>
+<Region __og={{ mode: 'lake', entry: 'lake-in-island' }}><LakeKitInner /></Region>

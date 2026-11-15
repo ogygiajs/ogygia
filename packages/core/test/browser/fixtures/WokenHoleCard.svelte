@@ -9,11 +9,8 @@
 
 <div data-woken-card>
 	<Region
-		__mode="server"
-		__entry="woken-hole-inner"
-		__component={Label}
+		__og={{ mode: 'server', entry: 'woken-hole-inner', component: Label, when: 'load' }}
 		__props={{ text: 'inner greeting' }}
-		__defer="load"
 		ogygiaFallback={fallback}
 	/>
 </div>
