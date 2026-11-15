@@ -36,6 +36,10 @@ function body_with_no_page_store(): string {
 }
 
 describe('a region rendered where Kit has no page store (a hole endpoint, a remote region)', () => {
+	it('renders, reading no page error and asking the page seed for nothing', () => {
+		expect(() => body_with_no_page_store()).not.toThrow();
+	});
+
 	it("plans from its route's csr, not its error page's: on a csr=false route it is an island shell", () => {
 		error_csr_true_routes.add(ROUTE);
 		expect(body_with_no_page_store()).toContain('<ogygia-region entry="/islands/tiny.js"');
