@@ -8,6 +8,7 @@ import { createRawSnippet, flushSync, mount, setContext, unmount, type Component
 import RegionUnder from '../_fixtures/RegionUnder.svelte';
 import Tiny from '../_fixtures/Tiny.svelte';
 import Wrap from '../_fixtures/Wrap.svelte';
+import Echo from '../_fixtures/Echo.svelte';
 import IslandWithHole from '../_fixtures/IslandWithHole.svelte';
 import { REGION_BRAND } from '../../src/region.ts';
 import { setNested } from '../../src/nested.ts';
@@ -376,6 +377,11 @@ test('a baked live region hands its element nothing once it is unmounted', async
 	app.set(region_props({ of: deferred({ html: '<b>two</b>' }), __baked: true }));
 	flushSync();
 	expect(lived.map((v) => (v as { html: string }).html)).toEqual(['<b>one</b>']);
+});
+
+test('a held static dual created in the browser hands its props to its component', async () => {
+	const html = await out([{ of: dual({ component: Echo, props: { text: 'from the dual' } }) }]);
+	expect(JSON.parse(html).body).toContain('<i data-echo="">from the dual</i>');
 });
 
 test('a held live value hands each new value to its element, which stays', async () => {
