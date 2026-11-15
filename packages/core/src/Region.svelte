@@ -19,8 +19,6 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	import { props_sidecar } from './server/props-wire.ts';
 	import { record_server_event } from './events/server-registry.ts';
 	import type { DeferredRegion, DualRegion, InlineRegion, RegionValue } from './region.ts';
-	import { written_order } from './frame.ts';
-	import { adopt_region } from './region-parts/adopt.ts';
 	import { location_of } from './region-parts/locate.ts';
 	import { RegionPlan } from './region-parts/plan.svelte.ts';
 	import { IslandWire } from './region-parts/island-wire.svelte.ts';
@@ -28,6 +26,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	import { HoleFacts } from './region-parts/hole-facts.svelte.ts';
 	import { RegionHead } from './region-parts/head.svelte.ts';
 	import { PageSeedAsk } from './region-parts/seed-ask.ts';
+	import { LiveValue } from './region-parts/live-value.svelte.ts';
 	import LateIsland from './LateIsland.svelte';
 	import PromiseRegion from './PromiseRegion.svelte';
 	import HoleRegion from './HoleRegion.svelte';
@@ -79,36 +78,10 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	const hole = new HoleFacts(rp, () => __props);
 	const head = new RegionHead(rp, island, graph, hole);
 
+	const live = new LiveValue(rp);
+	const baked = live.baked;
+
 	const stringify_devalue = stringify;
-	let baked_el: Element | null = $state(null);
-	const baked_adopt = adopt_region(
-		() => (typeof window === 'undefined' ? ' live data-og-baked' : ' live'),
-		(renderer) =>
-			(renderer as { push(html: string): void }).push(
-				(rp.resolved as { html?: string } | undefined)?.html ?? ''
-			),
-		(el) => {
-			baked_el = el;
-			return () => (baked_el = null);
-		}
-	);
-	$effect(() => {
-		if (baked_el) apply_live(baked_el as Element & { applyLive?: (v: unknown) => void });
-	});
-	function apply_live(node: Element & { applyLive?: (v: unknown) => void }) {
-		const f = rp.resolved;
-		if (!f || f.kind !== 'deferred' || f.html == null) return;
-		node.applyLive?.({
-			id: f.id,
-			module: f.module,
-			props: f.props,
-			html: f.html,
-			url: f.url,
-			hydrate: f.hydrate,
-			hydrateMargin: f.hydrateMargin,
-			written: written_order(f)
-		});
-	}
 	function identity(f: DeferredRegion) {
 		try {
 			return `${f.id}\0${stringify_devalue(f.props)}`;
@@ -182,9 +155,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		>{#if children}{@render children()}{/if}</Component
 	>
 {:else if rp.arm === 'live' || rp.arm === 'live-baked'}
-	{#if rp.arm === 'live-baked'}{@render baked_adopt()}{:else}<ogygia-region
-			live
-			{@attach apply_live}
+	{#if rp.arm === 'live-baked'}{@render baked()}{:else}<ogygia-region live {@attach live.attach}
 			>{#if placeholder}{@render placeholder()}{:else if children}{@render children()}{/if}</ogygia-region
 		>{/if}
 {:else if rp.arm === 'deferred'}

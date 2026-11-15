@@ -23,6 +23,9 @@ import { IslandGraph } from '../src/region-parts/island-graph.svelte.ts';
 import { HoleFacts } from '../src/region-parts/hole-facts.svelte.ts';
 import { RegionHead } from '../src/region-parts/head.svelte.ts';
 import { PageSeedAsk } from '../src/region-parts/seed-ask.ts';
+import { LiveValue } from '../src/region-parts/live-value.svelte.ts';
+import { REGION_BRAND } from '../src/region.ts';
+import { written_order } from '../src/frame.ts';
 
 type Run = (renderer: unknown, props: { run: () => void }) => void;
 const run_in = RunInComponent as unknown as Run;
@@ -306,6 +309,51 @@ describe('RegionHead', () => {
 		expect(first!.owner).not.toBe('');
 		expect(first!.html).toContain(kit_asset('/assets/tiny.css'));
 		expect(second!.html).not.toContain(kit_asset('/assets/tiny.css'));
+	});
+});
+
+describe('LiveValue', () => {
+	const value = {
+		[REGION_BRAND]: true,
+		kind: 'deferred',
+		id: 'held-a',
+		module: '/islands/live.js',
+		props: { n: 1 },
+		html: '<b>one</b>',
+		url: '/__ogygia__?id=held-a',
+		hydrate: 'idle'
+	} as unknown as RegionValue;
+
+	it('hands the value, as it is now, to the element that shows it', () => {
+		let live!: LiveValue;
+		inside(() => (live = new LiveValue(plan_of({}, value))));
+		const handed: unknown[] = [];
+		live.attach({ applyLive: (v: unknown) => handed.push(v) } as unknown as Element);
+		expect(handed).toEqual([
+			{
+				id: 'held-a',
+				module: '/islands/live.js',
+				props: { n: 1 },
+				html: '<b>one</b>',
+				url: '/__ogygia__?id=held-a',
+				hydrate: 'idle',
+				hydrateMargin: undefined,
+				written: written_order(value as never)
+			}
+		]);
+	});
+
+	it('a baked value is written by the server inside an element marked baked', () => {
+		let html = '';
+		inside(() => {
+			const live = new LiveValue(plan_of({ baked: true }, value, true));
+			const out: string[] = [];
+			(live.baked as unknown as (r: { push(s: string): void }) => void)({
+				push: (s) => out.push(s)
+			});
+			html = out.join('');
+		});
+		expect(html).toBe('<ogygia-region live data-og-baked><b>one</b></ogygia-region>');
 	});
 });
 
