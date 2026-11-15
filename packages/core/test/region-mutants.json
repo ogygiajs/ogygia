@@ -1,0 +1,1206 @@
+{
+	"file": "packages/core/src/Region.svelte",
+	"run": "Each mutant put in alone, then the whole core suite run (Node, Chromium, Firefox, WebKit); a survivor of the fast grid run again on the full grid.",
+	"mutants": [
+		{
+			"id": "thenable-dual-brand",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=dual at=page"
+		},
+		{
+			"id": "promise-no-then-check",
+			"verdict": "equivalent",
+			"why": "For every input the type allows (a branded value or a promise), the `then` check and the brand check agree."
+		},
+		{
+			"id": "no-waiting-ui-children",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held promise, children as the waiting UI"
+		},
+		{
+			"id": "no-placeholder-warn",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held promise with no waiting UI"
+		},
+		{
+			"id": "no-placeholder-warn-prod",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=promise at=page"
+		},
+		{
+			"id": "resolved-promise",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=promise at=page"
+		},
+		{
+			"id": "holds-live-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held promise"
+		},
+		{
+			"id": "holds-live-deferred-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held deferred value"
+		},
+		{
+			"id": "held-dual-not-island",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=dual at=page"
+		},
+		{
+			"id": "held-dual-no-hydrate",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=dual at=page"
+		},
+		{
+			"id": "is-island-mode-only",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=dual at=page"
+		},
+		{
+			"id": "live-snippet-hole-nested",
+			"verdict": "killed",
+			"by": "test/browser/region-client.test.ts › hole in a live snippet, created fresh: its fallback, with the page contexts"
+		},
+		{
+			"id": "live-snippet-any-nested",
+			"verdict": "killed",
+			"by": "test/browser/region-client.test.ts › island in a live snippet, with a hole in it"
+		},
+		{
+			"id": "live-snippet-reset-off",
+			"verdict": "killed",
+			"by": "test/browser/region-client.test.ts › island in a live snippet, with a hole in it"
+		},
+		{
+			"id": "live-snippet-reset-any",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=inline at=live-snippet"
+		},
+		{
+			"id": "region-contexts-off",
+			"verdict": "equivalent",
+			"why": "Svelte's `mount()` in a raw snippet's setup already inherits the calling component's contexts."
+		},
+		{
+			"id": "kit-root-pass-mark-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-fuzz.test.ts › any input hydrates over its own server HTML with nothing discarded and nothing said"
+		},
+		{
+			"id": "kit-root-no-event-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-fuzz.test.ts › any input hydrates over its own server HTML with nothing discarded and nothing said"
+		},
+		{
+			"id": "ogygia-root-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "kit-pass-mark-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-hydrate.test.ts › async=on kind=hole at=page"
+		},
+		{
+			"id": "request-event-reset-off",
+			"verdict": "equivalent",
+			"why": "`requestEvent()` falls back to `kit_request_event()`, so it is the same value in one render."
+		},
+		{
+			"id": "tail-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-hydrate.test.ts › async=on kind=hole at=page"
+		},
+		{
+			"id": "tail-ogygia-root",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "error-render-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "csr-in-lake",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-hydrate.test.ts › async=on kind=lake at=page"
+		},
+		{
+			"id": "csr-ogygia-root",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "island-inline-not-csr",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "island-inline-not-nested",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=island at=island"
+		},
+		{
+			"id": "set-nested-island-off",
+			"verdict": "killed",
+			"by": "test/browser/lake-stays-connected.test.ts › an island’s hydrate keeps its lake’s custom elements connected and their own light DOM theirs"
+		},
+		{
+			"id": "set-nested-no-wake",
+			"verdict": "killed",
+			"by": "test/nested-schedule-warning.test.ts › a nested island whose schedule is ignored is said; one its parent keeps is not (#1155) a `load` island inside a `load` island wakes when it asked: no warning"
+		},
+		{
+			"id": "set-nested-server-off",
+			"verdict": "equivalent",
+			"why": "Everything a top-level hole renders sits in `SlotBoundary`, which sets nested itself."
+		},
+		{
+			"id": "hole-inline-mark-off",
+			"verdict": "killed",
+			"by": "test/keep-fallback-inline.test.ts › keepFallback() placement NESTED inside an island (rendered inline): a real error that names the cause, not the signal"
+		},
+		{
+			"id": "as-dual-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=dual at=page"
+		},
+		{
+			"id": "island-entry-any-mode",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-fuzz.test.ts › any input hydrates over its own server HTML with nothing discarded and nothing said"
+		},
+		{
+			"id": "island-component-dual-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=dual at=page"
+		},
+		{
+			"id": "late-load-server",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-hydrate.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "late-load-with-component",
+			"verdict": "equivalent",
+			"why": "`late_load` is read only where `island_component` is falsy; without a held dual that is `__component`, and a held dual always has a component."
+		},
+		{
+			"id": "late-load-not-inline",
+			"verdict": "equivalent",
+			"why": "`late_load` is read only inside `{#if island_inline}`."
+		},
+		{
+			"id": "late-load-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "island-props-dual-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=dual at=page"
+		},
+		{
+			"id": "seed-nested-entry",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island nested in an island"
+		},
+		{
+			"id": "seed-island-entry-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island, wake load"
+		},
+		{
+			"id": "seed-server-no-hydrate",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=hole at=page"
+		},
+		{
+			"id": "seed-promise-entry-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held promise"
+		},
+		{
+			"id": "seed-deferred-module-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held deferred value that wakes"
+		},
+		{
+			"id": "seed-always-all",
+			"verdict": "killed",
+			"by": "test/seed-record.test.ts › page snapshot recording an island whose closure reads pinned keys asks for exactly those"
+		},
+		{
+			"id": "seed-keys-null",
+			"verdict": "killed",
+			"by": "test/seed-record.test.ts › page snapshot recording an island whose closure reads $page → snapshot recorded AND the seed asked for"
+		},
+		{
+			"id": "seed-promise-false",
+			"verdict": "killed",
+			"by": "test/seed-record.test.ts › page snapshot recording a promise `of` (module unknown until it resolves) asks — fail-open"
+		},
+		{
+			"id": "seed-reads-page-off",
+			"verdict": "killed",
+			"by": "test/seed-record.test.ts › page snapshot recording an island whose closure never reads $page → snapshot still recorded, seed NOT asked for"
+		},
+		{
+			"id": "remotes-null",
+			"verdict": "killed",
+			"by": "test/seed-record.test.ts › callable-remotes recording an island records the build’s list for its entry"
+		},
+		{
+			"id": "remotes-promise-list",
+			"verdict": "killed",
+			"by": "test/seed-record.test.ts › callable-remotes recording a promise `of` (module unknown until it resolves) records null — fail-open"
+		},
+		{
+			"id": "record-entry-promise",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=off kind=promise at=page"
+		},
+		{
+			"id": "record-page-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "freeze-props-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island rendering a snippet prop"
+		},
+		{
+			"id": "freeze-props-inline",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island nested in an island, rendering a snippet prop"
+		},
+		{
+			"id": "slot-seq-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island with children, in a hole answer"
+		},
+		{
+			"id": "slot-key-entry-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "slot-children-nested",
+			"verdict": "equivalent",
+			"why": "Nested means inline, and every reader of `has_slot_children` is behind `!island_inline` or a null wire."
+		},
+		{
+			"id": "slot-children-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "slot-marker-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "slot-boundary-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "slot-children-template",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "body-children-client",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "wire-children-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "wake-dual-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=dual at=page"
+		},
+		{
+			"id": "wake-media-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "wake-idle-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "wake-visible-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "wake-interaction-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "wake-default-idle",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "margin-dual-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=dual at=page"
+		},
+		{
+			"id": "margin-visible-string-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "nested-warns-prod",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "nested-server-warn-off",
+			"verdict": "killed",
+			"by": "test/browser/region-hydrate.test.ts › hole nested in an island"
+		},
+		{
+			"id": "nested-warn-off",
+			"verdict": "killed",
+			"by": "test/browser/region-hydrate.test.ts › island nested in an island"
+		},
+		{
+			"id": "nested-warn-always",
+			"verdict": "killed",
+			"by": "test/browser/region-client.test.ts › island nested whose wrapper loads late"
+		},
+		{
+			"id": "module-url-nested",
+			"verdict": "equivalent",
+			"why": "Nested means inline: null wire, empty fp, src and graph. Its one reach, `tail.graph_of(url)`, finds only a list an earlier island recorded, and `tail.graph()` is first-wins (a no-op with fp `''`)."
+		},
+		{
+			"id": "location-is-identity",
+			"verdict": "killed",
+			"why": "the whole suite crashes: Region throws an unhandled error (kit_asset refuses a relative path \"\") at the held deferred value's src"
+		},
+		{
+			"id": "island-src-nested",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=off kind=island at=island"
+		},
+		{
+			"id": "wire-inline",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "wire-props-ready",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "fp-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-hydrate.test.ts › async=off kind=lake at=page"
+		},
+		{
+			"id": "head-owner-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island with a hole, in the page"
+		},
+		{
+			"id": "head-owner-outer",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "sheet-shared-off",
+			"verdict": "killed",
+			"by": "test/shared-sheet-owners.test.ts › shared region sheets: every owner a sheet two outer islands share: the tag names the first, the tail lists the second"
+		},
+		{
+			"id": "sheet-owner-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "skip-not-island",
+			"verdict": "equivalent",
+			"why": "Not an island means a null wire, so `island_fp` is `''` and `!!island_fp` is false. Every reader is inside `is_island`."
+		},
+		{
+			"id": "skip-inline",
+			"verdict": "equivalent",
+			"why": "Inline means a null wire, so `!!island_fp` is false."
+		},
+		{
+			"id": "skip-slot-children",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "skip-cached",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "skip-cached-zero",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "skip-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "sidecar-tail-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "sidecar-name-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "sidecar-module-identity",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "sidecar-wake-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "sidecar-interactivity-off",
+			"verdict": "killed",
+			"by": "test/island-interactivity-row.test.ts › an island row in the profiler carries the build's interactivity counts for the island's entry"
+		},
+		{
+			"id": "sidecar-inline-twice",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island in Kit page pass"
+		},
+		{
+			"id": "graph-live-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island with a live snippet prop"
+		},
+		{
+			"id": "graph-dedupe-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › an island's graph lists each chunk once, leaving out the island's own module, when a live snippet's module shares them"
+		},
+		{
+			"id": "graph-self-seen",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › an island's graph lists each chunk once, leaving out the island's own module, when a live snippet's module shares them"
+		},
+		{
+			"id": "graph-live-location",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "graph-live-deps-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "live-locations-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "live-locations-nested",
+			"verdict": "equivalent",
+			"why": "`island_wire` is already null when nested or not an island."
+		},
+		{
+			"id": "live-locations-empty",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › an island with a live snippet writes no graph when neither has chunks and the snippet's module has no location"
+		},
+		{
+			"id": "graph-hrefs-nested",
+			"verdict": "equivalent",
+			"why": "`island_module_url` is `''` when nested (its own guard), and when not an island (`island_entry` is `''`)."
+		},
+		{
+			"id": "kit-hint-not-load",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "kit-hint-identity",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "kit-hint-not-csr",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "tail-locate-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "tail-hints-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "graph-csr-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "graph-reuse-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › in Kit's page pass, a page with an island three times asks the build for its graph once"
+		},
+		{
+			"id": "graph-empty-written",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › in Kit's page pass, an island with no chunks puts no graph in the tail and no hints in its row"
+		},
+		{
+			"id": "preload-head-hints-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "preload-head-csr",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "preload-head-live-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › an island whose live snippet's module is served from the island's own file still says where that module is"
+		},
+		{
+			"id": "server-endpoint-nested",
+			"verdict": "equivalent",
+			"why": "Every reader of `server_endpoint` is behind `!nested`, and a `$derived` that nobody reads never runs."
+		},
+		{
+			"id": "mint-no-ttl",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole, stitched and prefetched"
+		},
+		{
+			"id": "mint-no-wake",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole, defer idle, wakes visible"
+		},
+		{
+			"id": "mint-no-page-version",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole rendered for a page"
+		},
+		{
+			"id": "static-hole-entry-id",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole, defer load"
+		},
+		{
+			"id": "hole-src-nested",
+			"verdict": "equivalent",
+			"why": "`server_region_src` is read only by the hole's shell and adopted markup, both on the not-nested arms."
+		},
+		{
+			"id": "server-wire-no-hydrate",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "server-sidecar-off",
+			"verdict": "killed",
+			"by": "test/region-grid-fuzz.test.ts › the props sidecar beside a region reads back as its props, whatever they hold"
+		},
+		{
+			"id": "hole-identity-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "hole-attrs-empty",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole in a live snippet"
+		},
+		{
+			"id": "hole-attrs-unescaped",
+			"verdict": "killed",
+			"by": "test/region-grid-fuzz.test.ts › any input, mixed props too, renders good HTML with its markers balanced, and throws only a coded refusal"
+		},
+		{
+			"id": "hole-attrs-src-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole on a csr=true page"
+		},
+		{
+			"id": "hole-attrs-stitch-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=hole at=page"
+		},
+		{
+			"id": "hole-fresh-fallback-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=hole at=page"
+		},
+		{
+			"id": "hole-fresh-over-server",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-fuzz.test.ts › any input hydrates over its own server HTML with nothing discarded and nothing said"
+		},
+		{
+			"id": "hole-fresh-unmount-off",
+			"verdict": "killed",
+			"by": "test/browser/region-client.test.ts › a hole created fresh in a live snippet tears its fallback down when it goes"
+		},
+		{
+			"id": "hole-adopt-fallback-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole in a live snippet"
+		},
+		{
+			"id": "hole-frozen-identity-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island in a live snippet"
+		},
+		{
+			"id": "hole-frozen-boundary-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island in a live snippet"
+		},
+		{
+			"id": "hole-frozen-props-off",
+			"verdict": "killed",
+			"by": "test/browser/woken-hole-nested.test.ts › a server island inside a woken server island’s answer shows"
+		},
+		{
+			"id": "hole-css-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "hole-css-top",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "tail-hole-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole in Kit page pass, csr=true"
+		},
+		{
+			"id": "tail-hole-snippet-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole in a live snippet, in Kit page pass"
+		},
+		{
+			"id": "tail-hole-csr-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole in Kit page pass, csr=true"
+		},
+		{
+			"id": "tail-hole-sidecar-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole in Kit page pass, csr=true"
+		},
+		{
+			"id": "note-hole-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole in Kit page pass, csr=true"
+		},
+		{
+			"id": "note-hole-copy-off",
+			"verdict": "killed",
+			"by": "test/hole-copy-row.test.ts › a hole's row in the profiler names each copy by the key of its endpoint’s props"
+		},
+		{
+			"id": "note-hole-ttl-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole in Kit page pass"
+		},
+		{
+			"id": "server-graph-no-hydrate",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=hole at=page"
+		},
+		{
+			"id": "early-hole-any-defer",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole, defer idle, wakes visible"
+		},
+		{
+			"id": "early-hole-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole, defer load"
+		},
+		{
+			"id": "early-hole-building",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole in a prerender"
+		},
+		{
+			"id": "server-graph-tail-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole in Kit page pass, csr=true"
+		},
+		{
+			"id": "server-preload-tail",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole in Kit page pass, csr=true"
+		},
+		{
+			"id": "lake-shell-adopt",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev lake in the shell"
+		},
+		{
+			"id": "lake-endpoint-cache",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev lake in an island, cache"
+		},
+		{
+			"id": "lake-identity-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev lake in an island, cache"
+		},
+		{
+			"id": "lake-when-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev lake in an island, swr"
+		},
+		{
+			"id": "lake-when-cache",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev lake in an island, cache"
+		},
+		{
+			"id": "lake-max-age-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev lake in an island, swr"
+		},
+		{
+			"id": "lake-max-age-zero",
+			"verdict": "killed",
+			"by": "test/region-grid-fuzz.test.ts › each attribute Region writes from a prop's text holds that text, whatever characters it has"
+		},
+		{
+			"id": "lake-on-expire-off",
+			"verdict": "killed",
+			"by": "test/region-grid-fuzz.test.ts › each attribute Region writes from a prop's text holds that text, whatever characters it has"
+		},
+		{
+			"id": "lake-margin-cache",
+			"verdict": "killed",
+			"by": "test/region-grid-fuzz.test.ts › each attribute Region writes from a prop's text holds that text, whatever characters it has"
+		},
+		{
+			"id": "lake-endpoint-attr-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev lake in an island, swr"
+		},
+		{
+			"id": "lake-boundary-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev lake in an island, cache"
+		},
+		{
+			"id": "lake-warn-off",
+			"verdict": "killed",
+			"by": "test/browser/region-client.test.ts › lake on a csr=true page, created fresh"
+		},
+		{
+			"id": "lake-warn-not-csr",
+			"verdict": "killed",
+			"by": "test/browser/region-client.test.ts › lake in an island"
+		},
+		{
+			"id": "lake-warn-with-html",
+			"verdict": "killed",
+			"by": "test/browser/region-hydrate.test.ts › lake on a csr=true page"
+		},
+		{
+			"id": "runtime-csr-island",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "runtime-nested",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "runtime-server-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole, defer load"
+		},
+		{
+			"id": "runtime-holds-live-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held deferred value"
+		},
+		{
+			"id": "runtime-claim-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island, twice in one request"
+		},
+		{
+			"id": "runtime-hmr-off",
+			"verdict": "killed",
+			"by": "test/region-dev-hmr.test.ts › in dev, the runtime a region ships brings the soft-HMR bridge beside it"
+		},
+		{
+			"id": "dual-css-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held static dual"
+		},
+		{
+			"id": "dual-css-no-module",
+			"verdict": "equivalent",
+			"why": "`region_css('')` is `[]` in every build's region-deps module (prod, dev and the client stub), and `sheet_tags([])` is `''`."
+		},
+		{
+			"id": "island-css-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "island-css-held-dual",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held interactive dual on a csr=true page"
+		},
+		{
+			"id": "kit-island-meta-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island nested in an island"
+		},
+		{
+			"id": "kit-island-meta-not-inline",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island, wake load"
+		},
+		{
+			"id": "kit-island-meta-claim-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island on a csr=true page"
+		},
+		{
+			"id": "kit-island-meta-owner-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › an island nested in an island names the outer island as the owner of its Kit-island mark"
+		},
+		{
+			"id": "content-css-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held inline content value"
+		},
+		{
+			"id": "head-client-writes",
+			"verdict": "equivalent",
+			"why": "In the browser every head part is already empty: each claim needs a request event (the browser's `get_request_event` throws), and every build lookup answers nothing (`region-server.browser.ts`). The guard only saves the work."
+		},
+		{
+			"id": "head-server-mixes",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "head-island-meta-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "head-island-preload-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "head-region-css-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held static dual"
+		},
+		{
+			"id": "baked-rerenders",
+			"verdict": "equivalent",
+			"why": "The server renders the inner HTML once, where `resolved.html === baked_html`. The browser never calls inner."
+		},
+		{
+			"id": "baked-html-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held baked value"
+		},
+		{
+			"id": "baked-mark-client",
+			"verdict": "killed",
+			"by": "test/browser/region-client.test.ts › held baked value created fresh"
+		},
+		{
+			"id": "baked-effect-off",
+			"verdict": "killed",
+			"by": "test/browser/region-client.test.ts › held baked value created fresh"
+		},
+		{
+			"id": "baked-el-clear-off",
+			"verdict": "killed",
+			"by": "test/browser/region-client.test.ts › a baked live value that turns into an unbaked live one hands each value to one element only"
+		},
+		{
+			"id": "apply-live-not-deferred",
+			"verdict": "equivalent",
+			"why": "Not reachable. Only a deferred value carries `html`, and inline and dual values take earlier arms."
+		},
+		{
+			"id": "apply-live-no-html",
+			"verdict": "equivalent",
+			"why": "Not reachable. The attach lives only in the `html != null` arm, and the baked element drops its reference (`baked_el = null`) before the value changes arm. Coverage shows the early return never runs."
+		},
+		{
+			"id": "apply-live-written-off",
+			"verdict": "killed",
+			"by": "test/browser/region-client.test.ts › held live value written to the frame store"
+		},
+		{
+			"id": "apply-live-margin-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=deferred at=page"
+		},
+		{
+			"id": "identity-no-props",
+			"verdict": "killed",
+			"by": "test/browser/region-client.test.ts › a held deferred value with other props is a new element"
+		},
+		{
+			"id": "identity-catch-empty",
+			"verdict": "killed",
+			"by": "test/browser/region-client.test.ts › a held deferred value whose props cannot be written is a new element when its id changes"
+		},
+		{
+			"id": "held-props-no-hydrate",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held deferred value"
+		},
+		{
+			"id": "held-props-no-url",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › a held deferred value that wakes but has no address writes no props beside it"
+		},
+		{
+			"id": "devtools-island-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island, wake load"
+		},
+		{
+			"id": "devtools-island-inline",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island nested in an island"
+		},
+		{
+			"id": "devtools-skip-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island the browser already has, on a navigation that names it"
+		},
+		{
+			"id": "devtools-server-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole, defer load"
+		},
+		{
+			"id": "devtools-server-entry-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole, defer idle, wakes visible"
+		},
+		{
+			"id": "devtools-lake-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev lake in an island, cache"
+		},
+		{
+			"id": "devtools-lake-mode",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev lake in an island, cache"
+		},
+		{
+			"id": "devtools-gate-on",
+			"verdict": "killed",
+			"by": "test/region-grid-fuzz.test.ts › with devtools off, a render is the same, with no devtools events"
+		},
+		{
+			"id": "devtools-gate-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "head-ignore-off",
+			"verdict": "equivalent",
+			"why": "In the browser `head_html` is always `''`, and Svelte's `{@html}` returns before its hash check when the value is `''`."
+		},
+		{
+			"id": "island-children-render-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "late-island-off",
+			"verdict": "killed",
+			"by": "test/browser/region-grid-client.test.ts › async=off kind=island at=page"
+		},
+		{
+			"id": "late-island-children-off",
+			"verdict": "killed",
+			"by": "test/browser/region-client.test.ts › an island nested whose wrapper loads late renders its children inside it"
+		},
+		{
+			"id": "skip-branch-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "skip-keep-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=island at=page"
+		},
+		{
+			"id": "skip-ignore-off",
+			"verdict": "equivalent",
+			"why": "The skipped-island arm is never taken in the browser (`reuse_known_region` is false there), so its `{@html}` never hydrates."
+		},
+		{
+			"id": "shell-margin-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island, wake visible with a margin"
+		},
+		{
+			"id": "src-not-last",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island, wake load"
+		},
+		{
+			"id": "shell-body-props-ready",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island with children that render"
+		},
+		{
+			"id": "shell-sidecar-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island, wake load"
+		},
+		{
+			"id": "hole-frozen-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev island in a live snippet"
+		},
+		{
+			"id": "hole-adopt-template",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole in a live snippet"
+		},
+		{
+			"id": "hole-adopt-sidecar-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole in a live snippet"
+		},
+		{
+			"id": "hole-shell-wake-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole, defer idle, wakes visible"
+		},
+		{
+			"id": "hole-shell-src-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole, defer idle, wakes visible"
+		},
+		{
+			"id": "fallback-boundary-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole with a fallback"
+		},
+		{
+			"id": "hole-shell-sidecar-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev hole, defer load"
+		},
+		{
+			"id": "lake-csr-not-adopted",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev lake on a csr=true page"
+		},
+		{
+			"id": "lake-shell-children-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev lake in the shell"
+		},
+		{
+			"id": "inline-children-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=on kind=inline at=page"
+		},
+		{
+			"id": "dual-children-off",
+			"verdict": "killed",
+			"by": "test/region-grid.test.ts › async=off kind=dual at=page"
+		},
+		{
+			"id": "baked-template",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held baked value"
+		},
+		{
+			"id": "held-live-placeholder-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held live value"
+		},
+		{
+			"id": "held-live-children-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held live value, children as the placeholder"
+		},
+		{
+			"id": "key-off",
+			"verdict": "killed",
+			"by": "test/browser/region-client.test.ts › a held deferred value with other props is a new element"
+		},
+		{
+			"id": "deferred-wake-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held deferred value that wakes"
+		},
+		{
+			"id": "deferred-src-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held deferred value that wakes"
+		},
+		{
+			"id": "deferred-placeholder-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held deferred value"
+		},
+		{
+			"id": "deferred-sidecar-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held deferred value"
+		},
+		{
+			"id": "promise-region-off",
+			"verdict": "killed",
+			"by": "test/region-output.test.ts › dev held promise"
+		}
+	]
+}
