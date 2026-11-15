@@ -6255,6 +6255,178 @@
 		{
 			"id": "packages/machine/src/decisions.ts > show_list",
 			"reason": "dev and rules builds only: words a repeated field list in a refusal, when a table is made; packages/machine/test/decisions.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/region-parts/adopt.ts > adopt_region > createRawSnippet:0~fbb9b2",
+			"reason": "browser only: the snippet the browser hydrates an adopted region element with; the server bench cannot run it; test/browser/region-client.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/region-parts/adopt.ts > adopt_region > createRawSnippet:0~fbb9b2 > render",
+			"reason": "browser only: the snippet the browser hydrates an adopted region element with; the server bench cannot run it; test/browser/region-client.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/region-parts/head.svelte.ts > RegionHead > set html",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/hole-facts.svelte.ts > HoleFacts > attrs",
+			"reason": "once per adopted hole (a csr page or a live snippet): one attribute string, constant work per attribute; test/region-parts.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/region-parts/hole-facts.svelte.ts > HoleFacts > attrs > a",
+			"reason": "once per adopted hole (a csr page or a live snippet): one attribute string, constant work per attribute; test/region-parts.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/region-parts/hole-facts.svelte.ts > HoleFacts > record_devtools",
+			"reason": "devtools builds only (__OGYGIA_DEVTOOLS__): one server event per region; folds out of a production build"
+		},
+		{
+			"id": "packages/core/src/region-parts/hole-facts.svelte.ts > HoleFacts > set endpoint",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/hole-facts.svelte.ts > HoleFacts > set entry_url",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/hole-facts.svelte.ts > HoleFacts > set graph",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/hole-facts.svelte.ts > HoleFacts > set identity",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/hole-facts.svelte.ts > HoleFacts > set preload",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/hole-facts.svelte.ts > HoleFacts > set props_script",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/hole-facts.svelte.ts > HoleFacts > set src",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/hole-facts.svelte.ts > HoleFacts > set wire",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-graph.svelte.ts > IslandGraph > #preload",
+			"reason": "once per island off Kit's pass: joins its preload tags, linear in its chunks; test/region-parts.test.ts runs it (its output reads the request's claimed sheets, so it does not replay)"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-graph.svelte.ts > IslandGraph > set hrefs",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-graph.svelte.ts > IslandGraph > set kit_hints",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-graph.svelte.ts > IslandGraph > set live_locations",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-graph.svelte.ts > IslandGraph > set preload_head",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > get late_load",
+			"reason": "browser only: a late island's loader in a csr render; test/browser/region-client.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > record_devtools",
+			"reason": "devtools builds only (__OGYGIA_DEVTOOLS__): one server event per region; folds out of a production build"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set as_dual",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set component",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set entry",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set fp",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set has_slot_children",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set in_tail",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set module_url",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set props",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set props_body",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set props_inline",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set props_ready",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set skip",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set src",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set wake",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set wire",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/live-value.svelte.ts > LiveValue > adopt_region:2~fcbdf9",
+			"reason": "browser only: hands a held live value to its element after hydration; test/browser/region-client.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/region-parts/live-value.svelte.ts > LiveValue > attach",
+			"reason": "browser only: hands a held live value to its element after hydration; test/browser/region-client.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/region-parts/locate.ts > graph_hrefs > add",
+			"reason": "only for an island with live entries (the bench islands have none): one Set check per chunk, constant work each"
+		},
+		{
+			"id": "packages/core/src/region-parts/plan.svelte.ts > RegionPlan > set arm",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-parts/plan.svelte.ts > RegionPlan > set resolved",
+			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
+		},
+		{
+			"id": "packages/core/src/region-plan.ts > map:0~a63d75",
+			"reason": "runs once at module load: the index of the table's kinds, for the plan cache's row key; constant"
+		},
+		{
+			"id": "packages/core/src/region-plan.ts > map:0~aada8b",
+			"reason": "runs once at module load: the index of the table's request states, for the plan cache's row key; constant"
 		}
 	]
 }
