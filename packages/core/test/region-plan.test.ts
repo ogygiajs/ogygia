@@ -5,11 +5,11 @@ import {
 	region_kind,
 	request_state,
 	type RegionInputs,
-	type RegionPlan
+	type RegionDecision
 } from '../src/region-plan.ts';
 
-type R = Row<RegionInputs, RegionPlan>;
-const planned = (r: R): r is { input: RegionInputs; plan: RegionPlan } => 'plan' in r;
+type R = Row<RegionInputs, RegionDecision>;
+const planned = (r: R): r is { input: RegionInputs; plan: RegionDecision } => 'plan' in r;
 const ISLANDS = new Set(['island', 'dual-island']);
 const HELD = new Set([
 	'inline',

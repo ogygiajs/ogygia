@@ -1,5 +1,28 @@
 import { decisions, type Decisions } from '@ogygia/machine';
+import type { Component } from 'svelte';
 import type { RegionValue } from './region.ts';
+
+/** A placed region's settings, written by the compiler once per wrapper module (`__og`). */
+export interface RegionSettings {
+	mode?: 'island' | 'server' | 'lake';
+	baked?: boolean;
+	wake?: string;
+	wakeMargin?: string;
+	keep?: string;
+	entry?: string;
+	component?: Component;
+	css?: unknown;
+	load?: () => Promise<Component>;
+	when?: string;
+	margin?: string;
+	module?: string;
+	cacheTtl?: number;
+	stitch?: string;
+	prefetch?: string;
+	remount?: string;
+	maxAge?: number;
+	onExpire?: 'empty' | 'fetch';
+}
 
 /** What a region is, from its settings (`__og.mode`) or the value it holds (`of`). */
 export type RegionKind = (typeof REGION_INPUTS.kind)[number];
@@ -54,7 +77,7 @@ export type RegionArm =
 	| 'nothing';
 
 /** Everything Region does for one input, as plain data. */
-export interface RegionPlan {
+export interface RegionDecision {
 	family: 'island' | 'hole' | 'lake' | 'held';
 	arm: RegionArm;
 	nested: boolean;
@@ -102,7 +125,7 @@ const HELD_ARMS: Readonly<Record<string, RegionArm>> = {
 	nothing: 'nothing'
 };
 
-function family_of(kind: RegionKind): RegionPlan['family'] {
+function family_of(kind: RegionKind): RegionDecision['family'] {
 	if (ISLANDS.has(kind)) return 'island';
 	if (kind === 'hole' || kind === 'lake') return kind;
 	return 'held';
@@ -133,7 +156,7 @@ export function request_state(req: { event?: unknown } | undefined): RegionInput
 	return req.event == null ? 'no-event' : 'event';
 }
 
-function root_of(i: RegionInputs): RegionPlan['root'] {
+function root_of(i: RegionInputs): RegionDecision['root'] {
 	if (!i.server) return 'none';
 	if (i.pass_mark || i.request === 'no-event') return 'kit';
 	return i.request === 'event' ? 'ogygia' : 'none';
@@ -149,7 +172,7 @@ function arm_of(i: RegionInputs, nested: boolean, csr: boolean): RegionArm {
 	return HELD_ARMS[i.kind]!;
 }
 
-function seed_of(i: RegionInputs, nested: boolean): RegionPlan['seed'] {
+function seed_of(i: RegionInputs, nested: boolean): RegionDecision['seed'] {
 	if (!i.server || nested) return 'none';
 	if (ISLANDS.has(i.kind)) return 'island';
 	if (i.kind === 'hole') return i.wakes ? 'hole' : 'none';
@@ -157,26 +180,30 @@ function seed_of(i: RegionInputs, nested: boolean): RegionPlan['seed'] {
 	return HELD_LIVE.has(i.kind) ? 'held' : 'none';
 }
 
-function head_of(i: RegionInputs): RegionPlan['head'] {
+function head_of(i: RegionInputs): RegionDecision['head'] {
 	if (!i.server) return 'none';
 	if (ISLANDS.has(i.kind)) return 'island';
 	return i.kind === 'hole' ? 'hole' : 'held';
 }
 
-function devtools_of(i: RegionInputs, nested: boolean, inline: boolean): RegionPlan['devtools'] {
+function devtools_of(
+	i: RegionInputs,
+	nested: boolean,
+	inline: boolean
+): RegionDecision['devtools'] {
 	if (!i.server) return 'none';
 	if (ISLANDS.has(i.kind)) return inline ? 'none' : 'island';
 	if (i.kind === 'hole') return nested ? 'none' : 'hole';
 	return i.kind === 'lake' && nested ? 'lake' : 'none';
 }
 
-function warn_of(i: RegionInputs, nested: boolean): RegionPlan['warn'] {
+function warn_of(i: RegionInputs, nested: boolean): RegionDecision['warn'] {
 	if (nested && i.kind === 'hole') return 'hole-inline';
 	if (nested && ISLANDS.has(i.kind)) return 'island-parent';
 	return i.kind === 'promise-bare' ? 'promise' : 'none';
 }
 
-function decide(i: RegionInputs): RegionPlan {
+function decide(i: RegionInputs): RegionDecision {
 	const island = ISLANDS.has(i.kind);
 	const hole = i.kind === 'hole';
 	const nested = i.in_island && !(hole && i.live_snippet);
@@ -184,7 +211,7 @@ function decide(i: RegionInputs): RegionPlan {
 	const tail = root === 'kit';
 	const csr = i.csr_doc && !i.in_lake && root !== 'ogygia';
 	const inline = nested || csr;
-	let wire: RegionPlan['wire'] = 'none';
+	let wire: RegionDecision['wire'] = 'none';
 	if (island && !inline) wire = 'island';
 	else if (hole && !nested && i.wakes) wire = 'hole';
 	return {
@@ -224,7 +251,10 @@ function refuse(i: RegionInputs): string | null {
 }
 
 /** Region's decision table: the plan for every input it can be given. */
-export const REGION: Decisions<RegionInputs, RegionPlan> = decisions<RegionInputs, RegionPlan>({
+export const REGION: Decisions<RegionInputs, RegionDecision> = decisions<
+	RegionInputs,
+	RegionDecision
+>({
 	name: 'region',
 	inputs: REGION_INPUTS as unknown as { [K in keyof RegionInputs]: readonly RegionInputs[K][] },
 	refuse,
