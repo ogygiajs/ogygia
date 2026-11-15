@@ -73,7 +73,6 @@ export interface RegionPlan {
 	island_css: boolean;
 	hole_css: boolean;
 	wire: 'none' | 'island' | 'hole';
-	island_graph: boolean;
 	hole_graph: boolean;
 	hole_tail: boolean;
 	note_hole: boolean;
@@ -207,7 +206,6 @@ function decide(i: RegionInputs): RegionPlan {
 		island_css: i.server && i.kind === 'island',
 		hole_css: i.server && hole && nested,
 		wire,
-		island_graph: island && !nested,
 		hole_graph: hole && !nested && i.module && i.wakes,
 		hole_tail: tail && hole && !nested && (csr || i.live_snippet),
 		note_hole: tail && hole && !nested,

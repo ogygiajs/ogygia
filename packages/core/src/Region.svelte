@@ -388,7 +388,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		return hrefs;
 	}
 	const island_live_locations = $derived.by(() => {
-		const live = plan.island_graph ? island_wire?.live_entries : null;
+		const live = island_wire?.live_entries;
 		if (!live?.length) return null;
 		const out: Map<string, string> = new Map();
 		for (const m of live) {
@@ -398,7 +398,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		return out.size ? out : null;
 	});
 	const island_graph_hrefs = $derived.by(() =>
-		!plan.island_graph || !island_module_url
+		!island_module_url
 			? []
 			: graph_hrefs(island_entry, island_module_url, island_wire?.live_entries)
 	);
