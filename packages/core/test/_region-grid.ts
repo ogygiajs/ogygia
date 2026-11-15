@@ -13,52 +13,24 @@ import Wrap from './_fixtures/Wrap.svelte';
 import * as GridSnippets from './_fixtures/GridSnippets.svelte';
 import { REGION_BRAND } from '../src/region.ts';
 import { og_portable } from '../src/region-snippet.ts';
+import { KIND_AXES, product, type KindAxes, type Place } from './_region-grid-axes.ts';
+
+export {
+	AT,
+	CSR,
+	ENV,
+	KIT,
+	PAGE,
+	PLACES,
+	product,
+	type ClientPlace,
+	type Place
+} from './_region-grid-axes.ts';
 
 type Props = Record<string, unknown>;
 
-/** Where in the page a region renders: what the regions above it set. */
-export const AT = ['page', 'island', 'live-snippet', 'lake', 'answer', 'woken-answer'] as const;
-/** The render root above it: none (an isolated render), Kit's page pass, a region below a region in
- *  Kit's pass, or a root ogygia started (its own render, with the request's event). */
-export const KIT = ['none', 'pass', 'pass-inner', 'ogygia'] as const;
-/** Whether the document is one Kit hydrates (csr=true). */
-export const CSR = ['off', 'on'] as const;
-/** A page render, or an error page's. */
-export const PAGE = ['ok', 'error'] as const;
-export const ENV = ['dev', 'prod'] as const;
-
-export type Place = {
-	at: (typeof AT)[number];
-	kit: (typeof KIT)[number];
-	csr: (typeof CSR)[number];
-	page: (typeof PAGE)[number];
-	env: (typeof ENV)[number];
-};
-
-/** Every place, in a fixed order. */
-export const PLACES: readonly Place[] = product({
-	at: AT,
-	kit: KIT,
-	csr: CSR,
-	page: PAGE,
-	env: ENV
-}) as Place[];
-
 export function place_name(p: Place): string {
 	return `at=${p.at} kit=${p.kit} csr=${p.csr} page=${p.page} env=${p.env}`;
-}
-
-/** The cartesian product of `axes`, the first axis slowest. */
-export function product<K extends string>(
-	axes: Record<K, readonly string[]>
-): Array<Record<K, string>> {
-	let out: Array<Record<string, string>> = [{}];
-	for (const [name, values] of Object.entries(axes) as Array<[K, readonly string[]]>) {
-		const next: Array<Record<string, string>> = [];
-		for (const row of out) for (const v of values) next.push({ ...row, [name]: v });
-		out = next;
-	}
-	return out as Array<Record<K, string>>;
 }
 
 /** A page's data an island's props can point into (a seed reference on Kit's pass). */
@@ -137,34 +109,16 @@ const brand = (v: Props): Props => ({ [REGION_BRAND]: true, ...v });
  *  request (a navigation that names the island's copy, a prerender, a render for another page). */
 export type Request = { known: boolean; building: boolean; page_version: boolean };
 
-export type Kind = {
-	/** The axes, in name order; each value list in a fixed order. */
-	axes: Record<string, readonly string[]>;
-	/** Axes the harness reads on the server only (no client counterpart). */
-	server_only?: readonly string[];
+export type Kind = KindAxes & {
 	/** Region's props for one combination. */
 	props(v: Record<string, string>): Props;
 	/** What the request knows, for one combination. */
 	request?(v: Record<string, string>): Partial<Request>;
 };
 
-const WAKES = ['load', 'idle', 'visible', 'visible-margin', 'interaction', 'media'] as const;
-const HELD_WAKES = ['none', 'load', 'idle', 'visible', 'interaction', 'media'] as const;
-const PROPS = ['absent', 'empty', 'json', 'devalue', 'snippet', 'live', 'ref'] as const;
-const SNIPPETS = ['none', 'text', 'island', 'hole'] as const;
-
 export const KINDS: Readonly<Record<string, Kind>> = {
 	island: {
-		axes: {
-			wake: WAKES,
-			keep: ['none', 'nav'],
-			children: SNIPPETS,
-			component: ['tiny', 'wrap', 'late', 'tiny+late'],
-			props: PROPS,
-			ttl: ['0', '60'],
-			known: ['no', 'yes']
-		},
-		server_only: ['known'],
+		...KIND_AXES.island,
 		props: (v) => ({
 			__mode: 'island',
 			__entry: '/islands/tiny.js',
@@ -181,18 +135,7 @@ export const KINDS: Readonly<Record<string, Kind>> = {
 		request: (v) => ({ known: v.known === 'yes' })
 	},
 	hole: {
-		axes: {
-			when: ['load', 'idle', 'visible'],
-			wake: ['none', 'module-only', 'load', 'idle', 'visible', 'interaction', 'media'],
-			attrs: ['none', 'all'],
-			ttl: ['0', '60'],
-			fallback: SNIPPETS,
-			props: ['absent', 'empty', 'json', 'devalue', 'snippet'],
-			component: ['tiny', 'none'],
-			building: ['no', 'yes'],
-			page_version: ['no', 'yes']
-		},
-		server_only: ['building', 'page_version'],
+		...KIND_AXES.hole,
 		props: (v) => ({
 			__mode: 'server',
 			__entry: 'hole-a',
@@ -213,15 +156,7 @@ export const KINDS: Readonly<Record<string, Kind>> = {
 		request: (v) => ({ building: v.building === 'yes', page_version: v.page_version === 'yes' })
 	},
 	lake: {
-		axes: {
-			remount: ['cache', 'empty', 'swr'],
-			when: ['none', 'idle'],
-			max_age: ['none', '30'],
-			on_expire: ['none', 'empty', 'fetch'],
-			margin: ['none', '5px'],
-			children: SNIPPETS,
-			props: PROPS
-		},
+		...KIND_AXES.lake,
 		props: (v) => ({
 			__mode: 'lake',
 			__entry: 'lake-a',
@@ -235,12 +170,7 @@ export const KINDS: Readonly<Record<string, Kind>> = {
 		})
 	},
 	inline: {
-		axes: {
-			content: ['none', 'post-1', 'unknown'],
-			component: ['tiny', 'wrap'],
-			children: SNIPPETS,
-			placeholder: ['none', 'text']
-		},
+		...KIND_AXES.inline,
 		props: (v) => ({
 			of: brand({
 				kind: 'inline',
@@ -253,15 +183,7 @@ export const KINDS: Readonly<Record<string, Kind>> = {
 		})
 	},
 	dual: {
-		axes: {
-			wake: HELD_WAKES,
-			margin: ['none', '9px'],
-			thenable: ['no', 'yes'],
-			module: ['dual', 'none'],
-			component: ['tiny', 'wrap'],
-			children: SNIPPETS,
-			placeholder: ['none', 'text']
-		},
+		...KIND_AXES.dual,
 		props: (v) => {
 			const value = brand({
 				kind: 'dual',
@@ -283,15 +205,7 @@ export const KINDS: Readonly<Record<string, Kind>> = {
 		}
 	},
 	deferred: {
-		axes: {
-			html: ['none', 'live'],
-			baked: ['no', 'yes'],
-			wake: HELD_WAKES,
-			margin: ['none', '3px'],
-			module: ['none', 'held'],
-			children: SNIPPETS,
-			placeholder: ['none', 'text']
-		},
+		...KIND_AXES.deferred,
 		props: (v) => ({
 			of: brand({
 				kind: 'deferred',
@@ -309,11 +223,7 @@ export const KINDS: Readonly<Record<string, Kind>> = {
 		})
 	},
 	promise: {
-		axes: {
-			settles: ['never', 'live', 'deferred', 'rejects'],
-			children: SNIPPETS,
-			placeholder: ['none', 'text']
-		},
+		...KIND_AXES.promise,
 		props: (v) => ({
 			of:
 				v.settles === 'never'
@@ -335,7 +245,7 @@ export const KINDS: Readonly<Record<string, Kind>> = {
 		})
 	},
 	nothing: {
-		axes: { children: SNIPPETS, placeholder: ['none', 'text'] },
+		...KIND_AXES.nothing,
 		props: (v) => ({
 			children: snippet_of(v.children, '<p>kid</p>'),
 			placeholder: snippet_of(v.placeholder, '<p>wait</p>')

@@ -7,43 +7,13 @@ import { setNested } from '../../src/nested.ts';
 import { setInLake, setInLiveSnippet } from '../../src/context.ts';
 import { hole_slot_sequence, HOLE_SLOT_SEQUENCE } from '../../src/region-snippet.ts';
 import { runtime_session } from '../../src/runtime/session.ts';
-import { AT, CSR, ENV, product, props_for, type GridCase, type Place } from '../_region-grid.ts';
+import { props_for, type ClientPlace, type GridCase } from '../_region-grid.ts';
+
+export { CLIENT_PLACES, HYDRATE_PLACES } from '../_region-grid-axes.ts';
 
 type Props = Record<string, unknown>;
-export type ClientPlace = Pick<Place, 'at' | 'csr' | 'env'>;
-
-/** Every place a region is created in the browser: where in the page, on which document, dev or
- *  production. (The render root and an error page are the server's: the browser reads neither.) */
-export const CLIENT_PLACES: readonly ClientPlace[] = product({
-	at: AT,
-	csr: CSR,
-	env: ENV
-}) as ClientPlace[];
 
 export const client_place_name = (p: ClientPlace): string => `at=${p.at} csr=${p.csr} env=${p.env}`;
-
-/** The places a browser HYDRATES a region over the server's HTML: Kit's hydration of a csr=true
- *  document (a page and an error page), an island's hydration of what is nested in it (on either
- *  document), a live snippet's body, and a woken hole's answer. Each with the server place that
- *  rendered it. */
-export const HYDRATE_PLACES: ReadonlyArray<{ client: ClientPlace; server: Place }> = ENV.flatMap(
-	(env) =>
-		(
-			[
-				['page', 'on', 'pass', 'ok'],
-				['page', 'on', 'pass', 'error'],
-				['island', 'off', 'pass', 'ok'],
-				['island', 'on', 'pass', 'ok'],
-				['live-snippet', 'off', 'pass', 'ok'],
-				['live-snippet', 'on', 'pass', 'ok'],
-				['woken-answer', 'off', 'ogygia', 'ok'],
-				['woken-answer', 'on', 'ogygia', 'ok']
-			] as const
-		).map(([at, csr, kit, page]) => ({
-			client: { at, csr, env },
-			server: { at, csr, kit, page, env }
-		}))
-);
 
 /** What the regions above a case set in context, in the browser. */
 export function client_setup(place: ClientPlace): () => void {
