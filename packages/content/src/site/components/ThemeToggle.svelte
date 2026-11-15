@@ -11,6 +11,11 @@ Pair it with a head script that applies the stored theme before first paint, wit
 <script lang="ts">
 	import { storage } from '@ogygia/machine';
 
+	const NEXT_THEME: ReadonlyMap<string | null, string> = new Map([
+		[null, 'light'],
+		['light', 'dark']
+	]);
+
 	let {
 		key = 'og-theme',
 		label = 'Theme'
@@ -24,7 +29,7 @@ Pair it with a head script that applies the stored theme before first paint, wit
 		const root = document.documentElement;
 		const flip = () => {
 			const cur = root.getAttribute('data-theme');
-			const next = cur === null ? 'light' : cur === 'light' ? 'dark' : null;
+			const next = NEXT_THEME.get(cur);
 			if (next) root.setAttribute('data-theme', next);
 			else root.removeAttribute('data-theme');
 			try {

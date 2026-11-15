@@ -10,6 +10,7 @@ import PostsShell from './PostsShell.svelte';
 import Home from './Home.svelte';
 import Post from './Post.svelte';
 import Message from './Message.svelte';
+import ThemePage from './ThemePage.svelte';
 // The boss's test, as two BINDINGS of one file: plain = pure server HTML (zero JS ships);
 // `wake: 'load'` = the whole page is one island (the csr=true experience). The experiment
 // picks per visitor; `$infer` never notices (types come from the load).
@@ -42,6 +43,7 @@ export const cms_router = routes(
 			'/': page(Home, {
 				load: async () => ({ posts: POSTS.map(({ id, title }) => ({ id, title })) })
 			}),
+			'/theme': page(ThemePage),
 			'/lab': page(csr_flag.pick({ static: Lab, hydrated: LabLive }), {
 				load: (c) => ({ mode: csr_flag(c), stamp: csr_flag.stamp(c) })
 			}),

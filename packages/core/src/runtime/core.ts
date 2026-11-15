@@ -1251,12 +1251,10 @@ class OgygiaRegion extends HTMLElement {
 			this.#hole.go('retrying', { attempts, denied, revalidate });
 			const retrying = this.#hole.scope;
 			const later = err instanceof RegionAnswerLater ? err.wait_ms : null;
-			const wait =
-				later === null
-					? other_build
-						? backoffAfter(region_other_build, denied)
-						: backoffAfter(region_fetch, attempts)
-					: Math.min(later, backoffAfter(region_rate_limited, attempts));
+			let wait: number;
+			if (later !== null) wait = Math.min(later, backoffAfter(region_rate_limited, attempts));
+			else if (other_build) wait = backoffAfter(region_other_build, denied);
+			else wait = backoffAfter(region_fetch, attempts);
 			const waited = await turn.wait(
 				retrying.task(() => new Promise<void>((resolve) => retrying.timeout(resolve, wait)))
 			);

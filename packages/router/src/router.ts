@@ -359,16 +359,17 @@ export function routes<const T extends KeyedTable<T>>(
 			}
 		}
 
-		const resolved =
-			gen_first_html !== null
-				? { __oghtml: true as const, html: slot_html(PAGE_SLOT_ID, gen_first_html) }
-				: typeof node.component === 'object' &&
-					  node.component !== null &&
-					  '__ogpick' in node.component
-					? (
-							node.component as { __ogpick: (c: Ctx, data: Record<string, unknown>) => unknown }
-						).__ogpick(ctx, data)
-					: node.component;
+		let resolved: unknown = node.component;
+		if (gen_first_html !== null)
+			resolved = { __oghtml: true as const, html: slot_html(PAGE_SLOT_ID, gen_first_html) };
+		else if (
+			typeof node.component === 'object' &&
+			node.component !== null &&
+			'__ogpick' in node.component
+		)
+			resolved = (
+				node.component as { __ogpick: (c: Ctx, data: Record<string, unknown>) => unknown }
+			).__ogpick(ctx, data);
 		const html_view =
 			typeof resolved === 'object' && resolved !== null && '__oghtml' in resolved
 				? (resolved as PageHtmlView)
@@ -404,14 +405,12 @@ export function routes<const T extends KeyedTable<T>>(
 		});
 		if (method === 'HEAD') return new Response(null, res);
 		const late = take_late_regions();
+		const page_chunks = gen_rest ? page_slot_chunks(gen_rest) : null;
+		const late_chunks = late?.length ? late_region_chunks(late) : null;
 		const chunk_src =
-			gen_rest && late?.length
-				? merge_chunks(page_slot_chunks(gen_rest), late_region_chunks(late))
-				: gen_rest
-					? page_slot_chunks(gen_rest)
-					: late?.length
-						? late_region_chunks(late)
-						: null;
+			page_chunks && late_chunks
+				? merge_chunks(page_chunks, late_chunks)
+				: (page_chunks ?? late_chunks);
 		if (chunk_src && m === 'GET')
 			return stream_document(
 				await res.text(),

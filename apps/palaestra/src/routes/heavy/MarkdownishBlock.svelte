@@ -10,6 +10,7 @@
 	// svelte-ignore state_referenced_locally
 	for (let p = 0; p < paragraphs; p++) {
 		let line = '';
+		// oxlint-disable-next-line ogygia/no-string-concat -- heavy on purpose: the profiler's lab cost lands in this component
 		for (let w = 0; w < 40; w++) line = `${line}${words[(p * 7 + w * 13) % words.length]} `;
 		doc = `${dedent`
 			${doc}## Section ${p}

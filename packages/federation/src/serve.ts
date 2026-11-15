@@ -389,6 +389,7 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 		}
 		const doc = await peer.doc(target, search, claims, traceparent);
 		if (doc.location) return answer(String(moved_card(OG_MOVED, 'section', doc.location)));
+		if (doc.status >= 400) return answer('', doc.status);
 		return answer((doc.css?.join('') ?? '') + (doc.head ?? '') + doc.body);
 	} catch (e) {
 		// a failed hop is an error status, never an empty success: the region keeps its fallback and

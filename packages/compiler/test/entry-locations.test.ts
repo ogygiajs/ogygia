@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { render } from 'svelte/server';
 import type { Component } from 'svelte';
-import { location_map_files } from '../src/link/location-map.ts';
+import { by_code_unit, location_map_files } from '../src/link/location-map.ts';
 import { collectIslandDepModulepreloads, island_deps_module } from '../src/link/island-deps.ts';
 import {
 	decode_island_graph,
@@ -597,5 +597,17 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 		const e = program_reset.entry_locations(client(program_reset), (ref: string) => `x/${ref}.js`);
 		expect(e.runtime).toBeNull();
 		expect(Object.keys(e.locations).some((k) => k.includes('og-runtime'))).toBe(false);
+	});
+});
+
+describe('by_code_unit', () => {
+	it('orders strings as a plain sort does, by UTF-16 code unit, not by locale', () => {
+		expect(by_code_unit('a', 'b')).toBe(-1);
+		expect(by_code_unit('b', 'a')).toBe(1);
+		expect(by_code_unit('a', 'a')).toBe(0);
+		expect(by_code_unit('B', 'a')).toBe(-1);
+		expect(by_code_unit('é', 'z')).toBe(1);
+		const ids = ['og-b', 'og-A', 'og-a', 'og-é', 'og-10', 'og-9'];
+		expect([...ids].sort(by_code_unit)).toEqual([...ids].sort());
 	});
 });

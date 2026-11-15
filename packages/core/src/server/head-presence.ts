@@ -98,8 +98,9 @@ export function dedupe_head_links(head: string): string {
 	let kept = 0;
 	for (; t !== null; t = next_tag(head, 'link', t.next)) {
 		const rel = t.attr('rel');
-		const seen = rel === 'stylesheet' ? sheets : rel === 'modulepreload' ? hints : null;
-		if (seen === null) continue;
+		let seen = sheets;
+		if (rel === 'modulepreload') seen = hints;
+		else if (rel !== 'stylesheet') continue;
 		const href = t.attr('href');
 		if (href === undefined) continue;
 		if (!seen.has(href)) {

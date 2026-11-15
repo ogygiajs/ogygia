@@ -97,6 +97,9 @@ export function contention(input: ContentionInput): Contention | undefined {
 		}
 		overlap_total += overlap;
 		cpu_total += cpu_max;
+		let kind: 'hole' | 'self' | 'other' = 'other';
+		if (e.hole || is_islands_endpoint(e.path)) kind = 'hole';
+		else if (input.self_paths?.has(e.path)) kind = 'self';
 		rows.push({
 			method: e.method,
 			path: e.path,
@@ -105,12 +108,7 @@ export function contention(input: ContentionInput): Contention | undefined {
 			ms: round2(e.ms),
 			overlap_ms: round2(overlap),
 			cpu_max_ms: round2(cpu_max),
-			kind:
-				e.hole || is_islands_endpoint(e.path)
-					? 'hole'
-					: input.self_paths?.has(e.path)
-						? 'self'
-						: 'other',
+			kind,
 			...(e.remote ? { remote: true as const } : {})
 		});
 	}

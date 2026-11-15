@@ -205,10 +205,7 @@ export function make_region_binding(opts: {
 	lakes: never[];
 	identity: string;
 } {
-	let meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}`;
-	if (opts.hydrate) meta = `${meta}, __hydrate: ${JSON.stringify(opts.hydrate)}`;
-	if (opts.hydrate && opts.hydrateMargin != null)
-		meta = `${meta}, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}`;
+	const meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}${opts.hydrate ? `, __hydrate: ${JSON.stringify(opts.hydrate)}` : ''}${opts.hydrate && opts.hydrateMargin != null ? `, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}` : ''}`;
 	const ssr_source = `${component_import_line('__ogRegionComp', opts.componentPath, opts.exportName)}
 import { make_region_endpoint as __ogRegionSign, render_region_html as __ogRegionHtml } from 'ogygia/internal/server';
 export default { ${meta}, __component: __ogRegionComp, __sign: __ogRegionSign, __renderHtml: ${render_html_source(opts.moduleUrl)} };
@@ -239,10 +236,7 @@ function wrapper_attach_binding(opts: {
 	hydrateMargin?: string;
 	exportName?: string;
 }) {
-	let meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}`;
-	if (opts.hydrate) meta = `${meta}, __hydrate: ${JSON.stringify(opts.hydrate)}`;
-	if (opts.hydrate && opts.hydrateMargin != null)
-		meta = `${meta}, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}`;
+	const meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}${opts.hydrate ? `, __hydrate: ${JSON.stringify(opts.hydrate)}` : ''}${opts.hydrate && opts.hydrateMargin != null ? `, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}` : ''}`;
 	return {
 		ssr: `import __OgygiaWrap from ${JSON.stringify(opts.wrapperPath)};
 ${component_import_line('__ogRegionComp', opts.componentPath, opts.exportName)}

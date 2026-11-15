@@ -84,29 +84,19 @@ function name_is(html: string, from: number, to: number, name: string): boolean 
 function raw_name(html: string, from: number, to: number): string | null {
 	switch (html.charCodeAt(from) | 32) {
 		case 115 /* s */:
-			return name_is(html, from, to, 'script')
-				? 'script'
-				: name_is(html, from, to, 'style')
-					? 'style'
-					: null;
+			if (name_is(html, from, to, 'script')) return 'script';
+			return name_is(html, from, to, 'style') ? 'style' : null;
 		case 116 /* t */:
-			return name_is(html, from, to, 'title')
-				? 'title'
-				: name_is(html, from, to, 'textarea')
-					? 'textarea'
-					: null;
+			if (name_is(html, from, to, 'title')) return 'title';
+			return name_is(html, from, to, 'textarea') ? 'textarea' : null;
 		case 120 /* x */:
 			return name_is(html, from, to, 'xmp') ? 'xmp' : null;
 		case 105 /* i */:
 			return name_is(html, from, to, 'iframe') ? 'iframe' : null;
 		case 110 /* n */:
-			return name_is(html, from, to, 'noscript')
-				? 'noscript'
-				: name_is(html, from, to, 'noembed')
-					? 'noembed'
-					: name_is(html, from, to, 'noframes')
-						? 'noframes'
-						: null;
+			if (name_is(html, from, to, 'noscript')) return 'noscript';
+			if (name_is(html, from, to, 'noembed')) return 'noembed';
+			return name_is(html, from, to, 'noframes') ? 'noframes' : null;
 		case 112 /* p */:
 			return name_is(html, from, to, 'plaintext') ? 'plaintext' : null;
 		default:
@@ -445,7 +435,9 @@ export function attr_spans(
 		let start = ns;
 		while (is_space(html.charCodeAt(start - 1))) start--;
 		// (bare: the name alone; quoted: past the closing quote; unquoted: the value's end)
-		spans.push([start, vq === -1 ? ne : vq === 0 ? ve : ve + 1]);
+		let end = ne;
+		if (vq !== -1) end = vq === 0 ? ve : ve + 1;
+		spans.push([start, end]);
 	});
 	return spans;
 }

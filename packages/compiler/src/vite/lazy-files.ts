@@ -56,12 +56,8 @@ export function lazy_files(): Plugin {
 					if (dev && spec.startsWith('.')) file = JSON.stringify(spec);
 					else {
 						const resolved = await this.resolve(spec, importer);
-						file =
-							!resolved || resolved.external
-								? null
-								: dev
-									? JSON.stringify(dev_url(resolved.id))
-									: file_token(resolved.id);
+						if (!resolved || resolved.external) file = null;
+						else file = dev ? JSON.stringify(dev_url(resolved.id)) : file_token(resolved.id);
 					}
 					const before = code.slice(0, call.end).trimEnd();
 					s.appendLeft(

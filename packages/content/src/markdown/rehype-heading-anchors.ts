@@ -45,11 +45,8 @@ export function rehypeHeadingAnchors() {
 					const label = text_of(child).trim().replace(DOUBLE_QUOTE_G, '”');
 					// mark the heading so CSS can anchor the absolutely-positioned link
 					const cls = child.properties.className;
-					child.properties.className = Array.isArray(cls)
-						? [...cls, 'og-heading']
-						: cls
-							? [String(cls), 'og-heading']
-							: ['og-heading'];
+					if (Array.isArray(cls)) child.properties.className = [...cls, 'og-heading'];
+					else child.properties.className = cls ? [String(cls), 'og-heading'] : ['og-heading'];
 					child.children = child.children ?? [];
 					child.children.push({
 						type: 'element',

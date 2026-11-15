@@ -245,7 +245,9 @@ function note_scroll_listener(
 		on === window || on === document || on === document.documentElement || on === document.body;
 	if (passive === true || (root && passive !== false) || scroll_regs.length >= 40) return;
 	if (scroll_regs.some((r) => r.target === on && r.type === type && r.fn === fn)) return;
-	let desc = on === window ? 'window' : on === document ? 'document' : '';
+	let desc = '';
+	if (on === window) desc = 'window';
+	else if (on === document) desc = 'document';
 	if (!desc && on instanceof Element) {
 		let cls = '';
 		for (const c of on.classList)
@@ -253,7 +255,9 @@ function note_scroll_listener(
 				cls = c;
 				break;
 			}
-		desc = `${on.tagName.toLowerCase()}${on.id ? `#${on.id}` : cls ? `.${cls}` : ''}`;
+		let mark = cls ? `.${cls}` : '';
+		if (on.id) mark = `#${on.id}`;
+		desc = `${on.tagName.toLowerCase()}${mark}`;
 	}
 	// (six files: an `onwheel={…}` attribute is attached by Svelte's code, the island's file deeper;
 	// none at all: code the browser injected — an extension, a test driver — not the page's to fix)

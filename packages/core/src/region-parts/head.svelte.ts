@@ -60,11 +60,11 @@ export class RegionHead {
 	html: string = $derived.by(() => {
 		const head = this.#rp.plan.head;
 		if (head === 'none') return '';
-		let own = this.runtime;
 		if (head === 'island')
-			own = `${own}${this.#graph?.preload_head ?? ''}${this.#island_css}${this.#kit_meta}`;
-		else if (head === 'hole') own = `${own}${this.#hole?.preload ?? ''}${this.#hole_css}`;
-		return `${own}${this.#dual_css}${this.#content_css}`;
+			return `${this.runtime}${this.#graph?.preload_head ?? ''}${this.#island_css}${this.#kit_meta}${this.#dual_css}${this.#content_css}`;
+		if (head === 'hole')
+			return `${this.runtime}${this.#hole?.preload ?? ''}${this.#hole_css}${this.#dual_css}${this.#content_css}`;
+		return `${this.runtime}${this.#dual_css}${this.#content_css}`;
 	});
 
 	/** A region's head, on the server: it names the owner of its head tags (the island around it,

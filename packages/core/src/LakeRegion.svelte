@@ -29,15 +29,8 @@ the element the server wrote; elsewhere it renders its children in place.
 	);
 	const attrs = $derived.by(() => {
 		const esc = (v: unknown) => escape_attr(String(v));
-		let a = ` entry="${esc(entry)}" wake="none" remount="${esc(remount)}"`;
 		const identity = lake_identity(entry, props);
-		if (identity) a = `${a} data-og-lake="${identity}"`;
-		if (swr) a = `${a} when="${esc(s.when ?? 'load')}"`;
-		if (s.maxAge != null) a = `${a} max-age="${esc(String(s.maxAge))}"`;
-		if (s.onExpire) a = `${a} on-expire="${esc(s.onExpire)}"`;
-		if (swr && s.margin) a = `${a} margin="${esc(s.margin)}"`;
-		if (endpoint) a = `${a} endpoint="${esc(endpoint)}"`;
-		return a;
+		return ` entry="${esc(entry)}" wake="none" remount="${esc(remount)}"${identity ? ` data-og-lake="${identity}"` : ''}${swr ? ` when="${esc(s.when ?? 'load')}"` : ''}${s.maxAge != null ? ` max-age="${esc(String(s.maxAge))}"` : ''}${s.onExpire ? ` on-expire="${esc(s.onExpire)}"` : ''}${swr && s.margin ? ` margin="${esc(s.margin)}"` : ''}${endpoint ? ` endpoint="${esc(endpoint)}"` : ''}`;
 	});
 	const adopt = adopt_region(
 		() => attrs,

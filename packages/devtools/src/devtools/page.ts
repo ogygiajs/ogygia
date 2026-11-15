@@ -246,7 +246,8 @@ function shown_under_media(el: Element): string | null {
 		if (hit) return hit;
 	}
 	const by = hidden_by as string | null;
-	return by ? (by.startsWith('(') ? `not all and ${by}` : `not ${by}`) : null;
+	if (!by) return null;
+	return by.startsWith('(') ? `not all and ${by}` : `not ${by}`;
 }
 
 /** THE DEV SERVER'S PRE-BUNDLED PACKAGES, read once from its `.vite/deps/_metadata.json` (the folder of
@@ -391,11 +392,8 @@ export function hole_waits(since: number = last_nav()?.t ?? -Infinity, fcp = 0):
 		// its request as the browser timed it: splits the wait into before it left, and the server. A
 		// batched hole has no request of its own: the batch's start, and its own part's landing
 		const part = e.endpoint ? batched.get(e.endpoint) : undefined;
-		const times = part
-			? { left: part.left, first: part.at, end: part.at }
-			: e.endpoint
-				? hole_request_times(e.endpoint, e.at)
-				: null;
+		const timed = !part && e.endpoint ? hole_request_times(e.endpoint, e.at) : null;
+		const times = part ? { left: part.left, first: part.at, end: part.at } : timed;
 		out.push({
 			name: (id && region_names()[id]) || (e.entry ? region_name(e.entry) : 'a hole'),
 			wait_ms: Math.max(0, Math.round(e.at - start)),
@@ -819,15 +817,14 @@ function server_brief(path: string): ServerProfileBrief | undefined {
 			.some((d) => d.trim() === 'no-store')
 			? p.cache_control
 			: undefined;
+	let top: string | null = null;
+	if (said) top = trim(said);
+	else if (comp) top = `${comp.name} (${Math.round(comp.self_ms)} ms of its own)`;
 	return {
 		// oxlint-disable-next-line ogygia/ports -- a stored profile's epoch time
 		ago_min: Math.max(0, (Date.now() - p.at) / 60_000),
 		render_ms: p.render_ms,
-		top: said
-			? trim(said)
-			: comp
-				? `${comp.name} (${Math.round(comp.self_ms)} ms of its own)`
-				: null,
+		top,
 		calls: p.network?.count ?? 0,
 		calls_ms: p.network?.total_ms ?? 0,
 		...(no_store ? { no_store } : {}),

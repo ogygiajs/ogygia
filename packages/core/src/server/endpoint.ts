@@ -36,7 +36,8 @@ export function islands_endpoint(): string {
  * answers them never name two paths. A dev reload of the hooks names the same one: nothing to say.
  */
 export function configure_islands_endpoint(path: string | undefined): void {
-	const next = !path ? DEFAULT_ISLANDS_ENDPOINT : path.startsWith('/') ? path : `/${path}`;
+	let next = DEFAULT_ISLANDS_ENDPOINT;
+	if (path) next = path.startsWith('/') ? path : `/${path}`;
 	const was = endpoint_slot[ENDPOINT_KEY];
 	if (was === undefined) endpoint_slot[ENDPOINT_KEY] = next;
 	else if (was !== next) {

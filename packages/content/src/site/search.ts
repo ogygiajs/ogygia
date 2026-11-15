@@ -220,15 +220,15 @@ export function excerpt_of(text: string, terms: string[], span = 150): string {
 		.sort((a, b) => b.length - a.length)
 		.map((t) => t.replace(ESC_RX, '\\$&'))
 		.join('|');
-	let out = '';
+	const out: string[] = [];
 	let from = 0;
 	if (any)
 		for (const m of window.matchAll(new RegExp(any, 'gi'))) {
-			out = `${out}${esc_html(window.slice(from, m.index))}<mark>${esc_html(m[0])}</mark>`;
+			out.push(esc_html(window.slice(from, m.index)), `<mark>${esc_html(m[0])}</mark>`);
 			from = m.index + m[0].length;
 		}
-	out += esc_html(window.slice(from));
-	return (start > 0 ? '…' : '') + out + (start + span < text.length ? '…' : '');
+	out.push(esc_html(window.slice(from)));
+	return `${start > 0 ? '…' : ''}${out.join('')}${start + span < text.length ? '…' : ''}`;
 }
 
 /** Title-match re-rank: a hit whose TITLE carries the query outranks body matches, and the page

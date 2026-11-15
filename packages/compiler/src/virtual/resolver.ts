@@ -127,7 +127,8 @@ export class VirtualTable<A> {
 		}
 		const rank = (module: string): number => {
 			const kind = this.#by_resolved.get(RESOLVED(module))?.kind;
-			return kind === 'value' ? 0 : kind === 'request' ? 2 : 1;
+			if (kind === 'value') return 0;
+			return kind === 'request' ? 2 : 1;
 		};
 		return [...by_module]
 			.sort(([a], [b]) => rank(a) - rank(b))

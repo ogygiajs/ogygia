@@ -53,6 +53,10 @@ export function run_variants(
 
 const QUOTED = /(\w[\w-]*)\s*=\s*"([^"]*)"/g;
 const BARE = /(\w[\w-]*)\s*=\s*([^\s"'{}]+)/g;
+const BOOL_WORD: ReadonlyMap<string, boolean> = new Map([
+	['true', true],
+	['false', false]
+]);
 
 /**
  * The default fence-meta parser: reads CHROME meta from the infostring after the language —
@@ -68,12 +72,11 @@ export function infostring(): MetaParser {
 		const raw = fence.raw_meta;
 		if (!raw) return fence;
 		const meta = { ...fence.meta };
-		const coerce = (v: string): unknown => (v === 'true' ? true : v === 'false' ? false : v);
 		let m: RegExpExecArray | null;
 		QUOTED.lastIndex = 0;
 		while ((m = QUOTED.exec(raw))) meta[m[1]!] = m[2]!;
 		BARE.lastIndex = 0;
-		while ((m = BARE.exec(raw))) if (!(m[1]! in meta)) meta[m[1]!] = coerce(m[2]!);
+		while ((m = BARE.exec(raw))) if (!(m[1]! in meta)) meta[m[1]!] = BOOL_WORD.get(m[2]!) ?? m[2]!;
 		if (meta.title && !meta.file) meta.file = meta.title;
 		return { ...fence, meta };
 	};
@@ -99,7 +102,7 @@ export function slash_meta(): MetaParser {
 			found = true;
 			const key = m[1]!;
 			const val = m[2]!;
-			meta[key] = val === 'true' ? true : val === 'false' ? false : val;
+			meta[key] = BOOL_WORD.get(val) ?? val;
 		}
 		if (found) src = fence.source.replace(SLASH_META, '').replace(LEADING_LFS_RE, '');
 		return found ? { ...fence, meta, source: src } : fence;

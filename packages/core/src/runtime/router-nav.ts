@@ -1,12 +1,7 @@
 import { boot_link, router_link, slots } from './slots.ts';
 import { buggify, clock, net } from '@ogygia/machine';
 import type { PageGlobals } from '../page-globals.ts';
-import {
-	opts_out_of_reconcile,
-	reconcile_body,
-	stamp_region_keys,
-	swap_body
-} from './reconcile.ts';
+import { reconcile_body, stamp_region_keys, swap_body, swap_reason } from './reconcile.ts';
 import {
 	apply_soft_invalidate_doc,
 	finish_spa_document,
@@ -75,8 +70,6 @@ const HOOK_NAVIGATED =
 const HOOK_NAV_STARTED =
 	typeof __OGYGIA_HOOK_NAV_STARTED__ !== 'undefined' ? __OGYGIA_HOOK_NAV_STARTED__ : true;
 const dt_now = clock.mono;
-
-const RECONCILE_NAV = true;
 
 const SERVER_DELTA =
 	typeof __OGYGIA_SERVER_DELTA__ !== 'undefined' ? __OGYGIA_SERVER_DELTA__ : false;
@@ -436,12 +429,8 @@ function install_remote_mutation_cache_bust() {
 				(typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')
 			).toUpperCase();
 			if (method !== 'GET' && method !== 'HEAD' && res.ok) {
-				const href =
-					typeof input === 'string'
-						? input
-						: input instanceof URL
-							? input.href
-							: (input as Request).url;
+				let href = typeof input === 'string' ? input : (input as Request).url;
+				if (input instanceof URL) href = input.href;
 				if (REMOTE_MUTATION_PATH.test(href)) bust_page_cache();
 			}
 			// oxlint-disable-next-line ogygia/no-silent-failures -- the cache bust is a nicety: it never breaks the app's fetch
@@ -614,7 +603,9 @@ export async function navigate(
 		if (session().visit !== next) next.scope.close();
 	});
 
-	const move: HistoryMove = pop ? 'pop' : push && !replace ? 'push' : 'replace';
+	let move: HistoryMove = 'replace';
+	if (pop) move = 'pop';
+	else if (push && !replace) move = 'push';
 
 	const hand_off = (error?: unknown, written = false) =>
 		r.hand_off(url, mine, written ? 'replace' : move, error);
@@ -684,12 +675,7 @@ export async function navigate(
 		own_live_head(left);
 		r.history.commit(dest, move, pop);
 		built.written = true;
-		const reconcile =
-			RECONCILE_NAV &&
-			!!slots.morph &&
-			!regions_in_shadow() &&
-			!opts_out_of_reconcile(document.body) &&
-			!opts_out_of_reconcile(doc.body);
+		const swap = swap_reason(!!slots.morph, regions_in_shadow, document.body, doc.body);
 		announcer?.remove();
 		document.dispatchEvent(new Event('og:before-swap'));
 		for (const sheet of built.sheets) session().claim_page_head(sheet.link);
@@ -698,18 +684,13 @@ export async function navigate(
 		if (slots.forms.enabled) slots.forms.snapshot(document.body, left.pathname);
 		prepare_spa_document(next);
 		apply_soft_invalidate_doc(doc);
-		if (reconcile) {
+		if (swap === null) {
 			reconcile_body(document.body, doc.body, slots.morph!);
 			built.reconciled = true;
 			adopt_title(doc);
 			session().settle_lakes_in(document.body);
 		} else {
-			if (DEVTOOLS)
-				dt_emit({
-					domain: 'nav',
-					name: 'nav.fallback',
-					reason: !slots.morph ? 'no-morph' : 'shadow-region'
-				});
+			if (DEVTOOLS) dt_emit({ domain: 'nav', name: 'nav.fallback', reason: swap });
 			swap_body(document.body, doc.body);
 			adopt_title(doc);
 			session().settle_lakes_in(document.body);

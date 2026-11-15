@@ -37,12 +37,9 @@ export type RegionSchedule<P = Record<string, unknown>> = (data: P) => RegionOpt
 export type RegionData = { version?: number | Date | string };
 
 function to_version(version: number | Date | string): number {
-	const n =
-		typeof version === 'number'
-			? version
-			: version instanceof Date
-				? version.getTime()
-				: Date.parse(version);
+	let n: number;
+	if (typeof version === 'number') n = version;
+	else n = version instanceof Date ? version.getTime() : Date.parse(version);
 	if (!Number.isFinite(n))
 		throw new OgygiaError('region_version_invalid', { version: String(version) });
 	return n;

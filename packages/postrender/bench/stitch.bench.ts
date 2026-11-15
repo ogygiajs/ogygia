@@ -8,17 +8,21 @@ import type { PostrenderEntry } from '../src/types.ts';
 
 /** A stored page: `regions` regions, every fourth a stitch hole (serve or edge), some nested. */
 function page(regions: number): string {
-	let body = '';
+	const body: string[] = [];
 	for (let i = 0; i < regions; i++) {
 		const inner = `<article><h2>Item ${i}</h2><p>${'Fresh from the store. '.repeat(10)}</p></article>`;
 		if (i % 4 === 0) {
 			const mode = i % 8 === 0 ? 'edge' : 'serve';
-			body = `${body}<ogygia-region entry="" render="defer" when="load" stitch="${mode}" endpoint="/__ogygia__/r?id=${i}&amp;p=${i * 31}"><ogygia-region entry="/_app/ogygia/og-region.${i}.js" wake="visible">${inner}</ogygia-region></ogygia-region>`;
+			body.push(
+				`<ogygia-region entry="" render="defer" when="load" stitch="${mode}" endpoint="/__ogygia__/r?id=${i}&amp;p=${i * 31}"><ogygia-region entry="/_app/ogygia/og-region.${i}.js" wake="visible">${inner}</ogygia-region></ogygia-region>`
+			);
 		} else {
-			body = `${body}<ogygia-region entry="/_app/ogygia/og-region.${i}.js" wake="visible">${inner}</ogygia-region>`;
+			body.push(
+				`<ogygia-region entry="/_app/ogygia/og-region.${i}.js" wake="visible">${inner}</ogygia-region>`
+			);
 		}
 	}
-	return `<!doctype html><html><head><title>Catalog</title></head><body>${body}</body></html>`;
+	return `<!doctype html><html><head><title>Catalog</title></head><body>${body.join('')}</body></html>`;
 }
 
 bench(

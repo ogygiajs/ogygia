@@ -261,11 +261,9 @@ export function resolve_options(
 	const renew_window = Math.min(10 * 365 * 24 * 3600, Math.floor(renew_raw ?? defaultRenewWindow));
 	const router_enabled = options.router !== false;
 	const router_view_transitions =
-		options.router === false
-			? false
-			: typeof options.router === 'object'
-				? options.router.viewTransitions !== false
-				: true;
+		typeof options.router === 'object'
+			? options.router.viewTransitions !== false
+			: options.router !== false;
 	const continuity_forms =
 		router_enabled && (typeof options.router === 'object' ? options.router.forms !== false : true);
 	const server_delta = typeof options.router === 'object' && options.router.serverDelta === true;

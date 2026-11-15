@@ -3,6 +3,10 @@ import { net, timers } from '@ogygia/machine';
 import type { FlagSource, FlagQuery, Resolved, CtxLike } from './index.ts';
 
 const TRAILING_SLASH_RE = /\/$/;
+const BOOL_VARIANT: ReadonlyMap<unknown, string> = new Map([
+	[true, 'on'],
+	[false, 'off']
+]);
 
 export interface OfrepOptions {
 	/** OFREP base URL (the adapter calls `<url>/ofrep/v1/evaluate/flags/bulk`). */
@@ -63,8 +67,7 @@ export function ofrep(opts: OfrepOptions): FlagSource {
 			for (const f of body.flags ?? []) {
 				const q = want.get(f.key);
 				if (!q || f.errorCode) continue;
-				const variant =
-					f.variant ?? (typeof f.value === 'boolean' ? (f.value ? 'on' : 'off') : undefined);
+				const variant = f.variant ?? BOOL_VARIANT.get(f.value);
 				if (variant === undefined || !q.variants.includes(variant)) continue;
 				out[f.key] =
 					f.value !== undefined && typeof f.value !== 'boolean'

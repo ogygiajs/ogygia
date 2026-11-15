@@ -139,6 +139,23 @@ describe('mount({ stream: true }) — the sugar', () => {
 		expect(html).toContain('data-og-mount-failed');
 	});
 
+	it("a peer page not found yields the offline card, never the peer's not-found page inside the 200", async () => {
+		vi.stubGlobal(
+			'fetch',
+			async () =>
+				new Response(
+					JSON.stringify({ status: 404, title: 'nf', css: [], body: '<p data-peer-404>gone</p>' }),
+					{ status: 404 }
+				)
+		);
+		const app = routes({ '/cms/[...rest]': mount(peer(), { stream: true }) });
+		const res = (await app.fetch(new Request('http://shell/cms/nope')))!;
+		const html = await res.text();
+		expect(res.status).toBe(200);
+		expect(html).toContain('data-og-mount-failed');
+		expect(html).not.toContain('data-peer-404');
+	});
+
 	it('a COMPONENT fallback bakes as an inline region into the flushed part', async () => {
 		vi.stubGlobal('fetch', async () => new Response(doc_json('late-body')));
 		const { default: RawHtml } = await import('../../core/src/RawHtml.svelte');

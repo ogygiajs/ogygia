@@ -327,11 +327,25 @@ export function regex_literals(code: string): string[] {
 			}
 		}
 		if (c === ' ' || c === '\t') continue;
-		word = ID_CHAR(c) ? (ID_CHAR(prev) ? word + c : c) : '';
+		if (!ID_CHAR(c)) word = '';
+		else if (ID_CHAR(prev)) word = word + c;
+		else word = c;
 		prev = c;
 	}
 	return out;
 }
+const BRACE_STEP: ReadonlyMap<string, number> = new Map([
+	['{', 1],
+	['}', -1]
+]);
+const BRACKET_STEP: ReadonlyMap<string, number> = new Map([
+	['(', 1],
+	['[', 1],
+	['{', 1],
+	[')', -1],
+	[']', -1],
+	['}', -1]
+]);
 const ID_CHAR = (c: string | undefined) =>
 	!!c &&
 	((c >= 'a' && c <= 'z') ||
@@ -649,15 +663,12 @@ export function key_sources(source: string): Map<string, number[]> | null {
 			const rhs: string[] = t.slice(j + 1);
 			const at = new Set<number>([i + 1]);
 			let open = 0;
-			for (const x of rhs)
-				open +=
-					x === '(' || x === '[' || x === '{' ? 1 : x === ')' || x === ']' || x === '}' ? -1 : 0;
+			for (const x of rhs) open += BRACKET_STEP.get(x) ?? 0;
 			for (let m = i + 1; open > 0 && m <= body1; m++) {
 				at.add(m + 1);
 				for (const x of T[m]) {
 					rhs.push(x);
-					open +=
-						x === '(' || x === '[' || x === '{' ? 1 : x === ')' || x === ']' || x === '}' ? -1 : 0;
+					open += BRACKET_STEP.get(x) ?? 0;
 				}
 			}
 			const deps = ids(rhs);
@@ -784,12 +795,9 @@ export function key_sources(source: string): Map<string, number[]> | null {
 		const t = T[i];
 		const f = t.indexOf('function');
 		const c = t.indexOf('const');
-		const name =
-			f !== -1 && is_id_start((t[f + 1] ?? '').charCodeAt(0))
-				? t[f + 1]
-				: c !== -1 && t[c + 2] === '=' && t.includes('=>')
-					? t[c + 1]
-					: undefined;
+		let name: string | undefined;
+		if (f !== -1 && is_id_start((t[f + 1] ?? '').charCodeAt(0))) name = t[f + 1];
+		else if (c !== -1 && t[c + 2] === '=' && t.includes('=>')) name = t[c + 1];
 		if (!name || name === 'load') continue;
 		let depth = 0;
 		let opened = false;
@@ -1009,7 +1017,7 @@ export function parent_use(
 		if (rw.reads.some((r) => set.has(r)))
 			return { line: at + 1, names, first_use: i + 1, awaits_before_use: awaits };
 		if (t.includes('await')) awaits++;
-		for (const x of t) depth += x === '{' ? 1 : x === '}' ? -1 : 0;
+		for (const x of t) depth += BRACE_STEP.get(x) ?? 0;
 		if (depth < 0) break;
 	}
 	return { line: at + 1, names, first_use: null, awaits_before_use: awaits };
@@ -1212,31 +1220,27 @@ export function constant_work(
 	for (let i = 0; i < T.length; i++) {
 		const t = T[i];
 		const at_top = file_depth === 0;
-		for (const x of t) file_depth += x === '{' ? 1 : x === '}' ? -1 : 0;
+		for (const x of t) file_depth += BRACE_STEP.get(x) ?? 0;
 		if (!at_top || (i >= head && i <= body1)) continue;
 		if (t[0] === 'import') {
 			// the whole statement: a braced list over several lines (`import {\n\trandomUUID\n} from
 			// 'node:crypto'`) names its bindings on the lines between, and its module on the last
 			let end = i;
-			let text = lines[i];
 			const all = [...t];
 			let open = 0;
-			for (const x of t) open += x === '{' ? 1 : x === '}' ? -1 : 0;
+			for (const x of t) open += BRACE_STEP.get(x) ?? 0;
 			while (open > 0 && end + 1 < T.length) {
 				end++;
-				text = `${text}\n${lines[end]}`;
 				for (const x of T[end]) {
 					all.push(x);
-					open += x === '{' ? 1 : x === '}' ? -1 : 0;
+					open += BRACE_STEP.get(x) ?? 0;
 				}
 			}
 			// (its braces balance, but the loop counted only the first line's: back to the top level)
 			i = end;
 			file_depth = 0;
 			// `randomUUID()` from node:crypto is not the same every request
-			const into = per_call_module(import_source(text.split('\n').pop()!))
-				? per_call
-				: module_names;
+			const into = per_call_module(import_source(lines[end])) ? per_call : module_names;
 			const from = all.indexOf('from');
 			for (let k = 1; k < (from === -1 ? all.length : from); k++)
 				if (
@@ -1266,8 +1270,7 @@ export function constant_work(
 			// its lines: until every bracket it opens closes again, and on while a line ends mid
 			// expression (`const stamp = () =>\n\tDate.now();`: a body with no braces at all)
 			let to = i;
-			const opens = (x: string) =>
-				x === '{' || x === '(' || x === '[' ? 1 : x === '}' || x === ')' || x === ']' ? -1 : 0;
+			const opens = (x: string) => BRACKET_STEP.get(x) ?? 0;
 			let d = 0;
 			for (const x of t) d += opens(x);
 			const continues = (row: readonly string[]) => {
@@ -1378,9 +1381,7 @@ export function constant_work(
 			const t = T[i];
 			// the load's own statements only, not a callback's inside it
 			const top = depth === 0;
-			for (const x of t)
-				depth +=
-					x === '{' || x === '(' || x === '[' ? 1 : x === '}' || x === ')' || x === ']' ? -1 : 0;
+			for (const x of t) depth += BRACKET_STEP.get(x) ?? 0;
 			// a value written straight into the returned object (`catalog: span('x', () => catalog())`):
 			// one entry per line, the expression after its key
 			if (top && t[0] === 'return' && t[1] === '{') {
@@ -1388,13 +1389,7 @@ export function constant_work(
 				for (let j = i + 1; j < body1; j++) {
 					const e = T[j];
 					const at_top = d === 0;
-					for (const x of e)
-						d +=
-							x === '{' || x === '(' || x === '['
-								? 1
-								: x === ')' || x === ']' || x === '}'
-									? -1
-									: 0;
+					for (const x of e) d += BRACKET_STEP.get(x) ?? 0;
 					if (d < 0) break;
 					if (
 						!at_top ||
@@ -1422,21 +1417,17 @@ export function constant_work(
 			if (!top || t[0] !== 'const') continue;
 			// the whole statement: on while its brackets stay open (`validateAll(\n  PRODUCTS\n)`)
 			let open = 0;
-			for (const x of t)
-				open +=
-					x === '(' || x === '[' || x === '{' ? 1 : x === ')' || x === ']' || x === '}' ? -1 : 0;
-			let text = lines[i];
+			for (const x of t) open += BRACKET_STEP.get(x) ?? 0;
 			const all = [...t];
-			for (let j = i + 1; open > 0 && j < body1; j++) {
-				text = `${text}\n${lines[j]}`;
+			let j = i + 1;
+			for (; open > 0 && j < body1; j++) {
 				for (const x of T[j]) {
 					all.push(x);
-					open +=
-						x === '(' || x === '[' || x === '{' ? 1 : x === ')' || x === ']' || x === '}' ? -1 : 0;
+					open += BRACKET_STEP.get(x) ?? 0;
 				}
 			}
 			if (open !== 0 || all.includes('await')) continue;
-			const rw = line_rw(text.split('\n').join(' '));
+			const rw = line_rw(lines.slice(i, j).join(' '));
 			if (!rw.declared.length || !rw.reads.length) continue;
 			if (!rw.reads.every(known)) continue;
 			if (rw.declared.some((n) => changed.has(n))) {
@@ -1452,7 +1443,7 @@ export function constant_work(
 				(r) => module_names.has(r) && all.some((x, k) => x === r && all[k + 1] === '(')
 			);
 			for (const n of rw.declared) constant.add(n);
-			const end = i + text.split('\n').length;
+			const end = j;
 			if (all.includes('(')) {
 				out.push({ line: i + 1, names: rw.declared, calls, ...(spans ? { end, work: true } : {}) });
 				for (let j = i; j < end; j++) stmt_lines.add(j);
@@ -1508,7 +1499,7 @@ export function hoist_plan(
 	for (let i = 0; i < T.length; i++) {
 		const t = T[i];
 		const at_top = depth === 0;
-		for (const x of t) depth += x === '{' ? 1 : x === '}' ? -1 : 0;
+		for (const x of t) depth += BRACE_STEP.get(x) ?? 0;
 		if (!at_top || (i >= span.head && i <= span.body1)) continue;
 		if (t[0] === 'import') {
 			// a braced list over several lines: its names up to the closing brace
@@ -1837,8 +1828,10 @@ function await_decl(
 ): { kind: 'const' | 'let'; binding: string; expr: string } | undefined {
 	let body = line.slice(0, code_end(line)).trim();
 	if (body.endsWith(';')) body = body.slice(0, -1).trimEnd();
-	const kind = body.startsWith('const ') ? 'const' : body.startsWith('let ') ? 'let' : undefined;
-	if (!kind) return undefined;
+	let kind: 'const' | 'let';
+	if (body.startsWith('const ')) kind = 'const';
+	else if (body.startsWith('let ')) kind = 'let';
+	else return undefined;
 	// the first `=` outside brackets and strings
 	let eq = -1;
 	for (let i = kind.length, d = 0; i < body.length && eq < 0; i++) {

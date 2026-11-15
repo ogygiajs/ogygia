@@ -220,6 +220,20 @@ describe('decide + source — the OpenFeature seam (any resolver)', () => {
 		expect(f(c)).toBe(true); // native rollout still works
 	});
 
+	it.each([
+		['a number', 0],
+		['another number', 1],
+		['a bigint', 1n],
+		['a symbol', Symbol('x')],
+		['a function', () => 'off']
+	])('a source value that is %s is skipped, never read as off', async (_what, raw) => {
+		decide({ source: () => ({ n: raw }) as never });
+		const n = flag('n', 100);
+		const c = ctx('http://s/x', { vid: 'v1' });
+		await prime_flags(c);
+		expect(n(c)).toBe(true);
+	});
+
 	it('bare boolean/string source values are sugar for { variant }', async () => {
 		decide({ source: () => ({ a: true, b: 'bold' }) });
 		const a = flag('a');

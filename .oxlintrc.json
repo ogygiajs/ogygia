@@ -69,6 +69,10 @@
 			"rules": { "no-eval": "error", "no-new-func": "error", "no-implied-eval": "error" }
 		},
 		{
+			"files": ["packages/*/src/**"],
+			"rules": { "eslint/no-nested-ternary": "error" }
+		},
+		{
 			"files": [
 				"packages/compiler/src/**",
 				"packages/cli/src/**",

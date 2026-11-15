@@ -440,8 +440,11 @@ function common_fields(d: Record<string, unknown>): boolean {
 	);
 }
 
+const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
+
 /** A parsed peer answer as the page document it is, or null when any field is another type (a
- *  proxy's JSON, a broken peer): a failed hop, never a TypeError later (test/property-peer-answer). */
+ *  proxy's JSON, a broken peer), or it moves with a status that is no redirect: a failed hop, never
+ *  a TypeError or a bad redirect later (test/property-peer-answer, test/peer-answer-invalid). */
 export function fragment_document(v: unknown): FragmentDocument | null {
 	if (typeof v !== 'object' || v === null || Array.isArray(v)) return null;
 	const d = v as Record<string, unknown>;
@@ -450,7 +453,8 @@ export function fragment_document(v: unknown): FragmentDocument | null {
 		(d.status as number) >= 100 &&
 		(d.status as number) <= 599 &&
 		is_str(d.body) &&
-		opt(d.location, is_str) &&
+		(d.location === undefined ||
+			(is_str(d.location) && REDIRECT_STATUSES.has(d.status as number))) &&
 		opt(d.title, is_str) &&
 		opt(d.css, is_strs) &&
 		opt(d.head, is_str) &&

@@ -15,6 +15,7 @@ const esc = (s: string) =>
 export function sitemapHtml(items: { id: string; name: string; tags: string[] }[]): string {
 	let out = '<ul class="sitemap">';
 	for (const i of items)
+		// oxlint-disable-next-line ogygia/no-string-concat -- the lab's slow pattern on purpose: the profiler must name it
 		out = `${out}<li data-id="${i.id}">${esc(i.name)} — ${i.tags.join(', ')} %%BADGE_${i.id.length % 40}%%</li>`;
 	return `${out}</ul>`;
 }

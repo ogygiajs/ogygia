@@ -76,14 +76,11 @@ function is_leaf(v: unknown): boolean {
 	);
 }
 
-const leaf_text = (v: unknown): string =>
-	v === undefined
-		? 'u'
-		: v === null
-			? 'n'
-			: v instanceof Date
-				? `d${v.getTime()}`
-				: `${typeof v}:${String(v)}`;
+const leaf_text = (v: unknown): string => {
+	if (v === undefined) return 'u';
+	if (v === null) return 'n';
+	return v instanceof Date ? `d${v.getTime()}` : `${typeof v}:${String(v)}`;
+};
 
 /**
  * Post-order structural hash + byte estimate of a plain subtree. `null` when the subtree is not
@@ -105,7 +102,7 @@ function hash_subtree(
 	if (on_stack.has(v)) return null; // cycle
 	on_stack.add(v);
 	let bytes = 0;
-	let acc = Array.isArray(v) ? 'A' : 'O';
+	const acc = [Array.isArray(v) ? 'A' : 'O'];
 	let ok = true;
 	if (Array.isArray(v)) {
 		for (const item of v) {
@@ -114,7 +111,7 @@ function hash_subtree(
 				ok = false;
 				break;
 			}
-			acc = `${acc}|${h.hash}`;
+			acc.push(h.hash);
 			bytes += h.bytes + 1;
 		}
 	} else {
@@ -124,13 +121,13 @@ function hash_subtree(
 				ok = false;
 				break;
 			}
-			acc = `${acc}|${key}=${h.hash}`;
+			acc.push(`${key}=${h.hash}`);
 			bytes += key.length + h.bytes + 3;
 		}
 	}
 	on_stack.delete(v);
 	// hash the accumulated child hashes (bounded per node — children contribute 16 chars each)
-	const result = ok ? { hash: fnv1a(acc), bytes } : null;
+	const result = ok ? { hash: fnv1a(acc.join('|')), bytes } : null;
 	memo.set(v, result);
 	return result;
 }
@@ -347,13 +344,8 @@ export function json_culprit(value: unknown, max_depth = 64): string | null {
 			case 'boolean':
 				return null;
 			case 'number':
-				return Number.isFinite(v)
-					? Object.is(v, -0)
-						? '-0'
-						: null
-					: Number.isNaN(v)
-						? 'NaN'
-						: 'Infinity';
+				if (Number.isFinite(v)) return Object.is(v, -0) ? '-0' : null;
+				return Number.isNaN(v) ? 'NaN' : 'Infinity';
 			case 'undefined':
 				return 'undefined';
 			case 'bigint':

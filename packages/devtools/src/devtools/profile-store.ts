@@ -124,8 +124,9 @@ export async function run_profile(
 		let said = text;
 		try {
 			const j = JSON.parse(text) as { error?: unknown; message?: unknown };
-			said =
-				typeof j.error === 'string' ? j.error : typeof j.message === 'string' ? j.message : text;
+			if (typeof j.error === 'string') said = j.error;
+			else if (typeof j.message === 'string') said = j.message;
+			else said = text;
 			// oxlint-disable-next-line ogygia/no-silent-failures -- not JSON: the text itself is said
 		} catch {}
 		throw new Error(

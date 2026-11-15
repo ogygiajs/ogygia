@@ -257,7 +257,10 @@ export interface DollarResult {
 /** The fn-manifest's entries (tag → factory source), sorted by tag: the manifest is a function of
  *  the hoists, not of the order modules transformed in (test/standalone-driver.test.ts). */
 export function fn_manifest_entries(hoists: ReadonlyMap<string, string>): Array<[string, string]> {
-	return [...hoists].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+	return [...hoists].sort(([a], [b]) => {
+		if (a < b) return -1;
+		return a > b ? 1 : 0;
+	});
 }
 
 /**

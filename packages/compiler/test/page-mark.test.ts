@@ -7,7 +7,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Compiler, Program, CompileCtx, normalize_import_keys } from '../src/index.ts';
-import { generateRuntimeFlagsSource, resolveFeatures } from '../src/link/runtime-entry.ts';
+import {
+	generateRuntimeFlagsSource,
+	resolveFeatures,
+	type RuntimeMarks
+} from '../src/link/runtime-entry.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 
@@ -177,5 +181,39 @@ describe('foreign regions', () => {
 			expect.arrayContaining(['frames', 'morph', 'lakes', 'interaction'])
 		);
 		expect(generateRuntimeFlagsSource(marks, '/rt')).toContain('FRAMES = true');
+	});
+
+	// The rule over every combination: whatever regions a peer's build compiled (its marks), a
+	// federated app with none of its own ships every feature they need. Not `wire` (the codec loads
+	// on use) nor `wire-classes` (this build's own classes, which a peer's props never name).
+	test('foreign needs every feature a peer region can need, for every combination of region marks', () => {
+		const page_level = { complete: true, page: false, remoteSeeds: false, router: false } as const;
+		const not_for_peers: ReadonlySet<string> = new Set(['wire', 'wire-classes']);
+		const foreign = new Set(resolveFeatures({ ...page_level, forms: false, foreign: true }));
+		const flags = ['persist', 'live', 'morph', 'lakes', 'wire', 'context'] as const;
+		const lists = {
+			hydrate: [[], ['load'], ['visible'], ['none'], ['interaction']],
+			defer: [[], ['load']],
+			persistKeys: [[], ['k']]
+		};
+		let rows = 0;
+		for (let bits = 0; bits < 1 << flags.length; bits++)
+			for (const hydrate of lists.hydrate)
+				for (const defer of lists.defer)
+					for (const persistKeys of lists.persistKeys) {
+						const marks: RuntimeMarks = {
+							...page_level,
+							forms: false,
+							hydrate,
+							defer,
+							persistKeys
+						};
+						flags.forEach((f, i) => (marks[f] = (bits & (1 << i)) !== 0));
+						for (const id of resolveFeatures(marks))
+							if (!not_for_peers.has(id))
+								expect(foreign.has(id), `${id} for ${JSON.stringify(marks)}`).toBe(true);
+						rows++;
+					}
+		expect(rows).toBe(64 * 5 * 2 * 2);
 	});
 });

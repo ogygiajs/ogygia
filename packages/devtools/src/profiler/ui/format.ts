@@ -7,8 +7,11 @@ import type { FrameCategory } from '../analyze.ts';
 import type { ReportMeta } from '../report.ts';
 
 /** ms with sensible precision: whole numbers over 100, one dp over 10, two dp below. */
-export const fmt_ms = (n: number): string =>
-	n >= 100 ? n.toFixed(0) : n >= 10 ? n.toFixed(1) : n.toFixed(2);
+export const fmt_ms = (n: number): string => {
+	if (n >= 100) return n.toFixed(0);
+	if (n >= 10) return n.toFixed(1);
+	return n.toFixed(2);
+};
 
 /** A duration in ms, with the unit that keeps it readable: `1.20 ms`, `46 µs`, `8 ns`. For per-call
  *  costs, where a hot getter can cost nanoseconds a call and fixed decimals print it as zero. */
@@ -16,7 +19,7 @@ export const fmt_dur = (ms: number): string => {
 	if (!Number.isFinite(ms) || ms <= 0) return '—';
 	if (ms >= 1) return `${fmt_ms(ms)} ms`;
 	const us = ms * 1000;
-	if (us >= 1) return `${us >= 100 ? us.toFixed(0) : us >= 10 ? us.toFixed(1) : us.toFixed(2)} µs`;
+	if (us >= 1) return `${fmt_ms(us)} µs`;
 	const ns = us * 1000;
 	return `${ns >= 10 ? ns.toFixed(0) : ns.toFixed(1)} ns`;
 };
@@ -26,12 +29,11 @@ export const fmt_pct = (part: number, whole: number): string =>
 	whole > 0 ? `${((part / whole) * 100).toFixed(1)}%` : '—';
 
 /** bytes → MB / kB / B. */
-export const fmt_bytes = (n: number): string =>
-	n >= 1048576
-		? `${(n / 1048576).toFixed(1)} MB`
-		: n >= 1024
-			? `${(n / 1024).toFixed(0)} kB`
-			: `${n} B`;
+export const fmt_bytes = (n: number): string => {
+	if (n >= 1048576) return `${(n / 1048576).toFixed(1)} MB`;
+	if (n >= 1024) return `${(n / 1024).toFixed(0)} kB`;
+	return `${n} B`;
+};
 
 export const CATEGORY_LABEL: Record<FrameCategory, string> = {
 	component: 'component',

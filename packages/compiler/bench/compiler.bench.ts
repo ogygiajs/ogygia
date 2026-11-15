@@ -43,19 +43,24 @@ function host_ctx(ssr: boolean): HostCtx {
 	};
 }
 
+const FOOTER_SNIPPET = '\t\t\t{#snippet footer(row)}<p>{format(row.price)} {total}</p>{/snippet}\n';
+
 /** A route component: `islands` island imports, a few plain ones, and markup that uses them all. */
 function route_page(islands: number): string {
-	let script = `${dedent`
+	const imports: string[] = [];
+	for (let i = 0; i < islands; i++) {
+		imports.push(
+			`\timport Block${i} from '$lib/blocks/Block${i}.svelte' with { wake: '${WAKES[i % 4]}' };\n`
+		);
+	}
+	const head = `${dedent`
 		<script lang="ts">
 			import Header from '$lib/Header.svelte';
 			import { page } from '$app/state';
 			import { format } from '$lib/format';
-	`}\n`;
-	for (let i = 0; i < islands; i++) {
-		script = `${script}\timport Block${i} from '$lib/blocks/Block${i}.svelte' with { wake: '${WAKES[i % 4]}' };\n`;
-	}
-	script = `${dedent`
-		${script}	let { data } = $props();
+	`}\n${imports.join('')}`;
+	const script = `${dedent`
+		${head}	let { data } = $props();
 			let total = $derived(data.rows.reduce((n, r) => n + r.price, 0));
 			function label(i: number): string {
 				return 'Row ' + i;
@@ -71,8 +76,7 @@ function route_page(islands: number): string {
 			${markup}	<section class="block">
 					<h2>{label(${i})}</h2>
 					<Block${i} rows={data.blocks[${i}].rows} title={data.blocks[${i}].title} locale={page.data.locale}>
-		`}\n`;
-		markup = `${markup}\t\t\t{#snippet footer(row)}<p>{format(row.price)} {total}</p>{/snippet}\n`;
+		`}\n${FOOTER_SNIPPET}`;
 		markup = `${dedent`
 			${markup}			{#each data.blocks[${i}].tags as tag (tag)}<span>{tag}</span>{/each}
 					</Block${i}>
@@ -233,10 +237,11 @@ bench(
 	},
 	{
 		setup: () => {
-			let body = '';
+			const lines: string[] = [];
 			for (let i = 0; i < 40; i++) {
-				body = `${body}\tconst v${i} = og.isRegion(items[${i}]) ? og.preload : items[${i}];\n`;
+				lines.push(`\tconst v${i} = og.isRegion(items[${i}]) ? og.preload : items[${i}];\n`);
 			}
+			const body = lines.join('');
 			return {
 				source: `${dedent`
 					<script lang="ts">
