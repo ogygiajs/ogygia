@@ -665,7 +665,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	}
 </script>
 
-<svelte:head><!-- svelte-ignore hydration_html_changed -->{@html head_html}</svelte:head>
+<svelte:head>{@html head_html}</svelte:head>
 {#if is_island}
 	{@const Component = island_component}
 	{#if island_inline}{#if Component}<Component {...island_props_ready}
@@ -683,7 +683,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 			data-og-skipped
 			src={island_src || undefined}
 
-		></ogygia-region><!-- svelte-ignore hydration_html_changed -->{@html island_props_inline}{:else}<ogygia-region
+		></ogygia-region>{@html island_props_inline}{:else}<ogygia-region
 			entry={island_module_url}
 			wake={hydrate_attr}
 			margin={wake.margin || undefined}
