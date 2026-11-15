@@ -1,4 +1,4 @@
-import { decisions } from '@ogygia/machine';
+import { decisions, type Decisions } from '@ogygia/machine';
 import type { RegionValue } from './region.ts';
 
 /** What a region is, from its settings (`__og.mode`) or the value it holds (`of`). */
@@ -233,7 +233,7 @@ function refuse(i: RegionInputs): string | null {
 }
 
 /** Region's decision table: the plan for every input it can be given. */
-export const REGION = decisions<RegionInputs, RegionPlan>({
+export const REGION: Decisions<RegionInputs, RegionPlan> = decisions<RegionInputs, RegionPlan>({
 	name: 'region',
 	inputs: REGION_INPUTS as unknown as { [K in keyof RegionInputs]: readonly RegionInputs[K][] },
 	refuse,

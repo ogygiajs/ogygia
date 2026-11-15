@@ -32,6 +32,7 @@
 		"internal/checks/results/**",
 		"apps/docs/src/lib/bench/results.json",
 		"apps/palaestra/e2e/bundle-size.snapshot.json",
-		"apps/docs/static/tests/**"
+		"apps/docs/static/tests/**",
+		"packages/core/test/__snapshots__/region-plan.md"
 	]
 }
