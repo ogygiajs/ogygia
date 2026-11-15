@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { check, count, dead_fields, rows, table, type Row } from '@ogygia/machine/testing';
 import {
 	REGION,
@@ -110,6 +110,32 @@ test('an input outside the lists has no key', () => {
 	expect(region_input_key({ ...input, kind: 'other' as never })).toBe(-1);
 	expect(region_input_key({ ...input, request: 'other' as never })).toBe(-1);
 	expect(region_input_key({ ...input, server: undefined as never })).toBe(-1);
+});
+
+test('in dev, an input outside the lists is refused by its code each time, never kept', () => {
+	const plans = new RegionPlans();
+	const input = [...rows(REGION)].find(planned)!.input;
+	const outside = { ...input, in_island: 1 as never };
+	expect(() => plans.decide(outside)).toThrow(/machine_decision_outside/);
+	expect(() => plans.decide(outside)).toThrow(/machine_decision_outside/);
+});
+
+test('with the rules folded out (a production build), two inputs outside the lists each get their own plan', async () => {
+	vi.resetModules();
+	vi.stubEnv('DEV', false);
+	try {
+		const prod = await import('../src/region-plan.ts');
+		const plans = new prod.RegionPlans();
+		const input = [...rows(REGION)].find(planned)!.input;
+		const island = { ...input, kind: 'island', module: false, in_island: 1 as never } as const;
+		const hole = { ...island, kind: 'hole' } as const;
+		expect(prod.region_input_key(island)).toBe(-1);
+		expect(plans.decide(island).family).toBe('island');
+		expect(plans.decide(hole).family).toBe('hole');
+	} finally {
+		vi.unstubAllEnvs();
+		vi.resetModules();
+	}
 });
 
 test('the kept plans answer as the table does, the same plan for the same input', () => {
