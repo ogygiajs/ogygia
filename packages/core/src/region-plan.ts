@@ -215,7 +215,7 @@ function decide(i: RegionInputs): RegionPlan {
 		devtools: devtools_of(i, nested, inline),
 		warn: warn_of(i, nested),
 		lake_inside: i.kind === 'lake' && nested,
-		late_load: !i.server && island && inline
+		late_load: !i.server && island
 	};
 }
 

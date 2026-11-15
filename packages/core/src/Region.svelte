@@ -240,7 +240,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	);
 	const island_entry = $derived(as_dual?.module ?? (__mode === 'island' ? __entry : ''));
 	const island_component = $derived(as_dual ? as_dual.component : __component);
-	const late_load = $derived(plan.late_load && !__component ? __load : undefined);
+	const late_load = plan.late_load ? __load : undefined;
 	const island_props = $derived(as_dual ? as_dual.props : __props);
 	const island_children = $derived(children);
 
