@@ -555,7 +555,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 					: '')
 			: '';
 	const region_css_html = $derived.by(() => {
-		if (!resolved || resolved.kind !== 'dual' || !resolved.module) return '';
+		if (resolved?.kind !== 'dual') return '';
 		return sheet_tags(region_css(resolved.module));
 	});
 	const island_css_html = $derived.by(() => {
