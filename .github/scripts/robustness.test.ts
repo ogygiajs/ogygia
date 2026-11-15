@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -17,7 +17,14 @@ import {
 	flagged_comments,
 	fuzzing_of,
 	invariants_of,
+	grid_cases,
+	grid_ci,
+	grid_fuzz,
+	grid_projects,
+	grid_snapshots,
 	lint_rules_of,
+	region_branches,
+	region_mutants,
 	speed_of
 } from './robustness.ts';
 
@@ -285,4 +292,171 @@ test('a commit with none of the ledgers still reports, with those parts null', (
 	assert.equal(r.fuzzing.properties, 1);
 	assert.equal(r.speed.exempt, 0);
 	assert.equal(r.rules.invariants, 0);
+	assert.equal(r.region, null);
+});
+
+const AXES = {
+	KIND_AXES: {
+		a: { axes: { x: ['1', '2', '3'], y: ['1', '2'], z: ['no', 'yes'] }, server_only: ['z'] },
+		b: { axes: { x: ['1', '2'] } }
+	},
+	PLACES: [{}, {}, {}, {}],
+	CLIENT_PLACES: [{}, {}],
+	HYDRATE_PLACES: [{}]
+};
+
+test('region grid: each kind’s axes multiplied, times its places and test setups', () => {
+	assert.deepEqual(grid_cases(AXES, { server: 2, browser: 3 }), {
+		server: (12 + 2) * 4 * 2,
+		client: (6 + 2) * 2 * 3,
+		hydrate: (6 + 2) * 1 * 3
+	});
+});
+
+test('region grid: the test setups are the projects the grid script runs', () => {
+	const script = `spawnSync('pnpm', ['exec', 'vitest', 'run',
+		'--project',
+		'node',
+		'--project', 'node-no-async',
+		'--project',
+		'browser',
+		'test/region-grid.test.ts'])`;
+	assert.deepEqual(grid_projects(script), { server: 2, browser: 1 });
+});
+
+test('region grid: the engines and parts every pull request runs it in, from the CI plan', () => {
+	const plan = `const REGION_GRID_PARTS = ['1/4', '2/4', '3/4', '4/4'];
+const ENGINES = ['chromium', 'firefox', 'webkit'] as const;`;
+	assert.deepEqual(grid_ci(plan), { engines: ['chromium', 'firefox', 'webkit'], parts: 4 });
+	assert.deepEqual(grid_ci("const ENGINES = ['chromium'] as const;"), {
+		engines: ['chromium'],
+		parts: 0
+	});
+});
+
+const HEAD = (cases: number, distinct: number) => dedent`
+	# Region server grid · async=on · kind=a · at=page (x)
+	# ${cases} cases, ${distinct} distinct outputs; per part: head 3.
+	# axes: x=1|2
+`;
+
+test('region snapshots: every file counted; distinct outputs summed from the full grid’s headers', () => {
+	assert.deepEqual(
+		grid_snapshots([
+			{ path: 'packages/core/test/__snapshots__/region-grid/server/full/a.txt', head: HEAD(9, 4) },
+			{ path: 'packages/core/test/__snapshots__/region-grid/server/fast/a.txt', head: HEAD(3, 2) },
+			{
+				path: 'packages/core/test/browser/__snapshots__/region-grid/client/full/a.txt',
+				head: HEAD(5, 1)
+			}
+		]),
+		{ files: 3, fullFiles: 2, distinct: 5 }
+	);
+});
+
+test('region snapshots: a file with no count in its header fails the count', () => {
+	assert.throws(
+		() => grid_snapshots([{ path: 'region-grid/server/full/a.txt', head: '# a title\n' }]),
+		/region-grid\/server\/full\/a\.txt/
+	);
+});
+
+test('region fuzz: a property per test, its runs from RUNS, the nightly runs from dst.yml', () => {
+	const server = dedent`
+		const RUNS = 2000;
+		test('one', () => { fuzz(a, f, { runs: RUNS }); });
+		test(
+			'two',
+			() => { fuzz(b, g, { runs: RUNS }); }
+		);
+	`;
+	const browser = dedent`
+		const RUNS = Number(inject('fuzz_runs') || 600);
+		test('three', async () => {});
+	`;
+	const dst = dedent`
+		jobs:
+		  mutate:
+		    env:
+		      OGYGIA_FUZZ_RUNS: '5'
+		  region-grid:
+		    steps:
+		      - name: The fuzz at length
+		        env:
+		          OGYGIA_FUZZ_RUNS: '100000'
+	`;
+	assert.deepEqual(
+		grid_fuzz(
+			[
+				{ path: 'packages/core/test/region-grid-fuzz.test.ts', text: server },
+				{ path: 'packages/core/test/browser/region-grid-fuzz.test.ts', text: browser }
+			],
+			dst
+		),
+		{
+			serverProperties: 2,
+			serverRuns: 2000,
+			browserProperties: 1,
+			browserRuns: 600,
+			nightlyRuns: 100000
+		}
+	);
+	assert.equal(grid_fuzz([], '').nightlyRuns, null);
+});
+
+test('region mutants: each verdict counted; one with no test and no reason fails the count', () => {
+	assert.deepEqual(
+		region_mutants({
+			mutants: [
+				{ id: 'a', verdict: 'killed', by: 'test/a.test.ts › a' },
+				{ id: 'b', verdict: 'killed', why: 'the suite crashes' },
+				{ id: 'c', verdict: 'equivalent', why: 'never read' }
+			]
+		}),
+		{ total: 3, killed: 2, equivalent: 1 }
+	);
+	assert.throws(() => region_mutants({ mutants: [{ id: 'd', verdict: 'killed' }] }), /\bd\b/);
+	assert.throws(
+		() => region_mutants({ mutants: [{ id: 'e', verdict: 'survived', why: 'w' }] }),
+		/\be\b/
+	);
+});
+
+test('region coverage: Region.svelte’s branches from the coverage summary; none without the file', () => {
+	const summary = {
+		total: { branches: { total: 9000, covered: 8000, pct: 88.9 } },
+		'/w/packages/core/src/Region.svelte': { branches: { total: 737, covered: 726, pct: 98.5 } },
+		'/w/packages/core/src/LateIsland.svelte': { branches: { total: 5, covered: 4, pct: 80 } }
+	};
+	assert.deepEqual(region_branches(summary), { covered: 726, total: 737 });
+	assert.equal(region_branches({ total: summary.total }), null);
+	assert.equal(region_branches(null), null);
+});
+
+const ROOT = join(import.meta.dirname, '..', '..');
+
+test('this repository: the grid’s axes load in plain Node and give the cases its full snapshot files hold', () => {
+	const r = collect(ROOT, { lint: false }).region;
+	assert.ok(r);
+	const dir = join(ROOT, 'packages/core/test/__snapshots__/region-grid/server/full');
+	const files = execFileSync('git', ['ls-files', dir], { cwd: ROOT, encoding: 'utf8' })
+		.split('\n')
+		.filter(Boolean);
+	const held = files.reduce((n, f) => {
+		const m = /^# (\d+) cases/m.exec(readFileSync(join(ROOT, f), 'utf8').slice(0, 2000));
+		return n + Number(m?.[1]);
+	}, 0);
+	assert.equal(r.grid.server, held);
+});
+
+test('this repository: every caught Region mutant names a test file that exists', () => {
+	const list = JSON.parse(
+		readFileSync(join(ROOT, 'packages/core/test/region-mutants.json'), 'utf8')
+	) as { mutants: { id: string; verdict: string; by?: string }[] };
+	const missing = list.mutants
+		.filter((m) => m.by !== undefined)
+		.map((m) => ({ id: m.id, file: m.by?.split(' › ')[0] ?? '' }))
+		.filter((m) => !existsSync(join(ROOT, 'packages/core', m.file)));
+	assert.deepEqual(missing, []);
+	assert.equal(new Set(list.mutants.map((m) => m.id)).size, list.mutants.length);
 });
