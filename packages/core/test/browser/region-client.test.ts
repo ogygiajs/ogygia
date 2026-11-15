@@ -349,6 +349,35 @@ test('a baked live value that turns into an unbaked live one hands each value to
 	]);
 });
 
+test('a baked live value hands each new baked value to the element it adopted, which stays', async () => {
+	const [a, b, c] = await elements_over(
+		{ of: deferred({ html: '<b>one</b>' }), __baked: true },
+		{ of: deferred({ html: '<b>two</b>' }), __baked: true },
+		{ of: deferred({ html: '<b>two</b>' }), __baked: true }
+	);
+	expect(a).not.toBeNull();
+	expect(b).toBe(a);
+	expect(c).toBe(a);
+	expect(lived.map((v) => (v as { html: string }).html)).toEqual([
+		'<b>one</b>',
+		'<b>two</b>',
+		'<b>two</b>'
+	]);
+});
+
+test('a baked live region hands its element nothing once it is unmounted', async () => {
+	const target = document.body.appendChild(document.createElement('div'));
+	const app = mount(RegionSet as unknown as Component<{ first: Props }>, {
+		target,
+		props: { first: region_props({ of: deferred({ html: '<b>one</b>' }), __baked: true }) }
+	}) as { set: (r: Props) => void };
+	flushSync();
+	await unmount(app);
+	app.set(region_props({ of: deferred({ html: '<b>two</b>' }), __baked: true }));
+	flushSync();
+	expect(lived.map((v) => (v as { html: string }).html)).toEqual(['<b>one</b>']);
+});
+
 test('a held live value hands each new value to its element, which stays', async () => {
 	const [a, b] = await elements_over(
 		{ of: deferred({ html: '<b>one</b>' }) },
