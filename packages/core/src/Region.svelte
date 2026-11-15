@@ -339,10 +339,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 		return html;
 	};
 	const island_skip = $derived(
-		!has_slot_children &&
-			(__cacheTtl ?? 0) <= 0 &&
-			!!island_fp &&
-			reuse_known_region(island_fp)
+		!has_slot_children && (__cacheTtl ?? 0) <= 0 && !!island_fp && reuse_known_region(island_fp)
 	);
 	const island_props_tail =
 		!!tail &&
@@ -682,7 +679,6 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 			data-og-fp={island_fp || undefined}
 			data-og-skipped
 			src={island_src || undefined}
-
 		></ogygia-region>{@html island_props_inline}{:else}<ogygia-region
 			entry={island_module_url}
 			wake={hydrate_attr}
