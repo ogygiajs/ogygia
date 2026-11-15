@@ -174,9 +174,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	}
 	const KIT_PAGE_PASS = Symbol.for('ogygia.kit-page-pass');
 
-	const of_is_promise = untrack(
-		() => !!of && typeof (of as { then?: unknown }).then === 'function' && !isRegion(of)
-	);
+	const of_is_promise = untrack(() => !!of && !isRegion(of));
 	const waiting_ui = untrack(() => !!placeholder || !!children);
 	const placed = __mode !== undefined;
 	const resolved = $derived(of_is_promise || placed ? undefined : (of as RegionValue | undefined));
