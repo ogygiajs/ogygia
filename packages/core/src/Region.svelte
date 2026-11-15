@@ -427,7 +427,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	}
 
 	const server_endpoint = $derived.by(() => {
-		if (!is_server || nested) return '';
+		if (!is_server) return '';
 		return (
 			mint_server_region(__entry, __props || {}, __cacheTtl || 0, !!__hydrate) +
 			kit_page_version(__entry)
