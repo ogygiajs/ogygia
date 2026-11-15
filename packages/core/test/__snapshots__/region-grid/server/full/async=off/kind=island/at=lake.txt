@@ -6480,7 +6480,7 @@ kit=pass|pass-inner csr=* page=* env=* wake=load keep=* children=none component=
 kit=pass|pass-inner csr=* page=* env=* wake=load keep=* children=none component=tiny|tiny+late props=live ttl=* known=*
 
 ════ tail islands 8 · 256 cases ════
-[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"load","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":null,"refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
+[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"load","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":"seed references (1, into undefined)","refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=53a4472b2ce464e2 · 256:
 kit=pass|pass-inner csr=* page=* env=* wake=load keep=* children=none component=tiny|tiny+late props=ref ttl=* known=*
 
@@ -6515,7 +6515,7 @@ kit=pass|pass-inner csr=* page=* env=* wake=load keep=* children=none component=
 kit=pass|pass-inner csr=* page=* env=* wake=load keep=* children=none component=wrap props=live ttl=* known=*
 
 ════ tail islands 15 · 128 cases ════
-[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Wrap","module_url":"/islands/tiny.js.hashed.js","wake":"load","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":null,"refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
+[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Wrap","module_url":"/islands/tiny.js.hashed.js","wake":"load","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":"seed references (1, into undefined)","refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=53a4472b2ce464e2 · 128:
 kit=pass|pass-inner csr=* page=* env=* wake=load keep=* children=none component=wrap props=ref ttl=* known=*
 
@@ -6550,7 +6550,7 @@ kit=pass|pass-inner csr=* page=* env=* wake=load keep=* children=none component=
 kit=pass|pass-inner csr=* page=* env=* wake=load keep=* children=none component=late props=live ttl=* known=*
 
 ════ tail islands 22 · 128 cases ════
-[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"","module_url":"/islands/tiny.js.hashed.js","wake":"load","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":null,"refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
+[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"","module_url":"/islands/tiny.js.hashed.js","wake":"load","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":"seed references (1, into undefined)","refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=53a4472b2ce464e2 · 128:
 kit=pass|pass-inner csr=* page=* env=* wake=load keep=* children=none component=late props=ref ttl=* known=*
 
@@ -6705,7 +6705,7 @@ kit=pass|pass-inner csr=* page=* env=* wake=idle keep=* children=none component=
 kit=pass|pass-inner csr=* page=* env=* wake=idle keep=* children=none component=tiny|tiny+late props=live ttl=* known=*
 
 ════ tail islands 53 · 256 cases ════
-[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"idle","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":null,"refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
+[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"idle","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":"seed references (1, into undefined)","refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=53a4472b2ce464e2 · 256:
 kit=pass|pass-inner csr=* page=* env=* wake=idle keep=* children=none component=tiny|tiny+late props=ref ttl=* known=*
 
@@ -6740,7 +6740,7 @@ kit=pass|pass-inner csr=* page=* env=* wake=idle keep=* children=none component=
 kit=pass|pass-inner csr=* page=* env=* wake=idle keep=* children=none component=wrap props=live ttl=* known=*
 
 ════ tail islands 60 · 128 cases ════
-[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Wrap","module_url":"/islands/tiny.js.hashed.js","wake":"idle","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":null,"refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
+[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Wrap","module_url":"/islands/tiny.js.hashed.js","wake":"idle","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":"seed references (1, into undefined)","refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=53a4472b2ce464e2 · 128:
 kit=pass|pass-inner csr=* page=* env=* wake=idle keep=* children=none component=wrap props=ref ttl=* known=*
 
@@ -6775,7 +6775,7 @@ kit=pass|pass-inner csr=* page=* env=* wake=idle keep=* children=none component=
 kit=pass|pass-inner csr=* page=* env=* wake=idle keep=* children=none component=late props=live ttl=* known=*
 
 ════ tail islands 67 · 128 cases ════
-[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"","module_url":"/islands/tiny.js.hashed.js","wake":"idle","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":null,"refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
+[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"","module_url":"/islands/tiny.js.hashed.js","wake":"idle","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":"seed references (1, into undefined)","refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=53a4472b2ce464e2 · 128:
 kit=pass|pass-inner csr=* page=* env=* wake=idle keep=* children=none component=late props=ref ttl=* known=*
 
@@ -6930,7 +6930,7 @@ kit=pass|pass-inner csr=* page=* env=* wake=visible|visible-margin keep=* childr
 kit=pass|pass-inner csr=* page=* env=* wake=visible|visible-margin keep=* children=none component=tiny|tiny+late props=live ttl=* known=*
 
 ════ tail islands 98 · 512 cases ════
-[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"visible","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":null,"refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
+[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"visible","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":"seed references (1, into undefined)","refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=53a4472b2ce464e2 · 512:
 kit=pass|pass-inner csr=* page=* env=* wake=visible|visible-margin keep=* children=none component=tiny|tiny+late props=ref ttl=* known=*
 
@@ -6965,7 +6965,7 @@ kit=pass|pass-inner csr=* page=* env=* wake=visible|visible-margin keep=* childr
 kit=pass|pass-inner csr=* page=* env=* wake=visible|visible-margin keep=* children=none component=wrap props=live ttl=* known=*
 
 ════ tail islands 105 · 256 cases ════
-[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Wrap","module_url":"/islands/tiny.js.hashed.js","wake":"visible","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":null,"refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
+[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Wrap","module_url":"/islands/tiny.js.hashed.js","wake":"visible","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":"seed references (1, into undefined)","refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=53a4472b2ce464e2 · 256:
 kit=pass|pass-inner csr=* page=* env=* wake=visible|visible-margin keep=* children=none component=wrap props=ref ttl=* known=*
 
@@ -7000,7 +7000,7 @@ kit=pass|pass-inner csr=* page=* env=* wake=visible|visible-margin keep=* childr
 kit=pass|pass-inner csr=* page=* env=* wake=visible|visible-margin keep=* children=none component=late props=live ttl=* known=*
 
 ════ tail islands 112 · 256 cases ════
-[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"","module_url":"/islands/tiny.js.hashed.js","wake":"visible","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":null,"refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
+[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"","module_url":"/islands/tiny.js.hashed.js","wake":"visible","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":"seed references (1, into undefined)","refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=53a4472b2ce464e2 · 256:
 kit=pass|pass-inner csr=* page=* env=* wake=visible|visible-margin keep=* children=none component=late props=ref ttl=* known=*
 
@@ -7155,7 +7155,7 @@ kit=pass|pass-inner csr=* page=* env=* wake=interaction keep=* children=none com
 kit=pass|pass-inner csr=* page=* env=* wake=interaction keep=* children=none component=tiny|tiny+late props=live ttl=* known=*
 
 ════ tail islands 143 · 256 cases ════
-[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"interaction","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":null,"refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
+[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"interaction","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":"seed references (1, into undefined)","refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=53a4472b2ce464e2 · 256:
 kit=pass|pass-inner csr=* page=* env=* wake=interaction keep=* children=none component=tiny|tiny+late props=ref ttl=* known=*
 
@@ -7190,7 +7190,7 @@ kit=pass|pass-inner csr=* page=* env=* wake=interaction keep=* children=none com
 kit=pass|pass-inner csr=* page=* env=* wake=interaction keep=* children=none component=wrap props=live ttl=* known=*
 
 ════ tail islands 150 · 128 cases ════
-[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Wrap","module_url":"/islands/tiny.js.hashed.js","wake":"interaction","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":null,"refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
+[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Wrap","module_url":"/islands/tiny.js.hashed.js","wake":"interaction","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":"seed references (1, into undefined)","refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=53a4472b2ce464e2 · 128:
 kit=pass|pass-inner csr=* page=* env=* wake=interaction keep=* children=none component=wrap props=ref ttl=* known=*
 
@@ -7225,7 +7225,7 @@ kit=pass|pass-inner csr=* page=* env=* wake=interaction keep=* children=none com
 kit=pass|pass-inner csr=* page=* env=* wake=interaction keep=* children=none component=late props=live ttl=* known=*
 
 ════ tail islands 157 · 128 cases ════
-[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"","module_url":"/islands/tiny.js.hashed.js","wake":"interaction","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":null,"refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
+[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"","module_url":"/islands/tiny.js.hashed.js","wake":"interaction","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":"seed references (1, into undefined)","refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=53a4472b2ce464e2 · 128:
 kit=pass|pass-inner csr=* page=* env=* wake=interaction keep=* children=none component=late props=ref ttl=* known=*
 
@@ -7380,7 +7380,7 @@ kit=pass|pass-inner csr=* page=* env=* wake=media keep=* children=none component
 kit=pass|pass-inner csr=* page=* env=* wake=media keep=* children=none component=tiny|tiny+late props=live ttl=* known=*
 
 ════ tail islands 188 · 256 cases ════
-[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"(min-width: 600px)","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":null,"refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
+[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Tiny","module_url":"/islands/tiny.js.hashed.js","wake":"(min-width: 600px)","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":"seed references (1, into undefined)","refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=53a4472b2ce464e2 · 256:
 kit=pass|pass-inner csr=* page=* env=* wake=media keep=* children=none component=tiny|tiny+late props=ref ttl=* known=*
 
@@ -7415,7 +7415,7 @@ kit=pass|pass-inner csr=* page=* env=* wake=media keep=* children=none component
 kit=pass|pass-inner csr=* page=* env=* wake=media keep=* children=none component=wrap props=live ttl=* known=*
 
 ════ tail islands 195 · 128 cases ════
-[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Wrap","module_url":"/islands/tiny.js.hashed.js","wake":"(min-width: 600px)","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":null,"refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
+[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"Wrap","module_url":"/islands/tiny.js.hashed.js","wake":"(min-width: 600px)","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":"seed references (1, into undefined)","refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=53a4472b2ce464e2 · 128:
 kit=pass|pass-inner csr=* page=* env=* wake=media keep=* children=none component=wrap props=ref ttl=* known=*
 
@@ -7450,7 +7450,7 @@ kit=pass|pass-inner csr=* page=* env=* wake=media keep=* children=none component
 kit=pass|pass-inner csr=* page=* env=* wake=media keep=* children=none component=late props=live ttl=* known=*
 
 ════ tail islands 202 · 128 cases ════
-[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"","module_url":"/islands/tiny.js.hashed.js","wake":"(min-width: 600px)","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":null,"refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
+[{"fp":"<fp1>","entry":"/islands/tiny.js","name":"","module_url":"/islands/tiny.js.hashed.js","wake":"(min-width: 600px)","props_bytes":24,"canonical_bytes":153,"canonical":"{\"card\":{\"title\":\"a card the page loaded, long enough to be worth a reference\",\"body\":\"and a body, so the node clears the size a reference needs\",\"n\":7}}","json":false,"culprit":"seed references (1, into undefined)","refs":1,"ref_keys":["undefined"],"hints":["/islands/tiny.js.hashed.js","/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"interactivity":null,"count":1}]
 ──── with <fp1>=53a4472b2ce464e2 · 128:
 kit=pass|pass-inner csr=* page=* env=* wake=media keep=* children=none component=late props=ref ttl=* known=*
 
