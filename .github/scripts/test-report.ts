@@ -27,7 +27,8 @@
  *   node .github/scripts/test-report.ts --robustness-only --out <dir>
  *
  * runs no test: it writes `<dir>/robustness.json` (the robustness count and the test-to-source
- * lines, for this commit) to preview the count without a release.
+ * lines, for this commit) to preview the count without a release. Given `--raw` from an earlier
+ * run, it reads core's coverage there for Region.svelte's branches.
  *
  * Run from the repo root, after `pnpm run build:lib`. A failing test is a result, not an error:
  * the script exits 0 once the files are written, and 1 only when a run could not be read at all.
@@ -45,7 +46,7 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { collect, type Gate } from './robustness.ts';
+import { collect, type CoverageSummary, type Gate } from './robustness.ts';
 import type { CaseLine } from './vitest-results.ts';
 
 const ROOT = resolve(import.meta.dirname, '..', '..');
@@ -282,12 +283,17 @@ function jsonl_texts(path: string): string[] {
 		.map((f) => readFileSync(join(path, f), 'utf8'));
 }
 
-/** The robustness count of the repository as checked out, with the CI artifacts given. */
+/** The robustness count of the repository as checked out, with the CI artifacts given, and core's
+ *  coverage from this report's run (or the one `--raw` holds) for Region.svelte's branches. */
 function robustness() {
+	const core_coverage = join(RAW, 'coverage', 'core', 'coverage-summary.json');
 	return collect(ROOT, {
 		mutation: values.mutation ? jsonl_texts(resolve(values.mutation)) : [],
 		gate: values.unmeasured
 			? (JSON.parse(readFileSync(resolve(values.unmeasured), 'utf8')) as Gate)
+			: null,
+		coverage: existsSync(core_coverage)
+			? (JSON.parse(readFileSync(core_coverage, 'utf8')) as CoverageSummary)
 			: null
 	});
 }

@@ -97,6 +97,32 @@ export type Robustness = {
 	 *  where the rule is an error. Null when the lint could not be run. */
 	comments: { flagged: Record<string, number>; enforced: string[] } | null;
 	browsers: SuiteEngines[];
+	/** How hard Region is checked (absent in reports from before it was counted; null at a commit
+	 *  with no region grid). */
+	region?: RegionCount | null;
+};
+
+/** Region's own checks, counted from packages/core/test at the report's commit. */
+export type RegionCount = {
+	/** The full input grid's cases: every combination of each kind's axes, at every place, in each
+	 *  of the grid's test setups (test/_region-grid-axes.ts, scripts/region-grid.ts). `client` and
+	 *  `hydrate` are per engine; `engines` and `parts` are how every pull request runs it. */
+	grid: { server: number; client: number; hydrate: number; engines: string[]; parts: number };
+	/** The grid's snapshot files, and the distinct outputs the full grid's files store in full. */
+	snapshots: { files: number; fullFiles: number; distinct: number };
+	/** The region fuzz: its properties per leg, the runs each gets in CI, and in the nightly run. */
+	fuzz: {
+		serverProperties: number;
+		serverRuns: number;
+		browserProperties: number;
+		browserRuns: number;
+		nightlyRuns: number | null;
+	};
+	/** Planted bugs in Region (test/region-mutants.json): caught by a test, or proved to change
+	 *  nothing. */
+	mutants: { total: number; killed: number; equivalent: number } | null;
+	/** Region.svelte's branches the report's own coverage run reached; null without that run. */
+	branches: { covered: number; total: number } | null;
 };
 
 export type Summary = {
@@ -253,6 +279,76 @@ export const ENGINE_LABELS: Record<string, string> = {
 
 const of = (a: number, b: number) => `${count(a)} of ${count(b)}`;
 
+/** `a`, `a and b`, `a, b and c`. */
+const and = (items: readonly string[]) =>
+	items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
+
+/** The Region group's tiles: how hard Region, the core of ogygia, is checked. */
+function region_tiles(
+	r: RegionCount,
+	at: (file: string) => { href: string; file: string }
+): Tile[] {
+	const g = r.grid;
+	const engines = and(g.engines.map((e) => ENGINE_LABELS[e] ?? e));
+	const f = r.fuzz;
+	const tiles: Tile[] = [
+		{
+			n: count(g.server),
+			what: 'server cases: every combination of its inputs',
+			why: 'Region is the core of ogygia. Each kind of region (an island, a hole, a lake, a held value, a promise, nothing) has its inputs as axes. Every combination of their values renders at every place in the page, in dev and production, with Svelte’s async compile on and off. No pairwise cut, no sampling.',
+			...at('packages/core/test/_region-grid-axes.ts')
+		},
+		{
+			n: count(g.client + g.hydrate),
+			what: `browser cases, in each of ${engines}`,
+			why: `The same inputs created fresh in the browser (${count(g.client)}) and hydrated over their own server HTML (${count(g.hydrate)}).${g.parts ? ` Every pull request runs the whole grid, cut into ${count(g.parts)} parts, in each engine.` : ''}`,
+			...at('packages/core/test/browser/_region-grid-client.ts')
+		},
+		{
+			n: count(r.snapshots.files),
+			what: 'snapshot files',
+			why: `One file per kind and place in the page. ${count(r.snapshots.fullFiles)} hold the full grid, the other ${count(r.snapshots.files - r.snapshots.fullFiles)} the fast part every check runs. A change to any byte of any case shows in review, by name.`,
+			...at('packages/core/test/__snapshots__/region-grid')
+		},
+		{
+			n: count(r.snapshots.distinct),
+			what: 'distinct outputs, each stored in full',
+			why: 'Each file writes out every distinct output (head, body, tail, console and the rest) in full, with the exact cases that give it. A combination Region refuses is an output too: its coded error.',
+			...at('packages/core/test/_region-grid-report.ts')
+		},
+		{
+			n: count(f.serverProperties + f.browserProperties),
+			what: `fuzz properties (${count(f.serverProperties)} on the server, ${count(f.browserProperties)} in the browser)`,
+			why: `Random inputs, with odd text in every text prop and props a kind never reads. Each must render good HTML, throw only a coded refusal, and hydrate with nothing thrown away. On every pull request each server property tries ${count(f.serverRuns)} inputs and each browser one ${count(f.browserRuns)} per engine, from a fixed seed, so a failure replays.`,
+			...at('packages/core/test/region-grid-fuzz.test.ts')
+		}
+	];
+	if (f.nightlyRuns !== null)
+		tiles.push({
+			n: count(f.nightlyRuns),
+			what: 'inputs each fuzz property tries every night',
+			why: `Every night the whole grid runs in ${engines}, then the fuzz runs at length.`,
+			...at('.github/workflows/dst.yml')
+		});
+	const m = r.mutants;
+	if (m)
+		tiles.push({
+			n: of(m.killed + m.equivalent, m.total),
+			what: 'planted bugs in Region, each caught or proved harmless',
+			why: `A mutant (a small planted bug) is put in Region.svelte, one at a time, and the whole core suite runs. ${count(m.killed)} were caught by a test, and the file names the first one that failed. ${count(m.equivalent)} change nothing anyone can see, each with its reason, so each is code we can delete.`,
+			...at('packages/core/test/region-mutants.json')
+		});
+	const b = r.branches;
+	if (b)
+		tiles.push({
+			n: of(b.covered, b.total),
+			what: `branches of Region.svelte run by the tests (${percent(b.total ? (b.covered / b.total) * 100 : 0)})`,
+			why: 'A branch is one way through an if, a ?: or an &&. Counted by this report’s own coverage run, in Node and Chromium.',
+			...at('packages/core/src/Region.svelte')
+		});
+	return tiles;
+}
+
 /** The robustness block's tiles, from a report's `robustness` (none: a report made before it). */
 export function robustness_view(r: Robustness | undefined, commit: string): RobustnessView | null {
 	if (!r) return null;
@@ -261,6 +357,8 @@ export function robustness_view(r: Robustness | undefined, commit: string): Robu
 		file
 	});
 	const groups: TileGroup[] = [];
+
+	if (r.region) groups.push({ id: 'region', title: 'Region', tiles: region_tiles(r.region, at) });
 
 	const sim = r.simulation;
 	if (sim) {

@@ -11,12 +11,16 @@
  *   rules               runtime rules, root lint rules, INVARIANTS.md and its enforcers
  *   comments            what `ogygia/structured-comments` still flags, per package
  *   browsers            the engines CI runs each suite in (.github/scripts/ci-plan.ts)
+ *   region              Region's input grid (its axes, imported), snapshot files, fuzz, planted
+ *                       bugs (packages/core/test/region-mutants.json) and, from the report's own
+ *                       coverage run, Region.svelte's branches
  *
  * The counters are pure (robustness.test.ts runs them on fixture ledgers); `collect` reads a
  * repository and hands them its files.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readFileSync, readSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import type { MutantGroup, Robustness, SuiteEngines } from '../../apps/docs/src/lib/tests/data.ts';
 import { disk_repo, read_sections } from '../../internal/checks/invariants.ts';
@@ -282,6 +286,146 @@ export function browsers_of(
 	];
 }
 
+type RegionCount = NonNullable<Robustness['region']>;
+
+/** The region grid's axes module (packages/core/test/_region-grid-axes.ts), as far as the count
+ *  reads it. */
+export interface GridAxes {
+	readonly KIND_AXES: Readonly<
+		Record<
+			string,
+			{ axes: Readonly<Record<string, readonly string[]>>; server_only?: readonly string[] }
+		>
+	>;
+	readonly PLACES: readonly unknown[];
+	readonly CLIENT_PLACES: readonly unknown[];
+	readonly HYDRATE_PLACES: readonly unknown[];
+}
+
+/** The grid's cases on each leg: each kind's axes multiplied (the browser legs without the
+ *  server-only axes), times the leg's places, times the test setups (`projects`) that run it.
+ *  `client` and `hydrate` are per engine. */
+export function grid_cases(
+	g: GridAxes,
+	projects: { server: number; browser: number }
+): Pick<RegionCount['grid'], 'server' | 'client' | 'hydrate'> {
+	let server = 0;
+	let client = 0;
+	for (const k of Object.values(g.KIND_AXES)) {
+		let all = 1;
+		let browser = 1;
+		for (const [name, values] of Object.entries(k.axes)) {
+			all *= values.length;
+			if (!k.server_only?.includes(name)) browser *= values.length;
+		}
+		server += all;
+		client += browser;
+	}
+	return {
+		server: server * g.PLACES.length * projects.server,
+		client: client * g.CLIENT_PLACES.length * projects.browser,
+		hydrate: client * g.HYDRATE_PLACES.length * projects.browser
+	};
+}
+
+/** The Vitest projects the grid script (packages/core/scripts/region-grid.ts) runs: the browser
+ *  ones, and the rest (the server's). */
+export function grid_projects(script: string): { server: number; browser: number } {
+	const names = [...script.matchAll(/'--project',\s*'([\w-]+)'/g)].map((m) => m[1]);
+	const browser = names.filter((n) => n.startsWith('browser')).length;
+	return { server: names.length - browser, browser };
+}
+
+/** The engines every e2e slice runs in, and the slices the grid is cut into (ci-plan.ts). */
+export function grid_ci(plan: string): Pick<RegionCount['grid'], 'engines' | 'parts'> {
+	return { engines: list_in(plan, 'ENGINES'), parts: list_in(plan, 'REGION_GRID_PARTS').length };
+}
+
+const GRID_HEAD_RE = /^# (\d+) cases, (\d+) distinct outputs;/m;
+
+/** The grid's snapshot files (each with the start of its text), and the distinct outputs the
+ *  full grid's files store, from their headers. */
+export function grid_snapshots(
+	files: readonly { path: string; head: string }[]
+): RegionCount['snapshots'] {
+	let full = 0;
+	let distinct = 0;
+	for (const { path, head } of files) {
+		const m = GRID_HEAD_RE.exec(head);
+		if (!m) throw new Error(`${path}: no "<n> cases, <n> distinct outputs" line in its header`);
+		if (!path.includes('/full/')) continue;
+		full++;
+		distinct += Number(m[2]);
+	}
+	return { files: files.length, fullFiles: full, distinct };
+}
+
+const TEST_CALL_RE = /(?<![\w.])test\(/g;
+
+/** The runs a fuzz file's `const RUNS = …` gives each property: the line's last number. */
+function runs_in(text: string): number {
+	const line = /const RUNS = ([^;\n]*);/.exec(text)?.[1] ?? '';
+	return Number(line.match(/\d+/g)?.at(-1) ?? 0);
+}
+
+/** The region fuzz files' properties (one per test) and their CI runs, by leg; the nightly runs
+ *  are the OGYGIA_FUZZ_RUNS dst.yml's `region-grid` job sets. */
+export function grid_fuzz(
+	files: readonly { path: string; text: string }[],
+	dst: string
+): RegionCount['fuzz'] {
+	const out = { serverProperties: 0, serverRuns: 0, browserProperties: 0, browserRuns: 0 };
+	for (const { path, text } of files) {
+		const properties = text.match(TEST_CALL_RE)?.length ?? 0;
+		if (path.includes('/browser/')) {
+			out.browserProperties += properties;
+			out.browserRuns = runs_in(text);
+		} else {
+			out.serverProperties += properties;
+			out.serverRuns = runs_in(text);
+		}
+	}
+	const at = dst.search(/^ {2}region-grid:/m);
+	const nightly = at === -1 ? null : /OGYGIA_FUZZ_RUNS: '(\d+)'/.exec(dst.slice(at));
+	return { ...out, nightlyRuns: nightly ? Number(nightly[1]) : null };
+}
+
+/** packages/core/test/region-mutants.json, as far as the count reads it. */
+export interface RegionMutants {
+	readonly mutants: readonly { id: string; verdict: string; by?: string; why?: string }[];
+}
+
+/** Each planted bug's verdict: killed (by a named test, or a reason such as a crash) or
+ *  equivalent (a reason). Anything else is an error, never a quiet zero. */
+export function region_mutants(list: RegionMutants): NonNullable<RegionCount['mutants']> {
+	let killed = 0;
+	let equivalent = 0;
+	for (const m of list.mutants) {
+		if (m.verdict === 'killed' && (m.by || m.why)) killed++;
+		else if (m.verdict === 'equivalent' && m.why) equivalent++;
+		else
+			throw new Error(
+				`region-mutants.json: ${m.id} is "${m.verdict}" with ${m.by ? 'a test' : m.why ? 'a reason' : 'neither a test nor a reason'}`
+			);
+	}
+	return { total: list.mutants.length, killed, equivalent };
+}
+
+/** A Vitest coverage summary (`json-summary`: file → its numbers), as far as the count reads it. */
+export type CoverageSummary = Readonly<
+	Record<string, { readonly branches: { readonly total: number; readonly covered: number } }>
+>;
+
+/** Region.svelte's branches in core's coverage summary. */
+export function region_branches(summary: CoverageSummary | null): RegionCount['branches'] {
+	const key = Object.keys(summary ?? {}).find((f) =>
+		f.replaceAll('\\', '/').endsWith('/packages/core/src/Region.svelte')
+	);
+	if (!summary || !key) return null;
+	const { covered, total } = summary[key].branches;
+	return { covered, total };
+}
+
 /** What the report reads beside the repository: CI artifacts, when it has them. */
 export interface Inputs {
 	/** Run oxlint for the flagged comments (false: `comments` is null). */
@@ -290,6 +434,56 @@ export interface Inputs {
 	readonly mutation?: readonly string[];
 	/** The measurement-source gate's gate.json (the heisenbench workflow's artifact). */
 	readonly gate?: Gate | null;
+	/** core's coverage summary from the report's own run (Node and Chromium). */
+	readonly coverage?: CoverageSummary | null;
+}
+
+const GRID_AXES = 'packages/core/test/_region-grid-axes.ts';
+const GRID_SNAPSHOT_RE = /^packages\/core\/test\/(?:browser\/)?__snapshots__\/region-grid\//;
+
+/** The first bytes of `file`: a grid snapshot's header, without reading its many megabytes. */
+function head_of(file: string): string {
+	const fd = openSync(file, 'r');
+	try {
+		const buf = Buffer.alloc(4096);
+		return buf.toString('utf8', 0, readSync(fd, buf, 0, buf.length, 0));
+	} finally {
+		closeSync(fd);
+	}
+}
+
+/** Region's count, or null at a commit with no grid. */
+function region_of(
+	root: string,
+	files: readonly string[],
+	inputs: Inputs,
+	read: (f: string) => string
+): Robustness['region'] {
+	if (!files.includes(GRID_AXES)) return null;
+	const live_text = (f: string) => (files.includes(f) ? read(f) : '');
+	const axes = createRequire(import.meta.url)(join(root, GRID_AXES)) as GridAxes;
+	const mutants = 'packages/core/test/region-mutants.json';
+	return {
+		grid: {
+			...grid_cases(axes, grid_projects(live_text('packages/core/scripts/region-grid.ts'))),
+			...grid_ci(live_text('.github/scripts/ci-plan.ts'))
+		},
+		snapshots: grid_snapshots(
+			files
+				.filter((f) => GRID_SNAPSHOT_RE.test(f))
+				.map((path) => ({ path, head: head_of(join(root, path)) }))
+		),
+		fuzz: grid_fuzz(
+			files
+				.filter((f) => /^packages\/core\/test\/(?:browser\/)?region-grid-fuzz\.test\.ts$/.test(f))
+				.map((path) => ({ path, text: read(path) })),
+			live_text('.github/workflows/dst.yml')
+		),
+		mutants: files.includes(mutants)
+			? region_mutants(parse_ledger(read(mutants), mutants) as RegionMutants)
+			: null,
+		branches: region_branches(inputs.coverage ?? null)
+	};
 }
 
 /** The robustness count of the repository at `root` (its tracked files). */
@@ -394,7 +588,8 @@ export function collect(root: string, inputs: Inputs = {}): Robustness {
 		speed,
 		rules,
 		comments,
-		browsers
+		browsers,
+		region: region_of(root, files, inputs, read)
 	};
 }
 
