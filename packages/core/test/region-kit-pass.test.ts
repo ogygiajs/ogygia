@@ -3,11 +3,12 @@ import { render } from 'svelte/server';
 import { setContext, type Component } from 'svelte';
 import RegionUnder from './_fixtures/RegionUnder.svelte';
 import KitEventBelow from './_fixtures/KitEventBelow.svelte';
+import KitRequestText from './_fixtures/KitRequestText.svelte';
 import Tiny from './_fixtures/Tiny.svelte';
 import RegionC from '../src/Region.svelte';
 import { REGION_BRAND } from '../src/region.ts';
 import { DocumentTail, set_tail_reader } from '../src/server/document-tail.ts';
-import { KIT_REQUEST_CONTEXT } from '../src/server/kit-context.ts';
+import { KIT_REQUEST_CONTEXT, set_kit_event_reader } from '../src/server/kit-context.ts';
 import { set_request_event_stub } from './_stubs/server.request-event.ts';
 import { set_entry_locations } from './_stubs/server.region-deps.ts';
 import type { RegionSettings } from '../src/region-plan.ts';
@@ -30,6 +31,7 @@ beforeEach(() => {
 afterEach(() => {
 	set_tail_reader(null);
 	set_request_event_stub(null);
+	set_kit_event_reader(null);
 	set_entry_locations({});
 });
 
@@ -51,6 +53,13 @@ describe("a region on Kit's page pass", () => {
 		expect(body).toContain(`<ogygia-region entry="${ENTRY}"`);
 		expect(body).not.toContain(PROPS_SCRIPT);
 		expect(tail.render()).toContain(PROPS_SCRIPT);
+	});
+
+	it("hands the components below it Kit's request context with the request event filled in", () => {
+		set_kit_event_reader(() => ({ route: { id: '/page' } }));
+		const held = { [REGION_BRAND]: true, kind: 'inline', component: KitRequestText, props: {} };
+		const body = on_kit_pass([{ of: held }]);
+		expect(body).toContain('<p data-kit-request="">/page</p>');
 	});
 
 	it("an island whose entry has no built location records its module url in the tail's island row", () => {
