@@ -583,13 +583,13 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 	});
 
 	const stringify_devalue = stringify;
-	const baked_html = untrack(() =>
-		__baked ? ((resolved as { html?: string } | undefined)?.html ?? '') : ''
-	);
 	let baked_el: Element | null = $state(null);
 	const baked_adopt = adopt_region(
 		() => (typeof window === 'undefined' ? ' live data-og-baked' : ' live'),
-		(renderer) => (renderer as { push(html: string): void }).push(baked_html),
+		(renderer) =>
+			(renderer as { push(html: string): void }).push(
+				(resolved as { html?: string } | undefined)?.html ?? ''
+			),
 		(el) => {
 			baked_el = el;
 			return () => (baked_el = null);
