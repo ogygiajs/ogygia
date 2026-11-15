@@ -17,6 +17,7 @@ import { owned_effects } from './rules/owned-effects.ts';
 import { ports } from './rules/ports.ts';
 import { prefer_class_for_state } from './rules/prefer-class-for-state.ts';
 import { prefer_dedent } from './rules/prefer-dedent.ts';
+import { runes_as_fields } from './rules/runes-as-fields.ts';
 import { stale_whole } from './rules/stale-whole.ts';
 import { structured_comments } from './rules/structured-comments.ts';
 import { tests_read_source } from './rules/tests-read-source.ts';
@@ -40,6 +41,7 @@ export default {
 		'tests-read-source': tests_read_source,
 		'fake-timers-whole': fake_timers_whole,
 		'prefer-class-for-state': prefer_class_for_state,
+		'runes-as-fields': runes_as_fields,
 		ports
 	}
 };
