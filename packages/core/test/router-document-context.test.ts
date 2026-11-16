@@ -5,6 +5,7 @@ import { expect, test } from 'vitest';
 import { with_request_store } from '@sveltejs/kit/internal/server';
 import { parse } from 'devalue';
 import { region } from '../src/region.ts';
+import { key_name } from '../src/contract/context-key.ts';
 import SetsTheme from './_fixtures/SetsTheme.svelte';
 
 const { handle } = await import('../src/hooks.ts');
@@ -42,5 +43,5 @@ test('a router page’s document carries the context its page set, once', async 
 	expect(html).toContain('data-sets-theme');
 	const found = [...html.matchAll(MARKER)];
 	expect(found, 'one page-level context marker').toHaveLength(1);
-	expect(parse(found[0][1])).toEqual({ 'router-page-theme': 'forest' });
+	expect(parse(found[0][1])).toEqual({ [key_name(Symbol.for('router-page-theme'))!]: 'forest' });
 });

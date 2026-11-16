@@ -18,6 +18,8 @@ import {
 	OG_MOUNT_MOVED,
 	OG_MOVED,
 	OGYGIA_GRAPH,
+	OGYGIA_PROVIDE,
+	OGYGIA_PROVIDE_PAGE,
 	OGYGIA_RUNTIME,
 	tag_name,
 	text_of,
@@ -726,13 +728,28 @@ export function lift_document(html: string, origin: string): Omit<FragmentDocume
 	const body_tag = next_tag(html, 'body', 0);
 	const close = body_tag === null ? -1 : body_end(html);
 	const body_close = close < (body_tag?.end ?? 0) ? -1 : close;
+	const body = absolutize(body_close === -1 ? html : html.slice(body_tag!.end, body_close), origin);
 	return {
 		title: decodeText((title_tag && text_of(head, title_tag, 'title')) ?? ''),
 		css,
 		...(head_meta ? { head: head_meta } : {}),
-		body: absolutize(body_close === -1 ? html : html.slice(body_tag!.end, body_close), origin),
+		body: page_context_scoped(body),
 		...(runtime_src ? { runtime: new URL(runtime_src, `${origin}/`).href } : {})
 	};
+}
+
+/** A peer body whose page carries a context root: the root becomes a provider around the body, so
+ *  the context the peer's page set reaches the peer's own regions, and no page root of the shell's. */
+function page_context_scoped(body: string): string {
+	for (let t = next_tag(body, 'script', 0); t !== null; t = next_tag(body, 'script', t.next)) {
+		if (t.attr(OGYGIA_PROVIDE_PAGE) === undefined) continue;
+		const payload = text_of(body, t, 'script');
+		if (payload === null) return body;
+		const end = body.indexOf('>', t.end + payload.length) + 1;
+		const rest = body.slice(0, t.start) + body.slice(end);
+		return `<ogygia-provide style="display:contents"><script ${OGYGIA_PROVIDE}>${payload}</script>${rest}</ogygia-provide>`;
+	}
+	return body;
 }
 
 // ── JSON responses ───────────────────────────────────────────────────────────────────────────

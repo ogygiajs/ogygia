@@ -38,6 +38,7 @@ import { live_event } from './server/live-event.ts';
 import { kit_render_context, type KitPage } from './server/kit-context.ts';
 import { open_ask_scope, read_seed_ask, record_page } from './page-seed-registry.ts';
 import { shape_page_data, unshipped_attr } from './server/seed-shape.ts';
+import { page_context_script } from './context-registry.ts';
 
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
@@ -212,7 +213,7 @@ export async function document(
 				runtime_first(head.join(''), null, code_origins(), response_mark(mark_key))
 			)
 		: runtime_first(head.join(''), null, code_origins(), response_mark(mark_key));
-	const html = `<!doctype html>\n<html lang="${escape_text(options.lang ?? 'en')}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${head_html}</head><body>${r.body}</body></html>`;
+	const html = `<!doctype html>\n<html lang="${escape_text(options.lang ?? 'en')}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${head_html}</head><body>${r.body}${page_context_script()}</body></html>`;
 
 	const headers = new Headers({ 'content-type': 'text/html; charset=utf-8' });
 	// Programmatic documents are rendered per request — `no-store` by default, cacheable ones

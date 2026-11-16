@@ -20,7 +20,7 @@ import type {
 	set_late_scope_opener,
 	set_late_taker
 } from './late-region-registry.ts';
-import type { set_ctx_recorder } from './context-registry.ts';
+import type { set_ctx_recorder, set_ctx_script_reader } from './context-registry.ts';
 import type { set_server_devtools_recorder } from './events/server-registry.ts';
 import type { set_request_stats_sink } from './server/request-stats.ts';
 import type { configure_render_page } from './server/render-page.ts';
@@ -37,6 +37,7 @@ export interface ServerPorts {
 	late_recorder: Port<typeof set_late_recorder>;
 	late_taker: Port<typeof set_late_taker>;
 	ctx_recorder: Port<typeof set_ctx_recorder>;
+	ctx_script_reader: Port<typeof set_ctx_script_reader>;
 	devtools_recorder: Port<typeof set_server_devtools_recorder>;
 	request_stats_sink: Port<typeof set_request_stats_sink>;
 	render_page_warn: Port<typeof configure_render_page>['warn'];
@@ -59,6 +60,7 @@ export function server_ports(): ServerPorts | null {
 			late_recorder: null,
 			late_taker: null,
 			ctx_recorder: null,
+			ctx_script_reader: null,
 			devtools_recorder: null,
 			request_stats_sink: null,
 			render_page_warn: null

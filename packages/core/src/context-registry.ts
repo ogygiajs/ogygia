@@ -24,6 +24,18 @@ export function set_ctx_recorder(fn: Recorder | null): void {
 	if (ports) ports.ctx_recorder = fn;
 }
 
+/** Server (`hooks.ts`) installs a reader of the request's page-level context marker. */
+export function set_ctx_script_reader(fn: (() => string) | null): void {
+	const ports = server_ports();
+	if (ports) ports.ctx_script_reader = fn;
+}
+
+/** The request's page-level context marker, for a document written outside Kit's render (the
+ *  router's `document()`): '' when nothing was set, or outside a request the handle owns. */
+export function page_context_script(): string {
+	return server_ports()?.ctx_script_reader?.() ?? '';
+}
+
 /**
  * Options a drop-in `setContext` may carry as its third argument. Svelte's own signature is
  * two-arg, so existing code is untouched — the marker is strictly additive.

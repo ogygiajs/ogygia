@@ -185,7 +185,7 @@ import { stringify } from 'devalue';
 import { serialize_provided_context } from './context-bridge.ts';
 import { escape_amp_quot, escape_script_text } from './escape.ts';
 import { hole_copy_key } from './contract/hash.ts';
-import { set_ctx_recorder } from './context-registry.ts';
+import { set_ctx_recorder, set_ctx_script_reader } from './context-registry.ts';
 import {
 	set_ask_scope_opener,
 	set_page_recorder,
@@ -267,7 +267,6 @@ const dt_now = clock.mono;
 type LateCapture = { regions: LateRegion[]; next: number };
 type RequestBag = {
 	request: Request;
-	ctx: Map<string, unknown>;
 	page: PageSnapshot | null;
 	csp_sources?: string[];
 	seed_keys: import('./server/seed-shape.ts').SeedKeys | null;
@@ -285,18 +284,41 @@ type RequestBag = {
 	transform_body?: string;
 	facts: RequestFacts;
 };
-const bags = new WeakMap<Request, RequestBag>();
+const bags = shared<WeakMap<Request, RequestBag>>({
+	name: 'ogygia.request-bags',
+	version: 1,
+	make: () => new WeakMap()
+});
 function bag_of(): RequestBag | undefined {
 	const request = live_event()?.request;
 	return request ? bags.get(request) : undefined;
 }
-set_ctx_recorder((key, value) => {
-	const bag = bag_of();
-	if (bag) bag.ctx.set(key, value);
+/** The context a request's render set, page by page or fragment by fragment: kept by request, as a
+ *  router page or a peer's fragment has no page bag. */
+const request_ctx = shared<WeakMap<Request, Map<string, unknown>>>({
+	name: 'ogygia.request-context',
+	version: 1,
+	make: () => new WeakMap()
 });
-const doc_asks = new WeakMap<Request, SeedKeys | null>();
+set_ctx_recorder((key, value) => {
+	const request = live_event()?.request;
+	if (!request) return;
+	let ctx = request_ctx.get(request);
+	if (ctx === undefined) request_ctx.set(request, (ctx = new Map()));
+	ctx.set(key, value);
+});
+set_ctx_script_reader(() => page_ctx_script(live_event()?.request));
+const doc_asks = shared<WeakMap<Request, SeedKeys | null>>({
+	name: 'ogygia.document-asks',
+	version: 1,
+	make: () => new WeakMap()
+});
 const request_of = () => live_event()?.request;
-const ref_names_of = new WeakMap<Request, RefNames>();
+const ref_names_of = shared<WeakMap<Request, RefNames>>({
+	name: 'ogygia.request-ref-names',
+	version: 1,
+	make: () => new WeakMap()
+});
 set_ref_names_reader(() => {
 	const request = request_of();
 	if (!request) return null;
@@ -623,11 +645,12 @@ function csr_page_of(
 /** The drop-in `setContext` page root (`<script data-ogygia-provide-page>`), or '' when the request
  *  set nothing an island can read. Drops any non-serializable value (function / store / class
  *  instance) instead of crashing. */
-function page_ctx_script(bag: RequestBag | undefined): string {
-	if (!bag?.ctx?.size) return '';
-	const payload = serialize_provided_context(bag.ctx);
+function page_ctx_script(request: Request | undefined): string {
+	const ctx = request && request_ctx.get(request);
+	if (!request || !ctx?.size) return '';
+	const payload = serialize_provided_context(ctx);
 	return payload
-		? emit_ogygia_script('ctx', payload, OGYGIA_PROVIDE_PAGE + mark_attr(bag.request))
+		? emit_ogygia_script('ctx', payload, OGYGIA_PROVIDE_PAGE + mark_attr(request))
 		: '';
 }
 
@@ -825,7 +848,6 @@ class OgygiaHandle {
 			// render (the readers above find it through Kit's store) and read back in
 			// `inject_client_seeds` via the SAME bag reference passed through as a closure.
 			const bag: RequestBag = {
-				ctx: new Map(),
 				page: null,
 				seed_keys: null,
 				seed_asks: request_stats_detailed() ? new Map() : null,
@@ -1105,7 +1127,7 @@ class OgygiaHandle {
 				spans.body_end !== -1 && bag
 					? (bag.transform_body ?? '') +
 						bag.tail.render(null, false, mark_attr(bag.request)) +
-						(bag.kit_with_runtime ? page_ctx_script(bag) : '')
+						(bag.kit_with_runtime ? page_ctx_script(bag.request) : '')
 					: '';
 			if (head === null && !tail) return html;
 			// The runtime an island inside a lake emitted goes before the head's JavaScript here too
@@ -1401,7 +1423,7 @@ class OgygiaHandle {
 		}
 
 		// Drop-in `setContext` page root — emitted here (final chunk) so every `setContext` has run.
-		const ctx_script = page_ctx_script(bag);
+		const ctx_script = page_ctx_script(bag?.request);
 		if (ctx_script) {
 			scripts.push(ctx_script);
 			ctx_bytes = ctx_script.length;
