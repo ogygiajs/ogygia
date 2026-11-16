@@ -405,7 +405,7 @@ export class Browsers {
 		// (happy-dom asks for that first frame right after this callback)
 		this.#unwritten.add(window);
 		const w_frame = window as unknown as {
-			requestAnimationFrame(fn: (t: number) => void): number;
+			requestAnimationFrame: (fn: (t: number) => void) => number;
 		};
 		const ask = w_frame.requestAnimationFrame;
 		w_frame.requestAnimationFrame = (fn) => {

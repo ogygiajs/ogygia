@@ -95,7 +95,10 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   entry as it starts, a browser once its document comes, so its history is put back and a back goes
   back from the page on screen (the router handed a click to the browser, the visitor went back,
   and the stalled page landed on the back's document: palaestra seed 20958,
-  `rule_address_bar_drift`).
+  `rule_address_bar_drift`). It writes a document's content in its first frame, into whichever
+  window the frame holds by then: a navigation that starts before that frame leaves the document
+  (`#unwritten`), or the first page landed in the next page's window and asked its relative files at
+  the wrong depth (palaestra seed 208640329, `test/superseded-navigation.node.test.ts`).
 - It called only a window's bubbling `load` listeners (one that captures never heard it) and never
   fired `pageshow`: both reach the window, capturing then not, the document their target
   (`window_load_events`, `test/modules.test.ts`; found by the differential).
