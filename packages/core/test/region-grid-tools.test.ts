@@ -2,7 +2,8 @@
 import { expect, test } from 'vitest';
 import { fold, GridReport } from './_region-grid-report.ts';
 import { html_findings, unbalanced_markers } from './_region-grid-checks.ts';
-import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AT, cases_of, KINDS, product } from './_region-grid.ts';
 
@@ -84,23 +85,32 @@ test('the HTML check finds what a parser would repair, and passes good HTML', ()
 	expect(html_findings('<meta name="a">', '<ogygia-region><p>a</p></ogygia-region>')).toEqual([]);
 });
 
-test('every grid file of both sets, every kind, place and async setting, is on disk', () => {
-	const sets = { fast: ['page', 'island'], full: [...AT] };
+test('every grid file, every kind, place and async setting, is on disk, and no other', () => {
 	const hydrate_at = ['page', 'island', 'live-snippet', 'woken-answer'];
-	const missing: string[] = [];
-	for (const [set, ats] of Object.entries(sets))
-		for (const async of ['on', 'off'])
-			for (const kind of Object.keys(KINDS))
-				for (const [dir, places] of [
-					['__snapshots__/region-grid/server', ats],
-					['browser/__snapshots__/region-grid/client', ats],
-					['browser/__snapshots__/region-grid/hydrate', ats.filter((a) => hydrate_at.includes(a))]
-				] as const)
-					for (const at of places) {
-						const file = `${dir}/${set}/async=${async}/kind=${kind}/at=${at}.txt`;
-						if (!existsSync(fileURLToPath(new URL(file, import.meta.url)))) missing.push(file);
-					}
-	expect(missing).toEqual([]);
+	const want: string[] = [];
+	for (const async of ['on', 'off'])
+		for (const kind of Object.keys(KINDS))
+			for (const [dir, places] of [
+				['__snapshots__/region-grid/server', AT],
+				['browser/__snapshots__/region-grid/client', AT],
+				['browser/__snapshots__/region-grid/hydrate', AT.filter((a) => hydrate_at.includes(a))]
+			] as const)
+				for (const at of places) want.push(`${dir}/full/async=${async}/kind=${kind}/at=${at}.txt`);
+	const here = fileURLToPath(new URL('.', import.meta.url));
+	const on_disk = ['__snapshots__/region-grid', 'browser/__snapshots__/region-grid'].flatMap(
+		(dir) =>
+			readdirSync(join(here, dir), { recursive: true, withFileTypes: true })
+				.filter((e) => e.isFile())
+				.map((e) => relative(here, join(e.parentPath, e.name)))
+	);
+	expect(
+		want.filter((f) => !on_disk.includes(f)),
+		'missing'
+	).toEqual([]);
+	expect(
+		on_disk.filter((f) => !want.includes(f)),
+		'no grid writes these'
+	).toEqual([]);
 });
 
 test('each kind has the full product of its axes, every case named by every axis', () => {
