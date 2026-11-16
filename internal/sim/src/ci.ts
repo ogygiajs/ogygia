@@ -15,10 +15,12 @@
  * waiting: #1578); past the limit it waits (5 minutes at a time) and, if the
  * queue has not drained by the deadline, stops early. It never starves CI.
  *
- * FILING: a finding's SIGNATURE is its oracle plus what it is about, with the run-specific parts
- * (numbers, hashes, the action that showed it) taken out, so the same bug found by two seeds is one
- * signature. An open `dst` issue carries its signature (`dst-signature: <sig>`); a repeat adds a
- * comment with the count, at most once a day, never a new issue. A new one gets an issue (labels
+ * FILING: a finding's SIGNATURE is its cause: its oracle plus what the oracle said, with what
+ * changes from seed to seed taken out (the action that showed it, the page past its first path
+ * segment, numbers, hashes), so one bug found by many seeds, after many actions, on a page's many
+ * paths is one signature, and one issue listing every seed and place that hit it. An open `dst`
+ * issue carries its signature (`dst-signature: <sig>`), or quotes a finding that has it; a repeat
+ * adds a comment with where it was seen, at most once a day, never a new issue. A new one gets an issue (labels
  * `bug`, `dst`) and a branch `sim/found-<sig>` with a seeded test that fails while it stands. At most
  * MAX_NEW issues per run: past that, a regression of the simulator itself is the likelier story.
  */
@@ -46,6 +48,8 @@ const FILE = env.DST_FILE === '1';
 const REPO = env.GITHUB_REPOSITORY ?? 'ogygiajs/ogygia';
 const RESULTS = env.DST_RESULTS ?? join(SIM, 'dst-results.json');
 const MAX_NEW = 5;
+/** The seeds an issue or comment lists one by one; past it, a count. */
+const SEEN_MAX = 20;
 const DAY = 24 * 3600_000;
 
 interface Finding {
@@ -106,21 +110,55 @@ async function neighbourly(): Promise<boolean> {
 	}
 }
 
-/** What a finding is about, without what changes from seed to seed. */
+/** When a finding was seen, as the simulator writes it before what the oracle said: `after <action>: `
+ *  (an action as `workload.ts` describes it, `tab N: …` or one with no tab), then `at rest: ` when
+ *  it was judged at rest. */
+const WHEN = /^(?:after (?:tab \d+: )?[^:\n]*: )?(?:at rest: )?/;
+
+/** A URL on the simulated app, known by its page's first path segment (`/dsd` for `/dsd/b`, and
+ *  for a file a page asked for under it), with its query and the rest of its path left out. */
+const APP_URL = /https:\/\/app\.test(\/[^/\s"?#:]*)(?:\/[^\s"?#:]*)?(?:\?[^\s"]*)?/g;
+
+/** The second line of a finding that is a page's two documents compared (`<url>`, `at line N:`, then
+ *  the lines around the first difference, the differing ones marked `- ` and `+ `). */
+const DIFF = /^at line \d+:$/;
+
+/**
+ * What a finding is about, without what changes from seed to seed: its oracle, and what the oracle
+ * said (its first two lines; for two documents compared, the page and the lines that differ),
+ * without when it was seen (the action that showed it), deeper than the page's first path segment,
+ * or numbers, hashes and a stack frame's file and position (a rebuilt app moves every one).
+ */
 export function signature(f: Pick<Finding, 'oracle' | 'detail'>): string {
-	const about = f.detail
-		.replace(/^(at rest: )?after [^:]+: /, '')
-		.split('\n')
-		.slice(0, f.oracle === 'mpa-equivalence' ? 1 : 2)
+	const said = f.detail.replace(WHEN, '').split('\n');
+	const about = (
+		DIFF.test(said[1] ?? '')
+			? [said[0], said.find((l) => l.startsWith('- ')), said.find((l) => l.startsWith('+ '))]
+			: said.slice(0, 2)
+	)
+		.filter((l) => l !== undefined)
 		.join(' ')
-		// (a stack frame's place, `(file:line:column)`: a rebuilt app moves every file and position,
-		// and the frame's function says where it was; test/ci.test.ts)
 		.replace(/\s*\(?\S+:\d+:\d+\)?/g, '')
-		.replace(/https:\/\/app\.test/g, '')
-		.replace(/\?.*$/, '')
-		.replace(/[0-9a-f]{8,}|\d+/g, '#')
-		.replace(/\.[\w-]{8}\.(js|css)\b/g, '.#.$1');
+		.replace(APP_URL, '$1')
+		.replace(/(https?:\/\/[^\s"?]*)\?[^\s"]*/g, '$1')
+		.replace(/\.[\w-]{8}\.(js|css)\b/g, '.#.$1')
+		.replace(/[0-9a-f]{8,}|\d+/g, '#');
 	return createHash('sha1').update(`${f.oracle} ${about}`).digest('hex').slice(0, 10);
+}
+
+/** Where each finding of one cause was seen, a line a seed: the action and page that showed it (its
+ *  detail's first line, up to what the oracle said), the first SEEN_MAX of them and a count of the
+ *  rest. */
+export function seen(list: readonly Pick<Finding, 'seed' | 'detail'>[]): string {
+	const lines = list.slice(0, SEEN_MAX).map((f) => {
+		const first = f.detail.split('\n')[0];
+		const when = WHEN.exec(first)?.[0] ?? '';
+		const page = /^https:\/\/app\.test[^\s:]*/.exec(first.slice(when.length))?.[0];
+		const where = [when.replace(/: $/, ''), page].filter(Boolean).join(': ');
+		return `- seed ${f.seed}: ${(where || first).slice(0, 200)}`;
+	});
+	if (list.length > SEEN_MAX) lines.push(`- and ${list.length - SEEN_MAX} more seeds`);
+	return lines.join('\n');
 }
 
 /** What one batch's CLI wrote. */
@@ -340,8 +378,27 @@ export function filing_error_line(sig: string, why: string): string {
 
 interface Open {
 	number: number;
+	title: string;
 	body: string;
 	comments: Array<{ body: string; createdAt: string }>;
+}
+
+/**
+ * The open issue a signature belongs to: one whose body or a comment names it (`dst-signature:`; a
+ * person who files one by hand names it in a comment), or one this runner filed whose finding, the
+ * oracle its title names and the detail its body quotes, has that signature now. So an issue filed
+ * before the signature changed is still found, and the repeat's comment names the new one.
+ */
+export function issue_for(open: readonly Open[], sig: string): Open | undefined {
+	const mark = `dst-signature: ${sig}`;
+	return (
+		open.find((i) => i.body.includes(mark) || i.comments.some((c) => c.body.includes(mark))) ??
+		open.find((i) => {
+			const oracle = /^dst: (\S+) \(/.exec(i.title)?.[1];
+			const detail = /^```\n([\s\S]*?)\n```$/m.exec(i.body)?.[1];
+			return oracle !== undefined && detail !== undefined && signature({ oracle, detail }) === sig;
+		})
+	);
 }
 
 function open_issues(): Open[] {
@@ -359,7 +416,7 @@ function open_issues(): Open[] {
 				'--limit',
 				'200',
 				'--json',
-				'number,body,comments'
+				'number,title,body,comments'
 			])
 		);
 	} catch {
@@ -392,10 +449,7 @@ function file_one(open: Open[]): (sig: string, list: Finding[]) => Filed {
 	return (sig, list) => {
 		const f = list[0];
 		const mark = `dst-signature: ${sig}`;
-		// (an issue a person filed names its signature in a comment)
-		const known = open.find(
-			(i) => i.body.includes(mark) || i.comments.some((c) => c.body.includes(mark))
-		);
+		const known = issue_for(open, sig);
 		if (known) {
 			const ours = known.comments.filter((c) => c.body.includes(mark));
 			const recent = ours.some((c) => Date.now() - Date.parse(c.createdAt) < DAY);
@@ -408,10 +462,9 @@ function file_one(open: Open[]): (sig: string, list: Finding[]) => Filed {
 					REPO,
 					'-b',
 					[
-						`Seen again by the scheduled run: ${list.length} seed(s) (${list
-							.slice(0, 10)
-							.map((x) => x.seed)
-							.join(', ')}).`,
+						`Seen again by the scheduled run in ${list.length} seed(s):`,
+						'',
+						seen(list),
 						'',
 						mark
 					].join('\n')
@@ -433,10 +486,9 @@ function file_one(open: Open[]): (sig: string, list: Finding[]) => Filed {
 			f.detail.slice(0, 3000),
 			'```',
 			'',
-			`Seed ${f.seed}, ${f.steps} actions, network faults: ${f.faults.join(', ') || 'none'}. Seen in ${list.length} seed(s) this run: ${list
-				.slice(0, 10)
-				.map((x) => x.seed)
-				.join(', ')}.`,
+			`Seed ${f.seed}, ${f.steps} actions, network faults: ${f.faults.join(', ') || 'none'}. Seen in ${list.length} seed(s) this run, each after its own action and on its own page; one signature is one cause:`,
+			'',
+			seen(list),
 			'',
 			`Replay: \`pnpm -C internal/sim sim --seed ${f.seed} --steps ${f.steps}\` (add \`--step N\` for the trace up to action N).`,
 			'',

@@ -1294,15 +1294,32 @@ const real_ms = (): number => Number(process.hrtime.bigint() / 1_000_000n);
 /** The world of the run in progress (for a hung run's report). */
 let running: World | null = null;
 
+/** A hung run's first line: the action it hung in, said as every finding says when it was seen
+ *  (`after <action>: `, which its signature leaves out), then where the loop stood. `actions` are
+ *  the trace's action lines (`<ms> # action <n>: <action>`). */
+export function hung_head(
+	seed: number,
+	now: number,
+	ran: number,
+	actions: readonly string[]
+): string {
+	const last = actions.at(-1)?.replace(/^.*? # action \d+: /, '');
+	return `${last === undefined ? '' : `after ${last}: `}seed ${seed}: hung at virtual ${now} ms, ${ran} loop steps, ${actions.length} actions begun`;
+}
+
 /** What a hung run was doing: where it stood, what was queued, what was on the wire, the trace's
  *  tail, and each tab's machine moves (`__ogygia_moves`, with rules on). */
 function hung_report(seed: number): string {
 	const w = running;
 	if (w === null) return `seed ${seed}: hung before its world was made`;
 	const lines: string[] = [];
-	const actions = w.loop.log.filter((l) => l.includes(' # action '));
 	lines.push(
-		`seed ${seed}: hung at virtual ${w.loop.now} ms, ${w.loop.ran} loop steps, ${actions.length} actions begun (last: ${actions.at(-1) ?? 'none'})`
+		hung_head(
+			seed,
+			w.loop.now,
+			w.loop.ran,
+			w.loop.log.filter((l) => l.includes(' # action '))
+		)
 	);
 	const queued = w.loop.queued();
 	lines.push(`queued tasks (${queued.length}), first 20:`);

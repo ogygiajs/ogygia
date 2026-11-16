@@ -2,10 +2,11 @@
  * Core's `e2e` task: Region's FULL grid (test/region-grid.test.ts and the browser grids beside it),
  * server, client and hydration, Svelte's async compile on and off, in the engines OGYGIA_BROWSERS
  * names, one part of it when E2E_SHARD says `<i>/<n>` (an e2e slice per part: .github/scripts/
- * ci-plan.ts). The check job runs the fast subset; this runs every case.
+ * ci-plan.ts). The unit run leaves the grid out (scripts/region-grid-files.ts).
  */
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { REGION_GRID_FILES } from './region-grid-files.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const shard = process.env.E2E_SHARD || '1/1';
@@ -25,9 +26,7 @@ const run = spawnSync(
 		'browser',
 		'--project',
 		'browser-no-async',
-		'test/region-grid.test.ts',
-		'test/browser/region-grid-client.test.ts',
-		'test/browser/region-grid-hydrate.test.ts'
+		...REGION_GRID_FILES
 	],
 	{
 		cwd: root,

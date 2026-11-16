@@ -1,4 +1,5 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
+import { REGION_GRID_FILES, region_grid_run } from './scripts/region-grid-files.ts';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { browser_runs, playwright_run, sim_define, stub_aliases } from '@ogygia/config/vitest';
 import { heisenbench_record } from '../../internal/heisenbench/src/record.ts';
@@ -92,15 +93,19 @@ const keep_downloads: BrowserCommand<[path: string]> = async (ctx, path) => {
 	for (const send of r.held.splice(0)) await send().catch(() => {}); // ok: a held request whose page closed has no one to answer
 };
 
-/** Which of the region grids' cases run (test/region-grid.test.ts): `full`, or the fast subset; and
- *  which part of them, `<i>/<n>`. */
+/** Which part of Region's grid runs, `<i>/<n>`; and the fuzz's runs and seed. */
 const GRID = {
-	region_grid: process.env.OGYGIA_REGION_GRID === 'full' ? 'full' : 'fast',
 	region_grid_shard: process.env.OGYGIA_REGION_GRID_SHARD ?? '1/1',
 	// (the browser's fuzz reads these here: it has no process.env)
 	fuzz_runs: process.env.OGYGIA_FUZZ_RUNS ?? '',
 	fuzz_seed: process.env.OGYGIA_FUZZ_SEED ?? ''
 };
+
+/** Region's grid files, left out of every project unless this run is the grid's (core's `e2e`). */
+const NOT_GRID = [
+	...configDefaults.exclude,
+	...(region_grid_run(process.env) ? [] : REGION_GRID_FILES)
+];
 
 /** The hydration grid's server HTML for one kind at one place (test/_region-grid-ssr.ts), rendered
  *  through the calling project's own Vite server: compiled with the Svelte options of the client
@@ -154,7 +159,7 @@ export default defineConfig({
 				test: {
 					name: 'node',
 					include: ['test/**/*.test.ts'],
-					exclude: ['test/browser/**', 'test/browser-no-async/**', '**/node_modules/**'],
+					exclude: ['test/browser/**', 'test/browser-no-async/**', ...NOT_GRID],
 					environment: 'node',
 					// the runtime's messages, published as the runtime's boot and the server's handle do
 					setupFiles: ['./test/_setup/messages.ts'],
@@ -173,6 +178,7 @@ export default defineConfig({
 				test: {
 					name: 'node-no-async',
 					include: ['test/region-grid*.test.ts'],
+					exclude: NOT_GRID,
 					environment: 'node',
 					setupFiles: ['./test/_setup/messages.ts'],
 					provide: { svelte_async: false, ...GRID },
@@ -190,6 +196,7 @@ export default defineConfig({
 				test: {
 					name: 'browser',
 					include: ['test/browser/**/*.test.ts'],
+					exclude: NOT_GRID,
 					globalSetup: ['./test/browser/setup.ts'],
 					provide: { svelte_async: true, ...GRID },
 					// a failing test prints its machine moves
@@ -220,6 +227,7 @@ export default defineConfig({
 					name: 'browser-no-async',
 					// (and the region grids, as an app without Svelte's async compile hydrates them)
 					include: ['test/browser-no-async/**/*.test.ts', 'test/browser/region-grid*.test.ts'],
+					exclude: NOT_GRID,
 					provide: { svelte_async: false, ...GRID },
 					resolveSnapshotPath: (path, extension) =>
 						path.replace(
