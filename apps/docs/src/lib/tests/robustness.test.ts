@@ -55,7 +55,7 @@ const FULL: Robustness = {
 			engines: ['chromium', 'firefox', 'webkit'],
 			parts: 4
 		},
-		snapshots: { files: 352, fullFiles: 256, distinct: 225594 },
+		snapshots: { files: 256, fullFiles: 256, distinct: 225594 },
 		fuzz: {
 			serverProperties: 5,
 			serverRuns: 2000,
@@ -119,7 +119,7 @@ test('the Region tiles: each number from the report, each linked to the file tha
 		[
 			['8,623,104', 'packages/core/test/_region-grid-axes.ts'],
 			['775,040', 'packages/core/test/browser/_region-grid-client.ts'],
-			['352', 'packages/core/test/__snapshots__/region-grid'],
+			['256', 'packages/core/test/__snapshots__/region-grid'],
 			['225,594', 'packages/core/test/_region-grid-report.ts'],
 			['6', 'packages/core/test/region-grid-fuzz.test.ts'],
 			['100,000', '.github/workflows/dst.yml'],
@@ -132,7 +132,7 @@ test('the Region tiles: each number from the report, each linked to the file tha
 	assert.match(browser?.why ?? '', /465,024/);
 	assert.match(browser?.why ?? '', /310,016/);
 	assert.match(browser?.why ?? '', /4 parts/);
-	assert.match(tile(v, 'snapshot files')?.why ?? '', /256/);
+	assert.match(tile(v, 'snapshot files')?.why ?? '', /the whole grid/);
 	assert.match(tile(v, 'fuzz properties')?.what ?? '', /5 on the server, 1 in the browser/);
 	assert.match(tile(v, 'fuzz properties')?.why ?? '', /2,000.*600/);
 	assert.match(tile(v, 'inputs each fuzz property')?.what ?? '', /every night/);
@@ -162,7 +162,7 @@ test('the Region tiles leave out what the report could not count', () => {
 	assert.ok(v);
 	assert.deepEqual(
 		region_tiles(v).map((t) => t.n),
-		['8,623,104', '775,040', '352', '225,594', '6']
+		['8,623,104', '775,040', '256', '225,594', '6']
 	);
 	assert.match(tile(v, 'fuzz properties')?.why ?? '', /2,000.*600/);
 	const none = robustness_view({ ...FULL, region: undefined }, COMMIT);
