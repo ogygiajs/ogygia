@@ -61,10 +61,15 @@ export class HostFileWork {
 			const done = a.at(-1);
 			if (typeof done !== 'function') return real(...a);
 			this.#in_flight++;
-			return real(...a.slice(0, -1), (...r: unknown[]) => {
+			try {
+				return real(...a.slice(0, -1), (...r: unknown[]) => {
+					this.#in_flight--;
+					return (done as (...r: unknown[]) => unknown)(...r);
+				});
+			} catch (error) {
 				this.#in_flight--;
-				return (done as (...r: unknown[]) => unknown)(...r);
-			});
+				throw error;
+			}
 		};
 	}
 }
