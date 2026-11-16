@@ -86,8 +86,6 @@ const KIT_BOOT_NODES = /\bnode_ids:\s*\[([\d,\s]*)\]/;
 
 type KitBoot = { urls: CodeUrl[]; node_ids: number[] };
 
-/** Kit's start, as its boot script writes it: the entries it imports, and the route's nodes
- *  (`node_ids`) its start loads next through the app entry's own loaders. */
 function kit_boot(): KitBoot {
 	if (typeof document === 'undefined') return { urls: [], node_ids: [] };
 	const urls = new Set<CodeUrl>();
@@ -118,8 +116,6 @@ function kit_boot(): KitBoot {
 
 type NodeLoaders = ReadonlyArray<unknown>;
 
-/** The node loaders a Kit entry exports: the app entry's `nodes` (split), or its `app.nodes`
- *  (one bundle). Kit's start calls the same loaders, so a node's failure is Kit's. */
 function kit_node_loaders(entry: unknown): NodeLoaders | null {
 	if (entry === null || typeof entry !== 'object') return null;
 	const own = (entry as { nodes?: unknown }).nodes;
