@@ -6321,12 +6321,28 @@
 			"reason": "dev and rules builds only: words a repeated field list in a refusal, when a table is made; packages/machine/test/decisions.test.ts runs it"
 		},
 		{
-			"id": "packages/core/src/region-parts/adopt.ts > adopt_region > createRawSnippet:0~fbb9b2",
-			"reason": "browser only: the snippet the browser hydrates an adopted region element with; the server bench cannot run it; test/browser/region-client.test.ts runs it"
+			"id": "packages/core/src/region-parts/adopt.ts > AdoptedElement > constructor",
+			"reason": "browser only: the snippet the browser hydrates an adopted region element with, two field writes; the server bench cannot run it; test/browser/region-client.test.ts runs it"
 		},
 		{
-			"id": "packages/core/src/region-parts/adopt.ts > adopt_region > createRawSnippet:0~fbb9b2 > render",
-			"reason": "browser only: the snippet the browser hydrates an adopted region element with; the server bench cannot run it; test/browser/region-client.test.ts runs it"
+			"id": "packages/core/src/region-parts/adopt.ts > AdoptedElement > render",
+			"reason": "browser only: writes an adopted region element the browser creates fresh, one string; the server bench cannot run it; test/browser/region-client.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/region-parts/adopt.ts > AdoptedElement > setup",
+			"reason": "browser only: hands an adopted region element to its setup, constant work; the server bench cannot run it; test/browser/region-snippet-props.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/region-parts/hole-facts.svelte.ts > HoleFacts > adopted",
+			"reason": "browser only: keeps the props sidecar beside a hole hydration adopts, a walk past its anchor comments once per hole; the server bench cannot run it; test/browser/region-snippet-props.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/snippet-render.ts > SnippetRender > freeze > untrack:0~e68a1d",
+			"reason": "browser only: freezes a snippet prop of a region the browser creates fresh, once per prop; the server bench cannot mount in a DOM; test/browser/region-snippet-props.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/snippet-render.ts > SnippetRender > static #browser_html",
+			"reason": "browser only: mounts a snippet once into a detached element and reads its HTML; the server bench cannot mount in a DOM; test/browser/region-snippet-props.test.ts runs it"
 		},
 		{
 			"id": "packages/core/src/region-parts/head.svelte.ts > RegionHead > set html",
