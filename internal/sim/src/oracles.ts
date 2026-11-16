@@ -208,7 +208,10 @@ function island_head_styles(s: string): string[] {
 const OWN_STATE = [
 	// palaestra lib/FilterBar.svelte reads `location` once, at hydration, then only its own clicks
 	// (seed 286: kept across /dashboard/orders?status=… navigations, it shows the first status)
-	'data-filterbar'
+	'data-filterbar',
+	// palaestra lib/BlockedLinkGuard.svelte counts the visitor's clicks on a link its navigation
+	// guard cancels: their own input, as a press's (#1994, test/found/guard-cancelled-click.test.ts)
+	'data-blocked-guard'
 ];
 
 /** `s` with each OWN_STATE element's subtree reduced to its opening line. */
