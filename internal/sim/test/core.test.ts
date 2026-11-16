@@ -63,6 +63,13 @@ describe('a settle', () => {
 			rmSync(dir, { recursive: true, force: true });
 		}
 	});
+
+	it('is not held by a file call that threw before it started (its callback never runs)', async () => {
+		const loop = new Loop(rng(1), { settle_ms: 100 });
+		expect(() => readFileCallback(undefined as unknown as string, () => {})).toThrow();
+		await loop.settle();
+		expect(loop.stalls).toBe(0);
+	});
 });
 
 describe('the loop and a realm platform', () => {
