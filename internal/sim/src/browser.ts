@@ -347,6 +347,9 @@ export class Browsers {
 	readonly #layouts = new WeakMap<Tab, { shown(): void }>();
 	/** The last error happy-dom wrote to a tab's page console (why an element's load failed). */
 	readonly #said = new WeakMap<Tab, string>();
+	/** Documents whose answer came, and whose content happy-dom has not written yet: it writes it in
+	 *  the document's first frame, into whichever window the frame holds by then. */
+	readonly #unwritten = new WeakSet<object>();
 	/** Documents (realms) a script or stylesheet of which failed to load, or a module ogygia says
 	 *  needs a reload (`chunk_reload_needed`): a browser never loads it again, so the page stays
 	 *  without it whatever the network does next. */
@@ -399,6 +402,19 @@ export class Browsers {
 		stamp(window, 'responseStart');
 		stamp(window, 'responseEnd');
 		install(window, p);
+		// (happy-dom asks for that first frame right after this callback)
+		this.#unwritten.add(window);
+		const w_frame = window as unknown as {
+			requestAnimationFrame(fn: (t: number) => void): number;
+		};
+		const ask = w_frame.requestAnimationFrame;
+		w_frame.requestAnimationFrame = (fn) => {
+			w_frame.requestAnimationFrame = ask;
+			return ask((t) => {
+				this.#unwritten.delete(window);
+				fn(t);
+			});
+		};
 		if (!tab.hidden) tab.seen.add(tab.realm);
 		// (a tab behind another says so, as a browser's does: `Browsers.focus`)
 		for (const [key, value] of [
@@ -860,6 +876,10 @@ export class Browsers {
 		type: NavigationType
 	): Promise<unknown> {
 		tab.started = { at: this.#o.loop.now, type };
+		// a document whose answer came, not yet written: a browser shows it until the next one comes,
+		// but happy-dom has one window per frame and would write it into the next page's, under that
+		// page's URL (test/superseded-navigation.node.test.ts). The tab leaves it, as one it moved on from.
+		if (this.#unwritten.has((frame as { window: object }).window)) this.#leave(tab);
 		if (tab.awaiting && tab.before !== null) {
 			tab.documents++;
 			this.#o.network.leave(`${tab.name}#${tab.documents}`);
