@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { rng } from '../src/rng.ts';
 import { Loop } from '../src/loop.ts';
+import { HOST_FILE_WORK } from '../src/host-io.ts';
 import { platform, EPOCH } from '../src/platform.ts';
 import { client_address, Network, type FaultClass } from '../src/network.ts';
 
@@ -65,10 +66,9 @@ describe('a settle', () => {
 	});
 
 	it('is not held by a file call that threw before it started (its callback never runs)', async () => {
-		const loop = new Loop(rng(1), { settle_ms: 100 });
+		const before = HOST_FILE_WORK.in_flight;
 		expect(() => readFileCallback(undefined as unknown as string, () => {})).toThrow();
-		await loop.settle();
-		expect(loop.stalls).toBe(0);
+		expect(HOST_FILE_WORK.in_flight).toBe(before);
 	});
 });
 
