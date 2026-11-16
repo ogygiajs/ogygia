@@ -2529,6 +2529,24 @@
 			"name": "a wait for a Kit whose boot import failed ends: it fails with kit_boot_failed, said once (#820)"
 		},
 		{
+			"site": "packages/core/src/runtime/kit-page-thread.svelte.ts > run > reject:1",
+			"reason": "a test reaches its recovery path: a route node Kit's start loads fails, and the wait ends with kit_boot_failed",
+			"test": "packages/core/test/browser/kit-page-thread.test.ts",
+			"name": "a wait for a Kit whose start failed on a page node (its entries loaded) ends with kit_boot_failed (#2002): %s"
+		},
+		{
+			"site": "packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot > parse:0",
+			"reason": "a test reaches its recovery path: a boot-shaped import whose string is no JSON string (a bad escape) is skipped",
+			"test": "packages/core/test/browser/kit-page-thread.test.ts",
+			"name": "a boot-shaped import that names no URL (a bad escape, an unparsable address) is skipped: the wait goes on, for Kit to decide"
+		},
+		{
+			"site": "packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot > catch:0",
+			"reason": "a test reaches its recovery path: a boot-shaped import that names no URL is skipped, and the wait goes on",
+			"test": "packages/core/test/browser/kit-page-thread.test.ts",
+			"name": "a boot-shaped import that names no URL (a bad escape, an unparsable address) is skipped: the wait goes on, for Kit to decide"
+		},
+		{
 			"site": "packages/core/src/runtime/kit-page-thread.svelte.ts > await_bridge > catch:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
 			"test": "packages/core/test/browser/kit-page-thread-owner.test.ts",
@@ -5437,6 +5455,10 @@
 	],
 	"equivalent": [
 		{
+			"site": "packages/core/src/runtime/kit-page-thread.svelte.ts > run > stale:0",
+			"why": "the entry's import is STALE only when the wait's scope closed (Kit applied its page, or every waiter left). Without the check, STALE has no node loaders, so nothing is called; and a loader called through the closed scope's task is never run: the same nothing as the check's return (test: kit-page-thread.test.ts › a wait Kit ended by applying its page does not fail later on a node)."
+		},
+		{
 			"site": "packages/router/src/stream.ts > stream_document > start > stale:0",
 			"why": "the owner's task is STALE only when the owner closed (rest.next()'s answer is an iterator result, never STALE). Without the check, STALE.done is undefined, so `n.value.slot` throws, and the catch returns at once because the owner is closed: the same early end, with no tail and no close, as the check's return."
 		},
@@ -5754,8 +5776,6 @@
 		"packages/core/src/runtime/kit-page-thread.svelte.ts > page_applied > catch:0",
 		"packages/core/src/runtime/kit-page-thread.svelte.ts > run > error-event:0",
 		"packages/core/src/runtime/kit-page-thread.svelte.ts > run > timer:0",
-		"packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_imports > parse:0",
-		"packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_imports > catch:0",
 		"packages/core/src/runtime/load-scheduler.ts > preload_urls > catch:0",
 		"packages/core/src/runtime/morph.ts > carry_shadows > catch:0",
 		"packages/core/src/runtime/nav-handle.ts > (module) > import:0",

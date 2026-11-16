@@ -4405,8 +4405,12 @@
 			"reason": "the console.error said once per file (an error path), constant work (#820)"
 		},
 		{
-			"id": "packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_imports",
-			"reason": "browser only: reads the live document's inline scripts once per Kit wait (not on the boot), linear in the inline scripts; proven in packages/core/test/browser/kit-page-thread.test.ts (#820)"
+			"id": "packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot",
+			"reason": "browser only: reads the live document's inline scripts once per Kit wait (not on the boot), linear in the inline scripts; proven in packages/core/test/browser/kit-page-thread.test.ts (#820, #2002)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-page-thread.svelte.ts > kit_node_loaders",
+			"reason": "browser only: reads a loaded Kit entry's node loaders once per Kit wait, constant work; proven in packages/core/test/browser/kit-page-thread.test.ts (#2002)"
 		},
 		{
 			"id": "packages/core/src/runtime/region-sheets.ts > release_head_nodes",
