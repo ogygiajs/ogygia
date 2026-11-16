@@ -505,12 +505,10 @@ export class SpaRouter {
 		if (!document.querySelector('meta[name="ogygia-router"]')) return;
 		if (kit_hydrates_page()) return;
 		this.#started = true;
-		if (
+		const stepped =
 			document_key(new URL(document_address())) !== document_key(new URL(location.href)) &&
-			this.history.find(history.state) !== null
-		)
-			return this.#on_pop();
-		this.history.start();
+			this.history.find(history.state) !== null;
+		if (!stepped) this.history.start();
 		if (RULES) watch_router(this);
 		const body = document.body;
 		if (body) record_server_body(body, body, Array.from(body.childNodes));
@@ -522,6 +520,7 @@ export class SpaRouter {
 
 		// oxlint-disable-next-line ogygia/owned-effects -- the router's back/forward, installed once (`#started`): it lives as long as the document
 		window.addEventListener('popstate', () => this.#on_pop());
+		if (stepped) this.#on_pop();
 	}
 
 	#on_pop(): void {
