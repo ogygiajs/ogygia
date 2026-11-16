@@ -255,6 +255,18 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/region-parts/plan.svelte.ts > page_error_render > catch:0",
+			"reason": "a render with no page store (a hole endpoint, a remote's region) reads no page error and plans from the route's csr; proved by hand: the catch made to rethrow, or to answer true, turns the tests red",
+			"test": "packages/core/test/region-page-store-off.test.ts",
+			"name": "renders, reading no page error and asking the page seed for nothing"
+		},
+		{
+			"site": "packages/core/src/region-parts/seed-ask.ts > PageSeedAsk > record > catch:0",
+			"reason": "a render with no page store asks the page seed for nothing and still renders; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/region-page-store-off.test.ts",
+			"name": "renders, reading no page error and asking the page seed for nothing"
+		},
+		{
 			"site": "packages/core/src/server/live-event.ts > live_event > catch:0",
 			"reason": "Kit's getRequestEvent throws outside a request, and every reader answers no request instead; proved by hand: the catch made to rethrow turns the test red, twice",
 			"test": "packages/core/test/kit-request-reads.test.ts",

@@ -166,7 +166,7 @@ export const registry = [RawX, WakeX, LoadY, WakeX2];
 				wakeX.held === true &&
 				String(wakeX.bindingSsrSource).includes('Object.assign(__OgygiaWrap') &&
 				HYDRATE_VISIBLE_RE.test(String(wakeX.bindingSsrSource)) &&
-				String(wakeX.wrapperSource).includes('__mode="island"')
+				String(wakeX.wrapperSource).includes('mode: "island"')
 		);
 		check(
 			'transform(.ts mixed): wake:load → mountable held binding (server:true + held)',

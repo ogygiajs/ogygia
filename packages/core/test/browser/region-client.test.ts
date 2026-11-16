@@ -8,6 +8,7 @@ import { createRawSnippet, flushSync, mount, setContext, unmount, type Component
 import RegionUnder from '../_fixtures/RegionUnder.svelte';
 import Tiny from '../_fixtures/Tiny.svelte';
 import Wrap from '../_fixtures/Wrap.svelte';
+import Echo from '../_fixtures/Echo.svelte';
 import IslandWithHole from '../_fixtures/IslandWithHole.svelte';
 import { REGION_BRAND } from '../../src/region.ts';
 import { setNested } from '../../src/nested.ts';
@@ -16,6 +17,7 @@ import { runtime_session } from '../../src/runtime/session.ts';
 import { mark_written } from '../../src/frame.ts';
 import RegionSet from '../_fixtures/RegionSet.svelte';
 import { normalize_hashes } from '../_normalize-hashes.ts';
+import { region_props } from '../_region-settings.ts';
 import * as ProbeFallback from './fixtures/ProbeFallback.svelte';
 
 const { probe_fallback } = ProbeFallback as unknown as { probe_fallback: unknown };
@@ -103,7 +105,7 @@ async function out(regions: Props[], place: Place = {}): Promise<string> {
 	const head_before = document.head.children.length;
 	const app = mount(RegionUnder as unknown as Component<Props>, {
 		target,
-		props: { setup: setup(place), regions }
+		props: { setup: setup(place), regions: regions.map(region_props) }
 	});
 	flushSync();
 	await settle();
@@ -196,6 +198,11 @@ const CASES: Array<[name: string, regions: Props[], place?: Place]> = [
 	['island on a csr=true page', [ISLAND], { csr: true }],
 	['hole on a csr=true page', [{ ...HOLE, ogygiaFallback: snippet('<p>wait</p>') }], { csr: true }],
 	[
+		'hole on a csr=true page, created fresh: its fallback reads the page contexts',
+		[{ ...HOLE, ogygiaFallback: probe_fallback }],
+		{ csr: true, context: ['probe', 'page-value'] }
+	],
+	[
 		'hole in a live snippet, created fresh: its fallback reads the page contexts',
 		[{ ...HOLE, ogygiaFallback: probe_fallback }],
 		{ nested: true, live_snippet: true, context: ['probe', 'page-value'] }
@@ -216,12 +223,12 @@ async function elements_over(first: Props, ...next: Props[]): Promise<Array<Elem
 	const target = document.body.appendChild(document.createElement('div'));
 	const app = mount(RegionSet as unknown as Component<{ first: Props }>, {
 		target,
-		props: { first }
+		props: { first: region_props(first) }
 	}) as { set: (r: Props) => void };
 	flushSync();
 	const seen = [target.querySelector('ogygia-region')];
 	for (const r of next) {
-		app.set(r);
+		app.set(region_props(r));
 		flushSync();
 		seen.push(target.querySelector('ogygia-region'));
 	}
@@ -314,7 +321,10 @@ for (const [where, place] of [
 		const target = document.body.appendChild(document.createElement('div'));
 		const app = mount(RegionUnder as unknown as Component<Props>, {
 			target,
-			props: { setup: setup(place), regions: [{ ...HOLE, ogygiaFallback: fallback }] }
+			props: {
+				setup: setup(place),
+				regions: [region_props({ ...HOLE, ogygiaFallback: fallback })]
+			}
 		});
 		flushSync();
 		expect(target.querySelector('ogygia-region p')?.textContent).toBe('wait');
@@ -343,6 +353,40 @@ test('a baked live value that turns into an unbaked live one hands each value to
 		'<b>two</b>',
 		'<b>three</b>'
 	]);
+});
+
+test('a baked live value hands each new baked value to the element it adopted, which stays', async () => {
+	const [a, b, c] = await elements_over(
+		{ of: deferred({ html: '<b>one</b>' }), __baked: true },
+		{ of: deferred({ html: '<b>two</b>' }), __baked: true },
+		{ of: deferred({ html: '<b>two</b>' }), __baked: true }
+	);
+	expect(a).not.toBeNull();
+	expect(b).toBe(a);
+	expect(c).toBe(a);
+	expect(lived.map((v) => (v as { html: string }).html)).toEqual([
+		'<b>one</b>',
+		'<b>two</b>',
+		'<b>two</b>'
+	]);
+});
+
+test('a baked live region hands its element nothing once it is unmounted', async () => {
+	const target = document.body.appendChild(document.createElement('div'));
+	const app = mount(RegionSet as unknown as Component<{ first: Props }>, {
+		target,
+		props: { first: region_props({ of: deferred({ html: '<b>one</b>' }), __baked: true }) }
+	}) as { set: (r: Props) => void };
+	flushSync();
+	await unmount(app);
+	app.set(region_props({ of: deferred({ html: '<b>two</b>' }), __baked: true }));
+	flushSync();
+	expect(lived.map((v) => (v as { html: string }).html)).toEqual(['<b>one</b>']);
+});
+
+test('a held static dual created in the browser hands its props to its component', async () => {
+	const html = await out([{ of: dual({ component: Echo, props: { text: 'from the dual' } }) }]);
+	expect(JSON.parse(html).body).toContain('<i data-echo="">from the dual</i>');
 });
 
 test('a held live value hands each new value to its element, which stays', async () => {

@@ -244,7 +244,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## HTML sinks: markup written into a page as markup
 
-25 entries.
+26 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -259,10 +259,11 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/content/src/site/components/DocsShell.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/content/src/site/components/SearchPage.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/content/src/site/components/SearchPalette.svelte` | `(module)` | `{@html}` | 1 |
+| `packages/core/src/HoleRegion.svelte` | `(module)` | `{@html}` | 2 |
 | `packages/core/src/messages/core.ts` | `WARNINGS` | `{@html}` | 2 |
 | `packages/core/src/Provide.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/core/src/RawHtml.svelte` | `(module)` | `{@html}` | 1 |
-| `packages/core/src/Region.svelte` | `(module)` | `{@html}` | 6 |
+| `packages/core/src/Region.svelte` | `(module)` | `{@html}` | 4 |
 | `packages/core/src/runtime/html-sink.ts` | `parse_page_document` | `DOMParser` | 1 |
 | `packages/core/src/runtime/html-sink.ts` | `set_inner_html` | `innerHTML =` | 1 |
 | `packages/core/src/runtime/html-sink.ts` | `write_unsafe` | `innerHTML =` | 1 |

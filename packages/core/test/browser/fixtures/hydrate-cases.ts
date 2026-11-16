@@ -6,6 +6,7 @@ import Tiny from '../../_fixtures/Tiny.svelte';
 import { REGION_BRAND } from '../../../src/region.ts';
 import { setNested } from '../../../src/nested.ts';
 import { setInLiveSnippet } from '../../../src/context.ts';
+import { region_props } from '../../_region-settings.ts';
 
 type Props = Record<string, unknown>;
 export type HydratePlace = { csr?: boolean; nested?: boolean; live_snippet?: boolean };
@@ -41,71 +42,79 @@ const deferred = (extra: Props = {}) =>
 		...extra
 	});
 
+type Case = [name: string, regions: () => Props[], place: HydratePlace];
+
 /** Each case: its name, the regions (made fresh per leg: snippets are per-render values), where. */
-export const HYDRATE_CASES: Array<[name: string, regions: () => Props[], place: HydratePlace]> = [
-	['island on a csr=true page', () => [ISLAND], { csr: true }],
+export const HYDRATE_CASES: Case[] = (
 	[
-		'island with children on a csr=true page',
-		() => [{ ...ISLAND, children: snippet('<i>kid</i>') }],
-		{ csr: true }
-	],
-	[
-		'hole that wakes on a csr=true page',
-		() => [
-			{
-				...HOLE,
-				__hydrate: 'load',
-				__module: '/islands/hole.js',
-				ogygiaFallback: snippet('<p>wait</p>')
-			}
+		['island on a csr=true page', () => [ISLAND], { csr: true }],
+		[
+			'island with children on a csr=true page',
+			() => [{ ...ISLAND, children: snippet('<i>kid</i>') }],
+			{ csr: true }
 		],
-		{ csr: true }
-	],
-	['lake on a csr=true page', () => [{ ...LAKE, children: snippet('<p>lake</p>') }], { csr: true }],
-	[
-		'held inline value on a csr=true page',
-		() => [{ of: brand({ kind: 'inline', component: Tiny, props: {} }) }],
-		{ csr: true }
-	],
-	['held static dual on a csr=true page', () => [{ of: dual() }], { csr: true }],
-	[
-		'held interactive dual on a csr=true page',
-		() => [{ of: dual({ hydrate: 'load' }) }],
-		{ csr: true }
-	],
-	[
-		'held deferred value on a csr=true page',
-		() => [{ of: deferred(), placeholder: snippet('<p>wait</p>') }],
-		{ csr: true }
-	],
-	[
-		'held deferred value that wakes on a csr=true page',
-		() => [{ of: deferred({ module: '/islands/held.js', hydrate: 'load' }) }],
-		{ csr: true }
-	],
-	[
-		'held live value on a csr=true page',
-		() => [{ of: deferred({ html: '<b>live</b>' }), placeholder: snippet('<p>wait</p>') }],
-		{ csr: true }
-	],
-	[
-		'held baked value on a csr=true page',
-		() => [{ of: deferred({ html: '<b>baked</b>' }), __baked: true }],
-		{ csr: true }
-	],
-	['island nested in an island', () => [{ ...ISLAND, idle: true }], { nested: true }],
-	['hole nested in an island', () => [HOLE], { nested: true }],
-	[
-		'lake nested in an island',
-		() => [{ ...LAKE, children: snippet('<p>lake</p>') }],
-		{ nested: true }
-	],
-	[
-		'hole in a live snippet',
-		() => [{ ...HOLE, ogygiaFallback: snippet('<p>wait</p>') }],
-		{ nested: true, live_snippet: true }
-	]
-];
+		[
+			'hole that wakes on a csr=true page',
+			() => [
+				{
+					...HOLE,
+					__hydrate: 'load',
+					__module: '/islands/hole.js',
+					ogygiaFallback: snippet('<p>wait</p>')
+				}
+			],
+			{ csr: true }
+		],
+		[
+			'lake on a csr=true page',
+			() => [{ ...LAKE, children: snippet('<p>lake</p>') }],
+			{ csr: true }
+		],
+		[
+			'held inline value on a csr=true page',
+			() => [{ of: brand({ kind: 'inline', component: Tiny, props: {} }) }],
+			{ csr: true }
+		],
+		['held static dual on a csr=true page', () => [{ of: dual() }], { csr: true }],
+		[
+			'held interactive dual on a csr=true page',
+			() => [{ of: dual({ hydrate: 'load' }) }],
+			{ csr: true }
+		],
+		[
+			'held deferred value on a csr=true page',
+			() => [{ of: deferred(), placeholder: snippet('<p>wait</p>') }],
+			{ csr: true }
+		],
+		[
+			'held deferred value that wakes on a csr=true page',
+			() => [{ of: deferred({ module: '/islands/held.js', hydrate: 'load' }) }],
+			{ csr: true }
+		],
+		[
+			'held live value on a csr=true page',
+			() => [{ of: deferred({ html: '<b>live</b>' }), placeholder: snippet('<p>wait</p>') }],
+			{ csr: true }
+		],
+		[
+			'held baked value on a csr=true page',
+			() => [{ of: deferred({ html: '<b>baked</b>' }), __baked: true }],
+			{ csr: true }
+		],
+		['island nested in an island', () => [{ ...ISLAND, idle: true }], { nested: true }],
+		['hole nested in an island', () => [HOLE], { nested: true }],
+		[
+			'lake nested in an island',
+			() => [{ ...LAKE, children: snippet('<p>lake</p>') }],
+			{ nested: true }
+		],
+		[
+			'hole in a live snippet',
+			() => [{ ...HOLE, ogygiaFallback: snippet('<p>wait</p>') }],
+			{ nested: true, live_snippet: true }
+		]
+	] as Case[]
+).map(([name, regions, place]): Case => [name, () => regions().map(region_props), place]);
 
 /** What the parents of a case's regions set in context, on either leg. */
 export const place_setup = (place: HydratePlace) => (): void => {

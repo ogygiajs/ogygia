@@ -4,9 +4,11 @@
 </script>
 
 <Region
-	__mode="island"
-	__entry="/test/browser/fixtures/LakeIslandHost.svelte"
-	__component={LakeIslandHost}
+	__og={{
+		mode: 'island',
+		entry: '/test/browser/fixtures/LakeIslandHost.svelte',
+		component: LakeIslandHost,
+		wake: 'interaction'
+	}}
 	__props={{}}
-	interaction={true}
 />

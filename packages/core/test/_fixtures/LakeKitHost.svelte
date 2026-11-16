@@ -5,4 +5,4 @@
 	let { entry = 'lake-1' } = $props();
 </script>
 
-<div data-shell><Region __mode="lake" __entry={entry}><LakeKitInner /></Region></div>
+<div data-shell><Region __og={{ mode: 'lake', entry }}><LakeKitInner /></Region></div>

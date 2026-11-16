@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'svelte/server';
 import type { Component } from 'svelte';
 import { set_request_event_stub } from './_stubs/server.request-event.ts';
+import { region_props } from './_region-settings.ts';
 
 // (the realm stub takes no copy: the real claim, over the stub's fingerprint)
 const claim = vi.hoisted(() => ({ real: (_fp: string): boolean => false }));
@@ -21,7 +22,12 @@ const { default: Region } = await import('../src/Region.svelte');
 const { default: Tiny } = await import('./_fixtures/Tiny.svelte');
 
 const region = Region as unknown as Component<Record<string, unknown>>;
-const island = { __mode: 'island', __entry: '/islands/tiny.js', __component: Tiny, __props: {} };
+const island = region_props({
+	__mode: 'island',
+	__entry: '/islands/tiny.js',
+	__component: Tiny,
+	__props: {}
+});
 
 const flag = globalThis as { __OGYGIA_SERVER_DELTA__?: boolean };
 afterEach(() => {

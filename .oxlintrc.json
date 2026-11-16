@@ -53,6 +53,7 @@
 		"ogygia/one-hash": "error",
 		"ogygia/compiler-boundary": "error",
 		"ogygia/dispose-by-close": "error",
+		"ogygia/runes-as-fields": "error",
 		"ogygia/ports": "error",
 		"ogygia/tests-read-source": "error",
 		"ogygia/fake-timers-whole": "error",

@@ -64,16 +64,48 @@ export function island_wrapper_source(
 	exportName: string | undefined,
 	entry_url: string
 ): string {
-	const strategy_attrs = strategy_to_attr(strategy, options);
-	const persist_attr = options?.keep ? ` __keep={${JSON.stringify(options.keep)}}` : '';
-	return `<script>
+	return region_wrapper(
+		`\timport __OgygiaEntry from ${JSON.stringify(entryPath)};
+\t${component_import_line('__OgygiaCss', componentPath, exportName)}`,
+		[
+			['mode', '"island"'],
+			...island_wake_fields(strategy, options),
+			['entry', JSON.stringify(entry_url)],
+			['component', '__OgygiaEntry'],
+			['css', '__OgygiaCss']
+		],
+		'let { children, ...__props } = $props();',
+		'{__props} {children} />'
+	);
+}
+
+function region_wrapper(
+	imports: string,
+	bag: ReadonlyArray<readonly [string, string]>,
+	instance: string,
+	tail: string
+): string {
+	const fields = bag.map(([k, v]) => `${k}: ${v}`).join(', ');
+	return `<script module>
 \timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';
-\timport __OgygiaEntry from ${JSON.stringify(entryPath)};
-\t${component_import_line('__OgygiaCss', componentPath, exportName)}
-\tlet { children, ...__props } = $props();
+${imports ? `${imports}\n` : ''}\tconst __og = { ${fields} };
 </script>
-<OgygiaRegion__Wrapper __mode="island" ${strategy_attrs}${persist_attr} __entry={${JSON.stringify(entry_url)}} __component={__OgygiaEntry} __css={__OgygiaCss} {__props} {children} />
+<script>
+\t${instance}
+</script>
+<OgygiaRegion__Wrapper {__og} ${tail}
 `;
+}
+
+function island_wake_fields(
+	strategy: string,
+	options: Record<string, unknown> | undefined
+): Array<readonly [string, string]> {
+	const fields: Array<readonly [string, string]> = [['wake', JSON.stringify(strategy || 'load')]];
+	if (strategy === 'visible' && options?.margin != null)
+		fields.push(['wakeMargin', JSON.stringify(options.margin)]);
+	if (options?.keep) fields.push(['keep', JSON.stringify(options.keep)]);
+	return fields;
 }
 
 /**
@@ -96,15 +128,18 @@ export function island_wrapper_client_source(
 	options: Record<string, unknown> | undefined,
 	entry_url: string
 ): string {
-	const strategy_attrs = strategy_to_attr(strategy, options);
-	const persist_attr = options?.keep ? ` __keep={${JSON.stringify(options.keep)}}` : '';
-	return `<script>
-\timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';
-\timport __OgygiaEntry, { load as __OgygiaLoad } from ${JSON.stringify(lazyPath)};
-\tlet { children, ...__props } = $props();
-</script>
-<OgygiaRegion__Wrapper __mode="island" ${strategy_attrs}${persist_attr} __entry={${JSON.stringify(entry_url)}} __component={__OgygiaEntry} __load={__OgygiaLoad} {__props} {children} />
-`;
+	return region_wrapper(
+		`\timport __OgygiaEntry, { load as __OgygiaLoad } from ${JSON.stringify(lazyPath)};`,
+		[
+			['mode', '"island"'],
+			...island_wake_fields(strategy, options),
+			['entry', JSON.stringify(entry_url)],
+			['component', '__OgygiaEntry'],
+			['load', '__OgygiaLoad']
+		],
+		'let { children, ...__props } = $props();',
+		'{__props} {children} />'
+	);
 }
 
 /**
@@ -333,24 +368,30 @@ export function server_wrapper_source(
 	module_url: string,
 	component = true
 ): string {
-	const deferred_hydrate = !!options?.hydrate;
-	const fetch_when = options?.when || 'load';
-	const hydrate_attrs = deferred_hydrate
-		? ` __hydrate={${JSON.stringify(options.hydrate)}} __module={${JSON.stringify(module_url)}}${options.hydrateMargin != null ? ` __hydrateMargin={${JSON.stringify(options.hydrateMargin)}}` : ''}`
-		: '';
-	const server_attrs = `__defer={${JSON.stringify(fetch_when)}}${options?.stitch ? ` __stitch={${JSON.stringify(options.stitch)}}` : ''}${options?.prefetch ? ` __prefetch={${JSON.stringify(options.prefetch)}}` : ''}${options?.margin != null ? ` __margin={${JSON.stringify(options.margin)}}` : ''}${options?.cacheTtlSec != null ? ` __cacheTtl={${JSON.stringify(options.cacheTtlSec)}}` : ''}${hydrate_attrs}`;
-	const component_imports = component
-		? `	import __OgygiaEntry from ${JSON.stringify(entryPath)};
-	${component_import_line('__OgygiaCss', componentPath, exportName)}
-`
-		: '';
-	const component_attrs = component ? `__component={__OgygiaEntry} __css={__OgygiaCss} ` : '';
-	return `<script>
-\timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';
-${component_imports}\tlet { ogygiaFallback, ...__props } = $props();
-</script>
-<OgygiaRegion__Wrapper __mode="server" __entry={${JSON.stringify(iid)}} ${component_attrs}{__props} ${server_attrs} {ogygiaFallback} />
-`;
+	const bag: Array<readonly [string, string]> = [
+		['mode', '"server"'],
+		['entry', JSON.stringify(iid)]
+	];
+	if (component) bag.push(['component', '__OgygiaEntry'], ['css', '__OgygiaCss']);
+	bag.push(['when', JSON.stringify(options?.when || 'load')]);
+	if (options?.stitch) bag.push(['stitch', JSON.stringify(options.stitch)]);
+	if (options?.prefetch) bag.push(['prefetch', JSON.stringify(options.prefetch)]);
+	if (options?.margin != null) bag.push(['margin', JSON.stringify(options.margin)]);
+	if (options?.cacheTtlSec != null) bag.push(['cacheTtl', JSON.stringify(options.cacheTtlSec)]);
+	if (options?.hydrate) {
+		bag.push(['wake', JSON.stringify(options.hydrate)], ['module', JSON.stringify(module_url)]);
+		if (options.hydrateMargin != null)
+			bag.push(['wakeMargin', JSON.stringify(options.hydrateMargin)]);
+	}
+	return region_wrapper(
+		component
+			? `\timport __OgygiaEntry from ${JSON.stringify(entryPath)};
+\t${component_import_line('__OgygiaCss', componentPath, exportName)}`
+			: '',
+		bag,
+		'let { ogygiaFallback, ...__props } = $props();',
+		'{__props} {ogygiaFallback} />'
+	);
 }
 
 /**
@@ -367,32 +408,23 @@ export function lake_wrapper_source(
 	exportName: string | undefined
 ): string {
 	const remount = options?.remount || 'cache';
-	const needs_endpoint = remount === 'swr';
-	const when = options?.when || (needs_endpoint ? 'load' : undefined);
-	const endpoint_attrs = needs_endpoint
-		? ` __when={${JSON.stringify(when || 'load')}}${options?.margin != null ? ` __margin={${JSON.stringify(options.margin)}}` : ''}`
-		: '';
-	const attrs = `__entry={${JSON.stringify(iid)}} __remount={${JSON.stringify(remount)}} __props={__props}${options?.maxAgeMs != null ? ` __maxAge={${JSON.stringify(options.maxAgeMs)}}` : ''}${options?.onExpire ? ` __onExpire={${JSON.stringify(options.onExpire)}}` : ''}${endpoint_attrs}`;
-	return `<script>
-\timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';
-\t${component_import_line('OgygiaLakeInner', componentPath, exportName)}
-\tlet __props = $props();
-</script>
-<OgygiaRegion__Wrapper __mode="lake" ${attrs}><OgygiaLakeInner {...__props} /></OgygiaRegion__Wrapper>
-`;
-}
-
-/** Map a hydrate strategy (+ options) to the Island wrapper attribute markup. */
-export function strategy_to_attr(strategy: string, options?: Record<string, unknown>): string {
-	if (!strategy || strategy === 'load') return 'load';
-	if (strategy === 'idle') return 'idle';
-	if (strategy === 'interaction') return 'interaction';
-	if (strategy === 'visible') {
-		return options && options.margin != null
-			? `visible=${JSON.stringify(options.margin)}`
-			: 'visible';
+	const bag: Array<readonly [string, string]> = [
+		['mode', '"lake"'],
+		['entry', JSON.stringify(iid)],
+		['remount', JSON.stringify(remount)]
+	];
+	if (options?.maxAgeMs != null) bag.push(['maxAge', JSON.stringify(options.maxAgeMs)]);
+	if (options?.onExpire) bag.push(['onExpire', JSON.stringify(options.onExpire)]);
+	if (remount === 'swr') {
+		bag.push(['when', JSON.stringify(options?.when || 'load')]);
+		if (options?.margin != null) bag.push(['margin', JSON.stringify(options.margin)]);
 	}
-	return `media=${JSON.stringify(strategy)}`;
+	return region_wrapper(
+		`\t${component_import_line('OgygiaLakeInner', componentPath, exportName)}`,
+		bag,
+		'let __props = $props();',
+		'{__props}><OgygiaLakeInner {...__props} /></OgygiaRegion__Wrapper>'
+	);
 }
 
 /** Rewrite `$app/{state,stores,navigation}` string literals to absolute shim paths. */

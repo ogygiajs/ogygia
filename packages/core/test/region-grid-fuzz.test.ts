@@ -6,7 +6,14 @@ import './_region-grid-devtools.ts';
 import { afterEach, expect, test, vi } from 'vitest';
 import { parse as devalue_parse } from 'devalue';
 import { elements, fuzz, fc, parse_document } from '@ogygia/config/html-fuzz';
-import { spec_case, spec_props, rejected_code, type Place, type Spec } from './_region-grid.ts';
+import {
+	spec_case,
+	spec_props,
+	settings_of,
+	rejected_code,
+	type Place,
+	type Spec
+} from './_region-grid.ts';
 import { place_arb, spec_arb } from './_region-grid-arb.ts';
 import { server_out } from './_region-grid-server.ts';
 import { html_findings, unbalanced_markers } from './_region-grid-checks.ts';
@@ -88,23 +95,23 @@ type Written = [
  *  attribute is written (else it is absent), and its text when the prop is not given. */
 const WRITTEN: Record<string, Written[]> = {
 	island: [
-		['__keep', 'data-ogygia-keep', (p) => !!p.__keep],
-		['visible', 'margin', (p) => typeof p.visible === 'string' && p.visible !== '']
+		['keep', 'data-ogygia-keep', (p) => !!p.keep],
+		['wakeMargin', 'margin', (p) => !!p.wakeMargin]
 	],
 	hole: [
-		['__stitch', 'stitch', (p) => !!p.__stitch],
-		['__prefetch', 'prefetch', (p) => !!p.__prefetch],
-		['__defer', 'when', () => true, 'load'],
-		['__hydrate', 'wake', (p) => !!p.__hydrate],
-		['__margin', 'margin', (p) => !!p.__margin],
-		['__hydrateMargin', 'hydrate-margin', (p) => !!p.__hydrateMargin]
+		['stitch', 'stitch', (p) => !!p.stitch],
+		['prefetch', 'prefetch', (p) => !!p.prefetch],
+		['when', 'when', () => true, 'load'],
+		['wake', 'wake', (p) => !!p.wake],
+		['margin', 'margin', (p) => !!p.margin],
+		['wakeMargin', 'hydrate-margin', (p) => !!p.wakeMargin]
 	],
 	lake: [
-		['__remount', 'remount', () => true, 'cache'],
-		['__when', 'when', (p) => p.__remount === 'swr', 'load'],
-		['__maxAge', 'max-age', (p) => p.__maxAge != null],
-		['__onExpire', 'on-expire', (p) => !!p.__onExpire],
-		['__margin', 'margin', (p) => p.__remount === 'swr' && !!p.__margin]
+		['remount', 'remount', () => true, 'cache'],
+		['when', 'when', (p) => p.remount === 'swr', 'load'],
+		['maxAge', 'max-age', (p) => p.maxAge != null],
+		['onExpire', 'on-expire', (p) => !!p.onExpire],
+		['margin', 'margin', (p) => p.remount === 'swr' && !!p.margin]
 	]
 };
 
@@ -115,7 +122,7 @@ test(
 			spec_arb('none').filter((s) => s.kind in WRITTEN),
 			(s) => {
 				const place: Place = { ...PLAIN, at: s.kind === 'lake' ? 'island' : 'page' };
-				const props = spec_props(s);
+				const props = settings_of(spec_props(s));
 				const out = render(s, place);
 				expect(out.thrown).toBeNull();
 				const attrs = first_region(out.body)!;
@@ -124,8 +131,8 @@ test(
 					if (when(props)) expect([attr, attrs.get(attr)]).toEqual([attr, String(value)]);
 					else expect([attr, attrs.has(attr)]).toEqual([attr, false]);
 				}
-				if (s.kind === 'island' && typeof props.media === 'string' && props.media)
-					expect(attrs.get('wake')).toBe(props.media);
+				if (s.kind === 'island' && typeof props.wake === 'string' && props.wake)
+					expect(attrs.get('wake')).toBe(props.wake);
 			},
 			{ runs: RUNS }
 		);
@@ -140,7 +147,7 @@ test(
 			spec_arb('none').filter(
 				(s) =>
 					(s.kind === 'island' && s.values.children === 'none' && s.values.component !== 'late') ||
-					(s.kind === 'hole' && typeof s.raw.__hydrate === 'string' && s.raw.__hydrate !== '')
+					(s.kind === 'hole' && typeof s.raw['og.wake'] === 'string' && s.raw['og.wake'] !== '')
 			),
 			(s) => {
 				const props = spec_props(s);

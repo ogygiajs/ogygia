@@ -12,4 +12,4 @@
 	};
 </script>
 
-<Region {of} __mode={mode} />
+<Region {of} __og={{ mode }} />

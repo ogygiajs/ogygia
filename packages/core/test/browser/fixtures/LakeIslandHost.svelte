@@ -4,7 +4,7 @@
 
 <div data-lake-host>
 	<span>outer</span>
-	<Region __mode="lake" __entry="lake-island"
+	<Region __og={{ mode: 'lake', entry: 'lake-island' }}
 		><x-lake-probe data-probe><b>frozen</b></x-lake-probe></Region
 	>
 </div>

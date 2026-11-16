@@ -79,21 +79,18 @@ function props_of(shape: string): Props | undefined {
 	throw new Error(`no props shape ${shape}`);
 }
 
-/** An island's wake props: one of the five, as the compiler writes them. */
+/** An island's wake settings, as the compiler writes them. */
 function wake_of(w: string): Props {
 	switch (w) {
 		case 'load':
-			return { load: true };
 		case 'idle':
-			return { idle: true };
 		case 'visible':
-			return { visible: true };
-		case 'visible-margin':
-			return { visible: '200px' };
 		case 'interaction':
-			return { interaction: true };
+			return { wake: w };
+		case 'visible-margin':
+			return { wake: 'visible', wakeMargin: '200px' };
 		case 'media':
-			return { media: '(min-width: 600px)' };
+			return { wake: '(min-width: 600px)' };
 	}
 	throw new Error(`no wake ${w}`);
 }
@@ -120,16 +117,18 @@ export const KINDS: Readonly<Record<string, Kind>> = {
 	island: {
 		...KIND_AXES.island,
 		props: (v) => ({
-			__mode: 'island',
-			__entry: '/islands/tiny.js',
-			...wake_of(v.wake),
-			...(v.keep === 'none' ? {} : { __keep: v.keep }),
-			...(v.component === 'late'
-				? {}
-				: { __component: (v.component === 'wrap' ? Wrap : Tiny) as Component }),
-			...(v.component.endsWith('late') ? { __load: () => Promise.resolve(Tiny) } : {}),
+			__og: {
+				mode: 'island',
+				entry: '/islands/tiny.js',
+				...wake_of(v.wake),
+				...(v.keep === 'none' ? {} : { keep: v.keep }),
+				...(v.component === 'late'
+					? {}
+					: { component: (v.component === 'wrap' ? Wrap : Tiny) as Component }),
+				...(v.component.endsWith('late') ? { load: () => Promise.resolve(Tiny) } : {}),
+				...(v.ttl === '0' ? {} : { cacheTtl: Number(v.ttl) })
+			},
 			__props: props_of(v.props),
-			...(v.ttl === '0' ? {} : { __cacheTtl: Number(v.ttl) }),
 			children: snippet_of(v.children, '<i>kid</i>')
 		}),
 		request: (v) => ({ known: v.known === 'yes' })
@@ -137,20 +136,22 @@ export const KINDS: Readonly<Record<string, Kind>> = {
 	hole: {
 		...KIND_AXES.hole,
 		props: (v) => ({
-			__mode: 'server',
-			__entry: 'hole-a',
-			...(v.component === 'tiny' ? { __component: Tiny } : {}),
+			__og: {
+				mode: 'server',
+				entry: 'hole-a',
+				...(v.component === 'tiny' ? { component: Tiny } : {}),
+				when: v.when,
+				...(v.wake === 'none'
+					? {}
+					: v.wake === 'module-only'
+						? { module: '/islands/hole.js' }
+						: { wake: held_wake(v.wake), module: '/islands/hole.js' }),
+				...(v.attrs === 'all'
+					? { margin: '10px', wakeMargin: '50px', stitch: 'edge', prefetch: 'idle' }
+					: {}),
+				...(v.ttl === '0' ? {} : { cacheTtl: Number(v.ttl) })
+			},
 			__props: props_of(v.props),
-			__defer: v.when,
-			...(v.wake === 'none'
-				? {}
-				: v.wake === 'module-only'
-					? { __module: '/islands/hole.js' }
-					: { __hydrate: held_wake(v.wake), __module: '/islands/hole.js' }),
-			...(v.attrs === 'all'
-				? { __margin: '10px', __hydrateMargin: '50px', __stitch: 'edge', __prefetch: 'idle' }
-				: {}),
-			...(v.ttl === '0' ? {} : { __cacheTtl: Number(v.ttl) }),
 			ogygiaFallback: snippet_of(v.fallback, '<p>wait</p>')
 		}),
 		request: (v) => ({ building: v.building === 'yes', page_version: v.page_version === 'yes' })
@@ -158,14 +159,16 @@ export const KINDS: Readonly<Record<string, Kind>> = {
 	lake: {
 		...KIND_AXES.lake,
 		props: (v) => ({
-			__mode: 'lake',
-			__entry: 'lake-a',
-			__remount: v.remount,
+			__og: {
+				mode: 'lake',
+				entry: 'lake-a',
+				remount: v.remount,
+				...(v.when === 'none' ? {} : { when: v.when }),
+				...(v.max_age === 'none' ? {} : { maxAge: Number(v.max_age) }),
+				...(v.on_expire === 'none' ? {} : { onExpire: v.on_expire }),
+				...(v.margin === 'none' ? {} : { margin: v.margin })
+			},
 			__props: props_of(v.props),
-			...(v.when === 'none' ? {} : { __when: v.when }),
-			...(v.max_age === 'none' ? {} : { __maxAge: Number(v.max_age) }),
-			...(v.on_expire === 'none' ? {} : { __onExpire: v.on_expire }),
-			...(v.margin === 'none' ? {} : { __margin: v.margin }),
 			children: snippet_of(v.children, '<p>lake</p>')
 		})
 	},
@@ -217,7 +220,7 @@ export const KINDS: Readonly<Record<string, Kind>> = {
 				...(v.wake === 'none' ? {} : { hydrate: held_wake(v.wake) }),
 				...(v.margin === 'none' ? {} : { hydrateMargin: v.margin })
 			}),
-			...(v.baked === 'yes' ? { __baked: true } : {}),
+			...(v.baked === 'yes' ? { __og: { baked: true } } : {}),
 			children: snippet_of(v.children, '<p>kid</p>'),
 			placeholder: snippet_of(v.placeholder, '<p>wait</p>')
 		})
@@ -305,91 +308,70 @@ export function request_for(c: GridCase): Request {
 export const FOREIGN: Readonly<Record<string, readonly string[]>> = {
 	island: [
 		'placeholder',
-		'__baked',
-		'__defer',
-		'__margin',
-		'__hydrateMargin',
-		'__stitch',
-		'__prefetch',
+		'og.baked',
+		'og.when',
+		'og.margin',
+		'og.stitch',
+		'og.prefetch',
 		'ogygiaFallback',
-		'__remount',
-		'__when',
-		'__maxAge',
-		'__onExpire',
-		'__css',
-		'__module'
+		'og.remount',
+		'og.maxAge',
+		'og.onExpire',
+		'og.css'
 	],
 	hole: [
-		'visible',
-		'idle',
-		'media',
-		'load',
-		'interaction',
-		'__keep',
-		'__load',
+		'og.keep',
+		'og.load',
 		'children',
 		'placeholder',
-		'__baked',
-		'__remount',
-		'__when',
-		'__maxAge',
-		'__onExpire',
-		'__css'
+		'og.baked',
+		'og.remount',
+		'og.maxAge',
+		'og.onExpire',
+		'og.css'
 	],
 	lake: [
-		'visible',
-		'idle',
-		'media',
-		'load',
-		'interaction',
-		'__keep',
-		'__component',
-		'__load',
-		'__defer',
-		'__hydrateMargin',
-		'__stitch',
-		'__prefetch',
+		'og.wake',
+		'og.wakeMargin',
+		'og.keep',
+		'og.component',
+		'og.load',
+		'og.stitch',
+		'og.prefetch',
 		'ogygiaFallback',
 		'placeholder',
-		'__baked',
-		'__cacheTtl',
-		'__css',
-		'__module'
+		'og.baked',
+		'og.cacheTtl',
+		'og.css'
 	]
 };
 const HELD_FOREIGN = [
-	'visible',
-	'idle',
-	'media',
-	'load',
-	'interaction',
-	'__entry',
-	'__component',
-	'__load',
+	'og.wake',
+	'og.wakeMargin',
+	'og.entry',
+	'og.component',
+	'og.load',
 	'__props',
-	'__defer',
-	'__margin',
-	'__hydrateMargin',
-	'__stitch',
-	'__prefetch',
+	'og.when',
+	'og.margin',
+	'og.stitch',
+	'og.prefetch',
 	'ogygiaFallback',
-	'__remount',
-	'__when',
-	'__maxAge',
-	'__onExpire',
-	'__css',
-	'__module'
+	'og.remount',
+	'og.maxAge',
+	'og.onExpire',
+	'og.css'
 ];
 for (const k of ['inline', 'dual', 'deferred', 'promise', 'nothing'])
 	(FOREIGN as Record<string, readonly string[]>)[k] = HELD_FOREIGN;
 /** Props of another kind each kind reads all the same: never written together by the compiler. */
 export const MIXED: readonly string[] = [
 	'of',
-	'__keep',
-	'__cacheTtl',
-	'__hydrate',
-	'__module',
-	'__baked',
+	'og.keep',
+	'og.cacheTtl',
+	'og.wake',
+	'og.module',
+	'og.baked',
 	'children',
 	'placeholder'
 ];
@@ -397,18 +379,13 @@ export const MIXED: readonly string[] = [
 /** A foreign or mixed prop's value, made fresh. */
 export function stray_value(name: string): unknown {
 	switch (name) {
-		case 'visible':
+		case 'og.wakeMargin':
 			return '50px';
-		case 'media':
-			return '(max-width: 1px)';
-		case 'idle':
-		case 'load':
-		case 'interaction':
-		case '__baked':
+		case 'og.baked':
 			return true;
-		case '__component':
+		case 'og.component':
 			return Wrap;
-		case '__load':
+		case 'og.load':
 			return () => Promise.resolve(Wrap);
 		case '__props':
 			return { stray: 1 };
@@ -416,29 +393,39 @@ export function stray_value(name: string): unknown {
 		case 'placeholder':
 		case 'children':
 			return text('<em>stray</em>');
-		case '__maxAge':
-		case '__cacheTtl':
+		case 'og.maxAge':
+		case 'og.cacheTtl':
 			return 9;
-		case '__css':
+		case 'og.css':
 			return { css: 'stray' };
 		case 'of':
 			return brand({ kind: 'deferred', id: 'stray', props: {}, url: '/stray', module: '' });
-		case '__entry':
+		case 'og.entry':
 			return '/islands/stray.js';
-		case '__module':
+		case 'og.module':
 			return '/islands/stray-module.js';
-		case '__defer':
-		case '__when':
+		case 'og.when':
+		case 'og.wake':
 			return 'idle';
-		case '__remount':
+		case 'og.remount':
 			return 'swr';
-		case '__onExpire':
+		case 'og.onExpire':
 			return 'fetch';
-		case '__hydrate':
-			return 'idle';
 		default:
 			return `stray-${name}`;
 	}
+}
+
+/** Set one input on a region's props: `og.<key>` is a field of its settings (`__og`), any other
+ *  name a prop of its own. */
+export function put_input(p: Props, name: string, value: unknown): void {
+	if (name.startsWith('og.')) p.__og = { ...(p.__og as Props | undefined), [name.slice(3)]: value };
+	else p[name] = value;
+}
+
+/** A region's settings (`__og`), as plain data: empty when it has none. */
+export function settings_of(p: Props): Props {
+	return (p.__og as Props | undefined) ?? {};
 }
 
 /** One fuzzed input, as plain data (it crosses to the server leg of the hydration fuzz as JSON):
@@ -465,10 +452,10 @@ export function spec_case(s: Spec): GridCase {
  *  stray props (left out when `stray` is false). */
 export function spec_props(s: Spec, stray = true): Props {
 	const p = props_for(spec_case(s));
-	Object.assign(p, s.raw);
+	for (const [name, value] of Object.entries(s.raw)) put_input(p, name, value);
 	if (Object.keys(s.of_raw).length && p.of && typeof p.of === 'object')
 		Object.assign(p.of as Props, s.of_raw);
-	if (stray) for (const name of s.stray) p[name] = stray_value(name);
+	if (stray) for (const name of s.stray) put_input(p, name, stray_value(name));
 	return p;
 }
 

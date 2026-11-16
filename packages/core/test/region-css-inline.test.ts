@@ -13,6 +13,7 @@ import Tiny from './_fixtures/Tiny.svelte';
 import { head_owner_attr, region_css_tag } from '../src/server/region-css.ts';
 import { set_island_css, set_inline_css } from './_stubs/server.region-deps.ts';
 import { set_request_event_stub } from './_stubs/server.request-event.ts';
+import { region_props } from './_region-settings.ts';
 
 const region = Region as unknown as Component<Record<string, unknown>>;
 const ENTRY = '/islands/tiny.js';
@@ -84,13 +85,14 @@ describe('region_css_tag', () => {
 });
 
 describe('Region.svelte × inline region css', () => {
-	const island = () => ({
-		__mode: 'island',
-		__entry: ENTRY,
-		__component: Tiny,
-		__props: { n: 1 },
-		load: true
-	});
+	const island = () =>
+		region_props({
+			__mode: 'island',
+			__entry: ENTRY,
+			__component: Tiny,
+			__props: { n: 1 },
+			load: true
+		});
 
 	/** The island's fingerprint, as its region element carries it: the owner its head tags name. */
 	const fp_of = (body: string) => /data-og-fp="([^"]+)"/.exec(body)?.[1] ?? '';

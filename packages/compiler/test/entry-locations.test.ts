@@ -347,7 +347,7 @@ describe('Region writes the identity as `entry` and the location as `src`', () =
 	const ENTRY = '/islands/tiny.js';
 	const render_island = () => {
 		const out = render(region, {
-			props: { __mode: 'island', __entry: ENTRY, __component: Tiny, __props: {} }
+			props: { __og: { mode: 'island', entry: ENTRY, component: Tiny }, __props: {} }
 		});
 		return out.head + out.body;
 	};

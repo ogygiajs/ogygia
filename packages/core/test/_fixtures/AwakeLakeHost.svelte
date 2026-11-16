@@ -4,4 +4,7 @@
 	import AwakeLakeOuter from './AwakeLakeOuter.svelte';
 </script>
 
-<Region __mode="island" __entry="/islands/outer.js" __component={AwakeLakeOuter} __props={{}} />
+<Region
+	__og={{ mode: 'island', entry: '/islands/outer.js', component: AwakeLakeOuter }}
+	__props={{}}
+/>

@@ -1,0 +1,436 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { render } from 'svelte/server';
+import type { Component } from 'svelte';
+import RunInComponent from './_fixtures/RunInComponent.svelte';
+import KitPagePass from './_fixtures/KitPagePass.svelte';
+import Tiny from './_fixtures/Tiny.svelte';
+import { DocumentTail, set_tail_reader } from '../src/server/document-tail.ts';
+import { set_request_event_stub } from './_stubs/server.request-event.ts';
+import {
+	set_island_css,
+	set_island_deps,
+	set_island_remotes,
+	set_page_keys,
+	set_reads_page
+} from './_stubs/server.region-deps.ts';
+import { set_region_endpoints } from './_stubs/server.region-endpoint.ts';
+import { kit_asset } from '../src/kit-paths.ts';
+import { region, type RegionValue } from '../src/region.ts';
+import { REGION, type RegionDecision, type RegionSettings } from '../src/region-plan.ts';
+import { RegionPlan } from '../src/region-parts/plan.svelte.ts';
+import { IslandWire } from '../src/region-parts/island-wire.svelte.ts';
+import { IslandGraph } from '../src/region-parts/island-graph.svelte.ts';
+import { HoleFacts } from '../src/region-parts/hole-facts.svelte.ts';
+import { RegionHead } from '../src/region-parts/head.svelte.ts';
+import { PageSeedAsk } from '../src/region-parts/seed-ask.ts';
+import { LiveValue } from '../src/region-parts/live-value.svelte.ts';
+import { REGION_BRAND } from '../src/region.ts';
+import { written_order } from '../src/frame.ts';
+
+type Run = (renderer: unknown, props: { run: () => void }) => void;
+const run_in = RunInComponent as unknown as Run;
+const kit_pass = KitPagePass as unknown as Component<Record<string, unknown>>;
+const ISLAND = '/islands/tiny.js';
+const ISLAND_SETTINGS: RegionSettings = {
+	mode: 'island',
+	entry: ISLAND,
+	component: Tiny as unknown as Component
+};
+
+function inside(run: () => void, on_kit_pass = false): DocumentTail | null {
+	if (!on_kit_pass) {
+		void render(RunInComponent as unknown as Component<{ run: () => void }>, { props: { run } })
+			.body;
+		return null;
+	}
+	const tail = new DocumentTail();
+	const event = { route: { id: '/parts' } };
+	set_tail_reader(() => tail);
+	set_request_event_stub(() => event);
+	try {
+		const children = (renderer: unknown) => run_in(renderer, { run });
+		void render(kit_pass, { props: { children } }).body;
+		return tail;
+	} finally {
+		set_tail_reader(null);
+		set_request_event_stub(null);
+	}
+}
+
+function plan_of(
+	settings: RegionSettings,
+	of?: RegionValue | Promise<RegionValue>,
+	baked = false
+): RegionPlan {
+	return new RegionPlan(
+		settings,
+		() => of,
+		() => baked,
+		false,
+		() => 'load'
+	);
+}
+
+function wire_of(
+	rp: RegionPlan,
+	props: () => Record<string, unknown>,
+	children: () => (() => void) | undefined
+): IslandWire {
+	return new IslandWire(rp, props, children as never);
+}
+
+afterEach(() => {
+	set_island_deps({});
+	set_island_css({});
+	set_island_remotes(null);
+	set_reads_page(false);
+	set_page_keys(null);
+});
+
+describe('RegionPlan', () => {
+	it("a placed region's kind is its mode, its plan the table's row for its inputs, and it holds no value", () => {
+		let rp!: RegionPlan;
+		inside(() => (rp = plan_of(ISLAND_SETTINGS, region(Tiny as never, {}) as never)));
+		expect(rp.inputs.kind).toBe('island');
+		expect(rp.plan).toEqual(REGION.decide(rp.inputs));
+		expect(rp.resolved).toBeUndefined();
+		expect(rp.arm).toBe(rp.plan.arm);
+	});
+
+	it("a held value's kind and arm come from the value", () => {
+		let rp!: RegionPlan;
+		const value = region(Tiny as never, { n: 1 }) as RegionValue;
+		inside(() => (rp = plan_of({}, value)));
+		expect(rp.placed).toBe(false);
+		expect(rp.resolved).toBe(value);
+		expect(rp.of_init).toBe(value);
+		expect(rp.inputs.kind).toBe(value.kind);
+		expect(rp.arm).toBe(value.kind);
+	});
+
+	it('a value that is not a branded region is a promise', () => {
+		let rp!: RegionPlan;
+		inside(() => (rp = plan_of({}, new Promise<RegionValue>(() => {}))));
+		expect(rp.of_is_promise).toBe(true);
+		expect(rp.inputs.kind).toBe('promise-bare');
+		expect(rp.arm).toBe('promise');
+	});
+
+	it("on Kit's page pass a region has the page's tail and marks the pass for the regions below", () => {
+		let rp!: RegionPlan;
+		const tail = inside(() => (rp = plan_of(ISLAND_SETTINGS)), true);
+		expect(rp.inputs.request).toBe('no-event');
+		expect(rp.plan.root).toBe('kit');
+		expect(rp.plan.mark_pass).toBe(true);
+		expect(rp.tail).toBe(tail);
+	});
+
+	it('off a Kit request a region has no tail', () => {
+		let rp!: RegionPlan;
+		inside(() => (rp = plan_of(ISLAND_SETTINGS)));
+		expect(rp.inputs.request).toBe('none');
+		expect(rp.tail).toBeNull();
+	});
+});
+
+describe('IslandWire', () => {
+	it("a placed island's wire carries its props, under its module url and its fingerprint", () => {
+		let island!: IslandWire;
+		inside(() => {
+			const rp = plan_of(ISLAND_SETTINGS);
+			island = wire_of(
+				rp,
+				() => ({ n: 1 }),
+				() => undefined
+			);
+		});
+		expect(island.entry).toBe(ISLAND);
+		expect(island.module_url).toBe(kit_asset(ISLAND));
+		expect(island.wake).toEqual({ on: 'load', margin: undefined });
+		expect(island.wire?.canonical).toContain('"n"');
+		expect(island.fp).not.toBe('');
+		expect(island.has_slot_children).toBe(false);
+		expect(island.props_inline).toContain(island.fp);
+	});
+
+	it('an island with children sends a slot pointer over the wire and renders them in its body', () => {
+		let island!: IslandWire;
+		inside(() => {
+			const rp = plan_of(ISLAND_SETTINGS);
+			island = wire_of(
+				rp,
+				() => ({}),
+				() => (() => {}) as never
+			);
+		});
+		expect(island.has_slot_children).toBe(true);
+		expect(typeof island.props_body?.children).toBe('function');
+		expect(island.wire?.canonical).toContain(island.slot_id);
+	});
+
+	it('a wake and its margin come from the settings', () => {
+		let island!: IslandWire;
+		inside(() => {
+			const rp = plan_of({ ...ISLAND_SETTINGS, wake: 'visible', wakeMargin: '10px' });
+			island = wire_of(
+				rp,
+				() => ({}),
+				() => undefined
+			);
+		});
+		expect(island.wake).toEqual({ on: 'visible', margin: '10px' });
+	});
+
+	it("on Kit's page pass the props go to the tail, so none are written beside the island", () => {
+		let island!: IslandWire;
+		inside(() => {
+			const rp = plan_of(ISLAND_SETTINGS);
+			island = wire_of(
+				rp,
+				() => ({ n: 1 }),
+				() => undefined
+			);
+		}, true);
+		expect(island.in_tail).toBe(true);
+		expect(island.props_inline).toBe('');
+	});
+});
+
+describe('IslandGraph', () => {
+	let last_tail: DocumentTail | null = null;
+	function graph_of(on_kit_pass: boolean): IslandGraph {
+		let graph!: IslandGraph;
+		last_tail = inside(() => {
+			const rp = plan_of(ISLAND_SETTINGS);
+			const island = wire_of(
+				rp,
+				() => ({}),
+				() => undefined
+			);
+			graph = new IslandGraph(rp, island);
+		}, on_kit_pass);
+		return graph;
+	}
+
+	it('an island with no deps has no graph and preloads nothing', () => {
+		const graph = graph_of(false);
+		expect(graph.hrefs).toEqual([]);
+		expect(graph.preload_head).toBe('');
+	});
+
+	it("an island's deps are its graph, written in the head off Kit's pass", () => {
+		set_island_deps({ [ISLAND]: ['/chunks/dep.js'] });
+		const graph = graph_of(false);
+		expect(graph.hrefs).toEqual([kit_asset('/chunks/dep.js')]);
+		expect(graph.preload_head).toContain(kit_asset('/chunks/dep.js'));
+	});
+
+	it("on Kit's page pass the graph goes to the tail, not the head", () => {
+		set_island_deps({ [ISLAND]: ['/chunks/dep.js'] });
+		const graph = graph_of(true);
+		expect(last_tail?.graph_of(kit_asset(ISLAND))).toEqual([kit_asset('/chunks/dep.js')]);
+		expect(graph.preload_head).toBe('');
+	});
+});
+
+describe('HoleFacts', () => {
+	const HOLE: RegionSettings = { mode: 'server', entry: '/holes/clock', component: Tiny as never };
+
+	beforeEach(() => set_region_endpoints({ mint_server_region: (entry) => `/_og/hole${entry}` }));
+	afterEach(() => set_region_endpoints(null));
+
+	function hole_of(settings: RegionSettings): HoleFacts {
+		let hole!: HoleFacts;
+		inside(() => {
+			hole = new HoleFacts(plan_of(settings), () => ({ zone: 'utc' }));
+		});
+		return hole;
+	}
+
+	it("a hole's endpoint is in the attributes of its element", () => {
+		const hole = hole_of(HOLE);
+		expect(hole.endpoint).not.toBe('');
+		expect(hole.when).toBe('load');
+		const attrs = hole.attrs();
+		expect(attrs).toContain(' render="defer"');
+		expect(attrs).toContain(' when="load"');
+		expect(attrs).toContain(`endpoint="${hole.endpoint}"`);
+		expect(attrs).not.toContain(' wake=');
+	});
+
+	it('a hole that wakes carries its props over a wire and names its wake and identity', () => {
+		const hole = hole_of({ ...HOLE, wake: 'idle', wakeMargin: '5px' });
+		expect(hole.wire).not.toBeNull();
+		expect(hole.identity).not.toBe('');
+		expect(hole.attrs()).toContain(`data-og-hole="${hole.identity}"`);
+		expect(hole.props_script).toContain('utc');
+		expect(hole.attrs()).toContain(' wake="idle"');
+		expect(hole.attrs()).toContain(' hydrate-margin="5px"');
+	});
+
+	it('a hole that never wakes has no wire', () => {
+		const hole = hole_of(HOLE);
+		expect(hole.wire).toBeNull();
+		expect(hole.props_script).toBe('');
+	});
+
+	it('a region that is not an island still claims its slot id, so the ids after it stay put', () => {
+		const ids: string[] = [];
+		inside(() => {
+			ids.push(plan_of(ISLAND_SETTINGS).slot_id);
+			plan_of(HOLE);
+			ids.push(plan_of(ISLAND_SETTINGS).slot_id);
+		});
+		const [first, last] = ids.map((id) => parseInt(id.slice(2), 36));
+		expect(last).toBe(first! + 2);
+	});
+});
+
+describe('RegionHead', () => {
+	function heads(count: number): { runtime: string; owner: string; html: string }[] {
+		const out: { runtime: string; owner: string; html: string }[] = [];
+		const event = { route: { id: '/heads' } };
+		set_request_event_stub(() => event);
+		try {
+			inside(() => {
+				for (let n = 0; n < count; n++) {
+					const rp = plan_of(ISLAND_SETTINGS);
+					const island = wire_of(
+						rp,
+						() => ({}),
+						() => undefined
+					);
+					const graph = new IslandGraph(rp, island);
+					const head = new RegionHead(rp, { island, graph, hole: null });
+					out.push({ runtime: head.runtime, owner: head.owner, html: head.html });
+				}
+			});
+		} finally {
+			set_request_event_stub(null);
+		}
+		return out;
+	}
+
+	it('the first region on a page claims the runtime, the next one does not', () => {
+		const [first, second] = heads(2);
+		expect(first!.runtime).not.toBe('');
+		expect(second!.runtime).toBe('');
+	});
+
+	it('the runtime goes to the first region made, even when a later one is read first', () => {
+		set_region_endpoints({ mint_server_region: (entry) => `/_og/hole${entry}` });
+		const event = { route: { id: '/heads' } };
+		set_request_event_stub(() => event);
+		const made: RegionHead[] = [];
+		try {
+			inside(() => {
+				for (let n = 0; n < 2; n++) {
+					const rp = plan_of({ mode: 'server', entry: '/holes/clock', component: Tiny as never });
+					const hole = new HoleFacts(rp, () => ({}));
+					made.push(new RegionHead(rp, { island: null, graph: null, hole }));
+				}
+			});
+		} finally {
+			set_request_event_stub(null);
+			set_region_endpoints(null);
+		}
+		const [first, second] = made;
+		expect(second!.runtime).toBe('');
+		expect(first!.runtime).not.toBe('');
+	});
+
+	it("an island's sheets are written once per page, owned by the first island", () => {
+		set_island_css({ [ISLAND]: ['/assets/tiny.css'] });
+		const [first, second] = heads(2);
+		expect(first!.owner).not.toBe('');
+		expect(first!.html).toContain(kit_asset('/assets/tiny.css'));
+		expect(second!.html).not.toContain(kit_asset('/assets/tiny.css'));
+	});
+});
+
+describe('LiveValue', () => {
+	const value = {
+		[REGION_BRAND]: true,
+		kind: 'deferred',
+		id: 'held-a',
+		module: '/islands/live.js',
+		props: { n: 1 },
+		html: '<b>one</b>',
+		url: '/__ogygia__?id=held-a',
+		hydrate: 'idle'
+	} as unknown as RegionValue;
+
+	it('hands the value, as it is now, to the element that shows it', () => {
+		let live!: LiveValue;
+		inside(() => (live = new LiveValue(plan_of({}, value))));
+		const handed: unknown[] = [];
+		live.attach({ applyLive: (v: unknown) => handed.push(v) } as unknown as Element);
+		expect(handed).toEqual([
+			{
+				id: 'held-a',
+				module: '/islands/live.js',
+				props: { n: 1 },
+				html: '<b>one</b>',
+				url: '/__ogygia__?id=held-a',
+				hydrate: 'idle',
+				hydrateMargin: undefined,
+				written: written_order(value as never)
+			}
+		]);
+	});
+
+	it('a baked value is written by the server inside an element marked baked', () => {
+		let html = '';
+		inside(() => {
+			const live = new LiveValue(plan_of({ baked: true }, value, true));
+			const out: string[] = [];
+			(live.baked as unknown as (r: { push(s: string): void }) => void)({
+				push: (s) => out.push(s)
+			});
+			html = out.join('');
+		});
+		expect(html).toBe('<ogygia-region live data-og-baked><b>one</b></ogygia-region>');
+	});
+});
+
+describe('PageSeedAsk', () => {
+	type Seed = RegionDecision['seed'];
+	function ask(seed: Seed, island = '/m.js'): PageSeedAsk {
+		const rp = { plan: { seed }, settings: { module: '/h.js' }, of_init: { module: '/d.js' } };
+		return new PageSeedAsk(rp as unknown as RegionPlan, { entry: island } as IslandWire);
+	}
+	const fields = (a: PageSeedAsk) => ({ entry: a.entry, seed: a.seed, remotes: a.remotes });
+
+	it("a plan's seed names the module it asks about", () => {
+		expect(ask('island', '/i.js').entry).toBe('/i.js');
+		expect(ask('hole').entry).toBe('/h.js');
+		expect(ask('held').entry).toBe('/d.js');
+		expect(ask('none').entry).toBe('');
+	});
+
+	it('a region with no island asks about no module', () => {
+		const rp = { plan: { seed: 'island' }, settings: {} };
+		expect(new PageSeedAsk(rp as unknown as RegionPlan, null).entry).toBe('');
+	});
+
+	it('a promise asks for the whole seed and any remote', () => {
+		expect(fields(ask('promise'))).toEqual({ entry: '', seed: 'all', remotes: null });
+	});
+
+	it('no module asks for nothing', () => {
+		expect(fields(ask('none'))).toEqual({ entry: '', seed: false, remotes: [] });
+	});
+
+	it('a module that reads no page asks for no seed, only its remotes', () => {
+		set_island_remotes(['r1']);
+		expect(fields(ask('island'))).toEqual({ entry: '/m.js', seed: false, remotes: ['r1'] });
+	});
+
+	it('a module that reads the page asks for its keys, or all of it when the keys are unknown', () => {
+		set_reads_page(true);
+		set_page_keys(['user']);
+		expect(ask('island').seed).toEqual(['user']);
+		set_page_keys(null);
+		expect(ask('island').seed).toBe('all');
+	});
+});

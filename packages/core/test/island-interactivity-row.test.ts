@@ -12,6 +12,7 @@ import KitPagePass from './_fixtures/KitPagePass.svelte';
 import { DocumentTail, set_tail_reader } from '../src/server/document-tail.ts';
 import { set_island_interactivity } from './_stubs/server.region-deps.ts';
 import { set_request_event_stub } from './_stubs/server.request-event.ts';
+import { region_props } from './_region-settings.ts';
 
 const region = Region as unknown as Component<Record<string, unknown>>;
 const kit_pass = KitPagePass as unknown as Component<Record<string, unknown>>;
@@ -25,7 +26,7 @@ function rows(props: Record<string, unknown>) {
 	set_request_event_stub(() => event);
 	try {
 		const children = (renderer: { push(html: string): void }) =>
-			(region as unknown as (r: unknown, p: unknown) => void)(renderer, props);
+			(region as unknown as (r: unknown, p: unknown) => void)(renderer, region_props(props));
 		void render(kit_pass, { props: { children } }).body;
 		tail.render(null, true);
 		return tail.island_rows() ?? [];

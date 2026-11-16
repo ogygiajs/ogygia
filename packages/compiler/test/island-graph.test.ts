@@ -25,13 +25,9 @@ afterEach(() => set_island_deps({}));
 
 function render_island(wake: string) {
 	const props: Record<string, unknown> = {
-		__mode: 'island',
-		__entry: ENTRY,
-		__component: Tiny,
+		__og: { mode: 'island', entry: ENTRY, component: Tiny, wake },
 		__props: {}
 	};
-	if (wake.startsWith('(')) props.media = wake;
-	else if (wake !== 'load') props[wake] = true;
 	const out = render(region, { props });
 	return out.head + out.body;
 }

@@ -20,6 +20,7 @@ import { decode_island_graph } from '../src/island-graph.ts';
 import { PropsWire } from '../src/server/props-wire.ts';
 import { SeedIndex } from '../src/seed-refs.ts';
 import { set_island_deps } from './_stubs/server.region-deps.ts';
+import { region_props } from './_region-settings.ts';
 
 const region = Region as unknown as Component<Record<string, unknown>>;
 const kit_pass = KitPagePass as unknown as Component<Record<string, unknown>>;
@@ -41,7 +42,7 @@ const island = (props: Record<string, unknown> = {}, entry = '/islands/tiny.js')
 function render_in_kit_pass(list: Array<Record<string, unknown>>) {
 	const children = (renderer: { push(html: string): void }) => {
 		for (const props of list)
-			(region as unknown as (r: unknown, p: unknown) => void)(renderer, props);
+			(region as unknown as (r: unknown, p: unknown) => void)(renderer, region_props(props));
 	};
 	return render(kit_pass, { props: { children } });
 }
@@ -205,7 +206,7 @@ describe('Region.svelte × the tail', () => {
 	const graph_of = (html: string) => decode_island_graph(GRAPH_SCRIPT_RE.exec(html)?.[1] ?? '{}');
 
 	it('no tail (a test / standalone render): graph in the head, sidecar adjacent and keyed', () => {
-		const out = render(region, { props: island({ n: 1 }) });
+		const out = render(region, { props: region_props(island({ n: 1 })) });
 		expect(out.head).not.toContain('modulepreload');
 		expect(graph_of(out.head)).toEqual(new Map([['/islands/tiny.js', ['/chunks/svelte.js']]]));
 		const fps = [...out.body.matchAll(FP_ATTR_G)].map((m) => m[1]);
@@ -220,7 +221,7 @@ describe('Region.svelte × the tail', () => {
 
 	it('tail installed but NOT a Kit page pass (an ogygia render root): head + adjacent, tail untouched', () => {
 		install_tail();
-		const out = render(region, { props: island({ n: 1 }) });
+		const out = render(region, { props: region_props(island({ n: 1 })) });
 		expect(graph_of(out.head).size).toBe(1);
 		expect([...out.body.matchAll(SIDECAR_G)]).toHaveLength(1);
 		expect(tail.empty).toBe(true);
@@ -281,7 +282,7 @@ describe('Region.svelte × the tail', () => {
 	it('outside the page pass the same server island keeps its graph in the head', () => {
 		install_tail();
 		const out = render(region, {
-			props: {
+			props: region_props({
 				__mode: 'server',
 				__entry: 'hole-1',
 				__component: Tiny,
@@ -289,7 +290,7 @@ describe('Region.svelte × the tail', () => {
 				__defer: 'load',
 				__hydrate: 'load',
 				__module: '/islands/hole.js'
-			}
+			})
 		});
 		expect(graph_of(out.head).size).toBe(1);
 		expect(out.head).not.toContain('modulepreload');

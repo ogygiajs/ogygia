@@ -107,7 +107,7 @@ describe('audit fixes — transform contract', () => {
 		const r = run(wrap(`import Lake from './Lake.svelte' with { wake: 'none' };`, '<Lake />'));
 		expect(r).toBeTruthy();
 		const lake = r!.islands.find((i) => i.kind === 'lake')!;
-		expect(lake.wrapperSource).toMatch(/OgygiaRegion__Wrapper __mode="lake"/);
+		expect(lake.wrapperSource).toMatch(/const __og = \{ mode: "lake"/);
 		expect(lake.lakes).toEqual(['OgygiaLakeInner']);
 	});
 

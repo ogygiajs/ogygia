@@ -12,7 +12,7 @@ test('with devtools off, a region records no server event', () => {
 	const events: unknown[] = [];
 	set_server_devtools_recorder((e) => events.push(e));
 	const out = render(Region as unknown as Component<Record<string, unknown>>, {
-		props: { __mode: 'island', __entry: '/islands/tiny.js', __component: Tiny, __props: {} }
+		props: { __og: { mode: 'island', entry: '/islands/tiny.js', component: Tiny }, __props: {} }
 	});
 	expect(out.body).toContain('<ogygia-region');
 	expect(events).toEqual([]);

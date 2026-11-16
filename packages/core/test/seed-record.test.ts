@@ -13,6 +13,7 @@ import Tiny from './_fixtures/Tiny.svelte';
 import { set_page_recorder } from '../src/page-seed-registry.ts';
 import { set_reads_page, set_island_remotes, set_page_keys } from './_stubs/server.region-deps.ts';
 import { region as make_region } from '../src/region.ts';
+import { region_props } from './_region-settings.ts';
 
 // `render()`'s body is a LAZY getter — the component runs on first read, so every render here reads it.
 
@@ -34,22 +35,24 @@ afterEach(() => {
 	set_page_keys(null);
 });
 
-const island = (extra: Record<string, unknown> = {}) => ({
-	__mode: 'island',
-	__entry: '/islands/tiny.js',
-	__component: Tiny,
-	__props: { n: 1 },
-	load: true,
-	...extra
-});
-const hole = (extra: Record<string, unknown> = {}) => ({
-	__mode: 'server',
-	__entry: 'hole-1',
-	__component: Tiny,
-	__props: {},
-	__defer: 'load',
-	...extra
-});
+const island = (extra: Record<string, unknown> = {}) =>
+	region_props({
+		__mode: 'island',
+		__entry: '/islands/tiny.js',
+		__component: Tiny,
+		__props: { n: 1 },
+		load: true,
+		...extra
+	});
+const hole = (extra: Record<string, unknown> = {}) =>
+	region_props({
+		__mode: 'server',
+		__entry: 'hole-1',
+		__component: Tiny,
+		__props: {},
+		__defer: 'load',
+		...extra
+	});
 const seeds = () => records.map((r) => r.seed);
 
 describe('page snapshot recording', () => {
@@ -89,7 +92,7 @@ describe('page snapshot recording', () => {
 
 	it('a lake and a plain inline held region never ask (no client at all)', () => {
 		set_reads_page(true);
-		void render(region, { props: { __mode: 'lake', __entry: '/lake.js' } }).body;
+		void render(region, { props: region_props({ __mode: 'lake', __entry: '/lake.js' }) }).body;
 		void render(region, { props: { of: make_region(Tiny as never, {}) } }).body;
 		expect(seeds().some(Boolean)).toBe(false);
 	});
@@ -142,7 +145,7 @@ describe('callable-remotes recording', () => {
 
 	it('a lake, a static hole and a plain inline held region record [] (no client at all)', () => {
 		set_island_remotes(['bjveep']); // whatever the build would say — these have no entry to ask for
-		void render(region, { props: { __mode: 'lake', __entry: '/lake.js' } }).body;
+		void render(region, { props: region_props({ __mode: 'lake', __entry: '/lake.js' }) }).body;
 		void render(region, { props: hole() }).body;
 		void render(region, { props: { of: make_region(Tiny as never, {}) } }).body;
 		expect(remotes()).toEqual([[], [], []]);

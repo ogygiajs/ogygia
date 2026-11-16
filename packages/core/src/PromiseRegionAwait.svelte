@@ -1,5 +1,10 @@
+<script lang="ts" module>
+	import Region, { type RegionSettings } from './Region.svelte';
+
+	const BAKED: RegionSettings = { baked: true };
+</script>
+
 <script lang="ts">
-	import Region from './Region.svelte';
 	import { untrack, type Snippet } from 'svelte';
 	import { register_late_region } from './late-region-registry.ts';
 	import type { RegionValue } from './region.ts';
@@ -18,4 +23,4 @@
 
 {#if late_slot}<og-late-slot data-og-slot={late_slot} style="display:contents"
 		>{@render placeholder?.()}</og-late-slot
-	>{:else}<Region of={wire_form(await of)} {placeholder} {children} __baked />{/if}
+	>{:else}<Region of={wire_form(await of)} {placeholder} {children} __og={BAKED} />{/if}

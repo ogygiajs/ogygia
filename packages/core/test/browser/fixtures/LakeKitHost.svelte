@@ -9,12 +9,10 @@
 
 <div data-shell>
 	<p data-shell-text>shell</p>
-	<Region __mode="lake" __entry="lake-kit"
+	<Region __og={{ mode: 'lake', entry: 'lake-kit' }}
 		><p data-frozen>frozen</p>
 		<Region
-			__mode="island"
-			__entry="/test/browser/fixtures/Counter.svelte"
-			__component={Counter}
+			__og={{ mode: 'island', entry: '/test/browser/fixtures/Counter.svelte', component: Counter }}
 			__props={{ start: 3 }}
 		/></Region
 	>

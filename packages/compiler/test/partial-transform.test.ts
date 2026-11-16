@@ -248,7 +248,7 @@ export const f = region(C, {});`;
 			// Object.assign'd on, plus a wrapper `.svelte` that renders the `<ogygia-region>` shell.
 			expect(String(isl.bindingSsrSource)).toContain('Object.assign(__OgygiaWrap');
 			expect(String(isl.bindingSsrSource)).toContain('export default __OgygiaWrap');
-			expect(String(isl.wrapperSource)).toContain('OgygiaRegion__Wrapper __mode="island"');
+			expect(String(isl.wrapperSource)).toContain('const __og = { mode: "island"');
 			// HOLDABLE: region() still reads the baked schedule + component + signer off the binding.
 			expect(String(isl.bindingSsrSource)).toContain(`__hydrate: ${JSON.stringify(hydrate)}`);
 			expect(String(isl.bindingSsrSource)).toContain('__component');
@@ -293,7 +293,7 @@ export const page = D;`;
 		expect(isl.strategy).toBe('server');
 		expect(isl.fetchWhen).toBe('load');
 		// the wrapper renders the server shell AND keeps the ogygiaFallback slot the router supplies
-		expect(String(isl.wrapperSource)).toContain('OgygiaRegion__Wrapper __mode="server"');
+		expect(String(isl.wrapperSource)).toContain('const __og = { mode: "server"');
 		expect(String(isl.wrapperSource)).toContain('ogygiaFallback');
 		// placed as `<D/>` the wrapper must emit the hole — so the import points at the wrapper, not a binding
 		expect(r!.code).toContain('ogygia:region/wrapper/');
@@ -305,7 +305,7 @@ export const page = D;`;
 		const r = transformTsRegions(src, id, makeCtx({ visibleMargin: '150px' }));
 		const isl = r!.islands[0];
 		expect(isl.fetchWhen).toBe('visible');
-		expect(String(isl.wrapperSource)).toContain('__margin');
+		expect(String(isl.wrapperSource)).toContain('margin: ');
 	});
 
 	test('render: deferred accepts fetch: interaction (an on-demand hole) and rejects none', () => {
