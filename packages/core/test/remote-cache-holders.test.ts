@@ -25,7 +25,9 @@ function kit_insert(
 		entries = new Map();
 		map.set(id, entries);
 	}
-	const entry: Entry = { resource: { destroy: () => destroyed.push(`${id}/${payload}`) } };
+	const entry: Entry = {
+		resource: { destroy: () => destroyed.push(`${id}/${payload}`) }
+	};
 	entries.set(payload, entry);
 	return entry;
 }
@@ -83,6 +85,74 @@ describe('remote query entries are held by the islands that read them', () => {
 		release_remote_instances();
 		expect(destroyed).toEqual([]);
 		expect(remote_cache.query_map.get('later')?.has('')).toBe(true);
+	});
+
+	it('a query whose island left mid-command refreshes as a no-op, and the next page reads it fresh (#2007)', async () => {
+		const destroyed: string[] = [];
+		const gone = region();
+		const entry = hydrating(gone, () =>
+			kit_insert(remote_cache.query_map, 'count', '1', destroyed)
+		) as Entry & { proxy_count: number; cleanup: () => void };
+		let cleaned = 0;
+		entry.proxy_count = 1;
+		entry.cleanup = () => cleaned++;
+		gone.isConnected = false;
+		release_remote_instances();
+		expect(destroyed).toEqual(['count/1']);
+
+		const after_await = remote_cache.query_map.get('count')?.get('1') as
+			| (Entry & { resource: Record<string, unknown> })
+			| undefined;
+		expect(after_await).toBeDefined();
+		const left = after_await!.resource as {
+			refresh: () => Promise<unknown>;
+			set: (v: unknown) => void;
+			current: unknown;
+		};
+		await expect(left.refresh()).resolves.toBeUndefined();
+		left.set(5);
+		expect(left.current).toBeUndefined();
+		expect(destroyed).toEqual(['count/1']);
+		expect(cleaned).toBe(1);
+
+		const next = region();
+		expect(hydrating(next, () => remote_cache.query_map.get('count')?.get('1'))).toBeUndefined();
+		expect(remote_cache.query_map.get('count')?.has('1')).toBe(false);
+	});
+
+	it('a left query entry lives exactly as long as the departed island’s proxies (#2007)', () => {
+		const destroyed: string[] = [];
+		const gone = region();
+		const entry = hydrating(gone, () =>
+			kit_insert(remote_cache.query_map, 'count', '1', destroyed)
+		) as Entry & { proxy_count: number };
+		entry.proxy_count = 2;
+		gone.isConnected = false;
+		release_remote_instances();
+		const left = remote_cache.query_map.get('count')?.get('1') as {
+			proxy_count: number;
+		};
+		expect(left.proxy_count).toBe(2);
+		left.proxy_count++;
+		entry.proxy_count--;
+		left.proxy_count--;
+		expect(left.proxy_count).toBe(1);
+		entry.proxy_count--;
+		expect(left.proxy_count).toBe(0);
+		release_remote_instances();
+		expect(remote_cache.query_map.get('count')?.get('1')).toBe(left);
+	});
+
+	it('an entry with no live proxy is dropped outright when its island leaves', () => {
+		const destroyed: string[] = [];
+		const gone = region();
+		const entry = hydrating(gone, () =>
+			kit_insert(remote_cache.query_map, 'count', '1', destroyed)
+		) as Entry & { proxy_count: number };
+		entry.proxy_count = 0;
+		gone.isConnected = false;
+		release_remote_instances();
+		expect(remote_cache.query_map.has('count')).toBe(false);
 	});
 
 	it('only the departed payloads of one query go; the map for the id stays while one remains', () => {
