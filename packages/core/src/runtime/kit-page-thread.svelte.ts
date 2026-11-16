@@ -1,5 +1,5 @@
 import { OgygiaError, warn } from '../messages/lazy.ts';
-import { flights, say, scope, tasks, type Scope } from '@ogygia/machine';
+import { flights, say, scope, STALE, tasks, type Scope } from '@ogygia/machine';
 import { code_url, import_code, type CodeUrl } from './code-origins.ts';
 
 const KIT_PAGE_KEY = Symbol.for('ogygia.kit-page');
@@ -37,13 +37,28 @@ const pending = flights({
 		const wait = scope();
 		wait.on(signal, 'abort', () => wait.close());
 		return new Promise<void>((resolve, reject) => {
-			for (const url of kit_boot_imports()) {
+			const fail = (url: string, error: unknown) => {
+				wait.close();
+				reject(kit_boot_failed(url, error));
+			};
+			const boot = kit_boot();
+			for (const url of boot.urls) {
 				void wait
-					.task(() => import_code(url))
-					.then(undefined, (error: unknown) => {
-						wait.close();
-						reject(kit_boot_failed(url, error));
-					});
+					.task(() => import_code<unknown>(url))
+					.then(
+						(entry) => {
+							if (entry === STALE) return;
+							const nodes = kit_node_loaders(entry);
+							for (const id of boot.node_ids) {
+								const load = nodes?.[id];
+								if (typeof load !== 'function') continue;
+								void wait
+									.task(() => load())
+									.then(undefined, (error: unknown) => fail(`${url} nodes[${id}]`, error));
+							}
+						},
+						(error: unknown) => fail(url, error)
+					);
 			}
 			if (import.meta.env.DEV) {
 				wait.timeout(() => {
@@ -67,9 +82,16 @@ const pending = flights({
 const KIT_BOOT_ASSIGN = /__sveltekit_\w+\s*=/;
 const KIT_BOOT_IMPORT = /\bimport\(\s*("(?:[^"\\\n]|\\.)*")\s*\)/g;
 
-function kit_boot_imports(): CodeUrl[] {
-	if (typeof document === 'undefined') return [];
+const KIT_BOOT_NODES = /\bnode_ids:\s*\[([\d,\s]*)\]/;
+
+type KitBoot = { urls: CodeUrl[]; node_ids: number[] };
+
+/** Kit's start, as its boot script writes it: the entries it imports, and the route's nodes
+ *  (`node_ids`) its start loads next through the app entry's own loaders. */
+function kit_boot(): KitBoot {
+	if (typeof document === 'undefined') return { urls: [], node_ids: [] };
 	const urls = new Set<CodeUrl>();
+	const node_ids = new Set<number>();
 	for (const s of document.querySelectorAll('script:not([src])')) {
 		const type = s.getAttribute('type');
 		if (
@@ -80,6 +102,9 @@ function kit_boot_imports(): CodeUrl[] {
 			continue;
 		const text = s.textContent || '';
 		if (!KIT_BOOT_ASSIGN.test(text)) continue;
+		for (const id of KIT_BOOT_NODES.exec(text)?.[1].split(',') ?? []) {
+			if (id.trim() !== '') node_ids.add(Number(id));
+		}
 		for (const m of text.matchAll(KIT_BOOT_IMPORT)) {
 			try {
 				const url = code_url(new URL(JSON.parse(m[1]) as string, document.baseURI).href);
@@ -88,7 +113,19 @@ function kit_boot_imports(): CodeUrl[] {
 			} catch {}
 		}
 	}
-	return [...urls];
+	return { urls: [...urls], node_ids: [...node_ids] };
+}
+
+type NodeLoaders = ReadonlyArray<unknown>;
+
+/** The node loaders a Kit entry exports: the app entry's `nodes` (split), or its `app.nodes`
+ *  (one bundle). Kit's start calls the same loaders, so a node's failure is Kit's. */
+function kit_node_loaders(entry: unknown): NodeLoaders | null {
+	if (entry === null || typeof entry !== 'object') return null;
+	const own = (entry as { nodes?: unknown }).nodes;
+	if (Array.isArray(own)) return own;
+	const app = (entry as { app?: { nodes?: unknown } }).app;
+	return Array.isArray(app?.nodes) ? app.nodes : null;
 }
 
 const boot_said = say();
