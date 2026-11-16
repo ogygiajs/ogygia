@@ -195,6 +195,38 @@ test.each([
 	}
 );
 
+test('a boot-shaped import that names no URL (a bad escape, an unparsable address) is skipped: the wait goes on, for Kit to decide', async () => {
+	document.body.innerHTML = String.raw`<script>__sveltekit_lab = {};
+import("\q/start.js").then(() => {});
+import("http://[/app.js").then(() => {});</script>`;
+	const wait = kit_page_thread();
+	expect(wait, 'Kit has not started → a real wait').not.toBeNull();
+	let failed: unknown = null;
+	void wait!.then(undefined, (e: unknown) => (failed = e));
+	await new Promise((r) => setTimeout(r, 300));
+	expect(failed, 'nothing was imported, so nothing failed').toBeNull();
+	publish_kit_page({ searchBarMarkup: '' });
+	await expect(wait).resolves.toBeUndefined();
+});
+
+test('a wait Kit ended by applying its page does not fail later on a node: the entry that comes after is stale (#2002)', async () => {
+	const errors: string[] = [];
+	const real_error = console.error;
+	console.error = (...args: unknown[]) => errors.push(args.map(String).join(' '));
+	try {
+		const app = new URL('./fixtures/kit-boot-app.ts?applied', import.meta.url).href;
+		document.body.innerHTML = `<script>__sveltekit_lab = {};\nimport(${JSON.stringify(app)}).then((app) => { app.start({ node_ids: [0], data: [null] }); });</script>`;
+		const wait = kit_page_thread();
+		expect(wait, 'Kit has not started → a real wait').not.toBeNull();
+		publish_kit_page({ searchBarMarkup: '' });
+		await expect(wait).resolves.toBeUndefined();
+		await new Promise((r) => setTimeout(r, 500));
+		expect(errors.filter((e) => e.includes('kit_boot_failed'))).toEqual([]);
+	} finally {
+		console.error = real_error;
+	}
+});
+
 test('a boot-shaped script naming a file on another origin is never imported: markup is not code (#847 review)', async () => {
 	// A script that came in as markup (a swapped region, a hole) and never ran looks just like Kit's.
 	// Its import names a file on an origin that is neither the page's nor the runtime's.
