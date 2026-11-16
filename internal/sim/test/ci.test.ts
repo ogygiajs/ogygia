@@ -19,6 +19,7 @@ import {
 	unreached_in_every,
 	waiting_runs
 } from '../src/ci.ts';
+import { hung_head } from '../src/cli.ts';
 import { describe as describe_action, type Action } from '../src/workload.ts';
 
 const OUT = JSON.stringify({ findings: [], steps_per_second: 10, replay_leaks: [] });
@@ -174,7 +175,7 @@ const FRESH =
 const WOKEN =
 	'+       <ogygia-region data-hydrated="" data-og-fp="93111da9a0372d84" entry="/_app/ogygia/og-region.b806dc28e3bc.js" margin="0px" src="/_app/immutable/og-region.b806dc28e3bc.XFApmc9q.js" wake="visible">';
 
-/** Findings the scheduled runs filed over four days (2026-11-13 to 16), by the cause a person
+/** Findings the scheduled runs filed over five days (2026-11-12 to 16), by the cause a person
  *  found when they read them: each group is one cause, filed as one issue per member. */
 const TRIAGED: Record<string, ReadonlyArray<{ issue: number; oracle: string; detail: string }>> = {
 	'the simulator settled before a host file read (#2010)': [
@@ -261,6 +262,40 @@ const TRIAGED: Record<string, ReadonlyArray<{ issue: number; oracle: string; det
 			`
 		}
 	],
+	'a page Kit remounts by design, not on the list yet (#1868)': [
+		{
+			issue: 1916,
+			oracle: 'ssr-hydrate',
+			detail:
+				'after new tab at /lake-twins-kit: https://app.test/lake-twins-kit: warn: https://svelte.dev/e/hydration_mismatch'
+		},
+		{
+			issue: 1920,
+			oracle: 'ssr-hydrate',
+			detail:
+				'after tab 0: an outage 5 ms in, for 5000 ms: https://app.test/lake-twins-kit: warn: https://svelte.dev/e/hydration_mismatch'
+		}
+	],
+	'a loaded runner, slow and not stuck, judged hung by real time (#1867)': [
+		{
+			issue: 1917,
+			oracle: 'hung',
+			detail: dedent`
+				${hung_head(270754014, 12576, 1574, [...Array.from({ length: 16 }, () => ''), '12560 # action 17: tab 0: click link #557'])}
+				queued tasks (6), first 20:
+				  12639 net request 282 GET /_app/immutable/chunks/BKh1d1BY.js
+			`
+		},
+		{
+			issue: 1919,
+			oracle: 'hung',
+			detail: dedent`
+				${hung_head(270754026, 2000, 561, ['', '', '2000 # action 3: tab 0: go to /context/lake'])}
+				queued tasks (3), first 20:
+				  61301 server timeout
+			`
+		}
+	],
 	'#1990': [
 		{
 			issue: 1990,
@@ -338,7 +373,7 @@ const TRIAGED: Record<string, ReadonlyArray<{ issue: number; oracle: string; det
 };
 
 describe("a finding's cause", () => {
-	it('is one signature for every finding a person traced to one cause, and a different one for each other cause (23 issues filed over four days for 13 causes)', () => {
+	it('is one signature for every finding a person traced to one cause, and a different one for each other cause (27 issues filed over five days for 15 causes)', () => {
 		const by_cause = Object.entries(TRIAGED).map(([cause, list]) => ({
 			cause,
 			sigs: [...new Set(list.map((f) => signature(f)))]
