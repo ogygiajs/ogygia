@@ -29,6 +29,10 @@ import {
 import { install_layout, VIEWPORT } from './layout.ts';
 
 /** `SIM_STACKS=1`: a page's uncaught error carries its stack (to triage a seed). */
+/** What a browser says when one of Kit's own boot imports failed: its entry files, or a route
+ *  node its start loads (test/kit-boot-import-offline.node.test.ts). */
+const KIT_BOOT_IMPORT_FAILED =
+	/Failed to fetch dynamically imported module: \S*\/_app\/immutable\/(?:entry|nodes)\//;
 const STACKS = process.env.SIM_STACKS === '1';
 
 /** Where a tab's requests go: the world's front door (the CDN, then the servers). */
@@ -350,9 +354,10 @@ export class Browsers {
 	/** Documents whose answer came, and whose content happy-dom has not written yet: it writes it in
 	 *  the document's first frame, into whichever window the frame holds by then. */
 	readonly #unwritten = new WeakSet<object>();
-	/** Documents (realms) a script or stylesheet of which failed to load, or a module ogygia says
-	 *  needs a reload (`chunk_reload_needed`): a browser never loads it again, so the page stays
-	 *  without it whatever the network does next. */
+	/** Documents (realms) a script or stylesheet of which failed to load, a module ogygia says
+	 *  needs a reload (`chunk_reload_needed`), or one of Kit's own boot imports (an entry, a route
+	 *  node: Kit shows its error page and never retries): a browser never loads it again, so the
+	 *  page stays without it whatever the network does next. */
 	readonly #unloaded = new Set<string>();
 
 	/** Whether a script or stylesheet of document `realm` failed to load. */
@@ -545,7 +550,10 @@ export class Browsers {
 		);
 		w.addEventListener('unhandledrejection', (e) => {
 			const stack = STACKS ? `\n${String((e.reason as Error | undefined)?.stack)}` : '';
-			if (shown()) tab.errors.push(`unhandled: ${String(e.reason)}${stack}`);
+			if (!shown()) return;
+			const line = `unhandled: ${String(e.reason)}`;
+			if (KIT_BOOT_IMPORT_FAILED.test(line)) this.#unloaded.add(tab.realm);
+			tab.errors.push(`${line}${stack}`);
 		});
 		// (happy-dom gives every document of a page the page's one console: each gets its own here,
 		// so what a left document's code still says is told apart from the shown one's)
@@ -570,7 +578,8 @@ export class Browsers {
 				const line = `${level}: ${args.map((a) => (a instanceof Error || (a as { stack?: string })?.stack ? `${String(a)}\n${(a as Error).stack}` : String(a))).join(' ')}`;
 				// (ogygia's own word that a chunk's dependency failed: the browser keeps it failed, and
 				// no retry loads it until the page reloads, as a script that failed to load: #262)
-				if (line.includes('/e/chunk_reload_needed')) this.#unloaded.add(tab.realm);
+				if (line.includes('/e/chunk_reload_needed') || KIT_BOOT_IMPORT_FAILED.test(line))
+					this.#unloaded.add(tab.realm);
 				tab.console.push(`${line}${STACKS ? `\n${new Error('said at').stack}` : ''}`);
 				page_console[level]?.call(page_console, ...args);
 			};

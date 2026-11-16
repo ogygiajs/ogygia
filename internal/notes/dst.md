@@ -240,7 +240,9 @@ MPA-checked at rest like any other (`outage-recovery`): an answer it gave up on 
 owed once the network is back (#891). Set aside: a document whose own load failed (the browser's
 error page, an empty document), one a script or stylesheet of which failed to load (a browser
 never loads one again; ogygia says `runtime_load_failed`), and one ogygia says needs a reload
-(`chunk_reload_needed`: a module's dependency failed, and the browser keeps it failed, #262).
+(`chunk_reload_needed`: a module's dependency failed, and the browser keeps it failed, #262), and
+one whose Kit boot import failed (an entry file or a route node: Kit shows its 500 page and never
+retries, Kit's way, not ogygia's; #2005, `test/kit-boot-import-offline.node.test.ts`).
 
 Rest waits for requests a server is still working on (a hole that renders in 3 s): its answer is
 not a loop task until it comes.
