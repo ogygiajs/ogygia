@@ -4,6 +4,7 @@ import { backoffAfter, cache, flights, net, scope, STALE } from '@ogygia/machine
 import { rollover } from '../policies.ts';
 import { OG_LOCATIONS } from '../wire-markup.ts';
 import { browser_offline } from './network.ts';
+import { document_address } from './document-address.ts';
 
 const locations = cache<string, string>({ name: 'entry locations', max: 10_000 });
 
@@ -95,14 +96,6 @@ function read_build_map(): Promise<unknown> | null {
 }
 
 const REGION_URL_ATTRS = ['entry', 'src', 'endpoint'] as const;
-
-function document_address(): string {
-	const loaded =
-		typeof performance !== 'undefined' && typeof performance.getEntriesByType === 'function'
-			? performance.getEntriesByType('navigation')[0]?.name
-			: undefined;
-	return loaded || location.href;
-}
 
 /**
  * PIN A REGION'S URLS TO THE PAGE THAT WROTE THEM. With Kit's default `paths.relative`, the server

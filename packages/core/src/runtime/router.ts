@@ -2,6 +2,7 @@ import { flights, random, STALE, type Scope, type Stale } from '@ogygia/machine'
 import { fragment_is_top, fragment_target } from './fragment.ts';
 import { import_again } from './import-again.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
+import { document_address } from './document-address.ts';
 import { create_navigation, type Navigation } from './navigation.ts';
 import { slots } from './slots.ts';
 import { publish_nav } from './nav-handle.ts';
@@ -504,6 +505,11 @@ export class SpaRouter {
 		if (!document.querySelector('meta[name="ogygia-router"]')) return;
 		if (kit_hydrates_page()) return;
 		this.#started = true;
+		if (
+			document_key(new URL(document_address())) !== document_key(new URL(location.href)) &&
+			this.history.find(history.state) !== null
+		)
+			return this.#on_pop();
 		this.history.start();
 		if (RULES) watch_router(this);
 		const body = document.body;
@@ -515,25 +521,27 @@ export class SpaRouter {
 		this.#install_prefetch();
 
 		// oxlint-disable-next-line ogygia/owned-effects -- the router's back/forward, installed once (`#started`): it lives as long as the document
-		window.addEventListener('popstate', () => {
-			const url = new URL(location.href);
-			const found = this.history.find(history.state);
-			if (found === 'foreign') {
-				this.supersede();
-				location.reload();
-				return;
-			}
-			const entry = found ?? this.history.adopt(url);
-			// @why the browser restores the next entry's scroll after `popstate`, onto the page still on screen (test: apps/palaestra/e2e/router-history.spec.ts › #270 Forward after Back lands where the page was left)
-			this.history.leave();
-			if (document_key(url) === this.doc_key) {
-				this.supersede();
-				this.history.commit(url, 'pop', entry);
-				return;
-			}
-			// oxlint-disable-next-line typescript/no-floating-promises -- an event starts the navigation and never waits; it settles on its own (a failed one hands off to the browser)
-			this.navigate(url, { push: false, pop: entry, type: 'popstate' });
-		});
+		window.addEventListener('popstate', () => this.#on_pop());
+	}
+
+	#on_pop(): void {
+		const url = new URL(location.href);
+		const found = this.history.find(history.state);
+		if (found === 'foreign') {
+			this.supersede();
+			location.reload();
+			return;
+		}
+		const entry = found ?? this.history.adopt(url);
+		// @why the browser restores the next entry's scroll after `popstate`, onto the page still on screen (test: apps/palaestra/e2e/router-history.spec.ts › #270 Forward after Back lands where the page was left)
+		this.history.leave();
+		if (document_key(url) === this.doc_key) {
+			this.supersede();
+			this.history.commit(url, 'pop', entry);
+			return;
+		}
+		// oxlint-disable-next-line typescript/no-floating-promises -- an event starts the navigation and never waits; it settles on its own (a failed one hands off to the browser)
+		this.navigate(url, { push: false, pop: entry, type: 'popstate' });
 	}
 
 	/** A click on `anchor`: the router's, or the browser's. A click it prevents always ends in a
