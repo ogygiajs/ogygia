@@ -692,3 +692,12 @@ describe('page_data_keys — the PENDING13 shape', () => {
 		).toEqual(new Set());
 	});
 });
+
+describe("page_data_keys — ogygia's own Region parts", () => {
+	it("Region's page seed ask reads no page.data, so a hole's or a lake's endpoint never looks its page up for it", async () => {
+		const { readFileSync } = await import('node:fs');
+		const file = new URL('../../core/src/region-parts/seed-ask.ts', import.meta.url);
+		const r = page_data_keys(readFileSync(file, 'utf8'), file.pathname, 'script');
+		expect(r === 'all' || r === null ? r : [...r]).toEqual([]);
+	});
+});
