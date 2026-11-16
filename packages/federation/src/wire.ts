@@ -738,8 +738,6 @@ export function lift_document(html: string, origin: string): Omit<FragmentDocume
 	};
 }
 
-/** A peer body whose page carries a context root: the root becomes a provider around the body, so
- *  the context the peer's page set reaches the peer's own regions, and no page root of the shell's. */
 function page_context_scoped(body: string): string {
 	for (let t = next_tag(body, 'script', 0); t !== null; t = next_tag(body, 'script', t.next)) {
 		if (t.attr(OGYGIA_PROVIDE_PAGE) === undefined) continue;

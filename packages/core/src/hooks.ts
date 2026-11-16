@@ -293,8 +293,6 @@ function bag_of(): RequestBag | undefined {
 	const request = live_event()?.request;
 	return request ? bags.get(request) : undefined;
 }
-/** The context a request's render set, page by page or fragment by fragment: kept by request, as a
- *  router page or a peer's fragment has no page bag. */
 const request_ctx = shared<WeakMap<Request, Map<string, unknown>>>({
 	name: 'ogygia.request-context',
 	version: 1,
