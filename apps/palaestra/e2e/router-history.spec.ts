@@ -168,4 +168,33 @@ test.describe('the router’s history behaves as a plain site’s', () => {
 		);
 		check('its newURL is the fragment', changes[0]?.[1] === page.url(), changes[0]?.[1]);
 	});
+
+	test('#2018 a Back taken before the router starts shows the page the address names', async ({
+		page
+	}) => {
+		// (the reloaded page's runtime is held: the Back comes while its scripts still load. A routed
+		// page skips the HTTP cache, so the runtime is asked for again on the reload)
+		let release = () => {};
+		let held: Promise<void> | null = null;
+		const runtime_asked: string[] = [];
+		await page.route(/\/og-runtime[^/]*\.js(?:\?|$)/, async (route) => {
+			if (held) {
+				runtime_asked.push(route.request().url());
+				await held;
+			}
+			await route.continue();
+		});
+		await open(page, '/router-history');
+		await page.locator('[data-to-b]').click();
+		await expect(page.locator('[data-history-b]')).toBeVisible();
+		held = new Promise<void>((r) => (release = r));
+		await page.reload({ waitUntil: 'commit' });
+		await page.locator('[data-history-b]').waitFor({ state: 'attached' });
+		await page.goBack({ waitUntil: 'commit' });
+		await expect.poll(() => new URL(page.url()).pathname).toBe('/router-history');
+		check('the reloaded page’s runtime was held', runtime_asked.length > 0);
+		release();
+		await expect(page.locator('[data-to-b]')).toBeVisible({ timeout: 15_000 });
+		await expect(page.locator('[data-history-b]')).toHaveCount(0);
+	});
 });
