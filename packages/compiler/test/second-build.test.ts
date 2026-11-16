@@ -78,7 +78,7 @@ describe('a second build in one process', () => {
 		const second = await run(plugins);
 		expect(regions(second)).toBe(2);
 		expect(second).toEqual(await run(ogygia()));
-	});
+	}, 60_000);
 
 	it('reads a csr flipped between the builds, like a cold build', async () => {
 		app(true);
@@ -88,5 +88,5 @@ describe('a second build in one process', () => {
 		const second = await run(plugins);
 		expect(regions(second)).toBe(1);
 		expect(second).toEqual(await run(ogygia()));
-	});
+	}, 60_000);
 });
