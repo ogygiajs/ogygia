@@ -514,13 +514,10 @@ function handle(
 	return h;
 }
 
-/** How a region of THIS build takes pushed props: guarded, as its first props were. */
 function guarded_push(pushed: PushableProps, entry: string) {
 	return (props: Record<string, unknown>) => pushed.push(prop_guard.wrap(props, entry));
 }
 
-/** A foreign island's own hydrate (fragment federation): its build hydrates it, with the context
- *  the page provides it, and, when it takes pushed props, hands its push back. */
 function foreign_hydrate_call(
 	region: HTMLElement,
 	entry: string,

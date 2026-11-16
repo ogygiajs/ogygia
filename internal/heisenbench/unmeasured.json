@@ -1,6 +1,30 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/entry-hydrate.ts > og_entry_hydrate > pushable:0~828022",
+			"reason": "browser only: a peer build's push into its own pushable props, one assignment per live tick; proven in packages/core/test/browser/hydrate-foreign.test.ts (#1971)"
+		},
+		{
+			"id": "packages/core/src/runtime/hydrate-core.ts > foreign_hydrate_call",
+			"reason": "browser only: hands a foreign island to its own build's hydrate, once per hydrate, constant work around it; proven in packages/core/test/browser/hydrate-foreign.test.ts and live-region-foreign.test.ts (#1971)"
+		},
+		{
+			"id": "packages/core/src/runtime/hydrate-core.ts > foreign_hydrate_call > handle:1~a1b2d0",
+			"reason": "browser only: the no-op unmount of a foreign entry that ships none, constant work; proven in packages/core/test/browser/hydrate-foreign.test.ts (#1971)"
+		},
+		{
+			"id": "packages/core/src/runtime/hydrate-core.ts > foreign_hydrate_call > take > pushable",
+			"reason": "browser only: keeps the push a peer build hands back, one assignment per hydrate; proven in packages/core/test/browser/hydrate-foreign.test.ts (#1971)"
+		},
+		{
+			"id": "packages/core/src/runtime/hydrate-core.ts > guarded_push",
+			"reason": "browser only: makes a live or kept island's push, once per hydrate, constant work; proven in packages/core/test/browser/hydrate-direct.test.ts and prop-guard.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/hydrate-core.ts > guarded_push > <anonymous>~d73e35",
+			"reason": "browser only: guards and pushes a live tick's props, the guard's wrap is the work (measured with hydrate_island); proven in packages/core/test/browser/prop-guard.test.ts"
+		},
+		{
 			"id": "packages/cli/src/cli.ts > installDeps > find:0~5e8663",
 			"reason": "the CLI's one-shot lockfile probe: a file check per known lockfile, run once per install"
 		},
