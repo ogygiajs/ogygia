@@ -63,6 +63,26 @@ describe('pin_region_urls', () => {
 		expect(cross.attrs.get('src')).toBe('../x.js');
 	});
 
+	it('an element that connects after a history step (back while the runtime loads) pins against the address its document was loaded at, not the one shown now (#1995)', () => {
+		const real = performance.getEntriesByType;
+		performance.getEntriesByType = ((type: string) =>
+			type === 'navigation'
+				? [{ name: 'https://site.test/lab', entryType: 'navigation' }]
+				: real.call(performance, type)) as typeof performance.getEntriesByType;
+		g.location = { href: 'https://site.test/lab/deep/x', origin: 'https://site.test' };
+		try {
+			const el = region({
+				entry: './_app/ogygia/og-region.13249e7b0a18.js',
+				src: './_app/immutable/og-region.13249e7b0a18.DeHlqHld.js'
+			});
+			pin_region_urls(el);
+			expect(el.attrs.get('entry')).toBe('/_app/ogygia/og-region.13249e7b0a18.js');
+			expect(el.attrs.get('src')).toBe('/_app/immutable/og-region.13249e7b0a18.DeHlqHld.js');
+		} finally {
+			performance.getEntriesByType = real;
+		}
+	});
+
 	it('a relative value against a base that is no URL stays as written, and the pin goes on', () => {
 		const el = region({ entry: './a.js', src: '../b.js' });
 		expect(() => pin_region_urls(el, 'not a url')).not.toThrow();
