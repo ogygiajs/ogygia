@@ -692,6 +692,18 @@ export function moved_card(
 	return html`<p${attr(marker, true)}>This ${what} moved. <a href="${location}">Continue</a></p>`;
 }
 
+function page_context_scoped(body: string): string {
+	for (let t = next_tag(body, 'script', 0); t !== null; t = next_tag(body, 'script', t.next)) {
+		if (t.attr(OGYGIA_PROVIDE_PAGE) === undefined) continue;
+		const payload = text_of(body, t, 'script');
+		if (payload === null) return body;
+		const end = body.indexOf('>', t.end + payload.length) + 1;
+		const rest = body.slice(0, t.start) + body.slice(end);
+		return `<ogygia-provide style="display:contents"><script ${OGYGIA_PROVIDE}>${payload}</script>${rest}</ogygia-provide>`;
+	}
+	return body;
+}
+
 /** Lift a full HTML document into the wire shape (title, css, head channel, body, runtime). */
 export function lift_document(html: string, origin: string): Omit<FragmentDocument, 'status'> {
 	const head_tag = next_tag(html, 'head', 0);
@@ -736,18 +748,6 @@ export function lift_document(html: string, origin: string): Omit<FragmentDocume
 		body: page_context_scoped(body),
 		...(runtime_src ? { runtime: new URL(runtime_src, `${origin}/`).href } : {})
 	};
-}
-
-function page_context_scoped(body: string): string {
-	for (let t = next_tag(body, 'script', 0); t !== null; t = next_tag(body, 'script', t.next)) {
-		if (t.attr(OGYGIA_PROVIDE_PAGE) === undefined) continue;
-		const payload = text_of(body, t, 'script');
-		if (payload === null) return body;
-		const end = body.indexOf('>', t.end + payload.length) + 1;
-		const rest = body.slice(0, t.start) + body.slice(end);
-		return `<ogygia-provide style="display:contents"><script ${OGYGIA_PROVIDE}>${payload}</script>${rest}</ogygia-provide>`;
-	}
-	return body;
 }
 
 // ── JSON responses ───────────────────────────────────────────────────────────────────────────
