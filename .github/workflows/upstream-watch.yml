@@ -115,8 +115,13 @@ jobs:
         run: |
           set -o pipefail
           status=0
-          pnpm -C packages/core exec vitest run test/canary --passWithNoTests 2>&1 | tee /tmp/canaries.log || status=1
-          pnpm -C packages/compiler exec vitest run test/canary --passWithNoTests 2>&1 | tee -a /tmp/canaries.log || status=1
+          : > /tmp/canaries.log
+          # The parked kit3 branch predates the compiler split and has no packages/compiler: a
+          # package that is not on the branch under test has no canaries to run, not a red one.
+          for pkg in core compiler; do
+            [ -d "packages/${pkg}/test/canary" ] || continue
+            pnpm -C "packages/${pkg}" exec vitest run test/canary --passWithNoTests 2>&1 | tee -a /tmp/canaries.log || status=1
+          done
           exit "${status}"
 
       - name: Record the canaries' verdict
