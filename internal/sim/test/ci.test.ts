@@ -343,6 +343,53 @@ describe("a finding's cause", () => {
 	});
 });
 
+describe('two documents of a page compared', () => {
+	const compared = (url: string, minus: string, plus: string) => ({
+		oracle: 'mpa-equivalence',
+		detail: [
+			url,
+			'at line 47:',
+			'            "Clock island:"',
+			minus,
+			'          <div class="island" data-counter="">',
+			'  ---',
+			'            "Clock island:"',
+			plus,
+			'          <div class="island" data-counter="">'
+		].join('\n')
+	});
+	const fresh =
+		'-       <ogygia-region data-og-fp="93111da9a0372d84" entry="/_app/ogygia/og-region.b806dc28e3bc.js" margin="0px" src="/_app/immutable/og-region.b806dc28e3bc.XFApmc9q.js" wake="visible">';
+	const woken =
+		'+       <ogygia-region data-hydrated="" data-og-fp="93111da9a0372d84" entry="/_app/ogygia/og-region.b806dc28e3bc.js" margin="0px" src="/_app/immutable/og-region.b806dc28e3bc.XFApmc9q.js" wake="visible">';
+
+	it('are one cause for the same difference on two paths under one page, whatever the build (#2003)', () => {
+		const base = signature(compared('https://app.test/about', fresh, woken));
+		expect(signature(compared('https://app.test/about/b', fresh, woken))).toBe(base);
+		expect(
+			signature(
+				compared(
+					'https://app.test/about',
+					fresh.replaceAll('b806dc28e3bc.XFApmc9q', '1a2b3c4d5e6f.Cq9_x-1z'),
+					woken.replaceAll('b806dc28e3bc.XFApmc9q', '1a2b3c4d5e6f.Cq9_x-1z')
+				)
+			)
+		).toBe(base);
+	});
+
+	it('are two causes for two differences on sibling scenario pages under one segment', () => {
+		expect(signature(compared('https://app.test/remote-seed-gate/held', fresh, woken))).not.toBe(
+			signature(
+				compared(
+					'https://app.test/remote-seed-gate/kit',
+					'-         <span data-guard-cancelled="1" hidden="">',
+					'+         <p>'
+				)
+			)
+		);
+	});
+});
+
 describe('an open issue', () => {
 	const detail = 'after tab 0: back: unhandled: Error: No cached query found.';
 	const sig = signature({ oracle: 'page-errors', detail });
