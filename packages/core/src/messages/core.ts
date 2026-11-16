@@ -104,8 +104,9 @@ export const ERRORS = {
 		`,
 		details: (): string => prose`
 			On a csr=true page, an island inside a lake or a hole answer waits for SvelteKit to start
-			before it hydrates. One of the files Kit's own boot script imports failed to download (the
-			network dropped it, or the file is missing after a deploy), and the browser keeps that
+			before it hydrates. One of the files Kit's own boot script imports, or one of the route's files
+			Kit's start loads next (its layout and page nodes), failed to download (the network dropped
+			it, or the file is missing after a deploy), and the browser keeps that
 			failure for the life of the page: Kit will not start. The waiting islands stop waiting and
 			fail, and keep their server HTML. Reloading the page loads Kit again. Said once per file.
 		`

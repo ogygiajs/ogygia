@@ -96,6 +96,14 @@ function read_build_map(): Promise<unknown> | null {
 
 const REGION_URL_ATTRS = ['entry', 'src', 'endpoint'] as const;
 
+function document_address(): string {
+	const loaded =
+		typeof performance !== 'undefined' && typeof performance.getEntriesByType === 'function'
+			? performance.getEntriesByType('navigation')[0]?.name
+			: undefined;
+	return loaded || location.href;
+}
+
 /**
  * PIN A REGION'S URLS TO THE PAGE THAT WROTE THEM. With Kit's default `paths.relative`, the server
  * writes `entry` / `src` / `endpoint` relative to the page it rendered (`../../_app/immutable/…`,
@@ -113,7 +121,7 @@ export function pin_region_urls(el: Element, base?: string): void {
 		if (!value || !(value.startsWith('./') || value.startsWith('../'))) continue;
 		let url: URL;
 		try {
-			url = new URL(absolute(value, base));
+			url = new URL(absolute(value, base ?? document_address()));
 			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: the attribute stays as written
 		} catch {
 			continue;

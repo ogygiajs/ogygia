@@ -11,4 +11,4 @@
 	});
 </script>
 
-<span data-guard-cancelled={cancelled} hidden></span>
+<span data-blocked-guard hidden><span data-guard-cancelled={cancelled}></span></span>
