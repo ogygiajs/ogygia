@@ -172,6 +172,23 @@ test('a wait for a Kit whose boot import failed ends: it fails with kit_boot_fai
 	}
 });
 
+test('a wait for a Kit whose start failed on a page node (its entries loaded) ends with kit_boot_failed (#2002)', async () => {
+	const errors: string[] = [];
+	const real_error = console.error;
+	console.error = (...args: unknown[]) => errors.push(args.map(String).join(' '));
+	try {
+		// Kit's boot script: its app entry loads, and the page's root node (its `nodes[0]`) cannot.
+		const app = new URL('./fixtures/kit-boot-app.ts', import.meta.url).href;
+		document.body.innerHTML = `<script>__sveltekit_lab = {};\nimport(${JSON.stringify(app)}).then((app) => { app.start({ node_ids: [0], data: [null] }); });</script>`;
+		const wait = kit_page_thread();
+		expect(wait, 'Kit has not started → a real wait').not.toBeNull();
+		await expect(wait).rejects.toMatchObject({ code: 'kit_boot_failed' });
+		expect(errors.filter((e) => e.includes('kit_boot_failed'))).toHaveLength(1);
+	} finally {
+		console.error = real_error;
+	}
+});
+
 test('a boot-shaped script naming a file on another origin is never imported: markup is not code (#847 review)', async () => {
 	// A script that came in as markup (a swapped region, a hole) and never ran looks just like Kit's.
 	// Its import names a file on an origin that is neither the page's nor the runtime's.
