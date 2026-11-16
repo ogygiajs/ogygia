@@ -805,6 +805,14 @@
 			"reason": "browser only: one comparison with the boot's STALE, inside the navigation chunk; proven in apps/palaestra/e2e/router-ownership.spec.ts and router-race.spec.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > #on_pop",
+			"reason": "browser only: once per Back or Forward, a history lookup and one comparison before it starts a navigation (measured there); proven in apps/palaestra/e2e/router-history.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/document-address.ts > document_address",
+			"reason": "browser only: reads the document's navigation entry once, constant work; its tests read performance and location, which a replay cannot hold"
+		},
+		{
 			"id": "packages/core/src/runtime/router.ts > SpaRouter > get nav_target",
 			"reason": "browser only: reads the navigation machine's state, constant work; proven in apps/palaestra/e2e/router-document-fetch.spec.ts and router-ownership.spec.ts"
 		},
