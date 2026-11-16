@@ -36,6 +36,16 @@ const HOLE = spec('hole', {
 	page_version: 'no'
 });
 
+const ISLAND = spec('island', {
+	wake: 'load',
+	keep: 'none',
+	children: 'none',
+	component: 'tiny',
+	props: 'snippet',
+	ttl: '0',
+	known: 'no'
+});
+
 for (const env of ['dev', 'prod'] as const) {
 	test(`a hole given a snippet prop is created in the browser with the snippet frozen (${env})`, async () => {
 		vi.stubEnv('DEV', env === 'dev');
@@ -61,6 +71,17 @@ for (const env of ['dev', 'prod'] as const) {
 			);
 			expect(out.problems).toEqual([]);
 			expect(parts_of(out.text).body_after).toContain('<u>s</u>');
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
+	test(`a top-level island given a snippet prop is created in the browser with the snippet frozen (${env})`, async () => {
+		vi.stubEnv('DEV', env === 'dev');
+		try {
+			const out = parts_of(await client_out(spec_case(ISLAND), { at: 'page', csr: 'off', env }));
+			expect(out.thrown).toBe('null');
+			expect(out.body).toContain('<u>s</u>');
 		} finally {
 			vi.unstubAllEnvs();
 		}
