@@ -96,9 +96,6 @@ function read_build_map(): Promise<unknown> | null {
 
 const REGION_URL_ATTRS = ['entry', 'src', 'endpoint'] as const;
 
-/** The address this document was loaded at, which its server markup was written for: its
- *  navigation's URL. `location` moves with every history step, a back taken before the runtime ran
- *  included. */
 function document_address(): string {
 	const loaded =
 		typeof performance !== 'undefined' && typeof performance.getEntriesByType === 'function'
