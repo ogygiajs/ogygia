@@ -30,14 +30,10 @@ declare module 'vitest/browser' {
 }
 
 const ASYNC = inject('svelte_async') ? 'on' : 'off';
-const FULL = inject('region_grid') === 'full';
 const SHARD = inject('region_grid_shard').split('/').map(Number);
 
 const HYDRATE_AT = [...new Set(HYDRATE_PLACES.map((p) => p.client.at))];
-const FAST_AT: readonly string[] = ['page', 'island'];
-const CELLS = Object.keys(KINDS).flatMap((kind) =>
-	HYDRATE_AT.filter((at) => FULL || FAST_AT.includes(at)).map((at) => ({ kind, at }))
-);
+const CELLS = Object.keys(KINDS).flatMap((kind) => HYDRATE_AT.map((at) => ({ kind, at })));
 const MINE = CELLS.filter((_c, i) => i % SHARD[1] === SHARD[0] - 1);
 
 beforeAll(() => define_region_element());
@@ -48,17 +44,14 @@ afterEach(() => {
 describe(`async=${ASYNC}`, () => {
 	for (const { kind, at } of MINE)
 		test(`kind=${kind} at=${at}`, async () => {
-			const envs: readonly string[] = FULL ? ENV : ['prod'];
 			const k = KINDS[kind];
 			const axes = Object.fromEntries(
 				Object.entries(k.axes).filter(([a]) => !k.server_only?.includes(a))
 			);
-			const report = new GridReport({ csr: CSR, page: PAGE, env: envs, ...axes });
+			const report = new GridReport({ csr: CSR, page: PAGE, env: ENV, ...axes });
 			const broken: string[] = [];
 			const cases = cases_of(kind, 'client');
-			for (const place of HYDRATE_PLACES.filter(
-				(p) => p.client.at === at && envs.includes(p.client.env)
-			)) {
+			for (const place of HYDRATE_PLACES.filter((p) => p.client.at === at)) {
 				const ssr = await commands.region_grid_ssr(kind, place.server);
 				vi.stubEnv('DEV', place.client.env === 'dev');
 				const where = { csr: place.client.csr, page: place.server.page, env: place.client.env };
@@ -79,11 +72,10 @@ describe(`async=${ASYNC}`, () => {
 				}
 			}
 			expect(broken.slice(0, 20)).toEqual([]);
-			const set = FULL ? 'full' : 'fast';
 			await expect(
-				report.render(`Region hydration grid · async=${ASYNC} · kind=${kind} · at=${at} (${set})`)
+				report.render(`Region hydration grid · async=${ASYNC} · kind=${kind} · at=${at} (full)`)
 			).toMatchFileSnapshot(
-				`./__snapshots__/region-grid/hydrate/${set}/async=${ASYNC}/kind=${kind}/at=${at}.txt`
+				`./__snapshots__/region-grid/hydrate/full/async=${ASYNC}/kind=${kind}/at=${at}.txt`
 			);
 		}, 1_800_000);
 });

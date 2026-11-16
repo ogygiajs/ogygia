@@ -307,7 +307,7 @@ function region_tiles(
 		{
 			n: count(r.snapshots.files),
 			what: 'snapshot files',
-			why: `One file per kind and place in the page. ${count(r.snapshots.fullFiles)} hold the full grid, the other ${count(r.snapshots.files - r.snapshots.fullFiles)} the fast part every check runs. A change to any byte of any case shows in review, by name.`,
+			why: `One file per kind and place in the page, the whole grid. A change to any byte of any case shows in review, by name.`,
 			...at('packages/core/test/__snapshots__/region-grid')
 		},
 		{

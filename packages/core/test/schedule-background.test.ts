@@ -15,6 +15,7 @@ const original = g.scheduler;
 afterEach(() => {
 	g.scheduler = original;
 	vi.useRealTimers();
+	vi.restoreAllMocks();
 });
 
 describe('background_start', () => {
@@ -87,20 +88,16 @@ describe('background_start', () => {
 		}
 	});
 
-	it('a drain past its budget hands the thread back in another background task', () => {
+	it('a drain past its budget hands the thread back in another background task, however busy the machine (a 20 ms busy-wait read a loaded runner’s descheduling as a start past the budget)', () => {
 		const postTask = vi.fn();
 		g.scheduler = { postTask };
 		const ran: number[] = [];
-		const busy = (ms: number) => {
-			const until = performance.now() + ms;
-			while (performance.now() < until) {
-				/* a start that takes a while */
-			}
-		};
+		let now = 1000;
+		vi.spyOn(performance, 'now').mockImplementation(() => now);
 		for (let i = 0; i < 4; i++)
 			background_start(() => {
 				ran.push(i);
-				busy(20);
+				now += 20;
 			});
 		postTask.mock.calls[0][0]();
 		expect(ran).toEqual([0, 1]);
