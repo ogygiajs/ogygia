@@ -2,7 +2,7 @@
 // default `paths.relative`). Read again after a client navigation, they resolved against the NEW
 // address: an island imported `/a/b/_app/…` (a redirect to an HTML page), and a hole's key changed
 // with the page's depth. Pinned once, at the address that wrote them, they read the same everywhere.
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pin_region_urls } from '../src/runtime/entry-locations.ts';
 
 const g = globalThis as Record<string, unknown>;
@@ -64,11 +64,11 @@ describe('pin_region_urls', () => {
 	});
 
 	it('an element that connects after a history step (back while the runtime loads) pins against the address its document was loaded at, not the one shown now (#1995)', () => {
-		const real = performance.getEntriesByType;
-		performance.getEntriesByType = ((type: string) =>
-			type === 'navigation'
-				? [{ name: 'https://site.test/lab', entryType: 'navigation' }]
-				: real.call(performance, type)) as typeof performance.getEntriesByType;
+		const loaded = [{ name: 'https://site.test/lab', entryType: 'navigation' }];
+		const spy = vi
+			.spyOn(performance, 'getEntriesByType')
+			.mockImplementation(((type: string) =>
+				type === 'navigation' ? loaded : []) as typeof performance.getEntriesByType);
 		g.location = { href: 'https://site.test/lab/deep/x', origin: 'https://site.test' };
 		try {
 			const el = region({
@@ -79,7 +79,7 @@ describe('pin_region_urls', () => {
 			expect(el.attrs.get('entry')).toBe('/_app/ogygia/og-region.13249e7b0a18.js');
 			expect(el.attrs.get('src')).toBe('/_app/immutable/og-region.13249e7b0a18.DeHlqHld.js');
 		} finally {
-			performance.getEntriesByType = real;
+			spy.mockRestore();
 		}
 	});
 
