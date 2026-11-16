@@ -2,8 +2,6 @@ import { createRawSnippet, type Snippet } from 'svelte';
 
 type Setup = (el: Element, hydrated: boolean) => void | (() => void);
 
-/** One browser render of an adopted region element: whether the browser wrote the element (its
- *  `render` ran) or hydration found the server's. */
 class AdoptedElement {
 	readonly #attrs: () => string;
 	readonly #setup: Setup | undefined;
