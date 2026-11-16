@@ -9,10 +9,13 @@
  * before the loop moves on. Work the simulator does not own outright (happy-dom's `setImmediate`
  * hops, a stream's internal turns, any file or crypto job) is waited out by `settle()`: real turns
  * of the host loop until the host has no real work pending at all (`process.getActiveResourcesInfo`:
- * no immediate, no file or crypto request). What remains then is waiting on the loop. A run checks
+ * no immediate, no file or crypto request, no file work `host-io.ts` counts). What remains then is waiting on the loop. A run checks
  * this by running twice and comparing the trace (cli.ts, the replay check).
  */
 import type { Rng } from './rng.ts';
+import { HOST_FILE_WORK } from './host-io.ts';
+
+HOST_FILE_WORK.count();
 
 export interface Task {
 	readonly at: number;
@@ -180,6 +183,7 @@ export class Loop {
 				else if (!AT_REST.has(kind)) waiting.push(kind);
 			}
 			this.real_timers = timers;
+			if (HOST_FILE_WORK.in_flight > 0) waiting.push('host file read');
 			if (waiting.length === 0) return;
 			if (real_now() >= until) {
 				this.stalls++;

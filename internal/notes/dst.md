@@ -151,7 +151,12 @@ request; the host's own real timers are counted, not waited on). A settle waits 
 time (`settle_ms`), never a count of turns: 10,000 quick turns were about 145 ms, less than a file
 read on a loaded CI runner, and the run went on without it (#1612). One that gives up is a finding
 (`settle-stalled`, with when and what it waited on): from there the run is not its seed's. An async
-crypto job (`crypto.pbkdf2`) is not in `getActiveResourcesInfo()`, so a settle cannot see it. Everything else a page waits on is a loop task, so the
+crypto job (`crypto.pbkdf2`) is not in `getActiveResourcesInfo()`, so a settle cannot see it. Nor is
+a whole-file read on Linux (Node 26's `readFile`, promise or callback, lists nothing while it reads):
+the simulator counts the host's file work itself (`src/host-io.ts`: every `node:fs/promises` call and
+the whole-file callback forms), and a settle waits for it too (`host file read`). Without it, on CI
+only, palaestra's /mixed load read package.json past the settle and the loop ran on to the page's
+300 s navigation deadline (#1986). Everything else a page waits on is a loop task, so the
 world is AT REST when nothing is on the network and nothing is due within 2 s (`World.quiesce`).
 A live answer (a body still coming 30 s after its head, each piece within 2 s of the last) is not
 work in flight: rest waited budget after budget on one, once to the run's horizon (palaestra seed

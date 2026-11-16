@@ -37,7 +37,7 @@ describe('a settle', () => {
 			await loop.settle();
 			expect(performance.now() - t0).toBeGreaterThanOrEqual(100);
 			expect(loop.stalls).toBe(1);
-			expect(loop.stalled).toEqual([{ at: 0, waiting: ['FSReqPromise'] }]);
+			expect(loop.stalled).toEqual([{ at: 0, waiting: ['FSReqPromise', 'host file read'] }]);
 		} finally {
 			const writer = await open(fifo, 'w');
 			await (await reading).close();
