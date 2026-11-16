@@ -154,7 +154,6 @@ function event_of(
 function bag_of(request: Request): Bag {
 	const bag: Bag = {
 		request,
-		ctx: new Map(),
 		page: null,
 		seed_keys: null,
 		seed_asks: request_stats_detailed() ? new Map() : null,
@@ -243,9 +242,10 @@ function content_request(blocks: number, o: PageOptions = {}): Request_ {
 			);
 	});
 	if (o.context) {
-		bag.ctx.set('theme', { tone: 'light', density: 'comfortable' });
-		bag.ctx.set('locale', { code: 'en', dir: 'ltr', currency: 'USD' });
-		bag.ctx.set('nav', { active: '/', crumbs: ['Home'] });
+		const ctx = ctx_of(bag.request);
+		ctx.set('theme', { tone: 'light', density: 'comfortable' });
+		ctx.set('locale', { code: 'en', dir: 'ltr', currency: 'USD' });
+		ctx.set('nav', { active: '/', crumbs: ['Home'] });
 	}
 	const handle = new hooks.OgygiaHandle({});
 	return { handle, html: content_document(blocks), state, event, bag };
@@ -521,7 +521,7 @@ bench(
 
 bench(
 	'page_ctx_script: the drop-in setContext values, one script',
-	({ bag }) => hooks.page_ctx_script(bag).length,
+	({ bag }) => hooks.page_ctx_script(bag.request).length,
 	{
 		setup: () => ctx_bag(12),
 		scale: (_ctx, k) => ctx_bag(12 * k)
@@ -531,8 +531,15 @@ bench(
 function ctx_bag(keys: number): { bag: Bag } {
 	const bag = bag_of(new Request('https://example.test/'));
 	for (let i = 0; i < keys; i++)
-		bag.ctx.set(`key-${i}`, { id: i, label: `Value ${i}`, items: [i, i + 1, i + 2] });
+		ctx_of(bag.request).set(`key-${i}`, { id: i, label: `Value ${i}`, items: [i, i + 1, i + 2] });
 	return { bag };
+}
+
+/** The context a request's render set, as the handle's recorder keeps it. */
+function ctx_of(request: Request): Map<string, unknown> {
+	let ctx = hooks.request_ctx.get(request);
+	if (ctx === undefined) hooks.request_ctx.set(request, (ctx = new Map()));
+	return ctx;
 }
 
 bench(
