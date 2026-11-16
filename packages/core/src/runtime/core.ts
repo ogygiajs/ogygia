@@ -1535,8 +1535,8 @@ class OgygiaRegion extends HTMLElement {
 		this.#live_painted = null;
 		const s = this.#live.now;
 		// Keep-alive: same interactive module, already mounted → reactive prop push, no DOM churn.
-		if (s.kind === 'live' && s.module === desc.module) {
-			s.app.set_props?.(desc.props);
+		if (s.kind === 'live' && s.module === desc.module && s.app.set_props) {
+			s.app.set_props(desc.props);
 			this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
 			return;
 		}

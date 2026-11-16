@@ -167,7 +167,11 @@ function peer_label() {
 	return {
 		default: Label as unknown as Component<Record<string, unknown>>,
 		__og_hydrate: vi.fn(
-			(target: Element, props: Record<string, unknown>, options?: Record<string, unknown>) =>
+			(
+				target: Element,
+				props: Record<string, unknown>,
+				options?: Parameters<typeof og_entry_hydrate>[3]
+			) =>
 				og_entry_hydrate(
 					Label as unknown as Component<Record<string, unknown>>,
 					target,
@@ -175,7 +179,7 @@ function peer_label() {
 					options
 				)
 		),
-		__og_unmount: vi.fn(og_entry_unmount)
+		__og_unmount: vi.fn((app: unknown) => void og_entry_unmount(app as Record<string, unknown>))
 	};
 }
 

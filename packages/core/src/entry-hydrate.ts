@@ -15,17 +15,24 @@
  * placed island's dynamic-component pair). `options.recover === false`: the consumer's self-heal
  * asks THIS svelte to throw on a mismatch instead of re-rendering; `options.context` is the
  * cross-island context the consuming page provides the region (its keys are strings or
- * `Symbol.for` names, the same in both builds). The envelope is re-checked per call because a
- * restore from the server markup drops it.
+ * `Symbol.for` names, the same in both builds). `options.pushable`: the region takes later props in
+ * place (a live region's tick, a kept island's next page), so the props are THIS build's pushable
+ * props, and the push is handed back through it (a consumer that gets none hydrates again instead).
+ * The envelope is re-checked per call because a restore from the server markup drops it.
  */
 import { hydrate, unmount, type Component } from 'svelte';
 import { nested_context } from './nested.ts';
+import { PushableProps } from './runtime/pushable-props.svelte.ts';
 
 export function og_entry_hydrate(
 	component: Component<Record<string, unknown>>,
 	target: Element,
 	props: Record<string, unknown>,
-	options?: { recover?: boolean; context?: Map<string | symbol, unknown> }
+	options?: {
+		recover?: boolean;
+		context?: Map<string | symbol, unknown>;
+		pushable?: (push: (next: Record<string, unknown>) => void) => void;
+	}
 ): unknown {
 	const first = target.firstChild;
 	if (!(first && first.nodeType === 8 && (first as Comment).data === '[')) {
@@ -33,12 +40,15 @@ export function og_entry_hydrate(
 		target.appendChild(document.createComment(']'));
 	}
 	const recovery = options && options.recover === false ? { recover: false } : {};
-	return hydrate(component, {
+	const pushed = options?.pushable ? new PushableProps(props) : null;
+	const app = hydrate(component, {
 		target,
-		props,
+		props: pushed ? pushed.props : props,
 		context: nested_context(options?.context, target),
 		...recovery
 	});
+	if (pushed) options!.pushable!((next) => pushed.push(next));
+	return app;
 }
 
 export function og_entry_unmount(app: Record<string, unknown>): unknown {

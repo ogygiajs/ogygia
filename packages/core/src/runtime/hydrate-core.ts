@@ -57,7 +57,11 @@ export type IslandModule = {
 	__og_hydrate?: (
 		target: Element,
 		props: Record<string, unknown>,
-		options?: { recover?: boolean; context?: Map<string | symbol, unknown> }
+		options?: {
+			recover?: boolean;
+			context?: Map<string | symbol, unknown>;
+			pushable?: (push: (next: Record<string, unknown>) => void) => void;
+		}
 	) => unknown;
 	__og_unmount?: (app: unknown) => void;
 };
@@ -495,8 +499,7 @@ const unmount_app = (app: unknown) => void unmount(app as Record<string, unknown
 function handle(
 	app: unknown,
 	dispose_with: (app: unknown) => void,
-	entry: string,
-	pushed: PushableProps | null
+	push: ((props: Record<string, unknown>) => void) | null
 ): IslandHandle {
 	const h: IslandHandle = {
 		dispose() {
@@ -507,8 +510,38 @@ function handle(
 			}
 		}
 	};
-	if (pushed) h.set_props = (props) => pushed.push(prop_guard.wrap(props, entry));
+	if (push) h.set_props = push;
 	return h;
+}
+
+/** How a region of THIS build takes pushed props: guarded, as its first props were. */
+function guarded_push(pushed: PushableProps, entry: string) {
+	return (props: Record<string, unknown>) => pushed.push(prop_guard.wrap(props, entry));
+}
+
+/** A foreign island's own hydrate (fragment federation): its build hydrates it, with the context
+ *  the page provides it, and, when it takes pushed props, hands its push back. */
+function foreign_hydrate_call(
+	region: HTMLElement,
+	entry: string,
+	mod: IslandModule,
+	props: Record<string, unknown>,
+	pushable: boolean,
+	options: { recover?: boolean; context?: Map<string | symbol, unknown> } | undefined
+): IslandHandle {
+	let push: ((props: Record<string, unknown>) => void) | null = null;
+	const take = pushable ? { pushable: (p: typeof push) => void (push = p) } : undefined;
+	set_foreign_hydrate({ origin: new URL(entry).origin, entry });
+	try {
+		const app = mod.__og_hydrate!(
+			region,
+			props,
+			take || options ? { ...options, ...take } : undefined
+		);
+		return handle(app, mod.__og_unmount ?? (() => {}), push);
+	} finally {
+		set_foreign_hydrate(null);
+	}
 }
 
 /**
@@ -575,11 +608,9 @@ export function hydrate_island(
 			try {
 				const provided_ctx = capture_region_ids(region, () => slots.context?.(region));
 				if (foreign_delegate) {
-					set_foreign_hydrate({ origin: new URL(entry).origin, entry });
 					const strict = recover ? undefined : { recover: false };
 					const options = provided_ctx ? { ...strict, context: provided_ctx } : strict;
-					const app = mod.__og_hydrate!(region, wrapped, options);
-					return handle(app, mod.__og_unmount ?? (() => {}), entry, null);
+					return foreign_hydrate_call(region, entry, mod, wrapped, keep, options);
 				}
 				const recovery = recover ? {} : { recover: false as const };
 				const pushed = keep ? new slots.Pushable!(wrapped) : null;
@@ -589,7 +620,7 @@ export function hydrate_island(
 					context: nested_context(provided_ctx, region),
 					...recovery
 				});
-				return handle(app, unmount_app, entry, pushed);
+				return handle(app, unmount_app, pushed && guarded_push(pushed, entry));
 			} finally {
 				set_current_region(null);
 				set_foreign_hydrate(null);
@@ -699,18 +730,24 @@ export function hydrate_live(
 	}
 	const provided_ctx = capture_region_ids(region, () => slots.context?.(region));
 	const after_hydrate = boot_link().region_hydrate(region);
-	const pushed = new slots.Pushable(prop_guard.wrap(props, entry));
 	set_current_region(region);
-	let app: unknown;
+	let out: IslandHandle;
 	try {
-		app = hydrate(mod.default, {
-			target: region,
-			props: pushed.props,
-			context: nested_context(provided_ctx, region)
-		});
+		if (is_foreign_entry(entry) && typeof mod.__og_hydrate === 'function') {
+			const options = provided_ctx ? { context: provided_ctx } : undefined;
+			out = foreign_hydrate_call(region, entry, mod, props, true, options);
+		} else {
+			const pushed = new slots.Pushable(prop_guard.wrap(props, entry));
+			const app = hydrate(mod.default, {
+				target: region,
+				props: pushed.props,
+				context: nested_context(provided_ctx, region)
+			});
+			out = handle(app, unmount_app, guarded_push(pushed, entry));
+		}
 	} finally {
 		set_current_region(null);
 	}
 	after_hydrate?.();
-	return handle(app, unmount_app, entry, pushed);
+	return out;
 }
