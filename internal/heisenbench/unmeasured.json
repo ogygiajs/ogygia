@@ -4693,6 +4693,34 @@
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
 		{
+			"id": "packages/core/src/hooks.ts > shared:0~b9947e > make",
+			"reason": "a slot's maker: builds the request bags' empty WeakMap, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > shared:0~7e8304 > make",
+			"reason": "a slot's maker: builds the request contexts' empty WeakMap, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > shared:0~4b3d66 > make",
+			"reason": "a slot's maker: builds the document asks' empty WeakMap, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > shared:0~14f3e4 > make",
+			"reason": "a slot's maker: builds the ref names' empty WeakMap, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > set_ctx_script_reader:0~6ca003",
+			"reason": "a one-line reader: the request's page context marker through page_ctx_script, which is measured; its input is the live request, which a replay cannot hold"
+		},
+		{
+			"id": "packages/core/src/context-registry.ts > set_ctx_script_reader",
+			"reason": "installs the server's reader into a port, once per process at module load, constant work"
+		},
+		{
+			"id": "packages/core/src/context-registry.ts > page_context_script",
+			"reason": "one port read and a call to the installed reader (measured through page_ctx_script), once per router document; the port is process state a replay cannot hold"
+		},
+		{
 			"id": "packages/core/src/plugin/hooks.ts > shared:0~9213e0 > make",
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
