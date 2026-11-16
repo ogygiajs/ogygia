@@ -11,12 +11,16 @@ import {
 	FoundBranches,
 	filing_error_line,
 	free_branch,
+	issue_for,
 	quality_line,
 	redact,
+	seen,
 	signature,
 	unreached_in_every,
 	waiting_runs
 } from '../src/ci.ts';
+import { hung_head } from '../src/cli.ts';
+import { describe as describe_action, type Action } from '../src/workload.ts';
 
 const OUT = JSON.stringify({ findings: [], steps_per_second: 10, replay_leaks: [] });
 
@@ -149,6 +153,356 @@ describe("a finding's signature", () => {
 				)
 			})
 		).not.toBe(base);
+	});
+});
+
+/** A page's two documents compared, as the oracles that compare them say it: the page, the line, and
+ *  the differing line of each document (one may have none). */
+const compared = (url: string, line: number, minus?: string, plus?: string): string =>
+	[
+		url,
+		`at line ${line}:`,
+		'            "Clock island:"',
+		...(minus ? [minus] : []),
+		'          <div class="island" data-counter="">',
+		'  ---',
+		'            "Clock island:"',
+		...(plus ? [plus] : []),
+		'          <div class="island" data-counter="">'
+	].join('\n');
+const FRESH =
+	'-       <ogygia-region data-og-fp="93111da9a0372d84" entry="/_app/ogygia/og-region.b806dc28e3bc.js" margin="0px" src="/_app/immutable/og-region.b806dc28e3bc.XFApmc9q.js" wake="visible">';
+const WOKEN =
+	'+       <ogygia-region data-hydrated="" data-og-fp="93111da9a0372d84" entry="/_app/ogygia/og-region.b806dc28e3bc.js" margin="0px" src="/_app/immutable/og-region.b806dc28e3bc.XFApmc9q.js" wake="visible">';
+
+/** Findings the scheduled runs filed over five days (2026-11-12 to 16), by the cause a person
+ *  found when they read them: each group is one cause, filed as one issue per member. */
+const TRIAGED: Record<string, ReadonlyArray<{ issue: number; oracle: string; detail: string }>> = {
+	'the simulator settled before a host file read (#2010)': [
+		{
+			issue: 1918,
+			oracle: 'page-errors',
+			detail:
+				'after tab 0: go to /mixed, press button #301 300 ms in: navigation: The operation was aborted.\n'
+		},
+		{
+			issue: 1986,
+			oracle: 'page-errors',
+			detail: 'after tab 0: go to /mixed: navigation: The operation was aborted.\n'
+		},
+		{
+			issue: 1987,
+			oracle: 'page-errors',
+			detail: 'after new tab at /mixed, behind: navigation: The operation was aborted.\n'
+		},
+		{
+			issue: 1988,
+			oracle: 'page-errors',
+			detail: 'after tab 0: reload: navigation: The operation was aborted.\n'
+		},
+		{
+			issue: 1989,
+			oracle: 'page-errors',
+			detail: 'after tab 0: back: navigation: The operation was aborted.\n'
+		},
+		{
+			issue: 2001,
+			oracle: 'page-errors',
+			detail: 'after tab 0: forward: navigation: The operation was aborted.\n'
+		}
+	],
+	'a declarative shadow root hydrated as a mismatch (#1929)': [
+		[1980, 'after new tab at /dsd: https://app.test/dsd'],
+		[1981, 'after tab 0: go to /dsd/b: https://app.test/dsd/b'],
+		[1982, 'after tab 1: go to /dsd/b, press button #900 150 ms in: https://app.test/dsd/b'],
+		[1983, 'after tab 1: go to /dsd: https://app.test/dsd'],
+		[1984, 'after new tab at /dsd/b, behind: https://app.test/dsd/b']
+	].map(([issue, head]) => ({
+		issue: issue as number,
+		oracle: 'ssr-hydrate',
+		detail: dedent`
+			${head}: warn: https://svelte.dev/e/hydration_mismatch
+			warn: https://svelte.dev/e/hydration_mismatch
+			warn: [ogygia] https://ogygiajs.dev/e/hydration_discarded?entry=%2F_app%2Fogygia%2Fog-region.554c6dadc6fa.js&strict=https%3A%2F%2Fsvelte.dev%2Fe%2Fhydration_failed
+		`
+	})),
+	'a press stored before wake replayed after the router went back (#2007)': [
+		{
+			issue: 2000,
+			oracle: 'page-errors',
+			detail:
+				'after tab 0: click link #468: unhandled: Error: No cached query found. This should be impossible. Please file a bug report.\n'
+		},
+		{
+			issue: 2007,
+			oracle: 'page-errors',
+			detail:
+				'after tab 0: back: unhandled: Error: No cached query found. This should be impossible. Please file a bug report.\n'
+		}
+	],
+	'the simulator read a document happy-dom had not written yet (#2011)': [
+		{
+			issue: 1993,
+			oracle: 'page-errors',
+			detail: dedent`
+				after tab 0: go to /router-depth/a/b/c: error: Failed to perform request to "https://app.test/router-depth/a/b/_app/immutable/chunks/D2GdFKTq.js". Status 404 .
+				error: Failed to perform request to "https://app.test/router-depth/a/b/_app/immutable/chunks/DJZGB_Vt.js". Status 404 .
+				error: Failed to perform request to "https://app.test/router-depth/a/b/_app/immutable/chunks/CRzLMJPS.js". Status 404 .
+			`
+		}
+	],
+	'a region resolved its code one folder too deep after back (#1995)': [
+		{
+			issue: 1995,
+			oracle: 'page-errors',
+			detail: dedent`
+				after tab 1: back: error: Failed to perform request to "https://app.test/lab/deep/_app/immutable/chunks/C5Ra7F4u.js". Status 404 .
+				error: Failed to perform request to "https://app.test/lab/deep/_app/immutable/chunks/90rmbuJx.js". Status 404 .
+				error: Failed to perform request to "https://app.test/lab/deep/_app/immutable/chunks/XKyaHtl9.js". Status 404 .
+			`
+		}
+	],
+	'a page Kit remounts by design, not on the list yet (#1868)': [
+		{
+			issue: 1916,
+			oracle: 'ssr-hydrate',
+			detail:
+				'after new tab at /lake-twins-kit: https://app.test/lake-twins-kit: warn: https://svelte.dev/e/hydration_mismatch'
+		},
+		{
+			issue: 1920,
+			oracle: 'ssr-hydrate',
+			detail:
+				'after tab 0: an outage 5 ms in, for 5000 ms: https://app.test/lake-twins-kit: warn: https://svelte.dev/e/hydration_mismatch'
+		}
+	],
+	'a loaded runner, slow and not stuck, judged hung by real time (#1867)': [
+		{
+			issue: 1917,
+			oracle: 'hung',
+			detail: dedent`
+				${hung_head(270754014, 12576, 1574, [...Array.from({ length: 16 }, () => ''), '12560 # action 17: tab 0: click link #557'])}
+				queued tasks (6), first 20:
+				  12639 net request 282 GET /_app/immutable/chunks/BKh1d1BY.js
+			`
+		},
+		{
+			issue: 1919,
+			oracle: 'hung',
+			detail: dedent`
+				${hung_head(270754026, 2000, 561, ['', '', '2000 # action 3: tab 0: go to /context/lake'])}
+				queued tasks (3), first 20:
+				  61301 server timeout
+			`
+		}
+	],
+	'#1990': [
+		{
+			issue: 1990,
+			oracle: 'mpa-equivalence',
+			detail: compared('https://app.test/mixed', 2, '- <html>', '+ <html lang="en">')
+		}
+	],
+	'#1992': [
+		{
+			issue: 1992,
+			oracle: 'waste',
+			detail:
+				'https://app.test/static: said: warn: [ogygia] https://ogygiajs.dev/e/region_answer_denied?endpoint=%2F__ogygia__%3Fid%3Def6cf1a12aa0%26r%3D2141d477c436%26props%3DW3sic2FsdXRhdGlvbiI6MX0sIldlbGNvbWUiXQ%26exp%3D2049840000%26v%3D3%26s\n'
+		}
+	],
+	'#1994': [
+		{
+			issue: 1994,
+			oracle: 'mpa-equivalence',
+			detail: compared(
+				'https://app.test/soft-race',
+				47,
+				'-         <span data-guard-cancelled="1" hidden="">',
+				'+         <span data-guard-cancelled="0" hidden="">'
+			)
+		}
+	],
+	'#1996': [
+		{
+			issue: 1996,
+			oracle: 'paint-gate',
+			detail:
+				'after tab 0: back: at rest: https://app.test/server: the island load gate opened before DOMContentLoaded\n'
+		}
+	],
+	'#2002': [
+		{
+			issue: 2002,
+			oracle: 'stuck',
+			detail:
+				'at rest: https://app.test/nest-matrix/kit: at rest, still wake#3 waking, wake#4 waking\n'
+		}
+	],
+	'#2003': [
+		{
+			issue: 2003,
+			oracle: 'mpa-equivalence',
+			detail: compared('https://app.test/about', 47, FRESH, WOKEN)
+		}
+	],
+	'#2005': [
+		{
+			issue: 2005,
+			oracle: 'outage-recovery',
+			detail: compared(
+				'https://app.test/ctx-setcontext-kit/plain',
+				13,
+				undefined,
+				'+       <div aria-atomic="true" aria-live="assertive" id="svelte-announcer" style="position: absolute; left: 0; top: 0; clip: rect(0 0 0 0); clip-path: inset(50%); overflow: hidden; white-space: nowrap; width: 1px; height: 1px">'
+			)
+		}
+	],
+	'#2006': [
+		{
+			issue: 2006,
+			oracle: 'outage-recovery',
+			detail: compared(
+				'https://app.test/head-budget-kit/b',
+				9,
+				'-     <style data-ogygia-region-css="/_app/immutable/assets/og-region.S87W4s8l.css">',
+				'+     <link crossorigin="" href="/_app/immutable/assets/og-region.S87W4s8l.css" rel="stylesheet">'
+			)
+		}
+	]
+};
+
+describe("a finding's cause", () => {
+	it('is one signature for every finding a person traced to one cause, and a different one for each other cause (27 issues filed over five days for 15 causes)', () => {
+		const by_cause = Object.entries(TRIAGED).map(([cause, list]) => ({
+			cause,
+			sigs: [...new Set(list.map((f) => signature(f)))]
+		}));
+		for (const { cause, sigs } of by_cause) expect(sigs, cause).toHaveLength(1);
+		const owners = new Map<string, string>();
+		for (const { cause, sigs } of by_cause) {
+			expect(owners.get(sigs[0]), `${cause} shares its signature`).toBeUndefined();
+			owners.set(sigs[0], cause);
+		}
+	});
+
+	it('is the same whatever action showed it, for every kind of action the workload draws', () => {
+		const actions: Record<Action['kind'], Action> = {
+			click: { kind: 'click', tab: 0, nth: 3 },
+			press: { kind: 'press', tab: 1, nth: 30 },
+			goto: { kind: 'goto', tab: 0, path: '/a/b' },
+			back: { kind: 'back', tab: 0 },
+			forward: { kind: 'forward', tab: 0 },
+			reload: { kind: 'reload', tab: 2 },
+			open: { kind: 'open', path: '/a' },
+			background: { kind: 'background', path: '/a' },
+			offline: { kind: 'offline', tab: 0 },
+			online: { kind: 'online', tab: 0 },
+			wait: { kind: 'wait', ms: 500 },
+			deploy: { kind: 'deploy' },
+			away: { kind: 'away', tab: 0, nth: 2, ms: 20_000 },
+			hurry: { kind: 'hurry', tab: 0, nth: 2, next: 5, after: 30 },
+			hover: { kind: 'hover', tab: 0, nth: 4 },
+			eager: { kind: 'eager', tab: 0, path: '/a', nth: 1, after: 150 },
+			twice: { kind: 'twice', tab: 0, nth: 1, after: 40 },
+			crowd: { kind: 'crowd', path: '/a', n: 4, spread: 200 },
+			outage: { kind: 'outage', tab: 0, during: 'click', nth: 2, after: 30, lasts: 400 }
+		};
+		const bare = signature({ oracle: 'page-errors', detail: 'error: boom' });
+		for (const a of Object.values(actions)) {
+			const what = describe_action(a);
+			expect(signature({ oracle: 'page-errors', detail: `after ${what}: error: boom` }), what).toBe(
+				bare
+			);
+			expect(
+				signature({ oracle: 'page-errors', detail: `after ${what}: at rest: error: boom` }),
+				what
+			).toBe(bare);
+		}
+	});
+});
+
+describe('two documents of a page compared', () => {
+	const at = (url: string, minus = FRESH, plus = WOKEN) => ({
+		oracle: 'mpa-equivalence',
+		detail: compared(url, 47, minus, plus)
+	});
+	const rebuilt = (line: string) =>
+		line.replaceAll('b806dc28e3bc.XFApmc9q', '1a2b3c4d5e6f.Cq9_x-1z');
+
+	it('are one cause for the same difference on two paths under one page, whatever the build (#2003)', () => {
+		const base = signature(at('https://app.test/about'));
+		expect(signature(at('https://app.test/about/b'))).toBe(base);
+		expect(signature(at('https://app.test/about', rebuilt(FRESH), rebuilt(WOKEN)))).toBe(base);
+	});
+
+	it('are two causes for two differences on sibling scenario pages under one segment', () => {
+		expect(signature(at('https://app.test/remote-seed-gate/held'))).not.toBe(
+			signature(
+				at(
+					'https://app.test/remote-seed-gate/kit',
+					'-         <span data-guard-cancelled="1" hidden="">',
+					'+         <span data-guard-cancelled="0" hidden="">'
+				)
+			)
+		);
+	});
+});
+
+describe('an open issue', () => {
+	const detail = 'after tab 0: back: unhandled: Error: No cached query found.';
+	const sig = signature({ oracle: 'page-errors', detail });
+	const filed = (body: string, comments: string[] = []) => ({
+		number: 7,
+		title: 'dst: page-errors (e4d33210c9)',
+		body,
+		comments: comments.map((c) => ({ body: c, createdAt: '2026-11-16T00:00:00Z' }))
+	});
+
+	it('is found by the signature its body or a comment names', () => {
+		expect(issue_for([filed(`a finding, dst-signature: ${sig}`)], sig)?.number).toBe(7);
+		expect(issue_for([filed('a person wrote this', [`dst-signature: ${sig}`])], sig)?.number).toBe(
+			7
+		);
+		expect(issue_for([filed('a person wrote this')], sig)).toBeUndefined();
+	});
+
+	it('filed under an older signature is found by the finding its body quotes (#2000 and #2007 were open together)', () => {
+		const old = filed(dedent`
+			The scheduled simulator run found something new. Oracle: \`page-errors\`.
+
+			\`\`\`
+			after tab 0: click link #468: unhandled: Error: No cached query found.
+			\`\`\`
+
+			dst-signature: a242f1d70e
+		`);
+		expect(issue_for([old], sig)?.number).toBe(7);
+		expect(
+			issue_for([{ ...old, title: 'dst: uncaught (a242f1d70e)' }], sig),
+			'another oracle'
+		).toBeUndefined();
+	});
+});
+
+describe('where a cause was seen', () => {
+	it('lists each seed with the action and page that showed it, the rest counted', () => {
+		const list = Array.from({ length: 23 }, (_, i) => ({
+			seed: 100 + i,
+			detail: dedent`
+				after tab 0: go to /dsd/${i}: https://app.test/dsd/${i}: warn: x
+				more
+			`
+		}));
+		const said = seen(list);
+		expect(said.split('\n')[0]).toBe(
+			'- seed 100: after tab 0: go to /dsd/0: https://app.test/dsd/0'
+		);
+		expect(said.split('\n')).toHaveLength(21);
+		expect(said.split('\n')[20]).toBe('- and 3 more seeds');
+		expect(seen([{ seed: 5, detail: compared('https://app.test/about', 47, FRESH, WOKEN) }])).toBe(
+			'- seed 5: https://app.test/about'
+		);
 	});
 });
 
