@@ -75,9 +75,9 @@ export class HoleFacts {
 		return this.#rp.settings.module ?? '';
 	}
 
-	/** When the hole's endpoint is fetched. */
+	/** When the hole's endpoint is fetched: an empty schedule is `load`, as the runtime reads it. */
 	get when(): string {
-		return this.#rp.settings.when ?? 'load';
+		return this.#rp.settings.when || 'load';
 	}
 
 	/** The hole's wake, when it has a module that wakes. */

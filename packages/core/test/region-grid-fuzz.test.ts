@@ -89,10 +89,12 @@ type Written = [
 	prop: string,
 	attr: string,
 	when: (p: Record<string, unknown>) => boolean,
-	otherwise?: string
+	otherwise?: string,
+	empty_is_otherwise?: boolean
 ];
 /** Each attribute Region writes from a prop's text, by kind: the prop, the attribute, when the
- *  attribute is written (else it is absent), and its text when the prop is not given. */
+ *  attribute is written (else it is absent), its text when the prop is not given, and whether an
+ *  empty prop reads as not given (a hole's empty schedule is `load`, #1954). */
 const WRITTEN: Record<string, Written[]> = {
 	island: [
 		['keep', 'data-ogygia-keep', (p) => !!p.keep],
@@ -101,7 +103,7 @@ const WRITTEN: Record<string, Written[]> = {
 	hole: [
 		['stitch', 'stitch', (p) => !!p.stitch],
 		['prefetch', 'prefetch', (p) => !!p.prefetch],
-		['when', 'when', () => true, 'load'],
+		['when', 'when', () => true, 'load', true],
 		['wake', 'wake', (p) => !!p.wake],
 		['margin', 'margin', (p) => !!p.margin],
 		['wakeMargin', 'hydrate-margin', (p) => !!p.wakeMargin]
@@ -126,8 +128,8 @@ test(
 				const out = render(s, place);
 				expect(out.thrown).toBeNull();
 				const attrs = first_region(out.body)!;
-				for (const [prop, attr, when, otherwise] of WRITTEN[s.kind]) {
-					const value = props[prop] ?? otherwise;
+				for (const [prop, attr, when, otherwise, empty_is_otherwise] of WRITTEN[s.kind]) {
+					const value = (empty_is_otherwise ? props[prop] || undefined : props[prop]) ?? otherwise;
 					if (when(props)) expect([attr, attrs.get(attr)]).toEqual([attr, String(value)]);
 					else expect([attr, attrs.has(attr)]).toEqual([attr, false]);
 				}
