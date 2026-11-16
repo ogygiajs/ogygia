@@ -1,7 +1,7 @@
 // The simulator's own pieces keep their promise: one seed, one run.
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { open } from 'node:fs/promises';
+import { mkdtempSync, readFile as readFileCallback, rmSync, writeFileSync } from 'node:fs';
+import { open, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -46,6 +46,22 @@ describe('a settle', () => {
 		}
 		await loop.settle();
 		expect(loop.stalls).toBe(1);
+	});
+
+	it('waits for a whole-file read the host does not list (Linux lists no request for readFile: /mixed’s load read package.json, the loop ran on to the 300 s navigation deadline, #1986)', async () => {
+		const dir = mkdtempSync(join(tmpdir(), 'settle-'));
+		const file = join(dir, 'big');
+		writeFileSync(file, Buffer.alloc(32 * 1024 * 1024, 120));
+		const loop = new Loop(rng(1));
+		try {
+			const read: string[] = [];
+			void readFile(file, 'utf8').then(() => read.push('promise'));
+			readFileCallback(file, () => read.push('callback'));
+			await loop.settle();
+			expect(read.sort()).toEqual(['callback', 'promise']);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 });
 
