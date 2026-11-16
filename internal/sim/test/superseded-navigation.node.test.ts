@@ -42,6 +42,38 @@ describe.skipIf(!built)('a navigation the tab started again elsewhere', () => {
 		}
 	}, 300_000);
 
+	// Its answer came, but the visitor went on before the first frame wrote it into the document,
+	// and the next page's answer was slower than that frame: happy-dom wrote the first page into
+	// the next page's window, under the next page's URL, where its relative files (`./_app/…`) were
+	// asked at the wrong depth (palaestra seed 208640329, #1993).
+	it('whose answer came but was not written yet never lands in the next document', async () => {
+		const world = await World.make({ seed: 1, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const tab = world.tab(world.visitor('v'));
+			await world.go(tab, 'goto', '/plain');
+			const shown = tab.documents;
+			void world.browsers.navigate(tab, 'goto', '/router-depth/a/b/c');
+			while (tab.documents === shown) await world.loop.step();
+			// (/mixed's server load takes over 2 s)
+			void world.browsers.navigate(tab, 'goto', '/mixed');
+			await world.loop.run(500);
+			const window = (): Window => tab.page.mainFrame.window as unknown as Window;
+			expect(window().location.pathname).toBe('/mixed');
+			expect(window().document.querySelector('h1')?.textContent).not.toBe('Deep page');
+			await world.rest();
+			expect(window().location.pathname).toBe('/mixed');
+			const fresh = world.tab(world.visitor('fresh'));
+			await world.go(fresh, 'goto', '/mixed');
+			await world.rest();
+			const h1 = (t: typeof tab) =>
+				(t.page.mainFrame.document as unknown as Document).querySelector('h1')?.textContent;
+			expect(h1(tab)).toBe(h1(fresh));
+			expect([...tab.errors]).toEqual([...fresh.errors]);
+		} finally {
+			await world.end();
+		}
+	}, 300_000);
+
 	// The page's own navigation (the router handing a click to the browser: `location.assign`) is
 	// called off the same way, and it never was an entry: back goes back from the page on screen.
 	// happy-dom kept its entry and let its stalled body land on the back's document, under its URL
