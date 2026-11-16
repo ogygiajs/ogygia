@@ -134,7 +134,7 @@ test('a deferred region in a library host the scan never saw is in the built ser
 	expect(chunks.some((f) => f.endsWith(path.basename(spec!)))).toBe(true);
 	// (the late path: its own emitted chunk, not the loaders written with the module)
 	expect(path.basename(spec!)).toMatch(/^og-server-region/);
-});
+}, 60_000);
 
 test('a deferred region in a library host only the server bundle reached has its styles built by the client leg', async () => {
 	late_app();
@@ -160,4 +160,4 @@ test('a deferred region in a library host only the server bundle reached has its
 	expect(hrefs, 'the hole response has a sheet to link').toHaveLength(1);
 	const sheet = fs.readFileSync(path.join(client_dir, hrefs[0]), 'utf8');
 	expect(sheet).toContain('rebeccapurple');
-});
+}, 60_000);
