@@ -9,19 +9,58 @@ type RemoteResource = {
 	refresh?: () => Promise<unknown>;
 	reconnect?: () => Promise<unknown>;
 };
-type RemoteEntry = { resource?: RemoteResource };
+type RemoteEntry = { resource?: RemoteResource; proxy_count?: number; cleanup?: () => void };
 
 /** The regions whose islands read each Kit query entry: its holders. */
 const holders = new WeakMap<RemoteEntry, Set<Element>>();
 
 /** Record the island reading now (if any) as a holder of `entry`: the one hydrating, or the one
  *  whose component runs now (a child it mounted after it hydrated, #853). */
-function hold(entry: RemoteEntry): void {
-	const region = current_region() ?? island_region();
+function hold(entry: RemoteEntry, region: Element | null): void {
 	if (region === null) return;
 	let set = holders.get(entry);
 	if (set === undefined) holders.set(entry, (set = new Set()));
 	set.add(region);
+}
+
+const settled = (): Promise<undefined> => Promise.resolve(undefined);
+
+const LEFT_RESOURCE: Readonly<Promise<undefined> & RemoteResource> = Object.freeze(
+	Object.assign(settled(), {
+		current: undefined,
+		error: undefined,
+		loading: false,
+		ready: false,
+		connected: false,
+		done: true,
+		refresh: settled,
+		reconnect: settled,
+		set: (): void => {},
+		withOverride: () => (): void => {},
+		destroy: (): void => {},
+		async *[Symbol.asyncIterator]() {}
+	})
+);
+
+class LeftEntry {
+	readonly resource = LEFT_RESOURCE;
+	readonly #departed: RemoteEntry;
+
+	constructor(departed: RemoteEntry) {
+		this.#departed = departed;
+	}
+
+	get proxy_count(): number {
+		return this.#departed.proxy_count ?? 0;
+	}
+
+	set proxy_count(n: number) {
+		this.#departed.proxy_count = n;
+	}
+
+	cleanup(): void {
+		this.#departed.cleanup?.();
+	}
 }
 
 /**
@@ -33,11 +72,17 @@ function hold(entry: RemoteEntry): void {
 class QueryEntries extends Map<string, RemoteEntry> {
 	override get(payload: string): RemoteEntry | undefined {
 		const entry = super.get(payload);
-		if (entry !== undefined) hold(entry);
+		if (entry === undefined) return undefined;
+		const region = current_region() ?? island_region();
+		if (!(entry instanceof LeftEntry)) hold(entry, region);
+		else if (region !== null) {
+			super.delete(payload);
+			return undefined;
+		}
 		return entry;
 	}
 	override set(payload: string, entry: RemoteEntry): this {
-		hold(entry);
+		if (!(entry instanceof LeftEntry)) hold(entry, current_region() ?? island_region());
 		return super.set(payload, entry);
 	}
 }
@@ -61,6 +106,12 @@ class QueryMap extends Map<string, Map<string, RemoteEntry>> {
  * `#start` is `once()`). One a kept island still holds keeps running (#817). One no island held
  * while it hydrated (made in an event handler or at module scope) lives as long as Kit's own
  * references to it say.
+ *
+ * A departed island owns its queries to the end: work of its own still running after it left (a
+ * click handler awaiting a command) reads a left entry in their place, which changes nothing and
+ * settles at once (`refresh()` is a no-op, never Kit's "No cached query found", #2007). The next
+ * island to read the same query gets a fresh one, and Kit drops the left entry with the departed
+ * island's last proxy.
  */
 export class RemoteCache {
 	readonly query_responses: Record<string, RemoteNode> = {};
@@ -76,7 +127,8 @@ export class RemoteCache {
 
 	/**
 	 * Destroy the query/live instances whose holders have all left the page, and drop them from the
-	 * maps. Call after the swap, once the reconcile has settled which regions stay.
+	 * maps (leaving a left entry where a departed proxy still lives). Call after the swap, once the
+	 * reconcile has settled which regions stay.
 	 */
 	release_instances(): void {
 		release_departed(this.query_map);
@@ -115,6 +167,14 @@ function release_departed(map: Map<string, Map<string, RemoteEntry>>) {
 			if (!departed(entry)) continue;
 			try {
 				entry.resource?.destroy?.();
+				// oxlint-disable-next-line ogygia/no-silent-failures -- already torn down, which is what this was for
+			} catch {}
+			if ((entry.proxy_count ?? 0) > 0) {
+				entries.set(payload, new LeftEntry(entry));
+				continue;
+			}
+			try {
+				entry.cleanup?.();
 				// oxlint-disable-next-line ogygia/no-silent-failures -- already torn down, which is what this was for
 			} catch {}
 			entries.delete(payload);

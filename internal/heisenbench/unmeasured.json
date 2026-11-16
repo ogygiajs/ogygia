@@ -1,6 +1,46 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > settled",
+			"reason": "constant work: one resolved promise, made only when a departed island's query is read after it left; proven in packages/core/test/remote-cache-holders.test.ts (#2007)"
+		},
+		{
+			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > LeftEntry > constructor",
+			"reason": "constant work: one field kept, once per departed query a proxy still holds, at a navigation; proven in packages/core/test/remote-cache-holders.test.ts (#2007)"
+		},
+		{
+			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > LeftEntry > get proxy_count",
+			"reason": "constant work: reads the departed entry's count, Kit's own bookkeeping; proven in packages/core/test/remote-cache-holders.test.ts (#2007)"
+		},
+		{
+			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > LeftEntry > set proxy_count",
+			"reason": "constant work: writes the departed entry's count, Kit's own bookkeeping; proven in packages/core/test/remote-cache-holders.test.ts (#2007)"
+		},
+		{
+			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > LeftEntry > cleanup",
+			"reason": "constant work: Kit calls it when it drops a left entry, and it hands on to the departed entry's own teardown; proven in packages/core/test/remote-cache-holders.test.ts (#2007)"
+		},
+		{
+			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > assign:1~a82264 > set",
+			"reason": "empty: a write to a departed island's query changes nothing; proven in packages/core/test/remote-cache-holders.test.ts (#2007)"
+		},
+		{
+			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > assign:1~a82264 > destroy",
+			"reason": "empty: Kit's live-query teardown of a left entry, whose departed entry was torn down already (#2007)"
+		},
+		{
+			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > assign:1~a82264 > withOverride",
+			"reason": "constant work: hands back an empty release for an override on a departed island's query (#2007)"
+		},
+		{
+			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > assign:1~a82264 > withOverride > <anonymous>~a1b2d0",
+			"reason": "empty: the release of an override on a departed island's query (#2007)"
+		},
+		{
+			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > assign:1~a82264 > [computed]",
+			"reason": "empty: a departed island's live query, iterated after it left, yields nothing (#2007)"
+		},
+		{
 			"id": "packages/core/src/entry-hydrate.ts > og_entry_hydrate > pushable:0~828022",
 			"reason": "browser only: a peer build's push into its own pushable props, one assignment per live tick; proven in packages/core/test/browser/hydrate-foreign.test.ts (#1971)"
 		},
