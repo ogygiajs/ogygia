@@ -163,7 +163,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/island-graph.ts` | `decode_island_graph` | `JSON.parse` | 1 |
 | `packages/core/src/island-graph.ts` | `decode_island_locations` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/hole-facts.ts` | `parse_record` | `JSON.parse` | 1 |
-| `packages/core/src/runtime/kit-page-thread.svelte.ts` | `kit_boot_imports` | `JSON.parse` | 1 |
+| `packages/core/src/runtime/kit-page-thread.svelte.ts` | `kit_boot` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/page-defer.ts` | `(module)` | `devalue parse` | 1 |
 | `packages/core/src/runtime/seeds.ts` | `watch_unshipped` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/wire-format.ts` | `(module)` | `devalue parse` | 1 |
