@@ -24,6 +24,9 @@ const spec = (kind: string, values: Record<string, string>): Spec => ({
 	stray: []
 });
 
+/** The snippet prop's HTML as its frozen copy rides in the props sidecar (devalue writes `<` so). */
+const FROZEN = '\\u003Cu>s\\u003C/u>';
+
 const HOLE = spec('hole', {
 	when: 'load',
 	wake: 'load',
@@ -53,7 +56,7 @@ for (const env of ['dev', 'prod'] as const) {
 			for (const csr of ['off', 'on'] as const) {
 				const out = parts_of(await client_out(spec_case(HOLE), { at: 'page', csr, env }));
 				expect(out.thrown).toBe('null');
-				expect(out.body).toContain('<u>s</u>');
+				expect(out.body).toContain(FROZEN);
 			}
 		} finally {
 			vi.unstubAllEnvs();
@@ -70,7 +73,7 @@ for (const env of ['dev', 'prod'] as const) {
 				spec_props(HOLE)
 			);
 			expect(out.problems).toEqual([]);
-			expect(parts_of(out.text).body_after).toContain('<u>s</u>');
+			expect(parts_of(out.text).body_after).toContain(FROZEN);
 		} finally {
 			vi.unstubAllEnvs();
 		}
@@ -81,7 +84,7 @@ for (const env of ['dev', 'prod'] as const) {
 		try {
 			const out = parts_of(await client_out(spec_case(ISLAND), { at: 'page', csr: 'off', env }));
 			expect(out.thrown).toBe('null');
-			expect(out.body).toContain('<u>s</u>');
+			expect(out.body).toContain(FROZEN);
 		} finally {
 			vi.unstubAllEnvs();
 		}

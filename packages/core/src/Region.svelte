@@ -7,10 +7,13 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 -->
 <script lang="ts" module>
 	import type { RegionSettings } from './region-plan.ts';
+	import { SnippetRender } from './snippet-render.ts';
 
 	export type { RegionSettings };
 
 	const NO_SETTINGS: RegionSettings = {};
+
+	SnippetRender.install();
 </script>
 
 <script lang="ts">

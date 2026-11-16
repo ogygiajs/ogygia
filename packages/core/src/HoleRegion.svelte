@@ -28,7 +28,8 @@ renders its shell with its fallback.
 		(renderer) => {
 			if (fallback) SlotBoundary(renderer, { children: fallback } as never);
 		},
-		(el) => {
+		(el, hydrated) => {
+			if (hydrated) hole.adopted(el);
 			if (el.firstChild || !fallback) return;
 			const app = mount(SlotBoundary, { target: el, props: { children: fallback } });
 			// oxlint-disable-next-line ogygia/no-silent-failures -- unmount's promise is its outros ending; it never rejects

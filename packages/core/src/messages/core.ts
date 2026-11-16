@@ -235,14 +235,15 @@ export const ERRORS = {
 	snippet_freeze_not_installed: {
 		text: (a: { where: string }): string => prose`
 			${a.where} is a bare snippet that must freeze to HTML to cross, but nothing that renders
-			snippets on the server is loaded here. ogygia's server hooks, \`region\` and its Region
-			component load it; code that encodes props with none of them loaded cannot freeze a snippet.
+			snippets is loaded here. ogygia's server hooks, \`region\` and its Region component load
+			it; code that encodes props with none of them loaded cannot freeze a snippet.
 		`,
 		details: (): string => prose`
-			A bare snippet crosses an island boundary as the HTML it renders on the server. That render
-			lives in a module only code that already loads \`.svelte\` files reaches, so plain Node can
-			import the codec. Encode such props on a server that runs ogygia's hooks, or pass the
-			snippet through \`region.snippet()\`.
+			A bare snippet crosses an island boundary as the HTML it renders: on the server when the
+			server renders it, in the browser when the browser creates it. That render lives in a
+			module only code that already loads \`.svelte\` files reaches, so plain Node can import
+			the codec. Encode such props where ogygia's hooks or its Region component are loaded, or
+			pass the snippet through \`region.snippet()\`.
 		`
 	},
 	region_snippet_on_client: {

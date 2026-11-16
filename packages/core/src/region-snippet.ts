@@ -342,12 +342,11 @@ export function region_snippet(input: Snippet | RawRegionSnippet): RegionSnippet
 /**
  * Prepare an island's props for crossing: freeze each BARE snippet prop to a single-rooted static
  * region snippet, so the SAME value renders the island body AND serializes — the body HTML and the
- * revived client snippet then agree byte-for-byte, and hydration adopts cleanly. Server-only (uses SSR
- * capture). A branded (live) snippet, at any depth, is swapped for its PORTABLE form; non-snippet values
+ * revived client snippet then agree byte-for-byte, and hydration adopts cleanly. Both legs freeze,
+ * each with its installed renderer (snippet-render.ts). A branded (live) snippet, at any depth, is swapped for its PORTABLE form; non-snippet values
  * pass through untouched. Returns the original object when nothing changed (no needless copy).
  */
 export function prepare_region_props(input: Record<string, unknown>): Record<string, unknown> {
-	if (BROWSER) return input; // freezing is an SSR capture; the client revives from the descriptor
 	// JSON-exact props hold no function at any depth, so no snippet to freeze or swap: skip both walks.
 	// (The measure is cached per props object, and the props wire asks for the same one right after.)
 	if (analyze(input).json) return input;
@@ -432,9 +431,8 @@ export function slot_pointer(id: string): RegionSnippet {
 
 // ── the boundary law, as the hub's SNIPPET kind: one encode, one decode, both modes ──
 /** The hub kind: a snippet is a renderable Ref ("a snippet is a region", now literal). A branded
- *  region snippet crosses as its descriptor; a bare snippet FREEZES at the boundary (server-only —
- *  the BROWSER guard also keeps `capture_static` → `svelte/server` DCE-able out of client bundles);
- *  a bare function on the CLIENT falls through (never claimed — it can't freeze there). */
+ *  region snippet crosses as its descriptor; a bare snippet FREEZES at the boundary, on either leg,
+ *  through the renderer that leg installed. */
 /** Explicit registration — called at module scope AND from live-transport's install():
  *  a bare side-effect import gets tree-shaken (the package marks JS side-effect-free),
  *  which silently un-registers the kind in client bundles. A CALLED import cannot be dropped. */
@@ -445,9 +443,7 @@ export function register_snippet_kind(): void {
 			if (typeof value !== 'function') return false;
 			if ((value as RegionSnippet).__ogRegion) return true;
 			// an og.$-branded fn belongs to the FN kind — freezing it as a snippet would be wrong
-			if ((value as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.fn')] !== undefined)
-				return false;
-			return !BROWSER; // a bare snippet is only claimable where it can freeze (SSR capture)
+			return (value as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.fn')] === undefined;
 		},
 		encode(value) {
 			const branded = (value as RegionSnippet).__ogRegion;

@@ -8,7 +8,7 @@ import { island_graph_script } from '../server/document-tail.ts';
 import { hole_identity, PropsWire, props_sidecar } from '../server/props-wire.ts';
 import { record_server_event } from '../events/server-registry.ts';
 import { escape_attr } from '../escape.ts';
-import { OG_HOLE } from '../wire-markup.ts';
+import { OG_HOLE, OGYGIA_PROPS } from '../wire-markup.ts';
 import { warn } from '../messages/island.ts';
 import { note_early_hole } from '../context.ts';
 import { graph_hrefs, location_of } from './locate.ts';
@@ -21,6 +21,9 @@ type Props = Record<string, unknown> | undefined;
 export class HoleFacts {
 	readonly #rp: RegionPlan;
 	readonly #props: () => Props;
+	/** The sidecar the server wrote beside the hole, once hydration adopts the hole's element: its
+	 *  snippets are the server's frozen HTML, so the browser freezes nothing again. */
+	#server_sidecar: string | null = null;
 
 	endpoint: string = $derived.by(() =>
 		this.#rp.plan.family !== 'hole'
@@ -39,8 +42,10 @@ export class HoleFacts {
 	wire: PropsWire | null = $derived.by(() =>
 		this.#rp.plan.wire === 'hole' ? new PropsWire(this.#props(), this.entry) : null
 	);
-	props_script: string = $derived.by(() =>
-		this.wire ? props_sidecar('', this.wire.wire(null), 'adjacent', this.wire.wire_modules) : ''
+	props_script: string = $derived.by(
+		() =>
+			this.#server_sidecar ??
+			(this.wire ? props_sidecar('', this.wire.wire(null), 'adjacent', this.wire.wire_modules) : '')
 	);
 	identity: string = $derived.by(() =>
 		this.#rp.plan.nested || this.#rp.plan.family !== 'hole'
@@ -111,6 +116,16 @@ export class HoleFacts {
 		if (plan.early_hole && !building && this.when === 'load' && this.endpoint)
 			note_early_hole(this.endpoint);
 		if (tail && this.graph.length) tail.graph(this.entry_url, this.graph);
+	}
+
+	/** Hydration found the hole's element as the server wrote it: the props sidecar beside it is the
+	 *  server's too, kept as it is. */
+	adopted(el: Element): void {
+		if (this.#rp.plan.wire !== 'hole') return;
+		let next = el.nextSibling;
+		while (next && next.nodeType !== Node.ELEMENT_NODE) next = next.nextSibling;
+		if (next && (next as Element).hasAttribute(OGYGIA_PROPS))
+			this.#server_sidecar = (next as Element).outerHTML;
 	}
 
 	/** The attributes of the hole's own `<ogygia-region>`, as the shell and the adopted element write them. */

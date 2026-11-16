@@ -1,11 +1,34 @@
 import { createRawSnippet, type Snippet } from 'svelte';
 
+type Setup = (el: Element, hydrated: boolean) => void | (() => void);
+
+/** One browser render of an adopted region element: whether the browser wrote the element (its
+ *  `render` ran) or hydration found the server's. */
+class AdoptedElement {
+	readonly #attrs: () => string;
+	readonly #setup: Setup | undefined;
+	#rendered = false;
+
+	constructor(attrs: () => string, setup: Setup | undefined) {
+		this.#attrs = attrs;
+		this.#setup = setup;
+	}
+
+	render = (): string => {
+		this.#rendered = true;
+		return `<ogygia-region${this.#attrs()}></ogygia-region>`;
+	};
+
+	setup = (el: Element): void | (() => void) => this.#setup?.(el, !this.#rendered);
+}
+
 /** A region element the browser adopts as the server wrote it: the server writes its attributes and
- *  inner HTML; the browser renders it empty and hands `setup` the element hydration found. */
+ *  inner HTML; the browser renders it empty and hands `setup` the element, and whether hydration
+ *  found it (the server's) or the browser rendered it. */
 export function adopt_region(
 	attrs: () => string,
 	inner?: (renderer: never) => void,
-	setup?: (el: Element) => void | (() => void)
+	setup?: Setup
 ): Snippet {
 	return (import.meta.env?.SSR ?? typeof window === 'undefined')
 		? (((renderer: { push(html: string): void }) => {
@@ -13,8 +36,5 @@ export function adopt_region(
 				inner?.(renderer as never);
 				renderer.push('</ogygia-region>');
 			}) as unknown as Snippet)
-		: createRawSnippet(() => ({
-				render: () => `<ogygia-region${attrs()}></ogygia-region>`,
-				setup
-			}));
+		: createRawSnippet(() => new AdoptedElement(attrs, setup));
 }
