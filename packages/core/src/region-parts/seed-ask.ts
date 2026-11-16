@@ -44,16 +44,18 @@ export class PageSeedAsk {
 		return module ? region_remotes(module) : [];
 	}
 
-	/** Hands the ask to the page seed recorder, with the page it reads. */
+	/** Hands the ask to the page seed recorder, with the page it reads (on the server only). */
 	record(): void {
-		try {
-			record_page(
-				{ data: page.data, form: page.form, error: page.error, status: page.status },
-				this.seed,
-				this.remotes,
-				this.entry
-			);
-			// oxlint-disable-next-line ogygia/no-silent-failures -- an isolated render without a live page; the recorder is unset there anyway
-		} catch {}
+		if (typeof window === 'undefined') {
+			try {
+				record_page(
+					{ data: page.data, form: page.form, error: page.error, status: page.status },
+					this.seed,
+					this.remotes,
+					this.entry
+				);
+				// oxlint-disable-next-line ogygia/no-silent-failures -- an isolated render without a live page; the recorder is unset there anyway
+			} catch {}
+		}
 	}
 }
