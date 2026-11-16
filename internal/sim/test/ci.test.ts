@@ -155,6 +155,25 @@ describe("a finding's signature", () => {
 	});
 });
 
+/** A page's two documents compared, as the oracles that compare them say it: the page, the line, and
+ *  the differing line of each document (one may have none). */
+const compared = (url: string, line: number, minus?: string, plus?: string): string =>
+	[
+		url,
+		`at line ${line}:`,
+		'            "Clock island:"',
+		...(minus ? [minus] : []),
+		'          <div class="island" data-counter="">',
+		'  ---',
+		'            "Clock island:"',
+		...(plus ? [plus] : []),
+		'          <div class="island" data-counter="">'
+	].join('\n');
+const FRESH =
+	'-       <ogygia-region data-og-fp="93111da9a0372d84" entry="/_app/ogygia/og-region.b806dc28e3bc.js" margin="0px" src="/_app/immutable/og-region.b806dc28e3bc.XFApmc9q.js" wake="visible">';
+const WOKEN =
+	'+       <ogygia-region data-hydrated="" data-og-fp="93111da9a0372d84" entry="/_app/ogygia/og-region.b806dc28e3bc.js" margin="0px" src="/_app/immutable/og-region.b806dc28e3bc.XFApmc9q.js" wake="visible">';
+
 /** Findings the scheduled runs filed over four days (2026-11-13 to 16), by the cause a person
  *  found when they read them: each group is one cause, filed as one issue per member. */
 const TRIAGED: Record<string, ReadonlyArray<{ issue: number; oracle: string; detail: string }>> = {
@@ -200,7 +219,11 @@ const TRIAGED: Record<string, ReadonlyArray<{ issue: number; oracle: string; det
 	].map(([issue, head]) => ({
 		issue: issue as number,
 		oracle: 'ssr-hydrate',
-		detail: `${head}: warn: https://svelte.dev/e/hydration_mismatch\nwarn: https://svelte.dev/e/hydration_mismatch\nwarn: [ogygia] https://ogygiajs.dev/e/hydration_discarded?entry=%2F_app%2Fogygia%2Fog-region.554c6dadc6fa.js&strict=https%3A%2F%2Fsvelte.dev%2Fe%2Fhydration_failed`
+		detail: dedent`
+			${head}: warn: https://svelte.dev/e/hydration_mismatch
+			warn: https://svelte.dev/e/hydration_mismatch
+			warn: [ogygia] https://ogygiajs.dev/e/hydration_discarded?entry=%2F_app%2Fogygia%2Fog-region.554c6dadc6fa.js&strict=https%3A%2F%2Fsvelte.dev%2Fe%2Fhydration_failed
+		`
 	})),
 	'a press stored before wake replayed after the router went back (#2007)': [
 		{
@@ -220,23 +243,29 @@ const TRIAGED: Record<string, ReadonlyArray<{ issue: number; oracle: string; det
 		{
 			issue: 1993,
 			oracle: 'page-errors',
-			detail:
-				'after tab 0: go to /router-depth/a/b/c: error: Failed to perform request to "https://app.test/router-depth/a/b/_app/immutable/chunks/D2GdFKTq.js". Status 404 .\nerror: Failed to perform request to "https://app.test/router-depth/a/b/_app/immutable/chunks/DJZGB_Vt.js". Status 404 .\nerror: Failed to perform request to "https://app.test/router-depth/a/b/_app/immutable/chunks/CRzLMJPS.js". Status 404 .'
+			detail: dedent`
+				after tab 0: go to /router-depth/a/b/c: error: Failed to perform request to "https://app.test/router-depth/a/b/_app/immutable/chunks/D2GdFKTq.js". Status 404 .
+				error: Failed to perform request to "https://app.test/router-depth/a/b/_app/immutable/chunks/DJZGB_Vt.js". Status 404 .
+				error: Failed to perform request to "https://app.test/router-depth/a/b/_app/immutable/chunks/CRzLMJPS.js". Status 404 .
+			`
 		}
 	],
 	'a region resolved its code one folder too deep after back (#1995)': [
 		{
 			issue: 1995,
 			oracle: 'page-errors',
-			detail:
-				'after tab 1: back: error: Failed to perform request to "https://app.test/lab/deep/_app/immutable/chunks/C5Ra7F4u.js". Status 404 .\nerror: Failed to perform request to "https://app.test/lab/deep/_app/immutable/chunks/90rmbuJx.js". Status 404 .\nerror: Failed to perform request to "https://app.test/lab/deep/_app/immutable/chunks/XKyaHtl9.js". Status 404 .'
+			detail: dedent`
+				after tab 1: back: error: Failed to perform request to "https://app.test/lab/deep/_app/immutable/chunks/C5Ra7F4u.js". Status 404 .
+				error: Failed to perform request to "https://app.test/lab/deep/_app/immutable/chunks/90rmbuJx.js". Status 404 .
+				error: Failed to perform request to "https://app.test/lab/deep/_app/immutable/chunks/XKyaHtl9.js". Status 404 .
+			`
 		}
 	],
 	'#1990': [
 		{
 			issue: 1990,
 			oracle: 'mpa-equivalence',
-			detail: 'https://app.test/mixed\nat line 2:\n  title: '
+			detail: compared('https://app.test/mixed', 2, '- <html>', '+ <html lang="en">')
 		}
 	],
 	'#1992': [
@@ -251,7 +280,12 @@ const TRIAGED: Record<string, ReadonlyArray<{ issue: number; oracle: string; det
 		{
 			issue: 1994,
 			oracle: 'mpa-equivalence',
-			detail: 'https://app.test/soft-race\nat line 47:\n          <button data-soft-refresh="">'
+			detail: compared(
+				'https://app.test/soft-race',
+				47,
+				'-         <span data-guard-cancelled="1" hidden="">',
+				'+         <span data-guard-cancelled="0" hidden="">'
+			)
 		}
 	],
 	'#1996': [
@@ -274,21 +308,31 @@ const TRIAGED: Record<string, ReadonlyArray<{ issue: number; oracle: string; det
 		{
 			issue: 2003,
 			oracle: 'mpa-equivalence',
-			detail: 'https://app.test/about\nat line 47:\n            "Clock island:"'
+			detail: compared('https://app.test/about', 47, FRESH, WOKEN)
 		}
 	],
 	'#2005': [
 		{
 			issue: 2005,
 			oracle: 'outage-recovery',
-			detail: 'https://app.test/ctx-setcontext-kit/plain\nat line 13:\n      <div>'
+			detail: compared(
+				'https://app.test/ctx-setcontext-kit/plain',
+				13,
+				undefined,
+				'+       <div aria-atomic="true" aria-live="assertive" id="svelte-announcer" style="position: absolute; left: 0; top: 0; clip: rect(0 0 0 0); clip-path: inset(50%); overflow: hidden; white-space: nowrap; width: 1px; height: 1px">'
+			)
 		}
 	],
 	'#2006': [
 		{
 			issue: 2006,
 			oracle: 'outage-recovery',
-			detail: 'https://app.test/head-budget-kit/b\nat line 9:\n      <style>'
+			detail: compared(
+				'https://app.test/head-budget-kit/b',
+				9,
+				'-     <style data-ogygia-region-css="/_app/immutable/assets/og-region.S87W4s8l.css">',
+				'+     <link crossorigin="" href="/_app/immutable/assets/og-region.S87W4s8l.css" rel="stylesheet">'
+			)
 		}
 	]
 };
@@ -344,46 +388,26 @@ describe("a finding's cause", () => {
 });
 
 describe('two documents of a page compared', () => {
-	const compared = (url: string, minus: string, plus: string) => ({
+	const at = (url: string, minus = FRESH, plus = WOKEN) => ({
 		oracle: 'mpa-equivalence',
-		detail: [
-			url,
-			'at line 47:',
-			'            "Clock island:"',
-			minus,
-			'          <div class="island" data-counter="">',
-			'  ---',
-			'            "Clock island:"',
-			plus,
-			'          <div class="island" data-counter="">'
-		].join('\n')
+		detail: compared(url, 47, minus, plus)
 	});
-	const fresh =
-		'-       <ogygia-region data-og-fp="93111da9a0372d84" entry="/_app/ogygia/og-region.b806dc28e3bc.js" margin="0px" src="/_app/immutable/og-region.b806dc28e3bc.XFApmc9q.js" wake="visible">';
-	const woken =
-		'+       <ogygia-region data-hydrated="" data-og-fp="93111da9a0372d84" entry="/_app/ogygia/og-region.b806dc28e3bc.js" margin="0px" src="/_app/immutable/og-region.b806dc28e3bc.XFApmc9q.js" wake="visible">';
+	const rebuilt = (line: string) =>
+		line.replaceAll('b806dc28e3bc.XFApmc9q', '1a2b3c4d5e6f.Cq9_x-1z');
 
 	it('are one cause for the same difference on two paths under one page, whatever the build (#2003)', () => {
-		const base = signature(compared('https://app.test/about', fresh, woken));
-		expect(signature(compared('https://app.test/about/b', fresh, woken))).toBe(base);
-		expect(
-			signature(
-				compared(
-					'https://app.test/about',
-					fresh.replaceAll('b806dc28e3bc.XFApmc9q', '1a2b3c4d5e6f.Cq9_x-1z'),
-					woken.replaceAll('b806dc28e3bc.XFApmc9q', '1a2b3c4d5e6f.Cq9_x-1z')
-				)
-			)
-		).toBe(base);
+		const base = signature(at('https://app.test/about'));
+		expect(signature(at('https://app.test/about/b'))).toBe(base);
+		expect(signature(at('https://app.test/about', rebuilt(FRESH), rebuilt(WOKEN)))).toBe(base);
 	});
 
 	it('are two causes for two differences on sibling scenario pages under one segment', () => {
-		expect(signature(compared('https://app.test/remote-seed-gate/held', fresh, woken))).not.toBe(
+		expect(signature(at('https://app.test/remote-seed-gate/held'))).not.toBe(
 			signature(
-				compared(
+				at(
 					'https://app.test/remote-seed-gate/kit',
 					'-         <span data-guard-cancelled="1" hidden="">',
-					'+         <p>'
+					'+         <span data-guard-cancelled="0" hidden="">'
 				)
 			)
 		);
@@ -401,7 +425,7 @@ describe('an open issue', () => {
 	});
 
 	it('is found by the signature its body or a comment names', () => {
-		expect(issue_for([filed(`x\n\ndst-signature: ${sig}`)], sig)?.number).toBe(7);
+		expect(issue_for([filed(`a finding, dst-signature: ${sig}`)], sig)?.number).toBe(7);
 		expect(issue_for([filed('a person wrote this', [`dst-signature: ${sig}`])], sig)?.number).toBe(
 			7
 		);
@@ -409,17 +433,15 @@ describe('an open issue', () => {
 	});
 
 	it('filed under an older signature is found by the finding its body quotes (#2000 and #2007 were open together)', () => {
-		const old = filed(
-			[
-				'The scheduled simulator run found something new. Oracle: `page-errors`.',
-				'',
-				'```',
-				'after tab 0: click link #468: unhandled: Error: No cached query found.',
-				'```',
-				'',
-				'dst-signature: a242f1d70e'
-			].join('\n')
-		);
+		const old = filed(dedent`
+			The scheduled simulator run found something new. Oracle: \`page-errors\`.
+
+			\`\`\`
+			after tab 0: click link #468: unhandled: Error: No cached query found.
+			\`\`\`
+
+			dst-signature: a242f1d70e
+		`);
 		expect(issue_for([old], sig)?.number).toBe(7);
 		expect(
 			issue_for([{ ...old, title: 'dst: uncaught (a242f1d70e)' }], sig),
@@ -432,7 +454,10 @@ describe('where a cause was seen', () => {
 	it('lists each seed with the action and page that showed it, the rest counted', () => {
 		const list = Array.from({ length: 23 }, (_, i) => ({
 			seed: 100 + i,
-			detail: `after tab 0: go to /dsd/${i}: https://app.test/dsd/${i}: warn: x\nmore`
+			detail: dedent`
+				after tab 0: go to /dsd/${i}: https://app.test/dsd/${i}: warn: x
+				more
+			`
 		}));
 		const said = seen(list);
 		expect(said.split('\n')[0]).toBe(
@@ -440,7 +465,7 @@ describe('where a cause was seen', () => {
 		);
 		expect(said.split('\n')).toHaveLength(21);
 		expect(said.split('\n')[20]).toBe('- and 3 more seeds');
-		expect(seen([{ seed: 5, detail: 'https://app.test/about\nat line 47:' }])).toBe(
+		expect(seen([{ seed: 5, detail: compared('https://app.test/about', 47, FRESH, WOKEN) }])).toBe(
 			'- seed 5: https://app.test/about'
 		);
 	});
