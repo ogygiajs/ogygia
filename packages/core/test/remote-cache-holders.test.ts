@@ -161,6 +161,21 @@ describe('remote query entries are held by the islands that read them', () => {
 		expect(cleaned).toBe(1);
 	});
 
+	it('an entry whose own teardown throws is still dropped when its island leaves', () => {
+		const destroyed: string[] = [];
+		const gone = region();
+		const entry = hydrating(gone, () =>
+			kit_insert(remote_cache.query_map, 'count', '1', destroyed)
+		) as Entry & { proxy_count: number; cleanup: () => void };
+		entry.proxy_count = 0;
+		entry.cleanup = () => {
+			throw new Error('already torn down');
+		};
+		gone.isConnected = false;
+		expect(() => release_remote_instances()).not.toThrow();
+		expect(remote_cache.query_map.has('count')).toBe(false);
+	});
+
 	it('only the departed payloads of one query go; the map for the id stays while one remains', () => {
 		const destroyed: string[] = [];
 		const gone = region();

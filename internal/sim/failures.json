@@ -255,6 +255,12 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/shims/kit-remote/remote-cache.ts > release_departed > catch:1",
+			"reason": "a departed entry whose Kit teardown throws (already torn down) is still dropped, and the release goes on; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/remote-cache-holders.test.ts",
+			"name": "an entry whose own teardown throws is still dropped when its island leaves"
+		},
+		{
 			"site": "packages/core/src/region-parts/plan.svelte.ts > page_error_render > catch:0",
 			"reason": "a render with no page store (a hole endpoint, a remote's region) reads no page error and plans from the route's csr; proved by hand: the catch made to rethrow, or to answer true, turns the tests red",
 			"test": "packages/core/test/region-page-store-off.test.ts",
