@@ -3,20 +3,28 @@
 // around them. Whether an island is foreign is read off its entry alone.
 import { afterEach, beforeAll, beforeEach, expect, inject, test, vi } from 'vitest';
 import { from_b64 } from './b64.ts';
-import type { Component } from 'svelte';
+import { flushSync, type Component } from 'svelte';
 import { stringify } from 'devalue';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { load_devalue } from '../../src/runtime/devalue-lane.ts';
+import { install as install_live } from '../../src/runtime/live.ts';
 import { current_region, foreign_hydrate } from '../../src/current-region.ts';
 import { slots } from '../../src/runtime/slots.ts';
-import { hydrate_island, read_region_props } from '../../src/runtime/hydrate-core.ts';
+import { hydrate_island, hydrate_live, read_region_props } from '../../src/runtime/hydrate-core.ts';
+import { og_entry_hydrate, og_entry_unmount } from '../../src/entry-hydrate.ts';
 import Counter from './fixtures/Counter.svelte';
+import Label from './fixtures/Label.svelte';
 
 const FOREIGN = 'https://peer.example.com/_app/widget.js';
 const render_html = () => from_b64(inject('counter_render_b64'));
+const label_html = () => from_b64(inject('label_render_b64'));
 let said: string[] = [];
 
-type Seen = { region: Element; props: Record<string, unknown>; options: unknown };
+type Seen = {
+	region: Element;
+	props: Record<string, unknown>;
+	options: unknown;
+};
 function foreign_module(fail_strict = false) {
 	const calls: Seen[] = [];
 	const during: Array<{ region: Element | null; foreign: unknown }> = [];
@@ -49,6 +57,7 @@ function region_with(html: string, props: unknown = { obj: { a: 1 } }): HTMLElem
 beforeAll(async () => {
 	link_boot();
 	await load_devalue();
+	install_live();
 });
 beforeEach(() => {
 	document.body.innerHTML = '';
@@ -105,7 +114,10 @@ test('while a foreign island hydrates, the hydrate is marked foreign and the reg
 	const el = region_with('<p>peer</p>');
 	hydrate_island(el, FOREIGN, mod, null, false);
 	expect(during).toEqual([
-		{ region: el, foreign: { origin: 'https://peer.example.com', entry: FOREIGN } }
+		{
+			region: el,
+			foreign: { origin: 'https://peer.example.com', entry: FOREIGN }
+		}
 	]);
 	expect(current_region()).toBeNull();
 	expect(foreign_hydrate()).toBeNull();
@@ -148,4 +160,79 @@ test('a seed reference in a foreign island’s props is not read from this page�
 	} finally {
 		slots.page = page;
 	}
+});
+
+/** A peer's island entry as its build ships it: its own hydrate and unmount over its component. */
+function peer_label() {
+	return {
+		default: Label as unknown as Component<Record<string, unknown>>,
+		__og_hydrate: vi.fn(
+			(target: Element, props: Record<string, unknown>, options?: Record<string, unknown>) =>
+				og_entry_hydrate(
+					Label as unknown as Component<Record<string, unknown>>,
+					target,
+					props,
+					options
+				)
+		),
+		__og_unmount: vi.fn(og_entry_unmount)
+	};
+}
+
+test('a foreign live region is hydrated by its own build, with the context the page provides it', () => {
+	const { mod, calls, app } = foreign_module();
+	const provided = new Map<string | symbol, unknown>([['theme', 'ocean']]);
+	const bridge = slots.context;
+	slots.context = () => provided;
+	const el = region_with('<p>peer</p>');
+	let handle;
+	try {
+		handle = hydrate_live(el, FOREIGN, mod, { text: 'one' })!;
+	} finally {
+		slots.context = bridge;
+	}
+	expect(calls).toHaveLength(1);
+	expect(calls[0].region).toBe(el);
+	expect(calls[0].props).toEqual({ text: 'one' });
+	expect(calls[0].options).toMatchObject({ context: provided });
+	handle.dispose();
+	expect(mod.__og_unmount).toHaveBeenCalledWith(app);
+});
+
+test('a tick pushed into a foreign live region shows on the server node, through its own build', async () => {
+	const mod = peer_label();
+	const el = region_with(label_html());
+	const p = el.querySelector('p')!;
+	const handle = hydrate_live(el, FOREIGN, mod, { text: 'one' })!;
+	expect(mod.__og_hydrate).toHaveBeenCalledOnce();
+	expect(el.querySelector('p'), 'the server paragraph, adopted').toBe(p);
+	expect(handle.set_props, 'a foreign live region takes pushed props').toBeTypeOf('function');
+	handle.set_props!({ text: 'two' });
+	flushSync();
+	expect(p.textContent).toBe('two');
+	handle.dispose();
+	expect(mod.__og_unmount).toHaveBeenCalledOnce();
+});
+
+test('a kept foreign island takes the next page’s props in place, through its own build', () => {
+	const mod = peer_label();
+	const el = region_with(label_html(), { text: 'one' });
+	el.setAttribute('data-ogygia-keep', 'label');
+	const p = el.querySelector('p')!;
+	const handle = hydrate_island(el, FOREIGN, mod, null, false)!;
+	expect(mod.__og_hydrate).toHaveBeenCalled();
+	expect(handle.set_props, 'a kept foreign island can take pushed props').toBeTypeOf('function');
+	handle.set_props!({ text: 'next page' });
+	flushSync();
+	expect(p.textContent).toBe('next page');
+	expect(el.querySelector('p')).toBe(p);
+});
+
+test('a foreign live region whose build hands back no push takes no pushed props', () => {
+	const { mod } = foreign_module();
+	const handle = hydrate_live(region_with('<p>peer</p>'), FOREIGN, mod, {
+		text: 'one'
+	})!;
+	expect(mod.__og_hydrate).toHaveBeenCalledOnce();
+	expect(handle.set_props, 'an older peer: the next tick hydrates it again').toBeUndefined();
 });
