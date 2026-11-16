@@ -463,6 +463,18 @@ describe('lift_document — an app’s full HTML → the wire shape', () => {
 		);
 	});
 
+	it('a peer page’s context root reaches only its own body: lifted as a provider around it (#1974)', () => {
+		const payload = '[{"theme":1},"forest"]';
+		const d = lift_document(
+			`<html><head></head><body><ogygia-region entry="/i.js"></ogygia-region><script data-og-mark="m1" data-ogygia-provide-page>${payload}</script></body></html>`,
+			'http://cms.test'
+		);
+		expect(d.body, 'not a page root in the shell').not.toContain('data-ogygia-provide-page');
+		expect(d.body).toBe(
+			`<ogygia-provide style="display:contents"><script data-ogygia-provide>${payload}</script><ogygia-region entry="http://cms.test/i.js"></ogygia-region></ogygia-provide>`
+		);
+	});
+
 	it('lifts the title as plain text, its entities decoded (the shell escapes it once, #436)', () => {
 		const d = lift_document(
 			'<html><head><title>Tom &amp; Jerry &lt;3 &#39;99 &#x263A;</title></head><body></body></html>',
