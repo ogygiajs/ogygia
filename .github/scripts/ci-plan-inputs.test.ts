@@ -1,6 +1,30 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cheap_plan, format_lint_inputs, to_run, turbo_scope } from './ci-plan-inputs.ts';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+	browser_packages,
+	cheap_plan,
+	format_lint_inputs,
+	to_run,
+	turbo_scope
+} from './ci-plan-inputs.ts';
+
+test('every package with a browser project runs in the browser jobs, a new one included', () => {
+	const root = mkdtempSync(join(tmpdir(), 'browser-packages-'));
+	const pkg = (dir: string, name: string, vitest?: string) => {
+		mkdirSync(join(root, 'packages', dir), { recursive: true });
+		writeFileSync(join(root, 'packages', dir, 'package.json'), JSON.stringify({ name }));
+		if (vitest) writeFileSync(join(root, 'packages', dir, 'vitest.config.ts'), vitest);
+	};
+	pkg('core', '@ogygia/core', 'const browsers = await browser_runs();');
+	pkg('rewrite', '@ogygia/rewrite', 'const browsers = await browser_runs();');
+	pkg('cli', '@ogygia/cli', "test: { environment: 'node' }");
+	pkg('ogygia', 'ogygia');
+	assert.deepEqual(browser_packages(root), ['@ogygia/core', '@ogygia/rewrite']);
+	assert.ok(browser_packages().includes('@ogygia/rewrite'));
+});
 
 const TREE = [
 	'100644 blob aaa\t.oxlintrc.json',
