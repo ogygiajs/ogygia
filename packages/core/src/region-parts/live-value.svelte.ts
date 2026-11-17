@@ -1,4 +1,5 @@
 import type { Snippet } from 'svelte';
+import { BROWSER } from 'esm-env';
 import { written_order } from '../frame.ts';
 import { OG_BAKED } from '../wire-markup.ts';
 import type { DeferredRegion } from '../region.ts';
@@ -13,7 +14,7 @@ type LiveElement = Element & { applyLive?: (v: unknown) => void };
 export class LiveValue {
 	readonly #rp: RegionPlan;
 	readonly baked: Snippet = adopt_region(
-		() => ((import.meta.env?.SSR ?? typeof window === 'undefined') ? ` live ${OG_BAKED}` : ' live'),
+		() => (BROWSER ? ' live' : ` live ${OG_BAKED}`),
 		(renderer) => (renderer as { push(html: string): void }).push(this.#value().html ?? ''),
 		(el) => {
 			// @why Svelte defers a $effect made in a branch before mount to the component, which outlives the branch (test: test/browser/region-client.test.ts › a baked live value that turns into an unbaked live one hands each value to one element only)

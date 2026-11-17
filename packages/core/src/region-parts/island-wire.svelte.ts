@@ -1,4 +1,5 @@
 import { untrack, type Component, type Snippet } from 'svelte';
+import { BROWSER } from 'esm-env';
 import { region_fingerprint, region_interactivity, reuse_known_region } from '#region-server';
 import { kit_asset } from '../kit-paths.ts';
 import { PropsWire, props_sidecar } from '../server/props-wire.ts';
@@ -44,7 +45,7 @@ export class IslandWire {
 	);
 	has_slot_children: boolean = $derived.by(() => this.#children() != null);
 	props_body: Props = $derived.by(() =>
-		this.has_slot_children && (import.meta.env?.SSR ?? typeof window === 'undefined')
+		this.has_slot_children && !BROWSER
 			? { ...this.props_ready, children: this.#slot_children }
 			: this.props_ready
 	);
@@ -72,12 +73,13 @@ export class IslandWire {
 	fp: string = $derived.by(() =>
 		this.wire ? region_fingerprint(this.module_url, this.wire.canonical) : ''
 	);
-	skip: boolean = $derived.by(
-		() =>
-			!this.has_slot_children &&
-			(this.#rp.settings.cacheTtl ?? 0) <= 0 &&
-			!!this.fp &&
-			reuse_known_region(this.fp)
+	skipped_fp: string | null = $derived.by(() =>
+		!this.has_slot_children &&
+		(this.#rp.settings.cacheTtl ?? 0) <= 0 &&
+		this.fp &&
+		reuse_known_region(this.fp)
+			? this.fp
+			: null
 	);
 	in_tail: boolean = $derived.by(() => !!this.#rp.tail && !!this.wire && !!this.fp);
 	props_inline: string = $derived.by(() =>
@@ -115,7 +117,7 @@ export class IslandWire {
 		)
 			warn('nested_island_with_parent', { entry: this.entry || '' });
 		const tail = this.#rp.tail;
-		if (!(import.meta.env?.SSR ?? typeof window === 'undefined') || !tail || !this.in_tail) return;
+		if (BROWSER || !tail || !this.in_tail) return;
 		tail.props(this.fp, this.wire!, {
 			entry: this.entry,
 			name: this.component?.name ?? '',
@@ -136,12 +138,12 @@ export class IslandWire {
 		record_server_event({
 			domain: 'server',
 			name: 'server.region.rendered',
-			fp: this.fp || '',
+			fp: this.fp,
 			mode: 'island',
 			entry: this.module_url || undefined,
 			propsBytes: this.wire?.canonical.length ?? 0
 		});
-		if (this.skip)
-			record_server_event({ domain: 'server', name: 'server.delta.skip', fp: this.fp || '' });
+		if (this.skipped_fp)
+			record_server_event({ domain: 'server', name: 'server.delta.skip', fp: this.skipped_fp });
 	}
 }

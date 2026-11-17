@@ -1,4 +1,5 @@
 import { getContext, setContext, untrack } from 'svelte';
+import { BROWSER } from 'esm-env';
 import { page } from '$app/state';
 import { KIT_REQUEST_CONTEXT, kit_request_event } from '../server/kit-context.ts';
 import { document_tail, type DocumentTail } from '../server/document-tail.ts';
@@ -77,10 +78,7 @@ export class RegionPlan {
 		this.inputs = untrack(() => this.#read_inputs());
 		this.plan = REGION_PLANS.decide(this.inputs);
 		untrack(() => this.#mark());
-		this.tail =
-			this.plan.tail && (import.meta.env?.SSR ?? typeof window === 'undefined')
-				? document_tail()
-				: null;
+		this.tail = this.plan.tail && !BROWSER ? document_tail() : null;
 		this.slot_id = untrack(() => next_slot_id(this.#slot_entry(), getContext(HOLE_SLOT_SEQUENCE)));
 	}
 
@@ -95,7 +93,7 @@ export class RegionPlan {
 	}
 
 	#read_inputs(): RegionInputs {
-		const server = import.meta.env?.SSR ?? typeof window === 'undefined';
+		const server = !BROWSER;
 		const s = this.#settings;
 		return {
 			kind: region_kind(s.mode, this.of_init, this.of_is_promise, this.#baked(), this.#waiting_ui),

@@ -1,4 +1,5 @@
 import { untrack } from 'svelte';
+import { BROWSER } from 'esm-env';
 import { building } from '$app/env';
 import { mint_server_region } from '#region-server';
 import { kit_page_version } from '../server/kit-context.ts';
@@ -99,7 +100,7 @@ export class HoleFacts {
 		const plan = this.#rp.plan;
 		if (import.meta.env && import.meta.env.DEV && plan.warn === 'hole-inline')
 			warn('nested_server_island_inline', { entry: this.entry });
-		if (!(import.meta.env?.SSR ?? typeof window === 'undefined')) return;
+		if (BROWSER) return;
 		const tail = this.#rp.tail;
 		if (tail && plan.hole_tail && this.endpoint)
 			tail.hole(this.identity, this.endpoint, this.props_script);

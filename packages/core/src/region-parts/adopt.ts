@@ -1,4 +1,5 @@
 import { createRawSnippet, type Snippet } from 'svelte';
+import { BROWSER } from 'esm-env';
 
 type Setup = (el: Element, hydrated: boolean) => void | (() => void);
 
@@ -28,11 +29,11 @@ export function adopt_region(
 	inner?: (renderer: never) => void,
 	setup?: Setup
 ): Snippet {
-	return (import.meta.env?.SSR ?? typeof window === 'undefined')
-		? (((renderer: { push(html: string): void }) => {
+	return BROWSER
+		? createRawSnippet(() => new AdoptedElement(attrs, setup))
+		: (((renderer: { push(html: string): void }) => {
 				renderer.push(`<ogygia-region${attrs()}>`);
 				inner?.(renderer as never);
 				renderer.push('</ogygia-region>');
-			}) as unknown as Snippet)
-		: createRawSnippet(() => new AdoptedElement(attrs, setup));
+			}) as unknown as Snippet);
 }

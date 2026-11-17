@@ -18,6 +18,7 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 
 <script lang="ts">
 	import { untrack, type Snippet } from 'svelte';
+	import { BROWSER } from 'esm-env';
 	import { stringify } from 'devalue';
 	import { props_sidecar } from './server/props-wire.ts';
 	import { record_server_event } from './events/server-registry.ts';
@@ -68,17 +69,10 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 					() => children
 				)
 			: null;
-	if (import.meta.env?.SSR ?? typeof window === 'undefined')
-		untrack(() => new PageSeedAsk(rp, island).record());
-	const graph =
-		(import.meta.env?.SSR ?? typeof window === 'undefined') && island
-			? new IslandGraph(rp, island)
-			: null;
+	if (!BROWSER) untrack(() => new PageSeedAsk(rp, island).record());
+	const graph = !BROWSER && island ? new IslandGraph(rp, island) : null;
 	const hole = plan.family === 'hole' ? new HoleFacts(rp, () => __props) : null;
-	const head =
-		(import.meta.env?.SSR ?? typeof window === 'undefined')
-			? new RegionHead(rp, { island, graph, hole })
-			: null;
+	const head = BROWSER ? null : new RegionHead(rp, { island, graph, hole });
 
 	const live = new LiveValue(rp);
 	const baked = live.baked;
@@ -124,12 +118,12 @@ remote call); `placeholder` shows while it is not ready yet. Placed regions (`wa
 				load={island.late_load}
 				props={island.props_ready!}
 				{children}
-			/>{/if}{:else if island.skip}<ogygia-region
+			/>{/if}{:else if island.skipped_fp}<ogygia-region
 			entry={island.module_url}
 			wake={island.wake.on}
 			margin={island.wake.margin || undefined}
 			data-ogygia-keep={rp.settings.keep || undefined}
-			data-og-fp={island.fp || undefined}
+			data-og-fp={island.skipped_fp}
 			data-og-skipped
 			src={island.src || undefined}
 		></ogygia-region>{@html island.props_inline}{:else}<ogygia-region
