@@ -5,7 +5,7 @@
 // runtime withheld = dead chrome (the consumer-reported desync the docstring says can't happen).
 // Self-contained: boots the palaestra DEV server, fetches, toggles the file, re-fetches, restores.
 // Usage: pnpm --filter palaestra e2e dev-csr-toggle
-import { readFileSync, writeFileSync } from 'node:fs';
+import { closeSync, openSync, readFileSync, writeFileSync, writeSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, expect, check, sleep } from '@ogygia/tooling/e2e';
@@ -119,6 +119,31 @@ test.describe('PAGE-CSR dev leg: a csr-export toggle refreshes ogygia:server/rou
 				!!restored,
 				stale_report
 			);
+		} finally {
+			writeFileSync(page_ts, orig!);
+		}
+	});
+
+	test('a save the dev server reads half-written is read again once it is written', async () => {
+		try {
+			expect(
+				await wait_html(() => true, 120_000),
+				'palaestra dev server never came up'
+			).not.toBeNull();
+			for (let round = 0; round < 5; round++) {
+				writeFileSync(page_ts, 'export const csr = false;\n');
+				const flipped = await wait_html((h) => has_regions(h) && !kit_booted(h), 30_000);
+				expect(flipped, `round ${round}: the csr=false save was read`).not.toBeNull();
+				const fd = openSync(page_ts, 'w');
+				await sleep(20);
+				writeSync(fd, orig!);
+				closeSync(fd);
+				const restored = await wait_html((h) => !has_regions(h) && kit_booted(h), 10_000);
+				expect(
+					restored,
+					`round ${round}: the csr=true save, read empty first, was read again`
+				).not.toBeNull();
+			}
 		} finally {
 			writeFileSync(page_ts, orig!);
 		}

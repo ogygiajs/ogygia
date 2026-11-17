@@ -2021,4 +2021,30 @@ describe('the dev server', () => {
 		// (the server graph's copy too: the SSR leg reads the csr set through it)
 		expect(s.invalidated.some((id) => id.includes('route-csr'))).toBe(true);
 	});
+
+	it('a save the watcher reports half-written is read again once it is written', async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = true;\n');
+		const { p } = await setup('serve');
+		const s = server();
+		p.configureServer(s);
+		const csr_true = await load(p, 'ogygia:server/route-csr', 'ssr');
+		write('src/routes/+page.ts', 'export const csr = false;\n');
+		p.watchChange(options, { event: 'update' });
+		const csr_false = await load(p, 'ogygia:server/route-csr', 'ssr');
+		expect(csr_false).not.toBe(csr_true);
+		vi.useFakeTimers();
+		try {
+			write('src/routes/+page.ts', '');
+			p.watchChange(options, { event: 'update' });
+			expect(await load(p, 'ogygia:server/route-csr', 'ssr'), 'read empty').toBe(csr_false);
+			s.invalidated.length = 0;
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			vi.advanceTimersByTime(1_000);
+			expect(s.invalidated.some((id) => id.includes('route-csr'))).toBe(true);
+			expect(await load(p, 'ogygia:server/route-csr', 'ssr')).toBe(csr_true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });
