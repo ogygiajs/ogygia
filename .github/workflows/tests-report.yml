@@ -83,7 +83,9 @@ jobs:
           mkdir -p .e2e
           for wf in e2e.yml engines.yml; do
             for i in $(seq 1 120); do
-              run=$(gh run list --repo "$REPO" --workflow "$wf" --commit "$SHA" --limit 1 --json databaseId,status,conclusion --jq '.[0]')
+              run=$(gh run list --repo "$REPO" --workflow "$wf" --commit "$SHA" --limit 1 --json databaseId,status,conclusion --jq '.[0] // null')
+              # (a workflow with no run for this commit prints nothing: that is "none", not a wait)
+              [ -n "$run" ] || run=null
               status=$(echo "$run" | jq -r '.status // "none"')
               [ "$status" = "completed" ] || [ "$status" = "none" ] && break
               sleep 60
