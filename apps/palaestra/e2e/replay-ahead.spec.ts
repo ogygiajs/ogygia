@@ -10,7 +10,7 @@
 // Against the built palaestra (/wake-switch).
 // Usage: pnpm exec playwright test replay-ahead
 import type { Page } from '@playwright/test';
-import { test, expect } from '@ogygia/tooling/e2e';
+import { test, expect, while_open } from '@ogygia/tooling/e2e';
 
 const HOLD_MS = 4000;
 /** What only each held file carries in a production build. */
@@ -22,14 +22,14 @@ async function hold(page: Page, t0: () => number): Promise<{ replay: number | nu
 	const asked: { replay: number | null } = { replay: null };
 	await page.route(
 		(url) => url.pathname.endsWith('.js'),
-		async (route) => {
+		while_open(async (route) => {
 			const response = await route.fetch();
 			const body = await response.text();
 			const is_replay = body.includes(REPLAY);
 			if (is_replay && asked.replay === null) asked.replay = t0();
 			if (is_replay || body.includes(SWITCH)) await new Promise((r) => setTimeout(r, HOLD_MS));
 			return route.fulfill({ response, body });
-		}
+		})
 	);
 	return asked;
 }

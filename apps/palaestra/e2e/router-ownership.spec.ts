@@ -11,7 +11,7 @@
 // Against the built palaestra (/soft-race, /soft-race/b, the home page's links).
 // Usage: pnpm exec playwright test router-ownership
 import { expect, type Page, type Route } from '@playwright/test';
-import { test, check } from '@ogygia/tooling/e2e';
+import { test, check, while_open } from '@ogygia/tooling/e2e';
 
 /** A string only the navigation chunk carries (the SPA fetch header). */
 const ROUTER_NAV_MARKER = 'x-ogygia-spa';
@@ -41,12 +41,12 @@ test.describe('work in flight belongs to what started it', () => {
 		const chunk = gate();
 		await page.route(
 			(url) => url.pathname.endsWith('.js'),
-			async (route) => {
+			while_open(async (route) => {
 				const response = await route.fetch();
 				const body = await response.text();
 				if (!body.includes(ROUTER_NAV_MARKER)) return route.fulfill({ response, body });
 				await chunk.hold(route, () => route.fulfill({ response, body }));
-			}
+			})
 		);
 		await page.goto('/', { waitUntil: 'domcontentloaded' });
 		await page.waitForSelector('meta[name="ogygia-router"]', { state: 'attached' });
@@ -152,17 +152,20 @@ test.describe('work in flight belongs to what started it', () => {
 	}) => {
 		await page.goto('/soft-race', { waitUntil: 'networkidle' });
 		const prefetch = gate();
-		await page.route('**/soft-race/b', async (route) => {
-			const r = route.request();
-			if (r.headers()['x-ogygia-purpose'] !== 'prefetch') return route.continue();
-			// the page as it was before the mutation: marked, so a click served from it shows
-			const response = await route.fetch();
-			const body = (await response.text()).replace(
-				'Soft race B',
-				'Soft race B (before the mutation)'
-			);
-			await prefetch.hold(route, () => route.fulfill({ response, body }));
-		});
+		await page.route(
+			'**/soft-race/b',
+			while_open(async (route) => {
+				const r = route.request();
+				if (r.headers()['x-ogygia-purpose'] !== 'prefetch') return route.continue();
+				// the page as it was before the mutation: marked, so a click served from it shows
+				const response = await route.fetch();
+				const body = (await response.text()).replace(
+					'Soft race B',
+					'Soft race B (before the mutation)'
+				);
+				await prefetch.hold(route, () => route.fulfill({ response, body }));
+			})
+		);
 		// a remote mutation that succeeds (what a Kit command or form POST is on the wire)
 		await page.route('**/remote/race-mutation', (route) =>
 			route.fulfill({ status: 200, contentType: 'application/json', body: '{"type":"result"}' })

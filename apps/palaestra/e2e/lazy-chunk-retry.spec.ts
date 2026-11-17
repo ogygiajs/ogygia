@@ -14,7 +14,7 @@
 // chunk SHARED with others (imported statically) cannot be asked for again at all.
 // Usage: pnpm exec playwright test lazy-chunk-retry
 import { expect, test, type ConsoleMessage, type Page } from '@playwright/test';
-import { check, replayed_once } from '@ogygia/tooling/e2e';
+import { check, replayed_once, while_open } from '@ogygia/tooling/e2e';
 import { console_text } from '@ogygia/tooling/e2e/browsers.ts';
 
 /** Keeps an error message's own text in every engine (Firefox's console text of an Error is its
@@ -69,7 +69,7 @@ async function drop(page: Page, chunk: Chunk | { file: string }, times: number) 
 				: mark!.test(body);
 	await page.route(
 		(url) => url.pathname.endsWith('.js'),
-		async (route) => {
+		while_open(async (route) => {
 			const response = await route.fetch();
 			const body = await response.text();
 			if (is_it(new URL(route.request().url()).pathname, body)) {
@@ -82,7 +82,7 @@ async function drop(page: Page, chunk: Chunk | { file: string }, times: number) 
 			// (served by the network, not fulfilled: WebKit gives a fulfilled response a timing entry
 			// with no response start, which the runtime reads as "no response came")
 			return route.continue();
-		}
+		})
 	);
 	return seen;
 }

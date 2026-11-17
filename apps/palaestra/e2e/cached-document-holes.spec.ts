@@ -8,7 +8,7 @@
 // The spec signs expired capabilities itself with the palaestra's OGYGIA_SECRET, exactly as the
 // handle would have minted them hours or days ago.
 import fs from 'node:fs';
-import { test, check } from '@ogygia/tooling/e2e';
+import { test, check, while_open } from '@ogygia/tooling/e2e';
 import { AMP_ENTITY_G_RE, ENDPOINT_ATTR_RE } from '@ogygia/tooling/e2e/re.ts';
 import { derive_mac_key, Hmac } from '../../../packages/core/dist/server/hmac.js';
 import { capability } from '../../../packages/machine/dist/index.js';
@@ -175,13 +175,16 @@ test.describe('holes outlive a CDN-cached document', () => {
 		// Serve /server as a cache would have kept it: the same document, its hole minted 2h+ ago,
 		// everywhere the document names it (the hole's attribute, and the head's early start). Its
 		// `exp` and `sig` are swapped each on its own: other params (`v`, `ttl`) sit between them.
-		await page.route(`${baseURL}/server`, async (route) => {
-			const res = await route.fetch();
-			const html = (await res.text())
-				.replaceAll(`exp=${lp.get('exp')}&`, `exp=${expired.get('exp')}&`)
-				.replaceAll(`sig=${lp.get('sig')}`, `sig=${expired.get('sig')}`);
-			await route.fulfill({ response: res, body: html });
-		});
+		await page.route(
+			`${baseURL}/server`,
+			while_open(async (route) => {
+				const res = await route.fetch();
+				const html = (await res.text())
+					.replaceAll(`exp=${lp.get('exp')}&`, `exp=${expired.get('exp')}&`)
+					.replaceAll(`sig=${lp.get('sig')}`, `sig=${expired.get('sig')}`);
+				await route.fulfill({ response: res, body: html });
+			})
+		);
 		const hole_statuses: string[] = [];
 		page.on('response', (r) => {
 			if (r.url().includes('__ogygia__'))

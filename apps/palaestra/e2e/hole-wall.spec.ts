@@ -8,7 +8,7 @@
 // switched by the `og-auth-wall` cookie.
 //
 //   pnpm exec playwright test hole-wall
-import { test, check, sleep } from '@ogygia/tooling/e2e';
+import { test, check, sleep, while_open } from '@ogygia/tooling/e2e';
 
 const HOLE_REQUEST_RE = /\/__ogygia__\?/;
 
@@ -81,19 +81,22 @@ for (const [mode, param, value, deny] of [
 	}) => {
 		const answers: { status: number; deny: string | null; key: string | null; k: string | null }[] =
 			[];
-		await page.route(HOLE_REQUEST_RE, async (route) => {
-			const url = new URL(route.request().url());
-			url.searchParams.set(param, value);
-			const res = await route.fetch({ url: url.href });
-			const h = res.headers();
-			answers.push({
-				status: res.status(),
-				deny: h['x-ogygia-deny'] ?? null,
-				key: h['x-ogygia-key'] ?? null,
-				k: url.searchParams.get('k')
-			});
-			await route.fulfill({ response: res });
-		});
+		await page.route(
+			HOLE_REQUEST_RE,
+			while_open(async (route) => {
+				const url = new URL(route.request().url());
+				url.searchParams.set(param, value);
+				const res = await route.fetch({ url: url.href });
+				const h = res.headers();
+				answers.push({
+					status: res.status(),
+					deny: h['x-ogygia-deny'] ?? null,
+					key: h['x-ogygia-key'] ?? null,
+					k: url.searchParams.get('k')
+				});
+				await route.fulfill({ response: res });
+			})
+		);
 		const errs: string[] = [];
 		page.on('pageerror', (e) => errs.push(e.message));
 		// the hole's answer, not network idle: Chromium never finishes a routed `no-store` response
