@@ -369,6 +369,12 @@
 			"name": "`%s` is an unknown option, named with the keys there are"
 		},
 		{
+			"site": "packages/compiler/src/vite/route-watch.ts > RouteWatch > heard > timer:0",
+			"reason": "the second read of a route file event, once the watcher's drop window has passed: what a dropped event's write changed is read then",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a save the watcher reports half-written is read again once it is written"
+		},
+		{
 			"site": "packages/compiler/src/vite/paths.ts > runtime_inputs > catch:0",
 			"reason": "an unbuilt runtime directory cannot be read: it adds no input",
 			"test": "packages/compiler/test/runtime-hash.test.ts",
