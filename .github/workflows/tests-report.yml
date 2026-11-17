@@ -72,8 +72,9 @@ jobs:
           persist-credentials: false
 
       # that commit's e2e results, from its own runs on main (every engine in e2e.yml; a commit from
-      # before Firefox and WebKit joined it has them in engines.yml): waited for, at most two hours,
-      # then read as they are
+      # before Firefox and WebKit joined it has them in engines.yml): waited for, at most two hours.
+      # A run that did not pass fails the report: the site never shows a released version as red.
+      # Re-run its failed jobs, then run this workflow by hand for the version.
       - name: The released commit's e2e results
         env:
           GH_TOKEN: ${{ github.token }}
@@ -82,12 +83,17 @@ jobs:
           mkdir -p .e2e
           for wf in e2e.yml engines.yml; do
             for i in $(seq 1 120); do
-              run=$(gh run list --repo "$REPO" --workflow "$wf" --commit "$SHA" --limit 1 --json databaseId,status --jq '.[0]')
+              run=$(gh run list --repo "$REPO" --workflow "$wf" --commit "$SHA" --limit 1 --json databaseId,status,conclusion --jq '.[0]')
               status=$(echo "$run" | jq -r '.status // "none"')
               [ "$status" = "completed" ] || [ "$status" = "none" ] && break
               sleep 60
             done
             id=$(echo "$run" | jq -r '.databaseId // empty')
+            conclusion=$(echo "$run" | jq -r '.conclusion // empty')
+            if [ -n "$id" ] && [ "$conclusion" != "success" ]; then
+              echo "::error::$wf run $id for $SHA ended '$conclusion': re-run its failed jobs, then run this workflow by hand (version input)"
+              exit 1
+            fi
             if [ -n "$id" ]; then
               gh run download "$id" --repo "$REPO" --pattern 'e2e-results-*' --dir ".e2e/$wf" || echo "::warning::no e2e results in $wf run $id"
             else
@@ -141,6 +147,17 @@ jobs:
             ${{ runner.temp }}/tests/
             ${{ runner.temp }}/raw/
           retention-days: 90
+
+      # a failing result anywhere stops here, before the PR: the artifact above keeps it to read
+      - name: Every result passed
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          failing=$(jq '[.packages[].fail] | add // 0' "$RUNNER_TEMP/tests/$VERSION/summary.json")
+          if [ "$failing" != "0" ]; then
+            echo "::error::$failing failing results in the $VERSION report: not published. Fix or re-run, then run this workflow by hand (version input)"
+            exit 1
+          fi
 
       # main's tree, with the report added: the report's files and the index, nothing else
       - name: Open the report PR
