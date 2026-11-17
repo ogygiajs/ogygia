@@ -1799,9 +1799,12 @@ describe('the dev server', () => {
 	function server() {
 		const sent: unknown[] = [];
 		const invalidated: string[] = [];
+		const replayed: string[] = [];
 		return {
 			sent,
 			invalidated,
+			replayed,
+			watcher: { emit: (_event: string, file: string) => void replayed.push(file) },
 			ws: { send: (m: unknown) => void sent.push(m) },
 			moduleGraph: {
 				getModuleById: (id: string) => ({ id }),
@@ -2043,6 +2046,7 @@ describe('the dev server', () => {
 			vi.advanceTimersByTime(1_000);
 			expect(s.invalidated.some((id) => id.includes('route-csr'))).toBe(true);
 			expect(await load(p, 'ogygia:server/route-csr', 'ssr')).toBe(csr_true);
+			expect(s.replayed).toEqual([options]);
 		} finally {
 			vi.useRealTimers();
 		}

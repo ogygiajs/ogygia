@@ -426,6 +426,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		(file, event) => compiler_of(session, 'watchChange').routes_changed(file, event),
 		(id) => {
 			if (vite_server) invalidate_module_id(vite_server, id);
+		},
+		(file) => {
+			vite_server?.watcher.emit('change', file);
 		}
 	);
 
