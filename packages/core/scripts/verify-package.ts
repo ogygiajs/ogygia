@@ -59,8 +59,8 @@ function unpack(dir: string, into: string): Manifest {
 	// `npm pack` does NOT apply `publishConfig` (only `npm publish` does), so the tarball carries the
 	// DEV exports (src paths, for monorepo HMR). Apply publishConfig ourselves — exactly what publish
 	// does — and write it back, so node/tsc below resolve against the PUBLISHED shape, not the dev one.
-	if (manifest.publishConfig?.exports) {
-		manifest.exports = manifest.publishConfig.exports;
+	if (manifest.publishConfig) {
+		Object.assign(manifest, manifest.publishConfig);
 		delete manifest.publishConfig;
 		fs.writeFileSync(path.join(into, 'package.json'), JSON.stringify(manifest, null, 2));
 	}
@@ -102,7 +102,7 @@ const targets_of = (v: string | Conditions): Conditions =>
 // import needs the Svelte compiler/loader (component subpaths aren't bare-Node importable). Reaching
 // such a boundary PROVES the module's own graph loaded intact up to it.
 const EXPECTED =
-	/Cannot find package '\$app|Cannot find package '\$env|virtual:|Unknown file extension "\.svelte"/;
+	/Cannot find package '\$app|Cannot find package '\$env|virtual:|Received protocol 'ogygia:'|Unknown file extension "\.svelte"/;
 
 for (const [subpath, val] of Object.entries(exports)) {
 	if (subpath === './package.json') continue;
