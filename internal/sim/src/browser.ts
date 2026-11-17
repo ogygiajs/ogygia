@@ -347,6 +347,8 @@ export class Browsers {
 	}
 
 	readonly #windows = new WeakMap<object, Tab>();
+	/** Each document's window, by its realm's `Promise`: whose a rejection nobody handled is. */
+	readonly #by_promise = new WeakMap<object, { tab: Tab; window: object }>();
 	/** Each tab's document's layout (its IntersectionObserver frames wait while the tab is hidden). */
 	readonly #layouts = new WeakMap<Tab, { shown(): void }>();
 	/** The last error happy-dom wrote to a tab's page console (why an element's load failed). */
@@ -467,6 +469,7 @@ export class Browsers {
 		});
 		tab.platform = p;
 		this.#windows.set(window, tab);
+		this.#by_promise.set((window as unknown as { Promise: object }).Promise, { tab, window });
 		// (heard before the listener count starts: the simulator's own ear, not the page's; on the
 		// window while capturing, as writing the document's content drops the document's listeners)
 		const swaps: number[] = (tab.swaps = []);
@@ -734,26 +737,25 @@ export class Browsers {
 	}
 
 	/**
-	 * A rejection nobody handled, from a promise of a shown document's realm: the page's, as in a
+	 * A rejection nobody handled, from a promise of a tab's document's realm: the page's, as in a
 	 * browser, which fires `unhandledrejection` on that window (the tab's listener records it, and
-	 * ogygia's rules hear it). A vm context's promise reaches the host's process otherwise. False
-	 * when no shown document made it (the host's, or a document already left).
+	 * ogygia's rules hear it). A vm context's promise reaches the host's process otherwise. A
+	 * document the tab has left says nothing, even while the next one is still on its way (happy-dom
+	 * replaced its window as the navigation started). False when no tab's document made it (the
+	 * host's).
 	 */
 	reject_in_page(reason: unknown, promise: Promise<unknown>): boolean {
-		for (const v of this.visitors)
-			for (const t of v.tabs) {
-				const w = t.page.mainFrame.window as unknown as {
-					Promise: PromiseConstructor;
-					Event: typeof Event;
-					dispatchEvent(e: Event): boolean;
-				};
-				if (!(promise instanceof w.Promise)) continue;
-				const e = new w.Event('unhandledrejection', { cancelable: true });
-				Object.assign(e, { reason, promise });
-				w.dispatchEvent(e);
-				return true;
-			}
-		return false;
+		const made = this.#by_promise.get(Object.getPrototypeOf(promise)?.constructor as object);
+		if (made === undefined) return false;
+		if ((made.tab.page.mainFrame.window as unknown) !== made.window) return true;
+		const w = made.window as {
+			Event: typeof Event;
+			dispatchEvent(e: Event): boolean;
+		};
+		const e = new w.Event('unhandledrejection', { cancelable: true });
+		Object.assign(e, { reason, promise });
+		w.dispatchEvent(e);
+		return true;
 	}
 
 	#find(window: BrowserWindow): Tab | undefined {

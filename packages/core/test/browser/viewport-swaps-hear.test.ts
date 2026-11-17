@@ -29,8 +29,7 @@ test('a swap that lands as another region’s watch ends is still heard, after t
 	const heard_b: boolean[] = [];
 	const stop_a = watch_viewport(a, '11px', () => {});
 	const stop_b = watch_viewport(b, '11px', (on) => heard_b.push(on));
-	await settle();
-	expect(heard_b).toEqual([false]);
+	await expect.poll(() => heard_b, { timeout: 5_000 }).toEqual([false]);
 	b.innerHTML = NEAR;
 	stop_a();
 	expect(heard_b, 'not inside the stop').toEqual([false]);

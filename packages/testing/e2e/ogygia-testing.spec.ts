@@ -78,13 +78,17 @@ test('page() and hydration(): the planted problems, as a test sees them', async 
 		inputDuringHydration: false
 	});
 	// what measuring cost the page, for a test to subtract
-	expect(load.self!.script_ms).toBeGreaterThan(0);
-	expect(load.self!.phases.islands).toBeGreaterThan(0);
+	const measured = (ms: number | undefined) => {
+		expect(typeof ms).toBe('number');
+		expect(ms).toBeGreaterThanOrEqual(0);
+		// @why Firefox and WebKit round performance.now() to 1 ms, so a short phase can read 0 (test: ogygia-testing e2e › page() and hydration())
+		if (browserName === 'chromium') expect(ms).toBeGreaterThan(0);
+	};
+	measured(load.self!.script_ms);
+	measured(load.self!.phases.islands);
 	// (withOgygia injected the engine: the page downloaded none of it, and its start is measuring's own)
 	expect(load.self!.bytes).toBe(0);
-	expect(load.self!.phases.engine).toBeGreaterThanOrEqual(0);
-	// @why Firefox and WebKit round performance.now() to 1 ms, so a short engine start can read 0 (test: ogygia-testing e2e › page() and hydration())
-	if (browserName === 'chromium') expect(load.self!.phases.engine).toBeGreaterThan(0);
+	measured(load.self!.phases.engine);
 	expect(load.engine).toMatchObject({ version: 3, lean: false });
 	expect(new Set(hyd.islands.map((i) => i.key)).size).toBe(hyd.islands.length);
 

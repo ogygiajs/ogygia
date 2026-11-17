@@ -549,6 +549,14 @@
 			"reason": "browser only: the replay chunk failed to load again after a failed wake: reports it, constant work"
 		},
 		{
+			"id": "packages/devtools/src/devtools/ui.ts > mount_launcher > onpointerdown",
+			"reason": "browser only, constant work: a pointer pressed on the launcher sets one flag; proven in packages/devtools/e2e/devtools.spec.ts (#2028)"
+		},
+		{
+			"id": "packages/devtools/src/devtools/ui.ts > mount_launcher > onpointercancel",
+			"reason": "browser only, constant work: a press released, left or cancelled clears one flag; proven in packages/devtools/e2e/devtools.spec.ts (#2028)"
+		},
+		{
 			"id": "packages/devtools/src/devtools/ui.ts > import_again:0",
 			"reason": "browser only: the dynamic import of the devtools dock's chunk; proven in packages/devtools/e2e/devtools.spec.ts"
 		},
@@ -2963,6 +2971,30 @@
 		{
 			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
 			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/vite/route-watch.ts > RouteWatch > constructor",
+			"reason": "dev only, once per plugin: keeps three fields; proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
+		},
+		{
+			"id": "packages/compiler/src/vite/route-watch.ts > RouteWatch > heard",
+			"reason": "dev only, once per watched file event: one read (Compiler.routes_changed, benched in packages/compiler/bench/routes.bench.ts as dev file events) and one timer; proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > RouteWatch:3~fe1735",
+			"reason": "dev only, a closure over the dev server (not replayable): emits one watcher event for a file whose event the watcher dropped; proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
+		},
+		{
+			"id": "packages/compiler/src/vite/route-watch.ts > RouteWatch > #read",
+			"reason": "dev only, a loop over what Compiler.routes_changed returns (benched in packages/compiler/bench/routes.bench.ts); proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > RouteWatch:1~b36a2f",
+			"reason": "dev only, a closure over ogygia()'s session (not replayable): hands a file event to Compiler.routes_changed, benched in packages/compiler/bench/routes.bench.ts; proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > RouteWatch:2~6c42e6",
+			"reason": "dev only, a closure over the dev server (not replayable): one module graph invalidation per id; proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
 		},
 		{
 			"id": "packages/compiler/src/vite/kit-dirs.ts > load_kit_config",
@@ -5855,6 +5887,34 @@
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > writeBundle > settle:0~e8e319",
 			"reason": "build only, once per client build: one bundler resolve per helper the page is handed to, Vite's own work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > writeBundle > OgygiaError:1~341e15 > import_chain:1~acdaf4",
+			"reason": "error path only: names the import chain once, when a build is about to fail with virtual_wrong_realm; test/virtual-table.test.ts runs import_chain"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > load > emit:1~91ab5d > via",
+			"reason": "error path only: called only when a browser load is refused with virtual_wrong_realm; test/virtual-table.test.ts runs it through table.load"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > load > emit:1~91ab5d > via > import_chain:1~acdaf4",
+			"reason": "error path only: called only when a browser load is refused with virtual_wrong_realm; test/virtual-table.test.ts runs import_chain"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > resolveId > resolve_id:2~4e3f16 > importers_of",
+			"reason": "error path only: one bundler module-graph read per step of the chain a virtual_wrong_realm error names; Vite's own work"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > resolve_id > resolve:1~2a55a8 > via",
+			"reason": "error path only: called only when a resolve is refused with virtual_wrong_realm; test/virtual-table.test.ts runs it through table.resolve"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > resolve_id > resolve:1~2a55a8 > via > import_chain:1~9ea8b1",
+			"reason": "error path only: called only when a resolve is refused with virtual_wrong_realm; test/virtual-table.test.ts runs import_chain"
+		},
+		{
+			"id": "packages/compiler/src/virtual/resolver.ts > import_chain > find:0~61c735",
+			"reason": "error path only: one importer pick per step of the chain a virtual_wrong_realm error names; test/virtual-table.test.ts runs it"
 		},
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_seed_key_unshipped > text",

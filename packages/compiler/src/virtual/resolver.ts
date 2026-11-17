@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { OgygiaError } from '../messages.ts';
 import { RESOLVED } from '../ids.ts';
 import {
@@ -31,6 +32,26 @@ const REALM_NAMED_IMPORT_G =
 export interface Env {
 	ssr: boolean;
 	dev: boolean;
+	/** the import chain that reached the module ({@link import_chain}), named when it is refused */
+	via?: () => string;
+}
+
+/** The files that imported `start`, nearest first, each the first importer not yet named, back to
+ *  one nothing imports (or a cycle): `` `a.ts` ← `b.svelte` ``, relative to `root`. Virtual ids are
+ *  passed through, never named. */
+export function import_chain(
+	start: string,
+	importers_of: (id: string) => readonly string[] | undefined,
+	root: string
+): string {
+	const seen = new Set<string>();
+	const named: string[] = [];
+	for (let id: string | undefined = start; id !== undefined && !seen.has(id);) {
+		seen.add(id);
+		if (!id.startsWith('\0')) named.push(`\`${path.relative(root, id.split('?')[0]!)}\``);
+		id = importers_of(id)?.find((importer) => !seen.has(importer));
+	}
+	return named.join(' ← ');
 }
 
 /** The realms each leg may import: the server leg server and region, the browser leg boot and
@@ -46,7 +67,8 @@ function check_realm(id: string, realm: Realm, env: Env): void {
 		throw new OgygiaError('virtual_wrong_realm', {
 			id,
 			realm,
-			leg: env.ssr ? 'server' : 'browser'
+			leg: env.ssr ? 'server' : 'browser',
+			via: env.via?.()
 		});
 }
 
@@ -183,7 +205,7 @@ export class VirtualTable<A> {
 	/** A resolved id → its module source; `null`: not a module this table loads. Records what the
 	 *  load read (the session's parts, and every query it read), for {@link moved}. */
 	load(id: string, app: A, leg: Leg): string | Promise<string> | null {
-		const browser = { ssr: false, dev: true };
+		const browser = { ssr: false, dev: true, via: leg.via };
 		const [wrong] = leg.ssr ? [] : this.misplaced([id], browser);
 		if (wrong) check_realm(id, wrong[1], browser);
 		const key = `${leg.ssr ? 'ssr' : 'client'} ${id}`;
