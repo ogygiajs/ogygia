@@ -62,8 +62,6 @@ const TEXT_ESCAPE_G = /[&<]/g;
 const ESCAPED: Readonly<Record<string, string>> = { '&': '&amp;', '"': '&quot;', '<': '&lt;' };
 const escape_char = (c: string) => ESCAPED[c]!;
 
-/** `parent`'s children as Svelte's server writes HTML: text and attribute values escaped as its
- *  `escape_html` escapes them, a void element closed `/>`, its hydration markers left out. */
 function server_html_of(parent: Node, out: string[] = []): string[] {
 	for (let n = parent.firstChild; n; n = n.nextSibling) {
 		if (n.nodeType === 3) {
