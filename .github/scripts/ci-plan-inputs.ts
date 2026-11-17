@@ -1,5 +1,21 @@
 // What the CI plan (ci-plan.ts) reads from a push before it asks turbo: kept apart so a test can ask.
 
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+/** The packages with a browser project (their vitest config calls `browser_runs`), by folder under
+ *  packages/: the browser jobs run each of them in every engine, so a new one cannot be left to
+ *  Chromium alone. */
+export function browser_packages(root = process.cwd()): string[] {
+	const dir = join(root, 'packages');
+	return readdirSync(dir)
+		.filter((p) => {
+			const config = join(dir, p, 'vitest.config.ts');
+			return existsSync(config) && readFileSync(config, 'utf8').includes('browser_runs');
+		})
+		.sort();
+}
+
 /** The top-level entries format and lint read that turbo's check tasks do not hash: every entry of
  *  `git ls-tree HEAD` but the packages and apps (their check tasks' hashes cover them) and the
  *  changesets (neither format nor lint reads them). `internal/` stays: lint reads it (#1531). */

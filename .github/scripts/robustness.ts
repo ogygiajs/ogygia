@@ -262,9 +262,10 @@ function list_in(text: string, name: string): string[] {
 
 /**
  * The engines CI runs each suite in, from the CI plan (ci-plan.ts): unit tests in Node; a browser
- * project in Chromium (the check job), and in the browser jobs too when the plan lists its package;
- * an e2e suite in every engine. `browser` are packages with a browser project, `e2e` the
- * directories with a Playwright suite.
+ * project in Chromium (the check job), and in the browser jobs too when the plan lists its package
+ * (every one, once the plan reads them with `browser_packages()`; an older plan named each); an e2e
+ * suite in every engine. `browser` are packages with a browser project, `e2e` the directories with a
+ * Playwright suite.
  */
 export function browsers_of(
 	plan: string,
@@ -274,13 +275,14 @@ export function browsers_of(
 	const jobs = list_in(plan, 'BROWSER_JOBS');
 	const at = plan.indexOf('const browser_tasks');
 	const block = at === -1 ? '' : plan.slice(at, plan.indexOf(').filter', at));
+	const every = block.includes('browser_packages()');
 	const listed = new Set([...block.matchAll(/--filter=@ogygia\/([\w-]+)/g)].map((m) => m[1]));
 	return [
 		{ suite: 'unit tests', kind: 'unit', engines: ['node'] },
 		...suites.browser.map((p): SuiteEngines => ({
 			suite: `packages/${p} browser tests`,
 			kind: 'browser',
-			engines: ['chromium', ...(listed.has(p) ? jobs.filter((j) => j !== 'chromium') : [])]
+			engines: ['chromium', ...(every || listed.has(p) ? jobs.filter((j) => j !== 'chromium') : [])]
 		})),
 		...suites.e2e.map((dir): SuiteEngines => ({ suite: `${dir} e2e`, kind: 'e2e', engines }))
 	];

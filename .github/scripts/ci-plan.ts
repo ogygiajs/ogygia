@@ -17,6 +17,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
 import {
+	browser_packages,
 	cheap_plan,
 	format_lint_inputs,
 	to_run,
@@ -242,9 +243,7 @@ summary.push(
 const browser_tasks = dry([
 	'run',
 	'check',
-	'--filter=@ogygia/core',
-	'--filter=@ogygia/content',
-	'--filter=@ogygia/machine'
+	...browser_packages().map((dir) => `--filter=./packages/${dir}`)
 ]).filter((t) => t.task === 'check');
 const browsers_hash = digest(browser_tasks.map((t) => `${t.taskId}:${t.hash}`));
 const browsers =

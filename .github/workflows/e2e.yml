@@ -361,9 +361,12 @@ jobs:
       - name: Build the libraries
         run: pnpm run build:lib
 
-      - name: Browser tests (core, content, machine)
+      # every package with a browser project (ci-plan-inputs.ts browser_packages), the plan's own list
+      - name: Browser tests (every package with a browser project)
         run: |
-          for pkg in machine content core; do
+          pkgs=$(node --input-type=module -e "const m = await import('./.github/scripts/ci-plan-inputs.ts'); console.log(m.browser_packages().join(' '))")
+          [ -n "$pkgs" ] || { echo "::error::no package with a browser project"; exit 1; }
+          for pkg in $pkgs; do
             echo "::group::$pkg"
             (cd packages/$pkg && pnpm exec vitest run --project 'browser*') || failed=1
             echo "::endgroup::"

@@ -13,17 +13,16 @@ import {
 
 test('every package with a browser project runs in the browser jobs, a new one included', () => {
 	const root = mkdtempSync(join(tmpdir(), 'browser-packages-'));
-	const pkg = (dir: string, name: string, vitest?: string) => {
+	const pkg = (dir: string, vitest?: string) => {
 		mkdirSync(join(root, 'packages', dir), { recursive: true });
-		writeFileSync(join(root, 'packages', dir, 'package.json'), JSON.stringify({ name }));
 		if (vitest) writeFileSync(join(root, 'packages', dir, 'vitest.config.ts'), vitest);
 	};
-	pkg('core', '@ogygia/core', 'const browsers = await browser_runs();');
-	pkg('rewrite', '@ogygia/rewrite', 'const browsers = await browser_runs();');
-	pkg('cli', '@ogygia/cli', "test: { environment: 'node' }");
-	pkg('ogygia', 'ogygia');
-	assert.deepEqual(browser_packages(root), ['@ogygia/core', '@ogygia/rewrite']);
-	assert.ok(browser_packages().includes('@ogygia/rewrite'));
+	pkg('core', 'const browsers = await browser_runs();');
+	pkg('rewrite', 'const browsers = await browser_runs();');
+	pkg('cli', "test: { environment: 'node' }");
+	pkg('ogygia');
+	assert.deepEqual(browser_packages(root), ['core', 'rewrite']);
+	assert.ok(browser_packages().includes('rewrite'));
 });
 
 const TREE = [

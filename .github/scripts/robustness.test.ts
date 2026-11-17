@@ -267,6 +267,22 @@ const browser_tasks = dry([
 	);
 });
 
+test('browsers: a plan that reads every browser package runs each one in the browser jobs', () => {
+	const plan = `const ENGINES = ['chromium', 'firefox', 'webkit'] as const;
+const BROWSER_JOBS = ['firefox', 'webkit', 'firefox-stable'] as const;
+const browser_tasks = dry([
+	'run',
+	'check',
+	...browser_packages().map((dir) => \`--filter=./packages/\${dir}\`)
+]).filter((t) => t.task === 'check');`;
+	assert.deepEqual(browsers_of(plan, { browser: ['rewrite'], e2e: [] })[1].engines, [
+		'chromium',
+		'firefox',
+		'webkit',
+		'firefox-stable'
+	]);
+});
+
 function repo(files: Record<string, string>): string {
 	const dir = mkdtempSync(join(tmpdir(), 'robustness-'));
 	for (const [f, body] of Object.entries(files)) {
