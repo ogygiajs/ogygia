@@ -4,8 +4,8 @@ import { SnippetRender } from '../../src/snippet-render.ts';
 import * as fixture from '../fixtures/FrozenSnippet.svelte';
 import { FROZEN_RICH } from '../_frozen-snippet.ts';
 
-const { rich } = fixture as unknown as { rich: Snippet };
+const { rich_snippet } = fixture as unknown as { rich_snippet: () => Snippet };
 
 test('the browser freezes a snippet to the HTML the server freezes it to', () => {
-	expect(new SnippetRender().freeze(rich)).toBe(FROZEN_RICH);
+	expect(new SnippetRender().freeze(rich_snippet())).toBe(FROZEN_RICH);
 });

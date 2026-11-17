@@ -2,7 +2,7 @@
 	const n = 3;
 	const href = 'a?x=1&y="2"<z>';
 	const flag = true;
-	export { rich };
+	export const rich_snippet = () => rich;
 </script>
 
 {#snippet rich()}<p class="a b" data-x={href}>
