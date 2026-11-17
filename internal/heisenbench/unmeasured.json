@@ -549,6 +549,14 @@
 			"reason": "browser only: the replay chunk failed to load again after a failed wake: reports it, constant work"
 		},
 		{
+			"id": "packages/devtools/src/devtools/ui.ts > mount_launcher > onpointerdown",
+			"reason": "browser only, constant work: a pointer pressed on the launcher sets one flag; proven in packages/devtools/e2e/devtools.spec.ts (#2028)"
+		},
+		{
+			"id": "packages/devtools/src/devtools/ui.ts > mount_launcher > onpointercancel",
+			"reason": "browser only, constant work: a press released, left or cancelled clears one flag; proven in packages/devtools/e2e/devtools.spec.ts (#2028)"
+		},
+		{
 			"id": "packages/devtools/src/devtools/ui.ts > import_again:0",
 			"reason": "browser only: the dynamic import of the devtools dock's chunk; proven in packages/devtools/e2e/devtools.spec.ts"
 		},
