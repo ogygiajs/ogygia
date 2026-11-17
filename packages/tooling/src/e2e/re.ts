@@ -96,6 +96,7 @@ export const LEADING_DOTS_RE = /^[./]+/;
 export const ONE_RE = /1/;
 
 /** What Playwright throws at a route handler whose request is gone (its page or context closed):
- *  the call's name, then why. Matched by ./routes.ts `while_open`. */
+ *  the call's name, then why, which is the runner's close reason when the test's own context
+ *  closed (`Test ended.`, or the timeout). Matched by ./routes.ts `while_open`. */
 export const ROUTE_GONE_RE =
-	/^[\w.]+: (?:(?:Fetch r|R)esponse has been disposed|Target page, context or browser has been closed|Request context disposed)/;
+	/^[\w.]+: (?:(?:Fetch r|R)esponse has been disposed|Target page, context or browser has been closed|Request context disposed|Test ended\.|Test timeout of \d+ms exceeded\.)/;

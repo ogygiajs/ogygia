@@ -16,7 +16,9 @@ describe('while_open', () => {
 		'apiResponse.body: Response has been disposed',
 		'route.fulfill: Fetch response has been disposed',
 		'route.fetch: Target page, context or browser has been closed',
-		'apiRequestContext.fetch: Request context disposed.'
+		'apiRequestContext.fetch: Request context disposed.',
+		'route.fetch: Test ended.\nCall log:\n  - → GET http://localhost:3051/_app/immutable/chunks/a.js',
+		'route.fetch: Test timeout of 30000ms exceeded.'
 	])('a handler whose request is gone ends quietly: %s', async (message) => {
 		await expect(throwing(message)(route, request)).resolves.toBeUndefined();
 	});
