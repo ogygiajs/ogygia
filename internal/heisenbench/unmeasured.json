@@ -2973,8 +2973,8 @@
 			"reason": "dev only, once per watched file event: one read (Compiler.routes_changed, benched in packages/compiler/bench/routes.bench.ts as dev file events) and one timer; proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
 		},
 		{
-			"id": "packages/compiler/src/vite/route-watch.ts > RouteWatch > heard > timeout:0~8069bc",
-			"reason": "dev only, the second read of a watched file event, a timer callback: Compiler.routes_changed, benched in packages/compiler/bench/routes.bench.ts; proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
+			"id": "packages/compiler/src/vite/index.ts > ogygia > RouteWatch:3~fe1735",
+			"reason": "dev only, a closure over the dev server (not replayable): emits one watcher event for a file whose event the watcher dropped; proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
 		},
 		{
 			"id": "packages/compiler/src/vite/route-watch.ts > RouteWatch > #read",
