@@ -10,6 +10,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium, type Browser } from 'playwright';
+import { scope, STALE, type Scope } from '@ogygia/machine';
 import { dedent } from '../../src/contract/dedent.ts';
 
 const FIXTURE = path.join(import.meta.dirname, '_kit-app');
@@ -50,12 +51,28 @@ export interface KitStart {
 	status_seen: number[];
 }
 
+// @why a child outlives a parent killed by a signal, but its stdin pipe still closes then (test: test/canary/kit-app.test.ts › takes its server down with it when the process that started it is killed)
+const EXIT_WITH_PARENT =
+	'data:text/javascript,import{isMainThread}from"node:worker_threads";if(isMainThread)process.stdin.on("end",()=>process.exit(0)).resume().unref()';
+
+const exited = (child: ChildProcess): boolean =>
+	child.exitCode !== null || child.signalCode !== null;
+
+/** Kills `child` and waits for it to exit. */
+async function end(child: ChildProcess): Promise<void> {
+	if (exited(child)) return;
+	const gone = new Promise((r) => child.once('exit', r));
+	child.kill();
+	await gone;
+}
+
 /** One canary app, booted against one installed Kit. */
 export class KitApp {
 	readonly dir: string;
 	readonly major: number;
 	url = '';
 	readonly #mode: KitMode;
+	readonly #owner: Scope = scope();
 	#server: ChildProcess | null = null;
 	#log = '';
 
@@ -75,7 +92,9 @@ export class KitApp {
 		fs.symlinkSync(kit_root, path.join(modules, '@sveltejs/kit'), 'dir');
 		for (const dep of ['svelte', 'vite', '@sveltejs/vite-plugin-svelte'])
 			fs.symlinkSync(KitApp.#package_dir(kit_root, dep), path.join(modules, dep), 'dir');
-		fs.cpSync(path.join(FIXTURE, 'src'), path.join(this.dir, 'src'), { recursive: true });
+		fs.cpSync(path.join(FIXTURE, 'src'), path.join(this.dir, 'src'), {
+			recursive: true
+		});
 		fs.writeFileSync(
 			path.join(this.dir, 'package.json'),
 			JSON.stringify({ name: 'kit-canary', private: true, type: 'module' })
@@ -88,7 +107,9 @@ export class KitApp {
 			`
 		);
 		const kit = {
-			files: { routes: options.routes === 'all-csr-false' ? 'src/all-csr-false' : 'src/pages' },
+			files: {
+				routes: options.routes === 'all-csr-false' ? 'src/all-csr-false' : 'src/pages'
+			},
 			outDir: OUT_DIR,
 			appDir: APP_DIR,
 			inlineStyleThreshold: options.inline_style_threshold ?? 0,
@@ -102,7 +123,13 @@ export class KitApp {
 				`export default ${JSON.stringify({ kit, compilerOptions })};`
 			);
 		const plugin =
-			this.major < 3 ? '' : JSON.stringify({ ...kit, alias: { $lib: 'src/lib' }, compilerOptions });
+			this.major < 3
+				? ''
+				: JSON.stringify({
+						...kit,
+						alias: { $lib: 'src/lib' },
+						compilerOptions
+					});
 		fs.writeFileSync(
 			path.join(this.dir, 'vite.config.js'),
 			dedent`
@@ -147,10 +174,12 @@ export class KitApp {
 		return out;
 	}
 
-	/** Builds the app when it is served from a build, then serves it. */
+	/** Builds the app when it is served from a build, then serves it. Fails when the app stops
+	 *  first. */
 	async start(): Promise<this> {
 		if (this.#mode === 'build') await this.#vite(['build']);
-		const port = await KitApp.#free_port();
+		const port = await this.#owner.task(() => KitApp.#free_port());
+		if (port === STALE) throw new Error('the canary app stopped before its server started');
 		this.url = `http://localhost:${port}`;
 		this.#server = this.#spawn([
 			this.#mode === 'dev' ? 'dev' : 'preview',
@@ -224,15 +253,9 @@ export class KitApp {
 		}
 	}
 
-	/** Stops the server and removes the app. */
+	/** Stops every process the app started, waits for them to exit, and removes the app. */
 	async stop(): Promise<void> {
-		const server = this.#server;
-		this.#server = null;
-		if (server && server.exitCode === null) {
-			const exited = new Promise((r) => server.once('exit', r));
-			server.kill();
-			await exited;
-		}
+		await this.#owner[Symbol.asyncDispose]();
 		fs.rmSync(this.dir, { recursive: true, force: true });
 	}
 
@@ -264,13 +287,15 @@ export class KitApp {
 
 	#spawn(args: string[]): ChildProcess {
 		const vite = path.join(this.dir, 'node_modules/vite/bin/vite.js');
-		const child = spawn(process.execPath, [vite, ...args], {
+		const child = spawn(process.execPath, ['--import', EXIT_WITH_PARENT, vite, ...args], {
 			cwd: this.dir,
 			env: { ...process.env, NODE_ENV: undefined },
-			stdio: ['ignore', 'pipe', 'pipe']
+			stdio: ['pipe', 'pipe', 'pipe']
 		});
 		child.stdout!.on('data', (d: Buffer) => (this.#log += d.toString()));
 		child.stderr!.on('data', (d: Buffer) => (this.#log += d.toString()));
+		child.on('error', (e) => (this.#log += e.message));
+		this.#owner.adopt({ [Symbol.asyncDispose]: () => end(child) });
 		return child;
 	}
 
@@ -282,7 +307,7 @@ export class KitApp {
 
 	async #until_up(): Promise<void> {
 		for (let i = 0; i < 300; i++) {
-			if (this.#server?.exitCode !== null)
+			if (!this.#server || exited(this.#server))
 				throw new Error(`the canary app's server exited:\n${this.#log}`);
 			const up = await fetch(this.url).then(
 				() => true,
