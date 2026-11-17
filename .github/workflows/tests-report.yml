@@ -95,7 +95,17 @@ jobs:
               exit 1
             fi
             if [ -n "$id" ]; then
-              gh run download "$id" --repo "$REPO" --pattern 'e2e-results-*' --dir ".e2e/$wf" || echo "::warning::no e2e results in $wf run $id"
+              # a re-run job uploads its results again under the same name: only the newest of each
+              # name is read (gh run download would stop on the name clash)
+              gh api --paginate "repos/$REPO/actions/runs/$id/artifacts?per_page=100" \
+                --jq '.artifacts[] | select(.name | startswith("e2e-results-")) | [.name, .id, .created_at] | @tsv' \
+                | sort -k1,1 -k3,3r | awk -F'\t' '!seen[$1]++ { print $1 "\t" $2 }' \
+                | while IFS=$'\t' read -r name artifact; do
+                    mkdir -p ".e2e/$wf/$name"
+                    gh api "repos/$REPO/actions/artifacts/$artifact/zip" > "$RUNNER_TEMP/$name.zip"
+                    unzip -oq "$RUNNER_TEMP/$name.zip" -d ".e2e/$wf/$name"
+                  done
+              [ -n "$(ls -A ".e2e/$wf" 2> /dev/null)" ] || echo "::warning::no e2e results in $wf run $id"
             else
               echo "::warning::no $wf run for $SHA: the report has no e2e from it"
             fi
