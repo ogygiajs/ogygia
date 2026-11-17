@@ -161,6 +161,8 @@ import { scan_entry_pattern, KIT_REMOTE_CLIENT, KIT_REMOTE_STATE, RUNTIME_HASH }
 import type { OgygiaOptions } from './options.ts';
 import { SVELTE_DEV_ISLAND_ENTRIES } from './svelte-entries.ts';
 import { OgygiaError, warn, line } from '../messages.ts';
+import { RouteWatch } from './route-watch.ts';
+import { scope } from '@ogygia/machine';
 
 const DEV_CSS_FILE_RE = /\.(css|scss|sass|less|styl)$/;
 const BACKSLASH_G = /\\/g;
@@ -417,6 +419,15 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		const mod = server.moduleGraph.getModuleById(id);
 		if (mod) server.moduleGraph.invalidateModule(mod);
 	};
+
+	const dev_owner = scope();
+	const route_watch = new RouteWatch(
+		dev_owner,
+		(file, event) => compiler_of(session, 'watchChange').routes_changed(file, event),
+		(id) => {
+			if (vite_server) invalidate_module_id(vite_server, id);
+		}
+	);
 
 	const invalidate_islands_for_file = (
 		file: string,
@@ -750,12 +761,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			watchChange(id, change) {
-				const compiler = compiler_of(session, 'watchChange');
 				shapes.invalidate(id, change.event);
-				if (is_dev) {
-					const ids = compiler.routes_changed(id, change.event);
-					if (vite_server) for (const mid of ids) invalidate_module_id(vite_server, mid);
-				}
+				if (is_dev) route_watch.heard(id, change.event);
 				if (!is_dev || change.event !== 'delete' || !vite_server) return;
 				if (!invalidate_islands_for_file(id, { deleted: true, server: vite_server })) return;
 				vite_server.ws.send({ type: 'full-reload', path: '*' });
@@ -1022,6 +1029,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			closeBundle() {
+				if (is_dev) dev_owner.close();
 				compiler_of(session, 'closeBundle').end_leg(env_of(this)?.name ?? null);
 			},
 

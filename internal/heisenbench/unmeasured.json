@@ -2965,6 +2965,30 @@
 			"reason": "a message table entry: wording only"
 		},
 		{
+			"id": "packages/compiler/src/vite/route-watch.ts > RouteWatch > constructor",
+			"reason": "dev only, once per plugin: keeps three fields; proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
+		},
+		{
+			"id": "packages/compiler/src/vite/route-watch.ts > RouteWatch > heard",
+			"reason": "dev only, once per watched file event: one read (Compiler.routes_changed, benched in packages/compiler/bench/routes.bench.ts as dev file events) and one timer; proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
+		},
+		{
+			"id": "packages/compiler/src/vite/route-watch.ts > RouteWatch > heard > timeout:0~8069bc",
+			"reason": "dev only, the second read of a watched file event, a timer callback: Compiler.routes_changed, benched in packages/compiler/bench/routes.bench.ts; proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
+		},
+		{
+			"id": "packages/compiler/src/vite/route-watch.ts > RouteWatch > #read",
+			"reason": "dev only, a loop over what Compiler.routes_changed returns (benched in packages/compiler/bench/routes.bench.ts); proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > RouteWatch:1~b36a2f",
+			"reason": "dev only, a closure over ogygia()'s session (not replayable): hands a file event to Compiler.routes_changed, benched in packages/compiler/bench/routes.bench.ts; proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > RouteWatch:2~6c42e6",
+			"reason": "dev only, a closure over the dev server (not replayable): one module graph invalidation per id; proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
+		},
+		{
 			"id": "packages/compiler/src/vite/kit-dirs.ts > load_kit_config",
 			"reason": "config time, once per Vite config: imports the app's svelte.config (async, file system: not replayable); proven in packages/compiler/test/kit-dirs.test.ts"
 		},
