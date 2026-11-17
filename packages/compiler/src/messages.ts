@@ -707,8 +707,8 @@ export const BUILD_ERRORS = {
 		`
 	},
 	virtual_wrong_realm: {
-		text: (a: { id: string; realm: string; leg: string }): string =>
-			`\`${a.id}\` is a ${a.realm} module, and the ${a.leg} build imported it.`,
+		text: (a: { id: string; realm: string; leg: string; via?: string }): string =>
+			`\`${a.id}\` is a ${a.realm} module, and the ${a.leg} build imported it${a.via ? `, through ${a.via}` : ''}.`,
 		details: (): string => prose`
 			Each of ogygia's modules runs in one realm: \`ogygia:server\` on the server, \`ogygia:boot\`
 			in the browser's runtime, \`ogygia:region\` in both, \`ogygia:dev\` on the dev server only.

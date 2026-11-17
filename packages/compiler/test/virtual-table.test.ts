@@ -122,11 +122,7 @@ describe('the virtual-module table', () => {
 			'/app/src/lib/profiler/Dock.svelte': ['/app/src/routes/+page.svelte', '/app/src/lib/a.ts'],
 			'/app/src/routes/+page.svelte': ['/app/src/lib/profiler/Dock.svelte']
 		};
-		const via = import_chain(
-			RESOLVED('ogygia:server/region-deps'),
-			(id) => importers[id],
-			'/app'
-		);
+		const via = import_chain(RESOLVED('ogygia:server/region-deps'), (id) => importers[id], '/app');
 		expect(via).toBe(
 			'`src/lib/profiler/panel.ts` ← `src/lib/profiler/Dock.svelte` ← `src/routes/+page.svelte`'
 		);
