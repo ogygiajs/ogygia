@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { VirtualTable } from '../src/virtual/resolver.ts';
+import { VirtualTable, import_chain } from '../src/virtual/resolver.ts';
 import { Queries } from '../src/queries.ts';
 import { route_reader } from '../src/kit.ts';
 import { node_fs } from '../src/fs.ts';
@@ -113,6 +113,41 @@ describe('the virtual-module table', () => {
 			'k'.repeat(64)
 		);
 		expect(table.load(RESOLVED('ogygia:region'), app(ctx), leg(false))).toBeTypeOf('string');
+	});
+
+	it('names the files that imported a module of the wrong realm, back to the entry', () => {
+		const importers: Record<string, string[]> = {
+			[RESOLVED('ogygia:server/region-deps')]: ['/app/src/lib/profiler/panel.ts'],
+			'/app/src/lib/profiler/panel.ts': ['/app/src/lib/profiler/Dock.svelte'],
+			'/app/src/lib/profiler/Dock.svelte': ['/app/src/routes/+page.svelte', '/app/src/lib/a.ts'],
+			'/app/src/routes/+page.svelte': ['/app/src/lib/profiler/Dock.svelte']
+		};
+		const via = import_chain(
+			RESOLVED('ogygia:server/region-deps'),
+			(id) => importers[id],
+			'/app'
+		);
+		expect(via).toBe(
+			'`src/lib/profiler/panel.ts` ← `src/lib/profiler/Dock.svelte` ← `src/routes/+page.svelte`'
+		);
+		expect(import_chain('/app/src/lib/a.ts', () => undefined, '/app')).toBe('`src/lib/a.ts`');
+		expect(import_chain(RESOLVED('ogygia:boot'), () => [], '/app')).toBe('');
+		expect(() =>
+			table.resolve('ogygia:server', {
+				ssr: false,
+				dev: false,
+				via: () => import_chain('/app/src/lib/a.ts', () => undefined, '/app')
+			})
+		).toThrow('the browser build imported it, through `src/lib/a.ts`.');
+		expect(() =>
+			table.load(RESOLVED('ogygia:server/secret'), app({}), {
+				...leg(false),
+				via: () => '`src/x.ts`'
+			})
+		).toThrow('through `src/x.ts`');
+		expect(() => table.resolve('ogygia:server', { ssr: false, dev: false })).toThrow(
+			'and the browser build imported it.'
+		);
 	});
 
 	it('finds a module a leg’s output may not hold, however it got in', () => {
