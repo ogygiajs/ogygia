@@ -78,3 +78,22 @@ test('a host the morph copies in keeps its declarative shadow root, with no rest
 	expect(host.shadowRoot?.querySelector('b')?.textContent).toBe('new');
 	expect(host.shadowRoot?.querySelector('x-card')?.shadowRoot?.textContent).toBe('deep');
 });
+
+test('a host the morph copies in keeps a closed declarative shadow root, nested ones too', () => {
+	const live = document.createElement('main');
+	document.body.append(live);
+	try {
+		live.innerHTML = '<p>A</p>';
+		const doc = parse(
+			`<!doctype html><html><head></head><body><main><p>A</p><section><x-shut style="display:block"><template shadowrootmode="closed"><div style="height:37px"></div><x-shut style="display:block"><template shadowrootmode="closed"><div style="height:5px"></div></template></x-shut></template></x-shut></section></main></body></html>`
+		);
+		morph_children(live, doc.body.firstElementChild!.childNodes);
+		const host = live.querySelector('section > x-shut') as HTMLElement;
+		expect(host.ownerDocument).toBe(document);
+		expect(host.querySelector('template')).toBeNull();
+		expect(host.shadowRoot).toBeNull();
+		expect(host.getBoundingClientRect().height).toBe(42);
+	} finally {
+		live.remove();
+	}
+});
