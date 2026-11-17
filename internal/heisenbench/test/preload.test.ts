@@ -24,6 +24,7 @@ test('the region bench renders Region for real, not a thrown $derived', () => {
 			console.log(server_out(c, place, () => [props_for(c)], false).text);
 		}
 	`);
-	assert.doesNotMatch(out, /<!-- thrown -->/);
+	assert.match(out, /<!-- body -->[^\n]/);
+	assert.doesNotMatch(out, /<!-- thrown -->[^\n]/);
 	assert.doesNotMatch(out, /is not defined/);
 });
