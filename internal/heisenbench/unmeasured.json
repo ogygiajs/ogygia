@@ -1045,6 +1045,14 @@
 			"reason": "a timer promise (its output is a promise, not a value), constant work"
 		},
 		{
+			"id": "packages/tooling/src/e2e/routes.ts > while_open",
+			"reason": "the e2e harness (not a shipped package): wraps a Playwright route handler once per page.route call; proven in packages/tooling/test/routes.test.ts"
+		},
+		{
+			"id": "packages/tooling/src/e2e/routes.ts > while_open > <anonymous>~f11267",
+			"reason": "the e2e harness: awaits a Playwright route handler and tests one error message, constant work; proven in packages/tooling/test/routes.test.ts"
+		},
+		{
 			"id": "packages/tooling/src/e2e/servers.ts > group_alive",
 			"reason": "the e2e harness (not a shipped package): asks the OS whether a process group still exists, one syscall; proven with real child processes in packages/tooling/test/servers.test.ts"
 		},
