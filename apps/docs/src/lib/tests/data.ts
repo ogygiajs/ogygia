@@ -11,7 +11,8 @@ export type Tally = { pass: number; fail: number; skip: number };
 export type PackageSummary = {
 	tests: number;
 	byKind: Partial<Record<Kind, number>>;
-	coverage: Coverage;
+	/** null for an app whose tests are e2e only (no coverage run) */
+	coverage: Coverage | null;
 	srcLines: number;
 	testLines: number;
 	fail: number;
@@ -169,7 +170,7 @@ export type PackageReport = {
 	where: Engine[];
 	files: string[];
 	tests: TestEntry[];
-	coverage: Coverage;
+	coverage: Coverage | null;
 };
 
 export const KINDS: { id: Kind; label: string }[] = [
@@ -242,7 +243,7 @@ export function rows(report: PackageReport): Row[] {
 	return [...out.values()];
 }
 
-export const percent = (n: number) => `${n.toFixed(1)}%`;
+export const percent = (n: number | undefined) => (n === undefined ? '–' : `${n.toFixed(1)}%`);
 export const count = (n: number) => n.toLocaleString('en-US');
 
 export function issue_href(issue: number | string): string {

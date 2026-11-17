@@ -165,12 +165,10 @@
 							></th
 						>
 						<td class="num">{count(p.tests)}</td>
-						<td class="num">{percent(p.coverage.lines)}</td>
-						<td class="num">{percent(p.coverage.branches)}</td>
-						<td class="num">{percent(p.coverage.functions)}</td>
-						<td class="num"
-							>{p.coverage.statements === undefined ? '–' : percent(p.coverage.statements)}</td
-						>
+						<td class="num">{percent(p.coverage?.lines)}</td>
+						<td class="num">{percent(p.coverage?.branches)}</td>
+						<td class="num">{percent(p.coverage?.functions)}</td>
+						<td class="num">{percent(p.coverage?.statements)}</td>
 						<td class="num">{ratio(p.testLines, p.srcLines)}</td>
 						<td class="num" class:fails={p.fail > 0}>{count(p.fail)}</td>
 					</tr>

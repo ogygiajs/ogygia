@@ -69,10 +69,12 @@
 			>
 			<RatioNote definition={data.ratioDefinition} />
 		</div>
-		<div class="stat">
-			<span class="n">{p.coverage.lines.toFixed(1)}%</span>
-			<span class="what">of source lines run by the tests</span>
-		</div>
+		{#if p.coverage}
+			<div class="stat">
+				<span class="n">{p.coverage.lines.toFixed(1)}%</span>
+				<span class="what">of source lines run by the tests</span>
+			</div>
+		{/if}
 	</section>
 
 	<ul class="stats">
@@ -86,19 +88,24 @@
 		</li>
 	</ul>
 
-	<h2 id="coverage">Coverage</h2>
-	<ul class="stats">
-		<li><span class="n">{percent(p.coverage.lines)}</span><span class="what">Lines</span></li>
-		<li><span class="n">{percent(p.coverage.branches)}</span><span class="what">Branches</span></li>
-		<li>
-			<span class="n">{percent(p.coverage.functions)}</span><span class="what">Functions</span>
-		</li>
-		{#if p.coverage.statements !== undefined}
+	{#if p.coverage}
+		<h2 id="coverage">Coverage</h2>
+		<ul class="stats">
+			<li><span class="n">{percent(p.coverage.lines)}</span><span class="what">Lines</span></li>
 			<li>
-				<span class="n">{percent(p.coverage.statements)}</span><span class="what">Statements</span>
+				<span class="n">{percent(p.coverage.branches)}</span><span class="what">Branches</span>
 			</li>
-		{/if}
-	</ul>
+			<li>
+				<span class="n">{percent(p.coverage.functions)}</span><span class="what">Functions</span>
+			</li>
+			{#if p.coverage.statements !== undefined}
+				<li>
+					<span class="n">{percent(p.coverage.statements)}</span><span class="what">Statements</span
+					>
+				</li>
+			{/if}
+		</ul>
+	{/if}
 
 	{#if failures.length}
 		<h2 id="failures">Failing</h2>
