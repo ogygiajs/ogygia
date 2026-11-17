@@ -255,7 +255,8 @@ function page_relative_resolved(value: string, page: URL): string {
 	}
 }
 
-/** Stable-ish head node identity without serializing full outerHTML when possible. */
+/** A head node's identity across pages: two nodes with one key are the same node. An inline
+ *  script or sheet with no name of its own is its whole text. */
 export function head_node_key(node: Element): string {
 	const tag = node.tagName;
 	switch (tag) {
@@ -275,9 +276,7 @@ export function head_node_key(node: Element): string {
 		case 'SCRIPT': {
 			const src = url_of(node, 'src');
 			if (src) return `SCRIPT:src:${src}:${node.getAttribute('type') || ''}`;
-			const type = node.getAttribute('type') || '';
-			const text = node.textContent || '';
-			return `SCRIPT:inline:${type}:${text.length}:${text.slice(0, 48)}`;
+			return `SCRIPT:inline:${node.getAttribute('type') || ''}:${node.textContent || ''}`;
 		}
 		case 'STYLE': {
 			// @why SvelteKit writes one `<style data-sveltekit>` per document, holding that page's own CSS (test: test/browser/router-nav-claims.test.ts › the FOUC bag is a fresh node on every page, even with the same CSS)
@@ -286,8 +285,7 @@ export function head_node_key(node: Element): string {
 			if (region_css) return `STYLE:og-css:${region_css}`;
 			const vite_id = node.getAttribute('data-vite-dev-id');
 			if (vite_id) return `STYLE:vite:${vite_id}`;
-			const text = node.textContent || '';
-			return `STYLE:${text.length}:${text.slice(0, 48)}`;
+			return `STYLE:${node.textContent || ''}`;
 		}
 		default:
 			return `${tag}:${node.outerHTML}`;
