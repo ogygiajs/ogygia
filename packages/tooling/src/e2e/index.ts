@@ -1,8 +1,9 @@
 /**
  * Shared Playwright fixtures and the suites' `check()` idiom: `@ogygia/tooling/e2e`, imported by
  * every package's e2e specs (packages/<name>/e2e, apps/palaestra/e2e). Siblings (by file name, `.ts`
- * and all): `/servers.ts` (spawn_server), `/re.ts` (shared regexes), `/packed.ts` (the packed
- * ogygia), `/config.ts` (each suite's playwright.config.ts), `/build.ts` (a fixture app's build).
+ * and all): `/servers.ts` (spawn_server), `/re.ts` (shared regexes), `/routes.ts` (route
+ * handlers), `/packed.ts` (the packed ogygia), `/config.ts` (each suite's playwright.config.ts),
+ * `/build.ts` (a fixture app's build).
  *
  * @packageDocumentation
  */
@@ -12,6 +13,7 @@ import { said_rules, server_log_since, server_log_size } from './server-log.ts';
 
 export { expect };
 export { REPO } from './paths.ts';
+export { while_open } from './routes.ts';
 
 /** A rule ogygia found broken on itself (core src/rules.ts): its code, and what it found. */
 export type BrokenRule = { code: string; detail: string };

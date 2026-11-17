@@ -94,3 +94,8 @@ export const NON_DIGIT_G_RE = /\D/g;
 export const LEADING_DOTS_RE = /^[./]+/;
 /** A `1` anywhere in a counter's text (the "clicked once" probe). */
 export const ONE_RE = /1/;
+
+/** What Playwright throws at a route handler whose request is gone (its page or context closed):
+ *  the call's name, then why. Matched by ./routes.ts `while_open`. */
+export const ROUTE_GONE_RE =
+	/^[\w.]+: (?:(?:Fetch r|R)esponse has been disposed|Target page, context or browser has been closed|Request context disposed)/;
