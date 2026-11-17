@@ -8,8 +8,7 @@ import { content, numbered, dated } from '@ogygia/content';
 import { site, dimensions } from '@ogygia/content';
 import * as v from 'valibot';
 import type { TopicKey } from './topics';
-
-const schema = v.object({ title: v.optional(v.string(), '') });
+import { docsSchema as schema } from './docs-schema.ts';
 
 // One folder convention for the docs topics: numbered `.md` file-pages, `index.md` as the section
 // label, duplicate prefixes allowed (the docs reuse them as group keys).
