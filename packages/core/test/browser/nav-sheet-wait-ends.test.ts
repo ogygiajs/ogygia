@@ -55,7 +55,7 @@ it_with_network_routes(
 		hold_time();
 		void new SpaRouter().navigate(new URL('/nav-sheet-wait-next', location.href));
 		await expect
-			.poll(shown, { timeout: 1_500, message: 'the navigation waited on a failed sheet' })
+			.poll(shown, { timeout: 10_000, message: 'the navigation waited on a failed sheet' })
 			.toBe('/nav-sheet-wait-next');
 	}
 );

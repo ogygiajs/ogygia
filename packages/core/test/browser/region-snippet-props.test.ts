@@ -15,6 +15,7 @@ declare module 'vitest/browser' {
 }
 
 beforeAll(() => define_region_element());
+beforeAll(() => commands.region_grid_ssr_specs([]), 60_000);
 
 const spec = (kind: string, values: Record<string, string>): Spec => ({
 	kind,

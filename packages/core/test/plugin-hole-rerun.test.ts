@@ -3,7 +3,7 @@
 // plugin keeps the app of its latest `setup` (federation's `fed_app()` is process-wide), so it opens
 // its capability through the second run's budgets. Every hole once answered 429 there: the second run
 // did not know the request the first run's handle was serving.
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 vi.mock('ogygia:server/sign', () => import('../src/server/hmac.ts'));
 
@@ -50,6 +50,11 @@ async function ask(h: ReturnType<typeof import('../src/hooks.ts').handle>, path:
 }
 
 describe('a plugin hole when the handle module has run twice', () => {
+	beforeAll(async () => {
+		await import('../src/hooks.ts');
+		vi.resetModules();
+	}, 60_000);
+
 	it("the first run's handle serves a hole the plugin opens through the second run's app", async () => {
 		const first = (await import('../src/hooks.ts')).handle();
 		vi.resetModules();
