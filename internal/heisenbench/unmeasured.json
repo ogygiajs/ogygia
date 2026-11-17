@@ -6389,6 +6389,14 @@
 			"reason": "browser only: freezes a snippet prop of a region the browser creates fresh, once per prop; the server bench cannot mount in a DOM; test/browser/region-snippet-props.test.ts runs it"
 		},
 		{
+			"id": "packages/core/src/snippet-render.ts > server_html_of",
+			"reason": "browser only: writes a freshly frozen snippet's mounted DOM as Svelte's server HTML, once per snippet prop of a region the browser creates fresh; the server bench cannot mount in a DOM; test/browser/snippet-freeze-legs.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/snippet-render.ts > escape_char",
+			"reason": "browser only: one table read per escaped character of a freshly frozen snippet (server_html_of); test/browser/snippet-freeze-legs.test.ts runs it"
+		},
+		{
 			"id": "packages/core/src/snippet-render.ts > SnippetRender > static #browser_html",
 			"reason": "browser only: mounts a snippet once into a detached element and reads its HTML; the server bench cannot mount in a DOM; test/browser/region-snippet-props.test.ts runs it"
 		},

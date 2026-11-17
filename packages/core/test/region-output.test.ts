@@ -613,7 +613,7 @@ test('the real hashes: what the tables show as placeholders, for a few inputs', 
 		expect(hashes([HOLE])).toContain('data-og-hole="6c88c728d5741256"');
 		expect(hashes([LAKE], { nested: true })).toContain('data-og-lake="7c63ab05a88aab38"');
 		expect(hashes([{ ...ISLAND, __props: { s: snippet('<u>s</u>') } }])).toContain(
-			'"se9de2e38b5c3313b"'
+			'"s96b78e175541f642"'
 		);
 		expect(hashes([{ ...ISLAND, children: snippet('<i>kid</i>') }])).toEqual(
 			expect.arrayContaining(['data-og-fp="c2690e78672f61b6"', 'slot:ogsrnm90-1'])
