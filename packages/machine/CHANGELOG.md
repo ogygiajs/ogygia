@@ -1,5 +1,59 @@
 # @ogygia/machine
 
+## 0.14.0
+
+### Minor Changes
+
+- [#442](https://github.com/ogygiajs/ogygia/pull/442) [`95ed95c`](https://github.com/ogygiajs/ogygia/commit/95ed95c9b5fcd3a9c32348ff7e80e782140ce6ab) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `say()` in `@ogygia/machine` says a thing once per key until it recovers, remembering at most 1024 keys; a machine's warn-once and a plugin's `warn` use it, so a long-lived server no longer keeps every distinct warning text.
+
+- [#445](https://github.com/ogygiajs/ogygia/pull/445) [`0a1e115`](https://github.com/ogygiajs/ogygia/commit/0a1e1151775fb5a68dc0e920e063a541860a9305) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `flights()` carries a priority: `get(input, { priority })` raises a flight in progress to the highest priority of the callers that joined it (never lowers it), and the run reads `flight.priority` and hears each raise through `flight.onRaise()`.
+
+- [#416](https://github.com/ogygiajs/ogygia/pull/416) [`34420d0`](https://github.com/ogygiajs/ogygia/commit/34420d0f0aa96eade1e00bab836bbb612b1c5bed) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `flights()` now keeps at most 1000 answers by default (the least recently used go first); pass `max` to change it. A `cache()` or `flights()` `max` must be a finite number.
+
+- [#416](https://github.com/ogygiajs/ogygia/pull/416) [`34420d0`](https://github.com/ogygiajs/ogygia/commit/34420d0f0aa96eade1e00bab836bbb612b1c5bed) Thanks [@PuruVJ](https://github.com/PuruVJ)! - New `cache()`: a keyed store that is always bounded (`max`, `weigh`, `keep`), owned by a scope, and says why it lets each value go (`onEvict`); `flights()` keeps its answers in one.
+
+- [#769](https://github.com/ogygiajs/ogygia/pull/769) [`0ba97e8`](https://github.com/ogygiajs/ogygia/commit/0ba97e82d2caf38110fea69b15f9d285e43cbbb1) Thanks [@PuruVJ](https://github.com/PuruVJ)! - machine: `capability()` makes signed, expiring tokens addressed to an audience: length-prefixed messages that name the capability and its version, a lifetime clamped at mint and refused past its bound at check, a random nonce with optional one-time use in bounded memory, and no token from a clock that reads NaN; the signer (HMAC, Ed25519) is the caller's, and a check may bring its own verify (keys in rotation); `skew` allows for two machines' clocks; `nonce: false` mints the same token for the same inputs (not single-use, so `replay` is refused with it)
+
+- [#473](https://github.com/ogygiajs/ogygia/pull/473) [`382525a`](https://github.com/ogygiajs/ogygia/commit/382525a5375c5716bfde101f689fe0eea7e95def) Thanks [@PuruVJ](https://github.com/PuruVJ)! - New `clock` (`clock.mono()` for durations, `clock.wall()` for timestamps). A `flights()` keep and a retry `policy()` deadline are now measured on the monotonic clock, so a wall-clock step (an NTP correction, a VM resume) no longer shortens or stretches them.
+
+- [#1935](https://github.com/ogygiajs/ogygia/pull/1935) [`8cf2b7d`](https://github.com/ogygiajs/ogygia/commit/8cf2b7d67f01034a76333496d307c8a522b79852) Thanks [@PuruVJ](https://github.com/PuruVJ)! - New `decisions()`: a pure decision table whose inputs each take a listed set of values, so its whole input space can be walked. `decide()` throws on a combination `refuse` names (`machine_decision_refused`), and in dev on a value outside its list (`machine_decision_outside`). The test-only entry `@ogygia/machine/testing` walks a table: `rows`, `check` (named rules, each broken one named with its first row), `table` (markdown), `dead_fields` and `count`, with a 100,000-row guard (`machine_decisions_too_many`) and seeded sampling.
+
+- [#428](https://github.com/ogygiajs/ogygia/pull/428) [`1c7580f`](https://github.com/ogygiajs/ogygia/commit/1c7580fa8a640486254c585b1849a1b491084a1a) Thanks [@PuruVJ](https://github.com/PuruVJ)! - New `defineRun(id)` and `defining()`: a plugin's definer calls owned by the run of the module that made them, so a definition deleted from the code leaves at the module's dev reload.
+
+- [#476](https://github.com/ogygiajs/ogygia/pull/476) [`c4f48c3`](https://github.com/ogygiajs/ogygia/commit/c4f48c3e5a689b8a146fa4a060c21192f1dea8ad) Thanks [@PuruVJ](https://github.com/PuruVJ)! - New `noop` export: the one empty function, for a callback or cleanup with nothing to do.
+
+- [#464](https://github.com/ogygiajs/ogygia/pull/464) [`6d0a5cb`](https://github.com/ogygiajs/ogygia/commit/6d0a5cbab7acd66761c0aaab0e24d94e3ea852c6) Thanks [@PuruVJ](https://github.com/PuruVJ)! - New `queue()`: a bounded, first-come queue. At most `max` jobs hold a place; a `release()` hands its place to the next job in the same step. A job can carry a deadline (all deadlines share one timer) or be cancelled, and the queue's `owner` closing makes the waiting jobs stale.
+
+- [#416](https://github.com/ogygiajs/ogygia/pull/416) [`34420d0`](https://github.com/ogygiajs/ogygia/commit/34420d0f0aa96eade1e00bab836bbb612b1c5bed) Thanks [@PuruVJ](https://github.com/PuruVJ)! - New `registry()` and `registry.keyed()`: owned entries and definitions that leave with their owner, never evicted; `cache()` takes `pinned(value, key)` for values in use that never go for size.
+
+- [#478](https://github.com/ogygiajs/ogygia/pull/478) [`59fef58`](https://github.com/ogygiajs/ogygia/commit/59fef58cadfae4e27ff8e0e74e1716ab8c2b422e) Thanks [@PuruVJ](https://github.com/PuruVJ)! - New `slot({ name, version, make })`: one process-global value per name, shared by every copy of a package a process loads. The version lives only in `version` (a name carries none): another version is refused in dev and kept apart in production.
+
+- [#672](https://github.com/ogygiajs/ogygia/pull/672) [`e3b6b5f`](https://github.com/ogygiajs/ogygia/commit/e3b6b5f0957b5b46dd8810baef988825cb6733a5) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `trace()` in `@ogygia/machine` writes every machine move as one short line (`visit#3 loading -> answered`), the last 500, for a test to print when it fails.
+
+- [#1839](https://github.com/ogygiajs/ogygia/pull/1839) [`4d0d5bb`](https://github.com/ogygiajs/ogygia/commit/4d0d5bb3a7534ccf88ec9fe7f5595caffce3b003) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `queue()` serves lines with more rules than first come: `priority(job)` (read again each pass, ties in the order pushed), `ready(job)` (a job not ready is passed over, the rest still start), `windows: [{ max, holds }]` (caps over some jobs, beside `max`), `budget: { ms, yield, defer?, settle? }` (a long drain hands the thread back), and `recheck()`. `max` is now optional, and a budget `yield` that throws is reported (`machine_queue_yield_failed`).
+
+- [#1234](https://github.com/ogygiajs/ogygia/pull/1234) [`b97908b`](https://github.com/ogygiajs/ogygia/commit/b97908ba1fcacd34ec2ac2b95de0ffdc27cbb5ba) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `queue()` hands each started job its own place: `start(job, place)`, given back with `place.release()`, once (a second release frees no other job's place). `queue.release()` is gone. A `start` that throws now gives its place back, so the jobs after it still get one.
+
+- [#1842](https://github.com/ogygiajs/ogygia/pull/1842) [`b6b930e`](https://github.com/ogygiajs/ogygia/commit/b6b930e1d4620e543965b187e47a4b059fd62718) Thanks [@PuruVJ](https://github.com/PuruVJ)! - These methods are now typed as function properties, so passing one on by itself (`const { handle } = router`) type-checks under `unbound-method`; none of them used `this`. A method type was bivariant in its parameters and a function property is checked strictly, so code that assigned a narrower function to one of them may now need its parameter types widened. The changed types: `ogygiaTransport.Region.encode` / `.decode` and the ref entry's `encode` / `decode` (`@ogygia/core`), `CapabilitySigner.sign` / `.verify` (`@ogygia/core`), `Router.handle` (`@ogygia/router`), `Signer.sign` / `.verify` and `Staging.discard` (`@ogygia/machine`).
+
+### Patch Changes
+
+- [#1027](https://github.com/ogygiajs/ogygia/pull/1027) [`1b69b9f`](https://github.com/ogygiajs/ogygia/commit/1b69b9ff9294af4db2d2104458375affdb0885e2) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `@ogygia/machine`: Faster hot reads on `cache()` and `registry()`: a `get` of the value set or read last no longer moves or looks it up again (a kept `flights` answer read by every island takes about half the steps), a cache with no `onEvict` queues no notices, observers are walked from one array kept until they change (`registry().snapshot()`), and `registry.keyed()` walks its definitions without a generator.
+
+- [#1029](https://github.com/ogygiajs/ogygia/pull/1029) [`40b91ab`](https://github.com/ogygiajs/ogygia/commit/40b91ab2ba808b29b6586972a214ee5869d743bb) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `@ogygia/machine`: A `cache()` set of the value its key already holds keeps it (no `'delete'` notice, so an `onEvict` cleanup no longer runs on a value still held), `set` takes its own `keep`, and a keyed `flights` of one field keys by that field's value with no string built.
+  `@ogygia/core`: A region answer written to the frame store costs about a third fewer steps (one cache write, no lookup before it), and an island warm reads its chunk graph once.
+
+- [#419](https://github.com/ogygiajs/ogygia/pull/419) [`1e7c5d4`](https://github.com/ogygiajs/ogygia/commit/1e7c5d43025453572a06e6550dfd084e401cccea) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `observe()` keeps its watchers in a registry: each leaves with its stop, and the rest hear moves in the order they started watching.
+
+- [#902](https://github.com/ogygiajs/ogygia/pull/902) [`c9d5323`](https://github.com/ogygiajs/ogygia/commit/c9d53230ca08bdb858723330f442a66e6902e8c4) Thanks [@PuruVJ](https://github.com/PuruVJ)! - - `@ogygia/machine`: `cache()` and `registry()` are smaller in a bundle (about 240 B brotli off a page's boot), and a bundle that uses `registry()` no longer carries `defineRun()` and `defining()`.
+
+- [#1017](https://github.com/ogygiajs/ogygia/pull/1017) [`5c16332`](https://github.com/ogygiajs/ogygia/commit/5c16332e880dd1cc35c3a6120fd5534a547af6ff) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `@ogygia/machine`: `queue()` with no `now` reads its deadlines on `clock.mono()`, like every other primitive, so a run that drives the clock drives the queue too.
+
+- [#778](https://github.com/ogygiajs/ogygia/pull/778) [`9b9f253`](https://github.com/ogygiajs/ogygia/commit/9b9f253baf604bc8783414ed86d79e086a095878) Thanks [@PuruVJ](https://github.com/PuruVJ)! - core: region links are signed through `capability()`, naming the islands endpoint they are for and refusing a lifetime longer than the app ever mints; links stay identical between renders, and links signed before (pages cached before the upgrade) still work and are re-signed in the new form when renewed
+  machine: `capability().mintUntil()` mints a token that expires at a given time, so tokens without a nonce stay identical across a window the caller picks
+
+- [#1236](https://github.com/ogygiajs/ogygia/pull/1236) [`7c9ef65`](https://github.com/ogygiajs/ogygia/commit/7c9ef65cdb046f503ffa571d5bd6e09ed294026f) Thanks [@PuruVJ](https://github.com/PuruVJ)! - `@ogygia/machine`: in production, a `slot()` asked for at a version other than the one held keeps one private value for that version, made once. It made a new value on every ask, so state kept in it was lost.
+
 ## 0.13.0
 
 ### Minor Changes

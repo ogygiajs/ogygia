@@ -1,6 +1,6 @@
 {
 	"name": "@ogygia/federation",
-	"version": "0.13.0",
+	"version": "0.14.0",
 	"description": "Fragment federation for ogygia: apps share pages and widgets as signed region values, with cross-app thaw",
 	"keywords": [
 		"federation",

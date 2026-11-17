@@ -1,6 +1,6 @@
 {
 	"name": "@ogygia/jumpstart",
-	"version": "0.13.0",
+	"version": "0.14.0",
 	"description": "A server build in a few files for ogygia apps: dependencies bundled, the framework in one chunk and each region registry in its own, for a fast cold start",
 	"keywords": [
 		"cold-start",
