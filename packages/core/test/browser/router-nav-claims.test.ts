@@ -178,6 +178,34 @@ test('the FOUC bag is a fresh node on every page, even with the same CSS', async
 	expect(bags[0]).not.toBe(first);
 });
 
+test("a page's inlined sheet that differs from the last page's only past its start is the page's own", async () => {
+	const sheet = (hash: string) =>
+		`<style>.lab-head.svelte-1w64nkt{border-bottom:1px solid #e2e8f0} .shell.svelte-${hash}{gap:20px}</style>`;
+	pages['/rn-sheet-y'] = { head: sheet('lyiqtn'), body: '<p>y</p>' };
+	pages['/rn-sheet-x'] = { head: sheet('gabhxy'), body: '<p>x</p>' };
+	await go('/rn-sheet-y');
+	await go('/rn-sheet-x');
+	const texts = [...document.head.querySelectorAll('style:not([data-sveltekit])')].map(
+		(s) => s.textContent
+	);
+	expect(texts.filter((t) => t?.includes('.shell'))).toEqual([
+		'.lab-head.svelte-1w64nkt{border-bottom:1px solid #e2e8f0} .shell.svelte-gabhxy{gap:20px}'
+	]);
+});
+
+test("a page's inline script that differs from the last page's only past its start is the page's own", async () => {
+	const data = (name: string) =>
+		`<script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"${name}"}</script>`;
+	pages['/rn-ld-y'] = { head: data('yyyy'), body: '<p>y</p>' };
+	pages['/rn-ld-x'] = { head: data('xxxx'), body: '<p>x</p>' };
+	await go('/rn-ld-y');
+	await go('/rn-ld-x');
+	const texts = [...document.head.querySelectorAll('script[type="application/ld+json"]')].map(
+		(s) => s.textContent
+	);
+	expect(texts).toEqual(['{"@context":"https://schema.org","@type":"Product","name":"xxxx"}']);
+});
+
 test('an inlined region sheet for one href stays one node across pages, kept', async () => {
 	pages['/rn-css-a'] = {
 		head: '<style data-ogygia-region-css="/_app/r.css">.r{color:red}</style>',

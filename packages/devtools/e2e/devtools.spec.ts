@@ -175,6 +175,31 @@ test.describe('devtools (dev server, OGYGIA_DEVTOOLS=1): events, panel tabs, pag
 		check('no dependency found late', late.length === 0, late.slice(0, 3).join(' | '));
 	});
 
+	test('a press on the launcher that the dock arrives under still opens the dock', async ({
+		page
+	}) => {
+		let release = () => {};
+		const held = new Promise<void>((r) => (release = r));
+		let asked = false;
+		await page.route(
+			(url) => url.pathname.includes('ui-app'),
+			async (route) => {
+				asked = true;
+				await held;
+				await route.continue();
+			}
+		);
+		await page.goto('/interaction', { waitUntil: 'load' });
+		await expect.poll(() => asked, { timeout: 15_000 }).toBe(true);
+		const box = (await page.locator('[data-og-panel-toggle]').boundingBox())!;
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+		await page.mouse.down();
+		release();
+		await page.locator('[data-og-panel-toggle].launch').waitFor({ timeout: 20_000 });
+		await page.mouse.up();
+		await expect(page.locator('[data-og-win]')).toHaveCount(1, { timeout: 5_000 });
+	});
+
 	test('the dock’s code fails to download once: the button does not stick on “loading…”, a click loads it again (#201)', async ({
 		page
 	}) => {

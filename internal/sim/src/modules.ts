@@ -42,12 +42,14 @@ const LOADER = Symbol('ogygia.sim.modules');
 const unfetched = new WeakSet<object>();
 
 /** Whether `error` is a module's failed download: the loader's, or happy-dom's own fetch of a
- *  classic script's `import()` (its words, a `DOMException`). */
+ *  classic script's `import()` (its words, a `DOMException`, or the network's `Failed to fetch`). */
 const download_failed = (error: unknown): boolean =>
 	typeof error === 'object' &&
 	error !== null &&
 	(unfetched.has(error) ||
-		/^Failed to (perform request|read response body)/.test(String((error as Error).message)));
+		/^Failed to (fetch\b|perform request|read response body)/.test(
+			String((error as Error).message)
+		));
 
 /** The window's module loader (one per document: modules are per document, as in a browser). */
 function loader_of(window: Window): Loader {

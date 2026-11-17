@@ -16,7 +16,12 @@ function spread(kind: string, n: number): GridCase[] {
 
 function page_of(kinds: readonly string[], n: number) {
 	const cases = kinds.flatMap((k) => spread(k, n));
-	return { first: cases[0]!, cases };
+	const page = { first: cases[0]!, cases };
+	const thrown = /<!-- thrown -->([^\n]+)/.exec(
+		server_out(page.first, PAGE, () => cases.map(props_for), false).text
+	);
+	if (thrown) throw new Error(`region bench: the page's render throws: ${thrown[1]}`);
+	return page;
 }
 
 const render_page = ({ first, cases }: ReturnType<typeof page_of>) =>
