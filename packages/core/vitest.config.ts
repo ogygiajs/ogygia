@@ -147,7 +147,7 @@ export default defineConfig({
 	define: sim_define(process.env),
 	// The browser tests' dependencies, bundled before the first test file loads: found during the
 	// run, Vite bundles again and changes the URLs a test file still imports.
-	optimizeDeps: { include: ['devalue', 'esm-env', 'fast-check'] },
+	optimizeDeps: { include: ['devalue', 'esm-env', 'fast-check', 'svelte/server'] },
 	// Kit's `$app/*` and ogygia's virtual modules (the realm modules and their entries), stubbed so
 	// suites load without a Kit app or the Vite plugin (test/_stubs, by file name)
 	resolve: { alias: stub_aliases() },
