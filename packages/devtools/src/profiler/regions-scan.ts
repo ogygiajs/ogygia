@@ -1,4 +1,4 @@
-import { next_open_or_close } from '@ogygia/core/internal/server';
+import { next_open_or_close } from '@ogygia/core/internal/instruments';
 
 export type RegionKind = 'island' | 'lake' | 'hole';
 

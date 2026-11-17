@@ -16,7 +16,7 @@ import {
 	read_tag,
 	text_of,
 	type FoundTag
-} from '@ogygia/core/internal/server';
+} from '@ogygia/core/internal/instruments';
 import { scanRegions } from './regions-scan.ts';
 
 export type StripKind =
