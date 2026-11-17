@@ -3213,6 +3213,18 @@
 			"name": "reads an argument of a page that left as empty text, without throwing"
 		},
 		{
+			"site": "packages/tooling/src/e2e/routes.ts > while_open > catch:0",
+			"reason": "a route handler whose request is gone (Playwright's disposed or closed wording) ends quietly; proved by hand: the catch made to rethrow everything turns the tests red",
+			"test": "packages/tooling/test/routes.test.ts",
+			"name": "a handler whose request is gone ends quietly: %s"
+		},
+		{
+			"site": "packages/tooling/src/e2e/routes.ts > while_open > throw:0",
+			"reason": "any other error from a route handler still fails the test; proved by hand: the throw made to return turns the tests red",
+			"test": "packages/tooling/test/routes.test.ts",
+			"name": "any other error still fails the test: %s"
+		},
+		{
 			"site": "packages/tooling/src/e2e/build.ts > build_app > throw:0",
 			"reason": "`throw new Error(`e2e build failed: ${dir}`);`: proved: the throw removed turns the test red, twice",
 			"test": "packages/tooling/test/e2e-build.test.ts",
