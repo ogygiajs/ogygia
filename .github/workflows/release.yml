@@ -33,7 +33,7 @@ jobs:
       contents: write
       pull-requests: write
     outputs:
-      pending: ${{ steps.changesets.outputs.hasChangesets }}
+      pending: ${{ steps.changesets.outputs.has-changesets }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -82,7 +82,7 @@ jobs:
       - name: Publish to npm
         uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          publish: pnpm ci:release
+          publish-script: pnpm ci:release
           create-github-releases: true
           # SHIP_TOKEN: a release it creates starts the tests-report workflow (GITHUB_TOKEN's do not)
           github-token: ${{ secrets.SHIP_TOKEN || github.token }}
