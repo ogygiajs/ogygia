@@ -6513,7 +6513,7 @@
 			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
 		},
 		{
-			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set skip",
+			"id": "packages/core/src/region-parts/island-wire.svelte.ts > IslandWire > set skipped_fp",
 			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
 		},
 		{
