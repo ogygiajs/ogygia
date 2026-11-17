@@ -79,6 +79,20 @@ for (const env of ['dev', 'prod'] as const) {
 		}
 	});
 
+	test(`a hole given a snippet prop and rebuilt in the browser keeps the address the server gave it (${env})`, async () => {
+		const server_place: Place = { at: 'page', csr: 'on', kit: 'pass', page: 'ok', env };
+		const [server] = await commands.region_grid_ssr_specs([{ spec: HOLE, place: server_place }]);
+		const address = (body: string) => /data-og-hole="([^"]+)"/.exec(body)?.[1];
+		expect(address(server.body)).toBeTruthy();
+		vi.stubEnv('DEV', env === 'dev');
+		try {
+			const out = parts_of(await client_out(spec_case(HOLE), { at: 'page', csr: 'on', env }));
+			expect(address(out.body)).toBe(address(server.body));
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
 	test(`a top-level island given a snippet prop is created in the browser with the snippet frozen (${env})`, async () => {
 		vi.stubEnv('DEV', env === 'dev');
 		try {
