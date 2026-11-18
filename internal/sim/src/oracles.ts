@@ -424,7 +424,7 @@ export function first_difference(a: string, b: string, context = 3): string {
 
 /** A hard load of `url` in a new browser with `v`'s cookies, on a network that does not fail it
  *  (a fault there is no finding about the tab), at rest, each leg `pace` ms slower, in a tab
- *  `behind` another when the judged one was never shown. */
+ *  `behind` another when the judged one is behind and its observers never had a frame. */
 async function load_fresh(
 	world: World,
 	v: Visitor,
@@ -515,7 +515,7 @@ export async function mpa_equivalent(
 	// (a page a build a deploy replaced answered is compared with a fresh load from that build: an
 	// old page is the old release's, whole)
 	const build = world.build_of(tab.realm);
-	const behind = tab.hidden && !tab.seen.has(tab.realm);
+	const behind = tab.hidden && !tab.framed.has(tab.realm);
 	const fresh_load = (w: World, visitor: Visitor, at: string, name: string, pace = 0) =>
 		w.as_of(
 			build,

@@ -69,6 +69,9 @@ export interface Tab {
 	/** The realms of its documents that were ever shown (a document loaded behind and never looked
 	 *  at is not among them). */
 	readonly seen: Set<string>;
+	/** The realms of its documents whose observers had a frame (a tab renders one only while shown):
+	 *  one shown as it came but behind before its runtime watched anything never had one. */
+	readonly framed: Set<string>;
 	/** The address of its document whose island load gate had opened when DOMContentLoaded fired
 	 *  (oracles.ts `parsed_first`), or null. */
 	early_gate: string | null;
@@ -457,9 +460,16 @@ export class Browsers {
 			});
 		}
 		// (a layout, and the IntersectionObserver that reads it: happy-dom's never reports)
+		const realm = tab.realm;
 		this.#layouts.set(
 			tab,
-			install_layout(window, this.#o.loop, tab.realm, () => tab.hidden)
+			install_layout(
+				window,
+				this.#o.loop,
+				realm,
+				() => tab.hidden,
+				() => tab.framed.add(realm)
+			)
 		);
 		// (the tab's network, as a browser's `navigator.onLine` reads its own: test/online.node.test.ts)
 		const network = this.#o.network;
@@ -809,6 +819,7 @@ export class Browsers {
 			platform: null,
 			hidden: false,
 			seen: new Set(),
+			framed: new Set(),
 			early_gate: null,
 			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
 			listening: () => [],

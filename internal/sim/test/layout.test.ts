@@ -62,7 +62,14 @@ describe('a simulated document has a layout, and its IntersectionObserver report
 		const loop = new Loop(rng(1));
 		const w = new Window({ url: 'https://app.test/' });
 		let hidden = true;
-		const layout = install_layout(w as never, loop, 'tab-1#1', () => hidden);
+		const frames: number[] = [];
+		const layout = install_layout(
+			w as never,
+			loop,
+			'tab-1#1',
+			() => hidden,
+			() => frames.push(loop.now)
+		);
 		w.document.write('<html><head></head><body><p id="top">top</p></body></html>');
 		const IO = (w as unknown as { IntersectionObserver: IO }).IntersectionObserver;
 		const seen: string[] = [];
@@ -72,10 +79,12 @@ describe('a simulated document has a layout, and its IntersectionObserver report
 		io.observe(w.document.getElementById('top') as unknown as Element);
 		await loop.run(500);
 		expect(seen).toEqual([]);
+		expect(frames, 'no frame behind').toEqual([]);
 		hidden = false;
 		layout.shown();
 		await loop.run(100);
 		expect(seen).toEqual(['512 top true']);
+		expect(frames).toEqual([512]);
 	});
 
 	it('a root margin widens the viewport', async () => {
