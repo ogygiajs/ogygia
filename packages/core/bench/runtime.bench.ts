@@ -256,6 +256,22 @@ bench(
 );
 
 bench(
+	'morph: a repair passes over the nodes a third party put first, and keeps every server sibling',
+	({ parent, next }) => {
+		morph_children(parent as unknown as Element, next as unknown as Node[]);
+		return parent.childNodes.length;
+	},
+	{
+		setup: () => {
+			const row = (k: number) => `<p><b>n${k}</b> <button>${k}</button> <em>e</em></p>`;
+			const rows = Array.from({ length: 60 }, (_, k) => row(k));
+			const parent = el(`<main><i></i><u></u>${rows.join('<i></i>')}</main>`);
+			return { parent, next: frag(rows.join('')) };
+		}
+	}
+);
+
+bench(
 	'region machines: holes fetch, retry and answer; their islands arm and wake; live regions switch modes',
 	({ n }) => {
 		let left = 0;
