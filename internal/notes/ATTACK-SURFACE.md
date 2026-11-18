@@ -244,7 +244,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## HTML sinks: markup written into a page as markup
 
-26 entries.
+27 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -264,7 +264,8 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/Provide.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/core/src/RawHtml.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/core/src/Region.svelte` | `(module)` | `{@html}` | 4 |
-| `packages/core/src/runtime/html-sink.ts` | `parse_page_document` | `DOMParser` | 1 |
+| `packages/core/src/runtime/html-sink.ts` | `parse_page_document` | `DOMParser` | 2 |
+| `packages/core/src/runtime/html-sink.ts` | `parse_region_html` | `innerHTML =` | 1 |
 | `packages/core/src/runtime/html-sink.ts` | `set_inner_html` | `innerHTML =` | 1 |
 | `packages/core/src/runtime/html-sink.ts` | `write_unsafe` | `innerHTML =` | 1 |
 | `packages/devtools/src/profiler/ui/ReportBody.svelte` | `(module)` | `{@html}` | 1 |
