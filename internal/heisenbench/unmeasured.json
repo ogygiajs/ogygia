@@ -5005,6 +5005,14 @@
 			"reason": "browser only (DOM comments): runs only for a child of an element stamped data-og-html, a scan of its earlier siblings back to the nearest range mark or anchor; dom-ownership.test.ts runs it"
 		},
 		{
+			"id": "packages/core/src/runtime/html-ranges.ts > hash_without_mark",
+			"reason": "dev only: a fixed 12-step loop per marked {@html} range, once per hydrate; proven in packages/core/test/canary/svelte-hydration-markers.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/html-ranges.ts > settle_html_ranges",
+			"reason": "dev only, browser only (DOM comments): one pass over the children of each data-og-html element of a region, once per hydrate; html-range.test.ts runs it"
+		},
+		{
 			"id": "packages/core/src/runtime/form-continuity.ts > url_of",
 			"reason": "browser only (document.baseURI): one URL parse per region attribute; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
 		},
