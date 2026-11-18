@@ -62,11 +62,6 @@ class LeftEntry {
 		this.#departed.cleanup?.();
 	}
 
-	/**
-	 * Hand the departed entry's place to `heir`, the fresh entry Kit made for a new reader: the
-	 * departed proxies now read `heir`, so they count toward it, and Kit drops it only when the last
-	 * proxy of either kind is gone. The departed entry's own teardown runs now, since Kit never will.
-	 */
 	bequeath(heir: RemoteEntry): void {
 		const departed = this.#departed;
 		heir.proxy_count = (heir.proxy_count ?? 0) + (departed.proxy_count ?? 0);
@@ -84,7 +79,6 @@ class LeftEntry {
 	}
 }
 
-/** A new reader's proxy build, and the left entry that gave way to it (if one did). */
 class Build {
 	giving_way: LeftEntry | null = null;
 }
@@ -111,10 +105,6 @@ export function new_reader<T>(make: () => T): T {
  * {@link QueryMap} adopts it, so every lookup and insert passes through here: an island's proxy is
  * built during its hydrate, and that lookup or insert names the island's region a holder.
  * The same shape in Kit 2 and Kit 3 (`remote-functions/cache.svelte.js`).
- *
- * A left entry answers every read by a departed island's own proxies. A new reader's lookup
- * ({@link new_reader}) gets nothing instead, so Kit builds a fresh entry in its place, and the left
- * entry bequeaths its place to it ({@link LeftEntry.bequeath}).
  */
 class QueryEntries extends Map<string, RemoteEntry> {
 	override get(payload: string): RemoteEntry | undefined {
