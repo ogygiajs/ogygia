@@ -5,6 +5,10 @@ import { describe, expect, test } from 'vitest';
 import { stamp_opaque } from '../src/ownership-stamps.ts';
 import { dedent } from '@ogygia/core/contract';
 import { runInNewContext } from 'node:vm';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { render } from 'svelte/server';
 
 const S = (src: string) => stamp_opaque(src, '/app/src/lib/X.svelte');
 
@@ -116,5 +120,30 @@ describe('stamp_opaque', () => {
 	test('nothing to stamp, or unparsable → null', () => {
 		expect(S('<div><p>{x}</p></div>')).toBeNull();
 		expect(S('<x-w>{@html')).toBeNull();
+	});
+
+	test("core's hand-stamped HtmlBesideServer.svelte renders exactly what the stamp of HtmlBeside.svelte renders", async () => {
+		const fixtures = fileURLToPath(new URL('../../core/test/browser/fixtures/', import.meta.url));
+		const source = path.join(fixtures, 'HtmlBeside.svelte');
+		const stamped = stamp_opaque(readFileSync(source, 'utf8'), source)!;
+		const file = path.join(
+			path.dirname(fileURLToPath(import.meta.url)),
+			'HtmlBeside.stamped.tmp.svelte'
+		);
+		writeFileSync(file, stamped);
+		try {
+			const ours = (await import(/* @vite-ignore */ pathToFileURL(file).href)).default;
+			const hand = (
+				await import(
+					/* @vite-ignore */ pathToFileURL(path.join(fixtures, 'HtmlBesideServer.svelte')).href
+				)
+			).default;
+			for (const props of [{}, { note: '', empty: '<b>x</b>' }, { note: null }]) {
+				const want = render(hand, { props }).body;
+				expect(render(ours, { props }).body, JSON.stringify(props)).toBe(want);
+			}
+		} finally {
+			rmSync(file, { force: true });
+		}
 	});
 });

@@ -34,9 +34,7 @@ import { hole_answer_context } from '../../src/server/answer-context.ts';
 import RegionUnder from '../_fixtures/RegionUnder.svelte';
 import { HYDRATE_CASES, place_setup } from './fixtures/hydrate-cases.ts';
 import { set_island_css } from '../_stubs/server.region-deps.ts';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { stamp_opaque } from '../../../compiler/src/ownership-stamps.ts';
+import HtmlBesideServer from './fixtures/HtmlBesideServer.svelte';
 
 const COUNTER = '/test/browser/fixtures/Counter.svelte';
 const HEAVY = '/test/browser/fixtures/Heavy.svelte';
@@ -169,19 +167,6 @@ declare module 'vitest' {
 		/** HtmlBeside as an interaction island, its server leg stamped by the compiler — base64. */
 		html_beside_ssr_b64: string;
 	}
-}
-
-/** HtmlBeside's server render from its source as the compiler stamps it for the server leg. */
-async function render_html_beside(): Promise<string> {
-	const source = fileURLToPath(new URL('./fixtures/HtmlBeside.svelte', import.meta.url));
-	const stamped = stamp_opaque(readFileSync(source, 'utf8'), source);
-	if (stamped === null) throw new Error('HtmlBeside.svelte: the compiler stamped nothing');
-	const file = source.replace(/\.svelte$/, '.server.tmp.svelte');
-	writeFileSync(file, stamped);
-	const mod = (await import(/* @vite-ignore */ pathToFileURL(file).href)) as {
-		default: Component<Record<string, unknown>>;
-	};
-	return island(HTML_BESIDE, render(mod.default).body, {}, 'interaction');
 }
 
 /** Each hydrate case rendered as its own request renders it: a csr=true route where it says so. */
@@ -344,5 +329,10 @@ export default async function setup(project: TestProject) {
 		b64(render(LakeIslandPage as unknown as Component).body)
 	);
 	project.provide('region_hydrate_cases_b64', b64(JSON.stringify(render_hydrate_cases())));
-	project.provide('html_beside_ssr_b64', b64(await render_html_beside()));
+	project.provide(
+		'html_beside_ssr_b64',
+		b64(
+			island(HTML_BESIDE, render(HtmlBesideServer as unknown as Component).body, {}, 'interaction')
+		)
+	);
 }

@@ -162,10 +162,13 @@ Uncontrolled `{@html}` (not a sole child) can't carry an attribute of its own; i
 `data-og-html`, and the server writes `<!--@html-->` first in each `{@html}` range there (#1454). The
 range runs from that mark to the next empty comment, Svelte's own end anchor, so the runtime knows
 exactly which nodes are unwalked content. (PROD output alone can't tell an `{@html}` opener from any
-other `<!---->` separator; the mark is what makes it knowable.) The mark sits inside Svelte's range,
-where its hydration never looks, so it adds no node to the walk. An empty value gets no mark: Svelte
-expects no node there. In DEV Svelte hashes the value into its open anchor; the runtime takes the
-mark's share out of that hash before hydrating (`runtime/html-ranges.ts`).
+other `<!---->` separator; the mark is what makes it knowable.) The marks matter while the island
+sleeps (drift watch, repair); the runtime takes them out just before Svelte hydrates
+(`runtime/html-ranges.ts`), so Svelte reads its own output. That matters when the client's value is
+empty and the server's was not, and its content left the light DOM (a declarative shadow root:
+`e2e/router-dsd.spec.ts`): a mark left there would sit where Svelte expects its end anchor. An
+empty server value gets no mark. In DEV Svelte hashes the value into its open anchor; the runtime
+takes the mark's share out of that hash too.
 
 Why this is safe: Svelte's hydration never compares or strips static attributes, and the stamp is
 server-only (the client template is not changed, so `set_custom_element_data` paths are untouched).

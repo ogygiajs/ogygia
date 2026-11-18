@@ -5009,8 +5009,8 @@
 			"reason": "dev only: a fixed 12-step loop per marked {@html} range, once per hydrate; proven in packages/core/test/canary/svelte-hydration-markers.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/html-ranges.ts > settle_html_ranges",
-			"reason": "dev only, browser only (DOM comments): one pass over the children of each data-og-html element of a region, once per hydrate; html-range.test.ts runs it"
+			"id": "packages/core/src/runtime/html-ranges.ts > unmark_html_ranges",
+			"reason": "browser only (DOM comments): one pass over the children of each data-og-html element of a region, once per hydrate; html-range.test.ts runs it"
 		},
 		{
 			"id": "packages/core/src/runtime/form-continuity.ts > url_of",

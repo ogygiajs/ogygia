@@ -1,6 +1,6 @@
 <script lang="ts">
-	// Template elements beside an `{@html}` with content and one with none. setup.ts server-renders
-	// this file through the compiler's server-leg stamp; the browser test hydrates it as it is.
+	// Template elements beside an `{@html}` with content and one with none. The server renders
+	// HtmlBesideServer.svelte, this file as the compiler stamps it; the browser hydrates this file.
 	let { note = '<em class="note">cms</em>', empty = '' }: { note?: string; empty?: string } =
 		$props();
 	let clicks = $state(0);

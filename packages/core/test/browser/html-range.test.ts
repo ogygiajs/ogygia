@@ -35,6 +35,7 @@ test('an island with {@html} beside its template elements hydrates in DEV with n
 	await wake(region, warns);
 	expect(region.hasAttribute('data-og-recovered'), 'NOT Svelte’s client re-render').toBe(false);
 	expect(warns.filter((w) => HYDRATION_WARNING_RE.test(w))).toEqual([]);
+	expect(region.innerHTML, 'the marks come out before Svelte hydrates').not.toContain('@html');
 	const button = region.querySelector('button')!;
 	await userEvent.click(button);
 	await expect.poll(() => button.textContent).toMatch(/clicks [12]/);

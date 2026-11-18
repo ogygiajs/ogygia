@@ -16,7 +16,7 @@ import { warn } from '../messages/lazy.ts';
 import { OG_FP, OG_HEALED, OG_RECOVERED, OGYGIA_KEEP } from '../wire-markup.ts';
 import { say } from '@ogygia/machine';
 import { ANCHOR, BLOCK_CLOSE, BLOCK_OPEN, FIRST_BRANCH_OPEN } from './svelte-markers.ts';
-import { settle_html_ranges } from './html-ranges.ts';
+import { unmark_html_ranges } from './html-ranges.ts';
 
 export const seed_page_once = (): void => slots.page?.seed_page_once();
 export const seed_remote_once = (): void => slots.remoteSeeds?.seed_once();
@@ -590,7 +590,7 @@ export function hydrate_island(
 	try {
 		head_mark = kit_hydrates_page() ? null : boot_link().runtime_session.mark_head();
 		if (!region.isConnected) return null;
-		if (import.meta.env.DEV) settle_html_ranges(region);
+		unmark_html_ranges(region);
 		const ssr_children = Array.from(region.children);
 
 		const foreign_delegate = foreign && typeof mod.__og_hydrate === 'function';
