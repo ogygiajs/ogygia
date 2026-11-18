@@ -40,12 +40,29 @@ function repo(opts: { catalog?: string; locked?: string[]; workflows: Record<str
 	return root;
 }
 
-const job = (ref: string) => dedent`
+const job = (ref: string, options = '--user 1001 --ipc=host --init') => dedent`
 	jobs:
 	  run:
 	    container:
 	      image: mcr.microsoft.com/playwright:${ref}
+	      options: ${options}
+	      env:
+	        NODE_OPTIONS: --dns-result-order=ipv4first
+	    steps:
+	      - run: echo --init
 `;
+
+test('a Playwright container without an init fails, saying what it is for', () => {
+	const root = repo({
+		workflows: { 'e2e.yml': job(`v1.62.1-resolute@sha256:${DIGEST}`, '--user 1001 --ipc=host') }
+	});
+	const problems = image_drift(root);
+	assert.equal(problems.length, 1);
+	assert.match(
+		problems[0]!,
+		/e2e\.yml: the Playwright container has no `--init` \(nothing reaps orphans/
+	);
+});
 
 test('an image pinned by digest to the locked Playwright passes', () => {
 	const root = repo({ workflows: { 'e2e.yml': job(`v1.62.1-resolute@sha256:${DIGEST}`) } });

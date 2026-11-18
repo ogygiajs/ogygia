@@ -151,7 +151,7 @@ jobs:
     # `ref` whose Playwright is not this image's fails at launch, naming the missing browser.
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb
-      options: --user 1001 --ipc=host
+      options: --user 1001 --ipc=host --init
       env:
         NODE_OPTIONS: --dns-result-order=ipv4first
     # (the rewrite browser sim's 15 minutes and the unaimed run's 45, which no longer builds the
@@ -260,7 +260,7 @@ jobs:
     # (Playwright's own image, as `mutate`)
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb
-      options: --user 1001 --ipc=host
+      options: --user 1001 --ipc=host --init
       env:
         NODE_OPTIONS: --dns-result-order=ipv4first
     timeout-minutes: 60
@@ -319,7 +319,7 @@ jobs:
     # (Playwright's own image, as `mutate`)
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb
-      options: --user 1001 --ipc=host
+      options: --user 1001 --ipc=host --init
       env:
         NODE_OPTIONS: --dns-result-order=ipv4first
     timeout-minutes: 120

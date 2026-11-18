@@ -30,13 +30,16 @@ jobs:
     # no browser download and no apt install at run time. `--with-deps` once sat on a slow apt mirror
     # until the job's 30 minutes ran out. `--user 1001` is the runner's own user, so the checkout and
     # the caches stay its files and Firefox runs as a user that owns its HOME; `--ipc=host` gives the
-    # browsers the host's shared memory (Docker's 64 MB default crashes Chromium). The image's
+    # browsers the host's shared memory (Docker's 64 MB default crashes Chromium). `--init` puts an
+    # init first, which reaps orphans: the container's own first process (`tail`) never does, so an
+    # exited grandchild of a server (workerd under wrangler) stayed a zombie in its process group,
+    # and a stop that waits for the group to empty waited out the test's 15 minutes. The image's
     # /etc/hosts names `localhost` ::1 first, the runner's names it 127.0.0.1 only: a server bound to
     # `localhost` sat on ::1 while Node's requests to it went to 127.0.0.1 and were refused, so Node
     # resolves IPv4 first here, as on the runner.
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb
-      options: --user 1001 --ipc=host
+      options: --user 1001 --ipc=host --init
       env:
         NODE_OPTIONS: --dns-result-order=ipv4first
     env:
