@@ -23,6 +23,8 @@
 import { hydrate, unmount, type Component } from 'svelte';
 import { nested_context } from './nested.ts';
 import { PushableProps } from './runtime/pushable-props.svelte.ts';
+import { settle_html_ranges } from './runtime/html-ranges.ts';
+import { DEV } from 'esm-env';
 
 export function og_entry_hydrate(
 	component: Component<Record<string, unknown>>,
@@ -39,6 +41,7 @@ export function og_entry_hydrate(
 		target.insertBefore(document.createComment('['), target.firstChild);
 		target.appendChild(document.createComment(']'));
 	}
+	if (DEV) settle_html_ranges(target);
 	const recovery = options && options.recover === false ? { recover: false } : {};
 	const pushed = options?.pushable ? new PushableProps(props) : null;
 	const app = hydrate(component, {

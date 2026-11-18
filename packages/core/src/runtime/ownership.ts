@@ -1,5 +1,13 @@
-import { OG_BAKED, OG_HTML, OG_OPAQUE, OGYGIA_KEEP, OGYGIA_REGION_CSS } from '../wire-markup.ts';
+import {
+	HTML_RANGE_MARK,
+	OG_BAKED,
+	OG_HTML,
+	OG_OPAQUE,
+	OGYGIA_KEEP,
+	OGYGIA_REGION_CSS
+} from '../wire-markup.ts';
 import { OPAQUE_SELECTOR } from './region-attrs.ts';
+import { ANCHOR } from './svelte-markers.ts';
 
 /** The owner of an element, for the writers that consult it. */
 export type Owner = 'foreign' | 'region' | 'page' | 'static' | 'walk';
@@ -36,20 +44,18 @@ export function owner_of(el: Element): Owner {
 	if (el.localName === SLOT) return 'page';
 	if (el.hasAttribute(OG_OPAQUE)) return 'static';
 	if (el.localName === REGION && el.matches(OPAQUE_SELECTOR)) return 'static';
-	if (el.parentElement?.hasAttribute(OG_HTML) && !in_render_block(el)) return 'static';
+	if (el.parentElement?.hasAttribute(OG_HTML) && in_html_range(el)) return 'static';
 	return 'walk';
 }
 
-const OPEN_BRACKET = 91;
-
-function in_render_block(el: Element): boolean {
-	let depth = 0;
+/** Is `el` `{@html}` content: after a range's opening mark ({@link HTML_RANGE_MARK}), with no empty
+ *  comment (Svelte's end anchor) between them? */
+function in_html_range(el: Element): boolean {
 	for (let n = el.previousSibling; n; n = n.previousSibling) {
 		if (n.nodeType !== 8) continue;
 		const data = (n as Comment).data;
-		if (data === ']') depth--;
-		else if (data.charCodeAt(0) === OPEN_BRACKET) depth++;
-		if (depth > 0) return true;
+		if (data === HTML_RANGE_MARK) return true;
+		if (data === ANCHOR) return false;
 	}
 	return false;
 }

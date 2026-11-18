@@ -60,7 +60,32 @@ test('owner_of: declared foreign, region, slot, static, walk — one precedence'
 	expect(owner_of(el('<ogygia-slot></ogygia-slot>'))).toBe('page');
 	expect(owner_of(el('<div data-og-opaque></div>'))).toBe('static');
 	expect(owner_of(el('<div></div>'))).toBe('walk');
-	expect(owner_of(el('<div data-og-html><x-w></x-w></div>').firstElementChild!)).toBe('static');
+	expect(
+		owner_of(el('<div data-og-html><!----><!--@html--><x-w></x-w><!----></div>').firstElementChild!)
+	).toBe('static');
+});
+
+test('owner_of beside an {@html}: only the elements in a marked range are its content (#1454)', () => {
+	const host = region_of(
+		'<div data-og-html><p class="before">{x}</p><!----><!--@html--><em class="in"></em><!--x--><b class="in"></b><!----><!--[--><i class="block"></i><!--]--><p class="after"></p></div>'
+	).firstElementChild!;
+	const owners = Array.from(host.children, (c) => `${c.className}:${owner_of(c)}`);
+	expect(owners).toEqual(['before:walk', 'in:static', 'in:static', 'block:walk', 'after:walk']);
+	// a third party's element after the range's end anchor is not {@html} content
+	const end = host.querySelector('b')!.nextSibling!;
+	const tp = document.createElement('u');
+	end.after(tp);
+	expect(owner_of(tp)).toBe('walk');
+	// in DEV Svelte's open anchor carries a hash, never an empty comment: the range is the same
+	const dev = region_of(
+		'<div data-og-html><p></p><!--1x2y3z--><!--@html--><em></em><!----><p></p></div>'
+	).firstElementChild!;
+	expect(Array.from(dev.children, owner_of)).toEqual(['walk', 'static', 'walk']);
+	// with no mark, nothing is taken for {@html} content
+	const bare = region_of(
+		'<div data-og-html><p></p><!----><em></em><!----></div>'
+	).firstElementChild!;
+	expect(Array.from(bare.children, owner_of)).toEqual(['walk', 'walk']);
 });
 
 for (const marker of ['data-og-opaque', 'data-ogygia-keep="search"']) {
@@ -89,7 +114,7 @@ for (const marker of ['data-og-opaque', 'data-ogygia-keep="search"']) {
 
 test('an {@html} beside walked content (data-og-html): the widget inside it is left alone, the parent level is repaired', () => {
 	const name = define_widget();
-	const server = `<div data-og-html><h3>Title</h3> <!----><${name}><form class="a"></form></${name}><!----></div>`;
+	const server = `<div data-og-html><h3>Title</h3> <!----><!--@html--><${name}><form class="a"></form></${name}><!----></div>`;
 	const region = region_of(server);
 	const host = region.firstElementChild!;
 	const widget = region.querySelector(name)!;
@@ -103,6 +128,23 @@ test('an {@html} beside walked content (data-og-html): the widget inside it is l
 	expect(sequence_differs(region, want_of(server))).toBe(false);
 	// the widget, whose own children changed, is untouched
 	expect(Array.from(widget.children)).toEqual(kids);
+});
+
+test('a template element beside an {@html} that a third party edited is repaired; the {@html} content is not (#1454)', () => {
+	const server =
+		'<div data-og-html><p><b>count</b> <button>0</button></p><!----><!--@html--><em class="note">cms</em><!----> <span>after</span></div>';
+	const region = region_of(server);
+	const host = region.firstElementChild!;
+	const p = host.querySelector('p')!;
+	p.prepend(document.createElement('i'));
+	const note = host.querySelector('.note')!;
+	note.append(document.createElement('s'));
+	const out = repair_if_drifted(region, server);
+	expect(out.repaired).toBe(true);
+	expect(host.querySelector('p > i')).toBeNull();
+	expect(sequence_differs(region, want_of(server))).toBe(false);
+	expect(host.querySelector('.note')).toBe(note);
+	expect(note.querySelector('s')).not.toBeNull();
 });
 
 test('a change only inside a widget Svelte never walks is not drift at all', () => {

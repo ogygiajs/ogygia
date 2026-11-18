@@ -24,6 +24,9 @@ import Keyed from './_fixtures/Keyed.svelte';
 import Nested from './_fixtures/Nested.svelte';
 import Empty from './_fixtures/Empty.svelte';
 import Head from './_fixtures/Head.svelte';
+import Html from './_fixtures/Html.svelte';
+import { hash_without_mark } from '../../src/runtime/html-ranges.ts';
+import { HTML_RANGE_MARK } from '../../src/wire-markup.ts';
 
 const MARKERS: Internal = {
 	upstream: "Svelte's SSR hydration comment markers",
@@ -34,6 +37,15 @@ const MARKERS: Internal = {
 		'packages/devtools/src/profiler/beacon.ts (the markers counted)'
 	],
 	issue: 1715
+};
+
+const HTML_RANGES: Internal = {
+	upstream: "Svelte's {@html} SSR range: its end anchor and DEV hash",
+	used_by: [
+		'packages/core/src/runtime/ownership.ts (in_html_range)',
+		'packages/core/src/runtime/html-ranges.ts (hash_without_mark)'
+	],
+	issue: 1454
 };
 
 const comment = (data: string) => `<!--${data}-->`;
@@ -133,5 +145,33 @@ describe('the SSR hydration markers of the installed Svelte', () => {
 			broke(MARKERS, `a head block has no empty anchor after its hash: ${head}`)
 		).toContain(ANCHOR);
 		expect(head, broke(MARKERS, 'the head content is not in the head')).toContain('name="canary"');
+	});
+
+	it('an {@html} range ends with an empty anchor `<!---->`, and its content is the value as given', () => {
+		const value = '<b>x</b><!--c-->';
+		const html = body(Html, { value });
+		const at = html.indexOf(value);
+		expect(at, broke(HTML_RANGES, `the value is not written as given: ${html}`)).toBeGreaterThan(0);
+		expect(
+			html.slice(at + value.length).startsWith(comment(ANCHOR)),
+			broke(HTML_RANGES, `an {@html} range does not end with ${comment(ANCHOR)}: ${html}`)
+		).toBe(true);
+	});
+
+	it("in DEV, an {@html} range opens with the value's hash, and the range mark's share comes out of it", () => {
+		const open = (value: string) => {
+			const html = body(Html, { value });
+			return markers(html.slice(html.indexOf('</p>')))[0];
+		};
+		const value = '<em>cms</em>\r\n<i>x</i>';
+		const plain = open(value);
+		expect(
+			plain !== ANCHOR && plain[0] !== BLOCK_OPEN,
+			broke(HTML_RANGES, `a DEV {@html} range does not open with a hash: ${plain}`)
+		).toBe(true);
+		expect(
+			hash_without_mark(open(`<!--${HTML_RANGE_MARK}-->${value}`)),
+			broke(HTML_RANGES, "Svelte's DEV hash of an {@html} value changed")
+		).toBe(plain);
 	});
 });

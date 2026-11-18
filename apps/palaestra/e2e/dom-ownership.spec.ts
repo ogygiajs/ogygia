@@ -30,6 +30,13 @@ test.describe('DOM OWNERSHIP: a widget’s own nodes survive the wake', () => {
 				html
 			)
 		);
+		const beside = await (await fetch(`${baseURL}/dom-ownership-beside`)).text();
+		check(
+			'{@html} beside walked content: the range with content is marked, the empty one is not',
+			(beside.match(/<!--@html-->/g) ?? []).length === 1 &&
+				/<!--@html--><em class="note">/.test(beside),
+			beside.slice(beside.indexOf('class="beside"'), beside.indexOf('class="last"'))
+		);
 		check(
 			'{@html} beside walked content: parent stamped data-og-html',
 			/<div data-og-html[^>]*class="widget-mixed|<div class="widget-mixed[^"]*"[^>]*data-og-html/.test(
@@ -131,11 +138,13 @@ test.describe('DOM OWNERSHIP: a widget’s own nodes survive the wake', () => {
 			'the node put inside the {@html} content stays',
 			(await page.locator('.note > .tp-content').count()) === 1
 		);
+		const woke = await page.locator('[data-beside-wake]').innerText();
 		await page.locator('[data-beside-wake]').click();
 		check(
-			'the island works after the wake',
-			(await page.locator('[data-beside-wake]').innerText()).includes('clicks 2'),
-			await page.locator('[data-beside-wake]').innerText()
+			'the island works after the wake: a click counts',
+			(await page.locator('[data-beside-wake]').innerText()) ===
+				`clicks ${Number(woke.split(' ')[1]) + 1}`,
+			`${woke} → ${await page.locator('[data-beside-wake]').innerText()}`
 		);
 		check(
 			'no hydration warning',

@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'vitest';
 import { stamp_opaque } from '../src/ownership-stamps.ts';
 import { dedent } from '@ogygia/core/contract';
+import { runInNewContext } from 'node:vm';
 
 const S = (src: string) => stamp_opaque(src, '/app/src/lib/X.svelte');
 
@@ -27,9 +28,31 @@ describe('stamp_opaque', () => {
 		);
 	});
 
-	test('an {@html} beside other content: the parent stays walked, stamped data-og-html for its child elements', () => {
+	test('an {@html} beside other content: the parent stays walked, stamped data-og-html, and the range is marked', () => {
 		expect(S('<div><p>{title}</p>{@html body}</div>')).toBe(
-			'<div data-og-html><p>{title}</p>{@html body}</div>'
+			`<div data-og-html><p>{title}</p>{@html ((s) => s && '<!--@html-->' + s)(String((body) ?? ''))}</div>`
+		);
+	});
+
+	test('the range mark goes before a non-empty value only, and leaves the value as it was', () => {
+		const mark = (src: string) =>
+			/\{@html (.*)\}<\/div>$/.exec(S(`<div><p>a</p>{@html ${src}}</div>`)!)![1];
+		const evaluate = (src: string) => runInNewContext(mark(src)) as string;
+		expect(evaluate(`'<b>x</b>'`)).toBe('<!--@html--><b>x</b>');
+		expect(evaluate(`''`)).toBe('');
+		expect(evaluate('null')).toBe('');
+		expect(evaluate('undefined')).toBe('');
+		expect(evaluate('0')).toBe('<!--@html-->0');
+		expect(evaluate(`'a' + 'b'`)).toBe('<!--@html-->ab');
+	});
+
+	test('every {@html} of a stamped element is marked; an opaque or unstamped one is not', () => {
+		const out = S('<div>{@html a}<p>x</p>{@html b}</div><span>{@html c}</span>')!;
+		expect(out.match(/<!--@html-->/g)).toHaveLength(2);
+		expect(out).toContain('<span data-og-opaque>{@html c}</span>');
+		expect(S('<div data-og-opaque><p>x</p>{@html a}</div>')).toBeNull();
+		expect(S('<div data-og-html><p>x</p>{@html a}</div>')).toBe(
+			`<div data-og-html><p>x</p>{@html ((s) => s && '<!--@html-->' + s)(String((a) ?? ''))}</div>`
 		);
 	});
 

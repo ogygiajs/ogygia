@@ -159,9 +159,13 @@ A server-leg transform over island component files stamps `data-og-opaque` on:
 - a custom element whose template children are entirely static (Svelte never descends it).
 
 Uncontrolled `{@html}` (not a sole child) can't carry an attribute of its own; its parent gets
-`data-og-html="<n>"` (the child index of each opening `<!---->`), so the runtime knows exactly which
-comment pair delimits unwalked content. (PROD output alone can't tell an `{@html}` opener from any
-other `<!---->` separator; the stamp is what makes it knowable.)
+`data-og-html`, and the server writes `<!--@html-->` first in each `{@html}` range there (#1454). The
+range runs from that mark to the next empty comment, Svelte's own end anchor, so the runtime knows
+exactly which nodes are unwalked content. (PROD output alone can't tell an `{@html}` opener from any
+other `<!---->` separator; the mark is what makes it knowable.) The mark sits inside Svelte's range,
+where its hydration never looks, so it adds no node to the walk. An empty value gets no mark: Svelte
+expects no node there. In DEV Svelte hashes the value into its open anchor; the runtime takes the
+mark's share out of that hash before hydrating (`runtime/html-ranges.ts`).
 
 Why this is safe: Svelte's hydration never compares or strips static attributes, and the stamp is
 server-only (the client template is not changed, so `set_custom_element_data` paths are untouched).
@@ -279,8 +283,9 @@ owner, one table, both incidents fixed without a flag.
 - Drift-watch: a mutation under a non-walk element does not mark its island changed.
 - Compiler (`compiler/ownership-stamps.ts`, server leg, app + declared packages): `data-og-opaque` on a
   sole-child `{@html}` host, `bind:innerHTML|textContent|innerText`, and a custom element with static
-  children; `data-og-html` on an element holding an `{@html}` beside other children (its child elements
-  are compared by tag + position, never entered — the exact range is not knowable from PROD markup).
+  children; `data-og-html` on an element holding an `{@html}` beside other children, with
+  `<!--@html-->` first in each `{@html}` range (an element in a range is never entered; every other
+  child is walked).
 - Navigation: `<body>` attributes — only the previous page's SERVER attributes are removed; a script's
   are kept.
 - Lazy-chunk rule kept: the hydrate core reaches ownership through `slots.boot` (`BootLink`).

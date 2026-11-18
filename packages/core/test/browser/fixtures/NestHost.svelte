@@ -1,7 +1,7 @@
 <script lang="ts">
 	// An island holding a nested island beside an `{@html}`: the element around them carries the
-	// compiler's `data-og-html` stamp (written here by hand: this suite does not run the compiler),
-	// so its child elements may be `{@html}` content. The nested island is not: Svelte's hydration
+	// compiler's `data-og-html` stamp and the `{@html}` its range mark (written here by hand: this
+	// suite does not run the compiler). The nested island is not in the range: Svelte's hydration
 	// walk binds inside it (#1425).
 	import Region from '../../../src/Region.svelte';
 	import Counter from './Counter.svelte';
@@ -19,5 +19,5 @@
 		}}
 		__props={{ start: 1 }}
 	/>
-	{@html note}
+	{@html '<!--@html-->' + note}
 </div>
