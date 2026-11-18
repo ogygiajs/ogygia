@@ -36,6 +36,21 @@ function kit_insert(
 	return entry;
 }
 
+/** A proxy of `entry` collected, the way Kit's `deref` and `#evict` answer it. */
+function kit_deref(
+	map: Map<string, Map<string, Entry>>,
+	entry: Entry & { proxy_count: number },
+	id: string,
+	payload: string
+): void {
+	entry.proxy_count--;
+	const now = map.get(id)?.get(payload) as (Entry & { proxy_count: number }) | undefined;
+	if (!now || now.proxy_count > 0) return;
+	const entries = map.get(id)!;
+	entries.delete(payload);
+	if (entries.size === 0) map.delete(id);
+}
+
 /** Run `fn` as the island of `r` hydrating (the runtime's cursor, hydrate-core.ts). */
 function hydrating<T>(r: Element, fn: () => T): T {
 	set_current_region(r);
@@ -161,6 +176,30 @@ describe('remote query entries are held by the islands that read them', () => {
 		release_remote_instances();
 		expect(new_reader(() => remote_cache.query_map.get('count')?.get('1'))).toBeUndefined();
 		expect(remote_cache.query_map.get('count')?.has('1')).toBe(false);
+	});
+
+	it('a departed island’s proxy still finds its query after the new reader’s proxy is collected first (#2041)', () => {
+		const destroyed: string[] = [];
+		const gone = region();
+		const entry = hydrating(gone, () =>
+			kit_insert(remote_cache.query_map, 'count', '1', destroyed)
+		) as Entry & { proxy_count: number };
+		entry.proxy_count = 1;
+		gone.isConnected = false;
+		release_remote_instances();
+
+		const fresh = new_reader(
+			() =>
+				remote_cache.query_map.get('count')?.get('1') ??
+				kit_insert(remote_cache.query_map, 'count', '1', destroyed)
+		) as Entry & { proxy_count: number };
+		fresh.proxy_count = (fresh.proxy_count ?? 0) + 1;
+
+		kit_deref(remote_cache.query_map, fresh, 'count', '1');
+		expect(remote_cache.query_map.get('count')?.get('1')).toBe(fresh);
+
+		kit_deref(remote_cache.query_map, entry, 'count', '1');
+		expect(remote_cache.query_map.has('count')).toBe(false);
 	});
 
 	it('an island reading a left entry without making a query keeps reading it (#2041)', () => {
