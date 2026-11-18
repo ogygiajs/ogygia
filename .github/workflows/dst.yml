@@ -152,6 +152,8 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb
       options: --user 1001 --ipc=host
+      env:
+        NODE_OPTIONS: --dns-result-order=ipv4first
     # (the rewrite browser sim's 15 minutes and the unaimed run's 45, which no longer builds the
     # mutants the browser sim killed; the compiler's 15 minutes, then up to 10 minutes for each aim)
     timeout-minutes: 240
@@ -259,6 +261,8 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb
       options: --user 1001 --ipc=host
+      env:
+        NODE_OPTIONS: --dns-result-order=ipv4first
     timeout-minutes: 60
     permissions:
       contents: read
@@ -316,6 +320,8 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb
       options: --user 1001 --ipc=host
+      env:
+        NODE_OPTIONS: --dns-result-order=ipv4first
     timeout-minutes: 120
     permissions:
       contents: read

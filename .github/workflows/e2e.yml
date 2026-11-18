@@ -322,6 +322,8 @@ jobs:
     container:
       image: ${{ matrix.browser != 'firefox-stable' && 'mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb' || '' }}
       options: --user 1001 --ipc=host
+      env:
+        NODE_OPTIONS: --dns-result-order=ipv4first
     strategy:
       fail-fast: false
       matrix:
