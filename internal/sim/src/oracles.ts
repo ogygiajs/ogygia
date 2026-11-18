@@ -1424,8 +1424,10 @@ export function opaque_untouched(tab: Tab): Broken | null {
 	};
 }
 
-/** Svelte's and ogygia's words for a region whose server HTML did not hydrate as it was. */
-const UNHYDRATED = /svelte\.dev\/e\/hydration_mismatch|ogygiajs\.dev\/e\/hydration_discarded/;
+/** Svelte's and ogygia's words for a region whose server HTML did not hydrate as it was (a
+ *  hydration that threw too: Svelte clears what the server sent and mounts it anew). */
+const UNHYDRATED =
+	/svelte\.dev\/e\/hydration_mismatch|ogygiajs\.dev\/e\/hydration_discarded|^warn: Failed to hydrate:/;
 
 /** Pages of the test app that serve HTML their islands do not hydrate as it is, on purpose, each
  *  with its reason. Never add one for HTML ogygia itself got wrong. */
@@ -1441,6 +1443,10 @@ const UNHYDRATED_BY_DESIGN: ReadonlyArray<{ path: RegExp; why: string }> = [
 	{
 		path: /^\/bench-cms\/kit\/?$/,
 		why: 'a csr=true page whose few hundred web components render into their light DOM before Kit hydrates: the remount is the cost its bench studies'
+	},
+	{
+		path: /^\/hole-kit-rebuild\/?$/,
+		why: 'a csr=true page that throws once while Kit hydrates it (Boom.svelte), so Kit mounts it anew and its holes must still fill (apps/palaestra/e2e/hole-kit-rebuild.spec.ts)'
 	}
 ];
 
