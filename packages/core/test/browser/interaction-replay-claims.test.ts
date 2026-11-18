@@ -77,9 +77,12 @@ test('a field whose node hydration kept, or whose address now holds another tag,
 	expect(other.value).toBe('');
 });
 
+/** An element as it was before hydration replaced it: detached. */
+const gone = (tag: string) => document.createElement(tag);
+
 test('focus comes back to the element at the focused address', () => {
 	region.innerHTML = '<button>a</button><input type="text">';
-	after_wake(region, [], [1], [], scope());
+	after_wake(region, [], { el: gone('input'), addr: [1], tag: 'INPUT' }, [], scope());
 	expect(document.activeElement).toBe(region.children[1]);
 });
 
@@ -88,9 +91,9 @@ test('clicks replay a frame later, in order, at their address, and only on a mat
 	const order: string[] = [];
 	for (const b of region.children) b.addEventListener('click', () => order.push(b.textContent!));
 	const queued: QueuedClick[] = [
-		{ addr: [1], deep: null, tag: 'BUTTON', init: { bubbles: true } },
-		{ addr: [0], deep: null, tag: 'BUTTON', init: { bubbles: true } },
-		{ addr: [2], deep: null, tag: 'BUTTON', init: { bubbles: true } }
+		{ el: gone('button'), addr: [1], deep: null, tag: 'BUTTON', init: { bubbles: true } },
+		{ el: gone('button'), addr: [0], deep: null, tag: 'BUTTON', init: { bubbles: true } },
+		{ el: gone('button'), addr: [2], deep: null, tag: 'BUTTON', init: { bubbles: true } }
 	];
 	replay_clicks(region, queued, scope());
 	expect(order).toEqual([]);
@@ -109,7 +112,15 @@ test('a click that landed inside a web component’s shadow tree replays there',
 	host.addEventListener('click', () => host_clicks++);
 	replay_clicks(
 		region,
-		[{ addr: [0], deep: inner, tag: 'X-REPLAY-HOST', init: { bubbles: true, composed: true } }],
+		[
+			{
+				el: host,
+				addr: [0],
+				deep: inner,
+				tag: 'X-REPLAY-HOST',
+				init: { bubbles: true, composed: true }
+			}
+		],
 		scope()
 	);
 	await frame();
@@ -122,9 +133,9 @@ test('a click on an element the repair kept replays on it, though a node before 
 	const button = region.querySelector('button')!;
 	let clicks = 0;
 	button.addEventListener('click', () => clicks++);
-	const queued = [
+	const queued: QueuedClick[] = [
 		{ el: button, addr: [0, 2], deep: null, tag: 'BUTTON', init: { bubbles: true } }
-	] as QueuedClick[];
+	];
 	replay_clicks(region, queued, scope());
 	await frame();
 	expect(clicks).toBe(1);
@@ -135,7 +146,13 @@ test('a field and focus the repair kept stay theirs, though a node before them w
 	const [a, b] = region.querySelectorAll('input');
 	a.value = 'typed';
 	a.focus();
-	after_wake(region, [{ el: a, addr: [1], tag: 'INPUT' }], [1], [], scope());
+	after_wake(
+		region,
+		[{ el: a, addr: [1], tag: 'INPUT' }],
+		{ el: a, addr: [1], tag: 'INPUT' },
+		[],
+		scope()
+	);
 	expect(b.value).toBe('');
 	expect(document.activeElement).toBe(a);
 });
@@ -145,7 +162,11 @@ test('a region gone before the frame replays nothing', async () => {
 	let clicks = 0;
 	region.children[0]!.addEventListener('click', () => clicks++);
 	const owner = scope();
-	replay_clicks(region, [{ addr: [0], deep: null, tag: 'BUTTON', init: {} }], owner);
+	replay_clicks(
+		region,
+		[{ el: region.children[0]!, addr: [0], deep: null, tag: 'BUTTON', init: {} }],
+		owner
+	);
 	owner.close();
 	await frame();
 	expect(clicks).toBe(0);

@@ -581,6 +581,14 @@
 			"reason": "browser only: the replay chunk failed to load again after a failed wake: reports it, constant work"
 		},
 		{
+			"id": "packages/core/src/runtime/interaction.ts > touched",
+			"reason": "browser only: the element a wake press landed on, with its address (one walk up to the region); proven in packages/core/test/browser/interaction-replay-claims.test.ts and apps/palaestra/e2e/dom-ownership.spec.ts (#2097)"
+		},
+		{
+			"id": "packages/core/src/runtime/interaction-replay.ts > now_at",
+			"reason": "browser only: the element itself when hydration kept it, else the one at its address (one contains, one walk down); proven in packages/core/test/browser/interaction-replay-claims.test.ts (#2097)"
+		},
+		{
 			"id": "packages/devtools/src/devtools/ui.ts > mount_launcher > onpointerdown",
 			"reason": "browser only, constant work: a pointer pressed on the launcher sets one flag; proven in packages/devtools/e2e/devtools.spec.ts (#2028)"
 		},

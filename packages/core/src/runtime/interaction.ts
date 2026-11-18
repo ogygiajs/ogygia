@@ -57,14 +57,23 @@ export function resolve_address(region: Element, addr: number[]): Element | null
 	return node;
 }
 
-export type FieldSnapshot = {
+export type Touched = {
+	el: Element;
+	addr: number[];
+	tag: string;
+};
+
+export function touched(region: Element, el: Element): Touched | null {
+	const addr = element_address(region, el);
+	return addr && { el, addr, tag: el.tagName };
+}
+
+export type FieldSnapshot = Touched & {
 	/** The PRE-hydration node. Values are read from it AT RESTORE TIME: the wake fires on the very
 	 * first keydown — BEFORE that key's character has landed — and more keystrokes land in this
 	 * node while the island loads. A detached node keeps its `.value`, so at restore it holds
 	 * everything the user typed up to the moment hydration swapped it out. */
 	el: HTMLInputElement;
-	addr: number[];
-	tag: string;
 };
 
 function snapshot_fields(region: Element): FieldSnapshot[] {
@@ -85,13 +94,11 @@ function snapshot_fields(region: Element): FieldSnapshot[] {
  */
 export type WakeFn = (replayed: Promise<unknown>) => Promise<void> | void;
 
-export type QueuedClick = {
-	addr: number[];
+export type QueuedClick = Touched & {
 	/** The deepest node of the click's composed path when it lies INSIDE a web component's shadow
 	 *  tree (a design-system button's inner <button>): a host-level replay never reaches the shadow-internal
 	 *  handler that actually toggles the component, so the replay lands here instead. */
 	deep: EventTarget | null;
-	tag: string;
 	init: MouseEventInit;
 };
 
@@ -188,17 +195,16 @@ function wake(a: Armed, e: Event): void {
 		e.target instanceof Element &&
 		!opens_elsewhere(e as MouseEvent, e.target)
 	) {
-		const addr = element_address(region, e.target);
-		if (addr) {
+		const at = touched(region, e.target);
+		if (at) {
 			const me = e as MouseEvent;
 			e.preventDefault();
 			e.stopPropagation();
 			const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
 			const deep = path.length && path[0] !== e.target ? path[0] : null;
 			queued.push({
-				addr,
+				...at,
 				deep,
-				tag: e.target.tagName,
 				init: {
 					bubbles: true,
 					cancelable: true,
@@ -220,15 +226,15 @@ function wake(a: Armed, e: Event): void {
 
 	const fields = snapshot_fields(region);
 	const active = document.activeElement;
-	const active_addr =
-		active instanceof Element && region.contains(active) ? element_address(region, active) : null;
+	const focused =
+		active instanceof Element && region.contains(active) ? touched(region, active) : null;
 
 	const replayed = replay();
 	Promise.all([replayed, Promise.resolve(a.fire(replayed))]).then(
 		([r]) => {
 			if (a.arming.now.kind === 'over') return;
 			disarm(a, false);
-			if (r !== STALE) r.after_wake(region, fields, active_addr, queued, a.owner);
+			if (r !== STALE) r.after_wake(region, fields, focused, queued, a.owner);
 		},
 		(err) => {
 			if (a.arming.now.kind === 'over') return;
