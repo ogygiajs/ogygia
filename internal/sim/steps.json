@@ -35,10 +35,8 @@
 		"batch stream: streaming -> ended",
 		"batch-stream: reading -> reading",
 		"batch-stream: sending -> reading",
-		"batch-stream: sending -> stalled",
 		"build location map: flying -> gone",
 		"build location map: flying -> kept",
-		"build location map: kept -> gone",
 		"critical resources: flying -> gone",
 		"critical resources: flying -> kept",
 		"critical-gate: fresh -> settled",
@@ -111,11 +109,9 @@
 		"lake: open -> settled",
 		"lake: open -> waited",
 		"lake: waited -> settled",
-		"live-region: failed -> hydrating",
 		"live-region: failed -> static",
 		"live-region: hydrating -> failed",
 		"live-region: hydrating -> hydrating",
-		"live-region: hydrating -> idle",
 		"live-region: hydrating -> live",
 		"live-region: hydrating -> static",
 		"live-region: idle -> hydrating",
@@ -378,6 +374,30 @@
 			"reason": "a live region whose island file failed to load, then taken off the page: the standard sweep reached it only by luck (gone since the builds became one world, #1548)",
 			"test": "packages/core/test/browser/live-region-failed-file.test.ts",
 			"name": "a live region whose island file could not load, taken off the page, goes back to rest"
+		},
+		{
+			"step": "batch-stream: sending -> stalled",
+			"reason": "a batch answer that never starts for the stall deadline: a network stall aimed at one batch POST before its first byte, which the sweep met only by luck (missing from every nightly sweep since 2026-11-15)",
+			"test": "packages/core/test/browser/frame-stream-stall.test.ts",
+			"name": "an answer that never starts: the stream is given up while sending, and its holes are let go"
+		},
+		{
+			"step": "build location map: kept -> gone",
+			"reason": "kept forever once read; only its keep running out early (buggify) on a later read of the same map, which the sweep met only by luck",
+			"test": "packages/core/test/browser/entry-location-map.test.ts",
+			"name": "a map whose keep ran out is read again by the next identity-only load"
+		},
+		{
+			"step": "live-region: failed -> hydrating",
+			"reason": "a live region whose island file failed to load, then a tick of another module: the sweep met it only by luck (missing from every nightly sweep since 2026-11-15)",
+			"test": "packages/core/test/browser/live-region-failed-file.test.ts",
+			"name": "after its island file could not load, a tick of another module starts afresh and goes live"
+		},
+		{
+			"step": "live-region: hydrating -> idle",
+			"reason": "a live region taken off the page while its island loads: the sweep meets it only by luck (missing from 2 of the 5 nightly sweeps before 2026-11-18)",
+			"test": "packages/core/test/browser/live-region-leaves.test.ts",
+			"name": "a live region taken off the page while its island loads goes back to rest, and nothing hydrates"
 		}
 	],
 	"dead": []
