@@ -1086,11 +1086,11 @@ export function outage_only(world: World, tab: Tab): boolean {
 }
 
 export function faulted(world: World, tab: Tab, since?: number): boolean {
-	// (the document it shows, and the one it is loading, whose request may be what failed; or,
-	// `since` an exchange, any document of the tab: what it said since then may be an earlier one's)
-	const next = `${tab.name}#${tab.documents + 1}`;
+	// (the document it shows, the one it is loading too: its realm is the tab's from the moment its
+	// navigation replaced the window; or, `since` an exchange, any document of the tab: what it said
+	// since then may be an earlier one's)
 	const mine = (from: string): boolean =>
-		since === undefined ? from === tab.realm || from === next : from.startsWith(`${tab.name}#`);
+		since === undefined ? from === tab.realm : from.startsWith(`${tab.name}#`);
 	// (an answer buggify lost on the way is a dropped request's: the hole may give up, as it would;
 	// palaestra seed 85, test/lost-answers.node.test.ts)
 	if ([...world.fired_in.keys()].some((realm) => mine(realm) && lost_answers(world, realm)))

@@ -41,14 +41,15 @@ export type Route = (request: Request, from: string) => Promise<Response>;
 export interface Tab {
 	readonly name: string;
 	readonly page: BrowserPage;
-	/** The realm of the document it shows now. */
+	/** The realm of the document it shows now: the next document's from the moment a navigation
+	 *  replaced its window, its download still on the way or not (happy-dom unloads the page it
+	 *  left then). */
 	realm: string;
 	/** Documents it has shown (and navigations called off before theirs came: each took a realm). */
 	documents: number;
 	/** Navigations it started, the visitor's or the page's: only the latest is still going. */
 	navigations: number;
-	/** A navigation started and its document has not come yet: its requests are realm
-	 *  `#documents + 1`'s. */
+	/** A navigation started and its document has not come yet. */
 	awaiting: boolean;
 	/** The tab's history as it was before that navigation started (`awaiting`): what calling it
 	 *  off puts back. */
@@ -212,16 +213,18 @@ export class Browsers {
 				fetch: {
 					interceptor: {
 						beforeAsyncRequest: async ({ request, window }) => {
-							// (a document's own request comes from its new window, before it arrives: it is
-							// the request of the realm the tab is about to get)
+							// (each window's request is its document's: a document's own request comes from
+							// its new window, before it arrives, and a navigation the page started itself
+							// replaced the tab's window without `#start`; a frame inside the page is the page's)
 							const known = this.#windows.get(window);
 							const tab = known ?? this.#find(window);
 							const from =
-								known !== undefined
-									? known.realm
-									: tab !== undefined
-										? `${tab.name}#${tab.documents + 1}`
-										: 'browser';
+								this.#realms.get(window) ??
+								(tab === undefined
+									? 'browser'
+									: (tab.page.mainFrame.window as unknown) === window
+										? this.#claim(tab, window)
+										: tab.realm);
 							const W = window as unknown as {
 								Response: typeof Response;
 								Headers: typeof Headers;
@@ -376,16 +379,32 @@ export class Browsers {
 		};
 	}
 
-	/** A document is about to run its first script: it gets its realm and simulated platform. */
+	/** Each window of a tab's main frame, its document's realm (`#claim`). */
+	readonly #realms = new WeakMap<object, string>();
+
+	/**
+	 * The tab's main frame holds `window`, a document's: its realm, taken the first time the tab is
+	 * seen with it (a navigation replaced the window, its download asked, or its content came). The
+	 * tab leaves the document it showed then, as happy-dom unloads it then (test/left-document.node.test.ts).
+	 */
+	#claim(tab: Tab, window: object): string {
+		const had = this.#realms.get(window);
+		if (had !== undefined) return had;
+		this.#leave(tab);
+		tab.documents++;
+		tab.realm = `${tab.name}#${tab.documents}`;
+		this.#realms.set(window, tab.realm);
+		return tab.realm;
+	}
+
+	/** A document is about to run its first script: it gets its simulated platform. */
 	#arrive(window: BrowserWindow): void {
 		const tab = this.#find(window);
 		// (a frame inside the page is not the tab's document)
 		if (tab === undefined || (tab.page.mainFrame.window as unknown) !== window) return;
-		this.#leave(tab);
-		tab.documents++;
+		this.#claim(tab, window);
 		tab.awaiting = false;
 		tab.before = null;
-		tab.realm = `${tab.name}#${tab.documents}`;
 		const started = tab.started ?? { at: this.#o.loop.now, type: 'navigate' as const };
 		tab.started = null;
 		const options: RealmOptions = {
@@ -892,8 +911,7 @@ export class Browsers {
 		// page's URL (test/superseded-navigation.node.test.ts). The tab leaves it, as one it moved on from.
 		if (this.#unwritten.has((frame as { window: object }).window)) this.#leave(tab);
 		if (tab.awaiting && tab.before !== null) {
-			tab.documents++;
-			this.#o.network.leave(`${tab.name}#${tab.documents}`);
+			this.#leave(tab);
 			restore_history(frame, tab.before);
 		}
 		tab.awaiting = false;
@@ -906,6 +924,7 @@ export class Browsers {
 		// (a new document is on its way when the frame's window was replaced: a step within the
 		// document, a fragment or a `pushState` entry, replaces none)
 		if (window() !== shown) {
+			this.#claim(tab, window() as object);
 			tab.awaiting = true;
 			tab.before = before;
 		}
