@@ -244,10 +244,9 @@ export function snippet_freeze_fuzz(async: boolean, seed: number): void {
 				} catch {
 					return;
 				}
-				const at = before.lastIndexOf(ROOT_CLOSE);
 				expect((region.snippet(s) as { __ogRegion?: unknown }).__ogRegion).toEqual({
 					m: 'static',
-					h: before.slice(0, at) + RENDER_ANCHOR + before.slice(at)
+					h: before.replace(/<!--(?:\[[!\d-]*|\]|)-->/g, '')
 				});
 			}),
 			sim_params({ runs: 300, seed })

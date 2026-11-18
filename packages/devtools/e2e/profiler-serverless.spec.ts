@@ -127,8 +127,9 @@ test.describe('profiler on a serverless host', () => {
 			box.locator('ogygia-region[data-hydrated] .whatif'),
 			'the checklist island woke'
 		).toBeAttached({ timeout: 30_000 });
-		await box.locator('summary').click();
+		await box.evaluate((d: HTMLDetailsElement) => (d.open = true));
 		const sum = box.locator('.sum');
+		await expect(sum).toContainText(/from [\d,.]+ ms/);
 		const ms = async () =>
 			Number((await sum.innerText()).match(/about ([\d,.]+) ms/)![1].replace(/,/g, ''));
 		const from = Number((await sum.innerText()).match(/from ([\d,.]+) ms/)![1].replace(/,/g, ''));

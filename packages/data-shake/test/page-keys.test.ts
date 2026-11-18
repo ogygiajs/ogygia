@@ -255,6 +255,34 @@ describe('page_data_keys — a branch the browser never takes', () => {
 			)
 		).toEqual([]);
 	});
+	it('a read under import.meta.env?.SSR, alone or with a ?? typeof window fallback, is not the client', () => {
+		for (const guard of [
+			'import.meta.env?.SSR',
+			"import.meta.env?.SSR ?? typeof window === 'undefined'",
+			"import.meta.env.SSR ?? typeof document == 'undefined'",
+			"(import.meta.env?.SSR ?? typeof window === 'undefined')"
+		]) {
+			expect(
+				ts(dedent`
+					import { page } from '$app/state';
+					if (${guard}) send(page.data);
+					use(page.data.a);
+				`),
+				guard
+			).toEqual(['a']);
+			expect(
+				ts(`import { page } from '$app/state';\nif (!(${guard})) send(page.data);`),
+				guard
+			).toBe('all');
+		}
+	});
+	it('a ?? with a fallback that is not a server test is the client', () => {
+		for (const guard of ['import.meta.env?.SSR ?? flag', 'flag ?? import.meta.env?.SSR']) {
+			expect(ts(`import { page } from '$app/state';\nif (${guard}) send(page.data);`), guard).toBe(
+				'all'
+			);
+		}
+	});
 	it("the client branch still counts: typeof window !== 'undefined', and the else of a server test", () => {
 		expect(
 			ts(`import { page } from '$app/state';\nif (typeof window !== 'undefined') send(page.data);`)

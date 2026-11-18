@@ -54,6 +54,30 @@ describe.skipIf(!built)('a document the tab has left', () => {
 		}
 	});
 
+	it('says nothing of a rejection it made while the next document is still on its way', async () => {
+		const world = await World.make({
+			seed: SEED,
+			builds: [{ id: 'v1', output: OUTPUT }],
+			faults: new Set(['stall']),
+			rates: { stall: 1 }
+		});
+		try {
+			const tab = world.tab(world.visitor('v'));
+			await world.go(tab, 'goto', '/');
+			await world.quiesce();
+			const first = tab.page.mainFrame.window as unknown as typeof globalThis;
+			await world.start(tab, 'reload', '/', 50);
+			expect(tab.page.mainFrame.window).not.toBe(first);
+			void first.Promise.reject(new first.Error('the left page rejected'));
+			await world.loop.run(60_000);
+			await world.quiesce();
+			expect(world.uncaught).toEqual([]);
+			expect(tab.errors.filter((l) => l.includes('the left page rejected'))).toEqual([]);
+		} finally {
+			await world.end();
+		}
+	});
+
 	it("says nothing of an import its unload failed, a classic script's or a module's", async () => {
 		// (Kit's boot imports its entry files with no catch; the tab went back while one stalled, the
 		// unload failed the import, and the left page's rejection reached the host as the run's

@@ -42,7 +42,7 @@ import { router_css_roots } from './link/router-css.ts';
 import type { SourceMap } from 'magic-string';
 import { relocate, relocations_of, type RelocateCx } from './link/relocations.ts';
 import { same_module_path, island_vpaths_affected_by_file } from './dev/hmr.ts';
-import { VirtualTable } from './virtual/resolver.ts';
+import { VirtualTable, import_chain } from './virtual/resolver.ts';
 import { CORE_VALUE_NAMES } from './virtual/value-names.ts';
 import {
 	CORE_PARTS,
@@ -1222,7 +1222,8 @@ export class Compiler implements CoreApp {
 		importer: string | undefined,
 		{
 			ssr,
-			resolve
+			resolve,
+			importers_of
 		}: {
 			ssr: boolean;
 			resolve: (
@@ -1230,12 +1231,18 @@ export class Compiler implements CoreApp {
 				importer: string,
 				opts: { skipSelf: boolean }
 			) => Promise<{ id: string } | null>;
+			/** the bundler's module graph: who imported a module, for a refusal's import chain */
+			importers_of?: (id: string) => readonly string[] | undefined;
 		}
 	): Promise<string | { id: string } | null> {
 		const ctx = this.#ctx;
 		const { registry, island_graph } = this.program;
 
-		const declared = this.#virtuals.resolve(source, { ssr, dev: ctx.is_dev });
+		const declared = this.#virtuals.resolve(source, {
+			ssr,
+			dev: ctx.is_dev,
+			via: () => (importer ? import_chain(importer, importers_of ?? (() => []), ctx.root) : '')
+		});
 		if (declared) return declared;
 		if (source === CLIENT_BINDING_STUB) return ctx.client_binding_stub_file;
 		if (

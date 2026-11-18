@@ -422,10 +422,10 @@ exports[`dev > island reading the request, in Kit page pass 1`] = `
 
 exports[`dev > island rendering a snippet prop 1`] = `
 "<!-- head --><!--<id1>--><!--<id2>--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="<fp1>"><!----><!---->
-<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="<fp1>" src="/islands/tiny.js.hashed.js"><!--[--><span data-snippet-prop=""><ogygia-snippet data-og-static style="display:contents"><!--[--><u>s</u><!----><!--]--></ogygia-snippet><!----></span><!--]--></ogygia-region><!--<id3>--><script type="application/ogygia-props" data-ogygia-props="<fp1>">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","s<snip1>",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!---->\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="<fp1>" src="/islands/tiny.js.hashed.js"><!--[--><span data-snippet-prop=""><ogygia-snippet data-og-static style="display:contents"><u>s</u></ogygia-snippet><!----></span><!--]--></ogygia-region><!--<id3>--><script type="application/ogygia-props" data-ogygia-props="<fp1>">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","s<snip1>",{"m":6,"h":7},"static","\\u003Cu>s\\u003C/u>"]</script><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
-<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"<fp1>","mode":"island","entry":"/islands/tiny.js","propsBytes":157}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"<fp1>","mode":"island","entry":"/islands/tiny.js","propsBytes":119}]
 <!-- warnings -->[]"
 `;
 
@@ -488,10 +488,10 @@ exports[`dev > island with a live snippet prop, in Kit page pass 1`] = `
 
 exports[`dev > island with a snippet prop 1`] = `
 "<!-- head --><!--<id1>--><!--<id2>--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="<fp1>"><!----><!---->
-<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="<fp1>" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--<id3>--><script type="application/ogygia-props" data-ogygia-props="<fp1>">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","s<snip1>",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!---->\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="<fp1>" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--<id3>--><script type="application/ogygia-props" data-ogygia-props="<fp1>">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","s<snip1>",{"m":6,"h":7},"static","\\u003Cu>s\\u003C/u>"]</script><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
-<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"<fp1>","mode":"island","entry":"/islands/tiny.js","propsBytes":157}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"<fp1>","mode":"island","entry":"/islands/tiny.js","propsBytes":119}]
 <!-- warnings -->[]"
 `;
 
@@ -1079,10 +1079,10 @@ exports[`production > island reading the request, in Kit page pass 1`] = `
 
 exports[`production > island rendering a snippet prop 1`] = `
 "<!-- head --><!--<id1>--><!--<id2>--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="<fp1>"><!----><!---->
-<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="<fp1>" src="/islands/tiny.js.hashed.js"><!--[--><span data-snippet-prop=""><ogygia-snippet data-og-static style="display:contents"><!--[--><u>s</u><!----><!--]--></ogygia-snippet><!----></span><!--]--></ogygia-region><!--<id3>--><script type="application/ogygia-props" data-ogygia-props="<fp1>">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","s<snip1>",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!---->\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="<fp1>" src="/islands/tiny.js.hashed.js"><!--[--><span data-snippet-prop=""><ogygia-snippet data-og-static style="display:contents"><u>s</u></ogygia-snippet><!----></span><!--]--></ogygia-region><!--<id3>--><script type="application/ogygia-props" data-ogygia-props="<fp1>">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","s<snip1>",{"m":6,"h":7},"static","\\u003Cu>s\\u003C/u>"]</script><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
-<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"<fp1>","mode":"island","entry":"/islands/tiny.js","propsBytes":157}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"<fp1>","mode":"island","entry":"/islands/tiny.js","propsBytes":119}]
 <!-- warnings -->[]"
 `;
 
@@ -1145,10 +1145,10 @@ exports[`production > island with a live snippet prop, in Kit page pass 1`] = `
 
 exports[`production > island with a snippet prop 1`] = `
 "<!-- head --><!--<id1>--><!--<id2>--><script type="module" data-ogygia-runtime src="/og-runtime.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')"></script><script type="application/json" data-ogygia-graph>{"h":["/islands/tiny.js~dep-a.js","/islands/tiny.js~dep-b.js"],"e":{"/islands/tiny.js":[0,1]}}</script><link rel="stylesheet" href="/islands/tiny.js~sheet.css" data-ogygia-region-css data-og-owner="<fp1>"><!----><!---->
-<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="<fp1>" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--<id3>--><script type="application/ogygia-props" data-ogygia-props="<fp1>">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","s<snip1>",{"m":6,"h":7},"static","\\u003C!--[-->\\u003Cu>s\\u003C/u>\\u003C!---->\\u003C!--]-->"]</script><!----><!--]--><!--]--><!--]--><!--]-->
+<!-- body --><!--[--><!--[--><!--[0--><!--[-1--><ogygia-region entry="/islands/tiny.js" wake="load" data-og-fp="<fp1>" src="/islands/tiny.js.hashed.js"><!--[--><b data-tiny="">tiny</b><!--]--></ogygia-region><!--<id3>--><script type="application/ogygia-props" data-ogygia-props="<fp1>">[{"s":1},["OgygiaRef",2],{"k":3,"i":4,"d":5},"snippet","s<snip1>",{"m":6,"h":7},"static","\\u003Cu>s\\u003C/u>"]</script><!----><!--]--><!--]--><!--]--><!--]-->
 <!-- early holes -->
 <!-- page records -->[{"seed":"all","remotes":null,"entry":"/islands/tiny.js"}]
-<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"<fp1>","mode":"island","entry":"/islands/tiny.js","propsBytes":157}]
+<!-- devtools -->[{"domain":"server","name":"server.region.rendered","fp":"<fp1>","mode":"island","entry":"/islands/tiny.js","propsBytes":119}]
 <!-- warnings -->[]"
 `;
 

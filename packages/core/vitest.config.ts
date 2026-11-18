@@ -152,6 +152,8 @@ export default defineConfig({
 	// suites load without a Kit app or the Vite plugin (test/_stubs, by file name)
 	resolve: { alias: stub_aliases() },
 	test: {
+		// @why expect.poll and expect.element give up after 1 s by default, shorter than a dev-mode module load on a loaded runner running the full suite (test: test/browser/region-left-mid-wake.test.ts › a region taken out while it waits for its hydrate turn never comes alive)
+		expect: { poll: { timeout: 5_000 } },
 		projects: [
 			{
 				extends: true,

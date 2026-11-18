@@ -5,14 +5,34 @@
 // The fixture (setup.ts) puts the 18 below-the-fold islands FIRST in document order and the 3
 // in-viewport ones LAST, so viewport-first and document-first disagree. Each island spins ~6 ms at
 // init (Heavy.svelte): the old back-to-back microtask hydration made one ~126 ms task of them.
-import { expect, inject, test } from 'vitest';
+import { afterEach, expect, inject, test } from 'vitest';
+import { observe } from '@ogygia/machine';
 import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { schedule_idle } from '../../src/runtime/schedule.ts';
 
 const inject_html = (key: 'heavy_schedule_ssr_b64') => from_b64(inject(key));
 
-test('21 load islands: no task ≥ 50 ms, viewport islands first, then document order', async () => {
+const log: string[] = ((globalThis as { __heavy_log?: string[] }).__heavy_log = []);
+let stop_observing = () => {};
+afterEach(() => {
+	stop_observing();
+	log.length = 0;
+});
+
+/** Islands that started in one task: two inits with no drain task begun between them. */
+function shared_tasks(lines: readonly string[]): string[] {
+	const out: string[] = [];
+	let last: string | null = null;
+	for (const line of lines) {
+		if (line === 'drain') last = null;
+		else if (last !== null) out.push(`${last} + ${line}`);
+		else last = line;
+	}
+	return out;
+}
+
+test('21 load islands: one island per task, viewport islands first, then document order', async () => {
 	// Warm the module graph first (Svelte's runtime, the fixture, the hydrate core) so the measured
 	// tasks are hydration itself, not a first-import evaluation.
 	await Promise.all([
@@ -27,19 +47,16 @@ test('21 load islands: no task ≥ 50 ms, viewport islands first, then document 
 		const n = (e.target as Element).querySelector('[data-heavy]')?.getAttribute('data-heavy');
 		order.push(Number(n));
 	});
-	const long_tasks: number[] = [];
-	const po = new PerformanceObserver((list) => {
-		for (const entry of list.getEntries()) long_tasks.push(Math.round(entry.duration));
+	stop_observing = observe((name, from, to) => {
+		if (name === 'hydrate-drain' && from.kind === 'queued' && to?.kind === 'idle')
+			log.push('drain');
 	});
-	po.observe({ type: 'longtask' });
 
 	bootDev();
 	await expect.poll(() => order.length, { timeout: 20_000 }).toBe(21);
-	// let the observer deliver anything still buffered, then read
-	await new Promise((r) => setTimeout(r, 200));
-	po.disconnect();
 
-	expect(long_tasks, `long tasks (ms): ${long_tasks.join(', ')}`).toEqual([]);
+	expect(log.filter((l) => l !== 'drain')).toHaveLength(21);
+	expect(shared_tasks(log), log.join(', ')).toEqual([]);
 	// The three islands that intersect the viewport (document order 18, 19, 20) hydrate FIRST —
 	// their modules land in network order, staggered one task each, and a ready island below the
 	// fold holds its turn while one of them is still loading.

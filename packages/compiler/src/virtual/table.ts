@@ -32,6 +32,8 @@ export interface Leg {
 	exports?: ExportIndex<WalkResolve>;
 	/** Kit 3's own codec module (`#app/internal/transport`), when the app's Kit has one */
 	kitCodec?: string | null;
+	/** the import chain that reached the module being loaded (resolver.ts `import_chain`) */
+	via?: () => string;
 }
 
 type Source = string | Promise<string>;

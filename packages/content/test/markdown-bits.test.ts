@@ -4,6 +4,9 @@ import { render_markdown } from '../src/markdown/render-md.ts';
 import { render_snippet } from '../src/markdown/snippet.ts';
 import { remarkLinks } from '../src/markdown/remark-links.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
+import { warm_shiki } from './_shiki-warm.ts';
+
+warm_shiki({}, 'js');
 
 describe('md(): a markdown string rendered at build time', () => {
 	it('renders static prose to html', async () => {

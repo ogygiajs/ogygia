@@ -4,6 +4,7 @@
 	// Twenty-one of these in one task is a 126 ms long task; one per task is twenty-one short ones.
 	let { n = 0 }: { n?: number } = $props();
 	if (typeof document !== 'undefined') {
+		(globalThis as { __heavy_log?: string[] }).__heavy_log?.push(`init ${n}`);
 		const t0 = performance.now();
 		while (performance.now() - t0 < 6) {
 			/* spin */

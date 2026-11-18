@@ -213,6 +213,36 @@ describe('modules of a simulated tab', () => {
 		}
 	});
 
+	it("a classic script's import whose download failed offline says what a browser says", async () => {
+		use_v8_modules();
+		const browser = new Browser({
+			settings: {
+				enableJavaScriptEvaluation: true,
+				suppressInsecureJavaScriptEnvironmentWarning: true,
+				fetch: {
+					interceptor: {
+						beforeAsyncRequest: async ({ window }) => {
+							const W = window as unknown as { TypeError: typeof TypeError };
+							throw new W.TypeError('Failed to fetch (offline)');
+						}
+					}
+				}
+			}
+		});
+		try {
+			const page = browser.newPage();
+			page.url = 'https://example.com/';
+			page.content =
+				"<script>Promise.all([import('./start.js')]).catch((e) => { window.said = e.message; });\x3C/script>";
+			await new Promise((r) => setTimeout(r, 100));
+			expect((page.mainFrame.window as unknown as { said?: string }).said).toBe(
+				'Failed to fetch dynamically imported module: https://example.com/start.js'
+			);
+		} finally {
+			await browser.close();
+		}
+	});
+
 	// palaestra (guided search): Kit's boot import of its app entry was cut, and ogygia's wait for
 	// Kit asked the same file again to learn Kit cannot start; the simulator downloaded it afresh, so
 	// the wait never failed and the island stayed waking. A browser keeps a failed module failed.

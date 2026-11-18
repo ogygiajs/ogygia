@@ -670,6 +670,10 @@ function runs_on(test: Node | null | undefined): 'server' | 'client' | null {
 		const inner = runs_on(t.argument);
 		return inner && FLIP_SIDE[inner];
 	}
+	if (t.type === 'LogicalExpression' && t.operator === '??') {
+		const side = runs_on(t.left);
+		return side !== null && side === runs_on(t.right) ? side : null;
+	}
 	if (
 		t.type === 'MemberExpression' &&
 		!t.computed &&

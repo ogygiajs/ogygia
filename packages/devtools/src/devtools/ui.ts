@@ -129,6 +129,7 @@ function mount_launcher(opts?: { csr_true?: boolean }): void {
 	// The button shows at once; the dock replaces it when its code is in. A click while it loads is
 	// remembered (`want_open`), so the dock opens when it arrives.
 	let want_open = false;
+	let pressed = false;
 	const button = document.createElement('button');
 	// A download that fails puts the button back as it was, so the next click asks again, under a
 	// fresh URL (the browser keeps the failed one: core's import-again.ts). It once stayed on
@@ -146,7 +147,7 @@ function mount_launcher(opts?: { csr_true?: boolean }): void {
 					state.scope.defer(
 						app.mount_app(root, {
 							csr_true,
-							start_open: want_open,
+							start_open: want_open || pressed,
 							...(LAZY ? { hide: devtools_off } : {})
 						})
 					);
@@ -171,6 +172,9 @@ function mount_launcher(opts?: { csr_true?: boolean }): void {
 		load();
 	};
 	button.onclick = open;
+	// @why a click needs its press and its release on one element, and the dock's own launcher takes this button's place mid-press (test: e2e/devtools.spec.ts › a press on the launcher that the dock arrives under still opens the dock)
+	button.onpointerdown = () => (pressed = true);
+	button.onpointerup = button.onpointerleave = button.onpointercancel = () => (pressed = false);
 	// the launcher's Alt+O, until the dock mounts (it has its own) or devtools is turned off
 	addEventListener(
 		'keydown',

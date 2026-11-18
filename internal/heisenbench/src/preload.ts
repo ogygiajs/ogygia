@@ -11,11 +11,14 @@
  * core's own Svelte, as the app's Vite would.
  */
 import { existsSync, readFileSync } from 'node:fs';
-import { createRequire, registerHooks } from 'node:module';
+import { createRequire, registerHooks, stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const core_require = createRequire(new URL('../../../packages/core/package.json', import.meta.url));
-const { compile } = core_require('svelte/compiler') as typeof import('svelte/compiler');
+const { compile, compileModule } = core_require(
+	'svelte/compiler'
+) as typeof import('svelte/compiler');
+const RUNES_MODULE_RE = /\.svelte\.(ts|js)$/;
 
 const STUBS = new URL('../../../packages/core/test/_stubs/', import.meta.url);
 /** Where the bench page's island files are (packages/core/bench/hydration-page.ts `island_file`). */
@@ -60,9 +63,17 @@ registerHooks({
 		return { url: file.href, shortCircuit: true };
 	},
 	load(url, context, next) {
-		if (!url.startsWith('file:') || !url.endsWith('.svelte')) return next(url, context);
+		if (!url.startsWith('file:')) return next(url, context);
 		const filename = fileURLToPath(url);
-		const { js } = compile(readFileSync(filename, 'utf8'), { generate: 'server', filename });
+		if (filename.endsWith('.svelte')) {
+			const { js } = compile(readFileSync(filename, 'utf8'), { generate: 'server', filename });
+			return { format: 'module', source: js.code, shortCircuit: true };
+		}
+		const runes = RUNES_MODULE_RE.exec(filename);
+		if (!runes) return next(url, context);
+		const source = readFileSync(filename, 'utf8');
+		const plain = runes[1] === 'ts' ? stripTypeScriptTypes(source, { mode: 'strip' }) : source;
+		const { js } = compileModule(plain, { generate: 'server', filename });
 		return { format: 'module', source: js.code, shortCircuit: true };
 	}
 });

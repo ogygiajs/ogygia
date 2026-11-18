@@ -112,7 +112,10 @@ export function normalize(root: {
 					a.name !== 'nonce' &&
 					!(
 						tag === 'ogygia-region' &&
-						(a.name === 'data-key' || a.name === 'data-revalidated' || a.name === 'data-og-healed')
+						(a.name === 'data-key' ||
+							a.name === 'data-revalidated' ||
+							a.name === 'data-og-healed' ||
+							a.name === 'data-og-woke')
 					)
 			)
 			.map((a) => {

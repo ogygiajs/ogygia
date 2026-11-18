@@ -1,8 +1,8 @@
 {
 	"seed": 412,
-	"steps": 1,
+	"steps": 2,
 	"plan": {
-		"actions": [{ "kind": "open", "path": "/p2" }],
+		"actions": [{ "kind": "deploy" }, { "kind": "open", "path": "/p2" }],
 		"idle": true
 	}
 }
