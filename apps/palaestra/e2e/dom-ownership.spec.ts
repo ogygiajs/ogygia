@@ -12,7 +12,7 @@
 //   (2) after the widget upgraded and the island woke: every widget node kept, same identity;
 //   (3) the island hydrated (no recovery) and works.
 // Usage: pnpm exec playwright test dom-ownership
-import { test, check } from '@ogygia/tooling/e2e';
+import { test, check, expect } from '@ogygia/tooling/e2e';
 
 test.describe('DOM OWNERSHIP: a widget’s own nodes survive the wake', () => {
 	test('SSR: both widget hosts carry the compiler’s opaque stamp', async ({ baseURL }) => {
@@ -116,8 +116,17 @@ test.describe('DOM OWNERSHIP: a widget’s own nodes survive the wake', () => {
 			'island still asleep before the click',
 			(await region.getAttribute('data-hydrated')) === null
 		);
+		const button = await page.locator('[data-beside-wake]').elementHandle();
 		await page.locator('[data-beside-wake]').click();
 		await page.waitForSelector('ogygia-region[data-hydrated]', { timeout: 8000 });
+		check(
+			'the repair kept the clicked button: the server sibling after the inserted node is not re-created (#2097)',
+			await button!.evaluate((b) => b.isConnected)
+		);
+		await expect(
+			page.locator('[data-beside-wake]'),
+			'the click that woke the island counts (#2097)'
+		).toHaveText('clicks 1');
 		check(
 			'hydrated from the server markup, the walked <p> put back (data-og-healed)',
 			(await region.getAttribute('data-og-healed')) !== null
