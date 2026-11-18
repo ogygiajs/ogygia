@@ -78,6 +78,40 @@ describe.skipIf(!built)('a document the tab has left', () => {
 		}
 	});
 
+	it('is left as the navigation replaces its window: the tab is the next document from then, the realm its download carries, though that download stalls (#2078)', async () => {
+		// (seed 3: the reload's own answer is still on the way after the navigation starts)
+		const world = await World.make({
+			seed: 3,
+			builds: [{ id: 'v1', output: OUTPUT }],
+			faults: new Set(['stall']),
+			rates: { stall: 1 }
+		});
+		try {
+			const tab = world.tab(world.visitor('v'));
+			await world.go(tab, 'goto', '/');
+			await world.quiesce();
+			const left = tab.realm;
+			const first = tab.page.mainFrame.window;
+			await world.start(tab, 'reload', '/', 0);
+			expect(tab.awaiting, 'the case it is for: its download has not come').toBe(true);
+			expect(tab.page.mainFrame.window).not.toBe(first);
+			const download = world.network.exchanges.findLast((e) => e.url === 'https://app.test/')!;
+			expect(tab.realm).not.toBe(left);
+			expect(download.from).toBe(tab.realm);
+			const mark = world.loop.log.length;
+			await world.loop.run(60_000);
+			await world.quiesce();
+			expect(tab.awaiting).toBe(false);
+			expect(download.from, 'the document that came is the one that asked').toBe(tab.realm);
+			expect(
+				world.loop.log.slice(mark).filter((l) => l.split(' ')[1] === left),
+				'nothing of the left document runs once it is left'
+			).toEqual([]);
+		} finally {
+			await world.end();
+		}
+	});
+
 	it("says nothing of an import its unload failed, a classic script's or a module's", async () => {
 		// (Kit's boot imports its entry files with no catch; the tab went back while one stalled, the
 		// unload failed the import, and the left page's rejection reached the host as the run's
