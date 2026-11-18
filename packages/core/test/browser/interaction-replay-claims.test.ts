@@ -117,6 +117,29 @@ test('a click that landed inside a web component’s shadow tree replays there',
 	expect(host_clicks).toBe(1);
 });
 
+test('a click on an element the repair kept replays on it, though a node before it went (#2097)', async () => {
+	region.innerHTML = '<p><b>n</b> <button>a</button></p>';
+	const button = region.querySelector('button')!;
+	let clicks = 0;
+	button.addEventListener('click', () => clicks++);
+	const queued = [
+		{ el: button, addr: [0, 2], deep: null, tag: 'BUTTON', init: { bubbles: true } }
+	] as QueuedClick[];
+	replay_clicks(region, queued, scope());
+	await frame();
+	expect(clicks).toBe(1);
+});
+
+test('a field and focus the repair kept stay theirs, though a node before them went (#2097)', () => {
+	region.innerHTML = '<input type="text" class="a"><input type="text" class="b">';
+	const [a, b] = region.querySelectorAll('input');
+	a.value = 'typed';
+	a.focus();
+	after_wake(region, [{ el: a, addr: [1], tag: 'INPUT' }], [1], [], scope());
+	expect(b.value).toBe('');
+	expect(document.activeElement).toBe(a);
+});
+
 test('a region gone before the frame replays nothing', async () => {
 	region.innerHTML = '<button>a</button>';
 	let clicks = 0;
