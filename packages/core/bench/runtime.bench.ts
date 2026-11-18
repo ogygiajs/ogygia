@@ -272,6 +272,23 @@ bench(
 );
 
 bench(
+	'morph: a repair passes over third-party nodes between wrappers that hold keyed children',
+	({ parent, next }) => {
+		morph_children(parent as unknown as Element, next as unknown as Node[]);
+		return parent.childNodes.length;
+	},
+	{
+		setup: () => {
+			const pair = (k: number) =>
+				`<p>row ${k}</p><div class="card"><b id="k${k}">${k}</b><span>${k}</span></div>`;
+			const pairs = Array.from({ length: 60 }, (_, k) => pair(k));
+			const parent = el(`<main><i></i>${pairs.join('<i></i>')}</main>`);
+			return { parent, next: frag(pairs.join('')) };
+		}
+	}
+);
+
+bench(
 	'region machines: holes fetch, retry and answer; their islands arm and wake; live regions switch modes',
 	({ n }) => {
 		let left = 0;
