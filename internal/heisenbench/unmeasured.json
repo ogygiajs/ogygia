@@ -317,6 +317,10 @@
 			"reason": "dev only, folded out of production: one regex test over the parsed HTML, linear in its length; proven in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
 		},
 		{
+			"id": "packages/core/src/runtime/closed-roots.ts > note_closed_roots",
+			"reason": "dev only, folded out of production, and only when the HTML may declare a closed root: one side-by-side walk of two parses of it (DOM nodes, not cloneable), linear in their elements; proven in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
 			"id": "packages/core/src/runtime/closed-roots.ts > is_dsd",
 			"reason": "dev only, folded out of production: a tag and an attribute read, constant work; proven in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
 		},
