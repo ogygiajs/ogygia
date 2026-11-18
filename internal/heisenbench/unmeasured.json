@@ -1,6 +1,30 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > new_reader",
+			"reason": "constant work: sets one flag around Kit's own proxy build, once per query call; proven in packages/core/test/remote-cache-holders.test.ts and apps/palaestra/e2e/query-after-leave.spec.ts (#2041)"
+		},
+		{
+			"id": "packages/core/src/shims/kit-remote/query-makers.ts > read_new",
+			"reason": "constant work: wraps one Kit query maker, three times per app at module load; proven in apps/palaestra/e2e/query-after-leave.spec.ts (#2041)"
+		},
+		{
+			"id": "packages/core/src/shims/kit-remote/query-makers.ts > read_new > <anonymous>~0d87ec",
+			"reason": "constant work: one wrapper per remote query export, copying Kit's few own props; proven in apps/palaestra/e2e/query-after-leave.spec.ts (#2041)"
+		},
+		{
+			"id": "packages/core/src/shims/kit-remote/query-makers.ts > read_new > <anonymous>~0d87ec > call",
+			"reason": "constant work: hands one query call to Kit inside new_reader; proven in apps/palaestra/e2e/query-after-leave.spec.ts (#2041)"
+		},
+		{
+			"id": "packages/core/src/shims/kit-remote/query-makers.ts > read_new > <anonymous>~0d87ec > call > new_reader:0~a20424",
+			"reason": "constant work: calls Kit's own query function; proven in apps/palaestra/e2e/query-after-leave.spec.ts (#2041)"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > names_kit_remote",
+			"reason": "constant work: string checks first, one path compare only for a relative import ending in Kit's remote-functions index; proven in packages/compiler/test/vite-hooks.test.ts (#2041)"
+		},
+		{
 			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > settled",
 			"reason": "constant work: one resolved promise, made only when a departed island's query is read after it left; proven in packages/core/test/remote-cache-holders.test.ts (#2007)"
 		},
