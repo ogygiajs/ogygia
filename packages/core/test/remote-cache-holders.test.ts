@@ -147,6 +147,22 @@ describe('remote query entries are held by the islands that read them', () => {
 		expect(cleaned).toBe(1);
 	});
 
+	it('a left entry whose own teardown throws still gives way to a new reader (#2041)', () => {
+		const destroyed: string[] = [];
+		const gone = region();
+		const entry = hydrating(gone, () =>
+			kit_insert(remote_cache.query_map, 'count', '1', destroyed)
+		) as Entry & { proxy_count: number; cleanup: () => void };
+		entry.proxy_count = 1;
+		entry.cleanup = () => {
+			throw new Error('already torn down');
+		};
+		gone.isConnected = false;
+		release_remote_instances();
+		expect(new_reader(() => remote_cache.query_map.get('count')?.get('1'))).toBeUndefined();
+		expect(remote_cache.query_map.get('count')?.has('1')).toBe(false);
+	});
+
 	it('an island reading a left entry without making a query keeps reading it (#2041)', () => {
 		const destroyed: string[] = [];
 		const gone = region();
