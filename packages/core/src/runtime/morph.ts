@@ -377,11 +377,6 @@ function reconcile_children(
 	}
 }
 
-/**
- * The kinds (a tag, or text, or comment) among the old children from where the unmatched run
- * starts, so a new node no old one could pair with skips the look-ahead: a page of new sections
- * stays one pass. Read once, never trimmed: a kind that is gone only costs a look.
- */
 class OldKinds {
 	#start: ChildNode | null;
 	#step: (n: ChildNode | null) => ChildNode | null;
@@ -392,14 +387,6 @@ class OldKinds {
 		this.#step = step;
 	}
 
-	/**
-	 * The old node, from `cursor` on, that `next` pairs with (same kind and tag), or null when
-	 * `next` is new here. The old nodes before it are extra, a node a third party put in, and are
-	 * passed over, so the server's siblings after an insertion keep their identity. The look stops
-	 * at an old node that pairs with `after` (the new node after `next`: then `next` is the one
-	 * inserted) and at one the morph never enters (a hydrated region, a declared-foreign element).
-	 * `free` says which old nodes may be paired or passed over.
-	 */
 	pair(
 		cursor: ChildNode | null,
 		next: Node,
@@ -435,7 +422,6 @@ function kind_of(node: Node): string | number {
 	return node.nodeType === ELEMENT ? (node as Element).tagName : node.nodeType;
 }
 
-/** Remove the old nodes from `cursor` up to `here`, and return the one after `here`. */
 function pass_over(
 	parent: Element,
 	cursor: ChildNode,
