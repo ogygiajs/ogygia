@@ -147,6 +147,11 @@ jobs:
       github.repository == 'ogygiajs/ogygia' &&
       (github.event.schedule == '43 3 * * *' || inputs.job == 'mutate')
     runs-on: ubuntu-latest
+    # Playwright's own image, as the e2e slices (e2e-slice.yml says why): no browser install. A
+    # `ref` whose Playwright is not this image's fails at launch, naming the missing browser.
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb
+      options: --user 1001 --ipc=host
     # (the rewrite browser sim's 15 minutes and the unaimed run's 45, which no longer builds the
     # mutants the browser sim killed; the compiler's 15 minutes, then up to 10 minutes for each aim)
     timeout-minutes: 240
@@ -170,9 +175,6 @@ jobs:
 
       - name: Build the packages
         run: pnpm build:lib
-
-      - name: Install Chromium
-        run: pnpm exec playwright install --with-deps chromium
 
       # (the rewrite's mutants first, on its browser sim: it runs the package's sources in Chromium, so
       # no build; what it kills counts as killed in the run below, which does not build them again)
@@ -253,6 +255,10 @@ jobs:
       github.repository == 'ogygiajs/ogygia' &&
       (github.event.schedule == '29 5 * * *' || inputs.job == 'differ')
     runs-on: ubuntu-latest
+    # (Playwright's own image, as `mutate`)
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb
+      options: --user 1001 --ipc=host
     timeout-minutes: 60
     permissions:
       contents: read
@@ -281,10 +287,6 @@ jobs:
           OGYGIA_RULES: '1'
         run: node node_modules/vite/bin/vite.js build
 
-      - name: Install the browsers
-        working-directory: apps/palaestra
-        run: pnpm exec playwright install --with-deps chromium firefox webkit
-
       - name: Differ
         working-directory: internal/sim
         run: |
@@ -310,6 +312,10 @@ jobs:
       github.repository == 'ogygiajs/ogygia' &&
       (github.event.schedule == '11 4 * * *' || inputs.job == 'region-grid')
     runs-on: ubuntu-latest
+    # (Playwright's own image, as `mutate`)
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb
+      options: --user 1001 --ipc=host
     timeout-minutes: 120
     permissions:
       contents: read
@@ -328,10 +334,6 @@ jobs:
 
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
-
-      - name: Install the browsers
-        working-directory: packages/core
-        run: pnpm exec playwright install --with-deps chromium firefox webkit
 
       - name: The whole grid
         working-directory: packages/core

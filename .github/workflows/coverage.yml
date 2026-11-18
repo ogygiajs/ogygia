@@ -62,6 +62,10 @@ jobs:
     needs: gate
     if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
+    # Playwright's own image, as the e2e slices (e2e-slice.yml says why): no browser install
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb
+      options: --user 1001 --ipc=host
     timeout-minutes: 60
     permissions:
       contents: read
@@ -76,8 +80,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build:lib
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
       - name: Run every package's tests with coverage
         run: node .github/scripts/test-report.ts --out "$RUNNER_TEMP/report" --raw "$RUNNER_TEMP/raw" --engines chromium
       - name: Summary

@@ -136,8 +136,19 @@ jobs:
           package-manager-cache: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build:lib
+      # On the runner, not in Playwright's image: the released commit may lock another Playwright
+      # than the image's. `--with-deps` once sat on a slow apt mirror for a job's whole timeout, so
+      # each try is bounded, and the second moves apt to the main Ubuntu archive.
       - name: Install Playwright's engines
-        run: pnpm exec playwright install --with-deps chromium firefox webkit
+        timeout-minutes: 25
+        run: |
+          for try in 1 2; do
+            timeout 600 pnpm exec playwright install --with-deps chromium firefox webkit && break
+            [ "$try" = 2 ] && exit 1
+            echo "::warning::the browser install (try $try) failed or took over 10 minutes: trying again from archive.ubuntu.com"
+            echo 'http://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt
+            sudo dpkg --configure -a
+          done
 
       - name: Run every package's tests, all engines
         env:

@@ -93,6 +93,10 @@ jobs:
       - name: Workflow security (zizmor)
         run: pipx run zizmor==1.32.0 --offline --min-severity low .github/workflows
 
+      # the browser jobs' Playwright image is the locked Playwright's, pinned by digest
+      - name: The Playwright image matches Playwright
+        run: node .github/scripts/playwright-image.ts
+
       - name: Plan
         id: plan
         run: node .github/scripts/ci-plan.ts
@@ -312,6 +316,12 @@ jobs:
     if: ${{ !cancelled() && needs.plan.outputs.browsers != '[]' && needs.check.result != 'failure' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Playwright's engines run in Playwright's own image, as the e2e slices do (e2e-slice.yml says
+    # why): nothing to install. The released Firefox runs on the runner itself (an empty image is no
+    # container), set up by its own action.
+    container:
+      image: ${{ matrix.browser != 'firefox-stable' && 'mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb' || '' }}
+      options: --user 1001 --ipc=host
     strategy:
       fail-fast: false
       matrix:
@@ -330,25 +340,6 @@ jobs:
 
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
-
-      - name: Playwright version
-        if: matrix.browser != 'firefox-stable'
-        id: playwright
-        run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
-
-      - name: Playwright browser cache
-        if: matrix.browser != 'firefox-stable'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
-
-      # WebKit needs system libraries the runner image lacks: --with-deps here
-      - name: Install Playwright ${{ matrix.browser }}
-        if: matrix.browser != 'firefox-stable'
-        env:
-          BROWSER: ${{ matrix.browser }}
-        run: pnpm exec playwright install --with-deps "$BROWSER"
 
       # the released Firefox (the runner's own is replaced by the latest release); geckodriver is
       # fetched by webdriverio when the run starts

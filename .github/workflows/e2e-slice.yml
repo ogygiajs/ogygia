@@ -25,6 +25,15 @@ jobs:
     name: run
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Playwright's own image for our Playwright version (pinned by digest; playwright-image.ts fails
+    # the plan when it drifts from the lockfile): every engine and its system libraries are in it, so
+    # no browser download and no apt install at run time. `--with-deps` once sat on a slow apt mirror
+    # until the job's 30 minutes ran out. `--user 1001` is the runner's own user, so the checkout and
+    # the caches stay its files and Firefox runs as a user that owns its HOME; `--ipc=host` gives the
+    # browsers the host's shared memory (Docker's 64 MB default crashes Chromium).
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb
+      options: --user 1001 --ipc=host
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
@@ -53,7 +62,7 @@ jobs:
       # What the run below would do, asked of turbo first (`--dry=json`, the same filter, `--affected`
       # and hashed env): when no e2e task is left or every one is a cache hit (a rerun, say), nothing
       # runs a browser, bun or workerd (a replay only prints the stored logs), so their setup is
-      # skipped. The run step itself always runs, so the logs replay.
+      # skipped. The run step itself always runs, so the logs replay. (The browsers are the image's.)
       - name: Plan
         id: plan
         run: |
@@ -75,33 +84,19 @@ jobs:
           TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'origin/main' }}
 
       # Bun runtime dimension — the adapter e2e suite runs the node-server output under bun too.
+      # From npm (setup-bun unpacks a zip, and the image has no `unzip`): a fetch, so bounded and
+      # tried twice.
       - if: inputs.adapters && steps.plan.outputs.skip != 'true'
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version: latest
-
-      # Playwright's browser, cached per engine and Playwright version: a hit downloads nothing.
-      # Chromium needs no `--with-deps` (the runner image has its system libraries; that apt step is
-      # what stalled jobs). Firefox and WebKit need theirs.
-      - if: steps.plan.outputs.skip != 'true'
-        name: Playwright version
-        id: playwright
-        run: echo "version=$(pnpm exec playwright --version | sed 's/Version //')" >> "$GITHUB_OUTPUT"
-
-      - if: steps.plan.outputs.skip != 'true'
-        name: Playwright browser cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ inputs.browser }}-${{ steps.playwright.outputs.version }}
-
-      - if: steps.plan.outputs.skip != 'true'
-        name: Install Playwright ${{ inputs.browser }}
-        env:
-          BROWSER: ${{ inputs.browser }}
+        name: Install bun
+        timeout-minutes: 4
         run: |
-          if [ "$BROWSER" = chromium ]; then deps=; else deps=--with-deps; fi
-          pnpm exec playwright install $deps "$BROWSER"
+          for try in 1 2; do
+            timeout 90 npm install --global --prefix "$RUNNER_TEMP/bun" --no-audit --no-fund bun@latest && break
+            [ "$try" = 2 ] && exit 1
+            echo "::warning::bun install try $try failed, trying again"
+          done
+          echo "$RUNNER_TEMP/bun/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bun/bin/bun" --version
 
       # wrangler (Cloudflare workerd) is fetched on demand by the suite via npx; warm it so the
       # cloudflare adapter boots the real Workers runtime instead of skipping.
