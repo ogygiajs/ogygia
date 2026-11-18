@@ -63,7 +63,6 @@ class LeftEntry {
 	}
 }
 
-/** Is a query maker building a new proxy right now (query-makers.ts)? */
 let building = false;
 
 /**

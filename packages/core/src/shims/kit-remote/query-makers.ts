@@ -1,8 +1,3 @@
-/**
- * Kit's client remote functions (`__sveltekit/remote`), served to the browser in their place: the
- * same exports, with each query maker's call (`query`, `query.batch`, `query.live`) run as a
- * {@link new_reader}, so the cache can tell a new reader from a departed island's own proxies.
- */
 import * as kit from '__sveltekit/remote';
 import { new_reader } from './remote-cache.ts';
 
