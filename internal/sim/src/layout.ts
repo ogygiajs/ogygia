@@ -365,13 +365,14 @@ type Callback = (entries: object[], observer: object) => void;
 /**
  * Gives `window` (a document of realm `realm`) its layout's IntersectionObserver. Its frames are
  * tasks of `realm` on `loop`; a closed window's frame does nothing, and a hidden tab's (`hidden`)
- * waits until the returned `shown()`.
+ * waits until the returned `shown()`. `framed` hears each frame its observers looked at.
  */
 export function install_layout(
 	window: object,
 	loop: Loop,
 	realm: string,
-	hidden: () => boolean = () => false
+	hidden: () => boolean = () => false,
+	framed: () => void = () => {}
 ): { shown(): void } {
 	const w = window as {
 		document: Document;
@@ -408,6 +409,7 @@ export function install_layout(
 			// (the frame keeps the layout it made, observers or not: test/layout.test.ts)
 			if (dirty) last_boxes = boxes(w.document);
 			dirty = false;
+			framed();
 			// (a copy: a callback may stop an observer)
 			for (const o of Array.from(observers)) o.look();
 		});
