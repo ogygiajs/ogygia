@@ -43,4 +43,21 @@ describe.skipIf(!ready)('found: a tab behind before its islands had a frame', ()
 		const res = await run(SEED, PLAN.actions.length, Infinity, undefined, PLAN);
 		expect(res.broken.filter((b) => signature(b) === 'a4fa20c57b')).toEqual([]);
 	}, 300_000);
+
+	it('is equal to a fresh load behind another tab after a back it was shown for (seed 783825139, #2092: f92b8ce3c6)', async () => {
+		process.env.SIM_APP = APP;
+		const { run } = await import('../../src/cli.ts');
+		const plan: Plan = {
+			actions: [
+				{ kind: 'open', path: '/head-budget/via-factory' },
+				{ kind: 'background', path: '/load-scheduler' },
+				{ kind: 'goto', tab: 2, path: '/held-in-held' },
+				{ kind: 'back', tab: 2 },
+				{ kind: 'click', tab: 1, nth: 940 }
+			],
+			idle: true
+		};
+		const res = await run(783825139, plan.actions.length, Infinity, undefined, plan);
+		expect(res.broken.filter((b) => signature(b) === 'f92b8ce3c6')).toEqual([]);
+	}, 300_000);
 });
