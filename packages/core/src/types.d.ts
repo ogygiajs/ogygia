@@ -31,6 +31,14 @@ declare module '$app/server' {
 	};
 }
 
+// Kit's client remote functions (remote-functions/index.js, Kit 2 and Kit 3): the query makers only.
+declare module '__sveltekit/remote' {
+	type QueryMaker = (id: string) => (...args: unknown[]) => unknown;
+	export const query: QueryMaker;
+	export const query_batch: QueryMaker;
+	export const query_live: QueryMaker;
+}
+
 // Minimal ambient for the Kit type the library imports (`RequestEvent`). The lib does not depend on
 // @sveltejs/kit; the CONSUMER's real Kit types back the shipped `dist/hooks.d.ts` (`@sveltejs/kit`
 // is externalised by tsdown). `Handle` is the library's own (kit-handle.ts: Kit 3 moved Kit's). Not

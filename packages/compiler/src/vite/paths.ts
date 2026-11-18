@@ -17,6 +17,8 @@ export function scan_entry_pattern(file: string, own_root: string = CORE_ROOT_ID
 
 export const KIT_REMOTE_CLIENT: RegExp = /(^|\/)client\.js$/;
 export const KIT_REMOTE_STATE: RegExp = /state\.svelte\.js$/;
+/** The end of every path to Kit's client remote functions (`remote-functions/index.js`). */
+export const KIT_REMOTE_INDEX_TAIL = '/client/remote-functions/index.js';
 
 /** What the runtime chunk is made from: the compiler's runtime entry, core's named inputs, and every
  *  `.js` file in `runtime_dir` (none when it is not built yet). */

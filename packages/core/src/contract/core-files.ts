@@ -97,6 +97,8 @@ export const CLIENT_BINDING_STUB_FILE: string = built('ClientBindingStub.svelte'
 export const STUB_CLIENT: string = built('shims/kit-remote/client-stub.js');
 export const STUB_STATE: string = built('shims/kit-remote/state-stub.js');
 export const STUB_PATHS: string = built('shims/kit-remote/paths-internal-stub.js');
+/** Kit's remote functions as the browser gets them: its query makers mark each new reader. */
+export const QUERY_MAKERS: string = built('shims/kit-remote/query-makers.js');
 
 /** The prebuilt runtime dir the runtime chunk bundles (for `generateRuntimeEntrySource`); its
  *  parent is the built package the virtual table's server modules point into. */

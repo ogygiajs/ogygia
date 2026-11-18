@@ -2,7 +2,11 @@
 // navigation only the entries every holder left behind are destroyed; a kept island's keep running,
 // and one no island held is Kit's to keep (its own references decide).
 import { afterEach, describe, expect, it } from 'vitest';
-import { remote_cache, release_remote_instances } from '../src/shims/kit-remote/remote-cache.ts';
+import {
+	new_reader,
+	remote_cache,
+	release_remote_instances
+} from '../src/shims/kit-remote/remote-cache.ts';
 import { set_current_region } from '../src/current-region.ts';
 
 // (the cache's own entry shape: Kit's resource and its destroy may be missing)
@@ -113,8 +117,47 @@ describe('remote query entries are held by the islands that read them', () => {
 		expect(destroyed).toEqual(['count/1']);
 
 		const next = region();
-		expect(hydrating(next, () => remote_cache.query_map.get('count')?.get('1'))).toBeUndefined();
+		expect(
+			hydrating(next, () => new_reader(() => remote_cache.query_map.get('count')?.get('1')))
+		).toBeUndefined();
 		expect(remote_cache.query_map.get('count')?.has('1')).toBe(false);
+	});
+
+	it('a query made outside any island while a departed island still holds it gets a fresh entry, and the left one is torn down once (#2041)', () => {
+		const destroyed: string[] = [];
+		const gone = region();
+		const entry = hydrating(gone, () =>
+			kit_insert(remote_cache.query_map, 'count', '1', destroyed)
+		) as Entry & { proxy_count: number; cleanup: () => void };
+		let cleaned = 0;
+		entry.proxy_count = 1;
+		entry.cleanup = () => cleaned++;
+		gone.isConnected = false;
+		release_remote_instances();
+		const left = remote_cache.query_map.get('count')?.get('1');
+		expect(left).toBeDefined();
+
+		expect(remote_cache.query_map.get('count')?.get('1')).toBe(left);
+		expect(new_reader(() => remote_cache.query_map.get('count')?.get('1'))).toBeUndefined();
+		expect(remote_cache.query_map.get('count')?.has('1')).toBe(false);
+		expect(cleaned).toBe(1);
+
+		const fresh = new_reader(() => kit_insert(remote_cache.query_map, 'count', '1', destroyed));
+		expect(remote_cache.query_map.get('count')?.get('1')).toBe(fresh);
+		expect(cleaned).toBe(1);
+	});
+
+	it('an island reading a left entry without making a query keeps reading it (#2041)', () => {
+		const destroyed: string[] = [];
+		const gone = region();
+		const entry = hydrating(gone, () =>
+			kit_insert(remote_cache.query_map, 'count', '1', destroyed)
+		) as Entry & { proxy_count: number };
+		entry.proxy_count = 1;
+		gone.isConnected = false;
+		release_remote_instances();
+		const left = remote_cache.query_map.get('count')?.get('1');
+		expect(hydrating(region(), () => remote_cache.query_map.get('count')?.get('1'))).toBe(left);
 	});
 
 	it('a left query entry lives exactly as long as the departed island’s proxies (#2007)', () => {

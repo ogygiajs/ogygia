@@ -26,6 +26,7 @@ import {
 	STUB_CLIENT,
 	STUB_STATE,
 	STUB_PATHS,
+	QUERY_MAKERS,
 	RUNTIME_DIR,
 	OGYGIA_VERSION,
 	type RuntimeHookName,
@@ -157,7 +158,13 @@ const KIT_PAGE_THREAD = `\n${dedent`
 	globalThis[Symbol.for('ogygia.kit-page')] = { page: __og_kit_page, navigating: __og_kit_nav, navigation: __og_kit_navigation };
 `}\n`;
 const KIT_DISCLOSE_VERSION = `((globalThis.__ogygia ??= {}).v ??= new Set()).add(${JSON.stringify(OGYGIA_VERSION)});\n`;
-import { scan_entry_pattern, KIT_REMOTE_CLIENT, KIT_REMOTE_STATE, RUNTIME_HASH } from './paths.ts';
+import {
+	scan_entry_pattern,
+	KIT_REMOTE_CLIENT,
+	KIT_REMOTE_STATE,
+	KIT_REMOTE_INDEX_TAIL,
+	RUNTIME_HASH
+} from './paths.ts';
 
 import type { OgygiaOptions } from './options.ts';
 import { SVELTE_DEV_ISLAND_ENTRIES } from './svelte-entries.ts';
@@ -305,6 +312,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let client_hooks: string | null = null;
 	let kit_transport_init: string | null = null;
 	let keep_client_cleanup_armed = false;
+	const names_kit_remote = (source: string, importer: string | undefined): boolean =>
+		kit_remote_index !== null &&
+		importer !== undefined &&
+		source.startsWith('.') &&
+		source.endsWith(KIT_REMOTE_INDEX_TAIL) &&
+		real_posix(path.resolve(path.dirname(importer), source)) === real_posix(kit_remote_index);
 
 	const readFile = (abs: string) => {
 		try {
@@ -874,9 +887,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 				const ssr = leg_of(this).server;
 
-				if (!ssr && source === '__sveltekit/remote') {
+				if (!ssr && (source === '__sveltekit/remote' || names_kit_remote(source, importer))) {
 					if (!kit_remote_index) throw new OgygiaError('kit_remote_src_missing');
-					return kit_remote_index;
+					return importer !== undefined && real_posix(importer) === real_posix(QUERY_MAKERS)
+						? kit_remote_index
+						: QUERY_MAKERS;
 				}
 				if (!ssr && importer && importer.includes('/remote-functions/')) {
 					if (KIT_REMOTE_CLIENT.test(source)) return STUB_CLIENT;

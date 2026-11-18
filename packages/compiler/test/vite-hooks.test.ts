@@ -26,6 +26,7 @@ import {
 	OGYGIA_REGION_MODULES,
 	OGYGIA_VERSION,
 	OWN_PACKAGE_NAMES,
+	QUERY_MAKERS,
 	STUB_PATHS,
 	STUB_STATE
 } from '@ogygia/core/contract';
@@ -609,11 +610,18 @@ describe('the signing secret', () => {
 });
 
 describe('resolveId', () => {
-	it("the browser's Kit remote runtime is Kit's own remote functions; the server's is Kit's", async () => {
+	it("the browser's Kit remote runtime is Kit's own remote functions behind ogygia's query makers; the server's is Kit's", async () => {
 		app();
 		const { p } = await setup('serve');
-		expect(await resolve(p, '__sveltekit/remote', 'client')).toMatch(/remote-functions/);
+		expect(await resolve(p, '__sveltekit/remote', 'client')).toBe(QUERY_MAKERS);
+		const kits = (await resolve(p, '__sveltekit/remote', 'client', QUERY_MAKERS)) as string;
+		expect(kits).toMatch(/remote-functions\/index\.js$/);
 		expect(await resolve(p, '__sveltekit/remote', 'ssr')).toBe(null);
+
+		const remote_file = path.join(root, 'src/lib/x.remote.ts');
+		const relative = path.relative(path.dirname(remote_file), kits).split(path.sep).join('/');
+		expect(await resolve(p, relative, 'client', remote_file)).toBe(QUERY_MAKERS);
+		expect(await resolve(p, relative, 'ssr', remote_file)).toBe(null);
 	});
 
 	it("a Kit without its client remote functions fails the browser's remote runtime by name", async () => {

@@ -49,6 +49,7 @@ export default defineConfig({
 			/^virtual:/,
 			/^ogygia:/,
 			/^\$app\//,
+			'__sveltekit/remote',
 			// the package's own `imports` (`#region-server`): the app's bundler picks browser or server
 			/^#/,
 			/\.svelte$/, // the 3 wrapper components (shipped as source)
