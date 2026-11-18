@@ -1,11 +1,3 @@
-/**
- * Dev only: the hosts a parse gave a closed declarative shadow root that a copy cannot carry
- * (#1904). A script cannot read a closed root, so the morph's copy of such a host has none; the
- * morph says so with `closed_shadow_root_lost`. Which hosts they are is read off the same HTML
- * parsed again with its `<template shadowrootmode>` left in place, walked side by side with the
- * parse that attached the roots. Production builds never import this module.
- */
-
 let closed: WeakSet<Element> | null = null;
 
 const CLOSED_MARKUP = /shadowrootmode\s*=\s*["']?closed/i;
