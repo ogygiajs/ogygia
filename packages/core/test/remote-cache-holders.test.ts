@@ -153,12 +153,15 @@ describe('remote query entries are held by the islands that read them', () => {
 		expect(left).toBeDefined();
 
 		expect(remote_cache.query_map.get('count')?.get('1')).toBe(left);
-		expect(new_reader(() => remote_cache.query_map.get('count')?.get('1'))).toBeUndefined();
-		expect(remote_cache.query_map.get('count')?.has('1')).toBe(false);
-		expect(cleaned).toBe(1);
-
-		const fresh = new_reader(() => kit_insert(remote_cache.query_map, 'count', '1', destroyed));
+		const fresh = new_reader(() => {
+			expect(remote_cache.query_map.get('count')?.get('1')).toBeUndefined();
+			expect(remote_cache.query_map.get('count')?.has('1')).toBe(false);
+			return kit_insert(remote_cache.query_map, 'count', '1', destroyed);
+		}) as Entry & { proxy_count: number };
 		expect(remote_cache.query_map.get('count')?.get('1')).toBe(fresh);
+		expect(fresh.proxy_count).toBe(1);
+		expect(cleaned).toBe(1);
+		kit_insert(remote_cache.query_map, 'count', '2', destroyed);
 		expect(cleaned).toBe(1);
 	});
 
@@ -174,8 +177,13 @@ describe('remote query entries are held by the islands that read them', () => {
 		};
 		gone.isConnected = false;
 		release_remote_instances();
-		expect(new_reader(() => remote_cache.query_map.get('count')?.get('1'))).toBeUndefined();
-		expect(remote_cache.query_map.get('count')?.has('1')).toBe(false);
+		const fresh = new_reader(
+			() =>
+				remote_cache.query_map.get('count')?.get('1') ??
+				kit_insert(remote_cache.query_map, 'count', '1', destroyed)
+		);
+		expect(fresh).not.toBe(entry);
+		expect(remote_cache.query_map.get('count')?.get('1')).toBe(fresh);
 	});
 
 	it('a departed island’s proxy still finds its query after the new reader’s proxy is collected first (#2041)', () => {

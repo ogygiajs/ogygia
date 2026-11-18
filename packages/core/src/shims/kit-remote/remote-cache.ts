@@ -61,9 +61,35 @@ class LeftEntry {
 	cleanup(): void {
 		this.#departed.cleanup?.();
 	}
+
+	/**
+	 * Hand the departed entry's place to `heir`, the fresh entry Kit made for a new reader: the
+	 * departed proxies now read `heir`, so they count toward it, and Kit drops it only when the last
+	 * proxy of either kind is gone. The departed entry's own teardown runs now, since Kit never will.
+	 */
+	bequeath(heir: RemoteEntry): void {
+		const departed = this.#departed;
+		heir.proxy_count = (heir.proxy_count ?? 0) + (departed.proxy_count ?? 0);
+		Object.defineProperty(departed, 'proxy_count', {
+			configurable: true,
+			get: () => heir.proxy_count ?? 0,
+			set: (n: number) => {
+				heir.proxy_count = n;
+			}
+		});
+		try {
+			departed.cleanup?.();
+			// oxlint-disable-next-line ogygia/no-silent-failures -- already torn down, which is what this was for
+		} catch {}
+	}
 }
 
-let building = false;
+/** A new reader's proxy build, and the left entry that gave way to it (if one did). */
+class Build {
+	giving_way: LeftEntry | null = null;
+}
+
+let building: Build | null = null;
 
 /**
  * Run `make` as a new reader of a query: a query maker's call (`getCount()`, `query.live` and
@@ -72,7 +98,7 @@ let building = false;
  */
 export function new_reader<T>(make: () => T): T {
 	const outer = building;
-	building = true;
+	building = new Build();
 	try {
 		return make();
 	} finally {
@@ -87,26 +113,29 @@ export function new_reader<T>(make: () => T): T {
  * The same shape in Kit 2 and Kit 3 (`remote-functions/cache.svelte.js`).
  *
  * A left entry answers every read by a departed island's own proxies. A new reader's lookup
- * ({@link new_reader}) gets nothing instead, so Kit builds a fresh entry in its place; the departed
- * proxies read that one from then on, and the left entry's teardown runs now, since Kit never will.
+ * ({@link new_reader}) gets nothing instead, so Kit builds a fresh entry in its place, and the left
+ * entry bequeaths its place to it ({@link LeftEntry.bequeath}).
  */
 class QueryEntries extends Map<string, RemoteEntry> {
 	override get(payload: string): RemoteEntry | undefined {
 		const entry = super.get(payload);
 		if (entry === undefined) return undefined;
 		if (!(entry instanceof LeftEntry)) hold(entry, current_region() ?? island_region());
-		else if (building) {
+		else if (building !== null) {
 			super.delete(payload);
-			try {
-				entry.cleanup();
-				// oxlint-disable-next-line ogygia/no-silent-failures -- already torn down, which is what this was for
-			} catch {}
+			building.giving_way = entry;
 			return undefined;
 		}
 		return entry;
 	}
 	override set(payload: string, entry: RemoteEntry): this {
-		if (!(entry instanceof LeftEntry)) hold(entry, current_region() ?? island_region());
+		if (!(entry instanceof LeftEntry)) {
+			hold(entry, current_region() ?? island_region());
+			if (building?.giving_way) {
+				building.giving_way.bequeath(entry);
+				building.giving_way = null;
+			}
+		}
 		return super.set(payload, entry);
 	}
 }

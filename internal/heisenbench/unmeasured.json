@@ -1,6 +1,18 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > LeftEntry > bequeath",
+			"reason": "constant work: one count added, one property defined and one teardown, once per left entry a new reader replaces; proven in packages/core/test/remote-cache-holders.test.ts (#2041)"
+		},
+		{
+			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > LeftEntry > bequeath > defineProperty:2~f1b2f2 > get",
+			"reason": "constant work: reads the heir's count, Kit's own bookkeeping; proven in packages/core/test/remote-cache-holders.test.ts (#2041)"
+		},
+		{
+			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > LeftEntry > bequeath > defineProperty:2~f1b2f2 > set",
+			"reason": "constant work: writes the heir's count, Kit's own bookkeeping; proven in packages/core/test/remote-cache-holders.test.ts (#2041)"
+		},
+		{
 			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > new_reader",
 			"reason": "constant work: sets one flag around Kit's own proxy build, once per query call; proven in packages/core/test/remote-cache-holders.test.ts and apps/palaestra/e2e/query-after-leave.spec.ts (#2041)"
 		},

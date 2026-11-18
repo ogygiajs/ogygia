@@ -261,7 +261,7 @@
 			"name": "an entry whose own teardown throws is still dropped when its island leaves"
 		},
 		{
-			"site": "packages/core/src/shims/kit-remote/remote-cache.ts > QueryEntries > get > catch:0",
+			"site": "packages/core/src/shims/kit-remote/remote-cache.ts > LeftEntry > bequeath > catch:0",
 			"reason": "a left entry whose Kit teardown throws (already torn down) still gives way to a new reader; proved by hand: the catch made to rethrow turns the test red",
 			"test": "packages/core/test/remote-cache-holders.test.ts",
 			"name": "a left entry whose own teardown throws still gives way to a new reader (#2041)"
