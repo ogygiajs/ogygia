@@ -98,4 +98,46 @@ describe.skipIf(!built)('a tab behind another', () => {
 			await world.end();
 		}
 	});
+
+	it('is judged against a fresh load behind another tab when it went behind before its islands had a frame, though it was shown as its document came (#2091, #2092)', async () => {
+		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const v = world.visitor('v');
+			const front = world.tab(v);
+			await world.go(front, 'goto', '/');
+			const tab = world.tab(v);
+			world.browsers.focus(v, tab);
+			await world.start(tab, 'goto', '/wake-gate', 0);
+			expect(tab.seen.has(tab.realm), 'the case it is for: shown as its document came').toBe(true);
+			world.browsers.focus(v, front);
+			await world.rest();
+			const doc = tab.page.mainFrame.document as unknown as Document;
+			const visible = doc.querySelector('[data-gate-visible] > ogygia-region[wake="visible"]');
+			expect(visible, 'an on-screen visible island').not.toBeNull();
+			expect(visible!.hasAttribute('data-hydrated'), 'its first frame waits behind').toBe(false);
+			expect(await mpa_equivalent(world, v, tab)).toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
+
+	it('is judged against a shown fresh load when its islands had a frame before it went behind', async () => {
+		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const v = world.visitor('v');
+			const front = world.tab(v);
+			await world.go(front, 'goto', '/');
+			const tab = world.tab(v);
+			world.browsers.focus(v, tab);
+			await world.go(tab, 'goto', '/wake-gate');
+			world.browsers.focus(v, front);
+			await world.rest();
+			const doc = tab.page.mainFrame.document as unknown as Document;
+			const visible = doc.querySelector('[data-gate-visible] > ogygia-region[wake="visible"]');
+			expect(visible!.hasAttribute('data-hydrated'), 'it woke while shown').toBe(true);
+			expect(await mpa_equivalent(world, v, tab)).toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
 });

@@ -1,4 +1,5 @@
 import type { PageGlobals } from '../page-globals.ts';
+import { may_declare_closed_root, note_closed_roots } from './closed-roots.ts';
 
 declare const VERIFIED: unique symbol;
 
@@ -82,6 +83,11 @@ export function parse_page_document(html: VerifiedHtml): Document {
 	// @why createHTMLDocument's document has the URL about:blank, an empty DOMParser document the page's, which head node keys resolve against (test: packages/core/test/browser/nav-head-key-depth.test.ts › a navigation to a page at another depth keeps one head node for the same file)
 	const doc = new DOMParser().parseFromString('', 'text/html');
 	write_unsafe(doc.documentElement, doc.documentElement, html);
+	if (import.meta.env.DEV && may_declare_closed_root(html))
+		note_closed_roots(
+			new DOMParser().parseFromString(html, 'text/html').documentElement,
+			doc.documentElement
+		);
 	(globalThis as PageGlobals).__og_parsed?.(doc);
 	return doc;
 }
@@ -135,6 +141,11 @@ export function set_inner_html(el: Element, html: VerifiedHtml): void {
 export function parse_region_html(html: VerifiedHtml): DocumentFragment {
 	const tpl = inert_document().createElement('template');
 	write_unsafe(tpl, tpl.content, html);
+	if (import.meta.env.DEV && may_declare_closed_root(html)) {
+		const inert_tpl = inert_document().createElement('template');
+		inert_tpl.innerHTML = html;
+		note_closed_roots(inert_tpl.content, tpl.content);
+	}
 	(globalThis as PageGlobals).__og_parsed?.(tpl.content);
 	return tpl.content;
 }

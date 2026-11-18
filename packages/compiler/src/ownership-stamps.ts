@@ -2,7 +2,7 @@ import { parse } from 'svelte/compiler';
 import { splice_text, type Edit } from './splice.ts';
 import { blank_styles } from './blank-styles.ts';
 import { strip_bom } from './bom.ts';
-import { OG_HTML, OG_OPAQUE } from '@ogygia/core/contract';
+import { HTML_RANGE_MARK, OG_HTML, OG_OPAQUE } from '@ogygia/core/contract';
 import type { AstNode } from './parse/oxc.ts';
 
 const MAY_STAMP_RE =
@@ -43,8 +43,7 @@ function is_custom_element(el: Node): boolean {
 }
 
 function opaque(el: Node): boolean {
-	if ((el.attributes ?? []).some((a: Node) => a.type === 'Attribute' && a.name === OG_OPAQUE))
-		return false;
+	if (has_attribute(el, OG_OPAQUE)) return false;
 	const kids: Node[] = (el.fragment?.nodes ?? []).filter((n: Node) => !is_blank(n));
 	if (kids.length === 1 && kids[0].type === 'HtmlTag') return true;
 	if (
@@ -55,6 +54,15 @@ function opaque(el: Node): boolean {
 		return true;
 	return is_custom_element(el) && all_static(el.fragment?.nodes ?? []);
 }
+
+function has_attribute(el: Node, name: string): boolean {
+	return (el.attributes ?? []).some((a: Node) => a.type === 'Attribute' && a.name === name);
+}
+
+const insert = (pos: number, text: string): Edit => ({ start: pos, end: pos, text });
+
+const RANGE_OPEN = `((s) => s && '<!--${HTML_RANGE_MARK}-->' + s)(String((`;
+const RANGE_CLOSE = `) ?? ''))`;
 
 const CHILD_KEYS = [
 	'fragment',
@@ -68,9 +76,10 @@ const CHILD_KEYS = [
 ];
 
 /**
- * `source` with every opaque element stamped, or `null` when there is nothing to stamp (or the file
- * does not parse — the real compile reports that). Outermost wins: nothing is stamped inside a stamped
- * element (the repair never enters it anyway).
+ * `source` with every opaque element stamped, and every element holding an `{@html}` beside other
+ * children stamped `data-og-html` with each `{@html}` range marked; or `null` when there is nothing to
+ * stamp (or the file does not parse — the real compile reports that). Outermost wins: nothing is
+ * stamped inside a stamped element (the repair never enters it anyway).
  */
 export function stamp_opaque(raw: string, filename: string): string | null {
 	const source = strip_bom(raw);
@@ -78,7 +87,8 @@ export function stamp_opaque(raw: string, filename: string): string | null {
 	return edits.length ? splice_text(source, edits) : null;
 }
 
-/** The inserts `stamp_opaque` makes to `source` (no byte-order mark): none when there is nothing to stamp. */
+/** The inserts `stamp_opaque` makes to `source` (no byte-order mark): none when there is nothing to
+ *  stamp. Server leg only: the client never sees a stamp or a mark. */
 export function opaque_stamp_edits(source: string, filename: string): Edit[] {
 	if (!MAY_STAMP_RE.test(source)) return [];
 	let ast: Node;
@@ -88,21 +98,24 @@ export function opaque_stamp_edits(source: string, filename: string): Edit[] {
 	} catch {
 		return [];
 	}
-	const at: { pos: number; attr: string }[] = [];
+	const edits: Edit[] = [];
 	const visit = (nodes: Node[] | undefined) => {
 		for (const n of nodes ?? []) {
 			if (n.type === 'RegularElement' && opaque(n)) {
-				at.push({ pos: n.start + 1 + String(n.name).length, attr: OG_OPAQUE });
+				edits.push(insert(n.start + 1 + String(n.name).length, ` ${OG_OPAQUE}`));
 				continue;
 			}
-			if (
-				n.type === 'RegularElement' &&
-				(n.fragment?.nodes ?? []).some((c: Node) => c.type === 'HtmlTag') &&
-				!(n.attributes ?? []).some(
-					(a: Node) => a.type === 'Attribute' && (a.name === OG_HTML || a.name === OG_OPAQUE)
-				)
-			)
-				at.push({ pos: n.start + 1 + String(n.name).length, attr: OG_HTML });
+			if (n.type === 'RegularElement' && !has_attribute(n, OG_OPAQUE)) {
+				const html_tags = (n.fragment?.nodes ?? []).filter((c: Node) => c.type === 'HtmlTag');
+				if (html_tags.length) {
+					if (!has_attribute(n, OG_HTML))
+						edits.push(insert(n.start + 1 + String(n.name).length, ` ${OG_HTML}`));
+					for (const h of html_tags) {
+						edits.push(insert(h.expression.start, RANGE_OPEN));
+						edits.push(insert(h.expression.end, RANGE_CLOSE));
+					}
+				}
+			}
 			for (const k of CHILD_KEYS) {
 				const child = n[k];
 				if (child && Array.isArray(child.nodes)) visit(child.nodes);
@@ -110,5 +123,5 @@ export function opaque_stamp_edits(source: string, filename: string): Edit[] {
 		}
 	};
 	visit(ast.fragment?.nodes);
-	return at.map(({ pos, attr }) => ({ start: pos, end: pos, text: ` ${attr}` }));
+	return edits;
 }

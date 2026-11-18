@@ -1,8 +1,13 @@
 // A page the router parses (its next page, a soft refresh) goes through the same DSD-aware parser as
 // a region's answer (#1894): declarative shadow roots attached, Svelte's comment markers kept, nothing
-// built. And a host the morph copies into the live page keeps its declarative shadow root.
-import { expect, test } from 'vitest';
-import { parse_page_document, vouch_page_html } from '../../src/runtime/html-sink.ts';
+// built. And a host the morph copies into the live page keeps its declarative shadow root, unless
+// the root is closed and not clonable (#1904): then dev says so with a code.
+import { expect, test, vi } from 'vitest';
+import {
+	parse_page_document,
+	parse_region_html,
+	vouch_page_html
+} from '../../src/runtime/html-sink.ts';
 import { morph_children } from '../../src/runtime/morph.ts';
 
 const parse = (html: string): Document => parse_page_document(vouch_page_html(html));
@@ -77,4 +82,100 @@ test('a host the morph copies in keeps its declarative shadow root, with no rest
 	expect(host.ownerDocument).toBe(document);
 	expect(host.shadowRoot?.querySelector('b')?.textContent).toBe('new');
 	expect(host.shadowRoot?.querySelector('x-card')?.shadowRoot?.textContent).toBe('deep');
+});
+
+const LOST = 'closed_shadow_root_lost';
+
+/** Morphs a live `<main><p>A</p></main>` toward the `<main>` of `body`, and gives the live copy and
+ *  every console warning that named {@link LOST}. */
+function morph_page(body: string): { live: HTMLElement; said: string[] } {
+	const said: string[] = [];
+	const spy = vi.spyOn(console, 'warn').mockImplementation((...a: unknown[]) => {
+		const text = a.map(String).join(' ');
+		if (text.includes(LOST)) said.push(text);
+	});
+	const live = document.createElement('main');
+	document.body.append(live);
+	try {
+		live.innerHTML = '<p>A</p>';
+		const doc = parse(`<!doctype html><html><head></head><body><main>${body}</main></body></html>`);
+		morph_children(live, doc.body.firstElementChild!.childNodes);
+	} finally {
+		spy.mockRestore();
+	}
+	return { live, said };
+}
+
+test('a host the morph copies in loses a closed declarative shadow root, and dev says so once', () => {
+	const { live, said } = morph_page(
+		`<p>A</p><section><x-shut style="display:block"><template shadowrootmode="closed"><div style="height:37px"></div><x-shut style="display:block"><template shadowrootmode="closed"><div style="height:5px"></div></template></x-shut></template></x-shut></section>`
+	);
+	try {
+		const host = live.querySelector('section > x-shut') as HTMLElement;
+		expect(host.ownerDocument).toBe(document);
+		expect(host.querySelector('template')).toBeNull();
+		expect(host.shadowRoot).toBeNull();
+		expect(said.length).toBe(1);
+		expect(said[0]).toContain(`https://ogygiajs.dev/e/${LOST}`);
+	} finally {
+		live.remove();
+	}
+});
+
+test('a closed declarative shadow root inside an open one the morph carries is said once', () => {
+	const { live, said } = morph_page(
+		`<p>A</p><x-card><template shadowrootmode="open"><x-shut><template shadowrootmode="closed"><b>shut</b></template></x-shut></template></x-card>`
+	);
+	try {
+		expect(live.querySelector('x-card')!.shadowRoot?.querySelector('x-shut')).not.toBeNull();
+		expect(said.length).toBe(1);
+	} finally {
+		live.remove();
+	}
+});
+
+test('a clonable closed declarative shadow root is copied with its host, and nothing is said', () => {
+	const { live, said } = morph_page(
+		`<p>A</p><x-shut style="display:block"><template shadowrootmode="closed" shadowrootclonable><div style="height:37px"></div></template></x-shut>`
+	);
+	try {
+		expect((live.querySelector('x-shut') as HTMLElement).getBoundingClientRect().height).toBe(37);
+		expect(said).toEqual([]);
+	} finally {
+		live.remove();
+	}
+});
+
+test('a region update that copies in a closed declarative shadow root says so once', () => {
+	const said: string[] = [];
+	const spy = vi.spyOn(console, 'warn').mockImplementation((...a: unknown[]) => {
+		const text = a.map(String).join(' ');
+		if (text.includes(LOST)) said.push(text);
+	});
+	const live = document.createElement('div');
+	try {
+		live.innerHTML = '<p>A</p>';
+		const answer = parse_region_html(
+			vouch_page_html(
+				`<p>A</p><x-shut><template shadowrootmode="closed"><b>shut</b></template></x-shut>`
+			)
+		);
+		morph_children(live, answer.childNodes);
+	} finally {
+		spy.mockRestore();
+	}
+	expect(live.querySelector('x-shut')!.shadowRoot).toBeNull();
+	expect(said.length).toBe(1);
+});
+
+test('an open declarative shadow root the morph copies is carried, and nothing is said', () => {
+	const { live, said } = morph_page(
+		`<p>A</p><x-card><template shadowrootmode="open"><b>open</b></template></x-card>`
+	);
+	try {
+		expect(live.querySelector('x-card')!.shadowRoot?.textContent).toBe('open');
+		expect(said).toEqual([]);
+	} finally {
+		live.remove();
+	}
 });

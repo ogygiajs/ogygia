@@ -97,6 +97,16 @@ A declarative shadow root holds its own `<style>`. Each instance of a component 
 
 When the SPA router keeps an element across a navigation (the same tag in the same place on both pages), a web component's host is the component's: ogygia keeps its live shadow root and its attributes, and does not apply the next page's server shadow root. Give the host a different `id` or `data-key` on each page when it should take the new page's render instead.
 
+### A closed shadow root is lost on a new element
+
+When the router (or a region update) brings in a new element, it copies it from the next page's HTML. An open declarative shadow root comes along with the copy. A closed one (`<template shadowrootmode="closed">`) does not: scripts cannot read a closed root, so the copy has no shadow root, and whatever the root painted is gone. Closed roots are not supported on elements the router copies in. A closed root marked `shadowrootclonable` is the one exception: the copy carries it.
+
+In dev, ogygia warns with [`closed_shadow_root_lost`](/e/closed_shadow_root_lost) when this happens. Pick one of these:
+
+1. Use `shadowrootmode="open"`.
+2. Have the component attach its root itself (`attachShadow` in its constructor or `connectedCallback`), so the copy builds it again when it connects.
+3. Keep the element the same on both pages (the same tag in the same place, or the same `id` or `data-key`), so the router keeps it, and its root, instead of copying it.
+
 ## Known gaps in Svelte
 
 The pattern relies on how Svelte hydrates `{@html}` and custom elements. The gaps that keep it from fitting every component (an `{@html}` whose server content left light-DOM nodes, declarative shadow roots created in the browser, and `class` on custom elements) are tracked in [sveltejs/svelte#19264](https://github.com/sveltejs/svelte/issues/19264).

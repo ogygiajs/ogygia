@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
 import { user_click } from '../src/workload.ts';
 import type { Heard } from '../src/browser.ts';
-import { waste } from '../src/waste.ts';
+import { waste, warned } from '../src/waste.ts';
 import { owed_text, rewrite_misses } from '../src/network.ts';
 import {
 	document_faulted,
@@ -543,7 +543,8 @@ describe('an island that wakes on its own is awake', () => {
 					tampered: false,
 					redirected: false
 				})),
-				busy_for: () => false
+				busy_for: () => false,
+				online: () => true
 			},
 			browsers: { lacks_a_file: () => false },
 			skewed_for: () => false
@@ -869,6 +870,23 @@ describe('hydrates as sent', () => {
 		expect(hydrates_as_sent(tab('/lake-twins-kit'))).toBeNull();
 		expect(hydrates_as_sent(tab('/bench-cms/kit'))).toBeNull();
 		expect(hydrates_as_sent(tab('/bench-cms/holes'))?.oracle).toBe('ssr-hydrate');
+	});
+
+	it('a hydration that throws is not hydrated as sent: Svelte says it failed and mounts the page anew; on a page that throws on purpose so Kit rebuilds it, that is neither a finding nor waste (seed 783827205, #2093)', () => {
+		const failed = 'warn: Failed to hydrate:  Error: hydration boom (on purpose: Boom.svelte)';
+		const tab = (path: string) =>
+			({
+				realm: 'tab-1#1',
+				name: 'tab-1',
+				documents: 1,
+				errors: [],
+				console: [failed],
+				said_by: new Map(),
+				page: { mainFrame: { url: `https://app.test${path}` } }
+			}) as unknown as Parameters<typeof hydrates_as_sent>[0];
+		expect(hydrates_as_sent(tab('/hole-kit-rebuild'))).toBeNull();
+		expect(warned(tab('/hole-kit-rebuild'))).toEqual([]);
+		expect(hydrates_as_sent(tab('/plain'))?.oracle).toBe('ssr-hydrate');
 	});
 });
 

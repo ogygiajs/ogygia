@@ -219,6 +219,49 @@ describe('unkeyed children (positional)', () => {
 		morph_children(parent, frag('A<b>X</b>C'));
 		expect(parent.textContent).toBe('AXC');
 	});
+
+	test('an element put first goes; the siblings after it keep their identity', () => {
+		const parent = el('<p><i></i><b>n</b> <button>0</button></p>');
+		const [, b, gap, button] = parent.childNodes;
+		morph_children(parent, frag('<b>n</b> <button>1</button>'));
+		expect(parent.childNodes.map((n, i) => n === [b, gap, button][i])).toEqual([true, true, true]);
+		expect(button.textContent).toBe('1');
+	});
+
+	test('a node put in the middle goes, and the keyed branch keeps the siblings after it too', () => {
+		const parent = el('<ul><li data-key="a">a</li><u></u><li>x</li><li>y</li></ul>');
+		const [a, , x, y] = parent.childNodes;
+		morph_children(parent, frag('<li data-key="a">a</li><li>x</li><li>y</li>'));
+		expect(parent.childNodes.map((n, i) => n === [a, x, y][i])).toEqual([true, true, true]);
+	});
+
+	test('a new node the server put first is inserted: the old nodes are not passed over', () => {
+		const parent = el('<div><span>1</span><span>2</span></div>');
+		const [one, two] = parent.childNodes;
+		morph_children(parent, frag('<b>new</b><span>1</span><span>2</span>'));
+		expect(parent.childNodes.length).toBe(3);
+		expect(parent.childNodes[1]).toBe(one);
+		expect(parent.childNodes[2]).toBe(two);
+	});
+
+	test('a new node of a kind the old ones have is inserted when the old node in place pairs with the one after it', () => {
+		const parent = el('<div><span>1</span><b>2</b></div>');
+		const [one, two] = parent.childNodes;
+		morph_children(parent, frag('<b>0</b><span>1</span><b>2</b>'));
+		expect(parent.childNodes.length).toBe(3);
+		expect(parent.childNodes[1]).toBe(one);
+		expect(parent.childNodes[2]).toBe(two);
+	});
+
+	test('a hydrated region in the way is never passed over', () => {
+		const parent = el(
+			'<div><ogygia-region data-hydrated><i>live</i></ogygia-region><u></u><p>x</p></div>'
+		);
+		const region = parent.childNodes[0];
+		morph_children(parent, frag('<p>x</p><s></s><ogygia-region data-hydrated></ogygia-region>'));
+		expect(parent.childNodes.includes(region)).toBe(true);
+		expect(region.childNodes.length).toBe(1);
+	});
 });
 
 describe('nested trees', () => {

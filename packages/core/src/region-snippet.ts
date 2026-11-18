@@ -39,6 +39,7 @@ import { PORTABLE_FORM, with_portable_forms } from './portable-form.ts';
 import { analyze } from './seed-refs.ts';
 import { fnv1a, fnv1a32 } from './contract/hash.ts';
 import { import_entry } from './runtime/entry-locations.ts';
+import { unmark_html_ranges } from './runtime/html-ranges.ts';
 import { OgygiaError } from './messages/island.ts';
 import { OG_SLOT, OG_STATIC, OGYGIA_REGION_CSS } from './wire-markup.ts';
 import { escape_attr } from './escape.ts';
@@ -218,12 +219,13 @@ function make(desc: RegionSnippetDescriptor, live_entry: Component | null = null
 				let app: unknown;
 				let dead = false;
 				const boot = (Comp: Component) => {
-					if (!dead)
-						app = hydrate(Comp, {
-							target: el,
-							props: live_props(),
-							context: with_host(new Map(), host)
-						});
+					if (dead) return;
+					unmark_html_ranges(el);
+					app = hydrate(Comp, {
+						target: el,
+						props: live_props(),
+						context: with_host(new Map(), host)
+					});
 				};
 				if (live_entry) boot(live_entry);
 				else

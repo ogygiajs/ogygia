@@ -139,7 +139,8 @@ the template), Svelte's positional walk breaks: no rule can keep both. The model
 explicit instead of silent:
 
 - the repair removes the foreign node (the walk needs the position) — today's behaviour, now a
-  decision, not an accident;
+  decision, not an accident. Only that node goes: the server's siblings after it pair with their
+  own kind past it and keep their identity, so a wake click on one of them still lands (#2097);
 - it emits ONE devtools/console event, `ownership.conflict`, naming the element, the owner it
   overrode and the fix: "render the widget subtree with `{@html}` or as static markup (Svelte never
   walks it), or move it into a lake".
@@ -159,9 +160,16 @@ A server-leg transform over island component files stamps `data-og-opaque` on:
 - a custom element whose template children are entirely static (Svelte never descends it).
 
 Uncontrolled `{@html}` (not a sole child) can't carry an attribute of its own; its parent gets
-`data-og-html="<n>"` (the child index of each opening `<!---->`), so the runtime knows exactly which
-comment pair delimits unwalked content. (PROD output alone can't tell an `{@html}` opener from any
-other `<!---->` separator; the stamp is what makes it knowable.)
+`data-og-html`, and the server writes `<!--@html-->` first in each `{@html}` range there (#1454). The
+range runs from that mark to the next empty comment, Svelte's own end anchor, so the runtime knows
+exactly which nodes are unwalked content. (PROD output alone can't tell an `{@html}` opener from any
+other `<!---->` separator; the mark is what makes it knowable.) The marks matter while the island
+sleeps (drift watch, repair); the runtime takes them out just before Svelte hydrates
+(`runtime/html-ranges.ts`), so Svelte reads its own output. That matters when the client's value is
+empty and the server's was not, and its content left the light DOM (a declarative shadow root:
+`e2e/router-dsd.spec.ts`): a mark left there would sit where Svelte expects its end anchor. An
+empty server value gets no mark. In DEV Svelte hashes the value into its open anchor; the runtime
+takes the mark's share out of that hash too.
 
 Why this is safe: Svelte's hydration never compares or strips static attributes, and the stamp is
 server-only (the client template is not changed, so `set_custom_element_data` paths are untouched).
@@ -279,8 +287,9 @@ owner, one table, both incidents fixed without a flag.
 - Drift-watch: a mutation under a non-walk element does not mark its island changed.
 - Compiler (`compiler/ownership-stamps.ts`, server leg, app + declared packages): `data-og-opaque` on a
   sole-child `{@html}` host, `bind:innerHTML|textContent|innerText`, and a custom element with static
-  children; `data-og-html` on an element holding an `{@html}` beside other children (its child elements
-  are compared by tag + position, never entered — the exact range is not knowable from PROD markup).
+  children; `data-og-html` on an element holding an `{@html}` beside other children, with
+  `<!--@html-->` first in each `{@html}` range (an element in a range is never entered; every other
+  child is walked).
 - Navigation: `<body>` attributes — only the previous page's SERVER attributes are removed; a script's
   are kept.
 - Lazy-chunk rule kept: the hydrate core reaches ownership through `slots.boot` (`BootLink`).

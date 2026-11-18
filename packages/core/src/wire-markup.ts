@@ -185,6 +185,9 @@ export const OG_HIGHLIGHT = 'data-og-highlight';
 export const OG_HOLE = 'data-og-hole';
 export const OG_HOLE_FAILED = 'data-og-hole-failed';
 export const OG_HTML = 'data-og-html';
+/** The data of the comment the server writes first in each `{@html}` range of an element stamped
+ *  {@link OG_HTML}. The range runs from it to the next empty comment: Svelte's own end anchor. */
+export const HTML_RANGE_MARK = '@html';
 export const OG_HYD_WINDOW = 'data-og-hyd-window';
 export const OG_HYDRATION = 'data-og-hydration';
 export const OG_KEPT = 'data-og-kept';

@@ -381,6 +381,9 @@ tab behind the one looked at. A tab brought to the front is looked at 300 ms bef
 in it (gen 193, seed 8: a reload at once counted the old document's late requests as the next
 one's). A document loaded behind and never shown owes its wakes after every action (`islands-wake`);
 one shown before it went behind is set aside: a frame it asked for then waits, as a browser's does.
+The MPA check judges a tab behind against a fresh load behind another tab too, unless its document's
+observers had a frame while it was shown (`Tab.framed`): one shown as it came but behind before its
+runtime watched anything has an on-screen `visible` island asleep, as a never-shown one does (#2091).
 Mutation: the paint gate's hidden branch (schedule.ts) died on gen 262.
 
 Some seeds' engine has no `requestIdleCallback` (stream `idle engine`, 30%: Safari's), so code that

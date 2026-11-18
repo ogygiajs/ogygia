@@ -91,12 +91,11 @@ describe.skipIf(!built)('a navigation the tab started again elsewhere', () => {
 				const tab = world.tab(v);
 				await world.go(tab, 'goto', '/plain', 120_000);
 				await world.go(tab, 'goto', '/forms', 120_000);
-				const shown = tab.documents;
 				const window = (): Window => tab.page.mainFrame.window as unknown as Window;
 				window().location.assign('/remote-seed-gate/prerender');
 				await world.loop.run(1_000);
 				// (its document came within the second: an entry now, and back goes back to /forms)
-				const came = tab.documents > shown;
+				const came = !tab.awaiting;
 				await world.go(tab, 'back', '/', 120_000);
 				await world.loop.run(60_000);
 				await world.quiesce();

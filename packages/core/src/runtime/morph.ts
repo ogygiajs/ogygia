@@ -1,4 +1,6 @@
 import { slots } from './slots.ts';
+import { warn } from '../messages/lazy.ts';
+import { closed_root_lost } from './closed-roots.ts';
 import type { PageGlobals, PendingShadow } from '../page-globals.ts';
 import {
 	attributes_writer,
@@ -40,8 +42,11 @@ export function install(): void {
  *   sibling of the same tag holding them moves into place, so a banner added or removed above an
  *   island's wrapper does not re-mount the island; an old wrapper a later new sibling wants is not
  *   taken by an earlier one.
- * - **Positional hit**: a key-less node of the same kind and tag morphs in place. **Miss**: a fresh
- *   copy goes in. What no new node claimed is removed.
+ * - **Positional hit**: a key-less node of the same kind and tag morphs in place. When the old node
+ *   in place is another kind, a later old one of the new node's kind pairs with it, and the old
+ *   nodes before it (a node a third party put in) go, so its siblings keep their identity; unless
+ *   the old node in place pairs with the new node after (then the new node is the inserted one).
+ *   **Miss**: a fresh copy goes in. What no new node claimed is removed.
  * - One node: text and comments take the new value; another tag is replaced; the same tag syncs its
  *   form properties, then its attributes ({@link sync_attributes}), then its children.
  * - **Form state follows the server only when the server changed its mind**: `value` moves only when
@@ -280,12 +285,13 @@ function reconcile_children(
 		}
 	}
 
+	const kinds = new OldKinds(cursor, step);
 	if (old_keys === null && old_inner === null) {
 		for (; idx < count; idx++) {
 			const next = new_nodes[idx];
-			if (cursor && key_of(next) === null && same_node(cursor, next)) {
-				const here = cursor;
-				cursor = step(cursor.nextSibling);
+			const here = key_of(next) === null ? kinds.pair(cursor, next, new_nodes[idx + 1]) : null;
+			if (here !== null) {
+				cursor = pass_over(parent, cursor!, here, step);
 				morph_same(here, next, sets, walk);
 			} else {
 				parent.insertBefore(clone(next), cursor);
@@ -330,16 +336,27 @@ function reconcile_children(
 				cursor = step(cursor.nextSibling);
 			}
 
-			if (
-				cursor &&
-				next_key === null &&
-				cur_key === null &&
-				same_node(cursor, next) &&
-				(old_inner === null || !reserved_for_later(sets!, new_inner, cursor, idx))
-			) {
-				const here = cursor;
-				cursor = step(cursor.nextSibling);
-				if (old_inner !== null) release_holder(old_inner, sets!, here as Element);
+			const here =
+				next_key === null && cur_key === null
+					? kinds.pair(
+							cursor,
+							next,
+							new_nodes[idx + 1],
+							(n) =>
+								key_of(n) === null &&
+								(old_inner === null || !reserved_for_later(sets!, new_inner, n, idx))
+						)
+					: null;
+			if (here !== null) {
+				const inner = old_inner;
+				cursor = pass_over(
+					parent,
+					cursor!,
+					here,
+					step,
+					inner === null ? undefined : (gone) => release_holder(inner, sets!, gone as Element)
+				);
+				if (inner !== null) release_holder(inner, sets!, here as Element);
 				morph_same(here, next, sets, walk);
 				continue;
 			}
@@ -358,6 +375,67 @@ function reconcile_children(
 			if (node.parentNode === parent) parent.removeChild(node);
 		}
 	}
+}
+
+class OldKinds {
+	#start: ChildNode | null;
+	#step: (n: ChildNode | null) => ChildNode | null;
+	#kinds: Set<string | number> | null = null;
+
+	constructor(start: ChildNode | null, step: (n: ChildNode | null) => ChildNode | null) {
+		this.#start = start;
+		this.#step = step;
+	}
+
+	pair(
+		cursor: ChildNode | null,
+		next: Node,
+		after: Node | undefined,
+		free?: (n: ChildNode) => boolean
+	): ChildNode | null {
+		if (cursor === null) return null;
+		if (same_node(cursor, next)) return free === undefined || free(cursor) ? cursor : null;
+		if (!this.#has(next)) return null;
+		for (let n: ChildNode | null = cursor; n; n = this.#step(n.nextSibling)) {
+			if (free !== undefined && !free(n)) return null;
+			if (same_node(n, next)) return n;
+			if (after !== undefined && same_node(n, after)) return null;
+			if (
+				n.nodeType === ELEMENT &&
+				(is_declared_foreign(n as Element) || is_region_owned(n as Element))
+			)
+				return null;
+		}
+		return null;
+	}
+
+	#has(node: Node): boolean {
+		if (this.#kinds === null) {
+			this.#kinds = new Set();
+			for (let n = this.#start; n; n = this.#step(n.nextSibling)) this.#kinds.add(kind_of(n));
+		}
+		return this.#kinds.has(kind_of(node));
+	}
+}
+
+function kind_of(node: Node): string | number {
+	return node.nodeType === ELEMENT ? (node as Element).tagName : node.nodeType;
+}
+
+function pass_over(
+	parent: Element,
+	cursor: ChildNode,
+	here: ChildNode,
+	step: (n: ChildNode | null) => ChildNode | null,
+	gone?: (n: ChildNode) => void
+): ChildNode | null {
+	while (cursor !== here) {
+		const n = cursor;
+		cursor = step(cursor.nextSibling)!;
+		gone?.(n);
+		parent.removeChild(n);
+	}
+	return step(here.nextSibling);
 }
 
 function reconcile_by_identity(parent: Element, new_nodes: ArrayLike<Node>, sets: IdSets): void {
@@ -649,6 +727,8 @@ function clone(node: Node): Node {
 }
 
 function carry_shadows_under(src: Element, dst: Element): void {
+	if (import.meta.env.DEV && closed_root_lost(src))
+		warn('closed_shadow_root_lost', { element: `<${src.localName}>` });
 	const root = src.shadowRoot;
 	if (root && root.mode === 'open' && !dst.shadowRoot) carry_shadows(root, dst);
 	for (

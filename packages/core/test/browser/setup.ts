@@ -34,11 +34,13 @@ import { hole_answer_context } from '../../src/server/answer-context.ts';
 import RegionUnder from '../_fixtures/RegionUnder.svelte';
 import { HYDRATE_CASES, place_setup } from './fixtures/hydrate-cases.ts';
 import { set_island_css } from '../_stubs/server.region-deps.ts';
+import HtmlBesideServer from './fixtures/HtmlBesideServer.svelte';
 
 const COUNTER = '/test/browser/fixtures/Counter.svelte';
 const HEAVY = '/test/browser/fixtures/Heavy.svelte';
 const HELD_HOLE_CARD = '/test/browser/fixtures/HeldHoleCard.svelte';
 const HEAD_STYLE = '/test/browser/fixtures/HeadStyle.svelte';
+const HTML_BESIDE = '/test/browser/fixtures/HtmlBeside.svelte';
 
 /** The island shell a page carries: the runtime reads `wake` + `entry`, then the props sidecar. */
 function island(entry: string, body: string, props: Record<string, unknown>, wake = 'load') {
@@ -162,6 +164,8 @@ declare module 'vitest' {
 		/** Each of `HYDRATE_CASES` rendered in its own request: `{ [name]: { head, body } }` as JSON —
 		 *  base64. */
 		region_hydrate_cases_b64: string;
+		/** HtmlBeside as an interaction island, its server leg stamped by the compiler — base64. */
+		html_beside_ssr_b64: string;
 	}
 }
 
@@ -325,4 +329,10 @@ export default async function setup(project: TestProject) {
 		b64(render(LakeIslandPage as unknown as Component).body)
 	);
 	project.provide('region_hydrate_cases_b64', b64(JSON.stringify(render_hydrate_cases())));
+	project.provide(
+		'html_beside_ssr_b64',
+		b64(
+			island(HTML_BESIDE, render(HtmlBesideServer as unknown as Component).body, {}, 'interaction')
+		)
+	);
 }

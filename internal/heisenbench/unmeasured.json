@@ -341,6 +341,38 @@
 			"reason": "fetches one asset through the app and counts its bytes (network IO, not recorded); proven in packages/devtools/test/profiler-weigh-urls.test.ts"
 		},
 		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > closed_shadow_root_lost > details",
+			"reason": "a dev warning's wording, constant text; said in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > closed_shadow_root_lost > text",
+			"reason": "a dev warning's wording, constant text; said in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
+			"id": "packages/core/src/runtime/closed-roots.ts > may_declare_closed_root",
+			"reason": "dev only, folded out of production: one regex test over the parsed HTML, linear in its length; proven in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
+			"id": "packages/core/src/runtime/closed-roots.ts > note_closed_roots",
+			"reason": "dev only, folded out of production, and only when the HTML may declare a closed root: one side-by-side walk of two parses of it (DOM nodes, not cloneable), linear in their elements; proven in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
+			"id": "packages/core/src/runtime/closed-roots.ts > is_dsd",
+			"reason": "dev only, folded out of production: a tag and an attribute read, constant work; proven in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
+			"id": "packages/core/src/runtime/closed-roots.ts > first_dsd",
+			"reason": "dev only, folded out of production: one pass over a parent's element children (DOM nodes, not cloneable); proven in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
+			"id": "packages/core/src/runtime/closed-roots.ts > dsd_count",
+			"reason": "dev only, folded out of production: one pass over a parent's element children (DOM nodes, not cloneable); proven in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
+			"id": "packages/core/src/runtime/closed-roots.ts > is_element",
+			"reason": "dev only, folded out of production: one node type read, constant work; proven in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_address_bar_drift > details",
 			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
 		},
@@ -583,6 +615,14 @@
 		{
 			"id": "packages/core/src/runtime/interaction.ts > wake > then:1 > then:1",
 			"reason": "browser only: the replay chunk failed to load again after a failed wake: reports it, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/interaction.ts > touched",
+			"reason": "browser only: the element a wake press landed on, with its address (one walk up to the region); proven in packages/core/test/browser/interaction-replay-claims.test.ts and apps/palaestra/e2e/dom-ownership.spec.ts (#2097)"
+		},
+		{
+			"id": "packages/core/src/runtime/interaction-replay.ts > now_at",
+			"reason": "browser only: the element itself when hydration kept it, else the one at its address (one contains, one walk down); proven in packages/core/test/browser/interaction-replay-claims.test.ts (#2097)"
 		},
 		{
 			"id": "packages/devtools/src/devtools/ui.ts > mount_launcher > onpointerdown",
@@ -5037,8 +5077,16 @@
 			"reason": "dev only: one warning after 10 s, at most once per response: constant work; proven in packages/core/test/page-stream-request-owned.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/ownership.ts > in_render_block",
-			"reason": "browser only (DOM comments): runs only for a child of an element stamped data-og-html, a scan of its earlier siblings; nested-island-drift.test.ts runs it"
+			"id": "packages/core/src/runtime/ownership.ts > in_html_range",
+			"reason": "browser only (DOM comments): runs only for a child of an element stamped data-og-html, a scan of its earlier siblings back to the nearest range mark or anchor; dom-ownership.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/html-ranges.ts > hash_without_mark",
+			"reason": "dev only: a fixed 12-step loop per marked {@html} range, once per hydrate; proven in packages/core/test/canary/svelte-hydration-markers.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/html-ranges.ts > unmark_html_ranges",
+			"reason": "browser only (DOM comments): one pass over the children of each data-og-html element of a region, once per hydrate; html-range.test.ts runs it"
 		},
 		{
 			"id": "packages/core/src/runtime/form-continuity.ts > url_of",
