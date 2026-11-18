@@ -305,6 +305,34 @@
 			"reason": "fetches one asset through the app and counts its bytes (network IO, not recorded); proven in packages/devtools/test/profiler-weigh-urls.test.ts"
 		},
 		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > closed_shadow_root_lost > details",
+			"reason": "a dev warning's wording, constant text; said in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > closed_shadow_root_lost > text",
+			"reason": "a dev warning's wording, constant text; said in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
+			"id": "packages/core/src/runtime/closed-roots.ts > may_declare_closed_root",
+			"reason": "dev only, folded out of production: one regex test over the parsed HTML, linear in its length; proven in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
+			"id": "packages/core/src/runtime/closed-roots.ts > is_dsd",
+			"reason": "dev only, folded out of production: a tag and an attribute read, constant work; proven in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
+			"id": "packages/core/src/runtime/closed-roots.ts > first_dsd",
+			"reason": "dev only, folded out of production: one pass over a parent's element children (DOM nodes, not cloneable); proven in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
+			"id": "packages/core/src/runtime/closed-roots.ts > dsd_count",
+			"reason": "dev only, folded out of production: one pass over a parent's element children (DOM nodes, not cloneable); proven in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
+			"id": "packages/core/src/runtime/closed-roots.ts > is_element",
+			"reason": "dev only, folded out of production: one node type read, constant work; proven in packages/core/test/browser/page-dsd-parse.test.ts (#1904)"
+		},
+		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_address_bar_drift > details",
 			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
 		},
