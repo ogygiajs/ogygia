@@ -1,4 +1,6 @@
 import { slots } from './slots.ts';
+import { warn } from '../messages/lazy.ts';
+import { closed_root_lost } from './closed-roots.ts';
 import type { PageGlobals, PendingShadow } from '../page-globals.ts';
 import {
 	attributes_writer,
@@ -649,6 +651,8 @@ function clone(node: Node): Node {
 }
 
 function carry_shadows_under(src: Element, dst: Element): void {
+	if (import.meta.env.DEV && closed_root_lost(src))
+		warn('closed_shadow_root_lost', { element: `<${src.localName}>` });
 	const root = src.shadowRoot;
 	if (root && root.mode === 'open' && !dst.shadowRoot) carry_shadows(root, dst);
 	for (

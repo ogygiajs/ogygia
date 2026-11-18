@@ -3,7 +3,11 @@
 // built. And a host the morph copies into the live page keeps its declarative shadow root, unless
 // the root is closed and not clonable (#1904): then dev says so with a code.
 import { expect, test, vi } from 'vitest';
-import { parse_page_document, vouch_page_html } from '../../src/runtime/html-sink.ts';
+import {
+	parse_page_document,
+	parse_region_html,
+	vouch_page_html
+} from '../../src/runtime/html-sink.ts';
 import { morph_children } from '../../src/runtime/morph.ts';
 
 const parse = (html: string): Document => parse_page_document(vouch_page_html(html));
@@ -140,6 +144,28 @@ test('a clonable closed declarative shadow root is copied with its host, and not
 	} finally {
 		live.remove();
 	}
+});
+
+test('a region update that copies in a closed declarative shadow root says so once', () => {
+	const said: string[] = [];
+	const spy = vi.spyOn(console, 'warn').mockImplementation((...a: unknown[]) => {
+		const text = a.map(String).join(' ');
+		if (text.includes(LOST)) said.push(text);
+	});
+	const live = document.createElement('div');
+	try {
+		live.innerHTML = '<p>A</p>';
+		const answer = parse_region_html(
+			vouch_page_html(
+				`<p>A</p><x-shut><template shadowrootmode="closed"><b>shut</b></template></x-shut>`
+			)
+		);
+		morph_children(live, answer.childNodes);
+	} finally {
+		spy.mockRestore();
+	}
+	expect(live.querySelector('x-shut')!.shadowRoot).toBeNull();
+	expect(said.length).toBe(1);
 });
 
 test('an open declarative shadow root the morph copies is carried, and nothing is said', () => {

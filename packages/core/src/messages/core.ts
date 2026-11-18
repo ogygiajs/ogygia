@@ -748,6 +748,30 @@ export const WARNINGS = {
 			is kept.
 		`
 	},
+	closed_shadow_root_lost: {
+		text: (a: { element: string }): string => prose`
+			${a.element} came in with a navigation or a region update as a new element with a closed
+			declarative shadow root (<template shadowrootmode="closed">). A script cannot read a
+			closed root, so the copy put on the page has none. Use shadowrootmode="open", have the
+			component attach its own root (attachShadow in its constructor or connectedCallback), or
+			keep the element in the same place on both pages so it is kept, not copied.
+		`,
+		details: (): string => prose`
+			Dev only. When the SPA router (or a region update) changes the page, it keeps the elements
+			it can and copies in new ones from the next page's HTML. A declarative shadow root is
+			copied with its host only when the copy can read it: an open root always, a closed one
+			only when it is \`shadowrootclonable\`. A closed root is not supported on an element the
+			update copies in: the copy has no shadow root, and whatever the root painted is gone.
+
+			Pick one of three. Use \`shadowrootmode="open"\` on the template.
+
+			Or have the component attach its root itself (\`attachShadow\` in its constructor or
+			\`connectedCallback\`), so the copy builds it again when it connects.
+
+			Or keep the element the same on both pages (the same tag in the same place, or the same
+			\`id\` or \`data-key\`), so the update keeps it, and its root, instead of copying it.
+		`
+	},
 	live_feature_missing: {
 		text: (): string => 'live region needs the live feature plugin (pushable props missing)',
 		details: (): string => prose`
