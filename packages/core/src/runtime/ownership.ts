@@ -48,8 +48,6 @@ export function owner_of(el: Element): Owner {
 	return 'walk';
 }
 
-/** Is `el` `{@html}` content: after a range's opening mark ({@link HTML_RANGE_MARK}), with no empty
- *  comment (Svelte's end anchor) between them? */
 function in_html_range(el: Element): boolean {
 	for (let n = el.previousSibling; n; n = n.previousSibling) {
 		if (n.nodeType !== 8) continue;
