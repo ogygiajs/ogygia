@@ -147,6 +147,32 @@ test('a template element beside an {@html} that a third party edited is repaired
 	expect(note.querySelector('s')).not.toBeNull();
 });
 
+test('a node a third party puts first in a walked element goes; every server sibling after it keeps its identity (#2097)', () => {
+	let connects = 0;
+	const name = `x-count-${++defined}`;
+	customElements.define(
+		name,
+		class extends HTMLElement {
+			connectedCallback() {
+				connects++;
+			}
+		}
+	);
+	const server = `<p><b>count</b> <button>0</button> <${name}></${name}></p>`;
+	const region = region_of(server);
+	const p = region.querySelector('p')!;
+	const kept = Array.from(p.childNodes);
+	expect(connects).toBe(1);
+	p.prepend(document.createElement('i'));
+	const out = repair_if_drifted(region, server);
+	expect(out.repaired).toBe(true);
+	expect(p.querySelector('i')).toBeNull();
+	expect(sequence_differs(region, want_of(server))).toBe(false);
+	const now = Array.from(p.childNodes);
+	expect(now.map((n, i) => n === kept[i])).toEqual(kept.map(() => true));
+	expect(connects).toBe(1);
+});
+
 test('a change only inside a widget Svelte never walks is not drift at all', () => {
 	const name = define_widget();
 	const server = `<${name} data-og-opaque><form></form></${name}>`;

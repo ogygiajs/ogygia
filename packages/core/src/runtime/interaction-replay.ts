@@ -1,5 +1,5 @@
 import type { Scope } from '@ogygia/machine';
-import type { FieldSnapshot, QueuedClick } from './interaction.ts';
+import type { FieldSnapshot, QueuedClick, Touched } from './interaction.ts';
 import { interaction_link } from './slots.ts';
 import { emit as dt_emit } from '../events/bus.ts';
 import { OG_FP } from '../wire-markup.ts';
@@ -9,12 +9,16 @@ const resolve_address = (region: Element, addr: number[]) =>
 
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 
+function now_at(region: Element, t: Touched): Element | null {
+	if (region.contains(t.el)) return t.el;
+	const at = resolve_address(region, t.addr);
+	return at && at.tagName === t.tag ? at : null;
+}
+
 function restore_fields(region: Element, fields: FieldSnapshot[]) {
 	for (const s of fields) {
-		const el = resolve_address(region, s.addr);
-		if (!el || el.tagName !== s.tag) continue;
-		const f = el as HTMLInputElement;
-		if (f === s.el) continue;
+		const f = now_at(region, s) as HTMLInputElement | null;
+		if (!f || f === s.el) continue;
 		let changed = false;
 		if (f.value !== s.el.value) {
 			f.value = s.el.value;
@@ -39,7 +43,8 @@ function restore_fields(region: Element, fields: FieldSnapshot[]) {
 }
 
 /**
- * Replay the queued clicks in arrival order at each click's address (tag-checked against drift).
+ * Replay the queued clicks in arrival order on each clicked element, or at its address when
+ * hydration replaced it (tag-checked against drift).
  * One frame later: hydration just (re)bound the island's web-component wiring (a dropdown web
  * component's `target` element, set by a reactive statement) and many components apply such
  * changes in their own render tick. A synchronous replay lands before that tick and toggles
@@ -53,8 +58,8 @@ function restore_fields(region: Element, fields: FieldSnapshot[]) {
 export function replay_clicks(region: Element, queued: QueuedClick[], owner: Scope): void {
 	const replay = () => {
 		for (const q of queued) {
-			const t = resolve_address(region, q.addr);
-			if (!t || t.tagName !== q.tag) continue;
+			const t = now_at(region, q);
+			if (!t) continue;
 			const deep = q.deep as Node | null;
 			const target = deep && deep.isConnected && t.shadowRoot?.contains(deep) ? deep : t;
 			target.dispatchEvent(new MouseEvent('click', q.init));
@@ -71,13 +76,13 @@ export function replay_clicks(region: Element, queued: QueuedClick[], owner: Sco
 export function after_wake(
 	region: Element,
 	fields: FieldSnapshot[],
-	active_addr: number[] | null,
+	focused: Touched | null,
 	queued: QueuedClick[],
 	owner: Scope
 ): void {
 	restore_fields(region, fields);
-	if (active_addr) {
-		const el = resolve_address(region, active_addr);
+	if (focused) {
+		const el = now_at(region, focused);
 		if (el instanceof HTMLElement && document.activeElement !== el) el.focus();
 	}
 	const replayed = queued.length;

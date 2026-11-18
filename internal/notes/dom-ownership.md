@@ -139,7 +139,8 @@ the template), Svelte's positional walk breaks: no rule can keep both. The model
 explicit instead of silent:
 
 - the repair removes the foreign node (the walk needs the position) — today's behaviour, now a
-  decision, not an accident;
+  decision, not an accident. Only that node goes: the server's siblings after it pair with their
+  own kind past it and keep their identity, so a wake click on one of them still lands (#2097);
 - it emits ONE devtools/console event, `ownership.conflict`, naming the element, the owner it
   overrode and the fix: "render the widget subtree with `{@html}` or as static markup (Svelte never
   walks it), or move it into a lake".
