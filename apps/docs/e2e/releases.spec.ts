@@ -53,12 +53,29 @@ test('the releases page lists 0.13.0 with the packages released in it, however m
 	await awake(page);
 	const v = card(page, '0.13.0');
 	await expect(v).toBeVisible();
+	await v.locator('summary').click();
+	await expect(v).toHaveAttribute('open');
 	for (const name of ['ogygia', '@ogygia/core', '@ogygia/machine'])
 		await expect(v.locator('[data-release-package]', { hasText: name }).first()).toBeVisible();
 	// its lines keep their PR links
 	await expect(
 		v.locator('a[href^="https://github.com/ogygiajs/ogygia/pull/"]').first()
 	).toBeVisible();
+});
+
+test('the island folds all but the newest three versions, and expand all opens every one', async ({
+	page
+}) => {
+	await awake(page);
+	const cards = page.locator('details[data-release-version]');
+	const total = await cards.count();
+	expect(total).toBeGreaterThan(6);
+	const open = await cards.evaluateAll((all) => all.map((d) => (d as HTMLDetailsElement).open));
+	expect(open).toEqual(Array.from({ length: total }, (_, i) => i < 3));
+	await page.getByRole('button', { name: 'Expand all' }).click();
+	await expect(page.locator('details[data-release-version]:not([open])')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Collapse all' }).click();
+	await expect(page.locator('details[data-release-version][open]')).toHaveCount(0);
 });
 
 test.describe('with JavaScript off', () => {
