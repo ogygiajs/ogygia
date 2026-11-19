@@ -1212,10 +1212,12 @@ export function document_faulted(world: World, tab: Tab): boolean {
  *  it fails to compile: generated-app seed 88), and the JSON parser's bare message for a changed
  *  byte in a JSON answer (a live query's client logs it without `SyntaxError`: palaestra seed 204),
  *  and devalue's for a changed byte in a type name inside one (a held region's query answer: the
- *  region's await hands the query's own error to the page; gen 10, seed 31, `Unknown type �egion`).
+ *  region's await hands the query's own error to the page; gen 10, seed 31, `Unknown type �egion`),
+ *  and a date's refusal to print one a changed byte made invalid (devalue revives `00:0�:25` as an
+ *  invalid date, and an island's `toISOString()` throws: palaestra seed 610517516, #2107).
  *  An uncaught TypeError is never excused. */
 const EXPLAINED =
-	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response|Failed to read the 'on\w+' property| in JSON at position \d+|Error: Unknown type /;
+	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response|Failed to read the 'on\w+' property| in JSON at position \d+|Error: Unknown type |RangeError: Invalid time value/;
 
 /** Whether `line` is a buggify point's own throw (a point's error says its name), reported by the
  *  document `realm` it fired in: what the runtime reports of a failure it recovers from. */
