@@ -596,7 +596,9 @@ export function restore_history(frame: object, saved: SavedHistory): void {
 type Starts = (
 	frame: object,
 	go: () => Promise<unknown>,
-	type: 'navigate' | 'reload' | 'back_forward'
+	type: 'navigate' | 'reload' | 'back_forward',
+	/** A traversal's steps through the entries (`-1` back, `1` forward). */
+	by?: number
 ) => Promise<unknown>;
 const STARTS = new WeakMap<object, Starts>();
 
@@ -629,7 +631,10 @@ export function navigation_starts(): void {
 		'reload'
 	] as const) {
 		const real = nav[step] as (this: unknown, o: { frame: Frame }) => Promise<unknown>;
-		nav[step] = function (this: unknown, o: { frame: Frame; goToOptions?: object }) {
+		nav[step] = function (
+			this: unknown,
+			o: { frame: Frame; goToOptions?: object; steps?: number }
+		) {
 			// (happy-dom calls a navigation off after 30 s; a browser waits for the network's own
 			// deadline, minutes: test/page-abort.node.test.ts)
 			if (step === 'navigate')
@@ -645,7 +650,15 @@ export function navigation_starts(): void {
 				}
 			};
 			const type = step === 'navigate' ? 'navigate' : step === 'reload' ? 'reload' : 'back_forward';
-			return starts ? starts(o.frame, go, type) : go();
+			const by =
+				step === 'navigateBack'
+					? -1
+					: step === 'navigateForward'
+						? 1
+						: step === 'navigateSteps' && o.steps
+							? o.steps
+							: undefined;
+			return starts ? starts(o.frame, go, type, by) : go();
 		};
 	}
 }

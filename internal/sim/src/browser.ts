@@ -863,7 +863,7 @@ export class Browsers {
 		}
 		v.tabs.push(tab);
 		this.#windows.set(page.mainFrame.window, tab);
-		on_navigation_start(page, (frame, go, type) => this.#start(tab, frame, go, type));
+		on_navigation_start(page, (frame, go, type, by) => this.#start(tab, frame, go, type, by));
 		// (happy-dom reports a failed script or stylesheet here, then fires `error` on its element:
 		// the element's listener, in #arrive, says it with this text)
 		const pc = page.console as unknown as Record<string, (...a: unknown[]) => void>;
@@ -901,14 +901,22 @@ export class Browsers {
 	 * palaestra seed 122), its requests' realm is never shown, and it never was an entry: happy-dom
 	 * adds a navigation's entry as it starts, a browser once its document comes, so the history is
 	 * put back as it was before it, and a back goes back from the page on screen (palaestra seed
-	 * 20958: the router handed a click to the browser, and the visitor went back meanwhile).
+	 * 20958: the router handed a click to the browser, and the visitor went back meanwhile). A back
+	 * or forward (`by` entries) with no entry to go to, in the history as a browser keeps it, is no
+	 * navigation: it calls nothing off (test/superseded-navigation.node.test.ts, #2117).
 	 */
 	#start(
 		tab: Tab,
 		frame: object,
 		go: () => Promise<unknown>,
-		type: NavigationType
+		type: NavigationType,
+		by?: number
 	): Promise<unknown> {
+		if (by !== undefined) {
+			const kept = tab.awaiting && tab.before !== null ? tab.before : save_history(frame);
+			if (kept.items[kept.items.indexOf(kept.current) + by] === undefined)
+				return Promise.resolve(null);
+		}
 		tab.started = { at: this.#o.loop.now, type };
 		// a document whose answer came, not yet written: a browser shows it until the next one comes,
 		// but happy-dom has one window per frame and would write it into the next page's, under that
