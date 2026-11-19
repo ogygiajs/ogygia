@@ -5893,6 +5893,14 @@
 			"reason": "a forwarder to app_compile_options with the app's Svelte compile, no work of its own"
 		},
 		{
+			"id": "packages/compiler/src/vite/svelte-options.ts > app_compile_options",
+			"reason": "constant work: one object spread and the app's own dynamicCompileOptions hook, once per component CSS compile (a Svelte compile dwarfs it); its inputs hold the app's functions (cssHash), so nothing replays them; proven in packages/compiler/test/region-css-svelte-options.test.ts (#2114)"
+		},
+		{
+			"id": "packages/compiler/src/vite/svelte-options.ts > svelte_compile > find:0~6b8ddf",
+			"reason": "constant work: compares one plugin's name, once per plugin at configResolved; the plugins carry Vite's functions, so nothing replays them; proven in packages/compiler/test/late-island.test.ts"
+		},
+		{
 			"id": "packages/compiler/src/vite/style-preprocess.ts > preprocess_component_for_css > sassy",
 			"reason": "a two-value compare on one lang attribute, constant work"
 		},
