@@ -1,5 +1,23 @@
 # @ogygia/compiler
 
+## 0.14.1
+
+### Patch Changes
+
+- [#2076](https://github.com/ogygiajs/ogygia/pull/2076) [`c56fc0f`](https://github.com/ogygiajs/ogygia/commit/c56fc0f734526f8a696526fb5a783b0c46b055f4) Thanks [@PuruVJ](https://github.com/PuruVJ)! - In dev, a route option file (such as a `+page.ts` with `csr`) saved by an editor that empties the file before writing it is now read again once the write lands. Before, the dev server could keep the empty read, and a page kept the wrong csr until the next save or a restart.
+
+- [#2096](https://github.com/ogygiajs/ogygia/pull/2096) [`e75ded2`](https://github.com/ogygiajs/ogygia/commit/e75ded2e948e9627c5f3b6495a223d85fa7d794e) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Server HTML now carries a small `<!--@html-->` marker at the start of each non-empty `{@html}` that sits beside other children in an element, so the runtime can tell its content from the template's own elements.
+
+- [#2113](https://github.com/ogygiajs/ogygia/pull/2113) [`28791fc`](https://github.com/ogygiajs/ogygia/commit/28791fca8ae02910310ed4a97665141c841fb8f0) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A server region whose tree reads `page.data` is now always marked as reading it. Before, the answer could follow the folder the app was built in: when the bundle listed a component's style module after the component, the region was marked as reading nothing and rendered without the page's data.
+
+- [#2095](https://github.com/ogygiajs/ogygia/pull/2095) [`b4fc8d9`](https://github.com/ogygiajs/ogygia/commit/b4fc8d91421ade0385310f3d2d9704597b6424b7) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A remote query made outside any island (a click handler, a module's top level) right after the island that used the same query left the page now gets fresh data, not an empty answer.
+
+- [#2115](https://github.com/ogygiajs/ogygia/pull/2115) [`d9f05e7`](https://github.com/ogygiajs/ogygia/commit/d9f05e73fe44f98cd109b3fe3657b9b454ee1af1) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Region stylesheets are now compiled with the app's own Svelte compiler options (as vite-plugin-svelte resolved them), so an app with a custom `cssHash` (or `rootDir`) gets server region and router page CSS whose class names match the markup instead of rules that style nothing.
+
+- [#2064](https://github.com/ogygiajs/ogygia/pull/2064) [`68a370f`](https://github.com/ogygiajs/ogygia/commit/68a370f8582cf159118a63d3b52c37d29698869e) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The `virtual_wrong_realm` build error now names the files that imported the module, nearest first, back to the entry (`` through `src/lib/panel.ts` ← `src/routes/+page.svelte` ``), so the import that broke the build no longer takes a bisect to find.
+- Updated dependencies [[`4589eb6`](https://github.com/ogygiajs/ogygia/commit/4589eb6520d38f6df956168ea816dd5508893a0e), [`1c2b59c`](https://github.com/ogygiajs/ogygia/commit/1c2b59c38a6120b62e308809ce99877b4a774080), [`efe9312`](https://github.com/ogygiajs/ogygia/commit/efe931292feba10a6970203f3a051296496ad654), [`e75ded2`](https://github.com/ogygiajs/ogygia/commit/e75ded2e948e9627c5f3b6495a223d85fa7d794e), [`b4fc8d9`](https://github.com/ogygiajs/ogygia/commit/b4fc8d91421ade0385310f3d2d9704597b6424b7), [`86b82e6`](https://github.com/ogygiajs/ogygia/commit/86b82e6f9bb5f2d795a371e1faa0cb537ef0f913)]:
+  - @ogygia/core@0.14.1
+
 ## 0.14.0
 
 ### Minor Changes

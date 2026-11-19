@@ -1,5 +1,14 @@
 # @ogygia/devtools
 
+## 0.14.1
+
+### Patch Changes
+
+- [#2077](https://github.com/ogygiajs/ogygia/pull/2077) [`9dbdcc6`](https://github.com/ogygiajs/ogygia/commit/9dbdcc675db07818f229b8e7c223dd10c5f63e82) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A click on the devtools launcher made just as the dock finished loading now opens the dock. Before, a press that began on the placeholder button and ended after the dock replaced it was lost, and the dock stayed closed.
+- Updated dependencies [[`4589eb6`](https://github.com/ogygiajs/ogygia/commit/4589eb6520d38f6df956168ea816dd5508893a0e), [`c56fc0f`](https://github.com/ogygiajs/ogygia/commit/c56fc0f734526f8a696526fb5a783b0c46b055f4), [`1c2b59c`](https://github.com/ogygiajs/ogygia/commit/1c2b59c38a6120b62e308809ce99877b4a774080), [`efe9312`](https://github.com/ogygiajs/ogygia/commit/efe931292feba10a6970203f3a051296496ad654), [`e75ded2`](https://github.com/ogygiajs/ogygia/commit/e75ded2e948e9627c5f3b6495a223d85fa7d794e), [`e75ded2`](https://github.com/ogygiajs/ogygia/commit/e75ded2e948e9627c5f3b6495a223d85fa7d794e), [`28791fc`](https://github.com/ogygiajs/ogygia/commit/28791fca8ae02910310ed4a97665141c841fb8f0), [`b4fc8d9`](https://github.com/ogygiajs/ogygia/commit/b4fc8d91421ade0385310f3d2d9704597b6424b7), [`d9f05e7`](https://github.com/ogygiajs/ogygia/commit/d9f05e73fe44f98cd109b3fe3657b9b454ee1af1), [`86b82e6`](https://github.com/ogygiajs/ogygia/commit/86b82e6f9bb5f2d795a371e1faa0cb537ef0f913), [`68a370f`](https://github.com/ogygiajs/ogygia/commit/68a370f8582cf159118a63d3b52c37d29698869e)]:
+  - @ogygia/core@0.14.1
+  - @ogygia/compiler@0.14.1
+
 ## 0.14.0
 
 ### Minor Changes

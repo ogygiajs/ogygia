@@ -1,5 +1,13 @@
 # @ogygia/data-shake
 
+## 0.14.1
+
+### Patch Changes
+
+- [#2063](https://github.com/ogygiajs/ogygia/pull/2063) [`14670bf`](https://github.com/ogygiajs/ogygia/commit/14670bf76913887c1389a21b06c4e58293f84a78) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A `page.data` read under `import.meta.env?.SSR ?? typeof window === 'undefined'` now counts as server-only, as a read under either test alone already did, so it no longer makes every region need the whole page.
+- Updated dependencies [[`c56fc0f`](https://github.com/ogygiajs/ogygia/commit/c56fc0f734526f8a696526fb5a783b0c46b055f4), [`e75ded2`](https://github.com/ogygiajs/ogygia/commit/e75ded2e948e9627c5f3b6495a223d85fa7d794e), [`28791fc`](https://github.com/ogygiajs/ogygia/commit/28791fca8ae02910310ed4a97665141c841fb8f0), [`b4fc8d9`](https://github.com/ogygiajs/ogygia/commit/b4fc8d91421ade0385310f3d2d9704597b6424b7), [`d9f05e7`](https://github.com/ogygiajs/ogygia/commit/d9f05e73fe44f98cd109b3fe3657b9b454ee1af1), [`68a370f`](https://github.com/ogygiajs/ogygia/commit/68a370f8582cf159118a63d3b52c37d29698869e)]:
+  - @ogygia/compiler@0.14.1
+
 ## 0.14.0
 
 ### Minor Changes

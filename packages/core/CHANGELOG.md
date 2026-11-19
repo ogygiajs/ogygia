@@ -1,5 +1,21 @@
 # @ogygia/core
 
+## 0.14.1
+
+### Patch Changes
+
+- [#2094](https://github.com/ogygiajs/ogygia/pull/2094) [`4589eb6`](https://github.com/ogygiajs/ogygia/commit/4589eb6520d38f6df956168ea816dd5508893a0e) Thanks [@PuruVJ](https://github.com/PuruVJ)! - In dev, a new element the router or a region update copies in that loses its closed declarative shadow root (`<template shadowrootmode="closed">`) now warns with `closed_shadow_root_lost` and the ways around it, instead of losing the root without a word.
+
+- [#2068](https://github.com/ogygiajs/ogygia/pull/2068) [`1c2b59c`](https://github.com/ogygiajs/ogygia/commit/1c2b59c38a6120b62e308809ce99877b4a774080) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A client navigation now puts the next page's own inline `<style>` or inline `<script>` in the head when it differs from the last page's only after its first 48 characters; before, the last page's node was kept, so the page could show with the wrong styles.
+
+- [#2069](https://github.com/ogygiajs/ogygia/pull/2069) [`efe9312`](https://github.com/ogygiajs/ogygia/commit/efe931292feba10a6970203f3a051296496ad654) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A hole given a snippet prop and rebuilt in the browser (after Kit gives up hydrating) keeps the address the server gave it, instead of warning `hole_without_address` and never loading. Both legs now freeze a snippet to the same HTML: Svelte's server HTML without its hydration markers, which also makes a frozen snippet a little smaller in the page.
+
+- [#2096](https://github.com/ogygiajs/ogygia/pull/2096) [`e75ded2`](https://github.com/ogygiajs/ogygia/commit/e75ded2e948e9627c5f3b6495a223d85fa7d794e) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A template element beside an `{@html}` that a third-party script edits before the island wakes is now put back from the server markup, instead of the island throwing its hydration away; server HTML now carries a small `<!--@html-->` marker at the start of such `{@html}` content.
+
+- [#2095](https://github.com/ogygiajs/ogygia/pull/2095) [`b4fc8d9`](https://github.com/ogygiajs/ogygia/commit/b4fc8d91421ade0385310f3d2d9704597b6424b7) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A remote query made outside any island (a click handler, a module's top level) right after the island that used the same query left the page now gets fresh data, not an empty answer.
+
+- [#2102](https://github.com/ogygiajs/ogygia/pull/2102) [`86b82e6`](https://github.com/ogygiajs/ogygia/commit/86b82e6f9bb5f2d795a371e1faa0cb537ef0f913) Thanks [@PuruVJ](https://github.com/PuruVJ)! - When a third party puts an element into a sleeping island, the click that wakes it now still counts: the wake keeps every element after the inserted one (custom elements are no longer connected twice), and the replayed click, typed values and focus go to the element itself instead of to whatever now sits at its old position.
+
 ## 0.14.0
 
 ### Minor Changes
