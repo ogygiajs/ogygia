@@ -1,4 +1,6 @@
-// FOUND BY THE SIMULATOR, shrunk to 4 actions (written by `pnpm sim --shrink`):
+// FOUND BY THE SIMULATOR, shrunk to 4 actions (written by `pnpm sim --shrink`); found as seed
+// 260639017, re-picked as seed 1 once a request's fate stopped reading its file's hash (#2110): on
+// the code before #1618 the plan fails with it, as it did with the old seed:
 // [ssr-hydrate] after tab 1: back: https://app.test/soft-race: warn: https://svelte.dev/e/hydration_mismatch
 //
 //   1. new tab at /soft-race, behind
@@ -24,7 +26,7 @@ const ready = ((): boolean => {
 	return existsSync(plan) && JSON.parse(readFileSync(plan, 'utf8')).seed === GEN;
 })();
 
-const SEED = 260639017;
+const SEED = 1;
 const PLAN: Plan = {
 	actions: [
 		{ kind: 'background', path: '/soft-race' },

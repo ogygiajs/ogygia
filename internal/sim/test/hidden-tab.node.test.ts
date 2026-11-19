@@ -51,11 +51,12 @@ describe.skipIf(!built)('a tab behind another', () => {
 	});
 
 	it('its islands are not judged asleep while its runtime is still on the wire', async () => {
-		// (seed 97's network stalls the runtime chunk's body ~39 s after its first piece: the
+		// (seed 97's network stalled the runtime chunk's body ~39 s after its first piece: the
 		// action's quiesce gave up before it came, and islands_wake judged a page whose runtime had
-		// not run; at rest every island woke)
+		// not run; at rest every island woke. Seed 5 stalls it since a request's fate stopped reading
+		// its file's hash, #2110)
 		const world = await World.make({
-			seed: 97,
+			seed: 5,
 			builds: [{ id: 'v1', output: OUTPUT }],
 			secret: 'sim-secret',
 			faults: new Set(['duplicate', 'tamper', 'stall']),

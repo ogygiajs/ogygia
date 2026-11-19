@@ -1,5 +1,5 @@
-// FOUND BY THE SIMULATOR (palaestra, seed 783827205; #2093), shrunk to 3 actions: /hole-kit-rebuild
-// throws once while Kit hydrates it, on purpose (Boom.svelte), so Svelte says "Failed to hydrate"
+// FOUND BY THE SIMULATOR (palaestra, seed 783827205; #2093), shrunk to 3 actions, re-picked as seed
+// 30 once a request's fate stopped reading its file's hash (#2110): /hole-kit-rebuild throws once while Kit hydrates it, on purpose (Boom.svelte), so Svelte says "Failed to hydrate"
 // and Kit mounts the page anew; the page is for that rebuild (e2e/hole-kit-rebuild.spec.ts). Its
 // warning is the page's design, as /lake-twins-kit's mismatch is, not waste.
 //
@@ -19,7 +19,7 @@ const ready = ['/.svelte-kit/sim-builds/v1', '/.svelte-kit/output'].some((b) =>
 	existsSync(`${APP}${b}/server/index.js`)
 );
 
-const SEED = 783827205;
+const SEED = 30;
 const PLAN: Plan = {
 	actions: [
 		{ kind: 'open', path: '/hole-kit-rebuild' },

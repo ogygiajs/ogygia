@@ -1,5 +1,6 @@
 // FOUND BY THE SIMULATOR (palaestra, seed 302061542; #2091, and #2092 on /load-scheduler), shrunk
-// to 6 actions: the visitor goes to /head-budget/via-factory in tab 1, then acts in tab 0 before the
+// to 6 actions; re-picked as seed 13 once a request's fate stopped reading its file's hash (#2110),
+// the plan the same: the visitor goes to /head-budget/via-factory in tab 1, then acts in tab 0 before the
 // page's runtime ran, so tab 1 goes behind. Its document was shown as it came, but its visible
 // island never had a frame, and sleeps as a browser's would. A shown fresh load wakes it: the page is
 // judged against a fresh load behind another tab instead.
@@ -23,7 +24,7 @@ const ready = ['/.svelte-kit/sim-builds/v1', '/.svelte-kit/output'].some((b) =>
 	existsSync(`${APP}${b}/server/index.js`)
 );
 
-const SEED = 302061542;
+const SEED = 13;
 const PLAN: Plan = {
 	actions: [
 		{ kind: 'open', path: '/nested-css' },
@@ -44,7 +45,7 @@ describe.skipIf(!ready)('found: a tab behind before its islands had a frame', ()
 		expect(res.broken.filter((b) => signature(b) === 'a4fa20c57b')).toEqual([]);
 	}, 300_000);
 
-	it('is equal to a fresh load behind another tab after a back it was shown for (seed 783825139, #2092: f92b8ce3c6)', async () => {
+	it('is equal to a fresh load behind another tab after a back it was shown for (#2092, found as seed 783825139, re-picked as 82: f92b8ce3c6)', async () => {
 		process.env.SIM_APP = APP;
 		const { run } = await import('../../src/cli.ts');
 		const plan: Plan = {
@@ -57,7 +58,7 @@ describe.skipIf(!ready)('found: a tab behind before its islands had a frame', ()
 			],
 			idle: true
 		};
-		const res = await run(783825139, plan.actions.length, Infinity, undefined, plan);
+		const res = await run(82, plan.actions.length, Infinity, undefined, plan);
 		expect(res.broken.filter((b) => signature(b) === 'f92b8ce3c6')).toEqual([]);
 	}, 300_000);
 });
