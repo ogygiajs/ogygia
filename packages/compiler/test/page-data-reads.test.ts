@@ -113,6 +113,29 @@ describe('the page-data reads relocation', () => {
 		});
 	});
 
+	// #2111: three clones of one commit baked three answers. The bundle lists a component and its
+	// style sub-module (`?svelte&type=style`) under one path, in an order that follows the folder.
+	test("a hole's answer is its whole file's, whatever order the bundle lists the file's modules in", () => {
+		const c = compiler_with(
+			{ ffffffffffff: '/app/Hole.svelte' },
+			{ '/app/reader.ts': new Set(['x']) }
+		);
+		const style = '/app/Hole.svelte?svelte&type=style&lang.css';
+		const graph: Record<string, { importedIds: string[]; dynamicallyImportedIds: string[] }> = {
+			'/app/Hole.svelte': { importedIds: ['/app/reader.ts', style], dynamicallyImportedIds: [] },
+			[style]: { importedIds: [], dynamicallyImportedIds: [] },
+			'/app/reader.ts': { importedIds: [], dynamicallyImportedIds: [] }
+		};
+		for (const ids of [Object.keys(graph), Object.keys(graph).reverse()]) {
+			const out = c.relocate(PLACEHOLDER, server_leg(), {
+				...bundle,
+				graph: (id) => graph[id] ?? null,
+				module_ids: () => ids
+			});
+			expect(value_of(out!.code)).toEqual({ ffffffffffff: true });
+		}
+	});
+
 	test('unpatched (a build that never reached renderChunk), it is unknown: null', () => {
 		expect(value_of(PLACEHOLDER)).toBeNull();
 	});
