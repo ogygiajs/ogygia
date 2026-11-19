@@ -112,12 +112,18 @@ const PAGE_DATA_READS: Relocation = {
 				(imports_kit_page(info.importedIds) || imports_kit_page(info.dynamicallyImportedIds))
 			);
 		};
-		const ids_by_path = new Map<string, string>();
-		for (const id of cx.module_ids()) if (!id.startsWith('\0')) ids_by_path.set(clean(id), id);
+		const ids_by_path = new Map<string, string[]>();
+		for (const id of cx.module_ids()) {
+			if (id.startsWith('\0')) continue;
+			const c = clean(id);
+			const ids = ids_by_path.get(c);
+			if (ids) ids.push(id);
+			else ids_by_path.set(c, [id]);
+		}
 		const proven_clean = new Set<string>();
-		const reads = (root: string): boolean => {
-			const seen = new Set<string>([root]);
-			const queue = [root];
+		const reads = (roots: readonly string[]): boolean => {
+			const seen = new Set<string>(roots);
+			const queue = [...roots];
 			for (let i = 0; i < queue.length; i++) {
 				const id = queue[i];
 				if (proven_clean.has(id)) continue;
@@ -140,8 +146,8 @@ const PAGE_DATA_READS: Relocation = {
 		};
 		const out: Record<string, boolean> = {};
 		for (const [iid, , reg] of server_regions(cx.program)) {
-			const root = reg.componentPath ? ids_by_path.get(clean(reg.componentPath)) : undefined;
-			out[iid] = root === undefined ? true : reads(root);
+			const roots = reg.componentPath ? ids_by_path.get(clean(reg.componentPath)) : undefined;
+			out[iid] = roots === undefined ? true : reads(roots);
 		}
 		const json = JSON.stringify(out);
 		return (quote) => in_literal(json, quote);
