@@ -10,12 +10,12 @@ const workflow = (name: string) =>
 
 /** Each step of `yaml` (its lines from `- name:` to the next), as text. */
 function steps(yaml: string): string[] {
-	const out: string[] = [];
+	const out: string[][] = [];
 	for (const line of yaml.split('\n')) {
-		if (/^\s+- (name|uses):/.test(line)) out.push(line);
-		else if (out.length > 0) out[out.length - 1] += `\n${line}`;
+		if (/^\s+- (name|uses):/.test(line)) out.push([line]);
+		else out.at(-1)?.push(line);
 	}
-	return out;
+	return out.map((lines) => lines.join('\n'));
 }
 
 test('each rules build of an app the simulator runs names its build', () => {

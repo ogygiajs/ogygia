@@ -46,10 +46,9 @@ function rehashed(output: string): string {
 	for (const file of files(immutable)) {
 		const hash = HASH.exec(file.slice(file.lastIndexOf('/') + 1))?.[1];
 		if (hash === undefined || renamed.has(hash)) continue;
-		renamed.set(
-			hash,
-			[...hash].reverse().join('') === hash ? `${hash.slice(1)}x` : [...hash].reverse().join('')
-		);
+		// (a hash is ASCII: its reverse, or one character on when it reads the same both ways)
+		const back = hash.split('').reverse().join('');
+		renamed.set(hash, back === hash ? `${hash.slice(1)}x` : back);
 	}
 	const swap = (s: string): string => {
 		for (const [from, to] of renamed) s = s.replaceAll(from, to);
