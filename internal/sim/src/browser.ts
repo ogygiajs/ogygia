@@ -890,15 +890,8 @@ export class Browsers {
 					: how === 'forward'
 						? page.goForward()
 						: page.reload();
-		// (one called off says nothing: the visitor called it off)
-		const mine = tab.navigations;
-		return go.then(
-			() => {},
-			(error: unknown) => {
-				if (tab.navigations !== mine) return;
-				tab.errors.push(`navigation: ${error instanceof Error ? error.message : String(error)}`);
-			}
-		);
+		// (a failed navigation is the tab's, said where it starts: `#start`)
+		return go.then(() => {});
 	}
 
 	/**
@@ -944,8 +937,22 @@ export class Browsers {
 			tab.awaiting = false;
 			tab.before = null;
 		};
-		void going.then(end, end);
-		return going;
+		// (a navigation that fails is the browser's to show, in place of the page: the tab's failed
+		// navigation, whoever started it, never a rejection its starter hears; happy-dom's `location`
+		// rethrows one once the page that set it was unloaded: test/navigation-fails.node.test.ts.
+		// One called off says nothing: what called it off is the latest)
+		return going.then(
+			(done) => {
+				end();
+				return done;
+			},
+			(error: unknown) => {
+				if (tab.navigations === mine)
+					tab.errors.push(`navigation: ${error instanceof Error ? error.message : String(error)}`);
+				end();
+				return null;
+			}
+		);
 	}
 
 	/** The tab leaves the document it shows (it moves on, or closes): a browser unloads it, so its
