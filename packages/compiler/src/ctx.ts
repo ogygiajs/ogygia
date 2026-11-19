@@ -6,7 +6,7 @@ import { parse_module, type AstNode } from './parse/oxc.ts';
 import type { ClientRealmFile, ServerRealm } from './link/caps.ts';
 import type { AliasEntry, PluginMacro } from './macros/pipeline.ts';
 import type { AppSpecCtx } from './app-spec.ts';
-import type { PreprocessCss } from './fouc-css.ts';
+import type { ComponentCss } from './fouc-css.ts';
 
 /** The part of a seed-shaping plugin the compiler calls (the whole of it: vite/plugin-api.ts
  *  `PageReads`): each module the transform reads, and each module's answer when chunks are finished. */
@@ -99,9 +99,9 @@ export interface CompileCtxInit {
 	import_keys: ImportKeys;
 	/** Resolved Vite aliases (an island's closure walk; every plugin macro gets them). */
 	resolve_alias: readonly AliasEntry[];
-	/** The plugin's preprocessor for a component's CSS (fouc-css.ts `scoped_component_css`). Absent:
-	 *  a host with no bundler, which compiles the source as it is. */
-	preprocess_css?: PreprocessCss;
+	/** How the app compiles a component's CSS (fouc-css.ts `scoped_component_css`). Absent: a host
+	 *  with no bundler, which compiles the source as it is. */
+	component_css?: ComponentCss;
 	/** The plugins' `import.meta.og.*` macros (`b.macro`), in plugin order. Optional (default none). */
 	macros?: readonly PluginMacro[];
 	/** The plugin that reads which `page.data` keys a module reads (`b.pageReads`), handed each
@@ -181,7 +181,7 @@ export class CompileCtx {
 			stat: (abs) => this.fs.stat(abs)
 		};
 	}
-	readonly preprocess_css: PreprocessCss | undefined;
+	readonly component_css: ComponentCss | undefined;
 	readonly macros: readonly PluginMacro[];
 	readonly page_reads: PageReadsSink | null;
 	readonly prescans: readonly PrescanHook[];
@@ -235,7 +235,7 @@ export class CompileCtx {
 		this.presets = init.presets;
 		this.import_keys = init.import_keys;
 		this.resolve_alias = init.resolve_alias;
-		this.preprocess_css = init.preprocess_css;
+		this.component_css = init.component_css;
 		this.macros = init.macros ?? [];
 		this.page_reads = init.page_reads ?? null;
 		this.prescans = init.prescans ?? [];

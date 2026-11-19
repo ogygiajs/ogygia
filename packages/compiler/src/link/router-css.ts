@@ -3,7 +3,7 @@ import path from 'node:path';
 import {
 	collectFoucCssReachable,
 	scoped_component_css,
-	type PreprocessCss,
+	type ComponentCss,
 	type WalkResolve
 } from '../fouc-css.ts';
 import { resolve_app_spec, type AppSpecCtx } from '../app-spec.ts';
@@ -84,8 +84,8 @@ export async function router_css_module(
 		lib_dir: string;
 		is_dev: boolean;
 		read_file: (p: string) => string | null;
-		/** the plugin's CSS preprocessor: dev compiles a component as the build does */
-		preprocess?: PreprocessCss;
+		/** how the app compiles a component's CSS: dev compiles it as the build does */
+		css?: ComponentCss;
 		/** the bundler's resolver, for the dev tree-CSS walk (compiler/fouc-css.ts) */
 		resolve?: (spec: string, importer: string) => Promise<string | null>;
 		/** `resolve`'s export index */
@@ -111,7 +111,7 @@ export async function router_css_module(
 				if (e.kind === 'scoped') {
 					const source = opts.read_file(e.abs);
 					if (source == null) continue;
-					const css = await scoped_component_css(e.abs, source, opts.preprocess);
+					const css = await scoped_component_css(e.abs, source, opts.css);
 					if (css) entries.push({ key: `rcss-dev:${e_rel}`, css });
 				} else {
 					if (!CSS_EXT_RE.test(e.abs)) continue;

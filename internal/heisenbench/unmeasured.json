@@ -5885,8 +5885,12 @@
 			"reason": "finds the module script among one component's blocks (a handful); component-blocks.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > preprocess_css",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > component_css > preprocess",
 			"reason": "a forwarder to preprocess_component_for_css with the app root, no work of its own"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > component_css > options",
+			"reason": "a forwarder to app_compile_options with the app's Svelte compile, no work of its own"
 		},
 		{
 			"id": "packages/compiler/src/vite/style-preprocess.ts > preprocess_component_for_css > sassy",

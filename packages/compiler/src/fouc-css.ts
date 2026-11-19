@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { compile, parse } from 'svelte/compiler';
+import { compile, parse, type CompileOptions } from 'svelte/compiler';
 import { walk } from 'estree-walker';
 import { unscoped_marker } from '@ogygia/core/contract';
 import { blank_styles } from './blank-styles.ts';
@@ -267,24 +267,33 @@ export async function collectFoucCssReachable(
 	return entries;
 }
 
-/** The plugin's preprocessor for a component's CSS: `<style lang="scss|sass">` to CSS, TypeScript
- *  stripped from its script (vite/style-preprocess.ts). */
-export type PreprocessCss = (source: string, abs: string) => Promise<string>;
+/** How the app compiles a component, as its CSS needs it. */
+export interface ComponentCss {
+	/** `<style lang="scss|sass">` to CSS, TypeScript stripped from its script
+	 *  (vite/style-preprocess.ts). */
+	preprocess(source: string, abs: string): Promise<string>;
+	/** The Svelte options the component's own compile uses (vite/svelte-options.ts), so the scope
+	 *  class matches its markup (test/region-css-svelte-options.test.ts). */
+	options(abs: string, source: string): Promise<CompileOptions>;
+}
 
 /**
  * A component's scoped CSS, one rule for every leg (dev router CSS, the build's tree CSS, the fouc
- * module): preprocessed by `preprocess`, then compiled with its script
- * (test/router-css-dev-preprocess.test.ts). With no preprocessor (a host with no bundler), the
- * source as it is.
+ * module): preprocessed, then compiled with its script and the app's Svelte options
+ * (test/router-css-dev-preprocess.test.ts). With no `css` (a host with no bundler), the source as
+ * it is.
  */
 export async function scoped_component_css(
 	abs: string,
 	source: string,
-	preprocess: PreprocessCss | undefined
+	css: ComponentCss | undefined
 ): Promise<string> {
-	return preprocess
-		? compileFoucScopedCss(abs, await preprocess(source, abs), { keepScript: true })
-		: compileFoucScopedCss(abs, source);
+	if (!css) return compileFoucScopedCss(abs, source);
+	const preprocessed = await css.preprocess(source, abs);
+	return compileFoucScopedCss(abs, preprocessed, {
+		keepScript: true,
+		options: await css.options(abs, preprocessed)
+	});
 }
 
 /**
@@ -302,6 +311,9 @@ export function compileFoucScopedCss(
 		 *  the SSR'd markup carries. Without it (a source that may still carry TypeScript), the
 		 *  source is tried whole first (Svelte reads `lang="ts"` itself), then script-stripped. */
 		keepScript?: boolean;
+		/** The app's Svelte options (`ComponentCss.options`); this compile sets only what makes it
+		 *  a CSS compile. */
+		options?: CompileOptions;
 	} = {}
 ): string {
 	const inputs = opts.keepScript ? [source] : [source, without_scripts(source)];
@@ -309,11 +321,13 @@ export function compileFoucScopedCss(
 	for (const input of inputs) {
 		try {
 			const result = compile(input, {
+				...opts.options,
 				filename: abs,
 				generate: 'client',
 				css: 'external',
+				hmr: false,
 				discloseVersion: false,
-				experimental: { async: true }
+				experimental: { ...opts.options?.experimental, async: true }
 			});
 			return result.css?.code ?? '';
 		} catch (e) {

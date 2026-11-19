@@ -111,7 +111,7 @@ import {
 	buildFoucCssModuleSource,
 	collectFoucCssReachable,
 	scoped_component_css,
-	type PreprocessCss,
+	type ComponentCss,
 	foucRelFromId,
 	isFoucCssId,
 	isFoucScopedId,
@@ -150,6 +150,7 @@ import { import_chain } from '../virtual/resolver.ts';
 import { CompileCtx, type PackageScan } from '../ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
+import { app_compile_options, svelte_compile, type SvelteCompile } from './svelte-options.ts';
 
 const KIT_CLIENT_APP_RE = /\/generated\/(?:build\/|dev\/)?client(-optimized)?\/app\.js$/;
 const KIT_PAGE_THREAD = `\n${dedent`
@@ -250,8 +251,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	const build_secret = crypto.randomBytes(32).toString('hex');
 	let id_salt = '';
 
-	const preprocess_css: PreprocessCss = (source, abs) =>
-		preprocess_component_for_css(source, abs, root);
+	let svelte: SvelteCompile | null = null;
+	const component_css: ComponentCss = {
+		preprocess: (source, abs) => preprocess_component_for_css(source, abs, root),
+		options: (abs, source) => app_compile_options(svelte, abs, source)
+	};
 	const tree_css_walk = (
 		ctx: Parameters<typeof bundler_resolve>[0] & { environment: { name: string } }
 	) => {
@@ -278,7 +282,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					const src = readFile(e.abs);
 					css = null;
 					if (src != null && e.kind === 'scoped')
-						css = await scoped_component_css(e.abs, src, preprocess_css);
+						css = await scoped_component_css(e.abs, src, component_css);
 					else if (src != null && CSS_EXT_RE.test(e.abs)) css = src;
 					compiled_css.set(e.abs, css);
 				}
@@ -573,7 +577,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				root = config.root;
 				kit ??= { dirs: default_kit_dirs(root), inline_style_threshold: 0 };
 				base = config.base || '';
-				svelte_async = svelte_async_enabled(config.plugins);
+				svelte = svelte_compile(config.plugins);
+				svelte_async = svelte_async_enabled(svelte);
 				if (config.command === 'serve') {
 					const own = (config.optimizeDeps?.include ?? []).filter((d) => is_own_specifier(d));
 					if (own.length)
@@ -653,7 +658,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						presets,
 						import_keys,
 						resolve_alias,
-						preprocess_css,
+						component_css,
 						macros,
 						page_reads,
 						prescans,
@@ -936,7 +941,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					} catch {
 						return { code: '', moduleType: 'css' };
 					}
-					const code = await scoped_component_css(abs, source, preprocess_css);
+					const code = await scoped_component_css(abs, source, component_css);
 					return { code, moduleType: 'css' };
 				}
 

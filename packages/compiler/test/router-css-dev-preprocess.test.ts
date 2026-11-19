@@ -59,6 +59,7 @@ test("a router page's scss component: dev's router CSS is what the build compile
 	);
 	const preprocess_css = (source: string, abs: string) =>
 		preprocess_component_for_css(source, abs, root);
+	const component_css = { preprocess: preprocess_css, options: async () => ({}) };
 	const compiler = new Compiler(
 		new Program({ forms: true, router: true }),
 		{
@@ -91,8 +92,8 @@ test("a router page's scss component: dev's router CSS is what the build compile
 				runtime_dir: '/nowhere/ogygia/runtime',
 				app_shims: {},
 				page_importers: [PAGE_SPEC],
-				// the plugin's preprocessor (vite/index.ts), as the build's CSS walk uses it
-				preprocess_css
+				// the plugin's component CSS (vite/index.ts), as the build's CSS walk uses it
+				component_css
 			})
 		)
 	);

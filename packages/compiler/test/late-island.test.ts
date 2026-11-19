@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { compile } from 'svelte/compiler';
 import { async_twin_redirect, svelte_async_enabled, ASYNC_TWINS } from '../src/vite/late-island.ts';
+import { svelte_compile } from '../src/vite/svelte-options.ts';
 
 const read = (f: string) =>
 	readFileSync(fileURLToPath(new URL(`../../core/src/${f}`, import.meta.url)), 'utf8');
@@ -47,18 +48,19 @@ describe('async twins', () => {
 	});
 
 	it('async mode is read off vite-plugin-svelte’s resolved options', () => {
-		const vps = (async?: boolean) => [
-			{ name: 'other' },
-			{
-				name: 'vite-plugin-svelte:config',
-				api: {
-					options: { compilerOptions: async === undefined ? {} : { experimental: { async } } }
+		const vps = (async?: boolean) =>
+			svelte_compile([
+				{ name: 'other' },
+				{
+					name: 'vite-plugin-svelte:config',
+					api: {
+						options: { compilerOptions: async === undefined ? {} : { experimental: { async } } }
+					}
 				}
-			}
-		];
+			]);
 		expect(svelte_async_enabled(vps(true))).toBe(true);
 		expect(svelte_async_enabled(vps(false))).toBe(false);
 		expect(svelte_async_enabled(vps())).toBe(false);
-		expect(svelte_async_enabled([{ name: 'other' }])).toBe(false);
+		expect(svelte_async_enabled(svelte_compile([{ name: 'other' }]))).toBe(false);
 	});
 });
