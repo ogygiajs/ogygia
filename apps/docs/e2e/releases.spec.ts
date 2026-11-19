@@ -42,8 +42,15 @@ test.afterAll(() => srv?.kill());
 const card = (page: import('@playwright/test').Page, version: string) =>
 	page.locator(`[data-release-version="${version}"]`);
 
-test('the releases page lists 0.13.0 with the packages released in it', async ({ page }) => {
+const awake = async (page: import('@playwright/test').Page) => {
 	await page.goto(`${base}/releases`);
+	await expect(page.getByRole('button', { name: 'Expand all' })).toBeVisible();
+};
+
+test('the releases page lists 0.13.0 with the packages released in it, however many came after', async ({
+	page
+}) => {
+	await awake(page);
 	const v = card(page, '0.13.0');
 	await expect(v).toBeVisible();
 	for (const name of ['ogygia', '@ogygia/core', '@ogygia/machine'])
