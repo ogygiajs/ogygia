@@ -173,6 +173,11 @@ host fails), so no run touches the real network.
 Every seed runs twice, the second time in another worker process, and the two traces (every loop
 task, every action, each tab's URL, DOM fingerprint and what it holds, what broke) must be equal
 byte for byte: a difference is a nondeterminism leak, fixed before any finding is trusted.
+A seed is also one run on any build of the same code: a request's fate is drawn under its address
+with a built file's content hash left out (files that then share a name are told apart by the
+order they are asked in), each rules build CI makes names its Kit version (`VITE_SIM_BUILD=v1`,
+not the build's moment), and the sim apps hash scoped classes from the repository root, never the
+checkout's folder (#2110, test/one-run-any-build.node.test.ts).
 `SIM_SITES=1` labels each timer and listener with the code that set it, to find one.
 `SIM_STACKS=1` puts the stack of each uncaught error, console warning and console error in what the
 page said. `SIM_DUMP=<dir>` writes both sides of an MPA difference whole, past its first hunk.

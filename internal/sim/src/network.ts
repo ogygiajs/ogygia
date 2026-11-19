@@ -201,12 +201,18 @@ const RATES: Record<FaultClass, number> = {
  *  asked: left out of the request's name, so its fate stays the same when only they move. */
 const VOLATILE_QUERY = ['sig', 'k', 'r', 'v', 'pv', 'exp'];
 
+/** A built file's content hash in its address (`/_app/immutable/chunks/ZgGrozXJ.js`,
+ *  `…/entry/app.CN7RaqD1.js`): the 8 characters before its extension. */
+const CONTENT_HASH = /(\/_app\/immutable\/(?:[^/]+\/)*(?:[^/]*\.)?)[\w-]{8}(\.(?:js|css))$/;
+
 /** The name a request's fate is drawn under: its document, its method and its address (the volatile
- *  query values out). */
+ *  query values out, and a built file's content hash: a rebuild of the same code under another Kit
+ *  stamp or in another folder renames its files, and must be the same run; files that share a name
+ *  then are told apart by the order they are asked in. test/one-run-any-build.node.test.ts). */
 export function fate_name(realm: string, method: string, url: string): string {
 	const u = new URL(url);
 	for (const q of VOLATILE_QUERY) u.searchParams.delete(q);
-	return `${realm} ${method} ${u.origin}${u.pathname}${u.search}`;
+	return `${realm} ${method} ${u.origin}${u.pathname.replace(CONTENT_HASH, '$1#$2')}${u.search}`;
 }
 
 export class Network {

@@ -13,8 +13,9 @@ The full story (the layers, the faults, the oracles, how to add one) is in
 ## Run
 
 The app must be built first, with ogygia's rules on. `pnpm sim:builds` makes two such builds (v1
-and v2), so a run can deploy between them. One `OGYGIA_RULES=1` build also works; it just never
-deploys. From the repository root:
+and v2), so a run can deploy between them. One `OGYGIA_RULES=1 VITE_SIM_BUILD=v1` build also works;
+it just never deploys. It is the build the scheduled run makes, so a seed it filed replays on it on
+any machine, in any folder. From the repository root:
 
 ```bash
 pnpm sim:builds                   # build the palaestra twice, as rules builds

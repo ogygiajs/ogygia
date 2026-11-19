@@ -80,11 +80,14 @@ jobs:
       - name: Build the packages
         run: pnpm build:lib
 
-      # the simulated app, with ogygia's rules built in (the oracles read them)
+      # the simulated app, with ogygia's rules built in (the oracles read them), named as `pnpm
+      # sim:builds` names its first build: Kit's version is otherwise the build's moment, and a filed
+      # seed would be another run anywhere else (#2110)
       - name: Build the palaestra (rules on)
         working-directory: apps/palaestra
         env:
           OGYGIA_RULES: '1'
+          VITE_SIM_BUILD: v1
         run: node node_modules/vite/bin/vite.js build
 
       # EVERY MACHINE STEP ACCOUNTED FOR: the standard sweep (internal/sim/steps.json `sweep`) reaches
@@ -289,6 +292,7 @@ jobs:
         working-directory: apps/palaestra
         env:
           OGYGIA_RULES: '1'
+          VITE_SIM_BUILD: v1
         run: node node_modules/vite/bin/vite.js build
 
       - name: Differ

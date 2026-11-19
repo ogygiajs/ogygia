@@ -244,6 +244,7 @@ jobs:
         working-directory: apps/palaestra
         env:
           OGYGIA_RULES: '1'
+          VITE_SIM_BUILD: v1
         run: node node_modules/vite/bin/vite.js build
       - name: The simulator's check (tsc, every test file)
         working-directory: internal/sim

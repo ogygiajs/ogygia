@@ -490,7 +490,7 @@ function file_one(open: Open[]): (sig: string, list: Finding[]) => Filed {
 			'',
 			seen(list),
 			'',
-			`Replay: \`pnpm -C internal/sim sim --seed ${f.seed} --steps ${f.steps}\` (add \`--step N\` for the trace up to action N).`,
+			`Replay: \`pnpm -C internal/sim sim --seed ${f.seed} --steps ${f.steps}\` (add \`--step N\` for the trace up to action N), on the palaestra built as this run built it: \`OGYGIA_RULES=1 VITE_SIM_BUILD=v1 vite build\` in apps/palaestra, with no \`.svelte-kit/sim-builds\` beside it.`,
 			'',
 			'<details><summary>Actions</summary>',
 			'',
