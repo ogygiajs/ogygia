@@ -1183,6 +1183,25 @@ function kept_changed(e: World['network']['exchanges'][number], tab: Tab): boole
 /** Was the HTML of the document `tab` shows changed or cut on its way? (Its own load is the first
  *  request of its realm, whatever URL the router has moved it to since: seed 471, a changed byte
  *  in `/` and a click to /static.) */
+/**
+ * Whether a changed or cut byte reached the markup `tab`'s document holds: its own HTML
+ * ({@link document_faulted}), or what a region rendered from or put into it, a remote function's
+ * answer or a hole's, a peer's deferred widget's too (generated app 8, seed 61, a changed byte in a
+ * live query's tick; gen 87, seed 34, in a widget's `/og/frag`; palaestra seed 346199490, #2116,
+ * `data ogygia-region-css` in a hole's answer left its sheet in the body).
+ */
+export function markup_changed(world: World, tab: Tab): boolean {
+	return (
+		document_faulted(world, tab) ||
+		world.network.exchanges.some(
+			(e) =>
+				e.from === tab.realm &&
+				(e.tampered || e.cut) &&
+				/^\/(_app\/remote\/|__ogygia__|og\/frag)/.test(new URL(e.url).pathname)
+		)
+	);
+}
+
 export function document_faulted(world: World, tab: Tab): boolean {
 	const own = world.network.exchanges.find((e) => e.from === tab.realm);
 	if (own !== undefined && (own.tampered || own.cut)) return true;
@@ -1471,21 +1490,7 @@ export function unhydrated_by_design(url: string, line: string): boolean {
 export function hydrates_as_sent(tab: Tab, world?: World): Broken | null {
 	const said = tab.console.filter((l) => UNHYDRATED.test(l));
 	if (said.length === 0) return null;
-	if (world !== undefined && document_faulted(world, tab)) return null;
-	// (nor when a changed or cut byte reached what a region renders from: a remote function's
-	// answer or a hole's, a peer's deferred widget's too, its props then not what the server
-	// rendered; generated app 8, seed 61, a changed byte in a live query's tick; gen 87, seed 34,
-	// in a widget's `/og/frag`)
-	if (
-		world !== undefined &&
-		world.network.exchanges.some(
-			(e) =>
-				e.from === tab.realm &&
-				(e.tampered || e.cut) &&
-				/^\/(_app\/remote\/|__ogygia__|og\/frag)/.test(new URL(e.url).pathname)
-		)
-	)
-		return null;
+	if (world !== undefined && markup_changed(world, tab)) return null;
 	const url = tab.page.mainFrame.url;
 	if (UNHYDRATED_BY_DESIGN.some((d) => d.path.test(new URL(url).pathname))) return null;
 	const detail = `${url}: ${said.map((l) => l.split('\n')[0]).join('\n')}`;

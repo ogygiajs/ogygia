@@ -37,7 +37,7 @@ import { describe, act, next_action, ACTION_KINDS, type Action, type Mix } from 
 import { html_kept, html_sent } from './html.ts';
 import { asked_twice_each, waste } from './waste.ts';
 import {
-	document_faulted,
+	markup_changed,
 	faulted,
 	outage_only,
 	hydrates_as_sent,
@@ -630,12 +630,12 @@ export async function run(
 			if (asked) broken.push(asked);
 			const c = no_cross_visitor_cache(world);
 			if (c) broken.push(c);
-			// GOOD HTML: what the servers sent, and what each tab's document is at rest (one the network
-			// changed set aside)
+			// GOOD HTML: what the servers sent, and what each tab's document is at rest (one whose markup
+			// the network changed set aside, a region answer's too)
 			const sent = await html_sent(world);
 			if (sent) broken.push(sent);
 			for (const t of judged()) {
-				if (document_faulted(world, t)) continue;
+				if (markup_changed(world, t)) continue;
 				const kept = html_kept(t);
 				if (kept) broken.push({ ...kept, detail: `${t.page.mainFrame.url}: ${kept.detail}` });
 			}
