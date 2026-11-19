@@ -113,3 +113,34 @@ describe.skipIf(!built)('a navigation the tab started again elsewhere', () => {
 		}
 	}, 600_000);
 });
+
+describe.skipIf(!built)('a back or forward with nowhere to go', () => {
+	// (a browser's button has no entry to go to, so nothing happens and the navigation on its way
+	// goes on; the simulator called it off first, and the tab kept a blank document at the new URL:
+	// palaestra seed 346200287, #2117, a forward just after a go to /hole-kept/b)
+	it('calls off no navigation on its way: its page comes', async () => {
+		// (seed 5: the page's own answer is still on the way after its navigation starts)
+		const world = await World.make({
+			seed: 5,
+			builds: [{ id: 'v1', output: OUTPUT }],
+			faults: new Set(['stall']),
+			rates: { stall: 1 }
+		});
+		try {
+			const tab = world.tab(world.visitor('v'));
+			await world.go(tab, 'goto', '/');
+			await world.quiesce();
+			await world.start(tab, 'goto', '/plain', 0);
+			expect(tab.awaiting, 'the case it is for: its download has not come').toBe(true);
+			await world.go(tab, 'forward');
+			await world.loop.run(60_000);
+			await world.rest();
+			const doc = tab.page.mainFrame.document as unknown as Document;
+			expect(tab.page.mainFrame.url).toBe('https://app.test/plain');
+			expect(doc.documentElement.getAttribute('lang'), 'the page came').toBe('en');
+			expect(doc.querySelector('h1')).not.toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
+});
