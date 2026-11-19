@@ -998,6 +998,14 @@ describe('page errors', () => {
 		expect(page_errors(tab(json), world('none'))?.oracle).toBe('page-errors');
 	});
 
+	it("a changed byte in a remote answer's date may be said as the date's own refusal to print (palaestra seed 610517516, #2107)", () => {
+		// (`at: new Date()` came as `00:0�:25`: devalue revives it as an invalid date, and the island's
+		// `res.at.toISOString()` throws)
+		const date = ['unhandled: RangeError: Invalid time value'];
+		expect(page_errors(tab(date), world('https://app.test/_app/x.js'))).toBeNull();
+		expect(page_errors(tab(date), world('none'))?.oracle).toBe('page-errors');
+	});
+
 	it("a changed byte in a held region query's answer may be said as devalue's unknown type (gen 10, seed 31)", () => {
 		const tag = ['unhandled: Error: Unknown type �egion'];
 		expect(page_errors(tab(tag), world('https://app.test/_app/x.js'))).toBeNull();
