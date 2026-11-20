@@ -68,7 +68,7 @@ test(
 function same_without_devtools(s: Spec, place: Place): void {
 	const on = render(s, place, true, true).text;
 	const off = render(s, place, true, false).text;
-	expect(off).toBe(on.replace(/<!-- devtools -->.*$/m, '<!-- devtools -->[]'));
+	expect(off).toBe(on.replace(/<!-- devtools -->[^\n]*/, '<!-- devtools -->[]'));
 }
 
 test(
