@@ -1698,6 +1698,35 @@ describe('the build legs', () => {
 		expect(css[0]).toContain('wheat');
 	});
 
+	it("a content module's own style scopes with the app's Svelte options, as its markup does", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const source = dedent`
+			<p class="w">w</p>
+			<style>.w { color: wheat; }</style>
+		`;
+		const doc = write('src/routes/doc.svx', source);
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) => void b.markup({ extensions: ['.svx'], modules: [[doc, source]] })
+		});
+		const svelte_config = {
+			name: 'vite-plugin-svelte:config',
+			api: { options: { compilerOptions: { cssHash: () => 'app-doc' } } }
+		};
+		const { p } = await setup('build', {
+			plugins: [plugin],
+			resolved: { plugins: [svelte_config] }
+		});
+		const t = hook_this('client');
+		await p.buildStart.call(t);
+		await p.generateBundle.call(t, {}, {});
+		const css = t.emitted.filter((c) => c.name === 'og-content.css').map((c) => String(c.source));
+		expect(css).toHaveLength(1);
+		expect(css[0]).toContain('.w.app-doc');
+		expect(css[0]).not.toMatch(/svelte-[a-z0-9]+/);
+	});
+
 	it("what only a profiler reads leaves the handoff without one: each chunk's contents, its heaviest modules, the island's hazards, the doubled modules, why it ships all of the page", async () => {
 		const unknown = () => 'unknown' as const;
 		const bare = (await handed({ keys: unknown })).json;
