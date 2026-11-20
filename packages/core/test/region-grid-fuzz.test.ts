@@ -64,21 +64,43 @@ test(
 	LONG
 );
 
+/** A render with devtools off is the one with devtools on, less its devtools events. */
+function same_without_devtools(s: Spec, place: Place): void {
+	const on = render(s, place, true, true).text;
+	const off = render(s, place, true, false).text;
+	expect(off).toBe(on.replace(/<!-- devtools -->[^\n]*/, '<!-- devtools -->[]'));
+}
+
 test(
 	'with devtools off, a render is the same, with no devtools events',
 	() => {
-		fuzz(
-			fc.tuple(spec_arb('none'), place_arb),
-			([s, place]) => {
-				const on = render(s, place, true, true).text;
-				const off = render(s, place, true, false).text;
-				expect(off).toBe(on.replace(/<!-- devtools -->.*$/m, '<!-- devtools -->[]'));
-			},
-			{ runs: RUNS }
-		);
+		fuzz(fc.tuple(spec_arb('none'), place_arb), ([s, place]) => same_without_devtools(s, place), {
+			runs: RUNS
+		});
 	},
 	LONG
 );
+
+test('with devtools off, a render whose devtools events hold a line separator is the same, with none (seed 314, path 42538:1:0:0:0:0:2:0:0:14:14:14:14:14:14)', () => {
+	same_without_devtools(
+		{
+			kind: 'lake',
+			values: {
+				remount: 'cache',
+				when: 'none',
+				max_age: 'none',
+				on_expire: 'none',
+				margin: 'none',
+				children: 'none',
+				props: 'absent'
+			},
+			raw: { 'og.entry': ' ' },
+			of_raw: {},
+			stray: []
+		} as unknown as Spec,
+		{ at: 'woken-answer', kit: 'pass', csr: 'off', page: 'ok', env: 'prod' }
+	);
+});
 
 /** The first region element in `html`, its attributes as the DOM holds them. */
 function first_region(html: string): Map<string, string> | undefined {

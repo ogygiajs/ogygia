@@ -676,6 +676,15 @@ function morph_same(from: Node, to: Node, sets: IdSets, walk: boolean): void {
 	reconcile(ef, et.childNodes, sets, walk);
 }
 
+function copy_attribute(el: Element, attr: Attr): void {
+	try {
+		el.setAttribute(attr.name, attr.value);
+	} catch {
+		// @why setAttribute refused names the parser takes (`-panel`, `@click`, `:class`) in engines before the DOM's 2025 relaxed names; setAttributeNode never checks the name (test: test/browser/morph-attribute-names.test.ts › a render with an attribute name the parser takes but an older setAttribute refuses still morphs in, whole)
+		el.setAttributeNode(attr.cloneNode() as Attr);
+	}
+}
+
 /** Add + update + remove attributes so `from` matches `to` exactly. Boolean attrs are attr presence.
  *  `keep_extra` (a self-owned element, {@link is_self_owned}): add + update only — an attribute the
  *  element gave itself is not the render's to take away. */
@@ -686,7 +695,7 @@ export function sync_attributes(from: Element, to: Element, keep_extra = false):
 		const attr = to_attrs[i];
 		if (from.getAttribute(attr.name) === attr.value) continue;
 		if (attr.name === 'aria-hidden' && attr.value === 'true' && subtree_has_focus(from)) continue;
-		from.setAttribute(attr.name, attr.value);
+		copy_attribute(from, attr);
 	}
 	if (keep_extra) return;
 	const from_attrs = from.attributes;

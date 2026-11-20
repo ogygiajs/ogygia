@@ -489,11 +489,15 @@ export async function run(
 			styled_regions(t, world)
 		];
 		/** Whether an action left the world at rest, and `t`'s document as the run's end judges it:
-		 *  on the network, and untouched by any fault, so nothing it owes waits on a retry's timer (a
-		 *  backoff the end waits out; most pages keep some timer set, so the end's own rule, none set,
-		 *  would judge almost no action). */
+		 *  on the network, and untouched by any fault or a deploy's missing files (the rollover's
+		 *  backoff: test/found/deploy-recovery-waits.test.ts), so nothing it owes waits on a retry's
+		 *  timer (a backoff the end waits out; most pages keep some timer set, so the end's own rule,
+		 *  none set, would judge almost no action). */
 		const resting = (t: Tab): boolean =>
-			world.at_rest() && world.network.online(t.name) && !faulted(world, t);
+			world.at_rest() &&
+			world.network.online(t.name) &&
+			!faulted(world, t) &&
+			!world.skewed_for(t.realm);
 		const first = world.tab(v);
 		await world.go(first, 'goto', '/');
 		// (the first document is looked at before the visitor acts: what it said is its own, judged
@@ -584,17 +588,23 @@ export async function run(
 		// (a `--step` past the last action prints the trace through rest)
 		if (broken.every((b) => b.oracle === 'known') && stop_at > total) {
 			for (const t of v.tabs) world.network.offline(t.name, false);
-			await world.rest();
 			// (a wait on its way out is not a hang: a backoff of seconds is a page's one-shot timer,
-			// due later than rest's 2 s. Time runs on while one is set, a minute at most, then rest)
+			// due later than rest's 2 s. Time runs on while one is set, a minute at most, then rest.
+			// Rest again after each: a backoff's try goes on the wire and may set the next backoff,
+			// the rollover's 1, 3 and 9 s; test/found/deploy-recovery-waits.test.ts)
 			const until = Math.min(world.loop.now + 60_000, world.loop.horizon);
-			while (
-				world.loop.now < until &&
-				world.loop.next_at <= until &&
-				judged().some((t) => t.platform?.pending().includes('timeout'))
-			)
+			for (;;) {
+				await world.rest();
+				if (
+					!(
+						world.loop.now < until &&
+						world.loop.next_at <= until &&
+						judged().some((t) => t.platform?.pending().includes('timeout'))
+					)
+				)
+					break;
 				await world.loop.step();
-			await world.rest();
+			}
 			hear_moves();
 			await at_rest?.(world, v);
 			for (const t of judged())

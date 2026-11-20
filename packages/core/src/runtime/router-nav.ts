@@ -1,4 +1,4 @@
-import { boot_link, router_link, slots } from './slots.ts';
+import { boot_link, morph_sync_attributes, router_link, slots } from './slots.ts';
 import { buggify, clock, net } from '@ogygia/machine';
 import type { PageGlobals } from '../page-globals.ts';
 import { reconcile_body, stamp_region_keys, swap_body, swap_reason } from './reconcile.ts';
@@ -327,9 +327,7 @@ export function install_head_style(
 	before: Node | null = null
 ): HTMLStyleElement {
 	const el = document.createElement('style');
-	for (const attr of Array.from(source.attributes)) {
-		el.setAttribute(attr.name, attr.value);
-	}
+	morph_sync_attributes()(el, source);
 	el.textContent = source.textContent || '';
 	session().claim_page_head(el);
 	head.insertBefore(el, before);

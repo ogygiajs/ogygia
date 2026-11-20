@@ -255,6 +255,12 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/runtime/morph.ts > copy_attribute > catch:0",
+			"reason": "an attribute name an older engine's setAttribute refuses is set from a clone of the parsed attribute; proved by hand: the catch made to rethrow turns the tests red",
+			"test": "packages/core/test/browser/morph-attribute-names.test.ts",
+			"name": "a render with an attribute name the parser takes but an older setAttribute refuses still morphs in, whole"
+		},
+		{
 			"site": "packages/core/src/shims/kit-remote/remote-cache.ts > release_departed > catch:1",
 			"reason": "a departed entry whose Kit teardown throws (already torn down) is still dropped, and the release goes on; proved by hand: the catch made to rethrow turns the test red",
 			"test": "packages/core/test/remote-cache-holders.test.ts",

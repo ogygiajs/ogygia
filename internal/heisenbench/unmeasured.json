@@ -6513,6 +6513,10 @@
 			"reason": "browser only: copies one open shadow root onto a morph's fresh copy (the unit tests' DOM shim has no shadow roots); proven in packages/core/test/browser/page-dsd-parse.test.ts and apps/palaestra/e2e/router-dsd.spec.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/morph.ts > copy_attribute",
+			"reason": "constant work: one setAttribute per changed attribute, a cloned attribute node only when the engine refuses the name; the morph benches run its fast path, and packages/core/test/browser/morph-attribute-names.test.ts proves the fallback"
+		},
+		{
 			"id": "packages/machine/src/decisions.ts > check_def",
 			"reason": "dev and rules builds only (folded out of the build the benches count): one pass over the field lists when a table is made, its definition holds functions (not cloneable); packages/machine/test/decisions.test.ts runs it"
 		},
