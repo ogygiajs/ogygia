@@ -1033,12 +1033,15 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					try {
 						let own = '';
 						if (svelteHasStyle(source)) {
+							const app = await component_css.options(abs, source);
 							const { css } = compile(source, {
+								...app,
 								filename: abs,
 								css: 'external',
 								dev: false,
 								generate: 'client',
-								experimental: { async: true }
+								hmr: false,
+								experimental: { ...app.experimental, async: true }
 							});
 							own = css?.code ?? '';
 						}
