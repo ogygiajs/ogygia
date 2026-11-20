@@ -73,7 +73,22 @@ test.describe('dev: a stale-dep entry-fetch failure recovers the tab', () => {
 		await page.goto(`${base}/interaction`, { waitUntil: 'load' });
 		// watchdog: confirm-fetch + one reload
 		await expect.poll(() => documents, { timeout: 15_000 }).toBe(2);
-		await page.waitForLoadState('load');
+		// The reloaded document is the one in the tab and its runtime is up. `documents` counts the
+		// reload's request, so the old document can still be in the tab (a load-state wait answers for
+		// it), and a click on the new one before its runtime defines ogygia-region is not captured.
+		await expect
+			.poll(
+				() =>
+					page
+						.evaluate(
+							() =>
+								sessionStorage.getItem('__og_loads') === '2' &&
+								!!customElements.get('ogygia-region')
+						)
+						.catch(() => false),
+				{ timeout: 15_000 }
+			)
+			.toBe(true);
 		// the reloaded page works: the island wakes and counts a click
 		await page.locator('[data-i-btn]').click();
 		await expect
