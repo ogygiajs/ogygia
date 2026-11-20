@@ -1,5 +1,11 @@
 # @ogygia/compiler
 
+## 0.14.2
+
+### Patch Changes
+
+- [#2123](https://github.com/ogygiajs/ogygia/pull/2123) [`4281c6b`](https://github.com/ogygiajs/ogygia/commit/4281c6b97168c82166c24833ab8c04721a547723) Thanks [@PuruVJ](https://github.com/PuruVJ)! - fix(compiler): a content page's own styles compile with the app's Svelte options, so a custom `cssHash` scopes them like its markup
+
 ## 0.14.1
 
 ### Patch Changes
