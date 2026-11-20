@@ -22,12 +22,11 @@ describe('RegionStore', () => {
 		expect(fs.existsSync(path.join(tmp, 'docs', `${key}.json`))).toBe(true);
 	});
 
-	it('addresses are stable, input-sensitive, and version-sensitive', () => {
+	it('addresses are stable and input-sensitive', () => {
 		const a = new RegionStore('x');
 		expect(a.key(['p'])).toBe(a.key(['p']));
 		expect(a.key(['p'])).not.toBe(a.key(['q']));
 		expect(a.key(['a', 'b'])).not.toBe(a.key(['ab'])); // separator-safe
-		expect(new RegionStore('x', '2').key(['p'])).not.toBe(a.key(['p']));
 	});
 
 	it('namespaces are disjoint', () => {

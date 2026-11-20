@@ -6,15 +6,14 @@
  * restart. A fence's region has no islands today — when one grows a live preview island or a hover
  * payload, the shape grows WITH the region contract, no format fork.
  *
- * Addressing is the store's content-hashing over every input that shapes the output (ogygia
- * version, theme/lang config, pipeline signature, lang, infostring, source) — NO invalidation
+ * Addressing is the store's content-hashing over every input that shapes the output (ogygia's
+ * code, theme/lang config, pipeline signature, lang, infostring, source) — NO invalidation
  * logic: a changed input is a different address, stale entries just sit until pruned.
  */
 import { __set_build_cache_root } from '@ogygia/compiler';
 import { RegionStore, type SerializedRegion } from '../region-store.ts';
 
-/** Bump when the renderer's OUTPUT SHAPE changes without any input changing (rare). */
-const store = new RegionStore('fences', '1');
+const store = new RegionStore('fences');
 
 /** Test hook: point the whole build cache at a directory (or `null` to disable, `undefined` to
  *  re-probe). Kept under the old name for the existing tests. */

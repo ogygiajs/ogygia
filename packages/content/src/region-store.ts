@@ -19,11 +19,38 @@
  * rides the shared {@link BuildCache} (`node_modules/.ogygia/<namespace>/`), so build platforms that
  * cache `node_modules` keep every baked region across builds.
  */
-import { createHash } from 'node:crypto';
+import { createHash, type Hash } from 'node:crypto';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { BuildCache } from '@ogygia/compiler';
-// (the producer's own version is part of every address: a release that changes what a region emits —
-// an import specifier, a wrapper — must never be served an older release's bake)
-import pkg from '../package.json' with { type: 'json' };
+
+/** Hashes the code a module ships with: every file of the top folder it sits in below its package
+ *  root (`src` in the workspace, `dist` when installed), or the module alone at the root. */
+function hash_shipped(h: Hash, file: string): void {
+	let top = file;
+	let dir = path.dirname(file);
+	while (!fs.existsSync(path.join(dir, 'package.json'))) {
+		const up = path.dirname(dir);
+		if (up === dir) break;
+		top = dir;
+		dir = up;
+	}
+	const files =
+		top === file ? [''] : fs.readdirSync(top, { recursive: true, encoding: 'utf8' }).sort();
+	for (const rel of files) {
+		const p = path.join(top, rel);
+		if (!fs.statSync(p).isFile()) continue;
+		h.update(rel);
+		h.update('\0');
+		h.update(fs.readFileSync(p));
+		h.update('\0');
+	}
+}
+
+/** What a stored region's code runs through: this package and the compiler and core it calls. */
+const PRODUCERS: readonly string[] = ['@ogygia/compiler', '@ogygia/core/plugin/utils'];
 
 /** A region in its serialized form — what crosses caches, wires, and builds. `html` is the whole
  *  baked markup; `islands` is reserved for descriptor-carrying regions (the wake list). */
@@ -33,22 +60,29 @@ export type SerializedRegion = {
 };
 
 export class RegionStore {
-	readonly #cache: BuildCache<SerializedRegion>;
-	readonly #version: string;
+	static #code: string | undefined;
 
-	/** `namespace` is the store's directory inside the shared cache; `version` bumps every address
-	 *  when the producer's OUTPUT SHAPE changes without any input changing (rare). */
-	constructor(namespace: string, version = '1') {
+	/** The producers' code, read once: a change to any of it, released or not, is a new address. */
+	static code(): string {
+		if (RegionStore.#code !== undefined) return RegionStore.#code;
+		const h = createHash('sha256');
+		const here = fileURLToPath(import.meta.url);
+		const require = createRequire(here);
+		for (const file of [here, ...PRODUCERS.map((p) => require.resolve(p))]) hash_shipped(h, file);
+		return (RegionStore.#code = h.digest('hex'));
+	}
+
+	readonly #cache: BuildCache<SerializedRegion>;
+
+	/** `namespace` is the store's directory inside the shared cache. */
+	constructor(namespace: string) {
 		this.#cache = new BuildCache<SerializedRegion>(namespace);
-		this.#version = version;
 	}
 
 	/** A stable address from the parts that shape a region's content. */
 	key(parts: ReadonlyArray<string>): string {
 		const h = createHash('sha256');
-		h.update(pkg.version);
-		h.update('\0');
-		h.update(this.#version);
+		h.update(RegionStore.code());
 		for (const p of parts) {
 			h.update('\0');
 			h.update(p);
