@@ -221,6 +221,18 @@
 			"reason": "one 50 ms poll step on the settle's own scope timer, constant work"
 		},
 		{
+			"id": "packages/content/src/region-store.ts > RegionStore > static code",
+			"reason": "build time, once per process: hashes the shipped code of content, the compiler and core from disk, then is kept; proven in packages/content/test/markdown-cache-reader.test.ts (#2075)"
+		},
+		{
+			"id": "packages/content/src/region-store.ts > RegionStore > static code > map:0~d2bec3",
+			"reason": "resolves one package name to its file, once per process; proven in packages/content/test/markdown-cache-reader.test.ts (#2075)"
+		},
+		{
+			"id": "packages/content/src/region-store.ts > hash_shipped",
+			"reason": "build time, reads one package's shipped folder from disk (no step count to measure: file system work), three calls per process; proven in packages/content/test/markdown-cache-reader.test.ts (#2075)"
+		},
+		{
 			"id": "packages/content/src/markdown/shiki.ts > normalize_shiki > named",
 			"reason": "names an unnamed theme object for Shiki: a spread of a theme object, constant work; proven in packages/content/test/shiki-highlighters.test.ts"
 		},
