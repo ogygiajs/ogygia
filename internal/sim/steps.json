@@ -172,7 +172,6 @@
 		"router-css registry: kept -> gone",
 		"soft refresh: idle -> refreshing",
 		"soft refresh: refreshing -> idle",
-		"soft refresh: refreshing -> refreshing",
 		"stage: building -> built",
 		"stage: building -> discarded",
 		"stage: built -> committing",
@@ -338,6 +337,12 @@
 			"reason": "the routerless handle's refresh code: every app the simulator runs has the router, whose refresh is its own",
 			"test": "packages/core/test/browser/nav-handle-routerless.test.ts",
 			"name": "without the router, a refresh whose loaded code the keep let go loads it again and refreshes"
+		},
+		{
+			"step": "soft refresh: refreshing -> refreshing",
+			"reason": "a second invalidateAll while the first one's page is still on its way: the sweep met it only by luck (missing from the nightly sweep since #2119 changed what back and forward with nowhere to go do)",
+			"test": "packages/core/test/browser/soft-refresh-twice.test.ts",
+			"name": "a soft refresh started while one is in flight takes over: only the later answer is merged in"
 		},
 		{
 			"step": "deploy thaw: checking -> unchecked",
