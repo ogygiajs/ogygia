@@ -47,7 +47,10 @@ describe.skipIf(!built)('a navigation the tab started again elsewhere', () => {
 	// the next page's window, under the next page's URL, where its relative files (`./_app/…`) were
 	// asked at the wrong depth (palaestra seed 208640329, #1993).
 	it('whose answer came but was not written yet never lands in the next document', async () => {
-		const world = await World.make({ seed: 1, builds: [{ id: 'v1', output: OUTPUT }] });
+		const world = await World.make({
+			seed: 1,
+			builds: [{ id: 'v1', output: OUTPUT }]
+		});
 		try {
 			const tab = world.tab(world.visitor('v'));
 			await world.go(tab, 'goto', '/plain');
@@ -112,6 +115,55 @@ describe.skipIf(!built)('a navigation the tab started again elsewhere', () => {
 			}
 		}
 	}, 600_000);
+
+	// The entries back goes through were the router's, on the page the called-off navigation left:
+	// a browser kept that page, and its router shows them. happy-dom had unloaded it, and only moved
+	// the address over the called-off page's blank document, judged against a fresh load
+	// (palaestra seed 231920983, #2139: `<html>` at /dashboard/orders against `<html lang="en">`).
+	it('the page started from a router entry: back and forward show the router entries', async () => {
+		let called_off = 0;
+		for (let seed = 1; seed <= 30; seed++) {
+			const world = await World.make({
+				seed,
+				builds: [{ id: 'v1', output: OUTPUT }],
+				faults: new Set(['stall']),
+				rates: { stall: 0.5 }
+			});
+			try {
+				const tab = world.tab(world.visitor('v'));
+				await world.go(tab, 'goto', '/dashboard/settings', 120_000);
+				const window = (): Window => tab.page.mainFrame.window as unknown as Window;
+				const shown = tab.documents;
+				window().document.querySelector<HTMLAnchorElement>('a[href="/dashboard/orders"]')!.click();
+				await world.loop.run(60_000);
+				await world.quiesce();
+				if (tab.documents !== shown || window().location.pathname !== '/dashboard/orders') continue;
+				window().location.assign('/plain');
+				await world.loop.run(1_000);
+				if (!tab.awaiting) continue;
+				called_off++;
+				const doc = () => tab.page.mainFrame.document as unknown as Document;
+				for (const [how, path] of [
+					['back', '/dashboard/settings'],
+					['forward', '/dashboard/orders']
+				] as const) {
+					await world.go(tab, how, '/', 120_000);
+					await world.loop.run(60_000);
+					await world.rest();
+					expect(window().location.pathname, `seed ${seed} ${how}`).toBe(path);
+					expect(doc().documentElement.getAttribute('lang'), `seed ${seed} ${how}`).toBe('en');
+					expect(
+						doc().querySelector('[data-breadcrumb]')?.textContent,
+						`seed ${seed} ${how}`
+					).toContain(`path: ${path}`);
+				}
+				expect([...tab.errors], `seed ${seed}`).toEqual([]);
+			} finally {
+				await world.end();
+			}
+		}
+		expect(called_off, 'the case it is for: the navigation still on its way').toBeGreaterThan(0);
+	}, 900_000);
 });
 
 describe.skipIf(!built)('a back or forward with nowhere to go', () => {
