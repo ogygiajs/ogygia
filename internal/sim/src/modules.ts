@@ -93,7 +93,9 @@ function make_loader(window: Window): Loader {
 	const fetch_code = async (url: string): Promise<string> => {
 		try {
 			const r = await window.fetch(url);
-			if (!r.ok) throw new TypeError(`${url}: status ${r.status}`);
+			// (in the DOM library's words for a failed download: happy-dom says this error itself when
+			// a modulepreload of a file the loader failed fails; test/found/preload-gone-after-deploy.test.ts)
+			if (!r.ok) throw new TypeError(`Failed to perform request to "${url}". Status ${r.status} .`);
 			return await r.text();
 		} catch (error) {
 			if (typeof error === 'object' && error !== null) unfetched.add(error);
