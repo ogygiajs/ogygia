@@ -580,7 +580,12 @@ export function save_history(frame: object): SavedHistory {
 	};
 }
 
-/** Puts `frame`'s history back as `saved` holds it. */
+/**
+ * Puts `frame`'s history back as `saved` holds it, before a navigation that was called off.
+ * happy-dom unloaded the page on screen as that navigation started, so the entry it was on keeps
+ * no document: a back or forward from it loads the page it goes to whole, as no document on screen
+ * holds that page's entries any more (test/superseded-navigation.node.test.ts, #2139).
+ */
 export function restore_history(frame: object, saved: SavedHistory): void {
 	const history = (frame as Frame)[PropertySymbol.history] as {
 		items: HistoryItem[];
@@ -589,6 +594,7 @@ export function restore_history(frame: object, saved: SavedHistory): void {
 	history.items.splice(0, history.items.length, ...saved.items);
 	history.currentItem = saved.current;
 	saved.items.forEach((item, i) => (item[DOC] = saved.docs[i]));
+	saved.current[DOC] = undefined;
 }
 
 /** What a page's main frame does as one of its navigations starts (`go`: the navigation; `type`:
