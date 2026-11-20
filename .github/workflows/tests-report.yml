@@ -225,7 +225,11 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           for attempt in 1 2; do
-            sleep 60
+            # CI registers its checks a little after the PR opens; until then `gh pr checks --required --watch` says none and exits 1
+            for i in $(seq 1 20); do
+              sleep 30
+              gh pr checks "$PR" --repo "$REPO" --required 2>&1 | grep -q 'no required checks reported' || break
+            done
             if gh pr checks "$PR" --repo "$REPO" --required --watch --interval 60; then
               for i in $(seq 1 30); do
                 [ "$(gh pr view "$PR" --repo "$REPO" --json state --jq .state)" = "MERGED" ] && exit 0
