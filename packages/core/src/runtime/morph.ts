@@ -676,7 +676,6 @@ function morph_same(from: Node, to: Node, sets: IdSets, walk: boolean): void {
 	reconcile(ef, et.childNodes, sets, walk);
 }
 
-/** Set `attr`, an attribute the HTML parser read, on `el`, under any name the parser takes. */
 function copy_attribute(el: Element, attr: Attr): void {
 	try {
 		el.setAttribute(attr.name, attr.value);
