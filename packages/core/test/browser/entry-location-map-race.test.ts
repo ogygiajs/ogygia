@@ -4,6 +4,10 @@
 // while the other recovery's read of the map is out: that read gives STALE. It is a map not read
 // yet: the recovery waits and reads again, and the island wakes on the current build's file.
 //
+// The two recoveries start in whatever order their imports fail, and may share the first read or
+// not: the edge answers the old map until B's recovery asks whether its file is gone, then holds
+// the next read, whoever makes it, until B has dropped the map.
+//
 // Its own file: the maps read are module state shared by a file's tests.
 import { afterEach, expect, test, vi } from 'vitest';
 import { import_entry, note_entry_location } from '../../src/runtime/entry-locations.ts';
@@ -21,6 +25,8 @@ test('a read of the map that another recovery drops while it is out is read agai
 	note_entry_location(B, `${BASE}/${B_GONE.slice(2)}`);
 	const real = fetch;
 	let reads = 0;
+	let b_asked = false;
+	let read_out_at_drop = false;
 	let let_b_hear!: () => void;
 	const b_heard = new Promise<void>((r) => (let_b_hear = r));
 	let b_dropped!: () => void;
@@ -29,18 +35,20 @@ test('a read of the map that another recovery drops while it is out is read agai
 		const url = String(input);
 		if (url.endsWith('/ogygia.json')) {
 			reads++;
-			if (reads === 1)
+			if (!b_asked)
 				return Response.json({
 					'./ogygia/og-region.000000000aa1.js': A_GONE,
 					'./ogygia/og-region.000000000aa2.js': B_GONE
 				});
-			if (reads === 2) {
+			if (!read_out_at_drop) {
+				read_out_at_drop = true;
 				let_b_hear();
 				await after_b_drop;
 			}
 			return real(input, init);
 		}
 		if (init?.method === 'HEAD' && url.endsWith(B_GONE.slice(1))) {
+			b_asked = true;
 			await b_heard;
 			const res = await real(input, init);
 			setTimeout(b_dropped, 0);
@@ -54,5 +62,6 @@ test('a read of the map that another recovery drops while it is out is read agai
 	]);
 	expect(a.default).toBe('current');
 	expect(b.default).toBe('current');
+	expect(read_out_at_drop).toBe(true);
 	expect(reads).toBeGreaterThanOrEqual(3);
 });
