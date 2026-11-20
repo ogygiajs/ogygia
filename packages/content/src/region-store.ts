@@ -26,8 +26,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BuildCache } from '@ogygia/compiler';
 
-/** Hashes the code a module ships with: every file of the top folder it sits in below its package
- *  root (`src` in the workspace, `dist` when installed), or the module alone at the root. */
 function hash_shipped(h: Hash, file: string): void {
 	let top = file;
 	let dir = path.dirname(file);
@@ -49,7 +47,6 @@ function hash_shipped(h: Hash, file: string): void {
 	}
 }
 
-/** What a stored region's code runs through: this package and the compiler and core it calls. */
 const PRODUCERS: readonly string[] = ['@ogygia/compiler', '@ogygia/core/plugin/utils'];
 
 /** A region in its serialized form — what crosses caches, wires, and builds. `html` is the whole
