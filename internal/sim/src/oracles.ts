@@ -1259,14 +1259,17 @@ function deploy_took(world: World, tab: Tab, line: string): boolean {
 	return NOT_DOWNLOADED.test(line) && world.skewed_for(tab.realm);
 }
 
+/** `tab` as the document that said `line` (each line is judged by its own document's faults: an
+ *  action can show several; seed 78, and seed 68356952 for a hydration a reload then hid). */
+function said_by(tab: Tab, line: string): Tab {
+	const realm = tab.said_by?.get(line) ?? tab.realm;
+	return realm === tab.realm ? tab : { ...tab, realm };
+}
+
 /** No uncaught error, unhandled rejection or console error in the page (beyond what a network
  *  fault on this document explains, or a deploy, when `world` is given). */
 export function page_errors(tab: Tab, world?: World, since?: number): Broken | null {
-	// (each line judged by the document that said it: an action can show several; seed 78)
-	const said_in = (l: string): Tab => {
-		const realm = tab.said_by?.get(l) ?? tab.realm;
-		return realm === tab.realm ? tab : { ...tab, realm };
-	};
+	const said_in = (l: string): Tab => said_by(tab, l);
 	const errors = [...tab.errors, ...tab.console.filter((l) => l.startsWith('error:'))].filter(
 		(l) => {
 			if (world === undefined) return true;
@@ -1488,9 +1491,10 @@ export function unhydrated_by_design(url: string, line: string): boolean {
  * what the page is. Excused when the document's own HTML was changed or cut on the way.
  */
 export function hydrates_as_sent(tab: Tab, world?: World): Broken | null {
-	const said = tab.console.filter((l) => UNHYDRATED.test(l));
+	const said = tab.console.filter(
+		(l) => UNHYDRATED.test(l) && (world === undefined || !markup_changed(world, said_by(tab, l)))
+	);
 	if (said.length === 0) return null;
-	if (world !== undefined && markup_changed(world, tab)) return null;
 	const url = tab.page.mainFrame.url;
 	if (UNHYDRATED_BY_DESIGN.some((d) => d.path.test(new URL(url).pathname))) return null;
 	const detail = `${url}: ${said.map((l) => l.split('\n')[0]).join('\n')}`;
