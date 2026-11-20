@@ -857,6 +857,32 @@ describe('hydrates as sent', () => {
 		expect(hydrates_as_sent(tab, world)).toBeNull();
 	});
 
+	it('a line is judged by the document that said it: a changed byte in a page an earlier document swapped in excuses its failed hydration after a reload shows another (seed 68356952, #2121)', () => {
+		const failed =
+			"warn: Failed to hydrate:  TypeError: Cannot read properties of undefined (reading 'name')";
+		const tab = {
+			realm: 'tab-1#4',
+			name: 'tab-1',
+			documents: 4,
+			errors: [],
+			console: [failed],
+			said_by: new Map([[failed, 'tab-1#3']]),
+			page: { mainFrame: { url: 'https://app.test/about' } }
+		} as unknown as Parameters<typeof hydrates_as_sent>[0];
+		const world = (tampered: boolean) =>
+			({
+				network: {
+					exchanges: [
+						{ url: 'https://app.test/ctx-nav', from: 'tab-1#3', tampered: false },
+						{ url: 'https://app.test/', from: 'tab-1#3', tampered },
+						{ url: 'https://app.test/about', from: 'tab-1#4', tampered: false }
+					].map((e, i) => ({ id: i + 1, method: 'GET', status: 200, cut: false, ...e }))
+				}
+			}) as unknown as Parameters<typeof hydrates_as_sent>[1];
+		expect(hydrates_as_sent(tab, world(true))).toBeNull();
+		expect(hydrates_as_sent(tab, world(false))?.oracle).toBe('ssr-hydrate');
+	});
+
 	it('a csr=true page whose web components edit their light DOM before Kit hydrates mismatches on purpose, so Kit remounts it (run 43495274517: 71 findings on /lake-twins-kit and 11 on /bench-cms/kit, each what its page is for)', () => {
 		const tab = (path: string) =>
 			({
