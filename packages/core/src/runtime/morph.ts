@@ -1,6 +1,7 @@
 import { slots } from './slots.ts';
 import { warn } from '../messages/lazy.ts';
 import { closed_root_lost } from './closed-roots.ts';
+import { copy_attribute } from './copy-attribute.ts';
 import type { PageGlobals, PendingShadow } from '../page-globals.ts';
 import {
 	attributes_writer,
@@ -686,7 +687,7 @@ export function sync_attributes(from: Element, to: Element, keep_extra = false):
 		const attr = to_attrs[i];
 		if (from.getAttribute(attr.name) === attr.value) continue;
 		if (attr.name === 'aria-hidden' && attr.value === 'true' && subtree_has_focus(from)) continue;
-		from.setAttribute(attr.name, attr.value);
+		copy_attribute(from, attr);
 	}
 	if (keep_extra) return;
 	const from_attrs = from.attributes;
