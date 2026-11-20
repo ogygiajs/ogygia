@@ -1,7 +1,6 @@
 import { slots } from './slots.ts';
 import { warn } from '../messages/lazy.ts';
 import { closed_root_lost } from './closed-roots.ts';
-import { copy_attribute } from './copy-attribute.ts';
 import type { PageGlobals, PendingShadow } from '../page-globals.ts';
 import {
 	attributes_writer,
@@ -675,6 +674,16 @@ function morph_same(from: Node, to: Node, sets: IdSets, walk: boolean): void {
 	sync_form_props(ef, et);
 	sync_by_writer(ef, et, walk);
 	reconcile(ef, et.childNodes, sets, walk);
+}
+
+/** Set `attr`, an attribute the HTML parser read, on `el`, under any name the parser takes. */
+function copy_attribute(el: Element, attr: Attr): void {
+	try {
+		el.setAttribute(attr.name, attr.value);
+	} catch {
+		// @why setAttribute refused names the parser takes (`-panel`, `@click`, `:class`) in engines before the DOM's 2025 relaxed names; setAttributeNode never checks the name (test: test/browser/morph-attribute-names.test.ts › a render with an attribute name the parser takes but an older setAttribute refuses still morphs in, whole)
+		el.setAttributeNode(attr.cloneNode() as Attr);
+	}
 }
 
 /** Add + update + remove attributes so `from` matches `to` exactly. Boolean attrs are attr presence.
