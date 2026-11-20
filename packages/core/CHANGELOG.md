@@ -1,5 +1,11 @@
 # @ogygia/core
 
+## 0.14.3
+
+### Patch Changes
+
+- [#2124](https://github.com/ogygiajs/ogygia/pull/2124) [`d0813df`](https://github.com/ogygiajs/ogygia/commit/d0813dfbaee42678fc8bc45eeb0e3585e9879e89) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A region or page update whose markup carries an attribute name the HTML parser accepts but older browsers' `setAttribute` refuses (`@click`, `:class`, a name that starts with `-`) now applies in full instead of throwing partway through.
+
 ## 0.14.1
 
 ### Patch Changes
