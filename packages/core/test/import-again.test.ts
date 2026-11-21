@@ -4,6 +4,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { flights, observe } from '@ogygia/machine';
 import {
+	downloaded,
 	import_again,
 	is_failed_import,
 	on_reload_needed,
@@ -27,6 +28,12 @@ describe('is_failed_import', () => {
 		expect(is_failed_import(new TypeError('undefined is not a function'))).toBe(false);
 		expect(is_failed_import(new ReferenceError('x is not defined'))).toBe(false);
 		expect(is_failed_import(undefined)).toBe(false);
+	});
+});
+
+describe('downloaded', () => {
+	it('a file the browser never reported is not downloaded', () => {
+		expect(downloaded('https://shop.test/_app/immutable/chunks/never.js')).toBe(false);
 	});
 });
 

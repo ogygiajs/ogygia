@@ -61,7 +61,9 @@ const landing = registry<{ url: string; done: (status: number | null) => void }>
 /** The observer's owner, once it is up (the document's: a file's load outlives any page visit). */
 let timeline: Scope | null = null;
 
-function hear_responses(): void {
+/** Starts the record (once; the boot does, as early as ogygia runs): what the timeline holds, then
+ *  every download after it, the timeline full or not. */
+export function hear_responses(): void {
 	if (timeline !== null || typeof PerformanceObserver === 'undefined') return;
 	timeline = scope();
 	try {
@@ -157,6 +159,12 @@ export function response_of(url: string): number | null {
 	if (typeof performance === 'undefined' || typeof performance.getEntriesByName !== 'function')
 		return null;
 	return status_of(performance.getEntriesByName(url, 'resource'));
+}
+
+/** Whether the browser reported a download of `url`, a response or a failure: the record first, then
+ *  the page's timeline. */
+export function downloaded(url: string): boolean {
+	return responses.has(url) || !!performance.getEntriesByName?.(url).length;
 }
 
 /** {@link response_of}, read from `entries` (one file's resource-timing entries). */
