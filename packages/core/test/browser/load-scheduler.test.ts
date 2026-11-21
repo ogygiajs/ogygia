@@ -6,7 +6,7 @@
 // REGRESSION (a field report, 2026-10-07): on country home pages the hero image (the LCP, marked
 // fetchpriority="high") shared its bandwidth with 206 island requests once the wake gate opened —
 // 1.19 s → 2.27 s, LCP about 1 s worse.
-import { expect, test, beforeEach, afterEach } from 'vitest';
+import { expect, test, beforeEach, afterEach, onTestFinished } from 'vitest';
 import {
 	BACKGROUND_WINDOW,
 	CRITICAL_CAP_MS,
@@ -24,6 +24,12 @@ import { PRIORITY } from '../../src/runtime/load-class.ts';
 import { flights, scope } from '@ogygia/machine';
 import { patch } from '../_patch.ts';
 import { runtime_session } from '../../src/runtime/session.ts';
+
+/** The page's resource timeline, full from now to the test's end: what a large page meets early. */
+function timeline_full(): void {
+	performance.setResourceTimingBufferSize(performance.getEntriesByType('resource').length);
+	onTestFinished(() => performance.setResourceTimingBufferSize(250));
+}
 
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
 
@@ -218,6 +224,32 @@ test('a critical preload that already arrived (its timing entry is in) is not wa
 		link.remove();
 	}
 });
+
+test('a critical preload that arrived after the page’s timeline filled is not waited for', async () => {
+	// the page's resource timeline keeps 250 entries: a large page fills it early, and a preload that
+	// arrives after is in no timeline read. Read from there, it was pending: its `load` already gone,
+	// island code waited the whole cap
+	timeline_full();
+	const href = new URL('/test/browser/fixtures/entry-current.ts?t=critical-full', location.href)
+		.href;
+	const link = document.createElement('link');
+	link.rel = 'preload';
+	link.setAttribute('as', 'fetch');
+	link.setAttribute('crossorigin', '');
+	link.setAttribute('fetchpriority', 'high');
+	link.href = href;
+	const arrived = new Promise((r) => link.addEventListener('load', r, { once: true }));
+	document.head.appendChild(link);
+	try {
+		await arrived;
+		const t0 = performance.now();
+		await critical_settled();
+		expect(critical_outcome()?.outcome).toBe('none');
+		expect(performance.now() - t0).toBeLessThan(CRITICAL_CAP_MS / 2);
+	} finally {
+		link.remove();
+	}
+}, 10_000);
 
 test('no marked resource: code starts right after the paint', async () => {
 	await critical_settled();
