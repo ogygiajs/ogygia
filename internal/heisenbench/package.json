@@ -11,6 +11,6 @@
 	},
 	"heisenbench": {
 		"repo": "https://github.com/ogygiajs/bench.git",
-		"ref": "eac4eea75d7d77472272fa407f7827d667665548"
+		"ref": "0b954da0ddfd891c9a002f835bbe93f3c1040128"
 	}
 }
