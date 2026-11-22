@@ -794,20 +794,19 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const compiler = compiler_of(session, 'buildEnd');
 				const server_leg = leg_of(this).server;
 				if (is_build && server_leg && !standalone) {
+					const json = server_handoff_json(
+						compiler.ssr_transformed_hosts(),
+						build_secret,
+						compiler.server_island_css_roots(),
+						compiler.server_runtime()
+					);
 					try {
 						const handoff = server_handoff_path(kit.dirs.out_dir);
 						fs.mkdirSync(path.dirname(handoff), { recursive: true });
-						fs.writeFileSync(
-							handoff,
-							server_handoff_json(
-								compiler.ssr_transformed_hosts(),
-								build_secret,
-								compiler.server_island_css_roots(),
-								compiler.server_runtime()
-							)
-						);
+						fs.writeFileSync(handoff, json);
 					} catch (e) {
 						if (isMainThread) warn('island_handoff_write_failed', e);
+						throw e;
 					}
 				}
 				if (__P) {

@@ -836,8 +836,10 @@ export class Compiler implements CoreApp {
 		}
 
 		const feature_hash = this.#seal_marks();
-		const handed = this.#build.handoff?.runtime;
-		if (!handed) return { feature_hash };
+		const handoff = this.#build.handoff;
+		if (!handoff) return { feature_hash };
+		const handed = handoff.runtime;
+		if (!handed) throw new OgygiaError('server_runtime_unnamed');
 		const named = new Set(resolveFeatures(handed.marks));
 		const unnamed = resolveFeatures(runtime_marks).filter((f) => !named.has(f));
 		if (unnamed.length)
@@ -909,7 +911,13 @@ export class Compiler implements CoreApp {
 		}
 		this.#walk_closures();
 		const feature_hash = this.#seal_marks();
-		return { marks: structuredClone(this.program.runtime_marks), feature_hash };
+		const marks = structuredClone(this.program.runtime_marks);
+		const shipped = this.program.shipped_features;
+		if (!shipped) return { marks, feature_hash };
+		const unnamed = resolveFeatures(marks).filter((f) => !shipped.has(f));
+		if (unnamed.length)
+			throw new OgygiaError('runtime_features_unnamed', { features: unnamed.join(', ') });
+		return { marks, feature_hash: this.#build.scan?.feature_hash ?? feature_hash };
 	}
 
 	/** Whether the regions of `id` are read: always (app source, a declared `ogygia.files` file), when
@@ -923,7 +931,7 @@ export class Compiler implements CoreApp {
 
 	/** The scan's feature hash; empty before the scan ran. */
 	get #feature_hash(): string {
-		return this.#build.scan?.feature_hash ?? '';
+		return this.#build.server_runtime?.feature_hash ?? this.#build.scan?.feature_hash ?? '';
 	}
 
 	/** DEV: modules `mark_island_closure` marked for the first time AFTER prescan — an island a later

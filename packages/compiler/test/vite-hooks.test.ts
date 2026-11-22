@@ -35,6 +35,9 @@ import { ogygia } from '../src/vite/index.ts';
 import { definePlugin } from '../src/vite/plugin-api.ts';
 import { keep_client_dir } from '../src/kit.ts';
 import { server_handoff_json, server_handoff_path } from '../src/link/emit-gate.ts';
+
+/** A runtime a server leg could name: every feature (marks not sealed), so any client scan fits it. */
+const EVERY_FEATURE = { marks: {}, feature_hash: '00000000' };
 import { foucCssVirtualId, foucScopedVirtualId, FOUC_CSS_PREFIX } from '../src/fouc-css.ts';
 import { EVERY_BARREL } from '../src/exports/index.ts';
 import { remote_hash_of } from '../src/link/island-deps.ts';
@@ -1132,7 +1135,7 @@ describe('the build legs', () => {
 		expect(existsSync(handoff())).toBe(true);
 	});
 
-	it('a handoff the server leg cannot write is a coded warning, never a failed build', async () => {
+	it('a handoff the server leg cannot write stops the build, said with its code: the client could not ship the runtime the pages name', async () => {
 		app();
 		const said: unknown[] = [];
 		const spy = vi.spyOn(console, 'warn').mockImplementation((...a) => void said.push(a.join(' ')));
@@ -1142,7 +1145,7 @@ describe('the build legs', () => {
 			await p.buildStart.call(t);
 			rmSync(path.join(root, '.svelte-kit'), { recursive: true, force: true });
 			write('.svelte-kit', 'not a directory\n');
-			expect(() => p.buildEnd.call(t)).not.toThrow();
+			expect(() => p.buildEnd.call(t)).toThrow();
 		} finally {
 			spy.mockRestore();
 		}
@@ -1178,12 +1181,13 @@ describe('the build legs', () => {
 
 	it('the client leg neither drops nor writes it', async () => {
 		app();
-		write(path.relative(root, handoff()), '["kept"]');
+		const kept = server_handoff_json([], 'k', [], EVERY_FEATURE);
+		write(path.relative(root, handoff()), kept);
 		const { p } = await setup('build');
 		const t = hook_this('client');
 		await p.buildStart.call(t);
 		p.buildEnd.call(t);
-		expect(readFileSync(handoff(), 'utf8')).toBe('["kept"]');
+		expect(readFileSync(handoff(), 'utf8')).toBe(kept);
 	});
 
 	it('a standalone build writes no handoff', async () => {
@@ -1245,7 +1249,12 @@ describe('the build legs', () => {
 		expect(own[0]).toContain('maroon');
 		write(
 			path.relative(root, handoff()),
-			server_handoff_json([], 'k', [{ iid: 'late', abs: path.join(root, 'src/lib/Late.svelte') }])
+			server_handoff_json(
+				[],
+				'k',
+				[{ iid: 'late', abs: path.join(root, 'src/lib/Late.svelte') }],
+				EVERY_FEATURE
+			)
 		);
 		const handed = await holes();
 		expect(handed).toHaveLength(1);
@@ -1301,7 +1310,7 @@ describe('the build legs', () => {
 
 	it('an island whose host the server leg never loaded gets no chunk; with no handoff, every island does', async () => {
 		app();
-		write(path.relative(root, handoff()), server_handoff_json([], 'k', []));
+		write(path.relative(root, handoff()), server_handoff_json([], 'k', [], EVERY_FEATURE));
 		const { p } = await setup('build');
 		const gated = hook_this('client');
 		await p.buildStart.call(gated);

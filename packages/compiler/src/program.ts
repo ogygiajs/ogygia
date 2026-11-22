@@ -143,6 +143,11 @@ export class Program {
 	#runtime_shipped: ReadonlySet<FeatureId> | null = null;
 	readonly #late_said = new Set<FeatureId>();
 
+	/** The features the runtime entry was made with (`ship_runtime`), or null before it loaded. */
+	get shipped_features(): ReadonlySet<FeatureId> | null {
+		return this.#runtime_shipped;
+	}
+
 	readonly #init: { forms: boolean; router: boolean };
 
 	/** An empty program with the same options: the next build's (`Compiler.start_leg`). */
