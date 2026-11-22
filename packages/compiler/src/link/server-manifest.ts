@@ -102,6 +102,10 @@ export function server_manifest_module(
  *  identifier no module defines, so the bundler keeps it as written (link/relocations.ts). */
 export const LATE_SERVER_REGIONS_TOKEN = '__OGYGIA_LATE_SERVER_REGIONS__';
 
+/** In a build's `runtime-url`, the runtime's URL: named only once the server leg has compiled every
+ *  module (`Compiler.server_runtime`), inside a string literal (link/relocations.ts). */
+export const RUNTIME_URL_TOKEN = '__OGYGIA_RUNTIME_URL__';
+
 /** `ogygia:server/server-regions`: each SERVER island's loader, `id → () => import(entry)` (empty on
  *  the client). Imported only by the manifest's `load_islands()` — never statically. `late`: a
  *  build's, which names the loaders of regions found after it (`Program.server_regions_written`). */

@@ -715,7 +715,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			async buildStart() {
 				const compiler = compiler_of(session, 'buildStart');
 				const env = env_of(this) ?? { name: is_ssr ? 'ssr' : 'client', server: is_ssr };
-				const begins = compiler.start_leg(env.name, env.server);
+				const handoff = is_build && !env.server ? read_server_handoff(kit.dirs.out_dir) : null;
+				const begins = compiler.start_leg(env.name, env.server, handoff);
 				const leg = compiler.leg(env);
 				const server_leg = leg.server;
 				if (is_build && server_leg)
@@ -730,7 +731,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						!standalone &&
 						(hasAnyCsrFalseRoute(compiler.ctx.routes, kit.dirs.routes_dir) ||
 							compiler.has_hydrate_regions());
-					const handoff = read_server_handoff(kit.dirs.out_dir);
 					const loaded = handoff?.hosts ?? null;
 					const server_regions = handoff?.server_regions ?? null;
 					const skipped = compiler.emit_build_chunks(leg, (chunk) => this.emitFile(chunk), {
@@ -802,7 +802,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							server_handoff_json(
 								compiler.ssr_transformed_hosts(),
 								build_secret,
-								compiler.server_island_css_roots()
+								compiler.server_island_css_roots(),
+								compiler.server_runtime()
 							)
 						);
 					} catch (e) {

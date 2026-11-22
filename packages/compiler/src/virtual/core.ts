@@ -17,6 +17,7 @@ import {
 	kit_transport_module
 } from '../link/transport.ts';
 import {
+	RUNTIME_URL_TOKEN,
 	server_manifest_module,
 	server_regions_module,
 	server_island_ids
@@ -264,8 +265,7 @@ export const runtime_url: Value<RuntimeUrlModule> = virtual.value({
 	id: 'runtime-url',
 	from(app: CoreApp) {
 		if (app.ctx.is_dev) return { runtime_url: vite_dev_url(specifier_of(runtime)) };
-		app.prescan();
-		return { runtime_url: app.runtime_chunk_url() };
+		return { runtime_url: RUNTIME_URL_TOKEN };
 	}
 });
 

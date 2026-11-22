@@ -521,12 +521,20 @@ describe('configResolved', () => {
 
 	it("the runtime is named under Kit's appDir; a define that is not a name keeps _app", async () => {
 		app();
-		const url = async (define: Record<string, unknown>) =>
-			load(
-				await begin((await setup('build', { resolved: { define } })).p, 'ssr'),
-				'ogygia:server/runtime-url',
-				'ssr'
+		const url = async (define: Record<string, unknown>) => {
+			const p = await begin((await setup('build', { resolved: { define } })).p, 'ssr');
+			const code = (await load(p, 'ogygia:server/runtime-url', 'ssr')) ?? '';
+			const out = p.renderChunk.call(
+				hook_this('ssr'),
+				code,
+				{ fileName: 'url.js' },
+				{},
+				{
+					chunks: {}
+				}
 			);
+			return out?.code ?? code;
+		};
 		expect(await url({ __SVELTEKIT_APP_DIR__: JSON.stringify('custom') })).toMatch(/"\/?custom\//);
 		for (const define of [
 			{},

@@ -65,20 +65,22 @@ describe('the handoff file', () => {
 	});
 
 	it('tolerates a malformed handoff (nothing gated, never a throw on shape)', () => {
-		const empty = { hosts: new Set(), build_key: '', server_regions: [] };
+		const empty = { hosts: new Set(), build_key: '', server_regions: [], runtime: null };
 		expect(parse_server_handoff('{"not":"an array"}')).toEqual(empty);
 		expect(parse_server_handoff('null')).toEqual(empty);
 		const mixed = parse_server_handoff(
 			JSON.stringify({
 				hosts: [1, null, '/a/b.svelte'],
 				build_key: 7,
-				server_regions: [null, { iid: 'r1' }, { iid: 'r2', abs: '/a/c.svelte' }]
+				server_regions: [null, { iid: 'r1' }, { iid: 'r2', abs: '/a/c.svelte' }],
+				runtime: { marks: { live: true }, feature_hash: 7 }
 			})
 		);
 		expect(mixed).toEqual({
 			hosts: new Set(['/a/b.svelte']),
 			build_key: '',
-			server_regions: [{ iid: 'r2', abs: '/a/c.svelte' }]
+			server_regions: [{ iid: 'r2', abs: '/a/c.svelte' }],
+			runtime: null
 		});
 	});
 

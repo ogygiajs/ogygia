@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { cache, say } from '@ogygia/machine';
-import { fnv1a32, key_label, key_of } from '@ogygia/core/contract';
+import { fnv1a32, key_label, key_of, OWN_FILE_RE } from '@ogygia/core/contract';
 import {
 	transformHost,
 	transformTsRegions,
@@ -21,7 +21,7 @@ import {
 import { run_module_macros } from './macros/pipeline.ts';
 import { fn_manifest_entries } from './macros/dollar.ts';
 import { is_script_request } from './script-request.ts';
-import { resolveFeatures } from './link/runtime-entry.ts';
+import { resolveFeatures, type RuntimeMarks } from './link/runtime-entry.ts';
 import { FOUC_CSS_PREFIX, FOUC_SCOPED_PREFIX } from './fouc-css.ts';
 import { resolve_app_spec } from './app-spec.ts';
 import {
@@ -61,7 +61,7 @@ import {
 	registry_stub_source,
 	static_script_specs
 } from './link/registry-stub.ts';
-import { island_host_loaded } from './link/emit-gate.ts';
+import { island_host_loaded, type HandedRuntime, type ServerHandoff } from './link/emit-gate.ts';
 import { opaque_stamp_edits } from './ownership-stamps.ts';
 import { MapChain, type StepMap } from './map-chain.ts';
 import type { SourceMapInput } from '@jridgewell/remapping';
@@ -103,6 +103,8 @@ interface Build {
 	readonly transform_cache: Map<string, { code: string; result: unknown }>;
 	readonly dollar_hoists: Map<string, string>;
 	scan: Scan | null;
+	handoff: ServerHandoff | null;
+	server_runtime: HandedRuntime | null;
 	router_css_roots: string[] | null;
 	readonly resolve_memo: Map<string, string | null>;
 	readonly reach_memo: Map<string, boolean>;
@@ -124,6 +126,8 @@ const new_build = (program: Program): Build => ({
 	transform_cache: new Map(),
 	dollar_hoists: new Map(),
 	scan: null,
+	handoff: null,
+	server_runtime: null,
 	router_css_roots: null,
 	resolve_memo: new Map(),
 	reach_memo: new Map(),
@@ -255,15 +259,18 @@ export class Compiler implements CoreApp {
 	 * Node). A leg that already ran in this build begins the next one (watch, a second `build()` in
 	 * one process): everything the last build learned is dropped. Dev is one build for the session.
 	 * True when this leg begins a build, so the caller runs its once-per-build work; Kit's route
-	 * answers are read afresh from there.
+	 * answers are read afresh from there. `handoff`: what the server leg handed this client leg: the
+	 * build's scan reads every module it compiled, and ships the runtime it named
+	 * (test/runtime-marks-reached.test.ts).
 	 */
-	start_leg(name: string, server: boolean): boolean {
+	start_leg(name: string, server: boolean, handoff: ServerHandoff | null = null): boolean {
 		if (this.#build.legs.has(name) && this.#ctx.is_build)
 			this.#build = new_build(this.#build.program.fresh());
 		const build = this.#build;
 		if (!build.legs.has(name)) build.legs.set(name, new_leg(name, server));
 		if (build.begun) return false;
 		build.begun = true;
+		build.handoff = handoff;
 		this.#ctx.routes.db.reread();
 		return true;
 	}
@@ -730,7 +737,7 @@ export class Compiler implements CoreApp {
 		const ctx = this.#ctx;
 		const { prof, P } = this.profiler;
 		const program = this.program;
-		const { registry, island_graph, runtime_marks } = program;
+		const { island_graph, runtime_marks } = program;
 		const root = ctx.root;
 
 		const src_dir = path.join(root, 'src');
@@ -749,11 +756,10 @@ export class Compiler implements CoreApp {
 			for (const key of context_keys(src, kind).one_off)
 				warn('region_context_key_one_off', { file: path.relative(root, full), key });
 		};
-		const scan_file = (full: string, name: string) => {
-			const kind = scan_kind(name);
-			if (!kind) return;
-			const src = ctx.read_file(full);
-			if (src == null) return;
+		const scan_file = (full: string) => {
+			const readable = this.#readable(full);
+			if (!readable) return;
+			const { kind, src } = readable;
 			say_one_off_keys(full, src, kind);
 			read_for_plugins(full, src, this.#scan_facts(full, src, kind));
 			if (kind === 'svelte') {
@@ -773,7 +779,7 @@ export class Compiler implements CoreApp {
 					if (entry.name === 'node_modules' || entry.name === ISLAND_DIR) continue;
 					walk(full);
 				} else {
-					scan_file(full, entry.name);
+					scan_file(full);
 				}
 			}
 		};
@@ -782,8 +788,9 @@ export class Compiler implements CoreApp {
 			walk(src_dir);
 			for (const p of ctx.pkg_scan) {
 				for (const d of p.dirs) walk(d);
-				for (const f of p.files) scan_file(f, f.slice(f.lastIndexOf('/') + 1));
+				for (const f of p.files) scan_file(f);
 			}
+			for (const f of this.#compiled_unread(this.#build.handoff?.hosts ?? [])) scan_file(f);
 			for (const f of ctx.page_files) {
 				if (program.scan.has(f)) continue;
 				const src = ctx.read_file(f);
@@ -801,13 +808,7 @@ export class Compiler implements CoreApp {
 				warn('plugin_not_listed', { package: pkg, plugin: PLUGIN_PACKAGES[pkg]!, file })
 			);
 
-		{
-			const __ws = P ? performance.now() : 0;
-			for (const entry of registry.values()) {
-				if (entry.componentPath) this.mark_island_closure(entry.componentPath);
-			}
-			if (P) prof.prescanMs += performance.now() - __ws;
-		}
+		this.#walk_closures();
 
 		if (!runtime_marks.context) {
 			const reads: { file: string; keys: string[] }[] = [];
@@ -834,16 +835,90 @@ export class Compiler implements CoreApp {
 			}
 		}
 
+		const feature_hash = this.#seal_marks();
+		const handed = this.#build.handoff?.runtime;
+		if (!handed) return { feature_hash };
+		const named = new Set(resolveFeatures(handed.marks));
+		const unnamed = resolveFeatures(runtime_marks).filter((f) => !named.has(f));
+		if (unnamed.length)
+			throw new OgygiaError('runtime_features_unnamed', { features: unnamed.join(', ') });
+		for (const key of Object.keys(runtime_marks)) delete runtime_marks[key as keyof RuntimeMarks];
+		Object.assign(runtime_marks, structuredClone(handed.marks));
+		return { feature_hash: handed.feature_hash };
+	}
+
+	/** A file the scan reads for regions, as the transform reads it (`#region_reading`): its kind and
+	 *  source, or null. */
+	#readable(full: string): { kind: 'svelte' | 'script'; src: string } | null {
+		const kind = scan_kind(path.basename(full));
+		if (!kind) return null;
+		const reading = this.#region_reading(full, kind);
+		if (reading === 'never') return null;
+		const src = this.#ctx.read_file(full);
+		if (src == null) return null;
+		if (reading === 'hinted' && !this.#ctx.has_island_hint(src)) return null;
+		return { kind, src };
+	}
+
+	/** The modules a server leg compiled that the scan has not read: never a region's own module, nor
+	 *  ogygia's (its entry re-exports every feature, so it would turn each one on). */
+	#compiled_unread(compiled: Iterable<string>): string[] {
+		const { scan } = this.program;
+		return [...compiled].filter((f) => !scan.has(f) && !is_island_path(f) && !OWN_FILE_RE.test(f));
+	}
+
+	/** Walk each registered region's island closure (what reaches Kit's page world). */
+	#walk_closures(): void {
+		const { prof, P } = this.profiler;
+		const __ws = P ? performance.now() : 0;
+		for (const entry of this.program.registry.values()) {
+			if (entry.componentPath) this.mark_island_closure(entry.componentPath);
+		}
+		if (P) prof.prescanMs += performance.now() - __ws;
+	}
+
+	/** Fold the build's options into the runtime marks and close them: the feature hash the runtime
+	 *  is named by. */
+	#seal_marks(): string {
+		const ctx = this.#ctx;
+		const { runtime_marks } = this.program;
 		runtime_marks.foreign = ctx.foreign_hydrate;
 		runtime_marks.page =
-			program.island_reads_page || runtime_marks.foreign || ctx.client_plugins.length > 0;
+			this.program.island_reads_page || runtime_marks.foreign || ctx.client_plugins.length > 0;
 		runtime_marks.complete = true;
-		return {
-			feature_hash: createHash('sha256')
-				.update(resolveFeatures(runtime_marks).join(','))
-				.digest('hex')
-				.slice(0, 8)
-		};
+		return createHash('sha256')
+			.update(resolveFeatures(runtime_marks).join(','))
+			.digest('hex')
+			.slice(0, 8);
+	}
+
+	/**
+	 * BUILD, server leg, once it has compiled every module (`buildEnd`): the runtime its pages name.
+	 * It reads what the leg compiled as the client leg's scan reads its handoff, so both legs name one
+	 * runtime, and the client leg ships exactly it (test/runtime-marks-reached.test.ts).
+	 */
+	server_runtime(): HandedRuntime {
+		return (this.#build.server_runtime ??= this.#seal_server_runtime());
+	}
+
+	#seal_server_runtime(): HandedRuntime {
+		this.prescan();
+		for (const f of this.#compiled_unread(this.program.ssr_transformed)) {
+			const readable = this.#readable(f);
+			if (readable) this.#scan_facts(f, readable.src, readable.kind);
+		}
+		this.#walk_closures();
+		const feature_hash = this.#seal_marks();
+		return { marks: structuredClone(this.program.runtime_marks), feature_hash };
+	}
+
+	/** Whether the regions of `id` are read: always (app source, a declared `ogygia.files` file), when
+	 *  its source names an import key (any other installed component), or never (any other installed
+	 *  script). The transform and the scan share it, so the scan knows each region the bundle places. */
+	#region_reading(id: string, kind: 'svelte' | 'script'): 'always' | 'hinted' | 'never' {
+		const p = id.split(path.sep).join('/');
+		if (!p.includes('/node_modules/') || this.#ctx.in_declared_pkg(p)) return 'always';
+		return kind === 'svelte' ? 'hinted' : 'never';
 	}
 
 	/** The scan's feature hash; empty before the scan ran. */
@@ -1572,7 +1647,7 @@ export class Compiler implements CoreApp {
 			id_n.endsWith('.svelte') &&
 			is_script_request(id) &&
 			(!is_island_path(bare_v) || portable_entry) &&
-			(!in_node_modules || ctx.in_declared_pkg(bare_v) || ctx.has_island_hint(code))
+			(this.#region_reading(bare_v, 'svelte') === 'always' || ctx.has_island_hint(code))
 		) {
 			const result = this.transform(out, id_n, { ssr }) as TransformResult | null;
 			if (result) {
@@ -1612,7 +1687,11 @@ export class Compiler implements CoreApp {
 		) {
 			warn_undeclared_pkg_marks(id_n);
 		}
-		if (nm_ts !== null && (nm_ts === false || ctx.in_declared_pkg(id_n)) && !is_island_path(id_n)) {
+		if (
+			nm_ts !== null &&
+			this.#region_reading(id_n, 'script') === 'always' &&
+			!is_island_path(id_n)
+		) {
 			const result = this.ts_regions(out, id_n) as TransformResult | null;
 			if (result) {
 				this.#register(result, id_n);
@@ -1682,7 +1761,8 @@ export class Compiler implements CoreApp {
 			facade_file: bundle.facade_file,
 			graph: bundle.graph,
 			module_ids: bundle.module_ids,
-			page_reads: ctx.page_reads
+			page_reads: ctx.page_reads,
+			runtime_url: () => ctx.runtime_chunk_url(this.server_runtime().feature_hash)
 		});
 		if (out === null) return null;
 		const { s, mapped } = out;

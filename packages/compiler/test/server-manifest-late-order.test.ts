@@ -47,6 +47,7 @@ function program_of(order: readonly string[]): Program {
 function cx(program: Program, order: readonly string[]): RelocateCx {
 	return {
 		program,
+		runtime_url: () => '/_app/ogygia/og-runtime.0123456789ab-feedbeef.js',
 		public_url: (iid) => `/_app/${iid}.js`,
 		late_server_regions: new Map(order.map((host) => [ID[host], `ref-${ID[host]}`])),
 		chunk_file: 'chunks/manifest.js',

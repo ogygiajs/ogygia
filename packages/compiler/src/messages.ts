@@ -550,6 +550,19 @@ export const BUILD_ERRORS = {
 		`
 	},
 
+	runtime_features_unnamed: {
+		text: (a: { features: string }): string => prose`
+			The client build needs the runtime's ${a.features}, but the server build named its pages'
+			runtime without it. The pages would load a runtime that is not there.
+		`,
+		details: (): string => prose`
+			The server build names the runtime its pages load once it has compiled every module, and
+			hands that name and its features to the client build, which ships that runtime. The client
+			build found a region needing a feature outside that list: a file the server build never
+			compiled. This is an ogygia bug; please report it with the build's output.
+		`
+	},
+
 	plugin_without_ogygia: {
 		text: (a: { plugin: string }): string =>
 			`\`${a.plugin}\` is listed in vite.config but \`ogygia()\` is not — add \`ogygia()\` from \`ogygia/vite\` to \`plugins\`.`,

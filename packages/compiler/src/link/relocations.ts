@@ -2,6 +2,7 @@ import path from 'node:path';
 import {
 	LATE_SERVER_REGIONS_TOKEN,
 	PAGE_DATA_READS_TOKEN,
+	RUNTIME_URL_TOKEN,
 	SERVER_MAP_TOKENS,
 	server_manifest_maps,
 	server_regions,
@@ -72,6 +73,8 @@ export interface RelocateCx {
 	/** The seed-shaping plugin's answers (`dataShake()`); null when none is listed, and then every
 	 *  hole looks the page up. */
 	readonly page_reads: Pick<PageReadsSink, 'keys'> | null;
+	/** The URL of the runtime the server leg's pages load, named from everything it compiled. */
+	runtime_url(): string;
 }
 
 export interface Relocation<Cx = RelocateCx> {
@@ -173,6 +176,16 @@ const server_map = (name: keyof ServerManifestMaps): Relocation => ({
 	}
 });
 
+const RUNTIME_URL: Relocation = {
+	name: 'runtime url',
+	token: RUNTIME_URL_TOKEN,
+	server_only: true,
+	value(cx) {
+		const url = cx.runtime_url();
+		return (quote) => in_literal(url, quote);
+	}
+};
+
 const LATE_SERVER_REGIONS: Relocation = {
 	name: 'late server regions',
 	token: LATE_SERVER_REGIONS_TOKEN,
@@ -224,6 +237,7 @@ export const RELOCATIONS: readonly Relocation[] = [
 	server_map('region_render'),
 	server_map('render_region'),
 	LATE_SERVER_REGIONS,
+	RUNTIME_URL,
 	FILE
 ];
 
