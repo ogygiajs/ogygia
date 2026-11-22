@@ -4,6 +4,7 @@
 // sidebar mounted again into the same panel adds a second saver).
 import { createRawSnippet, flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it } from 'vitest';
+import { page as browser } from 'vitest/browser';
 import { page } from '$app/state';
 import Sidebar from '../../src/site/components/Sidebar.svelte';
 import SidebarBaseHost from './fixtures/SidebarBaseHost.svelte';
@@ -214,23 +215,26 @@ function painted(pseudo: 'old' | 'new', name: string): number {
 }
 
 /**
- * Navigates the sidebar from page 1 to page 2 inside a view transition styled by `css`, then holds
- * every transition animation at its midpoint and hands back the sidebar's target.
+ * Navigates the sidebar from page `from` to page `from + 1` inside a view transition styled by
+ * `css`, then holds every transition animation at its midpoint and hands back the sidebar's target
+ * (a plain div, or the `target` given).
  */
-async function hold_mid_navigation(css: string): Promise<{
+async function hold_mid_navigation(
+	css: string,
+	{ target = document.createElement('div'), from = 1 }: { target?: HTMLElement; from?: number } = {}
+): Promise<{
 	target: HTMLElement;
 	finish: () => Promise<void>;
 }> {
 	const style = document.createElement('style');
 	style.textContent = css;
 	document.head.append(style);
-	const target = document.createElement('div');
-	document.body.append(target);
-	page.url = new URL(`http://localhost${BASE}/page-1`);
+	if (!target.isConnected) document.body.append(target);
+	page.url = new URL(`http://localhost${BASE}/page-${from}`);
 	let app = await mount_sidebar(target);
 	const t = document.startViewTransition(async () => {
 		await unmount(app);
-		page.url = new URL(`http://localhost${BASE}/page-2`);
+		page.url = new URL(`http://localhost${BASE}/page-${from + 1}`);
 		app = mount(Sidebar, { target, props: { nav, base: BASE } });
 		flushSync();
 		for (let i = 0; i < 50 && !target.querySelector('[aria-current="page"]'); i++)
@@ -280,6 +284,55 @@ describe.runIf('startViewTransition' in document)('the sidebar in a view transit
 				expect(layers).toHaveLength(1);
 				const chip_z = Number(vt_style('group', CHIP).zIndex);
 				expect(Number(vt_style('group', layers[0]!).zIndex)).toBeGreaterThan(chip_z);
+			} finally {
+				await finish();
+			}
+		}
+	);
+});
+
+/** Whether any pixel inside `box` (CSS pixels of the viewport) is pure red, on a screenshot. */
+async function red_in(box: { left: number; top: number; width: number; height: number }) {
+	const shot = await browser.screenshot({ save: false });
+	const img = new Image();
+	img.src = `data:image/png;base64,${shot}`;
+	await img.decode();
+	const k = img.naturalWidth / document.documentElement.clientWidth;
+	const canvas = document.createElement('canvas');
+	canvas.width = img.naturalWidth;
+	canvas.height = img.naturalHeight;
+	const ctx = canvas.getContext('2d')!;
+	ctx.drawImage(img, 0, 0);
+	const px = ctx.getImageData(
+		Math.round(box.left * k),
+		Math.round(box.top * k),
+		Math.round(box.width * k),
+		Math.round(box.height * k)
+	).data;
+	for (let i = 0; i < px.length; i += 4)
+		if (px[i]! > 230 && px[i + 1]! < 30 && px[i + 2]! < 30) return true;
+	return false;
+}
+
+describe.runIf(
+	'startViewTransition' in document && CSS.supports('view-transition-group', 'contain')
+)('the sidebar in a view transition, inside a scrolled panel', () => {
+	it.each(THEMES)(
+		'%s: rows scrolled out of the panel stay hidden mid-navigation, never painted over the page',
+		async (_file, css) => {
+			await browser.viewport(1000, 700);
+			const el = document.createElement('div');
+			el.style.cssText = 'position: absolute; top: 300px; left: 0; width: 240px; height: 200px;';
+			el.style.overflowY = 'auto';
+			document.body.append(el);
+			const red = '.og-nav-link { background: rgb(255, 0, 0) !important; }';
+			const { finish } = await hold_mid_navigation(`${css}\n${red}`, { target: el, from: 40 });
+			try {
+				expect(el.scrollTop).toBeGreaterThan(0);
+				// the rows inside the panel are painted, so the screenshot sees the sidebar layer
+				expect(await red_in({ left: 0, top: 300, width: 240, height: 200 })).toBe(true);
+				expect(await red_in({ left: 0, top: 0, width: 240, height: 290 })).toBe(false);
+				expect(await red_in({ left: 0, top: 510, width: 240, height: 190 })).toBe(false);
 			} finally {
 				await finish();
 			}
