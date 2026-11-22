@@ -98,14 +98,12 @@ describe('the sidebar draws the nav tree', () => {
 		void unmount(app);
 	});
 
-	it('gives every row its own view-transition name, a valid identifier', async () => {
+	it('names the whole sidebar inline, one name, so the router folds it on a shell change', async () => {
 		const { target, app } = await drawn({});
-		const names = [...target.querySelectorAll<HTMLElement>('[style*="view-transition-name"]')].map(
-			(el) => el.style.viewTransitionName
-		);
-		expect(names).toHaveLength(4);
-		expect(new Set(names).size).toBe(4);
-		for (const n of names) expect(n).toMatch(/^[a-zA-Z_-][a-zA-Z0-9_-]*$/);
+		const named = [...target.querySelectorAll<HTMLElement>('[style*="view-transition-name"]')];
+		expect(named.map((el) => [el.tagName, el.style.viewTransitionName])).toEqual([
+			['NAV', 'og-sidebar']
+		]);
 		void unmount(app);
 	});
 });

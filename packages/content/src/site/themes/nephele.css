@@ -328,24 +328,18 @@
 		transform: translateY(-50%);
 	}
 
-	/* VT paint order: every row in its own layer above the gliding chip (contract) */
-	.og-nav-link,
-	.og-nav-label {
-		view-transition-class: phnav;
-	}
-	::view-transition-group(*.phnav) {
+	/* VT paint order: the whole sidebar (named og-sidebar inline) is one layer above the gliding
+	   chip (contract). It shows its new state at once (old snapshot hidden: no label painted twice).
+	   On a shell change the router folds the name into the page cross-fade first. */
+	::view-transition-group(og-sidebar) {
 		z-index: 10;
+		animation: none;
 	}
-	/* Same-shell nav: the nav rows are identical + stationary, so their per-row groups animate
-	   nothing visible — yet dozens run the default group+fade every nav, starving the content
-	   cross-fade (it janks / reads as "no fade"). Zero the row animations: an identical row snaps
-	   invisibly, the og-nav-active chip keeps its slide, and the root fade is no longer drowned.
-	   On a shell change the router strips these names first, so this only touches same-shell nav. */
-	::view-transition-group(*.phnav),
-	::view-transition-image-pair(*.phnav),
-	::view-transition-old(*.phnav),
-	::view-transition-new(*.phnav) {
-		animation: none !important;
+	::view-transition-old(og-sidebar) {
+		display: none;
+	}
+	::view-transition-new(og-sidebar) {
+		animation: none;
 	}
 	::view-transition-group(og-nav-active) {
 		z-index: 0;
