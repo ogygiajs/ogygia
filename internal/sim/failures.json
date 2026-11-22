@@ -4011,6 +4011,24 @@
 			"name": "a hook with no environment while two legs are open is refused"
 		},
 		{
+			"site": "packages/compiler/src/driver.ts > Compiler > scan > throw:0",
+			"reason": "a test reaches its recovery path; proved by hand: the throw removed turns the test red",
+			"test": "packages/compiler/test/runtime-marks-reached.test.ts",
+			"name": "a handoff from a server leg that named no runtime stops the client build instead of naming one of its own"
+		},
+		{
+			"site": "packages/compiler/src/driver.ts > Compiler > scan > throw:1",
+			"reason": "a test reaches its recovery path; proved by hand: the throw removed turns the test red",
+			"test": "packages/compiler/test/runtime-marks-reached.test.ts",
+			"name": "a client leg that finds a feature the server leg did not name stops the build, naming it"
+		},
+		{
+			"site": "packages/compiler/src/driver.ts > Compiler > seal_server_runtime > throw:0",
+			"reason": "a test reaches its recovery path; proved by hand: the throw removed turns the test red",
+			"test": "packages/compiler/test/runtime-marks-reached.test.ts",
+			"name": "one compiler whose client leg shipped its runtime before the server leg found a feature stops the build, naming it"
+		},
+		{
 			"site": "packages/compiler/src/driver.ts > Compiler > resolve_id > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/package-mark-resolve.test.ts",
@@ -4464,7 +4482,13 @@
 			"site": "packages/compiler/src/vite/index.ts > ogygia > buildEnd > catch:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
 			"test": "packages/compiler/test/vite-hooks.test.ts",
-			"name": "a handoff the server leg cannot write is a coded warning, never a failed build"
+			"name": "a handoff the server leg cannot write stops the build, said with its code: the client could not ship the runtime the pages name"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > buildEnd > throw:0",
+			"reason": "a test reaches its recovery path; proved by hand: the throw removed turns the test red",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a handoff the server leg cannot write stops the build, said with its code: the client could not ship the runtime the pages name"
 		},
 		{
 			"site": "packages/compiler/src/vite/index.ts > ogygia > load > catch:0",
