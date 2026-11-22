@@ -221,6 +221,16 @@
 ::view-transition-new(og-sidebar) {
 	animation: none;
 }
+/* A named element is captured without its ancestors' clips: the sidebar's panel (its parent) holds
+   the sidebar and chip layers and clips them to its box, where nested VT groups exist, so no
+   scrolled-out row paints over the header. */
+:has(> .og-sidebar) {
+	view-transition-name: og-sidebar-panel;
+	view-transition-group: contain;
+}
+::view-transition-group-children(og-sidebar-panel) {
+	overflow: clip;
+}
 ::view-transition-group(og-nav-active) {
 	z-index: 0;
 	animation-duration: 280ms;

@@ -356,6 +356,15 @@
 	::view-transition-new(og-sidebar) {
 		animation: none;
 	}
+	/* the sidebar's panel (its parent) clips the sidebar and chip layers to its box, where nested
+	   VT groups exist: no scrolled-out row paints over the page */
+	:has(> .og-sidebar) {
+		view-transition-name: og-sidebar-panel;
+		view-transition-group: contain;
+	}
+	::view-transition-group-children(og-sidebar-panel) {
+		overflow: clip;
+	}
 	::view-transition-group(og-nav-active) {
 		z-index: 0;
 		animation-duration: var(--og-dur-slow);
