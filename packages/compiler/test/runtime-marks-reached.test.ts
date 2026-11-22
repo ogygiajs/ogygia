@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
@@ -25,7 +25,8 @@ const HYDRATE_FEATURES = '\0ogygia:boot/hydrate-features';
 const RUNTIME_URL = '\0ogygia:server/runtime-url';
 const SERVER = { name: 'ssr', server: true };
 const OG_RUNTIME_RE = /^\/_app\/ogygia\/og-runtime\.0123456789ab-[0-9a-f]{8}\.js$/;
-const UNNAMED_LIVE_RE = /runtime_features_unnamed[\s\S]*live/;
+const UNNAMED_LIVE_RE = /runtime_features_unnamed[\s\S]*live|live[\s\S]*runtime_features_unnamed/;
+const NO_SERVER_RUNTIME_RE = /server_runtime_unnamed/;
 const CLIENT = { name: 'client', server: false };
 
 /** An app whose page places a shell from an installed package that declares no `ogygia.files`.
@@ -104,9 +105,6 @@ function new_compiler(): Compiler {
 	);
 }
 
-/** A handoff naming only the modules the server leg compiled (no runtime named). */
-const compiled = (hosts: string[]) => parse_server_handoff(server_handoff_json(hosts, 'k', []));
-
 function client_compiler(handoff: ServerHandoff | null): Compiler {
 	const compiler = new_compiler();
 	compiler.start_leg(CLIENT.name, CLIENT.server, handoff);
@@ -121,15 +119,18 @@ const SHELL_SOURCE = `${dedent`
 	<Sidebar />
 `}\n`;
 
-/** The server leg of a build: it compiles the page's shell from the package, as the bundler does,
- *  then finishes the chunk that holds its runtime URL. Returns the URL its pages load, and its
- *  handoff. */
-async function server_leg(shell: string): Promise<{ url: string; handoff: ServerHandoff }> {
-	const compiler = new_compiler();
+/** The server leg of a build in `compiler`: it compiles `files` (path → source) as the bundler
+ *  does, then finishes the chunk that holds its runtime URL. Returns the URL its pages load, and
+ *  its handoff. */
+async function server_pass(
+	compiler: Compiler,
+	files: ReadonlyArray<[string, string]>
+): Promise<{ url: string; handoff: ServerHandoff }> {
 	compiler.start_leg(SERVER.name, SERVER.server);
 	compiler.prescan();
 	const leg = compiler.leg(SERVER);
-	await compiler.transform_module(SHELL_SOURCE, shell, { leg, emitFile: () => 'ref' });
+	for (const [file, source] of files)
+		await compiler.transform_module(source, file, { leg, emitFile: () => 'ref' });
 	const value = compiler.emit(RUNTIME_URL, { ssr: true, universalHooks: null });
 	const code = typeof value === 'string' ? value : (value as { code: string }).code;
 	const json = server_handoff_json(
@@ -148,6 +149,13 @@ async function server_leg(shell: string): Promise<{ url: string; handoff: Server
 	const url = /"([^"]*og-runtime[^"]*)"/.exec(out?.code ?? code)?.[1] ?? '';
 	return { url, handoff: parse_server_handoff(json) };
 }
+
+/** A server leg of its own that compiles the package's shell. */
+const server_leg = (shell: string) => server_pass(new_compiler(), [[shell, SHELL_SOURCE]]);
+
+/** A server leg of its own that compiles `file` as it is on disk. */
+const server_leg_of = (file: string) =>
+	server_pass(new_compiler(), [[file, readFileSync(file, 'utf8')]]);
 
 const late_lines = (calls: unknown[][]) =>
 	calls.map((c) => String(c[0])).filter((l) => l.includes('runtime_marks_late'));
@@ -190,7 +198,7 @@ test('a package component the server build compiled keeps its region: the client
 	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	try {
 		const { shell } = app();
-		const compiler = client_compiler(compiled([shell]));
+		const compiler = client_compiler((await server_leg(shell)).handoff);
 		expect(runtime(compiler)).toContain('/live.js');
 		await transform_shell(compiler, shell);
 		expect(late_lines(warn.mock.calls)).toEqual([]);
@@ -199,11 +207,11 @@ test('a package component the server build compiled keeps its region: the client
 	}
 });
 
-test('without the server build list, the package component is first read while bundling and is reported late', async () => {
+test('a client-only build (no server leg, no handoff) first reads the package component while bundling, and reports it late', async () => {
 	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	try {
 		const { shell } = app();
-		const compiler = client_compiler(compiled([]));
+		const compiler = client_compiler(null);
 		expect(runtime(compiler)).not.toContain('/live.js');
 		await transform_shell(compiler, shell);
 		expect(late_lines(warn.mock.calls)).toHaveLength(1);
@@ -212,16 +220,52 @@ test('without the server build list, the package component is first read while b
 	}
 });
 
-test("ogygia's own modules the server build compiled are not read as the app's: its entry does not turn on context", () => {
+test("ogygia's own modules the server build compiled are not read as the app's: its entry does not turn on context", async () => {
 	app();
 	const own = `${root}/packages/ogygia/src/index.ts`;
 	write(own, `export * from '@ogygia/core';\n`);
-	const compiler = client_compiler(compiled([own]));
-	expect(compiler.program.runtime_marks.context).toBeFalsy();
+	const { handoff } = await server_leg_of(own);
+	expect(handoff.runtime?.marks.context).toBeFalsy();
+	expect(client_compiler(handoff).program.runtime_marks.context).toBeFalsy();
 });
 
-test('a package script that declares no ogygia.files is not read for regions, as its transform is not', () => {
+test('a package script that declares no ogygia.files is not read for regions, as its transform is not', async () => {
 	const { script } = app();
-	const compiler = client_compiler(compiled([script]));
+	const compiler = client_compiler((await server_leg_of(script)).handoff);
 	expect(runtime(compiler)).not.toContain('/lakes.js');
+});
+
+test('one compiler that builds the server leg and then the client leg names one runtime for both', async () => {
+	const { shell } = app();
+	const compiler = new_compiler();
+	const server = await server_pass(compiler, [[shell, SHELL_SOURCE]]);
+	compiler.start_leg(CLIENT.name, CLIENT.server);
+	compiler.prescan();
+	expect(compiler.runtime_chunk_url()).toBe(server.url);
+	expect(runtime(compiler)).toContain('/live.js');
+});
+
+test('one compiler whose client leg shipped its runtime before the server leg found a feature stops the build, naming it', async () => {
+	const { shell } = app();
+	const compiler = new_compiler();
+	compiler.start_leg(CLIENT.name, CLIENT.server);
+	compiler.prescan();
+	runtime(compiler);
+	await expect(server_pass(compiler, [[shell, SHELL_SOURCE]])).rejects.toThrow(UNNAMED_LIVE_RE);
+});
+
+test('one compiler whose client leg ran first names one runtime for both when the server leg finds nothing new', async () => {
+	app();
+	const compiler = new_compiler();
+	compiler.start_leg(CLIENT.name, CLIENT.server);
+	compiler.prescan();
+	runtime(compiler);
+	const server = await server_pass(compiler, []);
+	expect(compiler.runtime_chunk_url()).toBe(server.url);
+});
+
+test('a handoff from a server leg that named no runtime stops the client build instead of naming one of its own', () => {
+	const { shell } = app();
+	const handoff = parse_server_handoff(server_handoff_json([shell], 'k', []));
+	expect(() => client_compiler(handoff)).toThrow(NO_SERVER_RUNTIME_RE);
 });
