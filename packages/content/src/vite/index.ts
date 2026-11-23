@@ -34,7 +34,6 @@ export { invalidateModuleTree } from './hmr.ts';
 export type { ContentHmrOptions };
 
 // ── regexes
-/** This package's `src/` (from source) or `dist/` (installed): the folder above this module's. */
 const LIB_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CONTENT_CALL_RE = /\bcontent\s*\(/;
 const SERVER_MODULE_EXT_RE = /\.(server|remote)\.(ts|js|mjs)$/;
