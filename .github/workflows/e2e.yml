@@ -417,13 +417,13 @@ jobs:
       - name: Install and build core and the compiler (this PR)
         run: |
           pnpm install --frozen-lockfile
-          pnpm turbo run build --filter=@ogygia/core... --filter=@ogygia/compiler...
+          pnpm turbo run build --filter=@ogygia/core... --filter=@ogygia/compiler... --filter=@ogygia/rewrite...
 
       - name: Install and build core and the compiler (the base)
         working-directory: .size-base
         run: |
           pnpm install --frozen-lockfile
-          filters=(--filter=@ogygia/core...)
+          filters=(--filter=@ogygia/core... --filter=@ogygia/rewrite...)
           # (a base from before @ogygia/compiler has the runtime entry inside core)
           if [ -d packages/compiler ]; then filters+=(--filter=@ogygia/compiler...); fi
           pnpm turbo run build "${filters[@]}"
