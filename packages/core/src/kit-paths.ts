@@ -68,8 +68,6 @@ export function kit_asset(file: string): string {
 	return kit_call(file);
 }
 
-/** One request's answers to `kit_asset`: the prefix Kit gave its probe, and each plain path's URL,
- *  made once, so every list, set and map the page's URLs pass through holds the same string. */
 class RequestAssets {
 	readonly prefix: string;
 	readonly urls: Map<string, string> = new Map();

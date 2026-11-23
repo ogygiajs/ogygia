@@ -26,7 +26,6 @@ const is_router_meta = (t: FoundTag) => t.attr('name') === 'ogygia-router';
 const is_dev_hmr = (t: FoundTag) => t.attr(OGYGIA_DEV_HMR) !== undefined;
 const is_speculation = (t: FoundTag) => SPECULATION_TYPE.test(t.attr('type') ?? '');
 
-/** Whether `needle` appears in `html` at all: no tag can carry a marker whose text is not there. */
 function holds(html: string, needle: string | RegExp): boolean {
 	return typeof needle === 'string' ? html.includes(needle) : html.search(needle) !== -1;
 }
@@ -122,7 +121,6 @@ export class HeadTags {
 		const old = this.#all();
 		let gone = 0;
 		for (const [start, end] of cuts) {
-			// (a bare `<` before the cut now meets the text after it: read the rest again)
 			if (start - gone > 0 && out.charCodeAt(start - gone - 1) === 60) return new HeadTags(out);
 			gone += end - start;
 		}

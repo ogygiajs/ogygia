@@ -801,7 +801,6 @@ class OgygiaHandle {
 		const read = read_head(html);
 		const spans = { head_end: read.end, body_end: body_end(html) };
 		const head = read.end === -1 ? null : html.slice(0, read.end);
-		// (the head's tags, read by the walk that found its end: every question below is asked of them)
 		const head_tags = head === null ? null : new HeadTags(head, read);
 		// THE EARLY START (early-holes.ts): the requests of this page's `load` holes start during the
 		// parse, from one data block and one constant script in the chunk that carries `</head>`. A

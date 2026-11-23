@@ -656,7 +656,6 @@ export function read_head_tag(html: string, from: number, list: HeadTagList): nu
 	return walk_head(html, list, true, from, true);
 }
 
-/** The `HeadTagName` of a start tag named `html[ns, ne)` (any case), or null. */
 function head_tag_name(html: string, ns: number, ne: number): HeadTagName | null {
 	const n = ne - ns;
 	if (n === 4) {
@@ -668,10 +667,6 @@ function head_tag_name(html: string, ns: number, ne: number): HeadTagName | null
 	return n === 6 && name_is(html, ns, ne, 'script') ? 'script' : null;
 }
 
-/** The walk `head_end`, `read_head` and `read_head_tag` share, from `from`: the `<` of the head's
- *  end tag, or -1 (`whole`: no end is looked for, the walk goes on to the end of `html`); with
- *  `keep`, each `head_tag_name` start tag on the way, in order (`one`: only the next, returning
- *  where to go on from). */
 function walk_head(
 	html: string,
 	keep: HeadTagList | null,
