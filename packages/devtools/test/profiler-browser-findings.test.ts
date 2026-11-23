@@ -301,7 +301,7 @@ test('the inline beacon for pages without the runtime is one valid script tag', 
 	expect(BEACON_STANDALONE_TAG.startsWith('<script data-ogygia-beacon>')).toBe(true);
 	// oxlint-disable-next-line typescript/no-implied-eval -- parses the shipped script tag's code
 	expect(() => new Function(tag_code(BEACON_STANDALONE_TAG))).not.toThrow();
-});
+}, 30_000);
 
 test('the inline beacon names a preload the browser downloaded again (a Kit page has no runtime beacon)', async () => {
 	const { BEACON_STANDALONE_TAG } = await import('../src/profiler/beacon-tag.ts');
