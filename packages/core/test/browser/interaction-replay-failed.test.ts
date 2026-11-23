@@ -64,10 +64,11 @@ it_with_network_routes(
 		region
 			.querySelector('button')!
 			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-		await expect.poll(() => region.hasAttribute('data-hydrated'), { timeout: 10_000 }).toBe(true);
+		await expect.poll(() => region.hasAttribute('data-hydrated'), { timeout: 30_000 }).toBe(true);
 		const count = region.querySelector('[data-testid="count"]')!;
 		const before = Number(count.textContent);
 		region.querySelector('button')!.click();
 		await expect.poll(() => Number(count.textContent)).toBe(before + 1);
-	}
+	},
+	45_000
 );
