@@ -15,6 +15,7 @@
  * build), and the dev HMR that reloads catalogs when a content file changes.
  */
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { PreprocessorGroup } from 'svelte/compiler';
 import type { Plugin as VitePlugin } from 'vite';
 import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
@@ -33,6 +34,8 @@ export { invalidateModuleTree } from './hmr.ts';
 export type { ContentHmrOptions };
 
 // ── regexes
+/** This package's `src/` (from source) or `dist/` (installed): the folder above this module's. */
+const LIB_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CONTENT_CALL_RE = /\bcontent\s*\(/;
 const SERVER_MODULE_EXT_RE = /\.(server|remote)\.(ts|js|mjs)$/;
 const SERVER_DIR_RE = /\/(src\/lib\/server|server)\//;
@@ -80,6 +83,7 @@ export function content(options: ContentOptions = {}): [OgygiaPlugin, ...VitePlu
 		name: '@ogygia/content',
 		build(b) {
 			root = b.root;
+			b.files({ root: path.dirname(LIB_DIR), dirs: [path.join(LIB_DIR, 'site', 'components')] });
 			// each content() call is owned by the run of the module that makes it (dev: core marks it)
 			b.definers('@ogygia/content', ['content']);
 			for (const { name, handler } of snippet_macros(
