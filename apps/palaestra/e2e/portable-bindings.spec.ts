@@ -14,6 +14,7 @@ import {
 } from '../../../packages/compiler/dist/region/transform.js';
 import { test, check } from '@ogygia/tooling/e2e';
 import { WRAPPER_VIRTUAL_RE } from '@ogygia/tooling/e2e/re.ts';
+import { E2E_OUT_DIR, e2e_output } from '@ogygia/tooling/e2e/build.ts';
 import { dedent } from 'ogygia/plugin/utils';
 
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
@@ -257,16 +258,8 @@ export const registry = [RawX, WakeX, LoadY, WakeX2];
 	});
 
 	test('Client build: Counter facade dedupe (Rolldown thin facades)', () => {
-		const clientDir = path.join(
-			repo,
-			'apps/palaestra',
-			'.svelte-kit',
-			'output',
-			'client',
-			'_app',
-			'immutable'
-		);
-		const depsPath = path.join(repo, 'apps/palaestra', '.svelte-kit', 'og-region-deps.json');
+		const clientDir = e2e_output(path.join(repo, 'apps/palaestra'), 'client', '_app', 'immutable');
+		const depsPath = path.join(repo, 'apps/palaestra', E2E_OUT_DIR, 'og-region-deps.json');
 		if (!fs.existsSync(clientDir)) {
 			check('build: palaestra client present (run palaestra build)', false);
 		} else {

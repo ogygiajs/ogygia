@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, check } from '@ogygia/tooling/e2e';
+import { e2e_output } from '@ogygia/tooling/e2e/build.ts';
 
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
 
@@ -37,15 +38,7 @@ function chunks_with(dir: string, marker: string): string[] {
 
 test.describe('same-component-two-strategies → ONE client chunk', () => {
 	test('(A) Kit-driven: the already-built palaestra client output', () => {
-		const client_dir = path.join(
-			repo,
-			'apps/palaestra',
-			'.svelte-kit',
-			'output',
-			'client',
-			'_app',
-			'immutable'
-		);
+		const client_dir = e2e_output(path.join(repo, 'apps/palaestra'), 'client', '_app', 'immutable');
 		const marker = 'dup-widget-unique-marker-9c3f';
 		if (!fs.existsSync(client_dir)) {
 			check(

@@ -12,6 +12,7 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, check, sleep } from '@ogygia/tooling/e2e';
+import { e2e_output } from '@ogygia/tooling/e2e/build.ts';
 
 const JS_FILE_RE = /\.(js|mjs)$/;
 const ISLAND_COUNT_1_RE = /island count: 1/;
@@ -22,8 +23,8 @@ const FROZEN_BUTTON_0_RE = /frozen button: 0/;
 // build (the lake SSRs inline) and in NO client chunk (its JS is swapped for a placeholder).
 const MARKER = 'FROZEN_LAKE_CODE_MARKER_9f3a';
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
-const client_dir = join(repo, 'apps/palaestra', '.svelte-kit', 'output', 'client');
-const server_dir = join(repo, 'apps/palaestra', '.svelte-kit', 'output', 'server');
+const client_dir = e2e_output(join(repo, 'apps/palaestra'), 'client');
+const server_dir = e2e_output(join(repo, 'apps/palaestra'), 'server');
 
 function grep_dir(dir: string): number {
 	let hits = 0;

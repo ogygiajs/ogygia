@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, check, sleep } from '@ogygia/tooling/e2e';
 import { REGION_TAG_G_RE, RUNTIME_SCRIPT_RE } from '@ogygia/tooling/e2e/re.ts';
+import { e2e_output } from '@ogygia/tooling/e2e/build.ts';
 
 const JS_FILE_RE = /\.(js|mjs)$/;
 // The distinctive string in the lake component (LakeChrome): server build yes, client chunks never.
@@ -32,8 +33,8 @@ const HYDRATION_MISMATCH_RE = /hydration_mismatch/;
 const PROPS_SIDECAR_RE = /<script type="application\/ogygia-props"[^>]*>[^<]*"start"[^<]*7/;
 
 const palaestra = fileURLToPath(new URL('..', import.meta.url));
-const client_dir = join(palaestra, '.svelte-kit', 'output', 'client');
-const server_dir = join(palaestra, '.svelte-kit', 'output', 'server');
+const client_dir = e2e_output(palaestra, 'client');
+const server_dir = e2e_output(palaestra, 'server');
 
 function grep_dir(dir: string): number {
 	let hits = 0;
