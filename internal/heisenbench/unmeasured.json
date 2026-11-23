@@ -5417,6 +5417,18 @@
 			"reason": "a message table entry: wording only"
 		},
 		{
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > server_features_late > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > server_features_late > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/program.ts > Program > #note_server_late",
+			"reason": "build only, server leg: once per host registered after the server's word was fixed, over the few feature ids; a no-op before (test/runtime-marks-reached.test.ts)"
+		},
+		{
 			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > server_runtime_unnamed > details",
 			"reason": "a message table entry: wording only"
 		},
