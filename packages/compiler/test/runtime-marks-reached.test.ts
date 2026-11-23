@@ -29,6 +29,8 @@ const UNNAMED_LIVE_RE = /runtime_features_unnamed[\s\S]*live|live[\s\S]*runtime_
 const NO_SERVER_RUNTIME_RE = /server_runtime_unnamed/;
 const SERVER_FEATURES_LATE_RE = /server_features_late[\s\S]*live/;
 const SHELL_FILE_RE = /Shell\.svelte/;
+const SERVER_PAGE_LATE_RE = /server_features_late[\s\S]*page/;
+const READER_FILE_RE = /Reader\.svelte/;
 const CLIENT = { name: 'client', server: false };
 
 /** An app whose page places a shell from an installed package that declares no `ogygia.files`.
@@ -291,4 +293,44 @@ test('a package component the server build compiled after its feature word was f
 	})();
 	expect(stop).toMatch(SERVER_FEATURES_LATE_RE);
 	expect(stop).toMatch(SHELL_FILE_RE);
+});
+
+test("a late package component whose region's code reads the page stops the build naming that region's component, not only the feature", async () => {
+	app();
+	const pkg = `${root}/node_modules/shell-pkg`;
+	const shell = `${pkg}/PageShell.svelte`;
+	const source = `${dedent`
+		<script>
+			import Reader from './Reader.svelte' with { wake: 'load' };
+		</script>
+		<Reader />
+	`}\n`;
+	write(shell, source);
+	write(
+		`${pkg}/Reader.svelte`,
+		`${dedent`
+			<script>
+				import { page } from '$app/state';
+			</script>
+			<p>{page.url.pathname}</p>
+		`}\n`
+	);
+	const compiler = new_compiler();
+	compiler.start_leg(SERVER.name, SERVER.server);
+	compiler.prescan();
+	await compiler.emit('\0ogygia:server/runtime-flags', { ssr: true, universalHooks: null });
+	await compiler.transform_module(source, shell, {
+		leg: compiler.leg(SERVER),
+		emitFile: () => 'ref'
+	});
+	const stop = (() => {
+		try {
+			compiler.server_runtime();
+		} catch (e) {
+			return String(e);
+		}
+		return '';
+	})();
+	expect(stop).toMatch(SERVER_PAGE_LATE_RE);
+	expect(stop).toMatch(READER_FILE_RE);
 });
