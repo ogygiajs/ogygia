@@ -277,7 +277,7 @@ test('a package component the server build compiled after its feature word was f
 	const compiler = new_compiler();
 	compiler.start_leg(SERVER.name, SERVER.server);
 	compiler.prescan();
-	compiler.emit('\0ogygia:server/runtime-flags', { ssr: true, universalHooks: null });
+	await compiler.emit('\0ogygia:server/runtime-flags', { ssr: true, universalHooks: null });
 	expect(compiler.server_word()).not.toBeNull();
 	const leg = compiler.leg(SERVER);
 	await compiler.transform_module(SHELL_SOURCE, shell, { leg, emitFile: () => 'ref' });
