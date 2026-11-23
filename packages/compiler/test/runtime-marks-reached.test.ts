@@ -27,6 +27,7 @@ const SERVER = { name: 'ssr', server: true };
 const OG_RUNTIME_RE = /^\/_app\/ogygia\/og-runtime\.0123456789ab-[0-9a-f]{8}\.js$/;
 const UNNAMED_LIVE_RE = /runtime_features_unnamed[\s\S]*live|live[\s\S]*runtime_features_unnamed/;
 const NO_SERVER_RUNTIME_RE = /server_runtime_unnamed/;
+const SERVER_FEATURES_LATE_RE = /server_features_late[\s\S]*live/;
 const CLIENT = { name: 'client', server: false };
 
 /** An app whose page places a shell from an installed package that declares no `ogygia.files`.
@@ -268,4 +269,17 @@ test('a handoff from a server leg that named no runtime stops the client build i
 	const { shell } = app();
 	const handoff = parse_server_handoff(server_handoff_json([shell], 'k', []));
 	expect(() => client_compiler(handoff)).toThrow(NO_SERVER_RUNTIME_RE);
+});
+
+test('a package component the server build compiled after its feature word was fixed, needing a feature the word left out, stops the build, naming the feature and the module', async () => {
+	const { shell } = app();
+	const compiler = new_compiler();
+	compiler.start_leg(SERVER.name, SERVER.server);
+	compiler.prescan();
+	compiler.emit('\0ogygia:server/runtime-flags', { ssr: true, universalHooks: null });
+	expect(compiler.server_word()).not.toBeNull();
+	const leg = compiler.leg(SERVER);
+	await compiler.transform_module(SHELL_SOURCE, shell, { leg, emitFile: () => 'ref' });
+	expect(() => compiler.server_runtime()).toThrow(SERVER_FEATURES_LATE_RE);
+	expect(() => compiler.server_runtime()).toThrow(/Shell\.svelte/);
 });
