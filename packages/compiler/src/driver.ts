@@ -909,7 +909,7 @@ export class Compiler implements CoreApp {
 	#seal_server_runtime(): HandedRuntime {
 		this.prescan();
 		const word = this.program.server_word;
-		const needed_by = new Map<FeatureId, string>();
+		const needed_by = new Map<FeatureId, string>(this.program.server_late);
 		for (const f of this.#compiled_unread(this.program.ssr_transformed)) {
 			const readable = this.#readable(f);
 			if (!readable) continue;

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { feature_word } from '@ogygia/core/contract';
 import { renderId } from './region/identity.ts';
 import { resolveFeatures, type FeatureId, type RuntimeMarks } from './link/runtime-entry.ts';
 import { warn } from './messages.ts';
@@ -381,6 +382,17 @@ export class Program {
 		}
 		host_index.set(key, idx);
 		this.#check_late(hostId);
+		this.#note_server_late(hostId);
+	}
+
+	/** BUILD, server leg: each feature the server's word left out, and the module whose regions
+	 *  first needed it after the word was fixed (driver.ts `#refuse_late_features`). */
+	readonly server_late: Map<FeatureId, string> = new Map();
+	#note_server_late(host: string): void {
+		const word = this.server_word;
+		if (word === null) return;
+		for (const id of resolveFeatures({ ...this.runtime_marks, complete: true }))
+			if (!(word & feature_word([id])) && !this.server_late.has(id)) this.server_late.set(id, host);
 	}
 
 	/** A deleted component: every region of it goes, with every host's claim on it (a claim kept
