@@ -21,7 +21,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assert_e2e_output, E2E_BUILD_ENV } from '@ogygia/tooling/e2e/build.ts';
+import { assert_e2e_output, E2E_BUILD_ENV, sync_app } from '@ogygia/tooling/e2e/build.ts';
 
 const app = fileURLToPath(new URL('..', import.meta.url));
 // (a production build prints the warning as its code's link: messages/server.ts `build_key_prerender`)
@@ -53,6 +53,7 @@ const env_bak = join(app, '.env.ogygia-warncheck-bak');
 // Self-heal a crashed earlier run before touching anything.
 if (existsSync(env_bak) && !existsSync(env_file)) renameSync(env_bak, env_file);
 
+sync_app(app);
 console.log('▸ Building palaestra (warn-path probe: secret hidden)');
 {
 	const child_env = { ...process.env, ...E2E_BUILD_ENV };

@@ -40,12 +40,26 @@ export function assert_e2e_output(dir: string): void {
 		);
 }
 
+/** Kit's `sync` for the app in `dir`, into its own `.svelte-kit`: the tsconfig the app's tsconfig
+ *  extends, which an e2e build (its files in {@link E2E_OUT_DIR}) never writes. */
+export function sync_app(dir: string): void {
+	const env = { ...process.env };
+	delete env.OGYGIA_E2E_OUT_DIR;
+	const res = spawnSync('node', ['node_modules/@sveltejs/kit/svelte-kit.js', 'sync'], {
+		cwd: dir,
+		stdio: 'inherit',
+		env
+	});
+	if (res.status !== 0) throw new Error(`svelte-kit sync failed: ${dir}`);
+}
+
 /** Build the app in `dir`; throws (with the build's output already printed) when it fails. */
 export function build_app(dir: string): void {
 	if (process.env.E2E_NO_BUILD) {
 		console.log(`▸ E2E_NO_BUILD=1 — reusing the existing build of ${dir}`);
 		return;
 	}
+	sync_app(dir);
 	console.log(`▸ Building ${dir}`);
 	// (with ogygia's rules on itself: every test ends by reading them, ./index.ts `test`)
 	const res = spawnSync('node', ['node_modules/vite/bin/vite.js', 'build'], {

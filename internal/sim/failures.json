@@ -363,6 +363,12 @@
 			"name": "the build lands in its own folder, never over the app's production build in .svelte-kit"
 		},
 		{
+			"site": "packages/tooling/src/e2e/build.ts > sync_app > throw:0",
+			"reason": "an app whose Kit cannot sync stops before its build, naming the app; the test expects this throw, so taking it out turns the test red",
+			"test": "packages/tooling/test/e2e-build.test.ts",
+			"name": "an app whose Kit cannot sync throws before building, naming the app"
+		},
+		{
 			"site": "packages/tooling/src/vitest/downloads.ts > Downloads > observer:0",
 			"reason": "a download past a full resource timeline is still heard; proved by hand: the observer replaced by a read of the timeline turns the test red on Chromium, Firefox and WebKit (83487bc18)",
 			"test": "packages/core/test/browser/hydrate-visit.test.ts",

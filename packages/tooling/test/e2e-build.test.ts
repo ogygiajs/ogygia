@@ -46,7 +46,15 @@ describe('e2e build', () => {
 		vi.stubEnv('E2E_NO_BUILD', '');
 		vi.spyOn(console, 'log').mockImplementation(() => {});
 		const dir = temp();
+		stand_ins(dir, 'process.exit(1);');
 		expect(() => build_app(dir)).toThrow(`e2e build failed: ${dir}`);
+	});
+
+	it('an app whose Kit cannot sync throws before building, naming the app', () => {
+		vi.stubEnv('E2E_NO_BUILD', '');
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		const dir = temp();
+		expect(() => build_app(dir)).toThrow(`svelte-kit sync failed: ${dir}`);
 	});
 
 	it("the build carries ogygia's rules (OGYGIA_RULES=1), so every test's rules check checks (#1272)", () => {
