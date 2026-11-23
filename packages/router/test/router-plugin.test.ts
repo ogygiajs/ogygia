@@ -12,7 +12,7 @@ test('router() marks every module importing @ogygia/router as a page module', ()
 	const definition = plugin[Symbol.for('ogygia.plugin')];
 	expect(definition.name).toBe('@ogygia/router');
 	const asked: unknown[] = [];
-	definition.build!({ pageModules: (spec: unknown) => asked.push(spec) });
+	definition.build!({ pageModules: (spec: unknown) => asked.push(spec), files: () => {} });
 	expect(asked).toEqual([{ importers: ['@ogygia/router'] }]);
 });
 
