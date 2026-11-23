@@ -564,6 +564,22 @@ export const BUILD_ERRORS = {
 		`
 	},
 
+	server_features_late: {
+		text: (a: { features: string; modules: string }): string => prose`
+			${a.modules} needs the runtime's ${a.features}, but the server build compiled it after
+			it had fixed which features its own code carries. The server would render that region
+			without the code for it.
+		`,
+		details: (): string => prose`
+			The server build fixes its feature word when it first loads ogygia's server code, from
+			the app's source and the files packages list under \`"ogygia.files"\`. A component it
+			reaches only while bundling (one from an installed package that does not list it) is
+			read after that, and a feature only it needs is missing from the server's code. List the
+			component in its package's \`"ogygia.files"\`, or place the region from the app's own
+			source, so the server build reads it before it fixes its features.
+		`
+	},
+
 	server_runtime_unnamed: {
 		text: (): string => prose`
 			The server build's handoff names no runtime, so the client build cannot tell which runtime

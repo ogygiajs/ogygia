@@ -4269,6 +4269,12 @@
 			"name": "one compiler whose client leg shipped its runtime before the server leg found a feature stops the build, naming it"
 		},
 		{
+			"site": "packages/compiler/src/driver.ts > Compiler > refuse_late_features > throw:0",
+			"reason": "a server bundle whose feature word lacks a feature its settled runtime needs stops the build, naming the feature and the module; proved by hand: the test was red before the throw existed",
+			"test": "packages/compiler/test/runtime-marks-reached.test.ts",
+			"name": "a package component the server build compiled after its feature word was fixed, needing a feature the word left out, stops the build, naming the feature and the module"
+		},
+		{
 			"site": "packages/compiler/src/driver.ts > Compiler > resolve_id > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/package-mark-resolve.test.ts",

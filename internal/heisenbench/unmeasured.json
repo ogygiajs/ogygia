@@ -5389,6 +5389,14 @@
 			"reason": "build only, once per server leg: the sealed features a client leg that shipped first lacks, over the few feature ids"
 		},
 		{
+			"id": "packages/compiler/src/driver.ts > Compiler > #refuse_late_features",
+			"reason": "build only, once per server leg at buildEnd: stops the build when the settled runtime needs a feature the server's word left out (test/runtime-marks-reached.test.ts)"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > #refuse_late_features > filter:0~9c8207",
+			"reason": "build only, once per server leg: the settled features the server's word lacks, over the few feature ids"
+		},
+		{
 			"id": "packages/compiler/src/driver.ts > Compiler > server_runtime",
 			"reason": "build only: the server leg's sealed runtime, made once per build and then a memo read per renderChunk"
 		},

@@ -28,6 +28,7 @@ const OG_RUNTIME_RE = /^\/_app\/ogygia\/og-runtime\.0123456789ab-[0-9a-f]{8}\.js
 const UNNAMED_LIVE_RE = /runtime_features_unnamed[\s\S]*live|live[\s\S]*runtime_features_unnamed/;
 const NO_SERVER_RUNTIME_RE = /server_runtime_unnamed/;
 const SERVER_FEATURES_LATE_RE = /server_features_late[\s\S]*live/;
+const SHELL_FILE_RE = /Shell\.svelte/;
 const CLIENT = { name: 'client', server: false };
 
 /** An app whose page places a shell from an installed package that declares no `ogygia.files`.
@@ -280,6 +281,14 @@ test('a package component the server build compiled after its feature word was f
 	expect(compiler.server_word()).not.toBeNull();
 	const leg = compiler.leg(SERVER);
 	await compiler.transform_module(SHELL_SOURCE, shell, { leg, emitFile: () => 'ref' });
-	expect(() => compiler.server_runtime()).toThrow(SERVER_FEATURES_LATE_RE);
-	expect(() => compiler.server_runtime()).toThrow(/Shell\.svelte/);
+	const stop = (() => {
+		try {
+			compiler.server_runtime();
+		} catch (e) {
+			return String(e);
+		}
+		return '';
+	})();
+	expect(stop).toMatch(SERVER_FEATURES_LATE_RE);
+	expect(stop).toMatch(SHELL_FILE_RE);
 });
