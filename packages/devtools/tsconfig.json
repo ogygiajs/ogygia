@@ -10,7 +10,8 @@
 		"isolatedDeclarations": true,
 		"verbatimModuleSyntax": true,
 		"erasableSyntaxOnly": true,
-		"allowImportingTsExtensions": true
+		"allowImportingTsExtensions": true,
+		"customConditions": ["ogygia-source"]
 	},
 	"include": ["src", "../../internal/macros/macros.d.ts"]
 }
