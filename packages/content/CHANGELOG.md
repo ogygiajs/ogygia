@@ -1,5 +1,14 @@
 # @ogygia/content
 
+## 0.14.4
+
+### Patch Changes
+
+- [#2141](https://github.com/ogygiajs/ogygia/pull/2141) [`c83dbe7`](https://github.com/ogygiajs/ogygia/commit/c83dbe7b297416a90682a72405e591df24469ae1) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The markdown and code block build cache is keyed by the code that made each entry, not only the package version, so a build with a changed reader no longer serves pages parsed by the old one.
+- Updated dependencies [[`cefa0ea`](https://github.com/ogygiajs/ogygia/commit/cefa0ea6d8fee7374345883f6a4dfedd939afbc6)]:
+  - @ogygia/core@0.14.4
+  - @ogygia/compiler@0.14.2
+
 ## 0.14.0
 
 ### Minor Changes

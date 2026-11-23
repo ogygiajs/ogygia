@@ -13,8 +13,6 @@ with the `item` snippet; style the rest through the `.og-*` classes.
 	import type { Site } from '../site.ts';
 	import type { NavLeaf, NavTree } from '../types.ts';
 
-	const NON_IDENT_CHARS_G = /[^a-zA-Z0-9_-]+/g;
-
 	let {
 		site,
 		base,
@@ -38,11 +36,6 @@ with the `item` snippet; style the rest through the `.og-*` classes.
 	const tree: NavTree = $derived(nav ?? fetched);
 
 	const path = $derived(page.url.pathname);
-
-	function vt_name(prefix: string, key: string): string {
-		// @why each row is its own view-transition layer, so the active chip glides beneath the labels (test: test/browser/sidebar.test.ts › gives every row its own view-transition name, a valid identifier)
-		return `${prefix}-${key.replace(NON_IDENT_CHARS_G, '-')}`;
-	}
 
 	let nav_el: HTMLElement | null = $state(null);
 	let scroller: HTMLElement | null = null;
@@ -107,18 +100,14 @@ with the `item` snippet; style the rest through the `.og-*` classes.
 		{#each list as node (node.kind === 'link' ? `L${node.href}` : node.kind === 'group' ? `G${node.label}` : node.slug)}
 			{#if node.kind === 'group'}
 				<li class="og-nav-group">
-					<span class="og-nav-label" style="view-transition-name: {vt_name('phg', node.label)}"
+					<span class="og-nav-label"
 						>{node.label}{#if node.badge}<span class="og-badge">{node.badge}</span>{/if}</span
 					>
 					{@render items(node.items)}
 				</li>
 			{:else if node.kind === 'link'}
 				<li>
-					<a
-						class="og-nav-link og-nav-external"
-						style="view-transition-name: {vt_name('phx', node.href)}"
-						href={node.href}>{node.label}</a
-					>
+					<a class="og-nav-link og-nav-external" href={node.href}>{node.label}</a>
 				</li>
 			{:else if item}
 				<li>{@render item(node, path === node.href)}</li>
@@ -129,12 +118,7 @@ with the `item` snippet; style the rest through the `.og-*` classes.
 						class:og-active={path === node.href}
 						aria-current={path === node.href ? 'page' : undefined}
 						href={node.href}
-						style="view-transition-name: {vt_name('phl', node.href)}"
 					>
-						<!-- The gliding highlight box: only the ACTIVE row carries it, and it holds
-						     `view-transition-name: og-nav-active` (in CSS), so the page cross-fade's View
-						     Transition slides it from the old active row to the new one. It sits BEHIND the
-						     label text and beneath every row's own VT layer (z-index), so it never clips a label. -->
 						{#if path === node.href}<span class="og-nav-chip" aria-hidden="true"></span>{/if}
 						{node.title}{#if node.badge}<span class="og-badge">{node.badge}</span>{/if}
 					</a>
@@ -148,6 +132,7 @@ with the `item` snippet; style the rest through the `.og-*` classes.
      active page's link). Focus-only — Enter/click navigate natively. -->
 <nav
 	class="og-sidebar"
+	style="view-transition-name: og-sidebar"
 	aria-label="Documentation"
 	bind:this={nav_el}
 	{@attach roving({ selector: '.og-nav-link', orientation: 'vertical' })}

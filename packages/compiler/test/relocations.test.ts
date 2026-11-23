@@ -27,6 +27,7 @@ const relocate = (code: string, server: boolean, counts: Map<string, number>, c:
 function cx(): RelocateCx {
 	return {
 		program: new Program({ forms: true, router: true }),
+		runtime_url: () => '/_app/ogygia/og-runtime.0123456789ab-feedbeef.js',
 		public_url: (iid) => `/_app/${iid}.js`,
 		late_server_regions: new Map([['aaaaaaaaaaaa', 'ref1']]),
 		chunk_file: 'chunks/manifest.js',

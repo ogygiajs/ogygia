@@ -1,5 +1,11 @@
 # @ogygia/core
 
+## 0.14.4
+
+### Patch Changes
+
+- [#2146](https://github.com/ogygiajs/ogygia/pull/2146) [`cefa0ea`](https://github.com/ogygiajs/ogygia/commit/cefa0ea6d8fee7374345883f6a4dfedd939afbc6) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Island code no longer waits up to 2.5 s for a critical preload that already arrived on a page whose browser resource timeline had filled (250 entries): the runtime keeps its own record of finished downloads.
+
 ## 0.14.3
 
 ### Patch Changes

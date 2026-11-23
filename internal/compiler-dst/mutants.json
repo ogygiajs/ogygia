@@ -65,10 +65,10 @@
 	{
 		"id": "compiler-scan-unreadable-file",
 		"file": "packages/compiler/src/driver.ts",
-		"in": "Compiler > scan > scan_file",
-		"code": "if (src == null) return;",
+		"in": "Compiler > readable",
+		"code": "if (src == null) return null;",
 		"operator": "statement",
-		"from": "if (src == null) return;",
+		"from": "if (src == null) return null;",
 		"to": ""
 	},
 	{

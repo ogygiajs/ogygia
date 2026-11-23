@@ -550,6 +550,33 @@ export const BUILD_ERRORS = {
 		`
 	},
 
+	runtime_features_unnamed: {
+		text: (a: { features: string }): string => prose`
+			A region in this build needs the runtime's ${a.features}, but the runtime its pages load
+			was named without it. The pages would load a runtime that is not there, or one that lacks
+			what the region needs.
+		`,
+		details: (): string => prose`
+			The server build names the runtime its pages load once it has compiled every module, and
+			hands that name and its features to the client build, which ships that runtime. One side
+			found a region needing a feature the other side's runtime does not have: a file only one of
+			them compiled. This is an ogygia bug; please report it with the build's output.
+		`
+	},
+
+	server_runtime_unnamed: {
+		text: (): string => prose`
+			The server build's handoff names no runtime, so the client build cannot tell which runtime
+			the pages load.
+		`,
+		details: (): string => prose`
+			The server build writes a handoff file for the client build, beside its own output, that
+			names the runtime its pages load. This one names none: it was written by another ogygia
+			version, or it is left over from an earlier build. Run the whole build again (server, then
+			client) with one ogygia version.
+		`
+	},
+
 	plugin_without_ogygia: {
 		text: (a: { plugin: string }): string =>
 			`\`${a.plugin}\` is listed in vite.config but \`ogygia()\` is not — add \`ogygia()\` from \`ogygia/vite\` to \`plugins\`.`,
@@ -968,8 +995,9 @@ const WARNED = {
 		text: (): string => 'could not write the server-leg island handoff:',
 		details: (): string => prose`
 			The server build writes which components it transformed, so the client build emits only
-			the islands those pages place. Writing it failed (the error follows the message). The
-			build goes on and emits every island it found.
+			the islands those pages place, and which runtime its pages load, so the client build ships
+			that one. Writing it failed (the error follows the message), so the build stops: without
+			it the pages could name a runtime the client build never makes.
 		`
 	},
 	package_files_missing: {

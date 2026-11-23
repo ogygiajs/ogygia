@@ -65,26 +65,34 @@ describe('the handoff file', () => {
 	});
 
 	it("carries the server bundle's feature word, or null when the server never loaded it", () => {
-		expect(parse_server_handoff(server_handoff_json([], 'k', [], 92992)).word).toBe(92992);
-		expect(parse_server_handoff(server_handoff_json([], 'k', [], null)).word).toBeNull();
+		expect(parse_server_handoff(server_handoff_json([], 'k', [], null, 92992)).word).toBe(92992);
+		expect(parse_server_handoff(server_handoff_json([], 'k', [], null, null)).word).toBeNull();
 		expect(parse_server_handoff('{"word":"92992"}').word).toBeNull();
 	});
 
 	it('tolerates a malformed handoff (nothing gated, never a throw on shape)', () => {
-		const empty = { hosts: new Set(), build_key: '', server_regions: [], word: null };
+		const empty = {
+			hosts: new Set(),
+			build_key: '',
+			server_regions: [],
+			runtime: null,
+			word: null
+		};
 		expect(parse_server_handoff('{"not":"an array"}')).toEqual(empty);
 		expect(parse_server_handoff('null')).toEqual(empty);
 		const mixed = parse_server_handoff(
 			JSON.stringify({
 				hosts: [1, null, '/a/b.svelte'],
 				build_key: 7,
-				server_regions: [null, { iid: 'r1' }, { iid: 'r2', abs: '/a/c.svelte' }]
+				server_regions: [null, { iid: 'r1' }, { iid: 'r2', abs: '/a/c.svelte' }],
+				runtime: { marks: { live: true }, feature_hash: 7 }
 			})
 		);
 		expect(mixed).toEqual({
 			hosts: new Set(['/a/b.svelte']),
 			build_key: '',
 			server_regions: [{ iid: 'r2', abs: '/a/c.svelte' }],
+			runtime: null,
 			word: null
 		});
 	});

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { host_key } from '../program.ts';
+import type { RuntimeMarks } from './runtime-entry.ts';
 
 export const SERVER_HANDOFF = 'og-server-handoff.json';
 
@@ -31,7 +32,15 @@ export interface ServerHandoff {
 	readonly hosts: Set<string>;
 	readonly build_key: string;
 	readonly server_regions: ServerRegionRoot[];
+	readonly runtime: HandedRuntime | null;
 	readonly word: number | null;
+}
+
+/** The runtime the server leg named in the pages it renders, made once its bundle was complete: the
+ *  client leg ships exactly these features under this name (test/runtime-marks-reached.test.ts). */
+export interface HandedRuntime {
+	readonly marks: RuntimeMarks;
+	readonly feature_hash: string;
 }
 
 /** The handoff file's text. */
@@ -39,9 +48,10 @@ export function server_handoff_json(
 	hosts: readonly string[],
 	build_key: string,
 	server_regions: readonly ServerRegionRoot[],
-	word: number | null
+	runtime: HandedRuntime | null = null,
+	word: number | null = null
 ): string {
-	return JSON.stringify({ hosts, build_key, server_regions, word });
+	return JSON.stringify({ hosts, build_key, server_regions, runtime, word });
 }
 
 /** The handoff file's contents. A malformed field reads as empty: nothing gated, no region named,
@@ -51,11 +61,22 @@ export function parse_server_handoff(json: string): ServerHandoff {
 		hosts?: unknown;
 		build_key?: unknown;
 		server_regions?: unknown;
+		runtime?: { marks?: unknown; feature_hash?: unknown } | null;
 		word?: unknown;
 	} | null;
 	const hosts = Array.isArray(o?.hosts) ? o.hosts.filter((x) => typeof x === 'string') : [];
 	const regions: unknown[] = Array.isArray(o?.server_regions) ? o.server_regions : [];
+	const rt = o?.runtime;
+	const runtime: HandedRuntime | null =
+		rt &&
+		typeof rt === 'object' &&
+		rt.marks &&
+		typeof rt.marks === 'object' &&
+		typeof rt.feature_hash === 'string'
+			? { marks: rt.marks as RuntimeMarks, feature_hash: rt.feature_hash }
+			: null;
 	return {
+		runtime,
 		hosts: new Set(hosts),
 		build_key: typeof o?.build_key === 'string' ? o.build_key : '',
 		server_regions: regions.filter(

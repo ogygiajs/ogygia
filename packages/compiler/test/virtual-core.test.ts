@@ -241,13 +241,15 @@ describe('core’s dev modules', () => {
 });
 
 describe('core’s server modules', () => {
-	it('names the runtime by its dev URL in dev, and in a build by its chunk once every host is prescanned', () => {
+	it('names the runtime by its dev URL in dev, and in a build by a token the server leg fills once it has compiled every module', () => {
 		expect(load('ogygia:server/runtime-url', app({ ctx: DEV }), true)).toBe(
 			'export const runtime_url = "/@id/__x00__ogygia:boot/runtime";'
 		);
 		const calls: string[] = [];
-		load('ogygia:server/runtime-url', app({ ctx: BUILD, calls }), true);
-		expect(calls).toEqual(['prescan', 'runtime_chunk_url']);
+		expect(load('ogygia:server/runtime-url', app({ ctx: BUILD, calls }), true)).toBe(
+			'export const runtime_url = "__OGYGIA_RUNTIME_URL__";'
+		);
+		expect(calls).toEqual([]);
 	});
 
 	it('hands csr=true pages the devtools boot URL only in dev with a plugin browser half', () => {
