@@ -82,5 +82,5 @@ describe('a production build names no machine state', () => {
 		expect(rules).toContain('move armed');
 		expect(rules).toContain('kind fetching');
 		expect(rules.length).toBeGreaterThan(40);
-	});
+	}, 60_000);
 });

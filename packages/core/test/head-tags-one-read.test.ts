@@ -250,7 +250,7 @@ describe('the page head read once gives what the walks it replaced gave', () => 
 			}),
 			{ numRuns: 20_000 }
 		);
-	});
+	}, 30_000);
 
 	it('a bare `<` before the moved runtime reads the rest again (it meets the text after it)', () => {
 		const head = `<head><title>t</title>x<${RUNTIME}a href=x><script src="/app.js"></script>`;

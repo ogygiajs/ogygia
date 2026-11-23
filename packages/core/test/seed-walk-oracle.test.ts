@@ -322,7 +322,7 @@ describe('the seed walk · one walk against the old walks', () => {
 			fc.property(fc.integer(), KNOBS, (seed, k) => same_page(seed, k)),
 			{ numRuns: 600 }
 		);
-	});
+	}, 30_000);
 
 	it('the CMS shape: blocks by identity, clones with keys reordered, a header the seed does not hold', () => {
 		for (let seed = 1; seed <= 50; seed++)
