@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { dedent } from '@ogygia/core/plugin/utils';
+import { dedent } from '../../packages/core/src/contract/dedent.ts';
 import {
 	as_shipped,
 	CLEAN_PACKAGES,

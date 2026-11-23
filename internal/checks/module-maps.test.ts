@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { find_unowned } from './module-maps.ts';
-import { dedent } from '@ogygia/core/plugin/utils';
+import { dedent } from '../../packages/core/src/contract/dedent.ts';
 
 const names = (source: string): string[] =>
 	find_unowned('x.ts', source).map((f) => `${f.line}:${f.name}:${f.kind}`);

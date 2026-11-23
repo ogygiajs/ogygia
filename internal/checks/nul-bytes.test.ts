@@ -2,7 +2,7 @@
 // Run by plain node: `node --test internal/checks/nul-bytes.test.ts`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dedent } from '@ogygia/core/plugin/utils';
+import { dedent } from '../../packages/core/src/contract/dedent.ts';
 import { nul_lines } from './nul-bytes.ts';
 
 const bytes = (text: string): Uint8Array => new TextEncoder().encode(text);
