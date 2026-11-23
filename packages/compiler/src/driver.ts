@@ -869,12 +869,16 @@ export class Compiler implements CoreApp {
 		return [...compiled].filter((f) => !scan.has(f) && !is_island_path(f) && !OWN_FILE_RE.test(f));
 	}
 
-	/** Walk each registered region's island closure (what reaches Kit's page world). */
-	#walk_closures(): void {
+	/** Walk each registered region's island closure (what reaches Kit's page world); `page_by`
+	 *  hears the component whose closure first reads the page. */
+	#walk_closures(page_by?: (component: string) => void): void {
 		const { prof, P } = this.profiler;
 		const __ws = P ? performance.now() : 0;
 		for (const entry of this.program.registry.values()) {
-			if (entry.componentPath) this.mark_island_closure(entry.componentPath);
+			if (!entry.componentPath) continue;
+			const read = this.program.island_reads_page;
+			this.mark_island_closure(entry.componentPath);
+			if (!read && this.program.island_reads_page) page_by?.(entry.componentPath);
 		}
 		if (P) prof.prescanMs += performance.now() - __ws;
 	}
@@ -914,7 +918,7 @@ export class Compiler implements CoreApp {
 			for (const id of resolveFeatures({ ...this.program.runtime_marks, complete: true }))
 				if (!(word & feature_word([id])) && !needed_by.has(id)) needed_by.set(id, f);
 		}
-		this.#walk_closures();
+		this.#walk_closures((component) => needed_by.set('page', component));
 		const feature_hash = this.#seal_marks();
 		const marks = structuredClone(this.program.runtime_marks);
 		if (word !== null) this.#refuse_late_features(marks, word, needed_by);
