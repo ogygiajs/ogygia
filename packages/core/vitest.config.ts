@@ -163,6 +163,9 @@ export default defineConfig({
 	// core's own `#region-server` from its source (package.json `imports`, the `ogygia-source`
 	// condition): every other reader of the package gets dist
 	ssr: { resolve: { conditions: ['ogygia-source', ...defaultServerConditions] } },
+	environments: {
+		__vitest__: { resolve: { conditions: ['ogygia-source', ...defaultServerConditions] } }
+	},
 	test: {
 		// @why expect.poll and expect.element give up after 1 s by default, shorter than a dev-mode module load on a loaded runner running the full suite (test: test/browser/region-left-mid-wake.test.ts › a region taken out while it waits for its hydrate turn never comes alive)
 		expect: { poll: { timeout: 5_000 } },
