@@ -6,6 +6,33 @@ import { commands } from 'vitest/browser';
 import { PLAYWRIGHT, it_with_network_routes } from './_browsers.ts';
 import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
+import { after_document_painted, schedule_idle } from '../../src/runtime/schedule.ts';
+
+/** What a woken region that did not come alive is still waiting for, for the failure's message. */
+async function waits_left(region: Element): Promise<string> {
+	const within = (p: Promise<unknown>) =>
+		Promise.race([p.then(() => 'yes'), new Promise((r) => setTimeout(() => r('no'), 1000))]);
+	const frame = await within(new Promise((r) => requestAnimationFrame(r)));
+	const painted = await within(after_document_painted());
+	const seen = await within(
+		new Promise((r) => {
+			const io = new IntersectionObserver(() => {
+				io.disconnect();
+				r(0);
+			});
+			io.observe(region);
+		})
+	);
+	return JSON.stringify({
+		visibility: document.visibilityState,
+		ready: document.readyState,
+		frame,
+		painted,
+		seen,
+		schedule_idle: schedule_idle(),
+		attrs: [...region.attributes].map((a) => `${a.name}=${a.value}`)
+	});
+}
 
 declare module 'vitest/browser' {
 	interface BrowserCommands {
@@ -64,11 +91,16 @@ it_with_network_routes(
 		region
 			.querySelector('button')!
 			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-		await expect.poll(() => region.hasAttribute('data-hydrated'), { timeout: 30_000 }).toBe(true);
+		try {
+			await expect.poll(() => region.hasAttribute('data-hydrated'), { timeout: 10_000 }).toBe(true);
+		} catch (e) {
+			throw new Error(`${(e as Error).message}\nwaits left: ${await waits_left(region)}`, {
+				cause: e
+			});
+		}
 		const count = region.querySelector('[data-testid="count"]')!;
 		const before = Number(count.textContent);
 		region.querySelector('button')!.click();
 		await expect.poll(() => Number(count.textContent)).toBe(before + 1);
-	},
-	45_000
+	}
 );
