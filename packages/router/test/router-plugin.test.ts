@@ -1,5 +1,7 @@
 // `router()` (src/vite.ts): the plugin tells the build that every module importing
 // `@ogygia/router` is a page module, so the components it reaches get their CSS linked.
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { router } from '../src/vite.ts';
 
@@ -12,4 +14,17 @@ test('router() marks every module importing @ogygia/router as a page module', ()
 	const asked: unknown[] = [];
 	definition.build!({ pageModules: (spec: unknown) => asked.push(spec) });
 	expect(asked).toEqual([{ importers: ['@ogygia/router'] }]);
+});
+
+test('router() hands the scan its LayoutChain, whose dynamic layouts cross the wire, so a server build knows it before it fixes its features', () => {
+	const plugin = router() as unknown as Record<symbol, Definition>;
+	const scans: unknown[] = [];
+	plugin[Symbol.for('ogygia.plugin')].build!({
+		pageModules: () => {},
+		files: (scan: unknown) => scans.push(scan)
+	});
+	const lib = fileURLToPath(new URL('../src', import.meta.url));
+	expect(scans).toEqual([
+		{ root: path.dirname(lib), files: [path.join(lib, 'LayoutChain.svelte')] }
+	]);
 });
