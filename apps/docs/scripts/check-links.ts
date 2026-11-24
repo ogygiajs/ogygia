@@ -10,8 +10,10 @@
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const ROOT = path.resolve(import.meta.dirname, '../.vercel/output/static');
+const ROOT = path.resolve(import.meta.dirname, '../.svelte-kit/cloudflare');
+const MANIFEST = path.resolve(import.meta.dirname, '../.svelte-kit/output/server/manifest.js');
 const HREF_RE = /\shref="([^"]*)"/g;
 const ID_RE = /\sid="([^"]*)"/g;
 const ENTITY_RE = /&(amp|quot|#39|lt|gt);/g;
@@ -35,16 +37,11 @@ function walk(dir: string, out: string[] = []): string[] {
 const files = new Set(walk(ROOT));
 const unescape = (s: string) => s.replace(ENTITY_RE, (_, e: string) => ENTITIES[e] ?? _);
 
-/** The routes the adapter serves from a function rather than a file (the homepage, the search
- *  page): every `dest` route after the filesystem step, minus the 404 catch-all. */
-type VercelRoute = { src?: string; dest?: string; handle?: string };
-const config = JSON.parse(readFileSync(path.join(ROOT, '../config.json'), 'utf8')) as {
-	routes: VercelRoute[];
-};
-const after = config.routes.slice(config.routes.findIndex((r) => r.handle === 'filesystem') + 1);
-const dynamic = after
-	.filter((r) => r.src && r.dest && r.src !== '/.*')
-	.map((r) => new RegExp(r.src!));
+/** The routes the worker answers rather than a file (the homepage, the search page): the server
+ *  manifest lists exactly the routes that were not prerendered. */
+type ServerManifest = { _: { routes: { pattern: RegExp }[] } };
+const { manifest } = (await import(pathToFileURL(MANIFEST).href)) as { manifest: ServerManifest };
+const dynamic = manifest._.routes.map((r) => r.pattern);
 
 /** The built file a site path is served from (`/docs/x` → `/docs/x.html`), `'dynamic'` for a route
  *  a function answers, or null. */

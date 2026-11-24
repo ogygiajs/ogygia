@@ -48,6 +48,46 @@ const releaseDates = (): Plugin => {
 	};
 };
 
+// The /og route's two WebAssembly engines, as `virtual:og-wasm`. Workers refuse to compile WASM
+// from bytes at runtime, so the build leaves each `.wasm` import for wrangler, which ships it as a
+// compiled module. Dev runs in Node, so there the module reads the bytes instead.
+const ogWasm = (): Plugin => {
+	const ID = 'virtual:og-wasm';
+	const FILES = { yoga: 'satori/yoga.wasm', resvg: '@resvg/resvg-wasm/index_bg.wasm' } as const;
+	const wasm_files: ReadonlySet<string> = new Set(Object.values(FILES));
+	let command: 'build' | 'serve' = 'serve';
+	return {
+		name: 'docs-og-wasm',
+		enforce: 'pre',
+		configResolved: (config) => void (command = config.command),
+		resolveId(id) {
+			if (id === ID) return `\0${ID}`;
+			if (command === 'build' && wasm_files.has(id)) return { id, external: true };
+			return null;
+		},
+		load(id) {
+			if (id !== `\0${ID}`) return null;
+			const entries = Object.entries(FILES);
+			if (command === 'build')
+				return entries
+					.map(
+						([k, f]) =>
+							`export const ${k} = () => import(${JSON.stringify(f)}).then((m) => m.default);`
+					)
+					.join('\n');
+			return [
+				`import { readFile } from 'node:fs/promises';`,
+				`import { createRequire } from 'node:module';`,
+				`const require = createRequire(${JSON.stringify(import.meta.url)});`,
+				...entries.map(
+					([k, f]) =>
+						`export const ${k} = () => readFile(require.resolve(${JSON.stringify(f)})).then((b) => new Uint8Array(b));`
+				)
+			].join('\n');
+		}
+	};
+};
+
 // Plugins live here; Kit config (adapter, extensions, preprocess) lives in svelte.config.js — the
 // Kit v2 home that `svelte-check` and the editor's Svelte language server read. The content() plugin
 // registers its markdown config synchronously here (before sveltekit() loads svelte.config.js), so
@@ -66,11 +106,10 @@ export default defineConfig(({ command }) => ({
 			'ogygia > @ogygia/core > magic-string'
 		]
 	},
-	// PROFILER_SOURCEMAPS=1 pnpm build → server chunks get .map files, so the SSR profiler
-	// (@ogygia/devtools/profiler) maps bundled frames back to source files and recovers original
-	// names for anonymous functions. The site targets modern browsers only (`esnext`).
-	build: { target: 'esnext', ...(process.env.PROFILER_SOURCEMAPS ? { sourcemap: true } : {}) },
+	// The site targets modern browsers only (`esnext`).
+	build: { target: 'esnext' },
 	plugins: [
+		ogWasm(),
 		releaseDates(),
 		ogygia({
 			visible: { margin: '120px' },
@@ -79,11 +118,10 @@ export default defineConfig(({ command }) => ({
 				frozenSwr: { render: 'live', wake: 'load' }
 			}
 		}),
-		// The devtools dock (launcher + Lens/Bytes/Wire/Nav/Timeline) — dev only, so the built docs
-		// site never ships the instrument graph — and the SSR profiler, always: UI at /__profiler
-		// (dev = open; prod needs ?key=<OGYGIA_PROFILER_SECRET>). Build with PROFILER_SOURCEMAPS=1 to
-		// recover original frame names (see build.sourcemap).
-		devtools({ dock: command === 'serve', profiler: true }),
+		// The devtools dock (launcher + Lens/Bytes/Wire/Nav/Timeline) and the SSR profiler (UI at
+		// /__profiler), both dev only: the site deploys to Cloudflare Workers, which has no
+		// node:inspector and no process.cpuUsage for the profiler to record with.
+		devtools({ dock: command === 'serve', profiler: command === 'serve' }),
 		content({
 			markdown: {
 				themes: { light: themes.light, dark: themes.dark },

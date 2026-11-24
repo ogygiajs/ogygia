@@ -1,0 +1,3 @@
+/_app/immutable/*
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: same-origin

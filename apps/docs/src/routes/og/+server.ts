@@ -1,12 +1,13 @@
 // Dynamic OG images. The card is a self-contained Svelte component rendered to HTML on the server
 // (`svelte/server` `render`), converted to a satori node tree, rasterised to PNG by resvg. Fonts are
-// loaded with SvelteKit's `read()` on imported assets so they are bundled + traced on every adapter
-// (a plain fs read from node_modules is dropped by @vercel/nft on serverless).
+// loaded with SvelteKit's `read()` on imported assets so they are bundled on every adapter. Both
+// layout (yoga) and raster (resvg) are WebAssembly, handed over by `virtual:og-wasm` (vite.config.ts).
 import { read } from '$app/server';
 import { render } from 'svelte/server';
-import satori from 'satori';
+import satori, { init as init_satori } from 'satori/standalone';
 import { html as toSatori } from 'satori-html';
-import { Resvg } from '@resvg/resvg-js';
+import { Resvg, initWasm as init_resvg } from '@resvg/resvg-wasm';
+import { yoga, resvg } from 'virtual:og-wasm';
 import OgCard from '$lib/og/OgCard.svelte';
 
 // The site's display face, subset by scripts/subset-fonts.ts (woff: satori reads no woff2). ONE
@@ -33,6 +34,21 @@ function load_fonts() {
 	return fonts_promise;
 }
 
+let wasm_promise: Promise<void> | null = null;
+
+function load_wasm() {
+	wasm_promise ??= Promise.all([yoga(), resvg()])
+		.then(([y, r]) => Promise.all([init_satori(y), init_resvg(r)]))
+		.then(
+			() => undefined,
+			(cause: unknown) => {
+				wasm_promise = null;
+				throw cause;
+			}
+		);
+	return wasm_promise;
+}
+
 export const GET: RequestHandler = async ({ url }) => {
 	const home = url.searchParams.get('home') === '1';
 	const title = url.searchParams.get('title') || 'SSR islands for SvelteKit';
@@ -52,7 +68,8 @@ export const GET: RequestHandler = async ({ url }) => {
 		.replace(/&amp;/g, '&');
 	const markup = toSatori(decoded);
 
-	const svg = await satori(markup, { width: 1200, height: 630, fonts: await load_fonts() });
+	const [fonts] = await Promise.all([load_fonts(), load_wasm()]);
+	const svg = await satori(markup, { width: 1200, height: 630, fonts });
 	const png = new Resvg(svg, { fitTo: { mode: 'width', value: 1200 } }).render().asPng();
 
 	return new Response(new Uint8Array(png), {
