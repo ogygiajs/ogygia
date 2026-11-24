@@ -207,36 +207,29 @@
 	view-transition-name: og-nav-active;
 	pointer-events: none;
 }
-/* Each nav row is its own VT group (the Sidebar sets a per-row `view-transition-name` inline); tag
-   them all with one class and stack them ABOVE the chip, so the chip glides beneath the labels
-   rather than painting over them mid-slide. */
-.og-nav-link,
-.og-nav-label {
-	view-transition-class: phnav;
-}
-::view-transition-group(*.phnav) {
+/* The whole sidebar is one VT layer (the Sidebar names its nav `og-sidebar` inline) stacked ABOVE
+   the chip, so the chip glides beneath the labels rather than painting over them mid-slide. It
+   shows its new state at once (the old snapshot hidden, so no label paints twice). On a shell
+   change the router folds the name into the page cross-fade first. */
+::view-transition-group(og-sidebar) {
 	z-index: 10;
+	animation: none;
 }
-/* The nav rows are identical and stationary between same-shell pages, so their per-row groups animate
-   nothing visible — yet dozens of them run the default 250ms group+fade on every nav, flooding the
-   compositor and starving the actual content cross-fade (it runs, but janks/reads as "no fade"). Zero
-   the row animations: an identical row snaps invisibly, the `og-nav-active` chip keeps its slide, and
-   the root content fade is no longer drowned. On a shell change the router strips these names first
-   (they fold into the page cross-fade), so this only touches the same-shell case. */
-::view-transition-group(*.phnav),
-::view-transition-image-pair(*.phnav) {
-	animation: none !important;
+::view-transition-old(og-sidebar) {
+	display: none;
 }
-/* Old + new must not just DROP their animation — with `animation: none` alone both snapshots keep
-   opacity 1 and stack, so an identical row paints its text TWICE (the ghosted / darker sidebar seen
-   mid-nav). Snap instead: hide the old, hold the new — no fade, no double. */
-::view-transition-old(*.phnav) {
-	animation: none !important;
-	opacity: 0 !important;
+::view-transition-new(og-sidebar) {
+	animation: none;
 }
-::view-transition-new(*.phnav) {
-	animation: none !important;
-	opacity: 1 !important;
+/* A named element is captured without its ancestors' clips: the sidebar's panel (its parent) holds
+   the sidebar and chip layers and clips them to its box, where nested VT groups exist, so no
+   scrolled-out row paints over the header. */
+:has(> .og-sidebar) {
+	view-transition-name: og-sidebar-panel;
+	view-transition-group: contain;
+}
+::view-transition-group-children(og-sidebar-panel) {
+	overflow: clip;
 }
 ::view-transition-group(og-nav-active) {
 	z-index: 0;

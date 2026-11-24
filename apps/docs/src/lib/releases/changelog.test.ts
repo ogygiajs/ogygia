@@ -66,13 +66,17 @@ test('the kind is the part of the version that moved: x.0.0 major, x.y.0 minor, 
 	assert.equal(r[1].kind, 'patch');
 });
 
-test('a line keeps its PR and author links, as HTML with its text escaped', () => {
+test('a line splits its PR, commit and author from its text, which is HTML with its text escaped', () => {
 	const [first] = read_changelog('@ogygia/core', CORE);
 	const minor = first.groups.find((g) => g.title === 'Minor Changes')!;
 	const line = minor.lines[0];
-	assert.match(line.html, /<a href="https:\/\/github\.com\/ogygiajs\/ogygia\/pull\/174">#174<\/a>/);
-	assert.match(line.html, /<a href="https:\/\/github\.com\/PuruVJ">@PuruVJ<\/a>/);
-	assert.match(line.html, /<code>window\.__ogygia\.v<\/code>/);
+	assert.deepEqual(line.pr, { label: '#174', href: 'https://github.com/ogygiajs/ogygia/pull/174' });
+	assert.deepEqual(line.commit, {
+		label: '413e77f',
+		href: 'https://github.com/ogygiajs/ogygia/commit/413e77f'
+	});
+	assert.deepEqual(line.author, { label: '@PuruVJ', href: 'https://github.com/PuruVJ' });
+	assert.equal(line.html, 'A page discloses <code>window.__ogygia.v</code>.');
 	const patch = first.groups.find((g) => g.title === 'Patch Changes')!;
 	assert.match(patch.lines[0].html, /&lt;mid-transform&gt;/);
 	assert.doesNotMatch(patch.lines[0].html, /<mid-transform>/);
@@ -99,7 +103,29 @@ test('a link to anything but http(s) is text, never an href', () => {
 		`}\n`
 	);
 	assert.doesNotMatch(r[0].groups[0].lines[0].html, /href/);
+	assert.equal(r[0].groups[0].lines[0].pr, undefined);
 	assert.match(r[0].groups[0].lines[0].html, /<strong>b<\/strong>/);
+});
+
+test('a 0.0.0 heading (the package being set up, never published) is not a release', () => {
+	const r = read_changelog(
+		'x',
+		`${dedent`
+			# x
+
+			## 0.1.0
+
+			- First.
+
+			## 0.0.0
+
+			Initialize package.
+		`}\n`
+	);
+	assert.deepEqual(
+		r.map((x) => x.version),
+		['0.1.0']
+	);
 });
 
 test('releases of many packages group by version, newest version first', () => {

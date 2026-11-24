@@ -310,6 +310,7 @@ import { isHttpError as is_http_error, isRedirect as is_redirect } from '@ogygia
 import { build_profiler_router } from './profiler-router.ts';
 import { detect_dev } from './env.ts';
 import { refresh_target } from './refresh-stub.ts';
+import { CannotRecord, HostCaps } from './host-caps.ts';
 
 export interface ProfilerOptions {
 	/**
@@ -1073,8 +1074,6 @@ const ANSWER_RENDERS = 3;
 // lands on a different, free worker. When a worker is busy it returns 409 immediately and the CLIENT
 // polls (RunView) until some worker says yes. That "queue" needs no shared storage, so it works the
 // same on Amplify (isolated workers) and on a single long-lived server.
-/** an inspector-unavailable recording error (edge runtimes) vs a real profiling failure */
-const INSPECTOR_ERR = /inspector/;
 const WIN_DRIVE_RE = /^[A-Za-z]:[\\/]/;
 const QUERY_SUFFIX_RE = /\?.*$/;
 const SRC_RELATIVE_RE = /(?:^|[/\\])src[/\\](.*)$/;
@@ -1184,6 +1183,7 @@ class Profiler {
 	readonly secret: string;
 	readonly ui_enabled: boolean;
 	readonly #disabled: boolean;
+	readonly #host = new HostCaps();
 	/** The secret meets the production floor (dev: always): only then does a key or session count. */
 	readonly #secret_ok: boolean;
 	/** Wrong keys per address (the login form and the key headers): a spent budget is refused
@@ -1749,6 +1749,7 @@ class Profiler {
 		 *  not wanted, and the control when measuring what the attribution itself costs. */
 		opts: { light?: boolean; gc_attr?: boolean } = {}
 	): Promise<WindowCapture> {
+		await this.#host.must_record();
 		const { Session } = await import('node:inspector/promises');
 		const perf_hooks = await import('node:perf_hooks');
 		// the build's embedded module map, before the window: the network capture tells a bundled
@@ -5792,12 +5793,8 @@ class Profiler {
 			// A deliberate `error()`/`redirect()` from inside the try (bad path 400, empty-runs 504, …) is a
 			// control-flow throw the router renders — let it through. Only a REAL exception becomes a 500.
 			if (is_http_error(e) || is_redirect(e)) throw e;
-			return error(
-				500,
-				e instanceof Error && INSPECTOR_ERR.test(e.message)
-					? 'CPU profiling needs a Node.js server (adapter-node or dev). This platform does not expose the V8 inspector.'
-					: `Profiling failed: ${e instanceof Error ? e.message : String(e)}`
-			);
+			if (e instanceof CannotRecord) return error(501, e.message);
+			return error(500, `Profiling failed: ${e instanceof Error ? e.message : String(e)}`);
 		} finally {
 			// (a recording that threw mid-way leaves no answers kept; the answers' own `finally` stops
 			// any render being served them)
@@ -7016,7 +7013,7 @@ class Profiler {
 		// Take the recorder slot atomically (no await between the check and the take): two concurrent
 		// header-profiled requests must not both start a recording and collide on the one process-wide
 		// inspector. If it's busy, this request just renders un-profiled rather than waiting.
-		const header_token = key_ok ? this.#take('recording') : null;
+		const header_token = key_ok && (await this.#host.can_record()) ? this.#take('recording') : null;
 		const header_profile = header_token !== null;
 
 		// PAY ONLY WHEN PROFILING. Attributing outbound calls to a request means running it inside
@@ -7050,7 +7047,7 @@ class Profiler {
 
 		const start = performance.now();
 		entry.pt = start; // the perf clock: what a trap window matches the request's timeline on
-		const cpu0 = process.cpuUsage();
+		const cpu0 = this.#host.cpu_now();
 		this.#inflight++;
 
 		// Kit's `event.fetch` answers a same-origin call in-process, past the global fetch patch: a
@@ -7091,15 +7088,12 @@ class Profiler {
 					const ms = performance.now() - start;
 					res.headers.append('Server-Timing', `ssr;desc="SvelteKit render";dur=${ms.toFixed(1)}`);
 					// the CPU this request used (the rest of `ssr` is waiting), for the devtools Record tab
-					try {
-						const c = process.cpuUsage(cpu0);
-						// (process-wide: a request running beside others reads their CPU too)
+					const cpu_ms = this.#host.cpu_ms_since(cpu0);
+					if (cpu_ms !== undefined)
 						res.headers.append(
 							'Server-Timing',
-							`cpu;desc="process CPU while it ran";dur=${((c.user + c.system) / 1000).toFixed(1)}`
+							`cpu;desc="process CPU while it ran";dur=${cpu_ms.toFixed(1)}`
 						);
-						// oxlint-disable-next-line ogygia/no-silent-failures -- no cpuUsage on this runtime: no CPU timing
-					} catch {}
 					if (ctx?.net.length) {
 						const net_ms = ctx.net.reduce((a, c) => a + Math.max(c.ms, 0) + (c.body_ms ?? 0), 0);
 						res.headers.append(
@@ -7134,13 +7128,12 @@ class Profiler {
 					// NESTED TRACE: a profiler upstream of us is recording and asked — answer with our
 					// picture of this request (same exposure policy as Server-Timing)
 					if (event.request.headers.get(TRACE_HEADER)) {
-						const c = process.cpuUsage(cpu0);
 						const net = ctx?.net ?? [];
 						res.headers.set(
 							TRACE_HEADER,
 							encode_trace({
 								ms: round2(ms),
-								cpu_ms: round2((c.user + c.system) / 1000),
+								cpu_ms: round2(cpu_ms ?? 0),
 								wait_ms: round2(net.reduce((a, x) => a + Math.max(x.ms, 0) + (x.body_ms ?? 0), 0)),
 								calls: net.length,
 								route: event.route?.id ?? null,
@@ -7201,14 +7194,13 @@ class Profiler {
 	#finalize(
 		entry: RequestEntry,
 		start: number,
-		cpu0: NodeJS.CpuUsage,
+		cpu0: NodeJS.CpuUsage | null,
 		ctx: Ctx | null,
 		request?: Request
 	): void {
 		this.#inflight--;
 		entry.ms = round2(performance.now() - start);
-		const c = process.cpuUsage(cpu0);
-		entry.cpu_ms = round2((c.user + c.system) / 1000);
+		entry.cpu_ms = round2(this.#host.cpu_ms_since(cpu0) ?? 0);
 		// what ogygia's handle added to this page (seed / props bytes, transform ms) — recorded by
 		// hooks.ts on the request, read back here so the log and the report can show ogygia's own cost
 		const og = request ? request_stats_of(request) : undefined;
