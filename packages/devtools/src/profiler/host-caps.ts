@@ -1,4 +1,4 @@
-import { flights, say, STALE } from '@ogygia/machine';
+import { say } from '@ogygia/machine';
 import { line, warn } from '../messages/runtime.ts';
 
 const CODE = 'devtools_profiler_runtime_unsupported';
@@ -36,12 +36,6 @@ async function recording_gap(): Promise<string | null> {
 	} catch {
 		return 'perf_hooks';
 	}
-	try {
-		process.memoryUsage();
-		// oxlint-disable-next-line ogygia/no-silent-failures -- the gap is said by the caller (devtools_profiler_runtime_unsupported)
-	} catch {
-		return 'process.memoryUsage';
-	}
 	return null;
 }
 
@@ -55,19 +49,14 @@ export class HostCaps {
 	/** `process.cpuUsage` works here. */
 	readonly cpu: boolean = cpu_works();
 
-	readonly #recording = flights({
-		name: 'profiler recording check',
-		run: async (): Promise<string | null> => (this.cpu ? recording_gap() : 'process.cpuUsage')
-	});
+	#recording: Promise<string | null> | null = null;
 
 	#tell(lacks: string): void {
 		told.once(lacks, () => warn(CODE, { lacks, off: off_for(lacks) }));
 	}
 
-	async #gap(): Promise<string | null> {
-		const lacks = await this.#recording.get();
-		// oxlint-disable-next-line ogygia/no-silent-failures -- nothing drops the check; a dropped one is no recording
-		return lacks === STALE ? 'node:inspector' : lacks;
+	#gap(): Promise<string | null> {
+		return (this.#recording ??= this.cpu ? recording_gap() : Promise.resolve('process.cpuUsage'));
 	}
 
 	/** The CPU clock now, the start a later `cpu_ms_since` reads from; null without one (a gap
