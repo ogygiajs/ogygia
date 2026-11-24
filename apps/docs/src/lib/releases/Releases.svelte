@@ -24,7 +24,6 @@
 
 	const types: Array<[Kind | null, string]> = [
 		[null, 'All'],
-		['major', 'Major'],
 		['minor', 'Minor'],
 		['patch', 'Patch']
 	];
@@ -97,15 +96,6 @@
 					>
 				{/each}
 			</div>
-			<a
-				class="toggle"
-				href={href_with(url, { pre: !filters.pre })}
-				aria-pressed={filters.pre ? 'true' : 'false'}
-				role="button"
-			>
-				<span class="box" aria-hidden="true"></span>
-				Pre-releases
-			</a>
 			<ExpandAll />
 		</div>
 
@@ -366,52 +356,7 @@
 			0 0 0 1px var(--line-strong),
 			0 1px 2px rgb(0 0 0 / 0.15);
 	}
-	.toggle {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.5rem;
-		height: 30px;
-		padding-inline: 0.75rem;
-		border: 1px solid var(--line-strong);
-		border-radius: var(--r-sm);
-		font: 500 0.8125rem/1 var(--font-body);
-		color: var(--text-dim);
-		text-decoration: none;
-		transition:
-			border-color 120ms ease,
-			color 120ms ease;
-	}
-	.toggle:hover {
-		border-color: var(--accent-line);
-		color: var(--text);
-	}
-	.box {
-		width: 12px;
-		height: 12px;
-		border: 1px solid var(--line-strong);
-		border-radius: 3px;
-		display: grid;
-		place-items: center;
-	}
-	.toggle[aria-pressed='true'] {
-		color: var(--accent);
-		border-color: var(--accent-line);
-	}
-	.toggle[aria-pressed='true'] .box {
-		background: var(--accent);
-		border-color: var(--accent);
-	}
-	.toggle[aria-pressed='true'] .box::after {
-		content: '';
-		width: 6px;
-		height: 3px;
-		margin-top: -2px;
-		border-left: 1.5px solid var(--text-on-invert);
-		border-bottom: 1.5px solid var(--text-on-invert);
-		transform: rotate(-45deg);
-	}
 	.segmented a:focus-visible,
-	.toggle:focus-visible,
 	.packages a:focus-visible,
 	summary:focus-visible {
 		outline: 2px solid var(--accent);
