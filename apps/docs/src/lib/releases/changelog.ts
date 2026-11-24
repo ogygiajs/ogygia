@@ -38,6 +38,8 @@ export type VersionGroup = {
 
 const VERSION =
 	/^##\s+\[?\s*(\d+\.\d+\.\d+(?:-[\w.]+)?)\s*\]?(?:\s*[—–-]\s*(\d{4}-\d{2}-\d{2}))?\s*$/;
+/** The version changesets gives a package before its first release. */
+const UNPUBLISHED = '0.0.0';
 const SECTION = /^###\s+(.+?)\s*$/;
 const ITEM = /^[-*]\s+(.*)$/;
 const DEP_LINE = /^\s+[-*]\s+(\S+@\S+)\s*$/;
@@ -82,7 +84,7 @@ export function read_changelog(pkg: string, markdown: string): Release[] {
 				groups: [],
 				deps: []
 			};
-			out.push(release);
+			if (v[1] !== UNPUBLISHED) out.push(release);
 			group = null;
 			in_deps = false;
 			continue;
