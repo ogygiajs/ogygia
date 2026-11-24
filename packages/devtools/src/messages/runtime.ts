@@ -142,6 +142,20 @@ export const DEVTOOLS_WARNINGS = {
 			for its copy.
 		`
 	},
+	devtools_profiler_runtime_unsupported: {
+		text: (a: { lacks: string; off: string }): string =>
+			`the profiler cannot use \`${a.lacks}\` on this runtime: ${a.off}`,
+		details: (): string => prose`
+			The profiler (\`devtools({ profiler })\`) times every request with Node's
+			\`process.cpuUsage\`, and records with \`node:inspector\` and \`perf_hooks\`. This runtime
+			does not have \`lacks\` (or has it only as a stub that throws), so the profiler goes on
+			without it: every request is still answered and logged, without its CPU time when
+			\`process.cpuUsage\` is the one missing, and a recording asked for (from the profiler's
+			pages or the \`x-profile\` header) is refused. Said once per server.
+
+			To record, run the app on a Node.js server (\`adapter-node\`, or \`vite dev\`).
+		`
+	},
 	devtools_profiler_background_stopped: {
 		text: (a: { loop: string }): string =>
 			`the profiler's ${a.loop} stopped: a background window failed:`,

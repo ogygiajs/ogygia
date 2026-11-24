@@ -261,6 +261,42 @@
 			"name": "a module link whose href no URL parser takes was never warmed, and asking does not throw"
 		},
 		{
+			"site": "packages/devtools/src/profiler/host-caps.ts > cpu_works > catch:0",
+			"reason": "a runtime whose process.cpuUsage throws (a stub that is not implemented) has no CPU clock, and every request is still answered; proved by hand: the catch made to rethrow turns the tests red",
+			"test": "packages/devtools/test/profiler-no-node-runtime.test.ts",
+			"name": "without process.cpuUsage, a page request answers 200 and is still logged"
+		},
+		{
+			"site": "packages/devtools/src/profiler/host-caps.ts > recording_gap > import:0",
+			"reason": "node:inspector that does not import means the runtime cannot record, and a recording is refused with the code; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/devtools/test/profiler-no-node-runtime.test.ts",
+			"name": "without node:inspector, a page recording is refused with the code, and pages still answer"
+		},
+		{
+			"site": "packages/devtools/src/profiler/host-caps.ts > recording_gap > catch:0",
+			"reason": "node:inspector that does not import means the runtime cannot record, and a recording is refused with the code; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/devtools/test/profiler-no-node-runtime.test.ts",
+			"name": "without node:inspector, a page recording is refused with the code, and pages still answer"
+		},
+		{
+			"site": "packages/devtools/src/profiler/host-caps.ts > recording_gap > import:1",
+			"reason": "a perf_hooks whose monitorEventLoopDelay throws means the runtime cannot record, so a header-profiled request renders unprofiled; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/devtools/test/profiler-no-node-runtime.test.ts",
+			"name": "without perf_hooks.monitorEventLoopDelay, a header-profiled request is answered unprofiled"
+		},
+		{
+			"site": "packages/devtools/src/profiler/host-caps.ts > recording_gap > catch:1",
+			"reason": "a perf_hooks whose monitorEventLoopDelay throws means the runtime cannot record, so a header-profiled request renders unprofiled; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/devtools/test/profiler-no-node-runtime.test.ts",
+			"name": "without perf_hooks.monitorEventLoopDelay, a header-profiled request is answered unprofiled"
+		},
+		{
+			"site": "packages/devtools/src/profiler/host-caps.ts > HostCaps > must_record > throw:0",
+			"reason": "a recording on a runtime that cannot record is refused with CannotRecord, which the run route answers 501 with the code; proved by hand: without the throw the test is red",
+			"test": "packages/devtools/test/profiler-no-node-runtime.test.ts",
+			"name": "without node:inspector, a page recording is refused with the code, and pages still answer"
+		},
+		{
 			"site": "packages/core/src/runtime/morph.ts > copy_attribute > catch:0",
 			"reason": "an attribute name an older engine's setAttribute refuses is set from a clone of the parsed attribute; proved by hand: the catch made to rethrow turns the tests red",
 			"test": "packages/core/test/browser/morph-attribute-names.test.ts",
@@ -6608,7 +6644,6 @@
 		"packages/devtools/src/profiler/index.ts > Profiler > handle > run > catch:0",
 		"packages/devtools/src/profiler/index.ts > Profiler > handle > run > catch:1",
 		"packages/devtools/src/profiler/index.ts > Profiler > handle > run > catch:2",
-		"packages/devtools/src/profiler/index.ts > Profiler > handle > run > catch:3",
 		"packages/devtools/src/profiler/index.ts > Profiler > handle > catch:3",
 		"packages/devtools/src/profiler/index.ts > Profiler > sink_post > fetch:0",
 		"packages/devtools/src/profiler/index.ts > Profiler > sink_post > timer:0",

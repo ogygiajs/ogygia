@@ -269,6 +269,50 @@
 			"reason": "a message's wording, constant text; said in packages/devtools/test/profiler-background-refused.test.ts"
 		},
 		{
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_profiler_runtime_unsupported > details",
+			"reason": "a message's wording, constant text; said in packages/devtools/test/profiler-no-node-runtime.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_profiler_runtime_unsupported > text",
+			"reason": "a message's wording, one template string; said in packages/devtools/test/profiler-no-node-runtime.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/host-caps.ts > cpu_works",
+			"reason": "one read of the process's CPU clock, once per profiler; packages/devtools/test/profiler-no-node-runtime.test.ts runs it with and without one"
+		},
+		{
+			"id": "packages/devtools/src/profiler/host-caps.ts > recording_gap",
+			"reason": "imports node:inspector and node:perf_hooks and makes one histogram, once per profiler on the first recording asked for; packages/devtools/test/profiler-no-node-runtime.test.ts runs each gap"
+		},
+		{
+			"id": "packages/devtools/src/profiler/host-caps.ts > HostCaps > cpu_now",
+			"reason": "one read of the process's CPU clock (a value that moves on every call), constant work per request"
+		},
+		{
+			"id": "packages/devtools/src/profiler/host-caps.ts > HostCaps > cpu_ms_since",
+			"reason": "one read of the process's CPU clock (a value that moves on every call) and one sum, constant work per request"
+		},
+		{
+			"id": "packages/devtools/src/profiler/host-caps.ts > HostCaps > #gap",
+			"reason": "hands back the one cached runtime check (a promise); the check itself runs once per profiler"
+		},
+		{
+			"id": "packages/devtools/src/profiler/host-caps.ts > HostCaps > #tell",
+			"reason": "one once-per-process say of a runtime gap, constant work; packages/devtools/test/profiler-no-node-runtime.test.ts counts it"
+		},
+		{
+			"id": "packages/devtools/src/profiler/host-caps.ts > HostCaps > #tell > once:1~dddc12",
+			"reason": "prints one coded warning, at most once per gap per process"
+		},
+		{
+			"id": "packages/devtools/src/profiler/host-caps.ts > HostCaps > can_record",
+			"reason": "awaits the one cached runtime check, constant work; runs only when a recording is asked for"
+		},
+		{
+			"id": "packages/devtools/src/profiler/host-caps.ts > HostCaps > must_record",
+			"reason": "awaits the one cached runtime check, constant work, once per recording; packages/devtools/test/profiler-no-node-runtime.test.ts proves its refusal"
+		},
+		{
 			"id": "packages/devtools/src/profiler/busy.ts > busy_wait",
 			"reason": "reads one header off a Response (not cloneable), constant work; proven in packages/devtools/test/devtools-profile-busy.test.ts"
 		},

@@ -314,7 +314,8 @@ export interface RequestEntry {
 	route: string | null;
 	status: number;
 	ms: number;
-	/** CPU ms this request burned (process-wide delta; accurate when requests don't overlap) */
+	/** CPU ms this request burned (process-wide delta; accurate when requests don't overlap); 0 on a
+	 *  runtime without `process.cpuUsage` */
 	cpu_ms: number;
 	/** how many other requests were in flight when this one started */
 	inflight: number;
