@@ -107,6 +107,27 @@ test('a link to anything but http(s) is text, never an href', () => {
 	assert.match(r[0].groups[0].lines[0].html, /<strong>b<\/strong>/);
 });
 
+test('a 0.0.0 heading (the package being set up, never published) is not a release', () => {
+	const r = read_changelog(
+		'x',
+		`${dedent`
+			# x
+
+			## 0.1.0
+
+			- First.
+
+			## 0.0.0
+
+			Initialize package.
+		`}\n`
+	);
+	assert.deepEqual(
+		r.map((x) => x.version),
+		['0.1.0']
+	);
+});
+
 test('releases of many packages group by version, newest version first', () => {
 	const a = read_changelog(
 		'a',
