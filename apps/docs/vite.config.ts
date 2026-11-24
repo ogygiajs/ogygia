@@ -8,7 +8,6 @@ import { devtools } from '@ogygia/devtools/vite';
 import { diff_markers, inline_markers } from '@ogygia/content/markdown';
 import { defineConfig, type Plugin } from 'vite';
 import { load_ogygia_themes } from './src/lib/code/shiki-themes.ts';
-import { remarkChangelog } from './src/lib/remark-changelog.ts';
 import { release_dates } from './src/lib/releases/dates.ts';
 import {
 	expandApi,
@@ -92,13 +91,10 @@ export default defineConfig(({ command }) => ({
 				// The two diff dialects (line `+++ `/`--- ` prefixes + inline `+++x+++`/`---x---`),
 				// dogfooded on the markdown-authoring page.
 				code: { transformers: [diff_markers(), inline_markers()] },
-				// Reshape the Releases page's `## [x] — date` headings into a clean version + a date
-				// line under it. `enforce: 'pre'` so the heading-id/TOC collectors see "0.5.0".
 				// expandApi: `> MODULE: ogygia/…` → the auto-generated API reference, regenerated from
 				// the package's own d.ts on every build — cache_key re-keys the doc cache when the
 				// d.ts set changes; dependencies lets Vite recompile affected pages in dev.
 				remark: [
-					{ enforce: 'pre', plugin: remarkChangelog },
 					{
 						enforce: 'pre',
 						plugin: expandApi,

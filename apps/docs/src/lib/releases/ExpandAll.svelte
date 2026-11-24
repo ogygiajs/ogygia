@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Button } from 'bits-ui';
 	// The Releases page's one island: expand all and collapse all over the version cards. On its first
 	// run it folds all but the newest few (the server sends every card open, which is what a page
 	// without JavaScript keeps). A short list stays open.
@@ -18,8 +19,8 @@
 </script>
 
 <span class="expand" hidden {@attach fold_older}>
-	<button type="button" onclick={() => set(true)}>Expand all</button>
-	<button type="button" onclick={() => set(false)}>Collapse all</button>
+	<Button.Root class="btn btn--ghost btn--sm" onclick={() => set(true)}>Expand all</Button.Root>
+	<Button.Root class="btn btn--ghost btn--sm" onclick={() => set(false)}>Collapse all</Button.Root>
 </span>
 
 <style>

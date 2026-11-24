@@ -16,11 +16,17 @@ export type Release = {
 	prerelease: boolean;
 	/** From a dated heading (`## [0.5.0] — 2026-08-12`); `null` for changesets' plain headings. */
 	date: string | null;
-	/** Its sections (`Minor Changes`, `Patch Changes`, …), each with its lines as HTML. */
-	groups: Array<{ title: string; lines: Array<{ html: string }> }>;
+	/** Its sections (`Minor Changes`, `Patch Changes`, …), each with its lines. */
+	groups: Array<{ title: string; lines: Line[] }>;
 	/** The packages an "Updated dependencies" line moved it to (`@ogygia/core@0.13.0`). */
 	deps: string[];
 };
+
+/** A link a change line credits: its PR, its commit, its author. */
+export type Credit = { label: string; href: string };
+
+/** One change: its text as HTML, and the PR, commit and author changesets put before it. */
+export type Line = { html: string; pr?: Credit; commit?: Credit; author?: Credit };
 
 /** The releases of one version across packages (the packages release together). */
 export type VersionGroup = {
@@ -35,6 +41,19 @@ const VERSION =
 const SECTION = /^###\s+(.+?)\s*$/;
 const ITEM = /^[-*]\s+(.*)$/;
 const DEP_LINE = /^\s+[-*]\s+(\S+@\S+)\s*$/;
+const CREDITS =
+	/^(?:\[(#\d+)\]\((https:\/\/[^)\s]+)\)\s*)?(?:\[`([0-9a-f]{7,40})`\]\((https:\/\/[^)\s]+)\)\s*)?(?:Thanks \[(@[\w-]+)\]\((https:\/\/[^)\s]+)\)!\s*)?-\s+/;
+
+/** A changesets line (`[#1](…) [\`abc1234\`](…) Thanks [@x](…)! - Text`) as its credits and text. */
+function line_of(md: string): Line {
+	const m = CREDITS.exec(md);
+	if (!m || !(m[1] || m[3] || m[5])) return { html: inline(md) };
+	const line: Line = { html: inline(md.slice(m[0].length)) };
+	if (m[1]) line.pr = { label: m[1], href: m[2] };
+	if (m[3]) line.commit = { label: m[3].slice(0, 7), href: m[4] };
+	if (m[5]) line.author = { label: m[5], href: m[6] };
+	return line;
+}
 
 /** The part of `version` that moved: `x.0.0` major (x > 0), `x.y.0` minor, else patch. */
 export function kind_of(version: string): Kind {
@@ -50,7 +69,7 @@ export function read_changelog(pkg: string, markdown: string): Release[] {
 	let release: Release | null = null;
 	let group: Release['groups'][number] | null = null;
 	let in_deps = false;
-	const wrapped = new Map<{ html: string }, string[]>();
+	const wrapped = new Map<Line, string[]>();
 	for (const line of markdown.split('\n')) {
 		const v = VERSION.exec(line);
 		if (v) {
@@ -89,7 +108,7 @@ export function read_changelog(pkg: string, markdown: string): Release[] {
 				group = { title: 'Changes', lines: [] };
 				release.groups.push(group);
 			}
-			group.lines.push({ html: inline(item[1]) });
+			group.lines.push(line_of(item[1]));
 			continue;
 		}
 		// a wrapped line goes on with the item above it
