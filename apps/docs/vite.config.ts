@@ -48,46 +48,6 @@ const releaseDates = (): Plugin => {
 	};
 };
 
-// The /og route's two WebAssembly engines, as `virtual:og-wasm`. Workers refuse to compile WASM
-// from bytes at runtime, so the build leaves each `.wasm` import for wrangler, which ships it as a
-// compiled module. Dev runs in Node, so there the module reads the bytes instead.
-const ogWasm = (): Plugin => {
-	const ID = 'virtual:og-wasm';
-	const FILES = { yoga: 'satori/yoga.wasm', resvg: '@resvg/resvg-wasm/index_bg.wasm' } as const;
-	const wasm_files: ReadonlySet<string> = new Set(Object.values(FILES));
-	let command: 'build' | 'serve' = 'serve';
-	return {
-		name: 'docs-og-wasm',
-		enforce: 'pre',
-		configResolved: (config) => void (command = config.command),
-		resolveId(id) {
-			if (id === ID) return `\0${ID}`;
-			if (command === 'build' && wasm_files.has(id)) return { id, external: true };
-			return null;
-		},
-		load(id) {
-			if (id !== `\0${ID}`) return null;
-			const entries = Object.entries(FILES);
-			if (command === 'build')
-				return entries
-					.map(
-						([k, f]) =>
-							`export const ${k} = () => import(${JSON.stringify(f)}).then((m) => m.default);`
-					)
-					.join('\n');
-			return [
-				`import { readFile } from 'node:fs/promises';`,
-				`import { createRequire } from 'node:module';`,
-				`const require = createRequire(${JSON.stringify(import.meta.url)});`,
-				...entries.map(
-					([k, f]) =>
-						`export const ${k} = () => readFile(require.resolve(${JSON.stringify(f)})).then((b) => new Uint8Array(b));`
-				)
-			].join('\n');
-		}
-	};
-};
-
 // Plugins live here; Kit config (adapter, extensions, preprocess) lives in svelte.config.js — the
 // Kit v2 home that `svelte-check` and the editor's Svelte language server read. The content() plugin
 // registers its markdown config synchronously here (before sveltekit() loads svelte.config.js), so
@@ -109,7 +69,6 @@ export default defineConfig(({ command }) => ({
 	// The site targets modern browsers only (`esnext`).
 	build: { target: 'esnext' },
 	plugins: [
-		ogWasm(),
 		releaseDates(),
 		ogygia({
 			visible: { margin: '120px' },

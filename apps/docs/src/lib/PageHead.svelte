@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { card_path } from '$lib/og/card';
 
 	/** Per-route document head. Title segments join as `A · ogygia`. */
 	let {
@@ -18,21 +19,16 @@
 
 	const full_title = $derived(title ? `${title} · ogygia` : 'ogygia — SSR islands for SvelteKit');
 
-	// This deployment's origin (from +layout.server.ts). A preview build must point og:image at ITS
-	// own /og, not production's — `page.url.origin` is a placeholder while prerendering, so the origin
-	// is resolved server-side from Vercel env and passed through page data. Falls back to canonical.
-	const SITE = $derived(page.data.ogOrigin ?? 'https://ogygiajs.dev');
-	const og_image = $derived.by(() => {
-		const p = new URLSearchParams();
-		if (home) {
-			// home card shows the "ogygia" wordmark itself — no title needed
-			p.set('home', '1');
-		} else {
-			p.set('title', title || 'SSR islands for SvelteKit');
-			if (category) p.set('category', category);
-		}
-		return `${SITE}/og?${p}`;
-	});
+	// The origin that serves this page: a preview points og:image at its own files, and prerendering
+	// runs at the canonical origin (`kit.prerender.origin`), which also lets the build follow the link.
+	const og_image = $derived(
+		page.url.origin +
+			card_path(
+				home
+					? { home: true }
+					: { title: title || 'SSR islands for SvelteKit', ...(category ? { category } : {}) }
+			)
+	);
 	const og_alt = $derived(
 		home ? 'ogygia — SSR islands for SvelteKit' : title ? `${title} — ogygia` : 'ogygia'
 	);

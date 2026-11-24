@@ -8,17 +8,17 @@
 		"build": "vite build",
 		"preview": "wrangler dev",
 		"deploy": "wrangler deploy",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings && tsc -p e2e && node --test src/lib/releases/changelog.test.ts src/lib/releases/dates.test.ts src/lib/tests/robustness.test.ts",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings && tsc -p e2e && node --test src/lib/og/card.test.ts src/lib/releases/changelog.test.ts src/lib/releases/dates.test.ts src/lib/tests/robustness.test.ts",
 		"check:links": "node scripts/check-links.ts",
 		"e2e": "playwright test",
 		"fonts": "node scripts/subset-fonts.ts"
 	},
 	"dependencies": {
 		"@fontsource/jetbrains-mono": "^5.3.0",
-		"@resvg/resvg-wasm": "^2.6.2",
+		"@resvg/resvg-js": "^2.6.2",
 		"bits-ui": "catalog:",
 		"ogygia": "workspace:*",
-		"satori": "0.32.0",
+		"satori": "^0.33.5",
 		"satori-html": "^0.3.2",
 		"shiki": "catalog:",
 		"valibot": "catalog:"

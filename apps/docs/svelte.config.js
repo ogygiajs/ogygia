@@ -17,6 +17,7 @@ const config = {
 	},
 	kit: {
 		adapter: adapter(),
+		prerender: { origin: 'https://ogygiajs.dev' },
 		experimental: { remoteFunctions: true }
 	}
 };
