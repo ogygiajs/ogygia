@@ -10,8 +10,13 @@ const dev_switch = vi.hoisted(() => ({ dev: false }));
 vi.mock('../src/profiler/env.ts', () => ({ detect_dev: () => dev_switch.dev }));
 const host = vi.hoisted(() => ({ cpu: false, inspector: false, loop_delay: true }));
 vi.mock('node:inspector/promises', async (real) => {
-	if (!host.inspector) throw new Error('No such module "node:inspector/promises"');
-	return real();
+	const actual = await real<typeof import('node:inspector/promises')>();
+	return {
+		get Session() {
+			if (!host.inspector) throw new Error('No such module "node:inspector/promises"');
+			return actual.Session;
+		}
+	};
 });
 vi.mock('node:perf_hooks', async (real) => {
 	const actual = await real<typeof import('node:perf_hooks')>();
@@ -127,6 +132,7 @@ it('without process.cpuUsage, dev Server-Timing keeps the render time and leaves
 });
 
 it('without node:inspector, a header-profiled request is answered unprofiled', async () => {
+	host.cpu = true;
 	const { profiler } = await import('../src/profiler/index.ts');
 	const handle = profiler({ secret: SECRET });
 	const res = await handle({
@@ -135,6 +141,9 @@ it('without node:inspector, a header-profiled request is answered unprofiled', a
 	});
 	expect(res.status).toBe(200);
 	expect(res.headers.get('x-profile-report')).toBeNull();
+	const coded = said.filter((s) => s.includes(CODE));
+	expect(coded).toHaveLength(1);
+	expect(decodeURIComponent(coded[0])).toContain('node:inspector');
 });
 
 it('the runtime gap is said once, with its code, however many requests come', async () => {
