@@ -8,5 +8,11 @@
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"
 	},
+	"routes": [
+		{ "pattern": "ogygiajs.dev/*", "zone_name": "ogygiajs.dev" },
+		{ "pattern": "www.ogygiajs.dev/*", "zone_name": "ogygiajs.dev" }
+	],
+	"workers_dev": true,
+	"preview_urls": true,
 	"observability": { "enabled": true }
 }
