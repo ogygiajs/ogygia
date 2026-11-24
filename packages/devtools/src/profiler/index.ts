@@ -1183,7 +1183,6 @@ class Profiler {
 	readonly secret: string;
 	readonly ui_enabled: boolean;
 	readonly #disabled: boolean;
-	/** What this runtime lets the profiler measure: its CPU clock, and whether it can record. */
 	readonly #host = new HostCaps();
 	/** The secret meets the production floor (dev: always): only then does a key or session count. */
 	readonly #secret_ok: boolean;
@@ -7090,7 +7089,6 @@ class Profiler {
 					res.headers.append('Server-Timing', `ssr;desc="SvelteKit render";dur=${ms.toFixed(1)}`);
 					// the CPU this request used (the rest of `ssr` is waiting), for the devtools Record tab
 					const cpu_ms = this.#host.cpu_ms_since(cpu0);
-					// (process-wide: a request running beside others reads their CPU too)
 					if (cpu_ms !== undefined)
 						res.headers.append(
 							'Server-Timing',
