@@ -10,6 +10,9 @@ import { needs_cdp } from '@ogygia/tooling/e2e/browsers.ts';
 /** The budget for any single task after the document is parsed: the Long Tasks threshold. */
 const TASK_BUDGET_MS = 50;
 
+// @why Playwright's trace snapshots the whole DOM after each action, one task of up to 20 ms unthrottled on this 700 KB page, counted as the page's own (test: long-task-budget.spec.ts › /bench-cms: 21 islands, seed parsed once, no long task after DOMContentLoaded)
+test.use({ trace: 'off' });
+
 test.describe('long-task budget: the large CMS page boots with no task over 50 ms from the runtime', () => {
 	test('/bench-cms: 21 islands, seed parsed once, no long task after DOMContentLoaded', async ({
 		page
