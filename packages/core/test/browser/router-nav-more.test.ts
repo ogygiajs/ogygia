@@ -20,6 +20,7 @@ import { patch } from '../_patch.ts';
 
 declare module 'vitest/browser' {
 	interface BrowserCommands {
+		drop_downloads(path: string, times: number): Promise<void>;
 		hold_downloads(path: string): Promise<void>;
 		keep_downloads(path: string): Promise<void>;
 	}
@@ -253,15 +254,30 @@ test('a next-page head node with nothing before it goes in at the top of the hea
 	expect(document.head.firstElementChild?.getAttribute('name')).toBe('ogygia-router');
 });
 
-test('a next-page sheet that fails to load does not hold the swap to the cap', async () => {
-	pages['/rn-sheet-404'] = {
-		head: '<link rel="stylesheet" href="/rn-no-such-sheet.css">',
-		body: '<p id="next">next</p>'
-	};
-	const t0 = performance.now();
-	await go('/rn-sheet-404');
-	expect(performance.now() - t0).toBeLessThan(1_500);
-});
+it_with_network_routes(
+	'a next-page sheet that fails to load does not hold the swap to the cap',
+	async () => {
+		const failing = '/rn-no-such-sheet.css';
+		await commands.drop_downloads(failing, 1);
+		let failed_at = 0;
+		const heard = (e: Event) => {
+			if ((e.target as Element).getAttribute?.('href') === failing) failed_at = performance.now();
+		};
+		document.addEventListener('error', heard, true);
+		pages['/rn-sheet-404'] = {
+			head: `<link rel="stylesheet" href="${failing}">`,
+			body: '<p id="next">next</p>'
+		};
+		try {
+			await go('/rn-sheet-404');
+		} finally {
+			document.removeEventListener('error', heard, true);
+			await commands.keep_downloads(failing);
+		}
+		expect(failed_at).toBeGreaterThan(0);
+		expect(performance.now() - failed_at).toBeLessThan(1_000);
+	}
+);
 
 it_with_network_routes('a disabled next-page sheet is not waited for', async () => {
 	const held = '/rn-sheet-disabled.css';
