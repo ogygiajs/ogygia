@@ -7,6 +7,7 @@ import { PLAYWRIGHT, it_with_network_routes } from './_browsers.ts';
 import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import { after_document_painted, schedule_idle } from '../../src/runtime/schedule.ts';
+import { hear, hear_none } from '../_hooks.ts';
 
 /** What a woken region that did not come alive is still waiting for, for the failure's message. */
 async function waits_left(region: Element): Promise<string> {
@@ -81,7 +82,16 @@ it_with_network_routes(
 		sessionStorage.setItem(DEV_RELOADED_AT, String(Date.now()));
 		onTestFinished(() => sessionStorage.removeItem(DEV_RELOADED_AT));
 		await commands.drop_downloads(REPLAY, 10);
-		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const said: string[] = [];
+		vi.spyOn(console, 'error').mockImplementation((...a: unknown[]) => {
+			said.push(a.map(String).join(' ').slice(0, 160));
+		});
+		const heard: string[] = [];
+		hear({
+			loadStarted: (e) => void heard.push(`slot ${e.kind} ${e.class} ${e.label ?? ''}`),
+			regionMount: () => void heard.push('mount')
+		});
+		onTestFinished(hear_none);
 		document.body.innerHTML = from_b64(inject('counter_ssr_b64')).replace(
 			'wake="load"',
 			'wake="interaction"'
@@ -94,9 +104,13 @@ it_with_network_routes(
 		try {
 			await expect.poll(() => region.hasAttribute('data-hydrated'), { timeout: 10_000 }).toBe(true);
 		} catch (e) {
-			throw new Error(`${(e as Error).message}\nwaits left: ${await waits_left(region)}`, {
-				cause: e
-			});
+			const left = await waits_left(region);
+			const lines = [
+				(e as Error).message,
+				`waits left: ${left}`,
+				`heard: ${JSON.stringify(heard)}`
+			];
+			throw new Error([...lines, `said: ${JSON.stringify(said)}`].join(' | '), { cause: e });
 		}
 		const count = region.querySelector('[data-testid="count"]')!;
 		const before = Number(count.textContent);
