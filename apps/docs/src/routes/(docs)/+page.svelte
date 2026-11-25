@@ -33,11 +33,11 @@
 	import ServerGreeting from '$lib/demos/ServerGreeting.svelte' with { render: 'deferred' };
 	import FrozenCounter from '$lib/demos/FrozenCounter.svelte';
 	import PartialSearch from '$lib/demos/PartialSearch.svelte' with { wake: 'load' };
-	import LivePartialDemo from '$lib/demos/LivePartialDemo.svelte' with { wake: 'load' };
+	import LivePartialDemo from '$lib/demos/LivePartialDemo.svelte' with { wake: 'visible' };
 	// Two separate island bundles sharing one live object passed as a prop (static [ogygia.wire]).
 	import SharedAdd from '$lib/demos/SharedAdd.svelte' with { wake: 'load' };
 	import SharedCount from '$lib/demos/SharedCount.svelte' with { wake: 'load' };
-	import ContentPeek from '$lib/demos/ContentPeek.svelte' with { wake: 'load' };
+	import ContentPeek from '$lib/demos/ContentPeek.svelte' with { wake: 'visible' };
 	import { Cart } from '$lib/demos/cart-store.svelte.js';
 	import '$lib/styles/widget.css';
 
