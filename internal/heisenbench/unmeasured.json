@@ -5441,6 +5441,38 @@
 			"reason": "build only, once per server leg: the settled features the server's word lacks, over the few feature ids"
 		},
 		{
+			"id": "packages/compiler/src/driver.ts > Compiler > #read_server_compiled",
+			"reason": "build only, server leg: once per load of a module that settles (three per build) and once at buildEnd; reads the compiled modules the scan had not read, then closes the marks (test/runtime-marks-reached.test.ts)"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > #emit_settled",
+			"reason": "build only, server leg: three loads per build wait for the bundler's graph, then answer as emit does (test/runtime-marks-reached.test.ts)"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > #emit_settled > compiled:0~f58b9f",
+			"reason": "build only, server leg: names the modules that wait themselves, one table read per module in the bundler's graph per wait"
+		},
+		{
+			"id": "packages/compiler/src/virtual/resolver.ts > VirtualTable > settles",
+			"reason": "one Map read and a field test per virtual module load, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > graph_compiled",
+			"reason": "build only, server leg: three waits per build on the bundler's own loads, Rolldown's work; test/graph-compiled.test.ts runs it in a real build"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > graph_compiled > filter:0~aa2a35",
+			"reason": "build only, server leg: one set lookup per module of the bundler's graph per round of a wait"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > graph_compiled > map:0~51fe64",
+			"reason": "build only, server leg: hands each module of a round to the bundler's load, Rolldown's work"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > compiled",
+			"reason": "build only, server leg: one bundler load per module per wait (a resolve first for one not yet parsed), Rolldown's work; test/graph-compiled.test.ts runs it"
+		},
+		{
 			"id": "packages/compiler/src/driver.ts > Compiler > server_runtime",
 			"reason": "build only: the server leg's sealed runtime, made once per build and then a memo read per renderChunk"
 		},

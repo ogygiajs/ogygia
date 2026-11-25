@@ -1302,16 +1302,8 @@ export class Compiler implements CoreApp {
 	 * every other module, each read into the marks first, so the server's code is made for them all.
 	 */
 	emit(id: string, leg: Leg): EmittedSource | Promise<EmittedSource | null> | null {
-		if (!leg.ssr || !leg.compiled || !this.#virtuals.settles(id)) return this.#emit(id, leg);
-		return leg
-			.compiled((m) => this.#virtuals.settles(m))
-			.then(() => {
-				this.#read_server_compiled();
-				return this.#emit(id, leg);
-			});
-	}
-
-	#emit(id: string, leg: Leg): EmittedSource | Promise<string> | null {
+		if (leg.ssr && leg.compiled && this.#virtuals.settles(id))
+			return this.#emit_settled(id, leg, leg.compiled);
 		const ctx = this.#ctx;
 		const program = this.program;
 		const { ssr } = leg;
@@ -1346,6 +1338,17 @@ export class Compiler implements CoreApp {
 		}
 		if (ctx.is_dev && this.#virtuals.claims(id)) this.#unanswered.add(id);
 		return null;
+	}
+
+	async #emit_settled(
+		id: string,
+		leg: Leg,
+		compiled: NonNullable<Leg['compiled']>
+	): Promise<EmittedSource | null> {
+		await compiled((m) => this.#virtuals.settles(m));
+		this.#read_server_compiled();
+		const { compiled: _, ...answered } = leg;
+		return this.emit(id, answered);
 	}
 
 	/** DEV: the registry's modules a load answered null for while no host held them (`moved`). */
