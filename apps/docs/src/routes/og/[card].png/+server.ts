@@ -1,7 +1,8 @@
-// Dynamic OG images. The card is a self-contained Svelte component rendered to HTML on the server
-// (`svelte/server` `render`), converted to a satori node tree, rasterised to PNG by resvg. Fonts are
-// loaded with SvelteKit's `read()` on imported assets so they are bundled + traced on every adapter
-// (a plain fs read from node_modules is dropped by @vercel/nft on serverless).
+// Share images, made at build time: one PNG file per card (`/og/<key>.png`, $lib/og/card.ts). The
+// card is a self-contained Svelte component rendered to HTML (`svelte/server` `render`), converted
+// to a satori node tree, rasterised to PNG by resvg. Prerendering follows each page's og:image to
+// here; `entries()` adds the cards of the pages rendered on each request, which it never visits.
+import { error } from '@sveltejs/kit';
 import { read } from '$app/server';
 import { render } from 'svelte/server';
 import satori from 'satori';
@@ -14,10 +15,22 @@ import OgCard from '$lib/og/OgCard.svelte';
 import Serif from '$lib/fonts/geist-serif-latin.woff';
 import Mono from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff';
 
-import type { RequestHandler } from './$types';
+import { card_key, card_of, SERVER_PAGE_TITLES, type Card } from '$lib/og/card';
+import { message_list } from '$lib/messages';
+import { packages } from '$lib/releases/releases.server';
+import type { EntryGenerator, RequestHandler } from './$types';
 
-// Dynamic per request (title/category vary); never prerender this endpoint.
-export const prerender = false;
+export const prerender = true;
+
+export const entries: EntryGenerator = async () => {
+	const cards: Card[] = [
+		{ home: true },
+		...Object.values(SERVER_PAGE_TITLES).map((title) => ({ title })),
+		...message_list().map((m) => ({ title: m.code })),
+		...(await packages.refs()).map((p) => ({ title: p.data.name }))
+	];
+	return cards.map((card) => ({ card: card_key(card) }));
+};
 
 let fonts_promise: Promise<
 	{ name: string; data: ArrayBuffer; weight: 400 | 500; style: 'normal' }[]
@@ -33,10 +46,12 @@ function load_fonts() {
 	return fonts_promise;
 }
 
-export const GET: RequestHandler = async ({ url }) => {
-	const home = url.searchParams.get('home') === '1';
-	const title = url.searchParams.get('title') || 'SSR islands for SvelteKit';
-	const category = url.searchParams.get('category') || '';
+export const GET: RequestHandler = async ({ params }) => {
+	const card = card_of(params.card);
+	if (!card) error(404, 'No share image has this name');
+	const home = card.home === true;
+	const title = card.home ? '' : card.title;
+	const category = card.home ? '' : (card.category ?? '');
 
 	// Svelte escapes text (`&` → `&amp;`), and satori-html doesn't decode entities — so a title like
 	// "SPA router & PPR" would render the literal `&amp;`. Decode the safe text entities here. `&lt;`/

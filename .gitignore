@@ -28,6 +28,7 @@ dist/
 .env.*
 !.env.example
 .vercel
+.wrangler
 *.tmp.mjs
 *.tmp.*
 # the CPU profile internal/checks/server-cost.ts writes on each run

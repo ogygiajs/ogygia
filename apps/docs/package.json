@@ -6,8 +6,9 @@
 	"scripts": {
 		"dev": "vite dev --port 5174",
 		"build": "vite build",
-		"preview": "vite preview",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings && tsc -p e2e && node --test src/lib/releases/changelog.test.ts src/lib/releases/dates.test.ts src/lib/tests/robustness.test.ts",
+		"preview": "wrangler dev",
+		"deploy": "wrangler deploy",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings && tsc -p e2e && node --test src/lib/og/card.test.ts src/lib/releases/changelog.test.ts src/lib/releases/dates.test.ts src/lib/tests/robustness.test.ts",
 		"check:links": "node scripts/check-links.ts",
 		"e2e": "playwright test",
 		"fonts": "node scripts/subset-fonts.ts"
@@ -44,7 +45,7 @@
 		"@ogygia/tooling": "workspace:*",
 		"@ogygia/tsdown-plugin-svelte": "workspace:*",
 		"@playwright/test": "catalog:",
-		"@sveltejs/adapter-vercel": "catalog:",
+		"@sveltejs/adapter-cloudflare": "catalog:",
 		"@sveltejs/kit": "catalog:",
 		"@sveltejs/vite-plugin-svelte": "catalog:",
 		"@types/node": "catalog:",
@@ -56,6 +57,7 @@
 		"svelte": "catalog:",
 		"svelte-check": "catalog:",
 		"typescript": "catalog:",
-		"vite": "catalog:"
+		"vite": "catalog:",
+		"wrangler": "catalog:"
 	}
 }

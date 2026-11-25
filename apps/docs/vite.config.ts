@@ -8,7 +8,6 @@ import { devtools } from '@ogygia/devtools/vite';
 import { diff_markers, inline_markers } from '@ogygia/content/markdown';
 import { defineConfig, type Plugin } from 'vite';
 import { load_ogygia_themes } from './src/lib/code/shiki-themes.ts';
-import { remarkChangelog } from './src/lib/remark-changelog.ts';
 import { release_dates } from './src/lib/releases/dates.ts';
 import {
 	expandApi,
@@ -66,10 +65,8 @@ export default defineConfig(({ command }) => ({
 			'ogygia > @ogygia/core > magic-string'
 		]
 	},
-	// PROFILER_SOURCEMAPS=1 pnpm build → server chunks get .map files, so the SSR profiler
-	// (@ogygia/devtools/profiler) maps bundled frames back to source files and recovers original
-	// names for anonymous functions. The site targets modern browsers only (`esnext`).
-	build: { target: 'esnext', ...(process.env.PROFILER_SOURCEMAPS ? { sourcemap: true } : {}) },
+	// The site targets modern browsers only (`esnext`).
+	build: { target: 'esnext' },
 	plugins: [
 		releaseDates(),
 		ogygia({
@@ -79,11 +76,10 @@ export default defineConfig(({ command }) => ({
 				frozenSwr: { render: 'live', wake: 'load' }
 			}
 		}),
-		// The devtools dock (launcher + Lens/Bytes/Wire/Nav/Timeline) — dev only, so the built docs
-		// site never ships the instrument graph — and the SSR profiler, always: UI at /__profiler
-		// (dev = open; prod needs ?key=<OGYGIA_PROFILER_SECRET>). Build with PROFILER_SOURCEMAPS=1 to
-		// recover original frame names (see build.sourcemap).
-		devtools({ dock: command === 'serve', profiler: true }),
+		// The devtools dock (launcher + Lens/Bytes/Wire/Nav/Timeline) and the SSR profiler (UI at
+		// /__profiler), both dev only: the site deploys to Cloudflare Workers, which has no
+		// node:inspector and no process.cpuUsage for the profiler to record with.
+		devtools({ dock: command === 'serve', profiler: command === 'serve' }),
 		content({
 			markdown: {
 				themes: { light: themes.light, dark: themes.dark },
@@ -92,13 +88,10 @@ export default defineConfig(({ command }) => ({
 				// The two diff dialects (line `+++ `/`--- ` prefixes + inline `+++x+++`/`---x---`),
 				// dogfooded on the markdown-authoring page.
 				code: { transformers: [diff_markers(), inline_markers()] },
-				// Reshape the Releases page's `## [x] — date` headings into a clean version + a date
-				// line under it. `enforce: 'pre'` so the heading-id/TOC collectors see "0.5.0".
 				// expandApi: `> MODULE: ogygia/…` → the auto-generated API reference, regenerated from
 				// the package's own d.ts on every build — cache_key re-keys the doc cache when the
 				// d.ts set changes; dependencies lets Vite recompile affected pages in dev.
 				remark: [
-					{ enforce: 'pre', plugin: remarkChangelog },
 					{
 						enforce: 'pre',
 						plugin: expandApi,

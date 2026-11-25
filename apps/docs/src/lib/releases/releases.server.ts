@@ -9,11 +9,18 @@ import dates from 'virtual:release-dates';
 import * as v from 'valibot';
 import { read_changelog, type Release } from './changelog.ts';
 
-const changelogs = import.meta.glob('../../../../../packages/*/CHANGELOG.md', {
-	query: '?raw',
-	import: 'default',
-	eager: true
-}) as Record<string, string>;
+// The tsdown Svelte plugin is build tooling on its own version line, not part of ogygia's releases.
+const changelogs = import.meta.glob(
+	[
+		'../../../../../packages/*/CHANGELOG.md',
+		'!../../../../../packages/tsdown-plugin-svelte/CHANGELOG.md'
+	],
+	{
+		query: '?raw',
+		import: 'default',
+		eager: true
+	}
+) as Record<string, string>;
 const names = import.meta.glob('../../../../../packages/*/package.json', {
 	import: 'name',
 	eager: true

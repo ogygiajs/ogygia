@@ -1,4 +1,4 @@
-import adapter from '@sveltejs/adapter-vercel';
+import adapter from '@sveltejs/adapter-cloudflare';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { preprocess, extensions } from '@ogygia/content/vite';
 
@@ -16,7 +16,8 @@ const config = {
 		experimental: { async: true }
 	},
 	kit: {
-		adapter: adapter({ runtime: 'nodejs22.x' }),
+		adapter: adapter(),
+		prerender: { origin: 'https://ogygiajs.dev' },
 		experimental: { remoteFunctions: true }
 	}
 };

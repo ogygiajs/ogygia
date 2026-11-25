@@ -1,11 +1,12 @@
 <script lang="ts">
 	import PageHead from '$lib/PageHead.svelte';
+	import { SERVER_PAGE_TITLES } from '$lib/og/card';
 
 	let { data } = $props();
 </script>
 
 <PageHead
-	title="Errors and warnings"
+	title={SERVER_PAGE_TITLES.errors}
 	description="Every message ogygia prints in the browser: its code, what it means, and what to do about it."
 />
 
