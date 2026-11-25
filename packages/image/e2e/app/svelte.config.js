@@ -4,7 +4,7 @@ import cloudflare_adapter from '@sveltejs/adapter-cloudflare';
 import vercel_adapter from '@sveltejs/adapter-vercel';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { preprocess, extensions } from '@ogygia/content/vite';
-import { VERCEL } from './image.config.ts';
+import { VERCEL, VERCEL_REMOTE } from './image.config.ts';
 
 // IMAGE_E2E_STATIC=1: every page prerendered, written as plain files to build/static (served with no
 // server), with an SPA fallback page (404.html) the adapter renders after the build; otherwise adapter-node, every page rendered on request. IMAGE_E2E_BASE: the app's
@@ -16,8 +16,9 @@ const PAGES = process.env.IMAGE_E2E_PAGES ?? 'build/static';
 const ADAPTER = process.env.IMAGE_E2E_ADAPTER;
 
 function vercel_images() {
-	if (process.env.IMAGE_E2E_VERCEL_IMAGES !== 'short') return VERCEL.images;
-	return { ...VERCEL.images, sizes: VERCEL.images.sizes.slice(1) };
+	const images = { ...VERCEL.images, remotePatterns: VERCEL_REMOTE };
+	if (process.env.IMAGE_E2E_VERCEL_IMAGES !== 'short') return images;
+	return { ...images, sizes: images.sizes.slice(1) };
 }
 
 function adapted() {

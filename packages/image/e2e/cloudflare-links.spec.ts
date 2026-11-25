@@ -54,6 +54,28 @@ test("a live page's moving image offers a still as a link with anim=false, at re
 	expect(html).toMatch(/<img[^>]* srcset="\/cdn-cgi\/image\/(?:(?!anim=false)[^ ])+ \d+w/);
 });
 
+test("a live page's remoteImage() is a /cdn-cgi/image link to its whole URL (the zone must allow that origin), nothing signed", async ({
+	request
+}) => {
+	const html = await (await request.get('/late/cms')).text();
+	expect(html.match(SIGNED_RE) ?? []).toEqual([]);
+	const links = [
+		...new Set(
+			html.match(
+				/\/cdn-cgi\/image\/[^\s",]+(?:,[^\s",]+)*\/http:\/\/127\.0\.0\.1:4176\/photos\/field\.jpg/g
+			) ?? []
+		)
+	];
+	expect(links.sort()).toEqual([
+		'/cdn-cgi/image/width=300,height=200,fit=cover,quality=60,format=avif/http://127.0.0.1:4176/photos/field.jpg',
+		'/cdn-cgi/image/width=300,height=200,fit=cover,quality=80,format=webp/http://127.0.0.1:4176/photos/field.jpg',
+		'/cdn-cgi/image/width=480,height=320,fit=cover,quality=60,format=avif/http://127.0.0.1:4176/photos/field.jpg',
+		'/cdn-cgi/image/width=480,height=320,fit=cover,quality=80,format=webp/http://127.0.0.1:4176/photos/field.jpg',
+		'/cdn-cgi/image/width=600,height=400,fit=cover,quality=60,format=avif/http://127.0.0.1:4176/photos/field.jpg',
+		'/cdn-cgi/image/width=600,height=400,fit=cover,quality=80,format=webp/http://127.0.0.1:4176/photos/field.jpg'
+	]);
+});
+
 test('prerendered pages still name the files the build made, and no link', async ({ request }) => {
 	expect((await named(request, PRERENDERED, BUILT_RE)).length).toBeGreaterThan(40);
 	expect(await named(request, PRERENDERED, LINK_RE)).toEqual([]);

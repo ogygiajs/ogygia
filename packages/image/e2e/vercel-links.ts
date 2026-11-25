@@ -9,7 +9,8 @@ export const VERCEL_IMAGES = {
 	qualities: [60, 80],
 	formats: ['image/avif', 'image/webp'],
 	domains: [],
-	localPatterns: [{ pathname: '^/_app/immutable/assets/.+$', search: '' }]
+	localPatterns: [{ pathname: '^/_app/immutable/assets/.+$', search: '' }],
+	remotePatterns: [{ protocol: 'http', hostname: '^127\\.0\\.0\\.1$', port: '4176' }]
 };
 
 const ORIGINAL = '%2F_app%2Fimmutable%2Fassets%2Fone.<hash>.png';

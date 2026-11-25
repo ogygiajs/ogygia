@@ -23,6 +23,7 @@ const build = fileURLToPath(import.meta.resolve('@ogygia/tooling/e2e/build.ts'))
 const serve_static = fileURLToPath(new URL('./e2e/serve-static.ts', import.meta.url));
 const serve_vercel = fileURLToPath(new URL('./e2e/serve-vercel.ts', import.meta.url));
 const IGNORED = ['**/node_modules/**', '**/app/**'];
+const REMOTE_HOST = fileURLToPath(new URL('./e2e/remote-host-setup.ts', import.meta.url));
 
 function served(mode: string): PlaywrightTestConfig {
 	if (mode === 'static')
@@ -108,6 +109,7 @@ function config(mode: string): PlaywrightTestConfig {
 	const own = OWN_SPEC[mode] ?? 'image.spec.ts';
 	const suite_config: PlaywrightTestConfig = {
 		...served(mode),
+		globalSetup: REMOTE_HOST,
 		testIgnore: [...IGNORED, ...SPECS.filter((s) => s !== own).map((s) => `**/${s}`)]
 	};
 	if (!CHROMIUM_ONLY.has(mode)) return suite_config;

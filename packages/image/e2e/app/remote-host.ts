@@ -5,9 +5,14 @@ import sharp from 'sharp';
 // plain HTTP server on 127.0.0.1:4176, started by the config of whichever process loads it first
 // (the build, the dev server), never keeping that process alive. Its pictures are drawn by sharp,
 // with an etag, so a build that keeps the cache revalidates with a 304. `/moved/…` redirects to
-// `/photos/…`.
+// `/photos/…`. `/huge.jpg` is 30 MB (past the default `remote.maxBytes`), and `/slow.jpg` sends
+// its headers and stops for 8 s (past the fixture's `remote.timeout`).
 export const REMOTE_PORT = 4176;
 export const REMOTE_ORIGIN = `http://127.0.0.1:${REMOTE_PORT}`;
+/** The fixture's `remote.timeout`, in ms. */
+export const REMOTE_TIMEOUT = 3000;
+const HUGE_BYTES = 30_000_000;
+const SLOW_MS = 8000;
 
 async function picture(width: number, height: number, background: string): Promise<Buffer> {
 	const stripe = await sharp({
@@ -21,7 +26,7 @@ async function picture(width: number, height: number, background: string): Promi
 		.toBuffer();
 }
 
-export async function serve_remote_host(): Promise<void> {
+export async function serve_remote_host(): Promise<http.Server | null> {
 	const files = new Map<string, Buffer>([
 		['/photos/field.jpg', await picture(1200, 800, '#3a6ea5')],
 		['/photos/cover.jpg', await picture(1600, 900, '#5b8c5a')]
@@ -31,6 +36,18 @@ export async function serve_remote_host(): Promise<void> {
 		if (at.startsWith('/moved/')) {
 			res.writeHead(302, { location: at.replace('/moved/', '/photos/') });
 			res.end();
+			return;
+		}
+		if (at === '/huge.jpg') {
+			res.writeHead(200, { 'content-type': 'image/jpeg' });
+			res.write(Buffer.from([0xff, 0xd8, 0xff]));
+			res.end(Buffer.alloc(HUGE_BYTES));
+			return;
+		}
+		if (at === '/slow.jpg') {
+			res.writeHead(200, { 'content-type': 'image/jpeg' });
+			res.write(Buffer.from([0xff, 0xd8, 0xff]));
+			setTimeout(() => res.end(), SLOW_MS).unref();
 			return;
 		}
 		const bytes = files.get(at);
@@ -48,9 +65,10 @@ export async function serve_remote_host(): Promise<void> {
 		res.writeHead(200, { 'content-type': 'image/jpeg', etag });
 		res.end(bytes);
 	});
-	await new Promise<void>((done) => {
-		server.once('error', () => done());
-		server.listen(REMOTE_PORT, '127.0.0.1', () => done());
+	const bound = await new Promise<boolean>((done) => {
+		server.once('error', () => done(false));
+		server.listen(REMOTE_PORT, '127.0.0.1', () => done(true));
 	});
 	server.unref();
+	return bound ? server : null;
 }

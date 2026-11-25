@@ -4,7 +4,7 @@ import { content } from '@ogygia/content/vite';
 import { image } from '@ogygia/image/vite';
 import { defineConfig } from 'vite';
 import { encoder } from './image.config.ts';
-import { REMOTE_ORIGIN, serve_remote_host } from './remote-host.ts';
+import { REMOTE_ORIGIN, REMOTE_TIMEOUT, serve_remote_host } from './remote-host.ts';
 
 await serve_remote_host();
 
@@ -32,7 +32,7 @@ export default defineConfig({
 				}
 			},
 			markdown: { animated: 'motion' },
-			remote: { hosts: [REMOTE_ORIGIN] },
+			remote: { hosts: [REMOTE_ORIGIN], timeout: REMOTE_TIMEOUT },
 			...(process.env.IMAGE_E2E_BASE
 				? {}
 				: { theme: { dark: ':root[data-theme="dark"]', light: ':root[data-theme="light"]' } }),

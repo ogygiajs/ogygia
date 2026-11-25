@@ -16,6 +16,10 @@ const BUILT_RE = /\/_app\/immutable\/og\/[\w-]+\.(?:avif|webp)/g;
 const SIGNED_RE = /\/__ogygia__\/i\/[^\s",)]+/g;
 const KEPT = 'public, immutable, max-age=31536000';
 
+function b64(url: string): string {
+	return Buffer.from(url).toString('base64url');
+}
+
 async function named(
 	request: import('@playwright/test').APIRequestContext,
 	pages: readonly string[],
@@ -122,6 +126,35 @@ test("a live page's moving image offers a still the binding makes (anim=false), 
 	);
 });
 
+test("a live page's remoteImage() is fetched by the Worker and made by the binding, kept for remote.maxAge, never forever; an unlisted host is 404; a prerendered one is the build's", async ({
+	request
+}) => {
+	const urls = await named(request, ['/late/cms'], SIGNED_RE);
+	const listed = urls.filter((u) =>
+		u.includes(`/.remote/${b64('http://127.0.0.1:4176/photos/field.jpg')}.`)
+	);
+	expect(listed.length).toBeGreaterThan(0);
+	for (const url of listed) {
+		const res = await request.get(url);
+		expect(res.status(), url).toBe(200);
+		expect(res.headers()['cache-control'], url).toMatch(
+			/^public, max-age=\d+, stale-while-revalidate=86400$/
+		);
+		const meta = await sharp(await res.body()).metadata();
+		expect(meta.width, url).toBe(Number(/-(\d+)x\d+\//.exec(url)![1]));
+	}
+	const unlisted = urls.find((u) =>
+		u.includes(`/.remote/${b64('http://127.0.0.1:4177/photos/field.jpg')}.`)
+	)!;
+	const refused = await request.get(unlisted);
+	expect(refused.status()).toBe(404);
+	expect(refused.headers()['cache-control']).toBe('no-store');
+	const built = await named(request, ['/cms'], BUILT_RE);
+	expect(built.length).toBeGreaterThan(0);
+	expect(await named(request, ['/cms'], SIGNED_RE)).toEqual([]);
+	for (const url of built) expect((await request.get(url)).status(), url).toBe(200);
+});
+
 test('the endpoint refuses a forged signature and a POST, kept nowhere', async ({ request }) => {
 	const url = (await named(request, ['/late'], SIGNED_RE))[0]!;
 	const sig = /\/i\/([^/]+)\//.exec(url)![1]!;
@@ -151,8 +184,15 @@ test('the Worker wrangler would deploy holds the binding maker and none of sharp
 		expect(worker).not.toMatch(
 			/from ["']sharp["']|require\(["']sharp["']\)|import\(["']sharp["']\)/
 		);
-		for (const engine of ['encode_recipe', 'limitInputPixels', 'runtime_store', 'mozjpeg'])
+		for (const engine of [
+			'encode_recipe',
+			'limitInputPixels',
+			'runtime_store',
+			'mozjpeg',
+			'connect_lookup'
+		])
 			expect(worker, engine).not.toContain(engine);
+		expect(worker).toContain('web_get');
 	} finally {
 		fs.rmSync(out, { recursive: true, force: true });
 	}

@@ -183,6 +183,25 @@ test("the output config's images are the ones vercel() handed the adapter", () =
 	expect(config.images).toEqual(VERCEL_IMAGES);
 });
 
+test("a live page's remoteImage() is named by Vercel's link to its whole URL, whose host the output's remotePatterns list", async ({
+	request
+}) => {
+	const html = (await (await request.get('/late/cms')).text()).replaceAll('&amp;', '&');
+	const field = encodeURIComponent('http://127.0.0.1:4176/photos/field.jpg');
+	const links = [...new Set(html.match(/\/_vercel\/image\?url=[^\s"]+?&w=\d+&q=\d+/g) ?? [])];
+	expect(links.filter((l) => l.includes(field)).sort()).toEqual([
+		`/_vercel/image?url=${field}&w=640&q=60`,
+		`/_vercel/image?url=${field}&w=640&q=80`
+	]);
+	expect(html.match(SIGNED_RE) ?? []).toEqual([]);
+	const config = JSON.parse(fs.readFileSync(path.join(OUTPUT, 'config.json'), 'utf8')) as {
+		images: { remotePatterns: { hostname: string }[] };
+	};
+	expect(config.images.remotePatterns.some((p) => new RegExp(p.hostname).test('127.0.0.1'))).toBe(
+		true
+	);
+});
+
 test("a live page's resize is named by Vercel's link to its original, its widths snapped up to the sizes, nothing signed", async ({
 	request
 }) => {

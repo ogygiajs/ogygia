@@ -21,7 +21,8 @@ const PAGES = [
 	'/blog/third-post',
 	'/blog/fourth-post',
 	'/twins',
-	'/remote'
+	'/remote',
+	'/cms'
 ];
 const IMAGE_URL_RE = /\/(?:__ogygia__\/i|_app\/immutable\/og)\/[^\s",)]+/g;
 const SIGNED_URL_RE = /\/__ogygia__\/i\/[^\s",)]+/g;
@@ -540,6 +541,70 @@ test.describe('remote images (/remote, /blog/fourth-post)', () => {
 		expect(body.picture).toBe('yes');
 		expect(body.sizes).toBe('(min-width: 720px) 720px, 100vw');
 		await every_image_loads(page);
+	});
+});
+
+test.describe('remote images at request (/cms, /late/cms)', () => {
+	const REMOTE_ID_RE = /\/r[\w-]{32}-\d+x\d+\/\.remote\/[\w-]+\.(?:avif|webp)$/;
+
+	async function late_url(request: APIRequestContext, id: string): Promise<string> {
+		const res = await request.get('/late/cms');
+		expect(res.status()).toBe(200);
+		return urls(server_attrs(await res.text(), id).avif)[0]!;
+	}
+
+	test("a CMS image from a server load renders in its box and loads; live, its files are the endpoint's, named by the URL and kept for remote.maxAge, never forever; prerendered, files the build made from the bytes", async ({
+		page,
+		request
+	}) => {
+		await page.goto('/cms');
+		const a = await attrs(page.locator('#cms'));
+		expect(a.picture).toBe('yes');
+		expect([a.width, a.height]).toEqual(['400', '225']);
+		expect(a.background).toBeNull();
+		await every_image_loads(page);
+		const all = [...urls(a.avif), ...urls(a.srcset)];
+		for (const url of all) {
+			if (MODE === 'static')
+				expect(url).toMatch(/^\/_app\/immutable\/og\/[\w-]{16}-\d+x\d+\.(avif|webp)$/);
+			else expect(url).toMatch(REMOTE_ID_RE);
+			const res = await request.get(url);
+			expect(res.status(), url).toBe(200);
+			if (MODE === 'static') continue;
+			expect(res.headers()['cache-control'], url).toMatch(
+				/^public, max-age=\d+, stale-while-revalidate=86400$/
+			);
+		}
+		const f = await fetch_file(request, urls(a.avif).at(-1)!);
+		expect([f.type, f.width, f.height]).toEqual(['image/avif', 800, 450]);
+	});
+
+	test('a .remote/ tail changed to name another URL, though listed, is refused by the signature', async ({
+		request
+	}) => {
+		test.skip(MODE === 'static', 'a prerendered page names no signed URL');
+		const url = await late_url(request, 'listed');
+		const other = Buffer.from('http://127.0.0.1:4176/photos/cover.jpg').toString('base64url');
+		const forged = url.replace(/\.remote\/[\w-]+/, `.remote/${other}`);
+		const res = await request.get(forged);
+		expect(res.status()).toBe(403);
+		expect(res.headers()['x-ogygia-deny']).toBe('sig');
+		expect((await request.get(url)).status()).toBe(200);
+	});
+
+	test('an unlisted host the app signed is 404, a body past maxBytes 413, a host past remote.timeout 504, each kept nowhere', async ({
+		request
+	}) => {
+		test.skip(MODE === 'static', 'every page prerendered: no request reaches an endpoint');
+		for (const [id, status] of [
+			['unlisted', 404],
+			['huge', 413],
+			['slow', 504]
+		] as const) {
+			const res = await request.get(await late_url(request, id));
+			expect(res.status(), id).toBe(status);
+			expect(res.headers()['cache-control'], id).toBe('no-store');
+		}
 	});
 });
 
