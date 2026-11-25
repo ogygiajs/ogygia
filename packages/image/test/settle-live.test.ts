@@ -11,7 +11,8 @@ vi.hoisted(() => {
 });
 
 vi.mock('virtual:ogygia-image/sources', () => ({
-	default: { '/src/lib/a.png': '/_app/immutable/assets/a.Ab12.png' }
+	default: { '/src/lib/a.png': '/_app/immutable/assets/a.Ab12.png' },
+	remote: []
 }));
 vi.mock('virtual:ogygia-image/config', () => ({
 	default: { paths: { base: '', assets: '', app_dir: '_app' } }

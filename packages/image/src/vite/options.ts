@@ -10,6 +10,7 @@ import { parse_aspect, type ImagePreset, type OutputFormat } from '../config.ts'
 import { OgygiaError } from '../messages.ts';
 import { is_media_condition, MEDIA_RULE } from '../layout.ts';
 import { POSITIONS } from '../recipe.ts';
+import { HOSTS_RULE, is_host_entry } from '../remote-hosts.ts';
 import type { Encoder } from './encoder.ts';
 
 export type { ImageOps } from '../descriptor.ts';
@@ -44,6 +45,22 @@ export interface ImageTheme {
 	light: string;
 }
 
+/** Where the build may fetch images from, and how much it takes. */
+export interface ImageRemote {
+	/** The hosts the app takes images from: `'images.example.com'`, `'*.cdn.example.com'` (every
+	 *  name below it), with a port when not the default; `https://` only, unless an entry starts
+	 *  with `http://` (`'http://127.0.0.1:4100'`). Any other URL fails the build
+	 *  (`image_remote_host`), and stays a plain `<img>` in markdown. */
+	hosts: string[];
+	/** The most bytes one image may have. Default 20 MB (`20_000_000`). */
+	maxBytes?: number;
+	/** How long one fetch may take, in ms, its redirects and body included. Default `10_000`. */
+	timeout?: number;
+	/** How long, in seconds, a file made on request from a URL known only at request may be kept.
+	 *  Default one day (`86_400`). */
+	maxAge?: number;
+}
+
 /** The plugin's options: every image's defaults, the presets, and markdown's. */
 export interface ImagePluginOptions {
 	quality?: number;
@@ -75,6 +92,11 @@ export interface ImagePluginOptions {
 	 *  dark one when the dark selector matches, or when the system prefers dark and the light
 	 *  selector does not. Without it, the system's setting alone picks. */
 	theme?: ImageTheme;
+	/** Images on other hosts: `import.meta.og.image('https://images.example.com/a.jpg')`, and in
+	 *  markdown a body image or frontmatter URL on a listed host. Each is fetched at build into
+	 *  the build cache, asked again on every build (an unchanged one is not downloaded again), and
+	 *  from there it is a file of the app's own. */
+	remote?: ImageRemote;
 }
 
 export { DEFAULT_BREAKPOINTS, DEFAULT_FORMATS } from '../config.ts';
@@ -110,8 +132,10 @@ const PLUGIN_KEYS: ReadonlySet<string> = new Set([
 	'presets',
 	'markdown',
 	'encoder',
-	'theme'
+	'theme',
+	'remote'
 ]);
+const REMOTE_KEYS: ReadonlySet<string> = new Set(['hosts', 'maxBytes', 'timeout', 'maxAge']);
 const ART_KEYS: ReadonlySet<string> = new Set(['media', 'aspect', 'position', 'width']);
 const THEME_KEYS: ReadonlySet<string> = new Set(['dark', 'light']);
 // oxlint-disable-next-line ogygia/one-markup-walk -- not markup: it refuses a CSS selector that could close the theme stylesheet's rule
@@ -309,6 +333,21 @@ function check_theme(where: string, t: unknown): void {
 			invalid(where, `theme.${key}`, rule);
 }
 
+function check_remote(where: string, r: unknown): void {
+	if (r === undefined) return;
+	if (!is_object(r)) invalid(where, 'remote', `an object with hosts: ${HOSTS_RULE}`);
+	unknown_keys(`${where} remote`, r, REMOTE_KEYS);
+	if (!Array.isArray(r.hosts) || !r.hosts.length) invalid(where, 'remote.hosts', HOSTS_RULE);
+	for (const entry of r.hosts as unknown[])
+		if (!is_host_entry(entry)) invalid(where, `remote.hosts '${String(entry)}'`, HOSTS_RULE);
+	if (r.maxBytes !== undefined && !(Number.isInteger(r.maxBytes) && (r.maxBytes as number) > 0))
+		invalid(where, 'remote.maxBytes', 'a whole number of bytes above 0');
+	if (r.timeout !== undefined && !(Number.isInteger(r.timeout) && (r.timeout as number) > 0))
+		invalid(where, 'remote.timeout', 'a whole number of milliseconds above 0');
+	if (r.maxAge !== undefined && !(Number.isInteger(r.maxAge) && (r.maxAge as number) >= 0))
+		invalid(where, 'remote.maxAge', 'a whole number of seconds, 0 or more');
+}
+
 /** Check the plugin's options. */
 export function check_plugin_options(o: unknown): ImagePluginOptions {
 	const where = 'image()';
@@ -340,6 +379,7 @@ export function check_plugin_options(o: unknown): ImagePluginOptions {
 	}
 	check_encoders(where, opts.encoder);
 	check_theme(where, opts.theme);
+	check_remote(where, opts.remote);
 	if (opts.markdown !== undefined && opts.markdown !== false) {
 		if (!is_object(opts.markdown)) invalid(where, 'markdown', 'an object or false');
 		unknown_keys(`${where} markdown`, opts.markdown, MARKDOWN_KEYS);

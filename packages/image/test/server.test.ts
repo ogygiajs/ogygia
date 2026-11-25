@@ -20,7 +20,8 @@ vi.mock('virtual:ogygia-image/sources', () => ({
 		'/src/lib/harbor dusk.jpg': '/_app/immutable/assets/harbor%20dusk.Ab12.jpg',
 		'/src/lib/spin.gif': '/_app/immutable/assets/spin.Cd34.gif',
 		'/src/lib/broken.jpg': '/_app/immutable/assets/broken.Ef56.jpg'
-	}
+	},
+	remote: ['0123456789abcdef0123456789abcdef']
 }));
 vi.mock('virtual:ogygia-image/config', () => ({
 	default: { paths: { base: '', assets: '', app_dir: '_app' } }
@@ -161,6 +162,29 @@ describe('the image server realm', () => {
 			false
 		)!;
 		expect((await get(url))!.status).toBe(404);
+	});
+
+	test('a remote image the server build fetched is an original the endpoint reads; any other name under the assets is not', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			const at = (name: string): string =>
+				mint(
+					{
+						id: ids.harbor,
+						src: `/_app/immutable/assets/${name}.Xy12.jpg`,
+						width: 48,
+						height: 32,
+						format: 'webp'
+					},
+					false
+				)!;
+			const fetched = (await get(at('0123456789abcdef0123456789abcdef')))!;
+			expect(fetched.status).not.toBe(404);
+			expect(String(warn.mock.calls[0]?.[0])).toMatch(/Asset does not exist/);
+			expect((await get(at('ffffffffffffffffffffffffffffffff')))!.status).toBe(404);
+		} finally {
+			warn.mockRestore();
+		}
 	});
 
 	test('a signed path that is not a recipe is not found', async () => {

@@ -28,7 +28,7 @@ import { defineServer, type ServerApp, type ServerPlugin } from '@ogygia/core/pl
 import { cache } from '@ogygia/machine';
 import config from 'virtual:ogygia-image/config';
 import { name } from 'virtual:ogygia-image/namer';
-import sources from 'virtual:ogygia-image/sources';
+import sources, { remote } from 'virtual:ogygia-image/sources';
 import { build_handoff, published, type BuildHandoff } from './handoff.ts';
 import { warn } from './messages.ts';
 import {
@@ -53,9 +53,11 @@ const PREFIXES: readonly string[] = [ASSETS, BASE];
 
 class Originals {
 	#tails: ReadonlySet<string>;
+	#remote: ReadonlySet<string>;
 
-	constructor(list: Readonly<Record<string, string>>) {
+	constructor(list: Readonly<Record<string, string>>, fetched: readonly string[] | string) {
 		this.#tails = Originals.#of(list);
+		this.#remote = new Set(typeof fetched === 'string' ? [] : fetched);
 	}
 
 	static #of(list: Readonly<Record<string, string>>): ReadonlySet<string> {
@@ -64,13 +66,25 @@ class Originals {
 
 	has(tail: string): boolean {
 		if (this.#tails.has(tail)) return true;
-		const root = DEV_ROOT;
-		return root !== null && DISK !== null && published(tail) && DISK.exists(root, tail);
+		if (tail.startsWith(REMOTE_ASSETS)) {
+			const name = REMOTE_ASSET_RE.exec(tail.slice(REMOTE_ASSETS.length))?.[1];
+			if (name !== undefined && this.#remote.has(name)) return true;
+		}
+		const run = DEV_RUN;
+		if (run === null || DISK === null) return false;
+		if (published(tail)) return DISK.exists(run.root, tail);
+		return DISK.is_remote(run.root, run.remote, tail);
 	}
 }
 
-const DEV_ROOT: string | null = (dev && build_handoff()?.root) || null;
-const ORIGINALS = new Originals(sources);
+const REMOTE_ASSETS = `${config.paths.app_dir}/immutable/assets/`;
+const REMOTE_ASSET_RE = /^([0-9a-f]{32})\.[\w-]+\.(?:png|jpe?g|webp|avif|gif|tiff?)$/;
+const DEV_RUN: BuildHandoff | null = dev ? root_handoff(build_handoff()) : null;
+
+function root_handoff(run: BuildHandoff | null): BuildHandoff | null {
+	return run !== null && run.root !== '' ? run : null;
+}
+const ORIGINALS = new Originals(sources, remote);
 
 class DiskHalf {
 	#ready: Promise<void> | null = null;

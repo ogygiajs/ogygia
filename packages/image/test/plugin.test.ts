@@ -1,10 +1,14 @@
 // The plugin's load hook: which originals the server may read, and the paths it hands `<Img>`.
 import fs from 'node:fs';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import type { Plugin, ResolvedConfig } from 'vite';
 import { beforeAll, expect, test, vi } from 'vitest';
 import { cloudflare, image, sharp, vercel, type ImagePluginOptions } from '../src/vite/index.ts';
+import { remote_name, remote_src } from '../src/vite/remote.ts';
+import { source_id } from '../src/source-id.ts';
 import { app_with_sharp, make_images } from './fixtures.ts';
 
 let root: string;
@@ -35,6 +39,12 @@ async function loader(
 function load(plugin: Plugin, id: string): Promise<unknown> {
 	const ctx = { addWatchFile: () => {} };
 	return Promise.resolve((plugin.load as (this: unknown, id: string) => unknown).call(ctx, id));
+}
+
+function resolve(plugin: Plugin, id: string, importer?: string): Promise<string> {
+	return Promise.resolve(
+		(plugin.resolveId as (id: string, importer?: string) => string | Promise<string>)(id, importer)
+	);
 }
 
 test('the server reads no original under src/lib/server or in a test folder, and the macro says so', async () => {
@@ -192,13 +202,62 @@ test('the theme stylesheet resolves to a file path, with and without a query', a
 	const plugin = await loader(undefined, {
 		theme: { dark: '.dark', light: '.light' }
 	});
-	const resolve = (id: string): string => (plugin.resolveId as (id: string) => string)(id);
-	const file = resolve('virtual:ogygia-image/theme.css');
+	const file = await resolve(plugin, 'virtual:ogygia-image/theme.css');
 	expect(file).toMatch(/^\/.*\/src\/og-theme\.css$/);
-	expect(resolve('virtual:ogygia-image/theme.css?inline')).toBe(`${file}?inline`);
-	expect(resolve(`/@fs${file}?inline`)).toBe(`${file}?inline`);
+	expect(await resolve(plugin, 'virtual:ogygia-image/theme.css?inline')).toBe(`${file}?inline`);
+	expect(await resolve(plugin, `/@fs${file}?inline`)).toBe(`${file}?inline`);
 	expect(String(await load(plugin, `${file}?inline`))).toContain(':is(.dark)');
 	const plain = await loader();
 	expect(String(await load(plain, file))).toBe('');
 	expect(String(await load(plugin, '\0virtual:ogygia-image/config'))).toContain('"themed":true');
+});
+
+test('a remote image resolves to its file in the build cache, loads as a source, and the server build lists it for the endpoint', async () => {
+	const img = await make_images();
+	const bytes = fs.readFileSync(img.jpg);
+	const host = http.createServer((_, res) => {
+		res.writeHead(200, { 'content-type': 'image/jpeg' });
+		res.end(bytes);
+	});
+	await new Promise<void>((done) => host.listen(0, '127.0.0.1', done));
+	try {
+		const origin = `http://127.0.0.1:${(host.address() as AddressInfo).port}`;
+		const url = `${origin}/a/hero.jpg`;
+		const define = { __SVELTEKIT_APP_DIR__: '"_app"' };
+		const plugin = image({ remote: { hosts: [origin] } }).find(
+			(p) => p.name === '@ogygia/image:load'
+		)!;
+		await (plugin.configResolved as (c: unknown) => unknown)({
+			root,
+			command: 'build',
+			build: { ssr: true, outDir: path.join(root, '.svelte-kit/output/server') },
+			define: { ...define, __SVELTEKIT_ADAPTER_NAME__: '"@sveltejs/adapter-node"' }
+		});
+		const file = await resolve(
+			plugin,
+			`${remote_src(url)}?og-image`,
+			path.join(root, 'src/routes/+page.svelte')
+		);
+		expect(file).toMatch(new RegExp(`/remote/${remote_name(url)}\\.jpg\\?og-image$`));
+		expect(fs.readFileSync(file.split('?')[0]!).equals(bytes)).toBe(true);
+		const module = String(await load(plugin, file));
+		expect(module).toContain(
+			`import __src from ${JSON.stringify(`${file.split('?')[0]}?no-inline`)}`
+		);
+		expect(module).toContain(`"id":${JSON.stringify(await source_id(bytes))}`);
+
+		const sources = String(await load(plugin, '\0virtual:ogygia-image/sources'));
+		const render = plugin.renderChunk as (code: string) => { code: string } | null;
+		const chunk = render.call({}, sources)!;
+		expect(chunk.code).toContain(`export const remote = ["${remote_name(url)}"];`);
+
+		const unlisted = await loader(define, {}, 'build');
+		await expect(
+			resolve(unlisted, `${remote_src(url)}?og-image`, path.join(root, 'src/a.ts'))
+		).rejects.toThrow(
+			/src\/a\.ts: '.*' is on a host image\(\{ remote: \{ hosts \} \}\) does not list/
+		);
+	} finally {
+		host.close();
+	}
 });

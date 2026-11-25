@@ -3,7 +3,7 @@
 // request, which every render follows.
 import { expect, test, vi } from 'vitest';
 
-vi.mock('virtual:ogygia-image/sources', () => ({ default: {} }));
+vi.mock('virtual:ogygia-image/sources', () => ({ default: {}, remote: [] }));
 vi.mock('virtual:ogygia-image/config', () => ({
 	default: { paths: { base: '', assets: '', app_dir: '_app' } }
 }));

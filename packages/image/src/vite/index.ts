@@ -13,6 +13,9 @@
  * - SETTLE: the server realm's endpoint makes each file on first request, in dev and on a live
  *   server; the build makes the files of warmed presets and prerendered pages (./build-files.ts).
  *
+ * A URL on a host `image({ remote: { hosts } })` lists is fetched into the build cache and is a file
+ * from there (./remote.ts).
+ *
  * With `@ogygia/content`, markdown images and frontmatter image paths become descriptors too
  * (./markdown.ts).
  *
@@ -57,6 +60,7 @@ import {
 	type ImageOptions,
 	type ImagePluginOptions
 } from './options.ts';
+import { is_remote_file, remote_url, RemoteImages, url_of_remote_src } from './remote.ts';
 import { theme_css } from './theme.ts';
 
 export type {
@@ -66,6 +70,7 @@ export type {
 	ImagePluginOptions,
 	ImagePosition,
 	ImagePreset,
+	ImageRemote,
 	ImageTheme,
 	OutputFormat
 } from './options.ts';
@@ -89,6 +94,8 @@ const THEME_ID = 'virtual:ogygia-image/theme.css';
 const THEME_FILE: string = fileURLToPath(new URL('../og-theme.css', import.meta.url))
 	.split(path.sep)
 	.join('/');
+const REMOTE_LIST = '__ogygia_image_remote__';
+const REMOTE_LIST_RE = /(["'`])__ogygia_image_remote__\1/;
 const VIRTUAL_IDS: ReadonlySet<string> = new Set([CONFIG_ID, SOURCES_ID, MAKER_ID, NAMER_ID]);
 const SOURCE_GLOBS: readonly string[] = [
 	'/src/**/*.{png,PNG,jpg,JPG,jpeg,JPEG,webp,WEBP,avif,AVIF,gif,GIF,tif,TIF,tiff,TIFF}',
@@ -209,6 +216,7 @@ async function twin_files(
 export function image(options?: ImagePluginOptions): VitePlugin[] {
 	const opts = check_plugin_options(options);
 	const presets = Object.keys(opts.presets ?? {});
+	const remote = opts.remote ? new RemoteImages(opts.remote) : null;
 	const encoders = encoders_of(opts.encoder);
 	const widths = widths_of(encoders);
 	const stills = makes_stills(encoders);
@@ -225,7 +233,9 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 		name: '@ogygia/image',
 		server: import.meta.resolve('../server.ts'),
 		build(b) {
-			b.macro('image', (code, m) => image_call_edits(code, m.id, m.markupExts, m.watch, presets));
+			b.macro('image', (code, m) =>
+				image_call_edits(code, m.id, m.markupExts, m.watch, presets, remote?.hosts ?? null)
+			);
 		}
 	});
 
@@ -256,8 +266,20 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 		async buildStart() {
 			if (config && build()) handoff = await handoff_for(true, config.root, output_of(config));
 		},
-		resolveId(id) {
+		async resolveId(id, importer) {
 			const [bare, query] = id.split('?', 2) as [string, string | undefined];
+			const url = url_of_remote_src(bare);
+			if (url !== null) {
+				const where = importer
+					? path
+							.relative(config?.root ?? '', importer.split('?', 1)[0]!)
+							.split(path.sep)
+							.join('/')
+					: url;
+				if (remote === null) remote_url(where, url, null);
+				const file = await remote!.file(handoff?.remote ?? '', url, where);
+				return query === undefined ? file : `${file}?${query}`;
+			}
 			if (bare === THEME_ID || bare === THEME_FILE || bare === `/@fs${THEME_FILE}`)
 				return query === undefined ? THEME_FILE : `${THEME_FILE}?${query}`;
 			if (VIRTUAL_IDS.has(id)) return `\0${id}`;
@@ -273,7 +295,10 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 				return `export default ${JSON.stringify(cfg)};\n`;
 			}
 			if (id === `\0${SOURCES_ID}`)
-				return `export default import.meta.glob(${JSON.stringify(SOURCE_GLOBS)}, { query: '?no-inline', import: 'default', eager: true });\n`;
+				return dedent`
+					export default import.meta.glob(${JSON.stringify(SOURCE_GLOBS)}, { query: '?no-inline', import: 'default', eager: true });
+					export const remote = ${JSON.stringify(REMOTE_LIST)};
+				`;
 			const q = id.indexOf('?');
 			if (q === -1 || !QUERY_RE.test(id.slice(q))) return null;
 			const file = id.slice(0, q);
@@ -282,7 +307,7 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 				options_of_query(id.slice(q + 1)),
 				presets
 			);
-			if (config) {
+			if (config && !is_remote_file(handoff?.remote ?? '', file)) {
 				const rel = path.relative(config.root, file).split(path.sep).join('/');
 				if (!rel.startsWith('src/') || UNPUBLISHED_RE.test(rel))
 					throw new OgygiaError('image_outside_src', { file: rel, src: 'src' });
@@ -325,6 +350,11 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 				desc,
 				twins.map((twin) => ({ twin, specifier: image_specifier(twin.file, twin_options) }))
 			);
+		},
+		renderChunk(code) {
+			if (!server_build() || !code.includes(REMOTE_LIST)) return null;
+			const names = JSON.stringify(remote?.names() ?? []);
+			return { code: code.replace(REMOTE_LIST_RE, () => names), map: null };
 		},
 		writeBundle: {
 			order: 'post',

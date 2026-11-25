@@ -6877,14 +6877,6 @@
 			"reason": "build only: plans each twin file of one og-image module, its cost the plan's (cached by id), once per image per build; packages/image/e2e runs it"
 		},
 		{
-			"id": "packages/image/src/vite/macro.ts > image_call_edits > forEach:0~6a6c0b > map:0~fc976a",
-			"reason": "build only: one path rewrite per art twin of one macro call, once per call per build; packages/image/e2e runs it"
-		},
-		{
-			"id": "packages/image/src/vite/macro.ts > image_call_edits > forEach:0~6a6c0b > twin",
-			"reason": "build only: one path resolve and existence check per twin of one macro call, once per call per build; packages/image/e2e runs it"
-		},
-		{
 			"id": "packages/image/src/vite/options.ts > check_preset > forEach:0~a05df8",
 			"reason": "config time, once per preset art entry: a few key checks; test/twins.test.ts runs it"
 		},
@@ -7165,12 +7157,176 @@
 			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
 		},
 		{
-			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_remote_unsupported > details",
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_remote_host > details",
 			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
 		},
 		{
-			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_remote_unsupported > text",
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_remote_host > text",
 			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_remote_failed > details",
+			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_remote_failed > text",
+			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_WARNINGS > image_remote_stale > details",
+			"reason": "a message's prose for its docs page and build warning: constant text, printed once per stale image per build"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_WARNINGS > image_remote_stale > text",
+			"reason": "a message's one line for the build warning: a template over its detail, printed once per stale image per build"
+		},
+		{
+			"id": "packages/image/src/vite/macro.ts > image_call_edits > forEach:0~e9abe4 > map:0~fc976a",
+			"reason": "build only: one path rewrite per art twin of one macro call, once per call per build; packages/image/e2e runs it"
+		},
+		{
+			"id": "packages/image/src/vite/macro.ts > image_call_edits > forEach:0~e9abe4 > twin",
+			"reason": "build only: one path resolve and existence check per twin of one macro call, once per call per build; packages/image/e2e runs it"
+		},
+		{
+			"id": "packages/image/src/vite/macro.ts > is_url",
+			"reason": "build only: one regex test per macro call, once per call per build; test/macro.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/options.ts > check_remote",
+			"reason": "config time, once per image() call: a few key checks over the listed hosts; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/on-disk.ts > is_remote",
+			"reason": "dev only: one path compare and stat per endpoint request for a remote original; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/server.ts > root_handoff",
+			"reason": "once per process, at module load: reads the dev handoff; test/server-*.test.ts run it"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > rule_of",
+			"reason": "config time, once per hosts entry: one regex and URL parse; test/remote.test.ts runs it (fast-check)"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > is_host_entry",
+			"reason": "config time, once per hosts entry; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > entry_for",
+			"reason": "only on a build error, to name the line to add; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > RemoteHosts > constructor",
+			"reason": "config time, once per image() call; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > RemoteHosts > constructor > flatMap:0~81be6f",
+			"reason": "config time, once per hosts entry; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > RemoteHosts > allows",
+			"reason": "build only: once per remote URL a module or markdown file names, and per redirect hop; test/remote.test.ts runs it (fast-check)"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > RemoteHosts > allows > some:0~75e191",
+			"reason": "build only: one compare per listed host per remote URL; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > remote_src",
+			"reason": "build only: one base64url per remote image a module names; test/macro.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > url_of_remote_src",
+			"reason": "build only: one prefix check per resolved import; test/plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > remote_name",
+			"reason": "build only: one sha256 of a URL per remote image; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > remote_url",
+			"reason": "build only: one URL parse and host check per remote image a module names; test/macro.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > is_listed",
+			"reason": "build only: one URL parse per markdown image or frontmatter string; test/markdown.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > is_remote_file",
+			"reason": "build only: one path compare per og-image module; test/plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > discard",
+			"reason": "build only: lets go of a body nobody reads, once per redirect or refused answer; its time is the network's"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > discard > catch:0~a1b2d0",
+			"reason": "build only: an empty catch of a body cancel; no work"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > too_large",
+			"reason": "only on a refused fetch: builds one error"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > body_of",
+			"reason": "build only, network bound: counts one image's body as it streams, once per image per process; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > body_of > catch:0~a1b2d0",
+			"reason": "build only: an empty catch of a reader cancel; no work"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > asked",
+			"reason": "build only, network bound: one fetch per hop, once per image per process; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > fetch_chain",
+			"reason": "build only, network bound: one image's redirects and answer, once per image per process; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > fetch_once",
+			"reason": "build only, network bound: one owner scope and timer per image per process; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > fetch_once > task:0~df21ff",
+			"reason": "build only: hands the fetch the scope's signal, once per image per process"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > fetch_once > timeout:0~a81881",
+			"reason": "build only: closes the scope at the timeout, at most once per image"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > read_kept",
+			"reason": "build only: reads one small JSON file per remote image per process; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > write_atomic",
+			"reason": "build only: writes a fetched image and its JSON once per changed image; its time is the disk's"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > fetched_file",
+			"reason": "build only, network bound: one remote image into the build cache, once per image per process; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > make_fetches",
+			"reason": "once per process: makes the slot's flights"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > slot:0~e5b52c > make",
+			"reason": "once per process: the slot's first use"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > RemoteImages > constructor",
+			"reason": "config time, once per image() call with remote; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > RemoteImages > file",
+			"reason": "build only: joins one process-wide flight per remote image import; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > RemoteImages > names",
+			"reason": "build only: once per server build chunk that holds the sources module; test/plugin.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/vite/index.ts > image",

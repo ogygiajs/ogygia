@@ -7,6 +7,9 @@ declare module 'virtual:ogygia-image/sources' {
 	/** Every image under `src/`, by its project path: its asset URL. */
 	const sources: Record<string, string>;
 	export default sources;
+	/** The name of every remote image the server build fetched (a list, written at the end of the
+	 *  build); in dev, a placeholder string. */
+	export const remote: readonly string[] | string;
 }
 
 declare module 'virtual:ogygia-image/maker' {

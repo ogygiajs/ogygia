@@ -117,7 +117,8 @@ export async function handoff_for(
 		minted,
 		mark,
 		written: '',
-		root
+		root,
+		remote: path.join(cache, 'remote')
 	};
 	process.env[BUILD_ENV] = JSON.stringify(handoff);
 	if (build && output !== null) BuildMakes.of(handoff, output);

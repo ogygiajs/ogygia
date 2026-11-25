@@ -28,7 +28,14 @@ export interface BuildHandoff {
 	written: string;
 	/** The app's root (Vite's `root`). */
 	root: string;
+	/** The folder remote images are fetched into, each named {@link REMOTE_NAME_RE} and its
+	 *  extension. */
+	remote: string;
 }
+
+/** The name of a remote image's file in the build cache, before its extension: a hash of its
+ *  URL. */
+export const REMOTE_NAME_RE: RegExp = /^[0-9a-f]{32}$/;
 
 /** The handoff the plugin left in the environment, or null on a live server. */
 export function build_handoff(): BuildHandoff | null {
@@ -41,7 +48,8 @@ export function build_handoff(): BuildHandoff | null {
 		minted: v.minted,
 		mark: typeof v.mark === 'string' ? v.mark : '',
 		written: typeof v.written === 'string' ? v.written : '',
-		root: typeof v.root === 'string' ? v.root : ''
+		root: typeof v.root === 'string' ? v.root : '',
+		remote: typeof v.remote === 'string' ? v.remote : ''
 	};
 }
 

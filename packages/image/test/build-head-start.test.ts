@@ -33,7 +33,8 @@ vi.mock('$app/server', () => ({
 	read: () => new Response(fs.readFileSync(encodes.jpg))
 }));
 vi.mock('virtual:ogygia-image/sources', () => ({
-	default: { '/src/lib/h.jpg': '/_app/immutable/assets/h.Ab12.jpg' }
+	default: { '/src/lib/h.jpg': '/_app/immutable/assets/h.Ab12.jpg' },
+	remote: []
 }));
 vi.mock('virtual:ogygia-image/config', () => ({
 	default: { paths: { base: '', assets: '', app_dir: '_app' } }

@@ -145,14 +145,40 @@ export const IMAGE_ERRORS = {
 			hand.
 		`
 	},
-	image_remote_unsupported: {
-		text: (a: { file: string; src: string }): string => prose`
-			${a.file}: import.meta.og.image('${a.src}') — remote images are not supported yet. Download the
-			file into the project, or render a plain \`<img>\` for it.
-		`,
+	image_remote_host: {
+		text: (a: { where: string; url: string; entry: string; via?: string }): string =>
+			a.entry === ''
+				? prose`
+					${a.where}: '${a.url}' is no image URL the build can fetch: a remote image is an
+					https:// URL (or http:// from a host listed with it) on a host image({ remote: { hosts } })
+					lists.
+				`
+				: prose`
+					${a.where}: ${a.via === undefined ? `'${a.url}'` : `'${a.via}' redirects to '${a.url}', which`}
+					is on a host image({ remote: { hosts } }) does not list. Add '${a.entry}' to
+					\`hosts\` if the app should take images from it.
+				`,
 		details: (): string => prose`
-			This version encodes files that are part of the app. A URL on another host would need fetching
-			at build and an allowlist of hosts; that is planned, not built.
+			The build fetches a remote image (\`import.meta.og.image('https://…')\`, a markdown image or a
+			frontmatter URL) only from the hosts the app lists in vite.config:
+			\`image({ remote: { hosts: ['images.example.com', '*.cdn.example.com'] } })\`. A name with
+			\`*.\` in front lists every name below it; plain \`http://\` is taken only from an entry
+			that says \`http://\`. Each redirect is checked the same way, so a listed host cannot hand
+			the build a file from one that is not. A markdown or frontmatter URL on a host that is not
+			listed stays a plain \`<img>\` or string.
+		`
+	},
+	image_remote_failed: {
+		text: (a: { where: string; url: string; reason: string }): string =>
+			`${a.where}: the build could not fetch the image ${a.url} (${a.reason}), and has no copy of it.`,
+		details: (): string => prose`
+			A remote image is fetched once into the build cache (\`node_modules/.ogygia/image/remote/\`)
+			and asked again on every build with its \`etag\` or \`last-modified\`, so an unchanged image is
+			not downloaded again. This one could not be fetched and was never fetched before: the host
+			answered an error status, took longer than \`remote.timeout\` (default 10 s), sent more
+			than \`remote.maxBytes\` (default 20 MB), followed more than 3 redirects, or sent something
+			that is not a PNG, JPEG, WebP, AVIF, GIF or TIFF image. Check the URL in a browser, or
+			raise the limit in \`image({ remote })\`.
 		`
 	},
 	image_not_found: {
@@ -341,6 +367,17 @@ export const IMAGE_WARNINGS = {
 			moving source as it is, with no way to keep one frame. List \`sharp()\` after it
 			(\`encoder: [vercel(), sharp()]\`) so the app's endpoint makes stills, or prerender the
 			pages that show moving images.
+		`
+	},
+	image_remote_stale: {
+		text: (a: { where: string; url: string; reason: string }): string =>
+			`${a.where}: the build could not ask for the image ${a.url} again (${a.reason}): it uses the copy it fetched before, which may be out of date.`,
+		details: (): string => prose`
+			Every build asks the host whether a remote image changed (one request with the copy's
+			\`etag\` or \`last-modified\`). The host could not be reached, or did not answer with an
+			image, so the build uses the copy in its cache (\`node_modules/.ogygia/image/remote/\`): an
+			offline build still works. If the image changed on the host, this build shows the old
+			one. Build again once the host answers.
 		`
 	},
 	image_store_unsafe: {

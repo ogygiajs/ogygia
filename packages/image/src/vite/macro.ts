@@ -5,7 +5,9 @@
  *   // → import __og_image_0 from './hero.jpg?og-image=<options>';  const hero = __og_image_0;
  *
  * The call becomes an import of the file under the plugin's query; the plugin's `load` turns that into
- * the descriptor (./plugin.ts). Arguments are literals, read from the AST before any code runs, so an
+ * the descriptor (./index.ts). A URL on a host `image({ remote: { hosts } })` lists becomes an import
+ * of `virtual:ogygia-image/remote/<url>`, which the plugin resolves to the image fetched into the
+ * build cache (./remote.ts); any other URL fails the build. Arguments are literals, read from the AST before any code runs, so an
  * option is real JS (numbers, arrays, `16 / 9`) instead of a string inside an import attribute.
  *
  * @packageDocumentation
@@ -25,13 +27,19 @@ import {
 	type Edit
 } from '@ogygia/compiler';
 import { OgygiaError } from '../messages.ts';
+import type { RemoteHosts } from '../remote-hosts.ts';
 import { check_image_options, type ImageOptions } from './options.ts';
+import { remote_src, remote_url } from './remote.ts';
 
 type Node = AstNode;
 
 export const QUERY = 'og-image';
-const REMOTE_RE = /^(?:[a-z][a-z0-9+.-]*:)?\/\//i;
+const URL_RE = /^(?:[a-z][a-z0-9+.-]*:)?\/\//i;
 const MARKER = 'import.meta.og.image';
+
+function is_url(src: string): boolean {
+	return URL_RE.test(src) || src.startsWith('data:');
+}
 
 /** The import specifier that loads `src` as a descriptor with `options`. */
 export function image_specifier(src: string, options: ImageOptions = {}): string {
@@ -144,7 +152,8 @@ export function image_call_edits(
 	id: string,
 	markup_exts: readonly string[] = ['.svelte'],
 	watch: (file: string) => void = () => {},
-	presets: readonly string[] = []
+	presets: readonly string[] = [],
+	hosts: RemoteHosts | null = null
 ): Edit[] {
 	if (!src.includes(MARKER)) return [];
 	const calls = find_calls(src, id, markup_exts, presets);
@@ -156,8 +165,14 @@ export function image_call_edits(
 	const edits: Edit[] = [];
 	const heads = new Map<number, string[]>();
 	calls.forEach((c, i) => {
-		if (REMOTE_RE.test(c.src) || c.src.startsWith('data:'))
-			throw new OgygiaError('image_remote_unsupported', { file: rel, src: c.src });
+		const where = `${rel}:${c.line}`;
+		const remote = is_url(c.src);
+		if (remote && c.glob)
+			throw new OgygiaError('image_option_invalid', {
+				where,
+				key: 'pattern',
+				rule: "a pattern of local files: a remote image is one URL, import.meta.og.image('https://…')"
+			});
 		if (c.glob && (c.options.dark !== undefined || c.options.art !== undefined))
 			throw new OgygiaError('image_option_invalid', {
 				where: `${rel}:${c.line}`,
@@ -176,15 +191,24 @@ export function image_call_edits(
 			});
 			return;
 		}
-		const file = path.resolve(dir, c.src);
-		watch(file);
-		if (!fs.existsSync(file))
-			throw new OgygiaError('image_not_found', { file: `${rel}:${c.line}`, src: c.src });
+		const file = remote ? null : path.resolve(dir, c.src);
+		const target = file === null ? remote_src(remote_url(where, c.src, hosts).href) : c.src;
+		if (file !== null) {
+			watch(file);
+			if (!fs.existsSync(file))
+				throw new OgygiaError('image_not_found', { file: where, src: c.src });
+		}
 		const twin = (src: string): string => {
+			if (is_url(src))
+				throw new OgygiaError('image_option_invalid', {
+					where,
+					key: src === c.options.dark ? 'dark' : 'art',
+					rule: 'a path relative to this file: a twin is a file of the app'
+				});
 			const at = path.resolve(dir, src);
 			watch(at);
-			if (!fs.existsSync(at))
-				throw new OgygiaError('image_not_found', { file: `${rel}:${c.line}`, src });
+			if (!fs.existsSync(at)) throw new OgygiaError('image_not_found', { file: where, src });
+			if (file === null) return at.split(path.sep).join('/');
 			const near = path.relative(path.dirname(file), at).split(path.sep).join('/');
 			return near.startsWith('.') ? near : `./${near}`;
 		};
@@ -197,7 +221,7 @@ export function image_call_edits(
 		const name = `__og_image_${i}`;
 		let list = heads.get(c.region);
 		if (!list) heads.set(c.region, (list = []));
-		list.push(`import ${name} from ${JSON.stringify(image_specifier(c.src, options))};`);
+		list.push(`import ${name} from ${JSON.stringify(image_specifier(target, options))};`);
 		edits.push({ start: c.start, end: c.end, text: name });
 	});
 	for (const [at, lines] of heads)

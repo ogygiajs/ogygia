@@ -18,6 +18,7 @@ const COPIED: readonly string[] = [
 	'svelte.config.js',
 	'vite.config.ts',
 	'image.config.ts',
+	'remote-host.ts',
 	'tsconfig.json'
 ];
 const BUILD_MS = 180_000;
@@ -106,8 +107,8 @@ test(
 		cold_files = written();
 		expect({ encodes: cold_store.size, files: cold_files.size }).toMatchInlineSnapshot(`
 			{
-			  "encodes": 208,
-			  "files": 208,
+			  "encodes": 246,
+			  "files": 246,
 			}
 		`);
 	},

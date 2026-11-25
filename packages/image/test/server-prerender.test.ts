@@ -19,7 +19,8 @@ const run = vi.hoisted(() => {
 });
 
 vi.mock('virtual:ogygia-image/sources', () => ({
-	default: { '/src/lib/harbor dusk.jpg': '/shop/_app/immutable/assets/harbor%20dusk.Ab12.jpg' }
+	default: { '/src/lib/harbor dusk.jpg': '/shop/_app/immutable/assets/harbor%20dusk.Ab12.jpg' },
+	remote: []
 }));
 vi.mock('virtual:ogygia-image/config', () => ({
 	default: { paths: { base: '/shop', assets: '', app_dir: '_app' } }
