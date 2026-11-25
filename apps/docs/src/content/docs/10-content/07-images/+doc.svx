@@ -102,20 +102,21 @@ A pattern that matches nothing fails the build. To pick an image at run time, re
 <Img of={hero} preset="thumb" alt="The harbor at dusk" />
 ```
 
-| Prop          | Default         | What it does                                                                                  |
-| ------------- | --------------- | --------------------------------------------------------------------------------------------- |
-| `of`          | required        | The descriptor: from the macro, a markdown image, or a frontmatter image.                     |
-| `alt`         | required        | What the image shows. Use `""` for a decorative image.                                        |
-| `preset`      | none            | A preset from `image({ presets })`. The props below say over it.                              |
-| `layout`      | `'constrained'` | How the image sits on the page (below).                                                       |
-| `width`       | none            | Display width in CSS pixels.                                                                  |
-| `height`      | none            | Display height in CSS pixels. With `width`, the files are cropped to that box.                |
-| `aspect`      | none            | The box's shape, `16 / 9` or `'16/9'`: the files are cropped to it.                           |
-| `position`    | `'center'`      | Where a crop keeps: `'top'`, `'bottom'`, `'left'`, `'right'`, or `'attention'` / `'entropy'`. |
-| `priority`    | `false`         | The page's main image (its LCP). It loads eagerly, at high priority, preloaded from the head. |
-| `placeholder` | `true`          | Paint the blur placeholder until the image arrives.                                           |
-| `morph`       | `false`         | Glide into the same source on the next page in a client-side navigation (a view transition).  |
-| `sizes`       | derived         | Replaces the `sizes` the layout works out, for a layout the three intents cannot say.         |
+| Prop          | Default         | What it does                                                                                             |
+| ------------- | --------------- | -------------------------------------------------------------------------------------------------------- |
+| `of`          | required        | The descriptor: from the macro, a markdown image, or a frontmatter image.                                |
+| `alt`         | required        | What the image shows. Use `""` for a decorative image.                                                   |
+| `preset`      | none            | A preset from `image({ presets })`. The props below say over it.                                         |
+| `layout`      | `'constrained'` | How the image sits on the page (below).                                                                  |
+| `width`       | none            | Display width in CSS pixels.                                                                             |
+| `height`      | none            | Display height in CSS pixels. With `width`, the files are cropped to that box.                           |
+| `aspect`      | none            | The box's shape, `16 / 9` or `'16/9'`: the files are cropped to it.                                      |
+| `position`    | `'center'`      | Where a crop keeps: `'top'`, `'bottom'`, `'left'`, `'right'`, or `'attention'` / `'entropy'`.            |
+| `priority`    | `false`         | The page's main image (its LCP). It loads eagerly, at high priority, preloaded from the head.            |
+| `placeholder` | `true`          | Paint the blur placeholder until the image arrives.                                                      |
+| `morph`       | `false`         | Glide into the same source on the next page in a client-side navigation (a view transition).             |
+| `sizes`       | derived         | Replaces the `sizes` the layout works out, for a layout the three intents cannot say.                    |
+| `art`         | preset's        | Art direction: another crop or file at another media condition (see Twins). Replaces the preset's `art`. |
 
 `class`, `id`, `style`, `title`, `crossorigin`, `referrerpolicy` and `draggable` pass through to the `<img>`. Other attributes do not: a spread onto an `<img>` makes Svelte write inline `onload`/`onerror` handlers, which a strict CSP blocks.
 
@@ -125,7 +126,7 @@ Sizes are whole pixels. A `width` or `height` with a fraction (`width={1000 / 3}
 
 ### Presets
 
-A preset is a name for how your site shows an image. It takes the same keys as the props above (`layout`, `width`, `height`, `aspect`, `position`, `sizes`, `priority`, `placeholder`, `morph`) plus `quality` and `formats`. Declare it once, then use it on any image:
+A preset is a name for how your site shows an image. It takes the same keys as the props above (`layout`, `width`, `height`, `aspect`, `position`, `sizes`, `priority`, `placeholder`, `morph`, `art`) plus `quality` and `formats`. Declare it once, then use it on any image:
 
 ```svelte
 <Img of={post.data.cover} preset="thumb" alt={post.data.title} />   <!-- a square file, 400 wide -->
@@ -432,15 +433,18 @@ The plugin's options:
 | `breakpoints` | `[320, 480, 640, 960, 1280, 1600, 2048]` | The width ladder a responsive image is offered at, capped at the image's own width. A step within a tenth of a width the layout names (its width, twice it, the source's own) is left out. |
 | `markdown`    | `{}`                                     | Markdown images: `{ width }` is the prose column's width when there is no `prose` preset; `{ animated }` names the preset a moving image takes; `false` turns them off.                    |
 | `encoder`     | `sharp()`                                | Who makes the files: `sharp()`, `cloudflare()` or `vercel()` from `@ogygia/image/vite`, or a list in order of priority: the first that can make a file makes it (see Vercel).              |
+| `theme`       | none                                     | An app with a theme switch: `{ dark, light }`, the CSS selectors its two themes are written by. A dark file then follows them (see Twins).                                                 |
 
 A source's own options, in the macro's second argument, belong to the file whatever page shows it:
 
-| Option        | Default | What it does                                                          |
-| ------------- | ------- | --------------------------------------------------------------------- |
-| `quality`     | plugin  | Encoder quality for every file made from this source.                 |
-| `placeholder` | plugin  | Make the blur placeholder.                                            |
-| `ops`         | none    | Pixel operations, applied before any resize or crop (below).          |
-| `warm`        | none    | A preset name, or a list: make those presets' files at build (below). |
+| Option        | Default | What it does                                                           |
+| ------------- | ------- | ---------------------------------------------------------------------- |
+| `quality`     | plugin  | Encoder quality for every file made from this source.                  |
+| `placeholder` | plugin  | Make the blur placeholder.                                             |
+| `ops`         | none    | Pixel operations, applied before any resize or crop (below).           |
+| `warm`        | none    | A preset name, or a list: make those presets' files at build (below).  |
+| `dark`        | none    | The dark file, the same shape: shown when the theme is dark (Twins).   |
+| `art`         | none    | Other files by media condition, `{ '(max-width: 600px)': './x.jpg' }`. |
 
 An unknown option or a wrong value fails the build with the key it did not expect (`image_option_unknown`, `image_option_invalid`), so a typo never goes unnoticed.
 
@@ -449,6 +453,65 @@ An unknown option or a wrong value fails the build with the key it did not expec
 ```ts
 const team = import.meta.og.image('./team.jpg', { quality: 70, ops: { grayscale: true } });
 ```
+
+## Twins: dark, art direction, less motion
+
+A twin is another set of files for the same image, chosen by a media condition. Each becomes a `<source media>` row before the format rows, and the browser shows the first row that matches. Each row carries its own `width` and `height`, so the page keeps the right box at every media: nothing shifts. No JavaScript runs.
+
+The rows go in one fixed order, and that order is the whole rule:
+
+1. **The still** of a moving image, at `(prefers-reduced-motion: reduce)`.
+2. **Each art twin**, the page's first, then the source's.
+3. **The dark file**, at `(prefers-color-scheme: dark)`.
+4. The source's own formats.
+
+### Less motion
+
+A moving image (an animated GIF or WebP) gets a still twin by itself: its first frame, as AVIF and WebP, shown to a visitor whose system asks for less motion. This is what WCAG 2.2.2 asks for, with no play button and no script. The still's file name has `-s` after its size. Cloudflare makes it with `anim=false`. Vercel's optimizer cannot keep one frame: with `vercel()` alone no image offers a still, and the build says so (`image_still_left_out`). List `sharp()` after it and the endpoint makes them.
+
+### Dark
+
+```ts
+const chart = import.meta.og.image('./chart.png', { dark: './chart-dark.png' });
+```
+
+The dark file must have the same shape as the light one, or the build fails (`image_option_invalid`): a different shape would move the page when the theme flips. It gets its own placeholder.
+
+Without more, the visitor's system theme picks. An app with its own theme switch says how its themes are written:
+
+```ts
+image({ theme: { dark: ':root[data-theme="dark"]', light: ':root[data-theme="light"]' } })
+```
+
+A `<source media>` cannot read an attribute, so with `theme` set an image with a dark file renders two `<picture>`s (`data-og-theme="light"` and `"dark"`), and the plugin's stylesheet shows one: the dark one when the dark selector matches, or when the system prefers dark and the light selector does not. The stylesheet is a CSS file, so a strict CSP allows it, and an app without `theme` gets an empty one. Both images are lazy, and a lazy image that is hidden is never fetched: only the shown picture downloads. A `priority` image cannot be lazy, so both load, and each preload carries its theme's media: only a visitor whose chosen theme differs from the system pays for both. The `id` prop goes on the light picture's `<img>`.
+
+### Art direction
+
+Art direction is a page decision, so it lives on presets and props:
+
+```ts
+image({
+  presets: {
+    hero: {
+      layout: 'fullWidth',
+      aspect: '16/9',
+      art: [{ media: '(max-width: 600px)', aspect: '4/5', position: 'attention' }]
+    }
+  }
+});
+```
+
+```svelte
+<Img of={hero} preset="hero" art={[{ media: '(max-width: 600px)', of: heroTall }]} alt="…" />
+```
+
+An art twin is a crop of the same source (`aspect`, `position`, `width`), or another source (`of`), which keeps its own shape unless it says an `aspect`. A designer's second file can also ride with the source:
+
+```ts
+const hero = import.meta.og.image('./hero.jpg', { art: { '(max-width: 600px)': './hero-tall.jpg' } });
+```
+
+`media` is a condition in parentheses, like `(max-width: 600px)`, one per twin: no comma and no media type, so it can be joined with the dark condition. A crop of a source that has a dark file comes first as the dark file at `<media> and (prefers-color-scheme: dark)`. `getImage(of, { art })` lays out the same rows. A `priority` image writes one preload per row set, each with the media it is shown at, so each visitor preloads only the file the picture will pick. `warm` makes every twin's files too.
 
 ## Warm presets
 

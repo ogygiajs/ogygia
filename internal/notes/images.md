@@ -54,14 +54,16 @@ that ogygia's handle starts: `setup` hands `<Img>` the minter, `request` is the 
 
 ## 3. The descriptor
 
-`{ id, src, width, height, format, ph?, animated?, quality?, ops?, warm?, alt? }`. Plain JSON: it
-crosses island props, refs, devalue, freeze and federation unchanged. No list of files: render
-decides those. `warm` lists the presets the build made ahead for this source (§7).
+`{ id, src, width, height, format, ph?, animated?, quality?, ops?, warm?, alt?, twins? }`. Plain
+JSON: it crosses island props, refs, devalue, freeze and federation unchanged. No list of files:
+render decides those. `warm` lists the presets the build made ahead for this source (§7). `twins`
+are the macro's dark and art files, each `{ media, of, theme? }` with a full descriptor of its own
+(its own placeholder), one level deep (§15).
 
 ## 4. URLs
 
-- **Signed:** `<base>/__ogygia__/i/<sig>/<id>-<w>x<h>[-q<q>][-p<position>][-o<ops>]/<original asset
-  path>.<ext>`. Path only (a prerendered file has no query, and Kit's prerender throws on a query
+- **Signed:** `<base>/__ogygia__/i/<sig>/<id>-<w>x<h>[-q<q>][-p<position>][-s][-o<ops>]/<original asset
+  path>.<ext>` (`-s`: the first frame only, a moving source's still, §15). Path only (a prerendered file has no query, and Kit's prerender throws on a query
   read). The format is the extension, so a static host types the file by it. The original's
   hashed asset name is in the path, so a build's URLs are content-addressed. `sig` is `app.sign`
   over `image|<path>` (the app's region key, in the plugin's own domain, no expiry), checked with
@@ -234,12 +236,35 @@ host still needs no image service.
 
 ## 15. Dark and art-direction twins
 
-A source can carry twins: `import.meta.og.image('./chart.png', { dark: './chart-dark.png' })` or
-`{ art: { '(max-width: 600px)': './hero-tall.jpg' } }`. `<Img>` renders one `<source media>` per
-twin before the formats; a dark twin keys on `prefers-color-scheme` and on the app's theme
-(`:root[data-theme="dark"]`, which a `<source media>` cannot read, so a dark twin under a
-user-chosen theme is painted by a CSS rule over `data-theme` instead). The twins' placeholders
-are their own.
+BUILT (V4 R6). A twin is another candidate set chosen by a media condition:
+`{ media, of?, aspect?, position?, width?, still?, theme? }` (`descriptor.ts` `Twin`). Three kinds,
+one shape:
+
+- **still**: a moving source's first frame, at `(prefers-reduced-motion: reduce)`, derived at
+  render, never stored. Recipe head `-s`; sharp reads one page, Cloudflare `anim=false`, Vercel
+  cannot (need `still`): with `vercel()` alone `RenderConfig.stills` is false, no still is offered
+  anywhere, and the server build warns `image_still_left_out`.
+- **art**: a preset's `art`, `<Img art>` / `getImage(of, { art })` (own replaces the preset's), or
+  the macro's `art: { '<media>': './x.jpg' }` (on the descriptor). A crop of the source (`aspect`,
+  `position`, `width` over the request) or another source (`of`), which keeps its own shape unless
+  it says `aspect`.
+- **dark**: the macro's `dark: './x-dark.png'`, the same shape (`image_option_invalid` otherwise).
+
+`lay_out` lays out each twin with its own crop and box and writes `<source media>` rows (each with
+its own `width`/`height`) before the format rows, in one fixed order: still; each art twin (the
+request's, then the source's; a crop of a source with a dark file first as the dark file at
+`<media> and (prefers-color-scheme: dark)`); dark; formats. `media` is a parenthesized condition
+with no comma, so it joins with `and`. A priority image writes one preload per set, each at
+`<its media> and (not <each earlier media>)`, the base at `(not …)` of all: exactly one matches
+(property test, `test/twins.test.ts`).
+
+`image({ theme: { dark, light } })`: `<source media>` cannot read an attribute, so a dark-twinned
+image is laid out as two pictures (`Laid.dark`), `data-og-theme="light"|"dark"`, and a CSS asset
+(`virtual:ogygia-image/theme.css`, imported by `<Img>`, empty without `theme`) shows one: dark when
+the dark selector matches, or when the system prefers dark and the light selector does not. Both
+lazy (a hidden lazy image is never fetched, e2e in three engines); a priority pair is eager with
+preloads at `(not (prefers-color-scheme: dark))` / `(prefers-color-scheme: dark)`. `warm` warms
+twins (the warmed source lists each twin's original by id).
 
 ## 16. Deferred raster
 
