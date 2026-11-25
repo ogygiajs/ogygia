@@ -209,6 +209,13 @@ describe('drawing', () => {
 			code: 'image_card_css'
 		});
 	});
+
+	test('a failure that is no CSS refusal (a font that does not load) keeps its own error, not image_card_css', async () => {
+		const spec = spec_of(() => '<div style="display: flex">a</div>');
+		const error = await card_png(spec, {}, [new ArrayBuffer(8)]).catch((e: unknown) => e);
+		expect(error).toBeInstanceOf(Error);
+		expect((error as { code?: string }).code).not.toBe('image_card_css');
+	});
 });
 
 describe('fonts', () => {
