@@ -1265,35 +1265,12 @@ class OgygiaRegion extends HTMLElement {
 		this.#wake.go('waking');
 		const mine = this.#wake.epoch;
 		const visit = this.#wake.visit();
-		const probe = (s: string) =>
-			this.setAttribute('data-probe', `${this.getAttribute('data-probe') ?? ''} ${s}`);
-		let wn = 0;
 		const turn = {
-			wait: <T>(work: PromiseLike<T> | T): Promise<Fresh<T> | Stale> => {
-				const n = ++wn;
-				probe(`w${n}`);
-				Promise.resolve(work).then(
-					() => probe(`w${n}ok`),
-					() => probe(`w${n}err`)
-				);
-				const tasked = visit.task(() => work);
-				tasked.then(
-					(v) => probe(`w${n}task${v === STALE ? 'STALE' : ''}`),
-					() => probe(`w${n}taskerr`)
-				);
-				return held.wait(tasked).then(
-					(v) => {
-						probe(`w${n}back${v === STALE ? 'STALE' : ''}${this.isConnected ? '' : 'GONE'}`);
-						return this.isConnected ? (v as Fresh<T> | Stale) : STALE;
-					},
-					(e: unknown) => {
-						probe(`w${n}backerr`);
-						throw e;
-					}
-				);
-			}
+			wait: <T>(work: PromiseLike<T> | T): Promise<Fresh<T> | Stale> =>
+				held
+					.wait(visit.task(() => work))
+					.then((v) => (this.isConnected ? (v as Fresh<T> | Stale) : STALE))
 		};
-		(this as unknown as { __probe: typeof probe }).__probe = probe;
 		let failure: { error: unknown } | null = null;
 		let offline: { error: unknown } | null = null;
 		const t0 = now_ms();
@@ -1318,27 +1295,14 @@ class OgygiaRegion extends HTMLElement {
 			try {
 				hydrate_started(this); // a viewport island in flight holds ready islands below the fold
 				// The island's module first: its graph links go in before the lazy runtime chunks' own preloads.
-				const parts = [
-					load_island(entry, cls()),
-					hydrate_core.get(),
-					HAS & F_WIRE_CLASSES ? wire_classes.wire_classes_for(this) : null,
-					wire_for_wake(this),
-					devalue_for_wake()
-				] as const;
-				parts.forEach((p, i) =>
-					Promise.resolve(p).then(
-						() => probe(`p${i}ok`),
-						() => probe(`p${i}err`)
-					)
-				);
 				const loaded = $await(
 					turn.wait(
 						Promise.all([
-							Promise.resolve(parts[0]),
-							Promise.resolve(parts[1]),
-							Promise.resolve(parts[2]),
-							Promise.resolve(parts[3]),
-							Promise.resolve(parts[4])
+							load_island(entry, cls()),
+							hydrate_core.get(),
+							HAS & F_WIRE_CLASSES ? wire_classes.wire_classes_for(this) : null,
+							wire_for_wake(this),
+							devalue_for_wake()
 						])
 					)
 				);
