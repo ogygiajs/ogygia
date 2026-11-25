@@ -6,7 +6,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-123 entries.
+128 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -117,6 +117,11 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/federation/src/wire.ts` | `(module)` | `headers.get(USER_HEADER)` | 1 |
 | `packages/flags/src/index.ts` | `override` | `searchParams('og-exp')` | 1 |
 | `packages/image/src/makers/binding.ts` | `open` | `headers.get('content-length')` | 1 |
+| `packages/image/src/vite/remote.ts` | `(module)` | `headers.get('content-type')` | 1 |
+| `packages/image/src/vite/remote.ts` | `(module)` | `headers.get('etag')` | 1 |
+| `packages/image/src/vite/remote.ts` | `(module)` | `headers.get('last-modified')` | 1 |
+| `packages/image/src/vite/remote.ts` | `(module)` | `headers.get('location')` | 1 |
+| `packages/image/src/vite/remote.ts` | `body_of` | `headers.get('content-length')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-encoding')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-length')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('vary')` | 1 |
@@ -136,7 +141,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-114 entries.
+115 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -234,6 +239,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/image/src/vite/macro.ts` | `options_of_query` | `JSON.parse` | 1 |
 | `packages/image/src/vite/markdown.ts` | `markdown_extension` | `Buffer.from base64url` | 1 |
 | `packages/image/src/vite/markdown.ts` | `markdown_extension` | `JSON.parse` | 2 |
+| `packages/image/src/vite/remote.ts` | `read_kept` | `JSON.parse` | 1 |
 | `packages/image/src/vite/vercel-config.ts` | `(module)` | `JSON.parse` | 1 |
 | `packages/insights/src/fp-drift.ts` | `(module)` | `JSON.parse` | 2 |
 | `packages/insights/src/fp-drift.ts` | `revive` | `devalue unflatten` | 1 |
