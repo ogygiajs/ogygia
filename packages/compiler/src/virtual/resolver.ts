@@ -332,6 +332,12 @@ export class VirtualTable<A> {
 		const e = this.#by_resolved.get(id);
 		return e !== undefined && realm_exports(e, this.#names).length > 0;
 	}
+
+	/** Is the resolved id a module whose source is the bundle's runtime (`settles`)? */
+	settles(id: string): boolean {
+		const e = this.#by_resolved.get(id);
+		return e?.kind === 'family' && e.settles === true;
+	}
 }
 
 function tracked<A>(app: A, parts: Parts<A>, cx: QueryCtx): A {

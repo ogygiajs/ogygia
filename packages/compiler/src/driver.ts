@@ -96,6 +96,8 @@ export interface Scan {
 	readonly feature_hash: string;
 }
 
+type EmittedSource = string | { code: string; moduleSideEffects: false };
+
 interface Build {
 	readonly legs: Map<string, BuildLeg>;
 	begun: boolean;
@@ -906,20 +908,34 @@ export class Compiler implements CoreApp {
 		return (this.#build.server_runtime ??= this.#seal_server_runtime());
 	}
 
-	#seal_server_runtime(): HandedRuntime {
+	/** Read each module the server leg compiled that the scan has not, as the scan reads `src/`, then
+	 *  close the marks; `read` hears each file it read. Returns the feature hash. */
+	#read_server_compiled(
+		read?: (file: string) => void,
+		page_by?: (component: string) => void
+	): string {
 		this.prescan();
-		const word = this.program.server_word;
-		const needed_by = new Map<FeatureId, string>(this.program.server_late);
 		for (const f of this.#compiled_unread(this.program.ssr_transformed)) {
 			const readable = this.#readable(f);
 			if (!readable) continue;
 			this.#scan_facts(f, readable.src, readable.kind);
-			if (word === null) continue;
-			for (const id of resolveFeatures({ ...this.program.runtime_marks, complete: true }))
-				if (!(word & feature_word([id])) && !needed_by.has(id)) needed_by.set(id, f);
+			read?.(f);
 		}
-		this.#walk_closures((component) => needed_by.set('page', component));
-		const feature_hash = this.#seal_marks();
+		this.#walk_closures(page_by);
+		return this.#seal_marks();
+	}
+
+	#seal_server_runtime(): HandedRuntime {
+		const word = this.program.server_word;
+		const needed_by = new Map<FeatureId, string>(this.program.server_late);
+		const feature_hash = this.#read_server_compiled(
+			(f) => {
+				if (word === null) return;
+				for (const id of resolveFeatures({ ...this.program.runtime_marks, complete: true }))
+					if (!(word & feature_word([id])) && !needed_by.has(id)) needed_by.set(id, f);
+			},
+			(component) => needed_by.set('page', component)
+		);
 		const marks = structuredClone(this.program.runtime_marks);
 		if (word !== null) this.#refuse_late_features(marks, word, needed_by);
 		const shipped = this.program.shipped_features;
@@ -1281,12 +1297,21 @@ export class Compiler implements CoreApp {
 	 * region-endpoint), and the registered island/region sources (with the client leg's `$app/*`-shim +
 	 * lake-placeholder rewrites). Returns the source string, or `null` if `id` is not an ogygia virtual —
 	 * the adapter owns only the FOUC-css virtuals (they carry a Vite `moduleType`) and the Vite build
-	 * value threaded in here (the `universalHooks` path).
+	 * value threaded in here (the `universalHooks` path). On a build's server leg, a module whose
+	 * source is the runtime the bundle needs (`settles`) is answered once the bundler has compiled
+	 * every other module, each read into the marks first, so the server's code is made for them all.
 	 */
-	emit(
-		id: string,
-		leg: Leg
-	): string | { code: string; moduleSideEffects: false } | Promise<string> | null {
+	emit(id: string, leg: Leg): EmittedSource | Promise<EmittedSource | null> | null {
+		if (!leg.ssr || !leg.compiled || !this.#virtuals.settles(id)) return this.#emit(id, leg);
+		return leg
+			.compiled((m) => this.#virtuals.settles(m))
+			.then(() => {
+				this.#read_server_compiled();
+				return this.#emit(id, leg);
+			});
+	}
+
+	#emit(id: string, leg: Leg): EmittedSource | Promise<string> | null {
 		const ctx = this.#ctx;
 		const program = this.program;
 		const { ssr } = leg;

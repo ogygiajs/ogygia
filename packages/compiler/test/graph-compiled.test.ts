@@ -8,7 +8,7 @@ import { rolldown, type Plugin } from 'rolldown';
 import { dedent } from '@ogygia/core/contract';
 import { graph_compiled } from '../src/vite/graph-compiled.ts';
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'og-graph-compiled-'));
+const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'og-graph-compiled-')));
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 function write(files: Record<string, string>): void {
@@ -36,7 +36,7 @@ function answers(): Plugin {
 			return `export const word = "compiled before ${id.slice(9)}: ${seen}";\n`;
 		},
 		transform(_code, id) {
-			if (!WAITING.has(id)) compiled.add(path.relative(dir, id));
+			if (id.startsWith(dir)) compiled.add(path.relative(dir, id));
 			return null;
 		}
 	};
