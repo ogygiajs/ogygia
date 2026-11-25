@@ -21,9 +21,17 @@ export default defineConfig({
 				thumb: { width: 200, aspect: '1/1' },
 				avatar: { layout: 'fixed', width: 48, height: 48 },
 				prose: { width: 720 },
-				motion: { width: 40, sizes: '33vw' }
+				motion: { width: 40, sizes: '33vw' },
+				hero: {
+					layout: 'fullWidth',
+					aspect: '16/9',
+					art: [{ media: '(max-width: 600px)', aspect: '4/5', position: 'attention' }]
+				}
 			},
 			markdown: { animated: 'motion' },
+			...(process.env.IMAGE_E2E_BASE
+				? {}
+				: { theme: { dark: ':root[data-theme="dark"]', light: ':root[data-theme="light"]' } }),
 			...(encoder ? { encoder } : {})
 		}),
 		sveltekit()

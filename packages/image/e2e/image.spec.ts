@@ -14,7 +14,7 @@ import { server_log } from '@ogygia/tooling/e2e/server-log.ts';
 import { marked_files } from './marks.ts';
 
 const MODE = process.env.IMAGE_E2E_MODE ?? 'node';
-const PAGES = ['/', '/blog/first-post', '/blog/second-post', '/blog/third-post'];
+const PAGES = ['/', '/blog/first-post', '/blog/second-post', '/blog/third-post', '/twins'];
 const IMAGE_URL_RE = /\/(?:__ogygia__\/i|_app\/immutable\/og)\/[^\s",)]+/g;
 const SIGNED_URL_RE = /\/__ogygia__\/i\/[^\s",)]+/g;
 
@@ -235,10 +235,20 @@ test.describe('macro images (/)', () => {
 		expect([logo.width, logo.height]).toEqual(['120', '40']);
 	});
 
-	test('an animated GIF is served as an animated WebP', async ({ page, request }) => {
+	test('an animated GIF is served as an animated WebP, its only <source> rows the reduced-motion still', async ({
+		page,
+		request
+	}) => {
 		await page.goto('/');
 		const spinner = await attrs(page.locator('#spinner'));
-		expect(spinner.picture).toBeNull();
+		expect(spinner.picture).toBe('yes');
+		const medias = await page
+			.locator('picture:has(#spinner) source')
+			.evaluateAll((els) => els.map((el) => el.getAttribute('media')));
+		expect(medias).toEqual([
+			'(prefers-reduced-motion: reduce)',
+			'(prefers-reduced-motion: reduce)'
+		]);
 		expect(spinner.src).toMatch(/\.webp$/);
 		const f = await fetch_file(request, spinner.src!);
 		expect(f.type).toBe('image/webp');
@@ -676,5 +686,119 @@ test.describe('with the runtime', () => {
 		await expect
 			.poll(() => cover.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0))
 			.toBe(true);
+	});
+});
+
+/** Every file URL a `<picture>`'s rows and `<img>` name. */
+async function picture_urls(picture: Locator): Promise<string[]> {
+	return picture.evaluate((el) => {
+		const out: string[] = [];
+		for (const node of el.querySelectorAll('source, img'))
+			for (const attr of ['srcset', 'src']) {
+				const v = node.getAttribute(attr);
+				if (v)
+					for (const c of v.split(', '))
+						out.push(new URL(c.split(' ')[0]!, location.href).pathname);
+			}
+		return out;
+	});
+}
+
+/** The `<img>` the visitor sees, once it has pixels: its file and its box. */
+async function shown(page: Page, selector: string): Promise<{ src: string; w: number; h: number }> {
+	const img = page.locator(selector).filter({ visible: true });
+	await expect(img).toHaveCount(1);
+	await img.scrollIntoViewIfNeeded();
+	await expect
+		.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0))
+		.toBe(true);
+	return img.evaluate((el: HTMLImageElement) => {
+		const r = el.getBoundingClientRect();
+		return { src: new URL(el.currentSrc).pathname, w: r.width, h: r.height };
+	});
+}
+
+test.describe('twins (/twins)', () => {
+	const LIGHT = 'picture[data-og-theme="light"]';
+	const DARK = 'picture[data-og-theme="dark"]';
+
+	test('the system theme picks the picture: light shows the light file, dark the dark one', async ({
+		page
+	}) => {
+		for (const scheme of ['light', 'dark'] as const) {
+			await page.emulateMedia({ colorScheme: scheme });
+			await page.goto('/twins');
+			const own = await picture_urls(page.locator(scheme === 'dark' ? DARK : LIGHT));
+			const seen = await shown(page, `${LIGHT} img, ${DARK} img`);
+			expect(own, scheme).toContain(seen.src);
+		}
+	});
+
+	test('a data-theme switch shows the other picture, only the shown picture downloads, and nothing shifts', async ({
+		page,
+		browserName
+	}) => {
+		const asked: string[] = [];
+		page.on('request', (r) => asked.push(new URL(r.url()).pathname));
+		await page.emulateMedia({ colorScheme: 'light' });
+		await page.goto('/twins');
+		const light = await picture_urls(page.locator(LIGHT));
+		const dark = await picture_urls(page.locator(DARK));
+		const before = await shown(page, `${LIGHT} img, ${DARK} img`);
+		expect(light).toContain(before.src);
+		expect(asked.filter((u) => dark.includes(u))).toEqual([]);
+
+		await page.evaluate(() => {
+			(window as { __shift?: number }).__shift = 0;
+			new PerformanceObserver((list) => {
+				for (const e of list.getEntries() as (PerformanceEntry & { value: number })[])
+					(window as { __shift?: number }).__shift! += e.value;
+			}).observe({ type: 'layout-shift' as never, buffered: false });
+			document.documentElement.dataset.theme = 'dark';
+		});
+		const after = await shown(page, `${LIGHT} img, ${DARK} img`);
+		expect(dark).toContain(after.src);
+		expect([after.w, after.h]).toEqual([before.w, before.h]);
+		if (browserName === 'chromium')
+			expect(await page.evaluate(() => (window as { __shift?: number }).__shift)).toBe(0);
+
+		await page.emulateMedia({ colorScheme: 'dark' });
+		await page.evaluate(() => (document.documentElement.dataset.theme = 'light'));
+		expect(light).toContain((await shown(page, `${LIGHT} img, ${DARK} img`)).src);
+	});
+
+	test('asking for less motion shows the first frame of a moving image, a still file', async ({
+		page,
+		request
+	}) => {
+		await page.emulateMedia({ reducedMotion: 'reduce' });
+		await page.goto('/twins');
+		const still = await shown(page, '#motion');
+		expect(still.src).toMatch(/-\d+x\d+-s[./]/);
+		const bytes = Buffer.from(await (await request.get(still.src)).body());
+		expect((await sharp(bytes, { animated: true }).metadata()).pages ?? 1).toBe(1);
+
+		await page.emulateMedia({ reducedMotion: 'no-preference' });
+		await page.goto('/twins');
+		const moving = await shown(page, '#motion');
+		expect(moving.src).not.toMatch(/-s[./]/);
+		expect([moving.w, moving.h]).toEqual([still.w, still.h]);
+	});
+
+	test('art direction: a narrow screen shows each art twin in its own box; a wide one the source', async ({
+		page
+	}) => {
+		const ratio = async (id: string): Promise<number> => {
+			const s = await shown(page, `#${id}`);
+			return s.w / s.h;
+		};
+		await page.setViewportSize({ width: 400, height: 900 });
+		await page.goto('/twins');
+		for (const id of ['art-preset', 'art-macro', 'art-prop'])
+			expect(await ratio(id), id).toBeCloseTo(0.8, 1);
+		await page.setViewportSize({ width: 1200, height: 900 });
+		await page.goto('/twins');
+		expect(await ratio('art-preset')).toBeCloseTo(16 / 9, 1);
+		for (const id of ['art-macro', 'art-prop']) expect(await ratio(id), id).toBeCloseTo(1.8, 1);
 	});
 });

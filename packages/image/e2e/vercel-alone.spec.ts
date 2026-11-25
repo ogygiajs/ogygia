@@ -40,6 +40,19 @@ test('a live page that crops fails its render, image_encoder_cannot naming verce
 	expect(server_log_since(from)).toContain('image_encoder_cannot');
 });
 
+test('vercel() alone cannot make a still, so no page offers one, and a live moving image fails its render', async ({
+	request
+}) => {
+	const html = await (await request.get('/twins')).text();
+	expect(html).toContain('id="motion"');
+	expect(html).not.toContain('prefers-reduced-motion');
+	const from = server_log_size();
+	expect((await request.get('/late/motion')).status()).toBe(500);
+	await expect
+		.poll(() => server_log_since(from))
+		.toMatch(/vercel\(\) cannot make on a page rendered on request: source gif/);
+});
+
 test('prerendered pages name the files the build made, served from the output', async ({
 	request
 }) => {

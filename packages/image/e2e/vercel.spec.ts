@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import sharp from 'sharp';
 import { test, expect } from '@ogygia/tooling/e2e';
 import { WHOLE_LINKS, linked, VERCEL_IMAGES } from './vercel-links.ts';
 
@@ -138,6 +139,26 @@ test('the function holds sharp, the encoder the config lists, and makes every fi
 		expect(res.headers()['content-type'], url).toBe(`image/${/\.(\w+)$/.exec(url)![1]}`);
 		expect(res.headers()['cache-control'], url).toBe('public, max-age=31536000, immutable');
 	}
+});
+
+test("a live page's moving image offers a still sharp makes, since Vercel cannot keep one frame", async ({
+	request
+}) => {
+	const html = await (await request.get('/late/motion')).text();
+	const rows = [
+		...html.matchAll(/<source media="\(prefers-reduced-motion: reduce\)"[^>]*srcset="([^"]+)"/g)
+	];
+	expect(rows.length).toBe(2);
+	for (const [, srcset] of rows)
+		for (const c of srcset!.split(', ')) {
+			const url = c.split(' ')[0]!;
+			expect(url).toMatch(/^\/__ogygia__\/i\/[^/]+\/[\w-]+-\d+x\d+-s\//);
+			const res = await request.get(url);
+			expect(res.status(), url).toBe(200);
+			expect((await sharp(await res.body(), { animated: true }).metadata()).pages ?? 1, url).toBe(
+				1
+			);
+		}
 });
 
 test('the function refuses a forged signature and a POST, kept nowhere', async ({ request }) => {

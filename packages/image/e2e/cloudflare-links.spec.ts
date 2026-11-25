@@ -38,6 +38,22 @@ test('a live page names every file as a /cdn-cgi/image link to its original, and
 	expect((await request.get(original)).status()).toBe(200);
 });
 
+test("a live page's moving image offers a still as a link with anim=false, at reduced motion", async ({
+	request
+}) => {
+	const html = await (await request.get('/late/motion')).text();
+	const rows = [
+		...html.matchAll(/<source media="\(prefers-reduced-motion: reduce\)"[^>]*srcset="([^"]+)"/g)
+	];
+	expect(rows.length).toBe(2);
+	for (const [, srcset] of rows)
+		for (const c of srcset!.split(', '))
+			expect(c).toMatch(
+				/^\/cdn-cgi\/image\/[^ ]*,anim=false\/_app\/immutable\/assets\/[\w-]+\.[\w-]+\.gif \d+w$/
+			);
+	expect(html).toMatch(/<img[^>]* srcset="\/cdn-cgi\/image\/(?:(?!anim=false)[^ ])+ \d+w/);
+});
+
 test('prerendered pages still name the files the build made, and no link', async ({ request }) => {
 	expect((await named(request, PRERENDERED, BUILT_RE)).length).toBeGreaterThan(40);
 	expect(await named(request, PRERENDERED, LINK_RE)).toEqual([]);

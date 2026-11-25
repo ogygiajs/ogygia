@@ -98,6 +98,30 @@ test('every file a live page names is made by the Images binding, cut to its box
 	}
 });
 
+test("a live page's moving image offers a still the binding makes (anim=false), which a visitor asking for less motion gets", async ({
+	page,
+	request
+}) => {
+	const stills = (await named(request, ['/late/motion'], SIGNED_RE)).filter((u) =>
+		/-\d+x\d+-s\//.test(u)
+	);
+	expect(stills.length).toBeGreaterThan(0);
+	for (const url of stills) {
+		const res = await request.get(url);
+		expect(res.status(), url).toBe(200);
+		expect(res.headers()['content-type'], url).toMatch(/^image\/(avif|webp)$/);
+	}
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await page.goto('/late/motion');
+	const img = page.locator('#motion');
+	await expect
+		.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0))
+		.toBe(true);
+	expect(stills).toContain(
+		await img.evaluate((el: HTMLImageElement) => new URL(el.currentSrc).pathname)
+	);
+});
+
 test('the endpoint refuses a forged signature and a POST, kept nowhere', async ({ request }) => {
 	const url = (await named(request, ['/late'], SIGNED_RE))[0]!;
 	const sig = /\/i\/([^/]+)\//.exec(url)![1]!;
