@@ -60,7 +60,13 @@ import {
 	type ImageOptions,
 	type ImagePluginOptions
 } from './options.ts';
-import { is_remote_file, remote_url, RemoteImages, url_of_remote_src } from './remote.ts';
+import {
+	is_remote_file,
+	remote_module,
+	remote_url,
+	RemoteImages,
+	url_of_remote_src
+} from './remote.ts';
 import { theme_css } from './theme.ts';
 
 export type {
@@ -81,6 +87,7 @@ export {
 	type CloudflareOptions,
 	type Encoder,
 	type VercelImages,
+	type VercelRemotePattern,
 	type VercelOptions
 } from './encoder.ts';
 
@@ -90,13 +97,20 @@ const SOURCES_ID = 'virtual:ogygia-image/sources';
 const MAKER_ID = 'virtual:ogygia-image/maker';
 const NAMER_ID = 'virtual:ogygia-image/namer';
 const THEME_ID = 'virtual:ogygia-image/theme.css';
+const REMOTE_ID = 'virtual:ogygia-image/remote';
 // @why Kit's dev server inlines a page's CSS by loading each CSS module's URL again with `?inline`, which finds a module only when it has a file-like path, so the theme stylesheet is named as a file that is never written (test: packages/image/test/plugin.test.ts › the theme stylesheet resolves to a file path, with and without a query)
 const THEME_FILE: string = fileURLToPath(new URL('../og-theme.css', import.meta.url))
 	.split(path.sep)
 	.join('/');
 const REMOTE_LIST = '__ogygia_image_remote__';
 const REMOTE_LIST_RE = /(["'`])__ogygia_image_remote__\1/;
-const VIRTUAL_IDS: ReadonlySet<string> = new Set([CONFIG_ID, SOURCES_ID, MAKER_ID, NAMER_ID]);
+const VIRTUAL_IDS: ReadonlySet<string> = new Set([
+	CONFIG_ID,
+	SOURCES_ID,
+	MAKER_ID,
+	NAMER_ID,
+	REMOTE_ID
+]);
 const SOURCE_GLOBS: readonly string[] = [
 	'/src/**/*.{png,PNG,jpg,JPG,jpeg,JPEG,webp,WEBP,avif,AVIF,gif,GIF,tif,TIF,tiff,TIFF}',
 	'!/src/lib/server/**',
@@ -255,7 +269,7 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 			const runtime = encoder_runtime(c.command, !!c.build.ssr, preview, adapter);
 			if (runtime !== null) check_encoder(c.root, runtime, adapter, maker_of(encoders));
 			if (c.command === 'build' && c.build.ssr) {
-				check_platform(encoders, adapter, originals_of(paths));
+				check_platform(encoders, adapter, originals_of(paths), opts.remote?.hosts ?? []);
 				if (!stills)
 					warn('image_still_left_out', {
 						encoders: encoders.map((e) => `${e.name}()`).join(', ')
@@ -288,6 +302,8 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 		async load(id) {
 			if (id === `\0${MAKER_ID}`) return maker_module(encoders, !build());
 			if (id === `\0${NAMER_ID}`) return namer_module(encoders, !build());
+			if (id === `\0${REMOTE_ID}`)
+				return remote_module(opts.remote, !build() || maker_of(encoders) !== 'binding');
 			if (id.split('?', 1)[0] === THEME_FILE) return theme_css(opts.theme);
 			if (id === `\0${CONFIG_ID}`) {
 				if (!paths) throw new OgygiaError('image_no_kit');
@@ -361,11 +377,13 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 			sequential: true,
 			async handler() {
 				if (!handoff || !paths || !config || !server_build()) return;
+				const dir = handoff.remote;
 				await write_built(
 					handoff,
 					render_config(opts, paths, true, widths, stills),
 					warmed.values(),
-					output_of(config)
+					output_of(config),
+					remote ? (url) => remote.file(dir, url, 'a prerendered page') : undefined
 				);
 			}
 		}
@@ -381,7 +399,8 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 	const checked = vercel_config_check(encoders, () => ({
 		formats: asked,
 		assets: paths?.assets ?? '',
-		originals: originals_of(paths)
+		originals: originals_of(paths),
+		hosts: opts.remote?.hosts ?? []
 	}));
 	return [ogygia, loader, checked];
 }

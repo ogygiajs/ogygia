@@ -29,10 +29,11 @@ export interface ImageOps {
 
 /** One image source, ready to render. */
 export interface ImageDescriptor {
-	/** The source's identity: a hash of its bytes. */
+	/** The source's identity: a hash of its bytes (of its URL and `version`, for a remote source known
+	 *  only at request). */
 	id: string;
 	/** The original file, shipped as an asset: what the image endpoint reads, and what a browser-only
-	 *  render shows. */
+	 *  render shows. A remote source's URL. */
 	src: string;
 	/** Intrinsic width, in pixels (after the operations). */
 	width: number;
@@ -55,6 +56,9 @@ export interface ImageDescriptor {
 	warm?: string[];
 	/** Alt text the source carries (a markdown image's text). */
 	alt?: string;
+	/** Where the source comes from when it is not a file the build read: `'remote'`, a URL known only
+	 *  at request (`remoteImage()`), which `src` names and the image endpoint fetches. */
+	from?: 'remote';
 	/** Other candidate sets of this image, each chosen by a media condition: a dark file (the
 	 *  macro's `dark`) and the designer's other files (the macro's `art`). One level: a twin's own
 	 *  descriptor has no twins. */

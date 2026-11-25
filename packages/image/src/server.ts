@@ -28,6 +28,7 @@ import { defineServer, type ServerApp, type ServerPlugin } from '@ogygia/core/pl
 import { cache } from '@ogygia/machine';
 import config from 'virtual:ogygia-image/config';
 import { name } from 'virtual:ogygia-image/namer';
+import { remote as REMOTE } from 'virtual:ogygia-image/remote';
 import sources, { remote } from 'virtual:ogygia-image/sources';
 import { build_handoff, published, type BuildHandoff } from './handoff.ts';
 import { warn } from './messages.ts';
@@ -38,11 +39,15 @@ import {
 	IMAGE_PREFIX,
 	recipe_file,
 	recipe_path,
+	recipe_tail,
+	REMOTE_TAIL,
+	remote_of_tail,
 	set_minter,
 	source_tail,
 	type ParsedRecipe,
 	type Recipe
 } from './recipe.ts';
+import { RemoteHosts } from './remote-hosts.ts';
 import { message, verify } from './verify.ts';
 
 type OnDisk = typeof import('./on-disk.ts');
@@ -65,6 +70,7 @@ class Originals {
 	}
 
 	has(tail: string): boolean {
+		if (tail.startsWith(REMOTE_TAIL)) return listed(tail);
 		if (this.#tails.has(tail)) return true;
 		if (tail.startsWith(REMOTE_ASSETS)) {
 			const name = REMOTE_ASSET_RE.exec(tail.slice(REMOTE_ASSETS.length))?.[1];
@@ -85,6 +91,26 @@ function root_handoff(run: BuildHandoff | null): BuildHandoff | null {
 	return run !== null && run.root !== '' ? run : null;
 }
 const ORIGINALS = new Originals(sources, remote);
+const HOSTS: RemoteHosts | null = REMOTE === null ? null : new RemoteHosts(REMOTE.hosts);
+
+function unlisted_why(url: URL | null): string {
+	if (HOSTS === null) return 'image({ remote }) is not set';
+	return url === null ? 'its tail names no http(s) URL' : 'its host is not in remote.hosts';
+}
+
+let said_unlisted = false;
+function listed(tail: string): boolean {
+	const url = remote_of_tail(tail);
+	if (url !== null && HOSTS?.allows(url)) return true;
+	if (!said_unlisted)
+		warn('image_remote_refused', {
+			url: url?.href ?? tail,
+			status: 404,
+			reason: unlisted_why(url)
+		});
+	said_unlisted = true;
+	return false;
+}
 
 class DiskHalf {
 	#ready: Promise<void> | null = null;
@@ -136,7 +162,7 @@ function root_relative(url: string): boolean {
 }
 
 function prerendered(disk: OnDisk, run: BuildHandoff, noted: Set<string>, recipe: Recipe): string {
-	const path = recipe_path(recipe, source_tail(recipe.src, PREFIXES));
+	const path = recipe_path(recipe, recipe_tail(recipe, PREFIXES));
 	if (!noted.has(path)) {
 		noted.add(path);
 		disk.note_built(run.minted, path);
@@ -165,7 +191,7 @@ function start(app: ServerApp<unknown>, disk: OnDisk | null): void {
 		if (built) return built_url(config.paths, recipe);
 		const link = name(recipe);
 		if (link !== null) return link;
-		const path = recipe_path(recipe, source_tail(recipe.src, PREFIXES));
+		const path = recipe_path(recipe, recipe_tail(recipe, PREFIXES));
 		let url = signed.get(path);
 		if (url === undefined) {
 			url = `${BASE}${IMAGE_PREFIX}${app.sign(message(path))}/${path}`;

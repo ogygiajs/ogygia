@@ -3,7 +3,9 @@
  * `.vercel/output/config.json` (Kit runs the adapter in its server build's `closeBundle`; this
  * plugin's runs after it), its `images` must allow every width and quality the encoder names, every
  * format the plugin asks for, and the host of an absolute `paths.assets`; and open no more: listed
- * qualities, and `localPatterns` that reach the app's originals only. Vercel answers a link outside
+ * qualities, `localPatterns` that reach the app's originals only, and `remotePatterns` that reach
+ * every host `image({ remote: { hosts } })` lists (a `remoteImage()`'s link names its URL) and no
+ * other. Vercel answers a link outside
  * them with an error, and bills each file anyone asks for inside them, so either gap fails the build
  * (`image_vercel_config`), with the exact `images` value to pass.
  *
@@ -14,6 +16,7 @@ import path from 'node:path';
 import type { Plugin as VitePlugin, ResolvedConfig } from 'vite';
 import type { OutputFormat } from '../config.ts';
 import { OgygiaError } from '../messages.ts';
+import { host_rule, RemoteHosts } from '../remote-hosts.ts';
 import { vercel_images, type Encoder, type VercelImages } from './encoder.ts';
 
 /** What the build names that Vercel must allow. */
@@ -26,10 +29,56 @@ export interface VercelWant {
 	assets: string;
 	/** The path the app's originals sit under (`<base>/<appDir>/immutable/assets/`). */
 	originals: string;
+	/** `image({ remote: { hosts } })`: the hosts a remote image's link may name. */
+	hosts: readonly string[];
 }
 
 interface RemotePattern {
+	protocol?: unknown;
 	hostname?: unknown;
+	port?: unknown;
+}
+
+function pattern_takes(p: RemotePattern, url: URL): boolean {
+	if (typeof p.hostname !== 'string' || !new RegExp(p.hostname).test(url.hostname)) return false;
+	if (p.protocol !== undefined && `${String(p.protocol)}:` !== url.protocol) return false;
+	return p.port === undefined || String(p.port) === url.port;
+}
+
+const PROBE = 'ogygia-probe';
+
+function remote_missing(have: RemotePattern[], hosts: readonly string[]): string[] {
+	const out: string[] = [];
+	const listed = new RemoteHosts(hosts);
+	const probes = [`${PROBE}.invalid`];
+	for (const entry of hosts) {
+		const rule = host_rule(entry);
+		if (rule === null) continue;
+		const port = rule.port ? `:${rule.port}` : '';
+		const sample = new URL(
+			`${rule.protocol}//${rule.below ? `${PROBE}.` : ''}${rule.host}${port}/`
+		);
+		if (!have.some((p) => pattern_takes(p, sample))) out.push(`remotePatterns for ${entry}`);
+		probes.push(rule.below ? `${PROBE}.${rule.host}` : rule.host);
+		if (!rule.below && !rule.host.startsWith('[')) probes.push(`${PROBE}.${rule.host}`);
+	}
+	for (const p of have)
+		for (const probe of probes)
+			for (const protocol of ['https:', 'http:']) {
+				const port = p.port === undefined ? '' : `:${String(p.port)}`;
+				let url: URL;
+				try {
+					url = new URL(`${protocol}//${probe}${port}/`);
+					// oxlint-disable-next-line ogygia/no-silent-failures -- a port no URL can have takes no probe
+				} catch {
+					continue;
+				}
+				if (pattern_takes(p, url) && !listed.allows(url))
+					out.push(
+						`remotePatterns no wider than remote.hosts (${JSON.stringify(p)} takes ${url.host})`
+					);
+			}
+	return out;
 }
 
 interface LocalPattern {
@@ -83,6 +132,7 @@ export function vercel_config_missing(have: unknown, want: VercelWant): string[]
 	}
 	const local = local_missing(h.localPatterns, want);
 	if (local !== undefined) out.push(local);
+	out.push(...remote_missing(Array.isArray(h.remotePatterns) ? h.remotePatterns : [], want.hosts));
 	return [...new Set(out)];
 }
 
@@ -115,7 +165,7 @@ export function vercel_config_check(
 				if (!encoder || !config?.build.ssr) return;
 				const file = path.resolve(OUTPUT_CONFIG);
 				const asked = want();
-				const line = `adapter({ images: ${JSON.stringify(vercel_images(encoder, asked.originals))} })`;
+				const line = `adapter({ images: ${JSON.stringify(vercel_images(encoder, asked.originals, asked.hosts))} })`;
 				const fail = (missing: string[], have: string): never => {
 					throw new OgygiaError('image_vercel_config', { missing: missing.join(', '), have, line });
 				};

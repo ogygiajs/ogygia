@@ -18,6 +18,13 @@ declare module 'virtual:ogygia-image/maker' {
 	export const store: import('./maker.ts').Maker['store'];
 }
 
+declare module 'virtual:ogygia-image/remote' {
+	/** The app's `image({ remote })`, its defaults filled in, or null. */
+	export const remote: import('./remote-fetch.ts').RemoteConfig | null;
+	/** Loads how the endpoint sends a remote request in this runtime, or null. */
+	export const transport: (() => Promise<import('./remote-fetch.ts').Transport>) | null;
+}
+
 declare module 'virtual:ogygia-image/theme.css' {}
 
 declare module 'virtual:ogygia-image/namer' {

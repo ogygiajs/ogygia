@@ -330,7 +330,8 @@ function lay_one(
 		...(still ? { still: true as const } : {}),
 		...(image.ops ? { ops: image.ops } : {}),
 		...(crop ? { crop: true } : {}),
-		source: { format: image.format, ...(image.animated ? { animated: true } : {}) }
+		source: { format: image.format, ...(image.animated ? { animated: true } : {}) },
+		...(image.from === 'remote' ? { from: 'remote' as const } : {})
 	});
 	const at_least = (format: ImageFormat, w: number): string =>
 		url(recipe(widths.find((x) => x >= w) ?? widths[widths.length - 1]!, format));

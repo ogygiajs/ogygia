@@ -25,6 +25,7 @@ import { cannot } from '../encoders/capabilities.ts';
 import { NEEDS, type Need } from '../encoders/needs.ts';
 import { DEFAULT_BREAKPOINTS, DEFAULT_QUALITY } from '../config.ts';
 import { OgygiaError, warn } from '../messages.ts';
+import { host_rule } from '../remote-hosts.ts';
 import type { LinkPlan, NamerPlan } from '../namers/resolve.ts';
 import { SIDE_MAX } from '../recipe.ts';
 
@@ -134,6 +135,17 @@ export interface VercelImages {
 	/** The only paths the optimizer may read: the app's originals (`/_app/immutable/assets/`; the
 	 *  build says the value to pass for another `paths.base` or `appDir`). */
 	readonly localPatterns: { pathname: string; search: string }[];
+	/** The only hosts it may fetch from: those `image({ remote: { hosts } })` lists, for a
+	 *  `remoteImage()`. `vercel()` cannot know them: add them as the build says
+	 *  (`image_vercel_config`, one entry per host). */
+	readonly remotePatterns?: VercelRemotePattern[];
+}
+
+/** One `images.remotePatterns` entry: a scheme, a host pattern, a port. */
+export interface VercelRemotePattern {
+	readonly protocol: 'http' | 'https';
+	readonly hostname: string;
+	readonly port?: string;
 }
 
 const VERCEL_KEYS: ReadonlySet<string> = new Set(['sizes', 'qualities']);
@@ -417,12 +429,32 @@ export const PLATFORM: Decisions<PlatformInput, 'ok' | 'wrong' | 'auto'> = decis
 
 const ADAPTER_KIND_RE = /^@sveltejs\/adapter-(cloudflare|vercel|auto)$/;
 
-/** The images `vercel()` hands an app whose originals sit under `originals`. */
+/** The `remotePatterns` entry of one `image({ remote: { hosts } })` entry: its scheme, its host (a
+ *  pattern, as Vercel's output config reads it), and its port when not the default. */
+export function remote_pattern(entry: string): VercelRemotePattern | null {
+	const rule = host_rule(entry);
+	if (rule === null) return null;
+	const host = rule.host.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	return {
+		protocol: rule.protocol === 'http:' ? 'http' : 'https',
+		hostname: rule.below ? `^(?:[^.]+\\.)+${host}$` : `^${host}$`,
+		...(rule.port ? { port: rule.port } : {})
+	};
+}
+
+/** The images `vercel()` hands an app whose originals sit under `originals`, which takes remote
+ *  images from `hosts`. */
 export function vercel_images(
 	encoder: Encoder & { readonly images: VercelImages },
-	originals: string
+	originals: string,
+	hosts: readonly string[] = []
 ): VercelImages {
-	return { ...encoder.images, localPatterns: [originals_pattern(originals)] };
+	const remote = hosts.flatMap((h) => remote_pattern(h) ?? []);
+	return {
+		...encoder.images,
+		localPatterns: [originals_pattern(originals)],
+		...(remote.length ? { remotePatterns: remote } : {})
+	};
 }
 
 /** Check a server build's `adapter` against the platform `encoders` name: `cloudflare()` fails
@@ -430,7 +462,8 @@ export function vercel_images(
 export function check_platform(
 	encoders: readonly Encoder[],
 	adapter: string | null,
-	originals: string
+	originals: string,
+	hosts: readonly string[] = []
 ): void {
 	const e = encoders.find((x) => x.name !== 'sharp');
 	const kind = (adapter !== null && ADAPTER_KIND_RE.exec(adapter)?.[1]) || 'other';
@@ -447,7 +480,7 @@ export function check_platform(
 			key: 'encoder',
 			rule: `cloudflare() on ${own}: its links and Images binding exist only on Cloudflare (${is})`
 		});
-	const images = vercel_images(e as Encoder & { readonly images: VercelImages }, originals);
+	const images = vercel_images(e as Encoder & { readonly images: VercelImages }, originals, hosts);
 	throw new OgygiaError('image_vercel_config', {
 		missing: `adapter-vercel (${is})`,
 		have: 'no /_vercel/image',

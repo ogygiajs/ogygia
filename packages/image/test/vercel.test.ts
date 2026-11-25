@@ -9,7 +9,7 @@ import { DEFAULT_BREAKPOINTS, type RenderConfig } from '../src/config.ts';
 import { lay_out } from '../src/layout.ts';
 import { namer as resolve, type NamerPlan } from '../src/namers/resolve.ts';
 import type { Recipe } from '../src/recipe.ts';
-import { namer_plan, sharp, vercel } from '../src/vite/encoder.ts';
+import { namer_plan, sharp, vercel, vercel_images } from '../src/vite/encoder.ts';
 import { image } from '../src/vite/index.ts';
 import { vercel_config_missing } from '../src/vite/vercel-config.ts';
 
@@ -165,7 +165,8 @@ test('the adapter config check fails an images config that lets anyone ask Verce
 		images: IMAGES,
 		formats: ['avif', 'webp'] as const,
 		assets: '',
-		originals: '/shop/_app/immutable/assets/'
+		originals: '/shop/_app/immutable/assets/',
+		hosts: []
 	};
 	const local = [{ pathname: '^/shop/_app/immutable/assets/.+$', search: '' }];
 	expect(vercel_config_missing({ ...IMAGES, localPatterns: local }, want)).toEqual([]);
@@ -231,7 +232,8 @@ test('the adapter config check names each width, quality, format and host the bu
 		images: IMAGES,
 		formats: ['avif', 'webp'] as const,
 		assets: '',
-		originals: '/_app/immutable/assets/'
+		originals: '/_app/immutable/assets/',
+		hosts: []
 	};
 	expect(vercel_config_missing(IMAGES, want)).toEqual([]);
 	expect(vercel_config_missing(undefined, want)).toEqual(['images (no images config at all)']);
@@ -268,4 +270,69 @@ test('the adapter config check names each width, quality, format and host the bu
 			{ ...want, assets: 'https://cdn.example.com' }
 		)
 	).toEqual([]);
+});
+
+test('the adapter config check covers remote.hosts: remotePatterns reach each listed host and no other, and the line to pass has them', () => {
+	const hosts = ['images.example.com', '*.cdn.example.com', 'http://127.0.0.1:4176'];
+	const want = {
+		images: IMAGES,
+		formats: ['avif', 'webp'] as const,
+		assets: '',
+		originals: '/_app/immutable/assets/',
+		hosts
+	};
+	const line = vercel_images(
+		vercel({ sizes: [640, 1280], qualities: [60, 80] }),
+		want.originals,
+		hosts
+	);
+	expect(line.remotePatterns).toEqual([
+		{ protocol: 'https', hostname: '^images\\.example\\.com$' },
+		{ protocol: 'https', hostname: '^(?:[^.]+\\.)+cdn\\.example\\.com$' },
+		{ protocol: 'http', hostname: '^127\\.0\\.0\\.1$', port: '4176' }
+	]);
+	expect(vercel_config_missing(line, want)).toEqual([]);
+	expect(vercel_config_missing(IMAGES, want)).toEqual([
+		'remotePatterns for images.example.com',
+		'remotePatterns for *.cdn.example.com',
+		'remotePatterns for http://127.0.0.1:4176'
+	]);
+	expect(
+		vercel_config_missing({ ...line, remotePatterns: line.remotePatterns!.slice(1) }, want)
+	).toEqual(['remotePatterns for images.example.com']);
+	const wide = vercel_config_missing(
+		{ ...line, remotePatterns: [...line.remotePatterns!, { hostname: '^.*$' }] },
+		want
+	);
+	expect(wide.join('\n')).toMatch(/remotePatterns no wider than remote\.hosts/);
+	expect(
+		vercel_config_missing(
+			{
+				...line,
+				remotePatterns: [{ hostname: '^images\\.example\\.com$' }, ...line.remotePatterns!.slice(1)]
+			},
+			want
+		).join('\n')
+	).toMatch(/no wider than remote\.hosts \(.*takes images\.example\.com\)/);
+	expect(
+		vercel_config_missing(
+			{
+				...line,
+				remotePatterns: [
+					{ protocol: 'https', hostname: '^(?:[^.]+\\.)*example\\.com$' },
+					...line.remotePatterns!.slice(1)
+				]
+			},
+			want
+		).join('\n')
+	).toMatch(/takes ogygia-probe\.images\.example\.com/);
+});
+
+test("a remote image's Vercel link names its whole URL, escaped", () => {
+	expect(
+		vercel_link(at({ src: 'https://images.example.com/a b.jpg?v=2', from: 'remote' }), {
+			sizes: [640],
+			qualities: null
+		})
+	).toBe('/_vercel/image?url=https%3A%2F%2Fimages.example.com%2Fa%20b.jpg%3Fv%3D2&w=640&q=60');
 });

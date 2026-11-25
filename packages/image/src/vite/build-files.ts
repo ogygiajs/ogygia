@@ -10,7 +10,10 @@
  * - PRERENDERED: every file a prerendered page names. The server realm notes each recipe on disk
  *   (Kit's prerender runs in a worker) and tells the build, which starts it at once, and names it
  *   with the build's mark in front (Kit's crawler does not follow it: it would 404 a file under the
- *   app folder that is not there yet).
+ *   app folder that is not there yet). A `remoteImage()` source is fetched here, under
+ *   `image({ remote })` (./remote.ts), and its files are named by the bytes it got, not by its
+ *   URL: every prerendered page's name of them is rewritten to that, so a URL whose bytes change
+ *   gets new file names, never an old file kept forever under a new picture.
  *
  * One build makes each file once: every make, the prerender's head start and the build's end alike,
  * runs in the build's own thread as one flight per file, a few at once.
@@ -46,14 +49,17 @@ import { lay_out, preset_request } from '../layout.ts';
 import { OgygiaError } from '../messages.ts';
 import { pixels } from './encoder.ts';
 import {
+	BUILT_DIR,
 	built_file,
 	built_url,
 	parse_recipe,
 	recipe_file,
+	remote_of_tail,
 	type ParsedRecipe,
 	type Recipe
 } from '../recipe.ts';
 import { build_handoff, BUILD_ENV, type BuildHandoff } from '../handoff.ts';
+import { entry_for } from '../remote-hosts.ts';
 import { source_id } from '../source-id.ts';
 import { built_channel, FileStore, open_build_store, origin_of } from '../store.ts';
 
@@ -203,7 +209,7 @@ class BuildMakes {
 		channel.unref();
 		channel.onmessage = (event: unknown) => {
 			const recipe = parse_recipe(String((event as MessageEvent).data));
-			if (recipe === null) return;
+			if (recipe === null || remote_of_tail(recipe.tail) !== null) return;
 			// oxlint-disable-next-line ogygia/no-silent-failures -- a head start only: the build's end asks for the file again and fails out loud
 			void this.make(recipe, () => noted_original(output, recipe)).catch(() => {});
 		};
@@ -258,6 +264,7 @@ interface Job {
 	recipe: Omit<Recipe, 'src'>;
 	source: string;
 	original: () => Uint8Array;
+	remote?: URL;
 }
 
 function jobs_of(
@@ -294,13 +301,40 @@ function jobs_of(
 				source: line,
 				reason: 'not an image recipe'
 			});
+		const remote = remote_of_tail(recipe.tail);
 		jobs.set(built_file(recipe), {
 			recipe,
-			source: recipe.tail,
-			original: () => noted_original(output, recipe)
+			source: remote?.href ?? recipe.tail,
+			original: () => noted_original(output, recipe),
+			...(remote !== null ? { remote } : {})
 		});
 	}
 	return jobs;
+}
+
+/** How the build fetches a remote image a prerendered page names (`remoteImage()`): its file in
+ *  the build cache, under `image({ remote })` (./remote.ts `RemoteImages`). */
+export type FetchRemote = (url: string) => Promise<string>;
+
+function no_remote(url: string): Promise<string> {
+	return Promise.reject(
+		new OgygiaError('image_remote_host', {
+			where: 'a prerendered page',
+			url,
+			entry: entry_for(new URL(url))
+		})
+	);
+}
+
+async function remote_made(
+	makes: BuildMakes,
+	recipe: Omit<Recipe, 'src'>,
+	url: URL,
+	fetch_remote: FetchRemote
+): Promise<{ recipe: Omit<Recipe, 'src'>; data: Uint8Array }> {
+	const bytes = await fs.promises.readFile(await fetch_remote(url.href));
+	const named = { ...recipe, id: await source_id(bytes) };
+	return { recipe: named, data: await makes.make(named, () => bytes) };
 }
 
 const SCHEMES: readonly Buffer[] = [Buffer.from('https:'), Buffer.from('http:')];
@@ -335,7 +369,30 @@ function unmarked(bytes: Buffer, cut: Buffer, origin: string, name: string): Buf
 	return Buffer.concat(parts);
 }
 
-function unmark(dir: string, mark: string, origin: string): void {
+function renamed_in(bytes: Buffer, renamed: ReadonlyMap<string, string>): Buffer {
+	let out = bytes;
+	for (const [from, to] of renamed) {
+		const was = Buffer.from(`${BUILT_DIR}/${from}-`);
+		if (out.indexOf(was) === -1) continue;
+		const now = Buffer.from(`${BUILT_DIR}/${to}-`);
+		const parts: Buffer[] = [];
+		let at = 0;
+		for (let i = out.indexOf(was); i !== -1; i = out.indexOf(was, at)) {
+			parts.push(out.subarray(at, i), now);
+			at = i + was.length;
+		}
+		parts.push(out.subarray(at));
+		out = Buffer.concat(parts);
+	}
+	return out;
+}
+
+function unmark(
+	dir: string,
+	mark: string,
+	origin: string,
+	renamed: ReadonlyMap<string, string>
+): void {
 	const cut = Buffer.from(mark);
 	const label = Buffer.from(mark.slice(2));
 	let names: string[];
@@ -348,12 +405,15 @@ function unmark(dir: string, mark: string, origin: string): void {
 	for (const name of names) {
 		const file = path.join(dir, name);
 		if (!fs.statSync(file).isFile()) continue;
-		const bytes = fs.readFileSync(file);
-		if (bytes.indexOf(label) === -1) continue;
-		const out = unmarked(bytes, cut, origin, name);
-		if (out.indexOf(label) !== -1)
-			throw new OgygiaError('image_mark_left', { file: name, form: 'escaped or encoded it' });
-		fs.writeFileSync(file, out);
+		const bytes: Buffer = fs.readFileSync(file);
+		let out: Buffer = bytes;
+		if (mark !== '' && bytes.indexOf(label) !== -1) {
+			out = unmarked(bytes, cut, origin, name);
+			if (out.indexOf(label) !== -1)
+				throw new OgygiaError('image_mark_left', { file: name, form: 'escaped or encoded it' });
+		}
+		out = renamed_in(out, renamed);
+		if (out !== bytes) fs.writeFileSync(file, out);
 	}
 }
 
@@ -365,16 +425,25 @@ export async function write_built(
 	handoff: BuildHandoff,
 	cfg: RenderConfig,
 	warmed: Iterable<WarmSource>,
-	output: string
+	output: string,
+	fetch_remote: FetchRemote = no_remote
 ): Promise<void> {
 	const makes = BuildMakes.of(handoff, output);
 	const client = path.join(output, 'client', cfg.paths.app_dir);
+	const renamed = new Map<string, string>();
 	let settled: PromiseSettledResult<void>[];
 	try {
 		const jobs = jobs_of(handoff, cfg, warmed, output);
 		settled = await Promise.allSettled(
-			[...jobs].map(async ([name, { recipe, source, original }]) => {
+			[...jobs].map(async ([name, { recipe, source, original, remote }]) => {
 				try {
+					if (remote !== undefined) {
+						const made = await remote_made(makes, recipe, remote, fetch_remote);
+						renamed.set(recipe.id, made.recipe.id);
+						const file = built_file(made.recipe);
+						await makes.write(path.join(client, ...file.split('/')), made.data);
+						return;
+					}
 					const data = await makes.make(recipe, original);
 					await makes.write(path.join(client, ...name.split('/')), data);
 				} catch (e) {
@@ -393,7 +462,8 @@ export async function write_built(
 	fs.rmSync(path.dirname(handoff.minted), { recursive: true, force: true });
 	const failed = settled.find((s) => s.status === 'rejected');
 	if (failed) throw failed.reason;
-	if (handoff.mark) unmark(path.join(output, 'prerendered'), handoff.mark, origin);
+	if (handoff.mark || renamed.size)
+		unmark(path.join(output, 'prerendered'), handoff.mark, origin, renamed);
 	const done: BuildHandoff = { ...handoff, minted: '', mark: '', written: client };
 	process.env[BUILD_ENV] = JSON.stringify(done);
 }

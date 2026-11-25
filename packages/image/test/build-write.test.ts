@@ -7,6 +7,8 @@ import sharp from 'sharp';
 import { beforeAll, expect, test, vi } from 'vitest';
 import type { RenderConfig } from '../src/config.ts';
 import { build_handoff } from '../src/handoff.ts';
+import { recipe_path, recipe_tail, type Recipe } from '../src/recipe.ts';
+import { remoteImage } from '../src/remote-image.ts';
 import { note_built, note_origin } from '../src/store.ts';
 import { handoff_for, write_built } from '../src/vite/build-files.ts';
 import { id_of, make_images } from './fixtures.ts';
@@ -197,4 +199,40 @@ test('a marked URL after a colon that starts no URL (a CSS custom property) is o
 		'https://example.com'
 	);
 	expect(html).toBe(`<div style="--src:/_app/immutable/og/${id}-64x43.webp"></div>`);
+});
+
+test("a prerendered page's remoteImage() is fetched by the build, its files named by the bytes it got, and every name of them in the pages rewritten to that", async () => {
+	delete process.env.__OGYGIA_IMAGE_BUILD;
+	const handoff = await handoff_for(true);
+	const url = 'https://images.example.com/hero.jpg';
+	const cover = remoteImage(url, { width: 2400, height: 1600 });
+	const recipe: Recipe = { ...cover, width: 64, height: 43, format: 'webp', from: 'remote' };
+	note_built(handoff.minted, recipe_path(recipe, recipe_tail(recipe, [''])));
+	const marked = `${handoff.mark}/_app/immutable/og/${cover.id}-64x43.webp`;
+	const out = output(`<img src="${marked}"><script>{"id":"${cover.id}"}</script>`);
+	const asked: string[] = [];
+	await write_built(handoff, CFG, [], out, (at) => {
+		asked.push(at);
+		return Promise.resolve(jpg);
+	});
+	expect(asked).toEqual([url]);
+	const made = fs.readdirSync(path.join(out, 'client', '_app', 'immutable', 'og'));
+	expect(made).toEqual([`${id}-64x43.webp`]);
+	expect(fs.readFileSync(path.join(out, 'prerendered', 'pages', 'index.html'), 'utf8')).toBe(
+		`<img src="/_app/immutable/og/${id}-64x43.webp"><script>{"id":"${cover.id}"}</script>`
+	);
+});
+
+test("a prerendered page's remoteImage() in a build with no image({ remote }) fails it, naming the host to list", async () => {
+	delete process.env.__OGYGIA_IMAGE_BUILD;
+	const handoff = await handoff_for(true);
+	const cover = remoteImage('https://images.example.com/hero.jpg', { width: 2400, height: 1600 });
+	const recipe: Recipe = { ...cover, width: 64, height: 43, format: 'webp', from: 'remote' };
+	note_built(handoff.minted, recipe_path(recipe, recipe_tail(recipe, [''])));
+	await expect(write_built(handoff, CFG, [], output('<p></p>'))).rejects.toMatchObject({
+		code: 'image_unsettled',
+		message: expect.stringMatching(
+			/https:\/\/images\.example\.com\/hero\.jpg[\s\S]*images\.example\.com/
+		)
+	});
 });

@@ -14,6 +14,10 @@
  *
  * `-s` asks for the first frame only (a moving source's reduced-motion still).
  *
+ * A remote source known only at request (`remoteImage()`) has no original among the app's assets:
+ * its tail is `.remote/<its URL as base64url>`, so the signature covers the URL, and the endpoint
+ * fetches only what the server named.
+ *
  * @packageDocumentation
  */
 import { slot } from '@ogygia/machine';
@@ -40,6 +44,9 @@ export interface Recipe {
 	crop?: true;
 	/** What the source is, for the namer: its own format, and whether it moves. Never in a URL. */
 	source?: { format: ImageFormat; animated?: true };
+	/** The source is a remote URL known only at request (`src`): the recipe's tail names it
+	 *  ({@link recipe_tail}). */
+	from?: 'remote';
 }
 
 /** The URL path every recipe sits under, after the app's base. */
@@ -112,6 +119,35 @@ export function source_tail(src: string, prefixes: readonly string[]): string {
 	} catch {
 		return s;
 	}
+}
+
+/** Where a remote source's tail starts: `.remote/<its URL as base64url>`. */
+export const REMOTE_TAIL = '.remote/';
+const REMOTE_TAIL_RE = /^\.remote\/([A-Za-z0-9_-]+)$/;
+
+/** The tail of `r`'s original, decoded: a remote source's URL as {@link REMOTE_TAIL} and base64url,
+ *  else {@link source_tail}. */
+export function recipe_tail(r: Recipe, prefixes: readonly string[]): string {
+	return r.from === 'remote'
+		? `${REMOTE_TAIL}${b64url_encode(r.src)}`
+		: source_tail(r.src, prefixes);
+}
+
+/** The URL a remote source's tail names, or null when `tail` is none: only an `http:` or `https:`
+ *  URL written as the minter writes it. */
+export function remote_of_tail(tail: string): URL | null {
+	const m = REMOTE_TAIL_RE.exec(tail);
+	if (!m) return null;
+	let url: URL;
+	try {
+		const text = b64url_decode(m[1]!);
+		url = new URL(text);
+		if (url.href !== text) return null;
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a tail that does not decode to a URL names no remote source: the endpoint answers 404
+	} catch {
+		return null;
+	}
+	return url.protocol === 'https:' || url.protocol === 'http:' ? url : null;
 }
 
 /** A decoded tail as URL path segments. */

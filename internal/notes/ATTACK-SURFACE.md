@@ -6,7 +6,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-128 entries.
+129 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -117,11 +117,12 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/federation/src/wire.ts` | `(module)` | `headers.get(USER_HEADER)` | 1 |
 | `packages/flags/src/index.ts` | `override` | `searchParams('og-exp')` | 1 |
 | `packages/image/src/makers/binding.ts` | `open` | `headers.get('content-length')` | 1 |
-| `packages/image/src/vite/remote.ts` | `(module)` | `headers.get('content-type')` | 1 |
-| `packages/image/src/vite/remote.ts` | `(module)` | `headers.get('etag')` | 1 |
-| `packages/image/src/vite/remote.ts` | `(module)` | `headers.get('last-modified')` | 1 |
-| `packages/image/src/vite/remote.ts` | `(module)` | `headers.get('location')` | 1 |
-| `packages/image/src/vite/remote.ts` | `body_of` | `headers.get('content-length')` | 1 |
+| `packages/image/src/remote-fetch.ts` | `body_of` | `headers.get('content-length')` | 1 |
+| `packages/image/src/remote-fetch.ts` | `fetch_chain` | `headers.get('content-encoding')` | 1 |
+| `packages/image/src/remote-fetch.ts` | `fetch_chain` | `headers.get('content-type')` | 1 |
+| `packages/image/src/remote-fetch.ts` | `fetch_chain` | `headers.get('etag')` | 1 |
+| `packages/image/src/remote-fetch.ts` | `fetch_chain` | `headers.get('last-modified')` | 1 |
+| `packages/image/src/remote-fetch.ts` | `fetch_chain` | `headers.get('location')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-encoding')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-length')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('vary')` | 1 |

@@ -32,6 +32,19 @@ export const IMAGE_RENDER_ERRORS = {
 			and changed there): both go into the image's \`style\` attribute.
 		`
 	},
+	image_remote_invalid: {
+		text: (a: { key: string; value: string; want: string }): string =>
+			`remoteImage(): ${a.key} ${a.value} must be ${a.want}.`,
+		details: (): string => prose`
+			\`remoteImage(url, { width, height })\` names an image a server load knows only at request (a
+			CMS entry's cover): an \`https://\` URL (or \`http://\` from a host listed with it) with no
+			user or password in it, and the image's own width and height in pixels, whole numbers from
+			1 to 99999, so the page reserves its box before the file arrives. \`alt\` is text, and
+			\`version\` a string or a number that changes when the bytes behind the URL do. Whether the
+			URL's host is listed in \`image({ remote: { hosts } })\` is checked where it is fetched:
+			the image endpoint, or the build for a prerendered page.
+		`
+	},
 	image_encoder_cannot: {
 		text: (a: { encoder: string; need: string }): string => prose`
 			<Img> asked for a file ${a.encoder} cannot make on a page rendered on request: ${a.need}.

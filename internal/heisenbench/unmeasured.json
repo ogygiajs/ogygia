@@ -6977,7 +6977,7 @@
 			"reason": "the server realm's glue over app.sign / app.verify (core's HMAC, measured in core's capability benches) and Kit's event; recipe_path and parse_recipe are measured; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/server.ts > start > set_minter:0~d7e7fc",
+			"id": "packages/image/src/server.ts > start > set_minter:0~de6564",
 			"reason": "the server realm's glue over the encoder's namer (constant: no link for sharp), app.sign (core's HMAC, measured in core's capability benches) and a bounded machine cache of the URLs it signed; recipe_path and built_url are measured; test/server.test.ts runs it"
 		},
 		{
@@ -7005,19 +7005,35 @@
 			"reason": "constant work: one 404 response, on a refusal only; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~e07cb2 > run",
+			"id": "packages/image/src/settle.ts > call:0~27ba85 > run",
 			"reason": "the image endpoint's encode path: the reader (Kit's read()) and the maker (sharp), once per file, then a streamed store read; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~e07cb2 > run > limited:0~790216",
+			"id": "packages/image/src/settle.ts > call:0~27ba85 > run > limited:0~d835f4",
 			"reason": "the image endpoint's encode path: the reader (Kit's read()) and the maker (sharp), once per file, then a streamed store read; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~e07cb2 > keep",
+			"id": "packages/image/src/settle.ts > call:0~27ba85 > keep",
 			"reason": "constant work: whether a made file is on disk, once per encode; test/settle-store-fails.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~e07cb2 > weigh",
+			"id": "packages/image/src/settle.ts > call:0~77baf6 > run",
+			"reason": "network bound: one remote original's fetch (remote-fetch.ts) per URL per ask that misses the store; test/remote-request.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/settle.ts > original_bytes",
+			"reason": "the image endpoint's encode path: Kit's read() or one remote fetch, once per file; test/server.test.ts and test/remote-request.test.ts run it"
+		},
+		{
+			"id": "packages/image/src/settle.ts > remote_keep",
+			"reason": "constant work: three divisions and one string per remote file asked for; test/remote-request.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/settle.ts > Refused > constructor",
+			"reason": "only on a refused remote fetch: builds one error"
+		},
+		{
+			"id": "packages/image/src/settle.ts > call:0~27ba85 > weigh",
 			"reason": "constant work: a made file's byte length, once per encode; test/settle-store-fails.test.ts runs it"
 		},
 		{
@@ -7229,8 +7245,236 @@
 			"reason": "build only: once per remote URL a module or markdown file names, and per redirect hop; test/remote.test.ts runs it (fast-check)"
 		},
 		{
-			"id": "packages/image/src/remote-hosts.ts > RemoteHosts > allows > some:0~75e191",
-			"reason": "build only: one compare per listed host per remote URL; test/remote.test.ts runs it"
+			"id": "packages/image/src/remote-hosts.ts > RemoteHosts > match",
+			"reason": "one compare per listed host per remote URL and redirect hop, at build and per remote file the endpoint makes; test/remote.test.ts runs it (fast-check)"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > host_rule",
+			"reason": "config time: one entry read per hosts entry; test/vercel.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > private_address",
+			"reason": "once per address a *.-listed host resolves to, per connection; its time is the resolver's; test/remote-image.test.ts runs it (fast-check)"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > private_address > some:0~bcdc15",
+			"reason": "nine prefix compares per IPv6 address resolved for a *.-listed host; test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > private_address > top",
+			"reason": "one shift per prefix compare; test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > in_v4",
+			"reason": "fifteen range compares per IPv4 address resolved for a *.-listed host; test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > in_v4 > some:0~5f70a8",
+			"reason": "one range compare; test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > v4_of",
+			"reason": "one regex test and four numbers per address; test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > v6_of",
+			"reason": "one split of at most eight groups per IPv6 address; test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-fetch.ts > discard",
+			"reason": "network bound: lets go of a body nobody reads, once per redirect or refused answer; its time is the network's"
+		},
+		{
+			"id": "packages/image/src/remote-fetch.ts > discard > catch:0~a1b2d0",
+			"reason": "an empty catch of a body cancel; no work"
+		},
+		{
+			"id": "packages/image/src/remote-fetch.ts > too_large",
+			"reason": "only on a refused fetch: builds one error"
+		},
+		{
+			"id": "packages/image/src/remote-fetch.ts > body_of",
+			"reason": "network bound: counts one image's body as it streams, once per remote fetch; test/remote.test.ts and test/remote-request.test.ts run it"
+		},
+		{
+			"id": "packages/image/src/remote-fetch.ts > body_of > catch:0~a1b2d0",
+			"reason": "an empty catch of a reader cancel; no work"
+		},
+		{
+			"id": "packages/image/src/remote-fetch.ts > asked",
+			"reason": "network bound: one request per hop, once per remote fetch; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-fetch.ts > fetch_chain",
+			"reason": "network bound: one image's redirects and answer, once per remote fetch; test/remote.test.ts and test/remote-request.test.ts run it"
+		},
+		{
+			"id": "packages/image/src/remote-fetch.ts > fetch_image",
+			"reason": "network bound: one owner scope and timer per remote fetch; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-fetch.ts > fetch_image > task:0~16377d",
+			"reason": "hands the fetch the scope's signal, once per remote fetch"
+		},
+		{
+			"id": "packages/image/src/remote-fetch.ts > fetch_image > timeout:0~a81881",
+			"reason": "closes the scope at the timeout, at most once per remote fetch"
+		},
+		{
+			"id": "packages/image/src/remote-fetch.ts > looks_like_image",
+			"reason": "at most eight compares of a fetched body's first bytes, once per remote fetch; test/remote-request.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-fetch.ts > starts",
+			"reason": "at most eight byte compares; test/remote-request.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-fetch.ts > web_get",
+			"reason": "a Worker's network fetch, once per hop; its time is the network's; the cloudflare e2e mode runs it"
+		},
+		{
+			"id": "packages/image/src/remote-fetch.ts > RemoteFailed > constructor",
+			"reason": "only on a failed remote fetch: builds one error"
+		},
+		{
+			"id": "packages/image/src/remote-fetch.ts > HopRefused > constructor",
+			"reason": "only on a redirect to an unlisted host: builds one error"
+		},
+		{
+			"id": "packages/image/src/remote-node.ts > SYSTEM_LOOKUP",
+			"reason": "the system resolver, once per connection; its time is the network's"
+		},
+		{
+			"id": "packages/image/src/remote-node.ts > connect_lookup",
+			"reason": "once per remote request: wraps the resolver; test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-node.ts > connect_lookup > <anonymous>~409bdc",
+			"reason": "once per connection: asks the resolver; its time is the network's; test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-node.ts > connect_lookup > <anonymous>~409bdc > lookup:2~834ac1",
+			"reason": "once per connection: checks each resolved address (private_address, exempt above); test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-node.ts > connect_lookup > <anonymous>~409bdc > lookup:2~834ac1 > find:0~eef9d2",
+			"reason": "one private_address per resolved address; test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-node.ts > node_transport",
+			"reason": "once per process: makes the transport"
+		},
+		{
+			"id": "packages/image/src/remote-node.ts > node_transport > <anonymous>~1be333",
+			"reason": "network bound: one node:http request per hop; its time is the network's; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-node.ts > node_transport > <anonymous>~1be333 > Promise:0~e331e5",
+			"reason": "network bound: one node:http request per hop; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-node.ts > node_transport > <anonymous>~1be333 > Promise:0~e331e5 > send:1~f1f79b",
+			"reason": "network bound: copies one answer's headers into a Response, once per hop; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-image.ts > remoteImage",
+			"reason": "one URL parse and one SHA-256 of the URL (remote_id) per remoteImage() a server load calls; test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-image.ts > remote_id",
+			"reason": "one SHA-256 of a URL (sha256.ts) per remoteImage(); test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-image.ts > b64url",
+			"reason": "one base64url of 32 bytes per remoteImage(); test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-image.ts > side",
+			"reason": "constant work: one integer check per side; test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-image.ts > invalid",
+			"reason": "only on bad input: builds one error"
+		},
+		{
+			"id": "packages/image/src/sha256.ts > sha256",
+			"reason": "one SHA-256 of a URL (under a hundred bytes: two blocks) per remoteImage(); test/remote-image.test.ts runs it (fast-check against node:crypto)"
+		},
+		{
+			"id": "packages/image/src/sha256.ts > rotr",
+			"reason": "one rotate, six per round; test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/recipe.ts > recipe_tail",
+			"reason": "one source_tail, or one base64url of a remote URL, per file URL the server names; test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/recipe.ts > remote_of_tail",
+			"reason": "one regex, one base64url decode and one URL parse per remote file asked for; test/remote-image.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/server.ts > listed",
+			"reason": "one URL decode and one host match per remote file asked for; test/remote-request.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/server.ts > unlisted_why",
+			"reason": "only on a refusal: picks one reason"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_WARNINGS > image_remote_refused > text",
+			"reason": "message text, said on a refused remote fetch only"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_WARNINGS > image_remote_refused > details",
+			"reason": "message text for the docs' error pages; no runtime work"
+		},
+		{
+			"id": "packages/image/src/render-messages.ts > IMAGE_RENDER_ERRORS > image_remote_invalid > text",
+			"reason": "message text, said on bad remoteImage() input only"
+		},
+		{
+			"id": "packages/image/src/render-messages.ts > IMAGE_RENDER_ERRORS > image_remote_invalid > details",
+			"reason": "message text for the docs' error pages; no runtime work"
+		},
+		{
+			"id": "packages/image/src/vite/build-files.ts > no_remote",
+			"reason": "build only, on a prerendered remoteImage() with no image({ remote }): builds one error; test/build-write.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/build-files.ts > remote_made",
+			"reason": "build only, network and sharp bound: one remote fetch and one encode per prerendered remote file; test/build-write.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/build-files.ts > remote_made > make:1~cef9a3",
+			"reason": "build only: hands the fetched bytes to the encode"
+		},
+		{
+			"id": "packages/image/src/vite/build-files.ts > renamed_in",
+			"reason": "build only: one byte search per remote source per prerendered file; test/build-write.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/encoder.ts > remote_pattern",
+			"reason": "config time: one pattern per hosts entry, for a message; test/vercel.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/vercel-config.ts > pattern_takes",
+			"reason": "build only: one regex test per remotePatterns entry per probe, once per build; test/vercel.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/vercel-config.ts > remote_missing",
+			"reason": "build only: once per build that lists vercel(); test/vercel.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/vercel-config.ts > remote_missing > some:0~bce8b1",
+			"reason": "build only: one pattern_takes per remotePatterns entry"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > file_of",
+			"reason": "module load only: three paths"
+		},
+		{
+			"id": "packages/image/src/vite/remote.ts > remote_module",
+			"reason": "build only: one virtual module's source per build; the e2e modes load it"
 		},
 		{
 			"id": "packages/image/src/vite/remote.ts > remote_src",
@@ -7255,46 +7499,6 @@
 		{
 			"id": "packages/image/src/vite/remote.ts > is_remote_file",
 			"reason": "build only: one path compare per og-image module; test/plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/remote.ts > discard",
-			"reason": "build only: lets go of a body nobody reads, once per redirect or refused answer; its time is the network's"
-		},
-		{
-			"id": "packages/image/src/vite/remote.ts > discard > catch:0~a1b2d0",
-			"reason": "build only: an empty catch of a body cancel; no work"
-		},
-		{
-			"id": "packages/image/src/vite/remote.ts > too_large",
-			"reason": "only on a refused fetch: builds one error"
-		},
-		{
-			"id": "packages/image/src/vite/remote.ts > body_of",
-			"reason": "build only, network bound: counts one image's body as it streams, once per image per process; test/remote.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/remote.ts > body_of > catch:0~a1b2d0",
-			"reason": "build only: an empty catch of a reader cancel; no work"
-		},
-		{
-			"id": "packages/image/src/vite/remote.ts > asked",
-			"reason": "build only, network bound: one fetch per hop, once per image per process; test/remote.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/remote.ts > fetch_chain",
-			"reason": "build only, network bound: one image's redirects and answer, once per image per process; test/remote.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/remote.ts > fetch_once",
-			"reason": "build only, network bound: one owner scope and timer per image per process; test/remote.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/remote.ts > fetch_once > task:0~df21ff",
-			"reason": "build only: hands the fetch the scope's signal, once per image per process"
-		},
-		{
-			"id": "packages/image/src/vite/remote.ts > fetch_once > timeout:0~a81881",
-			"reason": "build only: closes the scope at the timeout, at most once per image"
 		},
 		{
 			"id": "packages/image/src/vite/remote.ts > read_kept",

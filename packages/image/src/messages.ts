@@ -380,6 +380,21 @@ export const IMAGE_WARNINGS = {
 			one. Build again once the host answers.
 		`
 	},
+	image_remote_refused: {
+		text: (a: { url: string; status: number; reason: string }): string =>
+			`the image endpoint answered ${a.status} for a file of the remote image ${a.url}: ${a.reason}.`,
+		details: (): string => prose`
+			A \`remoteImage(url, { width, height })\` is made by the image endpoint from the URL's bytes,
+			fetched when a file is first asked for, under \`image({ remote: { hosts, maxBytes, timeout } })\`.
+			It answers 404 when the URL's host is not in \`hosts\` (the URL was signed, but the list
+			changed since, or \`remote\` is not set), when a redirect leads to a host that is not, or
+			when a host listed only by a \`*.\` entry resolves to a private address (list that host
+			itself to allow it); 413 when the image is past \`maxBytes\`; 504 when it took longer than
+			\`timeout\`; 502 when the host answered an error status, could not be reached, or sent
+			something that is not a JPEG, PNG, WebP, AVIF, GIF or TIFF image. None of these answers is
+			kept by a browser or a CDN, so the next ask tries again.
+		`
+	},
 	image_store_unsafe: {
 		text: (a: { dir: string }): string =>
 			`the image file store ${a.dir} is not a folder only this user owns: files are made on every ask, and not kept.`,
