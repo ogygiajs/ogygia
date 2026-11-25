@@ -6853,6 +6853,42 @@
 			"reason": "a message's prose for its docs page and server warning: constant text, printed once per process"
 		},
 		{
+			"id": "packages/image/src/messages.ts > IMAGE_WARNINGS > image_still_left_out > details",
+			"reason": "a message's prose for its docs page and build warning: constant text, printed once per build"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_WARNINGS > image_still_left_out > text",
+			"reason": "a message's prose for its docs page and build warning: constant text, printed once per build"
+		},
+		{
+			"id": "packages/image/src/vite/encoder.ts > makes_stills > some:0~4bba74",
+			"reason": "config time, once per image() call: a walk of the one to two encoders listed; test/plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/index.ts > descriptor_module > map:0~39c904",
+			"reason": "build only: one line per twin (at most a few) of one og-image module, once per image per build; packages/image/e2e runs it"
+		},
+		{
+			"id": "packages/image/src/vite/index.ts > descriptor_module > map:0~e058f7",
+			"reason": "build only: one line per twin (at most a few) of one og-image module, once per image per build; packages/image/e2e runs it"
+		},
+		{
+			"id": "packages/image/src/vite/index.ts > twin_files",
+			"reason": "build only: plans each twin file of one og-image module, its cost the plan's (cached by id), once per image per build; packages/image/e2e runs it"
+		},
+		{
+			"id": "packages/image/src/vite/macro.ts > image_call_edits > forEach:0~6a6c0b > map:0~fc976a",
+			"reason": "build only: one path rewrite per art twin of one macro call, once per call per build; packages/image/e2e runs it"
+		},
+		{
+			"id": "packages/image/src/vite/macro.ts > image_call_edits > forEach:0~6a6c0b > twin",
+			"reason": "build only: one path resolve and existence check per twin of one macro call, once per call per build; packages/image/e2e runs it"
+		},
+		{
+			"id": "packages/image/src/vite/options.ts > check_preset > forEach:0~a05df8",
+			"reason": "config time, once per preset art entry: a few key checks; test/twins.test.ts runs it"
+		},
+		{
 			"id": "packages/image/src/messages.ts > IMAGE_WARNINGS > image_source_changed > details",
 			"reason": "a message's prose for its docs page and server warning: constant text, printed when a stale recipe is asked for"
 		},
