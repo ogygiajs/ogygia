@@ -271,6 +271,16 @@ export function widths_of(encoders: readonly Encoder[]): readonly number[] | nul
 	return e === undefined || e.widths === 'any' ? null : e.widths;
 }
 
+/** Whether `encoders` can make a moving source's still on a page rendered on request: one's links
+ *  can, or the endpoint's maker can. */
+export function makes_stills(encoders: readonly Encoder[]): boolean {
+	const e = endpoint_of(encoders);
+	return (
+		encoders.some((x) => x.links?.includes('still') === true) ||
+		(e !== undefined && !cannot(e.name).includes('still'))
+	);
+}
+
 /** How `encoders` name a recipe at render ({@link namer_module}). */
 export function namer_plan(encoders: readonly Encoder[], dev: boolean): NamerPlan {
 	const e = endpoint_of(encoders);

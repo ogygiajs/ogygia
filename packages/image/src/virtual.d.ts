@@ -15,6 +15,8 @@ declare module 'virtual:ogygia-image/maker' {
 	export const store: import('./maker.ts').Maker['store'];
 }
 
+declare module 'virtual:ogygia-image/theme.css' {}
+
 declare module 'virtual:ogygia-image/namer' {
 	export const name: import('./recipe.ts').Namer;
 }

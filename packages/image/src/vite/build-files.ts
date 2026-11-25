@@ -129,6 +129,8 @@ export async function handoff_for(
 export interface WarmSource {
 	file: string;
 	desc: Omit<ImageDescriptor, 'src'>;
+	/** Each twin's original file, by its source id. */
+	originals: Readonly<Record<string, string>>;
 	presets: string[];
 }
 
@@ -269,10 +271,11 @@ function jobs_of(
 			const preset = cfg.presets[name];
 			if (!preset) continue;
 			lay_out({ ...source.desc, src: '' }, preset_request(preset), cfg, (recipe) => {
+				const file = source.originals[recipe.id] ?? source.file;
 				jobs.set(built_file(recipe), {
 					recipe,
-					source: source.file,
-					original: () => fs.readFileSync(source.file)
+					source: file,
+					original: () => fs.readFileSync(file)
 				});
 				return '';
 			});

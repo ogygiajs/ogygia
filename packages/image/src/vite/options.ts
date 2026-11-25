@@ -8,6 +8,7 @@
 import type { ImageOps } from '../descriptor.ts';
 import { parse_aspect, type ImagePreset, type OutputFormat } from '../config.ts';
 import { OgygiaError } from '../messages.ts';
+import { is_media_condition, MEDIA_RULE } from '../layout.ts';
 import { POSITIONS } from '../recipe.ts';
 import type { Encoder } from './encoder.ts';
 
@@ -28,6 +29,19 @@ export interface ImageOptions {
 	 *  on a live server: `<Img preset="cover">` of this source then names static files the build
 	 *  made instead of asking the endpoint. A prerendered page needs none: its render asks already. */
 	warm?: string | string[];
+	/** The image's dark file (`'./chart-dark.png'`, relative to this file), shown when the visitor's
+	 *  theme is dark. It must have the same shape, so the page keeps its box when the theme flips. */
+	dark?: string;
+	/** The designer's other files, by the media condition each is shown at
+	 *  (`{ '(max-width: 600px)': './hero-tall.jpg' }`), each with its own shape and box. */
+	art?: Record<string, string>;
+}
+
+/** How the app writes its theme, as two CSS selectors that match the root when each theme is
+ *  chosen (`{ dark: ':root[data-theme="dark"]', light: ':root[data-theme="light"]' }`). */
+export interface ImageTheme {
+	dark: string;
+	light: string;
 }
 
 /** The plugin's options: every image's defaults, the presets, and markdown's. */
@@ -56,6 +70,11 @@ export interface ImagePluginOptions {
 	 *  `sharp()` only last; any other fails the build. Default `sharp()`: the app's own endpoint makes every live file. A
 	 *  prerendered page's files are made by the build, with sharp, whatever this says. */
 	encoder?: Encoder | Encoder[];
+	/** An app with a theme switch: the selectors its dark and light themes are written by. A
+	 *  source with a dark file then renders two `<picture>`s, and the plugin's stylesheet shows the
+	 *  dark one when the dark selector matches, or when the system prefers dark and the light
+	 *  selector does not. Without it, the system's setting alone picks. */
+	theme?: ImageTheme;
 }
 
 export { DEFAULT_BREAKPOINTS, DEFAULT_FORMATS } from '../config.ts';
@@ -75,7 +94,14 @@ const OP_KEYS: ReadonlySet<string> = new Set([
 	'tint',
 	'modulate'
 ]);
-const IMAGE_KEYS: ReadonlySet<string> = new Set(['quality', 'placeholder', 'ops', 'warm']);
+const IMAGE_KEYS: ReadonlySet<string> = new Set([
+	'quality',
+	'placeholder',
+	'ops',
+	'warm',
+	'dark',
+	'art'
+]);
 const PLUGIN_KEYS: ReadonlySet<string> = new Set([
 	'quality',
 	'formats',
@@ -83,8 +109,13 @@ const PLUGIN_KEYS: ReadonlySet<string> = new Set([
 	'breakpoints',
 	'presets',
 	'markdown',
-	'encoder'
+	'encoder',
+	'theme'
 ]);
+const ART_KEYS: ReadonlySet<string> = new Set(['media', 'aspect', 'position', 'width']);
+const THEME_KEYS: ReadonlySet<string> = new Set(['dark', 'light']);
+// oxlint-disable-next-line ogygia/one-markup-walk -- not markup: it refuses a CSS selector that could close the theme stylesheet's rule
+const SELECTOR_RE = /^[^{};<>]+$/;
 const ENCODER_NAMES: ReadonlySet<string> = new Set(['sharp', 'cloudflare', 'vercel']);
 const PRESET_KEYS: ReadonlySet<string> = new Set([
 	'layout',
@@ -97,7 +128,8 @@ const PRESET_KEYS: ReadonlySet<string> = new Set([
 	'placeholder',
 	'morph',
 	'quality',
-	'formats'
+	'formats',
+	'art'
 ]);
 const MARKDOWN_KEYS: ReadonlySet<string> = new Set(['width', 'animated']);
 const PRESET_NAME_RE = /^[A-Za-z][\w-]*$/;
@@ -199,6 +231,20 @@ export function check_image_options(
 		if (!is_object(opts.ops)) invalid(where, 'ops', 'an object');
 		unknown_keys(`${where} ops`, opts.ops, OP_KEYS);
 	}
+	if (opts.dark !== undefined && !(typeof opts.dark === 'string' && opts.dark))
+		invalid(where, 'dark', "the dark file's path, relative to this file ('./chart-dark.png')");
+	if (opts.art !== undefined) {
+		if (!is_object(opts.art) || !Object.keys(opts.art).length)
+			invalid(
+				where,
+				'art',
+				"an object of media condition → path ({ '(max-width: 600px)': './x.jpg' })"
+			);
+		for (const [media, file] of Object.entries(opts.art)) {
+			if (!is_media_condition(media)) invalid(where, `art['${media}']`, MEDIA_RULE);
+			if (!(typeof file === 'string' && file)) invalid(where, `art['${media}']`, 'a path');
+		}
+	}
 	if (opts.warm !== undefined) {
 		const names = typeof opts.warm === 'string' ? [opts.warm] : opts.warm;
 		if (!Array.isArray(names) || !names.length || names.some((n) => typeof n !== 'string'))
@@ -234,7 +280,33 @@ export function check_preset(name: string, o: unknown): ImagePreset {
 	check_boolean(where, 'morph', p.morph);
 	check_quality(where, p.quality);
 	check_formats(where, p.formats);
+	if (p.art !== undefined) {
+		if (!Array.isArray(p.art) || !p.art.length)
+			invalid(where, 'art', 'a non-empty list of { media, aspect?, position?, width? }');
+		p.art.forEach((a: unknown, i) => {
+			const at = `${where} art[${i}]`;
+			if (!is_object(a)) invalid(at, 'art', 'an object');
+			unknown_keys(at, a, ART_KEYS);
+			if (!is_media_condition(a.media)) invalid(at, 'media', MEDIA_RULE);
+			check_pixels(at, 'width', a.width);
+			if (a.aspect !== undefined && parse_aspect(a.aspect as number | string) === null)
+				invalid(at, 'aspect', "a ratio above 0, like 16 / 9 or '16/9'");
+			if (a.position !== undefined && !POSITIONS.has(a.position as string))
+				invalid(at, 'position', `one of ${[...POSITIONS].join(', ')}`);
+		});
+	}
 	return p;
+}
+
+function check_theme(where: string, t: unknown): void {
+	if (t === undefined) return;
+	const rule =
+		'two CSS selectors, { dark: \':root[data-theme="dark"]\', light: \':root[data-theme="light"]\' }';
+	if (!is_object(t)) invalid(where, 'theme', rule);
+	unknown_keys(`${where} theme`, t, THEME_KEYS);
+	for (const key of ['dark', 'light'])
+		if (!(typeof t[key] === 'string' && SELECTOR_RE.test(t[key] as string)))
+			invalid(where, `theme.${key}`, rule);
 }
 
 /** Check the plugin's options. */
@@ -267,6 +339,7 @@ export function check_plugin_options(o: unknown): ImagePluginOptions {
 		}
 	}
 	check_encoders(where, opts.encoder);
+	check_theme(where, opts.theme);
 	if (opts.markdown !== undefined && opts.markdown !== false) {
 		if (!is_object(opts.markdown)) invalid(where, 'markdown', 'an object or false');
 		unknown_keys(`${where} markdown`, opts.markdown, MARKDOWN_KEYS);

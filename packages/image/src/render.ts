@@ -30,15 +30,15 @@ export function preset_of(name: string | undefined): ImagePreset {
 	});
 }
 
-/** The URL of one file of `of`; `built` when the build made it (a warmed preset's). */
-export function file_url(of: ImageDescriptor, recipe: Recipe, built: boolean): string {
+/** The URL of one file; `built` when the build made it (a warmed preset's). */
+export function file_url(recipe: Recipe, built: boolean): string {
 	const url = mint(recipe, built);
 	if (url !== null) return url;
 	if (built) return built_url(config.paths, recipe);
 	const link = name(recipe);
 	if (link !== null) return link;
 	if (typeof window === 'undefined') throw new RenderError('image_no_server');
-	return of.src;
+	return recipe.src;
 }
 
 /** What {@link getImage} takes: a preset by name, and anything to say over it. */
@@ -60,5 +60,5 @@ export function getImage(of: ImageDescriptor, request: GetImageOptions = {}): La
 		preset !== undefined &&
 		of.warm?.includes(preset) === true &&
 		same_files(req, preset_request(p));
-	return lay_out(of, req, config, (recipe) => file_url(of, recipe, warmed));
+	return lay_out(of, req, config, (recipe) => file_url(recipe, warmed));
 }

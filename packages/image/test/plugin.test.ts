@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { Plugin, ResolvedConfig } from 'vite';
-import { beforeAll, expect, test } from 'vitest';
+import { beforeAll, expect, test, vi } from 'vitest';
 import { cloudflare, image, sharp, vercel, type ImagePluginOptions } from '../src/vite/index.ts';
 import { app_with_sharp, make_images } from './fixtures.ts';
 
@@ -169,4 +169,36 @@ test("only an app that lists vercel() gets the output check, run after the serve
 	)!;
 	expect(check.apply).toBe('build');
 	expect(check.closeBundle).toMatchObject({ order: 'post', sequential: true });
+});
+
+test('vercel() alone offers no still of a moving image, and its server build says so once; a list with sharp() does', async () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	try {
+		await server_build({ encoder: vercel() }, '@sveltejs/adapter-vercel');
+		expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toMatch(/image_still_left_out/);
+		const define = { __SVELTEKIT_APP_DIR__: '"_app"' };
+		const alone = await loader(define, { encoder: vercel() }, 'build');
+		expect(String(await load(alone, '\0virtual:ogygia-image/config'))).toContain('"stills":false');
+		const dev = await loader(define, { encoder: vercel() });
+		expect(String(await load(dev, '\0virtual:ogygia-image/config'))).not.toContain('stills');
+		const listed = await loader(define, { encoder: [vercel(), sharp()] }, 'build');
+		expect(String(await load(listed, '\0virtual:ogygia-image/config'))).not.toContain('stills');
+	} finally {
+		warn.mockRestore();
+	}
+});
+
+test('the theme stylesheet resolves to a file path, with and without a query', async () => {
+	const plugin = await loader(undefined, {
+		theme: { dark: '.dark', light: '.light' }
+	});
+	const resolve = (id: string): string => (plugin.resolveId as (id: string) => string)(id);
+	const file = resolve('virtual:ogygia-image/theme.css');
+	expect(file).toMatch(/^\/.*\/src\/og-theme\.css$/);
+	expect(resolve('virtual:ogygia-image/theme.css?inline')).toBe(`${file}?inline`);
+	expect(resolve(`/@fs${file}?inline`)).toBe(`${file}?inline`);
+	expect(String(await load(plugin, `${file}?inline`))).toContain(':is(.dark)');
+	const plain = await loader();
+	expect(String(await load(plain, file))).toBe('');
+	expect(String(await load(plugin, '\0virtual:ogygia-image/config'))).toContain('"themed":true');
 });

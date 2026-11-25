@@ -329,6 +329,20 @@ export const IMAGE_WARNINGS = {
 			per file.
 		`
 	},
+	image_still_left_out: {
+		text: (a: { encoders: string }): string => prose`
+			${a.encoders} cannot make the first frame of a moving image, so no moving image offers a
+			still to visitors who ask for less motion.
+		`,
+		details: (): string => prose`
+			A moving image (an animated GIF or WebP) gets a still twin: its first frame, shown at
+			\`(prefers-reduced-motion: reduce)\`, which is what WCAG 2.2.2 asks for. A file a page
+			rendered on request names is made by the app's encoder, and Vercel's optimizer serves a
+			moving source as it is, with no way to keep one frame. List \`sharp()\` after it
+			(\`encoder: [vercel(), sharp()]\`) so the app's endpoint makes stills, or prerender the
+			pages that show moving images.
+		`
+	},
 	image_store_unsafe: {
 		text: (a: { dir: string }): string =>
 			`the image file store ${a.dir} is not a folder only this user owns: files are made on every ask, and not kept.`,

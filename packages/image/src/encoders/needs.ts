@@ -1,7 +1,8 @@
 /**
  * What a recipe NEEDS of whoever makes its file: the box it is made to, whether that cuts the source
  * and where the crop keeps, each pixel operation, the format, and a source not every encoder reads
- * (an AVIF, a GIF, a TIFF, one that moves), and a PNG made from another format. An encoder's capabilities (./capabilities.ts) say which it can make;
+ * (an AVIF, a GIF, a TIFF, one that moves), a PNG made from another format, and the first frame
+ * alone of one that moves (a still). An encoder's capabilities (./capabilities.ts) say which it can make;
  * the namer (../namers/resolve.ts) reads a recipe's needs at render, in the server and the browser.
  *
  * @packageDocumentation
@@ -42,7 +43,8 @@ export const NEEDS = [
 	'source avif',
 	'source gif',
 	'source tiff',
-	'animated'
+	'animated',
+	'still'
 ] as const;
 
 /** One thing a recipe asks of its encoder. */
@@ -77,7 +79,8 @@ export function needs_of(recipe: Omit<Recipe, 'src'>): Need[] {
 	const from = recipe.source?.format;
 	if (from === 'avif' || from === 'gif' || from === 'tiff') has.add(`source ${from}`);
 	if (recipe.format === 'png' && from !== 'png') has.add('png from another format');
-	if (recipe.source?.animated) has.add('animated');
+	if (recipe.still) has.add('still');
+	else if (recipe.source?.animated) has.add('animated');
 	const p = recipe.position;
 	has.add(p === undefined || p === 'centre' ? 'position center' : `position ${p}`);
 	const ops = recipe.ops ?? {};

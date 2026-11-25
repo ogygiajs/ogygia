@@ -55,7 +55,8 @@ const SHARP_AS: Readonly<Record<Need, string>> = {
 	'source avif': 'reads AVIF',
 	'source gif': 'reads GIF',
 	'source tiff': 'reads TIFF',
-	animated: '{ animated: true } keeps every frame'
+	animated: '{ animated: true } keeps every frame',
+	still: '{ pages: 1 } reads the first frame'
 };
 
 const CLOUDFLARE: Readonly<Record<Need, Capability>> = {
@@ -94,7 +95,8 @@ const CLOUDFLARE: Readonly<Record<Need, Capability>> = {
 	'source avif': { can: false, as: 'reads AVIF on an Enterprise plan only' },
 	'source gif': { can: true, as: 'reads GIF, animations included' },
 	'source tiff': { can: true, as: 'reads TIFF (its first page)' },
-	animated: { can: true, as: 'anim=true (the default) keeps every frame' }
+	animated: { can: true, as: 'anim=true (the default) keeps every frame' },
+	still: { can: true, as: 'anim=false keeps the first frame' }
 };
 
 const CLOUDFLARE_LINKS: Readonly<Record<Need, Capability>> = {
@@ -145,7 +147,8 @@ const VERCEL: Readonly<Record<Need, Capability>> = {
 	'source avif': { can: true, as: 'reads AVIF' },
 	'source gif': { can: false, as: VERCEL_PASSED },
 	'source tiff': { can: false, as: VERCEL_PASSED },
-	animated: { can: false, as: 'an animated source is served as it is, not resized' }
+	animated: { can: false, as: 'an animated source is served as it is, not resized' },
+	still: { can: false, as: 'no option keeps one frame' }
 };
 
 const TABLES: Readonly<

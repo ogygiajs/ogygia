@@ -158,6 +158,12 @@ export function image_call_edits(
 	calls.forEach((c, i) => {
 		if (REMOTE_RE.test(c.src) || c.src.startsWith('data:'))
 			throw new OgygiaError('image_remote_unsupported', { file: rel, src: c.src });
+		if (c.glob && (c.options.dark !== undefined || c.options.art !== undefined))
+			throw new OgygiaError('image_option_invalid', {
+				where: `${rel}:${c.line}`,
+				key: c.options.dark !== undefined ? 'dark' : 'art',
+				rule: 'given to one image: a glob matches many, and each needs its own twin file'
+			});
 		if (c.glob) {
 			const matches = fs.globSync(c.src, { cwd: dir });
 			if (!matches.length)
@@ -174,10 +180,24 @@ export function image_call_edits(
 		watch(file);
 		if (!fs.existsSync(file))
 			throw new OgygiaError('image_not_found', { file: `${rel}:${c.line}`, src: c.src });
+		const twin = (src: string): string => {
+			const at = path.resolve(dir, src);
+			watch(at);
+			if (!fs.existsSync(at))
+				throw new OgygiaError('image_not_found', { file: `${rel}:${c.line}`, src });
+			const near = path.relative(path.dirname(file), at).split(path.sep).join('/');
+			return near.startsWith('.') ? near : `./${near}`;
+		};
+		const options: ImageOptions = { ...c.options };
+		if (options.dark !== undefined) options.dark = twin(options.dark);
+		if (options.art !== undefined)
+			options.art = Object.fromEntries(
+				Object.entries(options.art).map(([media, src]) => [media, twin(src)])
+			);
 		const name = `__og_image_${i}`;
 		let list = heads.get(c.region);
 		if (!list) heads.set(c.region, (list = []));
-		list.push(`import ${name} from ${JSON.stringify(image_specifier(c.src, c.options))};`);
+		list.push(`import ${name} from ${JSON.stringify(image_specifier(c.src, options))};`);
 		edits.push({ start: c.start, end: c.end, text: name });
 	});
 	for (const [at, lines] of heads)

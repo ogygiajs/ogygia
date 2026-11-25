@@ -103,7 +103,7 @@ describe('lay_out', () => {
 		expect([laid.width, laid.height, laid.cover]).toEqual([400, 400, true]);
 		expect(laid.sizes).toBe('(min-width: 400px) 400px, 100vw');
 		expect(laid.srcset).toBe('/400x400.webp 400w, /640x640.webp 640w, /800x800.webp 800w');
-		expect(laid.preload.href).toBe('/400x400.avif');
+		expect(laid.preloads.map((p) => p.href)).toEqual(['/400x400.avif']);
 	});
 
 	test('an aspect crops every file to that shape, no wider than the source covers', () => {
@@ -137,10 +137,25 @@ describe('lay_out', () => {
 		expect(laid.sources).toEqual([]);
 	});
 
-	test('an animated source is offered as WebP only', () => {
-		const laid = lay_out(image({ animated: true, format: 'gif' }), { width: 600 }, CFG, url);
-		expect(laid.sources).toEqual([]);
+	test('an animated source moves as WebP only, with a still of its first frame for reduced motion', () => {
+		const still = (r: Recipe): string => `${url(r)}${r.still ? '?still' : ''}`;
+		const laid = lay_out(image({ animated: true, format: 'gif' }), { width: 600 }, CFG, still);
+		expect(laid.sources.map((s) => [s.media, s.type, s.srcset.split(', ')[0]])).toEqual([
+			['(prefers-reduced-motion: reduce)', 'image/avif', '/600x400.avif?still 600w'],
+			['(prefers-reduced-motion: reduce)', 'image/webp', '/600x400.webp?still 600w']
+		]);
 		expect(laid.src).toBe('/600x400.webp');
+		expect(laid.srcset).not.toContain('?still');
+	});
+
+	test('no still is offered when the encoders cannot make one', () => {
+		const laid = lay_out(
+			image({ animated: true, format: 'gif' }),
+			{ width: 600 },
+			{ ...CFG, stills: false },
+			url
+		);
+		expect(laid.sources).toEqual([]);
 	});
 
 	test('quality: the request over the source over the plugin', () => {
@@ -171,8 +186,10 @@ describe('lay_out', () => {
 
 	test('the preload names the best format', () => {
 		const laid = lay_out(image(), { layout: 'fullWidth' }, CFG, url);
-		expect(laid.preload.type).toBe('image/avif');
-		expect(laid.preload.srcset).toContain('.avif 2048w');
+		expect(laid.preloads).toHaveLength(1);
+		expect(laid.preloads[0]!.type).toBe('image/avif');
+		expect(laid.preloads[0]!.srcset).toContain('.avif 2048w');
+		expect(laid.preloads[0]!.media).toBeUndefined();
 	});
 });
 

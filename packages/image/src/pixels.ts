@@ -149,8 +149,8 @@ export async function placeholder_of(
 	return `data:image/webp;base64,${tiny.toString('base64')}`;
 }
 
-/** One recipe's file from its original's bytes (every frame kept when the original moves). An
- *  original {@link too_large} to read fails, saying why. */
+/** One recipe's file from its original's bytes (every frame kept when the original moves, its
+ *  first only for a `still`). An original {@link too_large} to read fails, saying why. */
 export async function encode_recipe(
 	bytes: Uint8Array,
 	recipe: {
@@ -159,11 +159,12 @@ export async function encode_recipe(
 		format: ImageFormat;
 		quality?: number;
 		position?: string;
+		still?: true;
 		ops?: ImageOps;
 	}
 ): Promise<Buffer> {
 	const meta = await metadata_of(bytes);
 	const why = too_large(meta);
 	if (why !== null) throw new Error(`the original is too large to read: ${why}`);
-	return encode(bytes, recipe, (meta.pages ?? 1) > 1, pixels_read(meta));
+	return encode(bytes, recipe, !recipe.still && (meta.pages ?? 1) > 1, pixels_read(meta));
 }

@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`options > the theme stylesheet shows the dark picture by the app's selectors, or the system's when no selector says 1`] = `
+"@media not all and (prefers-color-scheme: dark) {
+	picture[data-og-theme='dark']:not(:is(:root[data-theme="dark"]) *) { display: none; }
+	:is(:root[data-theme="dark"]) picture[data-og-theme='light'] { display: none; }
+}
+@media (prefers-color-scheme: dark) {
+	:is(:root[data-theme="light"]) picture[data-og-theme='dark']:not(:is(:root[data-theme="dark"]) *) { display: none; }
+	picture[data-og-theme='light']:not(:is(:root[data-theme="light"]) *) { display: none; }
+	:is(:root[data-theme="dark"]) picture[data-og-theme='light'] { display: none; }
+}"
+`;

@@ -71,9 +71,56 @@ test("a warmed preset's files are written under the app folder by their recipe",
 	const handoff = await handoff_for(true);
 	const out = output('<p>no images</p>');
 	const desc = { id, width: 2400, height: 1600, format: 'jpeg' as const };
-	await write_built(handoff, CFG, [{ file: jpg, desc, presets: ['thumb'] }], out);
+	await write_built(handoff, CFG, [{ file: jpg, desc, originals: {}, presets: ['thumb'] }], out);
 	const made = fs.readdirSync(path.join(out, 'client', '_app', 'immutable', 'og')).sort();
 	expect(made).toEqual([`${id}-100x100.webp`, `${id}-200x200.webp`]);
+});
+
+test("warming a preset warms its twins: a dark file's files are made from that file, and an art crop's from the source", async () => {
+	delete process.env.__OGYGIA_IMAGE_BUILD;
+	const handoff = await handoff_for(true);
+	const out = output('<p>no images</p>');
+	const dark = path.join(path.dirname(jpg), 'dark-twin.jpg');
+	await sharp(jpg).negate().toFile(dark);
+	const dark_id = await id_of(dark);
+	const meta = await sharp(jpg).metadata();
+	const shape = { width: meta.width, height: meta.height, format: 'jpeg' as const };
+	const desc = {
+		id,
+		...shape,
+		twins: [
+			{
+				media: '(prefers-color-scheme: dark)',
+				theme: 'dark' as const,
+				of: { id: dark_id, src: '', ...shape }
+			}
+		]
+	};
+	const cfg: RenderConfig = {
+		...CFG,
+		presets: {
+			thumb: { ...CFG.presets.thumb, art: [{ media: '(max-width: 600px)', aspect: '2/1' }] }
+		}
+	};
+	await write_built(
+		handoff,
+		cfg,
+		[{ file: jpg, desc, originals: { [dark_id]: dark }, presets: ['thumb'] }],
+		out
+	);
+	const made = fs.readdirSync(path.join(out, 'client', '_app', 'immutable', 'og')).sort();
+	expect(made).toEqual(
+		[
+			`${id}-100x100.webp`,
+			`${id}-200x200.webp`,
+			`${id}-100x50.webp`,
+			`${id}-200x100.webp`,
+			`${dark_id}-100x100.webp`,
+			`${dark_id}-200x200.webp`,
+			`${dark_id}-100x50.webp`,
+			`${dark_id}-200x100.webp`
+		].sort()
+	);
 });
 
 test('a page that changed a marked URL before writing it (escaped it) fails the build with a code', async () => {
@@ -103,7 +150,12 @@ test('a file the build cannot make fails it with a code that names the source fi
 	const warmed = await handoff_for(true);
 	const desc = { id: broken_id, width: 2400, height: 1600, format: 'jpeg' as const };
 	await expect(
-		write_built(warmed, CFG, [{ file: broken, desc, presets: ['thumb'] }], output(''))
+		write_built(
+			warmed,
+			CFG,
+			[{ file: broken, desc, originals: {}, presets: ['thumb'] }],
+			output('')
+		)
 	).rejects.toMatchObject({ message: expect.stringContaining(broken) });
 });
 

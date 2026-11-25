@@ -36,6 +36,7 @@ exports[`the capability table, row by row 1`] = `
 | sharp            | source gif              | true  | reads GIF                                                                         |
 | sharp            | source tiff             | true  | reads TIFF                                                                        |
 | sharp            | animated                | true  | { animated: true } keeps every frame                                              |
+| sharp            | still                   | true  | { pages: 1 } reads the first frame                                                |
 | cloudflare       | box                     | true  | fit=cover                                                                         |
 | cloudflare       | crop                    | true  | fit=cover                                                                         |
 | cloudflare       | position center         | true  | no gravity (the center is the default)                                            |
@@ -69,6 +70,7 @@ exports[`the capability table, row by row 1`] = `
 | cloudflare       | source gif              | true  | reads GIF, animations included                                                    |
 | cloudflare       | source tiff             | true  | reads TIFF (its first page)                                                       |
 | cloudflare       | animated                | true  | anim=true (the default) keeps every frame                                         |
+| cloudflare       | still                   | true  | anim=false keeps the first frame                                                  |
 | cloudflare links | box                     | true  | fit=cover                                                                         |
 | cloudflare links | crop                    | true  | fit=cover                                                                         |
 | cloudflare links | position center         | true  | no gravity (the center is the default)                                            |
@@ -102,6 +104,7 @@ exports[`the capability table, row by row 1`] = `
 | cloudflare links | source gif              | true  | reads GIF, animations included                                                    |
 | cloudflare links | source tiff             | true  | reads TIFF (its first page)                                                       |
 | cloudflare links | animated                | true  | anim=true (the default) keeps every frame                                         |
+| cloudflare links | still                   | true  | anim=false keeps the first frame                                                  |
 | vercel           | box                     | true  | w=<a width of images.sizes>; the height follows the source                        |
 | vercel           | crop                    | false | no crop: w= keeps the source's shape                                              |
 | vercel           | position center         | true  | nothing is cut, so nothing to place                                               |
@@ -134,5 +137,6 @@ exports[`the capability table, row by row 1`] = `
 | vercel           | source avif             | true  | reads AVIF                                                                        |
 | vercel           | source gif              | false | served as it is: only JPEG, PNG, WebP and AVIF sources are optimized              |
 | vercel           | source tiff             | false | served as it is: only JPEG, PNG, WebP and AVIF sources are optimized              |
-| vercel           | animated                | false | an animated source is served as it is, not resized                                |"
+| vercel           | animated                | false | an animated source is served as it is, not resized                                |
+| vercel           | still                   | false | no option keeps one frame                                                         |"
 `;

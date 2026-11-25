@@ -16,7 +16,7 @@ import { warn } from '../messages.ts';
 
 interface Transformer {
 	transform(t: CloudflareTransform): Transformer;
-	output(o: { format: string; quality?: number }): Promise<{ response(): Response }>;
+	output(o: { format: string; quality?: number; anim?: false }): Promise<{ response(): Response }>;
 }
 
 /** The part of an Images binding the maker uses. */

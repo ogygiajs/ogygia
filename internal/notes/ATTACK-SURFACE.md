@@ -136,7 +136,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-118 entries.
+114 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -229,10 +229,6 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/image/src/recipe.ts` | `parse_recipe` | `JSON.parse` | 1 |
 | `packages/image/src/vite/encoder.ts` | `listed` | `JSON.parse` | 1 |
 | `packages/image/src/vite/index.ts` | `image` | `JSON.parse` | 1 |
-| `packages/image/src/vite/index.ts` | `image` | `JSON.parse` | 1 |
-| `packages/image/src/vite/index.ts` | `image` | `JSON.parse` | 1 |
-| `packages/image/src/vite/index.ts` | `kit_paths` | `JSON.parse` | 1 |
-| `packages/image/src/vite/index.ts` | `kit_paths` | `JSON.parse` | 1 |
 | `packages/image/src/vite/index.ts` | `kit_paths` | `JSON.parse` | 1 |
 | `packages/image/src/vite/macro.ts` | `options_of_query` | `Buffer.from base64url` | 1 |
 | `packages/image/src/vite/macro.ts` | `options_of_query` | `JSON.parse` | 1 |

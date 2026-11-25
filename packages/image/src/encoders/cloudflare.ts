@@ -27,7 +27,12 @@ export interface CloudflareTransform {
 /** The steps of one recipe: the transforms in order, then the output. */
 export interface CloudflareSteps {
 	transforms: CloudflareTransform[];
-	output: { format: `image/${'avif' | 'webp' | 'png' | 'jpeg'}`; quality?: number };
+	output: {
+		format: `image/${'avif' | 'webp' | 'png' | 'jpeg'}`;
+		quality?: number;
+		/** The first frame only (a still). */
+		anim?: false;
+	};
 }
 
 const GRAVITY: Readonly<Record<string, CloudflareTransform['gravity']>> = {
@@ -85,7 +90,8 @@ export function cloudflare_steps(r: Omit<Recipe, 'src'>): CloudflareSteps {
 		transforms,
 		output: {
 			format: `image/${r.format as 'avif' | 'webp' | 'png' | 'jpeg'}`,
-			...(quality !== undefined ? { quality } : {})
+			...(quality !== undefined ? { quality } : {}),
+			...(r.still ? { anim: false as const } : {})
 		}
 	};
 }
@@ -107,6 +113,7 @@ export function cloudflare_link(r: Recipe): string {
 	if (all.brightness !== undefined) opts.push(`brightness=${all.brightness}`);
 	if (all.blur !== undefined) opts.push(`blur=${all.blur}`);
 	if (all.sharpen !== undefined) opts.push(`sharpen=${all.sharpen}`);
+	if (output.anim === false) opts.push('anim=false');
 	const src = /^[a-z][a-z\d+.-]*:\/\//i.test(r.src) ? `/${r.src}` : r.src;
 	return `/cdn-cgi/image/${opts.join(',')}${src.startsWith('/') ? src : `/${src}`}`;
 }

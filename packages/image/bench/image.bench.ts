@@ -98,6 +98,42 @@ bench(
 	}
 );
 
+/** A source with twins: every third has a dark file, every fourth moves (a still is laid out). */
+function twinned(i: number): ImageDescriptor {
+	const d = descriptor(i);
+	const dark = { ...descriptor(i + 1000), width: d.width, height: d.height };
+	return {
+		...d,
+		...(i % 4 === 0 ? { animated: true, format: 'gif' as const } : {}),
+		...(i % 3 === 0
+			? { twins: [{ media: '(prefers-color-scheme: dark)', theme: 'dark' as const, of: dark }] }
+			: {})
+	};
+}
+
+const ART: ImagePreset = {
+	layout: 'fullWidth',
+	aspect: '16/9',
+	art: [{ media: '(max-width: 600px)', aspect: '4/5', position: 'attention' }]
+};
+
+bench(
+	'lay_out with twins: a page of twenty images with dark files, art direction and moving sources, with and without a theme',
+	({ images }) => {
+		let n = 0;
+		for (let i = 0; i < images.length; i++) {
+			const cfg = i % 2 ? CFG : { ...CFG, themed: true as const };
+			const laid = lay_out(images[i]!, preset_request(i % 5 ? ART : LAYOUTS[1]!), cfg, url);
+			n += laid.sources.length + laid.preloads.length + (laid.dark?.sources.length ?? 0);
+		}
+		return n;
+	},
+	{
+		setup: () => ({ images: Array.from({ length: 20 }, (_, i) => twinned(i)) }),
+		scale: (_ctx, k) => ({ images: Array.from({ length: 20 * k }, (_, i) => twinned(i)) })
+	}
+);
+
 bench(
 	'parse_recipe: the image endpoint reading a page’s worth of file paths',
 	({ paths }) => {

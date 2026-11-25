@@ -25,7 +25,7 @@ const at = (r: Partial<Recipe>): Recipe => ({
 	...r
 });
 
-test('Vercel only resizes: no crop, no position, no operation, no named PNG or JPEG, no GIF, TIFF or animated source', () => {
+test('Vercel only resizes: no crop, no position, no operation, no named PNG or JPEG, no GIF, TIFF or animated source, no still of one', () => {
 	expect(cannot('vercel')).toEqual([
 		'crop',
 		'position top',
@@ -54,7 +54,8 @@ test('Vercel only resizes: no crop, no position, no operation, no named PNG or J
 		'png from another format',
 		'source gif',
 		'source tiff',
-		'animated'
+		'animated',
+		'still'
 	]);
 	expect(CAPABILITIES.decide({ encoder: 'vercel', need: 'format avif' })).toEqual({
 		can: true,
