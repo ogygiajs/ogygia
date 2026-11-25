@@ -14,7 +14,15 @@ import { server_log } from '@ogygia/tooling/e2e/server-log.ts';
 import { marked_files } from './marks.ts';
 
 const MODE = process.env.IMAGE_E2E_MODE ?? 'node';
-const PAGES = ['/', '/blog/first-post', '/blog/second-post', '/blog/third-post', '/twins'];
+const PAGES = [
+	'/',
+	'/blog/first-post',
+	'/blog/second-post',
+	'/blog/third-post',
+	'/blog/fourth-post',
+	'/twins',
+	'/remote'
+];
 const IMAGE_URL_RE = /\/(?:__ogygia__\/i|_app\/immutable\/og)\/[^\s",)]+/g;
 const SIGNED_URL_RE = /\/__ogygia__\/i\/[^\s",)]+/g;
 
@@ -476,6 +484,62 @@ test.describe('the image endpoint', () => {
 			const f = await fetch_file(request, url);
 			expect(f.width, url).toBe(f.height);
 		}
+	});
+});
+
+test.describe('remote images (/remote, /blog/fourth-post)', () => {
+	const ID_RE = /\/(?:__ogygia__\/i\/[^/]+|_app\/immutable\/og)\/([\w-]+?)-\d+x\d+/;
+
+	test('a listed URL in the macro is a source: its files load, made from the fetched bytes', async ({
+		page,
+		request
+	}) => {
+		await page.goto('/remote');
+		const a = await attrs(page.locator('#remote'));
+		expect(a.picture).toBe('yes');
+		expect([a.width, a.height]).toEqual(['300', '200']);
+		expect(a.background).toMatch(/^url\("?data:image\/webp;base64,/);
+		await every_image_loads(page);
+		const f = await fetch_file(request, urls(a.avif).at(-1)!);
+		expect([f.type, f.width, f.height]).toEqual(['image/avif', 600, 400]);
+	});
+
+	test('a URL behind a redirect names the same source: the id is the bytes, not the URL', async ({
+		page
+	}) => {
+		await page.goto('/remote');
+		const direct = await attrs(page.locator('#remote'));
+		const moved = await attrs(page.locator('#remote-moved'));
+		expect(ID_RE.exec(moved.src!)![1]).toBe(ID_RE.exec(direct.src!)![1]);
+	});
+
+	test("a remote source's warmed preset names static files the build made", async ({
+		page,
+		request
+	}) => {
+		await page.goto('/remote');
+		const a = await attrs(page.locator('#remote-thumb'));
+		const all = [...urls(a.avif), ...urls(a.srcset), a.src!];
+		for (const url of all) {
+			expect(url).toMatch(
+				MODE === 'dev' ? /^\/__ogygia__\/i\// : /^\/_app\/immutable\/og\/[\w-]+\.(avif|webp)$/
+			);
+			const f = await fetch_file(request, url);
+			expect(f.width, url).toBe(f.height);
+		}
+	});
+
+	test('a frontmatter URL and a body image on a listed host render through <Img>', async ({
+		page
+	}) => {
+		await page.goto('/blog/fourth-post');
+		const cover = await attrs(page.locator('#cover'));
+		expect(cover.picture).toBe('yes');
+		expect([cover.width, cover.height]).toEqual(['1600', '900']);
+		const body = await attrs(page.getByAltText('A field on a listed host'));
+		expect(body.picture).toBe('yes');
+		expect(body.sizes).toBe('(min-width: 720px) 720px, 100vw');
+		await every_image_loads(page);
 	});
 });
 
