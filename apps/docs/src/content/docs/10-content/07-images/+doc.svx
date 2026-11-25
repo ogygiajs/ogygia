@@ -256,7 +256,9 @@ Then make the URL absolute against the page's URL, on a prerendered page or a li
   import { page } from '$app/state';
   import { getImage } from '@ogygia/image';
   let { data } = $props();
-  const share = $derived(new URL(getImage(data.cover, { width: 1200 }).src, page.url).href);
+  const share = $derived(
+    new URL(getImage(data.cover, { width: 1200, formats: ['jpeg'] }).src, page.url).href
+  );
 </script>
 
 <svelte:head>
@@ -324,6 +326,110 @@ Link the feed from a layout (`<link rel="alternate" type="application/rss+xml" h
 The default encoder, sharp, is a native Node module. A runtime that cannot load it (an edge or Workers runtime) answers image requests with a coded 500 (`image_no_encoder`), and a build for such an adapter with `sharp()` says so once (`image_no_encoder`). Prerendered pages and warmed presets are made by the build as static files, so they work there. On Cloudflare Workers, use `cloudflare()`; on Vercel, `vercel()` (below).
 
 Without `OGYGIA_SECRET`, each server build signs with its own random key, so a server-rendered page's signed URLs change with each deploy. Set the secret to keep them. A prerendered page's files need no secret.
+
+Link previews show PNG and JPEG; most show no AVIF or WebP. In dev, a page whose `og:image` or `twitter:image` names an AVIF or WebP file says `image_share_format`. Name the format for a share image (`formats: ['jpeg']` above, or a preset's `formats`).
+
+## Share cards: `import.meta.og.image.card()`
+
+A share card is a Svelte component drawn as a PNG: a page's title on the site's own design, one image per page, with no route to write and no list of pages to keep. The card is a source like any other image, so a prerendered page's card is made by the build, and a page rendered on request has its card made by the image endpoint the first time a crawler asks.
+
+Cards are drawn by three packages your app installs, so an app with no card loads none of them: [satori-html](https://github.com/natemoo-re/satori-html) reads the component's HTML and CSS, [satori](https://github.com/vercel/satori) lays it out and draws it as SVG, and resvg turns that into a PNG.
+
+```sh
+pnpm add satori satori-html @resvg/resvg-js
+```
+
+A build with a card and none of them fails with `image_card_engine_missing`. A server that draws cards on request needs them in `dependencies` (resvg is a native module: bundled, it cannot find its binary).
+
+Name the card once, in a module the server loads. The component's path is relative to the file, like an import; `width` and `height` are the PNG's size; `fonts` are the faces it draws text with:
+
+```ts title=src/lib/share.ts
+export const ShareCard = import.meta.og.image.card<{ title: string; section?: string }>(
+  './ShareCard.svelte',
+  {
+    width: 1200,
+    height: 630,
+    fonts: ['./fonts/serif.woff', '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff']
+  }
+);
+```
+
+`ShareCard(props)` returns the card's descriptor. Call it on the server, in a load (or a page's server render), and pass the descriptor on:
+
+```ts title=src/routes/blog/[slug]/+page.server.ts
+import { ShareCard } from '$lib/share';
+
+export const load = async ({ params }) => {
+  const post = await blog.get(params.slug);
+  return { post, share: ShareCard({ title: post.data.title, section: 'Blog' }) };
+};
+```
+
+Its `src` is the card's own PNG, at its own size. Make it absolute for `og:image`. It is an image like any other, so `<Img>` and `getImage()` take it too:
+
+```svelte title=src/routes/blog/[slug]/+page.svelte
+<script lang="ts">
+  import { page } from '$app/state';
+  import { Img } from '@ogygia/image';
+  let { data } = $props();
+</script>
+
+<svelte:head>
+  <meta property="og:image" content={new URL(data.share.src, page.url).href} />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+</svelte:head>
+
+<Img of={data.share} preset="thumb" alt="" />
+```
+
+The component renders with the card's props, on the server, like a page. Its scoped CSS goes with it (and that of every component it imports), so write the card as you would any component:
+
+```svelte title=src/lib/ShareCard.svelte
+<script lang="ts">
+  let { title, section = '' }: { title: string; section?: string } = $props();
+</script>
+
+<div class="card">
+  {#if section}<span class="chip">{section}</span>{/if}
+  <div class="title">{title}</div>
+</div>
+
+<style>
+  .card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 1200px;
+    height: 630px;
+    padding: 64px;
+    background: #102a43;
+    font-family: 'Serif';
+  }
+  .chip { display: flex; font-family: 'JetBrains Mono'; font-size: 24px; color: #f0b429; }
+  .title { display: flex; font-size: 72px; color: #f0f4f8; }
+</style>
+```
+
+What a card can be:
+
+- **Props are JSON, and small.** One plain object of strings, finite numbers, booleans, `null`, arrays and plain objects, at most 2048 characters once written in a URL (`image_card_props`). The props ride in each file's URL, signed with the rest, so a server makes a card on request from its URL alone, and nobody can ask it for props the page did not name. Pass the text the card shows, not the record it came from.
+- **Fonts are files.** Each is a `.woff`, `.ttf` or `.otf` file (satori reads no WOFF2), a path relative to the file or a package's file, and a card lists at least one: satori reads no system font. The build reads each file's family, weight and style from the file itself; the CSS names the family. A font that does not read fails with `image_card_font`.
+- **CSS is satori's.** satori lays out a subset of CSS: flexbox (an element with more than one child says `display: flex`), sizes, margins and padding, borders and radii, colors and gradients, `position: absolute`, transforms, opacity, fonts and text. There is no grid, no float and no `z-index`. What it cannot draw fails the build or the request with `image_card_css`, naming the property and the card.
+- **A card loads nothing.** It is a function of its props: the same props draw the same PNG. Its file names hold a digest of every module and font the card is made from and the engine's versions, so changing a child component, its CSS or a font names new files, and nothing else does.
+
+Where a card's files are made:
+
+| Page                              | Made by                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------- |
+| prerendered                       | the build, under `_app/immutable/og/` (`c…-1200x630.png`)               |
+| rendered on request, Node server  | the image endpoint, on the first ask, kept forever                      |
+| rendered on request, Workers/edge | the build's file, when a prerendered page named the same card and props |
+| dev                               | the dev server, again after each edit                                   |
+
+satori and resvg run in Node only. On Workers (or another edge runtime) a page rendered on request names its card's file as always, and the Worker serves it from the build's static files when a prerendered page made the same card with the same props; otherwise it answers 404, and says `image_no_encoder`. A build for such an adapter with a card says so once. Prerender the pages that show cards, or have a prerendered page name the cards your live pages show. With `vercel()` alone, list `sharp()` after it: the function draws the card, and sharp makes its files.
+
+A card's descriptor is minted by the server, so calling `ShareCard()` in the browser fails with `image_no_server`. On a page Kit hydrates (`csr = true`), make the card in the page's server load and pass the descriptor down.
 
 ## Cloudflare Workers: `cloudflare()`
 
@@ -408,7 +514,7 @@ image({ presets, encoder });
 | `sizes`     | 16, 32, 48, 64, 96, 128, 256, 384, then 320 to 2048 (the breakpoints) | The widths Vercel may make. Every width a page asks for is snapped up to one of these, or to the image's own width: every file of the app, the crops sharp makes and the prerendered files too, so one ladder serves all. Keep the small widths when you list your own: without 48 and 96, a 48 px `fixed` avatar is made 256 wide. |
 | `qualities` | `[60, 80]` (AVIF's and WebP's own)                                    | The qualities Vercel may make, 1 to 100. A plugin or preset `quality` must be one of these, or the build fails (`image_option_invalid`). A file at another quality is not Vercel's to make.                                                                                                                                         |
 
-`VERCEL.images` is the adapter's `images` config: `{ sizes, qualities, formats: ['image/avif', 'image/webp'], domains: [], localPatterns: [{ pathname: '^/_app/immutable/assets/.+$', search: '' }] }`. The build checks it: once adapter-vercel has written `.vercel/output/config.json`, a width, quality or format the app names that its `images` lacks, the host of a full-URL `paths.assets` missing from `domains` or `remotePatterns`, or a host of `image({ remote: { hosts } })` missing from `remotePatterns` (a [`remoteImage()`](#images-known-only-at-request-remoteimage)'s link names its URL), fails the build with `image_vercel_config` and the exact value to pass. So does an `images` that opens more than the app needs: no `qualities` (any quality), or `localPatterns` unset or wider than the app's originals (the optimizer could read any path of the deployment, a page or an endpoint included), or `remotePatterns` that reach a host `hosts` does not list. With another `paths.base` or `appDir`, the message gives the `localPatterns` to pass. So does `vercel()` on another adapter, adapter-auto included: `/_vercel/image` exists only on Vercel.
+`VERCEL.images` is the adapter's `images` config: `{ sizes, qualities, formats: ['image/avif', 'image/webp'], domains: [], localPatterns: [{ pathname: '^/_app/immutable/assets/.+$', search: '' }] }`. The build checks it: once adapter-vercel has written `.vercel/output/config.json`, a width, quality or format the app names that its `images` lacks, the host of a full-URL `paths.assets` missing from `domains` or `remotePatterns`, or a host of `image({ remote: { hosts } })` missing from `remotePatterns` (a [`remoteImage()`](#remote-images-images-known-only-at-request-remoteimage)'s link names its URL), fails the build with `image_vercel_config` and the exact value to pass. So does an `images` that opens more than the app needs: no `qualities` (any quality), or `localPatterns` unset or wider than the app's originals (the optimizer could read any path of the deployment, a page or an endpoint included), or `remotePatterns` that reach a host `hosts` does not list. With another `paths.base` or `appDir`, the message gives the `localPatterns` to pass. So does `vercel()` on another adapter, adapter-auto included: `/_vercel/image` exists only on Vercel.
 
 Vercel's links are not signed. Anyone can ask `/_vercel/image` for any of your originals at any width in `sizes` and any quality in `qualities`, and Vercel bills each one it makes. That is why the defaults are tight: list only the widths and qualities your pages use. For a door no one else can open, leave `vercel()` out: the sharp endpoint signs every file.
 
@@ -527,7 +633,7 @@ The build writes those files under Kit's `_app/immutable/og/`, like a prerendere
 
 ## Remote images
 
-An image on another host is fetched at build, from the hosts the app lists (one whose URL a page learns only at request is [`remoteImage()`](#images-known-only-at-request-remoteimage)):
+An image on another host is fetched at build, from the hosts the app lists (one whose URL a page learns only at request is [`remoteImage()`](#remote-images-images-known-only-at-request-remoteimage)):
 
 ```ts title=vite.config.ts
 image({
@@ -775,21 +881,21 @@ An `<Img>` inside an island keeps the server's file URLs when it hydrates. A ren
 
 ## Moving from Astro's `astro:assets`
 
-| Astro                                               | ogygia                                                                                                              |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `import hero from './hero.jpg'`                     | `const hero = import.meta.og.image('./hero.jpg')`                                                                   |
-| `<Image src={hero} alt="…" />`                      | `<Img of={hero} alt="…" />`                                                                                         |
-| `<Picture formats={['avif', 'webp']} />`            | `<Img>`: AVIF and WebP are the default                                                                              |
-| `widths={[600, 1200]}`, `sizes="…"`                 | a preset, or `layout` and `width`; `sizes` only as an escape hatch                                                  |
-| `layout="full-width"` / `"constrained"` / `"fixed"` | `layout="fullWidth"` / `"constrained"` / `"fixed"`                                                                  |
-| `loading="eager"` + `fetchpriority="high"`          | `priority`                                                                                                          |
-| `getImage({ src })`                                 | `getImage(descriptor, { … })`                                                                                       |
-| `image()` in a markdown collection's schema         | `v.custom<ImageDescriptor>(isImage)`, with a `./` or `../` path                                                     |
-| `image()` in a JSON collection's schema             | a `v.string()` field, looked up in an `import.meta.og.image.glob()` ([Images named in JSON](#images-named-in-json)) |
-| `import.meta.glob('./*.jpg', { eager: true })`      | `import.meta.og.image.glob('./*.jpg')`                                                                              |
-| `![alt](./photo.jpg)` in `.md` / `.mdx`             | the same, with `content({ markdown })` and `image()` listed                                                         |
-| images encoded at build, content-hashed names       | a prerendered site's files made at build, named by their recipe                                                     |
-| GIFs styled narrower (`figure.gif { width: 33vw }`) | a preset for them, named by `image({ markdown: { animated: 'motion' } })`                                           |
+| Astro                                               | ogygia                                                                                                                                 |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `import hero from './hero.jpg'`                     | `const hero = import.meta.og.image('./hero.jpg')`                                                                                      |
+| `<Image src={hero} alt="…" />`                      | `<Img of={hero} alt="…" />`                                                                                                            |
+| `<Picture formats={['avif', 'webp']} />`            | `<Img>`: AVIF and WebP are the default                                                                                                 |
+| `widths={[600, 1200]}`, `sizes="…"`                 | a preset, or `layout` and `width`; `sizes` only as an escape hatch                                                                     |
+| `layout="full-width"` / `"constrained"` / `"fixed"` | `layout="fullWidth"` / `"constrained"` / `"fixed"`                                                                                     |
+| `loading="eager"` + `fetchpriority="high"`          | `priority`                                                                                                                             |
+| `getImage({ src })`                                 | `getImage(descriptor, { … })`                                                                                                          |
+| `image()` in a markdown collection's schema         | `v.custom<ImageDescriptor>(isImage)`, with a `./` or `../` path                                                                        |
+| `image()` in a JSON collection's schema             | a `v.string()` field, looked up in an `import.meta.og.image.glob()` ([Images named in JSON](#frontmatter-images-images-named-in-json)) |
+| `import.meta.glob('./*.jpg', { eager: true })`      | `import.meta.og.image.glob('./*.jpg')`                                                                                                 |
+| `![alt](./photo.jpg)` in `.md` / `.mdx`             | the same, with `content({ markdown })` and `image()` listed                                                                            |
+| images encoded at build, content-hashed names       | a prerendered site's files made at build, named by their recipe                                                                        |
+| GIFs styled narrower (`figure.gif { width: 33vw }`) | a preset for them, named by `image({ markdown: { animated: 'motion' } })`                                                              |
 
 A few differences to know when you move a site:
 

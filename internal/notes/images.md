@@ -295,13 +295,49 @@ checked here: where it is fetched.
 
 ## 13. Cards
 
-`site({ cards: { of: (page) => region(Card, props) | null, size, format } })`: a social card is a
-region rendered to pixels. The engine renders the region's HTML (satori for a subset of CSS, or a
-headless browser for the app's real CSS) to PNG; `emit.cards()` mounts one route (`entries()` are
-the pages whose function returned a region), and `page()` writes `og:image` for exactly those.
-Prerendered, or rendered per request from the same function. Kept in the build cache by the
-region's module digest, props, size and engine version. A card is a source like any other, so
-`<Img of={card}>` and the endpoint apply.
+BUILT (V4 R9). `import.meta.og.image.card('./Card.svelte', { width, height, fonts })` →
+`(props) => ImageDescriptor`. A card is a source like any other: no route, no `entries()`, no
+`site({ cards })`.
+
+- **Macro** (`vite/macro.ts`, `vite/card.ts` `Cards.define`): literal args; a `.svelte` component;
+  whole `width`/`height` to 99999; `fonts` at least one `.woff`/`.ttf`/`.otf` path (relative, or a
+  package file through the importer's resolution), each read at build for family (name ID 16, else
+  ID 1 with a trailing weight word dropped), `OS/2` weight and italic (`vite/font-face.ts`). Errors:
+  `image_card_font`, `image_option_invalid`/`_unknown`, `image_not_found`. The call becomes an
+  import of `virtual:ogygia-image/card/<card>`, `<card>` = 16 b64url chars of SHA-256 of
+  (component path, size, font paths).
+- **Card module**: server = the component imported as `<file>?og-card` (each `.svelte` it imports
+  resolved under the same query; `with_injected_css` puts `css="injected"` in its options tag, so
+  the render's head carries its scoped CSS and the page's own copy is untouched), Svelte's
+  `render`, the fonts as assets, `card(spec)` (`src/card.ts`), and, off the edge, `png` from
+  `cards/engine.ts`. Browser = `card_in_browser` (`image_no_server`).
+- **Descriptor**: `{ id: 'c' + 32 b64url of SHA-256(digest, size, canonical props JSON, encoder
+  version), src: <minted own-size PNG>, width, height, format: 'png', from: 'card', card:
+  '<card>/<b64url props>' }`. Props: one plain JSON object (sorted keys), at most 2048 b64url
+  chars (`image_card_props`). Recipes carry `from: 'card'` and the tail `.card/<card>/<props>`
+  (`recipe.ts` `card_of_tail`), signed with the head; no namer names one (no CDN can fetch a
+  card's original).
+- **Digest**: the server build's `renderChunk` writes it over a placeholder: SHA-256 of the card
+  def, the engine line (satori, satori-html, @resvg/resvg-js, svelte versions, encoder version),
+  and every module the card's module reaches in the module graph, by project path and its file's
+  bytes (packages and virtual modules by id). Dev: a fresh value at each load; every file change
+  invalidates the card modules.
+- **Endpoint** (`settle.ts`, `cards/read.ts`): `virtual:ogygia-image/cards` finds the card's
+  module: a build's list of the cards' own emitted chunks (written at `renderChunk`), dev's
+  import by name, the edge's none (`cards/none.ts`). The own-size PNG is drawn once per tail in
+  the encode queue (satori-html → entities decoded in the tree → satori → resvg; satori's refusal
+  = `image_card_css`), then the maker resizes/converts it; kept forever. A card whose digest
+  changed since minting (`card_id` mismatch) or a name the server lacks = 404
+  `image_source_changed`.
+- **Build** (`build-files.ts`): a prerendered page's card recipe is noted like any other; the
+  build's end imports the card's chunk from the server output, draws it with the fonts' files and
+  makes each file with sharp into `<appDir>/immutable/og/`. No head start for cards.
+- **Edge** (no engine: adapter-cloudflare and other edge adapters): the build warns
+  `image_no_encoder` (`what: 'card'`); a live page's card URL is answered from the platform's
+  `ASSETS` with the build's file of the same recipe when a prerendered page made it, else 404
+  `no-store` + `image_no_encoder` once (`CARD_ENGINE_CHECK` decides missing/unlisted/edge).
+- **Dev rule** `image_share_format` (`share-rule.ts`, the server realm's dev-only `handle`): an
+  `og:image`/`twitter:image` naming an AVIF or WebP file.
 
 ## 14. Platform encoders and URL mappers
 
