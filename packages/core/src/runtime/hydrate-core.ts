@@ -887,6 +887,9 @@ export async function wake_island(
 	times: WakeTimes,
 	link: WakeLink
 ): Promise<void> {
+	const probe =
+		(el as unknown as { __probe?: (s: string) => void }).__probe ?? ((_s: string) => {});
+	probe('wi');
 	link.use_code_sheets(el, mod);
 	$await(turn.wait(kit_page_wait(el, visit)));
 	// The page's seeds parse now, BEFORE the turn: data arriving is not the hydrate step. The
@@ -901,11 +904,13 @@ export async function wake_island(
 	let visitor: Promise<unknown> | null;
 	do {
 		visitor = link.visitor(el);
+		probe(`vis${visitor ? 1 : 0}`);
 		// (a replay that failed says so itself)
 		if (visitor) $await(turn.wait(visitor.catch(nothing)));
 		$await(turn.wait(link.hydrate_turn(el)));
 		if (link.app(el)) return;
 	} while (link.visitor(el) !== visitor);
+	probe('turned');
 	times.turn = clock.mono();
 	const ssr_html = link.ssr_html(el);
 	// Was the island touched while it slept (runtime/drift-watch.ts)? Read HERE, before the
