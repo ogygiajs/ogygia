@@ -238,11 +238,60 @@ name), `http://` in front to allow plain HTTP; no path, no range (`src/remote-ho
   offline with and without a copy, one fetch per process), macro, markdown, plugin, server; e2e
   fixture host `e2e/app/remote-host.ts` on 127.0.0.1:4176 (`/remote`, `/blog/fourth-post`).
 
-### 12.2 At request (next)
+### 12.2 At request (built)
 
-A runtime fetch (CMS images known only per request) is a separate source kind whose recipe names
-the remote URL: the endpoint fetches it under the same hosts, with the size cap and timeout, the
-signature covers the URL, and its files are kept `remote.maxAge`, never `immutable`.
+`remoteImage(url, { width, height, alt?, version? })` from `@ogygia/image` (`src/remote-image.ts`,
+browser-safe): a descriptor `{ id: 'r' + 32 b64url chars of sha256(URL \0 version \0 encoder
+version), src: <canonical href>, width, height, format (by extension, else jpeg), from: 'remote',
+alt? }`. Sync, so it hashes with `src/sha256.ts` (pure JS, checked against node:crypto by
+fast-check). No placeholder. Bad input: `image_remote_invalid` (render error). Hosts are not
+checked here: where it is fetched.
+
+- Recipe: `from: 'remote'` (never in a URL by itself); `recipe_tail` = `.remote/<b64url href>`, so
+  the signed message covers the URL; `remote_of_tail` reads only an http(s) URL whose href is
+  exactly what was encoded.
+- Endpoint (`server.ts` `Originals.has`): a `.remote/` tail whose URL `remote.hosts` does not list
+  (or no `remote` at all) is 404 `no-store`, warned once (`image_remote_refused`); a list changed
+  since a URL was signed refuses it the same way. `settle.ts`: the original is fetched by
+  `remote-fetch.ts` (shared with the build: hops host-checked, ≤3; streamed `maxBytes`; one
+  `scope` timeout; `image/*` raster types; `content-encoding` other than identity refused; first
+  bytes must be a JPEG/PNG/GIF/WebP/ISO-BMFF/TIFF signature), one flight per URL (`keep: 0`), run
+  inside the encode queue, so fetches count against the same cap as encodes. Refusals, each
+  `no-store` and `image_remote_refused`: 404 unlisted hop or private address, 413 too large, 504
+  timeout, 502 status / no answer / not an image / did not decode.
+- Never `immutable`: the store key is `<recipe file>@<maxAge>.<window>` (window = wall seconds /
+  maxAge), and the answer is `public, max-age=<seconds left in the window>,
+  stale-while-revalidate=<maxAge>`, so no copy (store, CDN, browser) outlives its window by more
+  than `maxAge`. The binding maker keeps the same keys in `caches.default`.
+- Transport (`virtual:ogygia-image/remote`, chosen at build): Node's (`remote-node.ts`,
+  `node:http(s)`, no agent pooling, no decoding) for the sharp maker and dev; a Worker's
+  (`net.fetch`, `redirect: 'manual'`) for the binding maker. With no `remote`: `remote-off.ts`.
+- SSRF rule (`remote-hosts.ts`): a host an entry names itself (a name or an address) is trusted
+  wherever it resolves (an intranet, a test server). A host taken only by a `*.` entry is connected
+  to only when every address it resolves to is public (`private_address`: loopback, RFC 1918,
+  CGNAT, link-local incl. cloud metadata, reserved, documentation, multicast; IPv6 ULA, link-local,
+  site-local, multicast, and v4-mapped / NAT64 / 6to4 forms of the v4 ranges). Checked inside the
+  connection's own `lookup`, on the addresses it connects to (no DNS-rebinding gap). The build's
+  fetch uses the same transport, so the rule holds at build too. Workers: Cloudflare's network
+  reaches no private address; no lookup hook exists there.
+- Prerender: the minter notes the `.remote/` recipe like any other; the build's end fetches the URL
+  through `RemoteImages` (same cache, revalidation, stale rule), names the file by the bytes'
+  `source_id`, and rewrites every `immutable/og/<r id>-` in the prerendered output to the content
+  id: a URL whose bytes change gets new names, never an old immutable file. No `remote`: the build
+  fails `image_unsettled` (reason `image_remote_host`). The head start skips remote recipes.
+- Links: `cloudflare()` names `/cdn-cgi/image/<opts>/<full URL>` (the zone's Transformations must
+  allow that origin: "Sources: any origin" or the host listed); `vercel()` names
+  `/_vercel/image?url=<escaped URL>`, and `image_vercel_config` requires `images.remotePatterns`
+  reaching each `hosts` entry and no wider (probes: `ogygia-probe.invalid`, the listed host over the
+  other scheme or any port, a name below an exact host); the line it prints carries them.
+- Tests: `test/remote-request.test.ts` (endpoint: 200 + header window, shared fetch, kept within the
+  window and fetched again after, forged tail/id 403, unlisted / changed list 404, 413, 504, 502,
+  hop 404, private `*.` 404 vs named 200), `test/remote-image.test.ts` (descriptor, ids, invalid
+  input, tail round trip, sha256 property, private ranges + v4-in-v6 property, lookup), build-write
+  (prerender naming and rewrite, no `remote` fails), vercel (remotePatterns); e2e `/cms`
+  (prerendered in static/adapter modes) and `/late/cms` (live only: listed with `version`,
+  unlisted 127.0.0.1:4177, 30 MB, slow), in image, cloudflare, cloudflare-links and vercel specs.
+  The fixture host runs for the whole e2e run (`e2e/remote-host-setup.ts`, a `globalSetup`).
 
 ## 13. Cards
 

@@ -408,7 +408,7 @@ image({ presets, encoder });
 | `sizes`     | 16, 32, 48, 64, 96, 128, 256, 384, then 320 to 2048 (the breakpoints) | The widths Vercel may make. Every width a page asks for is snapped up to one of these, or to the image's own width: every file of the app, the crops sharp makes and the prerendered files too, so one ladder serves all. Keep the small widths when you list your own: without 48 and 96, a 48 px `fixed` avatar is made 256 wide. |
 | `qualities` | `[60, 80]` (AVIF's and WebP's own)                                    | The qualities Vercel may make, 1 to 100. A plugin or preset `quality` must be one of these, or the build fails (`image_option_invalid`). A file at another quality is not Vercel's to make.                                                                                                                                         |
 
-`VERCEL.images` is the adapter's `images` config: `{ sizes, qualities, formats: ['image/avif', 'image/webp'], domains: [], localPatterns: [{ pathname: '^/_app/immutable/assets/.+$', search: '' }] }`. The build checks it: once adapter-vercel has written `.vercel/output/config.json`, a width, quality or format the app names that its `images` lacks, or the host of a full-URL `paths.assets` missing from `domains` or `remotePatterns`, fails the build with `image_vercel_config` and the exact value to pass. So does an `images` that opens more than the app needs: no `qualities` (any quality), or `localPatterns` unset or wider than the app's originals (the optimizer could read any path of the deployment, a page or an endpoint included). With another `paths.base` or `appDir`, the message gives the `localPatterns` to pass. So does `vercel()` on another adapter, adapter-auto included: `/_vercel/image` exists only on Vercel.
+`VERCEL.images` is the adapter's `images` config: `{ sizes, qualities, formats: ['image/avif', 'image/webp'], domains: [], localPatterns: [{ pathname: '^/_app/immutable/assets/.+$', search: '' }] }`. The build checks it: once adapter-vercel has written `.vercel/output/config.json`, a width, quality or format the app names that its `images` lacks, the host of a full-URL `paths.assets` missing from `domains` or `remotePatterns`, or a host of `image({ remote: { hosts } })` missing from `remotePatterns` (a [`remoteImage()`](#images-known-only-at-request-remoteimage)'s link names its URL), fails the build with `image_vercel_config` and the exact value to pass. So does an `images` that opens more than the app needs: no `qualities` (any quality), or `localPatterns` unset or wider than the app's originals (the optimizer could read any path of the deployment, a page or an endpoint included), or `remotePatterns` that reach a host `hosts` does not list. With another `paths.base` or `appDir`, the message gives the `localPatterns` to pass. So does `vercel()` on another adapter, adapter-auto included: `/_vercel/image` exists only on Vercel.
 
 Vercel's links are not signed. Anyone can ask `/_vercel/image` for any of your originals at any width in `sizes` and any quality in `qualities`, and Vercel bills each one it makes. That is why the defaults are tight: list only the widths and qualities your pages use. For a door no one else can open, leave `vercel()` out: the sharp endpoint signs every file.
 
@@ -527,7 +527,7 @@ The build writes those files under Kit's `_app/immutable/og/`, like a prerendere
 
 ## Remote images
 
-An image on another host is fetched at build, from the hosts the app lists:
+An image on another host is fetched at build, from the hosts the app lists (one whose URL a page learns only at request is [`remoteImage()`](#images-known-only-at-request-remoteimage)):
 
 ```ts title=vite.config.ts
 image({
@@ -552,12 +552,61 @@ From there it is a file like any other: its id is the hash of its bytes, its ori
 - **Size and time.** The body is counted as it arrives and dropped past `maxBytes`; the whole fetch gets `timeout` milliseconds.
 - **The dev server** fetches each image once per start.
 - **`.glob()` stays local**: a remote image is one URL.
-
-A listed host is trusted: a name that points at a private address is fetched like any other. List only hosts the app owns or trusts.
+- **Private addresses.** A host an entry names itself (`'cms.intranet.example'`, `'http://127.0.0.1:4100'`) is trusted wherever it points: an intranet's server or a test server works. A host taken only by a `*.` entry is a name someone below the listed one chose, so it is fetched from only when every address it resolves to is public: never a loopback, private, link-local (a cloud's metadata address), shared or reserved one. The check runs on the address the connection is made to, so a name cannot answer a public address first and a private one after. To fetch from a private host, list it by name.
 
 In markdown, a body image and a frontmatter URL on a listed host become descriptors too ([Markdown images](#markdown-images)); one on any other host stays a plain `<img>` or string.
 
-`maxAge` is for images whose URL is known only at request; it is read now and used once those are supported.
+### Images known only at request: `remoteImage()`
+
+A CMS page learns its images when it is asked for. `remoteImage(url, { width, height })` makes a descriptor of one in a server load, with no build step:
+
+```ts title=src/routes/blog/[slug]/+page.server.ts
+import { remoteImage } from '@ogygia/image';
+
+export const load = async ({ params }) => {
+	const entry = await cms.entry(params.slug);
+	return {
+		title: entry.title,
+		cover: remoteImage(entry.cover.url, {
+			width: entry.cover.width,
+			height: entry.cover.height,
+			alt: entry.cover.alt,
+			version: entry.cover.updatedAt // optional: see below
+		})
+	};
+};
+```
+
+```svelte title=src/routes/blog/[slug]/+page.svelte
+<Img of={data.cover} preset="cover" alt={data.cover.alt} />
+```
+
+`width` and `height` are the image's own: the page reserves its box from them, so ask the CMS for them. The format is read from the URL's extension (JPEG when it names none). It has no placeholder. Its host must be in `image({ remote: { hosts } })`, which is checked where it is fetched.
+
+```ts title=vite.config.ts
+image({
+	remote: {
+		hosts: ['images.cms.example.com'],
+		maxAge: 86_400 // the default: how long a file made from it is kept, in seconds
+	}
+});
+```
+
+- **On a live server and in dev**, the image endpoint fetches the URL the first time a file is asked for, under `hosts`, `maxBytes`, `timeout` and the redirect rule above, and makes the file. The URL rides in the file's signed URL (`…/.remote/<the URL, encoded>.avif`), so no one can make the endpoint fetch another one. All the files of one URL asked at once share one fetch, and fetches count against the same cap as the endpoint's encodes.
+- **Never kept forever.** The bytes behind a URL can change, so its files are kept, and sent to be kept, until the end of the current `maxAge` window (`public, max-age=<seconds left>, stale-while-revalidate=<maxAge>`), never `immutable`. After that the next ask fetches the URL again. A CMS whose URLs change with each revision can pass that revision as `version`: another version is another source, with files of its own.
+- **Refusals**, none of them kept by a browser or a CDN, each said once in the server's log (`image_remote_refused`): `404` for a host `hosts` does not list (also one listed when the page was rendered and taken out since), a redirect to one, or a `*.` host on a private address; `413` past `maxBytes`; `504` past `timeout`; `502` for an error status, no answer, or something that is not a PNG, JPEG, WebP, AVIF, GIF or TIFF image.
+- **In a prerendered page**, the build fetches it, the same way and into the same cache as a build-time remote image, and makes its files as static files named by the bytes it got, not by the URL: a URL whose bytes change gets new file names in the next build. A build with no `remote` set fails (`image_unsettled`, naming the host to list).
+- **With `cloudflare()` links**, a file is `/cdn-cgi/image/<options>/https://images.cms.example.com/…`, made by Cloudflare's CDN from the URL. The zone must allow that origin: in the dashboard, Images, Transformations, the zone's sources must list the CMS's host (or allow any origin, which lets anyone resize any image through your zone). With `cloudflare({ links: false })`, the Worker's endpoint fetches the URL itself and makes the file with the Images binding.
+- **With `vercel()`**, a file is `/_vercel/image?url=https%3A%2F%2Fimages.cms.example.com%2F…`, and Vercel fetches only from the hosts its `images.remotePatterns` lists. `vercel()` cannot know `hosts`, so add one entry per host to the adapter's `images`; the build checks that they reach every host in `hosts` and no other (`image_vercel_config`, which prints the exact value):
+
+```js title=svelte.config.js
+adapter({
+	images: {
+		...VERCEL.images,
+		remotePatterns: [{ protocol: 'https', hostname: '^images\\.cms\\.example\\.com$' }]
+	}
+});
+```
 
 ## Markdown images
 
