@@ -434,6 +434,7 @@ The plugin's options:
 | `markdown`    | `{}`                                     | Markdown images: `{ width }` is the prose column's width when there is no `prose` preset; `{ animated }` names the preset a moving image takes; `false` turns them off.                    |
 | `encoder`     | `sharp()`                                | Who makes the files: `sharp()`, `cloudflare()` or `vercel()` from `@ogygia/image/vite`, or a list in order of priority: the first that can make a file makes it (see Vercel).              |
 | `theme`       | none                                     | An app with a theme switch: `{ dark, light }`, the CSS selectors its two themes are written by. A dark file then follows them (see Twins).                                                 |
+| `remote`      | none                                     | Images on other hosts: `{ hosts, maxBytes?, timeout?, maxAge? }` (see Remote images).                                                                                                      |
 
 A source's own options, in the macro's second argument, belong to the file whatever page shows it:
 
@@ -524,6 +525,40 @@ const team = import.meta.og.image('./team.jpg', { warm: ['cover', 'thumb'] });
 
 The build writes those files under Kit's `_app/immutable/og/`, like a prerendered page's, and `<Img of={hero} preset="cover">` names them directly, on the server and in an island alike. Saying something over the preset (`<Img of={hero} preset="cover" width={300}>`) asks for other files, which the endpoint makes as usual. A name the config does not declare fails the build (`image_warm_unknown`). In dev every file comes from the endpoint.
 
+## Remote images
+
+An image on another host is fetched at build, from the hosts the app lists:
+
+```ts title=vite.config.ts
+image({
+	remote: {
+		hosts: ['images.example.com', '*.cdn.example.com'],
+		maxBytes: 20_000_000, // the default: 20 MB
+		timeout: 10_000 // the default: 10 s, redirects and body included
+	}
+});
+```
+
+```ts
+const hero = import.meta.og.image('https://images.example.com/a/hero.jpg', { warm: 'cover' });
+```
+
+From there it is a file like any other: its id is the hash of its bytes, its original ships as one of the app's assets, it gets a placeholder, `warm` works, and a prerendered page's files are made by the build. Every option a local file takes works on it, and a local `dark` or `art` file can go with it.
+
+- **Hosts.** An entry is a host name, with a port when it is not the default. `*.` in front lists every name below it, one level or more (`*.cdn.example.com` takes `a.cdn.example.com` and `a.b.cdn.example.com`, not `cdn.example.com`). Images come over `https://` only, unless an entry starts with `http://` (`'http://127.0.0.1:4100'`, for a test server or an intranet). A URL on any other host fails the build (`image_remote_host`), naming the line to add. An entry takes no path and no address range.
+- **The build cache.** Each image is fetched once into `node_modules/.ogygia/image/remote/`, with its `etag` and `last-modified`. Every build asks again with them, once per image, and a `304` keeps the copy: an unchanged image is not downloaded again. Keep that folder between CI runs, like the rest of the build cache.
+- **Offline.** If the host cannot be reached or answers an error, a build that has a copy uses it and warns (`image_remote_stale`): an offline build still works, but may show an old image. A build with no copy fails (`image_remote_failed`), with the reason: the status, the timeout, too large, or not an image (only PNG, JPEG, WebP, AVIF, GIF and TIFF are taken).
+- **Redirects** are followed by the build itself, at most 3, and each one's host must be listed too, so a listed host cannot hand the build a file from one that is not.
+- **Size and time.** The body is counted as it arrives and dropped past `maxBytes`; the whole fetch gets `timeout` milliseconds.
+- **The dev server** fetches each image once per start.
+- **`.glob()` stays local**: a remote image is one URL.
+
+A listed host is trusted: a name that points at a private address is fetched like any other. List only hosts the app owns or trusts.
+
+In markdown, a body image and a frontmatter URL on a listed host become descriptors too ([Markdown images](#markdown-images)); one on any other host stays a plain `<img>` or string.
+
+`maxAge` is for images whose URL is known only at request; it is read now and used once those are supported.
+
 ## Markdown images
 
 With `content({ markdown })` and `image()` both listed, a local image in a markdown file renders through `<Img>`, with no import and no component in the post:
@@ -541,7 +576,7 @@ cover: ./cover.jpg
 - **A missing file fails the build** (`image_not_found`), naming the post and the path.
 - **The `prose` preset** (or `markdown.width` without one) is how every body image is shown, so a phone and a laptop each get a file that fits. Leave both out and each image is as wide as itself.
 - **A moving image** (an animated GIF or WebP) can take its own preset: `image({ presets: { motion: { width: 400, sizes: '33vw' } }, markdown: { animated: 'motion' } })`. Its width and `sizes` reach the `srcset`, so the browser downloads the narrow file, and a prerendered page's build makes only that preset's files. Still images keep the `prose` preset. The name must be a declared preset, or the build fails (`image_option_invalid`). In a component, read `of.animated` and pick the preset yourself.
-- **Remote and site-absolute images** (`https://…`, `/static/x.png`) stay plain `<img>` tags, and the `img` slot of `site({ components })` still gets them.
+- **Remote images on a listed host** (`image({ remote: { hosts } })`) render through `<Img>` like local ones ([Remote images](#remote-images)). Any other remote image and site-absolute images (`/static/x.png`) stay plain `<img>` tags, and the `img` slot of `site({ components })` still gets them.
 - **HTML `<img>` tags in markdown** that name a local file fail the build (`image_markdown_html`): they would ship as a broken link. Write them as `![alt](./photo.jpg)`.
 - **`import.meta.og.md(text)`** renders markdown from a string, which has no file to resolve against, so a local image there fails the build (`image_markdown_no_file`). Use a site-absolute URL there, or move the markdown into a `.md` file.
 
@@ -551,7 +586,7 @@ To turn markdown images off, pass `image({ markdown: false })`. Markdown images 
 
 ## Frontmatter images
 
-A frontmatter value that starts with `./` or `../` and ends in an image extension becomes a descriptor at build, wherever it sits (a nested object or a list works too). Other strings stay strings: `images/share.png` or `diagram.png` are left alone. A missing file fails the build.
+A frontmatter value that starts with `./` or `../` and ends in an image extension becomes a descriptor at build, wherever it sits (a nested object or a list works too). Other strings stay strings: `images/share.png` or `diagram.png` are left alone. A missing file fails the build. A URL on a host `image({ remote: { hosts } })` lists (`cover: https://images.example.com/c.jpg`) becomes a descriptor too, fetched at build ([Remote images](#remote-images)); a URL on any other host stays a string.
 
 In the collection's schema, accept the descriptor with `isImage`, a check that a value is a descriptor. Define the collection in a `.server.ts` file, like every collection ([Collections](/docs/content/collections)), so its posts never reach a browser bundle:
 
@@ -713,7 +748,7 @@ A few differences to know when you move a site:
 - **Images live under `src/`.** A file outside it fails the build (`image_outside_src`).
 - **A static site's image URLs stay the same across builds**, like Astro's `_astro/` files, with no secret to set. They sit under `_app/immutable/og/` and are named by the source's content and the recipe, not the file's name.
 - **Animated GIFs** become animated WebP, never AVIF. There is no option to turn them off, and a preset's `formats` do not apply to them: a GIF cover's `og:image` is an animated WebP too.
-- **Remote images** are not supported yet: a URL in the macro fails the build (`image_remote_unsupported`). Markdown leaves remote images as plain `<img>`.
+- **Remote images**: Astro's `image.domains` and `image.remotePatterns` become one list, `image({ remote: { hosts } })`. `domains: ['images.example.com']` is `hosts: ['images.example.com']`; a `remotePatterns` entry `{ protocol: 'https', hostname: '**.example.com' }` is `'*.example.com'` (one level or more, like Astro's `**.`); Astro's `*.` (exactly one level) has no twin here, so list each name or use `*.`; `{ protocol: 'http', hostname: 'localhost', port: '4100' }` is `'http://localhost:4100'`. A `pathname` pattern has no twin: a host is listed whole. Astro fetches a remote image at build and does not know its size until then; here the build fetches it once into its cache and asks again on each build, so the page always reserves its box.
 - **`<Img>` takes a fixed set of attributes** (listed above). A `data-*` or `aria-*` attribute is not passed through.
 - **MDX components** are not part of `@ogygia/content`'s markdown. Rename `.mdx` posts to `.md` (or `.svx`, which takes Svelte components). Delete each post's image wiring (`import BlogImage from …` and `export const components = { img: BlogImage }`): `![]()` images render through `<Img>` on their own. Any other MDX component (a `<Tweet id="…">`) needs a Svelte component in a `.svx` post, or a plain link.
 - **Collections live in `.server.ts` files** and pages load them in `+page.server.ts`, not a universal `+page.ts` (which cannot import a server module). An awaited body and a descriptor cross to the page.

@@ -203,12 +203,46 @@ adapter-static under `paths.base`.
 
 ## 12. Remote sources
 
-`import.meta.og.image('https://…')` is `image_remote_unsupported` today. Design: an allowlist on
-the plugin (`image({ remote: ['images.example.com'] })`, host patterns), fetched once at build
-into the build cache (its bytes give the id, like a local file), shipped as an asset like any
-original. A runtime fetch (CMS images known only per request) is a separate source kind whose
-recipe names the remote URL: the endpoint fetches it under the allowlist, with a size cap and a
-timeout, and the signature covers the URL.
+### 12.1 At build (built)
+
+`image({ remote: { hosts, maxBytes = 20 MB, timeout = 10 s, maxAge = 1 day } })`, checked in
+`vite/options.ts`. A `hosts` entry is a host (port when not the default), `*.` in front for every
+name below it (one label or more, never the name itself, never over an address or a top-level
+name), `http://` in front to allow plain HTTP; no path, no range (`src/remote-hosts.ts`,
+`RemoteHosts.allows`: scheme, host and port must match; a URL with a user or password never does).
+
+- The macro (`import.meta.og.image('https://…')`) checks the URL (`image_remote_host`, naming the
+  entry to add; a `data:`, protocol-relative or other-scheme URL is refused the same way) and
+  imports `virtual:ogygia-image/remote/<b64url URL>?og-image=…`. `.glob` stays local
+  (`image_option_invalid`, key `pattern`). A remote source takes local `dark`/`art` twins (their
+  paths written absolute into the query); a twin that is a URL is `image_option_invalid`.
+- The plugin's `resolveId` fetches it (`vite/remote.ts`) into
+  `node_modules/.ogygia/image/remote/<sha256(URL) hex, 32>.<ext>`, with `<name>.json` holding its
+  URL, ext, `etag`, `last-modified`, and resolves to that file: from there it is a file source
+  (`load`'s src/ check admits the remote folder). One flight per URL and folder per process (a
+  `slot`, so Kit's server and client builds share one answer). A kept copy is asked again with
+  `if-none-match`/`if-modified-since`; 304 keeps it. Redirects (`redirect: 'manual'`) at most 3,
+  each hop checked (`image_remote_host` with `via`, never stale). Body counted as it streams,
+  dropped past `maxBytes` (and a `content-length` over it); the whole fetch in one scope whose
+  timer closes it at `timeout` (`scope.task` → `STALE` → "no answer within"). Only
+  `image/{jpeg,png,webp,avif,gif,tiff}`. Any failure with a copy: the copy and
+  `image_remote_stale`; without: `image_remote_failed` (reason). No retries.
+- Markdown: a body `<img>` and a frontmatter string on a listed host become descriptors; others
+  stay plain.
+- The endpoint's originals: the server build's `renderChunk` writes the fetched names into the
+  sources module (`export const remote = [...]`); `Originals.has` admits
+  `<appDir>/immutable/assets/<name>.<hash>.<ext>` for a listed name. In dev the handoff carries the
+  remote folder and `on-disk.ts is_remote` admits a file there by its hashed name.
+- Tests: `test/remote.test.ts` (hosts, fast-check; the fetch against a local server: 200, 304,
+  redirect chain, unlisted hop, loop, oversize streamed and by length, content type, 404, timeout,
+  offline with and without a copy, one fetch per process), macro, markdown, plugin, server; e2e
+  fixture host `e2e/app/remote-host.ts` on 127.0.0.1:4176 (`/remote`, `/blog/fourth-post`).
+
+### 12.2 At request (next)
+
+A runtime fetch (CMS images known only per request) is a separate source kind whose recipe names
+the remote URL: the endpoint fetches it under the same hosts, with the size cap and timeout, the
+signature covers the URL, and its files are kept `remote.maxAge`, never `immutable`.
 
 ## 13. Cards
 
