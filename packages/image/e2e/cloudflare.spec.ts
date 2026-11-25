@@ -217,9 +217,10 @@ test('the Worker wrangler would deploy holds the binding maker and none of sharp
 			'mozjpeg',
 			'connect_lookup',
 			'card_png',
-			'@resvg/resvg-js'
+			'harfbuzz'
 		])
 			expect(worker, engine).not.toContain(engine);
+		expect(worker).not.toMatch(/(?:from |import\()["'](?:satori|@resvg\/resvg-js)["']/);
 		expect(worker).toContain('web_get');
 	} finally {
 		fs.rmSync(out, { recursive: true, force: true });

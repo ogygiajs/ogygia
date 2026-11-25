@@ -427,7 +427,7 @@ Where a card's files are made:
 | rendered on request, Workers/edge | the build's file, when a prerendered page named the same card and props |
 | dev                               | the dev server, again after each edit                                   |
 
-satori and resvg run in Node only. On Workers (or another edge runtime) a page rendered on request names its card's file as always, and the Worker serves it from the build's static files when a prerendered page made the same card with the same props; otherwise it answers 404, and says `image_no_encoder`. A build for such an adapter with a card says so once. Prerender the pages that show cards, or have a prerendered page name the cards your live pages show. With `vercel()` alone, list `sharp()` after it: the function draws the card, and sharp makes its files.
+satori and resvg run in Node only. On Workers (or another edge runtime) a page rendered on request names its card's file as always, and the Worker serves it from the build's static files when a prerendered page made the same card with the same props; otherwise it answers 404, and says `image_no_encoder`. A build for such an adapter with a card says so once. Prerender the pages that show cards, or have a prerendered page name the cards your live pages show. On Vercel, prerender them too for now: Vercel's file tracing leaves satori's text shaper (a WebAssembly file) out of the function, so a function cannot draw a card, and answers 500.
 
 A card's descriptor is minted by the server, so calling `ShareCard()` in the browser fails with `image_no_server`. On a page Kit hydrates (`csr = true`), make the card in the page's server load and pass the descriptor down.
 

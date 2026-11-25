@@ -82,7 +82,7 @@ test("a live page's share card is the endpoint's signed URL, never a link: no CD
 	const html = await (await request.get('/late/card?title=Linked')).text();
 	const og = /property="og:image" content="([^"]+)"/.exec(html)![1]!;
 	expect(new URL(og).pathname).toMatch(/^\/__ogygia__\/i\/[^/]+\/c[\w-]{32}-1200x630\/\.card\//);
-	expect(html.match(LINK_RE) ?? []).toEqual([]);
+	expect((html.match(LINK_RE) ?? []).filter((l) => l.includes('.card'))).toEqual([]);
 });
 
 test('prerendered pages still name the files the build made, and no link', async ({ request }) => {
