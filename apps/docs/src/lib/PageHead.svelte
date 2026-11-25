@@ -1,13 +1,15 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { card_path } from '$lib/og/card';
+	import type { ImageDescriptor } from '@ogygia/image';
+	import { ShareCard } from '$lib/og/share';
 
 	/** Per-route document head. Title segments join as `A · ogygia`. */
 	let {
 		title = '',
 		description = 'ogygia: Astro-style SSR islands for SvelteKit. Hydrate only what needs JavaScript.',
 		category = '',
-		home = false
+		home = false,
+		share
 	}: {
 		title?: string;
 		description?: string;
@@ -15,20 +17,21 @@
 		category?: string;
 		/** Homepage variant — big italic tagline instead of a titled card. */
 		home?: boolean;
+		/** The page's share card, made by its server load: a page Kit hydrates passes it. */
+		share?: ImageDescriptor;
 	} = $props();
 
 	const full_title = $derived(title ? `${title} · ogygia` : 'ogygia — SSR islands for SvelteKit');
 
-	// The origin that serves this page: a preview points og:image at its own files, and prerendering
-	// runs at the canonical origin (`kit.prerender.origin`), which also lets the build follow the link.
-	const og_image = $derived(
-		page.url.origin +
-			card_path(
+	const card = $derived(
+		share ??
+			ShareCard(
 				home
 					? { home: true }
 					: { title: title || 'SSR islands for SvelteKit', ...(category ? { category } : {}) }
 			)
 	);
+	const og_image = $derived(new URL(card.src, page.url).href);
 	const og_alt = $derived(
 		home ? 'ogygia — SSR islands for SvelteKit' : title ? `${title} — ogygia` : 'ogygia'
 	);
