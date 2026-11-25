@@ -139,8 +139,6 @@ function originals_of(paths: AppPaths | null): string {
 	return `${paths?.base ?? ''}/${paths?.app_dir ?? '_app'}/immutable/assets/`;
 }
 
-/** One twin file a source's options name (`dark`, `art`): its media, and the specifier that loads
- *  its own descriptor. */
 interface TwinFile {
 	media: string;
 	theme?: 'dark';

@@ -236,7 +236,6 @@ function at_least_one(n: number): number {
 	return Math.max(1, Math.round(n));
 }
 
-/** One candidate set laid out: the attributes, the format rows and its preload. */
 interface One {
 	width: number;
 	height: number;
@@ -359,8 +358,6 @@ function lay_one(
 	};
 }
 
-/** One twin as the layout reads it: its media, its source, its request, and whether it is a
- *  still. */
 interface Placed {
 	media: string;
 	image: ImageDescriptor;
@@ -395,9 +392,6 @@ function art_request(req: LayoutRequest, twin: Twin): LayoutRequest {
 	return out;
 }
 
-/** The twins of `image` under `req`, in the order their rows go: the still, each art twin (its
- *  dark crop first), the dark twin. `pick`: `light` or `dark` lays out one picture of a themed
- *  image, with no dark rows; `both` lays out one picture for every visitor. */
 function placed_twins(
 	image: ImageDescriptor,
 	req: LayoutRequest,
