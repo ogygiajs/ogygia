@@ -22,7 +22,8 @@ const PAGES = [
 	'/blog/fourth-post',
 	'/twins',
 	'/remote',
-	'/cms'
+	'/cms',
+	'/card'
 ];
 const IMAGE_URL_RE = /\/(?:__ogygia__\/i|_app\/immutable\/og)\/[^\s",)]+/g;
 const SIGNED_URL_RE = /\/__ogygia__\/i\/[^\s",)]+/g;
@@ -367,7 +368,7 @@ test.describe('the image endpoint', () => {
 		for (const url of seen) {
 			const res = await request.get(url);
 			expect(res.status(), url).toBe(200);
-			const ext = /\.(avif|webp)$/.exec(url)?.[1];
+			const ext = /\.(avif|webp|png)$/.exec(url)?.[1];
 			expect(res.headers()['content-type'], url).toBe(`image/${ext}`);
 		}
 	});
@@ -605,6 +606,86 @@ test.describe('remote images at request (/cms, /late/cms)', () => {
 			expect(res.status(), id).toBe(status);
 			expect(res.headers()['cache-control'], id).toBe('no-store');
 		}
+	});
+});
+
+test.describe('share cards (/card, /late/card)', () => {
+	const CARD_URL_RE = /\/c[\w-]{32}-1200x630\/\.card\/[\w-]{16}\/([\w-]+)\.png$/;
+
+	async function og_image(page: Page, path: string): Promise<URL> {
+		await page.goto(path);
+		return new URL((await page.locator('meta[property="og:image"]').getAttribute('content'))!);
+	}
+
+	test("a card's own src is a 1200 x 630 PNG, absolute in og:image: prerendered, a file the build made under og/; live, a signed URL kept forever; its <Img> loads", async ({
+		page,
+		request
+	}) => {
+		const og = await og_image(page, '/card');
+		if (MODE === 'static') {
+			expect(og.origin).toBe('https://example.com');
+			expect(og.pathname).toMatch(/^\/_app\/immutable\/og\/c[\w-]{32}-1200x630\.png$/);
+			const app = fileURLToPath(new URL('./app/', import.meta.url));
+			expect(fs.existsSync(path.join(app, 'build/static', og.pathname))).toBe(true);
+		} else {
+			expect(og.origin).toBe(new URL(page.url()).origin);
+			expect(og.pathname).toMatch(CARD_URL_RE);
+		}
+		const res = await request.get(og.pathname);
+		expect(res.status()).toBe(200);
+		if (MODE !== 'static')
+			expect(res.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
+		const meta = await sharp(await res.body()).metadata();
+		expect([res.headers()['content-type'], meta.format, meta.width, meta.height]).toEqual([
+			'image/png',
+			'png',
+			1200,
+			630
+		]);
+		await every_image_loads(page);
+	});
+
+	test('a card rendered on request draws the props its load named, one source per props', async ({
+		page,
+		request
+	}) => {
+		test.skip(MODE === 'static', 'every page prerendered: no request reaches an endpoint');
+		const a = await og_image(page, '/late/card?title=First');
+		const b = await og_image(page, '/late/card?title=Second');
+		expect(a.pathname).toMatch(CARD_URL_RE);
+		expect(a.pathname.split('/')[4]).not.toBe(b.pathname.split('/')[4]);
+		const props = CARD_URL_RE.exec(a.pathname)![1]!;
+		expect(JSON.parse(Buffer.from(props, 'base64url').toString('utf8'))).toEqual({
+			title: 'First'
+		});
+		for (const url of [a, b]) {
+			const f = await fetch_file(request, url.pathname);
+			expect([f.type, f.width, f.height]).toEqual(['image/png', 1200, 630]);
+		}
+	});
+
+	test('a .card/ tail changed to other props is refused by the signature', async ({
+		page,
+		request
+	}) => {
+		test.skip(MODE === 'static', 'a prerendered page names no signed URL');
+		const og = await og_image(page, '/late/card?title=Mine');
+		const other = Buffer.from(JSON.stringify({ title: 'Forged' })).toString('base64url');
+		const forged = og.pathname.replace(/(\.card\/[\w-]+\/)[\w-]+/, `$1${other}`);
+		const res = await request.get(forged);
+		expect(res.status()).toBe(403);
+		expect(res.headers()['x-ogygia-deny']).toBe('sig');
+		expect((await request.get(og.pathname)).status()).toBe(200);
+	});
+
+	test('in dev, a share image that is WebP or AVIF says image_share_format', async ({
+		request
+	}) => {
+		test.skip(MODE !== 'dev', 'a dev rule');
+		expect((await request.get('/late/card?format=webp')).status()).toBe(200);
+		await expect
+			.poll(() => fs.readFileSync(server_log()!, 'utf8'))
+			.toMatch(/image_share_format\?path=%2Flate%2Fcard/);
 	});
 });
 

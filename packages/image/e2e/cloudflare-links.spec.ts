@@ -76,6 +76,15 @@ test("a live page's remoteImage() is a /cdn-cgi/image link to its whole URL (the
 	]);
 });
 
+test("a live page's share card is the endpoint's signed URL, never a link: no CDN can fetch a card's original", async ({
+	request
+}) => {
+	const html = await (await request.get('/late/card?title=Linked')).text();
+	const og = /property="og:image" content="([^"]+)"/.exec(html)![1]!;
+	expect(new URL(og).pathname).toMatch(/^\/__ogygia__\/i\/[^/]+\/c[\w-]{32}-1200x630\/\.card\//);
+	expect(html.match(LINK_RE) ?? []).toEqual([]);
+});
+
 test('prerendered pages still name the files the build made, and no link', async ({ request }) => {
 	expect((await named(request, PRERENDERED, BUILT_RE)).length).toBeGreaterThan(40);
 	expect(await named(request, PRERENDERED, LINK_RE)).toEqual([]);

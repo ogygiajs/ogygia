@@ -155,6 +155,32 @@ test("a live page's remoteImage() is fetched by the Worker and made by the bindi
 	for (const url of built) expect((await request.get(url)).status(), url).toBe(200);
 });
 
+test("a live page's share card is the build's file of it when a prerendered page made the same card, else 404 kept nowhere: the Worker draws no card", async ({
+	request
+}) => {
+	const og = async (query: string): Promise<string> => {
+		const res = await request.get(`/late/card?${query}`);
+		expect(res.status()).toBe(200);
+		const at = /property="og:image" content="([^"]+)"/.exec(await res.text())![1]!;
+		return new URL(at.replaceAll('&amp;', '&')).pathname;
+	};
+	const prerendered = (await named(request, ['/card'], /\/_app\/immutable\/og\/c[\w-]+\.png/g))[0]!;
+	const same = await og(
+		new URLSearchParams({ title: 'Ships & <harbors>', section: 'Blog' }).toString()
+	);
+	expect(same).toMatch(/^\/__ogygia__\/i\/[^/]+\/c[\w-]{32}-1200x630\/\.card\//);
+	expect(same).toContain(`/${/og\/(c[\w-]{32})-/.exec(prerendered)![1]}-1200x630/`);
+	const res = await request.get(same);
+	expect(res.status()).toBe(200);
+	expect(res.headers()['content-type']).toBe('image/png');
+	expect(res.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
+	const meta = await sharp(await res.body()).metadata();
+	expect([meta.width, meta.height]).toEqual([1200, 630]);
+	const missing = await request.get(await og('title=Nobody+prerendered+this'));
+	expect(missing.status()).toBe(404);
+	expect(missing.headers()['cache-control']).toBe('no-store');
+});
+
 test('the endpoint refuses a forged signature and a POST, kept nowhere', async ({ request }) => {
 	const url = (await named(request, ['/late'], SIGNED_RE))[0]!;
 	const sig = /\/i\/([^/]+)\//.exec(url)![1]!;
@@ -189,7 +215,9 @@ test('the Worker wrangler would deploy holds the binding maker and none of sharp
 			'limitInputPixels',
 			'runtime_store',
 			'mozjpeg',
-			'connect_lookup'
+			'connect_lookup',
+			'card_png',
+			'@resvg/resvg-js'
 		])
 			expect(worker, engine).not.toContain(engine);
 		expect(worker).toContain('web_get');

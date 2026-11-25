@@ -11,10 +11,11 @@ const PAGES = [
 	'/base/blog/first-post',
 	'/base/blog/third-post',
 	'/base/island',
-	'/base/twins'
+	'/base/twins',
+	'/base/card'
 ];
 const FILE_RE = /\/[^\s",()]*(?:__ogygia__\/i|_app\/immutable\/og)\/[^\s",)]+/g;
-const BUILT_RE = /^\/base\/_app\/immutable\/og\/[\w-]+\.(?:avif|webp)$/;
+const BUILT_RE = /^\/base\/_app\/immutable\/og\/[\w-]+\.(?:avif|webp|png)$/;
 
 test('every image file each page names sits under the base, and loads as an image', async ({
 	request
@@ -31,7 +32,7 @@ test('every image file each page names sits under the base, and loads as an imag
 		expect(url, url).toMatch(BUILT_RE);
 		const res = await request.get(url);
 		expect(res.status(), url).toBe(200);
-		expect(res.headers()['content-type'], url).toMatch(/^image\/(avif|webp)$/);
+		expect(res.headers()['content-type'], url).toMatch(/^image\/(avif|webp|png)$/);
 	}
 });
 

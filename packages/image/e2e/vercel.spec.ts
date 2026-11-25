@@ -141,6 +141,21 @@ test('the function holds sharp, the encoder the config lists, and makes every fi
 	}
 });
 
+test("the function draws a live page's share card with the engine the app lists, a PNG kept forever", async ({
+	request
+}) => {
+	expect(
+		fs.existsSync(path.join(FUNC, 'packages/image/e2e/app/node_modules/@resvg/resvg-js'))
+	).toBe(true);
+	const url = (await named(request, ['/late/card?title=On+Vercel'], SIGNED_RE)).find((u) =>
+		u.includes('/.card/')
+	)!;
+	const res = await request.get(url);
+	expect(res.status(), url).toBe(200);
+	expect(res.headers()['content-type']).toBe('image/png');
+	expect(res.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
+});
+
 test("a live page's moving image offers a still sharp makes, since Vercel cannot keep one frame", async ({
 	request
 }) => {
