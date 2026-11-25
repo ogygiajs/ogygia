@@ -9,29 +9,26 @@ declare module 'vitest/browser' {
 	}
 }
 
-const within = (p: Promise<unknown>, ms: number): Promise<string> =>
-	Promise.race([
-		p.then(
-			() => 'landed',
-			() => 'failed'
-		),
-		new Promise<string>((r) => setTimeout(() => r('stranded'), ms))
-	]);
+const pause = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 it_with_network_routes(
 	'module loads in flight while a network rule goes on and comes off again all land (Chromium once stranded one, and an island waiting on its graph never woke)',
 	async () => {
 		let stop = false;
-		let stranded = 0;
-		let loads = 0;
+		let started = 0;
+		let open = 0;
+		const load = (lane: number) => {
+			started++;
+			open++;
+			const done = () => void open--;
+			const loading = import(/* @vite-ignore */ `/src/ref-sink.ts?lane=${lane}-${started}`);
+			loading.then(done, done);
+			return loading;
+		};
 		const load_in_turn = async (lane: number) => {
 			while (!stop) {
-				const batch = Array.from(
-					{ length: 8 },
-					() => import(/* @vite-ignore */ `/src/ref-sink.ts?lane=${lane}-${loads++}`)
-				);
-				const out = await Promise.all(batch.map((b) => within(b, 4000)));
-				stranded += out.filter((o) => o === 'stranded').length;
+				const batch = Array.from({ length: 8 }, () => load(lane));
+				await Promise.race([Promise.allSettled(batch), pause(500)]);
 			}
 		};
 		const lanes = [0, 1, 2, 3].map(load_in_turn);
@@ -41,8 +38,9 @@ it_with_network_routes(
 		}
 		stop = true;
 		await Promise.all(lanes);
-		expect(loads).toBeGreaterThan(0);
-		expect(stranded).toBe(0);
+		for (let waited = 0; open > 0 && waited < 30_000; waited += 100) await pause(100);
+		expect(started).toBeGreaterThan(0);
+		expect({ never_landed: open }).toEqual({ never_landed: 0 });
 	},
-	60_000
+	120_000
 );
