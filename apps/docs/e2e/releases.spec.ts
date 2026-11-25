@@ -3,8 +3,8 @@
  *
  *   pnpm turbo run e2e --filter=docs
  *
- * `/releases` groups each version's packages in one card; its filters are links the server reads,
- * so they work with JavaScript off. `/releases/<package>` is one package's history.
+ * `/releases` groups each version's packages in one card; each filter is a link to its own
+ * prerendered page, so they work with JavaScript off. `/releases/<package>` is one package's history.
  *
  * Self-booting: the docs app's `vite dev` comes up in `beforeAll` and is torn down after.
  */
@@ -81,12 +81,12 @@ test('the island folds all but the newest three versions, and expand all opens e
 test.describe('with JavaScript off', () => {
 	test.use({ javaScriptEnabled: false });
 
-	test('a type filter is a link the server reads: Patch lists patch releases only', async ({
+	test('a type filter is a link to its own page: Patch lists patch releases only', async ({
 		page
 	}) => {
 		await page.goto(`${base}/releases`);
 		await page.getByRole('link', { name: 'Patch', exact: true }).click();
-		await expect(page).toHaveURL(/type=patch/);
+		await expect(page).toHaveURL(/\/releases\/patch$/);
 		await expect(card(page, '0.12.3')).toBeVisible();
 		await expect(card(page, '0.13.0')).toHaveCount(0);
 		// every card is open: nothing to expand without JavaScript

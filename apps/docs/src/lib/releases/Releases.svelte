@@ -2,10 +2,9 @@
 	// A Releases page: the package list beside, the filters on top, a timeline entry per version.
 	// Server HTML: every filter is a link the server reads, and every entry is a <details> that starts
 	// open. The one island adds expand and collapse all, and folds the older entries on its first run.
-	import { page } from '$app/state';
 	import PageHead from '$lib/PageHead.svelte';
 	import ExpandAll from './ExpandAll.svelte' with { wake: 'load' };
-	import { href_with, type Filters, type PackageLink, type VersionCard } from './view';
+	import { href_for, type Filters, type PackageLink, type VersionCard } from './view';
 	import type { Kind } from './changelog';
 
 	let {
@@ -27,7 +26,6 @@
 		['minor', 'Minor'],
 		['patch', 'Patch']
 	];
-	const url = $derived(page.url);
 	const id_of = $derived(new Map(packages.map((p) => [p.name, p.id])));
 	const total = $derived(packages.reduce((n, p) => n + p.count, 0));
 
@@ -91,7 +89,7 @@
 			<div class="segmented" role="group" aria-label="Release type">
 				{#each types as [type, label] (label)}
 					<a
-						href={href_with(url, { type })}
+						href={href_for(current, type)}
 						aria-current={filters.type === type ? 'true' : undefined}>{label}</a
 					>
 				{/each}

@@ -1,7 +1,7 @@
 /**
- * What a Releases page shows, from the packages' releases and the filters in its address
- * (`?type=major|minor|patch`): read on the server, so the filters are
- * plain links and work with JavaScript off.
+ * What a Releases page shows, from the packages' releases and the filter in its path
+ * (`/releases/patch`, `/releases/core/minor`): each filter is its own prerendered page, so the
+ * filters are plain links and work with JavaScript off.
  */
 import { compare_versions, group_by_version, type Kind, type Release } from './changelog.ts';
 import type { PackageReleases } from './releases.server.ts';
@@ -19,23 +19,19 @@ export type VersionCard = {
 	releases: Release[];
 };
 
-const KINDS: readonly Kind[] = ['major', 'minor', 'patch']; // static: the three bumps
+export const KINDS: readonly Kind[] = ['major', 'minor', 'patch'];
 
-export function filters_of(url: URL): Filters {
-	const t = url.searchParams.get('type');
-	return {
-		type: (KINDS as readonly string[]).includes(t ?? '') ? (t as Kind) : null
-	};
+export function is_kind(value: string): value is Kind {
+	return (KINDS as readonly string[]).includes(value);
 }
 
-/** The address of this page with `change` applied to its filters (`null` drops one). */
-export function href_with(url: URL, change: { type?: Kind | null }): string {
-	const next = new URL(url);
-	if ('type' in change) {
-		if (change.type) next.searchParams.set('type', change.type);
-		else next.searchParams.delete('type');
-	}
-	return next.pathname + next.search;
+export function filters_of(type: string | undefined): Filters {
+	return { type: type !== undefined && is_kind(type) ? type : null };
+}
+
+/** The address of the Releases page for `current` (a package id, or `null` for all) under `type`. */
+export function href_for(current: string | null, type: Kind | null): string {
+	return `/releases${current ? `/${current}` : ''}${type ? `/${type}` : ''}`;
 }
 
 /** The version cards for `releases` under `filters`: newest first (by tag date, then version). */
