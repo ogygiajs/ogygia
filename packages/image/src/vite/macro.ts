@@ -79,7 +79,6 @@ type Call = {
 	card: boolean;
 	src: string;
 	options: ImageOptions;
-	/** A card's options, as written (checked by ./card.ts). */
 	raw: unknown;
 	line: number;
 };

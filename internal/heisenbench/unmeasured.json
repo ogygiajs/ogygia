@@ -6969,15 +6969,15 @@
 			"reason": "reads the plugin's virtual config module, which resolves only inside an app; lay_out, the work it does per <Img>, is measured by the lay_out bench"
 		},
 		{
-			"id": "packages/image/src/server.ts > defineServer:0~1bc7b4 > request",
+			"id": "packages/image/src/server.ts > defineServer:0~f564bc > request",
 			"reason": "the server realm's glue over app.sign / app.verify (core's HMAC, measured in core's capability benches) and Kit's event; recipe_path and parse_recipe are measured; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/server.ts > defineServer:0~1bc7b4 > setup",
+			"id": "packages/image/src/server.ts > defineServer:0~f564bc > setup",
 			"reason": "the server realm's glue over app.sign / app.verify (core's HMAC, measured in core's capability benches) and Kit's event; recipe_path and parse_recipe are measured; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/server.ts > start > set_minter:0~de6564",
+			"id": "packages/image/src/server.ts > start > set_minter:0~4808be",
 			"reason": "the server realm's glue over the encoder's namer (constant: no link for sharp), app.sign (core's HMAC, measured in core's capability benches) and a bounded machine cache of the URLs it signed; recipe_path and built_url are measured; test/server.test.ts runs it"
 		},
 		{
@@ -7005,15 +7005,15 @@
 			"reason": "constant work: one 404 response, on a refusal only; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~27ba85 > run",
+			"id": "packages/image/src/settle.ts > call:0~924e74 > run",
 			"reason": "the image endpoint's encode path: the reader (Kit's read()) and the maker (sharp), once per file, then a streamed store read; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~27ba85 > run > limited:0~d835f4",
+			"id": "packages/image/src/settle.ts > call:0~924e74 > run > limited:0~d835f4",
 			"reason": "the image endpoint's encode path: the reader (Kit's read()) and the maker (sharp), once per file, then a streamed store read; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~27ba85 > keep",
+			"id": "packages/image/src/settle.ts > call:0~924e74 > keep",
 			"reason": "constant work: whether a made file is on disk, once per encode; test/settle-store-fails.test.ts runs it"
 		},
 		{
@@ -7033,7 +7033,7 @@
 			"reason": "only on a refused remote fetch: builds one error"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~27ba85 > weigh",
+			"id": "packages/image/src/settle.ts > call:0~924e74 > weigh",
 			"reason": "constant work: a made file's byte length, once per encode; test/settle-store-fails.test.ts runs it"
 		},
 		{
@@ -7197,11 +7197,11 @@
 			"reason": "a message's one line for the build warning: a template over its detail, printed once per stale image per build"
 		},
 		{
-			"id": "packages/image/src/vite/macro.ts > image_call_edits > forEach:0~e9abe4 > map:0~fc976a",
+			"id": "packages/image/src/vite/macro.ts > image_call_edits > forEach:0~6fccb9 > map:0~fc976a",
 			"reason": "build only: one path rewrite per art twin of one macro call, once per call per build; packages/image/e2e runs it"
 		},
 		{
-			"id": "packages/image/src/vite/macro.ts > image_call_edits > forEach:0~e9abe4 > twin",
+			"id": "packages/image/src/vite/macro.ts > image_call_edits > forEach:0~6fccb9 > twin",
 			"reason": "build only: one path resolve and existence check per twin of one macro call, once per call per build; packages/image/e2e runs it"
 		},
 		{
@@ -7905,7 +7905,7 @@
 			"reason": "build only: one method-name compare per og call in a component that calls the image macro, inside the measured macro pass; packages/image/test/macro.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/vite/macro.ts > refuse_markup_calls > filter:0~abed74",
+			"id": "packages/image/src/vite/macro.ts > refuse_markup_calls > filter:0~1c99f5",
 			"reason": "build only: one method-name compare per og.image.* call in a component, inside the measured macro pass; packages/image/test/macro.test.ts runs it"
 		},
 		{
@@ -8101,16 +8101,392 @@
 			"reason": "constant work: two regex tests and a prefix check, in dev on an unknown original only; the e2e dev mode runs it"
 		},
 		{
-			"id": "packages/image/src/vite/build-files.ts > BuildMakes > call:0~d5738a > run",
+			"id": "packages/image/src/vite/build-files.ts > BuildMakes > call:0~4eed4c > run",
 			"reason": "build time, once per file the build makes: a flight over sharp's encode (or a store read); test/build-head-start.test.ts and the e2e static and base builds run it"
 		},
 		{
-			"id": "packages/image/src/vite/build-files.ts > BuildMakes > call:0~d5738a > run > in_turn:1~9084d3",
+			"id": "packages/image/src/vite/build-files.ts > BuildMakes > call:0~4eed4c > run > in_turn:1~a75d01",
 			"reason": "build time, once per file the build makes: a flight over sharp's encode (or a store read); test/build-head-start.test.ts and the e2e static and base builds run it"
 		},
 		{
 			"id": "packages/image/src/vite/build-files.ts > BuildMakes > close",
 			"reason": "build time, once per build: a map delete and a scope close; test/build-write.test.ts and the e2e static and base builds run it"
+		},
+		{
+			"id": "packages/image/src/vite/build-files.ts > no_card",
+			"reason": "build time, an error path only: a prerendered card the build has no chunk for; the e2e static build runs the card path"
+		},
+		{
+			"id": "packages/image/src/settle.ts > call:0~199e8d > run",
+			"reason": "once per card tail at the endpoint (a flight): the card's own-size PNG drawn by satori and resvg, tens of milliseconds, then the maker; the e2e node and server modes run it"
+		},
+		{
+			"id": "packages/image/src/settle.ts > assets_of",
+			"reason": "edge runtime only, once per card file asked there: two property reads; the e2e cloudflare mode runs it"
+		},
+		{
+			"id": "packages/image/src/settle.ts > built_card",
+			"reason": "edge runtime only, once per card file asked there: one static-asset fetch through the platform; the e2e cloudflare mode runs it"
+		},
+		{
+			"id": "packages/image/src/server.ts > share_rule",
+			"reason": "dev only (the hook is not in a build): wraps each page request's resolve; the e2e dev mode runs it"
+		},
+		{
+			"id": "packages/image/src/server.ts > share_rule > next:0~75c4dc > transformPageChunk",
+			"reason": "dev only: one tag walk over each page chunk (unshown_share_images, linear in the HTML); test/card.test.ts and the e2e dev mode run it"
+		},
+		{
+			"id": "packages/image/src/share-rule.ts > unshown_share_images",
+			"reason": "dev only: one walk of core's tag reader (measured in core's markup benches) over a page chunk, an attribute read per meta tag; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/recipe.ts > card_of_tail",
+			"reason": "constant work per card file asked or noted: one regex and one base64url decode of at most 2048 characters; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/card-browser.ts > card_in_browser",
+			"reason": "browser only, and only to refuse: throws image_no_server; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/card.ts > card",
+			"reason": "once per card module load: returns the card's descriptor maker; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/card.ts > card > <anonymous>~02b444",
+			"reason": "once per card a page names: card_json over props of at most 2048 characters, one SHA-256 of under 2.2 KB (sha256.ts, fast-checked) and one mint (measured with the recipes); test/card.test.ts and the e2e card pages run it"
+		},
+		{
+			"id": "packages/image/src/card.ts > card_json",
+			"reason": "once per card a page names: a canonical JSON walk of props capped at 2048 characters; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/card.ts > canonical",
+			"reason": "once per card a page names: a canonical JSON walk of props capped at 2048 characters; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/card.ts > canonical > map:0~2eec34",
+			"reason": "once per card a page names: a canonical JSON walk of props capped at 2048 characters; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/card.ts > canonical > map:0~fd99e8",
+			"reason": "once per card a page names: a canonical JSON walk of props capped at 2048 characters; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/card.ts > plain",
+			"reason": "constant work: one prototype read per object in a card's props; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/card.ts > refuse",
+			"reason": "an error path only: throws image_card_props; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/card.ts > card_id",
+			"reason": "once per card a page names and per card file made: one SHA-256 of under 2.2 KB; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/card.ts > b64url",
+			"reason": "constant work: 32 bytes to base64url, once per card id; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/list.ts > find_card",
+			"reason": "once per card file made at the endpoint: one own-property read and one dynamic import (cached by the runtime); the e2e node and server modes run it"
+		},
+		{
+			"id": "packages/image/src/cards/none.ts > card_module",
+			"reason": "edge runtime only: answers no card; the e2e cloudflare mode and the unit tests run it"
+		},
+		{
+			"id": "packages/image/src/cards/read.ts > card_original",
+			"reason": "once per card tail at the endpoint: the card's module, its fonts through Kit's read() and the draw (satori and resvg, tens of milliseconds); the e2e node and server modes run it"
+		},
+		{
+			"id": "packages/image/src/cards/read.ts > card_original > map:0~89526f",
+			"reason": "once per card tail at the endpoint: one Kit read() per font; the e2e node and server modes run it"
+		},
+		{
+			"id": "packages/image/src/cards/engine.ts > card_png",
+			"reason": "once per card drawn (the build, or the endpoint's first ask of a tail): satori's layout and resvg's raster dominate, tens of milliseconds; test/card.test.ts and the e2e card pages run it"
+		},
+		{
+			"id": "packages/image/src/cards/engine.ts > card_png > satori:1~e4e47e > map:0~c69ac8",
+			"reason": "once per font per card drawn: one object; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/engine.ts > card_tree",
+			"reason": "once per card drawn: satori-html's parse and one walk of its tree; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/engine.ts > decoded",
+			"reason": "once per card drawn: one walk of the card's element tree; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/engine.ts > decode_entities",
+			"reason": "once per text node of a card drawn: one regex replace; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/engine.ts > decode_entities > replace:1~324667",
+			"reason": "once per character reference in a card's text; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/engine.ts > css_error",
+			"reason": "an error path only: names the CSS satori refused (image_card_css); test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/engine.ts > engine",
+			"reason": "once per card drawn: one flight lookup (the engine loads once per process); test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/engine.ts > load_engine",
+			"reason": "once per process: three dynamic imports; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/engine.ts > load_engine > at",
+			"reason": "once per process, per engine package: one import's outcome; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/engine.ts > load_engine > at > catch:0~b4c906",
+			"reason": "an error path only: an engine package the app has not installed (image_card_engine_missing)"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_card_css > details",
+			"reason": "message text, built only when said (an error); the docs' message pages render it"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_card_css > text",
+			"reason": "message text, built only when said (an error); test/card.test.ts says it"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_card_engine_missing > details",
+			"reason": "message text, built only when said (an error); the docs' message pages render it"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_card_engine_missing > text",
+			"reason": "message text, built only when said (an error); the docs' message pages render it"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_card_font > details",
+			"reason": "message text, built only when said (an error); the docs' message pages render it"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_card_font > text",
+			"reason": "message text, built only when said (a build error); test/card-build.test.ts says it"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_card_props > details",
+			"reason": "message text, built only when said (an error); the docs' message pages render it"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_card_props > text",
+			"reason": "message text, built only when said (an error); test/card.test.ts says it"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_WARNINGS > image_share_format > details",
+			"reason": "message text, built only when said (a dev warning); the docs' message pages render it"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_WARNINGS > image_share_format > text",
+			"reason": "message text, built only when said (a dev warning, once per URL); the e2e dev mode says it"
+		},
+		{
+			"id": "packages/image/src/vite/macro.ts > member_of",
+			"reason": "build only, an error path: names what a macro call's first argument is; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/font-face.ts > font_face",
+			"reason": "build time, once per font a card call names: reads the file's name and OS/2 tables (a woff table inflated); test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/font-face.ts > tables_of",
+			"reason": "build time, once per font a card call names: the table directory; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/font-face.ts > sfnt_tables",
+			"reason": "build time, once per TrueType or OpenType font a card call names: the table directory; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/font-face.ts > woff_tables",
+			"reason": "build time, once per WOFF font a card call names: the table directory, each table inflated; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/font-face.ts > name_records",
+			"reason": "build time, once per font a card call names: the name table's records; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/font-face.ts > name_of",
+			"reason": "build time, once per font a card call names: picks one name record; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/font-face.ts > name_of > filter:0~7c3c47",
+			"reason": "build time, once per font a card call names: picks one name record; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/font-face.ts > name_of > find:0~13c367",
+			"reason": "build time, once per font a card call names: picks one name record; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/font-face.ts > name_of > find:0~3fbb53",
+			"reason": "build time, once per font a card call names: picks one name record; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/font-face.ts > name_of > find:0~915c16",
+			"reason": "build time, once per font a card call names: picks one name record; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/font-face.ts > family_of",
+			"reason": "build time, once per font a card call names: one name and one regex; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/font-face.ts > utf16be",
+			"reason": "build time, once per font a card call names: a family name of a few dozen characters; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > define",
+			"reason": "build time, once per card call a module holds: checks the options, reads each font, hashes the call; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > define > map:0~d2ea3e",
+			"reason": "build time, once per font of a card call; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > define > map:0~e0bdd4",
+			"reason": "build time, once per font of a card call; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > get",
+			"reason": "constant work: one map lookup per card module load; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > check",
+			"reason": "build time, once per card module load in a server environment: the engine check (a package.json read and three resolves); test/card-build.test.ts runs its table"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > emitted",
+			"reason": "build time, once per card: one map set; the e2e builds run it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > module",
+			"reason": "build time and dev, once per card module load: one template; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > module > map:0~20b34f",
+			"reason": "build time and dev, once per font of a card module load; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > module > map:0~33c1d0",
+			"reason": "build time and dev, once per font of a card module load; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > list_module",
+			"reason": "build time and dev, once per server environment: one template; test/card-build.test.ts and the e2e builds run it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > render_chunk",
+			"reason": "build time, once per server chunk: two regex tests, and on the chunks that hold a placeholder, one digest per card (cached) and one list; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > render_chunk > map:0~aaf06e",
+			"reason": "build time, once per card in the chunk holding the list; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > render_chunk > replace:1~05a676",
+			"reason": "build time, once per card digest placeholder; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > render_chunk > replace:1~a6765b",
+			"reason": "build time, once per chunk holding the list; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > written",
+			"reason": "build time, once per server build: one map set per card; the e2e builds run it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > draw",
+			"reason": "build time, once per prerendered card file: imports the card's chunk once, reads its fonts, draws it (satori and resvg); the e2e static and base builds run it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > draw > map:0~2185e1",
+			"reason": "build time, once per font of a prerendered card drawn; the e2e static build runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > Cards > call:0~cf0614 > run",
+			"reason": "build time, once per card chunk: one dynamic import (a flight); the e2e static build runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > card_digest",
+			"reason": "build time, once per card per server build: one SHA-256 over the files of the card's module graph; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > card_digest > map:0~8f619b",
+			"reason": "build time, once per module of a card's graph; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > card_digest > sort:0~2f5dbe",
+			"reason": "build time, the sort of a card's module ids; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > card_digest > stringify:0~9a4bff > map:0~284e9d",
+			"reason": "build time, once per font of a card's digest; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > check_engine",
+			"reason": "build time, once per card module load in a server environment: a package.json read and three resolves; test/card-build.test.ts runs its table"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > decisions:0~503575 > decide",
+			"reason": "build time, once per card module load: one table row; test/card-build.test.ts checks every row"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > engine_versions",
+			"reason": "build time, once per card check and per chunk holding a digest: four package.json reads; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > engine_versions > map:0~8c38d2",
+			"reason": "build time, once per engine package; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > installed_version",
+			"reason": "build time, once per engine package per check: one resolve and one package.json read; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > package_json",
+			"reason": "build time, once per card check: one package.json read; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > listed_in",
+			"reason": "build time, once per engine package per check: three property reads; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > listed_in > has",
+			"reason": "build time, once per engine package per check: one property read; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > file_of",
+			"reason": "once per plugin load: five module paths; the plugin's tests run it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > font_file",
+			"reason": "build time, once per font a card call names: resolves and reads the file; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > is_card_component",
+			"reason": "build and dev, once per module transformed and per import resolved from a card component: one indexOf, one endsWith and one regex; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > read_file",
+			"reason": "build time, once per module of a card's graph: one file read; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > rel_of",
+			"reason": "build time, one path.relative per card file and per module of its graph; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > side",
+			"reason": "build time, constant work: one integer check per card side; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > with_injected_css",
+			"reason": "build and dev, once per card component compiled: one walk of core's tag reader to its options tag; test/card.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/vite/build-files.ts > BuildMakes > constructor",
@@ -8225,7 +8601,7 @@
 			"reason": "once per server start: picks one of three minters; test/server.test.ts, server-prerender.test.ts and server-after-build.test.ts run each"
 		},
 		{
-			"id": "packages/image/src/server.ts > defineServer:0~1bc7b4 > setup > load:0~0a0abd",
+			"id": "packages/image/src/server.ts > defineServer:0~f564bc > setup > load:0~0a0abd",
 			"reason": "dev and build only, once per server start: hands the loaded disk half to start; test/server-prerender.test.ts runs it"
 		},
 		{

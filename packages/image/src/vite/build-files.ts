@@ -282,7 +282,6 @@ interface Job {
 	source: string;
 	original: () => Uint8Array;
 	remote?: URL;
-	/** A card's tail: its original is drawn. */
 	card?: string;
 }
 

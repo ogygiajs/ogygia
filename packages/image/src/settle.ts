@@ -254,9 +254,6 @@ function assets_of(platform: unknown): Assets | null {
 	return typeof env?.ASSETS?.fetch === 'function' ? (env.ASSETS as Assets) : null;
 }
 
-/** A card's file where no card is drawn (a Worker): the build's file of it (`built`, the URL a
- *  prerendered page named it by), from the platform's static assets, when the build made it; else
- *  404, said once. */
 async function built_card(
 	key: string,
 	built: string,

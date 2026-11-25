@@ -142,7 +142,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-115 entries.
+119 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -230,9 +230,13 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/federation/src/wire.ts` | `private_key` | `Buffer.from base64` | 1 |
 | `packages/federation/src/wire.ts` | `public_key` | `Buffer.from base64` | 1 |
 | `packages/federation/src/wire.ts` | `signature_bytes` | `Buffer.from base64` | 1 |
+| `packages/image/src/cards/read.ts` | `card_original` | `JSON.parse` | 1 |
 | `packages/image/src/handoff.ts` | `build_handoff` | `JSON.parse` | 1 |
 | `packages/image/src/recipe.ts` | `b64url_decode` | `atob` | 1 |
 | `packages/image/src/recipe.ts` | `parse_recipe` | `JSON.parse` | 1 |
+| `packages/image/src/vite/card.ts` | `draw` | `JSON.parse` | 1 |
+| `packages/image/src/vite/card.ts` | `installed_version` | `JSON.parse` | 1 |
+| `packages/image/src/vite/card.ts` | `package_json` | `JSON.parse` | 1 |
 | `packages/image/src/vite/encoder.ts` | `listed` | `JSON.parse` | 1 |
 | `packages/image/src/vite/index.ts` | `image` | `JSON.parse` | 1 |
 | `packages/image/src/vite/index.ts` | `kit_paths` | `JSON.parse` | 1 |
