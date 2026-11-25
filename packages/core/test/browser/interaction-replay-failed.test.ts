@@ -6,34 +6,6 @@ import { commands } from 'vitest/browser';
 import { PLAYWRIGHT, it_with_network_routes } from './_browsers.ts';
 import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
-import { after_document_painted, schedule_idle } from '../../src/runtime/schedule.ts';
-import { hear, hear_none } from '../_hooks.ts';
-
-/** What a woken region that did not come alive is still waiting for, for the failure's message. */
-async function waits_left(region: Element): Promise<string> {
-	const within = (p: Promise<unknown>) =>
-		Promise.race([p.then(() => 'yes'), new Promise((r) => setTimeout(() => r('no'), 1000))]);
-	const frame = await within(new Promise((r) => requestAnimationFrame(r)));
-	const painted = await within(after_document_painted());
-	const seen = await within(
-		new Promise((r) => {
-			const io = new IntersectionObserver(() => {
-				io.disconnect();
-				r(0);
-			});
-			io.observe(region);
-		})
-	);
-	return JSON.stringify({
-		visibility: document.visibilityState,
-		ready: document.readyState,
-		frame,
-		painted,
-		seen,
-		schedule_idle: schedule_idle(),
-		attrs: [...region.attributes].map((a) => `${a.name}=${a.value}`)
-	});
-}
 
 declare module 'vitest/browser' {
 	interface BrowserCommands {
@@ -82,16 +54,7 @@ it_with_network_routes(
 		sessionStorage.setItem(DEV_RELOADED_AT, String(Date.now()));
 		onTestFinished(() => sessionStorage.removeItem(DEV_RELOADED_AT));
 		await commands.drop_downloads(REPLAY, 10);
-		const said: string[] = [];
-		vi.spyOn(console, 'error').mockImplementation((...a: unknown[]) => {
-			said.push(a.map(String).join(' ').slice(0, 160));
-		});
-		const heard: string[] = [];
-		hear({
-			loadStarted: (e) => void heard.push(`slot ${e.kind} ${e.class} ${e.label ?? ''}`),
-			regionMount: () => void heard.push('mount')
-		});
-		onTestFinished(hear_none);
+		vi.spyOn(console, 'error').mockImplementation(() => {});
 		document.body.innerHTML = from_b64(inject('counter_ssr_b64')).replace(
 			'wake="load"',
 			'wake="interaction"'
@@ -101,17 +64,7 @@ it_with_network_routes(
 		region
 			.querySelector('button')!
 			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-		try {
-			await expect.poll(() => region.hasAttribute('data-hydrated'), { timeout: 10_000 }).toBe(true);
-		} catch (e) {
-			const left = await waits_left(region);
-			const lines = [
-				(e as Error).message,
-				`waits left: ${left}`,
-				`heard: ${JSON.stringify(heard)}`
-			];
-			throw new Error([...lines, `said: ${JSON.stringify(said)}`].join(' | '), { cause: e });
-		}
+		await expect.poll(() => region.hasAttribute('data-hydrated'), { timeout: 10_000 }).toBe(true);
 		const count = region.querySelector('[data-testid="count"]')!;
 		const before = Number(count.textContent);
 		region.querySelector('button')!.click();
