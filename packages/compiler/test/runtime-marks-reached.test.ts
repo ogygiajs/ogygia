@@ -12,7 +12,7 @@ import {
 	server_handoff_json,
 	type ServerHandoff
 } from '../src/link/emit-gate.ts';
-import { dedent } from '@ogygia/core/contract';
+import { dedent, feature_word } from '@ogygia/core/contract';
 
 let root = '';
 afterEach(() => rmSync(root, { recursive: true, force: true }));
@@ -293,6 +293,29 @@ test('a package component the server build compiled after its feature word was f
 	})();
 	expect(stop).toMatch(SERVER_FEATURES_LATE_RE);
 	expect(stop).toMatch(SHELL_FILE_RE);
+});
+
+test("the server leg makes its feature word once the bundler has compiled every other module, so a package component outside the app's source that it reaches late is in the word (#2165)", async () => {
+	const { shell } = app();
+	const compiler = new_compiler();
+	compiler.start_leg(SERVER.name, SERVER.server);
+	compiler.prescan();
+	const leg = compiler.leg(SERVER);
+	const waited: boolean[] = [];
+	const flags = await compiler.emit('\0ogygia:server/runtime-flags', {
+		ssr: true,
+		universalHooks: null,
+		compiled: async (skip) => {
+			waited.push(skip('\0ogygia:server/runtime-flags'), skip(shell));
+			await compiler.transform_module(SHELL_SOURCE, shell, { leg, emitFile: () => 'ref' });
+		}
+	});
+	expect(waited).toEqual([true, false]);
+	const code = typeof flags === 'string' ? flags : (flags as { code: string }).code;
+	const word = Number(/HAS = (\d+)/.exec(code)?.[1]);
+	expect(word & feature_word(['live'])).not.toBe(0);
+	expect(compiler.server_word()).toBe(word);
+	expect(() => compiler.server_runtime()).not.toThrow();
 });
 
 test("a late package component whose region's code reads the page stops the build naming that region's component, not only the feature", async () => {
