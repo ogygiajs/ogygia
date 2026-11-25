@@ -229,7 +229,8 @@ test('a build whose adapter images lack a width vercel() names fails image_verce
 			'package.json',
 			'svelte.config.js',
 			'vite.config.ts',
-			'image.config.ts'
+			'image.config.ts',
+			'remote-host.ts'
 		])
 			fs.cpSync(path.join(APP, name), path.join(copy, name), { recursive: true });
 		link_modules(path.join(APP, 'node_modules'), path.join(copy, 'node_modules'));
