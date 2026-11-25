@@ -102,12 +102,13 @@ function decoded(node: unknown): unknown {
 
 const PROPERTY_RE = /CSS property "([^"]+)"|Invalid `([^`]+)` value|explicit "(display)/;
 
-function css_error(spec: CardSpec, e: unknown): Error {
+function css_error(spec: CardSpec, e: unknown): unknown {
 	const reason = e instanceof Error ? e.message : String(e);
 	const m = PROPERTY_RE.exec(reason);
+	if (m === null) return e;
 	return new OgygiaError('image_card_css', {
 		file: spec.file,
-		property: m?.[1] ?? m?.[2] ?? m?.[3] ?? null,
+		property: m[1] ?? m[2] ?? m[3] ?? null,
 		reason
 	});
 }
