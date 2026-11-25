@@ -17,9 +17,10 @@ import { build_handoff } from './handoff.ts';
 import { mime_of } from './layout.ts';
 import { warn } from './messages.ts';
 import { remote as REMOTE, transport } from 'virtual:ogygia-image/remote';
+import { card_original, draws, NoCard } from './cards/read.ts';
 import { CannotMake } from './maker.ts';
 import { Changed, read_original } from './reader.ts';
-import { remote_of_tail, type ParsedRecipe } from './recipe.ts';
+import { card_of_tail, remote_of_tail, type ParsedRecipe } from './recipe.ts';
 import type { FailKind } from './remote-fetch.ts';
 
 const MAX_WAITING = 64;
@@ -67,6 +68,7 @@ interface Ask {
 	recipe: ParsedRecipe;
 	original: string;
 	url: URL | null;
+	card: boolean;
 	platform: unknown;
 }
 
@@ -116,7 +118,23 @@ const remote_originals = flights.keyed<{ url: string }>()<'url', never, Promise<
 	}
 });
 
+const card_originals = flights.keyed<{ tail: string; id: string }>()<
+	'tail' | 'id',
+	never,
+	Promise<Uint8Array>
+>({
+	name: 'card originals',
+	key: ['tail', 'id'],
+	keep: 0,
+	run: ({ tail, id }: { tail: string; id: string }): Promise<Uint8Array> => card_original(tail, id)
+});
+
 async function original_bytes(ask: Ask): Promise<Uint8Array> {
+	if (ask.card) {
+		const bytes = await card_originals.get({ tail: ask.recipe.tail, id: ask.recipe.id });
+		if (bytes === STALE) throw new Error('the card was dropped before it was drawn');
+		return bytes;
+	}
 	if (ask.url === null) return read_original(ask.original, ask.recipe.id);
 	const bytes = await remote_originals.get({ url: ask.url.href });
 	if (bytes === STALE) throw new Refused(502, 'the fetch was dropped before it finished');
@@ -125,7 +143,7 @@ async function original_bytes(ask: Ask): Promise<Uint8Array> {
 
 const makes = flights.keyed<Ask>()<
 	'key',
-	'recipe' | 'original' | 'url' | 'platform',
+	'recipe' | 'original' | 'url' | 'card' | 'platform',
 	Promise<Made>
 >({
 	name: 'image files',
@@ -134,6 +152,7 @@ const makes = flights.keyed<Ask>()<
 		recipe: 'the key is the recipe',
 		original: 'the key names the source by content, and a run checks the original against it',
 		url: "the key's tail names a remote source's URL, and its id the URL",
+		card: "the key's id names a card's digest, size and props",
 		platform: "one process's requests carry the same bindings"
 	},
 	keep: (made: Fresh<Made>) => (made.on_disk ? 0 : Infinity),
@@ -179,6 +198,8 @@ export async function settle(
 ): Promise<Response> {
 	const type = mime_of(recipe.format);
 	const url = remote_of_tail(recipe.tail);
+	const card = card_of_tail(recipe.tail) !== null;
+	if (card && !draws) return built_card(key, original, type, platform);
 	const window = url === null ? null : remote_keep(REMOTE?.maxAge ?? 0, clock.wall() / 1000);
 	const file = window === null ? key : `${key}${window.key}`;
 	const keep = window === null ? KEEP : window.header;
@@ -193,7 +214,7 @@ export async function settle(
 				}
 			});
 		}
-		const made = await makes.get({ key: file, recipe, original, url, platform });
+		const made = await makes.get({ key: file, recipe, original, url, card, platform });
 		if (made === STALE) return failed(key, 'the encode was dropped before it finished');
 		return new Response(new Uint8Array(made.data), {
 			headers: {
@@ -216,13 +237,46 @@ export async function settle(
 			});
 		}
 		if (e instanceof CannotMake) return cannot_make(e);
-		if (e instanceof Changed) {
+		if (e instanceof Changed || e instanceof NoCard) {
 			warn('image_source_changed', { path: key, tail: recipe.tail });
 			return new Response('Not Found', { status: 404, headers: { 'cache-control': 'no-store' } });
 		}
 		return failed(key, (e as Error).message);
 	}
 }
+
+interface Assets {
+	fetch(url: URL): Promise<Response>;
+}
+
+function assets_of(platform: unknown): Assets | null {
+	const env = (platform as { env?: { ASSETS?: Partial<Assets> } } | undefined)?.env;
+	return typeof env?.ASSETS?.fetch === 'function' ? (env.ASSETS as Assets) : null;
+}
+
+/** A card's file where no card is drawn (a Worker): the build's file of it (`built`, the URL a
+ *  prerendered page named it by), from the platform's static assets, when the build made it; else
+ *  404, said once. */
+async function built_card(
+	key: string,
+	built: string,
+	type: string,
+	platform: unknown
+): Promise<Response> {
+	const assets = assets_of(platform);
+	const res = assets === null ? null : await assets.fetch(new URL(built, 'https://assets.invalid'));
+	if (res?.ok)
+		return new Response(res.body, { headers: { 'content-type': type, 'cache-control': KEEP } });
+	if (!said_no_card)
+		warn('image_no_encoder', {
+			what: 'card',
+			reason: `the card ${key} was not made by the build (no prerendered page names it), and this server draws no card`
+		});
+	said_no_card = true;
+	return new Response('Not Found', { status: 404, headers: { 'cache-control': 'no-store' } });
+}
+
+let said_no_card = false;
 
 function failed(key: string, reason: string): Response {
 	warn('image_settle_failed', { path: key, reason });

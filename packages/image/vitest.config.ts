@@ -18,6 +18,10 @@ export default defineConfig({
 				replacement: fileURLToPath(new URL('./src/remote-off.ts', import.meta.url))
 			},
 			{
+				find: /^virtual:ogygia-image\/cards$/,
+				replacement: fileURLToPath(new URL('./src/cards/none.ts', import.meta.url))
+			},
+			{
 				find: /^virtual:ogygia-image\/namer$/,
 				replacement: fileURLToPath(new URL('./src/namers/endpoint.ts', import.meta.url))
 			}

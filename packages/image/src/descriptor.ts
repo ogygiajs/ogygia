@@ -57,8 +57,12 @@ export interface ImageDescriptor {
 	/** Alt text the source carries (a markdown image's text). */
 	alt?: string;
 	/** Where the source comes from when it is not a file the build read: `'remote'`, a URL known only
-	 *  at request (`remoteImage()`), which `src` names and the image endpoint fetches. */
-	from?: 'remote';
+	 *  at request (`remoteImage()`), which `src` names and the image endpoint fetches; `'card'`, a
+	 *  share card (`import.meta.og.image.card()`) rendered from its props, whose own-size PNG `src`
+	 *  names. */
+	from?: 'remote' | 'card';
+	/** A share card's component and props, as its files' URLs carry them (`<card>/<props>`). */
+	card?: string;
 	/** Other candidate sets of this image, each chosen by a media condition: a dark file (the
 	 *  macro's `dark`) and the designer's other files (the macro's `art`). One level: a twin's own
 	 *  descriptor has no twins. */

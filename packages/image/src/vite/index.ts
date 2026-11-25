@@ -43,6 +43,7 @@ import {
 	check_platform,
 	encoder_runtime,
 	encoders_of,
+	type EncoderRuntime,
 	maker_module,
 	makes_stills,
 	maker_of,
@@ -53,6 +54,14 @@ import { vercel_config_check } from './vercel-config.ts';
 import { plan_image, settle, type Plan, type Settings } from './plan.ts';
 import { EXTENSION_API, markdown_extension } from './markdown.ts';
 import { image_call_edits, image_specifier, options_of_query, QUERY } from './macro.ts';
+import {
+	CARD_PREFIX,
+	CARD_QUERY,
+	CARDS_ID,
+	Cards,
+	is_card_component,
+	with_injected_css
+} from './card.ts';
 import {
 	check_image_options,
 	check_plugin_options,
@@ -109,8 +118,10 @@ const VIRTUAL_IDS: ReadonlySet<string> = new Set([
 	SOURCES_ID,
 	MAKER_ID,
 	NAMER_ID,
-	REMOTE_ID
+	REMOTE_ID,
+	CARDS_ID
 ]);
+const CARD_SUFFIX = `?${CARD_QUERY}`;
 const SOURCE_GLOBS: readonly string[] = [
 	'/src/**/*.{png,PNG,jpg,JPG,jpeg,JPEG,webp,WEBP,avif,AVIF,gif,GIF,tif,TIF,tiff,TIFF}',
 	'!/src/lib/server/**',
@@ -239,16 +250,31 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 	let handoff: BuildHandoff | null = null;
 	let preview = false;
 	const warmed = new Map<string, WarmSource>();
+	const cards = new Cards();
+	let runtime: EncoderRuntime = 'dev';
 	const markdown = markdown_extension(opts);
 	const build = (): boolean => config?.command === 'build';
 	const server_build = (): boolean => build() && !!config?.build.ssr;
+	const server_mode = (): 'server' | 'edge' | 'dev' => {
+		if (!build()) return 'dev';
+		return runtime === 'edge' ? 'edge' : 'server';
+	};
 
 	const ogygia: OgygiaPlugin = definePlugin({
 		name: '@ogygia/image',
 		server: import.meta.resolve('../server.ts'),
 		build(b) {
 			b.macro('image', (code, m) =>
-				image_call_edits(code, m.id, m.markupExts, m.watch, presets, remote?.hosts ?? null)
+				image_call_edits(
+					code,
+					m.id,
+					m.markupExts,
+					m.watch,
+					presets,
+					remote?.hosts ?? null,
+					cards,
+					m.root
+				)
 			);
 		}
 	});
@@ -266,8 +292,11 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 			paths = kit_paths(c.define);
 			const named = c.define?.__SVELTEKIT_ADAPTER_NAME__;
 			const adapter = typeof named === 'string' ? (JSON.parse(named) as string) : null;
-			const runtime = encoder_runtime(c.command, !!c.build.ssr, preview, adapter);
-			if (runtime !== null) check_encoder(c.root, runtime, adapter, maker_of(encoders));
+			const at = encoder_runtime(c.command, !!c.build.ssr, preview, adapter);
+			if (at !== null) {
+				runtime = at;
+				check_encoder(c.root, at, adapter, maker_of(encoders));
+			}
 			if (c.command === 'build' && c.build.ssr) {
 				check_platform(encoders, adapter, originals_of(paths), opts.remote?.hosts ?? []);
 				if (!stills)
@@ -280,7 +309,24 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 		async buildStart() {
 			if (config && build()) handoff = await handoff_for(true, config.root, output_of(config));
 		},
-		async resolveId(id, importer) {
+		configureServer(server) {
+			server.watcher.on('change', () => {
+				for (const env of Object.values(server.environments))
+					for (const [id, mod] of env.moduleGraph.idToModuleMap)
+						if (id.startsWith(`\0${CARD_PREFIX}`)) env.moduleGraph.invalidateModule(mod);
+			});
+		},
+		async resolveId(id, importer, options) {
+			if (importer !== undefined && is_card_component(importer) && !id.startsWith('\0')) {
+				const found = await this.resolve(id, importer.split('?', 1)[0], {
+					...options,
+					skipSelf: true
+				});
+				if (found && !found.external && found.id.endsWith('.svelte'))
+					return { ...found, id: `${found.id}${CARD_SUFFIX}` };
+				return found;
+			}
+			if (id.startsWith(CARD_PREFIX)) return `\0${id}`;
 			const [bare, query] = id.split('?', 2) as [string, string | undefined];
 			const url = url_of_remote_src(bare);
 			if (url !== null) {
@@ -299,7 +345,16 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 			if (VIRTUAL_IDS.has(id)) return `\0${id}`;
 			return null;
 		},
-		async load(id) {
+		async load(id, options) {
+			if (id.startsWith(`\0${CARD_PREFIX}`)) {
+				const name = id.slice(CARD_PREFIX.length + 1);
+				if (!options?.ssr) return cards.module(name, 'client') ?? 'export const spec = null;\n';
+				if (config && cards.get(name)) cards.check(config.root, runtime, name);
+				if (server_build() && cards.get(name))
+					cards.emitted(name, this.emitFile({ type: 'chunk', id: `${CARD_PREFIX}${name}` }));
+				return cards.module(name, server_mode()) ?? 'export const spec = null;\n';
+			}
+			if (id === `\0${CARDS_ID}`) return cards.list_module(server_mode());
 			if (id === `\0${MAKER_ID}`) return maker_module(encoders, !build());
 			if (id === `\0${NAMER_ID}`) return namer_module(encoders, !build());
 			if (id === `\0${REMOTE_ID}`)
@@ -367,23 +422,41 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 				twins.map((twin) => ({ twin, specifier: image_specifier(twin.file, twin_options) }))
 			);
 		},
-		renderChunk(code) {
-			if (!server_build() || !code.includes(REMOTE_LIST)) return null;
-			const names = JSON.stringify(remote?.names() ?? []);
-			return { code: code.replace(REMOTE_LIST_RE, () => names), map: null };
+		transform(code, id) {
+			return is_card_component(id) ? { code: with_injected_css(code), map: null } : null;
+		},
+		renderChunk(code, chunk) {
+			if (!server_build() || !config) return null;
+			let out =
+				cards.render_chunk(
+					code,
+					() => chunk.fileName,
+					config.root,
+					(ref) => this.getFileName(ref),
+					(id) => this.getModuleInfo(id)
+				) ?? code;
+			if (out.includes(REMOTE_LIST)) {
+				const names = JSON.stringify(remote?.names() ?? []);
+				out = out.replace(REMOTE_LIST_RE, () => names);
+			}
+			return out === code ? null : { code: out, map: null };
 		},
 		writeBundle: {
 			order: 'post',
 			sequential: true,
-			async handler() {
+			async handler(out) {
 				if (!handoff || !paths || !config || !server_build()) return;
 				const dir = handoff.remote;
+				cards.written(out.dir ?? path.resolve(config.root, config.build.outDir), (ref) =>
+					this.getFileName(ref)
+				);
 				await write_built(
 					handoff,
 					render_config(opts, paths, true, widths, stills),
 					warmed.values(),
 					output_of(config),
-					remote ? (url) => remote.file(dir, url, 'a prerendered page') : undefined
+					remote ? (url) => remote.file(dir, url, 'a prerendered page') : undefined,
+					(tail, id) => cards.draw(tail, id)
 				);
 			}
 		}

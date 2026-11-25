@@ -181,6 +181,67 @@ export const IMAGE_ERRORS = {
 			raise the limit in \`image({ remote })\`.
 		`
 	},
+	image_card_engine_missing: {
+		text: (a: { missing: string; dependencies?: boolean }): string =>
+			a.dependencies
+				? prose`
+					This server build draws share cards on request with ${a.missing}, but the app's
+					package.json does not list them all in its \`dependencies\`: add them there
+					(\`pnpm add satori satori-html @resvg/resvg-js\`).
+				`
+				: prose`
+					A share card (\`import.meta.og.image.card()\`) is drawn with satori, satori-html and
+					resvg, and the app has not installed ${a.missing}: \`pnpm add satori satori-html
+					@resvg/resvg-js\`.
+				`,
+		details: (): string => prose`
+			A card is drawn from its component by three packages the app installs itself, so an app
+			with no card loads none of them: satori-html reads the component's HTML and CSS, satori lays
+			it out and draws it as SVG, and resvg (\`@resvg/resvg-js\`, a native module) turns that into a
+			PNG. The build draws every card a prerendered page names. A server that draws cards on
+			request needs them in \`dependencies\` (not \`devDependencies\`): a server adapter may bundle
+			every package its app does not list there (adapter-node does), and resvg bundled cannot
+			find its native binary.
+		`
+	},
+	image_card_font: {
+		text: (a: { where: string; font: string; why: string }): string =>
+			`${a.where}: the card's font ${a.font} cannot be used: ${a.why}.`,
+		details: (): string => prose`
+			satori draws a card's text with the fonts the card lists and no other (it reads no system
+			font): \`fonts: ['./serif.woff', '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff']\`,
+			each a path relative to the file, or a package's file. Each must be a TrueType, OpenType or
+			WOFF file (\`.ttf\`, \`.otf\`, \`.woff\`): satori reads no WOFF2. The build reads each file's
+			family, weight and style from the file itself; the card's CSS names the family
+			(\`font-family: 'Geist Serif'\`) and the weight.
+		`
+	},
+	image_card_css: {
+		text: (a: { file: string; property: string | null; reason: string }): string =>
+			a.property === null
+				? `${a.file}: satori cannot draw this card (${a.reason}).`
+				: `${a.file}: satori cannot draw this card's CSS property '${a.property}' (${a.reason}).`,
+		details: (): string => prose`
+			A share card is drawn by satori, which lays out a subset of CSS: flexbox (every element
+			with more than one child says \`display: flex\`), sizes, margins and padding, borders and
+			radii, colors and gradients, fonts, text, transforms, opacity, and absolute positioning.
+			It has no grid, no floats, no \`calc()\` in every property, no CSS variables in every
+			place, and no \`z-index\`. The message names what it refused: change it to something in that
+			subset. The images docs list what works.
+		`
+	},
+	image_card_props: {
+		text: (a: { file: string; at: string; why: string }): string =>
+			`${a.file}: a card's props must be JSON, and small: ${a.at}: ${a.why}.`,
+		details: (): string => prose`
+			A card's files carry its props in their URLs, signed with the rest, so the server that
+			makes a file on request needs nothing but the URL, and nobody can ask it for props the
+			page did not name. So the props are one plain object of what JSON holds (strings, finite
+			numbers, booleans, null, arrays and plain objects; no \`undefined\`, Date, Map or function),
+			at most 2048 characters once written in the URL: a title and a few fields. Pass the text
+			the card shows, not the record it came from.
+		`
+	},
 	image_not_found: {
 		text: (a: { file: string; src: string }): string =>
 			`${a.file}: the image '${a.src}' does not exist (paths are relative to this file).`,
@@ -308,8 +369,10 @@ export const IMAGE_WARNINGS = {
 		`
 	},
 	image_no_encoder: {
-		text: (a: { reason: string }): string =>
-			`this server cannot make image files: the encoder (sharp) did not load (${a.reason}); image requests answer 500.`,
+		text: (a: { reason: string; what?: 'file' | 'card' }): string =>
+			a.what === 'card'
+				? `this server cannot draw share cards: ${a.reason}.`
+				: `this server cannot make image files: the encoder (sharp) did not load (${a.reason}); image requests answer 500.`,
 		details: (): string => prose`
 			With \`sharp()\`, the default encoder, image files are made by sharp, a native Node module.
 			A runtime without it (an edge or Workers runtime, an install that skipped sharp's binary)
@@ -317,6 +380,10 @@ export const IMAGE_WARNINGS = {
 			\`image({ encoder: cloudflare() })\` from \`@ogygia/image/vite\`. Otherwise prerender the
 			pages that show images (their files are made at build), warm the presets server-rendered
 			pages use (\`import.meta.og.image(src, { warm: 'cover' })\`), or deploy to a Node server.
+			A share card (\`import.meta.og.image.card()\`) is drawn by satori and resvg, which run in
+			Node only: on an edge runtime, a page rendered on request serves a card's files only when
+			the build made them, because a prerendered page names the same card with the same props.
+			Prerender the pages that show cards, or deploy to a Node server.
 		`
 	},
 	image_binding_missing: {
@@ -403,6 +470,16 @@ export const IMAGE_WARNINGS = {
 			its user can read and write. Another user's folder, or a link, at that place could hand out
 			files it chose, under URLs browsers keep forever, so the server keeps nothing there. Remove
 			the folder, or run the server as the user that owns it.
+		`
+	},
+	image_share_format: {
+		text: (a: { path: string; url: string }): string =>
+			`${a.path}: the share image ${a.url} is ${a.url.endsWith('.avif') ? 'AVIF' : 'WebP'}, which most link previews do not show.`,
+		details: (): string => prose`
+			An \`og:image\` (or \`twitter:image\`) is read by the crawlers of chat apps and social sites,
+			and most of them read PNG and JPEG only. Name a PNG or JPEG file there: a share card's own
+			\`src\` is a PNG, and a preset for share images says its format
+			(\`share: { width: 1200, height: 630, formats: ['png'] }\`). Said in dev only.
 		`
 	}
 };

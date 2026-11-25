@@ -18,6 +18,10 @@
  * its tail is `.remote/<its URL as base64url>`, so the signature covers the URL, and the endpoint
  * fetches only what the server named.
  *
+ * A share card (`import.meta.og.image.card()`) is made from a component and its props: its tail is
+ * `.card/<card>/<its props as base64url JSON>`, so the signature covers the props, and the endpoint
+ * renders only what the server named.
+ *
  * @packageDocumentation
  */
 import { slot } from '@ogygia/machine';
@@ -44,9 +48,11 @@ export interface Recipe {
 	crop?: true;
 	/** What the source is, for the namer: its own format, and whether it moves. Never in a URL. */
 	source?: { format: ImageFormat; animated?: true };
-	/** The source is a remote URL known only at request (`src`): the recipe's tail names it
-	 *  ({@link recipe_tail}). */
-	from?: 'remote';
+	/** The source is a remote URL known only at request (`src`), or a share card (`card`): the
+	 *  recipe's tail names it ({@link recipe_tail}). */
+	from?: 'remote' | 'card';
+	/** A card's own part of its tail: `<card>/<props as base64url JSON>`. */
+	card?: string;
 }
 
 /** The URL path every recipe sits under, after the app's base. */
@@ -90,7 +96,8 @@ const HEAD_RE =
 	/^([A-Za-z0-9_-]{1,64})-(\d{1,5})x(\d{1,5})(?:-q(\d{1,3}))?(?:-p([a-z]+))?(-s)?(?:-o([A-Za-z0-9_-]+))?$/;
 const TAIL_RE = /^(?!.*(?:^|\/)\.{1,2}(?:\/|$))[^\\\0]+$/;
 
-function b64url_encode(text: string): string {
+/** `text`'s UTF-8 bytes as base64url, unpadded. */
+export function b64url_encode(text: string): string {
 	const bytes = new TextEncoder().encode(text);
 	let bin = '';
 	for (const b of bytes) bin += String.fromCharCode(b);
@@ -125,12 +132,30 @@ export function source_tail(src: string, prefixes: readonly string[]): string {
 export const REMOTE_TAIL = '.remote/';
 const REMOTE_TAIL_RE = /^\.remote\/([A-Za-z0-9_-]+)$/;
 
+/** Where a share card's tail starts: `.card/<card>/<props as base64url JSON>`. */
+export const CARD_TAIL = '.card/';
+const CARD_TAIL_RE = /^\.card\/([A-Za-z0-9_-]{1,64})\/([A-Za-z0-9_-]+)$/;
+
 /** The tail of `r`'s original, decoded: a remote source's URL as {@link REMOTE_TAIL} and base64url,
- *  else {@link source_tail}. */
+ *  a card's as {@link CARD_TAIL}, else {@link source_tail}. */
 export function recipe_tail(r: Recipe, prefixes: readonly string[]): string {
+	if (r.from === 'card') return `${CARD_TAIL}${r.card ?? ''}`;
 	return r.from === 'remote'
 		? `${REMOTE_TAIL}${b64url_encode(r.src)}`
 		: source_tail(r.src, prefixes);
+}
+
+/** What a card's tail names: the card, and its props as the JSON text the minter wrote; or null
+ *  when `tail` is none. */
+export function card_of_tail(tail: string): { card: string; props: string } | null {
+	const m = CARD_TAIL_RE.exec(tail);
+	if (!m) return null;
+	try {
+		return { card: m[1]!, props: b64url_decode(m[2]!) };
+		// oxlint-disable-next-line ogygia/no-silent-failures -- props that do not decode name no card: the endpoint answers 404
+	} catch {
+		return null;
+	}
 }
 
 /** The URL a remote source's tail names, or null when `tail` is none: only an `http:` or `https:`

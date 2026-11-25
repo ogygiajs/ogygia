@@ -24,7 +24,13 @@
  * @packageDocumentation
  */
 import { building, dev } from '$app/environment';
-import { defineServer, type ServerApp, type ServerPlugin } from '@ogygia/core/plugin';
+import {
+	defineServer,
+	type HandleContext,
+	type ResolveOptions,
+	type ServerApp,
+	type ServerPlugin
+} from '@ogygia/core/plugin';
 import { cache } from '@ogygia/machine';
 import config from 'virtual:ogygia-image/config';
 import { name } from 'virtual:ogygia-image/namer';
@@ -35,6 +41,8 @@ import { warn } from './messages.ts';
 import {
 	built_file,
 	built_url,
+	CARD_TAIL,
+	card_of_tail,
 	encode_tail,
 	IMAGE_PREFIX,
 	recipe_file,
@@ -48,6 +56,7 @@ import {
 	type Recipe
 } from './recipe.ts';
 import { RemoteHosts } from './remote-hosts.ts';
+import { unshown_share_images } from './share-rule.ts';
 import { message, verify } from './verify.ts';
 
 type OnDisk = typeof import('./on-disk.ts');
@@ -71,6 +80,7 @@ class Originals {
 
 	has(tail: string): boolean {
 		if (tail.startsWith(REMOTE_TAIL)) return listed(tail);
+		if (tail.startsWith(CARD_TAIL)) return card_of_tail(tail) !== null;
 		if (this.#tails.has(tail)) return true;
 		if (tail.startsWith(REMOTE_ASSETS)) {
 			const name = REMOTE_ASSET_RE.exec(tail.slice(REMOTE_ASSETS.length))?.[1];
@@ -152,6 +162,7 @@ function no_encoder(e: unknown): Response {
 }
 
 function original_of(recipe: ParsedRecipe): string {
+	if (card_of_tail(recipe.tail) !== null) return built_url(config.paths, recipe);
 	return `${BASE}/${encode_tail(recipe.tail)}`;
 }
 
@@ -189,7 +200,7 @@ function start(app: ServerApp<unknown>, disk: OnDisk | null): void {
 	const signed = cache<string, string>({ name: 'image URLs', max: SIGNED_MAX });
 	set_minter((recipe, built) => {
 		if (built) return built_url(config.paths, recipe);
-		const link = name(recipe);
+		const link = recipe.from === 'card' ? null : name(recipe);
 		if (link !== null) return link;
 		const path = recipe_path(recipe, recipe_tail(recipe, PREFIXES));
 		let url = signed.get(path);
@@ -201,7 +212,27 @@ function start(app: ServerApp<unknown>, disk: OnDisk | null): void {
 	});
 }
 
+const said_share = new Set<string>();
+
+function share_rule(
+	ctx: HandleContext<unknown>,
+	next: (options?: ResolveOptions) => Promise<Response>
+): Promise<Response> {
+	const path = ctx.event.url.pathname;
+	return next({
+		transformPageChunk: ({ html }) => {
+			for (const url of unshown_share_images(html))
+				if (!said_share.has(url)) {
+					said_share.add(url);
+					warn('image_share_format', { path, url });
+				}
+			return html;
+		}
+	});
+}
+
 const server: ServerPlugin<unknown> = defineServer<unknown>({
+	...(dev ? { handle: share_rule } : {}),
 	setup(app) {
 		if (dev || building) DISK_HALF.load((disk) => start(app, disk));
 		else start(app, null);

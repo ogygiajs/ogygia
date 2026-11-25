@@ -179,6 +179,9 @@ catalogs:
     '@codemirror/view':
       specifier: ^6.43.9
       version: 6.43.9
+    '@fontsource/jetbrains-mono':
+      specifier: ^5.3.0
+      version: 5.3.0
     '@jridgewell/remapping':
       specifier: ^2.3.5
       version: 2.3.5
@@ -191,6 +194,9 @@ catalogs:
     '@playwright/test':
       specifier: 1.62.1
       version: 1.62.1
+    '@resvg/resvg-js':
+      specifier: ^2.6.2
+      version: 2.6.2
     '@sveltejs/adapter-cloudflare':
       specifier: ^7.2.10
       version: 7.2.10
@@ -263,6 +269,12 @@ catalogs:
     rolldown:
       specifier: ^1.2.2
       version: 1.2.16
+    satori:
+      specifier: ^0.33.5
+      version: 0.33.5
+    satori-html:
+      specifier: ^0.3.2
+      version: 0.3.2
     sharp:
       specifier: ^0.35.5
       version: 0.35.5
@@ -446,10 +458,10 @@ importers:
   apps/docs:
     dependencies:
       '@fontsource/jetbrains-mono':
-        specifier: ^5.3.0
+        specifier: 'catalog:'
         version: 5.3.0
       '@resvg/resvg-js':
-        specifier: ^2.6.2
+        specifier: 'catalog:'
         version: 2.6.2
       bits-ui:
         specifier: 'catalog:'
@@ -458,10 +470,10 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ogygia
       satori:
-        specifier: ^0.33.5
+        specifier: 'catalog:'
         version: 0.33.5
       satori-html:
-        specifier: ^0.3.2
+        specifier: 'catalog:'
         version: 0.3.2
       shiki:
         specifier: 'catalog:'
@@ -560,6 +572,9 @@ importers:
       mdsvex:
         specifier: 'catalog:'
         version: 0.12.8(svelte@5.57.3)
+      sharp:
+        specifier: 'catalog:'
+        version: 0.35.5(@types/node@26.1.2)
       subset-font:
         specifier: ^2.9.0
         version: 2.9.0
@@ -1917,6 +1932,9 @@ importers:
         specifier: workspace:^
         version: link:../machine
     devDependencies:
+      '@fontsource/jetbrains-mono':
+        specifier: 'catalog:'
+        version: 5.3.0
       '@ogygia/compiler':
         specifier: workspace:*
         version: link:../compiler
@@ -1935,6 +1953,9 @@ importers:
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.62.1
+      '@resvg/resvg-js':
+        specifier: 'catalog:'
+        version: 2.6.2
       '@sveltejs/vite-plugin-svelte':
         specifier: 'catalog:'
         version: 7.2.0(svelte@5.57.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
@@ -1950,6 +1971,12 @@ importers:
       ogygia:
         specifier: workspace:*
         version: link:../ogygia
+      satori:
+        specifier: 'catalog:'
+        version: 0.33.5
+      satori-html:
+        specifier: 'catalog:'
+        version: 0.3.2
       sharp:
         specifier: 'catalog:'
         version: 0.35.5(@types/node@26.1.2)
@@ -1980,9 +2007,18 @@ importers:
       '@ogygia/image':
         specifier: workspace:*
         version: link:../..
+      '@resvg/resvg-js':
+        specifier: 'catalog:'
+        version: 2.6.2
       ogygia:
         specifier: workspace:*
         version: link:../../../ogygia
+      satori:
+        specifier: 'catalog:'
+        version: 0.33.5
+      satori-html:
+        specifier: 'catalog:'
+        version: 0.3.2
       sharp:
         specifier: 'catalog:'
         version: 0.35.5(@types/node@26.1.2)
@@ -1990,6 +2026,9 @@ importers:
         specifier: 'catalog:'
         version: 1.4.2(typescript@6.0.3)
     devDependencies:
+      '@fontsource/jetbrains-mono':
+        specifier: 'catalog:'
+        version: 5.3.0
       '@sveltejs/adapter-cloudflare':
         specifier: 'catalog:'
         version: 7.2.10(@sveltejs/kit@2.70.2(@opentelemetry/api@1.9.1)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.57.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(svelte@5.57.3)(typescript@6.0.3)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)))(wrangler@4.159.0(@types/node@26.1.2))

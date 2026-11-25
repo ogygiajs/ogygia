@@ -35,6 +35,7 @@ export function file_url(recipe: Recipe, built: boolean): string {
 	const url = mint(recipe, built);
 	if (url !== null) return url;
 	if (built) return built_url(config.paths, recipe);
+	if (recipe.from === 'card') return recipe.src;
 	const link = name(recipe);
 	if (link !== null) return link;
 	if (typeof window === 'undefined') throw new RenderError('image_no_server');

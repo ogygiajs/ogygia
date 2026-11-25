@@ -25,6 +25,13 @@ declare module 'virtual:ogygia-image/remote' {
 	export const transport: (() => Promise<import('./remote-fetch.ts').Transport>) | null;
 }
 
+declare module 'virtual:ogygia-image/cards' {
+	/** Whether this server draws cards. */
+	export const engine: boolean;
+	/** The card named `name`, or null. */
+	export function card_module(name: string): Promise<import('./cards/read.ts').CardModule | null>;
+}
+
 declare module 'virtual:ogygia-image/theme.css' {}
 
 declare module 'virtual:ogygia-image/namer' {

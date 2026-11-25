@@ -13,11 +13,15 @@
 	"dependencies": {
 		"@ogygia/content": "workspace:*",
 		"@ogygia/image": "workspace:*",
+		"@resvg/resvg-js": "catalog:",
 		"ogygia": "workspace:*",
+		"satori": "catalog:",
+		"satori-html": "catalog:",
 		"sharp": "catalog:",
 		"valibot": "catalog:"
 	},
 	"devDependencies": {
+		"@fontsource/jetbrains-mono": "catalog:",
 		"@sveltejs/adapter-cloudflare": "catalog:",
 		"@sveltejs/adapter-node": "catalog:",
 		"@sveltejs/adapter-static": "catalog:",

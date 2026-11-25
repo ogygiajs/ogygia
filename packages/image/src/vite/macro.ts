@@ -28,6 +28,7 @@ import {
 } from '@ogygia/compiler';
 import { OgygiaError } from '../messages.ts';
 import type { RemoteHosts } from '../remote-hosts.ts';
+import { CARD_PREFIX, Cards } from './card.ts';
 import { check_image_options, type ImageOptions } from './options.ts';
 import { remote_src, remote_url } from './remote.ts';
 
@@ -59,13 +60,27 @@ export function options_of_query(query: string): ImageOptions {
 	}
 }
 
+const WHAT: Readonly<Record<'image' | 'glob' | 'card', string>> = {
+	image: 'the path',
+	glob: 'the pattern',
+	card: 'the component'
+};
+
+function member_of(glob: boolean, card: boolean): 'image' | 'glob' | 'card' {
+	if (glob) return 'glob';
+	return card ? 'card' : 'image';
+}
+
 type Call = {
 	start: number;
 	end: number;
 	region: number;
 	glob: boolean;
+	card: boolean;
 	src: string;
 	options: ImageOptions;
+	/** A card's options, as written (checked by ./card.ts). */
+	raw: unknown;
 	line: number;
 };
 
@@ -88,15 +103,18 @@ function find_calls(
 			if (n.type !== 'CallExpression') return;
 			const callee = n.callee as Node;
 			let glob = false;
+			let card = false;
 			if (og_member(callee) !== 'image') {
+				const member = callee.property?.name;
 				if (
 					callee.type !== 'MemberExpression' ||
 					callee.computed ||
-					callee.property?.name !== 'glob' ||
+					(member !== 'glob' && member !== 'card') ||
 					og_member(callee.object as Node) !== 'image'
 				)
 					return;
-				glob = true;
+				glob = member === 'glob';
+				card = member === 'card';
 			}
 			const abs = region.offset + (n.start as number);
 			const line = line_of(src, abs);
@@ -108,7 +126,7 @@ function find_calls(
 				throw new OgygiaError('image_macro_not_literal', {
 					file: rel,
 					line,
-					what: glob ? 'the pattern' : 'the path'
+					what: WHAT[member_of(glob, card)]
 				});
 			let options: unknown = undefined;
 			if (args[1]) {
@@ -125,8 +143,10 @@ function find_calls(
 				end: region.offset + (n.end as number),
 				region: region.offset,
 				glob,
+				card,
 				src: path_value,
-				options: check_image_options(`${rel}:${line}`, options, presets),
+				options: card ? {} : check_image_options(`${rel}:${line}`, options, presets),
+				raw: options,
 				line
 			});
 		});
@@ -137,7 +157,7 @@ function find_calls(
 function refuse_markup_calls(src: string, id: string, calls: readonly Call[]): void {
 	const found = [
 		...find_og_calls(src, 'import.meta.og.').filter((c) => c.method === 'image'),
-		...find_og_calls(src, `${MARKER}.`).filter((c) => c.method === 'glob')
+		...find_og_calls(src, `${MARKER}.`).filter((c) => c.method === 'glob' || c.method === 'card')
 	];
 	for (const c of found)
 		if (!calls.some((k) => k.start === c.start))
@@ -153,7 +173,9 @@ export function image_call_edits(
 	markup_exts: readonly string[] = ['.svelte'],
 	watch: (file: string) => void = () => {},
 	presets: readonly string[] = [],
-	hosts: RemoteHosts | null = null
+	hosts: RemoteHosts | null = null,
+	cards: Cards | null = null,
+	root: string = process.cwd()
 ): Edit[] {
 	if (!src.includes(MARKER)) return [];
 	const calls = find_calls(src, id, markup_exts, presets);
@@ -166,6 +188,17 @@ export function image_call_edits(
 	const heads = new Map<number, string[]>();
 	calls.forEach((c, i) => {
 		const where = `${rel}:${c.line}`;
+		if (c.card) {
+			const def = (cards ?? new Cards()).define(id, root, where, c.src, c.raw);
+			watch(def.file);
+			for (const f of def.fonts) watch(f.file);
+			const name = `__og_card_${i}`;
+			let list = heads.get(c.region);
+			if (!list) heads.set(c.region, (list = []));
+			list.push(`import ${name} from ${JSON.stringify(`${CARD_PREFIX}${def.name}`)};`);
+			edits.push({ start: c.start, end: c.end, text: name });
+			return;
+		}
 		const remote = is_url(c.src);
 		if (remote && c.glob)
 			throw new OgygiaError('image_option_invalid', {

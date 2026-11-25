@@ -28,5 +28,19 @@ interface ImportMetaOg {
 			pattern: string,
 			options?: import('@ogygia/image/vite').ImageOptions
 		): Record<string, import('@ogygia/image').ImageDescriptor>;
+		/**
+		 * A share card: a Svelte component drawn as a PNG (satori and resvg, which the app installs),
+		 * as a function of its props that returns its descriptor. The path is relative to this file;
+		 * `fonts` are `.woff`, `.ttf` or `.otf` files (paths relative to this file, or a package's
+		 * files), and the card's CSS names their families. Call it on the server (a load, a page's
+		 * server render): its props are JSON, at most 2048 characters in a URL.
+		 *
+		 *   export const ShareCard = import.meta.og.image.card('./ShareCard.svelte', { width: 1200, height: 630, fonts: ['./serif.woff'] });
+		 *   return { share: ShareCard({ title: post.title }) };
+		 */
+		card<Props extends Record<string, unknown> = Record<string, unknown>>(
+			component: string,
+			options: { width: number; height: number; fonts: string[] }
+		): (props: Props) => import('@ogygia/image').ImageDescriptor;
 	};
 }
