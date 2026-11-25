@@ -274,6 +274,28 @@ function files_of(output: string): Files {
 	return f;
 }
 
+const PRERENDER_KEYS = new Map<string, ReadonlySet<string>>();
+
+/** The keys a build's prerendered pages signed their holes with (each capability's `&k=`, as the
+ *  HTML writes it): the build's own key, or the secret it was built with, never the one its
+ *  servers run with later. */
+export function prerendered_keys(output: string): ReadonlySet<string> {
+	let keys = PRERENDER_KEYS.get(output);
+	if (keys === undefined) {
+		keys = new Set(
+			[...files_of(output).pages.values()].flatMap((page) =>
+				[
+					...Buffer.from(page)
+						.toString('utf8')
+						.matchAll(/&(?:amp;)?k=([0-9a-f]+)/g)
+				].map((m) => m[1])
+			)
+		);
+		PRERENDER_KEYS.set(output, keys);
+	}
+	return keys;
+}
+
 function read_tree(
 	root: string,
 	into = new Map<string, Uint8Array>(),

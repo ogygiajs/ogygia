@@ -32,6 +32,7 @@ import {
 	current_server,
 	own_env,
 	own_symbols,
+	prerendered_keys,
 	start_server,
 	type Build,
 	type ServerInstance
@@ -117,7 +118,8 @@ export interface WorldOptions {
 	buggify?: { readonly on: number; readonly fires: number; readonly aim?: readonly string[] };
 	/** The app's `OGYGIA_SECRET`, the same for every build (a stable signing key). Unset, each build
 	 *  signs with its own key, and a page of one build gets its holes refused by another's servers
-	 *  (`x-ogygia-deny: foreign-key`, as ogygia's `secret_missing` warns). */
+	 *  (`x-ogygia-deny: foreign-key`, as ogygia's `secret_missing` warns). Set, it is the servers'
+	 *  only: a page a build prerendered keeps the key it was built with (`World.#keyed_apart`). */
 	secret?: string;
 	/** Other apps at their own origins (federation's peers): each one build, one instance, behind
 	 *  no CDN. The app's servers and the tabs reach them over the network; their content-hashed
@@ -475,6 +477,19 @@ export class World {
 		return (this.skewed.get(realm)?.size ?? 0) > 0;
 	}
 
+	/**
+	 * Whether a hole refused for its key (`x-ogygia-deny: foreign-key`) was signed under another key
+	 * by the world's own configuration, not the app's doing: with no stable secret each build signs
+	 * with its own key (ogygia's `secret_missing`), and a page a build prerendered carries the key it
+	 * was built with, which a world that runs its servers with a secret the build never had refuses
+	 * (ogygia's `build_key_prerender`; test/prerendered-key.node.test.ts).
+	 */
+	#keyed_apart(url: URL): boolean {
+		if (this.#o.secret === undefined) return true;
+		const k = url.searchParams.get('k');
+		return k !== null && this.#o.builds.some((b) => prerendered_keys(b.output).has(k));
+	}
+
 	/** Realms of a pinned load whose page came rendered by another build than the one asked: the page
 	 *  store handed out a newer build's copy (it dropped the old build's at the deploy, #949). */
 	readonly #astray = new Set<string>();
@@ -620,9 +635,7 @@ export class World {
 							.text()
 							.catch(() => '')
 					});
-				// (a hole one build signed, refused by another's servers for its key: the deploy's doing
-				// when the app has no stable secret, as ogygia's `secret_missing` says)
-				if (answer.headers.get('x-ogygia-deny') === 'foreign-key' && this.#o.secret === undefined)
+				if (answer.headers.get('x-ogygia-deny') === 'foreign-key' && this.#keyed_apart(url))
 					this.skewed.set(from, (this.skewed.get(from) ?? new Set<string>()).add(url.pathname));
 				// (which build answered rides with the answer, so a cached copy says it too; a page store's
 				// copy is the build's that rendered it: test/stored-build.node.test.ts)
