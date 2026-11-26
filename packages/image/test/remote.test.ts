@@ -131,6 +131,9 @@ describe('hosts', () => {
 			check_plugin_options({ remote: { hosts: ['a.example.com'], maxAge: -1 } })
 		).toThrow(/remote.maxAge/);
 		expect(() =>
+			check_plugin_options({ remote: { hosts: ['a.example.com'], maxAge: 0 } })
+		).toThrow(/remote.maxAge/);
+		expect(() =>
 			check_plugin_options({ remote: { hosts: ['a.example.com'], domains: [] } })
 		).toThrow(/unknown image option 'domains'/);
 	});
