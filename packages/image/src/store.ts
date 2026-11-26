@@ -26,7 +26,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { cache, clock, random, type Cache } from '@ogygia/machine';
-import { warn } from './messages.ts';
+import { said, warn } from './messages.ts';
 
 /** Bump when the encoder's output changes for the same input: every cached file is made again, and
  *  every source gets a new id, so every file a new name. test/encode-settings.test.ts holds what
@@ -145,7 +145,6 @@ export const BUILD_STORE_MAX: number = 2 * 1024 * 1024 * 1024;
 export class FileStore {
 	readonly dir: string;
 	#files: Cache<string, number>;
-	#said_write = false;
 	#counted: Promise<void> = Promise.resolve();
 
 	constructor(dir: string, max: number = BUILD_STORE_MAX) {
@@ -205,7 +204,7 @@ export class FileStore {
 	}
 
 	/** Keep `data` as the file of `key` (written whole, then moved in: a reader never sees half).
-	 *  False when it could not be written (said once per store: `image_store_write_failed`). */
+	 *  False when it could not be written (said once per streak of failed writes: `image_store_write_failed`). */
 	async keep(key: string, data: Uint8Array): Promise<boolean> {
 		await this.#counted;
 		const file = this.file(key);
@@ -215,14 +214,15 @@ export class FileStore {
 			await fs.promises.writeFile(tmp, data, { mode: 0o600 });
 			await fs.promises.rename(tmp, file);
 		} catch (e) {
-			if (!this.#said_write)
-				warn('image_store_write_failed', { dir: this.dir, reason: (e as Error).message });
-			this.#said_write = true;
+			said.once(`image_store_write_failed ${this.dir}`, () =>
+				warn('image_store_write_failed', { dir: this.dir, reason: (e as Error).message })
+			);
 			// oxlint-disable-next-line ogygia/no-silent-failures -- a half-written file that is not there needs no removing
 			void fs.promises.rm(tmp, { force: true }).catch(() => {});
 			return false;
 		}
 		this.#files.set(file, data.byteLength);
+		said.ok(`image_store_write_failed ${this.dir}`);
 		// oxlint-disable-next-line ogygia/no-silent-failures -- the mark only spares this folder from a newer server's tidy: a miss shows as a file made again
 		void touch(path.join(this.dir, USED)).catch(() => {});
 		return true;

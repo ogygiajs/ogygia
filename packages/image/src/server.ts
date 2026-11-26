@@ -25,7 +25,7 @@ import { defineServer, type ServerPlugin } from '@ogygia/core/plugin';
 import { cache } from '@ogygia/machine';
 import config from 'virtual:ogygia-image/config';
 import sources from 'virtual:ogygia-image/sources';
-import { warn } from './messages.ts';
+import { said, warn } from './messages.ts';
 import {
 	built_file,
 	built_url,
@@ -74,10 +74,8 @@ function not_found(): Response {
 	return new Response('Not Found', { status: 404, headers: { 'cache-control': 'no-store' } });
 }
 
-let said_no_encoder = false;
 function no_encoder(e: unknown): Response {
-	if (!said_no_encoder) warn('image_no_encoder', { reason: (e as Error).message });
-	said_no_encoder = true;
+	said.once('image_no_encoder', () => warn('image_no_encoder', { reason: (e as Error).message }));
 	return new Response('this server cannot make images', {
 		status: 500,
 		headers: { 'cache-control': 'no-store' }

@@ -8,6 +8,7 @@
  *
  * @packageDocumentation
  */
+import { say, type Say } from '@ogygia/machine';
 import { define_messages, prose, type MessagesOf } from '@ogygia/core/internal/messages';
 
 /** `<Img>`'s own errors, for the docs' message pages. */
@@ -327,3 +328,7 @@ const own: Own = define_messages(IMAGE_ERRORS, IMAGE_WARNINGS);
 export const OgygiaError: Own['OgygiaError'] = own.OgygiaError;
 /** `warn(code, args)`. */
 export const warn: Own['warn'] = own.warn;
+
+/** The warnings of a condition that lasts (a full line of encodes, a store that cannot write): each
+ *  is said once per streak, `said.once(key, …)` when it starts and `said.ok(key)` when it ends. */
+export const said: Say = say();

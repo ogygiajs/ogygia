@@ -21,7 +21,7 @@ import { Readable } from 'node:stream';
 import { read } from '$app/server';
 import { clock, flights, queue, STALE, type Fresh, type Place } from '@ogygia/machine';
 import { mime_of } from './layout.ts';
-import { warn } from './messages.ts';
+import { said, warn } from './messages.ts';
 import { encode_recipe, VIPS_VERSION } from './pixels.ts';
 import type { ParsedRecipe } from './recipe.ts';
 import { build_handoff, FileStore, runtime_store, source_id } from './store.ts';
@@ -52,13 +52,12 @@ const encodes = queue<Job>({
 	stale: (job: Job) => job.gone()
 });
 
-let said_busy = false;
 function limited<T>(work: () => Promise<T>): Promise<T> {
 	if (live && encodes.waiting >= MAX_WAITING) {
-		if (!said_busy) warn('image_busy', { waiting: encodes.waiting });
-		said_busy = true;
+		said.once('image_busy', () => warn('image_busy', { waiting: encodes.waiting }));
 		return Promise.reject(new Busy());
 	}
+	if (encodes.waiting === 0) said.ok('image_busy');
 	return new Promise<T>((resolve, reject) => {
 		encodes.push(
 			{ run: () => work().then(resolve, reject), gone: () => reject(new Busy()) },
