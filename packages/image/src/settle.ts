@@ -11,7 +11,7 @@
  *
  * @packageDocumentation
  */
-import { clock, flights, queue, STALE, type Fresh, type Place } from '@ogygia/machine';
+import { clock, flights, queue, STALE, type Fresh, type Place, type Queue } from '@ogygia/machine';
 import { make, parallel, store } from 'virtual:ogygia-image/maker';
 import { build_handoff } from './handoff.ts';
 import { mime_of } from './layout.ts';
@@ -24,6 +24,7 @@ import { card_of_tail, remote_of_tail, type ParsedRecipe } from './recipe.ts';
 import type { FailKind } from './remote-fetch.ts';
 
 const MAX_WAITING = 64;
+const FETCHES_MAX = 16;
 const WAIT_MS = 30_000;
 const RETRY_AFTER_S = 5;
 const MEMORY_MAX = 64 * 1024 * 1024;
@@ -33,29 +34,42 @@ const live = build_handoff() === null;
 class Busy extends Error {}
 
 type Job = { run: () => Promise<void>; gone: () => void };
-const encodes = queue<Job>({
-	name: 'image encodes',
-	max: parallel,
-	start: (job: Job, place: Place) => {
-		// oxlint-disable-next-line ogygia/no-silent-failures -- run() settles its caller's promise with the failure and never rejects itself
-		void job.run().finally(() => place.release());
-	},
-	stale: (job: Job) => job.gone()
-});
 
-function limited<T>(work: () => Promise<T>): Promise<T> {
-	if (live && encodes.waiting >= MAX_WAITING) {
-		said.once('image_busy', () => warn('image_busy', { waiting: encodes.waiting }));
-		return Promise.reject(new Busy());
+class Line {
+	readonly #name: string;
+	readonly #jobs: Queue<Job>;
+
+	constructor(name: string, max: number) {
+		this.#name = name;
+		this.#jobs = queue<Job>({
+			name,
+			max,
+			start: (job: Job, place: Place) => {
+				// oxlint-disable-next-line ogygia/no-silent-failures -- run() settles its caller's promise with the failure and never rejects itself
+				void job.run().finally(() => place.release());
+			},
+			stale: (job: Job) => job.gone()
+		});
 	}
-	if (encodes.waiting === 0) said.ok('image_busy');
-	return new Promise<T>((resolve, reject) => {
-		encodes.push(
-			{ run: () => work().then(resolve, reject), gone: () => reject(new Busy()) },
-			live ? clock.mono() + WAIT_MS : undefined
-		);
-	});
+
+	run<T>(work: () => Promise<T>): Promise<T> {
+		const waiting = this.#jobs.waiting;
+		if (live && waiting >= MAX_WAITING) {
+			said.once(`image_busy ${this.#name}`, () => warn('image_busy', { waiting }));
+			return Promise.reject(new Busy());
+		}
+		if (waiting === 0) said.ok(`image_busy ${this.#name}`);
+		return new Promise<T>((resolve, reject) => {
+			this.#jobs.push(
+				{ run: () => work().then(resolve, reject), gone: () => reject(new Busy()) },
+				live ? clock.mono() + WAIT_MS : undefined
+			);
+		});
+	}
 }
+
+const encodes = new Line('image encodes', parallel);
+const fetches = new Line('image remote fetches', FETCHES_MAX);
 
 interface Made {
 	data: Uint8Array;
@@ -102,12 +116,15 @@ const remote_originals = flights.keyed<{ url: string }>()<'url', never, Promise<
 			transport()
 		]);
 		try {
-			const got = await fetch_image({
-				url: new URL(url),
-				hosts: new RemoteHosts(REMOTE.hosts),
-				limits: REMOTE,
-				get
-			});
+			const remote = REMOTE;
+			const got = await fetches.run(() =>
+				fetch_image({
+					url: new URL(url),
+					hosts: new RemoteHosts(remote.hosts),
+					limits: remote,
+					get
+				})
+			);
 			return got!.bytes;
 		} catch (e) {
 			if (e instanceof HopRefused) throw new Refused(404, e.message);
@@ -164,9 +181,10 @@ const makes = flights.keyed<Ask>()<
 	keep: (made: Fresh<Made>) => (made.on_disk ? 0 : Infinity),
 	max: MEMORY_MAX,
 	weigh: (made: Fresh<Made>) => made.data.byteLength,
-	run: (ask: Ask): Promise<Made> =>
-		limited(async (): Promise<Made> => {
-			const bytes = await original_bytes(ask);
+	run: async (ask: Ask): Promise<Made> => {
+		const fetched = ask.url === null ? null : await remote_bytes(ask.url);
+		return encodes.run(async (): Promise<Made> => {
+			const bytes = fetched ?? (await original_bytes(ask));
 			let data: Uint8Array;
 			try {
 				data = await make(bytes, ask.recipe, ask.platform);
@@ -176,7 +194,8 @@ const makes = flights.keyed<Ask>()<
 			}
 			const on_disk = store !== null && (await store.keep(ask.key, data));
 			return { data, on_disk };
-		})
+		});
+	}
 });
 
 const KEEP = 'public, max-age=31536000, immutable';
