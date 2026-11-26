@@ -15,7 +15,10 @@ vi.mock('virtual:ogygia-image/cards', () => ({ engine: true, card_module: () => 
 vi.mock('virtual:ogygia-image/maker', () => ({ fit: null }));
 vi.mock('$app/environment', () => ({ building: false, dev: true }));
 vi.mock('virtual:ogygia-image/sources', () => ({
-	default: { 'src/lib/images/logo.png': '/base/_app/immutable/assets/logo.Ab12.png' },
+	default: {
+		'src/lib/images/avatar.jpg': '/base/src/lib/images/avatar.jpg?no-inline',
+		'src/lib/images/logo.png': '/base/_app/immutable/assets/logo.Ab12.png'
+	},
 	remote: []
 }));
 vi.mock('$app/server', () => ({
@@ -29,7 +32,7 @@ vi.mock('$app/server', () => ({
 
 const { endpoint_images } = await import('../src/cards/read.ts');
 
-test("a card's image of the build is read by the URL read() takes for its tail, as any original is, whatever query the markup's URL carries", async () => {
+test("a card's image of the build is read by the URL read() takes for its tail, with no query, whatever query the markup's URL or dev's import carries", async () => {
 	const read = endpoint_images(null);
 	expect([...(await read('/base/src/lib/images/avatar.jpg?no-inline'))]).toEqual([
 		0xff, 0xd8, 0xff, 1
