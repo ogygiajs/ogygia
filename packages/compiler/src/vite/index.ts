@@ -488,7 +488,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						env.command === 'serve',
 						(source, filename) =>
 							compiler_of(session, 'markup').transform_content_island(source, filename),
-						seams
+						{ ...seams, routes_dir: kit.dirs.routes_dir }
 					);
 					stage_transforms = resolved.transforms;
 					stayed_answers = resolved.stayed;

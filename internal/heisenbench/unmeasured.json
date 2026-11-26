@@ -2889,8 +2889,16 @@
 			"reason": "build only: once per client build, off the request and boot paths; proven in packages/content/test/content-leaks.test.ts"
 		},
 		{
-			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > filter:0~709bab",
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > filter:0~df106e",
 			"reason": "build only: three regex tests per module id of a finished client bundle, once per build"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > route_file",
+			"reason": "build only: per markdown module id of a finished client bundle, one prefix test and one regex, once per build; test/content-leaks.test.ts runs it"
+		},
+		{
+			"id": "packages/content/src/vite/index.ts > content > content_leaks:0~47cfac",
+			"reason": "build only: once per client bundle, a field read; test/content-leaks.test.ts runs the leak check"
 		},
 		{
 			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > flatMap:0~b437c4",
@@ -6569,7 +6577,7 @@
 			"reason": "one Set read per reason (nine), constant work"
 		},
 		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~3a93bb > stayed",
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~e375d3 > stayed",
 			"reason": "once per plugin at config time: one array push, constant work"
 		},
 		{
