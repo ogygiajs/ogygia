@@ -1,9 +1,12 @@
 name: dst
 
 # ALWAYS-ON DETERMINISTIC SIMULATION (internal/notes/dst.md): one seed drives a whole app (servers,
-# tabs, network, time), and a failing seed replays exactly. This job runs seeds back to back for
-# almost six hours, then files what is new: an issue (labels `bug`, `dst`) and a `sim/found-<sig>`
-# branch with a seeded test, deduplicated by signature (internal/sim/src/ci.ts).
+# tabs, network, time), and a failing seed replays exactly. The `simulate` job runs seeds back to
+# back for almost six hours, then files what is new: an issue (labels `bug`, `dst`) and a
+# `sim/found-<sig>` branch with a seeded test, deduplicated by signature (internal/sim/src/ci.ts).
+#
+# The always-on `simulate` loop runs on a dedicated server, which runs the same internal/sim/src/ci.ts
+# in hour-long rounds forever; here `simulate` is manual only. The daily jobs below stay scheduled.
 #
 # Schedule and manual runs ONLY: never on a pull request or a push, so no fork's code ever runs
 # here, and it tests the repository's own code (main, unless a manual run names another ref). A good
@@ -12,8 +15,6 @@ name: dst
 
 on:
   schedule:
-    # every 6 hours; with the concurrency group below, runs chain back to back
-    - cron: '17 */6 * * *'
     # once a day: the mutation run (the `mutate` job), about an hour
     - cron: '43 3 * * *'
     # once a day: the differential (the `differ` job), the simulator against real browsers

@@ -34,6 +34,7 @@ import {
 } from '@ogygia/core/contract';
 import { island_sourcemaps_plugin } from './sourcemaps.ts';
 import { lazy_files } from './lazy-files.ts';
+import { graph_compiled } from './graph-compiled.ts';
 import { install_dev_client_maps, install_dev_maps, install_dev_page_keys } from './dev-maps.ts';
 import { is_island_path, normalize_import_keys } from '../region/transform.ts';
 
@@ -956,7 +957,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					resolve: bundler_resolve(this),
 					exports: css_walk_index(this.environment.name),
 					kitCodec: kit_transport_init,
-					via: () => import_chain(id, (m) => this.getModuleInfo(m)?.importers, root)
+					via: () => import_chain(id, (m) => this.getModuleInfo(m)?.importers, root),
+					...(is_build && ssr ? { compiled: (skip) => graph_compiled(this, skip) } : {})
 				});
 			},
 

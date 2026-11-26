@@ -203,6 +203,7 @@ export const server_flags: Family<ServerFlagsModule> = virtual.family({
 	realm: 'server',
 	id: 'runtime-flags',
 	exports: { HAS: 'HAS' },
+	settles: true,
 	load(app: CoreApp) {
 		if (!app.ctx.is_build) return generateServerFlagsSource({}, true);
 		app.prescan();
@@ -216,6 +217,7 @@ export const programs: Family<ProgramsModule> = virtual.family({
 	realm: 'region',
 	id: 'programs',
 	exports: { HAS_FRAMES: 'HAS_FRAMES', HAS_LAKES: 'HAS_LAKES', HAS_LIVE: 'HAS_LIVE' },
+	settles: true,
 	load(app: CoreApp) {
 		if (!app.ctx.is_build) return generateProgramsSource({}, true);
 		app.prescan();
@@ -579,6 +581,7 @@ export const kit_transport: Family<KitTransportModule> = virtual.family({
 	realm: 'region',
 	id: 'kit-transport',
 	exports: { kit_transport: 'transport' },
+	settles: true,
 	load({ ctx, program }: CoreApp, { ssr }) {
 		const crosses = program.runtime_marks.wire === true || program.crosses_wire;
 		return kit_transport_module(crosses, posix(`${ctx.runtime_dir}/..`), ssr);
