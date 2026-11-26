@@ -11,7 +11,6 @@ import type { ParsedRecipe } from '../recipe.ts';
 
 const PNG_HEAD: readonly number[] = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
-/** Whether `bytes` are a PNG whose header says `recipe`'s width and height. */
 function own_png(bytes: Uint8Array, recipe: ParsedRecipe): boolean {
 	if (bytes.length < 24 || PNG_HEAD.some((b, i) => bytes[i] !== b)) return false;
 	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
