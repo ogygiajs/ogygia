@@ -141,12 +141,18 @@ function regions_left_at_rest(): string | null {
 	return null;
 }
 
+function rendered(el: HTMLElement): boolean {
+	return typeof el.checkVisibility === 'function'
+		? el.checkVisibility()
+		: el.getClientRects().length > 0;
+}
+
 function transition_names_unique(): string | null {
 	if (typeof document === 'undefined') return null;
 	const count = new Map<string, number>();
 	for (const el of document.querySelectorAll<HTMLElement>('[style*="view-transition-name"]')) {
 		const name = el.style.getPropertyValue('view-transition-name').trim();
-		if (!name || name === 'none' || name === 'auto' || !el.checkVisibility()) continue;
+		if (!name || name === 'none' || name === 'auto' || !rendered(el)) continue;
 		count.set(name, (count.get(name) ?? 0) + 1);
 	}
 	for (const [name, n] of count)
