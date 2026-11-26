@@ -100,7 +100,9 @@ const print = (log: unknown[]) =>
 		.update(JSON.stringify(log, (_k, v: unknown) => bytes_of(v)))
 		.digest('base64url');
 
-const DRAW_SEEN: Readonly<Record<number, string>> = {};
+const DRAW_SEEN: Readonly<Record<number, string>> = {
+	1: 'mG3N-aJqVKoA3BR1_i5-ncsX_84dTKq131wypstNCxU'
+};
 
 const FIT_CASES: readonly Record<string, unknown>[] = [
 	{ format: 'jpeg', width: 300, height: 300, space: 'srgb', depth: 'uchar', channels: 3 },
@@ -128,7 +130,7 @@ test('a change to what a card asks of sharp, satori or resvg bumps CARD_DRAW_VER
 			width: 600,
 			height: 315,
 			fonts: [{ name: 'Mono', weight: 500, style: 'normal', src: '/font.woff' }],
-			html: () => Promise.resolve('<div>\n\t<p>A &amp; B</p>\n</div>')
+			html: () => Promise.resolve('<div> <p>A &amp; B</p>  </div>')
 		},
 		{},
 		[new ArrayBuffer(8)],

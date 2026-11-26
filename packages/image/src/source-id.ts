@@ -11,6 +11,11 @@
  *  each version asks sharp for. */
 export const ENCODER_VERSION = 5;
 
+/** Bump when a card's draw changes for the same component and props (what its fitter asks sharp,
+ *  what it hands satori and resvg): every card gets a new name, so no store or cache keeps an old
+ *  PNG. test/card-draw-settings.test.ts holds what each version asks. */
+export const CARD_DRAW_VERSION = 1;
+
 const ID_LENGTH = 16;
 
 /** A source's id: its bytes (and the encoder's version), so every file made from it names its
