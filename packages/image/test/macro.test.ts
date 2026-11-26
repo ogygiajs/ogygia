@@ -144,6 +144,15 @@ describe('rewrite_image_calls', () => {
 		expect(rewrite_image_calls(src, svelte)).toBe(src);
 	});
 
+	test("a docs page that writes the call as text in its markup is no call (a <code> sample)", () => {
+		const svelte = path.join(dir, 'Docs.svelte');
+		const src = dedent`
+			<script>let a = 1;</script>
+			<p>Write <code>import.meta.og.image('./hero.jpg')</code> in a script.</p>
+		`;
+		expect(rewrite_image_calls(src, svelte)).toBe(src);
+	});
+
 	test('a module without the marker is returned as it is', () => {
 		const src = 'const x = 1;';
 		expect(rewrite_image_calls(src, mod())).toBe(src);
@@ -174,6 +183,41 @@ describe('the image macro in dev', () => {
 			});
 		await expect(run()).rejects.toThrow(/later\.jpg/);
 		expect(watched).toContain(path.join(dir, 'later.jpg'));
+	});
+
+	test("a call in a markdown page's <script> is rewritten, in the regions ogygia hands the macro", async () => {
+		const page = `${dedent`
+			---
+			title: Post
+			---
+
+			<script>
+				const hero = import.meta.og.image('./hero.jpg');
+			</script>
+
+			# Post
+		`}\n`;
+		const open = page.indexOf('<script>') + '<script>'.length;
+		const script = { code: page.slice(open, page.indexOf('</script>')), offset: open };
+		const edits = (await handler()(page, {
+			id: path.join(dir, '+page.svx'),
+			rel: '+page.svx',
+			root: dir,
+			alias: [],
+			markupExts: ['.svelte'],
+			regions: () => [script],
+			watch: () => {}
+		})) as { start: number; end: number; text: string }[];
+		let out = '';
+		let last = 0;
+		for (const e of edits) {
+			out += page.slice(last, e.start) + e.text;
+			last = e.end;
+		}
+		out += page.slice(last);
+		expect(out).toContain(`<script>\nimport __og_image_0 from "./hero.jpg?og-image";\n`);
+		expect(out).toContain('const hero = __og_image_0;');
+		expect(out).toContain('# Post');
 	});
 
 	test('the macro answers with edits, so a module that uses it keeps its source map', async () => {
