@@ -133,6 +133,26 @@ test('a Cloudflare build that lists no encoder fails, coded, naming cloudflare()
 		});
 });
 
+test('any other edge build that lists no encoder fails too, coded, naming sharp() for prerendered images only; with sharp() it warns', async () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	try {
+		for (const adapter of ['"svelte-adapter-deno"', '"@example/adapter-edge"']) {
+			const error = await resolved(app('devDependencies', true), adapter).catch((e: unknown) => e);
+			expect(error, adapter).toMatchObject({
+				code: 'image_option_invalid',
+				message: expect.stringMatching(/sharp\(\)/)
+			});
+			expect((error as Error).message, adapter).not.toMatch(/list cloudflare\(\)/);
+			await expect(
+				resolved(app('devDependencies', true), adapter, 'build', { encoder: sharp() })
+			).resolves.toBeUndefined();
+		}
+		expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toMatch(/image_no_encoder/);
+	} finally {
+		warn.mockRestore();
+	}
+});
+
 test('a Cloudflare Workers adapter is Cloudflare for cloudflare() too', async () => {
 	await expect(
 		resolved(app('devDependencies', true), '"@sveltejs/adapter-cloudflare-workers"', 'build', {
