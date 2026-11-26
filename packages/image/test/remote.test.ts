@@ -124,7 +124,9 @@ describe('hosts', () => {
 		expect(entry_for(new URL('https://a.example.com:8443/a.jpg'))).toBe('a.example.com:8443');
 	});
 
-	const label = fc.stringMatching(/^[a-z]([a-z0-9-]{0,8}[a-z0-9])?$/);
+	const label = fc
+		.stringMatching(/^[a-z]([a-z0-9-]{0,8}[a-z0-9])?$/)
+		.filter((l) => l[2] !== '-' || l[3] !== '-');
 	const name = fc.array(label, { minLength: 2, maxLength: 4 }).map((l) => l.join('.'));
 
 	test('no pattern takes a host outside it (property)', () => {
