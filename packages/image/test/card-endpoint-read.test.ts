@@ -1,6 +1,6 @@
-// The live endpoint reads a card's image of the build the way it reads any original: by the asset
-// URL the server imported, which Kit's read() takes, not by the URL the card's markup wrote (in dev
-// a descriptor's src carries a query, `?no-inline`, that read() refuses).
+// The live endpoint reads a card's image of the build the way it reads any original: by the URL
+// Kit's read() takes for its tail, not by the URL the card's markup wrote (in dev a descriptor's src
+// carries a query, `?no-inline`, that read() refuses).
 import { expect, test, vi } from 'vitest';
 
 const ASSETS: ReadonlyMap<string, Uint8Array<ArrayBuffer>> = new Map([
@@ -13,11 +13,9 @@ vi.mock('virtual:ogygia-image/config', () => ({
 }));
 vi.mock('virtual:ogygia-image/cards', () => ({ engine: true, card_module: () => null }));
 vi.mock('virtual:ogygia-image/maker', () => ({ fit: null }));
+vi.mock('$app/environment', () => ({ building: false, dev: true }));
 vi.mock('virtual:ogygia-image/sources', () => ({
-	default: {
-		'src/lib/images/avatar.jpg': '/base/src/lib/images/avatar.jpg',
-		'src/lib/images/logo.png': '/base/_app/immutable/assets/logo.Ab12.png'
-	},
+	default: { 'src/lib/images/logo.png': '/base/_app/immutable/assets/logo.Ab12.png' },
 	remote: []
 }));
 vi.mock('$app/server', () => ({
@@ -31,7 +29,7 @@ vi.mock('$app/server', () => ({
 
 const { endpoint_images } = await import('../src/cards/read.ts');
 
-test("a card's image of the build is read by the asset URL the server imported, whatever query the markup's URL carries", async () => {
+test("a card's image of the build is read by the URL read() takes for its tail, as any original is, whatever query the markup's URL carries", async () => {
 	const read = endpoint_images(null);
 	expect([...(await read('/base/src/lib/images/avatar.jpg?no-inline'))]).toEqual([
 		0xff, 0xd8, 0xff, 1
