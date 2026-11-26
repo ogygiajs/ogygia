@@ -504,7 +504,8 @@ function pin_asset(value: string, origin: string): string {
 	return new URL(value, `${origin}/`).href;
 }
 
-const CSS_URL_RE = /(url\(\s*)(&quot;|&#39;|["']?)((?:[^"'()\s&]|&amp;)+)(\2\s*\))/gi;
+const CSS_URL_RE =
+	/(url\(\s*)(&quot;|&#34;|&#39;|&apos;|["']?)((?:[^"'()\s&]|&(?!quot;|#34;|#39;|apos;))+)(\2\s*\))/gi;
 
 function pin_style(value: string, origin: string): string {
 	return value.replace(
