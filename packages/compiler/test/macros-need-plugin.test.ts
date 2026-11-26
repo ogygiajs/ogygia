@@ -51,6 +51,26 @@ describe('a plugin macro without its plugin', () => {
 		expect((await run_module_macros(unknown, APP, ctx(), NO_PROFILE)).code).toBe(unknown);
 	});
 
+	it("a component's markup that shows a macro call as text is no call (a docs page about the macro)", async () => {
+		const svelte = `<script>\n\texport const n = 1;\n</script>\n\n<p>Write <code>import.meta.og.image('./hero.jpg')</code> in the script.</p>\n`;
+		expect(
+			await run_module_macros(svelte, '/app/src/routes/+page.svelte', ctx(), NO_PROFILE)
+		).toEqual({ code: svelte, touched: false, maps: [] });
+		const svx = `---\ntitle: Images\n---\n\n\`import.meta.og.image(path)\` reads an image file at build.\n`;
+		expect(await run_module_macros(svx, '/app/src/content/+doc.svx', ctx(), NO_PROFILE)).toEqual({
+			code: svx,
+			touched: false,
+			maps: []
+		});
+	});
+
+	it("a call in a component's script still fails the build without its plugin", async () => {
+		const svelte = `<script>\n\tconst hero = import.meta.og.image('./hero.jpg');\n</script>\n\n<img src={hero.src} alt="" />\n`;
+		await expect(
+			run_module_macros(svelte, '/app/src/routes/+page.svelte', ctx(), NO_PROFILE)
+		).rejects.toMatchObject({ code: 'macro_needs_plugin' });
+	});
+
 	it('with the plugin listed, its handler compiles the call', async () => {
 		const out = await run_module_macros(
 			`export const v = import.meta.og.code('x');`,
