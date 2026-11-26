@@ -8,6 +8,7 @@ import type { Plugin, ResolvedConfig } from 'vite';
 import { beforeAll, expect, test, vi } from 'vitest';
 import { cloudflare, image, sharp, vercel, type ImagePluginOptions } from '../src/vite/index.ts';
 import { remote_name, remote_src } from '../src/vite/remote.ts';
+import { image_specifier } from '../src/vite/macro.ts';
 import { source_id } from '../src/source-id.ts';
 import { app_with_sharp, make_images } from './fixtures.ts';
 
@@ -110,6 +111,16 @@ test('cloudflare() makes files with its Images binding in a build and with sharp
 	expect(String(await load(dev, '\0virtual:ogygia-image/namer'))).toContain('"dev":true');
 	const unlinked = await loader(define, { encoder: cloudflare({ links: false }) }, 'build');
 	expect(String(await load(unlinked, '\0virtual:ogygia-image/namer'))).toContain('"links":[]');
+});
+
+test("with vercel(), a source's own quality that vercel({ qualities }) does not list fails the build where the source is read, not each live render", async () => {
+	const define = { __SVELTEKIT_APP_DIR__: '"_app"' };
+	const plugin = await loader(define, { encoder: vercel({ qualities: [60, 80] }) }, 'build');
+	const file = path.join(root, 'src/lib/a.jpg');
+	await expect(load(plugin, `${image_specifier(file, { quality: 70 })}`)).rejects.toMatchObject({
+		code: 'image_option_invalid'
+	});
+	expect(String(await load(plugin, image_specifier(file, { quality: 80 })))).toContain('"id"');
 });
 
 test("vercel() alone has no endpoint maker; its sizes bound every file's width; a list keeps sharp's endpoint", async () => {
