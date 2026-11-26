@@ -10,6 +10,7 @@
 import { flights, STALE } from '@ogygia/machine';
 import { OgygiaError } from '../messages.ts';
 import type { CardProps, CardSpec } from '../card.ts';
+import { inline_images, no_images, type CardImageRead } from './images.ts';
 
 /** The packages a card is made with, as an app installs them. */
 export const ENGINE_PACKAGES: readonly string[] = ['satori', 'satori-html', '@resvg/resvg-js'];
@@ -121,14 +122,19 @@ export async function card_tree(html: string): Promise<SatoriNode> {
 }
 
 /** `spec`'s card with `props`, as its own-size PNG; `fonts` are the bytes of `spec.fonts`, in
- *  order. A style satori cannot draw fails `image_card_css`. */
+ *  order. Every image its markup names (an `<img>`, a style's `url()`) is read by `images`, the
+ *  card's realm (../cards/images.ts: an asset of the build, or a URL fetched under
+ *  `image({ remote })`), and handed satori as bytes: satori fetches nothing. One `images` cannot
+ *  read, or with none given, fails `image_card_source`. A style satori cannot draw fails
+ *  `image_card_css`. */
 export async function card_png(
 	spec: CardSpec,
 	props: CardProps,
-	fonts: readonly ArrayBuffer[]
+	fonts: readonly ArrayBuffer[],
+	images: CardImageRead = no_images
 ): Promise<Uint8Array> {
 	const { satori, Resvg } = await engine();
-	const tree = await card_tree(await spec.html(props));
+	const tree = await inline_images(await card_tree(await spec.html(props)), spec.file, images);
 	let svg: string;
 	try {
 		svg = await satori(tree, {

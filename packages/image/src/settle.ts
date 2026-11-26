@@ -17,7 +17,7 @@ import { build_handoff } from './handoff.ts';
 import { mime_of } from './layout.ts';
 import { said, warn } from './messages.ts';
 import { remote as REMOTE, transport } from 'virtual:ogygia-image/remote';
-import { card_original, draws, NoCard } from './cards/read.ts';
+import { card_original, draws, endpoint_images, NoCard } from './cards/read.ts';
 import { CannotMake } from './maker.ts';
 import { Changed, read_original } from './reader.ts';
 import { card_of_tail, remote_of_tail, type ParsedRecipe } from './recipe.ts';
@@ -125,8 +125,17 @@ const card_originals = flights.keyed<{ tail: string; id: string }>()<
 	name: 'card originals',
 	key: ['tail', 'id'],
 	keep: 0,
-	run: ({ tail, id }: { tail: string; id: string }): Promise<Uint8Array> => card_original(tail, id)
+	run: ({ tail, id }: { tail: string; id: string }): Promise<Uint8Array> =>
+		card_original(tail, id, CARD_IMAGES)
 });
+
+async function remote_bytes(url: URL): Promise<Uint8Array> {
+	const bytes = await remote_originals.get({ url: url.href });
+	if (bytes === STALE) throw new Refused(502, 'the fetch was dropped before it finished');
+	return bytes;
+}
+
+const CARD_IMAGES = endpoint_images(REMOTE === null ? null : remote_bytes);
 
 async function original_bytes(ask: Ask): Promise<Uint8Array> {
 	if (ask.card) {
@@ -135,9 +144,7 @@ async function original_bytes(ask: Ask): Promise<Uint8Array> {
 		return bytes;
 	}
 	if (ask.url === null) return read_original(ask.original, ask.recipe.id);
-	const bytes = await remote_originals.get({ url: ask.url.href });
-	if (bytes === STALE) throw new Refused(502, 'the fetch was dropped before it finished');
-	return bytes;
+	return remote_bytes(ask.url);
 }
 
 const makes = flights.keyed<Ask>()<

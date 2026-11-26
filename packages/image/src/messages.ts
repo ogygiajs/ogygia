@@ -231,6 +231,20 @@ export const IMAGE_ERRORS = {
 			subset. The images docs list what works.
 		`
 	},
+	image_card_source: {
+		text: (a: { file: string; src: string; reason: string }): string =>
+			`${a.file}: this card names the image ${a.src}, which it cannot draw (${a.reason}).`,
+		details: (): string => prose`
+			A card never lets its drawing engine fetch an image itself: that would fetch any address
+			its markup names, private ones included, with no size or time limit. Each image a card
+			names (an \`<img src>\`, a style's \`url()\`) is read by ogygia and handed over as bytes.
+			It may be an image of the build (the \`src\` of an \`import.meta.og.image()\` descriptor, a
+			root-relative asset URL), an \`http(s)\` URL on a host \`image({ remote: { hosts } })\`
+			lists (fetched under its size and time limits, like \`remoteImage()\`), or a \`data:\` URL.
+			Its bytes must be PNG, JPEG, GIF, WebP or AVIF. A relative path, another scheme, or a URL
+			with no \`remote\` set is refused.
+		`
+	},
 	image_card_props: {
 		text: (a: { file: string; at: string; why: string }): string =>
 			`${a.file}: a card's props must be JSON, and small: ${a.at}: ${a.why}.`,

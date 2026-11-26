@@ -55,6 +55,7 @@ import { plan_image, settle, type Plan, type Settings } from './plan.ts';
 import { EXTENSION_API, markdown_extension } from './markdown.ts';
 import { image_call_edits, image_specifier, options_of_query, QUERY } from './macro.ts';
 import {
+	build_card_images,
 	CARD_PREFIX,
 	CARD_QUERY,
 	CARDS_ID,
@@ -450,13 +451,19 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 				cards.written(out.dir ?? path.resolve(config.root, config.build.outDir), (ref) =>
 					this.getFileName(ref)
 				);
+				const output = output_of(config);
+				const images = build_card_images(
+					output,
+					[paths.assets, paths.base],
+					remote ? (url) => remote.file(dir, url, 'a share card') : null
+				);
 				await write_built(
 					handoff,
 					render_config(opts, paths, true, widths, stills),
 					warmed.values(),
-					output_of(config),
+					output,
 					remote ? (url) => remote.file(dir, url, 'a prerendered page') : undefined,
-					(tail, id) => cards.draw(tail, id)
+					(tail, id) => cards.draw(tail, id, images)
 				);
 			}
 		}

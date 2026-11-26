@@ -31,6 +31,7 @@ import { OgygiaError, warn } from '../messages.ts';
 import { card_of_tail, SIDE_MAX } from '../recipe.ts';
 import { ENCODER_VERSION } from '../source-id.ts';
 import { card_png, ENGINE_PACKAGES } from '../cards/engine.ts';
+import { card_image_reader, type CardImageRead } from '../cards/images.ts';
 import type { EncoderRuntime } from './encoder.ts';
 import { font_face, FontUnreadable, type FontFace } from './font-face.ts';
 
@@ -306,6 +307,28 @@ function read_file(file: string): Buffer | null {
 	}
 }
 
+/** The build's reader of a card's images: an asset from Kit's build `output` (client or server), a
+ *  URL with `remote` (the build's guarded, cached fetch: the file it kept; null: no
+ *  `image({ remote })`). */
+export function build_card_images(
+	output: string,
+	prefixes: readonly string[],
+	remote: ((url: string) => Promise<string>) | null
+): CardImageRead {
+	return card_image_reader(
+		prefixes,
+		async (tail) => {
+			for (const side of ['client', 'server']) {
+				const file = path.join(output, side, ...tail.split('/'));
+				if (!path.relative(path.join(output, side), file).startsWith('..') && fs.existsSync(file))
+					return fs.readFileSync(file);
+			}
+			throw new Error(`${tail} is no file of this build's output`);
+		},
+		remote === null ? null : async (url) => fs.readFileSync(await remote(url.href))
+	);
+}
+
 /** Every card the app's macro calls define, and what the build made of them. */
 export class Cards {
 	readonly #defs = new Map<string, CardDef>();
@@ -397,7 +420,7 @@ export class Cards {
 				? ''
 				: dedent`
 					import { card_png } from ${JSON.stringify(CARD_ENGINE)};
-					export const png = (props, fonts) => card_png(spec, props, fonts);
+					export const png = (props, fonts, images) => card_png(spec, props, fonts, images);
 				`;
 		return dedent`
 			import __og_card from ${JSON.stringify(`${def.file.split(path.sep).join('/')}?${CARD_QUERY}`)};
@@ -480,8 +503,9 @@ export class Cards {
 	}
 
 	/** The own-size PNG of the card `tail` names (a prerendered page's), for the build's end: drawn
-	 *  from the server chunk the build wrote, with the fonts' files, when it is the source `id`. */
-	async draw(tail: string, id: string): Promise<Uint8Array> {
+	 *  from the server chunk the build wrote, with the fonts' files, when it is the source `id`; the
+	 *  images it names are read by `images` (the build's reader: its output, its remote fetch). */
+	async draw(tail: string, id: string, images: CardImageRead): Promise<Uint8Array> {
 		const named = card_of_tail(tail);
 		const chunk = named === null ? undefined : this.#chunks.get(named.card);
 		const def = named === null ? undefined : this.#defs.get(named.card);
@@ -499,6 +523,6 @@ export class Cards {
 				bytes.byteOffset + bytes.byteLength
 			) as ArrayBuffer;
 		});
-		return card_png(spec, JSON.parse(named.props) as CardProps, fonts);
+		return card_png(spec, JSON.parse(named.props) as CardProps, fonts, images);
 	}
 }

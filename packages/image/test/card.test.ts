@@ -244,15 +244,15 @@ describe('drawing', () => {
 		const asked: string[] = [];
 		const spec = spec_of(
 			() =>
-				`<div style="display: flex; width: 600px; height: 315px"><img src="https://cms.example.com/a.png" width="600" height="315"></div>`
+				`<div style="display: flex; width: 600px; height: 315px"><img src="https://cms.example.com/a.png" style="width: 600px; height: 315px"></div>`
 		);
 		const png = await card_png(spec, {}, [bytes_of(MONO)], (src) => {
 			asked.push(src);
 			return Promise.resolve(new Uint8Array(red));
 		});
 		expect(asked).toEqual(['https://cms.example.com/a.png']);
-		const { dominant } = await sharp(png).stats();
-		expect(dominant.r).toBeGreaterThan(200);
+		const { channels } = await sharp(png).stats();
+		expect(channels.slice(0, 3).map((c) => Math.round(c.mean))).toEqual([255, 0, 0]);
 	});
 
 	test('a failure that is no CSS refusal (a font that does not load) keeps its own error, not image_card_css', async () => {
