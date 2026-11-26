@@ -42,7 +42,7 @@ export async function fit_to_card(
 	if (why !== null) throw new Error(why);
 	const { width, height } = shown_size(meta, {}, (meta.pages ?? 1) > 1);
 	const scale = card_scale(width, height, card_w, card_h);
-	if (scale === 1 && RESVG_DRAWS.has(type) &&(meta.orientation ?? 1) === 1) return { bytes, type };
+	if (scale === 1 && RESVG_DRAWS.has(type) && (meta.orientation ?? 1) === 1) return { bytes, type };
 	const w = Math.max(1, Math.round(width * scale));
 	const h = Math.max(1, Math.round(height * scale));
 	const img = pipeline(bytes, {}, false, w, h);

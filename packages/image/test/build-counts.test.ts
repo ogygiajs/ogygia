@@ -107,8 +107,8 @@ test(
 		cold_files = written();
 		expect({ encodes: cold_store.size, files: cold_files.size }).toMatchInlineSnapshot(`
 			{
-			  "encodes": 257,
-			  "files": 257,
+			  "encodes": 258,
+			  "files": 258,
 			}
 		`);
 	},

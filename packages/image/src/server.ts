@@ -84,7 +84,6 @@ class Originals {
 		if (published(tail)) return DISK.exists(run.root, tail);
 		return DISK.is_remote(run.root, run.remote, tail);
 	}
-
 }
 
 const REMOTE_ASSETS = `${config.paths.app_dir}/immutable/assets/`;
