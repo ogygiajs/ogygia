@@ -4,7 +4,8 @@
  * build's list (`virtual:ogygia-image/cards`); one whose digest changed since the URL was minted (a
  * later deploy, an edit in dev) is not the source the URL names, so it is never drawn under it. The
  * images its markup names are read by the endpoint (./images.ts): an asset with Kit's `read()`, a URL
- * through the endpoint's remote fetch.
+ * through the endpoint's remote fetch, each fitted to the card by the maker's `fit` (sharp's; none
+ * where sharp makes no file).
  *
  * @packageDocumentation
  */
@@ -14,6 +15,8 @@ import { card_module, engine } from 'virtual:ogygia-image/cards';
 import { card_id, type CardProps, type CardSpec } from '../card.ts';
 import { Changed } from '../reader.ts';
 import { card_of_tail } from '../recipe.ts';
+import { fit } from 'virtual:ogygia-image/maker';
+import type { ImageFit } from '../maker.ts';
 import { card_image_reader, type CardImageRead } from './images.ts';
 
 /** A card's module, as the endpoint loads it: its spec, and its engine where one runs. */
@@ -22,7 +25,8 @@ export interface CardModule {
 	png?: (
 		props: CardProps,
 		fonts: readonly ArrayBuffer[],
-		images: CardImageRead
+		images: CardImageRead,
+		fit: ImageFit | null
 	) => Promise<Uint8Array>;
 }
 
@@ -59,5 +63,5 @@ export async function card_original(
 	if (card_id(m.spec, named.props) !== id) throw new Changed();
 	if (!m.png) throw new NoCard('this server draws no card');
 	const fonts = await Promise.all(m.spec.fonts.map((f) => read(f.src).arrayBuffer()));
-	return m.png(JSON.parse(named.props) as CardProps, fonts, images);
+	return m.png(JSON.parse(named.props) as CardProps, fonts, images, fit);
 }

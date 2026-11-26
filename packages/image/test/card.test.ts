@@ -12,6 +12,7 @@ import { dedent } from '@ogygia/core/contract';
 import { card, card_id, card_json, PROPS_MAX, type CardSpec } from '../src/card.ts';
 import { card_in_browser } from '../src/card-browser.ts';
 import { card_png, card_tree } from '../src/cards/engine.ts';
+import { fit_to_card } from '../src/cards/fit.ts';
 import {
 	card_of_tail,
 	mint,
@@ -247,10 +248,16 @@ describe('drawing', () => {
 			() =>
 				`<div style="display: flex; width: 600px; height: 315px"><img src="https://cms.example.com/a.png" style="width: 600px; height: 315px"></div>`
 		);
-		const png = await card_png(spec, {}, [bytes_of(MONO)], (src) => {
-			asked.push(src);
-			return Promise.resolve(new Uint8Array(red));
-		});
+		const png = await card_png(
+			spec,
+			{},
+			[bytes_of(MONO)],
+			(src) => {
+				asked.push(src);
+				return Promise.resolve(new Uint8Array(red));
+			},
+			fit_to_card
+		);
 		expect(asked).toEqual(['https://cms.example.com/a.png']);
 		const { channels } = await sharp(png).stats();
 		expect(channels.slice(0, 3).map((c) => Math.round(c.mean))).toEqual([255, 0, 0]);
@@ -284,10 +291,16 @@ describe('drawing', () => {
 					code: 'image_card_source'
 				});
 			const asked: string[] = [];
-			const png = await card_png(svg_image('href'), {}, [bytes_of(MONO)], (src) => {
-				asked.push(src);
-				return Promise.resolve(new Uint8Array(red));
-			});
+			const png = await card_png(
+				svg_image('href'),
+				{},
+				[bytes_of(MONO)],
+				(src) => {
+					asked.push(src);
+					return Promise.resolve(new Uint8Array(red));
+				},
+				fit_to_card
+			);
 			expect(asked).toEqual(['https://example.com/a.png']);
 			expect((await sharp(png).metadata()).format).toBe('png');
 			expect(fetched).not.toHaveBeenCalled();
@@ -305,10 +318,16 @@ describe('drawing', () => {
 			() =>
 				`<div style="display: flex; width: 600px; height: 315px; background-image: url(&quot;https://cms.example.com/b.png?fm=png&amp;w=600&quot;)"><img src="https://cms.example.com/a.png?w=1&amp;h=2" width="10" height="10"></div>`
 		);
-		await card_png(spec, {}, [bytes_of(MONO)], (src) => {
-			asked.push(src);
-			return Promise.resolve(new Uint8Array(red));
-		});
+		await card_png(
+			spec,
+			{},
+			[bytes_of(MONO)],
+			(src) => {
+				asked.push(src);
+				return Promise.resolve(new Uint8Array(red));
+			},
+			fit_to_card
+		);
 		expect(asked.sort()).toEqual([
 			'https://cms.example.com/a.png?w=1&h=2',
 			'https://cms.example.com/b.png?fm=png&w=600'

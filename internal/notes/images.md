@@ -385,7 +385,8 @@ BUILT (V4 R9). `import.meta.og.image.card('./Card.svelte', { width, height, font
 - **Images** (`cards/images.ts`): satori fetches nothing. Before it draws, every address the tree
   names (each `src`, an SVG element's `href` / `xlink:href`, each `url()` in a style or attribute;
   `#…` refs are the card's own) is read by the card's realm, fitted to the card (`cards/fit.ts`,
-  sharp loaded on the first card that names an image, `image_sharp_missing` without it: refused
+  the realm's sharp: the build's, or the maker's `fit` at the endpoint, so a server whose maker is
+  not sharp bundles no sharp and refuses a card's image, `image_card_source`; refused
   from its header past `FRAME_PIXELS_MAX`, made smaller to the least size that covers the card and
   at most 4 cards of pixels, re-encoded as PNG with alpha or JPEG) and handed over as bytes: an
   `<img src>` as an `ArrayBuffer` (satori keeps a module-level LRU of 500 `data:` texts; bytes it

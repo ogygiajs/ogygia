@@ -102,15 +102,10 @@ export const SHARED_SUFFIXES: ReadonlySet<string> = new Set([
 const label_re = (label: string): RegExp =>
 	new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, (c) => (c === '*' ? '[^.]*' : `\\${c}`))}$`);
 
-/** Each suffix as its labels, each label a pattern (a family's `*` one label or part of one). */
 const SHARED_LABELS: readonly (readonly RegExp[])[] = [...SHARED_SUFFIXES].map((s) =>
 	s.split('.').map(label_re)
 );
 
-/** Does a `*.` entry over `host` list every tenant of a shared suffix? It does when `host` is one
- *  (a family's instance included), or a name above one (`googleapis.com` is above
- *  `storage.googleapis.com`; `us-east-1.amazonaws.com` above `s3.us-east-1.amazonaws.com`). A
- *  name below one is a tenant's and is not refused (`my-bucket.s3.us-east-1.amazonaws.com`). */
 function over_shared(host: string): boolean {
 	const labels = host.split('.');
 	return SHARED_LABELS.some(

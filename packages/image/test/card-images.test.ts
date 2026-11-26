@@ -9,6 +9,7 @@ import sharp from 'sharp';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { CardSpec } from '../src/card.ts';
 import { card_png } from '../src/cards/engine.ts';
+import { fit_to_card } from '../src/cards/fit.ts';
 
 const drawn: unknown[] = [];
 
@@ -112,7 +113,8 @@ describe("a card's images, as satori is handed them", () => {
 				spec_of('<img src="https://cms.example.com/a.png" style="width: 10px; height: 10px">'),
 				{},
 				[FONT],
-				() => Promise.resolve(bomb)
+				() => Promise.resolve(bomb),
+				fit_to_card
 			)
 		).rejects.toMatchObject({
 			code: 'image_card_source',
@@ -129,7 +131,8 @@ describe("a card's images, as satori is handed them", () => {
 			),
 			{},
 			[FONT],
-			() => Promise.resolve(new Uint8Array(big))
+			() => Promise.resolve(new Uint8Array(big)),
+			fit_to_card
 		);
 		const images = images_in(drawn[0]);
 		expect(images).toHaveLength(2);
@@ -148,9 +151,27 @@ describe("a card's images, as satori is handed them", () => {
 			spec_of('<img src="https://cms.example.com/a.png" style="width: 10px; height: 10px">'),
 			{},
 			[FONT],
-			() => Promise.resolve(new Uint8Array(small))
+			() => Promise.resolve(new Uint8Array(small)),
+			fit_to_card
 		);
 		expect(images_in(drawn[0])[0]).toBeInstanceOf(ArrayBuffer);
+	});
+
+	test('a server that fits no image (sharp makes no file there) refuses a card that names one, coded, before the draw', async () => {
+		const small = await solid(8, 8);
+		await expect(
+			card_png(
+				spec_of('<img src="https://cms.example.com/a.png" style="width: 10px; height: 10px">'),
+				{},
+				[FONT],
+				() => Promise.resolve(new Uint8Array(small)),
+				null
+			)
+		).rejects.toMatchObject({
+			code: 'image_card_source',
+			message: expect.stringMatching(/fits no image to a card/)
+		});
+		expect(drawn).toEqual([]);
 	});
 
 	test("a style's url( with no closing paren is refused, coded, and satori never calls fetch", async () => {
@@ -197,7 +218,9 @@ describe("a card's images, as satori is handed them", () => {
 				`<div style="display: flex; width: 10px; height: 10px; background-image: url(${declared})"></div>`
 			),
 			{},
-			[FONT]
+			[FONT],
+			undefined,
+			fit_to_card
 		);
 		const [value] = images_in(drawn[0]);
 		expect(String(value)).toMatch(/^data:image\/png;base64,/);

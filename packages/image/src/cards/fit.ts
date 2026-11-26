@@ -14,7 +14,6 @@ import { card_image_type } from './images.ts';
 /** The most pixels an image a card draws keeps, in cards of its card's size. */
 export const CARD_COVER_TIMES = 4;
 
-/** The types satori draws from bytes. */
 const DRAWN: ReadonlySet<string> = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 
 /** The scale that fits a `width` × `height` image to a `card_w` × `card_h` card: the least that

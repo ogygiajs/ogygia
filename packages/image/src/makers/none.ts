@@ -15,3 +15,6 @@ export const make: Maker['make'] = () =>
 
 /** Nothing is kept. */
 export const store: Maker['store'] = null;
+
+/** No card drawn here names an image. */
+export const fit: Maker['fit'] = null;

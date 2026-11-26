@@ -11,6 +11,7 @@ import { decodeText } from '@ogygia/core/plugin/utils';
 import { flights, STALE } from '@ogygia/machine';
 import { OgygiaError } from '../messages.ts';
 import type { CardProps, CardSpec } from '../card.ts';
+import type { ImageFit } from '../maker.ts';
 import {
 	drawable,
 	inline_images,
@@ -79,32 +80,15 @@ export async function engine(): Promise<Engine> {
 	return loaded;
 }
 
-type Fitter = typeof import('./fit.ts');
-
-async function load_fitter(): Promise<Fitter> {
-	try {
-		return await import('./fit.ts');
-	} catch (e) {
-		if (!String((e as Error).message).includes('sharp')) throw e;
-		throw new OgygiaError('image_sharp_missing', { adapter: null, installed: false });
-	}
-}
-
-const fitters = flights.keyed<{ fitter: 'sharp' }>()<'fitter', never, Promise<Fitter>>({
-	name: 'card image fitter',
-	key: ['fitter'],
-	keep: Infinity,
-	run: load_fitter
-});
-
-/** How `spec`'s images are fitted to it: with sharp, loaded on the first card that names one
- *  (`image_sharp_missing` when the app has not installed it). */
-function fit_of(spec: CardSpec): CardImageFit {
-	return async (bytes) => {
-		const fitter = await fitters.get({ fitter: 'sharp' });
-		if (fitter === STALE) throw new Error('the card image fitter was dropped before it loaded');
-		return fitter.fit_to_card(bytes, spec.width, spec.height);
-	};
+function fit_of(spec: CardSpec, fit: ImageFit | null): CardImageFit {
+	if (fit === null)
+		return () =>
+			Promise.reject(
+				new Error(
+					'this server fits no image to a card: sharp makes no file here (list sharp() in image({ encoder }))'
+				)
+			);
+	return (bytes) => fit(bytes, spec.width, spec.height);
 }
 
 function decoded(node: unknown): unknown {
@@ -150,7 +134,8 @@ export async function card_tree(html: string): Promise<SatoriNode> {
 /** `spec`'s card with `props`, as its own-size PNG; `fonts` are the bytes of `spec.fonts`, in
  *  order. Every image its markup names (an `<img>`, a style's `url()`) is read by `images`, the
  *  card's realm (../cards/images.ts: an asset of the build, or a URL fetched under
- *  `image({ remote })`), fitted to the card (./fit.ts) and handed satori as bytes; the tree satori
+ *  `image({ remote })`), fitted to the card by `fit` (the realm's sharp, ./fit.ts; null: one image
+ *  is `image_card_source`) and handed satori as bytes; the tree satori
  *  draws is checked to hold no other address, so satori fetches nothing. One `images` cannot read,
  *  or with none given, fails `image_card_source`. A style satori cannot draw fails
  *  `image_card_css`. */
@@ -158,14 +143,15 @@ export async function card_png(
 	spec: CardSpec,
 	props: CardProps,
 	fonts: readonly ArrayBuffer[],
-	images: CardImageRead = no_images
+	images: CardImageRead = no_images,
+	fit: ImageFit | null = null
 ): Promise<Uint8Array> {
 	const { satori, Resvg } = await engine();
 	const tree = await inline_images(
 		await card_tree(await spec.html(props)),
 		spec.file,
 		images,
-		fit_of(spec)
+		fit_of(spec, fit)
 	);
 	drawable(tree, spec.file);
 	let svg: string;

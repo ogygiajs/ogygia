@@ -73,16 +73,12 @@ function is_ref(src: string): boolean {
 	return src.trim() === '' || src.startsWith('#');
 }
 
-/** What one prop of an element is to the guard: an address to read, a string whose `url()`s are,
- *  a link to leave out, or something else. */
 function prop_kind(key: string, in_svg: boolean): 'address' | 'link' | 'text' {
 	if (key === 'src') return 'address';
 	if (HREF_PROPS.has(key)) return in_svg ? 'address' : 'link';
 	return 'text';
 }
 
-/** One walk of the tree for both passes: `each` gets every address with where it sits, and the
- *  tree comes back rebuilt from what `each` answers (a link left out). */
 function walk(
 	node: unknown,
 	in_svg: boolean,
@@ -155,8 +151,6 @@ function refused(file: string, src: string, reason: string): Error {
  *  a card's draw as it is, for the realm to answer with its own status. */
 export class RealmAnswer extends Error {}
 
-/** The image to draw for one address: its bytes as read (or decoded from a `data:` URL), then
- *  fitted. */
 async function drawn_image(
 	src: string,
 	file: string,

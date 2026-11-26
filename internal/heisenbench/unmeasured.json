@@ -7361,20 +7361,16 @@
 			"reason": "once per hosts entry and per remote URL matched: one trailing-dot test; test/remote.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/remote-hosts.ts > shared_suffix",
-			"reason": "config time, once per *. hosts entry: one set lookup and a few anchored regexes; test/remote.test.ts runs it"
+			"id": "packages/image/src/remote-hosts.ts > over_shared",
+			"reason": "config time, once per *. hosts entry: one label split and a compare against each listed suffix; test/remote.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/remote-hosts.ts > shared_suffix > some:0~5630c8",
-			"reason": "per suffix family of the check above (a handful), one regex test"
+			"id": "packages/image/src/remote-hosts.ts > over_shared > some:0~b5fb94",
+			"reason": "config time, per listed suffix (about seventy) of the check above: a length test"
 		},
 		{
-			"id": "packages/image/src/remote-hosts.ts > filter:0~5b1560",
-			"reason": "module load, once: picks the suffix families out of the fixed list"
-		},
-		{
-			"id": "packages/image/src/remote-hosts.ts > map:0~56b276",
-			"reason": "module load, once per suffix family: builds its regex"
+			"id": "packages/image/src/remote-hosts.ts > over_shared > some:0~b5fb94 > every:0~2c7c94",
+			"reason": "config time, per label of an entry against a suffix's: one anchored regex test"
 		},
 		{
 			"id": "packages/image/src/remote-hosts.ts > label_re",
@@ -8405,14 +8401,6 @@
 			"reason": "once per card drawn: one walk of the card's element tree; test/card.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/cards/engine.ts > decode_entities",
-			"reason": "once per text node of a card drawn: one regex replace; test/card.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/cards/engine.ts > decode_entities > replace:1~324667",
-			"reason": "once per character reference in a card's text; test/card.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/cards/engine.ts > css_error",
 			"reason": "an error path only: names the CSS satori refused (image_card_css); test/card.test.ts runs it"
 		},
@@ -8665,8 +8653,68 @@
 			"reason": "once per image a card draw names: one short byte compare"
 		},
 		{
-			"id": "packages/image/src/cards/images.ts > each_src",
-			"reason": "once per card draw: one walk of the card's element tree (tens of nodes), next to satori's own layout of it; test/card.test.ts runs it"
+			"id": "packages/image/src/cards/images.ts > walk",
+			"reason": "twice per card draw: one walk of the card's element tree (tens of nodes), next to satori's own layout of it; test/card-images.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > walk > map:0~344680",
+			"reason": "per child of a card's element: one recursive walk"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > walk > map:0~4f9a5f",
+			"reason": "per style property of a card's element: one string test"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > walk > text",
+			"reason": "per string value of a card's element: one url( test, a replace only where it holds one"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > walk > text > replace:1~08c206",
+			"reason": "per url() of a card's element: one callback"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > prop_kind",
+			"reason": "per prop of a card's element: one or two set lookups"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > drawn_image",
+			"reason": "once per image a card draw names: one read and one fit (sharp), next to which this is nothing; test/card-images.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > as_buffer",
+			"reason": "once per <img> a card draw names: one copy of a card-sized image's bytes"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > drawable",
+			"reason": "once per card draw: one walk of the element tree satori is handed; test/card-images.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > drawable > visit",
+			"reason": "per node of the walk above: its props, each a type test"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > drawable > text",
+			"reason": "per string value of a card's element: one url( test, a regex only where it holds one"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > drawable > fail",
+			"reason": "an error path only: builds one coded refusal; test/card-images.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/fit.ts > fit_to_card",
+			"reason": "once per image a card draw names: sharp reads its header and, when larger than the card, makes it smaller; native work, timed by sharp, not steps; test/card-images.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/fit.ts > fit_to_card > catch:0~e67d9a",
+			"reason": "an error path only: a header that does not read, said as the reason; test/card-images.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/fit.ts > card_scale",
+			"reason": "once per image a card draw names: three divisions and a square root"
+		},
+		{
+			"id": "packages/image/src/cards/engine.ts > fit_of",
+			"reason": "once per card draw: makes its fitter"
 		},
 		{
 			"id": "packages/image/src/cards/images.ts > inline_images",
@@ -8677,24 +8725,8 @@
 			"reason": "once per data: URL a card draw names: one decode to check its image type; test/card.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/cards/images.ts > in_data",
-			"reason": "once per address of a card draw: one map lookup"
-		},
-		{
 			"id": "packages/image/src/cards/images.ts > is_ref",
 			"reason": "once per address-like value of a card's element: one prefix test"
-		},
-		{
-			"id": "packages/image/src/cards/images.ts > urls_in",
-			"reason": "once per string value of a card's element: one url( test, a regex only where it holds one"
-		},
-		{
-			"id": "packages/image/src/cards/images.ts > urls_with_data",
-			"reason": "once per string value of a card's element with images: one url( test, a replace only where it holds one"
-		},
-		{
-			"id": "packages/image/src/cards/images.ts > urls_with_data > replace:1~26742c",
-			"reason": "once per url() of a card's element: one map lookup"
 		},
 		{
 			"id": "packages/image/src/cards/images.ts > no_images",
@@ -8703,14 +8735,6 @@
 		{
 			"id": "packages/image/src/cards/images.ts > refused",
 			"reason": "only on a refused card image: builds one coded error; test/card.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/cards/images.ts > with_data",
-			"reason": "once per card draw with images: one copy of the element tree (tens of nodes); test/card.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/cards/images.ts > with_data > map:0~6e6f40",
-			"reason": "once per child of a card's element: one recursive copy"
 		},
 		{
 			"id": "packages/image/src/cards/read.ts > endpoint_images",

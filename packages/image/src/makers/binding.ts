@@ -103,6 +103,7 @@ export function binding_maker(binding: string): Maker {
 			const res = (await t.output(output)).response();
 			return new Uint8Array(await res.arrayBuffer());
 		},
-		store: new CacheStore(worker_cache)
+		store: new CacheStore(worker_cache),
+		fit: null
 	};
 }
