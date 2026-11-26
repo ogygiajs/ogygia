@@ -13,7 +13,6 @@ import {
 	type BarrelLeftReason,
 	type RuntimeHookName
 } from '@ogygia/core/contract';
-import { default_kit_dirs } from '../kit.ts';
 import { OgygiaError } from '../messages.ts';
 import type { Definers } from './definers.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
@@ -377,7 +376,8 @@ export interface BuildSeams {
 	exports: ExportsSeam;
 	pinned_imports: (code: string) => (decl: PinnedDecl) => boolean;
 	regions: RegionsSeam;
-	routes_dir?: string;
+	/** Kit's routes folder (`kit.files.routes`), absolute. */
+	routes_dir: () => string;
 }
 
 const MACRO_NAME_RE = /^[a-z][A-Za-z0-9]*$/;
@@ -410,6 +410,9 @@ const NO_SEAMS: BuildSeams = {
 		whyStayed: () => {
 			throw new Error('resolve_plugins: no region table without ogygia()');
 		}
+	},
+	routes_dir: () => {
+		throw new Error('resolve_plugins: no routes folder without ogygia()');
 	}
 };
 
@@ -617,7 +620,9 @@ export function resolve_plugins(
 		}
 		plugin.build?.({
 			root,
-			routesDir: seams.routes_dir ?? default_kit_dirs(root).routes_dir,
+			get routesDir() {
+				return seams.routes_dir();
+			},
 			dev,
 			exports: seams.exports,
 			pinnedImports: seams.pinned_imports,
