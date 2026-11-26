@@ -108,6 +108,19 @@ describe('a plugin macro without its plugin', () => {
 			).rejects.toMatchObject({ code: 'macro_needs_plugin' });
 	});
 
+	it("a call in a markdown page's markup fails the build without its plugin, whatever brace its frontmatter holds", async () => {
+		for (const title of ['"Hello"', '"Sets { on"', '{ a: 1 }'])
+			await expect(
+				run_module_macros(
+					`---\ntitle: ${title}\n---\n\n<Img of={import.meta.og.image('./x.jpg')} />\n`,
+					'/app/src/routes/+page.svx',
+					{ ...ctx(), markdownExts: ['.svx'] },
+					NO_PROFILE
+				),
+				title
+			).rejects.toMatchObject({ code: 'macro_needs_plugin' });
+	});
+
 	it("a markdown page's fenced code that shows a <script> with a call is no call", async () => {
 		const svx = dedent`
 			# Images
