@@ -11,6 +11,7 @@ import sharp from 'sharp';
 import { test, expect } from '@ogygia/tooling/e2e';
 import { E2E_OUT_DIR } from '@ogygia/tooling/e2e/build.ts';
 import { server_log } from '@ogygia/tooling/e2e/server-log.ts';
+import { photo_card_misses } from './card-pixels.ts';
 import { marked_files } from './marks.ts';
 
 const MODE = process.env.IMAGE_E2E_MODE ?? 'node';
@@ -23,7 +24,8 @@ const PAGES = [
 	'/twins',
 	'/remote',
 	'/cms',
-	'/card'
+	'/card',
+	'/card/photo'
 ];
 const IMAGE_URL_RE = /\/(?:__ogygia__\/i|_app\/immutable\/og)\/[^\s",)]+/g;
 const SIGNED_URL_RE = /\/__ogygia__\/i\/[^\s",)]+/g;
@@ -660,6 +662,18 @@ test.describe('share cards (/card, /late/card)', () => {
 			630
 		]);
 		await every_image_loads(page);
+	});
+
+	test("a card that names images draws them, read and fitted by the build or the server that draws it: an asset of the build as an <img>, a small remote WebP as a style's url()", async ({
+		page,
+		request
+	}) => {
+		const og = await og_image(page, '/card/photo');
+		if (MODE === 'static') expect(og.pathname).toMatch(/^\/_app\/immutable\/og\/c[\w-]+\.png$/);
+		else expect(og.pathname).toMatch(CARD_URL_RE);
+		const res = await request.get(og.pathname);
+		expect(res.status(), await res.text().catch(() => '')).toBe(200);
+		expect(await photo_card_misses(await res.body())).toEqual([]);
 	});
 
 	test('a card rendered on request draws the props its load named, one source per props', async ({

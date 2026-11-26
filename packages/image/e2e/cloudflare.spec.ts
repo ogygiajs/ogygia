@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { test, expect } from '@ogygia/tooling/e2e';
+import { photo_card_misses } from './card-pixels.ts';
 
 const APP = fileURLToPath(new URL('./app/', import.meta.url));
 const PRERENDERED = ['/', '/blog/first-post', '/blog/second-post', '/blog/third-post', '/island'];
@@ -153,6 +154,15 @@ test("a live page's remoteImage() is fetched by the Worker and made by the bindi
 	expect(built.length).toBeGreaterThan(0);
 	expect(await named(request, ['/cms'], SIGNED_RE)).toEqual([]);
 	for (const url of built) expect((await request.get(url)).status(), url).toBe(200);
+});
+
+test("a prerendered card that names images is drawn by the build with them: an asset of the build as an <img>, a small remote WebP as a style's url()", async ({
+	request
+}) => {
+	const built = (await named(request, ['/card/photo'], /\/_app\/immutable\/og\/c[\w-]+\.png/g))[0]!;
+	const res = await request.get(built);
+	expect(res.status()).toBe(200);
+	expect(await photo_card_misses(await res.body())).toEqual([]);
 });
 
 test("a live page's share card is the build's file of it when a prerendered page made the same card, else 404 kept nowhere: the Worker draws no card", async ({
