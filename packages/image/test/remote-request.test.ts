@@ -70,7 +70,7 @@ beforeAll(async () => {
 			res.writeHead(200, { 'content-type': 'image/jpeg' });
 			res.write(jpg.subarray(0, 3));
 			res.end(Buffer.alloc(200_000));
-		} else if (at === '/slow.jpg') {
+		} else if (at === '/slow.jpg' || at.startsWith('/slow-')) {
 			res.writeHead(200, { 'content-type': 'image/jpeg' });
 			res.write(jpg.subarray(0, 10));
 		} else if (at === '/page.jpg') {
@@ -232,6 +232,25 @@ describe('the image endpoint, for a remote image', () => {
 			expect(asked).toEqual([]);
 			const named = await get(urls_of('http://cms.example.test/photo-e.jpg')[0]!);
 			expect(named.status).toBe(200);
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	test('slow remote hosts hold no encode slot: a file whose bytes are here is made while they wait', async () => {
+		const warn = quiet();
+		try {
+			const settled: string[] = [];
+			const slow = Array.from({ length: 6 }, (_, i) =>
+				get(urls_of(`http://cms.example.test/slow-${i}.jpg`)[0]!).then((r) => {
+					settled.push(`slow ${r.status}`);
+				})
+			);
+			await new Promise((done) => setTimeout(done, 50));
+			const fast = await get(urls_of('http://cms.example.test/photo-fast.jpg')[0]!);
+			settled.push(`fast ${fast.status}`);
+			await Promise.all(slow);
+			expect(settled[0]).toBe('fast 200');
 		} finally {
 			warn.mockRestore();
 		}
