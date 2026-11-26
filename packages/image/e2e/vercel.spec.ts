@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { srcsetCandidates } from '@ogygia/core/plugin/utils';
 import sharp from 'sharp';
 import { test, expect } from '@ogygia/tooling/e2e';
 import { WHOLE_LINKS, linked, VERCEL_IMAGES } from './vercel-links.ts';
@@ -174,8 +175,7 @@ test("a live page's moving image offers a still sharp makes, since Vercel cannot
 	];
 	expect(rows.length).toBe(2);
 	for (const [, srcset] of rows)
-		for (const c of srcset!.split(', ')) {
-			const url = c.split(' ')[0]!;
+		for (const { url } of srcsetCandidates(srcset!)) {
 			expect(url).toMatch(/^\/__ogygia__\/i\/[^/]+\/[\w-]+-\d+x\d+-s\//);
 			const res = await request.get(url);
 			expect(res.status(), url).toBe(200);

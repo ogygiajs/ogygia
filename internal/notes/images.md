@@ -107,7 +107,8 @@ an adapter whose runtime has no native modules (Cloudflare, Deno, edge: one `ADA
 `vite/encoder.ts`) fails `image_option_invalid` (key `encoder`) when it lists no encoder: on
 Cloudflare's adapters it names `cloudflare()`, on any of them `encoder: sharp()` to say only
 prerendered pages show images; with `sharp()` chosen it warns `image_no_encoder` once per adapter
-(§1). A failed encode is `image_settle_failed` and a 500 no cache keeps. Two lines (`settle.ts`
+(§1). The table reads the adapter's package name only: adapter-netlify's `edge: true` and
+adapter-vercel's `runtime: 'edge'` are not seen (a known gap, in the docs). A failed encode is `image_settle_failed` and a 500 no cache keeps. Two lines (`settle.ts`
 `Line`: a machine `queue()`, the 503 bound, `image_busy` said once per streak): encodes (the maker
 says how many run at once: sharp half the cores, 1 to 4; the binding 4) and remote fetches (16). A
 remote original is fetched before its encode takes a slot. Past either line at most 64 wait, each
