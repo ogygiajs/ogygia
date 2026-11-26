@@ -216,8 +216,8 @@ describe("a card's images, as satori is handed them", () => {
 		expect(images_in(drawn[0])).toEqual([]);
 	});
 
-	test.each(['png', 'jpeg', 'gif', 'webp', 'avif'] as const)(
-		'a small %s on a card draws its own pixels, as an <img> and as a background url() (resvg draws no WebP or AVIF)',
+	test.each(['png', 'jpeg', 'gif', 'webp', 'avif', 'tiff'] as const)(
+		'a small %s on a card draws its own pixels, as an <img> and as a background url() (resvg draws no WebP, AVIF or TIFF; every type remoteImage() takes, a card takes)',
 		async (format) => {
 			const red = await sharp({
 				create: { width: 300, height: 300, channels: 3, background: '#ff0000' }
