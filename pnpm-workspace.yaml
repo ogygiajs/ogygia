@@ -80,6 +80,8 @@ catalog:
   mdsvex: ^0.12.8
   shiki: ^4.4.1
   mdast-util-from-markdown: ^2.0.2
+  # compiler: a markdown page's code regions (fences, code spans), read by a CommonMark parser
+  micromark: ^4.0.2
   # ui
   bits-ui: ^2.18.1
   # image (@ogygia/image): the encoder

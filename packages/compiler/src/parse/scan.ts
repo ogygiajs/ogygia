@@ -1,4 +1,5 @@
 import { next_any_tag, tag_name, type FoundTag } from '@ogygia/core/contract';
+import { parse, postprocess, preprocess, type Options } from 'micromark';
 import { OgygiaError } from '../messages.ts';
 
 const WS_RE = /\s/;
@@ -290,15 +291,13 @@ export function og_js_regions(
 	return null;
 }
 
-const FENCE_RE = /^ {0,3}(`{3,}|~{3,})/;
-const CODE_SPAN_RE = /(`+)[^`]+?\1/g;
 const LINE_LEAD_RE = /^ {0,3}$/;
 
 /**
  * The `<script>` blocks of a markdown page (`.svx`, `.md`): the ones its preprocessor keeps as
- * script, so a block that starts a line outside fenced code. A fence's text and a code span are
- * prose, blanked before the walk so a `<script>` written there is never a block. Offsets are the
- * source's. test/macros-need-plugin.test.ts.
+ * script, so a block that starts a line outside code. A fence's text and a code span are text,
+ * blanked before the walk so a `<script>` written there is never a block. Offsets are the source's.
+ * test/macros-need-plugin.test.ts, test/markdown-code.test.ts.
  */
 export function markdown_scripts(src: string): JsRegion[] {
 	return script_blocks(markdown_prose(src)).map((b) => ({
@@ -349,23 +348,25 @@ function expression_end(text: string, open: number): number {
 	return -1;
 }
 
+const NO_INDENTED_CODE: Options = { extensions: [{ disable: { null: ['codeIndented'] } }] };
+
 function markdown_prose(src: string): string {
-	let fence: string | null = null;
-	return src
-		.split('\n')
-		.map((line) => {
-			const open = FENCE_RE.exec(line)?.[1];
-			if (fence !== null) {
-				if (open !== undefined && open[0] === fence[0] && open.length >= fence.length) fence = null;
-				return ' '.repeat(line.length);
-			}
-			if (open !== undefined) {
-				fence = open;
-				return ' '.repeat(line.length);
-			}
-			return line.replace(CODE_SPAN_RE, (span) => ' '.repeat(span.length));
-		})
-		.join('\n');
+	const events = postprocess(
+		parse(NO_INDENTED_CODE)
+			.document()
+			.write(preprocess()(src, undefined, true))
+	);
+	let out = '';
+	let at = 0;
+	for (const [kind, token] of events) {
+		if (kind !== 'enter' || (token.type !== 'codeFlowValue' && token.type !== 'codeText')) continue;
+		const start = token.start.offset;
+		const end = token.end.offset;
+		if (start < at) continue;
+		out += src.slice(at, start) + blank(src.slice(start, end));
+		at = end;
+	}
+	return out + src.slice(at);
 }
 
 function script_blocks(prose: string): ComponentBlock[] {
