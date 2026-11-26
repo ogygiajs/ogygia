@@ -20,7 +20,6 @@ function rotr(x: number, n: number): number {
 	return (x >>> n) | (x << (32 - n));
 }
 
-/** The SHA-256 digest of `bytes`. */
 // @why remoteImage() and a card name their ids while a page renders, in any runtime, and Web Crypto's digest is async only (test: packages/image/test/remote-image.test.ts › is SHA-256 (property, against node:crypto))
 export function sha256(bytes: Uint8Array): Uint8Array {
 	const bits = bytes.byteLength * 8;
