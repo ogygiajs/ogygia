@@ -99,18 +99,14 @@ function decoded(node: unknown): unknown {
 	if (props === undefined) return node;
 	const { tw: _, children, ...own } = props;
 	const next: { [prop: string]: unknown } = {};
-	for (const [key, value] of Object.entries(own))
-		next[key] =
-			typeof value === 'string'
-				? decode_entities(value)
-				: key === 'style' && value !== null && typeof value === 'object'
-					? Object.fromEntries(
-							Object.entries(value).map(([k, v]) => [
-								k,
-								typeof v === 'string' ? decode_entities(v) : v
-							])
-						)
-					: value;
+	for (const [key, value] of Object.entries(own)) {
+		if (typeof value === 'string') next[key] = decode_entities(value);
+		else if (key === 'style' && value !== null && typeof value === 'object')
+			next[key] = Object.fromEntries(
+				Object.entries(value).map(([k, v]) => [k, typeof v === 'string' ? decode_entities(v) : v])
+			);
+		else next[key] = value;
+	}
 	if (children !== undefined) next.children = decoded(children);
 	return { ...node, props: next };
 }

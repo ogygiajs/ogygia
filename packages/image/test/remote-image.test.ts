@@ -114,7 +114,7 @@ describe('remoteImage()', () => {
 			}
 		);
 		expect(cloudflare_link(recipes[0]!)).toMatch(
-			/^\/cdn-cgi\/image\/width=\d+,height=\d+,fit=cover,quality=\d+,format=avif\/https:\/\/images\.example\.com\/a\.jpg$/
+			/^\/cdn-cgi\/image\/width=\d+,height=\d+,fit=crop,quality=\d+,format=avif\/https:\/\/images\.example\.com\/a\.jpg$/
 		);
 	});
 });

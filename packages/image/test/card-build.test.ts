@@ -298,8 +298,14 @@ describe('the digest', () => {
 		fs.writeFileSync(card, '<div class="card">x</div><style>.card { color: red }</style>');
 		const start = '\0virtual:ogygia-image/card/css';
 		const def = { name: 'css', rel: 'Card.svelte', width: 1200, height: 630, fonts: [] };
-		const compiled = (css: string, rest: string) =>
-			`import * as $ from ${rest};\nconst $$css = {\n\thash: 'svelte-abc',\n\tcode: '${css}'\n};\nexport default function Card() {}`;
+		const compiled = (css: string, rest: string) => dedent`
+			import * as $ from ${rest};
+			const $$css = {
+				hash: 'svelte-abc',
+				code: '${css}'
+			};
+			export default function Card() {}
+		`;
 		const digest = (code: string): string =>
 			card_digest(
 				start,

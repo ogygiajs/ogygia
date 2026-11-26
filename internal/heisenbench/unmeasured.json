@@ -7145,8 +7145,8 @@
 			"reason": "the image endpoint's encode path: the reader (Kit's read()) and the maker (sharp), once per file, in an encode slot; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~bece83 > run > run:0~7c82bc",
-			"reason": "network bound: one remote original's fetch (remote-fetch.ts) per URL per ask that misses the store, in the fetch line; test/remote-request.test.ts runs it"
+			"id": "packages/image/src/settle.ts > remembered",
+			"reason": "only on a refused remote fetch: one cache set; test/remote-request.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/settle.ts > remote_bytes",
@@ -7355,6 +7355,34 @@
 		{
 			"id": "packages/image/src/remote-hosts.ts > rule_of",
 			"reason": "config time, once per hosts entry: one regex and URL parse; test/remote.test.ts runs it (fast-check)"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > bare",
+			"reason": "once per hosts entry and per remote URL matched: one trailing-dot test; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > shared_suffix",
+			"reason": "config time, once per *. hosts entry: one set lookup and a few anchored regexes; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > shared_suffix > some:0~5630c8",
+			"reason": "per suffix family of the check above (a handful), one regex test"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > filter:0~5b1560",
+			"reason": "module load, once: picks the suffix families out of the fixed list"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > map:0~56b276",
+			"reason": "module load, once per suffix family: builds its regex"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > label_re",
+			"reason": "module load, once per label of a suffix family: one escape"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > label_re > replace:1~b67932",
+			"reason": "module load, per special character of a family's label: one replacement"
 		},
 		{
 			"id": "packages/image/src/remote-hosts.ts > is_host_entry",
@@ -7855,6 +7883,10 @@
 		{
 			"id": "packages/image/src/encoders/cloudflare.ts > cloudflare_steps",
 			"reason": "constant work: at most four transform objects from one recipe; test/cloudflare.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/encoders/cloudflare.ts > fit_of",
+			"reason": "once per Cloudflare link or binding step list: one source-kind test, constant work; test/cloudflare.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/encoders/cloudflare.ts > flip_of",
@@ -8569,8 +8601,12 @@
 			"reason": "build time, once per server build's end: makes the build's reader of a card's images; test/card.test.ts runs the reader it wraps"
 		},
 		{
-			"id": "packages/image/src/vite/card.ts > build_card_images > card_image_reader:1~ffd4d9",
-			"reason": "build time, once per image a prerendered card names: one or two existsSync and a file read"
+			"id": "packages/image/src/vite/card.ts > compiled_css",
+			"reason": "build time, once per module a card reaches: one regex scan of its built code for its compiled CSS; test/card-build.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > compiled_css > map:0~2b89ca",
+			"reason": "once per compiled CSS block a card's module holds: one capture read"
 		},
 		{
 			"id": "packages/image/src/vite/card.ts > build_card_images > card_image_reader:2~bc870b",
@@ -8633,12 +8669,28 @@
 			"reason": "once per card draw: one tree walk, then one read per image; test/card.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/cards/images.ts > inline_images > each_src:1~7b9902",
-			"reason": "once per image a card draw names: one set add"
+			"id": "packages/image/src/cards/images.ts > data_bytes",
+			"reason": "once per data: URL a card draw names: one decode to check its image type; test/card.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/cards/images.ts > inline_images > map:0~a7688e",
-			"reason": "once per image a card draw names: one read and one base64 encode; test/card.test.ts runs it"
+			"id": "packages/image/src/cards/images.ts > in_data",
+			"reason": "once per address of a card draw: one map lookup"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > is_ref",
+			"reason": "once per address-like value of a card's element: one prefix test"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > urls_in",
+			"reason": "once per string value of a card's element: one url( test, a regex only where it holds one"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > urls_with_data",
+			"reason": "once per string value of a card's element with images: one url( test, a replace only where it holds one"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > urls_with_data > replace:1~26742c",
+			"reason": "once per url() of a card's element: one map lookup"
 		},
 		{
 			"id": "packages/image/src/cards/images.ts > no_images",
@@ -8651,14 +8703,6 @@
 		{
 			"id": "packages/image/src/cards/images.ts > with_data",
 			"reason": "once per card draw with images: one copy of the element tree (tens of nodes); test/card.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/cards/images.ts > with_data > map:0~36aa6e",
-			"reason": "once per style property of a card's element: one string test"
-		},
-		{
-			"id": "packages/image/src/cards/images.ts > with_data > map:0~36aa6e > replace:1~f325ec",
-			"reason": "once per url() of a card's style: one map lookup"
 		},
 		{
 			"id": "packages/image/src/cards/images.ts > with_data > map:0~6e6f40",

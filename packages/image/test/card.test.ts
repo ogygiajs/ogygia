@@ -265,8 +265,7 @@ describe('drawing', () => {
 		try {
 			const box = (inner: string, style = '') =>
 				spec_of(
-					() =>
-						`<div style="display: flex; width: 600px; height: 315px${style}">${inner}</div>`
+					() => `<div style="display: flex; width: 600px; height: 315px${style}">${inner}</div>`
 				);
 			const svg_image = (attr: string) =>
 				box(
