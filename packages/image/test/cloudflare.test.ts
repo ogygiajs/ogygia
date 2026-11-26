@@ -120,6 +120,15 @@ test("the binding makes the same recipe in steps, in sharp's order: mirror, turn
 	});
 });
 
+test('a remote source is never made larger than it is, by a link or the binding: its box is fit=crop, which only shrinks', () => {
+	const remote = at({ src: 'https://cms.example.com/a.jpg', from: 'remote' });
+	expect(cloudflare_link(remote)).toBe(
+		'/cdn-cgi/image/width=640,height=360,fit=crop,quality=60,format=avif/https://cms.example.com/a.jpg'
+	);
+	expect(cloudflare_steps(remote).transforms).toEqual([{ width: 640, height: 360, fit: 'crop' }]);
+	expect(cloudflare_link(at({}))).toContain('fit=cover');
+});
+
 const STEPS_SEEN: Readonly<Record<number, string>> = {
 	1: 'z8r-8rj-IvGXF8prEjKkqZMiRU8swCF8Q95YXL_Bt9A'
 };
