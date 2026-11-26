@@ -280,23 +280,25 @@ function read_file(file: string): Buffer | null {
 	}
 }
 
-/** The build's reader of a card's images: an asset from Kit's build `output` (client or server), a
- *  URL with `remote` (the build's guarded, cached fetch: the file it kept; null: no
- *  `image({ remote })`). */
+/** The build's reader of a card's images: an asset of Kit's server `output` (what the live
+ *  endpoint's `read()` serves, so a card draws the same at build and live: an asset server code
+ *  imports, never a `static/` file or one only the client imports), a URL with `remote` (the
+ *  build's guarded, cached fetch: the file it kept; null: no `image({ remote })`). */
 export function build_card_images(
 	output: string,
 	prefixes: readonly string[],
 	remote: ((url: string) => Promise<string>) | null
 ): CardImageRead {
+	const server = path.join(output, 'server');
 	return card_image_reader(
 		prefixes,
 		async (tail) => {
-			for (const side of ['client', 'server']) {
-				const file = path.join(output, side, ...tail.split('/'));
-				if (!path.relative(path.join(output, side), file).startsWith('..') && fs.existsSync(file))
-					return fs.readFileSync(file);
-			}
-			throw new Error(`${tail} is no file of this build's output`);
+			const file = path.join(server, ...tail.split('/'));
+			if (!path.relative(server, file).startsWith('..') && fs.existsSync(file))
+				return fs.readFileSync(file);
+			throw new Error(
+				`${tail} is no file of this build's server assets (an asset the server imports, as import.meta.og.image() gives; a static/ file is not one)`
+			);
 		},
 		remote === null ? null : async (url) => fs.readFileSync(await remote(url.href))
 	);
