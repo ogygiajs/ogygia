@@ -207,7 +207,7 @@ test("the output config's images are the ones vercel() handed the adapter", () =
 	expect(config.images).toEqual(VERCEL_IMAGES);
 });
 
-test("a live page's remoteImage() is named by Vercel's link to its whole URL, whose host the output's remotePatterns list", async ({
+test("a live page's remoteImage() is named by Vercel's link to its whole URL, whose host the output's remotePatterns list; one on an unlisted host gets no link, only the endpoint's URL, which refuses it", async ({
 	request
 }) => {
 	const html = (await (await request.get('/late/cms')).text()).replaceAll('&amp;', '&');
@@ -217,7 +217,12 @@ test("a live page's remoteImage() is named by Vercel's link to its whole URL, wh
 		`/_vercel/image?url=${field}&w=640&q=60`,
 		`/_vercel/image?url=${field}&w=640&q=80`
 	]);
-	expect(html.match(SIGNED_RE) ?? []).toEqual([]);
+	const signed = [...new Set(html.match(SIGNED_RE) ?? [])];
+	const unlisted = Buffer.from('http://127.0.0.1:4177/photos/field.jpg').toString('base64url');
+	expect(signed.length).toBeGreaterThan(0);
+	for (const url of signed) expect(url).toContain(`/.remote/${unlisted}.`);
+	expect(html).not.toContain(encodeURIComponent('http://127.0.0.1:4177'));
+	expect((await request.get(signed[0]!)).status()).toBe(404);
 	const config = JSON.parse(fs.readFileSync(path.join(OUTPUT, 'config.json'), 'utf8')) as {
 		images: { remotePatterns: { hostname: string }[] };
 	};

@@ -54,11 +54,18 @@ test("a live page's moving image offers a still as a link with anim=false, at re
 	expect(html).toMatch(/<img[^>]* srcset="\/cdn-cgi\/image\/(?:(?!anim=false)[^ ])+ \d+w/);
 });
 
-test("a live page's remoteImage() is a /cdn-cgi/image link to its whole URL (the zone must allow that origin), nothing signed", async ({
+test("a live page's remoteImage() is a /cdn-cgi/image link to its whole URL (the zone must allow that origin); one on an unlisted host gets no link, only the endpoint's URL, which refuses it", async ({
 	request
 }) => {
 	const html = await (await request.get('/late/cms')).text();
-	expect(html.match(SIGNED_RE) ?? []).toEqual([]);
+	const signed = [...new Set(html.match(SIGNED_RE) ?? [])];
+	const unlisted = Buffer.from('http://127.0.0.1:4177/photos/field.jpg').toString('base64url');
+	expect(signed.length).toBeGreaterThan(0);
+	for (const url of signed) expect(url).toContain(`/.remote/${unlisted}.`);
+	expect(html).not.toContain(
+		'/cdn-cgi/image/width=300,height=200,fit=cover,quality=80,format=webp/http://127.0.0.1:4177'
+	);
+	expect((await request.get(signed[0]!)).status()).toBe(404);
 	const links = [
 		...new Set(
 			html.match(
