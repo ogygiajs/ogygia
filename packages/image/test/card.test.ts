@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import fc from 'fast-check';
 import sharp from 'sharp';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
 import { card, card_id, card_json, PROPS_MAX, type CardSpec } from '../src/card.ts';
 import { card_in_browser } from '../src/card-browser.ts';
@@ -208,6 +208,51 @@ describe('drawing', () => {
 		await expect(card_png(block, {}, [bytes_of(MONO)])).rejects.toMatchObject({
 			code: 'image_card_css'
 		});
+	});
+
+	test("an image a card's markup names at an address the app does not read it from is refused, coded, and never fetched", async () => {
+		const fetched = vi.spyOn(globalThis, 'fetch');
+		for (const src of [
+			'http://127.0.0.1/secret.png',
+			'http://169.254.169.254/latest/meta-data',
+			'./relative.png'
+		]) {
+			const spec = spec_of(
+				() =>
+					`<div style="display: flex; width: 600px; height: 315px"><img src="${src}" width="10" height="10"></div>`
+			);
+			await expect(card_png(spec, {}, [bytes_of(MONO)])).rejects.toMatchObject({
+				code: 'image_card_source',
+				message: expect.stringContaining(src)
+			});
+		}
+		const bg = spec_of(
+			() =>
+				`<div style="display: flex; width: 600px; height: 315px; background-image: url(http://127.0.0.1/bg.png)">a</div>`
+		);
+		await expect(card_png(bg, {}, [bytes_of(MONO)])).rejects.toMatchObject({
+			code: 'image_card_source'
+		});
+		expect(fetched).not.toHaveBeenCalled();
+		fetched.mockRestore();
+	});
+
+	test("an image the card's realm reads (a listed remote host, an asset of the build) is drawn from bytes ogygia hands satori", async () => {
+		const red = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#ff0000' } })
+			.png()
+			.toBuffer();
+		const asked: string[] = [];
+		const spec = spec_of(
+			() =>
+				`<div style="display: flex; width: 600px; height: 315px"><img src="https://cms.example.com/a.png" width="600" height="315"></div>`
+		);
+		const png = await card_png(spec, {}, [bytes_of(MONO)], (src) => {
+			asked.push(src);
+			return Promise.resolve(new Uint8Array(red));
+		});
+		expect(asked).toEqual(['https://cms.example.com/a.png']);
+		const { dominant } = await sharp(png).stats();
+		expect(dominant.r).toBeGreaterThan(200);
 	});
 
 	test('a failure that is no CSS refusal (a font that does not load) keeps its own error, not image_card_css', async () => {
