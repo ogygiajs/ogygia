@@ -17,6 +17,11 @@ import { fileURLToPath } from 'node:url';
 import { next_any_tag, tag_name } from '@ogygia/core/contract';
 import { image_specifier } from './macro.ts';
 import { OgygiaError } from '../messages.ts';
+import type {
+	MARKDOWN_EXTENSION_API,
+	MarkdownExtension,
+	MarkdownFinish
+} from '@ogygia/compiler/vite';
 import type { ImagePluginOptions } from './options.ts';
 
 /** The rehype step: local `<img>` elements → `<Og__Img>`. */
@@ -25,26 +30,22 @@ export type ImageRehype = () => (
 	file: { path?: string; filename?: string }
 ) => void;
 
-/** The markdown extension content reads (`@ogygia/content`'s `MarkdownExtension`, by shape: the
- *  contract between the two packages). */
-export interface ImageMarkdownExtension {
-	/** Who offers it. */
-	name: string;
-	/** What changes the compiled output: part of content's document cache key. */
-	cache_key: () => string;
+/** The markdown extension content reads (compiler's `MarkdownExtension`, the one contract both
+ *  packages compile against). */
+export interface ImageMarkdownExtension extends MarkdownExtension<{
+	enforce: 'pre';
+	plugin: ImageRehype;
+}> {
 	/** One rehype entry, before content's own element overrides. */
 	rehype: readonly [{ enforce: 'pre'; plugin: ImageRehype }];
 	/** After mdsvex: frontmatter image paths → descriptors. Returns the module-script lines to add,
 	 *  whether the body now renders `<Og__Img>` (so it is a component, not static HTML), and every
 	 *  image file the document names (a kept compile whose file is gone is compiled again). */
-	finish: (
-		code: string,
-		filename: string
-	) => { code: string; lines: string[]; dynamic: boolean; files: string[] };
+	finish: (code: string, filename: string) => MarkdownFinish & { files: string[] };
 }
 
 /** The Vite plugin `api` key content reads a markdown extension from. */
-export const EXTENSION_API = 'ogygiaMarkdown';
+export const EXTENSION_API: typeof MARKDOWN_EXTENSION_API = 'ogygiaMarkdown';
 
 type HastNode = {
 	type?: string;

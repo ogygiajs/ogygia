@@ -7,39 +7,23 @@
  *
  * @packageDocumentation
  */
+import type {
+	MARKDOWN_EXTENSION_API,
+	MarkdownExtension as Offered,
+	MarkdownFinish
+} from '@ogygia/compiler/vite';
 import { scope } from '@ogygia/machine';
 import { bridge } from '../bridge.ts';
 import { OgygiaError } from '../messages/build.ts';
 import type { StagedPlugin } from './index.ts';
 
-/** What a markdown extension's `finish` hands back. */
-export interface MarkdownFinish {
-	/** The compiled module, rewritten. */
-	code: string;
-	/** Module-script lines to add (imports, exports). */
-	lines: string[];
-	/** The body now renders a component or an expression: it is never emitted as a static region. */
-	dynamic: boolean;
-	/** Files the output names (an image a post shows): watched like the document's own, and a kept
-	 *  compile of the document whose file is gone compiles again, so the extension's check runs. */
-	files?: readonly string[];
-}
+export type { MarkdownFinish };
 
-/** A markdown extension another plugin offers (its Vite plugin's `api.ogygiaMarkdown`). */
-export interface MarkdownExtension {
-	/** Who offers it: one extension per name, the last config's. */
-	name: string;
-	/** What changes the compiled output besides the document and content's own settings: part of
-	 *  the document cache key. Read on every compile. */
-	cache_key: () => string;
-	/** Rehype entries, staged like `markdown.rehype` (after the app's own entries of each stage). */
-	rehype?: readonly StagedPlugin[];
-	/** After mdsvex, before the island transform: rewrite the compiled module. */
-	finish?: (code: string, filename: string) => MarkdownFinish;
-}
+/** A markdown extension another plugin offers (compiler's contract, with content's rehype entry). */
+export type MarkdownExtension = Offered<StagedPlugin>;
 
 /** The Vite plugin `api` key an extension is offered under. */
-export const EXTENSION_API = 'ogygiaMarkdown';
+export const EXTENSION_API: typeof MARKDOWN_EXTENSION_API = 'ogygiaMarkdown';
 
 function is_extension(value: unknown): value is MarkdownExtension {
 	if (value === null || typeof value !== 'object') return false;
