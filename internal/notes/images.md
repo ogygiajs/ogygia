@@ -499,7 +499,12 @@ server card's chunk exports `engine_files`, a `new URL(<relative path>, import.m
 real `hb.wasm` (`engine_files()` in `vite/card.ts` resolves it from the app through satori), written
 over a placeholder when the chunk is rendered; nft follows that form and keeps the file. Nothing
 reads it at run time. The tracer must follow the server output where the build wrote it (as
-adapter-vercel does); one that traces a copy at another depth would miss it.
+adapter-vercel does); one that traces a copy at another depth would miss it. With `[vercel(),
+sharp()]` a card's images are fitted by the sharp maker, whose native binary and libvips the trace
+keeps (sharp is imported statically). With `vercel()` alone the maker is none: it encodes nothing,
+but hands back a PNG asked for as it is (own size, no position, op or still), which is a live card's
+file, so a card is drawn there; one that names an image is refused `image_card_source` ("list
+sharp()"), since none fits images. vercel-alone.spec pins both.
 
 **Known gaps.** adapter-vercel's
 deprecated `runtime: 'edge'` cannot build an ogygia server (core's server chunks import Node's
