@@ -236,4 +236,40 @@ describe('the image endpoint, for a remote image', () => {
 			warn.mockRestore();
 		}
 	});
+
+	test('a small remote image the CMS says is huge is never made larger than it is', async () => {
+		const out: string[] = [];
+		lay_out(
+			remoteImage('http://cms.example.test/photo-huge.jpg', { width: 12_000, height: 12_000 }),
+			{ width: 12_000, height: 12_000, formats: ['webp'] },
+			{
+				formats: ['webp'],
+				breakpoints: [12_000],
+				presets: {},
+				paths: { base: '', assets: '', app_dir: '_app' },
+				warmed: false
+			},
+			(recipe) => {
+				const minted = mint(recipe, false)!;
+				out.push(minted);
+				return minted;
+			}
+		);
+		const res = await get(out.find((u) => u.includes('-12000x12000'))!);
+		expect(res.status).toBe(200);
+		const meta = await sharp(Buffer.from(await res.arrayBuffer())).metadata();
+		expect(meta.width).toBeLessThanOrEqual(160);
+		expect(meta.height).toBeLessThanOrEqual(90);
+	});
+});
+
+describe('the most pixels a file may have', () => {
+	test('a declared size past the pixels one frame may have is refused by remoteImage(), and such a recipe is no recipe', async () => {
+		const { parse_recipe } = await import('../src/recipe.ts');
+		expect(() =>
+			remoteImage('http://cms.example.test/a.jpg', { width: 99_999, height: 99_999 })
+		).toThrow(/image_remote_invalid/);
+		expect(parse_recipe('rAAAA-99999x99999/.remote/aHR0cDovL2EuYi9jLmpwZw.webp')).toBeNull();
+		expect(parse_recipe('rAAAA-640x360/.remote/aHR0cDovL2EuYi9jLmpwZw.webp')).not.toBeNull();
+	});
 });
