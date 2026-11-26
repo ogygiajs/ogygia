@@ -26,10 +26,23 @@ async function picture(width: number, height: number, background: string): Promi
 		.toBuffer();
 }
 
+/** The path of the small WebP the photo card draws (src/lib/cards/PhotoCard.svelte). */
+export const MARK_PATH = '/photos/mark.webp';
+/** The one color of {@link MARK_PATH}. */
+export const MARK_RGB: readonly [number, number, number] = [228, 87, 46];
+
+function mark(): Promise<Buffer> {
+	const [r, g, b] = MARK_RGB;
+	return sharp({ create: { width: 300, height: 300, channels: 3, background: { r, g, b } } })
+		.webp({ lossless: true })
+		.toBuffer();
+}
+
 export async function serve_remote_host(): Promise<http.Server | null> {
 	const files = new Map<string, Buffer>([
 		['/photos/field.jpg', await picture(1200, 800, '#3a6ea5')],
-		['/photos/cover.jpg', await picture(1600, 900, '#5b8c5a')]
+		['/photos/cover.jpg', await picture(1600, 900, '#5b8c5a')],
+		[MARK_PATH, await mark()]
 	]);
 	const server = http.createServer((req, res) => {
 		const at = (req.url ?? '/').split('?')[0]!;
@@ -62,7 +75,10 @@ export async function serve_remote_host(): Promise<http.Server | null> {
 			res.end();
 			return;
 		}
-		res.writeHead(200, { 'content-type': 'image/jpeg', etag });
+		res.writeHead(200, {
+			'content-type': at.endsWith('.webp') ? 'image/webp' : 'image/jpeg',
+			etag
+		});
 		res.end(bytes);
 	});
 	const bound = await new Promise<boolean>((done) => {

@@ -79,10 +79,12 @@ export function content(options: ContentOptions = {}): [OgygiaPlugin, ...VitePlu
 	const exts = markdown_extensions();
 
 	let root = '';
+	let routes_dir = '';
 	const plugin = definePlugin({
 		name: '@ogygia/content',
 		build(b) {
 			root = b.root;
+			routes_dir = b.routesDir;
 			b.files({ root: path.dirname(LIB_DIR), dirs: [path.join(LIB_DIR, 'site', 'components')] });
 			// each content() call is owned by the run of the module that makes it (dev: core marks it)
 			b.definers('@ogygia/content', ['content']);
@@ -115,7 +117,12 @@ export function content(options: ContentOptions = {}): [OgygiaPlugin, ...VitePlu
 			}
 		}
 	});
-	return [plugin, content_hmr(hmr), content_checks(() => root, exts), content_leaks()];
+	return [
+		plugin,
+		content_hmr(hmr),
+		content_checks(() => root, exts),
+		content_leaks(() => routes_dir)
+	];
 }
 
 type ContentBridgePresets = NonNullable<typeof bridge.contentPresets>;

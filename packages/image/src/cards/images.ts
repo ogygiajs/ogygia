@@ -11,9 +11,10 @@
  *   way the image endpoint reads an original;
  * - an `http(s)` URL: fetched through the same guard as `remoteImage()` (`image({ remote })`'s
  *   hosts, the public-address rule for `*.` hosts, `maxBytes`, `timeout`);
- * - a `data:` URL: its bytes, when they are a PNG, JPEG, GIF, WebP or AVIF (an SVG can name
+ * - a `data:` URL: its bytes, when they are a PNG, JPEG, GIF, WebP, AVIF or TIFF (an SVG can name
  *   addresses of its own);
- * - anything else, or bytes that are no PNG, JPEG, GIF, WebP or AVIF: `image_card_source`.
+ * - anything else, or bytes that are no PNG, JPEG, GIF, WebP, AVIF or TIFF (the types
+ *   `remoteImage()` takes, ../image-type.ts): `image_card_source`.
  *
  * Then the tree is checked whole, once, right before satori ({@link drawable}): every address left
  * in it is bytes, a `data:` URL of a raster type or a `#` reference, or the card is refused. The
@@ -21,6 +22,7 @@
  *
  * @packageDocumentation
  */
+import { image_type } from '../image-type.ts';
 import { OgygiaError } from '../messages.ts';
 import { source_tail } from '../recipe.ts';
 
@@ -67,7 +69,12 @@ const URL_RE = /url\(\s*(['"]?)(.*?)\1\s*\)/g;
 const URL_OPEN_RE = /url\(/gi;
 const SAFE_AFTER_OPEN_RE = /^\s*['"]?\s*(?:data:|#|['"]?\s*\))/i;
 const HREF_PROPS: ReadonlySet<string> = new Set(['href', 'xlinkHref', 'xlink:href']);
-const SVG_DATA_RE = /^\s*data:\s*image\/svg/i;
+const DATA_AFTER_OPEN_RE = /^\s*(['"]?)\s*(data:[^'")]*)/i;
+
+/** The image types resvg draws, and so the only ones the tree satori is handed may hold: satori
+ *  writes any image it is given into its SVG as it is, and resvg draws a WebP or an AVIF as
+ *  nothing, with no error. The card's fitter makes every other type again as one of these. */
+export const RESVG_DRAWS: ReadonlySet<string> = new Set(['image/png', 'image/jpeg', 'image/gif']);
 
 function is_ref(src: string): boolean {
 	return src.trim() === '' || src.startsWith('#');
@@ -129,20 +136,6 @@ function data_bytes(src: string): Uint8Array | null {
 	}
 }
 
-/** The image type `bytes` start like, or null: PNG, JPEG, GIF, WebP, AVIF. */
-export function card_image_type(bytes: Uint8Array): string | null {
-	const at = (i: number, text: string): boolean => {
-		for (let k = 0; k < text.length; k++) if (bytes[i + k] !== text.charCodeAt(k)) return false;
-		return true;
-	};
-	if (at(0, '\x89PNG\r\n\x1a\n')) return 'image/png';
-	if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
-	if (at(0, 'GIF87a') || at(0, 'GIF89a')) return 'image/gif';
-	if (at(0, 'RIFF') && at(8, 'WEBP')) return 'image/webp';
-	if (at(4, 'ftypavif') || at(4, 'ftypavis')) return 'image/avif';
-	return null;
-}
-
 function refused(file: string, src: string, reason: string): Error {
 	return new OgygiaError('image_card_source', { file, src, reason });
 }
@@ -160,8 +153,7 @@ async function drawn_image(
 	let bytes: Uint8Array | null;
 	if (src.startsWith('data:')) {
 		bytes = data_bytes(src);
-		if (bytes === null || card_image_type(bytes) === null)
-			throw refused(file, src.slice(0, 64), 'its data is no PNG, JPEG, GIF, WebP or AVIF');
+		if (bytes === null) throw refused(file, src.slice(0, 64), 'its data does not decode');
 	} else
 		try {
 			bytes = await read(src);
@@ -181,14 +173,16 @@ async function drawn_image(
 }
 
 function as_buffer(bytes: Uint8Array): ArrayBuffer {
-	return bytes.slice().buffer as ArrayBuffer;
+	const own = new Uint8Array(bytes.byteLength);
+	own.set(bytes);
+	return own.buffer;
 }
 
 /** `tree` with every address it names read by `read`, fitted by `fit` and handed over as bytes
  *  (an `<img src>` as an `ArrayBuffer`, satori keeps no copy of it; any other as a `data:` URL of
  *  the type its bytes are), and every link's `href` outside an SVG left out. A `data:` URL is read
- *  like any address: its bytes must be a PNG, JPEG, GIF, WebP or AVIF (an SVG is refused: it can
- *  name addresses of its own). One `read` cannot read, or `fit` cannot fit, is
+ *  like any address: its bytes must be a PNG, JPEG, GIF, WebP, AVIF or TIFF (an SVG is refused:
+ *  it can name addresses of its own). One `read` cannot read, or `fit` cannot fit, is
  *  `image_card_source`; a coded refusal of the realm's own (such as `image_remote_host` at build)
  *  and a {@link RealmAnswer} stay as they are. */
 export async function inline_images<T>(
@@ -211,13 +205,21 @@ export async function inline_images<T>(
 	}) as T;
 }
 
-/** Refuse `tree` (`image_card_source`) unless every address left in it is one satori cannot fetch:
- *  an `ArrayBuffer`, a `data:` URL of a raster type, or a `#` reference, in every `src`, `href`,
- *  `xlink:href` and after every `url(` of every string, closed or not. Run on the tree satori is
- *  handed, right before the draw. */
+/** Refuse `tree` (`image_card_source`) unless every address left in it is one satori cannot fetch
+ *  and resvg draws: an `ArrayBuffer` or a `data:` URL whose bytes are a type of
+ *  {@link RESVG_DRAWS}, or a `#` reference, in every `src`, `href`, `xlink:href` and after every
+ *  `url(` of every string, closed or not. Run on the tree satori is handed, right before the draw. */
 export function drawable(tree: unknown, file: string): void {
 	const fail = (src: string, reason: string): never => {
 		throw refused(file, src.slice(0, 64), reason);
+	};
+	const drawn = (src: string, bytes: Uint8Array | null): void => {
+		const type = bytes === null ? null : image_type(bytes);
+		if (type === null || !RESVG_DRAWS.has(type))
+			fail(
+				src,
+				`its bytes are ${type ?? 'no image'}, and resvg draws only PNG, JPEG and GIF (an SVG can name addresses of its own)`
+			);
 	};
 	const text = (value: string): void => {
 		if (!value.toLowerCase().includes('url(')) return;
@@ -225,8 +227,8 @@ export function drawable(tree: unknown, file: string): void {
 			const after = value.slice(m.index + m[0].length);
 			if (!SAFE_AFTER_OPEN_RE.test(after))
 				fail(after, 'a url() here names no image ogygia read (an unclosed url() reads as one)');
-			if (SVG_DATA_RE.test(after.replace(/^\s*['"]?/, '')))
-				fail(after, 'an SVG can name addresses of its own');
+			const data = DATA_AFTER_OPEN_RE.exec(after)?.[2];
+			if (data !== undefined) drawn(data, data_bytes(data));
 		}
 	};
 	const visit = (node: unknown): void => {
@@ -240,12 +242,15 @@ export function drawable(tree: unknown, file: string): void {
 		for (const [key, value] of Object.entries(props)) {
 			if (key === 'children') visit(value);
 			else if (key === 'src' || HREF_PROPS.has(key)) {
-				if (value instanceof ArrayBuffer) continue;
+				if (value instanceof ArrayBuffer) {
+					drawn(`the bytes of a ${key}`, new Uint8Array(value));
+					continue;
+				}
 				if (typeof value !== 'string') fail(String(value), 'it is no address');
 				const src = value as string;
 				if (is_ref(src)) continue;
 				if (!src.startsWith('data:')) fail(src, 'it was not read before the draw');
-				if (SVG_DATA_RE.test(src)) fail(src, 'an SVG can name addresses of its own');
+				drawn(src, data_bytes(src));
 			} else if (typeof value === 'string') text(value);
 			else if (key === 'style' && value !== null && typeof value === 'object')
 				for (const v of Object.values(value)) if (typeof v === 'string') text(v);

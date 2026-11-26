@@ -35,7 +35,7 @@ import { cache } from '@ogygia/machine';
 import config from 'virtual:ogygia-image/config';
 import { name } from 'virtual:ogygia-image/namer';
 import { remote as REMOTE } from 'virtual:ogygia-image/remote';
-import sources, { remote } from 'virtual:ogygia-image/sources';
+import { remote } from 'virtual:ogygia-image/sources';
 import { build_handoff, published, type BuildHandoff } from './handoff.ts';
 import { said, said_each, warn } from './messages.ts';
 import {
@@ -43,7 +43,6 @@ import {
 	built_url,
 	CARD_TAIL,
 	card_of_tail,
-	encode_tail,
 	IMAGE_PREFIX,
 	recipe_file,
 	recipe_path,
@@ -51,33 +50,31 @@ import {
 	REMOTE_TAIL,
 	remote_of_tail,
 	set_minter,
-	source_tail,
 	type ParsedRecipe,
 	type Recipe
 } from './recipe.ts';
 import { RemoteHosts } from './remote-hosts.ts';
 import { unshown_share_images } from './share-rule.ts';
+import { SOURCE_PREFIXES, SOURCE_URLS, source_url } from './source-urls.ts';
 import { message, verify } from './verify.ts';
 
 type OnDisk = typeof import('./on-disk.ts');
 let DISK: OnDisk | null = null;
 
-const { base: BASE, assets: ASSETS } = config.paths;
-const PREFIXES: readonly string[] = [ASSETS, BASE];
+const { base: BASE } = config.paths;
+const PREFIXES = SOURCE_PREFIXES;
 
 class Originals {
-	#urls: ReadonlyMap<string, string>;
 	#remote: ReadonlySet<string>;
 
-	constructor(list: Readonly<Record<string, string>>, fetched: readonly string[] | string) {
-		this.#urls = new Map(Object.values(list).map((url) => [source_tail(url, PREFIXES), url]));
+	constructor(fetched: readonly string[] | string) {
 		this.#remote = new Set(typeof fetched === 'string' ? [] : fetched);
 	}
 
 	has(tail: string): boolean {
 		if (tail.startsWith(REMOTE_TAIL)) return listed(tail);
 		if (tail.startsWith(CARD_TAIL)) return card_of_tail(tail) !== null;
-		if (this.#urls.has(tail)) return true;
+		if (SOURCE_URLS.has(tail)) return true;
 		if (tail.startsWith(REMOTE_ASSETS)) {
 			const name = REMOTE_ASSET_RE.exec(tail.slice(REMOTE_ASSETS.length))?.[1];
 			if (name !== undefined && this.#remote.has(name)) return true;
@@ -86,10 +83,6 @@ class Originals {
 		if (run === null || DISK === null) return false;
 		if (published(tail)) return DISK.exists(run.root, tail);
 		return DISK.is_remote(run.root, run.remote, tail);
-	}
-
-	url(tail: string): string {
-		return this.#urls.get(tail) ?? `${dev ? BASE : ASSETS || BASE}/${encode_tail(tail)}`;
 	}
 }
 
@@ -100,7 +93,7 @@ const DEV_RUN: BuildHandoff | null = dev ? root_handoff(build_handoff()) : null;
 function root_handoff(run: BuildHandoff | null): BuildHandoff | null {
 	return run !== null && run.root !== '' ? run : null;
 }
-const ORIGINALS = new Originals(sources, remote);
+const ORIGINALS = new Originals(remote);
 const HOSTS: RemoteHosts | null = REMOTE === null ? null : new RemoteHosts(REMOTE.hosts);
 
 function unlisted_why(url: URL | null): string {
@@ -163,7 +156,7 @@ function no_encoder(e: unknown): Response {
 
 function original_of(recipe: ParsedRecipe): string {
 	if (card_of_tail(recipe.tail) !== null) return built_url(config.paths, recipe);
-	return ORIGINALS.url(recipe.tail);
+	return source_url(recipe.tail);
 }
 
 const SIGNED_MAX = 10_000;

@@ -2889,8 +2889,16 @@
 			"reason": "build only: once per client build, off the request and boot paths; proven in packages/content/test/content-leaks.test.ts"
 		},
 		{
-			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > filter:0~709bab",
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > filter:0~df106e",
 			"reason": "build only: three regex tests per module id of a finished client bundle, once per build"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > route_file",
+			"reason": "build only: per markdown module id of a finished client bundle, one prefix test and one regex, once per build; test/content-leaks.test.ts runs it"
+		},
+		{
+			"id": "packages/content/src/vite/index.ts > content > content_leaks:0~47cfac",
+			"reason": "build only: once per client bundle, a field read; test/content-leaks.test.ts runs the leak check"
 		},
 		{
 			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > flatMap:0~b437c4",
@@ -6069,8 +6077,32 @@
 			"reason": "the macro check of a markdown page that names import.meta.og. (rare), linear in its text; test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/parse/scan.ts > markdown_scripts > map:0~69761c",
+			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > scripts > map:0~0690ae",
 			"reason": "per script block of the markdown check above, one slice; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > constructor",
+			"reason": "once per distinct text of a markdown page that names import.meta.og. (rare): one field; test/markdown-parse-once.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > #read",
+			"reason": "the markdown check above: its one parse, kept for the page's text; test/markdown-parse-once.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > scripts",
+			"reason": "the markdown check above: its script blocks, linear in its text; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > expressions",
+			"reason": "the markdown check above: its prose's {…} expressions, linear in its text; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > prose_expressions",
+			"reason": "the markdown check above: its prose's {…} expressions, linear in its text but for an unclosed brace (a page Svelte refuses anyway); test/markdown-code.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > frontmatter_end",
+			"reason": "once per markdown check above: two regex runs over the page's first lines; test/markdown-code.test.ts runs it"
 		},
 		{
 			"id": "packages/compiler/src/parse/scan.ts > markdown_prose",
@@ -6089,7 +6121,7 @@
 			"reason": "the macro check of a markdown page that names import.meta.og. (rare): its prose's {…} expressions, linear in its text; test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/parse/scan.ts > markdown_expressions > filter:0~e6fdc6",
+			"id": "packages/compiler/src/parse/scan.ts > prose_expressions > filter:0~e6fdc6",
 			"reason": "per block of the markdown check above, constant work per block; test/macros-need-plugin.test.ts runs it"
 		},
 		{
@@ -6101,12 +6133,32 @@
 			"reason": "per HTML comment of the markdown check above, one blank run; test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/macros/pipeline.ts > code_regions",
-			"reason": "once per plugin macro handler that asks for a module's code regions, the same reading the macros already pay; test/macros-need-plugin.test.ts runs it"
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > regions",
+			"reason": "once per plugin macro handler that asks for a module's code regions, the same reading the macros already pay (a markdown page's parse kept for its text); test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/macros/pipeline.ts > run_module_macros > handler:1~09cd5a > regions",
-			"reason": "the code-regions handle handed to a plugin macro, one call of code_regions; test/macros-need-plugin.test.ts runs it"
+			"id": "packages/compiler/src/macros/pipeline.ts > run_module_macros > handler:1~df713b > regions",
+			"reason": "the code-regions handle handed to a plugin macro, one call of ModuleCode.regions; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > constructor",
+			"reason": "once per module the macro pipeline runs on: two extension tests; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > #page_of",
+			"reason": "per markdown reading of the macro check: one string compare against the page it read last; test/markdown-parse-once.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls",
+			"reason": "the macro check, only for a module whose text names import.meta.og.: the og calls of its regions, linear in them; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls_macro",
+			"reason": "the macro check of a module outside the app that names a plugin macro (rare): the calls above, one scan; test/macros-own-source.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls_macro > some:0~cc31b7",
+			"reason": "per call of the check above, two string tests"
 		},
 		{
 			"id": "packages/compiler/src/macros/pipeline.ts > in_regions",
@@ -6121,7 +6173,7 @@
 			"reason": "per call found by the macro check above, one offset shift, constant work; test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/macros/pipeline.ts > macro_calls > map:0~f7bc6b",
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls > map:0~f7bc6b",
 			"reason": "per template call of the macro check above (rare), one object, constant work; test/macros-need-plugin.test.ts runs it"
 		},
 		{
@@ -6529,7 +6581,7 @@
 			"reason": "one Set read per reason (nine), constant work"
 		},
 		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~3a93bb > stayed",
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~e375d3 > stayed",
 			"reason": "once per plugin at config time: one array push, constant work"
 		},
 		{
@@ -7121,8 +7173,8 @@
 			"reason": "once per held markdown extension per content file compiled (one or two): its name and cache key, the key of the mdsvex instance; test/markdown-extensions.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/server.ts > Originals > url",
-			"reason": "constant work per endpoint request that makes a file (one Map lookup), not per page render; test/server-assets-path.test.ts runs it"
+			"id": "packages/image/src/source-urls.ts > source_url",
+			"reason": "constant work per endpoint request that makes a file or reads a card's image (one Map lookup), not per page render; test/server-assets-path.test.ts and test/card-endpoint-read.test.ts run it"
 		},
 		{
 			"id": "packages/image/src/server.ts > Originals > has",
@@ -7469,11 +7521,11 @@
 			"reason": "closes the scope at the timeout, at most once per remote fetch"
 		},
 		{
-			"id": "packages/image/src/remote-fetch.ts > looks_like_image",
-			"reason": "at most eight compares of a fetched body's first bytes, once per remote fetch; test/remote-request.test.ts runs it"
+			"id": "packages/image/src/image-type.ts > image_type",
+			"reason": "at most nine short compares of an image's first bytes, once per remote fetch or card image; test/remote-request.test.ts and test/card-images.test.ts run it"
 		},
 		{
-			"id": "packages/image/src/remote-fetch.ts > starts",
+			"id": "packages/image/src/image-type.ts > starts",
 			"reason": "at most eight byte compares; test/remote-request.test.ts runs it"
 		},
 		{
@@ -8637,14 +8689,6 @@
 			"reason": "once per image a card draw names: two prefix tests"
 		},
 		{
-			"id": "packages/image/src/cards/images.ts > card_image_type",
-			"reason": "once per image a card draw names: up to six short byte compares; test/card.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/cards/images.ts > card_image_type > at",
-			"reason": "once per image a card draw names: one short byte compare"
-		},
-		{
 			"id": "packages/image/src/cards/images.ts > walk",
 			"reason": "twice per card draw: one walk of the card's element tree (tens of nodes), next to satori's own layout of it; test/card-images.test.ts runs it"
 		},
@@ -8693,6 +8737,10 @@
 			"reason": "an error path only: builds one coded refusal; test/card-images.test.ts runs it"
 		},
 		{
+			"id": "packages/image/src/cards/images.ts > drawable > drawn",
+			"reason": "per image left in the tree satori is handed (a few per card): one sniff of its first bytes and a set lookup; test/card-images.test.ts runs it"
+		},
+		{
 			"id": "packages/image/src/cards/fit.ts > fit_to_card",
 			"reason": "once per image a card draw names: sharp reads its header and, when larger than the card, makes it smaller; native work, timed by sharp, not steps; test/card-images.test.ts runs it"
 		},
@@ -8733,8 +8781,12 @@
 			"reason": "once per server start: makes the endpoint's reader of a card's images"
 		},
 		{
-			"id": "packages/image/src/cards/read.ts > endpoint_images > card_image_reader:1~e41b92",
-			"reason": "once per image a live card draw names: one Kit read(); the e2e node mode runs card draws"
+			"id": "packages/image/src/cards/read.ts > endpoint_images > card_image_reader:1~5ba3e8",
+			"reason": "once per image a live card draw names: one map lookup and one Kit read(); test/card-endpoint-read.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/source-urls.ts > map:0~465f66",
+			"reason": "once per server start: per image under src/, one tail of its URL and one split; test/card-endpoint-read.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/vite/card.ts > file_of",

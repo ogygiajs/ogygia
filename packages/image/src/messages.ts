@@ -229,7 +229,7 @@ export const IMAGE_ERRORS = {
 			It may be an image of the build (the \`src\` of an \`import.meta.og.image()\` descriptor, a
 			root-relative asset URL), an \`http(s)\` URL on a host \`image({ remote: { hosts } })\`
 			lists (fetched under its size and time limits, like \`remoteImage()\`), or a \`data:\` URL.
-			Its bytes must be PNG, JPEG, GIF, WebP or AVIF. A relative path, another scheme, or a URL
+			Its bytes must be PNG, JPEG, GIF, WebP, AVIF or TIFF. A relative path, another scheme, or a URL
 			with no \`remote\` set is refused.
 		`
 	},

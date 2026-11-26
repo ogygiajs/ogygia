@@ -300,10 +300,35 @@ const LINE_LEAD_RE = /^ {0,3}$/;
  * test/macros-need-plugin.test.ts, test/markdown-code.test.ts.
  */
 export function markdown_scripts(src: string): JsRegion[] {
-	return script_blocks(markdown_prose(src)).map((b) => ({
-		code: src.slice(b.start, b.end),
-		offset: b.start
-	}));
+	return new MarkdownPage(src).scripts();
+}
+
+/** One markdown page's text, parsed at most once: its {@link markdown_scripts} and its
+ *  {@link markdown_expressions} read the same parse. */
+export class MarkdownPage {
+	readonly src: string;
+	#prose: string | null = null;
+
+	constructor(src: string) {
+		this.src = src;
+	}
+
+	#read(): string {
+		return (this.#prose ??= markdown_prose(this.src));
+	}
+
+	/** The page's `<script>` blocks, as {@link markdown_scripts}. */
+	scripts(): JsRegion[] {
+		return script_blocks(this.#read()).map((b) => ({
+			code: this.src.slice(b.start, b.end),
+			offset: b.start
+		}));
+	}
+
+	/** The page's template expressions, as {@link markdown_expressions}. */
+	expressions(): JsRegion[] {
+		return prose_expressions(this.src, this.#read());
+	}
 }
 
 const COMMENT_RE = /<!--[\s\S]*?(?:-->|$)/g;
@@ -315,7 +340,11 @@ const COMMENT_RE = /<!--[\s\S]*?(?:-->|$)/g;
  * the source's. test/macros-need-plugin.test.ts.
  */
 export function markdown_expressions(src: string): JsRegion[] {
-	const prose = markdown_prose(src).replace(COMMENT_RE, blank);
+	return new MarkdownPage(src).expressions();
+}
+
+function prose_expressions(src: string, read: string): JsRegion[] {
+	const prose = read.replace(COMMENT_RE, blank);
 	let text = prose;
 	for (const b of script_blocks(prose).concat(
 		component_blocks(prose).filter((b) => b.kind === 'style')
@@ -325,7 +354,7 @@ export function markdown_expressions(src: string): JsRegion[] {
 	for (let at = text.indexOf('{'); at !== -1; at = text.indexOf('{', at + 1)) {
 		if (text[at - 1] === '\\') continue;
 		const close = expression_end(text, at);
-		if (close < 0) break;
+		if (close < 0) continue;
 		out.push({ code: src.slice(at + 1, close), offset: at + 1 });
 		at = close;
 	}
@@ -349,8 +378,20 @@ function expression_end(text: string, open: number): number {
 }
 
 const NO_INDENTED_CODE: Options = { extensions: [{ disable: { null: ['codeIndented'] } }] };
+const FRONTMATTER_OPEN_RE = /^﻿?(?:[ \t]*(?:\r\n|\r|\n))*---(?:\r\n|\r|\n)/;
+const FRONTMATTER_CLOSE_RE = /(?<=[\r\n])---/g;
 
-function markdown_prose(src: string): string {
+function frontmatter_end(src: string): number {
+	const open = FRONTMATTER_OPEN_RE.exec(src);
+	if (open === null) return 0;
+	FRONTMATTER_CLOSE_RE.lastIndex = open[0].length - 1;
+	const close = FRONTMATTER_CLOSE_RE.exec(src);
+	return close === null ? 0 : close.index + 3;
+}
+
+function markdown_prose(page: string): string {
+	const front = frontmatter_end(page);
+	const src = front === 0 ? page : blank(page.slice(0, front)) + page.slice(front);
 	const events = postprocess(
 		parse(NO_INDENTED_CODE)
 			.document()

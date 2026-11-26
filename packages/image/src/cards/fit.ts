@@ -9,12 +9,11 @@
  * @packageDocumentation
  */
 import { metadata_of, pipeline, shown_size, too_large } from '../pixels.ts';
-import { card_image_type } from './images.ts';
+import { image_type } from '../image-type.ts';
+import { RESVG_DRAWS } from './images.ts';
 
 /** The most pixels an image a card draws keeps, in cards of its card's size. */
 export const CARD_COVER_TIMES = 4;
-
-const DRAWN: ReadonlySet<string> = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 
 /** The scale that fits a `width` × `height` image to a `card_w` × `card_h` card: the least that
  *  covers it, at most {@link CARD_COVER_TIMES} cards of pixels, never larger than 1. */
@@ -24,17 +23,18 @@ export function card_scale(width: number, height: number, card_w: number, card_h
 	return Math.min(1, cover, pixels);
 }
 
-/** `bytes` (a PNG, JPEG, GIF, WebP or AVIF) as an image a `card_w` × `card_h` card draws: kept when
- *  it is no larger than the card needs and satori draws its type, else made smaller (a PNG when it
- *  has alpha, a JPEG when not). Throws, saying why, when its header does not read or it is past the
+/** `bytes` (a PNG, JPEG, GIF, WebP, AVIF or TIFF) as an image a `card_w` × `card_h` card draws:
+ *  kept when it is no larger than the card needs and resvg draws its type ({@link RESVG_DRAWS}),
+ *  else made again at the size the card needs (a PNG when it has alpha, a JPEG when not), so a
+ *  WebP, AVIF or TIFF is always made again. Throws, saying why, when its header does not read or it is past the
  *  one-frame limit. */
 export async function fit_to_card(
 	bytes: Uint8Array,
 	card_w: number,
 	card_h: number
 ): Promise<{ bytes: Uint8Array; type: string }> {
-	const type = card_image_type(bytes);
-	if (type === null) throw new Error('its bytes are no PNG, JPEG, GIF, WebP or AVIF');
+	const type = image_type(bytes);
+	if (type === null) throw new Error('its bytes are no PNG, JPEG, GIF, WebP, AVIF or TIFF');
 	const meta = await metadata_of(bytes).catch((e: unknown) => {
 		throw new Error(`its header does not read: ${(e as Error).message}`);
 	});
@@ -42,7 +42,7 @@ export async function fit_to_card(
 	if (why !== null) throw new Error(why);
 	const { width, height } = shown_size(meta, {}, (meta.pages ?? 1) > 1);
 	const scale = card_scale(width, height, card_w, card_h);
-	if (scale === 1 && DRAWN.has(type) && (meta.orientation ?? 1) === 1) return { bytes, type };
+	if (scale === 1 && RESVG_DRAWS.has(type) && (meta.orientation ?? 1) === 1) return { bytes, type };
 	const w = Math.max(1, Math.round(width * scale));
 	const h = Math.max(1, Math.round(height * scale));
 	const img = pipeline(bytes, {}, false, w, h);

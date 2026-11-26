@@ -13,6 +13,7 @@ import {
 	type BarrelLeftReason,
 	type RuntimeHookName
 } from '@ogygia/core/contract';
+import { default_kit_dirs } from '../kit.ts';
 import { OgygiaError } from '../messages.ts';
 import type { Definers } from './definers.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
@@ -183,6 +184,8 @@ export interface BuildContext {
 	readonly regions: RegionsSeam;
 	/** The app's root directory. */
 	readonly root: string;
+	/** Kit's routes folder (`kit.files.routes`), absolute. */
+	readonly routesDir: string;
 	/** `vite dev` (true) or `vite build` (false). */
 	readonly dev: boolean;
 	/** A key this plugin reads inside Kit's own `config` page option (`export const config = { <key>:
@@ -374,6 +377,7 @@ export interface BuildSeams {
 	exports: ExportsSeam;
 	pinned_imports: (code: string) => (decl: PinnedDecl) => boolean;
 	regions: RegionsSeam;
+	routes_dir?: string;
 }
 
 const MACRO_NAME_RE = /^[a-z][A-Za-z0-9]*$/;
@@ -613,6 +617,7 @@ export function resolve_plugins(
 		}
 		plugin.build?.({
 			root,
+			routesDir: seams.routes_dir ?? default_kit_dirs(root).routes_dir,
 			dev,
 			exports: seams.exports,
 			pinnedImports: seams.pinned_imports,

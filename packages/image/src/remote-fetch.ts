@@ -10,6 +10,7 @@
  * @packageDocumentation
  */
 import { net, scope, STALE } from '@ogygia/machine';
+import { image_type } from './image-type.ts';
 import type { HostMatch, RemoteHosts } from './remote-hosts.ts';
 
 /** How one request is sent: `url`, with `init`'s headers and signal, its redirects not followed.
@@ -137,25 +138,6 @@ async function body_of(res: Response, max: number): Promise<Uint8Array> {
 	return out;
 }
 
-function starts(bytes: Uint8Array, at: number, text: string): boolean {
-	for (let i = 0; i < text.length; i++) if (bytes[at + i] !== text.charCodeAt(i)) return false;
-	return true;
-}
-
-/** Do `bytes` start like a JPEG, PNG, GIF, WebP, AVIF (an ISO media file) or TIFF? */
-export function looks_like_image(bytes: Uint8Array): boolean {
-	return (
-		(bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) ||
-		starts(bytes, 0, '\x89PNG\r\n\x1a\n') ||
-		starts(bytes, 0, 'GIF87a') ||
-		starts(bytes, 0, 'GIF89a') ||
-		(starts(bytes, 0, 'RIFF') && starts(bytes, 8, 'WEBP')) ||
-		starts(bytes, 4, 'ftyp') ||
-		starts(bytes, 0, 'II*\0') ||
-		starts(bytes, 0, 'MM\0*')
-	);
-}
-
 async function asked(
 	ask: FetchAsk,
 	url: URL,
@@ -218,7 +200,7 @@ async function fetch_chain(ask: FetchAsk, signal: AbortSignal): Promise<Fetched 
 			throw new RemoteFailed('not an image', `not an image: content-encoding ${coding}`);
 		}
 		const bytes = await body_of(res, ask.limits.maxBytes);
-		if (!looks_like_image(bytes))
+		if (image_type(bytes) === null)
 			throw new RemoteFailed(
 				'not an image',
 				`not an image: its bytes are no JPEG, PNG, WebP, AVIF, GIF or TIFF though it says ${type}`
