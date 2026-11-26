@@ -13,7 +13,8 @@ const run = vi.hoisted(() => {
 		minted: '',
 		mark: '',
 		written: `${dir}/client/_app`,
-		root: dir
+		root: dir,
+		renamed: { rUrlHashId: 'Bytes1' }
 	};
 	process.env.__OGYGIA_IMAGE_BUILD = JSON.stringify(handoff);
 	return { ...handoff, dir };
@@ -35,6 +36,7 @@ vi.mock('$app/server', () => ({
 
 fs.mkdirSync(`${run.written}/immutable/og`, { recursive: true });
 fs.writeFileSync(`${run.written}/immutable/og/l1-48x48.webp`, 'a file the build wrote');
+fs.writeFileSync(`${run.written}/immutable/og/Bytes1-64x36.webp`, 'a remote file the build wrote');
 
 const { default: server } = await import('../src/server.ts');
 const { mint } = await import('../src/recipe.ts');
@@ -54,6 +56,18 @@ describe('a page rendered after the build wrote its files (an SPA fallback)', ()
 		);
 		expect(sign).not.toHaveBeenCalled();
 		sign.mockRestore();
+	});
+
+	test("names a remoteImage()'s file by the name the build gave it (its bytes), not the remote URL", () => {
+		const remote = {
+			id: 'rUrlHashId',
+			src: 'https://cms.example.com/a.jpg',
+			width: 64,
+			height: 36,
+			format: 'webp' as const,
+			from: 'remote' as const
+		};
+		expect(mint(remote, false)).toBe('/shop/_app/immutable/og/Bytes1-64x36.webp');
 	});
 
 	test('names its original for a file no prerendered page asked for, and notes nothing', () => {
