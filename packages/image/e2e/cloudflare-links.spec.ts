@@ -63,7 +63,7 @@ test("a live page's remoteImage() is a /cdn-cgi/image link to its whole URL (the
 	expect(signed.length).toBeGreaterThan(0);
 	for (const url of signed) expect(url).toContain(`/.remote/${unlisted}.`);
 	expect(html).not.toContain(
-		'/cdn-cgi/image/width=300,height=200,fit=cover,quality=80,format=webp/http://127.0.0.1:4177'
+		'/cdn-cgi/image/width=300,height=200,fit=crop,quality=80,format=webp/http://127.0.0.1:4177'
 	);
 	expect((await request.get(signed[0]!)).status()).toBe(404);
 	const links = [
@@ -74,12 +74,12 @@ test("a live page's remoteImage() is a /cdn-cgi/image link to its whole URL (the
 		)
 	];
 	expect(links.sort()).toEqual([
-		'/cdn-cgi/image/width=300,height=200,fit=cover,quality=60,format=avif/http://127.0.0.1:4176/photos/field.jpg',
-		'/cdn-cgi/image/width=300,height=200,fit=cover,quality=80,format=webp/http://127.0.0.1:4176/photos/field.jpg',
-		'/cdn-cgi/image/width=480,height=320,fit=cover,quality=60,format=avif/http://127.0.0.1:4176/photos/field.jpg',
-		'/cdn-cgi/image/width=480,height=320,fit=cover,quality=80,format=webp/http://127.0.0.1:4176/photos/field.jpg',
-		'/cdn-cgi/image/width=600,height=400,fit=cover,quality=60,format=avif/http://127.0.0.1:4176/photos/field.jpg',
-		'/cdn-cgi/image/width=600,height=400,fit=cover,quality=80,format=webp/http://127.0.0.1:4176/photos/field.jpg'
+		'/cdn-cgi/image/width=300,height=200,fit=crop,quality=60,format=avif/http://127.0.0.1:4176/photos/field.jpg',
+		'/cdn-cgi/image/width=300,height=200,fit=crop,quality=80,format=webp/http://127.0.0.1:4176/photos/field.jpg',
+		'/cdn-cgi/image/width=480,height=320,fit=crop,quality=60,format=avif/http://127.0.0.1:4176/photos/field.jpg',
+		'/cdn-cgi/image/width=480,height=320,fit=crop,quality=80,format=webp/http://127.0.0.1:4176/photos/field.jpg',
+		'/cdn-cgi/image/width=600,height=400,fit=crop,quality=60,format=avif/http://127.0.0.1:4176/photos/field.jpg',
+		'/cdn-cgi/image/width=600,height=400,fit=crop,quality=80,format=webp/http://127.0.0.1:4176/photos/field.jpg'
 	]);
 });
 
