@@ -585,7 +585,8 @@ test.describe('with the runtime', () => {
 			await button.click();
 			await expect(button).not.toHaveText('0', { timeout: 200 });
 		}).toPass();
-		await expect(img).toHaveClass(/\bodd\b/);
+		const clicks = Number(await button.textContent());
+		await expect(img).toHaveClass(clicks % 2 ? /\bodd\b/ : /\beven\b/);
 		const after = await attrs(img);
 		expect([after.src, after.srcset, after.avif]).toEqual([server.src, server.srcset, server.avif]);
 		await expect
