@@ -124,6 +124,7 @@ export type MarkKey =
 	| 'stitched'
 	| 'stub'
 	| 'tab'
+	| 'theme'
 	| 'vitals'
 	| 'win'
 	| 'wire'
