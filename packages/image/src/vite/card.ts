@@ -27,7 +27,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { attr_spans, dedent, next_any_tag, tag_name } from '@ogygia/core/contract';
 import { decisions, flights, random, STALE, type Decisions } from '@ogygia/machine';
 import { card_id, type CardProps, type CardSpec } from '../card.ts';
-import { OgygiaError, warn } from '../messages.ts';
+import { OgygiaError, said, warn } from '../messages.ts';
+import { peer_state } from './peers.ts';
 import { card_of_tail, SIDE_MAX } from '../recipe.ts';
 import { ENCODER_VERSION } from '../source-id.ts';
 import { card_png, ENGINE_PACKAGES } from '../cards/engine.ts';
@@ -106,13 +107,6 @@ export const CARD_ENGINE_CHECK: Decisions<CardEngineInput, 'ok' | 'edge' | 'miss
 		}
 	});
 
-function package_json(root: string): Record<string, unknown> | null {
-	const file = path.join(root, 'package.json');
-	return fs.existsSync(file)
-		? (JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>)
-		: null;
-}
-
 function installed_version(root: string, name: string): string | null {
 	try {
 		const file = createRequire(path.join(root, 'package.json')).resolve(`${name}/package.json`);
@@ -122,22 +116,6 @@ function installed_version(root: string, name: string): string | null {
 		return null;
 	}
 }
-
-function listed_in(
-	pkg: Record<string, unknown> | null,
-	name: string
-): 'none' | 'dev' | 'dependencies' {
-	const has = (field: string): boolean =>
-		typeof (pkg?.[field] as Record<string, unknown> | undefined)?.[name] === 'string';
-	if (has('dependencies')) return 'dependencies';
-	return has('devDependencies') || has('optionalDependencies') ? 'dev' : 'none';
-}
-
-const LISTED_RANK: Readonly<Record<'none' | 'dev' | 'dependencies', number>> = {
-	none: 0,
-	dev: 1,
-	dependencies: 2
-};
 
 /** The versions of the engine's packages and Svelte the app has, as one line (part of every
  *  card's digest), or the packages it lacks. */
@@ -152,22 +130,16 @@ export function engine_versions(root: string): { line: string; missing: string[]
 }
 
 function check_engine(root: string, runtime: EncoderRuntime, where: string): void {
-	const pkg = package_json(root);
-	const { missing } = engine_versions(root);
-	let listed: 'none' | 'dev' | 'dependencies' = 'dependencies';
-	for (const name of ENGINE_PACKAGES) {
-		const l = listed_in(pkg, name);
-		if (LISTED_RANK[l] < LISTED_RANK[listed]) listed = l;
-	}
-	const plan = CARD_ENGINE_CHECK.decide({ runtime, installed: !missing.length, listed });
+	const { installed, listed, missing } = peer_state(root, ENGINE_PACKAGES);
+	const plan = CARD_ENGINE_CHECK.decide({ runtime, installed, listed });
 	if (plan === 'ok') return;
 	if (plan === 'edge') {
-		if (!said_edge)
+		said.once('image_no_encoder card edge', () =>
 			warn('image_no_encoder', {
 				what: 'card',
 				reason: `${where} is a share card, and this server runs where satori and resvg cannot: a card is served on a page rendered on request only when a prerendered page made the same card`
-			});
-		said_edge = true;
+			})
+		);
 		return;
 	}
 	throw new OgygiaError('image_card_engine_missing', {
@@ -175,8 +147,6 @@ function check_engine(root: string, runtime: EncoderRuntime, where: string): voi
 		...(plan === 'unlisted' ? { dependencies: true } : {})
 	});
 }
-
-let said_edge = false;
 
 function rel_of(root: string, file: string): string {
 	return path.relative(root, file).split(path.sep).join('/');

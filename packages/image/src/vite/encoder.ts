@@ -15,8 +15,6 @@
  *
  * @packageDocumentation
  */
-import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dedent } from '@ogygia/core/contract';
@@ -26,6 +24,7 @@ import { NEEDS, type Need } from '../encoders/needs.ts';
 import { DEFAULT_BREAKPOINTS, DEFAULT_QUALITY } from '../config.ts';
 import { OgygiaError, said, warn } from '../messages.ts';
 import { host_rule } from '../remote-hosts.ts';
+import { peer_state } from './peers.ts';
 import type { LinkPlan, NamerPlan } from '../namers/resolve.ts';
 import { SIDE_MAX } from '../recipe.ts';
 
@@ -398,39 +397,6 @@ export const ENCODER: Decisions<EncoderInput, 'ok' | 'edge' | 'choose' | 'missin
 		}
 	});
 
-function in_node_modules(root: string): boolean {
-	for (let dir = path.resolve(root); ; dir = path.dirname(dir)) {
-		if (fs.existsSync(path.join(dir, 'node_modules', 'sharp', 'package.json'))) return true;
-		if (path.dirname(dir) === dir) return false;
-	}
-}
-
-function resolves(root: string): boolean {
-	try {
-		createRequire(path.join(root, 'package.json')).resolve('sharp');
-		return true;
-		// oxlint-disable-next-line ogygia/no-silent-failures -- not resolving is the answer: the caller throws image_sharp_missing
-	} catch {
-		return false;
-	}
-}
-
-// @why require.resolve also reads NODE_PATH, which pnpm's bin shims point at its whole store and no deploy has (test: packages/image/test/encoder-check.test.ts › with NODE_PATH set, a sharp that Node finds with no node_modules folder at or above the app is not the app installing it)
-function installed(root: string): boolean {
-	if (!resolves(root)) return false;
-	return !process.env.NODE_PATH || in_node_modules(root);
-}
-
-function listed(root: string): 'none' | 'dev' | 'dependencies' {
-	const file = path.join(root, 'package.json');
-	if (!fs.existsSync(file)) return 'none';
-	const pkg = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
-	const has = (field: string): boolean =>
-		typeof (pkg[field] as Record<string, unknown> | undefined)?.sharp === 'string';
-	if (has('dependencies')) return 'dependencies';
-	return has('devDependencies') || has('optionalDependencies') ? 'dev' : 'none';
-}
-
 /** What the platform check reads: the platform an app's encoders name links or a maker on, and the
  *  adapter's. */
 export interface PlatformInput {
@@ -521,13 +487,14 @@ export function check_encoder(
 	maker: Encoder['maker'],
 	chosen = false
 ): void {
+	const sharp = peer_state(root, ['sharp']);
 	const plan = ENCODER.decide({
 		runtime,
 		maker: maker ?? 'none',
 		chosen,
 		cloudflare: adapter_kind(adapter).platform === 'cloudflare',
-		installed: installed(root),
-		listed: listed(root)
+		installed: sharp.installed,
+		listed: sharp.listed
 	});
 	if (plan === 'edge')
 		said.once(`image_no_encoder edge ${adapter ?? ''}`, () =>
