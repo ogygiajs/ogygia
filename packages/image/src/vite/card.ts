@@ -9,7 +9,7 @@
  *   is compiled with its CSS in the render (`css="injected"`) for satori to read; the page's own
  *   copy is left as it is. In the browser it only refuses (`image_no_server`).
  * - The card's DIGEST is a hash of every module and font its module imports (their bytes, a
- *   package's too, and their built code) and the engine's versions, worked out by the server build
+ *   package's too) and the engine's versions, worked out by the server build
  *   from the finished module graph and written over a placeholder when the chunk is rendered, so a
  *   change to a child component, its CSS or a font names new files, and nothing else does. The dev
  *   server names new files at each change instead.
@@ -254,9 +254,9 @@ interface GraphInfo {
 }
 
 /** The digest of the card whose module is `start`: its definition, the engine's `versions`, and
- *  every module it imports, by its project path, its file's bytes (a package's too: npm and yarn
- *  paths name no version) and its built code (what CSS tooling made of it); a virtual module by
- *  its id and code. */
+ *  every module it imports, by its project path and its file's bytes (a package's too: npm and yarn
+ *  paths name no version); a virtual module by its id and code. A file's built code is left out:
+ *  a cold and a warm build make it differently. */
 export function card_digest(
 	start: string,
 	def: Omit<CardDef, 'file' | 'fonts'> & { fonts: readonly { face: FontFace }[] },
@@ -296,7 +296,7 @@ export function card_digest(
 	for (const { key, file, code } of ids) {
 		hash.update(`\0${key}\0`);
 		if (file !== null) hash.update(read(file) ?? Buffer.from('(none)'));
-		hash.update(`\0code\0${code ?? ''}`);
+		if (file === null) hash.update(`\0code\0${code ?? ''}`);
 	}
 	return hash.digest('base64url').slice(0, 43);
 }

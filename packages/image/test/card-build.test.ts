@@ -246,7 +246,7 @@ describe('the digest', () => {
 		).not.toBe(before_versions);
 	});
 
-	test("a package's font or module whose bytes change at the same path (npm or yarn: no version in it) changes it, and so does a module's built code", () => {
+	test("a package's font or module whose bytes change at the same path (npm or yarn: no version in it) changes it; a file's built code does not (a cold and a warm build differ there)", () => {
 		const d = fs.mkdtempSync(path.join(os.tmpdir(), 'og-card-digest-npm-'));
 		const pkg = path.join(d, 'node_modules', '@fontsource', 'inter', 'files');
 		fs.mkdirSync(pkg, { recursive: true });
@@ -285,7 +285,7 @@ describe('the digest', () => {
 		const after_font = digest();
 		expect(after_font).not.toBe(base);
 		code.card = 'css-v2';
-		expect(digest()).not.toBe(after_font);
+		expect(digest()).toBe(after_font);
 	});
 });
 
