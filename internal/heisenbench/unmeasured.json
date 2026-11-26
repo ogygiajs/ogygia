@@ -7469,11 +7469,11 @@
 			"reason": "closes the scope at the timeout, at most once per remote fetch"
 		},
 		{
-			"id": "packages/image/src/remote-fetch.ts > looks_like_image",
-			"reason": "at most eight compares of a fetched body's first bytes, once per remote fetch; test/remote-request.test.ts runs it"
+			"id": "packages/image/src/image-type.ts > image_type",
+			"reason": "at most nine short compares of an image's first bytes, once per remote fetch or card image; test/remote-request.test.ts and test/card-images.test.ts run it"
 		},
 		{
-			"id": "packages/image/src/remote-fetch.ts > starts",
+			"id": "packages/image/src/image-type.ts > starts",
 			"reason": "at most eight byte compares; test/remote-request.test.ts runs it"
 		},
 		{
@@ -8637,14 +8637,6 @@
 			"reason": "once per image a card draw names: two prefix tests"
 		},
 		{
-			"id": "packages/image/src/cards/images.ts > card_image_type",
-			"reason": "once per image a card draw names: up to six short byte compares; test/card.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/cards/images.ts > card_image_type > at",
-			"reason": "once per image a card draw names: one short byte compare"
-		},
-		{
 			"id": "packages/image/src/cards/images.ts > walk",
 			"reason": "twice per card draw: one walk of the card's element tree (tens of nodes), next to satori's own layout of it; test/card-images.test.ts runs it"
 		},
@@ -8691,6 +8683,10 @@
 		{
 			"id": "packages/image/src/cards/images.ts > drawable > fail",
 			"reason": "an error path only: builds one coded refusal; test/card-images.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > drawable > drawn",
+			"reason": "per image left in the tree satori is handed (a few per card): one sniff of its first bytes and a set lookup; test/card-images.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/cards/fit.ts > fit_to_card",

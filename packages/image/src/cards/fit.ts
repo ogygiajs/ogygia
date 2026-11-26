@@ -9,7 +9,8 @@
  * @packageDocumentation
  */
 import { metadata_of, pipeline, shown_size, too_large } from '../pixels.ts';
-import { card_image_type, RESVG_DRAWS } from './images.ts';
+import { image_type } from '../image-type.ts';
+import { RESVG_DRAWS } from './images.ts';
 
 /** The most pixels an image a card draws keeps, in cards of its card's size. */
 export const CARD_COVER_TIMES = 4;
@@ -22,18 +23,18 @@ export function card_scale(width: number, height: number, card_w: number, card_h
 	return Math.min(1, cover, pixels);
 }
 
-/** `bytes` (a PNG, JPEG, GIF, WebP or AVIF) as an image a `card_w` × `card_h` card draws: kept when
- *  it is no larger than the card needs and resvg draws its type ({@link RESVG_DRAWS}), else made
- *  again at the size the card needs (a PNG when it has alpha, a JPEG when not), so a WebP or an
- *  AVIF is always made again. Throws, saying why, when its header does not read or it is past the
+/** `bytes` (a PNG, JPEG, GIF, WebP, AVIF or TIFF) as an image a `card_w` × `card_h` card draws:
+ *  kept when it is no larger than the card needs and resvg draws its type ({@link RESVG_DRAWS}),
+ *  else made again at the size the card needs (a PNG when it has alpha, a JPEG when not), so a
+ *  WebP, AVIF or TIFF is always made again. Throws, saying why, when its header does not read or it is past the
  *  one-frame limit. */
 export async function fit_to_card(
 	bytes: Uint8Array,
 	card_w: number,
 	card_h: number
 ): Promise<{ bytes: Uint8Array; type: string }> {
-	const type = card_image_type(bytes);
-	if (type === null) throw new Error('its bytes are no PNG, JPEG, GIF, WebP or AVIF');
+	const type = image_type(bytes);
+	if (type === null) throw new Error('its bytes are no PNG, JPEG, GIF, WebP, AVIF or TIFF');
 	const meta = await metadata_of(bytes).catch((e: unknown) => {
 		throw new Error(`its header does not read: ${(e as Error).message}`);
 	});

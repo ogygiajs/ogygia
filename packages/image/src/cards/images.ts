@@ -11,9 +11,10 @@
  *   way the image endpoint reads an original;
  * - an `http(s)` URL: fetched through the same guard as `remoteImage()` (`image({ remote })`'s
  *   hosts, the public-address rule for `*.` hosts, `maxBytes`, `timeout`);
- * - a `data:` URL: its bytes, when they are a PNG, JPEG, GIF, WebP or AVIF (an SVG can name
+ * - a `data:` URL: its bytes, when they are a PNG, JPEG, GIF, WebP, AVIF or TIFF (an SVG can name
  *   addresses of its own);
- * - anything else, or bytes that are no PNG, JPEG, GIF, WebP or AVIF: `image_card_source`.
+ * - anything else, or bytes that are no PNG, JPEG, GIF, WebP, AVIF or TIFF (the types
+ *   `remoteImage()` takes, ../image-type.ts): `image_card_source`.
  *
  * Then the tree is checked whole, once, right before satori ({@link drawable}): every address left
  * in it is bytes, a `data:` URL of a raster type or a `#` reference, or the card is refused. The
@@ -21,6 +22,7 @@
  *
  * @packageDocumentation
  */
+import { image_type } from '../image-type.ts';
 import { OgygiaError } from '../messages.ts';
 import { source_tail } from '../recipe.ts';
 
@@ -134,20 +136,6 @@ function data_bytes(src: string): Uint8Array | null {
 	}
 }
 
-/** The image type `bytes` start like, or null: PNG, JPEG, GIF, WebP, AVIF. */
-export function card_image_type(bytes: Uint8Array): string | null {
-	const at = (i: number, text: string): boolean => {
-		for (let k = 0; k < text.length; k++) if (bytes[i + k] !== text.charCodeAt(k)) return false;
-		return true;
-	};
-	if (at(0, '\x89PNG\r\n\x1a\n')) return 'image/png';
-	if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
-	if (at(0, 'GIF87a') || at(0, 'GIF89a')) return 'image/gif';
-	if (at(0, 'RIFF') && at(8, 'WEBP')) return 'image/webp';
-	if (at(4, 'ftypavif') || at(4, 'ftypavis')) return 'image/avif';
-	return null;
-}
-
 function refused(file: string, src: string, reason: string): Error {
 	return new OgygiaError('image_card_source', { file, src, reason });
 }
@@ -165,8 +153,7 @@ async function drawn_image(
 	let bytes: Uint8Array | null;
 	if (src.startsWith('data:')) {
 		bytes = data_bytes(src);
-		if (bytes === null || card_image_type(bytes) === null)
-			throw refused(file, src.slice(0, 64), 'its data is no PNG, JPEG, GIF, WebP or AVIF');
+		if (bytes === null) throw refused(file, src.slice(0, 64), 'its data does not decode');
 	} else
 		try {
 			bytes = await read(src);
@@ -192,8 +179,8 @@ function as_buffer(bytes: Uint8Array): ArrayBuffer {
 /** `tree` with every address it names read by `read`, fitted by `fit` and handed over as bytes
  *  (an `<img src>` as an `ArrayBuffer`, satori keeps no copy of it; any other as a `data:` URL of
  *  the type its bytes are), and every link's `href` outside an SVG left out. A `data:` URL is read
- *  like any address: its bytes must be a PNG, JPEG, GIF, WebP or AVIF (an SVG is refused: it can
- *  name addresses of its own). One `read` cannot read, or `fit` cannot fit, is
+ *  like any address: its bytes must be a PNG, JPEG, GIF, WebP, AVIF or TIFF (an SVG is refused:
+ *  it can name addresses of its own). One `read` cannot read, or `fit` cannot fit, is
  *  `image_card_source`; a coded refusal of the realm's own (such as `image_remote_host` at build)
  *  and a {@link RealmAnswer} stay as they are. */
 export async function inline_images<T>(
@@ -225,7 +212,7 @@ export function drawable(tree: unknown, file: string): void {
 		throw refused(file, src.slice(0, 64), reason);
 	};
 	const drawn = (src: string, bytes: Uint8Array | null): void => {
-		const type = bytes === null ? null : card_image_type(bytes);
+		const type = bytes === null ? null : image_type(bytes);
 		if (type === null || !RESVG_DRAWS.has(type))
 			fail(
 				src,
