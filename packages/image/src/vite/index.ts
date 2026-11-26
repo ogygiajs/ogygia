@@ -270,7 +270,7 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 				image_call_edits(
 					code,
 					m.id,
-					m.markupExts,
+					m.regions(code),
 					m.watch,
 					presets,
 					remote?.hosts ?? null,

@@ -65,6 +65,22 @@ describe('absolutize', () => {
 		);
 	});
 
+	it("pins the image endpoint's files, and leaves the shell's other /__ogygia__/ paths to the shell", () => {
+		const img = '/__ogygia__/i/5f2a/h1-320x180/_app/immutable/assets/hero.Ab12.jpg.avif';
+		const html = `<img src="${img}" alt=""><a href="/__ogygia__/devtools/">x</a><link rel="prefetch" href="/__ogygia__/r/a">`;
+		expect(absolutize(html, O)).toBe(
+			`<img src="${O}${img}" alt=""><a href="/__ogygia__/devtools/">x</a><link rel="prefetch" href="/__ogygia__/r/a">`
+		);
+	});
+
+	it("pins a style url() whose query's & is written &#38; or bare (markup Svelte did not write), and its numeric quotes", () => {
+		const q = '/_vercel/image?url=%2F_app%2Fimmutable%2Fassets%2Fhero.jpg';
+		const html = `<div style="background:url(${q}&#38;w=640)"></div><div style="background:url(${q}&w=640)"></div><div style="background:url(&#34;${q}&amp;w=640&#34;)"></div>`;
+		expect(absolutize(html, O)).toBe(
+			`<div style="background:url(${O}${q}&#38;w=640)"></div><div style="background:url(${O}${q}&w=640)"></div><div style="background:url(&#34;${O}${q}&amp;w=640&#34;)"></div>`
+		);
+	});
+
 	it('pins an image a style attribute names (a CSS background from getImage), and leaves its other urls', () => {
 		const img = '/__ogygia__/i/5f2a/h1-1280x720/_app/immutable/assets/hero.Ab12.jpg.webp';
 		const html = `<section style="background-image:url(${img});color:red"></section><div style="background:url(&quot;/_app/immutable/assets/a.png&quot;) no-repeat, url('/blog/x')"></div><p style="color:blue">x</p>`;

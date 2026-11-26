@@ -301,27 +301,79 @@ const LINE_LEAD_RE = /^ {0,3}$/;
  * source's. test/macros-need-plugin.test.ts.
  */
 export function markdown_scripts(src: string): JsRegion[] {
+	return script_blocks(markdown_prose(src)).map((b) => ({
+		code: src.slice(b.start, b.end),
+		offset: b.start
+	}));
+}
+
+const COMMENT_RE = /<!--[\s\S]*?(?:-->|$)/g;
+
+/**
+ * The template expressions of a markdown page (`.svx`, `.md`): each `{…}` of its prose (in text or
+ * in an attribute), which its preprocessor hands Svelte as code. Fenced code, code spans, HTML
+ * comments and the page's `<script>` / `<style>` blocks are not prose; a `\{` is text. Offsets are
+ * the source's. test/macros-need-plugin.test.ts.
+ */
+export function markdown_expressions(src: string): JsRegion[] {
+	const prose = markdown_prose(src).replace(COMMENT_RE, blank);
+	let text = prose;
+	for (const b of script_blocks(prose).concat(
+		component_blocks(prose).filter((b) => b.kind === 'style')
+	))
+		text = text.slice(0, b.open) + ' '.repeat(b.close - b.open) + text.slice(b.close);
+	const out: JsRegion[] = [];
+	for (let at = text.indexOf('{'); at !== -1; at = text.indexOf('{', at + 1)) {
+		if (text[at - 1] === '\\') continue;
+		const close = expression_end(text, at);
+		if (close < 0) break;
+		out.push({ code: src.slice(at + 1, close), offset: at + 1 });
+		at = close;
+	}
+	return out;
+}
+
+function blank(text: string): string {
+	return text.replace(/[^\n]/g, ' ');
+}
+
+function expression_end(text: string, open: number): number {
+	let depth = 0;
+	for (let i = open; i < text.length; i++) {
+		const c = text[i];
+		if (c === '"' || c === "'" || c === '`') {
+			for (i++; i < text.length && text[i] !== c; i++) if (text[i] === '\\') i++;
+		} else if (c === '{') depth++;
+		else if (c === '}' && --depth === 0) return i;
+	}
+	return -1;
+}
+
+function markdown_prose(src: string): string {
 	let fence: string | null = null;
-	const lines = src.split('\n').map((line) => {
-		const open = FENCE_RE.exec(line)?.[1];
-		if (fence !== null) {
-			if (open !== undefined && open[0] === fence[0] && open.length >= fence.length) fence = null;
-			return ' '.repeat(line.length);
-		}
-		if (open !== undefined) {
-			fence = open;
-			return ' '.repeat(line.length);
-		}
-		return line.replace(CODE_SPAN_RE, (span) => ' '.repeat(span.length));
-	});
-	const prose = lines.join('\n');
-	return component_blocks(prose)
-		.filter(
-			(b) =>
-				b.kind === 'script' &&
-				LINE_LEAD_RE.test(prose.slice(prose.lastIndexOf('\n', b.open - 1) + 1, b.open))
-		)
-		.map((b) => ({ code: src.slice(b.start, b.end), offset: b.start }));
+	return src
+		.split('\n')
+		.map((line) => {
+			const open = FENCE_RE.exec(line)?.[1];
+			if (fence !== null) {
+				if (open !== undefined && open[0] === fence[0] && open.length >= fence.length) fence = null;
+				return ' '.repeat(line.length);
+			}
+			if (open !== undefined) {
+				fence = open;
+				return ' '.repeat(line.length);
+			}
+			return line.replace(CODE_SPAN_RE, (span) => ' '.repeat(span.length));
+		})
+		.join('\n');
+}
+
+function script_blocks(prose: string): ComponentBlock[] {
+	return component_blocks(prose).filter(
+		(b) =>
+			b.kind === 'script' &&
+			LINE_LEAD_RE.test(prose.slice(prose.lastIndexOf('\n', b.open - 1) + 1, b.open))
+	);
 }
 
 /** A `<script>` or `<style>` block of a component's source. */

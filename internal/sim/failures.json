@@ -4419,6 +4419,12 @@
 			"name": "one whose plugin is not listed fails the build, naming the package to list"
 		},
 		{
+			"site": "packages/compiler/src/macros/pipeline.ts > run_module_macros > throw:1",
+			"reason": "a listed plugin's call left where no macro compiles it fails the build (macro_in_markup); proved by its red run: before the throw existed the test failed (the build passed)",
+			"test": "packages/compiler/test/macros-need-plugin.test.ts",
+			"name": "with the plugin listed, a call in a component's template fails the build with macro_in_markup"
+		},
+		{
 			"site": "packages/compiler/src/macros/source.ts > misuse > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/source.test.ts",

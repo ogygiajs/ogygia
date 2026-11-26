@@ -125,18 +125,6 @@ export const IMAGE_ERRORS = {
 			choose among the results.
 		`
 	},
-	image_macro_in_markup: {
-		text: (a: { file: string }): string => prose`
-			${a.file}: import.meta.og.image() is called in the template. Call it in the component's
-			<script> and use the result in the markup.
-		`,
-		details: (): string => prose`
-			The build reads image calls from a component's script. A call in the markup would be left
-			as it is and fail when the page renders, so the build stops here instead:
-			\`const hero = import.meta.og.image('./hero.jpg');\` in the script, then
-			\`<Img of={hero} alt="…" />\`.
-		`
-	},
 	image_query_invalid: {
 		text: (a: { query: string }): string =>
 			`the og-image query '?${a.query}' does not hold the options import.meta.og.image() writes.`,

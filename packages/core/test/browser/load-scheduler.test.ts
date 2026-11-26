@@ -203,6 +203,19 @@ test('a preload with both href and imagesrcset is matched by its candidates, not
 	expect(urls).toContain(new URL('/hero-1280.webp', document.baseURI).href);
 });
 
+test('an imagesrcset candidate whose URL holds commas (an image CDN link) is one URL, not one per comma', () => {
+	const one = '/cdn-cgi/image/width=640,height=360,fit=cover,format=avif/_app/hero.jpg';
+	const two = '/cdn-cgi/image/width=1280,height=720,fit=cover,format=avif/_app/hero.jpg';
+	const link = document.createElement('link');
+	link.href = one;
+	link.setAttribute('imagesrcset', `${one} 640w, ${two} 1280w,data:image/gif;base64,R0lGOD 3x`);
+	expect(preload_urls(link)).toEqual([
+		new URL(one, document.baseURI).href,
+		new URL(two, document.baseURI).href,
+		'data:image/gif;base64,R0lGOD'
+	]);
+});
+
 test('a critical image that never arrives holds island code only up to the cap', async () => {
 	pending_hero();
 	const t0 = performance.now();

@@ -102,7 +102,7 @@ describe('rewrite_image_calls', () => {
 			rewrite_image_calls(
 				`import.meta.og.image('./hero.jpg', ${opts});`,
 				mod(),
-				['.svelte'],
+				undefined,
 				() => {},
 				presets
 			);
@@ -189,7 +189,7 @@ describe('rewrite_image_calls', () => {
 		expect(() => options_of_query('og-image=not-json')).toThrow(/og-image query/);
 	});
 
-	test('a call in a component template fails the build instead of shipping as code', () => {
+	test("a call in a component template is left as is, for ogygia's macro_in_markup", () => {
 		const svelte = path.join(dir, 'Card.svelte');
 		for (const call of [
 			`import.meta.og.image('./hero.jpg')`,
@@ -199,13 +199,22 @@ describe('rewrite_image_calls', () => {
 				<script>let a = 1;</script>
 				<p>{${call}}</p>
 			`;
-			expect(() => rewrite_image_calls(src, svelte)).toThrow(/in the template/);
+			expect(image_call_edits(src, svelte)).toEqual([]);
 		}
 	});
 
 	test('the words in a component template’s text are not a call', () => {
 		const svelte = path.join(dir, 'Doc.svelte');
 		const src = '<p>Use import.meta.og.image to read a file.</p>\n';
+		expect(rewrite_image_calls(src, svelte)).toBe(src);
+	});
+
+	test('a docs page that writes the call as text in its markup is no call (a <code> sample)', () => {
+		const svelte = path.join(dir, 'Docs.svelte');
+		const src = dedent`
+			<script>let a = 1;</script>
+			<p>Write <code>import.meta.og.image('./hero.jpg')</code> in a script.</p>
+		`;
 		expect(rewrite_image_calls(src, svelte)).toBe(src);
 	});
 
@@ -235,10 +244,49 @@ describe('the image macro in dev', () => {
 				root: dir,
 				alias: [],
 				markupExts: ['.svelte'],
+				regions: (code) => [{ code, offset: 0 }],
 				watch: (f) => watched.push(f)
 			});
 		await expect(run()).rejects.toThrow(/later\.jpg/);
 		expect(watched).toContain(path.join(dir, 'later.jpg'));
+	});
+
+	test("a call in a markdown page's <script> is rewritten, in the regions ogygia hands the macro", async () => {
+		const page = `${dedent`
+			---
+			title: Post
+			---
+
+			<script>
+				const hero = import.meta.og.image('./hero.jpg');
+			</script>
+
+			# Post
+		`}\n`;
+		const open = page.indexOf('<script>') + '<script>'.length;
+		const script = { code: page.slice(open, page.indexOf('</script>')), offset: open };
+		const edits = (await handler()(page, {
+			id: path.join(dir, '+page.svx'),
+			rel: '+page.svx',
+			root: dir,
+			alias: [],
+			markupExts: ['.svelte'],
+			regions: () => [script],
+			watch: () => {}
+		})) as { start: number; end: number; text: string }[];
+		let out = '';
+		let last = 0;
+		for (const e of edits) {
+			out += page.slice(last, e.start) + e.text;
+			last = e.end;
+		}
+		out += page.slice(last);
+		expect(out).toContain(dedent`
+			<script>
+			import __og_image_0 from "./hero.jpg?og-image";
+		`);
+		expect(out).toContain('const hero = __og_image_0;');
+		expect(out).toContain('# Post');
 	});
 
 	test('the macro answers with edits, so a module that uses it keeps its source map', async () => {
@@ -252,6 +300,7 @@ describe('the image macro in dev', () => {
 			root: dir,
 			alias: [],
 			markupExts: ['.svelte'],
+			regions: (code) => [{ code, offset: 0 }],
 			watch: () => {}
 		})) as { start: number; end: number; text: string }[];
 		expect(Array.isArray(edits)).toBe(true);

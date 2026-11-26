@@ -14,12 +14,13 @@ import {
 	find_og_calls,
 	is_js_module,
 	is_markup_module,
+	markdown_expressions,
 	markdown_scripts,
 	og_js_regions,
 	type JsRegion,
 	type OgCall
 } from '../parse/scan.ts';
-import { walk_ast } from '../parse/ast.ts';
+import { line_of, walk_ast } from '../parse/ast.ts';
 import type { AstNode } from '../parse/oxc.ts';
 import { blank_styles } from '../blank-styles.ts';
 
@@ -37,6 +38,11 @@ export interface MacroContext {
 	readonly alias: readonly AliasEntry[];
 	/** Markup extensions whose `<script>` blocks hold the macro calls (`.svelte`). */
 	readonly markupExts: readonly string[];
+	/** The code a macro rewrites in this module's text `code`: a JS module whole, a `.svelte`
+	 *  component's `<script>` blocks, a markdown page's (`.svx`, `.md`) `<script>` blocks (not its
+	 *  fenced code); null for any other module. A call left outside them fails the build
+	 *  (`macro_in_markup`), and so does one a handler leaves in a markdown page's script. */
+	regions: (code: string) => JsRegion[] | null;
 	/** Name a file the rewrite read: an edit to it transforms this module again (dev). */
 	watch: (file: string) => void;
 }
@@ -97,15 +103,49 @@ function template_calls(code: string, id: string, scripts: readonly JsRegion[]):
 	return calls;
 }
 
-function macro_calls(code: string, id: string, markdown_exts: readonly string[]): OgCall[] {
-	const regions = is_markup_module(id, markdown_exts)
-		? markdown_scripts(code)
-		: (og_js_regions(code, id, CONSTRUCT_MARKUP_EXTS) ?? []);
-	const calls = regions.flatMap((r) => find_og_calls(r.code, OG_PREFIX));
+function code_regions(
+	code: string,
+	id: string,
+	markdown_exts: readonly string[]
+): JsRegion[] | null {
+	if (!is_js_module(id) && is_markup_module(id, markdown_exts)) return markdown_scripts(code);
+	return og_js_regions(code, id, CONSTRUCT_MARKUP_EXTS);
+}
+
+type Place = 'script' | 'markdown script' | 'markup';
+
+type PlacedCall = OgCall & { place: Place };
+
+function in_regions(regions: readonly JsRegion[], place: Place): PlacedCall[] {
+	return regions.flatMap((r) =>
+		find_og_calls(r.code, OG_PREFIX).map((c) => ({
+			...c,
+			start: c.start + r.offset,
+			end: c.end + r.offset,
+			place
+		}))
+	);
+}
+
+function macro_calls(code: string, id: string, markdown_exts: readonly string[]): PlacedCall[] {
+	if (!is_js_module(id) && is_markup_module(id, markdown_exts))
+		return [
+			...in_regions(markdown_scripts(code), 'markdown script'),
+			...in_regions(markdown_expressions(code), 'markup')
+		];
+	const regions = og_js_regions(code, id, CONSTRUCT_MARKUP_EXTS) ?? [];
+	const calls = in_regions(regions, 'script');
 	if (!is_js_module(id) && is_markup_module(id, CONSTRUCT_MARKUP_EXTS))
-		calls.push(...template_calls(code, id, regions));
+		calls.push(
+			...template_calls(code, id, regions).map((c) => ({ ...c, place: 'markup' as const }))
+		);
 	return calls;
 }
+
+const PLACE_TEXT: Readonly<Record<Exclude<Place, 'script'>, string>> = {
+	markup: 'the markup (a template expression)',
+	'markdown script': "a markdown page's <script>"
+};
 
 function calls_macro(
 	code: string,
@@ -214,6 +254,7 @@ export async function run_module_macros(
 				root: ctx.root,
 				alias: ctx.alias,
 				markupExts: CONSTRUCT_MARKUP_EXTS,
+				regions: (code) => code_regions(code, id, markdown_exts),
 				watch: ctx.watch ?? noop
 			});
 			if (profiler.P) {
@@ -233,12 +274,21 @@ export async function run_module_macros(
 		for (const call of macro_calls(out, id, markdown_exts)) {
 			const name = call.method.split('.')[0]!;
 			const pkg = MACRO_PACKAGES[name];
-			if (pkg === undefined || ctx.macros?.some((m) => m.name === name)) continue;
-			if (!own) refuse(name);
-			throw new OgygiaError('macro_needs_plugin', {
-				file: id.split('?')[0]!,
-				macro: name,
-				package: pkg.package,
+			if (pkg === undefined) continue;
+			if (!ctx.macros?.some((m) => m.name === name)) {
+				if (!own) refuse(name);
+				throw new OgygiaError('macro_needs_plugin', {
+					file: id.split('?')[0]!,
+					macro: name,
+					package: pkg.package,
+					plugin: pkg.plugin
+				});
+			}
+			if (call.place === 'script') continue;
+			throw new OgygiaError('macro_in_markup', {
+				file: `${id.split('?')[0]!}:${line_of(out, call.start)}`,
+				macro: call.method,
+				place: PLACE_TEXT[call.place],
 				plugin: pkg.plugin
 			});
 		}

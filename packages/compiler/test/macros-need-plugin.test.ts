@@ -165,6 +165,146 @@ describe('a plugin macro without its plugin', () => {
 		).rejects.toMatchObject({ code: 'macro_outside_app' });
 	});
 
+	it("a call in a markdown page's prose expression fails the build without its plugin", async () => {
+		const page = dedent`
+			# Hi
+
+			<img src={import.meta.og.bake(() => 1)} alt="" />
+
+			And {import.meta.og.code('x')} inline.
+		`;
+		await expect(
+			run_module_macros(
+				page,
+				'/app/src/routes/+page.svx',
+				{ ...ctx(), markdownExts: ['.svx'] },
+				NO_PROFILE
+			)
+		).rejects.toMatchObject({ code: 'macro_needs_plugin' });
+	});
+
+	it("a markdown page's prose that writes a call as text, a code span or a comment is no call", async () => {
+		const page = dedent`
+			# Images
+
+			Write import.meta.og.image('./hero.jpg') in a script, or \`{import.meta.og.image('./a.jpg')}\`.
+
+			<!-- {import.meta.og.bake(() => 1)} -->
+		`;
+		expect(
+			await run_module_macros(
+				page,
+				'/app/src/routes/+page.svx',
+				{ ...ctx(), markdownExts: ['.svx'] },
+				NO_PROFILE
+			)
+		).toEqual({ code: page, touched: false, maps: [] });
+	});
+
+	it("with the plugin listed, a call in a component's template fails the build with macro_in_markup", async () => {
+		const svelte = dedent`
+			<script>
+				export const n = 1;
+			</script>
+
+			<img src={import.meta.og.image('./x.jpg')} alt="" />
+		`;
+		await expect(
+			run_module_macros(
+				svelte,
+				'/app/src/routes/+page.svelte',
+				ctx([{ name: 'image', handler: (code) => code }]),
+				NO_PROFILE
+			)
+		).rejects.toMatchObject({
+			code: 'macro_in_markup',
+			message: expect.stringMatching(
+				/\+page\.svelte:5 — import\.meta\.og\.image\(\) sits in the markup/
+			)
+		});
+	});
+
+	it("with the plugin listed, a call in a markdown page's prose expression fails with macro_in_markup", async () => {
+		const page = dedent`
+			# Hi
+
+			<img src={import.meta.og.bake(() => 1)} alt="" />
+		`;
+		await expect(
+			run_module_macros(
+				page,
+				'/app/src/routes/+page.svx',
+				{ ...ctx([{ name: 'bake', handler: (code) => code }]), markdownExts: ['.svx'] },
+				NO_PROFILE
+			)
+		).rejects.toMatchObject({
+			code: 'macro_in_markup',
+			message: expect.stringMatching(
+				/\+page\.svx:3 — import\.meta\.og\.bake\(\) sits in the markup/
+			)
+		});
+	});
+
+	it("with the plugin listed, a call its handler left in a markdown page's script fails with macro_in_markup", async () => {
+		const page = dedent`
+			<script>
+				const v = import.meta.og.bake(() => 1);
+			</script>
+
+			# Hi
+		`;
+		await expect(
+			run_module_macros(
+				page,
+				'/app/src/routes/+page.svx',
+				{ ...ctx([{ name: 'bake', handler: (code) => code }]), markdownExts: ['.svx'] },
+				NO_PROFILE
+			)
+		).rejects.toMatchObject({
+			code: 'macro_in_markup',
+			message: expect.stringMatching(
+				/\+page\.svx:2 — import\.meta\.og\.bake\(\) sits in a markdown page's <script>/
+			)
+		});
+	});
+
+	it("a handler is handed the module's code regions: a markdown page's scripts, not its fenced code", async () => {
+		const page = dedent`
+			<script>
+				const v = import.meta.og.image('./a.jpg');
+			</script>
+
+			\`\`\`svelte
+			<script>
+				const w = import.meta.og.image('./b.jpg');
+			</script>
+			\`\`\`
+		`;
+		const seen: string[] = [];
+		const out = await run_module_macros(
+			page,
+			'/app/src/routes/+page.svx',
+			{
+				...ctx([
+					{
+						name: 'image',
+						handler: (code, m) => {
+							const regions = m.regions(code) ?? [];
+							for (const r of regions) seen.push(r.code.trim());
+							const r = regions[0]!;
+							const at = r.offset + r.code.indexOf('import.meta.og.image');
+							return [{ start: at, end: at + "import.meta.og.image('./a.jpg')".length, text: '1' }];
+						}
+					}
+				]),
+				markdownExts: ['.svx']
+			},
+			NO_PROFILE
+		);
+		expect(seen).toEqual(["const v = import.meta.og.image('./a.jpg');"]);
+		expect(out.code).toContain('const v = 1;');
+	});
+
 	it('with the plugin listed, its handler compiles the call', async () => {
 		const out = await run_module_macros(
 			`export const v = import.meta.og.code('x');`,

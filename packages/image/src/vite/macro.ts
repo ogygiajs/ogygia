@@ -15,7 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-	find_og_calls,
+	is_js_module,
 	line_of,
 	literal_of,
 	NOT_LITERAL,
@@ -24,7 +24,8 @@ import {
 	parse_module,
 	walk_ast,
 	type AstNode,
-	type Edit
+	type Edit,
+	type JsRegion
 } from '@ogygia/compiler';
 import { OgygiaError } from '../messages.ts';
 import type { RemoteHosts } from '../remote-hosts.ts';
@@ -86,16 +87,15 @@ type Call = {
 function find_calls(
 	src: string,
 	id: string,
-	markup_exts: readonly string[],
+	regions: readonly JsRegion[] | null,
 	presets: readonly string[]
 ): Call[] {
-	const regions = og_js_regions(src, id, markup_exts);
 	if (!regions) return [];
 	const calls: Call[] = [];
 	const rel = path.basename(id);
+	const as = is_js_module(id) ? id : `${id}.ts`;
 	for (const region of regions) {
 		if (!region.code.includes(MARKER)) continue;
-		const as = markup_exts.some((x) => id.endsWith(x)) ? `${id}.ts` : id;
 		const { program, ok } = parse_module(region.code, as);
 		if (!ok || !program) continue;
 		walk_ast(program, (n) => {
@@ -153,23 +153,14 @@ function find_calls(
 	return calls;
 }
 
-function refuse_markup_calls(src: string, id: string, calls: readonly Call[]): void {
-	const found = [
-		...find_og_calls(src, 'import.meta.og.').filter((c) => c.method === 'image'),
-		...find_og_calls(src, `${MARKER}.`).filter((c) => c.method === 'glob' || c.method === 'card')
-	];
-	for (const c of found)
-		if (!calls.some((k) => k.start === c.start))
-			throw new OgygiaError('image_macro_in_markup', {
-				file: `${path.basename(id)}:${line_of(src, c.start)}`
-			});
-}
-
-/** The edits that rewrite every image call in `src` (module `id`): none when there is no call. */
+/** The edits that rewrite every image call in `src` (module `id`)'s code `regions` (what ogygia
+ *  hands a macro: a JS module, a component's or a markdown page's `<script>` blocks; by default a
+ *  JS module or a `.svelte` component's): none when there is no call. A call outside them is
+ *  left as is, and ogygia fails the build on it (`macro_in_markup`). */
 export function image_call_edits(
 	src: string,
 	id: string,
-	markup_exts: readonly string[] = ['.svelte'],
+	regions: readonly JsRegion[] | null = og_js_regions(src, id, ['.svelte']),
 	watch: (file: string) => void = () => {},
 	presets: readonly string[] = [],
 	hosts: RemoteHosts | null = null,
@@ -177,8 +168,7 @@ export function image_call_edits(
 	root: string = process.cwd()
 ): Edit[] {
 	if (!src.includes(MARKER)) return [];
-	const calls = find_calls(src, id, markup_exts, presets);
-	if (markup_exts.some((x) => id.endsWith(x))) refuse_markup_calls(src, id, calls);
+	const calls = find_calls(src, id, regions, presets);
 	if (!calls.length) return [];
 	const dir = path.dirname(id);
 	const rel = path.basename(id);

@@ -33,7 +33,7 @@ function call(options: string, component = './Card.svelte'): string {
 function rewrite(src: string, cards: Cards, id = mod()): string {
 	let out = '';
 	let last = 0;
-	for (const e of image_call_edits(src, id, ['.svelte'], () => {}, [], null, cards, dir)) {
+	for (const e of image_call_edits(src, id, undefined, () => {}, [], null, cards, dir)) {
 		out += src.slice(last, e.start) + e.text;
 		last = e.end;
 	}
@@ -118,14 +118,12 @@ describe('the macro', () => {
 		).toThrow();
 	});
 
-	test("a card call in a component's markup is refused", () => {
+	test("a card call in a component's markup is left as is, for ogygia's macro_in_markup", () => {
 		const src = dedent`
 			<script>let x = 1;</script>
 			<p>{import.meta.og.image.card('./Card.svelte', ${GOOD})}</p>
 		`;
-		expect(() => rewrite(src, new Cards(), path.join(dir, 'Page.svelte'))).toThrow(
-			/image_macro_in_markup|markup/
-		);
+		expect(rewrite(src, new Cards(), path.join(dir, 'Page.svelte'))).toBe(src);
 	});
 });
 

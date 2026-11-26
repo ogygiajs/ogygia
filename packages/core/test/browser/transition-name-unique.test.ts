@@ -19,6 +19,21 @@ test('a name repeated on an element that is not rendered breaks no rule (a mobil
 	expect(name_rule()).toEqual([]);
 });
 
+test('a browser with no checkVisibility (Safari before 17.4) still checks the names, skipping the unrendered', () => {
+	const own = Object.getOwnPropertyDescriptor(Element.prototype, 'checkVisibility');
+	Reflect.deleteProperty(Element.prototype, 'checkVisibility');
+	try {
+		document.body.innerHTML = `<nav style="view-transition-name: og-sidebar"></nav><aside style="display:none"><nav style="view-transition-name: og-sidebar"></nav></aside>`;
+		expect(name_rule()).toEqual([]);
+		document.body.innerHTML = `<img style="view-transition-name:og-img-a1" alt=""><img style="view-transition-name:og-img-a1" alt="">`;
+		expect(name_rule().map((b) => b.detail)).toEqual([
+			'2 elements share the view-transition name og-img-a1'
+		]);
+	} finally {
+		if (own) Object.defineProperty(Element.prototype, 'checkVisibility', own);
+	}
+});
+
 test('two elements with one view-transition name are a broken rule, naming it', () => {
 	document.body.innerHTML = `<img style="background:red;view-transition-name:og-img-a1" alt=""><p>x</p><img style="view-transition-name: og-img-a1" alt=""><img style="view-transition-name:none" alt=""><img style="view-transition-name:none" alt="">`;
 	expect(name_rule().map((b) => b.detail)).toEqual([
