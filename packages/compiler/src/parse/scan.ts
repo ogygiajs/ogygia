@@ -300,10 +300,35 @@ const LINE_LEAD_RE = /^ {0,3}$/;
  * test/macros-need-plugin.test.ts, test/markdown-code.test.ts.
  */
 export function markdown_scripts(src: string): JsRegion[] {
-	return script_blocks(markdown_prose(src)).map((b) => ({
-		code: src.slice(b.start, b.end),
-		offset: b.start
-	}));
+	return new MarkdownPage(src).scripts();
+}
+
+/** One markdown page's text, parsed at most once: its {@link markdown_scripts} and its
+ *  {@link markdown_expressions} read the same parse. */
+export class MarkdownPage {
+	readonly src: string;
+	#prose: string | null = null;
+
+	constructor(src: string) {
+		this.src = src;
+	}
+
+	#read(): string {
+		return (this.#prose ??= markdown_prose(this.src));
+	}
+
+	/** The page's `<script>` blocks, as {@link markdown_scripts}. */
+	scripts(): JsRegion[] {
+		return script_blocks(this.#read()).map((b) => ({
+			code: this.src.slice(b.start, b.end),
+			offset: b.start
+		}));
+	}
+
+	/** The page's template expressions, as {@link markdown_expressions}. */
+	expressions(): JsRegion[] {
+		return prose_expressions(this.src, this.#read());
+	}
 }
 
 const COMMENT_RE = /<!--[\s\S]*?(?:-->|$)/g;
@@ -315,7 +340,11 @@ const COMMENT_RE = /<!--[\s\S]*?(?:-->|$)/g;
  * the source's. test/macros-need-plugin.test.ts.
  */
 export function markdown_expressions(src: string): JsRegion[] {
-	const prose = markdown_prose(src).replace(COMMENT_RE, blank);
+	return new MarkdownPage(src).expressions();
+}
+
+function prose_expressions(src: string, read: string): JsRegion[] {
+	const prose = read.replace(COMMENT_RE, blank);
 	let text = prose;
 	for (const b of script_blocks(prose).concat(
 		component_blocks(prose).filter((b) => b.kind === 'style')

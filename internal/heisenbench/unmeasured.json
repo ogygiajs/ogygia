@@ -6069,8 +6069,32 @@
 			"reason": "the macro check of a markdown page that names import.meta.og. (rare), linear in its text; test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/parse/scan.ts > markdown_scripts > map:0~69761c",
+			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > scripts > map:0~0690ae",
 			"reason": "per script block of the markdown check above, one slice; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > constructor",
+			"reason": "once per distinct text of a markdown page that names import.meta.og. (rare): one field; test/markdown-parse-once.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > #read",
+			"reason": "the markdown check above: its one parse, kept for the page's text; test/markdown-parse-once.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > scripts",
+			"reason": "the markdown check above: its script blocks, linear in its text; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > expressions",
+			"reason": "the markdown check above: its prose's {…} expressions, linear in its text; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > prose_expressions",
+			"reason": "the markdown check above: its prose's {…} expressions, linear in its text but for an unclosed brace (a page Svelte refuses anyway); test/markdown-code.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > frontmatter_end",
+			"reason": "once per markdown check above: two regex runs over the page's first lines; test/markdown-code.test.ts runs it"
 		},
 		{
 			"id": "packages/compiler/src/parse/scan.ts > markdown_prose",
@@ -6089,7 +6113,7 @@
 			"reason": "the macro check of a markdown page that names import.meta.og. (rare): its prose's {…} expressions, linear in its text; test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/parse/scan.ts > markdown_expressions > filter:0~e6fdc6",
+			"id": "packages/compiler/src/parse/scan.ts > prose_expressions > filter:0~e6fdc6",
 			"reason": "per block of the markdown check above, constant work per block; test/macros-need-plugin.test.ts runs it"
 		},
 		{
@@ -6101,12 +6125,28 @@
 			"reason": "per HTML comment of the markdown check above, one blank run; test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/macros/pipeline.ts > code_regions",
-			"reason": "once per plugin macro handler that asks for a module's code regions, the same reading the macros already pay; test/macros-need-plugin.test.ts runs it"
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > regions",
+			"reason": "once per plugin macro handler that asks for a module's code regions, the same reading the macros already pay (a markdown page's parse kept for its text); test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/macros/pipeline.ts > run_module_macros > handler:1~09cd5a > regions",
-			"reason": "the code-regions handle handed to a plugin macro, one call of code_regions; test/macros-need-plugin.test.ts runs it"
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > constructor",
+			"reason": "once per module the macro pipeline runs on: two extension tests; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > #page_of",
+			"reason": "per markdown reading of the macro check: one string compare against the page it read last; test/markdown-parse-once.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls",
+			"reason": "the macro check, only for a module whose text names import.meta.og.: the og calls of its regions, linear in them; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls_macro",
+			"reason": "the macro check of a module outside the app that names a plugin macro (rare): the calls above, one scan; test/macros-own-source.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls_macro > some:0~cc31b7",
+			"reason": "per call of the check above, two string tests"
 		},
 		{
 			"id": "packages/compiler/src/macros/pipeline.ts > in_regions",
@@ -6121,7 +6161,7 @@
 			"reason": "per call found by the macro check above, one offset shift, constant work; test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/macros/pipeline.ts > macro_calls > map:0~f7bc6b",
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls > map:0~f7bc6b",
 			"reason": "per template call of the macro check above (rare), one object, constant work; test/macros-need-plugin.test.ts runs it"
 		},
 		{
