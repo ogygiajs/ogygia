@@ -50,6 +50,8 @@ const NAME_LENGTH = 16;
 const LIST = '__ogygia_image_cards__';
 const LIST_RE = /(["'`])__ogygia_image_cards__\1/;
 const DIGEST_RE = /(["'`])__ogygia_image_card_digest_([A-Za-z0-9_-]+)__\1/g;
+const FILES = '__ogygia_image_engine_files__';
+const FILES_RE = /(["'`])__ogygia_image_engine_files__\1/;
 const OPTIONS_TAG = 'svelte:options';
 const CARD_QUERY_RE = new RegExp(`[?&]${CARD_QUERY}(?:&|$)`);
 
@@ -128,6 +130,33 @@ export function engine_versions(root: string): { line: string; missing: string[]
 		return `${name}@${v ?? '-'}`;
 	});
 	return { line: `${parts.join(' ')} encoder ${ENCODER_VERSION}`, missing };
+}
+
+interface EngineFile {
+	chain: readonly string[];
+	file: string;
+}
+
+// @why harfbuzzjs reads hb.wasm from its own folder by a path it builds at run time, which no file tracer follows (test: packages/image/e2e/vercel.spec.ts › the function draws a live page's share card on request, kept forever: Vercel's file tracing keeps satori's harfbuzz wasm, which harfbuzz reads by a path no tracer follows; a prerendered page's card is the build's file)
+const ENGINE_FILES: readonly EngineFile[] = [{ chain: ['satori', 'harfbuzzjs'], file: 'hb.wasm' }];
+
+/** The files the app at `root`'s engine reads at run time by paths a file tracer does not follow,
+ *  each at its real path: a server card's chunk names them, so the tracer that bundles a function
+ *  from the server's modules (adapter-vercel's) keeps them. A package the engine does not install
+ *  names none. */
+export function engine_files(root: string): string[] {
+	const out: string[] = [];
+	for (const { chain, file } of ENGINE_FILES) {
+		let pkg = path.join(root, 'package.json');
+		try {
+			for (const name of chain) pkg = createRequire(pkg).resolve(`${name}/package.json`);
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a package the chain does not reach is not part of this engine: it reads no such file
+		} catch {
+			continue;
+		}
+		out.push(path.join(path.dirname(fs.realpathSync(pkg)), file));
+	}
+	return out;
 }
 
 function check_engine(root: string, runtime: EncoderRuntime, where: string): void {
@@ -406,6 +435,7 @@ export class Cards {
 				: dedent`
 					import { card_png } from ${JSON.stringify(CARD_ENGINE)};
 					export const png = (props, fonts, images) => card_png(spec, props, fonts, images);
+					${mode === 'server' ? `export const engine_files = ${JSON.stringify(FILES)};\n` : ''}
 				`;
 		return dedent`
 			import __og_card from ${JSON.stringify(`${def.file.split(path.sep).join('/')}?${CARD_QUERY}`)};
@@ -443,20 +473,31 @@ export class Cards {
 		`;
 	}
 
-	/** `code` (the server chunk `file`) with the cards' placeholders written: each card's digest, and
-	 *  the list of cards' chunks. Null: it has none. */
+	/** `code` (the server chunk `file`, under the output folder `dir`) with the cards' placeholders
+	 *  written: each card's digest, the list of cards' chunks, and the engine's files
+	 *  ({@link engine_files}), each a URL relative to the chunk. Null: it has none. */
 	render_chunk(
 		code: string,
 		file: () => string,
 		root: string,
 		file_name: (ref: string) => string,
-		info: (id: string) => GraphInfo | null
+		info: (id: string) => GraphInfo | null,
+		dir: () => string
 	): string | null {
 		const has_list = LIST_RE.test(code);
 		DIGEST_RE.lastIndex = 0;
 		const has_digest = DIGEST_RE.test(code);
-		if (!has_list && !has_digest) return null;
+		const has_files = FILES_RE.test(code);
+		if (!has_list && !has_digest && !has_files) return null;
 		let out = code;
+		if (has_files) {
+			const from = path.dirname(path.join(dir(), file()));
+			const urls = engine_files(root).map((f) => {
+				const rel = path.relative(from, f).split(path.sep).join('/');
+				return `new URL(${JSON.stringify(rel.startsWith('.') ? rel : `./${rel}`)}, import.meta.url)`;
+			});
+			out = out.replace(FILES_RE, () => `[${urls.join(', ')}]`);
+		}
 		if (has_digest) {
 			const versions = engine_versions(root).line;
 			out = out.replace(DIGEST_RE, (whole, quote: string, name: string) => {

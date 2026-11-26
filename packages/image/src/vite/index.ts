@@ -432,15 +432,17 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 		transform(code, id) {
 			return is_card_component(id) ? { code: with_injected_css(code), map: null } : null;
 		},
-		renderChunk(code, chunk) {
+		renderChunk(code, chunk, output) {
 			if (!server_build() || !config) return null;
+			const { root, build: built } = config;
 			let out =
 				cards.render_chunk(
 					code,
 					() => chunk.fileName,
-					config.root,
+					root,
 					(ref) => this.getFileName(ref),
-					(id) => this.getModuleInfo(id)
+					(id) => this.getModuleInfo(id),
+					() => path.resolve(root, output.dir ?? built.outDir)
 				) ?? code;
 			if (out.includes(REMOTE_LIST)) {
 				const names = JSON.stringify(remote?.names() ?? []);
