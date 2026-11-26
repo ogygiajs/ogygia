@@ -141,26 +141,33 @@ test('the function holds sharp, the encoder the config lists, and makes every fi
 	}
 });
 
-test("the function cannot draw a live page's share card: Vercel's file tracing leaves out satori's harfbuzz wasm, so it answers 500, kept nowhere; a prerendered page's card is the build's file", async ({
+test("the function draws a live page's share card on request, kept forever: Vercel's file tracing keeps satori's harfbuzz wasm, which harfbuzz reads by a path no tracer follows; a prerendered page's card is the build's file", async ({
 	request
 }) => {
 	expect(
 		fs.existsSync(path.join(FUNC, 'packages/image/e2e/app/node_modules/@resvg/resvg-js'))
 	).toBe(true);
 	const traced = fs.readdirSync(path.join(FUNC, 'node_modules/.pnpm'));
-	const harfbuzz = traced.find((d) => d.startsWith('harfbuzzjs@'));
 	expect(
-		harfbuzz &&
-			fs.existsSync(
-				path.join(FUNC, 'node_modules/.pnpm', harfbuzz, 'node_modules/harfbuzzjs/hb.wasm')
-			)
-	).toBeFalsy();
+		traced.some(
+			(d) =>
+				d.startsWith('harfbuzzjs@') &&
+				fs.existsSync(path.join(FUNC, 'node_modules/.pnpm', d, 'node_modules/harfbuzzjs/hb.wasm'))
+		)
+	).toBe(true);
 	const url = (await named(request, ['/late/card?title=On+Vercel'], SIGNED_RE)).find((u) =>
 		u.includes('/.card/')
 	)!;
 	const res = await request.get(url);
-	expect(res.status(), url).toBe(500);
-	expect(res.headers()['cache-control']).toBe('no-store');
+	expect(res.status(), url).toBe(200);
+	expect(res.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
+	const meta = await sharp(await res.body()).metadata();
+	expect([res.headers()['content-type'], meta.format, meta.width, meta.height]).toEqual([
+		'image/png',
+		'png',
+		1200,
+		630
+	]);
 	const built = (await named(request, ['/card'], /\/_app\/immutable\/og\/c[\w-]+\.png/g))[0]!;
 	expect((await request.get(built)).status(), built).toBe(200);
 });
