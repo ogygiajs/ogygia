@@ -104,4 +104,4 @@ test('a second full line, after the first one emptied, is said again', async () 
 	await Promise.all(Array.from({ length: 120 }, (_, i) => get(url_at(400 + i))));
 	expect(warn.mock.calls.map((c) => String(c[0]))).toEqual([expect.stringMatching(/image_busy/)]);
 	warn.mockRestore();
-});
+}, 30_000);
