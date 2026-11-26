@@ -212,9 +212,6 @@ function start(app: ServerApp<unknown>, disk: OnDisk | null): void {
 	});
 }
 
-const SAID_SHARE_MAX = 256;
-const said_share = cache<string, true>({ name: 'share images said', max: SAID_SHARE_MAX });
-
 function share_rule(
 	ctx: HandleContext<unknown>,
 	next: (options?: ResolveOptions) => Promise<Response>
@@ -223,10 +220,7 @@ function share_rule(
 	return next({
 		transformPageChunk: ({ html }) => {
 			for (const url of unshown_share_images(html))
-				if (said_share.get(url) === undefined) {
-					said_share.set(url, true);
-					warn('image_share_format', { path, url });
-				}
+				said.once(`image_share_format ${url}`, () => warn('image_share_format', { path, url }));
 			return html;
 		}
 	});
