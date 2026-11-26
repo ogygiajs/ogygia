@@ -45,7 +45,9 @@ export function settle(plugin: ImagePluginOptions, own: ImageOptions): Settings 
 
 const plans = new BuildCache<Plan>('image');
 
-const PLAN_VERSION = 3;
+/** Bump when a plan (size, placeholder) changes for the same source: every kept plan is made again.
+ *  test/encode-settings.test.ts holds what each version asks sharp for. */
+export const PLAN_VERSION = 3;
 
 const VECTOR_RE = /\.svg$/i;
 const FORMAT_OF: Readonly<Record<string, ImageFormat>> = {

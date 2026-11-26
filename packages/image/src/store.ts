@@ -29,7 +29,8 @@ import { cache, clock, random, type Cache } from '@ogygia/machine';
 import { warn } from './messages.ts';
 
 /** Bump when the encoder's output changes for the same input: every cached file is made again, and
- *  every source gets a new id, so every file a new name. */
+ *  every source gets a new id, so every file a new name. test/encode-settings.test.ts holds what
+ *  each version asks sharp for. */
 export const ENCODER_VERSION = 4;
 
 /** A source's id: its bytes (and the encoder's version), so every file made from it names its
