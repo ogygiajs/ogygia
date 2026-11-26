@@ -112,7 +112,13 @@ describe('a plugin macro without its plugin', () => {
 		for (const title of ['"Hello"', '"Sets { on"', '{ a: 1 }'])
 			await expect(
 				run_module_macros(
-					`---\ntitle: ${title}\n---\n\n<Img of={import.meta.og.image('./x.jpg')} />\n`,
+					dedent`
+						---
+						title: ${title}
+						---
+
+						<Img of={import.meta.og.image('./x.jpg')} />
+					`,
 					'/app/src/routes/+page.svx',
 					{ ...ctx(), markdownExts: ['.svx'] },
 					NO_PROFILE

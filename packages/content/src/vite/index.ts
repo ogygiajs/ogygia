@@ -117,7 +117,12 @@ export function content(options: ContentOptions = {}): [OgygiaPlugin, ...VitePlu
 			}
 		}
 	});
-	return [plugin, content_hmr(hmr), content_checks(() => root, exts), content_leaks(() => routes_dir)];
+	return [
+		plugin,
+		content_hmr(hmr),
+		content_checks(() => root, exts),
+		content_leaks(() => routes_dir)
+	];
 }
 
 type ContentBridgePresets = NonNullable<typeof bridge.contentPresets>;

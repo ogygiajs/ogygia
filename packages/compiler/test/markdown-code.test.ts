@@ -97,7 +97,14 @@ const PAGES: Readonly<Record<string, readonly string[]>> = {
 		'',
 		'Hello'
 	],
-	'frontmatter after blank and whitespace lines': ['', '  ', '---', `title: "${EXPR}"`, '---', 'Hi'],
+	'frontmatter after blank and whitespace lines': [
+		'',
+		'  ',
+		'---',
+		`title: "${EXPR}"`,
+		'---',
+		'Hi'
+	],
 	'frontmatter closed by a line that goes on past its ---': [
 		'---',
 		`title: "${EXPR}"`,
@@ -164,10 +171,10 @@ describe("a markdown page's code regions are the ones mdsvex escapes", () => {
 		const front = fc.constantFrom(
 			'',
 			'',
-			'---\ntitle: "Sets { on"\n---\n',
-			`---\ntitle: "${EXPR}"\ntags: { a: 1 }\n---\n`,
-			'---\r\ntitle: "a { b"\r\n---\r\n',
-			`\n---\ntitle: "${EXPR}"\n---\n`
+			page_of(['---', 'title: "Sets { on"', '---']),
+			page_of(['---', `title: "${EXPR}"`, 'tags: { a: 1 }', '---']),
+			`${['---', 'title: "a { b"', '---'].join('\r\n')}\r\n`,
+			page_of(['', '---', `title: "${EXPR}"`, '---'])
 		);
 		await fc.assert(
 			fc.asyncProperty(front, fc.array(block, { maxLength: 16 }), async (head, blocks) => {
