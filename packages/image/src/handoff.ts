@@ -5,6 +5,7 @@
  *
  * @packageDocumentation
  */
+import { DEFAULT_AVIF_EFFORT } from './config.ts';
 
 /** What the plugin hands the processes of one `vite build` or dev server (and Kit's prerender
  *  worker, which inherits the environment): the store's folder, the file the prerender notes its
@@ -31,6 +32,8 @@ export interface BuildHandoff {
 	renamed?: Readonly<Record<string, string>>;
 	/** The app's root (Vite's `root`). */
 	root: string;
+	/** The AVIF effort the build makes its files at (`sharp({ effort: { avif } })`). */
+	avif_effort: number;
 	/** The folder remote images are fetched into, each named {@link REMOTE_NAME_RE} and its
 	 *  extension. */
 	remote: string;
@@ -52,6 +55,7 @@ export function build_handoff(): BuildHandoff | null {
 		mark: typeof v.mark === 'string' ? v.mark : '',
 		written: typeof v.written === 'string' ? v.written : '',
 		root: typeof v.root === 'string' ? v.root : '',
+		avif_effort: typeof v.avif_effort === 'number' ? v.avif_effort : DEFAULT_AVIF_EFFORT,
 		remote: typeof v.remote === 'string' ? v.remote : '',
 		...(v.renamed !== null && typeof v.renamed === 'object' ? { renamed: v.renamed } : {})
 	};

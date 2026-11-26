@@ -115,7 +115,12 @@ at most 30 s, then 503 `image_busy` with `retry-after`. sharp's input pixel limi
 recipe asks for more pixels than one frame may have (`FRAME_PIXELS_MAX` in `recipe.ts`,
 268,402,689: `parse_recipe` refuses a box past it, 404). AVIF is made at effort 2 by default
 (`pixels.ts AVIF_EFFORT`; was 4: half the encode time for 0.2% more bytes, owner ruling on
-DECISIONS 174), WebP at 4; `ENCODER_VERSION` 5.
+DECISIONS 174), WebP at 4; `ENCODER_VERSION` 5. `sharp({ effort: { avif } })` sets it (a whole
+number 0 to 9, else `image_option_invalid`; another key `image_option_unknown`): the build's files
+(the handoff's `avif_effort`), the dev server's and the endpoint's (a generated maker module,
+`makers/sharp-at.ts sharp_maker(effort)`). Files keep their names (the effort changes their size,
+not their picture); each effort has its own store folder (`v5-avif<n>-<vips>`), so a warm build
+never keeps bytes made at another effort.
 
 The macro compiles a call in a JS module, a `.svelte` component's `<script>` and a markdown page's
 (`.svx`, `.md`) `<script>`: ogygia hands every plugin macro the module's code regions

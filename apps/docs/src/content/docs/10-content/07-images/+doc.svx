@@ -524,7 +524,7 @@ With `vercel()` alone (no `sharp()` after it), the server holds no encoder at al
 
 ## Formats and options
 
-By default each image is offered as AVIF (quality 60) and WebP (quality 80), and the `<img>` fallback is WebP. sharp makes AVIF at effort 2 (of 0 to 9): about twice as fast as 4, for files about 0.2% larger. Some files are special:
+By default each image is offered as AVIF (quality 60) and WebP (quality 80), and the `<img>` fallback is WebP. sharp makes AVIF at effort 2 (of 0 to 9): about twice as fast as 4, for files about 0.2% larger. To spend more build time on smaller files, set it: `image({ encoder: sharp({ effort: { avif: 6 } }) })` (a whole number from 0 to 9, else the build fails with `image_option_invalid`). It applies to every file sharp makes: the build's, the dev server's and the endpoint's. Some files are special:
 
 - **An animated GIF or WebP** is offered as animated WebP only. Every frame is kept: a 1200 × 800 screen recording of 300 frames encodes in about half a second. A frame past 16383 × 16383 pixels, or an animation past 4,294,967,296 pixels over all its frames, fails the build with the file's name (`image_too_large`).
 - **An SVG** is served as it is: it already scales.

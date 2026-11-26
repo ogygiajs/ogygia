@@ -39,6 +39,7 @@ import { OgygiaError, warn } from '../messages.ts';
 import { UNPUBLISHED_RE, type BuildHandoff } from '../handoff.ts';
 import { handoff_for, write_built, type WarmSource } from './build-files.ts';
 import {
+	avif_effort_of,
 	check_encoder,
 	check_platform,
 	encoder_runtime,
@@ -96,6 +97,7 @@ export {
 	vercel,
 	type CloudflareOptions,
 	type Encoder,
+	type SharpOptions,
 	type VercelImages,
 	type VercelRemotePattern,
 	type VercelOptions
@@ -247,6 +249,7 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 	const link_qualities = encoders.find((e) => e.name === 'vercel')?.qualities ?? 'any';
 	const widths = widths_of(encoders);
 	const stills = makes_stills(encoders);
+	const avif_effort = avif_effort_of(encoders);
 	let config: ResolvedConfig | undefined;
 	let paths: AppPaths | null = null;
 	let handoff: BuildHandoff | null = null;
@@ -306,10 +309,11 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 						encoders: encoders.map((e) => `${e.name}()`).join(', ')
 					});
 			}
-			handoff = await handoff_for(build(), c.root);
+			handoff = await handoff_for(build(), c.root, null, avif_effort);
 		},
 		async buildStart() {
-			if (config && build()) handoff = await handoff_for(true, config.root, output_of(config));
+			if (config && build())
+				handoff = await handoff_for(true, config.root, output_of(config), avif_effort);
 		},
 		configureServer(server) {
 			server.watcher.on('change', () => {

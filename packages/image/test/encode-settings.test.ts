@@ -88,3 +88,34 @@ test('a change to what sharp is asked for a placeholder bumps PLAN_VERSION, so n
 	await placeholder_of(new Uint8Array(1), { grayscale: true }, { width: 8, height: 30 });
 	expect(PLAN_SEEN[PLAN_VERSION]).toBe(print(calls));
 });
+
+test("sharp({ effort: { avif } }) is what sharp is asked for an AVIF file, by the endpoint's maker and the build alike; the default is 2", async () => {
+	const { sharp } = await import('../src/vite/encoder.ts');
+	const { sharp_maker } = await import('../src/makers/sharp-at.ts');
+	const avif = () =>
+		calls
+			.filter((c) => (c as [string])[0] === 'avif')
+			.map((c) => (c as [string, [{ effort: number }]])[1][0].effort);
+	calls.length = 0;
+	await encode_recipe(new Uint8Array(1), { width: 32, height: 32, format: 'avif' });
+	await encode_recipe(new Uint8Array(1), { width: 32, height: 32, format: 'avif' }, 7);
+	await sharp_maker(sharp({ effort: { avif: 5 } }).effort!.avif).make(
+		new Uint8Array(1),
+		{ id: 'x', width: 32, height: 32, format: 'avif' } as never,
+		undefined
+	);
+	expect(avif()).toEqual([2, 7, 5]);
+	expect(sharp().effort).toEqual({ avif: 2 });
+});
+
+test('an AVIF effort that is no whole number from 0 to 9, or an unknown key, fails the build with a code', async () => {
+	const { sharp } = await import('../src/vite/encoder.ts');
+	for (const avif of [-1, 10, 2.5, '4', null])
+		expect(() => sharp({ effort: { avif: avif as number } }), String(avif)).toThrow(
+			/image_option_invalid[\s\S]*effort\.avif|effort\.avif[\s\S]*image_option_invalid/
+		);
+	expect(() => sharp({ effort: { webp: 4 } as never })).toThrow(/image_option_unknown/);
+	expect(() => sharp({ speed: 1 } as never)).toThrow(/image_option_unknown/);
+	expect(sharp({ effort: { avif: 0 } }).effort).toEqual({ avif: 0 });
+	expect(sharp({ effort: { avif: 9 } }).effort).toEqual({ avif: 9 });
+});

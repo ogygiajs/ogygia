@@ -100,6 +100,10 @@ export const DEFAULT_QUALITY: Readonly<Record<'avif' | 'webp' | 'jpeg', number>>
 	jpeg: 80
 };
 
+/** How hard sharp works on an AVIF file (0 to 9) unless `sharp({ effort: { avif } })` says: 2
+ *  makes a build about twice as fast as 4 for 0.2% more bytes (DECISIONS 174, the owner's ruling). */
+export const DEFAULT_AVIF_EFFORT = 2;
+
 const ASPECT_RE = /^\s*(\d+(?:\.\d+)?)\s*[/:]\s*(\d+(?:\.\d+)?)\s*$/;
 
 /** The aspect ratio `aspect` asks for (width / height), or null. */

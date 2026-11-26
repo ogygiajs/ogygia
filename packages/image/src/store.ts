@@ -31,6 +31,7 @@ import { cache, clock, random, type Cache } from '@ogygia/machine';
 import type { Kept } from './maker.ts';
 import { said, warn } from './messages.ts';
 import { ENCODER_VERSION } from './source-id.ts';
+import { DEFAULT_AVIF_EFFORT } from './config.ts';
 
 /** The name of the channel a build's prerender tells it each recipe on, as it notes it: the build
  *  starts the file at once. */
@@ -70,8 +71,9 @@ export function origin_of(minted: string): string {
 	}
 }
 
-function version_dir(vips: string): string {
-	return `v${ENCODER_VERSION}-${vips}`;
+function version_dir(vips: string, avif_effort: number): string {
+	const effort = avif_effort === DEFAULT_AVIF_EFFORT ? '' : `-avif${avif_effort}`;
+	return `v${ENCODER_VERSION}${effort}-${vips}`;
 }
 const HOUR_MS = 3600 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -259,10 +261,15 @@ function open_store(root: string, dir: string, max: number): FileStore {
 }
 
 /** Open the build cache's store under `cache` (the plugin's `BuildCache` folder), for files made
- *  with libvips `vips`, and give its folder: marked as in use, kept to {@link BUILD_STORE_MAX}, the
- *  unused version folders beside it removed. */
-export function open_build_store(cache: string, vips: string): string {
-	const dir = path.join(cache, version_dir(vips));
+ *  with libvips `vips` and AVIF at `avif_effort` (each its own folder, so a warm build never keeps
+ *  bytes made another way), and give its folder: marked as in use, kept to
+ *  {@link BUILD_STORE_MAX}, the unused version folders beside it removed. */
+export function open_build_store(
+	cache: string,
+	vips: string,
+	avif_effort: number = DEFAULT_AVIF_EFFORT
+): string {
+	const dir = path.join(cache, version_dir(vips, avif_effort));
 	fs.mkdirSync(dir, { recursive: true });
 	open_store(cache, dir, BUILD_STORE_MAX);
 	return dir;
@@ -278,8 +285,13 @@ function owned(dir: string): boolean {
 /** A live server's store: `<tmp>/ogygia-image-<uid>/<version>/`, made owner-only. Null (no store:
  *  each file is made per ask, flights still share one) when the folder is not safely this user's: a
  *  folder another user made first, or a link, could hand out bytes it chose. `vips` is the libvips
- *  version the files are made with (read where sharp is loaded: ./makers/sharp.ts). */
-export function runtime_store(vips: string, tmp: string = os.tmpdir()): FileStore | null {
+ *  version the files are made with (read where sharp is loaded: ./makers/sharp.ts), and
+ *  `avif_effort` the AVIF effort. */
+export function runtime_store(
+	vips: string,
+	tmp: string = os.tmpdir(),
+	avif_effort: number = DEFAULT_AVIF_EFFORT
+): FileStore | null {
 	const uid = typeof process.getuid === 'function' ? process.getuid() : 'user';
 	const root = path.join(tmp, `ogygia-image-${uid}`);
 	try {
@@ -291,7 +303,7 @@ export function runtime_store(vips: string, tmp: string = os.tmpdir()): FileStor
 			warn('image_store_unsafe', { dir: root });
 			return null;
 		}
-		const dir = path.join(root, version_dir(vips));
+		const dir = path.join(root, version_dir(vips, avif_effort));
 		fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
 		if (!owned(dir)) {
 			warn('image_store_unsafe', { dir });

@@ -21,7 +21,7 @@ import { dedent } from '@ogygia/core/contract';
 import { decisions, type Decisions } from '@ogygia/machine';
 import { cannot } from '../encoders/capabilities.ts';
 import { NEEDS, type Need } from '../encoders/needs.ts';
-import { DEFAULT_BREAKPOINTS, DEFAULT_QUALITY } from '../config.ts';
+import { DEFAULT_AVIF_EFFORT, DEFAULT_BREAKPOINTS, DEFAULT_QUALITY } from '../config.ts';
 import { OgygiaError, said, warn } from '../messages.ts';
 import { host_rule } from '../remote-hosts.ts';
 import { peer_state } from './peers.ts';
@@ -46,11 +46,59 @@ export interface Encoder {
 	readonly widths: 'any' | readonly number[];
 	/** The qualities it makes: any, or only these. */
 	readonly qualities: 'any' | readonly number[];
+	/** How hard sharp works on each format, for `sharp()` (null for the others): AVIF 0 to 9. */
+	readonly effort: { readonly avif: number } | null;
+}
+
+/** What `sharp()` takes. */
+export interface SharpOptions {
+	/** How hard sharp works on a file, per format: `avif` a whole number from 0 (fastest) to 9
+	 *  (smallest). Default `{ avif: 2 }`: about twice as fast as 4, for files about 0.2% larger. */
+	effort?: { avif?: number };
+}
+
+const SHARP_KEYS: ReadonlySet<string> = new Set(['effort']);
+const EFFORT_KEYS: ReadonlySet<string> = new Set(['avif']);
+
+function plain_object(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 /** sharp (the default): the app's own endpoint makes every live file, in dev and on a Node server,
- *  and the build every file a prerendered page names. */
-export function sharp(): Encoder {
+ *  and the build every file a prerendered page names. `effort.avif` trades build time for
+ *  smaller AVIF files. */
+export function sharp(options: SharpOptions = {}): Encoder {
+	const where = 'sharp()';
+	if (!plain_object(options))
+		throw new OgygiaError('image_option_invalid', { where, key: 'options', rule: 'an object' });
+	for (const key of Object.keys(options))
+		if (!SHARP_KEYS.has(key))
+			throw new OgygiaError('image_option_unknown', {
+				where,
+				key,
+				known: [...SHARP_KEYS].join(', ')
+			});
+	const effort = options.effort ?? {};
+	if (!plain_object(effort))
+		throw new OgygiaError('image_option_invalid', {
+			where,
+			key: 'effort',
+			rule: 'an object, { avif }'
+		});
+	for (const key of Object.keys(effort))
+		if (!EFFORT_KEYS.has(key))
+			throw new OgygiaError('image_option_unknown', {
+				where: `${where} effort`,
+				key,
+				known: [...EFFORT_KEYS].join(', ')
+			});
+	const avif: unknown = effort.avif === undefined ? DEFAULT_AVIF_EFFORT : effort.avif;
+	if (typeof avif !== 'number' || !Number.isInteger(avif) || avif < 0 || avif > 9)
+		throw new OgygiaError('image_option_invalid', {
+			where,
+			key: 'effort.avif',
+			rule: 'a whole number from 0 to 9'
+		});
 	return {
 		name: 'sharp',
 		links: null,
@@ -58,8 +106,15 @@ export function sharp(): Encoder {
 		binding: null,
 		negotiates: false,
 		widths: 'any',
-		qualities: 'any'
+		qualities: 'any',
+		effort: { avif }
 	};
+}
+
+/** The AVIF effort sharp makes `encoders`' files at: the `sharp()` in the list's, else the default
+ *  (the build makes a prerendered page's files with sharp whatever the encoder). */
+export function avif_effort_of(encoders: readonly Encoder[]): number {
+	return encoders.find((e) => e.effort !== null)?.effort?.avif ?? DEFAULT_AVIF_EFFORT;
 }
 
 /** What `cloudflare()` takes. */
@@ -108,7 +163,8 @@ export function cloudflare(options: CloudflareOptions = {}): Encoder {
 		binding,
 		negotiates: false,
 		widths: 'any',
-		qualities: 'any'
+		qualities: 'any',
+		effort: null
 	};
 }
 
@@ -203,6 +259,7 @@ export function vercel(options: VercelOptions = {}): Encoder & { readonly images
 		negotiates: true,
 		widths: sizes,
 		qualities,
+		effort: null,
 		images: {
 			sizes,
 			qualities,
@@ -239,6 +296,7 @@ const MAKERS: Readonly<Record<'sharp' | 'binding' | 'none', string>> = {
 	binding: file_of(import.meta.resolve('../makers/binding.ts')),
 	none: file_of(import.meta.resolve('../makers/none.ts'))
 };
+const SHARP_AT: string = file_of(import.meta.resolve('../makers/sharp-at.ts'));
 const ENDPOINT_NAMER: string = file_of(import.meta.resolve('../namers/endpoint.ts'));
 const RESOLVE_NAMER: string = file_of(import.meta.resolve('../namers/resolve.ts'));
 const LINK_CODE: Readonly<Record<LinkPlan['kind'], { name: string; file: string }>> = {
@@ -253,11 +311,20 @@ const LINK_CODE: Readonly<Record<LinkPlan['kind'], { name: string; file: string 
  *  sharp: no Worker binding runs there. */
 export function maker_module(encoders: readonly Encoder[], dev: boolean): string {
 	const e = endpoint_of(encoders);
-	if (dev || e?.maker !== 'binding')
-		return `export * from ${JSON.stringify(MAKERS[dev ? 'sharp' : (e?.maker ?? 'none')])};\n`;
+	const kind = dev ? 'sharp' : (e?.maker ?? 'none');
+	const effort = avif_effort_of(encoders);
+	if (kind === 'sharp' && effort !== DEFAULT_AVIF_EFFORT)
+		return dedent`
+			import { sharp_maker } from ${JSON.stringify(SHARP_AT)};
+			const maker = sharp_maker(${effort});
+			export const parallel = maker.parallel;
+			export const make = maker.make;
+			export const store = maker.store;
+		`;
+	if (kind !== 'binding') return `export * from ${JSON.stringify(MAKERS[kind])};\n`;
 	return dedent`
 		import { binding_maker } from ${JSON.stringify(MAKERS.binding)};
-		const maker = binding_maker(${JSON.stringify(e.binding)});
+		const maker = binding_maker(${JSON.stringify(e!.binding)});
 		export const parallel = maker.parallel;
 		export const make = maker.make;
 		export const store = maker.store;

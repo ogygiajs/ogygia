@@ -6,7 +6,7 @@ Responsive images for [ogygia](https://ogygiajs.dev) apps. The build reads each 
 pnpm add @ogygia/image sharp
 ```
 
-sharp, the encoder, is a peer: list it in your app's `dependencies` (a server build fails with `image_sharp_missing` without it). `image({ encoder: sharp() })` (from `@ogygia/image/vite`) is the default; it makes AVIF at effort 2 (of 0 to 9); on Cloudflare Workers use `image({ encoder: cloudflare() })` (Image Transformations links, or the Worker's Images binding with `links: false`); on Vercel `image({ encoder: [vercel(), sharp()] })` with `adapter({ images: vercel().images })` (Vercel's Image Optimization links for plain resizes, sharp for crops and operations).
+sharp, the encoder, is a peer: list it in your app's `dependencies` (a server build fails with `image_sharp_missing` without it). `image({ encoder: sharp() })` (from `@ogygia/image/vite`) is the default; it makes AVIF at effort 2 (of 0 to 9), and `sharp({ effort: { avif: 6 } })` trades build time for smaller files; on Cloudflare Workers use `image({ encoder: cloudflare() })` (Image Transformations links, or the Worker's Images binding with `links: false`); on Vercel `image({ encoder: [vercel(), sharp()] })` with `adapter({ images: vercel().images })` (Vercel's Image Optimization links for plain resizes, sharp for crops and operations).
 
 ```ts
 // vite.config.ts

@@ -6,7 +6,7 @@
  * @packageDocumentation
  */
 import sharp, { type Metadata, type Sharp } from 'sharp';
-import { DEFAULT_QUALITY } from './config.ts';
+import { DEFAULT_AVIF_EFFORT, DEFAULT_QUALITY } from './config.ts';
 import type { ImageFormat, ImageOps } from './descriptor.ts';
 import { FRAME_PIXELS_MAX, REMOTE_TAIL } from './recipe.ts';
 
@@ -39,10 +39,6 @@ export { FRAME_PIXELS_MAX };
  *  so memory stays small; the time an encode takes grows with them (a 1200 × 800 recording of 300
  *  frames, 288 million pixels, takes about half a second). */
 export const ANIMATION_PIXELS_MAX: number = 2 ** 32;
-
-/** How hard sharp works on an AVIF file (0 to 9): 2 makes a build about twice as fast as 4 for
- *  0.2% more bytes (DECISIONS 174, the owner's ruling). */
-export const AVIF_EFFORT = 2;
 
 /** The pixels an encode of a source with `meta` reads: one frame, or every frame of an
  *  animation. */
@@ -105,7 +101,8 @@ export async function encode(
 		ops?: ImageOps;
 	},
 	animated: boolean,
-	pixels: number = FRAME_PIXELS_MAX
+	pixels: number = FRAME_PIXELS_MAX,
+	avif_effort: number = DEFAULT_AVIF_EFFORT
 ): Promise<Buffer> {
 	let img = pipeline(
 		bytes,
@@ -118,7 +115,7 @@ export async function encode(
 	);
 	const q = file.quality;
 	if (file.format === 'avif')
-		img = img.avif({ quality: q ?? DEFAULT_QUALITY.avif, effort: AVIF_EFFORT });
+		img = img.avif({ quality: q ?? DEFAULT_QUALITY.avif, effort: avif_effort });
 	else if (file.format === 'webp')
 		img = img.webp({
 			quality: q ?? DEFAULT_QUALITY.webp,
@@ -155,7 +152,7 @@ export async function placeholder_of(
 }
 
 /** One recipe's file from its original's bytes (every frame kept when the original moves, its
- *  first only for a `still`). An original {@link too_large} to read fails, saying why. */
+ *  first only for a `still`), AVIF at `avif_effort`. An original {@link too_large} to read fails, saying why. */
 export async function encode_recipe(
 	bytes: Uint8Array,
 	recipe: {
@@ -167,7 +164,8 @@ export async function encode_recipe(
 		still?: true;
 		ops?: ImageOps;
 		tail?: string;
-	}
+	},
+	avif_effort: number = DEFAULT_AVIF_EFFORT
 ): Promise<Buffer> {
 	const meta = await metadata_of(bytes);
 	const why = too_large(meta);
@@ -176,7 +174,7 @@ export async function encode_recipe(
 	const box = recipe.tail?.startsWith(REMOTE_TAIL)
 		? within(recipe, shown_size(meta, recipe.ops ?? {}, animated))
 		: recipe;
-	return encode(bytes, box, animated, pixels_read(meta));
+	return encode(bytes, box, animated, pixels_read(meta), avif_effort);
 }
 
 function within<T extends { width: number; height: number }>(

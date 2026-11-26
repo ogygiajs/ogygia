@@ -43,7 +43,7 @@ import {
 	type Queue,
 	type Scope
 } from '@ogygia/machine';
-import type { RenderConfig } from '../config.ts';
+import { DEFAULT_AVIF_EFFORT, type RenderConfig } from '../config.ts';
 import type { ImageDescriptor } from '../descriptor.ts';
 import { lay_out, preset_request } from '../layout.ts';
 import { OgygiaError } from '../messages.ts';
@@ -99,7 +99,8 @@ function remove_old_runs(runs: string): void {
 export async function handoff_for(
 	build: boolean,
 	root: string = process.cwd(),
-	output: string | null = null
+	output: string | null = null,
+	avif_effort: number = DEFAULT_AVIF_EFFORT
 ): Promise<BuildHandoff> {
 	const open = build_handoff();
 	if (open && (!build || (open.minted && fs.existsSync(path.dirname(open.minted))))) {
@@ -120,11 +121,12 @@ export async function handoff_for(
 		mark = `//${id.replaceAll('-', '').slice(0, 16)}.ogygia.invalid`;
 	}
 	const handoff: BuildHandoff = {
-		store: open_build_store(path.join(cache, 'files'), (await pixels()).VIPS_VERSION),
+		store: open_build_store(path.join(cache, 'files'), (await pixels()).VIPS_VERSION, avif_effort),
 		minted,
 		mark,
 		written: '',
 		root,
+		avif_effort,
 		remote: path.join(cache, 'remote')
 	};
 	process.env[BUILD_ENV] = JSON.stringify(handoff);
@@ -189,6 +191,7 @@ class BuildMakes {
 
 	readonly #minted: string;
 	readonly #store: FileStore;
+	readonly #avif_effort: number;
 	readonly #scope: Scope = scope();
 	readonly #encodes: Queue<Turn> = line_of('image build encodes', this.#scope);
 	readonly #writes: Queue<Turn> = line_of('image build writes', this.#scope);
@@ -206,12 +209,15 @@ class BuildMakes {
 		},
 		keep: 0,
 		run: ({ key, recipe, original, card }: Ask): Promise<Uint8Array> =>
-			in_turn(this.#encodes, () => made(this.#store, key, recipe, original, card))
+			in_turn(this.#encodes, () =>
+				made(this.#store, key, recipe, original, card, this.#avif_effort)
+			)
 	});
 
 	private constructor(handoff: BuildHandoff, output: string) {
 		this.#minted = handoff.minted;
 		this.#store = FileStore.shared(handoff.store);
+		this.#avif_effort = handoff.avif_effort;
 		const channel = new BroadcastChannel(built_channel(handoff.minted));
 		channel.unref();
 		channel.onmessage = (event: unknown) => {
@@ -265,14 +271,15 @@ async function made(
 	key: string,
 	recipe: Omit<Recipe, 'src'>,
 	original: () => Uint8Array | Promise<Uint8Array>,
-	card: boolean
+	card: boolean,
+	avif_effort: number
 ): Promise<Uint8Array> {
 	const kept = await store.find(key);
 	if (kept) return fs.promises.readFile(kept.file);
 	const bytes = await original();
 	if (!card && (await source_id(bytes)) !== recipe.id)
 		throw new Error(`its original is not the source ${recipe.id} any more`);
-	const data = await (await pixels()).encode_recipe(bytes, recipe);
+	const data = await (await pixels()).encode_recipe(bytes, recipe, avif_effort);
 	await store.keep(key, data);
 	return data;
 }

@@ -7750,7 +7750,19 @@
 		},
 		{
 			"id": "packages/image/src/vite/encoder.ts > sharp",
-			"reason": "config time: one small object, once per vite.config load"
+			"reason": "config time: its options checked and one small object, once per vite.config load; test/encode-settings.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/encoder.ts > plain_object",
+			"reason": "config time, per option object sharp() reads: one type test"
+		},
+		{
+			"id": "packages/image/src/vite/encoder.ts > avif_effort_of",
+			"reason": "config time, once per plugin: the sharp() of a few encoders"
+		},
+		{
+			"id": "packages/image/src/vite/encoder.ts > avif_effort_of > find:0~98e869",
+			"reason": "per encoder of the check above (one to three), one field test"
 		},
 		{
 			"id": "packages/image/src/vite/encoder.ts > encoders_of",
@@ -8271,14 +8283,6 @@
 		{
 			"id": "packages/image/src/handoff.ts > published",
 			"reason": "constant work: two regex tests and a prefix check, in dev on an unknown original only; the e2e dev mode runs it"
-		},
-		{
-			"id": "packages/image/src/vite/build-files.ts > BuildMakes > call:0~4eed4c > run",
-			"reason": "build time, once per file the build makes: a flight over sharp's encode (or a store read); test/build-head-start.test.ts and the e2e static and base builds run it"
-		},
-		{
-			"id": "packages/image/src/vite/build-files.ts > BuildMakes > call:0~4eed4c > run > in_turn:1~a75d01",
-			"reason": "build time, once per file the build makes: a flight over sharp's encode (or a store read); test/build-head-start.test.ts and the e2e static and base builds run it"
 		},
 		{
 			"id": "packages/image/src/vite/build-files.ts > BuildMakes > close",
