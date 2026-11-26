@@ -248,6 +248,62 @@ describe("a card's images, as satori is handed them", () => {
 		}
 	);
 
+	test.each([
+		{
+			file: 'CMYK JPEG',
+			color: [255, 0, 0],
+			make: (img: sharp.Sharp) => img.toColourspace('cmyk').jpeg()
+		},
+		{
+			file: 'Display P3 JPEG',
+			color: [255, 0, 0],
+			make: (img: sharp.Sharp) => img.withIccProfile('p3').jpeg()
+		},
+		{
+			file: '16-bit PNG',
+			color: [255, 0, 0],
+			make: (img: sharp.Sharp) => img.toColourspace('rgb16').png()
+		},
+		{
+			file: 'grey PNG',
+			color: [128, 128, 128],
+			make: (img: sharp.Sharp) => img.toColourspace('b-w').png()
+		},
+		{
+			file: '16-bit grey PNG',
+			color: [128, 128, 128],
+			make: (img: sharp.Sharp) => img.toColourspace('grey16').png()
+		}
+	])(
+		'a small $file on a card draws its own pixels, as an <img> and as a background url() (resvg draws a CMYK JPEG as nothing and reads no colour profile)',
+		async ({ color, make }) => {
+			const background = color[1] === 0 ? '#ff0000' : '#808080';
+			const bytes = await make(
+				sharp({ create: { width: 300, height: 300, channels: 3, background } })
+			).toBuffer();
+			const data = `data:image/jpeg;base64,${bytes.toString('base64')}`;
+			for (const markup of [
+				'<img src="https://cms.example.com/a" style="width: 300px; height: 300px">',
+				`<div style="display: flex; width: 300px; height: 300px; background-image: url(${data})"></div>`
+			]) {
+				const png = await card_png(
+					spec_of(
+						`<div style="display: flex; width: ${W}px; height: ${H}px; background-color: #0000ff">${markup}</div>`
+					),
+					{},
+					[FONT],
+					() => Promise.resolve(new Uint8Array(bytes)),
+					fit_to_card
+				);
+				const seen = await pixel(png, 100, 100);
+				expect(
+					seen.every((v, i) => Math.abs(v - color[i]!) <= 6),
+					`${markup.slice(0, 4)}: drew ${seen.join(',')}`
+				).toBe(true);
+			}
+		}
+	);
+
 	test("an <img> read as a Buffer that is a view into a larger pool hands satori that image's bytes alone, not the pool's", async () => {
 		const red = await sharp({
 			create: { width: 300, height: 300, channels: 3, background: '#ff0000' }
@@ -284,6 +340,25 @@ describe("a card's images, as satori is handed them", () => {
 				(bytes) => Promise.resolve({ bytes, type: 'image/webp' })
 			)
 		).rejects.toMatchObject({ code: 'image_card_source' });
+		expect(drawn).toEqual([]);
+	});
+
+	test('a file resvg cannot draw never reaches it: a fit that hands back a CMYK JPEG or a 16-bit PNG is refused, coded', async () => {
+		const red = sharp({ create: { width: 8, height: 8, channels: 3, background: '#f00' } });
+		for (const [bytes, type] of [
+			[await red.clone().toColourspace('cmyk').jpeg().toBuffer(), 'image/jpeg'],
+			[await red.clone().toColourspace('rgb16').png().toBuffer(), 'image/png']
+		] as const)
+			await expect(
+				card_png(
+					spec_of('<img src="https://cms.example.com/a" style="width: 10px; height: 10px">'),
+					{},
+					[FONT],
+					() => Promise.resolve(new Uint8Array(bytes)),
+					(b) => Promise.resolve({ bytes: b, type })
+				),
+				type
+			).rejects.toMatchObject({ code: 'image_card_source' });
 		expect(drawn).toEqual([]);
 	});
 
