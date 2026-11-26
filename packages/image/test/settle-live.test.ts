@@ -96,3 +96,12 @@ test('more files asked at once than the server queues answer 503 with a retry-af
 	expect(warn.mock.calls.map((c) => String(c[0]))).toEqual([expect.stringMatching(/image_busy/)]);
 	warn.mockRestore();
 });
+
+test('a second full line, after the first one emptied, is said again', async () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	io.slow = true;
+	await get(url_at(300));
+	await Promise.all(Array.from({ length: 120 }, (_, i) => get(url_at(400 + i))));
+	expect(warn.mock.calls.map((c) => String(c[0]))).toEqual([expect.stringMatching(/image_busy/)]);
+	warn.mockRestore();
+});
