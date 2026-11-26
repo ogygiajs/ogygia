@@ -244,6 +244,7 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 	const presets = Object.keys(opts.presets ?? {});
 	const remote = opts.remote ? new RemoteImages(opts.remote) : null;
 	const encoders = encoders_of(opts.encoder);
+	const link_qualities = encoders.find((e) => e.name === 'vercel')?.qualities ?? 'any';
 	const widths = widths_of(encoders);
 	const stills = makes_stills(encoders);
 	let config: ResolvedConfig | undefined;
@@ -379,6 +380,7 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 				options_of_query(id.slice(q + 1)),
 				presets
 			);
+			check_qualities(opts, link_qualities, { where: path.basename(file), options: own });
 			if (config && !is_remote_file(handoff?.remote ?? '', file)) {
 				const rel = path.relative(config.root, file).split(path.sep).join('/');
 				if (!rel.startsWith('src/') || UNPUBLISHED_RE.test(rel))

@@ -227,10 +227,20 @@ function list_rule(list: readonly Encoder[]): string | null {
 	return null;
 }
 
-/** Check that the plugin's and every preset's `quality` is one `vercel()` makes (`qualities`). */
-export function check_qualities(opts: ImagePluginOptions, qualities: Encoder['qualities']): void {
+/** Check that the plugin's and every preset's `quality` is one `vercel()` makes (`qualities`), or,
+ *  given `own`, one source's (its macro call's options, `where` naming it). */
+export function check_qualities(
+	opts: ImagePluginOptions,
+	qualities: Encoder['qualities'],
+	own?: { where: string; options: ImageOptions }
+): void {
 	if (qualities === 'any') return;
 	const rule = `one vercel() makes (${qualities.join(', ')}): list it in vercel({ qualities })`;
+	if (own !== undefined) {
+		if (own.options.quality !== undefined && !qualities.includes(own.options.quality))
+			invalid(own.where, 'quality', rule);
+		return;
+	}
 	if (opts.quality !== undefined && !qualities.includes(opts.quality))
 		invalid('image()', 'quality', rule);
 	for (const [name, p] of Object.entries(opts.presets ?? {}))
