@@ -81,6 +81,7 @@
 		"@types/node": "catalog:",
 		"@typescript/native": "catalog:tsgo",
 		"fast-check": "catalog:",
+		"mdsvex": "catalog:",
 		"rolldown": "catalog:",
 		"sass-embedded": "^1.104.1",
 		"svelte": "catalog:",
