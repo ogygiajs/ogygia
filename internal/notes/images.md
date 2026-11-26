@@ -301,7 +301,9 @@ checked here: where it is fetched.
   bytes must be a JPEG/PNG/GIF/WebP/ISO-BMFF/TIFF signature), one flight per URL (`keep: 0`), in
   the fetch line (16, §5) before the encode takes its slot. Refusals, each `no-store`: 404 unlisted
   hop or private address, 413 too large, 504 timeout, 502 status / no answer / not an image / did
-  not decode. A refused URL is remembered for 30 s (a machine `cache`, at most 1024 URLs): every
+  not decode (the maker's `SourceUnreadable`: its header does not read, or it is past one frame's
+  pixels; any other failed encode, such as memory under load, is that one file's 500
+  `image_settle_failed`, remembered nowhere). A refused URL is remembered for 30 s (a machine `cache`, at most 1024 URLs): every
   file of it is answered the same status with no fetch meanwhile, so a replayed URL costs one
   fetch per 30 s. `image_remote_refused` is said once per failing streak per URL (`said_each`,
   its own memory beside the constant keys' `said`), and said again after a good fetch.

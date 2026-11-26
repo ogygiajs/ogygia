@@ -37,6 +37,11 @@ export class CannotMake extends Error {
 	}
 }
 
+/** The original's own bytes cannot be read (its header does not decode, or it is past the pixels
+ *  one frame may have): every file of it fails the same way. Any other failure of a make is that
+ *  one file's. */
+export class SourceUnreadable extends Error {}
+
 /** What a maker module exports. */
 export interface Maker {
 	/** How many files it makes at once. */
