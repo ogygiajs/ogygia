@@ -8,7 +8,13 @@ import path from 'node:path';
 import { beforeAll, describe, expect, test } from 'vitest';
 import { check, dead_fields } from '@ogygia/machine/testing';
 import { dedent } from '@ogygia/core/contract';
-import { CARD_ENGINE_CHECK, card_digest, Cards, CARD_PREFIX } from '../src/vite/card.ts';
+import {
+	build_card_images,
+	CARD_ENGINE_CHECK,
+	card_digest,
+	Cards,
+	CARD_PREFIX
+} from '../src/vite/card.ts';
 import { image_call_edits } from '../src/vite/macro.ts';
 
 const MONO = createRequire(import.meta.url).resolve(
@@ -306,4 +312,19 @@ test('every row of the card engine table: nothing draws without the engine insta
 			r.plan === 'edge'
 	});
 	expect(dead_fields(CARD_ENGINE_CHECK)).toEqual([]);
+});
+
+test("the build reads a card's image where the live endpoint does, the server's assets: a client-only file or a static/ file is refused", async () => {
+	const output = fs.mkdtempSync(path.join(os.tmpdir(), 'og-card-output-'));
+	const at = (side: string, file: string) => {
+		fs.mkdirSync(path.dirname(path.join(output, side, file)), { recursive: true });
+		fs.writeFileSync(path.join(output, side, file), 'bytes');
+	};
+	at('server', '_app/immutable/assets/hero.Ab12.jpg');
+	at('client', '_app/immutable/assets/client-only.Cd34.jpg');
+	at('client', 'logo.png');
+	const read = build_card_images(output, ['', ''], null);
+	expect(Buffer.from(await read('/_app/immutable/assets/hero.Ab12.jpg')).toString()).toBe('bytes');
+	for (const src of ['/_app/immutable/assets/client-only.Cd34.jpg', '/logo.png'])
+		await expect(read(src), src).rejects.toThrow(/no file/);
 });
