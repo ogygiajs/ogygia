@@ -45,6 +45,26 @@ describe('absolutize', () => {
 		);
 	});
 
+	it('pins a Cloudflare link whose options hold commas as one candidate, in src and srcset alike', () => {
+		const one =
+			'/cdn-cgi/image/width=320,height=180,fit=cover,format=avif/_app/immutable/assets/hero.jpg';
+		const two =
+			'/cdn-cgi/image/width=640,height=360,fit=cover,format=avif/_app/immutable/assets/hero.jpg';
+		const html = `<img src="${one}" srcset="${one} 320w,${two} 640w" alt=""><img srcset="${one}, ${two} 2x" alt="">`;
+		expect(absolutize(html, O)).toBe(
+			`<img src="${O}${one}" srcset="${O}${one} 320w,${O}${two} 640w" alt=""><img srcset="${O}${one}, ${O}${two} 2x" alt="">`
+		);
+	});
+
+	it("pins a Vercel link (its source is in the query, encoded) to the peer, in src, srcset and a style's url()", () => {
+		const one = '/_vercel/image?url=%2F_app%2Fimmutable%2Fassets%2Fhero.jpg&amp;w=640&amp;q=75';
+		const two = '/_vercel/image?url=%2F_app%2Fimmutable%2Fassets%2Fhero.jpg&amp;w=1280&amp;q=75';
+		const html = `<img src="${one}" srcset="${one} 640w, ${two} 1280w" alt=""><div style="background:url(&quot;${two}&quot;)"></div>`;
+		expect(absolutize(html, O)).toBe(
+			`<img src="${O}${one}" srcset="${O}${one} 640w, ${O}${two} 1280w" alt=""><div style="background:url(&quot;${O}${two}&quot;)"></div>`
+		);
+	});
+
 	it('pins an image a style attribute names (a CSS background from getImage), and leaves its other urls', () => {
 		const img = '/__ogygia__/i/5f2a/h1-1280x720/_app/immutable/assets/hero.Ab12.jpg.webp';
 		const html = `<section style="background-image:url(${img});color:red"></section><div style="background:url(&quot;/_app/immutable/assets/a.png&quot;) no-repeat, url('/blog/x')"></div><p style="color:blue">x</p>`;
