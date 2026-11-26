@@ -32,8 +32,8 @@ that makes files on request, does not list it in `dependencies` (adapter-node bu
 else, and a bundled sharp cannot find its binary). The check is one `decisions()` table
 (`ENCODER`): runtime (dev, client, prerendered, server, edge) × the endpoint's maker (sharp,
 binding, none) × installed × listed. With no sharp maker (`cloudflare()`, `vercel()` alone) sharp
-is needed to build only (`devDependencies` is enough). An edge adapter with a sharp maker warns
-`image_no_encoder` once, naming `cloudflare()`. On a server only the endpoint loads sharp (a lazy
+is needed to build only (`devDependencies` is enough). An edge build warns `image_no_encoder` once
+only when `sharp()` is chosen, and fails when it lists no encoder (§5). On a server only the endpoint loads sharp (a lazy
 import), so a server that never serves an image never loads it. e2e `server` mode runs the
 adapter's own output (`node build`, NODE_PATH unset) to hold this.
 
@@ -377,15 +377,23 @@ BUILT (V4 R9). `import.meta.og.image.card('./Card.svelte', { width, height, font
   build to the cold one's names). Dev: a fresh value at each load; every file change invalidates
   the card modules.
 - **Images** (`cards/images.ts`): satori fetches nothing. Before it draws, every address the tree
-  names, in any element (each `src`, `href`, `xlink:href`, each `url()` in a style or attribute;
-  `#…` refs are the card's own), is read by the card's realm and handed over as a `data:` URL; a
-  link's `href` too (a card is an image). Attribute values are entity-decoded first
+  names (each `src`, an SVG element's `href` / `xlink:href`, each `url()` in a style or attribute;
+  `#…` refs are the card's own) is read by the card's realm, fitted to the card (`cards/fit.ts`,
+  sharp loaded on the first card that names an image, `image_sharp_missing` without it: refused
+  from its header past `FRAME_PIXELS_MAX`, made smaller to the least size that covers the card and
+  at most 4 cards of pixels, re-encoded as PNG with alpha or JPEG) and handed over as bytes: an
+  `<img src>` as an `ArrayBuffer` (satori keeps a module-level LRU of 500 `data:` texts; bytes it
+  does not keep), any other as a `data:` URL of the type its bytes are. A link's `href` outside an
+  SVG names no image and is left out of the tree. Then `drawable()` checks the tree satori is
+  handed, whole: every `src` / `href` / `xlink:href` is bytes, a raster `data:` URL or `#`, and
+  every `url(` (closed or not, any case) is followed by `data:` or `#`, or the card is
+  `image_card_source`. Attribute values are entity-decoded first
   (`engine.ts decoded`, with the text), so `&amp;` queries and `&quot;` quoted `url()`s reach the
   guard as meant. Endpoint realm: an asset with Kit's `read()`, a URL through settle's
   `remote_bytes` (hosts, `*.` rule, maxBytes, timeout, the fetch line, the failure memory). Build
   realm: a file of Kit's server output only (what the endpoint's `read()` serves, so a prerender
   and a live draw agree: no `static/` file, no client-only asset), a URL through
-  `RemoteImages.file`. A `data:` URL is kept when its bytes are PNG/JPEG/GIF/WebP/AVIF (SVG
+  `RemoteImages.file`. A `data:` URL is read like any address: its bytes must be PNG/JPEG/GIF/WebP/AVIF (SVG
   refused: it names addresses itself). Anything else is `image_card_source` (`{ file, src,
   reason }`). A realm's own answer (a full line, a remote refusal: `RealmAnswer`) passes through
   the draw, so the card's file gets that status (503, 502/504/413), not a 500. `<Img>` inside a

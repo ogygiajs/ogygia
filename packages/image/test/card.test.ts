@@ -11,7 +11,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
 import { card, card_id, card_json, PROPS_MAX, type CardSpec } from '../src/card.ts';
 import { card_in_browser } from '../src/card-browser.ts';
-import { card_png, card_tree, decode_entities } from '../src/cards/engine.ts';
+import { card_png, card_tree } from '../src/cards/engine.ts';
 import {
 	card_of_tail,
 	mint,
@@ -167,9 +167,10 @@ describe('the descriptor and its recipes', () => {
 
 describe('drawing', () => {
 	test('character references in text are decoded once, after the markup is read', async () => {
-		expect(decode_entities('A &amp; B &lt;c&gt; &quot;d&quot; &#39;e&#x27; &amp;lt;')).toBe(
-			`A & B <c> "d" 'e' &lt;`
+		const text = await card_tree(
+			'<div><span>A &amp; B &lt;c&gt; &quot;d&quot; &#39;e&#x27; &amp;lt; &#0;</span></div>'
 		);
+		expect(JSON.stringify(text)).toContain(String.raw`A & B <c> \"d\" 'e' &lt; &#0;`);
 		const tree = await card_tree('<div><span>Ships &amp; &lt;harbors&gt;</span></div>');
 		expect(JSON.stringify(tree)).toContain('Ships & <harbors>');
 		expect(JSON.stringify(tree)).not.toContain('&amp;');
