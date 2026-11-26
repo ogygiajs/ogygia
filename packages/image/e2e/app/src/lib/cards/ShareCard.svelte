@@ -1,16 +1,11 @@
 <script lang="ts">
 	import Chip from './Chip.svelte';
 
-	let {
-		title,
-		section = '',
-		photo = ''
-	}: { title: string; section?: string; photo?: string } = $props();
+	let { title, section = '' }: { title: string; section?: string } = $props();
 </script>
 
 <div class="card">
 	{#if section}<Chip label={section} />{/if}
-	{#if photo}<img src={photo} alt="" style="width: 160px; height: 80px" />{/if}
 	<div class="title">{title}</div>
 	<div class="foot">example.com</div>
 </div>

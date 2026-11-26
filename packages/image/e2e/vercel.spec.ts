@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { srcsetCandidates } from '@ogygia/core/plugin/utils';
 import sharp from 'sharp';
 import { test, expect } from '@ogygia/tooling/e2e';
+import { photo_card_misses } from './card-pixels.ts';
 import { WHOLE_LINKS, linked, VERCEL_IMAGES } from './vercel-links.ts';
 
 const APP = fileURLToPath(new URL('./app/', import.meta.url));
@@ -173,7 +174,7 @@ test("the function draws a live page's share card on request, kept forever: Verc
 	expect((await request.get(built)).status(), built).toBe(200);
 });
 
-test("the function draws a live card that names an image, fitted to the card by sharp: the function's trace holds sharp's native binary and libvips for this platform", async ({
+test("the function draws a live card that names images, each fitted to the card by sharp (an asset of the build as an <img>, a small remote WebP as a style's url()): the function's trace holds sharp's native binary and libvips for this platform", async ({
 	request
 }) => {
 	const pnpm = path.join(FUNC, 'node_modules/.pnpm');
@@ -185,20 +186,13 @@ test("the function draws a live card that names an image, fitted to the card by 
 		});
 	expect(holds(`sharp-${platform}`, /\.node$/)).toBe(true);
 	expect(holds(`sharp-libvips-${platform}`, /^libvips-cpp\./)).toBe(true);
-	const card = async (query: string): Promise<Buffer> => {
-		const url = (await named(request, [`/late/card?${query}`], SIGNED_RE)).find((u) =>
-			u.includes('/.card/')
-		)!;
-		const res = await request.get(url);
-		expect(res.status(), url).toBe(200);
-		expect(res.headers()['content-type'], url).toBe('image/png');
-		return res.body();
-	};
-	const pixels = async (png: Buffer): Promise<Buffer> => sharp(png).raw().toBuffer();
-	const plain = await pixels(await card('title=Photo'));
-	const photo = await pixels(await card('title=Photo&photo'));
-	expect(photo.length).toBe(plain.length);
-	expect(photo.equals(plain)).toBe(false);
+	const url = (await named(request, ['/late/card/photo'], SIGNED_RE)).find((u) =>
+		u.includes('/.card/')
+	)!;
+	const res = await request.get(url);
+	expect(res.status(), url).toBe(200);
+	expect(res.headers()['content-type'], url).toBe('image/png');
+	expect(await photo_card_misses(await res.body())).toEqual([]);
 });
 
 test("a live page's moving image offers a still sharp makes, since Vercel cannot keep one frame", async ({

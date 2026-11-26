@@ -56,15 +56,15 @@ test('vercel() alone cannot make a still, so no page offers one, and a live movi
 test('a live card is drawn with no sharp, and one that names an image is refused, image_card_source saying to list sharp()', async ({
 	request
 }) => {
-	const card = async (query: string): Promise<import('@playwright/test').APIResponse> => {
-		const html = await (await request.get(`/late/card?${query}`)).text();
+	const card = async (page: string): Promise<import('@playwright/test').APIResponse> => {
+		const html = await (await request.get(page)).text();
 		const url = (html.match(SIGNED_RE) ?? []).find((u) => u.includes('/.card/'))!;
 		return request.get(url);
 	};
-	const plain = await card('title=Alone');
+	const plain = await card('/late/card?title=Alone');
 	expect([plain.status(), plain.headers()['content-type']]).toEqual([200, 'image/png']);
 	const from = server_log_size();
-	const photo = await card('title=Alone&photo');
+	const photo = await card('/late/card/photo');
 	expect(photo.status()).toBe(500);
 	await expect
 		.poll(() => server_log_since(from))
