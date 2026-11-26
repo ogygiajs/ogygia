@@ -109,6 +109,30 @@ describe('hosts', () => {
 			expect(is_host_entry(good), good).toBe(true);
 	});
 
+	test('a *. entry over a name above a shared suffix (so over every tenant of it) is refused; one over a single tenant is not', () => {
+		for (const bad of [
+			'*.googleapis.com',
+			'*.windows.net',
+			'*.core.windows.net',
+			'*.cloudflarestorage.com',
+			'*.us-east-1.amazonaws.com',
+			'*.eu-west-1.amazonaws.com',
+			'*.compute-1.amazonaws.com',
+			'*.us-west-2.compute.amazonaws.com',
+			'*.web.core.windows.net'
+		])
+			expect(is_host_entry(bad), bad).toBe(false);
+		for (const good of [
+			'*.my-bucket.s3.us-east-1.amazonaws.com',
+			'*.account.r2.cloudflarestorage.com',
+			'*.images.example.com',
+			'storage.googleapis.com'
+		])
+			expect(is_host_entry(good), good).toBe(true);
+		const tenant = new URL('https://evil.s3.us-east-1.amazonaws.com/a.png');
+		expect(new RemoteHosts(['*.my-bucket.s3.us-east-1.amazonaws.com']).match(tenant)).toBe(null);
+	});
+
 	test('a URL whose host ends in a trailing dot is the host without it', () => {
 		const hosts = new RemoteHosts(['*.cdn.example.com', 'images.example.com']);
 		expect(hosts.match(new URL('https://a.cdn.example.com./x.png'))).toBe('below');
