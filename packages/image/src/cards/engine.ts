@@ -98,7 +98,21 @@ function decoded(node: unknown): unknown {
 	const { props } = node as SatoriNode;
 	if (props === undefined) return node;
 	const { tw: _, children, ...own } = props;
-	return { ...node, props: children === undefined ? own : { ...own, children: decoded(children) } };
+	const next: { [prop: string]: unknown } = {};
+	for (const [key, value] of Object.entries(own))
+		next[key] =
+			typeof value === 'string'
+				? decode_entities(value)
+				: key === 'style' && value !== null && typeof value === 'object'
+					? Object.fromEntries(
+							Object.entries(value).map(([k, v]) => [
+								k,
+								typeof v === 'string' ? decode_entities(v) : v
+							])
+						)
+					: value;
+	if (children !== undefined) next.children = decoded(children);
+	return { ...node, props: next };
 }
 
 const PROPERTY_RE = /CSS property "([^"]+)"|Invalid `([^`]+)` value|explicit "(display)/;
