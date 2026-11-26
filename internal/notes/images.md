@@ -1,8 +1,9 @@
-# Images — spec v3: "pages ask, the endpoint settles"
+# Images — spec v4: "pages ask, the endpoint settles"
 
-Part one is what `@ogygia/image` is and does now. Part two is what comes next, as design. The user
-docs are `apps/docs/src/content/docs/10-content/07-images`; the package README and both AI skills
-say the same in short.
+Part one is the core of `@ogygia/image` (v3). Part two is v4 on top of it: encoders (§14), source
+kinds beyond a local file (remote §12, cards §13) and twins (§15), all built; §16 is the one part
+still design. The user docs are `apps/docs/src/content/docs/10-content/07-images`; the package
+README and both AI skills say the same in short.
 
 ## The one idea
 
@@ -29,8 +30,10 @@ first use (`vite/encoder.ts` `pixels()`), so the plugin loads without it and `co
 coded (`image_sharp_missing`) when the app does not list and install it, or, for a server build
 that makes files on request, does not list it in `dependencies` (adapter-node bundles everything
 else, and a bundled sharp cannot find its binary). The check is one `decisions()` table
-(`ENCODER`): runtime (dev, client, prerendered, server, edge) × installed × listed. Edge adapters
-keep the `image_adapter_no_encoder` warning. On a server only the endpoint loads sharp (a lazy
+(`ENCODER`): runtime (dev, client, prerendered, server, edge) × the endpoint's maker (sharp,
+binding, none) × installed × listed. With no sharp maker (`cloudflare()`, `vercel()` alone) sharp
+is needed to build only (`devDependencies` is enough). An edge adapter with a sharp maker warns
+`image_no_encoder` once, naming `cloudflare()`. On a server only the endpoint loads sharp (a lazy
 import), so a server that never serves an image never loads it. e2e `server` mode runs the
 adapter's own output (`node build`, NODE_PATH unset) to hold this.
 
@@ -54,11 +57,13 @@ that ogygia's handle starts: `setup` hands `<Img>` the minter, `request` is the 
 
 ## 3. The descriptor
 
-`{ id, src, width, height, format, ph?, animated?, quality?, ops?, warm?, alt?, twins? }`. Plain
-JSON: it crosses island props, refs, devalue, freeze and federation unchanged. No list of files:
-render decides those. `warm` lists the presets the build made ahead for this source (§7). `twins`
-are the macro's dark and art files, each `{ media, of, theme? }` with a full descriptor of its own
-(its own placeholder), one level deep (§15).
+`{ id, src, width, height, format, ph?, animated?, quality?, ops?, warm?, alt?, from?, card?,
+twins? }`. Plain JSON: it crosses island props, refs, devalue, freeze and federation unchanged. No
+list of files: render decides those. `warm` lists the presets the build made ahead for this source
+(§7). `from` is absent for a file the build read, `'remote'` for a URL known only at request
+(§12.2), `'card'` for a share card (§13, whose `card` holds `<card>/<b64url props>`). `twins` are
+the macro's dark and art files, each `{ media, of, theme? }` with a full descriptor of its own (its
+own placeholder), one level deep (§15).
 
 ## 4. URLs
 
@@ -98,9 +103,10 @@ imports, never from `.svelte` components. The server realm imports a virtual mod
 server asset. The endpoint also refuses a signed recipe whose original is not in that set (404).
 
 A runtime that cannot load sharp answers a coded 500 (`image_no_encoder`, said once), and a build
-for an adapter whose runtime has no native modules (Cloudflare, Deno, edge) warns
-(`image_adapter_no_encoder`). A failed encode is `image_settle_failed` and a 500 no cache keeps.
-At most four encodes run at once (a queue), with sharp's input pixel limit on.
+for an adapter whose runtime has no native modules (Cloudflare, Deno, edge) with a sharp maker warns
+`image_no_encoder` (§1). A failed encode is `image_settle_failed` and a 500 no cache keeps. The
+maker says how many encodes run at once (sharp: half the cores, 1 to 4; the binding: 4), with
+sharp's input pixel limit on; at most 64 more wait, each at most 30 s, then 503 `image_busy`.
 
 ## 6. The store, and the build's files
 
@@ -126,8 +132,10 @@ age is a month unused.
 
 **The build's files.** In Kit's prerender the server realm signs nothing: the minter notes each
 recipe a page names (its unsigned path, so the original can be found) in a file of the build's run
-(disk, not memory: the prerender is a worker), starts its file at once (encodes run side by side),
-and names it `<mark><built URL>`. The mark is `//<16 hex>.ogygia.invalid`, random per build and in
+(disk, not memory: the prerender is a worker), tells the build's own thread on a `BroadcastChannel`
+named by the run, which starts its file at once (`BuildMakes`: one flight per file over a queue of
+up to 8, so the head start and the writer below make each file once), and names it
+`<mark><built URL>`. The mark is `//<16 hex>.ogygia.invalid`, random per build and in
 the build's handoff: Kit's crawler follows every root-relative `href`, `src`, `srcset` and meta
 `content`, and would ask for the built URL under `<appDir>` before the file exists, which Kit
 answers 404 before any hook (and fails the prerender); a `//` URL is never followed (Kit's
@@ -169,8 +177,8 @@ name is `image_warm_unknown`.
 Nothing in the browser can sign. An island's `<Img>` keeps the server's `src` / `srcset` (Svelte
 skips them while hydrating; `<Img>` reads them back once from the element, so an update after
 hydration leaves them alone) and the server's head preload (found by `data-og-img="<id>"`, not
-rendered again). A render that only ever happens in the browser shows warmed files, or the
-original.
+rendered again). A render that only ever happens in the browser shows warmed files, an encoder's
+links (they need no key, §14), or the original.
 
 ## 9. Markdown and frontmatter
 
@@ -193,13 +201,19 @@ dev and in every e2e test.
 ## 11. Proof
 
 Unit tests (`packages/image/test`), benches (`bench/image.bench.ts`: lay_out over a page, recipe
-reads, the markdown rewrite, the macro, the option checks), and the e2e fixture
-(`packages/image/e2e/app`) in four modes: adapter-node, adapter-static with no server, dev, and
-adapter-static under `paths.base`.
+reads, the markdown rewrite, the macro, the option checks), a counted build gate
+(`test/build-counts.test.ts`: the fixture's cold static build makes N files with N encodes, a warm
+one 0), a timed build bench (`bench/build-time.ts`, reported, not gated), and the e2e fixture
+(`packages/image/e2e/app`) in nine modes: `node` (vite preview), `server` (adapter-node's own
+output), `static` (adapter-static, no server), `dev`, `base` (`paths.base`), `cloudflare`
+(adapter-cloudflare under `wrangler dev`, the Images binding), `cloudflare-links`
+(`/cdn-cgi/image` link shapes), `vercel` (`[vercel(), sharp()]`, the function run by
+`e2e/serve-vercel.ts` with the output's routes read) and `vercel-alone`. The first five run in
+Chromium, Firefox and WebKit; the adapter modes are request-level and run in Chromium.
 
 ---
 
-# Part two: next
+# Part two: v4 (built), and next
 
 ## 12. Remote sources
 
@@ -339,19 +353,80 @@ BUILT (V4 R9). `import.meta.og.image.card('./Card.svelte', { width, height, font
 - **Dev rule** `image_share_format` (`share-rule.ts`, the server realm's dev-only `handle`): an
   `og:image`/`twitter:image` naming an AVIF or WebP file.
 
-## 14. Platform encoders and URL mappers
+## 14. Encoders
 
-An encoder decides who makes the file and what URL names it:
+BUILT (V4 R2–R5). An encoder is plain data from a factory in `@ogygia/image/vite`
+(`vite/encoder.ts` `Encoder`: `name`, `links` = the needs its links can make or null, `maker` =
+`'sharp' | 'binding' | null`, `binding`, `negotiates`, `widths`, `qualities`). `image({ encoder })`
+takes one or a list. It picks two modules at build:
 
-- `sharp()` (today's, the default): signed recipes, the endpoint makes them.
-- `cloudflare()`: URLs mapped to `/cdn-cgi/image/width=…,format=…,fit=cover,gravity=…/<original>`;
-  Cloudflare's edge makes them, no sharp at runtime (the Workers case `image_no_encoder` names).
-- `vercel()`: `/_vercel/image?url=<original>&w=…&q=…`, the widths from the app's breakpoints
-  (Vercel requires the list in its config: the adapter writes it).
+- `virtual:ogygia-image/maker` (server only): re-exports one of `makers/sharp.ts`,
+  `makers/binding.ts`, `makers/none.ts`; dev always gets sharp. A Worker bundle holds no sharp.
+- `virtual:ogygia-image/namer` (isomorphic): `namers/endpoint.ts` (`name = () => null`, sign) for
+  `sharp()`, else `namers/resolve.ts` with the plan and only the listed platforms' link code
+  (`CLOUDFLARE_LINKS`, `VERCEL_LINKS`). Links need no key, so an island names them in the browser.
 
-Each declares the operations it can honor; an op it cannot (a `tint` on Vercel) is a build error
-naming the encoder and the op. Prerendered pages keep the signed files either way, so a static
-host still needs no image service.
+Resolution per recipe, at render: a built or warmed file first (§6, §7: always made by the build,
+with sharp, whatever the encoder); else the first linking encoder whose links cover the recipe's
+needs and limits (a width past every size, a quality not listed) → its link; else the endpoint, when
+the first encoder with a maker can make it → a signed URL; else `image_encoder_cannot` (render
+error, `{ encoder, need }`). Dev runs the same check (every file made by sharp), so a page fails in
+dev where it would fail deployed. A list is in order of priority, and every list where the walk
+could differ from that order is refused (`image_option_invalid`): two platforms, two makers, or
+anything after `sharp()`. Valid: one encoder, or `[vercel(), sharp()]`.
+
+**Capabilities** are one `decisions()` table over (encoder × need) (`encoders/capabilities.ts`,
+needs in `encoders/needs.ts`: box, crop, each position, rotate quarter/other, each op and modulate
+field, each output format, `png from another format`, source gif/tiff/avif, animated, still),
+snapshotted, verified against each platform's docs (DECISIONS 96, 104, 116):
+
+| encoder                | cannot                                                                                                                            |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `sharp`                | nothing                                                                                                                           |
+| `cloudflare` (binding) | `entropy`, rotate other than 90/180/270, normalize, negate, tint, modulate hue/lightness, gamma, an AVIF source (Enterprise only) |
+| `cloudflare links`     | the binding's list, plus PNG from another format (a link's `format=` has no `png`)                                                |
+| `vercel`               | crop, any position, any op, named PNG/JPEG, a GIF/TIFF/animated source, a still                                                   |
+
+- **`sharp()`** (default): the app's endpoint signs and makes every live file.
+- **`cloudflare({ links = true, binding = 'IMAGES' })`** (adapter-cloudflare only, else
+  `image_option_invalid` at the server build's configResolved; adapter-auto too): links are
+  `/cdn-cgi/image/width=,height=,fit=cover,gravity=,quality=,format=[,anim=false][,ops]/<original>`
+  in one fixed option order (a full URL for a remote source); `format=` named (Cloudflare does not
+  negotiate), so the `<source type>` rows stay. `links: false`: the Worker's endpoint makes each
+  file with `env[binding]` in sharp's step order (flip → rotate → box → tone), kept in
+  `caches.default` under `https://ogygia-image.invalid/v<STEPS_VERSION>/<file>`, `immutable`. No
+  binding: 500 `no-store`, `image_binding_missing` once.
+- **`vercel({ sizes?, qualities? })`** (adapter-vercel only): links `/_vercel/image?url=<escaped
+  original>&w=<size>&q=<q>`; every ladder width of the app is snapped up to a size or the
+  source's own width (`RenderConfig.widths`, so one ladder for links, sharp crops and built files);
+  q per format (AVIF 60, WebP 80) keeps two `<source>` rows; Vercel picks the format from `Accept`.
+  Defaults: sizes = 16…384 ∪ the default breakpoints; qualities `[60, 80]` (a plugin/preset
+  `quality` outside them is `image_option_invalid`). `vercel()` returns `images` for the adapter
+  (`{ sizes, qualities, formats: [avif, webp], domains: [], localPatterns: [^/_app/immutable/assets/.+$] }`,
+  `remotePatterns` added by the app for `remote.hosts`). A plugin with `closeBundle: { order: 'post',
+  sequential: true }` (after Kit's adapt) reads `.vercel/output/config.json` and fails
+  `image_vercel_config` (printing the exact value) when `images` lacks a width, quality, format or
+  host the build names, or opens more: no `qualities`, `localPatterns` unset or wider, a
+  `remotePatterns` entry reaching a host `hosts` does not list. A config.json older than the build
+  also fails. `vercel()` alone: maker none, no sharp in the function, no still anywhere
+  (`image_still_left_out`).
+
+Platform links are unsigned: anyone can ask for other sizes, each billed; the docs say so and point
+to `links: false` / `sharp()` for a signed door.
+
+**Cache headers.** ogygia writes no header file. Every built file sits under
+`<appDir>/immutable/og/`, which each adapter already sends `immutable` (node: sirv; cloudflare:
+Kit's `_headers` rule; vercel: a route; netlify: Kit's rule); adapter-static leaves it to the host
+(docs give the line). e2e pins each adapter's header on a built file, an original and an endpoint
+answer, and `no-store` on every refusal. Known adapter gap (not ogygia's): adapter-cloudflare's
+404 for a missing `_app/immutable/*` path carries the `immutable` rule too.
+
+**Known gaps.** A Vercel function cannot draw a live card (its file tracing leaves out satori's
+harfbuzz `hb.wasm`: 500 `image_settle_failed`; prerender card pages there). adapter-vercel's
+deprecated `runtime: 'edge'` cannot build an ogygia server (core's server chunks import Node's
+`crypto`/`fs`). A Worker bundle still carries `on-disk.js` and core's Node chunks (never run;
+`nodejs_compat` needed). No deployed smoke has run yet: Cloudflare/Vercel pixels, `Vary: Accept`,
+CDN headers on links and the `caches.default` key host are checked only by shape locally.
 
 ## 15. Dark and art-direction twins
 

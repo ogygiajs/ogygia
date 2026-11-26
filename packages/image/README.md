@@ -1,6 +1,6 @@
 # @ogygia/image
 
-Responsive images for [ogygia](https://ogygiajs.dev) apps. The build reads each image once (its size and a tiny blur placeholder) and encodes nothing. Pages ask for the files they need, by preset or by layout, and the image endpoint makes each one the first time it is asked for: in dev, in a prerender (saved as a static file beside the page), or on a live server.
+Responsive images for [ogygia](https://ogygiajs.dev) apps. The build reads each image once (its size and a tiny blur placeholder). Pages ask for the files they need, by preset or by layout: on a live server and in dev the image endpoint (or the platform, with `cloudflare()` or `vercel()`) makes each one the first time it is asked for, and the build makes every file a prerendered page names as a static file.
 
 ```sh
 pnpm add @ogygia/image sharp

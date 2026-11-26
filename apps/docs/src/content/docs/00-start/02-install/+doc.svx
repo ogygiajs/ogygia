@@ -144,7 +144,7 @@ The other features are set up the same way as markdown. Each is a package you in
 
 - **`@ogygia/flags`** (`flags()`): kill switches, rollouts and A/B tests, decided on the server. See [`@ogygia/flags`](/docs/flags/overview).
 - **`@ogygia/postrender`** (`postrender()`): pages stored whole on their first request and served as bytes. It requires `dataShake()` from `@ogygia/data-shake/vite` listed beside it. See [`@ogygia/postrender`](/docs/postrender/overview).
-- **`@ogygia/image`** (`image()`): images encoded at build, with a responsive `srcset`, a blur placeholder and markdown images. See [Images](/docs/content/images).
+- **`@ogygia/image`** (`image()`): responsive images made as pages ask for them (by the build, for a prerendered page), with a `srcset`, a blur placeholder, markdown images and share cards. See [Images](/docs/content/images).
 - **`@ogygia/jumpstart`** (`jumpstart()`): the server build in a few files, for a fast cold start on serverless hosts. See [`jumpstart()`](/docs/reference/api#ogygiavite-jumpstart).
 - **`@ogygia/federation`** (`federation()`): other teams' apps rendered into your pages. See [`@ogygia/federation`](/docs/federation/overview).
 - **`@ogygia/router`** (`router()`): routes declared as values in code. See [`@ogygia/router`](/docs/router/overview).

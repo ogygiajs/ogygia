@@ -1,6 +1,6 @@
 ---
 title: Images
-summary: '@ogygia/image turns your image files into responsive images. Pages ask for the files they need, by layout or by preset, and the image endpoint makes each one the first time it is asked for: in dev, in a prerender, or on a live server. One component renders them as server HTML, with no client script. Markdown images and frontmatter covers work the same way.'
+summary: '@ogygia/image turns your image files into responsive images. Pages ask for the files they need, by layout or by preset: the image endpoint makes each one the first time it is asked for, in dev or on a live server, and the build makes a prerendered page''s files. One component renders them as server HTML, with no client script. Markdown images and frontmatter covers work the same way.'
 related:
   - content/collections
   - content/markdown
@@ -865,7 +865,7 @@ export function beside(id: string, rel: string): ImageDescriptor {
 
 ## Outside `<Img>`
 
-`getImage(descriptor, { preset, layout, width, aspect, … })` returns what `<Img>` renders: `src`, `srcset`, `sizes`, `width`, `height`, the `<source>` list and the preload, with the same file URLs (signed on a live server, the build's files on a prerendered page). Use it for a CSS background, an Open Graph tag or a component of your own. Like `<Img>`, it runs on the server:
+`getImage(descriptor, { preset, layout, width, aspect, … })` returns what `<Img>` renders: `src`, `srcset`, `sizes`, `width`, `height`, the `<source>` rows (twins first, then formats) and the preloads, with the same file URLs (signed on a live server, the build's files on a prerendered page, an encoder's links where it names them). Use it for a CSS background, an Open Graph tag or a component of your own. Like `<Img>`, it runs on the server:
 
 ```svelte
 <script lang="ts">
@@ -877,7 +877,7 @@ export function beside(id: string, rel: string): ImageDescriptor {
 <section style="background-image: url({laid.src})">…</section>
 ```
 
-An `<Img>` inside an island keeps the server's file URLs when it hydrates. A render that only ever happens in the browser has no key to sign with, so it shows the original file.
+An `<Img>` inside an island keeps the server's file URLs when it hydrates. A render that only ever happens in the browser has no key to sign with: it names a warmed preset's files, or the encoder's links (`cloudflare()`, `vercel()`), and otherwise shows the original file.
 
 ## Moving from Astro's `astro:assets`
 
