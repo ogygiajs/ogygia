@@ -102,11 +102,24 @@ imports, never from `.svelte` components. The server realm imports a virtual mod
 `import.meta.glob` names every image under `src/` (minus those folders), which makes each one a
 server asset. The endpoint also refuses a signed recipe whose original is not in that set (404).
 
-A runtime that cannot load sharp answers a coded 500 (`image_no_encoder`, said once), and a build
-for an adapter whose runtime has no native modules (Cloudflare, Deno, edge) with a sharp maker warns
-`image_no_encoder` (§1). A failed encode is `image_settle_failed` and a 500 no cache keeps. The
-maker says how many encodes run at once (sharp: half the cores, 1 to 4; the binding: 4), with
-sharp's input pixel limit on; at most 64 more wait, each at most 30 s, then 503 `image_busy`.
+A runtime that cannot load sharp answers a coded 500 (`image_no_encoder`, said once). A build for
+an adapter whose runtime has no native modules (Cloudflare, Deno, edge: one `ADAPTERS` table in
+`vite/encoder.ts`) fails `image_option_invalid` (key `encoder`) when it lists no encoder: on
+Cloudflare's adapters it names `cloudflare()`, on any of them `encoder: sharp()` to say only
+prerendered pages show images; with `sharp()` chosen it warns `image_no_encoder` once per adapter
+(§1). A failed encode is `image_settle_failed` and a 500 no cache keeps. Two lines (`settle.ts`
+`Line`: a machine `queue()`, the 503 bound, `image_busy` said once per streak): encodes (the maker
+says how many run at once: sharp half the cores, 1 to 4; the binding 4) and remote fetches (16). A
+remote original is fetched before its encode takes a slot. Past either line at most 64 wait, each
+at most 30 s, then 503 `image_busy` with `retry-after`. sharp's input pixel limit is on, and no
+recipe asks for more pixels than one frame may have (`FRAME_PIXELS_MAX` in `recipe.ts`,
+268,402,689: `parse_recipe` refuses a box past it, 404).
+
+The macro compiles a call in a JS module, a `.svelte` component's `<script>` and a markdown page's
+(`.svx`, `.md`) `<script>`: ogygia hands every plugin macro the module's code regions
+(`MacroContext.regions`). A call left anywhere else (a template expression, a markdown page's prose
+`{…}`) fails the build with the compiler's `macro_in_markup`; a call written as text (a code span,
+fenced code, prose, a `<code>` sample) is no call.
 
 ## 6. The store, and the build's files
 
@@ -156,10 +169,11 @@ The mark's host left in another form (escaped, encoded) cannot be pointed at a f
 `image_mark_left`, naming the file. A file that cannot be made: `image_unsettled`, naming the made
 URL and the source file.
 
-After the writer, the handoff says so (`written` = the client app folder, no notes, no mark): a
-page rendered later in the same process tree (an adapter's SPA fallback, which Kit 2.70 renders
-`ssr: false` anyway) names the files as written, or the original where no prerendered page asked
-for that file, and notes nothing. A `vite build --watch` rebuild starts a new run at `buildStart`.
+After the writer, the handoff says so (`written` = the client app folder, no notes, no mark, and
+`renamed`: each URL id the build renamed to its bytes' id, a remote source's): a page rendered
+later in the same process tree (an adapter's SPA fallback, which Kit 2.70 renders `ssr: false`
+anyway) names the files as written (under `renamed` ids), or the original where no prerendered
+page asked for that file, and notes nothing. A `vite build --watch` rebuild starts a new run at `buildStart`.
 What Kit hashes for a CSP on a `csr = false` page is its inlined CSS, which holds no minted URL,
 so removing the mark breaks no hash.
 
@@ -224,6 +238,11 @@ Chromium, Firefox and WebKit; the adapter modes are request-level and run in Chr
 name below it (one label or more, never the name itself, never over an address or a top-level
 name), `http://` in front to allow plain HTTP; no path, no range (`src/remote-hosts.ts`,
 `RemoteHosts.allows`: scheme, host and port must match; a URL with a user or password never does).
+A `*.` entry over a public suffix anyone can host under is refused (`SHARED_SUFFIXES`: country
+second levels, hosting platforms, and families such as `s3.*.amazonaws.com` where `*` is a region's
+label), and a name (entry or URL) is read without DNS's trailing dot. An entry that names a host
+itself takes every path on it: a shared storage host that serves every tenant under one name lets
+every tenant through (the docs say so; a path scope on an entry would be new surface).
 
 - The macro (`import.meta.og.image('https://…')`) checks the URL (`image_remote_host`, naming the
   entry to add; a `data:`, protocol-relative or other-scheme URL is refused the same way) and
@@ -269,14 +288,22 @@ checked here: where it is fetched.
   since a URL was signed refuses it the same way. `settle.ts`: the original is fetched by
   `remote-fetch.ts` (shared with the build: hops host-checked, ≤3; streamed `maxBytes`; one
   `scope` timeout; `image/*` raster types; `content-encoding` other than identity refused; first
-  bytes must be a JPEG/PNG/GIF/WebP/ISO-BMFF/TIFF signature), one flight per URL (`keep: 0`), run
-  inside the encode queue, so fetches count against the same cap as encodes. Refusals, each
-  `no-store` and `image_remote_refused`: 404 unlisted hop or private address, 413 too large, 504
-  timeout, 502 status / no answer / not an image / did not decode.
-- Never `immutable`: the store key is `<recipe file>@<maxAge>.<window>` (window = wall seconds /
-  maxAge), and the answer is `public, max-age=<seconds left in the window>,
+  bytes must be a JPEG/PNG/GIF/WebP/ISO-BMFF/TIFF signature), one flight per URL (`keep: 0`), in
+  the fetch line (16, §5) before the encode takes its slot. Refusals, each `no-store`: 404 unlisted
+  hop or private address, 413 too large, 504 timeout, 502 status / no answer / not an image / did
+  not decode. A refused URL is remembered for 30 s (a machine `cache`, at most 1024 URLs): every
+  file of it is answered the same status with no fetch meanwhile, so a replayed URL costs one
+  fetch per 30 s. `image_remote_refused` is said once per failing streak per URL (`said_each`,
+  its own memory beside the constant keys' `said`), and said again after a good fetch.
+- A remote source is never made larger than it is: sharp's box is scaled down within the real
+  size, aspect kept (`pixels.ts within`); Cloudflare's links and binding use `fit=crop`, which
+  only shrinks. `remoteImage()` refuses a box past `FRAME_PIXELS_MAX` (`image_remote_invalid`).
+  The srcset is still planned from the stated size (the docs say so).
+- Never `immutable`: the store key is `<recipe file>@<maxAge>.<window>`, window = (wall seconds +
+  `bucket32(URL) % maxAge`) / maxAge (a per-URL offset, so a server's remote files do not all
+  expire at one instant), and the answer is `public, max-age=<seconds left in the window>,
   stale-while-revalidate=<maxAge>`, so no copy (store, CDN, browser) outlives its window by more
-  than `maxAge`. The binding maker keeps the same keys in `caches.default`.
+  than `maxAge`. `maxAge` is 1 or more. The binding maker keeps the same keys in `caches.default`.
 - Transport (`virtual:ogygia-image/remote`, chosen at build): Node's (`remote-node.ts`,
   `node:http(s)`, no agent pooling, no decoding) for the sharp maker and dev; a Worker's
   (`net.fetch`, `redirect: 'manual'`) for the binding maker. With no `remote`: `remote-off.ts`.
@@ -297,7 +324,10 @@ checked here: where it is fetched.
   allow that origin: "Sources: any origin" or the host listed); `vercel()` names
   `/_vercel/image?url=<escaped URL>`, and `image_vercel_config` requires `images.remotePatterns`
   reaching each `hosts` entry and no wider (probes: `ogygia-probe.invalid`, the listed host over the
-  other scheme or any port, a name below an exact host); the line it prints carries them.
+  other scheme or any port, a name below an exact host); the line it prints carries them. A link
+  is named only for a URL `remote.hosts` lists (`linkable`, checked at mint in the server realm):
+  an unlisted one gets the endpoint's signed URL, which refuses it 404 as with `sharp()`. In the
+  browser (no hosts list) a remote recipe gets no link at all, only its original URL.
 - Tests: `test/remote-request.test.ts` (endpoint: 200 + header window, shared fetch, kept within the
   window and fetched again after, forged tail/id 403, unlisted / changed list 404, 413, 504, 502,
   hop 404, private `*.` 404 vs named 200), `test/remote-image.test.ts` (descriptor, ids, invalid
@@ -333,9 +363,26 @@ BUILT (V4 R9). `import.meta.og.image.card('./Card.svelte', { width, height, font
   card's original).
 - **Digest**: the server build's `renderChunk` writes it over a placeholder: SHA-256 of the card
   def, the engine line (satori, satori-html, @resvg/resvg-js, svelte versions, encoder version),
-  and every module the card's module reaches in the module graph, by project path and its file's
-  bytes (packages and virtual modules by id). Dev: a fresh value at each load; every file change
-  invalidates the card modules.
+  every module the card's module reaches in the module graph, by project path and its file's bytes
+  (packages too; virtual modules by id and code), and the CSS each component compiles to (its
+  `$$css` code: what Tailwind or PostCSS made of its styles). The rest of a file's built code is
+  left out: a cold and a warm build make it differently (test/build-counts.test.ts holds the warm
+  build to the cold one's names). Dev: a fresh value at each load; every file change invalidates
+  the card modules.
+- **Images** (`cards/images.ts`): satori fetches nothing. Before it draws, every address the tree
+  names, in any element (each `src`, `href`, `xlink:href`, each `url()` in a style or attribute;
+  `#…` refs are the card's own), is read by the card's realm and handed over as a `data:` URL; a
+  link's `href` too (a card is an image). Attribute values are entity-decoded first
+  (`engine.ts decoded`, with the text), so `&amp;` queries and `&quot;` quoted `url()`s reach the
+  guard as meant. Endpoint realm: an asset with Kit's `read()`, a URL through settle's
+  `remote_bytes` (hosts, `*.` rule, maxBytes, timeout, the fetch line, the failure memory). Build
+  realm: a file of Kit's server output only (what the endpoint's `read()` serves, so a prerender
+  and a live draw agree: no `static/` file, no client-only asset), a URL through
+  `RemoteImages.file`. A `data:` URL is kept when its bytes are PNG/JPEG/GIF/WebP/AVIF (SVG
+  refused: it names addresses itself). Anything else is `image_card_source` (`{ file, src,
+  reason }`). A realm's own answer (a full line, a remote refusal: `RealmAnswer`) passes through
+  the draw, so the card's file gets that status (503, 502/504/413), not a 500. `<Img>` inside a
+  card is not supported (its signed URLs are refused, coded).
 - **Endpoint** (`settle.ts`, `cards/read.ts`): `virtual:ogygia-image/cards` finds the card's
   module: a build's list of the cards' own emitted chunks (written at `renderChunk`), dev's
   import by name, the edge's none (`cards/none.ts`). The own-size PNG is drawn once per tail in
@@ -388,14 +435,17 @@ snapshotted, verified against each platform's docs (DECISIONS 96, 104, 116):
 | `vercel`               | crop, any position, any op, named PNG/JPEG, a GIF/TIFF/animated source, a still                                                   |
 
 - **`sharp()`** (default): the app's endpoint signs and makes every live file.
-- **`cloudflare({ links = true, binding = 'IMAGES' })`** (adapter-cloudflare only, else
-  `image_option_invalid` at the server build's configResolved; adapter-auto too): links are
+- **`cloudflare({ links = true, binding = 'IMAGES' })`** (adapter-cloudflare and
+  adapter-cloudflare-workers only, else `image_option_invalid` at the server build's
+  configResolved; adapter-auto too): links are
   `/cdn-cgi/image/width=,height=,fit=cover,gravity=,quality=,format=[,anim=false][,ops]/<original>`
-  in one fixed option order (a full URL for a remote source); `format=` named (Cloudflare does not
-  negotiate), so the `<source type>` rows stay. `links: false`: the Worker's endpoint makes each
-  file with `env[binding]` in sharp's step order (flip → rotate → box → tone), kept in
-  `caches.default` under `https://ogygia-image.invalid/v<STEPS_VERSION>/<file>`, `immutable`. No
-  binding: 500 `no-store`, `image_binding_missing` once.
+  in one fixed option order (a full URL and `fit=crop` for a remote source, which never enlarges
+  it); `format=` named (Cloudflare does not negotiate), so the `<source type>` rows stay. `links: false`: the Worker's endpoint makes each
+  file with `env[binding]` in sharp's step order (flip → rotate → box → tone; a remote source's box
+  `fit: 'crop'`), kept in `caches.default` under
+  `https://ogygia-image.invalid/v<STEPS_VERSION>/<file>` (STEPS_VERSION 2), `immutable`. No
+  binding: 500 `no-store`, `image_binding_missing` once. An edge build that lists no encoder fails
+  (§5).
 - **`vercel({ sizes?, qualities? })`** (adapter-vercel only): links `/_vercel/image?url=<escaped
   original>&w=<size>&q=<q>`; every ladder width of the app is snapped up to a size or the
   source's own width (`RenderConfig.widths`, so one ladder for links, sharp crops and built files);
