@@ -53,6 +53,25 @@ test('vercel() alone cannot make a still, so no page offers one, and a live movi
 		.toMatch(/vercel\(\) cannot make on a page rendered on request: source gif/);
 });
 
+test('a live card is drawn with no sharp, and one that names an image is refused, image_card_source saying to list sharp()', async ({
+	request
+}) => {
+	const card = async (query: string): Promise<import('@playwright/test').APIResponse> => {
+		const html = await (await request.get(`/late/card?${query}`)).text();
+		const url = (html.match(SIGNED_RE) ?? []).find((u) => u.includes('/.card/'))!;
+		return request.get(url);
+	};
+	const plain = await card('title=Alone');
+	expect([plain.status(), plain.headers()['content-type']]).toEqual([200, 'image/png']);
+	const from = server_log_size();
+	const photo = await card('title=Alone&photo');
+	expect(photo.status()).toBe(500);
+	await expect
+		.poll(() => server_log_since(from))
+		.toMatch(/this server fits no image to a card: sharp makes no file here \(list sharp\(\)/);
+	expect(server_log_since(from)).toContain('image_card_source');
+});
+
 test('prerendered pages name the files the build made, served from the output', async ({
 	request
 }) => {
