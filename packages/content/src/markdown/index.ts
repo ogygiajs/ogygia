@@ -497,7 +497,8 @@ export function ogygiaPreprocess(options?: MarkdownOptions): PreprocessorGroup {
 	// it again (#248).
 	const get_md = flights({
 		name: 'mdsvex',
-		run: async (): Promise<PreprocessorGroup> => {
+		max: 4,
+		run: async (_extensions: string): Promise<PreprocessorGroup> => {
 			const chain = rehype_chain(rehype_staged());
 			return (await load_mdsvex())(
 				chain.length ? { ...mdsvex_opts, rehypePlugins: chain } : mdsvex_opts
@@ -558,7 +559,9 @@ export function ogygiaPreprocess(options?: MarkdownOptions): PreprocessorGroup {
 			// get branded as phantom portable snippets, whose registration then WIPES the host's real
 			// wrapper registrations (the csr=false + `render:'deferred'` prerender crash).
 			if (!isContent) return undefined;
-			const md = await get_md.get();
+			const md = await get_md.get(
+				extensions_now.map((e) => `${e.name}:${e.cache_key()}`).join(',')
+			);
 			// (nothing drops mdsvex's start, so this is never STALE)
 			if (md === STALE) return undefined;
 			const out = await md.markup?.(raw === input.content ? input : { ...input, content: raw });
