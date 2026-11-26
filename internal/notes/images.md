@@ -247,7 +247,10 @@ name), `http://` in front to allow plain HTTP; no path, no range (`src/remote-ho
 `RemoteHosts.allows`: scheme, host and port must match; a URL with a user or password never does).
 A `*.` entry over a public suffix anyone can host under is refused (`SHARED_SUFFIXES`: country
 second levels, hosting platforms, and families such as `s3.*.amazonaws.com` where `*` is a region's
-label), and a name (entry or URL) is read without DNS's trailing dot. An entry that names a host
+label), or over a name above one (`*.googleapis.com` is above `storage.googleapis.com`,
+`*.us-east-1.amazonaws.com` above `s3.us-east-1.amazonaws.com`: `over_shared` reads the entry's
+labels against each suffix's last ones; a name below one is one tenant's, never refused), and a
+name (entry or URL) is read without DNS's trailing dot. An entry that names a host
 itself takes every path on it: a shared storage host that serves every tenant under one name lets
 every tenant through (the docs say so; a path scope on an entry would be new surface).
 
