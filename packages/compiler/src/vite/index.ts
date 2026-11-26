@@ -665,6 +665,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						resolve_alias,
 						component_css,
 						macros,
+						markdown_exts: markup.flatMap((m) => m.extensions),
 						page_reads,
 						prescans,
 						plugins: listed_plugins,
