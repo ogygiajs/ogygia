@@ -787,9 +787,10 @@ sets that document's answers aside (gen 178). An answer buggify lost on the way
 
 ## Always on
 
-`.github/workflows/dst.yml` (schedule every 6 h and dispatch only, never a PR) runs
-`internal/sim/src/ci.ts`: batches of seeds until 20 minutes before its 350-minute timeout, yielding
-to CI while more than 50 runs are queued. Findings are grouped by signature (`signature()`: the
+A dedicated server runs `internal/sim/src/ci.ts` forever, in hour-long rounds on the latest `main`,
+each round starting where the last one's seeds ended. `.github/workflows/dst.yml`'s `simulate` job
+(dispatch only, never a PR) runs the same file: batches of seeds until 20 minutes before its
+350-minute timeout, yielding to CI while more than 50 runs are queued. Findings are grouped by signature (`signature()`: the
 oracle and what it is about, run-specific numbers and hashes out). An open `dst` issue that names
 the signature (`dst-signature: <sig>`, in its body or a comment) gets a count comment at most once
 a day (a stack frame's file and position are left out of a signature: a rebuilt app, a mutant's,

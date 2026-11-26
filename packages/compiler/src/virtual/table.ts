@@ -34,6 +34,9 @@ export interface Leg {
 	kitCodec?: string | null;
 	/** the import chain that reached the module being loaded (resolver.ts `import_chain`) */
 	via?: () => string;
+	/** BUILD, server leg: resolves once the bundler has compiled every module of the bundle but the
+	 *  ones `skip` names (vite/graph-compiled.ts) */
+	compiled?: (skip: (id: string) => boolean) => Promise<void>;
 }
 
 type Source = string | Promise<string>;
@@ -83,6 +86,9 @@ export interface FamilyEntry<A, M = Record<never, never>> extends Base {
 	parse?(rest: string): string | null;
 	/** the module's source; `undefined`: not this table's to load (the driver's registry is) */
 	load?(app: A, leg: Leg, rest: string): Source | null;
+	/** the module's source is the runtime the whole bundle needs (its marks): on a build's server
+	 *  leg it loads once every other module has compiled ({@link Leg.compiled}) */
+	settles?: true;
 	/** what the realm module re-exports from it, by its name there */
 	exports?: RealmExports<keyof M & string>;
 	/** (type only: never set) */
