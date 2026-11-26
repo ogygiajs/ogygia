@@ -8733,8 +8733,8 @@
 			"reason": "once per image a live card draw names: one map lookup and one Kit read(); test/card-endpoint-read.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/source-urls.ts > map:0~26ed5a",
-			"reason": "once per server start: per image under src/, one tail of its URL; test/card-endpoint-read.test.ts runs it"
+			"id": "packages/image/src/source-urls.ts > map:0~465f66",
+			"reason": "once per server start: per image under src/, one tail of its URL and one split; test/card-endpoint-read.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/vite/card.ts > file_of",

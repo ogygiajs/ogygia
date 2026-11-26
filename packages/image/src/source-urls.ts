@@ -16,9 +16,10 @@ const { base: BASE, assets: ASSETS } = config.paths;
 /** The prefixes a source's URL can start with: `paths.assets`, then `paths.base`. */
 export const SOURCE_PREFIXES: readonly string[] = [ASSETS, BASE];
 
-/** Each original under `src/` the server lists, by its tail: the asset URL it imported. */
+/** Each original under `src/` the server lists, by its tail: the asset URL it imported, with no
+ *  query (dev's import carries `?no-inline`, which `read()` takes for part of the file's name). */
 export const SOURCE_URLS: ReadonlyMap<string, string> = new Map(
-	Object.values(sources).map((url) => [source_tail(url, SOURCE_PREFIXES), url])
+	Object.values(sources).map((url) => [source_tail(url, SOURCE_PREFIXES), url.split(/[?#]/)[0]!])
 );
 
 /** The URL Kit's `read()` takes for the original `tail` names. */
