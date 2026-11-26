@@ -2889,8 +2889,8 @@
 			"reason": "build only: once per client build, off the request and boot paths; proven in packages/content/test/content-leaks.test.ts"
 		},
 		{
-			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > filter:0~eec9a0",
-			"reason": "build only: two regex tests per module id of a finished client bundle, once per build"
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > filter:0~709bab",
+			"reason": "build only: three regex tests per module id of a finished client bundle, once per build"
 		},
 		{
 			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > flatMap:0~b437c4",
@@ -6074,15 +6074,7 @@
 		},
 		{
 			"id": "packages/compiler/src/parse/scan.ts > markdown_prose",
-			"reason": "the markdown check above: its fences and code spans blanked, linear in its text; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > markdown_prose > map:0~e12127",
-			"reason": "per line of the markdown check above, constant work per line; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > markdown_prose > map:0~e12127 > replace:1~e4104a",
-			"reason": "per code span of the markdown check above, one blank run; test/macros-need-plugin.test.ts runs it"
+			"reason": "the markdown check above, only for a markdown page that names import.meta.og.: one CommonMark parse (micromark, linear) and its code tokens blanked; test/markdown-code.test.ts runs it"
 		},
 		{
 			"id": "packages/compiler/src/parse/scan.ts > script_blocks",
