@@ -24,6 +24,9 @@ export { is_space as isSpace } from '../server/html-scan.ts';
 export { html, attr, trusted_html as trustedHtml, Html, type HtmlValue } from '../html.ts';
 /** HTML text made plain again (a `<title>`'s content): its character references decoded. */
 export { decode_text as decodeText } from '../html.ts';
+/** The candidates of a `srcset` value (each URL, where it sits, its descriptor), split as the HTML
+ *  spec splits one: a comma inside a URL is the URL's. */
+export { srcset_candidates as srcsetCandidates, type SrcsetCandidate } from '../srcset.ts';
 /** A byte- and count-bounded LRU map (a process-local cache that can never grow without bound). */
 export { SizedLru } from '../server/sized-lru.ts';
 /** The receipt tag one `(source, args)` call files, or null for a function not declared with
