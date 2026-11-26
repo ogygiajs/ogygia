@@ -11,6 +11,7 @@ import { is_island_path } from '@ogygia/compiler';
 import { warn } from '../messages/build.ts';
 
 const CORPUS_RE = /\.(svx|md)(\?|$)/;
+const ROUTE_FILE_RE = /\/\+(?:page|layout|error)(?:@[^/.]*)?\.(?:svx|md)(?:\?|$)/;
 /** A `?…type=style…` / `lang.css` sub-import id — a CSS face, never a corpus JS leak. */
 const CONTENT_STYLE_QUERY_RE = /[?&](?:type=style|lang\.css)/;
 
@@ -51,7 +52,11 @@ function warn_content_leaks(bundle: Record<string, unknown>, root: string): void
 			// purpose (see the client-leg content-CSS emit) — it carries no corpus JS, so it is not
 			// a leak. Only a real corpus JS module counts.
 			const corpus = ids.filter(
-				(id) => CORPUS_RE.test(id) && !is_island_path(id) && !CONTENT_STYLE_QUERY_RE.test(id)
+				(id) =>
+					CORPUS_RE.test(id) &&
+					!ROUTE_FILE_RE.test(id) &&
+					!is_island_path(id) &&
+					!CONTENT_STYLE_QUERY_RE.test(id)
 			);
 			if (corpus.length)
 				leaks.push({ chunk: (chunk as { fileName?: string }).fileName ?? key, modules: corpus });

@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 import { DEFAULT_AVIF_EFFORT } from '../config.ts';
-import type { MadeStore, Maker } from '../maker.ts';
+import type { ImageFit, MadeStore, Maker } from '../maker.ts';
 import { sharp_maker } from './sharp-at.ts';
 
 const maker = sharp_maker(DEFAULT_AVIF_EFFORT);
@@ -20,3 +20,6 @@ export const make: Maker['make'] = maker.make;
 
 /** The build cache's store in the build and the dev server, else the live server's. */
 export const store: MadeStore | null = maker.store;
+
+/** A card's images fitted to the card with sharp. */
+export const fit: ImageFit = maker.fit;

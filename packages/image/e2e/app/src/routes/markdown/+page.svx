@@ -1,0 +1,11 @@
+<script>
+	import { Img } from '@ogygia/image';
+
+	const hero = import.meta.og.image('../../lib/images/hero.jpg');
+</script>
+
+# A markdown page
+
+Its script names an image, and its body shows it.
+
+<Img of={hero} width={320} alt="Hills, from a markdown script" id="svx-hero" />

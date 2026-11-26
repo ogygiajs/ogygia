@@ -434,7 +434,7 @@ export class Cards {
 				? ''
 				: dedent`
 					import { card_png } from ${JSON.stringify(CARD_ENGINE)};
-					export const png = (props, fonts, images) => card_png(spec, props, fonts, images);
+					export const png = (props, fonts, images, fit) => card_png(spec, props, fonts, images, fit);
 					${mode === 'server' ? `export const engine_files = ${JSON.stringify(FILES)};\n` : ''}
 				`;
 		return dedent`
@@ -530,7 +530,8 @@ export class Cards {
 
 	/** The own-size PNG of the card `tail` names (a prerendered page's), for the build's end: drawn
 	 *  from the server chunk the build wrote, with the fonts' files, when it is the source `id`; the
-	 *  images it names are read by `images` (the build's reader: its output, its remote fetch). */
+	 *  images it names are read by `images` (the build's reader: its output, its remote fetch) and
+	 *  fitted to the card with sharp, which every build has. */
 	async draw(tail: string, id: string, images: CardImageRead): Promise<Uint8Array> {
 		const named = card_of_tail(tail);
 		const chunk = named === null ? undefined : this.#chunks.get(named.card);
@@ -549,6 +550,7 @@ export class Cards {
 				bytes.byteOffset + bytes.byteLength
 			) as ArrayBuffer;
 		});
-		return card_png(spec, JSON.parse(named.props) as CardProps, fonts, images);
+		const { fit_to_card } = await import('../cards/fit.ts');
+		return card_png(spec, JSON.parse(named.props) as CardProps, fonts, images, fit_to_card);
 	}
 }

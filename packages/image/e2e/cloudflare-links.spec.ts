@@ -2,6 +2,7 @@
 // (`IMAGE_E2E_MODE=cloudflare-links`): a live page names each file as an Image Transformations link,
 // which only Cloudflare's CDN serves, so here their shape is checked; prerendered pages still name
 // the files the build made.
+import { srcsetCandidates } from '@ogygia/core/plugin/utils';
 import { test, expect } from '@ogygia/tooling/e2e';
 
 const PRERENDERED = ['/', '/blog/first-post', '/blog/second-post', '/blog/third-post', '/island'];
@@ -47,8 +48,8 @@ test("a live page's moving image offers a still as a link with anim=false, at re
 	];
 	expect(rows.length).toBe(2);
 	for (const [, srcset] of rows)
-		for (const c of srcset!.split(', '))
-			expect(c).toMatch(
+		for (const c of srcsetCandidates(srcset!))
+			expect(`${c.url} ${c.descriptor}`).toMatch(
 				/^\/cdn-cgi\/image\/[^ ]*,anim=false\/_app\/immutable\/assets\/[\w-]+\.[\w-]+\.gif \d+w$/
 			);
 	expect(html).toMatch(/<img[^>]* srcset="\/cdn-cgi\/image\/(?:(?!anim=false)[^ ])+ \d+w/);

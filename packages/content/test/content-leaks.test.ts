@@ -53,6 +53,24 @@ describe('the content-leak guardrail, in the content plugin', () => {
 		expect(text).not.toContain('type=style');
 	});
 
+	it('a markdown route page (+page.svx, +layout.md) in its own client node is the page, not a collection: nothing is said', () => {
+		const out = warnings();
+		call(
+			built(),
+			'writeBundle',
+			client,
+			{},
+			{
+				'13.js': chunk('_app/immutable/nodes/13.js', [
+					'/app/src/routes/markdown/+page.svx',
+					'/app/src/routes/(docs)/+layout@.md',
+					'/app/src/routes/+error.svx'
+				])
+			}
+		);
+		expect(out).toEqual([]);
+	});
+
 	it('the server leg, a dev server and a clean client bundle say nothing', () => {
 		const out = warnings();
 		const docs = { 'a.js': chunk('a.js', ['/app/src/content/docs/intro.svx']) };

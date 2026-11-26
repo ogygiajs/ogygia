@@ -37,6 +37,19 @@ export class CannotMake extends Error {
 	}
 }
 
+/** The original's own bytes cannot be read (its header does not decode, or it is past the pixels
+ *  one frame may have): every file of it fails the same way. Any other failure of a make is that
+ *  one file's. */
+export class SourceUnreadable extends Error {}
+
+/** An image fitted to a `width` × `height` card: the bytes a card's engine is handed and their
+ *  type, or a throw saying why it cannot be drawn (../cards/fit.ts). */
+export type ImageFit = (
+	bytes: Uint8Array,
+	width: number,
+	height: number
+) => Promise<{ bytes: Uint8Array; type: string }>;
+
 /** What a maker module exports. */
 export interface Maker {
 	/** How many files it makes at once. */
@@ -46,4 +59,7 @@ export interface Maker {
 	make(bytes: Uint8Array, recipe: ParsedRecipe, platform: unknown): Promise<Uint8Array>;
 	/** Where its files are kept, or null: each is made per ask (and kept in memory). */
 	store: MadeStore | null;
+	/** How a card drawn here fits its images to the card (sharp's), or null: a card drawn here
+	 *  names no image. */
+	fit: ImageFit | null;
 }

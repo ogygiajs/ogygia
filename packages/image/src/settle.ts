@@ -29,7 +29,7 @@ import { said, said_each, warn } from './messages.ts';
 import { remote as REMOTE, transport } from 'virtual:ogygia-image/remote';
 import { card_original, draws, endpoint_images, NoCard } from './cards/read.ts';
 import { RealmAnswer } from './cards/images.ts';
-import { CannotMake } from './maker.ts';
+import { CannotMake, SourceUnreadable } from './maker.ts';
 import { Changed, read_original } from './reader.ts';
 import { card_of_tail, remote_of_tail, type ParsedRecipe } from './recipe.ts';
 import type { FailKind } from './remote-fetch.ts';
@@ -225,7 +225,7 @@ const makes = flights.keyed<Ask>()<
 			try {
 				data = await make(bytes, ask.recipe, ask.platform);
 			} catch (e) {
-				if (ask.url === null || e instanceof CannotMake) throw e;
+				if (ask.url === null || !(e instanceof SourceUnreadable)) throw e;
 				throw remembered(
 					ask.url.href,
 					new Refused(502, `the image did not decode: ${(e as Error).message}`, ask.url.href)

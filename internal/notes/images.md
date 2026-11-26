@@ -32,8 +32,8 @@ that makes files on request, does not list it in `dependencies` (adapter-node bu
 else, and a bundled sharp cannot find its binary). The check is one `decisions()` table
 (`ENCODER`): runtime (dev, client, prerendered, server, edge) × the endpoint's maker (sharp,
 binding, none) × installed × listed. With no sharp maker (`cloudflare()`, `vercel()` alone) sharp
-is needed to build only (`devDependencies` is enough). An edge adapter with a sharp maker warns
-`image_no_encoder` once, naming `cloudflare()`. On a server only the endpoint loads sharp (a lazy
+is needed to build only (`devDependencies` is enough). An edge build warns `image_no_encoder` once
+only when `sharp()` is chosen, and fails when it lists no encoder (§5). On a server only the endpoint loads sharp (a lazy
 import), so a server that never serves an image never loads it. e2e `server` mode runs the
 adapter's own output (`node build`, NODE_PATH unset) to hold this.
 
@@ -107,7 +107,8 @@ an adapter whose runtime has no native modules (Cloudflare, Deno, edge: one `ADA
 `vite/encoder.ts`) fails `image_option_invalid` (key `encoder`) when it lists no encoder: on
 Cloudflare's adapters it names `cloudflare()`, on any of them `encoder: sharp()` to say only
 prerendered pages show images; with `sharp()` chosen it warns `image_no_encoder` once per adapter
-(§1). A failed encode is `image_settle_failed` and a 500 no cache keeps. Two lines (`settle.ts`
+(§1). The table reads the adapter's package name only: adapter-netlify's `edge: true` and
+adapter-vercel's `runtime: 'edge'` are not seen (a known gap, in the docs). A failed encode is `image_settle_failed` and a 500 no cache keeps. Two lines (`settle.ts`
 `Line`: a machine `queue()`, the 503 bound, `image_busy` said once per streak): encodes (the maker
 says how many run at once: sharp half the cores, 1 to 4; the binding 4) and remote fetches (16). A
 remote original is fetched before its encode takes a slot. Past either line at most 64 wait, each
@@ -247,7 +248,10 @@ name), `http://` in front to allow plain HTTP; no path, no range (`src/remote-ho
 `RemoteHosts.allows`: scheme, host and port must match; a URL with a user or password never does).
 A `*.` entry over a public suffix anyone can host under is refused (`SHARED_SUFFIXES`: country
 second levels, hosting platforms, and families such as `s3.*.amazonaws.com` where `*` is a region's
-label), and a name (entry or URL) is read without DNS's trailing dot. An entry that names a host
+label), or over a name above one (`*.googleapis.com` is above `storage.googleapis.com`,
+`*.us-east-1.amazonaws.com` above `s3.us-east-1.amazonaws.com`: `over_shared` reads the entry's
+labels against each suffix's last ones; a name below one is one tenant's, never refused), and a
+name (entry or URL) is read without DNS's trailing dot. An entry that names a host
 itself takes every path on it: a shared storage host that serves every tenant under one name lets
 every tenant through (the docs say so; a path scope on an entry would be new surface).
 
@@ -298,7 +302,9 @@ checked here: where it is fetched.
   bytes must be a JPEG/PNG/GIF/WebP/ISO-BMFF/TIFF signature), one flight per URL (`keep: 0`), in
   the fetch line (16, §5) before the encode takes its slot. Refusals, each `no-store`: 404 unlisted
   hop or private address, 413 too large, 504 timeout, 502 status / no answer / not an image / did
-  not decode. A refused URL is remembered for 30 s (a machine `cache`, at most 1024 URLs): every
+  not decode (the maker's `SourceUnreadable`: its header does not read, or it is past one frame's
+  pixels; any other failed encode, such as memory under load, is that one file's 500
+  `image_settle_failed`, remembered nowhere). A refused URL is remembered for 30 s (a machine `cache`, at most 1024 URLs): every
   file of it is answered the same status with no fetch meanwhile, so a replayed URL costs one
   fetch per 30 s. `image_remote_refused` is said once per failing streak per URL (`said_each`,
   its own memory beside the constant keys' `said`), and said again after a good fetch.
@@ -377,15 +383,24 @@ BUILT (V4 R9). `import.meta.og.image.card('./Card.svelte', { width, height, font
   build to the cold one's names). Dev: a fresh value at each load; every file change invalidates
   the card modules.
 - **Images** (`cards/images.ts`): satori fetches nothing. Before it draws, every address the tree
-  names, in any element (each `src`, `href`, `xlink:href`, each `url()` in a style or attribute;
-  `#…` refs are the card's own), is read by the card's realm and handed over as a `data:` URL; a
-  link's `href` too (a card is an image). Attribute values are entity-decoded first
+  names (each `src`, an SVG element's `href` / `xlink:href`, each `url()` in a style or attribute;
+  `#…` refs are the card's own) is read by the card's realm, fitted to the card (`cards/fit.ts`,
+  the realm's sharp: the build's, or the maker's `fit` at the endpoint, so a server whose maker is
+  not sharp bundles no sharp and refuses a card's image, `image_card_source`; refused
+  from its header past `FRAME_PIXELS_MAX`, made smaller to the least size that covers the card and
+  at most 4 cards of pixels, re-encoded as PNG with alpha or JPEG) and handed over as bytes: an
+  `<img src>` as an `ArrayBuffer` (satori keeps a module-level LRU of 500 `data:` texts; bytes it
+  does not keep), any other as a `data:` URL of the type its bytes are. A link's `href` outside an
+  SVG names no image and is left out of the tree. Then `drawable()` checks the tree satori is
+  handed, whole: every `src` / `href` / `xlink:href` is bytes, a raster `data:` URL or `#`, and
+  every `url(` (closed or not, any case) is followed by `data:` or `#`, or the card is
+  `image_card_source`. Attribute values are entity-decoded first
   (`engine.ts decoded`, with the text), so `&amp;` queries and `&quot;` quoted `url()`s reach the
   guard as meant. Endpoint realm: an asset with Kit's `read()`, a URL through settle's
   `remote_bytes` (hosts, `*.` rule, maxBytes, timeout, the fetch line, the failure memory). Build
   realm: a file of Kit's server output only (what the endpoint's `read()` serves, so a prerender
   and a live draw agree: no `static/` file, no client-only asset), a URL through
-  `RemoteImages.file`. A `data:` URL is kept when its bytes are PNG/JPEG/GIF/WebP/AVIF (SVG
+  `RemoteImages.file`. A `data:` URL is read like any address: its bytes must be PNG/JPEG/GIF/WebP/AVIF (SVG
   refused: it names addresses itself). Anything else is `image_card_source` (`{ file, src,
   reason }`). A realm's own answer (a full line, a remote refusal: `RealmAnswer`) passes through
   the draw, so the card's file gets that status (503, 502/504/413), not a 500. `<Img>` inside a

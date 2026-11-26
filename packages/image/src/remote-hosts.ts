@@ -78,6 +78,20 @@ export const SHARED_SUFFIXES: ReadonlySet<string> = new Set([
 	'myshopify.com',
 	'r2.cloudflarestorage.com',
 	'supabase.co',
+	'web.core.windows.net',
+	'azureedge.net',
+	'azurestaticapps.net',
+	'cloudapp.net',
+	'run.app',
+	'cloudfunctions.net',
+	'firebasestorage.app',
+	'amplifyapp.com',
+	'elasticbeanstalk.com',
+	'digitaloceanspaces.com',
+	'compute-1.amazonaws.com',
+	'*.compute.amazonaws.com',
+	'elb.amazonaws.com',
+	'*.elb.amazonaws.com',
 	's3.*.amazonaws.com',
 	's3-*.amazonaws.com',
 	's3.dualstack.*.amazonaws.com',
@@ -85,15 +99,20 @@ export const SHARED_SUFFIXES: ReadonlySet<string> = new Set([
 	's3-website-*.amazonaws.com'
 ]);
 
-const label_re = (label: string): string =>
-	label.replace(/[.*+?^${}()|[\]\\]/g, (c) => (c === '*' ? '[^.]*' : `\\${c}`));
+const label_re = (label: string): RegExp =>
+	new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, (c) => (c === '*' ? '[^.]*' : `\\${c}`))}$`);
 
-const SHARED_FAMILIES: readonly RegExp[] = [...SHARED_SUFFIXES]
-	.filter((s) => s.includes('*'))
-	.map((s) => new RegExp(`^${s.split('.').map(label_re).join('\\.')}$`));
+const SHARED_LABELS: readonly (readonly RegExp[])[] = [...SHARED_SUFFIXES].map((s) =>
+	s.split('.').map(label_re)
+);
 
-function shared_suffix(host: string): boolean {
-	return SHARED_SUFFIXES.has(host) || SHARED_FAMILIES.some((re) => re.test(host));
+function over_shared(host: string): boolean {
+	const labels = host.split('.');
+	return SHARED_LABELS.some(
+		(suffix) =>
+			labels.length <= suffix.length &&
+			labels.every((label, i) => suffix[suffix.length - labels.length + i]!.test(label))
+	);
 }
 
 function bare(host: string): string {
@@ -102,7 +121,7 @@ function bare(host: string): string {
 
 /** What a `hosts` entry must be, for a message. */
 export const HOSTS_RULE =
-	"a non-empty list of hosts, each a name ('images.example.com'), '*.' and a name for every name below it ('*.cdn.example.com', never over a suffix anyone can host under such as '*.co.uk' or '*.github.io'), with a port when not the default, and 'http://' in front to allow plain HTTP ('http://127.0.0.1:4100'); no path, no address range";
+	"a non-empty list of hosts, each a name ('images.example.com'), '*.' and a name for every name below it ('*.cdn.example.com', never over a suffix anyone can host under such as '*.co.uk' or '*.github.io', or a name above one such as '*.googleapis.com'), with a port when not the default, and 'http://' in front to allow plain HTTP ('http://127.0.0.1:4100'); no path, no address range";
 
 function rule_of(entry: unknown): HostRule | null {
 	if (typeof entry !== 'string') return null;
@@ -119,7 +138,7 @@ function rule_of(entry: unknown): HostRule | null {
 	const host = bare(url.hostname);
 	if (
 		m[2] &&
-		(host.startsWith('[') || IPV4_RE.test(host) || !host.includes('.') || shared_suffix(host))
+		(host.startsWith('[') || IPV4_RE.test(host) || !host.includes('.') || over_shared(host))
 	)
 		return null;
 	return {

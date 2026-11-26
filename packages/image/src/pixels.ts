@@ -8,6 +8,7 @@
 import sharp, { type Metadata, type Sharp } from 'sharp';
 import { DEFAULT_AVIF_EFFORT, DEFAULT_QUALITY } from './config.ts';
 import type { ImageFormat, ImageOps } from './descriptor.ts';
+import { SourceUnreadable } from './maker.ts';
 import { FRAME_PIXELS_MAX, REMOTE_TAIL } from './recipe.ts';
 
 /** The libvips version the files are made with: part of every cache key. */
@@ -167,9 +168,11 @@ export async function encode_recipe(
 	},
 	avif_effort: number = DEFAULT_AVIF_EFFORT
 ): Promise<Buffer> {
-	const meta = await metadata_of(bytes);
+	const meta = await metadata_of(bytes).catch((e: unknown) => {
+		throw new SourceUnreadable((e as Error).message);
+	});
 	const why = too_large(meta);
-	if (why !== null) throw new Error(`the original is too large to read: ${why}`);
+	if (why !== null) throw new SourceUnreadable(`the original is too large to read: ${why}`);
 	const animated = !recipe.still && (meta.pages ?? 1) > 1;
 	const box = recipe.tail?.startsWith(REMOTE_TAIL)
 		? within(recipe, shown_size(meta, recipe.ops ?? {}, animated))

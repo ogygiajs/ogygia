@@ -320,6 +320,7 @@ export function maker_module(encoders: readonly Encoder[], dev: boolean): string
 			export const parallel = maker.parallel;
 			export const make = maker.make;
 			export const store = maker.store;
+			export const fit = maker.fit;
 		`;
 	if (kind !== 'binding') return `export * from ${JSON.stringify(MAKERS[kind])};\n`;
 	return dedent`
@@ -328,6 +329,7 @@ export function maker_module(encoders: readonly Encoder[], dev: boolean): string
 		export const parallel = maker.parallel;
 		export const make = maker.make;
 		export const store = maker.store;
+		export const fit = maker.fit;
 	`;
 }
 

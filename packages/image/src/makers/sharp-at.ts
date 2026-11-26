@@ -6,16 +6,18 @@
  * @packageDocumentation
  */
 import os from 'node:os';
+import { fit_to_card } from '../cards/fit.ts';
 import { build_handoff } from '../handoff.ts';
-import type { MadeStore, Maker } from '../maker.ts';
+import type { ImageFit, MadeStore, Maker } from '../maker.ts';
 import { encode_recipe, VIPS_VERSION } from '../pixels.ts';
 import { FileStore, runtime_store } from '../store.ts';
 
-/** A sharp maker: its line's width, its make, and its store. */
+/** A sharp maker: its line's width, its make, its store, and its fit of a card's images. */
 export interface SharpMaker {
 	parallel: number;
 	make: Maker['make'];
 	store: MadeStore | null;
+	fit: ImageFit;
 }
 
 /** The sharp maker that makes AVIF at `avif_effort`: half the machine's cores at once (one to four),
@@ -28,6 +30,7 @@ export function sharp_maker(avif_effort: number): SharpMaker {
 		make: (bytes, recipe) => encode_recipe(bytes, recipe, avif_effort),
 		store: handoff
 			? FileStore.shared(handoff.store)
-			: runtime_store(VIPS_VERSION, os.tmpdir(), avif_effort)
+			: runtime_store(VIPS_VERSION, os.tmpdir(), avif_effort),
+		fit: fit_to_card
 	};
 }
