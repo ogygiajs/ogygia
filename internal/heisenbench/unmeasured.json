@@ -6137,6 +6137,10 @@
 			"reason": "once per plugin macro handler that asks for a module's code regions, the same reading the macros already pay (a markdown page's parse kept for its text); test/macros-need-plugin.test.ts runs it"
 		},
 		{
+			"id": "packages/compiler/src/macros/pipeline.ts > run_module_macros > handler:1~df713b > regions",
+			"reason": "the code-regions handle handed to a plugin macro, one call of ModuleCode.regions; test/macros-need-plugin.test.ts runs it"
+		},
+		{
 			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > constructor",
 			"reason": "once per module the macro pipeline runs on: two extension tests; test/macros-need-plugin.test.ts runs it"
 		},
