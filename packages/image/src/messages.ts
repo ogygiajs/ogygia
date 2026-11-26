@@ -497,3 +497,7 @@ export const warn: Own['warn'] = own.warn;
 /** The warnings of a condition that lasts (a full line of encodes, a store that cannot write): each
  *  is said once per streak, `said.once(key, …)` when it starts and `said.ok(key)` when it ends. */
 export const said: Say = say();
+
+/** The warnings said once per thing (a URL, a card), with a memory of their own: a churn of URLs
+ *  never lets {@link said}'s constant and streak keys go, so those are never said twice. */
+export const said_each: Say = say();

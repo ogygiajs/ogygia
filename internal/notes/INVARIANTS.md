@@ -341,8 +341,11 @@ verifies nowhere else.
 
 **No rate limit (on purpose):** unlike the region endpoint (PROBE-THEN-RENDER), a forged flood is a
 cheap HMAC check and a 403 with no encode; a replay of harvested URLs is bounded by the store
-(each recipe is made once), the encode queue (`parallel`) and its 503 past a full line. Do not
-"align" it with the region limiter: there is no costly work before the signature to protect.
+(each recipe that makes a file is made once), by the memory of failed remote URLs (a remote URL
+that failed is answered its remembered status for 30 s, with no fetch, and said once per failing
+streak), by the fetch line (16) and the encode queue (`parallel`), each with its 503 past a full
+line. Do not "align" it with the region limiter: there is no costly work before the signature to
+protect.
 
 **Do not:**
 
@@ -351,7 +354,7 @@ cheap HMAC check and a 403 with no encode; a replay of harvested URLs is bounded
 - Read an original at a path built from the request: read it at the URL its import gave
   (`Originals.url`), which is what Kit's `read()` takes.
 
-**Enforced by:** `packages/image/test/server.test.ts > a URL whose recipe was changed after signing is refused, naming why and the key`, `packages/image/test/server.test.ts > a URL with no signature, or a forged one, is refused`, `packages/image/test/server.test.ts > a signed recipe naming an original the app does not ship is not found`, `packages/image/test/server.test.ts > a signed URL asked with any method but GET or HEAD is answered 405`, `packages/image/test/recipe.test.ts > a tail that climbs out of its folder is no recipe`, `packages/image/test/settle-live.test.ts > a signed URL asked with a query string is sent to the bare URL, and nothing is made`, `packages/image/test/server-assets-path.test.ts > with paths.assets set to a CDN, a signed file is made from the original Kit serves there`, `packages/core/test/plugin-signing.test.ts > a v3 region signature does not verify as a plugin signature of any field`
+**Enforced by:** `packages/image/test/server.test.ts > a URL whose recipe was changed after signing is refused, naming why and the key`, `packages/image/test/server.test.ts > a URL with no signature, or a forged one, is refused`, `packages/image/test/server.test.ts > a signed recipe naming an original the app does not ship is not found`, `packages/image/test/server.test.ts > a signed URL asked with any method but GET or HEAD is answered 405`, `packages/image/test/recipe.test.ts > a tail that climbs out of its folder is no recipe`, `packages/image/test/settle-live.test.ts > a signed URL asked with a query string is sent to the bare URL, and nothing is made`, `packages/image/test/server-assets-path.test.ts > with paths.assets set to a CDN, a signed file is made from the original Kit serves there`, `packages/core/test/plugin-signing.test.ts > a v3 region signature does not verify as a plugin signature of any field`, `packages/image/test/remote-request.test.ts > a remote URL that failed is not fetched again for a while: its files answer the remembered status, said once, and it is asked again once the memory ends`, `packages/image/test/card-endpoint.test.ts > a live card whose image the remote host refuses answers the remote's status, not a 500 for the card`
 
 ---
 
@@ -368,8 +371,11 @@ addresses only, checked in the connection's own lookup (so DNS rebinding is cove
 entry names itself is trusted wherever it points. A `*.` entry over a public suffix anyone can host
 under (`*.co.uk`, `*.github.io`) is refused. With an encoder's own links (`cloudflare()`,
 `vercel()`), an unlisted host gets no link at all (the CDN would fetch it), only the endpoint's
-URL, which refuses it. A card's engine (satori) never fetches: ogygia reads each image and hands
-it over as bytes. A remote image is never made larger than its real size, and no recipe asks for
+URL, which refuses it. A card's engine (satori) never fetches: every address a card's markup names
+(any element's `src`, `href` or `xlink:href`, any `url()`, its entities decoded first) is read by
+the card's realm through this guard and handed over as bytes, or the card is refused
+(`image_card_source`); a `data:` URL must hold raster bytes (an SVG can name addresses itself). A
+remote image is never made larger than its real size, and no recipe asks for
 more pixels than one frame may have, whatever size its URL's owner claims.
 
 **Why:** `remoteImage()` and cards take URLs from CMS or user data. Without one guard, any of those
@@ -383,7 +389,7 @@ paths is a server-side request forgery (cloud metadata, intranet hosts) or a mem
 - Hand a URL to anything that fetches it itself (satori, a CDN link) without checking its host.
 - Trust a size a URL's owner states.
 
-**Enforced by:** `packages/image/test/remote-request.test.ts > a host listed only by *. that resolves to a private address is never connected to; one the list names itself is`, `packages/image/test/remote-request.test.ts > past maxBytes is 413, past the timeout 504, an error status or not an image 502, a redirect off the list 404: each kept nowhere, each said`, `packages/image/test/remote-request.test.ts > a small remote image the CMS says is huge is never made larger than it is`, `packages/image/test/remote-image.test.ts > loopback, private, link-local (cloud metadata), shared, reserved and multicast addresses are private; a public one is not`, `packages/image/test/remote.test.ts > redirects are followed, each hop checked, at most 3`, `packages/image/test/remote.test.ts > a *. entry over a public suffix anyone can host under is refused; one over a name below it, or that name itself, is not`, `packages/image/test/remote-image-links.test.ts`, `packages/image/test/card.test.ts > an image a card's markup names at an address the app does not read it from is refused, coded, and never fetched`
+**Enforced by:** `packages/image/test/remote-request.test.ts > a host listed only by *. that resolves to a private address is never connected to; one the list names itself is`, `packages/image/test/remote-request.test.ts > past maxBytes is 413, past the timeout 504, an error status or not an image 502, a redirect off the list 404: each kept nowhere, each said`, `packages/image/test/remote-request.test.ts > a small remote image the CMS says is huge is never made larger than it is`, `packages/image/test/remote-image.test.ts > loopback, private, link-local (cloud metadata), shared, reserved and multicast addresses are private; a public one is not`, `packages/image/test/remote.test.ts > redirects are followed, each hop checked, at most 3`, `packages/image/test/remote.test.ts > a *. entry over a public suffix anyone can host under is refused; one over a name below it, or that name itself, is not`, `packages/image/test/remote-image-links.test.ts`, `packages/image/test/card.test.ts > an image a card's markup names at an address the app does not read it from is refused, coded, and never fetched`, `packages/image/test/card.test.ts > an SVG <image>'s href, a mask's url() and a data: SVG in a card are the realm's to read or refuse: satori never calls fetch`, `packages/image/test/card.test.ts > a card's image URLs reach its realm as the markup means them: &amp; in a query, &quot; around a url()`
 
 ---
 

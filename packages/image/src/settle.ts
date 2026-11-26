@@ -12,13 +12,23 @@
  * @packageDocumentation
  */
 import { bucket32 } from '@ogygia/core/contract';
-import { clock, flights, queue, STALE, type Fresh, type Place, type Queue } from '@ogygia/machine';
+import {
+	cache,
+	clock,
+	flights,
+	queue,
+	STALE,
+	type Fresh,
+	type Place,
+	type Queue
+} from '@ogygia/machine';
 import { make, parallel, store } from 'virtual:ogygia-image/maker';
 import { build_handoff } from './handoff.ts';
 import { mime_of } from './layout.ts';
-import { said, warn } from './messages.ts';
+import { said, said_each, warn } from './messages.ts';
 import { remote as REMOTE, transport } from 'virtual:ogygia-image/remote';
 import { card_original, draws, endpoint_images, NoCard } from './cards/read.ts';
+import { RealmAnswer } from './cards/images.ts';
 import { CannotMake } from './maker.ts';
 import { Changed, read_original } from './reader.ts';
 import { card_of_tail, remote_of_tail, type ParsedRecipe } from './recipe.ts';
@@ -32,7 +42,7 @@ const MEMORY_MAX = 64 * 1024 * 1024;
 
 const live = build_handoff() === null;
 
-class Busy extends Error {}
+class Busy extends RealmAnswer {}
 
 type Job = { run: () => Promise<void>; gone: () => void };
 
@@ -86,13 +96,30 @@ interface Ask {
 	platform: unknown;
 }
 
-class Refused extends Error {
+class Refused extends RealmAnswer {
 	readonly status: number;
+	readonly url: string | null;
 
-	constructor(status: number, reason: string) {
+	constructor(status: number, reason: string, url: string | null = null) {
 		super(reason);
 		this.status = status;
+		this.url = url;
 	}
+}
+
+const FAILED_KEEP_MS = 30_000;
+
+const failed_remotes = cache<string, Refused>({
+	name: 'image remote failures',
+	max: 1024,
+	keep: FAILED_KEEP_MS
+});
+
+function remembered(url: string, e: unknown): unknown {
+	if (!(e instanceof Refused)) return e;
+	const named = e.url === null ? new Refused(e.status, e.message, url) : e;
+	failed_remotes.set(url, named);
+	return named;
 }
 
 const STATUS_OF: Readonly<Record<FailKind, number>> = {
@@ -148,8 +175,16 @@ const card_originals = flights.keyed<{ tail: string; id: string }>()<
 });
 
 async function remote_bytes(url: URL): Promise<Uint8Array> {
-	const bytes = await remote_originals.get({ url: url.href });
-	if (bytes === STALE) throw new Refused(502, 'the fetch was dropped before it finished');
+	const failed = failed_remotes.get(url.href);
+	if (failed !== undefined) throw failed;
+	let bytes: Uint8Array | typeof STALE;
+	try {
+		bytes = await remote_originals.get({ url: url.href });
+	} catch (e) {
+		throw remembered(url.href, e);
+	}
+	if (bytes === STALE) throw new Refused(502, 'the fetch was dropped before it finished', url.href);
+	said_each.ok(`image_remote_refused ${url.href}`);
 	return bytes;
 }
 
@@ -191,7 +226,10 @@ const makes = flights.keyed<Ask>()<
 				data = await make(bytes, ask.recipe, ask.platform);
 			} catch (e) {
 				if (ask.url === null || e instanceof CannotMake) throw e;
-				throw new Refused(502, `the image did not decode: ${(e as Error).message}`);
+				throw remembered(
+					ask.url.href,
+					new Refused(502, `the image did not decode: ${(e as Error).message}`, ask.url.href)
+				);
 			}
 			const on_disk = store !== null && (await store.keep(ask.key, data));
 			return { data, on_disk };
@@ -262,7 +300,10 @@ export async function settle(
 				headers: { 'cache-control': 'no-store', 'retry-after': String(RETRY_AFTER_S) }
 			});
 		if (e instanceof Refused) {
-			warn('image_remote_refused', { url: url?.href ?? key, status: e.status, reason: e.message });
+			const named = e.url ?? url?.href ?? key;
+			said_each.once(`image_remote_refused ${named}`, () =>
+				warn('image_remote_refused', { url: named, status: e.status, reason: e.message })
+			);
 			return new Response('the remote image could not be fetched', {
 				status: e.status,
 				headers: { 'cache-control': 'no-store' }
@@ -296,7 +337,7 @@ async function built_card(
 	const res = assets === null ? null : await assets.fetch(new URL(built, 'https://assets.invalid'));
 	if (res?.ok)
 		return new Response(res.body, { headers: { 'content-type': type, 'cache-control': KEEP } });
-	said.once(`image_no_encoder card ${key}`, () =>
+	said_each.once(`image_no_encoder card ${key}`, () =>
 		warn('image_no_encoder', {
 			what: 'card',
 			reason: `the card ${key} was not made by the build (no prerendered page names it), and this server draws no card`

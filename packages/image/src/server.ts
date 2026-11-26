@@ -37,7 +37,7 @@ import { name } from 'virtual:ogygia-image/namer';
 import { remote as REMOTE } from 'virtual:ogygia-image/remote';
 import sources, { remote } from 'virtual:ogygia-image/sources';
 import { build_handoff, published, type BuildHandoff } from './handoff.ts';
-import { said, warn } from './messages.ts';
+import { said, said_each, warn } from './messages.ts';
 import {
 	built_file,
 	built_url,
@@ -118,7 +118,7 @@ function listed(tail: string): boolean {
 	const url = remote_of_tail(tail);
 	if (url !== null && HOSTS?.allows(url)) return true;
 	const href = url?.href ?? tail;
-	said.once(`image_remote_refused ${href}`, () =>
+	said_each.once(`image_remote_refused ${href}`, () =>
 		warn('image_remote_refused', { url: href, status: 404, reason: unlisted_why(url) })
 	);
 	return false;
@@ -223,7 +223,9 @@ function share_rule(
 	return next({
 		transformPageChunk: ({ html }) => {
 			for (const url of unshown_share_images(html))
-				said.once(`image_share_format ${url}`, () => warn('image_share_format', { path, url }));
+				said_each.once(`image_share_format ${url}`, () =>
+					warn('image_share_format', { path, url })
+				);
 			return html;
 		}
 	});
