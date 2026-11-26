@@ -7121,8 +7121,8 @@
 			"reason": "once per held markdown extension per content file compiled (one or two): its name and cache key, the key of the mdsvex instance; test/markdown-extensions.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/server.ts > Originals > url",
-			"reason": "constant work per endpoint request that makes a file (one Map lookup), not per page render; test/server-assets-path.test.ts runs it"
+			"id": "packages/image/src/source-urls.ts > source_url",
+			"reason": "constant work per endpoint request that makes a file or reads a card's image (one Map lookup), not per page render; test/server-assets-path.test.ts and test/card-endpoint-read.test.ts run it"
 		},
 		{
 			"id": "packages/image/src/server.ts > Originals > has",
@@ -8729,7 +8729,7 @@
 			"reason": "once per server start: makes the endpoint's reader of a card's images"
 		},
 		{
-			"id": "packages/image/src/cards/read.ts > endpoint_images > card_image_reader:1~999345",
+			"id": "packages/image/src/cards/read.ts > endpoint_images > card_image_reader:1~5ba3e8",
 			"reason": "once per image a live card draw names: one map lookup and one Kit read(); test/card-endpoint-read.test.ts runs it"
 		},
 		{

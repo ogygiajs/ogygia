@@ -43,7 +43,6 @@ import {
 	built_url,
 	CARD_TAIL,
 	card_of_tail,
-	encode_tail,
 	IMAGE_PREFIX,
 	recipe_file,
 	recipe_path,
@@ -56,28 +55,26 @@ import {
 } from './recipe.ts';
 import { RemoteHosts } from './remote-hosts.ts';
 import { unshown_share_images } from './share-rule.ts';
-import { SOURCE_PREFIXES, SOURCE_URLS } from './source-urls.ts';
+import { SOURCE_PREFIXES, SOURCE_URLS, source_url } from './source-urls.ts';
 import { message, verify } from './verify.ts';
 
 type OnDisk = typeof import('./on-disk.ts');
 let DISK: OnDisk | null = null;
 
-const { base: BASE, assets: ASSETS } = config.paths;
+const { base: BASE } = config.paths;
 const PREFIXES = SOURCE_PREFIXES;
 
 class Originals {
-	#urls: ReadonlyMap<string, string>;
 	#remote: ReadonlySet<string>;
 
-	constructor(urls: ReadonlyMap<string, string>, fetched: readonly string[] | string) {
-		this.#urls = urls;
+	constructor(fetched: readonly string[] | string) {
 		this.#remote = new Set(typeof fetched === 'string' ? [] : fetched);
 	}
 
 	has(tail: string): boolean {
 		if (tail.startsWith(REMOTE_TAIL)) return listed(tail);
 		if (tail.startsWith(CARD_TAIL)) return card_of_tail(tail) !== null;
-		if (this.#urls.has(tail)) return true;
+		if (SOURCE_URLS.has(tail)) return true;
 		if (tail.startsWith(REMOTE_ASSETS)) {
 			const name = REMOTE_ASSET_RE.exec(tail.slice(REMOTE_ASSETS.length))?.[1];
 			if (name !== undefined && this.#remote.has(name)) return true;
@@ -88,9 +85,6 @@ class Originals {
 		return DISK.is_remote(run.root, run.remote, tail);
 	}
 
-	url(tail: string): string {
-		return this.#urls.get(tail) ?? `${dev ? BASE : ASSETS || BASE}/${encode_tail(tail)}`;
-	}
 }
 
 const REMOTE_ASSETS = `${config.paths.app_dir}/immutable/assets/`;
@@ -100,7 +94,7 @@ const DEV_RUN: BuildHandoff | null = dev ? root_handoff(build_handoff()) : null;
 function root_handoff(run: BuildHandoff | null): BuildHandoff | null {
 	return run !== null && run.root !== '' ? run : null;
 }
-const ORIGINALS = new Originals(SOURCE_URLS, remote);
+const ORIGINALS = new Originals(remote);
 const HOSTS: RemoteHosts | null = REMOTE === null ? null : new RemoteHosts(REMOTE.hosts);
 
 function unlisted_why(url: URL | null): string {
@@ -163,7 +157,7 @@ function no_encoder(e: unknown): Response {
 
 function original_of(recipe: ParsedRecipe): string {
 	if (card_of_tail(recipe.tail) !== null) return built_url(config.paths, recipe);
-	return ORIGINALS.url(recipe.tail);
+	return source_url(recipe.tail);
 }
 
 const SIGNED_MAX = 10_000;
