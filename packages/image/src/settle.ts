@@ -200,10 +200,17 @@ const makes = flights.keyed<Ask>()<
 
 const KEEP = 'public, max-age=31536000, immutable';
 
-function remote_keep(max_age: number, now_s: number): { key: string; header: string } {
+function spread(text: string, span: number): number {
+	let h = 0x811c9dc5;
+	for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+	return (h >>> 0) % span;
+}
+
+function remote_keep(max_age: number, now_s: number, url: string): { key: string; header: string } {
 	const span = Math.max(1, max_age);
-	const window = Math.floor(now_s / span);
-	const left = Math.max(1, (window + 1) * span - Math.floor(now_s));
+	const at = Math.floor(now_s) + spread(url, span);
+	const window = Math.floor(at / span);
+	const left = Math.max(1, (window + 1) * span - at);
 	return {
 		key: `@${span}.${window}`,
 		header: `public, max-age=${left}, stale-while-revalidate=${max_age}`
@@ -225,7 +232,8 @@ export async function settle(
 	const url = remote_of_tail(recipe.tail);
 	const card = card_of_tail(recipe.tail) !== null;
 	if (card && !draws) return built_card(key, original, type, platform);
-	const window = url === null ? null : remote_keep(REMOTE?.maxAge ?? 0, clock.wall() / 1000);
+	const window =
+		url === null ? null : remote_keep(REMOTE?.maxAge ?? 0, clock.wall() / 1000, url.href);
 	const file = window === null ? key : `${key}${window.key}`;
 	const keep = window === null ? KEEP : window.header;
 	try {

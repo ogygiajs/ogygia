@@ -148,14 +148,34 @@ describe('the image endpoint, for a remote image', () => {
 			expect(asked).toEqual(['cms.example.test/photo-b.jpg']);
 			expect((await get(a!)).status).toBe(200);
 			expect(asked).toHaveLength(1);
-			expect(ra.headers.get('cache-control')).toBe('public, max-age=55, stale-while-revalidate=60');
-			vi.setSystemTime(new Date('2026-01-01T00:01:01Z'));
+			const left = Number(
+				/^public, max-age=(\d+), stale-while-revalidate=60$/.exec(
+					ra.headers.get('cache-control')!
+				)![1]
+			);
+			expect(left).toBeGreaterThanOrEqual(1);
+			expect(left).toBeLessThanOrEqual(60);
+			vi.setSystemTime(new Date(Date.parse('2026-01-01T00:00:05Z') + left * 1000));
 			const again = await get(a!);
 			expect(again.status).toBe(200);
 			expect(again.headers.get('cache-control')).toBe(
-				'public, max-age=59, stale-while-revalidate=60'
+				'public, max-age=60, stale-while-revalidate=60'
 			);
 			expect(asked).toEqual(['cms.example.test/photo-b.jpg', 'cms.example.test/photo-b.jpg']);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	test("different URLs' windows end at different instants, so a server's remote files do not all expire at once", async () => {
+		vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-01-01T00:00:00Z') });
+		try {
+			const ages = new Set<string | null>();
+			for (const name of ['spread-a', 'spread-b', 'spread-c', 'spread-d', 'spread-e']) {
+				const res = await get(urls_of(`http://cms.example.test/photo-${name}.jpg`)[0]!);
+				ages.add(res.headers.get('cache-control'));
+			}
+			expect(ages.size).toBeGreaterThan(1);
 		} finally {
 			vi.useRealTimers();
 		}

@@ -354,8 +354,8 @@ function check_remote(where: string, r: unknown): void {
 		invalid(where, 'remote.maxBytes', 'a whole number of bytes above 0');
 	if (r.timeout !== undefined && !(Number.isInteger(r.timeout) && (r.timeout as number) > 0))
 		invalid(where, 'remote.timeout', 'a whole number of milliseconds above 0');
-	if (r.maxAge !== undefined && !(Number.isInteger(r.maxAge) && (r.maxAge as number) >= 0))
-		invalid(where, 'remote.maxAge', 'a whole number of seconds, 0 or more');
+	if (r.maxAge !== undefined && !(Number.isInteger(r.maxAge) && (r.maxAge as number) >= 1))
+		invalid(where, 'remote.maxAge', 'a whole number of seconds, 1 or more');
 }
 
 /** Check the plugin's options. */
