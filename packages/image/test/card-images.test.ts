@@ -248,6 +248,29 @@ describe("a card's images, as satori is handed them", () => {
 		}
 	);
 
+	test("an <img> read as a Buffer that is a view into a larger pool hands satori that image's bytes alone, not the pool's", async () => {
+		const red = await sharp({
+			create: { width: 300, height: 300, channels: 3, background: '#ff0000' }
+		})
+			.png()
+			.toBuffer();
+		const pool = new Uint8Array(red.byteLength + 4096);
+		pool.set(red, 2048);
+		const view = Buffer.from(pool.buffer, 2048, red.byteLength);
+		const png = await card_png(
+			spec_of(
+				`<div style="display: flex; width: ${W}px; height: ${H}px; background-color: #0000ff"><img src="/a.png" style="width: 300px; height: 300px"></div>`
+			),
+			{},
+			[FONT],
+			() => Promise.resolve(view),
+			fit_to_card
+		);
+		const [r, g, b] = await pixel(png, 100, 100);
+		expect([r, g, b]).toEqual([255, 0, 0]);
+		expect((images_in(drawn[0])[0] as ArrayBuffer).byteLength).toBe(red.byteLength);
+	});
+
 	test('an image of a type resvg cannot draw never reaches it: a fit that hands one back is refused, coded', async () => {
 		const webp = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#f00' } })
 			.webp()
