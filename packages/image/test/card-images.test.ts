@@ -99,6 +99,12 @@ function bytes_of(value: unknown): Buffer {
 	return Buffer.from(m[1]!, 'base64');
 }
 
+async function pixel(png: Uint8Array, x: number, y: number): Promise<number[]> {
+	const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+	const at = (y * info.width + x) * info.channels;
+	return [...data.subarray(at, at + 3)];
+}
+
 afterEach(() => {
 	drawn.length = 0;
 	vi.restoreAllMocks();
@@ -208,6 +214,66 @@ describe("a card's images, as satori is handed them", () => {
 		expect(asked).toEqual([]);
 		expect((await sharp(png).metadata()).format).toBe('png');
 		expect(images_in(drawn[0])).toEqual([]);
+	});
+
+	test.each(['png', 'jpeg', 'gif', 'webp', 'avif'] as const)(
+		'a small %s on a card draws its own pixels, as an <img> and as a background url() (resvg draws no WebP or AVIF)',
+		async (format) => {
+			const red = await sharp({
+				create: { width: 300, height: 300, channels: 3, background: '#ff0000' }
+			})
+				.toFormat(format)
+				.toBuffer();
+			const data = `data:image/${format};base64,${red.toString('base64')}`;
+			for (const markup of [
+				'<img src="https://cms.example.com/a" style="width: 300px; height: 300px">',
+				`<div style="display: flex; width: 300px; height: 300px; background-image: url(${data})"></div>`
+			]) {
+				const png = await card_png(
+					spec_of(
+						`<div style="display: flex; width: ${W}px; height: ${H}px; background-color: #0000ff">${markup}</div>`
+					),
+					{},
+					[FONT],
+					() => Promise.resolve(new Uint8Array(red)),
+					fit_to_card
+				);
+				const [r, g, b] = await pixel(png, 100, 100);
+				expect({ r, g, b }, `${format}: ${markup.slice(0, 4)}`).toEqual({
+					r: expect.toSatisfy((v: number) => v > 240),
+					g: expect.toSatisfy((v: number) => v < 16),
+					b: expect.toSatisfy((v: number) => v < 16)
+				});
+			}
+		}
+	);
+
+	test('an image of a type resvg cannot draw never reaches it: a fit that hands one back is refused, coded', async () => {
+		const webp = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#f00' } })
+			.webp()
+			.toBuffer();
+		await expect(
+			card_png(
+				spec_of('<img src="https://cms.example.com/a" style="width: 10px; height: 10px">'),
+				{},
+				[FONT],
+				() => Promise.resolve(new Uint8Array(webp)),
+				(bytes) => Promise.resolve({ bytes, type: 'image/webp' })
+			)
+		).rejects.toMatchObject({ code: 'image_card_source' });
+		expect(drawn).toEqual([]);
+	});
+
+	test('an SVG data: URL is refused in a card, coded (it can name addresses of its own)', async () => {
+		const svg = `data:image/svg+xml;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>').toString('base64')}`;
+		for (const markup of [
+			`<img src="${svg}" style="width: 10px; height: 10px">`,
+			`<div style="display: flex; width: 10px; height: 10px; background-image: url(${svg})"></div>`
+		])
+			await expect(
+				card_png(spec_of(markup), {}, [FONT], undefined, fit_to_card)
+			).rejects.toMatchObject({ code: 'image_card_source' });
+		expect(drawn).toEqual([]);
 	});
 
 	test('a data: URL reaches satori under the type its bytes are, not the one it declares', async () => {
