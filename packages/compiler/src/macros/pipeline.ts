@@ -9,7 +9,7 @@ import { splice_map, splice_text, type Edit } from '../splice.ts';
 import type { Profiler } from '../driver.ts';
 import type { AppAlias } from '../app-spec.ts';
 import { OgygiaError } from '../messages.ts';
-import { find_og_calls } from '../parse/scan.ts';
+import { find_og_calls, og_js_regions, type OgCall } from '../parse/scan.ts';
 
 /** A resolved Vite alias (`resolve.alias`, normalized to its array form). */
 export type AliasEntry = AppAlias;
@@ -50,13 +50,17 @@ const MACRO_PACKAGES: Readonly<Record<string, { package: string; plugin: string 
 	image: { package: '@ogygia/image', plugin: 'image()' }
 };
 
-function calls_macro(code: string, name: string): boolean {
-	return find_og_calls(code, 'import.meta.og.').some(
-		(c) => c.method === name || c.method.startsWith(`${name}.`)
+const CONSTRUCT_MARKUP_EXTS = ['.svelte'] as const;
+
+function macro_calls(code: string, id: string): OgCall[] {
+	return (og_js_regions(code, id, CONSTRUCT_MARKUP_EXTS) ?? []).flatMap((r) =>
+		find_og_calls(r.code, 'import.meta.og.')
 	);
 }
 
-const CONSTRUCT_MARKUP_EXTS = ['.svelte'] as const;
+function calls_macro(code: string, id: string, name: string): boolean {
+	return macro_calls(code, id).some((c) => c.method === name || c.method.startsWith(`${name}.`));
+}
 
 export interface MacroPipelineCtx {
 	root: string;
@@ -136,7 +140,7 @@ export async function run_module_macros(
 		for (const macro of ctx.macros) {
 			if (!out.includes(`import.meta.og.${macro.name}`)) continue;
 			if (!own) {
-				if (calls_macro(out, macro.name)) refuse(macro.name);
+				if (calls_macro(out, id, macro.name)) refuse(macro.name);
 				continue;
 			}
 			rel ??= path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
@@ -163,7 +167,7 @@ export async function run_module_macros(
 	}
 
 	if (out.includes('import.meta.og.')) {
-		for (const call of find_og_calls(out, 'import.meta.og.')) {
+		for (const call of macro_calls(out, id)) {
 			const name = call.method.split('.')[0]!;
 			const pkg = MACRO_PACKAGES[name];
 			if (pkg === undefined || ctx.macros?.some((m) => m.name === name)) continue;
