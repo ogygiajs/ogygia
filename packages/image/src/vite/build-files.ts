@@ -283,7 +283,10 @@ export async function write_built(
 	});
 	const origin = origin_of(handoff.minted);
 	fs.rmSync(path.dirname(handoff.minted), { recursive: true, force: true });
-	if (failures.length) throw failures[0];
+	if (failures.length) {
+		for (const more of failures.slice(1)) console.error((more as Error).message);
+		throw failures[0];
+	}
 	if (handoff.mark) unmark(path.join(output, 'prerendered'), handoff.mark, origin);
 	const done: BuildHandoff = { ...handoff, minted: '', mark: '', written: client };
 	process.env[BUILD_ENV] = JSON.stringify(done);
