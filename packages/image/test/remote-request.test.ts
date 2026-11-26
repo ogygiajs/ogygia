@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 import { clock } from '@ogygia/machine';
 
-const io = vi.hoisted(() => ({ port: 0, address: '127.0.0.1' }));
+const io = vi.hoisted(() => ({ port: 0, address: '127.0.0.1', fail_encodes: 0 }));
 vi.hoisted(() => {
 	delete process.env.__OGYGIA_IMAGE_BUILD;
 });
@@ -23,6 +23,19 @@ vi.mock('virtual:ogygia-image/config', () => ({
 }));
 vi.mock('$app/environment', () => ({ building: false, dev: false }));
 vi.mock('$app/server', () => ({ read: () => new Response(new Uint8Array()) }));
+vi.mock('virtual:ogygia-image/maker', async () => {
+	const sharp_maker = await import('../src/makers/sharp.ts');
+	return {
+		...sharp_maker,
+		make: (...args: Parameters<typeof sharp_maker.make>) => {
+			if (io.fail_encodes > 0) {
+				io.fail_encodes--;
+				return Promise.reject(new Error('ENOMEM: out of memory'));
+			}
+			return sharp_maker.make(...args);
+		}
+	};
+});
 vi.mock('virtual:ogygia-image/remote', async () => {
 	const { node_transport } = await import('../src/remote-node.ts');
 	const get = node_transport((_host, _options, done) =>
@@ -74,6 +87,9 @@ beforeAll(async () => {
 		} else if (at === '/slow.jpg' || at.startsWith('/slow-')) {
 			res.writeHead(200, { 'content-type': 'image/jpeg' });
 			res.write(jpg.subarray(0, 10));
+		} else if (at === '/broken.jpg') {
+			res.writeHead(200, { 'content-type': 'image/jpeg' });
+			res.end(Buffer.concat([jpg.subarray(0, 3), Buffer.alloc(64)]));
 		} else if (at === '/page.jpg') {
 			res.writeHead(200, { 'content-type': 'image/jpeg' });
 			res.end('<p>not an image</p>');
@@ -259,6 +275,37 @@ describe('the image endpoint, for a remote image', () => {
 			expect(refused()).toBe(1);
 		} finally {
 			mono.mockRestore();
+			warn.mockRestore();
+		}
+	});
+
+	test("an encode that fails on its own (out of memory under load) fails that file only: the URL's other files, and the same file asked again, are made", async () => {
+		const warn = quiet();
+		try {
+			asked.length = 0;
+			const [a, b] = urls_of('http://cms.example.test/photo-encode.jpg', 160);
+			io.fail_encodes = 1;
+			expect((await get(a!)).status).toBe(500);
+			expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toMatch(
+				/image_settle_failed[\s\S]*ENOMEM/
+			);
+			expect((await get(b!)).status).toBe(200);
+			expect((await get(a!)).status).toBe(200);
+		} finally {
+			io.fail_encodes = 0;
+			warn.mockRestore();
+		}
+	});
+
+	test("an original that does not decode is the URL's failure: every file of it answers 502, remembered, from one fetch", async () => {
+		const warn = quiet();
+		try {
+			asked.length = 0;
+			const [a, b] = urls_of('http://cms.example.test/broken.jpg', 160);
+			for (const url of [a!, b!]) expect((await get(url)).status).toBe(502);
+			expect(asked).toEqual(['cms.example.test/broken.jpg']);
+			expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toMatch(/did not decode/);
+		} finally {
 			warn.mockRestore();
 		}
 	});
