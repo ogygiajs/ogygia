@@ -250,6 +250,15 @@ describe('realms, named by the plugin', () => {
 				resolve_plugins([def({ name: '@ogygia/flags', build: (b) => void read(b) })], APP, true)
 			).toThrow(/no region table without ogygia\(\)/);
 	});
+	it("without ogygia() a plugin reading the routes folder is told so, never handed src/routes (an app's files.routes may name another)", () => {
+		expect(() =>
+			resolve_plugins(
+				[def({ name: '@ogygia/flags', build: (b) => void b.routesDir.length })],
+				APP,
+				true
+			)
+		).toThrow(/no routes folder without ogygia\(\)/);
+	});
 	it('a client realm that does not parse, or whose defineClient spreads, cannot be read', () => {
 		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'og-client-unread-'));
 		const broken = path.join(dir, 'broken.ts');
