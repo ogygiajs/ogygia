@@ -1,7 +1,6 @@
 import { boot_link } from './lazy-link.ts';
 import { buggify, clock, flights, net, stage, world } from '@ogygia/machine';
 import { lru } from '@ogygia/machine';
-import { srcset_candidates } from '../srcset.ts';
 import type { PageGlobals } from '../page-globals.ts';
 import {
 	morph_sync_attributes,
@@ -65,6 +64,7 @@ import {
 	L_RUNTIME_SESSION,
 	L_SHEETS_IN_USE,
 	L_SOFT,
+	L_SRCSET_CANDIDATES,
 	L_STALE,
 	L_VOUCH_PAGE_ANSWER,
 	L_WARM_ISLAND_MODULE,
@@ -256,7 +256,8 @@ function own_live_head(page: URL): void {
 }
 
 function resolve_srcset(value: string, page: URL): string {
-	return srcset_candidates(value)
+	return boot_link()
+		[L_SRCSET_CANDIDATES](value)
 		.map(({ url, descriptor }) => {
 			const resolved = page_relative_resolved(url, page);
 			return descriptor ? `${resolved} ${descriptor}` : resolved;

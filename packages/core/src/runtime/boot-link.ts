@@ -62,6 +62,7 @@ import { fetch_priority_of, PRIORITY } from './load-class.ts';
 import { load_devalue, devalue, with_devalue, needs_devalue } from './devalue-lane.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
 import { wire_codec } from './wire-on-use.ts';
+import { srcset_candidates } from '../srcset.ts';
 
 type Lakes = typeof import('./lakes.ts');
 type Forms = typeof import('./form-continuity.ts');
@@ -134,7 +135,9 @@ export type BootLink = [
 	jump_to_hash: typeof import('./router.ts').jump_to_hash | null,
 	fragment_target: typeof import('./fragment.ts').fragment_target | null,
 	resolve_address: typeof import('./interaction.ts').resolve_address | null,
-	wire_codec: typeof import('./wire-on-use.ts').wire_codec
+	wire_codec: typeof import('./wire-on-use.ts').wire_codec,
+	/** the one srcset parser (../srcset.ts), the load scheduler's own */
+	srcset_candidates: typeof import('../srcset.ts').srcset_candidates
 ];
 
 const KIT_PAGES = typeof __OGYGIA_KIT_PAGES__ !== 'undefined' ? __OGYGIA_KIT_PAGES__ : true;
@@ -221,6 +224,7 @@ export function make_boot_link(): BootLink {
 		HAS & F_ROUTER ? router.jump_to_hash : null,
 		HAS & F_ROUTER ? router.fragment_target : null,
 		HAS & F_INTERACTION ? interaction.resolve_address : null,
-		wire_codec
+		wire_codec,
+		srcset_candidates
 	];
 }
