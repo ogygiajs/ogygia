@@ -17,7 +17,8 @@
  *   `remoteImage()` takes, ../image-type.ts): `image_card_source`.
  *
  * Then the tree is checked whole, once, right before satori ({@link drawable}): every address left
- * in it is bytes, a `data:` URL of a raster type or a `#` reference, or the card is refused. The
+ * in it is bytes or a `data:` URL of a file resvg draws ({@link resvg_draws}), or a `#` reference,
+ * or the card is refused. The
  * guard is closed by that check, not by reading CSS the way satori does.
  *
  * @packageDocumentation
@@ -71,10 +72,49 @@ const SAFE_AFTER_OPEN_RE = /^\s*['"]?\s*(?:data:|#|['"]?\s*\))/i;
 const HREF_PROPS: ReadonlySet<string> = new Set(['href', 'xlinkHref', 'xlink:href']);
 const DATA_AFTER_OPEN_RE = /^\s*(['"]?)\s*(data:[^'")]*)/i;
 
-/** The image types resvg draws, and so the only ones the tree satori is handed may hold: satori
- *  writes any image it is given into its SVG as it is, and resvg draws a WebP or an AVIF as
- *  nothing, with no error. The card's fitter makes every other type again as one of these. */
-export const RESVG_DRAWS: ReadonlySet<string> = new Set(['image/png', 'image/jpeg', 'image/gif']);
+const JPEG_SOF_DRAWN: ReadonlySet<number> = new Set([0xc0, 0xc1, 0xc2]);
+const JPEG_NO_LENGTH = (marker: number): boolean =>
+	marker === 0x01 || (marker >= 0xd0 && marker <= 0xd8);
+
+function jpeg_drawn(bytes: Uint8Array): boolean {
+	let at = 2;
+	while (at + 3 < bytes.length) {
+		if (bytes[at] !== 0xff) return false;
+		const marker = bytes[at + 1]!;
+		if (marker === 0xff) {
+			at += 1;
+			continue;
+		}
+		if (JPEG_NO_LENGTH(marker)) {
+			at += 2;
+			continue;
+		}
+		if (marker === 0xda || marker === 0xd9) return false;
+		const length = (bytes[at + 2]! << 8) | bytes[at + 3]!;
+		if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+			if (at + 9 >= bytes.length) return false;
+			const components = bytes[at + 9]!;
+			return (
+				JPEG_SOF_DRAWN.has(marker) && bytes[at + 4] === 8 && (components === 1 || components === 3)
+			);
+		}
+		at += 2 + length;
+	}
+	return false;
+}
+
+/** Does resvg draw these bytes: a PNG of at most 8 bits a sample, a JPEG of 8 bits in one or three
+ *  components (no CMYK) coded as baseline or progressive, or a GIF. These are the only files the
+ *  tree satori is handed may hold: satori writes any image it is given into its SVG as it is, and
+ *  resvg draws the rest (a WebP, an AVIF, a CMYK JPEG) as nothing, with no error. The card's fitter
+ *  makes every other file again as one of these. */
+export function resvg_draws(bytes: Uint8Array): boolean {
+	const type = image_type(bytes);
+	if (type === 'image/gif') return true;
+	if (type === 'image/png') return bytes.length > 24 && bytes[24]! <= 8;
+	if (type === 'image/jpeg') return jpeg_drawn(bytes);
+	return false;
+}
 
 function is_ref(src: string): boolean {
 	return src.trim() === '' || src.startsWith('#');
@@ -206,20 +246,20 @@ export async function inline_images<T>(
 }
 
 /** Refuse `tree` (`image_card_source`) unless every address left in it is one satori cannot fetch
- *  and resvg draws: an `ArrayBuffer` or a `data:` URL whose bytes are a type of
- *  {@link RESVG_DRAWS}, or a `#` reference, in every `src`, `href`, `xlink:href` and after every
+ *  and resvg draws: an `ArrayBuffer` or a `data:` URL whose bytes resvg draws
+ *  ({@link resvg_draws}), or a `#` reference, in every `src`, `href`, `xlink:href` and after every
  *  `url(` of every string, closed or not. Run on the tree satori is handed, right before the draw. */
 export function drawable(tree: unknown, file: string): void {
 	const fail = (src: string, reason: string): never => {
 		throw refused(file, src.slice(0, 64), reason);
 	};
 	const drawn = (src: string, bytes: Uint8Array | null): void => {
+		if (bytes !== null && resvg_draws(bytes)) return;
 		const type = bytes === null ? null : image_type(bytes);
-		if (type === null || !RESVG_DRAWS.has(type))
-			fail(
-				src,
-				`its bytes are ${type ?? 'no image'}, and resvg draws only PNG, JPEG and GIF (an SVG can name addresses of its own)`
-			);
+		fail(
+			src,
+			`its bytes are ${type ?? 'no image'} that resvg does not draw: it draws only an 8-bit PNG, an 8-bit grey or RGB JPEG and a GIF (an SVG can name addresses of its own)`
+		);
 	};
 	const text = (value: string): void => {
 		if (!value.toLowerCase().includes('url(')) return;

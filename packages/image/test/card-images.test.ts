@@ -10,6 +10,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { CardSpec } from '../src/card.ts';
 import { card_png } from '../src/cards/engine.ts';
 import { fit_to_card } from '../src/cards/fit.ts';
+import { resvg_draws } from '../src/cards/images.ts';
 
 const drawn: unknown[] = [];
 
@@ -251,36 +252,37 @@ describe("a card's images, as satori is handed them", () => {
 	test.each([
 		{
 			file: 'CMYK JPEG',
-			color: [255, 0, 0],
+			background: '#ff0000',
 			make: (img: sharp.Sharp) => img.toColourspace('cmyk').jpeg()
 		},
 		{
 			file: 'Display P3 JPEG',
-			color: [255, 0, 0],
+			background: '#ff0000',
 			make: (img: sharp.Sharp) => img.withIccProfile('p3').jpeg()
 		},
 		{
 			file: '16-bit PNG',
-			color: [255, 0, 0],
+			background: '#ff0000',
 			make: (img: sharp.Sharp) => img.toColourspace('rgb16').png()
 		},
 		{
 			file: 'grey PNG',
-			color: [128, 128, 128],
+			background: '#808080',
 			make: (img: sharp.Sharp) => img.toColourspace('b-w').png()
 		},
 		{
 			file: '16-bit grey PNG',
-			color: [128, 128, 128],
+			background: '#808080',
 			make: (img: sharp.Sharp) => img.toColourspace('grey16').png()
 		}
 	])(
 		'a small $file on a card draws its own pixels, as an <img> and as a background url() (resvg draws a CMYK JPEG as nothing and reads no colour profile)',
-		async ({ color, make }) => {
-			const background = color[1] === 0 ? '#ff0000' : '#808080';
+		async ({ background, make }) => {
 			const bytes = await make(
 				sharp({ create: { width: 300, height: 300, channels: 3, background } })
 			).toBuffer();
+			const color = await pixel(new Uint8Array(bytes), 100, 100);
+			expect(color, 'the file is not the blue under it').not.toEqual([0, 0, 255]);
 			const data = `data:image/jpeg;base64,${bytes.toString('base64')}`;
 			for (const markup of [
 				'<img src="https://cms.example.com/a" style="width: 300px; height: 300px">',
@@ -360,6 +362,46 @@ describe("a card's images, as satori is handed them", () => {
 				type
 			).rejects.toMatchObject({ code: 'image_card_source' });
 		expect(drawn).toEqual([]);
+	});
+
+	test('resvg draws a JPEG only when it is 8-bit, grey or RGB, baseline or progressive: no 12-bit, arithmetic, lossless or CMYK file passes', () => {
+		const jpeg = (sof: number, precision: number, components: number) =>
+			new Uint8Array([
+				0xff,
+				0xd8,
+				0xff,
+				0xe0,
+				0,
+				4,
+				0,
+				0,
+				0xff,
+				0xff,
+				0xc4,
+				0,
+				2,
+				0xff,
+				sof,
+				0,
+				8 + 3 * components,
+				precision,
+				0,
+				8,
+				0,
+				8,
+				components,
+				...Array.from({ length: 3 * components }, () => 0)
+			]);
+		expect(resvg_draws(jpeg(0xc0, 8, 3))).toBe(true);
+		expect(resvg_draws(jpeg(0xc2, 8, 1))).toBe(true);
+		expect(resvg_draws(jpeg(0xc1, 8, 3))).toBe(true);
+		expect(resvg_draws(jpeg(0xc0, 12, 3))).toBe(false);
+		expect(resvg_draws(jpeg(0xc0, 8, 4))).toBe(false);
+		expect(resvg_draws(jpeg(0xc3, 8, 3))).toBe(false);
+		expect(resvg_draws(jpeg(0xc9, 8, 3))).toBe(false);
+		expect(resvg_draws(jpeg(0xca, 8, 3))).toBe(false);
+		expect(resvg_draws(new Uint8Array([0xff, 0xd8, 0xff, 0xda, 0, 2]))).toBe(false);
+		expect(resvg_draws(new Uint8Array([0xff, 0xd8, 0xff]))).toBe(false);
 	});
 
 	test('an SVG data: URL is refused in a card, coded (it can name addresses of its own)', async () => {
