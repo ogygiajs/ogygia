@@ -14,6 +14,11 @@ test('a page whose view-transition names are each one element breaks no rule', (
 	expect(name_rule()).toEqual([]);
 });
 
+test('a name repeated on an element that is not rendered breaks no rule (a mobile sheet beside a hidden sidebar)', () => {
+	document.body.innerHTML = `<nav style="view-transition-name: og-sidebar"></nav><aside style="display:none"><nav style="view-transition-name: og-sidebar"></nav></aside><nav style="display:none;view-transition-name: og-sidebar"></nav>`;
+	expect(name_rule()).toEqual([]);
+});
+
 test('two elements with one view-transition name are a broken rule, naming it', () => {
 	document.body.innerHTML = `<img style="background:red;view-transition-name:og-img-a1" alt=""><p>x</p><img style="view-transition-name: og-img-a1" alt=""><img style="view-transition-name:none" alt=""><img style="view-transition-name:none" alt="">`;
 	expect(name_rule().map((b) => b.detail)).toEqual([
