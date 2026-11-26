@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, expect, test, vi } from 'vitest';
 import { startPlugin } from '@ogygia/core/plugin/testing';
+import type { CardProps } from '../src/card.ts';
 
 const io = vi.hoisted(() => ({ address: '127.0.0.1', port: 0 }));
 const MONO = createRequire(import.meta.url).resolve(
@@ -21,7 +22,7 @@ const spec = vi.hoisted(() => ({
 	width: 600,
 	height: 315,
 	fonts: [{ name: 'JetBrains Mono', weight: 500, style: 'normal' as const, src: '/font.woff' }],
-	html: (props: Record<string, unknown>) =>
+	html: (props: CardProps) =>
 		Promise.resolve(
 			`<div style="display: flex; width: 600px; height: 315px"><img src="${String(props.src)}" width="10" height="10"></div>`
 		)
@@ -42,7 +43,7 @@ vi.mock('virtual:ogygia-image/cards', async () => {
 		card_module: () =>
 			Promise.resolve({
 				spec,
-				png: (props: Record<string, unknown>, fonts: readonly ArrayBuffer[], images: never) =>
+				png: (props: CardProps, fonts: readonly ArrayBuffer[], images: never) =>
 					card_png(spec, props, fonts, images)
 			})
 	};
