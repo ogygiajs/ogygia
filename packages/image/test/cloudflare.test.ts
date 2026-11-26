@@ -130,7 +130,8 @@ test('a remote source is never made larger than it is, by a link or the binding:
 });
 
 const STEPS_SEEN: Readonly<Record<number, string>> = {
-	1: 'z8r-8rj-IvGXF8prEjKkqZMiRU8swCF8Q95YXL_Bt9A'
+	1: 'z8r-8rj-IvGXF8prEjKkqZMiRU8swCF8Q95YXL_Bt9A',
+	2: 'G3yBZZfsdt1-mZZuVQ3ZDd-Ot-g1wGLWjprYYUAKkAw'
 };
 
 test("a change to the binding's steps bumps STEPS_VERSION, so the Worker cache never answers with files made the old way", () => {
@@ -139,7 +140,8 @@ test("a change to the binding's steps bumps STEPS_VERSION, so the Worker cache n
 		at({ format: 'png', position: 'top' }),
 		at({ format: 'webp', quality: 70, position: 'attention' }),
 		at({ ops: { rotate: 90, flip: true, flop: true, grayscale: true, blur: 3, sharpen: true } }),
-		at({ ops: { modulate: { brightness: 1.2, saturation: 0.5 } } })
+		at({ ops: { modulate: { brightness: 1.2, saturation: 0.5 } } }),
+		at({ src: 'https://cms.example.com/a.jpg', from: 'remote' })
 	];
 	const print = crypto
 		.createHash('sha256')

@@ -463,7 +463,7 @@ What each encoder can make:
 
 | A file that needs                                        | sharp | Cloudflare (links and binding)                                      |
 | -------------------------------------------------------- | ----- | ------------------------------------------------------------------- |
-| a box, cropped to cover                                  | yes   | `fit=cover`                                                         |
+| a box, cropped to cover                                  | yes   | `fit=cover` (`fit=crop` for a remote source: never enlarged)        |
 | `position` center, top, bottom, left, right              | yes   | `gravity=` (center is the default)                                  |
 | `position: 'attention'`                                  | yes   | `gravity=auto`                                                      |
 | `position: 'entropy'`                                    | yes   | no                                                                  |
@@ -689,7 +689,7 @@ export const load = async ({ params }) => {
 <Img of={data.cover} preset="cover" alt={data.cover.alt} />
 ```
 
-`width` and `height` are the image's own: the page reserves its box from them, so ask the CMS for them. The format is read from the URL's extension (JPEG when it names none). It has no placeholder. Its host must be in `image({ remote: { hosts } })`, which is checked where it is fetched.
+`width` and `height` are the image's own: the page reserves its box from them, so ask the CMS for them. A file is never made larger than the image really is (sharp and Cloudflare only shrink a remote source), but the `srcset` is planned from the size you state: a size larger than the real one lists wide files that are no sharper, only bigger to download. The format is read from the URL's extension (JPEG when it names none). It has no placeholder. Its host must be in `image({ remote: { hosts } })`, which is checked where it is fetched.
 
 ```ts title=vite.config.ts
 image({

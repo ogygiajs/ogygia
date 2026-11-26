@@ -60,8 +60,8 @@ const SHARP_AS: Readonly<Record<Need, string>> = {
 };
 
 const CLOUDFLARE: Readonly<Record<Need, Capability>> = {
-	box: { can: true, as: 'fit=cover' },
-	crop: { can: true, as: 'fit=cover' },
+	box: { can: true, as: 'fit=cover (fit=crop for a remote source: never enlarged)' },
+	crop: { can: true, as: 'fit=cover (fit=crop for a remote source: never enlarged)' },
 	'position center': { can: true, as: 'no gravity (the center is the default)' },
 	'position top': { can: true, as: 'gravity=top' },
 	'position bottom': { can: true, as: 'gravity=bottom' },

@@ -14,7 +14,7 @@ import { quarter, type Need } from './needs.ts';
 export interface CloudflareTransform {
 	width?: number;
 	height?: number;
-	fit?: 'cover';
+	fit?: 'cover' | 'crop';
 	gravity?: 'top' | 'bottom' | 'left' | 'right' | 'auto';
 	rotate?: 90 | 180 | 270;
 	flip?: 'h' | 'v' | 'hv';
@@ -46,7 +46,11 @@ const BLUR_MAX = 250;
 
 /** The version of {@link cloudflare_steps}: a file the binding made is kept under it, so a change
  *  to the steps (which bumps it) never serves a file made the old way. */
-export const STEPS_VERSION = 1;
+export const STEPS_VERSION = 2;
+
+function fit_of(r: Omit<Recipe, 'src'>): 'cover' | 'crop' {
+	return r.from === 'remote' ? 'crop' : 'cover';
+}
 
 function flip_of(
 	flip: boolean | undefined,
@@ -75,7 +79,7 @@ export function cloudflare_steps(r: Omit<Recipe, 'src'>): CloudflareSteps {
 	transforms.push({
 		width: r.width,
 		height: r.height,
-		fit: 'cover',
+		fit: fit_of(r),
 		...(gravity ? { gravity } : {})
 	});
 	const tone: CloudflareTransform = {};
@@ -103,7 +107,7 @@ export function cloudflare_steps(r: Omit<Recipe, 'src'>): CloudflareSteps {
 export function cloudflare_link(r: Recipe): string {
 	const { transforms, output } = cloudflare_steps(r);
 	const all: CloudflareTransform = Object.assign({}, ...transforms) as CloudflareTransform;
-	const opts = [`width=${r.width}`, `height=${r.height}`, 'fit=cover'];
+	const opts = [`width=${r.width}`, `height=${r.height}`, `fit=${fit_of(r)}`];
 	if (all.gravity) opts.push(`gravity=${all.gravity}`);
 	if (output.quality !== undefined) opts.push(`quality=${output.quality}`);
 	if (r.format !== 'png') opts.push(`format=${output.format.slice('image/'.length)}`);

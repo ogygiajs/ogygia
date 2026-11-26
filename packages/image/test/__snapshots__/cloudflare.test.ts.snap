@@ -37,8 +37,8 @@ exports[`the capability table, row by row 1`] = `
 | sharp            | source tiff             | true  | reads TIFF                                                                        |
 | sharp            | animated                | true  | { animated: true } keeps every frame                                              |
 | sharp            | still                   | true  | { pages: 1 } reads the first frame                                                |
-| cloudflare       | box                     | true  | fit=cover                                                                         |
-| cloudflare       | crop                    | true  | fit=cover                                                                         |
+| cloudflare       | box                     | true  | fit=cover (fit=crop for a remote source: never enlarged)                          |
+| cloudflare       | crop                    | true  | fit=cover (fit=crop for a remote source: never enlarged)                          |
 | cloudflare       | position center         | true  | no gravity (the center is the default)                                            |
 | cloudflare       | position top            | true  | gravity=top                                                                       |
 | cloudflare       | position bottom         | true  | gravity=bottom                                                                    |
@@ -71,8 +71,8 @@ exports[`the capability table, row by row 1`] = `
 | cloudflare       | source tiff             | true  | reads TIFF (its first page)                                                       |
 | cloudflare       | animated                | true  | anim=true (the default) keeps every frame                                         |
 | cloudflare       | still                   | true  | anim=false keeps the first frame                                                  |
-| cloudflare links | box                     | true  | fit=cover                                                                         |
-| cloudflare links | crop                    | true  | fit=cover                                                                         |
+| cloudflare links | box                     | true  | fit=cover (fit=crop for a remote source: never enlarged)                          |
+| cloudflare links | crop                    | true  | fit=cover (fit=crop for a remote source: never enlarged)                          |
 | cloudflare links | position center         | true  | no gravity (the center is the default)                                            |
 | cloudflare links | position top            | true  | gravity=top                                                                       |
 | cloudflare links | position bottom         | true  | gravity=bottom                                                                    |
