@@ -80,6 +80,20 @@ describe('hosts', () => {
 			expect(is_host_entry(good), good).toBe(true);
 	});
 
+	test('a *. entry over a public suffix anyone can host under is refused; one over a name below it, or that name itself, is not', () => {
+		for (const bad of [
+			'*.co.uk',
+			'*.github.io',
+			'*.vercel.app',
+			'*.workers.dev',
+			'*.s3.amazonaws.com',
+			'*.CO.UK'
+		])
+			expect(is_host_entry(bad), bad).toBe(false);
+		for (const good of ['*.mysite.github.io', 'images.github.io', '*.cdn.example.co.uk'])
+			expect(is_host_entry(good), good).toBe(true);
+	});
+
 	test('the line to add names exactly the refused host', () => {
 		expect(entry_for(new URL('https://images.example.com/a.jpg'))).toBe('images.example.com');
 		expect(entry_for(new URL('http://127.0.0.1:4100/a.jpg'))).toBe('http://127.0.0.1:4100');
