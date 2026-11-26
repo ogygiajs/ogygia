@@ -133,6 +133,41 @@ describe('hosts', () => {
 		expect(new RemoteHosts(['*.my-bucket.s3.us-east-1.amazonaws.com']).match(tenant)).toBe(null);
 	});
 
+	test('a *. entry over a shared storage or image CDN name (a Vercel Blob store, a Bunny pull zone, an imgix source) is refused; one store of it is not', () => {
+		for (const bad of [
+			'*.public.blob.vercel-storage.com',
+			'*.private.blob.vercel-storage.com',
+			'*.blob.vercel-storage.com',
+			'*.vercel-storage.com',
+			'*.storage.supabase.co',
+			'*.nyc3.digitaloceanspaces.com',
+			'*.nyc3.cdn.digitaloceanspaces.com',
+			'*.githubusercontent.com',
+			'*.vusercontent.net',
+			'*.trycloudflare.com',
+			'*.b-cdn.net',
+			'*.imgix.net',
+			'*.ufs.sh',
+			'*.akamaized.net',
+			'*.akamaihd.net',
+			'*.global.ssl.fastly.net',
+			'*.freetls.fastly.net'
+		])
+			expect(is_host_entry(bad), bad).toBe(false);
+		for (const good of [
+			'abc123.public.blob.vercel-storage.com',
+			'*.my-zone.b-cdn.net',
+			'my-source.imgix.net',
+			'my-bucket.nyc3.digitaloceanspaces.com'
+		])
+			expect(is_host_entry(good), good).toBe(true);
+	});
+
+	test('one tenant of a regional storage name stays its own', () => {
+		const tenant = new URL('https://evil.s3.us-east-1.amazonaws.com/a.png');
+		expect(new RemoteHosts(['*.my-bucket.s3.us-east-1.amazonaws.com']).match(tenant)).toBe(null);
+	});
+
 	test('a URL whose host ends in a trailing dot is the host without it', () => {
 		const hosts = new RemoteHosts(['*.cdn.example.com', 'images.example.com']);
 		expect(hosts.match(new URL('https://a.cdn.example.com./x.png'))).toBe('below');
