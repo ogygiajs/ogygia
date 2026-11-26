@@ -254,6 +254,9 @@ catalogs:
     mdsvex:
       specifier: ^0.12.8
       version: 0.12.8
+    micromark:
+      specifier: ^4.0.2
+      version: 4.0.2
     oxlint-tsgolint:
       specifier: 7.0.2005
       version: 7.0.2005
@@ -1370,6 +1373,9 @@ importers:
       magic-string:
         specifier: 'catalog:'
         version: 1.4.5
+      micromark:
+        specifier: 'catalog:'
+        version: 4.0.2(supports-color@10.2.2)
       tinyglobby:
         specifier: ^0.2.17
         version: 0.2.17
@@ -1398,6 +1404,9 @@ importers:
       fast-check:
         specifier: 'catalog:'
         version: 4.10.2
+      mdsvex:
+        specifier: 'catalog:'
+        version: 0.12.8(svelte@5.57.3)
       rolldown:
         specifier: 'catalog:'
         version: 1.2.16
@@ -10442,6 +10451,28 @@ snapshots:
   micromark-util-symbol@2.0.1: {}
 
   micromark-util-types@2.0.2: {}
+
+  micromark@4.0.2(supports-color@10.2.2):
+    dependencies:
+      '@types/debug': 4.1.13
+      debug: 4.4.3(supports-color@10.2.2)
+      decode-named-character-reference: 1.3.0
+      devlop: 1.1.0
+      micromark-core-commonmark: 2.0.3
+      micromark-factory-space: 2.0.1
+      micromark-util-character: 2.1.1
+      micromark-util-chunked: 2.0.1
+      micromark-util-combine-extensions: 2.0.1
+      micromark-util-decode-numeric-character-reference: 2.0.2
+      micromark-util-encode: 2.0.1
+      micromark-util-normalize-identifier: 2.0.1
+      micromark-util-resolve-all: 2.0.1
+      micromark-util-sanitize-uri: 2.0.1
+      micromark-util-subtokenize: 2.1.0
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+    transitivePeerDependencies:
+      - supports-color
 
   micromark@4.0.2(supports-color@8.1.1):
     dependencies:

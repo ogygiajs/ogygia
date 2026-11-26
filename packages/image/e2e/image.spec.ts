@@ -288,6 +288,23 @@ test.describe('macro images (/)', () => {
 	});
 });
 
+test.describe('a markdown page (/markdown)', () => {
+	test('an image its <script> names with import.meta.og.image() renders through <Img> and loads', async ({
+		page
+	}) => {
+		const said = listen(page);
+		await page.goto('/markdown');
+		const img = page.locator('img#svx-hero');
+		const a = await attrs(img);
+		expect(a.picture).toBe('yes');
+		expect(a.avif).toMatch(avif_of('hero', '320x178'));
+		expect(a.srcset).toMatch(/\.webp 320w, .+\.webp 640w$/);
+		expect(a.width).toBe('320');
+		await every_image_loads(page);
+		expect(said).toEqual([]);
+	});
+});
+
 test.describe('markdown images (/blog/[slug])', () => {
 	test('the frontmatter cover renders through <Img> with the cover preset', async ({ page }) => {
 		await page.goto('/blog/first-post');
