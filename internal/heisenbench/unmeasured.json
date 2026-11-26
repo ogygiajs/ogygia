@@ -8729,8 +8729,12 @@
 			"reason": "once per server start: makes the endpoint's reader of a card's images"
 		},
 		{
-			"id": "packages/image/src/cards/read.ts > endpoint_images > card_image_reader:1~e41b92",
-			"reason": "once per image a live card draw names: one Kit read(); the e2e node mode runs card draws"
+			"id": "packages/image/src/cards/read.ts > endpoint_images > card_image_reader:1~999345",
+			"reason": "once per image a live card draw names: one map lookup and one Kit read(); test/card-endpoint-read.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/source-urls.ts > map:0~26ed5a",
+			"reason": "once per server start: per image under src/, one tail of its URL; test/card-endpoint-read.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/vite/card.ts > file_of",

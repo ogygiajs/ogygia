@@ -10,13 +10,13 @@
  * @packageDocumentation
  */
 import { read } from '$app/server';
-import config from 'virtual:ogygia-image/config';
 import { card_module, engine } from 'virtual:ogygia-image/cards';
 import { card_id, type CardProps, type CardSpec } from '../card.ts';
 import { Changed } from '../reader.ts';
 import { card_of_tail } from '../recipe.ts';
 import { fit } from 'virtual:ogygia-image/maker';
 import type { ImageFit } from '../maker.ts';
+import { SOURCE_PREFIXES, SOURCE_URLS } from '../source-urls.ts';
 import { card_image_reader, type CardImageRead } from './images.ts';
 
 /** A card's module, as the endpoint loads it: its spec, and its engine where one runs. */
@@ -36,14 +36,13 @@ export class NoCard extends Error {}
 /** Whether this server draws cards (no: a runtime satori and resvg do not run in). */
 export const draws: boolean = engine;
 
-const PREFIXES: readonly string[] = [config.paths.assets, config.paths.base];
-
-/** The endpoint's reader of a card's images: an asset with Kit's `read()`, a URL with `remote`
+/** The endpoint's reader of a card's images: an asset with Kit's `read()`, by the URL the server
+ *  imported it under when it is an original under `src/` (../source-urls.ts), a URL with `remote`
  *  (the endpoint's guarded fetch; null: no `image({ remote })`). */
 export function endpoint_images(remote: ((url: URL) => Promise<Uint8Array>) | null): CardImageRead {
 	return card_image_reader(
-		PREFIXES,
-		async (_tail, src) => new Uint8Array(await read(src).arrayBuffer()),
+		SOURCE_PREFIXES,
+		async (tail, src) => new Uint8Array(await read(SOURCE_URLS.get(tail) ?? src).arrayBuffer()),
 		remote
 	);
 }

@@ -3,7 +3,7 @@
 // a descriptor's src carries a query, `?no-inline`, that read() refuses).
 import { expect, test, vi } from 'vitest';
 
-const ASSETS: ReadonlyMap<string, Uint8Array> = new Map([
+const ASSETS: ReadonlyMap<string, Uint8Array<ArrayBuffer>> = new Map([
 	['src/lib/images/avatar.jpg', new Uint8Array([0xff, 0xd8, 0xff, 1])],
 	['_app/immutable/assets/logo.Ab12.png', new Uint8Array([0x89, 0x50, 0x4e, 0x47])]
 ]);

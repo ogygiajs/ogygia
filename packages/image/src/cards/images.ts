@@ -173,7 +173,9 @@ async function drawn_image(
 }
 
 function as_buffer(bytes: Uint8Array): ArrayBuffer {
-	return bytes.slice().buffer as ArrayBuffer;
+	const own = new Uint8Array(bytes.byteLength);
+	own.set(bytes);
+	return own.buffer;
 }
 
 /** `tree` with every address it names read by `read`, fitted by `fit` and handed over as bytes
@@ -241,7 +243,7 @@ export function drawable(tree: unknown, file: string): void {
 			if (key === 'children') visit(value);
 			else if (key === 'src' || HREF_PROPS.has(key)) {
 				if (value instanceof ArrayBuffer) {
-					drawn(key, new Uint8Array(value));
+					drawn(`the bytes of a ${key}`, new Uint8Array(value));
 					continue;
 				}
 				if (typeof value !== 'string') fail(String(value), 'it is no address');
