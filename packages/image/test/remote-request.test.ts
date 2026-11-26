@@ -10,6 +10,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { startPlugin } from '@ogygia/core/plugin/testing';
+import { clock } from '@ogygia/machine';
 
 const io = vi.hoisted(() => ({ port: 0, address: '127.0.0.1' }));
 vi.hoisted(() => {
@@ -236,6 +237,28 @@ describe('the image endpoint, for a remote image', () => {
 				expect(warn.mock.calls.map((c) => String(c[0])).join('\n'), at).toMatch(said);
 			}
 		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	test('a remote URL that failed is not fetched again for a while: its files answer the remembered status, said once, and it is asked again once the memory ends', async () => {
+		const warn = quiet();
+		const real = clock.mono;
+		const mono = vi.spyOn(clock, 'mono');
+		try {
+			asked.length = 0;
+			const [a, b] = urls_of('http://cms.example.test/gone-again.jpg', 160);
+			for (const url of [a!, b!, a!]) expect((await get(url)).status).toBe(502);
+			expect(asked).toEqual(['cms.example.test/gone-again.jpg']);
+			const refused = () =>
+				warn.mock.calls.filter((c) => /image_remote_refused/.test(String(c[0]))).length;
+			expect(refused()).toBe(1);
+			mono.mockImplementation(() => real() + 60_000);
+			expect((await get(a!)).status).toBe(502);
+			expect(asked).toEqual(['cms.example.test/gone-again.jpg', 'cms.example.test/gone-again.jpg']);
+			expect(refused()).toBe(1);
+		} finally {
+			mono.mockRestore();
 			warn.mockRestore();
 		}
 	});
