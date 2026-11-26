@@ -174,7 +174,7 @@ describe("a markdown page's code regions are the ones mdsvex escapes", () => {
 				const page = head + page_of([blocks.join('\n\n')]);
 				const out = await compile(page, {}).catch(() => null);
 				fc.pre(out != null);
-				const kept = out!.code.includes(EXPR);
+				const kept = out!.code.replace(MODULE_SCRIPT_RE, '').includes(EXPR);
 				expect(markdown_expressions(page).some((r) => r.code === CALL)).toBe(kept);
 			}),
 			{ numRuns: 300 }

@@ -325,7 +325,7 @@ export function markdown_expressions(src: string): JsRegion[] {
 	for (let at = text.indexOf('{'); at !== -1; at = text.indexOf('{', at + 1)) {
 		if (text[at - 1] === '\\') continue;
 		const close = expression_end(text, at);
-		if (close < 0) break;
+		if (close < 0) continue;
 		out.push({ code: src.slice(at + 1, close), offset: at + 1 });
 		at = close;
 	}
@@ -349,8 +349,20 @@ function expression_end(text: string, open: number): number {
 }
 
 const NO_INDENTED_CODE: Options = { extensions: [{ disable: { null: ['codeIndented'] } }] };
+const FRONTMATTER_OPEN_RE = /^﻿?(?:[ \t]*(?:\r\n|\r|\n))*---(?:\r\n|\r|\n)/;
+const FRONTMATTER_CLOSE_RE = /(?<=[\r\n])---/g;
 
-function markdown_prose(src: string): string {
+function frontmatter_end(src: string): number {
+	const open = FRONTMATTER_OPEN_RE.exec(src);
+	if (open === null) return 0;
+	FRONTMATTER_CLOSE_RE.lastIndex = open[0].length - 1;
+	const close = FRONTMATTER_CLOSE_RE.exec(src);
+	return close === null ? 0 : close.index + 3;
+}
+
+function markdown_prose(page: string): string {
+	const front = frontmatter_end(page);
+	const src = front === 0 ? page : blank(page.slice(0, front)) + page.slice(front);
 	const events = postprocess(
 		parse(NO_INDENTED_CODE)
 			.document()
