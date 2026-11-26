@@ -57,7 +57,6 @@ class Originals {
 		return root !== null && published(tail) && fs.existsSync(path.join(root, tail));
 	}
 
-	/** The string Kit's `read()` takes for `tail`: the URL its import gave (`paths.assets` or base). */
 	url(tail: string): string {
 		return this.#urls.get(tail) ?? `${BASE}/${encode_tail(tail)}`;
 	}
