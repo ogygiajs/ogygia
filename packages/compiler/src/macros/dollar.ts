@@ -1,6 +1,7 @@
 import { og_js_regions } from '../parse/scan.ts';
 import { match_close } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
+import { line_of } from '../parse/ast.ts';
 import { og_member } from './wire.ts';
 import { OgygiaError } from '../messages.ts';
 import { splice_text, type Edit } from '../splice.ts';
@@ -96,12 +97,6 @@ function walk(
 		}
 	}
 	ancestors.pop();
-}
-
-function line_of(src: string, offset: number): number {
-	let line = 1;
-	for (let i = 0; i < offset && i < src.length; i++) if (src[i] === '\n') line++;
-	return line;
 }
 
 function misuse(id: string, src: string, offset: number, what: string): never {
