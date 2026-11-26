@@ -494,7 +494,7 @@ export function child_traceparent(incoming?: string | null): {
 const ABSOLUTE_RE = /^[a-z][a-z0-9+.-]*:|^\/\//i;
 // (the asset attributes' names in any case (`asset_suffix`) in any case: where an asset ref can be; a tag without one is not read)
 const ASSET_ATTR_ANY_CASE = /entry|endpoint|href|src|style/gi;
-const ASSET_PATH_RE = /(?:^|\/)(?:(?:_app|og|__ogygia__|cdn-cgi\/image)\/|_vercel\/image\?)/;
+const ASSET_PATH_RE = /(?:^|\/)(?:(?:_app|og|__ogygia__\/i|cdn-cgi\/image)\/|_vercel\/image\?)/;
 const ASSET_EXT_RE = /\.(js|css|woff2?|avif|webp|png|jpe?g|gif|svg)(\?|$)/i;
 
 /** One asset ref pinned to `origin`; an app-local link (or an absolute URL) as it is. */
