@@ -225,7 +225,11 @@ describe('a plugin macro without its plugin', () => {
 	});
 
 	it("with the plugin listed, a call in a markdown page's prose expression fails with macro_in_markup", async () => {
-		const page = `# Hi\n\n<img src={import.meta.og.bake(() => 1)} alt="" />\n`;
+		const page = dedent`
+			# Hi
+
+			<img src={import.meta.og.bake(() => 1)} alt="" />
+		`;
 		await expect(
 			run_module_macros(
 				page,
@@ -242,7 +246,13 @@ describe('a plugin macro without its plugin', () => {
 	});
 
 	it("with the plugin listed, a call its handler left in a markdown page's script fails with macro_in_markup", async () => {
-		const page = `<script>\n\tconst v = import.meta.og.bake(() => 1);\n</script>\n\n# Hi\n`;
+		const page = dedent`
+			<script>
+				const v = import.meta.og.bake(() => 1);
+			</script>
+
+			# Hi
+		`;
 		await expect(
 			run_module_macros(
 				page,

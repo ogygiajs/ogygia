@@ -112,8 +112,6 @@ function code_regions(
 	return og_js_regions(code, id, CONSTRUCT_MARKUP_EXTS);
 }
 
-/** Where a macro call sits: in code a macro rewrites (`script`), in a markdown page's `<script>`
- *  (`markdown script`, code only some macros rewrite), or in markup no macro rewrites. */
 type Place = 'script' | 'markdown script' | 'markup';
 
 type PlacedCall = OgCall & { place: Place };

@@ -216,7 +216,10 @@ describe('the image macro in dev', () => {
 			last = e.end;
 		}
 		out += page.slice(last);
-		expect(out).toContain(`<script>\nimport __og_image_0 from "./hero.jpg?og-image";\n`);
+		expect(out).toContain(dedent`
+			<script>
+			import __og_image_0 from "./hero.jpg?og-image";
+		`);
 		expect(out).toContain('const hero = __og_image_0;');
 		expect(out).toContain('# Post');
 	});

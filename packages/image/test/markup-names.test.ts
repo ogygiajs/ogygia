@@ -8,7 +8,7 @@ import { MARK, OG_IMG } from '@ogygia/core/internal/server';
 const source = fs.readFileSync(new URL('../src/Img.svelte', import.meta.url), 'utf8');
 
 test("every data-og-* name <Img> writes is one of core's markup names", () => {
-	const known = new Set(Object.values(MARK).map((m) => m.attr));
+	const known = new Set<string>(Object.values(MARK).map((m) => m.attr));
 	const written = new Set(source.match(/data-og-[a-z-]+/g) ?? []);
 	expect(written.size).toBeGreaterThan(0);
 	expect([...written].filter((name) => !known.has(name))).toEqual([]);
