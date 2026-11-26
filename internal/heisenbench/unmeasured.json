@@ -7133,14 +7133,6 @@
 			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
 		},
 		{
-			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_macro_in_markup > details",
-			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
-		},
-		{
-			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_macro_in_markup > text",
-			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
-		},
-		{
 			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_macro_not_literal > details",
 			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
 		},

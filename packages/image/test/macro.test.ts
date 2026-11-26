@@ -100,7 +100,7 @@ describe('rewrite_image_calls', () => {
 			rewrite_image_calls(
 				`import.meta.og.image('./hero.jpg', ${opts});`,
 				mod(),
-				['.svelte'],
+				undefined,
 				() => {},
 				presets
 			);
@@ -124,7 +124,7 @@ describe('rewrite_image_calls', () => {
 		expect(() => options_of_query('og-image=not-json')).toThrow(/og-image query/);
 	});
 
-	test('a call in a component template fails the build instead of shipping as code', () => {
+	test("a call in a component template is left as is, for ogygia's macro_in_markup", () => {
 		const svelte = path.join(dir, 'Card.svelte');
 		for (const call of [
 			`import.meta.og.image('./hero.jpg')`,
@@ -134,7 +134,7 @@ describe('rewrite_image_calls', () => {
 				<script>let a = 1;</script>
 				<p>{${call}}</p>
 			`;
-			expect(() => rewrite_image_calls(src, svelte)).toThrow(/in the template/);
+			expect(image_call_edits(src, svelte)).toEqual([]);
 		}
 	});
 
@@ -144,7 +144,7 @@ describe('rewrite_image_calls', () => {
 		expect(rewrite_image_calls(src, svelte)).toBe(src);
 	});
 
-	test("a docs page that writes the call as text in its markup is no call (a <code> sample)", () => {
+	test('a docs page that writes the call as text in its markup is no call (a <code> sample)', () => {
 		const svelte = path.join(dir, 'Docs.svelte');
 		const src = dedent`
 			<script>let a = 1;</script>
@@ -179,6 +179,7 @@ describe('the image macro in dev', () => {
 				root: dir,
 				alias: [],
 				markupExts: ['.svelte'],
+				regions: (code) => [{ code, offset: 0 }],
 				watch: (f) => watched.push(f)
 			});
 		await expect(run()).rejects.toThrow(/later\.jpg/);
@@ -231,6 +232,7 @@ describe('the image macro in dev', () => {
 			root: dir,
 			alias: [],
 			markupExts: ['.svelte'],
+			regions: (code) => [{ code, offset: 0 }],
 			watch: () => {}
 		})) as { start: number; end: number; text: string }[];
 		expect(Array.isArray(edits)).toBe(true);

@@ -108,7 +108,9 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 		name: '@ogygia/image',
 		server: import.meta.resolve('../server.ts'),
 		build(b) {
-			b.macro('image', (code, m) => image_call_edits(code, m.id, m.markupExts, m.watch, presets));
+			b.macro('image', (code, m) =>
+				image_call_edits(code, m.id, m.regions(code), m.watch, presets)
+			);
 		}
 	});
 

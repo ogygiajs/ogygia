@@ -99,6 +99,19 @@ export const BUILD_ERRORS = {
 			\`plugins\` (before \`sveltekit()\`).
 		`
 	},
+	macro_in_markup: {
+		text: (a: { file: string; macro: string; place: string; plugin: string }): string =>
+			`${a.file} — import.meta.og.${a.macro}() sits in ${a.place}, where \`${a.plugin}\` does not compile it: it would reach the page as is and fail there.`,
+		details: (): string => prose`
+			A plugin's \`import.meta.og.*\` macro is compiled where the module's code is: a JS or TS
+			module, and the \`<script>\` of a \`.svelte\` component (\`image()\` compiles a markdown
+			page's \`<script>\` too). A call in a template expression (\`{…}\` in markup or in a
+			markdown page's prose), or in a markdown page's \`<script>\` for a macro that does not
+			compile there, is not rewritten. Call the macro in the component's \`<script>\` (or in a
+			\`.ts\` module it imports) and use its value in the markup. A call written as text (a code
+			span, fenced code, plain prose) is no call and needs no change.
+		`
+	},
 
 	kit_config_not_literal: {
 		text: (a: { file: string; key: string }): string =>

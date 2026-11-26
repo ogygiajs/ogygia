@@ -218,7 +218,9 @@ describe('a plugin macro without its plugin', () => {
 			)
 		).rejects.toMatchObject({
 			code: 'macro_in_markup',
-			message: expect.stringMatching(/\+page\.svelte:5 — import\.meta\.og\.image\(\) sits in the markup/)
+			message: expect.stringMatching(
+				/\+page\.svelte:5 — import\.meta\.og\.image\(\) sits in the markup/
+			)
 		});
 	});
 
@@ -233,7 +235,9 @@ describe('a plugin macro without its plugin', () => {
 			)
 		).rejects.toMatchObject({
 			code: 'macro_in_markup',
-			message: expect.stringMatching(/\+page\.svx:3 — import\.meta\.og\.bake\(\) sits in the markup/)
+			message: expect.stringMatching(
+				/\+page\.svx:3 — import\.meta\.og\.bake\(\) sits in the markup/
+			)
 		});
 	});
 
@@ -248,7 +252,9 @@ describe('a plugin macro without its plugin', () => {
 			)
 		).rejects.toMatchObject({
 			code: 'macro_in_markup',
-			message: expect.stringMatching(/\+page\.svx:2 — import\.meta\.og\.bake\(\) sits in a markdown page's <script>/)
+			message: expect.stringMatching(
+				/\+page\.svx:2 — import\.meta\.og\.bake\(\) sits in a markdown page's <script>/
+			)
 		});
 	});
 

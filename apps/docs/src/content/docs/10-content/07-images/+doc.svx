@@ -82,7 +82,7 @@ The encoder is [sharp](https://sharp.pixelplumbing.com), a peer of the package: 
 <Img of={avatar} preset="avatar" alt="" />
 ```
 
-The arguments must be written out in place: a string path and an object of plain values. The build reads them before any code runs, so a variable or a `${…}` in the path is a build error (`image_macro_not_literal`). A path that does not exist fails the build too (`image_not_found`). Call the macro in the component's `<script>`, not in its markup.
+The arguments must be written out in place: a string path and an object of plain values. The build reads them before any code runs, so a variable or a `${…}` in the path is a build error (`image_macro_not_literal`). A path that does not exist fails the build too (`image_not_found`). Call the macro in a `<script>`, a component's or a markdown page's (`.svx`, `.md`), not in the markup: a call in a template expression fails the build (`macro_in_markup`).
 
 The path is relative to the file that names it, like a relative import. Aliases such as `$lib/…` are not resolved there: write `../lib/images/hero.jpg` (a path that names no file fails with `image_not_found`).
 
