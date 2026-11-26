@@ -28,9 +28,57 @@ export interface HostRule {
 const ENTRY_RE = /^(?:(https?):\/\/)?(\*\.)?([^/?#@\\\s*%]+)$/i;
 const IPV4_RE = /^\d{1,3}(?:\.\d{1,3}){3}$/;
 
+/** Public suffixes anyone can host under (a country's second level, the common hosting platforms):
+ *  a `*.` entry over one would list every stranger's site there. Not the whole public suffix
+ *  list: the ones an app is likely to write. */
+export const SHARED_SUFFIXES: ReadonlySet<string> = new Set([
+	'co.uk',
+	'org.uk',
+	'ac.uk',
+	'gov.uk',
+	'com.au',
+	'net.au',
+	'org.au',
+	'co.nz',
+	'co.jp',
+	'ne.jp',
+	'co.in',
+	'co.za',
+	'com.br',
+	'com.cn',
+	'com.mx',
+	'com.tr',
+	'github.io',
+	'gitlab.io',
+	'vercel.app',
+	'netlify.app',
+	'pages.dev',
+	'workers.dev',
+	'r2.dev',
+	'web.app',
+	'firebaseapp.com',
+	'appspot.com',
+	'herokuapp.com',
+	'fly.dev',
+	'onrender.com',
+	'glitch.me',
+	'ngrok.io',
+	'ngrok-free.app',
+	'amazonaws.com',
+	's3.amazonaws.com',
+	'cloudfront.net',
+	'azurewebsites.net',
+	'blob.core.windows.net',
+	'storage.googleapis.com',
+	'googleusercontent.com',
+	'blogspot.com',
+	'wordpress.com',
+	'myshopify.com'
+]);
+
 /** What a `hosts` entry must be, for a message. */
 export const HOSTS_RULE =
-	"a non-empty list of hosts, each a name ('images.example.com'), '*.' and a name for every name below it ('*.cdn.example.com'), with a port when not the default, and 'http://' in front to allow plain HTTP ('http://127.0.0.1:4100'); no path, no address range";
+	"a non-empty list of hosts, each a name ('images.example.com'), '*.' and a name for every name below it ('*.cdn.example.com', never over a suffix anyone can host under such as '*.co.uk' or '*.github.io'), with a port when not the default, and 'http://' in front to allow plain HTTP ('http://127.0.0.1:4100'); no path, no address range";
 
 function rule_of(entry: unknown): HostRule | null {
 	if (typeof entry !== 'string') return null;
@@ -45,7 +93,11 @@ function rule_of(entry: unknown): HostRule | null {
 	}
 	if (url.pathname !== '/' || url.search || url.hash) return null;
 	const host = url.hostname;
-	if (m[2] && (host.startsWith('[') || IPV4_RE.test(host) || !host.includes('.'))) return null;
+	if (
+		m[2] &&
+		(host.startsWith('[') || IPV4_RE.test(host) || !host.includes('.') || SHARED_SUFFIXES.has(host))
+	)
+		return null;
 	return {
 		protocol: url.protocol === 'http:' ? 'http:' : 'https:',
 		host,
