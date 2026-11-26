@@ -173,6 +173,34 @@ test("the function draws a live page's share card on request, kept forever: Verc
 	expect((await request.get(built)).status(), built).toBe(200);
 });
 
+test("the function draws a live card that names an image, fitted to the card by sharp: the function's trace holds sharp's native binary and libvips for this platform", async ({
+	request
+}) => {
+	const pnpm = path.join(FUNC, 'node_modules/.pnpm');
+	const platform = `${process.platform}-${process.arch}`;
+	const holds = (pkg: string, re: RegExp): boolean =>
+		fs.readdirSync(pnpm).some((d) => {
+			const lib = path.join(pnpm, d, 'node_modules/@img', pkg, 'lib');
+			return fs.existsSync(lib) && fs.readdirSync(lib).some((f) => re.test(f));
+		});
+	expect(holds(`sharp-${platform}`, /\.node$/)).toBe(true);
+	expect(holds(`sharp-libvips-${platform}`, /^libvips-cpp\./)).toBe(true);
+	const card = async (query: string): Promise<Buffer> => {
+		const url = (await named(request, [`/late/card?${query}`], SIGNED_RE)).find((u) =>
+			u.includes('/.card/')
+		)!;
+		const res = await request.get(url);
+		expect(res.status(), url).toBe(200);
+		expect(res.headers()['content-type'], url).toBe('image/png');
+		return res.body();
+	};
+	const pixels = async (png: Buffer): Promise<Buffer> => sharp(png).raw().toBuffer();
+	const plain = await pixels(await card('title=Photo'));
+	const photo = await pixels(await card('title=Photo&photo'));
+	expect(photo.length).toBe(plain.length);
+	expect(photo.equals(plain)).toBe(false);
+});
+
 test("a live page's moving image offers a still sharp makes, since Vercel cannot keep one frame", async ({
 	request
 }) => {
