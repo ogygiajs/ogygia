@@ -241,7 +241,7 @@ describe('the digest', () => {
 				'satori@2 svelte@5',
 				d,
 				(id) => (id in graph ? { importedIds: graph[id]!, dynamicallyImportedIds: [] } : null),
-				(f) => fs.readFileSync(f)
+				(f) => (fs.existsSync(f) ? fs.readFileSync(f) : null)
 			)
 		).not.toBe(before_versions);
 	});

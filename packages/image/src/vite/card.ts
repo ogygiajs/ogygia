@@ -8,8 +8,8 @@
  *   the component is imported under the `og-card` query, it and every component it imports, so each
  *   is compiled with its CSS in the render (`css="injected"`) for satori to read; the page's own
  *   copy is left as it is. In the browser it only refuses (`image_no_server`).
- * - The card's DIGEST is a hash of every module and font its module imports (their bytes; a package's
- *   by its path, which names its version) and the engine's versions, worked out by the server build
+ * - The card's DIGEST is a hash of every module and font its module imports (their bytes, a
+ *   package's too, and their built code) and the engine's versions, worked out by the server build
  *   from the finished module graph and written over a placeholder when the chunk is rendered, so a
  *   change to a child component, its CSS or a font names new files, and nothing else does. The dev
  *   server names new files at each change instead.
@@ -250,11 +250,13 @@ export function is_card_component(id: string): boolean {
 interface GraphInfo {
 	importedIds: readonly string[];
 	dynamicallyImportedIds: readonly string[];
+	code?: string | null;
 }
 
 /** The digest of the card whose module is `start`: its definition, the engine's `versions`, and
- *  every module it imports, by its project path and its file's bytes (a package's, and a virtual
- *  module's, by its id alone). */
+ *  every module it imports, by its project path, its file's bytes (a package's too: npm and yarn
+ *  paths name no version) and its built code (what CSS tooling made of it); a virtual module by
+ *  its id and code. */
 export function card_digest(
 	start: string,
 	def: Omit<CardDef, 'file' | 'fonts'> & { fonts: readonly { face: FontFace }[] },
@@ -263,13 +265,13 @@ export function card_digest(
 	info: (id: string) => GraphInfo | null,
 	read: (file: string) => Buffer | null
 ): string {
-	const seen = new Set<string>();
+	const seen = new Map<string, string | null>();
 	const stack = [start];
 	while (stack.length) {
 		const id = stack.pop()!;
 		if (seen.has(id)) continue;
-		seen.add(id);
 		const i = info(id);
+		seen.set(id, i?.code ?? null);
 		if (i) stack.push(...i.importedIds, ...i.dynamicallyImportedIds);
 	}
 	const hash = createHash('sha256');
@@ -283,17 +285,18 @@ export function card_digest(
 			versions
 		})
 	);
-	const ids = [...seen].map((id) => {
-		if (id.startsWith('\0')) return { key: id, file: null };
+	const ids = [...seen].map(([id, code]) => {
+		if (id.startsWith('\0')) return { key: id, file: null, code };
 		const q = id.indexOf('?');
 		const bare = q === -1 ? id : id.slice(0, q);
 		const key = `${rel_of(root, bare)}${q === -1 ? '' : id.slice(q)}`;
-		return { key, file: bare.split(path.sep).includes('node_modules') ? null : bare };
+		return { key, file: bare, code };
 	});
 	ids.sort((a, b) => Number(a.key > b.key) - Number(a.key < b.key));
-	for (const { key, file } of ids) {
+	for (const { key, file, code } of ids) {
 		hash.update(`\0${key}\0`);
 		if (file !== null) hash.update(read(file) ?? Buffer.from('(none)'));
+		hash.update(`\0code\0${code ?? ''}`);
 	}
 	return hash.digest('base64url').slice(0, 43);
 }
