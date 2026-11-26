@@ -6,5 +6,6 @@ export const prerender = true;
 
 export const load: PageServerLoad = () => {
 	const messages = message_list();
-	return { messages, code_cards: messages.map((m) => ShareCard({ title: m.code })) };
+	for (const m of messages) ShareCard({ title: m.code });
+	return { messages };
 };
