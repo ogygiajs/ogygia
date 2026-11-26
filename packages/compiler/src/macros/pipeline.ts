@@ -14,8 +14,7 @@ import {
 	find_og_calls,
 	is_js_module,
 	is_markup_module,
-	markdown_expressions,
-	markdown_scripts,
+	MarkdownPage,
 	og_js_regions,
 	type JsRegion,
 	type OgCall
@@ -103,15 +102,6 @@ function template_calls(code: string, id: string, scripts: readonly JsRegion[]):
 	return calls;
 }
 
-function code_regions(
-	code: string,
-	id: string,
-	markdown_exts: readonly string[]
-): JsRegion[] | null {
-	if (!is_js_module(id) && is_markup_module(id, markdown_exts)) return markdown_scripts(code);
-	return og_js_regions(code, id, CONSTRUCT_MARKUP_EXTS);
-}
-
 type Place = 'script' | 'markdown script' | 'markup';
 
 type PlacedCall = OgCall & { place: Place };
@@ -127,36 +117,55 @@ function in_regions(regions: readonly JsRegion[], place: Place): PlacedCall[] {
 	);
 }
 
-function macro_calls(code: string, id: string, markdown_exts: readonly string[]): PlacedCall[] {
-	if (!is_js_module(id) && is_markup_module(id, markdown_exts))
-		return [
-			...in_regions(markdown_scripts(code), 'markdown script'),
-			...in_regions(markdown_expressions(code), 'markup')
-		];
-	const regions = og_js_regions(code, id, CONSTRUCT_MARKUP_EXTS) ?? [];
-	const calls = in_regions(regions, 'script');
-	if (!is_js_module(id) && is_markup_module(id, CONSTRUCT_MARKUP_EXTS))
-		calls.push(
-			...template_calls(code, id, regions).map((c) => ({ ...c, place: 'markup' as const }))
-		);
-	return calls;
+class ModuleCode {
+	readonly #id: string;
+	readonly #markdown: boolean;
+	#page: MarkdownPage | null = null;
+
+	constructor(id: string, markdown_exts: readonly string[]) {
+		this.#id = id;
+		this.#markdown = !is_js_module(id) && is_markup_module(id, markdown_exts);
+	}
+
+	#page_of(code: string): MarkdownPage {
+		if (this.#page === null || this.#page.src !== code) this.#page = new MarkdownPage(code);
+		return this.#page;
+	}
+
+	regions(code: string): JsRegion[] | null {
+		if (this.#markdown) return this.#page_of(code).scripts();
+		return og_js_regions(code, this.#id, CONSTRUCT_MARKUP_EXTS);
+	}
+
+	calls(code: string): PlacedCall[] {
+		if (this.#markdown) {
+			const page = this.#page_of(code);
+			return [
+				...in_regions(page.scripts(), 'markdown script'),
+				...in_regions(page.expressions(), 'markup')
+			];
+		}
+		const regions = og_js_regions(code, this.#id, CONSTRUCT_MARKUP_EXTS) ?? [];
+		const calls = in_regions(regions, 'script');
+		if (!is_js_module(this.#id) && is_markup_module(this.#id, CONSTRUCT_MARKUP_EXTS))
+			calls.push(
+				...template_calls(code, this.#id, regions).map((c) => ({
+					...c,
+					place: 'markup' as const
+				}))
+			);
+		return calls;
+	}
+
+	calls_macro(code: string, name: string): boolean {
+		return this.calls(code).some((c) => c.method === name || c.method.startsWith(`${name}.`));
+	}
 }
 
 const PLACE_TEXT: Readonly<Record<Exclude<Place, 'script'>, string>> = {
 	markup: 'the markup (a template expression)',
 	'markdown script': "a markdown page's <script>"
 };
-
-function calls_macro(
-	code: string,
-	id: string,
-	markdown_exts: readonly string[],
-	name: string
-): boolean {
-	return macro_calls(code, id, markdown_exts).some(
-		(c) => c.method === name || c.method.startsWith(`${name}.`)
-	);
-}
 
 export interface MacroPipelineCtx {
 	root: string;
@@ -202,7 +211,7 @@ export async function run_module_macros(
 		return true;
 	};
 	const own = ctx.ownSource(id.split('?')[0]!);
-	const markdown_exts = ctx.markdownExts ?? [];
+	const reading = new ModuleCode(id, ctx.markdownExts ?? []);
 	const refuse = (macro: string): never => {
 		throw new OgygiaError('macro_outside_app', {
 			file: id.split('?')[0]!,
@@ -243,7 +252,7 @@ export async function run_module_macros(
 		for (const macro of ctx.macros) {
 			if (!out.includes(`import.meta.og.${macro.name}`)) continue;
 			if (!own) {
-				if (calls_macro(out, id, markdown_exts, macro.name)) refuse(macro.name);
+				if (reading.calls_macro(out, macro.name)) refuse(macro.name);
 				continue;
 			}
 			rel ??= path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
@@ -254,7 +263,7 @@ export async function run_module_macros(
 				root: ctx.root,
 				alias: ctx.alias,
 				markupExts: CONSTRUCT_MARKUP_EXTS,
-				regions: (code) => code_regions(code, id, markdown_exts),
+				regions: (code) => reading.regions(code),
 				watch: ctx.watch ?? noop
 			});
 			if (profiler.P) {
@@ -271,7 +280,7 @@ export async function run_module_macros(
 	}
 
 	if (out.includes('import.meta.og.')) {
-		for (const call of macro_calls(out, id, markdown_exts)) {
+		for (const call of reading.calls(out)) {
 			const name = call.method.split('.')[0]!;
 			const pkg = MACRO_PACKAGES[name];
 			if (pkg === undefined) continue;

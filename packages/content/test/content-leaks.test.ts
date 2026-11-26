@@ -13,8 +13,8 @@ const call = (
 const client = { environment: { name: 'client', config: { consumer: 'client' } } };
 const ssr = { environment: { name: 'ssr', config: { consumer: 'server' } } };
 
-function built(command: 'build' | 'serve' = 'build') {
-	const plugin = content_leaks();
+function built(command: 'build' | 'serve' = 'build', routes = '/app/src/routes') {
+	const plugin = content_leaks(() => routes);
 	call(plugin, 'configResolved', null, { root: '/app', command, build: { ssr: false } });
 	return plugin;
 }
@@ -67,6 +67,34 @@ describe('the content-leak guardrail, in the content plugin', () => {
 					'/app/src/routes/+error.svx'
 				])
 			}
+		);
+		expect(out).toEqual([]);
+	});
+
+	it("a collection's document named like a route page (+page.md) outside the routes folder is a leak, said; one under kit.files.routes is the page", () => {
+		const out = warnings();
+		call(
+			built(),
+			'writeBundle',
+			client,
+			{},
+			{
+				'a.js': chunk('_app/immutable/chunks/a.js', [
+					'/app/src/content/docs/intro/+page.md',
+					'/app/src/routes-old/+layout.svx'
+				])
+			}
+		);
+		const text = out.flat().join('\n');
+		expect(text).toContain('src/content/docs/intro/+page.md');
+		expect(text).toContain('src/routes-old/+layout.svx');
+		out.length = 0;
+		call(
+			built('build', '/app/app/pages'),
+			'writeBundle',
+			client,
+			{},
+			{ '13.js': chunk('_app/immutable/nodes/13.js', ['/app/app/pages/docs/+page.svx']) }
 		);
 		expect(out).toEqual([]);
 	});

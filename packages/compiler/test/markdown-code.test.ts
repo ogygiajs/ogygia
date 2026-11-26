@@ -81,14 +81,47 @@ const PAGES: Readonly<Record<string, readonly string[]>> = {
 	'an escaped backtick (no span)': [`\\\`${EXPR}\``],
 	'a fence written in an HTML comment': ['<!--', F, '-->', EXPR],
 	'a fence and a backtick on a component line': [`<Tabs>${F}`, EXPR, `${F}</Tabs>`],
-	'plain prose': [`Hello ${EXPR}`]
+	'plain prose': [`Hello ${EXPR}`],
+	'frontmatter with an unclosed brace, then a call in the body': [
+		'---',
+		'title: "Sets { on"',
+		'---',
+		'',
+		`Hello ${EXPR}`
+	],
+	'frontmatter with a balanced brace that holds a call': [
+		'---',
+		`title: "${EXPR}"`,
+		'tags: { a: 1 }',
+		'---',
+		'',
+		'Hello'
+	],
+	'frontmatter after blank and whitespace lines': [
+		'',
+		'  ',
+		'---',
+		`title: "${EXPR}"`,
+		'---',
+		'Hi'
+	],
+	'frontmatter closed by a line that goes on past its ---': [
+		'---',
+		`title: "${EXPR}"`,
+		`--- ${EXPR}`
+	],
+	'frontmatter that is never closed (no frontmatter)': ['---', `title: ${EXPR}`],
+	'a --- line with trailing spaces (no frontmatter)': ['---  ', `title: ${EXPR}`, '---'],
+	'an indented --- line (no frontmatter)': [' ---', `title: ${EXPR}`, '---'],
+	'a --- block after a paragraph (no frontmatter)': ['Text', '', '---', `title: ${EXPR}`, '---']
 };
 
 const page_of = (rows: readonly string[]): string => `${rows.join('\n')}\n`;
+const MODULE_SCRIPT_RE = /<script context="module">[\s\S]*?<\/script>/;
 
 async function mdsvex_keeps(page: string): Promise<boolean> {
 	const out = await compile(page, {});
-	return out!.code.includes(EXPR);
+	return out!.code.replace(MODULE_SCRIPT_RE, '').includes(EXPR);
 }
 
 describe("a markdown page's code regions are the ones mdsvex escapes", () => {
@@ -135,12 +168,20 @@ describe("a markdown page's code regions are the ones mdsvex escapes", () => {
 			const [open, more] = /^( {4}|\t)$/.test(first) ? ['', ''] : [first, rest];
 			return b.map((row, i) => (i === 0 ? open : more) + row).join('\n');
 		});
+		const front = fc.constantFrom(
+			'',
+			'',
+			page_of(['---', 'title: "Sets { on"', '---']),
+			page_of(['---', `title: "${EXPR}"`, 'tags: { a: 1 }', '---']),
+			`${['---', 'title: "a { b"', '---'].join('\r\n')}\r\n`,
+			page_of(['', '---', `title: "${EXPR}"`, '---'])
+		);
 		await fc.assert(
-			fc.asyncProperty(fc.array(block, { maxLength: 16 }), async (blocks) => {
-				const page = page_of([blocks.join('\n\n')]);
+			fc.asyncProperty(front, fc.array(block, { maxLength: 16 }), async (head, blocks) => {
+				const page = head + page_of([blocks.join('\n\n')]);
 				const out = await compile(page, {}).catch(() => null);
 				fc.pre(out != null);
-				const kept = out!.code.includes(EXPR);
+				const kept = out!.code.replace(MODULE_SCRIPT_RE, '').includes(EXPR);
 				expect(markdown_expressions(page).some((r) => r.code === CALL)).toBe(kept);
 			}),
 			{ numRuns: 300 }
@@ -151,6 +192,19 @@ describe("a markdown page's code regions are the ones mdsvex escapes", () => {
 		const page = page_of([`    ${F}`, '    x', `    ${F}`, '', `text ${EXPR}`]);
 		expect(await mdsvex_keeps(page)).toBe(false);
 		expect(markdown_expressions(page).map((r) => r.code)).toEqual([CALL]);
+	});
+
+	it('a brace in prose that never closes hides no call after it', () => {
+		const page = page_of(['a { b', '', `Hello ${EXPR}`]);
+		expect(markdown_expressions(page).map((r) => r.code)).toContain(CALL);
+	});
+
+	it('a CRLF page with frontmatter: its braces are no expression, the body still holds the call, at its offset', () => {
+		const page = `---\r\ntitle: "{ open"\r\nlink: "${EXPR}"\r\n---\r\n\r\nHello ${EXPR}\r\n`;
+		const found = markdown_expressions(page);
+		expect(found.map((r) => r.code)).toEqual([CALL]);
+		expect(page.slice(found[0]!.offset, found[0]!.offset + CALL.length)).toBe(CALL);
+		expect(found[0]!.offset).toBeGreaterThan(page.indexOf('Hello'));
 	});
 
 	it('the pages cover both answers', async () => {
