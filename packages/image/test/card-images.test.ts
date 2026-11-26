@@ -8,7 +8,7 @@ import zlib from 'node:zlib';
 import sharp from 'sharp';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { CardSpec } from '../src/card.ts';
-import { card_png } from '../src/cards/engine.ts';
+import { card_png, engine } from '../src/cards/engine.ts';
 import { fit_to_card } from '../src/cards/fit.ts';
 import { resvg_draws } from '../src/cards/images.ts';
 
@@ -182,6 +182,7 @@ describe("a card's images, as satori is handed them", () => {
 	});
 
 	test("a style's url( with no closing paren is refused, coded, and satori never calls fetch", async () => {
+		await engine();
 		const fetched = vi
 			.spyOn(globalThis, 'fetch')
 			.mockImplementation(() => Promise.reject(new Error('satori fetched')));
@@ -198,6 +199,34 @@ describe("a card's images, as satori is handed them", () => {
 				)
 			).rejects.toMatchObject({ code: 'image_card_source' });
 		expect(fetched).not.toHaveBeenCalled();
+		expect(drawn).toEqual([]);
+	});
+
+	test("a style's url(data: with no closing paren is refused, coded, before the draw: no data: image reaches satori unfitted (a 9000 x 9000 PNG)", async () => {
+		const huge = await sharp({
+			create: { width: 9000, height: 9000, channels: 3, background: '#ff0000' }
+		})
+			.png()
+			.toBuffer();
+		const data = `data:image/png;base64,${huge.toString('base64')}`;
+		let fits = 0;
+		for (const tail of ['!', '', ' '])
+			await expect(
+				card_png(
+					spec_of(
+						`<div style="display: flex; width: 10px; height: 10px; background-image: url(${data}${tail}"></div>`
+					),
+					{},
+					[FONT],
+					undefined,
+					(bytes, w, h) => {
+						fits += 1;
+						return fit_to_card(bytes, w, h);
+					}
+				),
+				JSON.stringify(tail)
+			).rejects.toMatchObject({ code: 'image_card_source' });
+		expect(fits).toBe(0);
 		expect(drawn).toEqual([]);
 	});
 
