@@ -94,6 +94,30 @@ describe('hosts', () => {
 			expect(is_host_entry(good), good).toBe(true);
 	});
 
+	test("a public suffix written with DNS's trailing dot, or a regional storage name, is a public suffix too", () => {
+		for (const bad of [
+			'*.github.io.',
+			'*.co.uk.',
+			'*.s3.us-east-1.amazonaws.com',
+			'*.s3-eu-west-1.amazonaws.com',
+			'*.s3.dualstack.ap-south-1.amazonaws.com',
+			'*.r2.cloudflarestorage.com',
+			'*.supabase.co'
+		])
+			expect(is_host_entry(bad), bad).toBe(false);
+		for (const good of ['*.my-bucket.s3.us-east-1.amazonaws.com', 'images.example.com.'])
+			expect(is_host_entry(good), good).toBe(true);
+	});
+
+	test('a URL whose host ends in a trailing dot is the host without it', () => {
+		const hosts = new RemoteHosts(['*.cdn.example.com', 'images.example.com']);
+		expect(hosts.match(new URL('https://a.cdn.example.com./x.png'))).toBe('below');
+		expect(hosts.match(new URL('https://images.example.com./x.png'))).toBe('named');
+		expect(
+			new RemoteHosts(['images.example.com.']).match(new URL('https://images.example.com/x.png'))
+		).toBe('named');
+	});
+
 	test('the line to add names exactly the refused host', () => {
 		expect(entry_for(new URL('https://images.example.com/a.jpg'))).toBe('images.example.com');
 		expect(entry_for(new URL('http://127.0.0.1:4100/a.jpg'))).toBe('http://127.0.0.1:4100');
