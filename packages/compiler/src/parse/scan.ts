@@ -183,7 +183,12 @@ export function match_close(src: string, open: number): number {
 
 /** One located `import.meta.og.<method>(<args>)` call. `args` is the VERBATIM text between the
  *  parens; `method` is the dotted tail after the shared prefix (`loader.git`, `code`, `regions`). */
-export type OgCall = { start: number; end: number; method: string; args: string };
+export type OgCall = {
+	start: number;
+	end: number;
+	method: string;
+	args: string;
+};
 
 const IDENT = /[A-Za-z0-9_$.]/;
 
@@ -204,7 +209,12 @@ export function find_og_calls(src: string, prefix: string): OgCall[] {
 		while (q < src.length && WS_RE.test(src[q]!)) q++;
 		const close = method && src[q] === '(' ? match_close(src, q) : -1;
 		if (close < 0) return p;
-		calls.push({ start: met.at, end: close + 1, method, args: src.slice(q + 1, close) });
+		calls.push({
+			start: met.at,
+			end: close + 1,
+			method,
+			args: src.slice(q + 1, close)
+		});
 		return close + 1;
 	});
 	return calls;
@@ -218,7 +228,10 @@ export function split_first_string(args: string, who: string): { value: string; 
 	while (i < args.length && WS_RE.test(args[i]!)) i++;
 	const q = args[i];
 	if (q !== "'" && q !== '"' && q !== '`') {
-		throw new OgygiaError('call_arg_not_literal', { call: who, got: args.slice(0, 24) });
+		throw new OgygiaError('call_arg_not_literal', {
+			call: who,
+			got: args.slice(0, 24)
+		});
 	}
 	let j = i + 1;
 	for (; j < args.length; j++) {
@@ -232,7 +245,10 @@ export function split_first_string(args: string, who: string): { value: string; 
 	let k = j + 1;
 	while (k < args.length && WS_RE.test(args[k]!)) k++;
 	if (k < args.length && args[k] !== ',') {
-		throw new OgygiaError('call_arg_in_expression', { call: who, near: args.slice(i, k + 8) });
+		throw new OgygiaError('call_arg_in_expression', {
+			call: who,
+			near: args.slice(i, k + 8)
+		});
 	}
 	if (args[k] === ',') k++;
 	return { value, rest: args.slice(k).trim() };
@@ -272,6 +288,40 @@ export function og_js_regions(
 			.filter((b) => b.kind === 'script')
 			.map((b) => ({ code: src.slice(b.start, b.end), offset: b.start }));
 	return null;
+}
+
+const FENCE_RE = /^ {0,3}(`{3,}|~{3,})/;
+const CODE_SPAN_RE = /(`+)[^`]+?\1/g;
+const LINE_LEAD_RE = /^ {0,3}$/;
+
+/**
+ * The `<script>` blocks of a markdown page (`.svx`, `.md`): the ones its preprocessor keeps as
+ * script, so a block that starts a line outside fenced code. A fence's text and a code span are
+ * prose, blanked before the walk so a `<script>` written there is never a block. Offsets are the
+ * source's. test/macros-need-plugin.test.ts.
+ */
+export function markdown_scripts(src: string): JsRegion[] {
+	let fence: string | null = null;
+	const lines = src.split('\n').map((line) => {
+		const open = FENCE_RE.exec(line)?.[1];
+		if (fence !== null) {
+			if (open !== undefined && open[0] === fence[0] && open.length >= fence.length) fence = null;
+			return ' '.repeat(line.length);
+		}
+		if (open !== undefined) {
+			fence = open;
+			return ' '.repeat(line.length);
+		}
+		return line.replace(CODE_SPAN_RE, (span) => ' '.repeat(span.length));
+	});
+	const prose = lines.join('\n');
+	return component_blocks(prose)
+		.filter(
+			(b) =>
+				b.kind === 'script' &&
+				LINE_LEAD_RE.test(prose.slice(prose.lastIndexOf('\n', b.open - 1) + 1, b.open))
+		)
+		.map((b) => ({ code: src.slice(b.start, b.end), offset: b.start }));
 }
 
 /** A `<script>` or `<style>` block of a component's source. */

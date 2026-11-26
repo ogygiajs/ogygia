@@ -494,9 +494,9 @@ export function child_traceparent(incoming?: string | null): {
 const ABSOLUTE_RE = /^[a-z][a-z0-9+.-]*:|^\/\//i;
 // (the asset attributes' names in any case (`asset_suffix`) in any case: where an asset ref can be; a tag without one is not read)
 const ASSET_ATTR_ANY_CASE = /entry|endpoint|href|src|style/gi;
-const ASSET_PATH_RE = /(?:^|\/)(_app|og|__ogygia__)\//;
+const ASSET_PATH_RE = /(?:^|\/)(?:(?:_app|og|__ogygia__|cdn-cgi\/image)\/|_vercel\/image\?)/;
 const ASSET_EXT_RE = /\.(js|css|woff2?|avif|webp|png|jpe?g|gif|svg)(\?|$)/i;
-const SRCSET_CANDIDATE_RE = /(^|,)(\s*)([^\s,]+)/g;
+const SRCSET_SPACE_RE = /[\t\n\f\r ]/;
 
 /** One asset ref pinned to `origin`; an app-local link (or an absolute URL) as it is. */
 function pin_asset(value: string, origin: string): string {
@@ -505,7 +505,7 @@ function pin_asset(value: string, origin: string): string {
 	return new URL(value, `${origin}/`).href;
 }
 
-const CSS_URL_RE = /(url\(\s*)(&quot;|&#39;|["']?)([^"'()\s&]+)(\2\s*\))/gi;
+const CSS_URL_RE = /(url\(\s*)(&quot;|&#39;|["']?)((?:[^"'()\s&]|&amp;)+)(\2\s*\))/gi;
 
 function pin_style(value: string, origin: string): string {
 	return value.replace(
@@ -515,11 +515,24 @@ function pin_style(value: string, origin: string): string {
 	);
 }
 
+// @why HTML's srcset parse runs a URL to whitespace and drops its trailing commas; descriptors run to the next comma (test: packages/federation/test/absolutize.test.ts › pins a Cloudflare link whose options hold commas as one candidate, in src and srcset alike)
 function pin_srcset(value: string, origin: string): string {
-	return value.replace(
-		SRCSET_CANDIDATE_RE,
-		(_, comma: string, space: string, url: string) => comma + space + pin_asset(url, origin)
-	);
+	let out = '';
+	let at = 0;
+	while (at < value.length) {
+		let url = at;
+		while (url < value.length && (value[url] === ',' || SRCSET_SPACE_RE.test(value[url]!))) url++;
+		let end = url;
+		while (end < value.length && !SRCSET_SPACE_RE.test(value[end]!)) end++;
+		let bare = end;
+		while (bare > url && value[bare - 1] === ',') bare--;
+		out += value.slice(at, url) + pin_asset(value.slice(url, bare), origin);
+		at = bare;
+		if (bare < end) continue;
+		while (at < value.length && value[at] !== ',') at++;
+		out += value.slice(end, at);
+	}
+	return out;
 }
 
 // (the attribute's name in any case: where a graph script can be; a script without it is not read)

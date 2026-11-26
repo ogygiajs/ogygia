@@ -90,6 +90,74 @@ describe('a plugin macro without its plugin', () => {
 		).rejects.toMatchObject({ code: 'macro_needs_plugin' });
 	});
 
+	it("a call in a markdown page's script fails the build without its plugin (.svx, .md)", async () => {
+		const page = dedent`
+			---
+			title: Post
+			---
+
+			<script>
+				const v = import.meta.og.bake(() => 1);
+			</script>
+
+			Text.
+		`;
+		for (const file of ['/app/src/content/post.svx', '/app/src/routes/+page.md'])
+			await expect(
+				run_module_macros(page, file, { ...ctx(), markdownExts: ['.svx', '.md'] }, NO_PROFILE)
+			).rejects.toMatchObject({ code: 'macro_needs_plugin' });
+	});
+
+	it("a markdown page's fenced code that shows a <script> with a call is no call", async () => {
+		const svx = dedent`
+			# Images
+
+			\`\`\`svelte
+			<script>
+				const hero = import.meta.og.image('./hero.jpg');
+			</script>
+			\`\`\`
+
+			Write \`<script>\` blocks at the top.
+		`;
+		expect(
+			await run_module_macros(
+				svx,
+				'/app/src/content/+doc.svx',
+				{ ...ctx(), markdownExts: ['.svx', '.md'] },
+				NO_PROFILE
+			)
+		).toEqual({ code: svx, touched: false, maps: [] });
+	});
+
+	it("a call in a component's template expression fails the build without its plugin", async () => {
+		const svelte = dedent`
+			<script>
+				export const n = 1;
+			</script>
+
+			<img src={import.meta.og.bake(() => '/x.jpg')} alt="" />
+		`;
+		await expect(
+			run_module_macros(svelte, '/app/src/routes/+page.svelte', ctx(), NO_PROFILE)
+		).rejects.toMatchObject({ code: 'macro_needs_plugin' });
+	});
+
+	it("a dependency's call in its markup is refused as outside the app", async () => {
+		const svelte = `<img src={import.meta.og.image('./x.jpg')} alt="" />`;
+		await expect(
+			run_module_macros(
+				svelte,
+				'/app/node_modules/x/Pic.svelte',
+				{
+					...ctx([{ name: 'image', handler: (code) => code }]),
+					ownSource: () => false
+				},
+				NO_PROFILE
+			)
+		).rejects.toMatchObject({ code: 'macro_outside_app' });
+	});
+
 	it('with the plugin listed, its handler compiles the call', async () => {
 		const out = await run_module_macros(
 			`export const v = import.meta.og.code('x');`,

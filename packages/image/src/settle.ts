@@ -15,7 +15,7 @@ import { clock, flights, queue, STALE, type Fresh, type Place } from '@ogygia/ma
 import { make, parallel, store } from 'virtual:ogygia-image/maker';
 import { build_handoff } from './handoff.ts';
 import { mime_of } from './layout.ts';
-import { warn } from './messages.ts';
+import { said, warn } from './messages.ts';
 import { remote as REMOTE, transport } from 'virtual:ogygia-image/remote';
 import { card_original, draws, NoCard } from './cards/read.ts';
 import { CannotMake } from './maker.ts';
@@ -43,13 +43,12 @@ const encodes = queue<Job>({
 	stale: (job: Job) => job.gone()
 });
 
-let said_busy = false;
 function limited<T>(work: () => Promise<T>): Promise<T> {
 	if (live && encodes.waiting >= MAX_WAITING) {
-		if (!said_busy) warn('image_busy', { waiting: encodes.waiting });
-		said_busy = true;
+		said.once('image_busy', () => warn('image_busy', { waiting: encodes.waiting }));
 		return Promise.reject(new Busy());
 	}
+	if (encodes.waiting === 0) said.ok('image_busy');
 	return new Promise<T>((resolve, reject) => {
 		encodes.push(
 			{ run: () => work().then(resolve, reject), gone: () => reject(new Busy()) },
@@ -264,16 +263,14 @@ async function built_card(
 	const res = assets === null ? null : await assets.fetch(new URL(built, 'https://assets.invalid'));
 	if (res?.ok)
 		return new Response(res.body, { headers: { 'content-type': type, 'cache-control': KEEP } });
-	if (!said_no_card)
+	said.once(`image_no_encoder card ${key}`, () =>
 		warn('image_no_encoder', {
 			what: 'card',
 			reason: `the card ${key} was not made by the build (no prerendered page names it), and this server draws no card`
-		});
-	said_no_card = true;
+		})
+	);
 	return new Response('Not Found', { status: 404, headers: { 'cache-control': 'no-store' } });
 }
-
-let said_no_card = false;
 
 function failed(key: string, reason: string): Response {
 	warn('image_settle_failed', { path: key, reason });
@@ -283,10 +280,8 @@ function failed(key: string, reason: string): Response {
 	});
 }
 
-let said_cannot_make = false;
 function cannot_make(e: CannotMake): Response {
-	if (!said_cannot_make) warn(e.code, e.args);
-	said_cannot_make = true;
+	said.once(`${e.code} ${JSON.stringify(e.args)}`, () => warn(e.code, e.args));
 	return new Response('this server cannot make images', {
 		status: 500,
 		headers: { 'cache-control': 'no-store' }

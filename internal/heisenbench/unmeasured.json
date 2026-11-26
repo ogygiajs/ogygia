@@ -6045,8 +6045,44 @@
 			"reason": "a sort comparator over one module's macro edits (a handful), constant work per compare"
 		},
 		{
-			"id": "packages/compiler/src/macros/source.ts > ast_edits_or_null_unparsed > walk:1~30be9a",
+			"id": "packages/compiler/src/macros/source.ts > ast_edits_or_null_unparsed > walk_ast:1~30be9a",
 			"reason": "the AST walk's per-node visitor, constant work per node; the macro tests run it on every module they rewrite"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > template_calls",
+			"reason": "the macro check, only for a component whose text names import.meta.og. outside its scripts (rare: a docs page or a template call); one Svelte parse then; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > template_calls > some:0~3d5b23",
+			"reason": "per marker occurrence of the macro check above, constant work per script block; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > template_calls > walk_ast:1~772d67",
+			"reason": "the AST walk's per-node visitor of the macro check above, constant work per node; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > markdown_scripts",
+			"reason": "the macro check of a markdown page that names import.meta.og. (rare), linear in its text; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > markdown_scripts > filter:0~fa9df2",
+			"reason": "per block of the markdown check above, constant work per block; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > markdown_scripts > map:0~69761c",
+			"reason": "per script block of the markdown check above, one slice; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > markdown_scripts > map:0~e12127",
+			"reason": "per line of the markdown check above, constant work per line; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > markdown_scripts > map:0~e12127 > replace:1~e4104a",
+			"reason": "per code span of the markdown check above, one blank run; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~0a165a > CompileCtx:0~15d8e4 > flatMap:0~f1f41f",
+			"reason": "once per config: the markdown formats' extensions; every build runs it"
 		},
 		{
 			"id": "packages/compiler/src/macros/wire.ts > ast_edits_or_null_unparsed > sort:0~c12a84",
@@ -7025,12 +7061,8 @@
 			"reason": "once per server start: one set of the app's image paths; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/server.ts > Originals > static #of",
-			"reason": "once per server start: one set of the app's image paths; test/server.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/server.ts > Originals > static #of > map:0~de6d9d",
-			"reason": "once per server start: one set of the app's image paths; test/server.test.ts runs it"
+			"id": "packages/image/src/server.ts > Originals > url",
+			"reason": "constant work per endpoint request that makes a file (one Map lookup), not per page render; test/server-assets-path.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/server.ts > Originals > has",

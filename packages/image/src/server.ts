@@ -37,7 +37,7 @@ import { name } from 'virtual:ogygia-image/namer';
 import { remote as REMOTE } from 'virtual:ogygia-image/remote';
 import sources, { remote } from 'virtual:ogygia-image/sources';
 import { build_handoff, published, type BuildHandoff } from './handoff.ts';
-import { warn } from './messages.ts';
+import { said, warn } from './messages.ts';
 import {
 	built_file,
 	built_url,
@@ -66,22 +66,18 @@ const { base: BASE, assets: ASSETS } = config.paths;
 const PREFIXES: readonly string[] = [ASSETS, BASE];
 
 class Originals {
-	#tails: ReadonlySet<string>;
+	#urls: ReadonlyMap<string, string>;
 	#remote: ReadonlySet<string>;
 
 	constructor(list: Readonly<Record<string, string>>, fetched: readonly string[] | string) {
-		this.#tails = Originals.#of(list);
+		this.#urls = new Map(Object.values(list).map((url) => [source_tail(url, PREFIXES), url]));
 		this.#remote = new Set(typeof fetched === 'string' ? [] : fetched);
-	}
-
-	static #of(list: Readonly<Record<string, string>>): ReadonlySet<string> {
-		return new Set(Object.values(list).map((url) => source_tail(url, PREFIXES)));
 	}
 
 	has(tail: string): boolean {
 		if (tail.startsWith(REMOTE_TAIL)) return listed(tail);
 		if (tail.startsWith(CARD_TAIL)) return card_of_tail(tail) !== null;
-		if (this.#tails.has(tail)) return true;
+		if (this.#urls.has(tail)) return true;
 		if (tail.startsWith(REMOTE_ASSETS)) {
 			const name = REMOTE_ASSET_RE.exec(tail.slice(REMOTE_ASSETS.length))?.[1];
 			if (name !== undefined && this.#remote.has(name)) return true;
@@ -90,6 +86,10 @@ class Originals {
 		if (run === null || DISK === null) return false;
 		if (published(tail)) return DISK.exists(run.root, tail);
 		return DISK.is_remote(run.root, run.remote, tail);
+	}
+
+	url(tail: string): string {
+		return this.#urls.get(tail) ?? `${dev ? BASE : ASSETS || BASE}/${encode_tail(tail)}`;
 	}
 }
 
@@ -108,17 +108,13 @@ function unlisted_why(url: URL | null): string {
 	return url === null ? 'its tail names no http(s) URL' : 'its host is not in remote.hosts';
 }
 
-let said_unlisted = false;
 function listed(tail: string): boolean {
 	const url = remote_of_tail(tail);
 	if (url !== null && HOSTS?.allows(url)) return true;
-	if (!said_unlisted)
-		warn('image_remote_refused', {
-			url: url?.href ?? tail,
-			status: 404,
-			reason: unlisted_why(url)
-		});
-	said_unlisted = true;
+	const href = url?.href ?? tail;
+	said.once(`image_remote_refused ${href}`, () =>
+		warn('image_remote_refused', { url: href, status: 404, reason: unlisted_why(url) })
+	);
 	return false;
 }
 
@@ -151,10 +147,8 @@ class DiskHalf {
 
 const DISK_HALF = new DiskHalf();
 
-let said_no_encoder = false;
 function no_encoder(e: unknown): Response {
-	if (!said_no_encoder) warn('image_no_encoder', { reason: (e as Error).message });
-	said_no_encoder = true;
+	said.once('image_no_encoder', () => warn('image_no_encoder', { reason: (e as Error).message }));
 	return new Response('this server cannot make images', {
 		status: 500,
 		headers: { 'cache-control': 'no-store' }
@@ -163,7 +157,7 @@ function no_encoder(e: unknown): Response {
 
 function original_of(recipe: ParsedRecipe): string {
 	if (card_of_tail(recipe.tail) !== null) return built_url(config.paths, recipe);
-	return `${BASE}/${encode_tail(recipe.tail)}`;
+	return ORIGINALS.url(recipe.tail);
 }
 
 const SIGNED_MAX = 10_000;

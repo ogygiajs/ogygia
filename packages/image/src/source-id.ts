@@ -7,7 +7,8 @@
  */
 
 /** Bump when the encoder's output changes for the same input: every cached file is made again, and
- *  every source gets a new id, so every file a new name. */
+ *  every source gets a new id, so every file a new name. test/encode-settings.test.ts holds what
+ *  each version asks sharp for. */
 export const ENCODER_VERSION = 4;
 
 const ID_LENGTH = 16;

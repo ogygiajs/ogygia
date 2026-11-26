@@ -323,6 +323,38 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 ---
 
+## IMAGE-SIGNED-RECIPE — the image endpoint makes only what the app signed, from what it ships
+
+**What:** `@ogygia/image`'s endpoint (`/__ogygia__/i/<sig>/<recipe>`) makes a file only for a recipe
+the app signed (`app.sign('image|<recipe path>')`, the plugin's own domain under the region key), of
+an original in the build's list (`Originals`: the assets the SSR imports gave), named by a hash of
+that original's bytes. The order is fixed: method (GET/HEAD, else 405), then the signature (else a
+uniform `deny('sig')` 403), then the strict recipe parse (a tail with `.`/`..` segments, a
+backslash or NUL is no recipe), then the list (else 404), then the query (a 308 to the bare URL).
+Every refusal is `no-store`; a made file is `immutable`. The original is re-read and checked
+against the id the recipe names: an edited source never answers the old URL with new pixels.
+
+**Why:** A signed URL never expires: it is minted once per recipe and kept by every CDN forever, so
+the signature is the whole door. Only the server holds the key; the signer's domain separation
+means no region capability or other plugin's signature verifies here, and an image signature
+verifies nowhere else.
+
+**No rate limit (on purpose):** unlike the region endpoint (PROBE-THEN-RENDER), a forged flood is a
+cheap HMAC check and a 403 with no encode; a replay of harvested URLs is bounded by the store
+(each recipe is made once), the encode queue (`parallel`) and its 503 past a full line. Do not
+"align" it with the region limiter: there is no costly work before the signature to protect.
+
+**Do not:**
+
+- Sign a recipe whose source is not an asset of this build, or derive a recipe from the request.
+- Answer a refused request with anything a cache may keep.
+- Read an original at a path built from the request: read it at the URL its import gave
+  (`Originals.url`), which is what Kit's `read()` takes.
+
+**Enforced by:** `packages/image/test/server.test.ts > a URL whose recipe was changed after signing is refused, naming why and the key`, `packages/image/test/server.test.ts > a URL with no signature, or a forged one, is refused`, `packages/image/test/server.test.ts > a signed recipe naming an original the app does not ship is not found`, `packages/image/test/server.test.ts > a signed URL asked with any method but GET or HEAD is answered 405`, `packages/image/test/recipe.test.ts > a tail that climbs out of its folder is no recipe`, `packages/image/test/settle-live.test.ts > a signed URL asked with a query string is sent to the bare URL, and nothing is made`, `packages/image/test/server-assets-path.test.ts > with paths.assets set to a CDN, a signed file is made from the original Kit serves there`, `packages/core/test/plugin-signing.test.ts > a v3 region signature does not verify as a plugin signature of any field`
+
+---
+
 ## Related docs
 
 - Product vocabulary: [`DESIGN.md`](./DESIGN.md)

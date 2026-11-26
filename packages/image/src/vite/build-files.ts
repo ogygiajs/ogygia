@@ -495,8 +495,11 @@ export async function write_built(
 	}
 	const origin = origin_of(handoff.minted);
 	fs.rmSync(path.dirname(handoff.minted), { recursive: true, force: true });
-	const failed = settled.find((s) => s.status === 'rejected');
-	if (failed) throw failed.reason;
+	const failures = settled.flatMap((s) => (s.status === 'rejected' ? [s.reason as Error] : []));
+	if (failures.length) {
+		for (const more of failures.slice(1)) console.error(more.message);
+		throw failures[0];
+	}
 	if (handoff.mark || renamed.size)
 		unmark(path.join(output, 'prerendered'), handoff.mark, origin, renamed);
 	const done: BuildHandoff = { ...handoff, minted: '', mark: '', written: client };

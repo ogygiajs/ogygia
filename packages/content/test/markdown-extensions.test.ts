@@ -117,6 +117,30 @@ describe('markdown extensions', () => {
 		);
 	});
 
+	it('one preprocessor compiles with the extensions held now, not those of its first compile', async () => {
+		const tag = (name: string): MarkdownExtension => ({
+			name: 'tag',
+			cache_key: () => name,
+			rehype: [
+				{
+					enforce: 'pre',
+					plugin: () => (tree: Hast) => {
+						tree.children?.push({ type: 'raw', value: `<i>${name}</i>` });
+					}
+				}
+			]
+		});
+		const markup = ogygiaPreprocess({ region: true }).markup!;
+		const run = async (filename: string) =>
+			((await markup({ content: 'Hello.\n', filename })) as { code: string }).code;
+		hold_markdown_extensions([plugin(tag('First'))]);
+		expect(await run('/app/src/content/ext/g.md')).toContain('First');
+		hold_markdown_extensions([plugin(tag('Second'))]);
+		const second = await run('/app/src/content/ext/h.md');
+		expect(second).toContain('Second');
+		expect(second).not.toContain('First');
+	});
+
 	it('an offer content cannot read fails with a code, naming the plugin', () => {
 		expect(() => hold_markdown_extensions([plugin({ name: 'half' }, 'vite-plugin-half')])).toThrow(
 			/vite-plugin-half/

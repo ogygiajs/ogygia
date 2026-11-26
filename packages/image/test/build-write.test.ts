@@ -161,6 +161,23 @@ test('a file the build cannot make fails it with a code that names the source fi
 	).rejects.toMatchObject({ message: expect.stringContaining(broken) });
 });
 
+test('a build with many files it cannot make names every one, not only the first', async () => {
+	delete process.env.__OGYGIA_IMAGE_BUILD;
+	const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+	const handoff = await handoff_for(true);
+	const out = output('<p>no images</p>');
+	for (const name of ['one.Aa11.jpg', 'two.Bb22.jpg']) {
+		const broken = path.join(out, 'client', '_app', 'immutable', 'assets', name);
+		fs.writeFileSync(broken, `not a jpeg ${name}`);
+		note_built(handoff.minted, `${await id_of(broken)}-64x43/_app/immutable/assets/${name}.webp`);
+	}
+	const thrown = await write_built(handoff, CFG, [], out).catch((e: Error) => e.message);
+	const said = [String(thrown), ...error.mock.calls.map((c) => String(c[0]))].join('\n');
+	error.mockRestore();
+	expect(said).toContain('one.Aa11.jpg');
+	expect(said).toContain('two.Bb22.jpg');
+});
+
 /** A prerendered page holding `page(marked)`, `marked` the marked URL of a 64 × 43 file of the
  *  test's source, after the build's end, with `origin` noted as Kit's prerender origin. */
 async function written(page: (marked: string) => string, origin?: string): Promise<string> {

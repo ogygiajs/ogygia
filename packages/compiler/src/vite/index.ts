@@ -53,8 +53,10 @@ export {
 } from '../region/transform.ts';
 export { rewrite_lake_import_to_placeholder } from '../region/emit.ts';
 export type { ImportKeys } from '../region/transform.ts';
-export { definePlugin } from './plugin-api.ts';
+export { definePlugin, MARKDOWN_EXTENSION_API } from './plugin-api.ts';
 export type {
+	MarkdownExtension,
+	MarkdownFinish,
 	OgygiaPlugin,
 	PluginDefinition,
 	BuildContext,
@@ -665,6 +667,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						resolve_alias,
 						component_css,
 						macros,
+						markdown_exts: markup.flatMap((m) => m.extensions),
 						page_reads,
 						prescans,
 						plugins: listed_plugins,

@@ -74,6 +74,37 @@ export interface MarkupSource {
 	modules?: Iterable<readonly [string, string]>;
 }
 
+/** What a markdown extension's `finish` hands back. */
+export interface MarkdownFinish {
+	/** The compiled module, rewritten. */
+	code: string;
+	/** Module-script lines to add (imports, exports). */
+	lines: string[];
+	/** The body now renders a component or an expression: it is never emitted as a static region. */
+	dynamic: boolean;
+	/** Files the output names (an image a post shows): watched like the document's own, and a kept
+	 *  compile of the document whose file is gone compiles again, so the extension's check runs. */
+	files?: readonly string[];
+}
+
+/** A markdown extension one plugin offers another's markdown pipeline (its Vite plugin's
+ *  `api[MARKDOWN_EXTENSION_API]`): the one contract both sides compile against. `R` is the
+ *  pipeline's rehype entry. */
+export interface MarkdownExtension<R = unknown> {
+	/** Who offers it: one extension per name, the last config's. */
+	name: string;
+	/** What changes the compiled output besides the document and the pipeline's own settings: part
+	 *  of the document cache key. Read on every compile. */
+	cache_key: () => string;
+	/** Rehype entries, staged like the pipeline's own (after the app's own entries of each stage). */
+	rehype?: readonly R[];
+	/** After mdsvex, before the island transform: rewrite the compiled module. */
+	finish?: (code: string, filename: string) => MarkdownFinish;
+}
+
+/** The Vite plugin `api` key a markdown extension is offered under. */
+export const MARKDOWN_EXTENSION_API = 'ogygiaMarkdown';
+
 /** What the build hands back for a markup source: run the region transform on preprocessed Svelte. */
 export interface MarkupRegions {
 	/** Rewrite the marked imports in already-preprocessed Svelte and register its regions. The code,
