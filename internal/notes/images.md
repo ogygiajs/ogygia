@@ -98,7 +98,9 @@ server asset. The endpoint also refuses a signed recipe whose original is not in
 A runtime that cannot load sharp answers a coded 500 (`image_no_encoder`, said once), and a build
 for an adapter whose runtime has no native modules (Cloudflare, Deno, edge) warns
 (`image_adapter_no_encoder`). A failed encode is `image_settle_failed` and a 500 no cache keeps.
-At most four encodes run at once (a queue), with sharp's input pixel limit on.
+At most four encodes run at once (a queue), with sharp's input pixel limit on. AVIF is made at
+effort 2 (`pixels.ts AVIF_EFFORT`; was 4: half the encode time for 0.2% more bytes, owner ruling on
+DECISIONS 174), WebP at 4; `ENCODER_VERSION` 5.
 
 ## 6. The store, and the build's files
 

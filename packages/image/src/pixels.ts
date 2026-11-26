@@ -39,6 +39,10 @@ export const FRAME_PIXELS_MAX = 268402689;
  *  frames, 288 million pixels, takes about half a second). */
 export const ANIMATION_PIXELS_MAX: number = 2 ** 32;
 
+/** How hard sharp works on an AVIF file (0 to 9): 2 makes a build about twice as fast as 4 for
+ *  0.2% more bytes (DECISIONS 174, the owner's ruling). */
+export const AVIF_EFFORT = 2;
+
 /** The pixels an encode of a source with `meta` reads: one frame, or every frame of an
  *  animation. */
 export function pixels_read(meta: Metadata): number {
@@ -112,7 +116,7 @@ export async function encode(
 		pixels
 	);
 	const q = file.quality;
-	if (file.format === 'avif') img = img.avif({ quality: q ?? 60, effort: 4 });
+	if (file.format === 'avif') img = img.avif({ quality: q ?? 60, effort: AVIF_EFFORT });
 	else if (file.format === 'webp')
 		img = img.webp({ quality: q ?? 80, effort: 4, ...(animated ? { loop: 0 } : {}) });
 	else if (file.format === 'jpeg') img = img.jpeg({ quality: q ?? 80, mozjpeg: true });

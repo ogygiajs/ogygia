@@ -46,7 +46,8 @@ const print = (log: unknown[]) =>
 	crypto.createHash('sha256').update(JSON.stringify(log)).digest('base64url');
 
 const ENCODE_SEEN: Readonly<Record<number, string>> = {
-	4: 'EsYiJpvY9B4r6Yr2cZpOjmhHs0qPQILHLvMovlTabCI'
+	4: 'EsYiJpvY9B4r6Yr2cZpOjmhHs0qPQILHLvMovlTabCI',
+	5: 'zQ1Tgif-2bnT_7_NVNDL_aRXPQf4Gj8OKncJpaa_PIA'
 };
 const PLAN_SEEN: Readonly<Record<number, string>> = {
 	3: 'KLzVqaMUXxzeRZHs07FnTgJrfhQW0jT5lDgAhl_eHnA'

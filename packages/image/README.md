@@ -6,7 +6,7 @@ Responsive images for [ogygia](https://ogygiajs.dev) apps. The build reads each 
 pnpm add @ogygia/image sharp
 ```
 
-sharp, the encoder, is a peer: list it in your app's `dependencies` (a server build fails with `image_sharp_missing` without it).
+sharp, the encoder, is a peer: list it in your app's `dependencies` (a server build fails with `image_sharp_missing` without it). It makes AVIF at effort 2 (of 0 to 9), fast with near-best sizes.
 
 ```ts
 // vite.config.ts
