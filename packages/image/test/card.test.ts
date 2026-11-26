@@ -285,6 +285,51 @@ describe('fonts', () => {
 		fs.writeFileSync(cut, fs.readFileSync(MONO).subarray(0, 60));
 		expect(() => font_face(fs.readFileSync(cut))).toThrow(FontUnreadable);
 	});
+
+	test('any bytes a font file holds read as a face or FontUnreadable, never another error (property)', () => {
+		const sfnt = (tables: [string, Uint8Array][]): Buffer => {
+			const head = Buffer.alloc(12 + tables.length * 16);
+			head.writeUInt32BE(0x0001_0000, 0);
+			head.writeUInt16BE(tables.length, 4);
+			let at = head.length;
+			const parts: Buffer[] = [head];
+			tables.forEach(([tag, data], i) => {
+				head.write(tag, 12 + i * 16, 'latin1');
+				head.writeUInt32BE(at, 12 + i * 16 + 8);
+				head.writeUInt32BE(data.length, 12 + i * 16 + 12);
+				parts.push(Buffer.from(data));
+				at += data.length;
+			});
+			return Buffer.concat(parts);
+		};
+		const real = fs.readFileSync(MONO);
+		fc.assert(
+			fc.property(
+				fc.uint8Array({ maxLength: 64 }),
+				fc.uint8Array({ maxLength: 80 }),
+				fc.array(fc.tuple(fc.nat(real.length - 1), fc.integer({ min: 0, max: 255 })), {
+					maxLength: 8
+				}),
+				(name, os2, flips) => {
+					const mutated = Buffer.from(real);
+					for (const [at, b] of flips) mutated[at] = b;
+					for (const bytes of [
+						sfnt([
+							['name', name],
+							['OS/2', os2]
+						]),
+						mutated
+					])
+						try {
+							font_face(bytes);
+						} catch (e) {
+							expect(e).toBeInstanceOf(FontUnreadable);
+						}
+				}
+			),
+			{ numRuns: 300 }
+		);
+	});
 });
 
 describe('components compiled for a card', () => {
