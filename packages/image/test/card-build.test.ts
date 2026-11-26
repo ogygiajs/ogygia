@@ -291,6 +291,37 @@ describe('the digest', () => {
 		code.card = 'css-v2';
 		expect(digest()).toBe(after_font);
 	});
+
+	test("the CSS a card's component compiles to changes it (a Tailwind or PostCSS config change), and the rest of its built code does not", () => {
+		const d = fs.mkdtempSync(path.join(os.tmpdir(), 'og-card-digest-css-'));
+		const card = path.join(d, 'Card.svelte');
+		fs.writeFileSync(card, '<div class="card">x</div><style>.card { color: red }</style>');
+		const start = '\0virtual:ogygia-image/card/css';
+		const def = { name: 'css', rel: 'Card.svelte', width: 1200, height: 630, fonts: [] };
+		const compiled = (css: string, rest: string) =>
+			`import * as $ from ${rest};\nconst $$css = {\n\thash: 'svelte-abc',\n\tcode: '${css}'\n};\nexport default function Card() {}`;
+		const digest = (code: string): string =>
+			card_digest(
+				start,
+				def,
+				'satori@1 svelte@5',
+				d,
+				(id) =>
+					id === start
+						? { importedIds: [`${card}?og-card`], dynamicallyImportedIds: [] }
+						: id === `${card}?og-card`
+							? { importedIds: [], dynamicallyImportedIds: [], code }
+							: null,
+				(f) => (fs.existsSync(f) ? fs.readFileSync(f) : null)
+			);
+		const red = digest(compiled('.card.svelte-abc{color:red}', "'svelte/internal/server'"));
+		expect(digest(compiled('.card.svelte-abc{color:red}', "'/abs/cache/svelte/server.js'"))).toBe(
+			red
+		);
+		expect(
+			digest(compiled('.card.svelte-abc{color:#f00;padding:4px}', "'svelte/internal/server'"))
+		).not.toBe(red);
+	});
 });
 
 test('every row of the card engine table: nothing draws without the engine installed and listed, no server without it in dependencies, an edge build warns', () => {
