@@ -143,6 +143,13 @@ describe('a plugin macro without its plugin', () => {
 		).rejects.toMatchObject({ code: 'macro_needs_plugin' });
 	});
 
+	it('markup Svelte cannot parse names no template call: the check passes it on, for the Svelte compile to report', async () => {
+		const svelte = `<p>{import.meta.og.bake(</p>`;
+		expect(
+			await run_module_macros(svelte, '/app/src/routes/+page.svelte', ctx(), NO_PROFILE)
+		).toEqual({ code: svelte, touched: false, maps: [] });
+	});
+
 	it("a dependency's call in its markup is refused as outside the app", async () => {
 		const svelte = `<img src={import.meta.og.image('./x.jpg')} alt="" />`;
 		await expect(

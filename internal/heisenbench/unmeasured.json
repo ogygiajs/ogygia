@@ -7061,6 +7061,14 @@
 			"reason": "once per server start: one set of the app's image paths; test/server.test.ts runs it"
 		},
 		{
+			"id": "packages/image/src/pixels.ts > position_of",
+			"reason": "constant work per file encoded: maps a position name to sharp's (reads sharp.strategy, module state the replay cannot clone), next to the encode itself; test/server.test.ts and test/encode-settings.test.ts run it"
+		},
+		{
+			"id": "packages/content/src/markdown/index.ts > ogygiaPreprocess > group > markup > map:0~16553b",
+			"reason": "once per held markdown extension per content file compiled (one or two): its name and cache key, the key of the mdsvex instance; test/markdown-extensions.test.ts runs it"
+		},
+		{
 			"id": "packages/image/src/server.ts > Originals > url",
 			"reason": "constant work per endpoint request that makes a file (one Map lookup), not per page render; test/server-assets-path.test.ts runs it"
 		},

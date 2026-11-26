@@ -255,6 +255,12 @@
 	],
 	"covered": [
 		{
+			"site": "packages/compiler/src/macros/pipeline.ts > template_calls > catch:0",
+			"reason": "markup Svelte cannot parse names no template call: the macro check passes it on and the Svelte compile reports it; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/macros-need-plugin.test.ts",
+			"name": "markup Svelte cannot parse names no template call: the check passes it on, for the Svelte compile to report"
+		},
+		{
 			"site": "packages/core/src/runtime/island-warm.ts > warm_key > catch:0",
 			"reason": "a fetched page's module link whose href no URL parser takes is its own key, so the router's warmed-module ask answers no instead of throwing out of the swap; proved by hand: the catch made to rethrow turns the test red",
 			"test": "packages/core/test/browser/island-warm-key.test.ts",
