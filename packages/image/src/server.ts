@@ -108,6 +108,12 @@ function unlisted_why(url: URL | null): string {
 	return url === null ? 'its tail names no http(s) URL' : 'its host is not in remote.hosts';
 }
 
+function linkable(recipe: Recipe): boolean {
+	if (recipe.from === 'card') return false;
+	if (recipe.from !== 'remote') return true;
+	return HOSTS?.allows(new URL(recipe.src)) === true;
+}
+
 function listed(tail: string): boolean {
 	const url = remote_of_tail(tail);
 	if (url !== null && HOSTS?.allows(url)) return true;
@@ -194,7 +200,7 @@ function start(app: ServerApp<unknown>, disk: OnDisk | null): void {
 	const signed = cache<string, string>({ name: 'image URLs', max: SIGNED_MAX });
 	set_minter((recipe, built) => {
 		if (built) return built_url(config.paths, recipe);
-		const link = recipe.from === 'card' ? null : name(recipe);
+		const link = linkable(recipe) ? name(recipe) : null;
 		if (link !== null) return link;
 		const path = recipe_path(recipe, recipe_tail(recipe, PREFIXES));
 		let url = signed.get(path);

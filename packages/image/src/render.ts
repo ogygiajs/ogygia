@@ -4,7 +4,8 @@
  * preset the source was warmed with names the static files the build made, any other file the
  * encoder's own link (`virtual:ogygia-image/namer`), else a signed URL. In the browser nothing can
  * sign: a warmed preset names the build's files, a file with a link its link, and any other render
- * that only happens there shows the original file. An island keeps the server's URLs
+ * that only happens there shows the original file. A remote image gets no link there: the browser
+ * cannot check its host against `remote.hosts`, and a link would have the CDN fetch it. An island keeps the server's URLs
  * (`<Img>` reads them back from the page).
  *
  * @packageDocumentation
@@ -35,7 +36,7 @@ export function file_url(recipe: Recipe, built: boolean): string {
 	const url = mint(recipe, built);
 	if (url !== null) return url;
 	if (built) return built_url(config.paths, recipe);
-	if (recipe.from === 'card') return recipe.src;
+	if (recipe.from === 'card' || recipe.from === 'remote') return recipe.src;
 	const link = name(recipe);
 	if (link !== null) return link;
 	if (typeof window === 'undefined') throw new RenderError('image_no_server');

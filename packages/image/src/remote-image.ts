@@ -77,7 +77,8 @@ export function remote_id(href: string, version: string | number | undefined): s
  * An image known only at request, by its URL: a descriptor for `<Img>` and `getImage()`. `width`
  * and `height` are the image's own (the page reserves its box from them); its format is read from
  * the URL's extension (JPEG when it names none). It has no placeholder. The URL's host must be in
- * `image({ remote: { hosts } })`, which is checked where it is fetched.
+ * `image({ remote: { hosts } })`: one it does not list gets no encoder link (the CDN would fetch
+ * it), only the endpoint's URL, which answers 404 and says why (`image_remote_refused`).
  */
 export function remoteImage(url: string, options: RemoteImageOptions): ImageDescriptor {
 	let at: URL | null = null;
