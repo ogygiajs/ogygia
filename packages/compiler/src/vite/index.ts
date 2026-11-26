@@ -364,7 +364,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			names: () => compiler_of(session, 'regions.names').region_names(),
 			hosts: () => compiler_of(session, 'regions.hosts').region_hosts(),
 			whyStayed: (file, importers) => why_stayed(file, importers)
-		}
+		},
+		routes_dir: () => kit.dirs.routes_dir
 	};
 	const why_stayed = (file: string, importers: Iterable<string>): BarrelLeftReason[] => {
 		const ids = [...importers];
@@ -488,7 +489,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						env.command === 'serve',
 						(source, filename) =>
 							compiler_of(session, 'markup').transform_content_island(source, filename),
-						{ ...seams, routes_dir: kit.dirs.routes_dir }
+						seams
 					);
 					stage_transforms = resolved.transforms;
 					stayed_answers = resolved.stayed;
