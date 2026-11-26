@@ -30,7 +30,9 @@ const IPV4_RE = /^\d{1,3}(?:\.\d{1,3}){3}$/;
 
 /** Public suffixes anyone can host under (a country's second level, the common hosting platforms):
  *  a `*.` entry over one would list every stranger's site there. Not the whole public suffix
- *  list: the ones an app is likely to write. */
+ *  list: the ones an app is likely to write. A `*` in one names a family (`s3.*.amazonaws.com`:
+ *  the `*` stands for one label or part of one, a region's name). A name is read without the
+ *  trailing dot DNS allows. */
 export const SHARED_SUFFIXES: ReadonlySet<string> = new Set([
 	'co.uk',
 	'org.uk',
@@ -73,8 +75,30 @@ export const SHARED_SUFFIXES: ReadonlySet<string> = new Set([
 	'googleusercontent.com',
 	'blogspot.com',
 	'wordpress.com',
-	'myshopify.com'
+	'myshopify.com',
+	'r2.cloudflarestorage.com',
+	'supabase.co',
+	's3.*.amazonaws.com',
+	's3-*.amazonaws.com',
+	's3.dualstack.*.amazonaws.com',
+	's3-website.*.amazonaws.com',
+	's3-website-*.amazonaws.com'
 ]);
+
+const label_re = (label: string): string =>
+	label.replace(/[.*+?^${}()|[\]\\]/g, (c) => (c === '*' ? '[^.]*' : `\\${c}`));
+
+const SHARED_FAMILIES: readonly RegExp[] = [...SHARED_SUFFIXES]
+	.filter((s) => s.includes('*'))
+	.map((s) => new RegExp(`^${s.split('.').map(label_re).join('\\.')}$`));
+
+function shared_suffix(host: string): boolean {
+	return SHARED_SUFFIXES.has(host) || SHARED_FAMILIES.some((re) => re.test(host));
+}
+
+function bare(host: string): string {
+	return host.endsWith('.') ? host.slice(0, -1) : host;
+}
 
 /** What a `hosts` entry must be, for a message. */
 export const HOSTS_RULE =
@@ -92,10 +116,10 @@ function rule_of(entry: unknown): HostRule | null {
 		return null;
 	}
 	if (url.pathname !== '/' || url.search || url.hash) return null;
-	const host = url.hostname;
+	const host = bare(url.hostname);
 	if (
 		m[2] &&
-		(host.startsWith('[') || IPV4_RE.test(host) || !host.includes('.') || SHARED_SUFFIXES.has(host))
+		(host.startsWith('[') || IPV4_RE.test(host) || !host.includes('.') || shared_suffix(host))
 	)
 		return null;
 	return {
@@ -141,7 +165,7 @@ export class RemoteHosts {
 	 *  user or password. */
 	match(url: URL): HostMatch {
 		if (url.username || url.password) return null;
-		const host = url.hostname;
+		const host = bare(url.hostname);
 		let found: HostMatch = null;
 		for (const r of this.#rules) {
 			if (r.protocol !== url.protocol || r.port !== url.port) continue;
