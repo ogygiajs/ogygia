@@ -8,6 +8,7 @@
 import sharp, { type Metadata, type Sharp } from 'sharp';
 import { DEFAULT_QUALITY } from './config.ts';
 import type { ImageFormat, ImageOps } from './descriptor.ts';
+import { FRAME_PIXELS_MAX, REMOTE_TAIL } from './recipe.ts';
 
 /** The libvips version the files are made with: part of every cache key. */
 export const VIPS_VERSION: string = sharp.versions.vips;
@@ -32,8 +33,7 @@ export function metadata_of(bytes: Uint8Array): Promise<Metadata> {
 	return sharp(bytes, { animated: true, limitInputPixels: false }).metadata();
 }
 
-/** The most pixels one frame may have: sharp's own default limit (16383 × 16383). */
-export const FRAME_PIXELS_MAX = 268402689;
+export { FRAME_PIXELS_MAX };
 
 /** The most pixels an animation's frames may add up to. sharp reads the frames one after another,
  *  so memory stays small; the time an encode takes grows with them (a 1200 × 800 recording of 300
@@ -161,10 +161,28 @@ export async function encode_recipe(
 		position?: string;
 		still?: true;
 		ops?: ImageOps;
+		tail?: string;
 	}
 ): Promise<Buffer> {
 	const meta = await metadata_of(bytes);
 	const why = too_large(meta);
 	if (why !== null) throw new Error(`the original is too large to read: ${why}`);
-	return encode(bytes, recipe, !recipe.still && (meta.pages ?? 1) > 1, pixels_read(meta));
+	const animated = !recipe.still && (meta.pages ?? 1) > 1;
+	const box = recipe.tail?.startsWith(REMOTE_TAIL)
+		? within(recipe, shown_size(meta, recipe.ops ?? {}, animated))
+		: recipe;
+	return encode(bytes, box, animated, pixels_read(meta));
+}
+
+function within<T extends { width: number; height: number }>(
+	box: T,
+	source: { width: number; height: number }
+): T {
+	const scale = Math.min(1, source.width / box.width, source.height / box.height);
+	if (scale === 1) return box;
+	return {
+		...box,
+		width: Math.max(1, Math.floor(box.width * scale)),
+		height: Math.max(1, Math.floor(box.height * scale))
+	};
 }

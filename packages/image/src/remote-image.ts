@@ -16,7 +16,7 @@
  * @packageDocumentation
  */
 import type { ImageDescriptor, ImageFormat } from './descriptor.ts';
-import { SIDE_MAX } from './recipe.ts';
+import { FRAME_PIXELS_MAX, SIDE_MAX } from './recipe.ts';
 import { RenderError } from './render-messages.ts';
 import { sha256 } from './sha256.ts';
 import { ENCODER_VERSION } from './source-id.ts';
@@ -98,6 +98,12 @@ export function remoteImage(url: string, options: RemoteImageOptions): ImageDesc
 		invalid('options', options, 'an object with the width and height');
 	const width = side('width', options.width);
 	const height = side('height', options.height);
+	if (width * height > FRAME_PIXELS_MAX)
+		invalid(
+			'width',
+			options.width,
+			`a box of at most ${FRAME_PIXELS_MAX} pixels with the height (${height}): no image file has more`
+		);
 	if (options.alt !== undefined && typeof options.alt !== 'string')
 		invalid('alt', options.alt, 'a string');
 	const { version } = options;

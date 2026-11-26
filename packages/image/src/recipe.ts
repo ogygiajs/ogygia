@@ -90,6 +90,8 @@ export const POSITIONS: ReadonlySet<string> = new Set([
 ]);
 /** The widest and tallest file a recipe names, in pixels: five digits a side. */
 export const SIDE_MAX = 99_999;
+/** The most pixels one frame may have, read or made: sharp's own default limit (16383 × 16383). */
+export const FRAME_PIXELS_MAX = 268402689;
 /** A source id as a recipe names it. */
 export const SOURCE_ID_RE: RegExp = /^[A-Za-z0-9_-]{1,64}$/;
 const HEAD_RE =
@@ -249,7 +251,7 @@ export function parse_recipe(path: string): ParsedRecipe | null {
 	if (!format || tail === null || !TAIL_RE.test(tail)) return null;
 	const width = Number(head[2]);
 	const height = Number(head[3]);
-	if (width < 1 || height < 1) return null;
+	if (width < 1 || height < 1 || width * height > FRAME_PIXELS_MAX) return null;
 	const out: ParsedRecipe = { id: head[1]!, tail, width, height, format };
 	if (head[4] !== undefined) {
 		const q = Number(head[4]);
