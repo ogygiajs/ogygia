@@ -355,6 +355,38 @@ cheap HMAC check and a 403 with no encode; a replay of harvested URLs is bounded
 
 ---
 
+## IMAGE-REMOTE-SSRF — every fetch of an image goes through one guard
+
+**What:** `@ogygia/image` fetches an image from another host in four places: a build source
+(`import.meta.og.image('https://…')`), a prerendered `remoteImage()`, the endpoint's live
+`remoteImage()` file, and an image a share card's markup names. Every one goes through
+`fetch_image` (`src/remote-fetch.ts`) under `image({ remote })`: the host must be in `hosts` (each
+redirect hop checked again, at most 3), credentials and other schemes are refused, the body is
+capped by `maxBytes` (by length and while streaming), the whole chain by `timeout`, and the bytes
+must say and start like a raster image. A host taken only by a `*.` entry must resolve to public
+addresses only, checked in the connection's own lookup (so DNS rebinding is covered); a host an
+entry names itself is trusted wherever it points. A `*.` entry over a public suffix anyone can host
+under (`*.co.uk`, `*.github.io`) is refused. With an encoder's own links (`cloudflare()`,
+`vercel()`), an unlisted host gets no link at all (the CDN would fetch it), only the endpoint's
+URL, which refuses it. A card's engine (satori) never fetches: ogygia reads each image and hands
+it over as bytes. A remote image is never made larger than its real size, and no recipe asks for
+more pixels than one frame may have, whatever size its URL's owner claims.
+
+**Why:** `remoteImage()` and cards take URLs from CMS or user data. Without one guard, any of those
+paths is a server-side request forgery (cloud metadata, intranet hosts) or a memory bomb.
+
+**Do not:**
+
+- Fetch an image anywhere but through `fetch_image` with the app's `RemoteHosts`, its limits and
+  the runtime's transport (Node's checks the `*.` rule; a Worker's `fetch` reaches no private
+  address).
+- Hand a URL to anything that fetches it itself (satori, a CDN link) without checking its host.
+- Trust a size a URL's owner states.
+
+**Enforced by:** `packages/image/test/remote-request.test.ts > a host listed only by *. that resolves to a private address is never connected to; one the list names itself is`, `packages/image/test/remote-request.test.ts > past maxBytes is 413, past the timeout 504, an error status or not an image 502, a redirect off the list 404: each kept nowhere, each said`, `packages/image/test/remote-request.test.ts > a small remote image the CMS says is huge is never made larger than it is`, `packages/image/test/remote-image.test.ts > loopback, private, link-local (cloud metadata), shared, reserved and multicast addresses are private; a public one is not`, `packages/image/test/remote.test.ts > redirects are followed, each hop checked, at most 3`, `packages/image/test/remote.test.ts > a *. entry over a public suffix anyone can host under is refused; one over a name below it, or that name itself, is not`, `packages/image/test/remote-image-links.test.ts`, `packages/image/test/card.test.ts > an image a card's markup names at an address the app does not read it from is refused, coded, and never fetched`
+
+---
+
 ## Related docs
 
 - Product vocabulary: [`DESIGN.md`](./DESIGN.md)
