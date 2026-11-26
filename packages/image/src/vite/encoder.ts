@@ -364,13 +364,11 @@ export function encoder_runtime(
 }
 
 /** What the encoder check reads: the runtime, the endpoint's maker (`none`: no encoder makes files
- *  there), whether the app chose its encoder (`image({ encoder })`), whether the adapter is
- *  Cloudflare's (where `cloudflare()` exists), and the app's sharp. */
+ *  there), whether the app chose its encoder (`image({ encoder })`), and the app's sharp. */
 export interface EncoderInput {
 	runtime: EncoderRuntime;
 	maker: 'sharp' | 'binding' | 'none';
 	chosen: boolean;
-	cloudflare: boolean;
 	installed: boolean;
 	listed: 'none' | 'dev' | 'dependencies';
 }
@@ -384,14 +382,13 @@ export const ENCODER: Decisions<EncoderInput, 'ok' | 'edge' | 'choose' | 'missin
 			runtime: ['dev', 'client', 'prerendered', 'server', 'edge'],
 			maker: ['sharp', 'binding', 'none'],
 			chosen: [false, true],
-			cloudflare: [false, true],
 			installed: [false, true],
 			listed: ['none', 'dev', 'dependencies']
 		},
 		decide: (i: EncoderInput): 'ok' | 'edge' | 'choose' | 'missing' | 'unlisted' => {
 			if (!i.installed || i.listed === 'none') return 'missing';
 			if (i.maker !== 'sharp') return 'ok';
-			if (i.runtime === 'edge') return i.cloudflare && !i.chosen ? 'choose' : 'edge';
+			if (i.runtime === 'edge') return i.chosen ? 'edge' : 'choose';
 			if (i.runtime === 'server' && i.listed !== 'dependencies') return 'unlisted';
 			return 'ok';
 		}
@@ -477,9 +474,9 @@ export function check_platform(
 }
 
 /** Check the app's sharp for `runtime` and the endpoint's `maker` (`chosen`: the app listed its
- *  encoder): throws `image_sharp_missing`; on a Cloudflare adapter with no encoder chosen,
- *  `image_option_invalid` naming `cloudflare()`; or warns `image_no_encoder` (once per adapter)
- *  for one whose runtime cannot load sharp. */
+ *  encoder): throws `image_sharp_missing`; on an edge adapter with no encoder chosen,
+ *  `image_option_invalid` (naming `cloudflare()` on Cloudflare's, and `sharp()` for prerendered
+ *  images only); or, with one chosen there, warns `image_no_encoder` (once per adapter). */
 export function check_encoder(
 	root: string,
 	runtime: EncoderRuntime,
@@ -492,7 +489,6 @@ export function check_encoder(
 		runtime,
 		maker: maker ?? 'none',
 		chosen,
-		cloudflare: adapter_kind(adapter).platform === 'cloudflare',
 		installed: sharp.installed,
 		listed: sharp.listed
 	});
@@ -506,7 +502,10 @@ export function check_encoder(
 		throw new OgygiaError('image_option_invalid', {
 			where: 'image()',
 			key: 'encoder',
-			rule: `chosen on ${adapter}: its server cannot load sharp, so list cloudflare() (Cloudflare's links or Images binding make every file), or encoder: sharp() to say only prerendered pages show images`
+			rule:
+				adapter_kind(adapter).platform === 'cloudflare'
+					? `chosen on ${adapter}: its server cannot load sharp, so list cloudflare() (Cloudflare's links or Images binding make every file), or encoder: sharp() to say only prerendered pages show images`
+					: `chosen on ${adapter ?? 'this adapter'}: its server cannot load sharp and no encoder makes files there, so list encoder: sharp() to say only prerendered pages show images (or build for a Node server)`
 		});
 	else if (plan !== 'ok')
 		throw new OgygiaError('image_sharp_missing', { adapter, installed: plan === 'unlisted' });
