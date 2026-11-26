@@ -255,6 +255,67 @@ describe('drawing', () => {
 		expect(channels.slice(0, 3).map((c) => Math.round(c.mean))).toEqual([255, 0, 0]);
 	});
 
+	test("an SVG <image>'s href, a mask's url() and a data: SVG in a card are the realm's to read or refuse: satori never calls fetch", async () => {
+		const fetched = vi
+			.spyOn(globalThis, 'fetch')
+			.mockImplementation(() => Promise.reject(new Error('satori fetched')));
+		const red = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#ff0000' } })
+			.png()
+			.toBuffer();
+		try {
+			const box = (inner: string, style = '') =>
+				spec_of(
+					() =>
+						`<div style="display: flex; width: 600px; height: 315px${style}">${inner}</div>`
+				);
+			const svg_image = (attr: string) =>
+				box(
+					`<svg width="600" height="315" viewBox="0 0 600 315"><image ${attr}="https://example.com/a.png" width="600" height="315"></image></svg>`
+				);
+			for (const spec of [
+				svg_image('href'),
+				svg_image('xlink:href'),
+				box('a', '; mask-image: url(https://example.com/m.png)'),
+				box(
+					`<img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cimage href='https://example.com/x.png'/%3E%3C/svg%3E" width="10" height="10">`
+				)
+			])
+				await expect(card_png(spec, {}, [bytes_of(MONO)])).rejects.toMatchObject({
+					code: 'image_card_source'
+				});
+			const asked: string[] = [];
+			const png = await card_png(svg_image('href'), {}, [bytes_of(MONO)], (src) => {
+				asked.push(src);
+				return Promise.resolve(new Uint8Array(red));
+			});
+			expect(asked).toEqual(['https://example.com/a.png']);
+			const { channels } = await sharp(png).stats();
+			expect(channels.slice(0, 3).map((c) => Math.round(c.mean))).toEqual([255, 0, 0]);
+			expect(fetched).not.toHaveBeenCalled();
+		} finally {
+			fetched.mockRestore();
+		}
+	});
+
+	test("a card's image URLs reach its realm as the markup means them: &amp; in a query, &quot; around a url()", async () => {
+		const red = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#ff0000' } })
+			.png()
+			.toBuffer();
+		const asked: string[] = [];
+		const spec = spec_of(
+			() =>
+				`<div style="display: flex; width: 600px; height: 315px; background-image: url(&quot;https://cms.example.com/b.png?fm=png&amp;w=600&quot;)"><img src="https://cms.example.com/a.png?w=1&amp;h=2" width="10" height="10"></div>`
+		);
+		await card_png(spec, {}, [bytes_of(MONO)], (src) => {
+			asked.push(src);
+			return Promise.resolve(new Uint8Array(red));
+		});
+		expect(asked.sort()).toEqual([
+			'https://cms.example.com/a.png?w=1&h=2',
+			'https://cms.example.com/b.png?fm=png&w=600'
+		]);
+	});
+
 	test('a failure that is no CSS refusal (a font that does not load) keeps its own error, not image_card_css', async () => {
 		const spec = spec_of(() => '<div style="display: flex">a</div>');
 		const error = await card_png(spec, {}, [new ArrayBuffer(8)]).catch((e: unknown) => e);
