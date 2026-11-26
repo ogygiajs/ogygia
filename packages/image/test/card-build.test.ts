@@ -245,6 +245,48 @@ describe('the digest', () => {
 			)
 		).not.toBe(before_versions);
 	});
+
+	test("a package's font or module whose bytes change at the same path (npm or yarn: no version in it) changes it, and so does a module's built code", () => {
+		const d = fs.mkdtempSync(path.join(os.tmpdir(), 'og-card-digest-npm-'));
+		const pkg = path.join(d, 'node_modules', '@fontsource', 'inter', 'files');
+		fs.mkdirSync(pkg, { recursive: true });
+		const font = path.join(pkg, 'inter-latin-400-normal.woff');
+		fs.writeFileSync(font, fs.readFileSync(MONO));
+		const card = path.join(d, 'Card.svelte');
+		fs.writeFileSync(card, '<div class="card">x</div>');
+		const start = '\0virtual:ogygia-image/card/npm';
+		const code = { card: 'css-v1' };
+		const graph: Record<string, string[]> = { [start]: [`${card}?og-card`, font] };
+		const def = {
+			name: 'npm',
+			rel: 'Card.svelte',
+			width: 1200,
+			height: 630,
+			fonts: [{ face: { name: 'Inter', weight: 400, style: 'normal' as const } }]
+		};
+		const digest = (): string =>
+			card_digest(
+				start,
+				def,
+				'satori@1 svelte@5',
+				d,
+				(id) =>
+					id in graph
+						? { importedIds: graph[id]!, dynamicallyImportedIds: [] }
+						: id === `${card}?og-card`
+							? { importedIds: [], dynamicallyImportedIds: [], code: code.card }
+							: null,
+				(f) => (fs.existsSync(f) ? fs.readFileSync(f) : null)
+			);
+		const base = digest();
+		const bytes = fs.readFileSync(font);
+		bytes[bytes.length - 1] ^= 1;
+		fs.writeFileSync(font, bytes);
+		const after_font = digest();
+		expect(after_font).not.toBe(base);
+		code.card = 'css-v2';
+		expect(digest()).not.toBe(after_font);
+	});
 });
 
 test('every row of the card engine table: nothing draws without the engine installed and listed, no server without it in dependencies, an edge build warns', () => {
