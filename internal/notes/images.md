@@ -113,7 +113,9 @@ says how many run at once: sharp half the cores, 1 to 4; the binding 4) and remo
 remote original is fetched before its encode takes a slot. Past either line at most 64 wait, each
 at most 30 s, then 503 `image_busy` with `retry-after`. sharp's input pixel limit is on, and no
 recipe asks for more pixels than one frame may have (`FRAME_PIXELS_MAX` in `recipe.ts`,
-268,402,689: `parse_recipe` refuses a box past it, 404).
+268,402,689: `parse_recipe` refuses a box past it, 404). AVIF is made at effort 2 by default
+(`pixels.ts AVIF_EFFORT`; was 4: half the encode time for 0.2% more bytes, owner ruling on
+DECISIONS 174), WebP at 4; `ENCODER_VERSION` 5.
 
 The macro compiles a call in a JS module, a `.svelte` component's `<script>` and a markdown page's
 (`.svx`, `.md`) `<script>`: ogygia hands every plugin macro the module's code regions
