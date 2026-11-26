@@ -26,6 +26,10 @@ import { built_url, parse_recipe, recipe_path, source_tail, type Recipe } from '
 import { image_call_edits, options_of_query, image_specifier } from '../src/vite/macro.ts';
 import { markdown_extension } from '../src/vite/markdown.ts';
 import { check_image_options, check_plugin_options } from '../src/vite/options.ts';
+import { CLOUDFLARE_LINKS } from '../src/encoders/cloudflare.ts';
+import { VERCEL_LINKS } from '../src/encoders/vercel.ts';
+import { namer } from '../src/namers/resolve.ts';
+import { cloudflare, namer_plan, sharp, vercel } from '../src/vite/encoder.ts';
 
 const DIR = path.join(os.tmpdir(), 'og-image-bench');
 const QUERY_RE = /\?(og-image=[^"]+)/g;
@@ -90,6 +94,35 @@ bench(
 			n += laid.src.length + (laid.srcset?.length ?? 0) + laid.sources.length;
 			n += placeholder_style(d.ph).length + mime_of(d.format).length;
 		}
+		return n;
+	},
+	{
+		setup: () => ({ images: Array.from({ length: 40 }, (_, i) => descriptor(i)) }),
+		scale: (_ctx, k) => ({ images: Array.from({ length: 40 * k }, (_, i) => descriptor(i)) })
+	}
+);
+
+const LINK_NAMERS: readonly ((r: Recipe) => string)[] = [
+	cloudflare({ links: true }),
+	vercel({ sizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840] })
+].map((e) => {
+	const name = namer(namer_plan([e, sharp()], false), {
+		cloudflare: CLOUDFLARE_LINKS,
+		vercel: VERCEL_LINKS
+	});
+	return (r: Recipe) => name(r) ?? url(r);
+});
+
+bench(
+	"lay_out with an encoder's links: a page of forty images named by cloudflare() links, then vercel() links, each file's needs read against the link's",
+	({ images }) => {
+		let n = 0;
+		for (const name of LINK_NAMERS)
+			for (let i = 0; i < images.length; i++) {
+				const d = images[i]!;
+				const laid = lay_out(d, preset_request(LAYOUTS[i % LAYOUTS.length]!), CFG, name);
+				n += laid.src.length + (laid.srcset?.length ?? 0) + laid.sources.length;
+			}
 		return n;
 	},
 	{
