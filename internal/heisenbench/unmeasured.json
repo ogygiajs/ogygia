@@ -7049,8 +7049,8 @@
 			"reason": "the server realm's glue over app.sign / app.verify (core's HMAC, measured in core's capability benches) and Kit's event; recipe_path and parse_recipe are measured; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/server.ts > start > set_minter:0~4808be",
-			"reason": "the server realm's glue over the encoder's namer (constant: no link for sharp), app.sign (core's HMAC, measured in core's capability benches) and a bounded machine cache of the URLs it signed; recipe_path and built_url are measured; test/server.test.ts runs it"
+			"id": "packages/image/src/server.ts > linkable",
+			"reason": "constant work per file named: a remote recipe's host checked against remote.hosts (one URL parse, one list match), else a field read; test/remote-image-links.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/server.ts > start > set_minter:0~8862d5",
@@ -7073,20 +7073,20 @@
 			"reason": "constant work: one 404 response, on a refusal only; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~924e74 > run",
-			"reason": "the image endpoint's encode path: the reader (Kit's read()) and the maker (sharp), once per file, then a streamed store read; test/server.test.ts runs it"
+			"id": "packages/image/src/settle.ts > call:0~733e88 > run > run:0~0907b9",
+			"reason": "the image endpoint's encode path: the reader (Kit's read()) and the maker (sharp), once per file, in an encode slot; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~924e74 > run > limited:0~d835f4",
-			"reason": "the image endpoint's encode path: the reader (Kit's read()) and the maker (sharp), once per file, then a streamed store read; test/server.test.ts runs it"
+			"id": "packages/image/src/settle.ts > call:0~bece83 > run > run:0~7c82bc",
+			"reason": "network bound: one remote original's fetch (remote-fetch.ts) per URL per ask that misses the store, in the fetch line; test/remote-request.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~924e74 > keep",
-			"reason": "constant work: whether a made file is on disk, once per encode; test/settle-store-fails.test.ts runs it"
+			"id": "packages/image/src/settle.ts > remote_bytes",
+			"reason": "network bound: joins the one fetch of a remote original; test/remote-request.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~77baf6 > run",
-			"reason": "network bound: one remote original's fetch (remote-fetch.ts) per URL per ask that misses the store; test/remote-request.test.ts runs it"
+			"id": "packages/image/src/settle.ts > spread",
+			"reason": "constant work per remote file asked for: an FNV hash of its URL (a few hundred characters at most); test/remote-request.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/settle.ts > original_bytes",
@@ -7101,10 +7101,6 @@
 			"reason": "only on a refused remote fetch: builds one error"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~924e74 > weigh",
-			"reason": "constant work: a made file's byte length, once per encode; test/settle-store-fails.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/store.ts > FileStore > open",
 			"reason": "the image endpoint's store read: one stat and one open per kept file asked for; test/server.test.ts runs it"
 		},
@@ -7113,31 +7109,39 @@
 			"reason": "the image endpoint's encode path: Kit's read() and sharp, once per file, then a disk read; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > limited",
-			"reason": "the image endpoint's encode path: Kit's read() and sharp, once per file, then a disk read; test/server.test.ts runs it"
+			"id": "packages/image/src/settle.ts > Line > constructor",
+			"reason": "twice per server start: the encode line and the fetch line; test/settle-live.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > limited > Promise:0~306a23",
-			"reason": "the image endpoint's encode path: Kit's read() and sharp, once per file, then a disk read; test/server.test.ts runs it"
+			"id": "packages/image/src/settle.ts > Line > run",
+			"reason": "constant work per file made or remote original fetched: one line check and one push; test/settle-live.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > limited > Promise:0~306a23 > push:0~f8d02b > run",
-			"reason": "the image endpoint's encode path: Kit's read() and sharp, once per file, then a disk read; test/server.test.ts runs it"
+			"id": "packages/image/src/settle.ts > Line > run > once:1~fc89d4",
+			"reason": "on a full line only: one warning per streak; test/settle-live.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > limited > Promise:0~306a23 > push:0~f8d02b > gone",
+			"id": "packages/image/src/settle.ts > Line > run > Promise:0~ada8f7",
+			"reason": "constant work per file made or remote original fetched: one push into the line; test/settle-live.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/settle.ts > Line > run > Promise:0~ada8f7 > push:0~f8d02b > run",
+			"reason": "the image endpoint's encode and fetch paths: Kit's read(), sharp or one fetch, once per file; test/server.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/settle.ts > Line > run > Promise:0~ada8f7 > push:0~f8d02b > gone",
 			"reason": "constant work: one rejection, for an ask that waited past its deadline; test/settle-live.test.ts runs the line it guards"
 		},
 		{
-			"id": "packages/image/src/settle.ts > queue:0~542874 > start",
-			"reason": "the image endpoint's encode path: the reader (Kit's read()) and the maker (sharp), once per file, then a disk read; test/server.test.ts runs it"
+			"id": "packages/image/src/settle.ts > Line > constructor > queue:0~8598ab > start",
+			"reason": "the image endpoint's encode and fetch paths, once per file; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > queue:0~542874 > start > finally:0~4717e4",
-			"reason": "the image endpoint's encode path: the reader (Kit's read()) and the maker (sharp), once per file, then a disk read; test/server.test.ts runs it"
+			"id": "packages/image/src/settle.ts > Line > constructor > queue:0~8598ab > start > finally:0~4717e4",
+			"reason": "constant work: releases one place in a line, once per file; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/settle.ts > queue:0~542874 > stale",
+			"id": "packages/image/src/settle.ts > Line > constructor > queue:0~8598ab > stale",
 			"reason": "constant work: one rejection, for an ask that waited past its deadline; test/settle-live.test.ts runs the line it guards"
 		},
 		{
@@ -7613,28 +7617,44 @@
 			"reason": "config time, once per resolved config: one package.json read and a node_modules walk up the app's folders; packages/image/test/encoder-check.test.ts runs every branch"
 		},
 		{
-			"id": "packages/image/src/vite/encoder.ts > decisions:0~5996ce > decide",
-			"reason": "a decision table's plan, once per resolved config: four comparisons; the test walks every row"
-		},
-		{
 			"id": "packages/image/src/vite/encoder.ts > encoder_runtime",
-			"reason": "config time, once per resolved config: two regex tests on the adapter name"
+			"reason": "config time, once per resolved config: one adapter table lookup"
 		},
 		{
-			"id": "packages/image/src/vite/encoder.ts > installed",
-			"reason": "config time, once per resolved config: one existsSync per folder from the app root up"
+			"id": "packages/image/src/vite/encoder.ts > adapter_kind",
+			"reason": "config time, at most twice per resolved config: up to five regex tests on the adapter name; test/encoder-check.test.ts runs every row"
 		},
 		{
-			"id": "packages/image/src/vite/encoder.ts > listed",
-			"reason": "config time, once per resolved config: reads and parses the app's package.json"
+			"id": "packages/image/src/vite/encoder.ts > adapter_kind > find:0~7b7494",
+			"reason": "config time: one regex test per adapter row; test/encoder-check.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/vite/encoder.ts > resolves",
-			"reason": "config time, once per resolved config: one module resolution of sharp from the app root, an answer of the file system"
+			"id": "packages/image/src/vite/peers.ts > peer_state",
+			"reason": "config time, once per resolved config (and per card module): reads and parses the app's package.json; test/peers.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/vite/encoder.ts > listed > has",
-			"reason": "config time: one property read, at most three per resolved config"
+			"id": "packages/image/src/vite/peers.ts > peer_state > filter:0~555bba",
+			"reason": "config time: one install check per peer (one to three); test/peers.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/peers.ts > installed",
+			"reason": "config time, once per peer per resolved config: one module resolution, then with NODE_PATH set one existsSync per folder up; test/peers.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/peers.ts > in_node_modules",
+			"reason": "config time, with NODE_PATH set only: one existsSync per folder from the app root up; test/peers.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/peers.ts > resolves",
+			"reason": "config time, once per peer per resolved config: one module resolution from the app root, an answer of the file system"
+		},
+		{
+			"id": "packages/image/src/vite/peers.ts > listed_in",
+			"reason": "config time: one package.json field read per peer; test/peers.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/peers.ts > listed_in > has",
+			"reason": "config time: one property read, at most three per peer"
 		},
 		{
 			"id": "packages/image/src/vite/encoder.ts > pixels",
@@ -8185,10 +8205,6 @@
 			"reason": "build time, an error path only: a prerendered card the build has no chunk for; the e2e static build runs the card path"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~199e8d > run",
-			"reason": "once per card tail at the endpoint (a flight): the card's own-size PNG drawn by satori and resvg, tens of milliseconds, then the maker; the e2e node and server modes run it"
-		},
-		{
 			"id": "packages/image/src/settle.ts > assets_of",
 			"reason": "edge runtime only, once per card file asked there: two property reads; the e2e cloudflare mode runs it"
 		},
@@ -8201,8 +8217,20 @@
 			"reason": "dev only (the hook is not in a build): wraps each page request's resolve; the e2e dev mode runs it"
 		},
 		{
-			"id": "packages/image/src/server.ts > share_rule > next:0~75c4dc > transformPageChunk",
-			"reason": "dev only: one tag walk over each page chunk (unshown_share_images, linear in the HTML); test/card.test.ts and the e2e dev mode run it"
+			"id": "packages/image/src/pixels.ts > within",
+			"reason": "constant work per remote file made: three divisions and a box; test/remote-request.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/font-face.ts > face_of",
+			"reason": "build time, once per card font file: reads its name and OS/2 tables; test/card.test.ts runs it, fuzzed"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_card_source > text",
+			"reason": "message wording: runs only when a card names an image it cannot draw, and the docs build"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_card_source > details",
+			"reason": "message wording: the docs build only"
 		},
 		{
 			"id": "packages/image/src/share-rule.ts > unshown_share_images",
@@ -8485,8 +8513,16 @@
 			"reason": "build time, once per card per server build: one SHA-256 over the files of the card's module graph; test/card-build.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/vite/card.ts > card_digest > map:0~8f619b",
-			"reason": "build time, once per module of a card's graph; test/card-build.test.ts runs it"
+			"id": "packages/image/src/vite/card.ts > build_card_images",
+			"reason": "build time, once per server build's end: makes the build's reader of a card's images; test/card.test.ts runs the reader it wraps"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > build_card_images > card_image_reader:1~ffd4d9",
+			"reason": "build time, once per image a prerendered card names: one or two existsSync and a file read"
+		},
+		{
+			"id": "packages/image/src/vite/card.ts > build_card_images > card_image_reader:2~bc870b",
+			"reason": "build time, network bound: one remote fetch (cached) per image a prerendered card names, then a file read"
 		},
 		{
 			"id": "packages/image/src/vite/card.ts > card_digest > sort:0~2f5dbe",
@@ -8517,16 +8553,76 @@
 			"reason": "build time, once per engine package per check: one resolve and one package.json read; test/card-build.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/vite/card.ts > package_json",
-			"reason": "build time, once per card check: one package.json read; test/card-build.test.ts runs it"
+			"id": "packages/image/src/cards/images.ts > card_image_reader",
+			"reason": "once per realm: makes a card's image reader; test/card.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/vite/card.ts > listed_in",
-			"reason": "build time, once per engine package per check: three property reads; test/card-build.test.ts runs it"
+			"id": "packages/image/src/cards/images.ts > card_image_reader > <anonymous>~41bccf",
+			"reason": "once per image a card draw names (a card draw is tens of milliseconds of satori and resvg): a prefix test and at most one URL parse; test/card.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/vite/card.ts > listed_in > has",
-			"reason": "build time, once per engine package per check: one property read; test/card-build.test.ts runs it"
+			"id": "packages/image/src/cards/images.ts > card_image_reader > <anonymous>~41bccf > some:0~869aa2",
+			"reason": "once per image a card draw names: two prefix tests"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > card_image_type",
+			"reason": "once per image a card draw names: up to six short byte compares; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > card_image_type > at",
+			"reason": "once per image a card draw names: one short byte compare"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > card_image_type > at > every:0~42b368",
+			"reason": "once per image a card draw names: one byte compare per character"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > each_src",
+			"reason": "once per card draw: one walk of the card's element tree (tens of nodes), next to satori's own layout of it; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > inline_images",
+			"reason": "once per card draw: one tree walk, then one read per image; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > inline_images > each_src:1~7b9902",
+			"reason": "once per image a card draw names: one set add"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > inline_images > map:0~a7688e",
+			"reason": "once per image a card draw names: one read and one base64 encode; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > no_images",
+			"reason": "only when a card names an image with no reader given: one rejection; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > refused",
+			"reason": "only on a refused card image: builds one coded error; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > with_data",
+			"reason": "once per card draw with images: one copy of the element tree (tens of nodes); test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > with_data > map:0~36aa6e",
+			"reason": "once per style property of a card's element: one string test"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > with_data > map:0~36aa6e > replace:1~f325ec",
+			"reason": "once per url() of a card's style: one map lookup"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > with_data > map:0~6e6f40",
+			"reason": "once per child of a card's element: one recursive copy"
+		},
+		{
+			"id": "packages/image/src/cards/read.ts > endpoint_images",
+			"reason": "once per server start: makes the endpoint's reader of a card's images"
+		},
+		{
+			"id": "packages/image/src/cards/read.ts > endpoint_images > card_image_reader:1~e41b92",
+			"reason": "once per image a live card draw names: one Kit read(); the e2e node mode runs card draws"
 		},
 		{
 			"id": "packages/image/src/vite/card.ts > file_of",
@@ -8659,10 +8755,6 @@
 		{
 			"id": "packages/image/src/vite/build-files.ts > write_built",
 			"reason": "build time, once per build: the warmed and the noted files, encoded side by side with sharp (or read from the store); the e2e static and base builds run it"
-		},
-		{
-			"id": "packages/image/src/server.ts > start > set_minter:0~a4c2cd",
-			"reason": "a page rendered after the build's end (an SPA fallback, which Kit renders without SSR): one existsSync per recipe; test/server-after-build.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/server.ts > start",
