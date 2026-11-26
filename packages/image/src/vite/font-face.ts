@@ -106,13 +106,15 @@ function family_of(records: readonly NameRecord[]): string | null {
 
 /** The face of the font in `bytes`; {@link FontUnreadable} when it is not one a card can use. */
 export function font_face(bytes: Buffer): FontFace {
-	let tables: Tables;
 	try {
-		tables = tables_of(bytes);
+		return face_of(tables_of(bytes));
 	} catch (e) {
 		if (e instanceof FontUnreadable) throw e;
 		throw new FontUnreadable(`its tables do not read (${(e as Error).message})`);
 	}
+}
+
+function face_of(tables: Tables): FontFace {
 	const name = tables.get('name');
 	const os2 = tables.get('OS/2');
 	if (!name) throw new FontUnreadable('it has no name table');
