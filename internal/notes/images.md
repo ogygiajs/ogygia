@@ -388,12 +388,15 @@ BUILT (V4 R9). `import.meta.og.image.card('./Card.svelte', { width, height, font
   the realm's sharp: the build's, or the maker's `fit` at the endpoint, so a server whose maker is
   not sharp bundles no sharp and refuses a card's image, `image_card_source`; refused
   from its header past `FRAME_PIXELS_MAX`, made smaller to the least size that covers the card and
-  at most 4 cards of pixels, re-encoded as PNG with alpha or JPEG) and handed over as bytes: an
+  at most 4 cards of pixels, re-encoded as PNG with alpha or JPEG; a type resvg does not draw,
+  `RESVG_DRAWS` = PNG, JPEG, GIF, is re-encoded at any size: resvg draws a WebP or AVIF as
+  nothing, with no error) and handed over as bytes: an
   `<img src>` as an `ArrayBuffer` (satori keeps a module-level LRU of 500 `data:` texts; bytes it
   does not keep), any other as a `data:` URL of the type its bytes are. A link's `href` outside an
   SVG names no image and is left out of the tree. Then `drawable()` checks the tree satori is
-  handed, whole: every `src` / `href` / `xlink:href` is bytes, a raster `data:` URL or `#`, and
-  every `url(` (closed or not, any case) is followed by `data:` or `#`, or the card is
+  handed, whole: every `src` / `href` / `xlink:href` is bytes or a `data:` URL whose bytes sniff
+  as a `RESVG_DRAWS` type, or `#`, and every `url(` (closed or not, any case) is followed by
+  such a `data:` URL or `#`, or the card is
   `image_card_source`. Attribute values are entity-decoded first
   (`engine.ts decoded`, with the text), so `&amp;` queries and `&quot;` quoted `url()`s reach the
   guard as meant. Endpoint realm: an asset with Kit's `read()`, a URL through settle's

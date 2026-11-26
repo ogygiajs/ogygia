@@ -67,7 +67,12 @@ const URL_RE = /url\(\s*(['"]?)(.*?)\1\s*\)/g;
 const URL_OPEN_RE = /url\(/gi;
 const SAFE_AFTER_OPEN_RE = /^\s*['"]?\s*(?:data:|#|['"]?\s*\))/i;
 const HREF_PROPS: ReadonlySet<string> = new Set(['href', 'xlinkHref', 'xlink:href']);
-const SVG_DATA_RE = /^\s*data:\s*image\/svg/i;
+const DATA_AFTER_OPEN_RE = /^\s*(['"]?)\s*(data:[^'")]*)/i;
+
+/** The image types resvg draws, and so the only ones the tree satori is handed may hold: satori
+ *  writes any image it is given into its SVG as it is, and resvg draws a WebP or an AVIF as
+ *  nothing, with no error. The card's fitter makes every other type again as one of these. */
+export const RESVG_DRAWS: ReadonlySet<string> = new Set(['image/png', 'image/jpeg', 'image/gif']);
 
 function is_ref(src: string): boolean {
 	return src.trim() === '' || src.startsWith('#');
@@ -211,13 +216,21 @@ export async function inline_images<T>(
 	}) as T;
 }
 
-/** Refuse `tree` (`image_card_source`) unless every address left in it is one satori cannot fetch:
- *  an `ArrayBuffer`, a `data:` URL of a raster type, or a `#` reference, in every `src`, `href`,
- *  `xlink:href` and after every `url(` of every string, closed or not. Run on the tree satori is
- *  handed, right before the draw. */
+/** Refuse `tree` (`image_card_source`) unless every address left in it is one satori cannot fetch
+ *  and resvg draws: an `ArrayBuffer` or a `data:` URL whose bytes are a type of
+ *  {@link RESVG_DRAWS}, or a `#` reference, in every `src`, `href`, `xlink:href` and after every
+ *  `url(` of every string, closed or not. Run on the tree satori is handed, right before the draw. */
 export function drawable(tree: unknown, file: string): void {
 	const fail = (src: string, reason: string): never => {
 		throw refused(file, src.slice(0, 64), reason);
+	};
+	const drawn = (src: string, bytes: Uint8Array | null): void => {
+		const type = bytes === null ? null : card_image_type(bytes);
+		if (type === null || !RESVG_DRAWS.has(type))
+			fail(
+				src,
+				`its bytes are ${type ?? 'no image'}, and resvg draws only PNG, JPEG and GIF (an SVG can name addresses of its own)`
+			);
 	};
 	const text = (value: string): void => {
 		if (!value.toLowerCase().includes('url(')) return;
@@ -225,8 +238,8 @@ export function drawable(tree: unknown, file: string): void {
 			const after = value.slice(m.index + m[0].length);
 			if (!SAFE_AFTER_OPEN_RE.test(after))
 				fail(after, 'a url() here names no image ogygia read (an unclosed url() reads as one)');
-			if (SVG_DATA_RE.test(after.replace(/^\s*['"]?/, '')))
-				fail(after, 'an SVG can name addresses of its own');
+			const data = DATA_AFTER_OPEN_RE.exec(after)?.[2];
+			if (data !== undefined) drawn(data, data_bytes(data));
 		}
 	};
 	const visit = (node: unknown): void => {
@@ -240,12 +253,15 @@ export function drawable(tree: unknown, file: string): void {
 		for (const [key, value] of Object.entries(props)) {
 			if (key === 'children') visit(value);
 			else if (key === 'src' || HREF_PROPS.has(key)) {
-				if (value instanceof ArrayBuffer) continue;
+				if (value instanceof ArrayBuffer) {
+					drawn(key, new Uint8Array(value));
+					continue;
+				}
 				if (typeof value !== 'string') fail(String(value), 'it is no address');
 				const src = value as string;
 				if (is_ref(src)) continue;
 				if (!src.startsWith('data:')) fail(src, 'it was not read before the draw');
-				if (SVG_DATA_RE.test(src)) fail(src, 'an SVG can name addresses of its own');
+				drawn(src, data_bytes(src));
 			} else if (typeof value === 'string') text(value);
 			else if (key === 'style' && value !== null && typeof value === 'object')
 				for (const v of Object.values(value)) if (typeof v === 'string') text(v);
