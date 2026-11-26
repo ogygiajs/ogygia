@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { run_module_macros, type MacroPipelineCtx } from '../src/macros/pipeline.ts';
 import type { Profiler } from '../src/driver.ts';
+import { dedent } from '@ogygia/core/contract';
 
 const NO_PROFILE = { P: false } as unknown as Profiler;
 const APP = '/app/src/lib/x.ts';
@@ -52,11 +53,23 @@ describe('a plugin macro without its plugin', () => {
 	});
 
 	it("a component's markup that shows a macro call as text is no call (a docs page about the macro)", async () => {
-		const svelte = `<script>\n\texport const n = 1;\n</script>\n\n<p>Write <code>import.meta.og.image('./hero.jpg')</code> in the script.</p>\n`;
+		const svelte = dedent`
+			<script>
+				export const n = 1;
+			</script>
+
+			<p>Write <code>import.meta.og.image('./hero.jpg')</code> in the script.</p>
+		`;
 		expect(
 			await run_module_macros(svelte, '/app/src/routes/+page.svelte', ctx(), NO_PROFILE)
 		).toEqual({ code: svelte, touched: false, maps: [] });
-		const svx = `---\ntitle: Images\n---\n\n\`import.meta.og.image(path)\` reads an image file at build.\n`;
+		const svx = dedent`
+			---
+			title: Images
+			---
+
+			\`import.meta.og.image(path)\` reads an image file at build.
+		`;
 		expect(await run_module_macros(svx, '/app/src/content/+doc.svx', ctx(), NO_PROFILE)).toEqual({
 			code: svx,
 			touched: false,
@@ -65,7 +78,13 @@ describe('a plugin macro without its plugin', () => {
 	});
 
 	it("a call in a component's script still fails the build without its plugin", async () => {
-		const svelte = `<script>\n\tconst hero = import.meta.og.image('./hero.jpg');\n</script>\n\n<img src={hero.src} alt="" />\n`;
+		const svelte = dedent`
+			<script>
+				const hero = import.meta.og.image('./hero.jpg');
+			</script>
+
+			<img src={hero.src} alt="" />
+		`;
 		await expect(
 			run_module_macros(svelte, '/app/src/routes/+page.svelte', ctx(), NO_PROFILE)
 		).rejects.toMatchObject({ code: 'macro_needs_plugin' });
