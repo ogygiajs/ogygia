@@ -26,6 +26,9 @@ export interface BuildHandoff {
 	 *  until then, with no notes and no mark after). A page rendered after that (an adapter's SPA
 	 *  fallback) names those files as they are. */
 	written: string;
+	/** Once the build's end wrote its files: the source id each remote image's files were named by
+	 *  instead (its bytes', in place of its URL's), by the URL's id. */
+	renamed?: Readonly<Record<string, string>>;
 	/** The app's root (Vite's `root`). */
 	root: string;
 	/** The folder remote images are fetched into, each named {@link REMOTE_NAME_RE} and its
@@ -49,7 +52,8 @@ export function build_handoff(): BuildHandoff | null {
 		mark: typeof v.mark === 'string' ? v.mark : '',
 		written: typeof v.written === 'string' ? v.written : '',
 		root: typeof v.root === 'string' ? v.root : '',
-		remote: typeof v.remote === 'string' ? v.remote : ''
+		remote: typeof v.remote === 'string' ? v.remote : '',
+		...(v.renamed !== null && typeof v.renamed === 'object' ? { renamed: v.renamed } : {})
 	};
 }
 

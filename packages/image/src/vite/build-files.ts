@@ -502,6 +502,12 @@ export async function write_built(
 	}
 	if (handoff.mark || renamed.size)
 		unmark(path.join(output, 'prerendered'), handoff.mark, origin, renamed);
-	const done: BuildHandoff = { ...handoff, minted: '', mark: '', written: client };
+	const done: BuildHandoff = {
+		...handoff,
+		minted: '',
+		mark: '',
+		written: client,
+		...(renamed.size ? { renamed: Object.fromEntries(renamed) } : {})
+	};
 	process.env[BUILD_ENV] = JSON.stringify(done);
 }

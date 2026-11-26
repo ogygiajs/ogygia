@@ -186,9 +186,12 @@ function start(app: ServerApp<unknown>, disk: OnDisk | null): void {
 	const run = building && disk !== null ? build_handoff() : null;
 	if (disk !== null && run?.written) {
 		const written = run.written;
-		set_minter((recipe) =>
-			disk.exists(written, built_file(recipe)) ? built_url(config.paths, recipe) : recipe.src
-		);
+		const renamed = run.renamed ?? {};
+		set_minter((recipe) => {
+			const id = Object.hasOwn(renamed, recipe.id) ? renamed[recipe.id]! : recipe.id;
+			const named = id === recipe.id ? recipe : { ...recipe, id };
+			return disk.exists(written, built_file(named)) ? built_url(config.paths, named) : recipe.src;
+		});
 		return;
 	}
 	if (disk !== null && run?.minted) {
