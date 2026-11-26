@@ -11,6 +11,7 @@
  *
  * @packageDocumentation
  */
+import { bucket32 } from '@ogygia/core/contract';
 import { clock, flights, queue, STALE, type Fresh, type Place, type Queue } from '@ogygia/machine';
 import { make, parallel, store } from 'virtual:ogygia-image/maker';
 import { build_handoff } from './handoff.ts';
@@ -201,9 +202,7 @@ const makes = flights.keyed<Ask>()<
 const KEEP = 'public, max-age=31536000, immutable';
 
 function spread(text: string, span: number): number {
-	let h = 0x811c9dc5;
-	for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
-	return (h >>> 0) % span;
+	return bucket32(text) % span;
 }
 
 function remote_keep(max_age: number, now_s: number, url: string): { key: string; header: string } {

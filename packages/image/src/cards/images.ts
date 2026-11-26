@@ -93,8 +93,10 @@ function with_data(node: unknown, data: ReadonlyMap<string, string>): unknown {
 
 /** The image type `bytes` start like, or null: PNG, JPEG, GIF, WebP, AVIF. */
 export function card_image_type(bytes: Uint8Array): string | null {
-	const at = (i: number, text: string) =>
-		[...text].every((c, k) => bytes[i + k] === c.charCodeAt(0));
+	const at = (i: number, text: string): boolean => {
+		for (let k = 0; k < text.length; k++) if (bytes[i + k] !== text.charCodeAt(k)) return false;
+		return true;
+	};
 	if (at(0, '\x89PNG\r\n\x1a\n')) return 'image/png';
 	if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
 	if (at(0, 'GIF87a') || at(0, 'GIF89a')) return 'image/gif';

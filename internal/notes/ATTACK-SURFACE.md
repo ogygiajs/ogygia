@@ -142,7 +142,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-119 entries.
+118 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -230,20 +230,19 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/federation/src/wire.ts` | `private_key` | `Buffer.from base64` | 1 |
 | `packages/federation/src/wire.ts` | `public_key` | `Buffer.from base64` | 1 |
 | `packages/federation/src/wire.ts` | `signature_bytes` | `Buffer.from base64` | 1 |
-| `packages/image/src/cards/read.ts` | `card_original` | `JSON.parse` | 1 |
+| `packages/image/src/cards/read.ts` | `(module)` | `JSON.parse` | 1 |
 | `packages/image/src/handoff.ts` | `build_handoff` | `JSON.parse` | 1 |
 | `packages/image/src/recipe.ts` | `b64url_decode` | `atob` | 1 |
 | `packages/image/src/recipe.ts` | `parse_recipe` | `JSON.parse` | 1 |
 | `packages/image/src/vite/card.ts` | `draw` | `JSON.parse` | 1 |
 | `packages/image/src/vite/card.ts` | `installed_version` | `JSON.parse` | 1 |
-| `packages/image/src/vite/card.ts` | `package_json` | `JSON.parse` | 1 |
-| `packages/image/src/vite/encoder.ts` | `listed` | `JSON.parse` | 1 |
 | `packages/image/src/vite/index.ts` | `image` | `JSON.parse` | 1 |
 | `packages/image/src/vite/index.ts` | `kit_paths` | `JSON.parse` | 1 |
 | `packages/image/src/vite/macro.ts` | `options_of_query` | `Buffer.from base64url` | 1 |
 | `packages/image/src/vite/macro.ts` | `options_of_query` | `JSON.parse` | 1 |
 | `packages/image/src/vite/markdown.ts` | `markdown_extension` | `Buffer.from base64url` | 1 |
 | `packages/image/src/vite/markdown.ts` | `markdown_extension` | `JSON.parse` | 2 |
+| `packages/image/src/vite/peers.ts` | `peer_state` | `JSON.parse` | 1 |
 | `packages/image/src/vite/remote.ts` | `read_kept` | `JSON.parse` | 1 |
 | `packages/image/src/vite/vercel-config.ts` | `(module)` | `JSON.parse` | 1 |
 | `packages/insights/src/fp-drift.ts` | `(module)` | `JSON.parse` | 2 |

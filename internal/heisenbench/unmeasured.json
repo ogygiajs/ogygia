@@ -8573,10 +8573,6 @@
 			"reason": "once per image a card draw names: one short byte compare"
 		},
 		{
-			"id": "packages/image/src/cards/images.ts > card_image_type > at > every:0~42b368",
-			"reason": "once per image a card draw names: one byte compare per character"
-		},
-		{
 			"id": "packages/image/src/cards/images.ts > each_src",
 			"reason": "once per card draw: one walk of the card's element tree (tens of nodes), next to satori's own layout of it; test/card.test.ts runs it"
 		},
