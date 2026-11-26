@@ -45,20 +45,21 @@ const { base: BASE, assets: ASSETS } = config.paths;
 const PREFIXES: readonly string[] = [ASSETS, BASE];
 
 class Originals {
-	#tails: ReadonlySet<string>;
+	#urls: ReadonlyMap<string, string>;
 
 	constructor(list: Readonly<Record<string, string>>) {
-		this.#tails = Originals.#of(list);
-	}
-
-	static #of(list: Readonly<Record<string, string>>): ReadonlySet<string> {
-		return new Set(Object.values(list).map((url) => source_tail(url, PREFIXES)));
+		this.#urls = new Map(Object.values(list).map((url) => [source_tail(url, PREFIXES), url]));
 	}
 
 	has(tail: string): boolean {
-		if (this.#tails.has(tail)) return true;
+		if (this.#urls.has(tail)) return true;
 		const root = DEV_ROOT;
 		return root !== null && published(tail) && fs.existsSync(path.join(root, tail));
+	}
+
+	/** The string Kit's `read()` takes for `tail`: the URL its import gave (`paths.assets` or base). */
+	url(tail: string): string {
+		return this.#urls.get(tail) ?? `${BASE}/${encode_tail(tail)}`;
 	}
 }
 
@@ -84,7 +85,7 @@ function no_encoder(e: unknown): Response {
 }
 
 function original_of(recipe: ParsedRecipe): string {
-	return `${BASE}/${encode_tail(recipe.tail)}`;
+	return ORIGINALS.url(recipe.tail);
 }
 
 let origin_unnoted: BuildHandoff | null = null;
