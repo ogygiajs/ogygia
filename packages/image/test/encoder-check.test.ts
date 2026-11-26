@@ -9,7 +9,7 @@ import { expect, test, vi } from 'vitest';
 import { check, dead_fields } from '@ogygia/machine/testing';
 import { IMAGE_WARNINGS } from '../src/messages.ts';
 import { ENCODER } from '../src/vite/encoder.ts';
-import { cloudflare, image, type ImagePluginOptions } from '../src/vite/index.ts';
+import { cloudflare, image, sharp, type ImagePluginOptions } from '../src/vite/index.ts';
 
 const PNP = vi.hoisted(() => {
 	delete process.env.__OGYGIA_IMAGE_BUILD;
@@ -125,10 +125,31 @@ test('the dev server fails, coded, when the app does not install sharp', async (
 	await expect(resolved(app('devDependencies', true), null, 'serve')).resolves.toBeUndefined();
 });
 
-test('an edge build with sharp() says once that its server cannot encode and names cloudflare(), and needs sharp only to build', async () => {
+test('a Cloudflare build that lists no encoder fails, coded, naming cloudflare() and sharp() for prerendered images only', async () => {
+	for (const adapter of [EDGE, '"@sveltejs/adapter-cloudflare-workers"'])
+		await expect(resolved(app('devDependencies', true), adapter)).rejects.toMatchObject({
+			code: 'image_option_invalid',
+			message: expect.stringMatching(/cloudflare\(\)[\s\S]*sharp\(\)/)
+		});
+});
+
+test('a Cloudflare Workers adapter is Cloudflare for cloudflare() too', async () => {
+	await expect(
+		resolved(app('devDependencies', true), '"@sveltejs/adapter-cloudflare-workers"', 'build', {
+			encoder: cloudflare()
+		})
+	).resolves.toBeUndefined();
+});
+
+test('an edge build with sharp() listed says once that its server cannot encode and names cloudflare(), and needs sharp only to build', async () => {
 	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-	await expect(resolved(app('devDependencies', true), EDGE)).resolves.toBeUndefined();
-	await expect(resolved(app('devDependencies', true), EDGE)).resolves.toBeUndefined();
+	const chosen = { encoder: sharp() };
+	await expect(
+		resolved(app('devDependencies', true), EDGE, 'build', chosen)
+	).resolves.toBeUndefined();
+	await expect(
+		resolved(app('devDependencies', true), EDGE, 'build', chosen)
+	).resolves.toBeUndefined();
 	expect(warn.mock.calls.map((c) => String(c[0]))).toEqual([
 		expect.stringMatching(
 			/adapter-cloudflare runs the app where sharp, a native Node module, cannot load.*image_no_encoder/s
@@ -136,7 +157,9 @@ test('an edge build with sharp() says once that its server cannot encode and nam
 	]);
 	expect(IMAGE_WARNINGS.image_no_encoder.details()).toContain('encoder: cloudflare()');
 	warn.mockRestore();
-	await expect(resolved(app(null, false), EDGE)).rejects.toThrow(/image_sharp_missing/);
+	await expect(resolved(app(null, false), EDGE, 'build', chosen)).rejects.toThrow(
+		/image_sharp_missing/
+	);
 });
 
 test('an edge build with cloudflare() says nothing, and needs sharp only to build, devDependencies being enough', async () => {
