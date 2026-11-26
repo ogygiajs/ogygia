@@ -136,7 +136,6 @@ export type BootLink = [
 	fragment_target: typeof import('./fragment.ts').fragment_target | null,
 	resolve_address: typeof import('./interaction.ts').resolve_address | null,
 	wire_codec: typeof import('./wire-on-use.ts').wire_codec,
-	/** the one srcset parser (../srcset.ts), the load scheduler's own */
 	srcset_candidates: typeof import('../srcset.ts').srcset_candidates
 ];
 

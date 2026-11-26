@@ -2345,7 +2345,11 @@
 			"reason": "browser only: one candidate list of a parsed head, linear in its length; head-urls.test.ts runs it"
 		},
 		{
-			"id": "packages/core/src/runtime/router-nav.ts > resolve_srcset > space",
+			"id": "packages/core/src/srcset.ts > srcset_candidates",
+			"reason": "browser only: one srcset value of a priority preload or a fetched head, linear in its length; load-scheduler.test.ts and head-urls.test.ts run it"
+		},
+		{
+			"id": "packages/core/src/srcset.ts > space",
 			"reason": "one character compare, constant work"
 		},
 		{
@@ -6065,20 +6069,76 @@
 			"reason": "the macro check of a markdown page that names import.meta.og. (rare), linear in its text; test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/parse/scan.ts > markdown_scripts > filter:0~fa9df2",
-			"reason": "per block of the markdown check above, constant work per block; test/macros-need-plugin.test.ts runs it"
-		},
-		{
 			"id": "packages/compiler/src/parse/scan.ts > markdown_scripts > map:0~69761c",
 			"reason": "per script block of the markdown check above, one slice; test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/parse/scan.ts > markdown_scripts > map:0~e12127",
+			"id": "packages/compiler/src/parse/scan.ts > markdown_prose",
+			"reason": "the markdown check above: its fences and code spans blanked, linear in its text; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > markdown_prose > map:0~e12127",
 			"reason": "per line of the markdown check above, constant work per line; test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/parse/scan.ts > markdown_scripts > map:0~e12127 > replace:1~e4104a",
+			"id": "packages/compiler/src/parse/scan.ts > markdown_prose > map:0~e12127 > replace:1~e4104a",
 			"reason": "per code span of the markdown check above, one blank run; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > script_blocks",
+			"reason": "the markdown check above: its blocks that start a line, linear in its text; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > script_blocks > filter:0~fa9df2",
+			"reason": "per block of the markdown check above, constant work per block; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > markdown_expressions",
+			"reason": "the macro check of a markdown page that names import.meta.og. (rare): its prose's {…} expressions, linear in its text; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > markdown_expressions > filter:0~e6fdc6",
+			"reason": "per block of the markdown check above, constant work per block; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > expression_end",
+			"reason": "per prose expression of the markdown check above, linear in its text; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > blank",
+			"reason": "per HTML comment of the markdown check above, one blank run; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > code_regions",
+			"reason": "once per plugin macro handler that asks for a module's code regions, the same reading the macros already pay; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > run_module_macros > handler:1~09cd5a > regions",
+			"reason": "the code-regions handle handed to a plugin macro, one call of code_regions; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > in_regions",
+			"reason": "the macro check, only for a module whose text names import.meta.og. after its macros ran: the og calls of its regions, linear in them; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > in_regions > flatMap:0~6407d7",
+			"reason": "per region of the macro check above, one call scan; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > in_regions > flatMap:0~6407d7 > map:0~6a5b20",
+			"reason": "per call found by the macro check above, one offset shift, constant work; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > macro_calls > map:0~f7bc6b",
+			"reason": "per template call of the macro check above (rare), one object, constant work; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > macro_in_markup > details",
+			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > macro_in_markup > text",
+			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~0a165a > CompileCtx:0~15d8e4 > flatMap:0~f1f41f",
@@ -7273,18 +7333,6 @@
 			"reason": "one markdown extension's name and cache key joined into the document key, once per extension per markdown compile, constant work; packages/content/test/markdown-extensions.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/vite/macro.ts > refuse_markup_calls > filter:0~3e5092",
-			"reason": "build only: one method-name compare per og call in a component that calls the image macro, inside the measured macro pass; packages/image/test/macro.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/macro.ts > refuse_markup_calls > filter:0~abed74",
-			"reason": "build only: one method-name compare per og.image.* call in a component, inside the measured macro pass; packages/image/test/macro.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/macro.ts > refuse_markup_calls > some:0~185308",
-			"reason": "build only: one offset compare per script call, per call found in a component, inside the measured macro pass; packages/image/test/macro.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/vite/options.ts > check_image_options > some:0~c5be01",
 			"reason": "config time, once per macro call that warms: a type check over the few preset names it lists; test/macro.test.ts runs it"
 		},
@@ -7343,6 +7391,10 @@
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_transition_name_unique > details",
 			"reason": "a message's prose for its docs page and dev warning: constant text, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > rendered",
+			"reason": "browser only, dev and e2e builds: one visibility read per element the rule check above counts; proven in packages/core/test/browser/transition-name-unique.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/rules.ts > transition_names_unique",
