@@ -297,7 +297,7 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 			const at = encoder_runtime(c.command, !!c.build.ssr, preview, adapter);
 			if (at !== null) {
 				runtime = at;
-				check_encoder(c.root, at, adapter, maker_of(encoders));
+				check_encoder(c.root, at, adapter, maker_of(encoders), opts.encoder !== undefined);
 			}
 			if (c.command === 'build' && c.build.ssr) {
 				check_platform(encoders, adapter, originals_of(paths), opts.remote?.hosts ?? []);

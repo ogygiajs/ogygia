@@ -187,6 +187,16 @@ test('every row of the encoder table: nothing goes on without sharp listed and i
 			r.input.listed === 'dependencies',
 		'an edge build whose maker is sharp warns': (r) =>
 			!('plan' in r) || r.input.maker !== 'sharp' || r.input.runtime !== 'edge' || r.plan !== 'ok',
+		'a Cloudflare edge build is asked to choose its encoder exactly when it chose none and sharp is there':
+			(r) =>
+				!('plan' in r) ||
+				(r.plan === 'choose') ===
+					(r.input.runtime === 'edge' &&
+						r.input.maker === 'sharp' &&
+						r.input.cloudflare &&
+						!r.input.chosen &&
+						r.input.installed &&
+						r.input.listed !== 'none'),
 		'with no maker or the binding, sharp is needed only to build': (r) =>
 			!('plan' in r) ||
 			r.input.maker === 'sharp' ||

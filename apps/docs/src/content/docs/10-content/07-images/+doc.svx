@@ -323,7 +323,7 @@ The enclosure's type follows the file's format (a preset with `formats: ['jpeg']
 
 Link the feed from a layout (`<link rel="alternate" type="application/rss+xml" href="/feed.xml">`) so Kit's crawler prerenders it. On a live server the same code names the signed URLs at the request's origin.
 
-The default encoder, sharp, is a native Node module. A runtime that cannot load it (an edge or Workers runtime) answers image requests with a coded 500 (`image_no_encoder`), and a build for such an adapter with `sharp()` says so once (`image_no_encoder`). Prerendered pages and warmed presets are made by the build as static files, so they work there. On Cloudflare Workers, use `cloudflare()`; on Vercel, `vercel()` (below).
+The default encoder, sharp, is a native Node module. A runtime that cannot load it (an edge or Workers runtime) answers image requests with a coded 500 (`image_no_encoder`), and a build for such an adapter with `sharp()` says so once (`image_no_encoder`). Prerendered pages and warmed presets are made by the build as static files, so they work there. On Cloudflare (adapter-cloudflare or adapter-cloudflare-workers), a build that lists no encoder fails (`image_option_invalid`): list `cloudflare()`, or `encoder: sharp()` to say only prerendered pages show images. On Vercel, use `vercel()` (below).
 
 Without `OGYGIA_SECRET`, each server build signs with its own random key, so a server-rendered page's signed URLs change with each deploy. Set the secret to keep them. A prerendered page's files need no secret.
 
@@ -457,7 +457,7 @@ image({ presets, encoder: cloudflare({ links: false, binding: 'MY_IMAGES' }) });
 }
 ```
 
-A Worker with no such binding answers each image 500 and says `image_binding_missing` once. `cloudflare()` on any adapter but adapter-cloudflare fails the server build with `image_option_invalid`: its links and binding exist only on Cloudflare. adapter-auto counts as another adapter (it cannot be handed a platform's config): list `@sveltejs/adapter-cloudflare` itself. The dev server makes every file with sharp, as always, but refuses what Cloudflare cannot make, so a page fails in dev where it would fail deployed.
+A Worker with no such binding answers each image 500 and says `image_binding_missing` once. `cloudflare()` on any adapter but adapter-cloudflare or adapter-cloudflare-workers fails the server build with `image_option_invalid`: its links and binding exist only on Cloudflare. adapter-auto counts as another adapter (it cannot be handed a platform's config): list `@sveltejs/adapter-cloudflare` itself. The dev server makes every file with sharp, as always, but refuses what Cloudflare cannot make, so a page fails in dev where it would fail deployed.
 
 What each encoder can make:
 

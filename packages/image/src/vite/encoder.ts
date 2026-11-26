@@ -24,7 +24,7 @@ import { decisions, type Decisions } from '@ogygia/machine';
 import { cannot } from '../encoders/capabilities.ts';
 import { NEEDS, type Need } from '../encoders/needs.ts';
 import { DEFAULT_BREAKPOINTS, DEFAULT_QUALITY } from '../config.ts';
-import { OgygiaError, warn } from '../messages.ts';
+import { OgygiaError, said, warn } from '../messages.ts';
 import { host_rule } from '../remote-hosts.ts';
 import type { LinkPlan, NamerPlan } from '../namers/resolve.ts';
 import { SIDE_MAX } from '../recipe.ts';
@@ -329,8 +329,28 @@ export function pixels(): Promise<typeof import('../pixels.ts')> {
 /** What runs the app this config builds or serves. */
 export type EncoderRuntime = 'dev' | 'client' | 'prerendered' | 'server' | 'edge';
 
-const STATIC_ADAPTER_RE = /^@sveltejs\/adapter-static$/;
-const NO_NATIVE_ADAPTER_RE = /cloudflare|deno|-edge\b/i;
+/** What an adapter is to the encoders: the runtime its server runs in, and the platform it builds
+ *  for (whose links and maker `cloudflare()` and `vercel()` name). */
+export interface AdapterKind {
+	runtime: 'prerendered' | 'edge' | 'server';
+	platform: 'cloudflare' | 'vercel' | 'auto' | 'other';
+}
+
+const ADAPTERS: readonly (AdapterKind & { re: RegExp })[] = [
+	{ re: /^@sveltejs\/adapter-static$/, runtime: 'prerendered', platform: 'other' },
+	{ re: /^@sveltejs\/adapter-cloudflare(?:-workers)?$/, runtime: 'edge', platform: 'cloudflare' },
+	{ re: /^@sveltejs\/adapter-vercel$/, runtime: 'server', platform: 'vercel' },
+	{ re: /^@sveltejs\/adapter-auto$/, runtime: 'server', platform: 'auto' },
+	{ re: /cloudflare|deno|-edge\b/i, runtime: 'edge', platform: 'other' }
+];
+
+/** The one table every adapter check reads: what `adapter` (its package name) is. */
+export function adapter_kind(adapter: string | null): AdapterKind {
+	const row = adapter === null ? undefined : ADAPTERS.find((a) => a.re.test(adapter));
+	return row
+		? { runtime: row.runtime, platform: row.platform }
+		: { runtime: 'server', platform: 'other' };
+}
 
 /** The runtime of a resolved config, or null where no image is planned (`vite preview`). */
 export function encoder_runtime(
@@ -341,37 +361,42 @@ export function encoder_runtime(
 ): EncoderRuntime | null {
 	if (command === 'serve') return preview ? null : 'dev';
 	if (!ssr) return 'client';
-	if (adapter !== null && STATIC_ADAPTER_RE.test(adapter)) return 'prerendered';
-	if (adapter !== null && NO_NATIVE_ADAPTER_RE.test(adapter)) return 'edge';
-	return 'server';
+	return adapter_kind(adapter).runtime;
 }
 
 /** What the encoder check reads: the runtime, the endpoint's maker (`none`: no encoder makes files
- *  there), and the app's sharp. */
+ *  there), whether the app chose its encoder (`image({ encoder })`), whether the adapter is
+ *  Cloudflare's (where `cloudflare()` exists), and the app's sharp. */
 export interface EncoderInput {
 	runtime: EncoderRuntime;
 	maker: 'sharp' | 'binding' | 'none';
+	chosen: boolean;
+	cloudflare: boolean;
 	installed: boolean;
 	listed: 'none' | 'dev' | 'dependencies';
 }
 
-/** What a config's sharp calls for: go on, warn that the server cannot encode, or fail. */
-export const ENCODER: Decisions<EncoderInput, 'ok' | 'edge' | 'missing' | 'unlisted'> = decisions({
-	name: 'image encoder',
-	inputs: {
-		runtime: ['dev', 'client', 'prerendered', 'server', 'edge'],
-		maker: ['sharp', 'binding', 'none'],
-		installed: [false, true],
-		listed: ['none', 'dev', 'dependencies']
-	},
-	decide: (i: EncoderInput): 'ok' | 'edge' | 'missing' | 'unlisted' => {
-		if (!i.installed || i.listed === 'none') return 'missing';
-		if (i.maker !== 'sharp') return 'ok';
-		if (i.runtime === 'edge') return 'edge';
-		if (i.runtime === 'server' && i.listed !== 'dependencies') return 'unlisted';
-		return 'ok';
-	}
-});
+/** What a config's sharp calls for: go on, warn that the server cannot encode, fail asking the app
+ *  to choose its encoder, or fail. */
+export const ENCODER: Decisions<EncoderInput, 'ok' | 'edge' | 'choose' | 'missing' | 'unlisted'> =
+	decisions({
+		name: 'image encoder',
+		inputs: {
+			runtime: ['dev', 'client', 'prerendered', 'server', 'edge'],
+			maker: ['sharp', 'binding', 'none'],
+			chosen: [false, true],
+			cloudflare: [false, true],
+			installed: [false, true],
+			listed: ['none', 'dev', 'dependencies']
+		},
+		decide: (i: EncoderInput): 'ok' | 'edge' | 'choose' | 'missing' | 'unlisted' => {
+			if (!i.installed || i.listed === 'none') return 'missing';
+			if (i.maker !== 'sharp') return 'ok';
+			if (i.runtime === 'edge') return i.cloudflare && !i.chosen ? 'choose' : 'edge';
+			if (i.runtime === 'server' && i.listed !== 'dependencies') return 'unlisted';
+			return 'ok';
+		}
+	});
 
 function in_node_modules(root: string): boolean {
 	for (let dir = path.resolve(root); ; dir = path.dirname(dir)) {
@@ -427,8 +452,6 @@ export const PLATFORM: Decisions<PlatformInput, 'ok' | 'wrong' | 'auto'> = decis
 	}
 });
 
-const ADAPTER_KIND_RE = /^@sveltejs\/adapter-(cloudflare|vercel|auto)$/;
-
 /** The `remotePatterns` entry of one `image({ remote: { hosts } })` entry: its scheme, its host (a
  *  pattern, as Vercel's output config reads it), and its port when not the default. */
 export function remote_pattern(entry: string): VercelRemotePattern | null {
@@ -466,10 +489,9 @@ export function check_platform(
 	hosts: readonly string[] = []
 ): void {
 	const e = encoders.find((x) => x.name !== 'sharp');
-	const kind = (adapter !== null && ADAPTER_KIND_RE.exec(adapter)?.[1]) || 'other';
 	const plan = PLATFORM.decide({
 		platform: e?.name === 'cloudflare' || e?.name === 'vercel' ? e.name : 'none',
-		adapter: kind as PlatformInput['adapter']
+		adapter: adapter_kind(adapter).platform
 	});
 	if (plan === 'ok' || e === undefined) return;
 	const own = `@sveltejs/adapter-${e.name}`;
@@ -488,28 +510,37 @@ export function check_platform(
 	});
 }
 
-let said_edge = false;
-
-/** Check the app's sharp for `runtime` and the endpoint's `maker`: throws `image_sharp_missing`, or
- *  warns `image_no_encoder` (once a process) for an adapter whose runtime cannot load it. */
+/** Check the app's sharp for `runtime` and the endpoint's `maker` (`chosen`: the app listed its
+ *  encoder): throws `image_sharp_missing`; on a Cloudflare adapter with no encoder chosen,
+ *  `image_option_invalid` naming `cloudflare()`; or warns `image_no_encoder` (once per adapter)
+ *  for one whose runtime cannot load sharp. */
 export function check_encoder(
 	root: string,
 	runtime: EncoderRuntime,
 	adapter: string | null,
-	maker: Encoder['maker']
+	maker: Encoder['maker'],
+	chosen = false
 ): void {
 	const plan = ENCODER.decide({
 		runtime,
 		maker: maker ?? 'none',
+		chosen,
+		cloudflare: adapter_kind(adapter).platform === 'cloudflare',
 		installed: installed(root),
 		listed: listed(root)
 	});
-	if (plan === 'edge') {
-		if (!said_edge)
+	if (plan === 'edge')
+		said.once(`image_no_encoder edge ${adapter ?? ''}`, () =>
 			warn('image_no_encoder', {
 				reason: `${adapter ?? 'this adapter'} runs the app where sharp, a native Node module, cannot load`
-			});
-		said_edge = true;
-	} else if (plan !== 'ok')
+			})
+		);
+	else if (plan === 'choose')
+		throw new OgygiaError('image_option_invalid', {
+			where: 'image()',
+			key: 'encoder',
+			rule: `chosen on ${adapter}: its server cannot load sharp, so list cloudflare() (Cloudflare's links or Images binding make every file), or encoder: sharp() to say only prerendered pages show images`
+		});
+	else if (plan !== 'ok')
 		throw new OgygiaError('image_sharp_missing', { adapter, installed: plan === 'unlisted' });
 }
