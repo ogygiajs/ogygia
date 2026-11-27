@@ -8657,8 +8657,28 @@
 			"reason": "once per compiled CSS block a card's module holds: one capture read"
 		},
 		{
-			"id": "packages/image/src/vite/card.ts > build_card_images > card_image_reader:2~bc870b",
-			"reason": "build time, network bound: one remote fetch (cached) per image a prerendered card names, then a file read"
+			"id": "packages/image/src/vite/build-files.ts > BuildMakes > card",
+			"reason": "build time, once per prerendered card: store reads, network-bound remote fetches (cached) and one draw; packages/image/test/build-write.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/build-files.ts > BuildMakes > card > fetch",
+			"reason": "build time, network bound: one remote fetch (cached) per image a prerendered card shows, then a file read"
+		},
+		{
+			"id": "packages/image/src/vite/build-files.ts > BuildMakes > card > in_turn:1~a82623",
+			"reason": "build time, once per card drawn: a draw (satori and resvg) and one encode, measured by neither"
+		},
+		{
+			"id": "packages/image/src/vite/build-files.ts > BuildMakes > card > in_turn:1~a82623 > draw_card:2~d4eb54",
+			"reason": "build time, network bound: one remote fetch per image a card's draw reads, and one hash of its bytes"
+		},
+		{
+			"id": "packages/image/src/settle.ts > call:0~b44824 > run > endpoint_images:0~cb8f97",
+			"reason": "once per remote image a live card's draw reads: one flag set and the guarded remote fetch, network bound"
+		},
+		{
+			"id": "packages/image/src/settle.ts > kept_file",
+			"reason": "at most two store opens per ask (disk bound); a closure over the maker's store, not replayable"
 		},
 		{
 			"id": "packages/image/src/vite/card.ts > card_digest > sort:0~2f5dbe",

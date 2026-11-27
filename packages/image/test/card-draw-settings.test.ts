@@ -102,7 +102,8 @@ const print = (log: unknown[]) =>
 
 const DRAW_SEEN: Readonly<Record<number, string>> = {
 	1: 'mG3N-aJqVKoA3BR1_i5-ncsX_84dTKq131wypstNCxU',
-	2: 'BWb1C0JsMINlHb4pWdwcR_AyZ8B26CqJE3LI6LI6DQs'
+	2: 'BWb1C0JsMINlHb4pWdwcR_AyZ8B26CqJE3LI6LI6DQs',
+	3: 'BWb1C0JsMINlHb4pWdwcR_AyZ8B26CqJE3LI6LI6DQs'
 };
 
 const FIT_CASES: readonly Record<string, unknown>[] = [

@@ -100,15 +100,15 @@ let cold_store = new Map<string, string>();
 let cold_files = new Map<string, string>();
 
 test(
-	'a cold static build encodes each image file it writes once, into the build cache',
+	'a cold static build encodes each image file it writes once, into the build cache, beside the remote URLs each card that shows one read',
 	() => {
 		build();
 		cold_store = stored();
 		cold_files = written();
-		expect({ encodes: cold_store.size, files: cold_files.size }).toMatchInlineSnapshot(`
+		expect({ stored: cold_store.size, files: cold_files.size }).toMatchInlineSnapshot(`
 			{
-			  "encodes": 258,
 			  "files": 258,
+			  "stored": 259,
 			}
 		`);
 	},

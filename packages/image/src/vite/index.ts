@@ -460,18 +460,15 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 					this.getFileName(ref)
 				);
 				const output = output_of(config);
-				const images = build_card_images(
-					output,
-					[paths.assets, paths.base],
-					remote ? (url) => remote.file(dir, url, 'a share card') : null
-				);
+				const prefixes = [paths.assets, paths.base];
 				await write_built(
 					handoff,
 					render_config(opts, paths, true, widths, stills),
 					warmed.values(),
 					output,
 					remote ? (url) => remote.file(dir, url, 'a prerendered page') : undefined,
-					(tail, id) => cards.draw(tail, id, images)
+					(tail, id, fetch) =>
+						cards.draw(tail, id, build_card_images(output, prefixes, remote ? fetch : null))
 				);
 			}
 		}

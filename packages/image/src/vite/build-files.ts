@@ -13,7 +13,10 @@
  *   app folder that is not there yet). A `remoteImage()` source is fetched here, under
  *   `image({ remote })` (./remote.ts), and its files are named by the bytes it got, not by its
  *   URL: every prerendered page's name of them is rewritten to that, so a URL whose bytes change
- *   gets new file names, never an old file kept forever under a new picture.
+ *   gets new file names, never an old file kept forever under a new picture. A card that shows a
+ *   remote image is named the same way, by the bytes it got (../card.ts `card_shown_id`); the URLs
+ *   it read are kept in the store, so a warm build fetches them again and draws nothing when their
+ *   bytes name a file it has.
  *
  * One build makes each file once: every make, the prerender's head start and the build's end alike,
  * runs in the build's own thread as one flight per file, a few at once.
@@ -43,6 +46,7 @@ import {
 	type Queue,
 	type Scope
 } from '@ogygia/machine';
+import { card_shown_id } from '../card.ts';
 import { DEFAULT_AVIF_EFFORT, type RenderConfig } from '../config.ts';
 import type { ImageDescriptor } from '../descriptor.ts';
 import { lay_out, preset_request } from '../layout.ts';
@@ -183,8 +187,9 @@ interface Ask {
 	key: string;
 	recipe: Omit<Recipe, 'src'>;
 	original: () => Uint8Array | Promise<Uint8Array>;
-	card: boolean;
 }
+
+const SHOWN = '.shown';
 
 class BuildMakes {
 	static #open = new Map<string, BuildMakes>();
@@ -195,23 +200,16 @@ class BuildMakes {
 	readonly #scope: Scope = scope();
 	readonly #encodes: Queue<Turn> = line_of('image build encodes', this.#scope);
 	readonly #writes: Queue<Turn> = line_of('image build writes', this.#scope);
-	readonly #makes = flights.keyed<Ask>()<
-		'key',
-		'recipe' | 'original' | 'card',
-		Promise<Uint8Array>
-	>({
+	readonly #makes = flights.keyed<Ask>()<'key', 'recipe' | 'original', Promise<Uint8Array>>({
 		name: 'image build files',
 		key: ['key'],
 		ignore: {
 			recipe: 'the key is the recipe',
-			original: 'the key names the source by content, and a make checks the original against it',
-			card: "the key's id names a card's digest, size and props"
+			original: 'the key names the source by content, and a make checks the original against it'
 		},
 		keep: 0,
-		run: ({ key, recipe, original, card }: Ask): Promise<Uint8Array> =>
-			in_turn(this.#encodes, () =>
-				made(this.#store, key, recipe, original, card, this.#avif_effort)
-			)
+		run: ({ key, recipe, original }: Ask): Promise<Uint8Array> =>
+			in_turn(this.#encodes, () => made(this.#store, key, recipe, original, this.#avif_effort))
 	});
 
 	private constructor(handoff: BuildHandoff, output: string) {
@@ -245,12 +243,50 @@ class BuildMakes {
 
 	async make(
 		recipe: Omit<Recipe, 'src'>,
-		original: () => Uint8Array | Promise<Uint8Array>,
-		card = false
+		original: () => Uint8Array | Promise<Uint8Array>
 	): Promise<Uint8Array> {
-		const data = await this.#makes.get({ key: recipe_file(recipe), recipe, original, card });
+		const data = await this.#makes.get({ key: recipe_file(recipe), recipe, original });
 		if (data === STALE) throw new Error('the build ended before the file was made');
 		return data;
+	}
+
+	async card(
+		recipe: Omit<Recipe, 'src'>,
+		tail: string,
+		draw_card: DrawCard,
+		fetch_remote: FetchRemote
+	): Promise<{ recipe: Omit<Recipe, 'src'>; data: Uint8Array }> {
+		const plain = recipe_file(recipe);
+		const kept = await this.#store.find(plain);
+		if (kept) return { recipe, data: await fs.promises.readFile(kept.file) };
+		const fetch = async (url: string): Promise<Uint8Array> =>
+			new Uint8Array(await fs.promises.readFile(await fetch_remote(url)));
+		const urls = await this.#store.find(`${plain}${SHOWN}`);
+		if (urls) {
+			const reads = new Map<string, string>();
+			for (const url of JSON.parse(await fs.promises.readFile(urls.file, 'utf8')) as string[])
+				reads.set(url, await source_id(await fetch(url)));
+			const named = { ...recipe, id: card_shown_id(recipe.id, reads) };
+			const hit = await this.#store.find(recipe_file(named));
+			if (hit) return { recipe: named, data: await fs.promises.readFile(hit.file) };
+		}
+		const reads = new Map<string, string>();
+		const data = await in_turn(this.#encodes, async () => {
+			const png = await draw_card(tail, recipe.id, async (url) => {
+				const bytes = await fetch(url.href);
+				reads.set(url.href, await source_id(bytes));
+				return bytes;
+			});
+			return (await pixels()).encode_recipe(png, recipe, this.#avif_effort);
+		});
+		const named = { ...recipe, id: card_shown_id(recipe.id, reads) };
+		if (reads.size)
+			await this.#store.keep(
+				`${plain}${SHOWN}`,
+				new TextEncoder().encode(JSON.stringify([...reads.keys()].sort()))
+			);
+		await this.#store.keep(recipe_file(named), data);
+		return { recipe: named, data };
 	}
 
 	write(dest: string, data: Uint8Array): Promise<void> {
@@ -271,13 +307,12 @@ async function made(
 	key: string,
 	recipe: Omit<Recipe, 'src'>,
 	original: () => Uint8Array | Promise<Uint8Array>,
-	card: boolean,
 	avif_effort: number
 ): Promise<Uint8Array> {
 	const kept = await store.find(key);
 	if (kept) return fs.promises.readFile(kept.file);
 	const bytes = await original();
-	if (!card && (await source_id(bytes)) !== recipe.id)
+	if ((await source_id(bytes)) !== recipe.id)
 		throw new Error(`its original is not the source ${recipe.id} any more`);
 	const data = await (await pixels()).encode_recipe(bytes, recipe, avif_effort);
 	await store.keep(key, data);
@@ -345,8 +380,13 @@ function jobs_of(
 export type FetchRemote = (url: string) => Promise<string>;
 
 /** How the build draws a card a prerendered page names: the own-size PNG of the card its tail
- *  names, when it is the source `id` (./card.ts `Cards.draw`). */
-export type DrawCard = (tail: string, id: string) => Promise<Uint8Array>;
+ *  names, when it is the source `id` (./card.ts `Cards.draw`), every remote image it shows read
+ *  with `remote` (the build's remote fetch, so the build names the card by those bytes). */
+export type DrawCard = (
+	tail: string,
+	id: string,
+	remote: (url: URL) => Promise<Uint8Array>
+) => Promise<Uint8Array>;
 
 function no_card(tail: string): Promise<Uint8Array> {
 	return Promise.reject(new Error(`its tail ${tail} names no card this build has`));
@@ -475,8 +515,10 @@ export async function write_built(
 			[...jobs].map(async ([name, { recipe, source, original, remote, card }]) => {
 				try {
 					if (card !== undefined) {
-						const data = await makes.make(recipe, () => draw_card(card, recipe.id), true);
-						await makes.write(path.join(client, ...name.split('/')), data);
+						const made = await makes.card(recipe, card, draw_card, fetch_remote);
+						if (made.recipe.id !== recipe.id) renamed.set(recipe.id, made.recipe.id);
+						const file = built_file(made.recipe);
+						await makes.write(path.join(client, ...file.split('/')), made.data);
 						return;
 					}
 					if (remote !== undefined) {

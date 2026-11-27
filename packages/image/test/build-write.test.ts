@@ -4,10 +4,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
-import { beforeAll, expect, test, vi } from 'vitest';
+import crypto from 'node:crypto';
+import { beforeAll, describe, expect, test, vi } from 'vitest';
+import { card_id } from '../src/card.ts';
 import type { RenderConfig } from '../src/config.ts';
 import { build_handoff } from '../src/handoff.ts';
-import { recipe_path, recipe_tail, type Recipe } from '../src/recipe.ts';
+import { b64url_encode, recipe_path, recipe_tail, type Recipe } from '../src/recipe.ts';
 import { remoteImage } from '../src/remote-image.ts';
 import { note_built, note_origin } from '../src/store.ts';
 import { handoff_for, write_built } from '../src/vite/build-files.ts';
@@ -31,6 +33,8 @@ beforeAll(async () => {
 	jpg = (await make_images()).jpg;
 	id = await id_of(jpg);
 });
+
+const random_digest = (): string => crypto.randomUUID();
 
 function output(page: string): string {
 	const out = fs.mkdtempSync(path.join(os.tmpdir(), 'og-image-out-'));
@@ -251,5 +255,62 @@ test("a prerendered page's remoteImage() in a build with no image({ remote }) fa
 		message: expect.stringMatching(
 			/https:\/\/images\.example\.com\/hero\.jpg[\s\S]*images\.example\.com/
 		)
+	});
+});
+
+describe('a prerendered card that shows a remote image', () => {
+	const url = 'https://images.example.com/mark.png';
+	const json = '{"t":1}';
+	const card_tail = `RemoteCard000000/${b64url_encode(json)}`;
+	const at = { file: '' };
+	const solid = async (background: string): Promise<string> => {
+		const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'og-image-mark-')), 'm.png');
+		await sharp({ create: { width: 64, height: 32, channels: 3, background } })
+			.png()
+			.toFile(file);
+		return file;
+	};
+
+	async function build(card_id_now: string): Promise<{ name: string; color: number[] }> {
+		delete process.env.__OGYGIA_IMAGE_BUILD;
+		const handoff = await handoff_for(true);
+		const recipe: Recipe = {
+			id: card_id_now,
+			src: '',
+			width: 64,
+			height: 32,
+			format: 'png',
+			from: 'card',
+			card: card_tail
+		};
+		note_built(handoff.minted, recipe_path(recipe, recipe_tail(recipe, [''])));
+		const out = output(`<img src="${handoff.mark}/_app/immutable/og/${card_id_now}-64x32.png">`);
+		await write_built(
+			handoff,
+			CFG,
+			[],
+			out,
+			() => Promise.resolve(at.file),
+			async (_tail: string, _id: string, remote?: (url: URL) => Promise<Uint8Array>) =>
+				remote ? remote(new URL(url)) : new Uint8Array(fs.readFileSync(at.file))
+		);
+		const page = fs.readFileSync(path.join(out, 'prerendered', 'pages', 'index.html'), 'utf8');
+		const name = /\/_app\/immutable\/og\/(c[\w-]+)-64x32\.png/.exec(page)![1]!;
+		const file = path.join(out, 'client', '_app', 'immutable', 'og', `${name}-64x32.png`);
+		const { data } = await sharp(fs.readFileSync(file)).raw().toBuffer({ resolveWithObject: true });
+		return { name, color: [...data.subarray(0, 3)] };
+	}
+
+	test("is named by the bytes it drew: when the host's image changes, the next (warm) build writes a new file, never the old picture under the old name", async () => {
+		const id = card_id({ digest: random_digest(), width: 64, height: 32 }, json);
+		at.file = await solid('#ff0000');
+		const first = await build(id);
+		expect(first.color).toEqual([255, 0, 0]);
+		at.file = await solid('#0000ff');
+		const second = await build(id);
+		expect(second.color).toEqual([0, 0, 255]);
+		expect(second.name).not.toBe(first.name);
+		at.file = await solid('#0000ff');
+		expect((await build(id)).name, 'the same bytes name the same file').toBe(second.name);
 	});
 });

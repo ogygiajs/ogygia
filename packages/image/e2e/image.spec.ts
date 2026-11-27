@@ -664,7 +664,7 @@ test.describe('share cards (/card, /late/card)', () => {
 		await every_image_loads(page);
 	});
 
-	test("a card that names images draws them, read and fitted by the build or the server that draws it: an asset of the build as an <img>, a small remote WebP as a style's url()", async ({
+	test("a card that names images draws them, read and fitted by the build or the server that draws it: an asset of the build as an <img>, a small remote WebP as a style's url(); it shows a remote image, so live it is kept for remote.maxAge, never immutable", async ({
 		page,
 		request
 	}) => {
@@ -673,6 +673,10 @@ test.describe('share cards (/card, /late/card)', () => {
 		else expect(og.pathname).toMatch(CARD_URL_RE);
 		const res = await request.get(og.pathname);
 		expect(res.status(), await res.text().catch(() => '')).toBe(200);
+		if (MODE !== 'static')
+			expect(res.headers()['cache-control']).toMatch(
+				/^public, max-age=\d+, stale-while-revalidate=\d+$/
+			);
 		expect(await photo_card_misses(await res.body())).toEqual([]);
 	});
 
