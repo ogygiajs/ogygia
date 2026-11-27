@@ -8,7 +8,8 @@
  * parse (its scripts and its template, where `{#await import('…')}` may sit).
  *
  * What it cannot see the bundler still loads: an `import()` of a computed specifier, a glob, an
- * import a transform or a macro writes. Those join the island graph when they resolve, and the
+ * import a transform or a macro writes, and an `export {} from '…'` (oxc's export record leaves a
+ * re-export with no names out). Those join the island graph when they resolve, and the
  * `island_graph_late` rule fails a rules build where one joins after its client transform.
  *
  * @packageDocumentation

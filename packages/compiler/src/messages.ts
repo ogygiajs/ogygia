@@ -133,7 +133,8 @@ export const BUILD_ERRORS = {
 			bundler meets first. It reads the imports a module spells out: static imports and
 			\`import()\` of a literal string, in \`.svelte\`, \`.js\`, \`.ts\`, \`.jsx\`, \`.tsx\`
 			and their \`.mjs\`/\`.cjs\`/\`.mts\`/\`.cts\` forms. An \`import()\` of a computed
-			string, an \`import.meta.glob\`, an import a plugin writes, and any import made by a file
+			string, an \`import.meta.glob\`, an \`export {} from\` with no names, an import a plugin
+			writes, and any import made by a file
 			of another kind (a markdown page or other source a plugin compiles) is only seen when the
 			bundler loads it, and here that came after the module was already built as page code.
 

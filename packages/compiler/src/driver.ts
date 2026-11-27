@@ -1052,8 +1052,9 @@ export class Compiler implements CoreApp {
 	 * joined the island graph after its client transform ran (`island_graph_late`). Its `$app/*`
 	 * imports had been read as a page's: which side it took hung on which importer the bundler
 	 * reached first. Each one is reached through an import the closure walk cannot see. A module that
-	 * imports no `$app/*` builds the same either way (Svelte's runtime, ogygia's own helpers a
-	 * generated module imports), so its late join is not one.
+	 * imports no `$app/*` itself is not reported (Svelte's runtime, ogygia's own helpers a generated
+	 * module imports), though one it imported while still page code may have kept Kit's `$app/*`:
+	 * that case goes unreported.
 	 */
 	check_island_order(): void {
 		const { island_graph } = this.program;
