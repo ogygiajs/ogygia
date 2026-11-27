@@ -7,7 +7,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { with_request_store } from '@sveltejs/kit/internal/server';
 import { HAS, set_server_word } from './_stubs/server.runtime-flags.ts';
 import { F_CONTEXT, F_PAGE, F_REMOTE_SEEDS } from '../src/contract/features.ts';
-import { FIXTURE_BUILD, set_kit_env_build, set_kit_public_env } from './_stubs/server.kit-env.ts';
+import {
+	FIXTURE_BUILD,
+	kit_env_build_asks,
+	set_kit_env_build,
+	set_kit_public_env
+} from './_stubs/server.kit-env.ts';
 
 const { handle } = await import('../src/hooks.ts');
 const { record_ctx, page_context_script } = await import('../src/context-registry.ts');
@@ -209,6 +214,13 @@ describe("Kit's public env (KIT-PUBLIC-ENV)", () => {
 	it('a page whose regions never import it carries none', async () => {
 		set_kit_public_env({ PUBLIC_REGION: 'eu' });
 		expect(await page(reads_none)).not.toContain('application/ogygia-env');
+	});
+
+	it("a page whose env holds no variable never asks the build's identity (a dev server with no dynamic public variable reads no config for it)", async () => {
+		set_kit_public_env({});
+		const before = kit_env_build_asks();
+		expect(await page(reads_env)).not.toContain('application/ogygia-env');
+		expect(kit_env_build_asks()).toBe(before);
 	});
 
 	it('none ships where Kit has no dynamic public variable, or no env ogygia reads (Kit 2)', async () => {

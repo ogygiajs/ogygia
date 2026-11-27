@@ -12,7 +12,7 @@
 // csr=true page; an island with a remote form and the query it refreshes; an island whose query
 // argument is a custom transport type; an island reading `page`; an island reading a static and a
 // dynamic public env var (dev also edits the dynamic one's default and reloads, and starts once with
-// no dynamic variable, then gains its first); outside the lake, a
+// no dynamic variable, then gains its first and makes it static again); outside the lake, a
 // page whose only region wakes on interaction and reads the dynamic var, opened straight and reached
 // by the router from a page that carries no env.
 //
@@ -281,7 +281,7 @@ test.describe('SvelteKit 3: build + dev on the packed ogygia (self-building fixt
 		}
 	});
 
-	test('dev: an app started with no dynamic public variable reads its first one once it is added, with no warning', async ({
+	test('dev: an app started with no dynamic public variable reads its first one once it is added, and its static value once it is static again, with no warning', async ({
 		browser
 	}) => {
 		test.setTimeout(5 * 60_000);
@@ -314,6 +314,16 @@ test.describe('SvelteKit 3: build + dev on the packed ogygia (self-building fixt
 				})
 				.toBe('region from env');
 			await exercise(await context.newPage(), base, '/', false);
+
+			// and back: the variable made static again while dev runs reads its static value
+			writeFileSync(env_file, env_source.replace(dynamic, static_only));
+			await expect
+				.poll(() => fresh_text(context, `${base}/`, '[data-public-dynamic-env]'), {
+					message: 'the variable made static again reads its static value after a reload',
+					timeout: 20_000
+				})
+				.toBe('region static');
+			await exercise(await context.newPage(), base, '/', false, 'region static');
 			await context.close();
 		} finally {
 			writeFileSync(env_file, env_source);

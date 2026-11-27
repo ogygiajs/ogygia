@@ -15,6 +15,7 @@ import {
 	rmSync,
 	writeFileSync
 } from 'node:fs';
+import { EventEmitter } from 'node:events';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { uneval } from 'devalue';
@@ -99,6 +100,15 @@ function app({ csr = false }: { csr?: boolean } = {}): void {
 	);
 	write('src/routes/+layout.ts', `export const csr = ${csr};\n`);
 }
+
+/** Kit 3's generated env config for an app with one dynamic public variable. */
+const DYNAMIC_ENV_CONFIG = dedent`
+	export const rendered_env = {};
+	export function set_env(env) {
+		const PUBLIC_REGION = env.PUBLIC_REGION;
+		rendered_env.PUBLIC_REGION = PUBLIC_REGION;
+	}
+`;
 
 /** What a hook's `this` carries: its environment (the leg), and the bundler calls it makes. */
 function hook_this(leg: Leg) {
@@ -1054,7 +1064,37 @@ describe('transform', () => {
 					warned.mockRestore();
 				}
 			});
+
+			it(`${mode}: the empty module Kit writes for an app with no src/env.js is left as Kit wrote it, and says nothing`, async () => {
+				const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+				try {
+					for (const code of ['', '\n']) expect(await patched(mode, 'client', code)).toBe(code);
+					expect(warned).not.toHaveBeenCalled();
+				} finally {
+					warned.mockRestore();
+				}
+			});
 		}
+
+		it("a build's two legs bear one identity, though a plugin writes into src between them", async () => {
+			app();
+			write(
+				'node_modules/@sveltejs/kit/package.json',
+				JSON.stringify({ name: '@sveltejs/kit', version: '3.1.0' })
+			);
+			write('.svelte-kit/generated/build/env/config.js', DYNAMIC_ENV_CONFIG);
+			const { p, resolved } = await setup('build');
+			await begin(p, 'ssr');
+			const server = (await load(p, 'ogygia:server/kit-env', 'ssr')) ?? '';
+			const id = /kit_env_build\(\) \{ return "([0-9a-f]{12})"; \}/.exec(server)?.[1];
+			expect(id, server).toBeDefined();
+			write('src/lib/Generated.svelte', '<p>written mid-build</p>\n');
+			p.configResolved.call(hook_this('client'), { ...resolved });
+			await begin(p, 'client');
+			expect(await load(p, 'ogygia:boot/kit-env', 'client')).toContain(
+				`read(${JSON.stringify(id)})`
+			);
+		});
 	});
 
 	it("a module's names from a realm module are imported from the entries that have them", async () => {
@@ -2330,5 +2370,83 @@ describe('the dev server', () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+});
+
+describe("the dev bridge: what a dev server's generated server modules read off the compiler serving them", () => {
+	const g = globalThis as Record<symbol, unknown>;
+	/** The globals that name this app's root. */
+	const slots = () =>
+		Object.getOwnPropertySymbols(globalThis).filter((s) => s.description?.includes(root));
+	const dev_server = () => ({
+		httpServer: new EventEmitter(),
+		watcher: { emit: () => {} },
+		ws: { send: () => {} },
+		moduleGraph: { getModuleById: () => null, invalidateModule: () => {} }
+	});
+	const kit3 = () => {
+		app();
+		write(
+			'node_modules/@sveltejs/kit/package.json',
+			JSON.stringify({ name: '@sveltejs/kit', version: '3.1.0' })
+		);
+	};
+	afterEach(() => {
+		for (const s of slots()) delete g[s];
+	});
+
+	it('is one global per app root holding both readers, and both generated server modules read through it', async () => {
+		kit3();
+		const { p } = await setup('serve');
+		p.configureServer(dev_server());
+		const found = slots();
+		expect(found).toHaveLength(1);
+		const bridge = g[found[0]!] as Record<string, unknown>;
+		expect([typeof bridge.fn_manifest, typeof bridge.kit_env_build]).toEqual([
+			'function',
+			'function'
+		]);
+		const named = JSON.stringify(found[0]!.description);
+		for (const spec of ['ogygia:server/region-deps', 'ogygia:server/kit-env']) {
+			const code = (await load(p, spec, 'ssr')) ?? '';
+			const keys = [...code.matchAll(/Symbol\.for\(("[^"]*")\)/g)].map((m) => m[1]);
+			expect(keys, spec).toEqual([named]);
+		}
+	});
+
+	it('reads the compiler the session holds when it is asked, not the one it was opened with', async () => {
+		kit3();
+		write('.svelte-kit/generated/dev/env/config.js', DYNAMIC_ENV_CONFIG);
+		const { p, resolved } = await setup('serve');
+		p.configureServer(dev_server());
+		const bridge = g[slots()[0]!] as { kit_env_build(): string };
+		const before = bridge.kit_env_build();
+		expect(before).toMatch(/^[0-9a-f]{12}$/);
+		write('src/routes/+page.svelte', '<h1>edited</h1>\n');
+		await p.config.handler.call(
+			hook_this('ssr'),
+			{ root, plugins: [] },
+			{ command: 'serve', mode: 'development' }
+		);
+		p.configResolved.call(hook_this('ssr'), resolved);
+		const after = bridge.kit_env_build();
+		expect(after).toMatch(/^[0-9a-f]{12}$/);
+		expect(after).not.toBe(before);
+	});
+
+	it('closes with its dev server, and a second dev server of the same root keeps its own', async () => {
+		kit3();
+		const a = await setup('serve');
+		const b = await setup('serve');
+		const sa = dev_server();
+		const sb = dev_server();
+		a.p.configureServer(sa);
+		b.p.configureServer(sb);
+		const [slot] = slots();
+		const held = g[slot!];
+		sa.httpServer.emit('close');
+		expect(g[slot!]).toBe(held);
+		sb.httpServer.emit('close');
+		expect(slots()).toEqual([]);
 	});
 });
