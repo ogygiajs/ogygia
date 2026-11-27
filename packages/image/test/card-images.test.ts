@@ -206,7 +206,7 @@ describe("a card's images, as satori is handed them", () => {
 		const huge = await sharp({
 			create: { width: 9000, height: 9000, channels: 3, background: '#ff0000' }
 		})
-			.png()
+			.png({ palette: true, colours: 2 })
 			.toBuffer();
 		const data = `data:image/png;base64,${huge.toString('base64')}`;
 		let fits = 0;
