@@ -9633,6 +9633,10 @@
 			"reason": "build only, once per client leg at buildStart: takes the bundler's resolver (a function: not cloneable) and drives #closure; proven in packages/compiler/test/island-closure-packages.test.ts"
 		},
 		{
+			"id": "packages/compiler/src/driver.ts > Compiler > #imports_app_shim",
+			"reason": "OGYGIA_RULES builds only, client leg: one #imports_of read per module transformed outside the island graph; proven in packages/compiler/test/island-closure-packages.test.ts"
+		},
+		{
 			"id": "packages/compiler/src/driver.ts > Compiler > check_island_order",
 			"reason": "OGYGIA_RULES builds only, once per client leg at buildEnd: one set lookup per module that read $app/* outside the island graph; proven in packages/compiler/test/island-closure-packages.test.ts"
 		}
