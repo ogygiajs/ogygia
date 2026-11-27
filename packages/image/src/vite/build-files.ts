@@ -261,11 +261,11 @@ class BuildMakes {
 		if (kept) return { recipe, data: await fs.promises.readFile(kept.file) };
 		const fetch = async (url: string): Promise<Uint8Array> =>
 			new Uint8Array(await fs.promises.readFile(await fetch_remote(url, 'a share card')));
-		const urls = await this.#store.find(`${plain}${SHOWN}`);
+		const record = await this.#store.find(`${plain}${SHOWN}`);
+		const urls = record && shown_urls(await fs.promises.readFile(record.file, 'utf8'));
 		if (urls) {
 			const reads = new Map<string, string>();
-			for (const url of JSON.parse(await fs.promises.readFile(urls.file, 'utf8')) as string[])
-				reads.set(url, await source_id(await fetch(url)));
+			for (const url of urls) reads.set(url, await source_id(await fetch(url)));
 			const named = { ...recipe, id: card_shown_id(recipe.id, reads) };
 			const hit = await this.#store.find(recipe_file(named));
 			if (hit) return { recipe: named, data: await fs.promises.readFile(hit.file) };
@@ -300,6 +300,23 @@ class BuildMakes {
 		BuildMakes.#open.delete(this.#minted);
 		this.#scope.close();
 	}
+}
+
+const HTTP_URL_RE = /^https?:\/\//i;
+
+function shown_urls(text: string): string[] | null {
+	let urls: unknown;
+	try {
+		urls = JSON.parse(text);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a torn record is a miss: the card is drawn again and its record kept anew
+	} catch {
+		return null;
+	}
+	return Array.isArray(urls) &&
+		urls.length > 0 &&
+		urls.every((url) => typeof url === 'string' && HTTP_URL_RE.test(url))
+		? (urls as string[])
+		: null;
 }
 
 async function made(
