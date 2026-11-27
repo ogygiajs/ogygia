@@ -123,18 +123,29 @@ describe.skipIf(!built)('a tab behind another', () => {
 	});
 
 	it('is not judged while behind with a frame owed: a visible island its hole brought after it went behind wakes when the visitor looks (#2176)', async () => {
-		// (seed 6's delays bring the page's top holes after its first frame)
+		// (its region requests are held until it is behind: seed 6's delays brought them after its
+		// first frame on one build and before it on another of the same commit, since a request's
+		// delays are drawn by its address and the address holds the build's region ids; CI run
+		// 45967491968)
 		const world = await World.make({
-			seed: 6,
+			seed: 1,
 			builds: [{ id: 'v1', output: OUTPUT }],
-			secret: 'sim-secret',
-			faults: new Set(['delay'])
+			secret: 'sim-secret'
 		});
 		try {
 			const v = world.visitor('v');
 			const front = world.tab(v);
 			await world.go(front, 'goto', '/');
 			const tab = world.tab(v);
+			const top_hole = (url: URL) => {
+				const props = url.searchParams.get('props');
+				if (url.pathname !== '/__ogygia__' || props === null) return false;
+				const [, start] = JSON.parse(Buffer.from(props, 'base64url').toString()) as unknown[];
+				return start === 710 || start === 720;
+			};
+			const let_go = world.network.hold(
+				(url, realm) => realm.split('#')[0] === tab.name && top_hole(url)
+			);
 			world.browsers.focus(v, tab);
 			await world.start(tab, 'goto', '/nest-matrix/kit', 0);
 			const doc = tab.page.mainFrame.document as unknown as Document;
@@ -145,7 +156,15 @@ describe.skipIf(!built)('a tab behind another', () => {
 			while (!tab.framed.has(tab.realm) && (await world.loop.step()));
 			expect(tab.framed.has(tab.realm), 'the case it is for: its islands had a frame').toBe(true);
 			expect(inner(), 'and its top holes had not answered yet').toBeNull();
+			const holes = world.network.exchanges.filter(
+				(e) => e.from === tab.realm && top_hole(new URL(e.url))
+			);
+			expect(
+				holes.map((e) => e.status),
+				'they are asked, and on the wire'
+			).toEqual(['pending', 'pending']);
 			world.browsers.focus(v, front);
+			let_go();
 			await world.rest();
 			expect(inner(), 'the hole answered behind').not.toBeNull();
 			expect(inner()!.hasAttribute('data-hydrated'), 'its island waits for a frame').toBe(false);
