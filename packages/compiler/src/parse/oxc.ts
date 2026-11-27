@@ -56,3 +56,30 @@ export function parse_module(code: string, id: string): ParseResult {
 		return { program: null, ok: false, comments: [] };
 	}
 }
+
+type Span = { start: number; end: number };
+/** What a module imports and re-exports, as oxc's parse records it (offsets exact against the code). */
+export interface ModuleRecord {
+	readonly staticImports: ReadonlyArray<{
+		moduleRequest: Span & { value: string };
+		entries: ReadonlyArray<{ isType: boolean }>;
+	}>;
+	readonly staticExports: ReadonlyArray<{
+		entries: ReadonlyArray<{ moduleRequest: (Span & { value: string }) | null; isType: boolean }>;
+	}>;
+	readonly dynamicImports: ReadonlyArray<{ moduleRequest: Span }>;
+}
+
+/** The import record of the script `code` (named by `id`, whose extension picks the dialect), or
+ *  null when it does not parse. */
+export function module_record(code: string, id: string): ModuleRecord | null {
+	let result: ReturnType<RawParse> & { module?: ModuleRecord };
+	try {
+		result = raw_parse(id, code);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- null is "did not parse"; the caller reads the source another way
+	} catch {
+		return null;
+	}
+	if (!result.module || (result.errors && result.errors.length > 0)) return null;
+	return result.module;
+}

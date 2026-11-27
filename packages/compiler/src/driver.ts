@@ -24,6 +24,7 @@ import { is_script_request } from './script-request.ts';
 import { resolveFeatures, type FeatureId, type RuntimeMarks } from './link/runtime-entry.ts';
 import { FOUC_CSS_PREFIX, FOUC_SCOPED_PREFIX } from './fouc-css.ts';
 import { resolve_app_spec } from './app-spec.ts';
+import { island_imports } from './link/island-imports.ts';
 import {
 	moduleHasTransportable,
 	svelteModuleHasTransportable,
@@ -112,6 +113,8 @@ interface Build {
 	readonly reach_memo: Map<string, boolean>;
 	readonly specs_memo: Map<string, readonly string[]>;
 	readonly island_closure_seen: Set<string>;
+	readonly closure_frontier: ClosureEdge[];
+	readonly transformed_outside_islands: Set<string>;
 	readonly virtuals: VirtualTable<CoreApp>;
 }
 const new_build = (program: Program): Build => ({
@@ -134,7 +137,9 @@ const new_build = (program: Program): Build => ({
 	resolve_memo: new Map(),
 	reach_memo: new Map(),
 	specs_memo: new Map(),
-	island_closure_seen: new Set()
+	island_closure_seen: new Set(),
+	closure_frontier: [],
+	transformed_outside_islands: new Set()
 });
 
 /** Shared OGYGIA_PROFILE instrument — the adapter owns the maps/counters; the driver writes into
@@ -171,8 +176,12 @@ const SCRIPT_MODULE_RE = /\.(?:[cm]?[jt]sx?)$/;
 const SOURCE_EXT_RE = /\.(svelte|ts|js|mjs|cjs)$/;
 const SERVER_MODULE_EXT_RE = /\.(server|remote)\.(ts|js|mjs)$/;
 const SERVER_DIR_RE = /\/(src\/lib\/server|server)\//;
-const IMPORT_SPEC_G =
-	/\bfrom\s*['"]([^'"\n]+)['"]|\bimport\s*['"]([^'"\n]+)['"]|\bimport\s*\(\s*['"]([^'"\n]+)['"]/g;
+const NODE_MODULES_DIR = `${path.sep}node_modules${path.sep}`;
+interface ClosureEdge {
+	readonly spec: string;
+	readonly importer: string;
+}
+type ClosureResolve = (spec: string, importer: string) => Promise<string | null>;
 const PAGE_FREE_APP_MODULES: ReadonlySet<string> = new Set(['$app/environment', '$app/paths']);
 const ASSET_EXTS =
 	'css|scss|sass|less|styl|pcss|postcss|json|svg|png|jpe?g|gif|webp|avif|ico|bmp|woff2?|ttf|otf|eot|txt|wasm|mp4|webm|mp3|wav';
@@ -985,6 +994,10 @@ export class Compiler implements CoreApp {
 	 *  server's module graph, transformed with Kit's real `$app/*` for a non-island importer; the
 	 *  plugin drains this list and drops those cached transforms so the next load re-resolves them. */
 	#closure_added: string[] = [];
+	/** Each walked file's imports, with the source they were read from (kept across rebuilds). */
+	readonly #closure_imports = new Map<string, { src: string; specs: readonly string[] }>();
+	/** What the bundler resolved each package file's import to (`importer\0spec`), across rebuilds. */
+	readonly #package_resolves = new Map<string, string | null>();
 
 	#mark_registered_closures(result: TransformResult): void {
 		if (!this.#ctx.is_dev) return;
@@ -1003,94 +1016,154 @@ export class Compiler implements CoreApp {
 
 	/**
 	 * Mark `componentAbs` and everything it imports through relative paths and the app's aliases as
-	 * island code, before the bundler resolves any of it; a bare package specifier stops the walk.
-	 * Returns the modules marked for the first time by this call.
+	 * island code, before the bundler resolves any of it. A bare package specifier stops this walk; a
+	 * build keeps it for {@link follow_island_closure}. Returns the modules marked for the first time
+	 * by this call.
 	 */
 	mark_island_closure(componentAbs: string): string[] {
-		const ctx = this.#ctx;
-		const { island_graph } = this.program;
-		const spec_ctx = ctx.app_spec;
-		const added: string[] = [];
-		const resolve_dep = (spec: string, importerAbs: string): string | null => {
-			const base = resolve_app_spec(spec, importerAbs, spec_ctx);
-			if (!base) return null;
-			for (const ext of ISLAND_DEP_EXTS) if (ctx.fs.stat(base + ext) === 'file') return base + ext;
-			for (const ext of ISLAND_DEP_EXTS.slice(1)) {
-				const idx = path.join(base, `index${ext}`);
-				if (ctx.fs.stat(idx) === 'file') return idx;
-			}
-			return null;
-		};
-		const walk = (abs: string) => {
-			const norm = strip_id(abs);
-			const seen = this.#build.island_closure_seen;
-			if (seen.has(norm)) return;
-			seen.add(norm);
-			if (!island_graph.has(norm)) {
-				island_graph.add(norm);
-				added.push(norm);
-			}
-			if (!SOURCE_EXT_RE.test(norm)) {
-				if (!ASSET_EXT_RE.test(norm)) this.program.island_reads_page = true;
-				return;
-			}
-			const src = ctx.read_file(norm);
-			if (src == null) return;
-			for (const m of src.matchAll(IMPORT_SPEC_G)) {
-				const spec = m[1] || m[2] || m[3];
-				if (!spec || spec[0] === '\0') continue;
-				if (spec.startsWith('$app/')) {
-					if (!PAGE_FREE_APP_MODULES.has(spec)) this.program.island_reads_page = true;
-					continue;
-				}
-				if (spec.startsWith('$env/') || is_generated_specifier(spec)) continue;
-				const dep = resolve_dep(spec, norm);
-				if (dep) walk(dep);
-				else if (!PAGE_FREE_UNRESOLVED_RE.test(spec)) this.program.island_reads_page = true;
-			}
-		};
-		walk(componentAbs);
-		return added;
+		const walk = this.#closure([componentAbs], [], true);
+		for (let step = walk.next(); ;) {
+			if (step.done) return step.value;
+			const found: (string | null)[] = [];
+			for (const edge of step.value) found.push(this.#app_resolve(edge));
+			step = walk.next(found);
+		}
 	}
 
 	/**
-	 * BUILD, client leg, before any module loads: finish the island closure through the bundler's
-	 * own resolver, past the bare package specifiers {@link mark_island_closure} stops at. A package
-	 * module an island reaches is island code (its `$app/*` imports read the shims); left to the
-	 * resolver, it became island code only when an island's import of it resolved before the module
-	 * itself was transformed, so a module a page also imports was shimmed or not by bundler order,
-	 * and identical builds wrote different client chunks (#2184).
+	 * BUILD, client leg, before any module loads: go on with the island closure past the package
+	 * specifiers {@link mark_island_closure} stopped at, through the bundler's own resolver, so every
+	 * module an island reaches is island code (its `$app/*` imports read the shims) before any
+	 * transform or resolve asks.
 	 */
-	async follow_island_closure(
-		resolve: (spec: string, importer: string) => Promise<string | null>
-	): Promise<void> {
-		const ctx = this.#ctx;
+	async follow_island_closure(resolve: ClosureResolve): Promise<void> {
+		const walk = this.#closure([], this.#build.closure_frontier.splice(0), false);
+		for (let step = walk.next(); !step.done;)
+			step = walk.next(await this.#bundler_resolve(step.value, resolve));
+	}
+
+	/**
+	 * OGYGIA_RULES builds, the client leg's end: stops the build when a module that imports `$app/*`
+	 * joined the island graph after its client transform ran (`island_graph_late`). Its `$app/*`
+	 * imports had been read as a page's: which side it took hung on which importer the bundler
+	 * reached first. Each one is reached through an import the closure walk cannot see. A module that
+	 * imports no `$app/*` builds the same either way (Svelte's runtime, ogygia's own helpers a
+	 * generated module imports), so its late join is not one.
+	 */
+	check_island_order(): void {
 		const { island_graph } = this.program;
-		const queue = [...island_graph];
-		const queued = new Set(queue);
-		for (let i = 0; i < queue.length; i++) {
-			const file = queue[i];
-			if (!SOURCE_EXT_RE.test(file)) continue;
-			const src = ctx.read_file(file);
-			if (src == null) continue;
-			const specs = new Set<string>();
-			for (const m of src.matchAll(IMPORT_SPEC_G)) {
-				const spec = m[1] || m[2] || m[3];
-				if (!spec || spec[0] === '\0' || spec.startsWith('$app/') || spec.startsWith('$env/'))
+		const late: string[] = [];
+		for (const id of this.#build.transformed_outside_islands)
+			if (island_graph.has(id)) late.push(prescan_rel(this.#ctx, id));
+		if (late.length)
+			throw new OgygiaError('island_graph_late', { modules: late.sort().join(', ') });
+	}
+
+	/**
+	 * The island closure walk, one level of imports at a time: it yields each level's imports and is
+	 * handed back what each resolved to (null: not resolved), in order. `app`: the resolver is the
+	 * app-path one (`mark_island_closure`), so an import it leaves unresolved may read Kit's page, and
+	 * a build keeps it for the bundler's resolver. Returns the modules marked for the first time.
+	 */
+	*#closure(
+		files: readonly string[],
+		pending: readonly ClosureEdge[],
+		app: boolean
+	): Generator<readonly ClosureEdge[], string[], readonly (string | null)[]> {
+		const program = this.program;
+		const { island_graph } = program;
+		const seen = this.#build.island_closure_seen;
+		const added: string[] = [];
+		let level = files;
+		let edges = [...pending];
+		for (;;) {
+			for (const abs of level) {
+				const file = strip_id(abs);
+				if (seen.has(file)) continue;
+				seen.add(file);
+				if (!island_graph.has(file)) {
+					island_graph.add(file);
+					added.push(file);
+				}
+				if (!SOURCE_EXT_RE.test(file)) {
+					if (app && !ASSET_EXT_RE.test(file)) program.island_reads_page = true;
 					continue;
-				if (is_generated_specifier(spec) || is_island_path(spec)) continue;
-				specs.add(spec);
+				}
+				const src = this.#ctx.read_file(file);
+				if (src == null) continue;
+				for (const spec of this.#imports_of(file, src)) {
+					if (!spec || spec[0] === '\0') continue;
+					if (spec.startsWith('$app/')) {
+						if (app && !PAGE_FREE_APP_MODULES.has(spec)) program.island_reads_page = true;
+						continue;
+					}
+					if (spec.startsWith('$env/') || is_generated_specifier(spec) || is_island_path(spec))
+						continue;
+					if (PAGE_FREE_UNRESOLVED_RE.test(spec)) continue;
+					edges.push({ spec, importer: file });
+				}
 			}
-			const found = await Promise.all([...specs].map((spec) => resolve(spec, file)));
-			for (const id of found) {
-				if (id === null || id.startsWith('\0')) continue;
-				const dep = strip_id(id);
-				island_graph.add(dep);
-				if (queued.has(dep)) continue;
-				queued.add(dep);
-				queue.push(dep);
+			if (edges.length === 0) return added;
+			const found = yield edges;
+			const next: string[] = [];
+			for (let i = 0; i < edges.length; i++) {
+				const id = found[i] ?? null;
+				if (id !== null) {
+					if (!id.startsWith('\0')) next.push(id);
+				} else if (app) {
+					program.island_reads_page = true;
+					if (this.#ctx.is_build) this.#build.closure_frontier.push(edges[i]);
+				}
 			}
+			level = next;
+			edges = [];
 		}
+	}
+
+	/** What the app-path resolver makes of an import: the root, `$lib`, the aliases, then a file by
+	 *  extension or an `index` file. */
+	#app_resolve({ spec, importer }: ClosureEdge): string | null {
+		const ctx = this.#ctx;
+		const base = resolve_app_spec(spec, importer, ctx.app_spec);
+		if (!base) return null;
+		for (const ext of ISLAND_DEP_EXTS) if (ctx.fs.stat(base + ext) === 'file') return base + ext;
+		for (const ext of ISLAND_DEP_EXTS.slice(1)) {
+			const idx = path.join(base, `index${ext}`);
+			if (ctx.fs.stat(idx) === 'file') return idx;
+		}
+		return null;
+	}
+
+	/** One level of the walk through the bundler's resolver, all at once. An import a package file
+	 *  makes resolves the same in every rebuild of one watch, so it is asked once. */
+	async #bundler_resolve(
+		edges: readonly ClosureEdge[],
+		resolve: ClosureResolve
+	): Promise<(string | null)[]> {
+		const known = this.#package_resolves;
+		const keys: (string | null)[] = [];
+		const asks: Promise<string | null>[] = [];
+		for (const { spec, importer } of edges) {
+			const key = importer.includes(NODE_MODULES_DIR) ? `${importer}\0${spec}` : null;
+			const had = key === null ? undefined : known.get(key);
+			keys.push(had === undefined ? key : null);
+			asks.push(had === undefined ? resolve(spec, importer) : Promise.resolve(had));
+		}
+		const found = await Promise.all(asks);
+		for (let i = 0; i < keys.length; i++) {
+			const key = keys[i];
+			if (key !== null) known.set(key, found[i]);
+		}
+		return found;
+	}
+
+	/** The imports of `file`, read once per version of its source (link/island-imports.ts). */
+	#imports_of(file: string, src: string): readonly string[] {
+		const had = this.#closure_imports.get(file);
+		if (had?.src === src) return had.specs;
+		const specs = island_imports(src, file);
+		this.#closure_imports.set(file, { src, specs });
+		return specs;
 	}
 
 	/**
@@ -1724,6 +1797,15 @@ export class Compiler implements CoreApp {
 
 		const id_n = strip_id(id);
 		if (ssr && ctx.is_build) program.ssr_transformed.add(host_key(id_n));
+		if (
+			!ssr &&
+			ctx.is_build &&
+			ctx.rules &&
+			!island_graph.has(id_n) &&
+			(id_n.endsWith('.svelte') || SCRIPT_MODULE_RE.test(id_n)) &&
+			code.search(APP_SHIM_IMPORT) !== -1
+		)
+			this.#build.transformed_outside_islands.add(id_n);
 		if (ctx.is_dev && is_script_request(id)) {
 			const kind = this.#scans(id_n);
 			if (kind) this.#scan_facts(path.normalize(id_n), code, kind);

@@ -682,6 +682,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						client_binding_stub_file: CLIENT_BINDING_STUB_FILE,
 						app_shims: APP_SHIMS,
 						is_build,
+						rules: process.env.OGYGIA_RULES === '1',
 						devtools: devtools_effective
 					});
 					return prev
@@ -795,9 +796,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				vite_server.ws.send({ type: 'full-reload', path: '*' });
 			},
 
-			buildEnd() {
+			buildEnd(error) {
 				const compiler = compiler_of(session, 'buildEnd');
 				const server_leg = leg_of(this).server;
+				if (is_build && !server_leg && !error) compiler.check_island_order();
 				if (is_build && server_leg && !standalone) {
 					const json = server_handoff_json(
 						compiler.ssr_transformed_hosts(),
