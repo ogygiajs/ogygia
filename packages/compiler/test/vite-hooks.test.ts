@@ -932,6 +932,43 @@ describe('transform', () => {
 		});
 	});
 
+	describe("Kit 3's built $app/env/public", () => {
+		const KIT_ENV = dedent`
+			import { payload } from "../../../../node_modules/@sveltejs/kit/src/runtime/client/payload.js";
+			const env = payload.env;
+
+			export const PUBLIC_GREETING = "hello";
+			export const PUBLIC_REGION = env.PUBLIC_REGION;
+		`;
+		const env_module = () => path.join(root, '.svelte-kit/generated/build/env/public/client.js');
+		const IMPORT_RE = /^import \{ (\w+)(?: as (\w+))? \} from .*$/gm;
+		const evaluate = (code: string, payload: Record<string, unknown>, sent: unknown) => {
+			const out: Record<string, unknown> = {};
+			const given: Record<string, unknown> = { payload, kit_env: () => sent };
+			const body = code.replace(IMPORT_RE, (_, name: string, local?: string) => {
+				return `const ${local ?? name} = given.${name};`;
+			});
+			// oxlint-disable-next-line typescript/no-implied-eval -- the module text under test, its imports handed in
+			new Function('given', 'out', body.replaceAll('export const ', 'out.'))(given, out);
+			return out;
+		};
+		const built = async () => {
+			app();
+			const p = await begin((await setup('build')).p, 'client');
+			const out = (await p.transform.call(hook_this('client'), KIT_ENV, env_module(), {
+				ssr: false
+			})) as { code: string } | null;
+			return out?.code ?? KIT_ENV;
+		};
+
+		it('reads on a document Kit never boots (csr=false), with the env the server sent', async () => {
+			expect(evaluate(await built(), {}, { PUBLIC_REGION: 'eu' })).toEqual({
+				PUBLIC_GREETING: 'hello',
+				PUBLIC_REGION: 'eu'
+			});
+		});
+	});
+
 	it("a module's names from a realm module are imported from the entries that have them", async () => {
 		app();
 		const { p } = await setup('serve');

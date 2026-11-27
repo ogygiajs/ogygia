@@ -6,15 +6,17 @@
 //   appended and islands on csr=true pages never got Kit's page;
 // - the thread imported `$app/stores`, which Kit 3 removed (subscribing throws);
 // - its remote ARGUMENT encoding reads the app's transport from a module only Kit's boot fills;
-// - its dev `$app/env/public` reads `globalThis.__sveltekit_dev`, which only Kit's boot sets.
+// - its `$app/env/public` reads a dynamic variable from Kit's boot payload (`__sveltekit_dev` in dev,
+//   `payload.env` in a build), which only Kit's boot fills.
 // The app: a lake in a csr=false layout (islands + a hole inside) serving a csr=false page and a
 // csr=true page; an island with a remote form and the query it refreshes; an island whose query
-// argument is a custom transport type; an island reading `page`; an island reading a public env var.
+// argument is a custom transport type; an island reading `page`; an island reading a static and a
+// dynamic public env var (dev also edits the dynamic one's default and reloads).
 //
 // Standalone install (not a workspace member): a workspace link would resolve ogygia's own Kit 2 dev
 // install next to the app's Kit 3. Usage: pnpm exec playwright test kit3
 import { spawnSync, type SpawnSyncOptions } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,7 +66,13 @@ function prepare(): void {
 }
 
 /** One page of the lake: every island hydrated, the hole filled, each island working. */
-async function exercise(page: Page, base: string, path: string, kit_page: boolean) {
+async function exercise(
+	page: Page,
+	base: string,
+	path: string,
+	kit_page: boolean,
+	region_name = 'region from env'
+) {
 	const errs: string[] = [];
 	page.on('pageerror', (e) => errs.push(e.message));
 	page.on('console', (m) => {
@@ -91,6 +99,10 @@ async function exercise(page: Page, base: string, path: string, kit_page: boolea
 	check(
 		`${at} an island that imports $app/env/public reads its value`,
 		(await page.textContent('[data-public-env]')) === 'hello from env'
+	);
+	check(
+		`${at} an island reads a dynamic public env var (static: false)`,
+		(await page.textContent('[data-public-dynamic-env]')) === region_name
 	);
 
 	// a custom transport type as a remote ARGUMENT, re-sent from the browser
@@ -191,6 +203,28 @@ test.describe('SvelteKit 3: build + dev on the packed ogygia (self-building fixt
 			const context = await browser.newContext();
 			await exercise(await context.newPage(), base, '/', false);
 			await exercise(await context.newPage(), base, '/kit', true);
+
+			// a dynamic variable's default edited while dev runs: the next load reads the new value
+			const env_file = join(APP, 'src/env.js');
+			const env_source = readFileSync(env_file, 'utf8');
+			try {
+				writeFileSync(env_file, env_source.replace("'region from env'", "'region edited'"));
+				await expect
+					.poll(
+						async () => {
+							const fresh = await context.newPage();
+							await fresh.goto(`${base}/`, { waitUntil: 'networkidle' });
+							const text = await fresh.textContent('[data-public-dynamic-env]');
+							await fresh.close();
+							return text;
+						},
+						{ timeout: 20_000 }
+					)
+					.toBe('region edited');
+				await exercise(await context.newPage(), base, '/', false, 'region edited');
+			} finally {
+				writeFileSync(env_file, env_source);
+			}
 			await context.close();
 		} finally {
 			await srv?.kill();
