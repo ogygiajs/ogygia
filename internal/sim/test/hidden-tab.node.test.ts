@@ -122,6 +122,43 @@ describe.skipIf(!built)('a tab behind another', () => {
 		}
 	});
 
+	it('is not judged while behind with a frame owed: a visible island its hole brought after it went behind wakes when the visitor looks (#2176)', async () => {
+		// (seed 6's delays bring the page's top holes after its first frame)
+		const world = await World.make({
+			seed: 6,
+			builds: [{ id: 'v1', output: OUTPUT }],
+			secret: 'sim-secret',
+			faults: new Set(['delay'])
+		});
+		try {
+			const v = world.visitor('v');
+			const front = world.tab(v);
+			await world.go(front, 'goto', '/');
+			const tab = world.tab(v);
+			world.browsers.focus(v, tab);
+			await world.start(tab, 'goto', '/nest-matrix/kit', 0);
+			const doc = tab.page.mainFrame.document as unknown as Document;
+			const inner = () =>
+				doc.querySelector(
+					'[data-case="snippet-root-hole"] [data-mx-hole] ogygia-region[wake="visible"]'
+				);
+			while (!tab.framed.has(tab.realm) && (await world.loop.step()));
+			expect(tab.framed.has(tab.realm), 'the case it is for: its islands had a frame').toBe(true);
+			expect(inner(), 'and its top holes had not answered yet').toBeNull();
+			world.browsers.focus(v, front);
+			await world.rest();
+			expect(inner(), 'the hole answered behind').not.toBeNull();
+			expect(inner()!.hasAttribute('data-hydrated'), 'its island waits for a frame').toBe(false);
+			expect(await mpa_equivalent(world, v, tab)).toBeNull();
+			world.browsers.focus(v, tab);
+			await world.rest();
+			expect(inner()!.hasAttribute('data-hydrated'), 'it wakes once looked at').toBe(true);
+			expect(await mpa_equivalent(world, v, tab)).toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
+
 	it('is judged against a shown fresh load when its islands had a frame before it went behind', async () => {
 		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
 		try {
