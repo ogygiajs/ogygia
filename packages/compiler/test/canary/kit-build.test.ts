@@ -12,7 +12,11 @@ import path from 'node:path';
 import * as devalue from 'devalue';
 import { dedent } from '@ogygia/core/contract';
 import { clientBuildWillSkip, resolve_kit_paths, route_reader } from '../../src/kit.ts';
-import { KIT_PATCHES, KIT_PUBLIC_ENV_CLIENT_RE } from '../../src/kit-patches.ts';
+import {
+	KIT_PATCHES,
+	KIT_PUBLIC_ENV_CLIENT_RE,
+	kit_public_env_module
+} from '../../src/kit-patches.ts';
 import { node_fs } from '../../src/fs.ts';
 import { APP_DIR, KitApp, OUT_DIR } from '../../../core/test/canary/kit-app.ts';
 import { broke, KITS, type Internal } from '../../../core/test/canary/upstream.ts';
@@ -71,6 +75,7 @@ const PUBLIC_ENV: Internal = {
 };
 
 const KIT_DIRS = path.join(import.meta.dirname, '../../src/vite/kit-dirs.ts');
+const DEVALUE_TEXT = path.join(import.meta.dirname, '../../../core/src/server/devalue-text.ts');
 
 /** The CSS a page links, read back from the build's client output. */
 function linked_css(app: KitApp, html: string): string {
@@ -113,7 +118,34 @@ function with_public_env(app: KitApp): KitApp {
 			<p data-region>{PUBLIC_REGION}</p>
 		`
 	);
+	fs.writeFileSync(
+		path.join(app.dir, 'src/lib/kit-env.js'),
+		kit_public_env_module(app.major, 'canary-build')
+	);
+	app.export_from('kit_public_env', './kit-env.js');
+	app.export_from('kit_env_build', './kit-env.js');
+	app.export_from('devalue_text', DEVALUE_TEXT);
+	fs.mkdirSync(path.join(app.dir, 'src/pages/env-channel'), { recursive: true });
+	fs.writeFileSync(
+		path.join(app.dir, 'src/pages/env-channel/+server.js'),
+		dedent`
+			import { devalue_text, kit_env_build, kit_public_env } from '$lib/ogygia';
+			export const GET = () => {
+				const env = kit_public_env();
+				return Response.json({ env, channel: devalue_text({ build: kit_env_build, env }, {}) });
+			};
+		`
+	);
 	return app;
+}
+
+/** ogygia's server module as the app's Kit serves it: Kit's rendered env, and the channel text
+ *  core's env seed writes from it (server/env-seed.ts). */
+async function ogygia_env(app: KitApp): Promise<{ env: Record<string, unknown>; channel: string }> {
+	return (await fetch(new URL('/env-channel', app.url))).json() as Promise<{
+		env: Record<string, unknown>;
+		channel: string;
+	}>;
 }
 
 /** Each row of the patch table whose module this Kit generates for `mode` finds Kit's text where
@@ -178,6 +210,22 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 				expect(env, broke(PUBLIC_ENV, "Kit's payload env is not its rendered public env")).toBe(
 					devalue.uneval({ PUBLIC_REGION: REGION_DEFAULT })
 				);
+			}
+		);
+
+		it.skipIf(app.major < 3)(
+			"ogygia's server module renders Kit's public env in dev, and its channel holds no private or static variable",
+			async () => {
+				const { env, channel } = await ogygia_env(app);
+				expect_no_private_or_static(env);
+				expect_no_private_or_static(channel);
+				expect(env, broke(PUBLIC_ENV, 'the dev server module renders another env')).toEqual({
+					PUBLIC_REGION: REGION_DEFAULT
+				});
+				expect(devalue.parse(channel)).toEqual({
+					build: 'canary-build',
+					env: { PUBLIC_REGION: REGION_DEFAULT }
+				});
 			}
 		);
 
