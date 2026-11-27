@@ -21,6 +21,11 @@ describe("a build's key under the app's secret", () => {
 		expect(key).not.toContain(salt);
 	});
 
+	it("changes with the app's version, so a key leaked from one version's bundle is no use to a build of another", () => {
+		expect(derive_build_key(SECRET, 'v2')).not.toBe(derive_build_key(SECRET, 'v1'));
+		expect(derive_build_key(SECRET, 'v1')).toBe(derive_build_key(SECRET, 'v1'));
+	});
+
 	it('is refused for a blank secret, so no build signs with a key anyone can work out', () => {
 		for (const blank of ['', ' ', '\t\n ']) {
 			expect(() => derive_build_key(blank), JSON.stringify(blank)).toThrow(
