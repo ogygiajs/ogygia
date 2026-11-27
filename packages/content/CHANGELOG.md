@@ -1,5 +1,27 @@
 # @ogygia/content
 
+## 0.15.1
+
+### Patch Changes
+
+- Updated dependencies [[`617b3c7`](https://github.com/ogygiajs/ogygia/commit/617b3c74f1ac68adfe5598e664fbc5adba3a0689)]:
+  - @ogygia/machine@0.15.1
+  - @ogygia/compiler@0.15.1
+  - @ogygia/core@0.15.1
+
+## 0.15.0
+
+### Patch Changes
+
+- [#2155](https://github.com/ogygiajs/ogygia/pull/2155) [`594e3e9`](https://github.com/ogygiajs/ogygia/commit/594e3e93953e6ba7834611fd36b1430c4bf830d5) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Its site components (`DocsShell`, `BlogShell` and the rest) are read by ogygia's scan before the server build fixes its features, so their regions' features (the page they read, a kept region) are in the server's code from the start.
+
+- [#2152](https://github.com/ogygiajs/ogygia/pull/2152) [`8e1fc0d`](https://github.com/ogygiajs/ogygia/commit/8e1fc0de824162018da25b4cc6fcbf0ce0b0f11a) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Sidebar labels no longer look doubled during a navigation's view transition: the sidebar is now one view-transition layer (`og-sidebar`, named on its `<nav>`) that shows its new state at once, instead of one layer per row with the old and new snapshots stacked; the active chip still glides beneath the labels (a custom skin that styled the `phnav` row layers styles `::view-transition-group(og-sidebar)` instead).
+
+- [#2154](https://github.com/ogygiajs/ogygia/pull/2154) [`3f7ea05`](https://github.com/ogygiajs/ogygia/commit/3f7ea05c7be0047ad7680e9f66d73080644d8e85) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A sidebar in a scrolled panel no longer paints its scrolled-out rows over the page during a navigation's view transition: the themes make the sidebar's panel (its parent) a view-transition layer (`og-sidebar-panel`) that holds the sidebar and chip layers and clips them to its box, in browsers with nested view-transition groups (Chromium today).
+- Updated dependencies [[`2d05423`](https://github.com/ogygiajs/ogygia/commit/2d05423ff383db7ac873fa5f3d25d30df7de9c56), [`594e3e9`](https://github.com/ogygiajs/ogygia/commit/594e3e93953e6ba7834611fd36b1430c4bf830d5), [`fc5a003`](https://github.com/ogygiajs/ogygia/commit/fc5a00371ad6e2ea954edaf9d5486774d4f03aab), [`9c12103`](https://github.com/ogygiajs/ogygia/commit/9c12103b2ba2a63328716420da98c71c62b1b386)]:
+  - @ogygia/compiler@0.15.0
+  - @ogygia/core@0.15.0
+
 ## 0.14.4
 
 ### Patch Changes

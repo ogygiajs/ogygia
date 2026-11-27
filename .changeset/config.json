@@ -3,8 +3,8 @@
 	"baseBranch": "main",
 	"access": "public",
 	"ignore": [],
-	"fixed": [],
-	"linked": [
+	"linked": [],
+	"fixed": [
 		[
 			"ogygia",
 			"@ogygia/core",

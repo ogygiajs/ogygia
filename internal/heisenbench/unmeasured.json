@@ -5477,12 +5477,36 @@
 			"reason": "build only, server leg: one set lookup per module of the bundler's graph per round of a wait"
 		},
 		{
-			"id": "packages/compiler/src/vite/graph-compiled.ts > graph_compiled > map:0~51fe64",
-			"reason": "build only, server leg: hands each module of a round to the bundler's load, Rolldown's work"
+			"id": "packages/compiler/src/vite/graph-compiled.ts > graph_compiled > walk",
+			"reason": "build only, server leg: once per module of the bundler's graph per wait, one set lookup, and the bundler's load only for a module with no code yet, Rolldown's work; test/graph-compiled.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/vite/graph-compiled.ts > compiled",
-			"reason": "build only, server leg: one bundler load per module per wait (a resolve first for one not yet parsed), Rolldown's work; test/graph-compiled.test.ts runs it"
+			"id": "packages/compiler/src/vite/graph-compiled.ts > importer_of_each_import",
+			"reason": "build only, server leg: at most once per round of a wait that meets a module with no code yet, one pass over the bundler's module infos; test/graph-compiled.test.ts runs it in a real build"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > constructor",
+			"reason": "build only, server leg: once per wait (three per build), three field writes"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun",
+			"reason": "build only, server leg: once per module a wait reaches, one bundler module-info read; test/graph-compiled.test.ts runs it in a real build"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun > task:0~08eb16",
+			"reason": "build only, server leg: once per import the bundler has named but not begun, the promise its wait settles; test/graph-compiled.test.ts holds main.js in moduleParsed to run it"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun > task:0~08eb16 > Promise:0~fd78a2",
+			"reason": "build only, server leg: once per import the bundler has named but not begun, starts its first check; test/graph-compiled.test.ts holds main.js in moduleParsed to run it"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun > task:0~08eb16 > Promise:0~fd78a2 > check",
+			"reason": "build only, server leg: one bundler module-info read per timer tick while an import is named but not begun (ticks of 1 to 50 ms, bounded by the quiet time); test/graph-compiled.test.ts runs it in real builds, the moduleParsed failure case included"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun > task:0~08eb16 > Promise:0~fd78a2 > check > timeout:0~0d7472",
+			"reason": "build only, server leg: a scope timer's callback, one call of check per tick"
 		},
 		{
 			"id": "packages/compiler/src/driver.ts > Compiler > server_runtime",
