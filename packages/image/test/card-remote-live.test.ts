@@ -18,6 +18,7 @@ const io = vi.hoisted(() => ({
 	port: 0,
 	mark: Buffer.alloc(0) as Buffer,
 	no_store: false,
+	down: false,
 	asked: [] as string[]
 }));
 const MONO = createRequire(import.meta.url).resolve(
@@ -114,6 +115,11 @@ beforeAll(async () => {
 	io.mark = await solid('#ff0000');
 	upstream = http.createServer((req, res) => {
 		io.asked.push(req.url ?? '/');
+		if (io.down) {
+			res.writeHead(500);
+			res.end();
+			return;
+		}
 		const body =
 			req.url === '/broken.png'
 				? Buffer.concat([io.mark.subarray(0, 8), Buffer.alloc(200, 7)])
@@ -196,6 +202,33 @@ test('a live card whose remote image does not decode is that URL’s failure, as
 		expect(said.join('\n')).toMatch(/did not decode/);
 		expect(said.join('\n')).not.toMatch(/image_settle_failed/);
 	} finally {
+		warn.mockRestore();
+	}
+});
+
+test('a live card that shows a remote image, past its window while the host is down, is the last window’s file for 30 s; with none kept, the host’s refusal', async () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	try {
+		const now = Math.floor(clock.wall() / 1000) * 1000;
+		const wall = vi.spyOn(clock, 'wall').mockImplementation(() => now);
+		const src = card(specs.remote)({ outage: 1 }).src;
+		const first = await get(src);
+		expect(first.status).toBe(200);
+		const left = Number(/max-age=(\d+)/.exec(first.headers.get('cache-control')!)![1]);
+		const shown = await pixel(first);
+		io.down = true;
+		wall.mockImplementation(() => now + left * 1000);
+		const held = await get(src);
+		expect(held.status).toBe(200);
+		expect(held.headers.get('cache-control')).toBe('public, max-age=30');
+		expect(await pixel(held)).toEqual(shown);
+		expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toMatch(/image_remote_refused/);
+		wall.mockImplementation(() => now + (left + 60) * 1000);
+		const gone = await get(src);
+		expect(gone.status).toBe(502);
+		expect(gone.headers.get('cache-control')).toBe('no-store');
+	} finally {
+		io.down = false;
 		warn.mockRestore();
 	}
 });

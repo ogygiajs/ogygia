@@ -12,7 +12,13 @@ import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 import { clock } from '@ogygia/machine';
 
-const io = vi.hoisted(() => ({ port: 0, address: '127.0.0.1', fail_encodes: 0, no_store: false }));
+const io = vi.hoisted(() => ({
+	port: 0,
+	address: '127.0.0.1',
+	fail_encodes: 0,
+	no_store: false,
+	down: false
+}));
 vi.hoisted(() => {
 	delete process.env.__OGYGIA_IMAGE_BUILD;
 });
@@ -78,7 +84,10 @@ beforeAll(async () => {
 	upstream = http.createServer((req, res) => {
 		const at = req.url ?? '/';
 		asked.push(`${req.headers.host?.split(':')[0]}${at}`);
-		if (at.startsWith('/photo')) {
+		if (io.down) {
+			res.writeHead(500);
+			res.end();
+		} else if (at.startsWith('/photo')) {
 			setTimeout(() => {
 				res.writeHead(200, { 'content-type': 'image/jpeg' });
 				res.end(jpg);
@@ -208,6 +217,34 @@ describe('the image endpoint, for a remote image', () => {
 		} finally {
 			io.no_store = false;
 			vi.useRealTimers();
+		}
+	});
+
+	test("past its window while the host is down, a file is the last window's for 30 s; with none kept, the host's refusal", async () => {
+		const warn = quiet();
+		const at = Date.parse('2026-01-03T00:00:00Z');
+		vi.useFakeTimers({ toFake: ['Date'], now: at });
+		try {
+			const [url] = urls_of('http://cms.example.test/photo-outage.jpg');
+			const first = await get(url!);
+			expect(first.status).toBe(200);
+			const left = Number(/max-age=(\d+)/.exec(first.headers.get('cache-control')!)![1]);
+			const bytes = Buffer.from(await first.arrayBuffer());
+			io.down = true;
+			vi.setSystemTime(at + left * 1000);
+			const held = await get(url!);
+			expect(held.status).toBe(200);
+			expect(held.headers.get('cache-control')).toBe('public, max-age=30');
+			expect(Buffer.from(await held.arrayBuffer()).equals(bytes)).toBe(true);
+			expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toMatch(/image_remote_refused/);
+			vi.setSystemTime(at + (left + 60) * 1000);
+			const gone = await get(url!);
+			expect(gone.status).toBe(502);
+			expect(gone.headers.get('cache-control')).toBe('no-store');
+		} finally {
+			io.down = false;
+			vi.useRealTimers();
+			warn.mockRestore();
 		}
 	});
 
