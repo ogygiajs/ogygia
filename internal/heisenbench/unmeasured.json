@@ -8717,10 +8717,6 @@
 			"reason": "per string value of a card's element: one url( test, a replace only where it holds one"
 		},
 		{
-			"id": "packages/image/src/cards/images.ts > walk > text > replace:1~08c206",
-			"reason": "per url() of a card's element: one callback"
-		},
-		{
 			"id": "packages/image/src/cards/images.ts > prop_kind",
 			"reason": "per prop of a card's element: one or two set lookups"
 		},
