@@ -41,8 +41,6 @@ export async function kit_dev_public_env(
 		warn('kit_dev_env_unread', { file: id });
 		return null;
 	}
-	return code.replace(
-		KIT_PAYLOAD_READ,
-		`const { env } = globalThis.__sveltekit_dev ?? { env: ${devalue.uneval(config.rendered_env)} };`
-	);
+	const read = `const { env } = globalThis.__sveltekit_dev ?? { env: ${devalue.uneval(config.rendered_env)} };`;
+	return code.replace(KIT_PAYLOAD_READ, () => read);
 }
