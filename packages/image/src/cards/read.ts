@@ -38,12 +38,17 @@ export const draws: boolean = engine;
 
 /** The endpoint's reader of a card's images: an asset with Kit's `read()`, by the URL it takes
  *  for the asset's tail, as for any original (../source-urls.ts), a URL with `remote`
- *  (the endpoint's guarded fetch; null: no `image({ remote })`). */
-export function endpoint_images(remote: ((url: URL) => Promise<Uint8Array>) | null): CardImageRead {
+ *  (the endpoint's guarded fetch; null: no `image({ remote })`), a fetched URL whose bytes do
+ *  not fit the card failing as `undecoded` says (the endpoint's failure memory of that URL). */
+export function endpoint_images(
+	remote: ((url: URL) => Promise<Uint8Array>) | null,
+	undecoded: ((url: URL, reason: string) => Error) | null = null
+): CardImageRead {
 	return card_image_reader(
 		SOURCE_PREFIXES,
 		async (tail) => new Uint8Array(await read(source_url(tail)).arrayBuffer()),
-		remote
+		remote,
+		undecoded
 	);
 }
 

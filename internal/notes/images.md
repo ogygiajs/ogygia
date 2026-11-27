@@ -317,6 +317,13 @@ checked here: where it is fetched.
   expire at one instant), and the answer is `public, max-age=<seconds left in the window>,
   stale-while-revalidate=<maxAge>`, so no copy (store, CDN, browser) outlives its window by more
   than `maxAge`. `maxAge` is 1 or more. The binding maker keeps the same keys in `caches.default`.
+  A file kept in memory (no store) keeps its window's end (`ends_at`, wall time), not a header:
+  each ask's `max-age` is what is left of that window, and the memory lets it go at that end.
+- Stale on error: a 5xx `Refused` (host error, no answer, timeout, bytes that do not decode) for a
+  windowed key opens `<key>@<maxAge>.<window - 1>` (same span, same per-key offset); when the
+  store holds it, it is answered `public, max-age=30` (the failure memory's span), still said once
+  as `image_remote_refused`. A 404 or 413 is the host's answer about the URL, not an outage: no
+  stale copy. One window later there is no `window - 1` file and the refusal is answered.
 - Transport (`virtual:ogygia-image/remote`, chosen at build): Node's (`remote-node.ts`,
   `node:http(s)`, no agent pooling, no decoding) for the sharp maker and dev; a Worker's
   (`net.fetch`, `redirect: 'manual'`) for the binding maker. With no `remote`: `remote-off.ts`.
@@ -417,7 +424,10 @@ BUILT (V4 R9). `import.meta.og.image.card('./Card.svelte', { width, height, font
   the encode queue (satori-html → entities decoded in the tree → satori → resvg; satori's refusal
   = `image_card_css`), then the maker resizes/converts it; kept forever, unless the draw read a
   remote URL (the per-draw reader notes it): then it is a remote file, kept under the key's
-  `remote.maxAge` window and sent with that window's header, never `immutable`. A card whose digest
+  `remote.maxAge` window and sent with that window's header, never `immutable`. A remote image
+  whose bytes do not fit the card is that URL's failure (the reader's `unfit` hook: 502,
+  remembered 30 s, said once), the same rule as a `remoteImage()` file that does not decode; a
+  server with no fitter reads no image at all. A card whose digest
   changed since minting (`card_id` mismatch) or a name the server lacks = 404
   `image_source_changed`.
 - **Build** (`build-files.ts`): a prerendered page's card recipe is noted like any other; the

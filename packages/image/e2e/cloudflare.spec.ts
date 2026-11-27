@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { test, expect } from '@ogygia/tooling/e2e';
+import { server_log_since, server_log_size } from '@ogygia/tooling/e2e/server-log.ts';
 import { photo_card_misses } from './card-pixels.ts';
 
 const APP = fileURLToPath(new URL('./app/', import.meta.url));
@@ -189,6 +190,27 @@ test("a live page's share card is the build's file of it when a prerendered page
 	const missing = await request.get(await og('title=Nobody+prerendered+this'));
 	expect(missing.status()).toBe(404);
 	expect(missing.headers()['cache-control']).toBe('no-store');
+});
+
+test("a live page's card that shows a remote image is 404 kept nowhere, though a prerendered page made the same card: the build named that one by the bytes it got, never by its recipe", async ({
+	request
+}) => {
+	const res = await request.get('/late/card/photo');
+	expect(res.status()).toBe(200);
+	const at = /property="og:image" content="([^"]+)"/.exec(await res.text())![1]!;
+	const live = new URL(at.replaceAll('&amp;', '&')).pathname;
+	expect(live).toMatch(/^\/__ogygia__\/i\/[^/]+\/c[\w-]{32}-1200x630\/\.card\//);
+	const built = (await named(request, ['/card/photo'], /\/_app\/immutable\/og\/c[\w-]+\.png/g))[0]!;
+	expect(built, 'the build renamed it').not.toContain(/\/(c[\w-]{32})-1200x630\//.exec(live)![1]);
+	const from = server_log_size();
+	const card = await request.get(live);
+	expect(card.status()).toBe(404);
+	expect(card.headers()['cache-control']).toBe('no-store');
+	await expect
+		.poll(() => server_log_since(from))
+		.toMatch(
+			/shows a remote image, so the build named it by the bytes it got[\s\S]*image_no_encoder/
+		);
 });
 
 test('the endpoint refuses a forged signature and a POST, kept nowhere', async ({ request }) => {

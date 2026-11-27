@@ -85,14 +85,14 @@ const fetches = new Line('image remote fetches', FETCHES_MAX);
 interface Made {
 	data: Uint8Array;
 	on_disk: boolean;
-	header: string;
-	keep_ms: number;
+	window: Window | null;
 }
 
 interface Window {
 	key: string;
-	header: string;
-	left: number;
+	previous: string;
+	ends_at: number;
+	max_age: number;
 }
 
 interface Ask {
@@ -129,6 +129,13 @@ function remembered(url: string, e: unknown): unknown {
 	const named = e.url === null ? new Refused(e.status, e.message, url) : e;
 	failed_remotes.set(url, named);
 	return named;
+}
+
+function undecoded(url: URL, reason: string): Refused {
+	return remembered(
+		url.href,
+		new Refused(502, `the image did not decode: ${reason}`, url.href)
+	) as Refused;
 }
 
 const STATUS_OF: Readonly<Record<FailKind, number>> = {
@@ -192,7 +199,8 @@ const card_originals = flights.keyed<{ tail: string; id: string }>()<
 				: (url) => {
 						shown = true;
 						return remote_bytes(url);
-					}
+					},
+			undecoded
 		);
 		const bytes = await card_original(tail, id, images);
 		return { bytes, shown };
@@ -239,7 +247,7 @@ const makes = flights.keyed<Ask>()<
 			"the asking time's remote.maxAge window: a make from remote bytes keeps its file under the window it started in, in memory to that window's end",
 		platform: "one process's requests carry the same bindings"
 	},
-	keep: (made: Fresh<Made>) => (made.on_disk ? 0 : made.keep_ms),
+	keep: (made: Fresh<Made>) => (made.on_disk ? 0 : kept_for(made.window)),
 	max: MEMORY_MAX,
 	weigh: (made: Fresh<Made>) => made.data.byteLength,
 	run: async (ask: Ask): Promise<Made> => {
@@ -254,16 +262,11 @@ const makes = flights.keyed<Ask>()<
 				data = await make(bytes, ask.recipe, ask.platform);
 			} catch (e) {
 				if (ask.url === null || !(e instanceof SourceUnreadable)) throw e;
-				throw remembered(
-					ask.url.href,
-					new Refused(502, `the image did not decode: ${(e as Error).message}`, ask.url.href)
-				);
+				throw undecoded(ask.url, (e as Error).message);
 			}
 			const file = window === null ? ask.key : `${ask.key}${window.key}`;
 			const on_disk = store !== null && (await store.keep(file, data));
-			return window === null
-				? { data, on_disk, header: KEEP, keep_ms: Infinity }
-				: { data, on_disk, header: window.header, keep_ms: window.left * 1000 };
+			return { data, on_disk, window };
 		});
 	}
 });
@@ -281,22 +284,37 @@ function remote_keep(max_age: number, now_s: number, url: string): Window {
 	const left = Math.max(1, (window + 1) * span - at);
 	return {
 		key: `@${span}.${window}`,
-		header: `public, max-age=${left}, stale-while-revalidate=${max_age}`,
-		left
+		previous: `@${span}.${window - 1}`,
+		ends_at: (Math.floor(now_s) + left) * 1000,
+		max_age
 	};
+}
+
+async function last_window(key: string, window: Window | null): Promise<Kept | null> {
+	return store === null || window === null ? null : store.open(`${key}${window.previous}`);
+}
+
+function kept_for(window: Window | null): number {
+	return window === null ? Infinity : Math.max(0, window.ends_at - clock.wall());
+}
+
+function header_of(window: Window | null): string {
+	if (window === null) return KEEP;
+	const left = Math.max(1, Math.ceil((window.ends_at - clock.wall()) / 1000));
+	return `public, max-age=${left}, stale-while-revalidate=${window.max_age}`;
 }
 
 async function kept_file(
 	key: string,
 	plain: boolean,
 	window: Window | null
-): Promise<{ file: Kept; header: string } | null> {
+): Promise<{ file: Kept; window: Window | null } | null> {
 	if (store === null) return null;
 	const own = plain ? await store.open(key) : null;
-	if (own) return { file: own, header: KEEP };
+	if (own) return { file: own, window: null };
 	if (window === null) return null;
 	const windowed = await store.open(`${key}${window.key}`);
-	return windowed ? { file: windowed, header: window.header } : null;
+	return windowed ? { file: windowed, window } : null;
 }
 
 /** The response for one verified recipe (`key` its file, ../recipe.ts `recipe_file`; `original` the
@@ -304,7 +322,9 @@ async function kept_file(
  *  remote URL's bytes (a recipe whose tail names the URL, fetched under `image({ remote })`, or a
  *  card that shows a remote image) is kept, and answered to be kept, until the end of the current
  *  `remote.maxAge` window, never forever, so the URL's new bytes go out within that time; a card
- *  that shows only the build's images is kept forever. */
+ *  that shows only the build's images is kept forever. When the host fails (a 5xx answer here)
+ *  after a window ends, the last window's file, while the store holds it, is answered instead, to
+ *  be kept 30 s, the time a failed URL is not fetched again. */
 export async function settle(
 	recipe: ParsedRecipe,
 	key: string,
@@ -326,7 +346,7 @@ export async function settle(
 				headers: {
 					'content-type': type,
 					'content-length': String(kept.file.size),
-					'cache-control': kept.header
+					'cache-control': header_of(kept.window)
 				}
 			});
 		}
@@ -336,7 +356,7 @@ export async function settle(
 			headers: {
 				'content-type': type,
 				'content-length': String(made.data.byteLength),
-				'cache-control': made.header
+				'cache-control': header_of(made.window)
 			}
 		});
 	} catch (e) {
@@ -350,6 +370,15 @@ export async function settle(
 			said_each.once(`image_remote_refused ${named}`, () =>
 				warn('image_remote_refused', { url: named, status: e.status, reason: e.message })
 			);
+			const last = e.status >= 500 ? await last_window(key, window) : null;
+			if (last)
+				return new Response(last.body, {
+					headers: {
+						'content-type': type,
+						'content-length': String(last.size),
+						'cache-control': `public, max-age=${FAILED_KEEP_MS / 1000}`
+					}
+				});
 			return new Response('the remote image could not be fetched', {
 				status: e.status,
 				headers: { 'cache-control': 'no-store' }

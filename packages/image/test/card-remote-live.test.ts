@@ -13,7 +13,14 @@ import { afterAll, beforeAll, expect, test, vi } from 'vitest';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 import type { CardProps, CardSpec } from '../src/card.ts';
 
-const io = vi.hoisted(() => ({ address: '127.0.0.1', port: 0, mark: Buffer.alloc(0) as Buffer }));
+const io = vi.hoisted(() => ({
+	address: '127.0.0.1',
+	port: 0,
+	mark: Buffer.alloc(0) as Buffer,
+	no_store: false,
+	down: false,
+	asked: [] as string[]
+}));
 const MONO = createRequire(import.meta.url).resolve(
 	'@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff'
 );
@@ -35,6 +42,10 @@ const specs = vi.hoisted(() => {
 			'RemoteMarkCard00',
 			'<img src="http://cms.example.test/mark.png" style="width: 300px; height: 300px">'
 		),
+		broken: of(
+			'BrokenMarkCard00',
+			'<img src="http://cms.example.test/broken.png" style="width: 300px; height: 300px">'
+		),
 		plain: of('PlainCard0000000', '<p>Hello</p>')
 	};
 });
@@ -52,12 +63,21 @@ vi.mock('virtual:ogygia-image/cards', async () => {
 	return {
 		engine: true,
 		card_module: (name: string) => {
-			const spec = name === specs.remote.card ? specs.remote : specs.plain;
+			const spec = Object.values(specs).find((s) => s.card === name) ?? specs.plain;
 			return Promise.resolve({
 				spec,
 				png: (props: CardProps, fonts: readonly ArrayBuffer[], images: never, fit: never) =>
 					card_png(spec, props, fonts, images, fit)
 			});
+		}
+	};
+});
+vi.mock('virtual:ogygia-image/maker', async () => {
+	const sharp_maker = await import('../src/makers/sharp.ts');
+	return {
+		...sharp_maker,
+		get store() {
+			return io.no_store ? null : sharp_maker.store;
 		}
 	};
 });
@@ -93,9 +113,19 @@ beforeAll(async () => {
 	({ card } = await import('../src/card.ts'));
 	({ ctx } = startPlugin(server, { name: '@ogygia/image' }) as never);
 	io.mark = await solid('#ff0000');
-	upstream = http.createServer((_req, res) => {
-		res.writeHead(200, { 'content-type': 'image/png', 'content-length': io.mark.byteLength });
-		res.end(io.mark);
+	upstream = http.createServer((req, res) => {
+		io.asked.push(req.url ?? '/');
+		if (io.down) {
+			res.writeHead(500);
+			res.end();
+			return;
+		}
+		const body =
+			req.url === '/broken.png'
+				? Buffer.concat([io.mark.subarray(0, 8), Buffer.alloc(200, 7)])
+				: io.mark;
+		res.writeHead(200, { 'content-type': 'image/png', 'content-length': body.byteLength });
+		res.end(body);
 	});
 	await new Promise<void>((done) => upstream.listen(0, '127.0.0.1', done));
 	io.port = (upstream.address() as AddressInfo).port;
@@ -134,6 +164,73 @@ test("a live card that shows a remote image is never sent immutable: it is kept 
 	const later = await get(src);
 	expect(later.status).toBe(200);
 	expect(await pixel(later)).toEqual([0, 0, 255]);
+});
+
+test('a live card that shows a remote image, kept in memory (no store), is sent with what is left of its window, not its first ask’s max-age', async () => {
+	io.no_store = true;
+	try {
+		const now = Math.floor(clock.wall() / 1000) * 1000;
+		const wall = vi.spyOn(clock, 'wall').mockImplementation(() => now);
+		let src = '';
+		let left = 0;
+		for (let n = 0; left < 2; n++) {
+			src = card(specs.remote)({ memory: n }).src;
+			const first = await get(src);
+			expect(first.status).toBe(200);
+			left = Number(/max-age=(\d+)/.exec(first.headers.get('cache-control')!)![1]);
+		}
+		wall.mockImplementation(() => now + (left - 1) * 1000);
+		const later = await get(src);
+		expect(later.status).toBe(200);
+		expect(later.headers.get('cache-control')).toBe('public, max-age=1, stale-while-revalidate=60');
+	} finally {
+		io.no_store = false;
+	}
+});
+
+test('a live card whose remote image does not decode is that URL’s failure, as for remoteImage(): 502, remembered (one fetch), said once', async () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	try {
+		io.asked.length = 0;
+		const src = card(specs.broken)({}).src;
+		const statuses = [];
+		for (let i = 0; i < 3; i++) statuses.push((await get(src)).status);
+		expect(statuses).toEqual([502, 502, 502]);
+		expect(io.asked).toEqual(['/broken.png']);
+		const said = warn.mock.calls.map((c) => String(c[0]));
+		expect(said.filter((line) => /image_remote_refused/.test(line))).toHaveLength(1);
+		expect(said.join('\n')).toMatch(/did not decode/);
+		expect(said.join('\n')).not.toMatch(/image_settle_failed/);
+	} finally {
+		warn.mockRestore();
+	}
+});
+
+test('a live card that shows a remote image, past its window while the host is down, is the last window’s file for 30 s; with none kept, the host’s refusal', async () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	try {
+		const now = Math.floor(clock.wall() / 1000) * 1000;
+		const wall = vi.spyOn(clock, 'wall').mockImplementation(() => now);
+		const src = card(specs.remote)({ outage: 1 }).src;
+		const first = await get(src);
+		expect(first.status).toBe(200);
+		const left = Number(/max-age=(\d+)/.exec(first.headers.get('cache-control')!)![1]);
+		const shown = await pixel(first);
+		io.down = true;
+		wall.mockImplementation(() => now + left * 1000);
+		const held = await get(src);
+		expect(held.status).toBe(200);
+		expect(held.headers.get('cache-control')).toBe('public, max-age=30');
+		expect(await pixel(held)).toEqual(shown);
+		expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toMatch(/image_remote_refused/);
+		wall.mockImplementation(() => now + (left + 60) * 1000);
+		const gone = await get(src);
+		expect(gone.status).toBe(502);
+		expect(gone.headers.get('cache-control')).toBe('no-store');
+	} finally {
+		io.down = false;
+		warn.mockRestore();
+	}
 });
 
 test('a live card that shows only the build’s images stays immutable', async () => {

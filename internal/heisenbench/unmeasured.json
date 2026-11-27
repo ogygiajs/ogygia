@@ -8673,12 +8673,36 @@
 			"reason": "build time, network bound: one remote fetch per image a card's draw reads, and one hash of its bytes"
 		},
 		{
-			"id": "packages/image/src/settle.ts > call:0~b44824 > run > endpoint_images:0~cb8f97",
+			"id": "packages/image/src/settle.ts > call:0~d045b8 > run > endpoint_images:0~cb8f97",
 			"reason": "once per remote image a live card's draw reads: one flag set and the guarded remote fetch, network bound"
 		},
 		{
 			"id": "packages/image/src/settle.ts > kept_file",
 			"reason": "at most two store opens per ask (disk bound); a closure over the maker's store, not replayable"
+		},
+		{
+			"id": "packages/image/src/settle.ts > last_window",
+			"reason": "only on a 5xx refusal of a remote file: one store open (disk bound); a closure over the maker's store, not replayable"
+		},
+		{
+			"id": "packages/image/src/settle.ts > header_of",
+			"reason": "constant work: one clock read, one division and one string per remote file answered; test/remote-request.test.ts and test/card-remote-live.test.ts run it"
+		},
+		{
+			"id": "packages/image/src/settle.ts > kept_for",
+			"reason": "constant work: one clock read and one subtraction when a file kept in memory lands"
+		},
+		{
+			"id": "packages/image/src/settle.ts > undecoded",
+			"reason": "only on a remote image that does not decode: builds one error and keeps it in the failure memory"
+		},
+		{
+			"id": "packages/image/src/vite/build-files.ts > shown_urls",
+			"reason": "build time, once per prerendered card that showed a remote image: one JSON.parse of a few URLs; test/build-write.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/build-files.ts > shown_urls > every:0~b7a0fd",
+			"reason": "build time, once per URL a card's record names: one type test and one prefix test"
 		},
 		{
 			"id": "packages/image/src/vite/card.ts > card_digest > sort:0~2f5dbe",
@@ -8713,11 +8737,19 @@
 			"reason": "once per realm: makes a card's image reader; test/card.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/cards/images.ts > card_image_reader > <anonymous>~41bccf",
-			"reason": "once per image a card draw names (a card draw is tens of milliseconds of satori and resvg): a prefix test and at most one URL parse; test/card.test.ts runs it"
+			"id": "packages/image/src/cards/images.ts > card_image_reader > read",
+			"reason": "once per image a card draw names (a card draw is tens of milliseconds of satori and resvg): one route and one read; test/card.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/cards/images.ts > card_image_reader > <anonymous>~41bccf > some:0~869aa2",
+			"id": "packages/image/src/cards/images.ts > card_image_reader > unfit",
+			"reason": "only on a fetched card image that does not fit: one route and one error"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > routed",
+			"reason": "once per image a card draw names: a prefix test and at most one URL parse; test/card.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/cards/images.ts > routed > some:0~869aa2",
 			"reason": "once per image a card draw names: two prefix tests"
 		},
 		{
