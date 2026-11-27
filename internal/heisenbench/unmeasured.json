@@ -81,20 +81,12 @@
 			"reason": "constant work: the replacement text, once per patch (#2177)"
 		},
 		{
-			"id": "packages/compiler/src/kit-patches.ts > kit_public_env_module",
-			"reason": "once per load of ogygia:server/kit-env: a constant by the Kit major; proven in packages/compiler/test/canary/kit-build.test.ts (#2177)"
-		},
-		{
 			"id": "packages/compiler/src/link/island-deps.ts > collectIslandDepModulepreloads > reads_env",
 			"reason": "build time, once per client build: one regex test per module id of an island's closure, beside the remotes walk over the same ids; proven in packages/compiler/test/island-deps.test.ts (#2177)"
 		},
 		{
 			"id": "packages/compiler/src/link/island-deps.ts > collectIslandDepModulepreloads > reads_env > some:0~92b2b3",
 			"reason": "build time: the predicate of reads_env, one regex test (#2177)"
-		},
-		{
-			"id": "packages/core/src/region-parts/seed-ask.ts > PageSeedAsk > get env",
-			"reason": "constant work: one handoff map lookup per region render, beside the page and remotes asks; proven in packages/core/test/server-seed-word.test.ts (#2177)"
 		},
 		{
 			"id": "packages/core/src/region-server.browser.ts > region_reads_env",
@@ -6819,10 +6811,6 @@
 		{
 			"id": "packages/core/src/region-parts/live-value.svelte.ts > LiveValue > attach",
 			"reason": "browser only: hands a held live value to its element after hydration; test/browser/region-client.test.ts runs it"
-		},
-		{
-			"id": "packages/core/src/region-parts/locate.ts > graph_hrefs > add",
-			"reason": "only for an island with live entries (the bench islands have none): one Set check per chunk, constant work each"
 		},
 		{
 			"id": "packages/core/src/region-parts/plan.svelte.ts > RegionPlan > set arm",
