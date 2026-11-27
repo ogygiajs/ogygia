@@ -19,6 +19,7 @@ import {
 	type KeyObject
 } from 'node:crypto';
 import { cache, capability, type Capability } from '@ogygia/machine';
+import { OgygiaError } from '../messages/server.ts';
 import { PRERENDER_REGION_TTL_SEC, REGION_CAPABILITY_VERSION, is_lower_hex } from './endpoint.ts';
 const MAC_INFO = Buffer.from('ogygia-mac-v1');
 const ID_SALT_INFO = Buffer.from('ogygia-id-salt-v1');
@@ -54,8 +55,10 @@ export function derive_id_salt(secret: string): string {
 
 /** HKDF-SHA256 → the 32-byte build key (hex) a build with the app's secret bakes into its server
  *  bundle: a function of the secret alone, so two builds of one source and secret write the same
- *  bundle, and the bundle holds no secret it was derived from. Empty input must not be used. */
+ *  bundle, and the bundle holds no secret it was derived from. A blank secret is refused
+ *  (`build_key_blank_secret`): a key made from it is the same for every app. */
 export function derive_build_key(secret: string): string {
+	if (secret.trim() === '') throw new OgygiaError('build_key_blank_secret');
 	return Buffer.from(
 		hkdfSync('sha256', Buffer.from(secret, 'utf8'), Buffer.alloc(0), BUILD_KEY_INFO, 32)
 	).toString('hex');

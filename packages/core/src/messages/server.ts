@@ -135,6 +135,21 @@ export const SERVER_ERRORS = {
 			and the first path stays.
 		`
 	},
+	build_key_blank_secret: {
+		text: (): string => prose`
+			a build key was asked for from a blank OGYGIA_SECRET. Anyone can work out a key made from
+			no secret, so the build refuses to bake one.
+		`,
+		details: (): string => prose`
+			A build with \`OGYGIA_SECRET\` bakes a key worked out from the secret into its server
+			bundle; a build without one bakes a random key of its own. Something asked for the first
+			kind with an empty or blank secret. A key made from nothing is the same for every app, so
+			capabilities signed with it could be forged.
+
+			This is a bug in ogygia or in a plugin that calls it: a build without a secret must draw a
+			random key. Report it with the build's config.
+		`
+	},
 	secret_missing_at_runtime: {
 		text: (): string => prose`
 			OGYGIA_SECRET was set when this app was built but is not set where it runs: region
