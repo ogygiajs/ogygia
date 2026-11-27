@@ -344,14 +344,21 @@ export async function rest_at_end(world: World, v: Visitor): Promise<Tab[]> {
 
 /**
  * THE VISITOR LOOKS, once the run's end judged every tab at its rest ({@link rest_at_end}): each
- * visitor, the crowd's too, looks at each of their tabs in `owed` once. The tab is shown, and stays shown through {@link wait_timers} on it alone, its own minute from
- * the look: what waited for a frame (a `visible` island its hole brought after it went behind, one
- * whose first frame came after it went behind) has it, and a backoff what woke then set is waited
- * out in front, where its retry wakes too (test/hidden-tab.node.test.ts, #2176, #2091; palaestra
- * seed 13, test/found/behind-before-first-frame.test.ts). Then the tab that was in front is put
- * back. Only those tabs are judged again, so time this takes hides nothing in any other; one that
- * owes a new look after it is judged as it then stands, and not looked at again
- * (test/hidden-tab.node.test.ts › looks at a tab once).
+ * visitor, the crowd's too, looks at each of their tabs in `owed` once. The tab is shown, and
+ * stays shown through {@link wait_timers} on it alone, its own minute from the look: what waited
+ * for a frame (a `visible` island its hole brought after it went behind, one whose first frame
+ * came after it went behind) has it, and a backoff what woke then set is waited out in front,
+ * where its retry wakes too (test/hidden-tab.node.test.ts, #2176, #2091; palaestra seed 13,
+ * test/found/behind-before-first-frame.test.ts). Then the tab that was in front is put back. Only
+ * those tabs are judged again, so time this takes hides nothing in any other; one that owes a new
+ * look after it is judged as it then stands, and not looked at again
+ * (test/hidden-tab.node.test.ts › looks at a tab once). Judged again, by `run()`: what each set
+ * aside as it stood, its islands' wakes (test/run-end-behind.node.test.ts › is judged again once
+ * looked at), and the visitor's against a shown fresh load, one with a `known` finding as it stood
+ * too, unless the look's own requests met a fault (palaestra seed 13). One judged as it stood
+ * showed a difference only if its observers never had a frame, and that is the finding: it is not
+ * judged against a fresh load again (test/run-end-behind.node.test.ts › judged as it stood before
+ * the run end looks).
  */
 export async function look_at_end(world: World, v: Visitor, owed: readonly Tab[]): Promise<void> {
 	for (const who of [v, ...world.crowd]) {
@@ -658,8 +665,7 @@ export async function run(
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
 			// (a document a deploy failed a download of is degraded as a faulted one is: by the host.
 			// One only an outage touched is back on the network, and owes what a fresh load shows:
-			// THE OUTAGE OVER, the page recovers. Asked again once the visitor looked: the look's own
-			// requests may meet a fault; palaestra seed 13, test/found/behind-before-first-frame.test.ts)
+			// THE OUTAGE OVER, the page recovers)
 			const compared = (t: Tab): boolean =>
 				pressed.get(t.name) !== t.documents &&
 				!(faulted(world, t) && !outage_only(world, t)) &&
@@ -704,8 +710,6 @@ export async function run(
 				const kept = html_kept(t);
 				if (kept) broken.push({ ...kept, detail: `${t.page.mainFrame.url}: ${kept.detail}` });
 			}
-			// (then the tabs owed a look, and only those, are looked at and judged again: what each
-			// set aside as it stood, its islands' wakes, and against a shown fresh load)
 			await look_at_end(world, v, owed);
 			hear_moves();
 			for (const t of owed) {

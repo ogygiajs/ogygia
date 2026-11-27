@@ -400,7 +400,11 @@ The run's end is two steps (cli.ts). First it rests as it always has (`rest_at_e
 online, then rest and step while a judged tab has a timer set, a minute at most, with no look),
 and every end-of-run oracle judges every tab at that moment, a tab owed a look then as it stands,
 what it waits for set aside as between actions (`test/hidden-tab.node.test.ts` › at main's moment:
-the same moment, and the same findings, as before tabs were looked at). Then each tab owed a look
+the same moment, and the same findings, as before tabs were looked at). A tab owed a look is
+compared as main compared it (`as_it_stands`: the same fresh loads on the shared world, the same
+time), so every tab after it and every check after them judge at main's moment
+(`test/run-end-behind.node.test.ts` › spends main's comparison); only one whose observers never
+had a frame keeps that finding. Then each tab owed a look
 at that moment, and only those, is looked at once (`look_at_end`, a crowd's tabs too): it is shown,
 and stays shown while it has a timer set, its own minute from the look (a look may wake an island
 whose download fails, and its retry's 1, 3 and 9 s run in front, where the retry wakes too), then
@@ -414,6 +418,9 @@ that asks an animation frame in each frame) is judged as it then stands, and not
 The look shows the tab, and the tab in front goes behind and back: each hears `visibilitychange`
 twice. The waste checks (`waste`, `asked_twice_each`) judge before it, so a page that asks the
 server again when it is shown is not counted for the look.
+The tradeoff: a tab owed a look whose observers had their frames is compared only after its look,
+up to its own minute in front, so a real difference that heals within that minute (a backoff slower
+than main's minute) is missed there; only such tabs, which main compared with what no browser shows.
 The MPA check judges a tab behind against a fresh load behind another tab too, unless its document's
 observers had a frame (`Tab.framed`): one never shown, or one whose runtime watched nothing. One
 owed a look whose observers never had a frame (#2091) is judged both ways: first as it stands at

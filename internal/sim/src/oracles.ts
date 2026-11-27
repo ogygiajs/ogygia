@@ -508,22 +508,21 @@ export function owes_look(tab: Tab): boolean {
 }
 
 /**
- * {@link mpa_equivalent} of a tab as it stands, before the visitor looks at it: one owed a look
- * whose observers never had a frame (#2091), against a fresh load behind another tab. The look
- * would wake its `visible` islands, and so hide one that woke behind with no frame; the run's end
- * judges each tab owed a look with this at its rest, before its look (cli.ts `rest_at_end`,
- * `look_at_end`). Null for any other tab
- * (test/hidden-tab.node.test.ts, test/run-end-behind.node.test.ts).
+ * {@link mpa_equivalent} of a tab owed a look, as it stands, before the visitor looks at it: the
+ * run's end judges each with this at its rest, before its look (cli.ts `rest_at_end`,
+ * `look_at_end`). It is main's comparison, the same fresh loads on the shared world and the same
+ * time, so every tab and check after it judges at main's moment
+ * (test/run-end-behind.node.test.ts › spends main's comparison). Its finding is kept for one whose
+ * observers never had a frame (#2091), loaded fresh behind another tab: the look would wake its
+ * `visible` islands, and so hide one that woke behind with no frame. For one that had its frames,
+ * the fresh load is shown, and what it waits for until the look is a difference no browser would
+ * show: null, and the tab is judged once looked at. Null, with no fresh load, for a tab not owed a
+ * look (test/hidden-tab.node.test.ts).
  */
 export async function as_it_stands(world: World, v: Visitor, tab: Tab): Promise<Broken | null> {
-	if (!owes_look(tab) || tab.framed.has(tab.realm)) return null;
-	return as_fresh(
-		world,
-		v,
-		tab,
-		(doc) => replicas_as_one(doc, normalize(doc), world.replicas),
-		true
-	);
+	if (!owes_look(tab)) return null;
+	const b = await mpa_equivalent(world, v, tab);
+	return tab.framed.has(tab.realm) ? null : b;
 }
 
 /**
