@@ -261,7 +261,7 @@
 			"name": "Kit's public env whose text does not read back reads empty, and says kit_env_missing"
 		},
 		{
-			"site": "packages/core/src/server/env-seed.ts > env_seed_script > catch:0",
+			"site": "packages/core/src/server/env-seed.ts > EnvText > of > catch:0",
 			"reason": "a public env value devalue cannot carry writes no env channel and says kit_env_unshipped, so the page still renders; proved by hand: the catch made to rethrow turns the test red",
 			"test": "packages/core/test/server-seed-word.test.ts",
 			"name": "a value devalue cannot carry ships nothing, and says kit_env_unshipped"

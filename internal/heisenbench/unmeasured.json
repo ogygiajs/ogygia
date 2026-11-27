@@ -65,10 +65,6 @@
 			"reason": "constant work: string checks first, one path compare only for a relative import ending in Kit's remote-functions index; proven in packages/compiler/test/vite-hooks.test.ts (#2041)"
 		},
 		{
-			"id": "packages/compiler/src/kit-patches.ts > patch_kit_module",
-			"reason": "build and dev, once per transformed browser module: three regex tests against the module id, a patch only for Kit's own generated modules; proven in packages/compiler/test/vite-hooks.test.ts (#2177)"
-		},
-		{
 			"id": "packages/compiler/src/kit-patches.ts > patch",
 			"reason": "once per load of Kit's client app module: appends a constant; proven in packages/compiler/test/vite-hooks.test.ts"
 		},
@@ -77,11 +73,11 @@
 			"reason": "module constant: builds the two env rows of the patch table once when the compiler loads (#2177)"
 		},
 		{
-			"id": "packages/compiler/src/kit-patches.ts > public_env_patch > <anonymous>~5bb4aa",
-			"reason": "once per load of Kit's $app/env/public module: one regex test, one includes, one replace; proven in packages/compiler/test/vite-hooks.test.ts and packages/compiler/test/canary/kit-build.test.ts (#2177)"
+			"id": "packages/compiler/src/kit-patches.ts > public_env_patch > <anonymous>~9efb01",
+			"reason": "once per load of Kit's $app/env/public module: one regex test, one includes, one replace (dev patches a module with only static variables too); proven in packages/compiler/test/vite-hooks.test.ts and packages/compiler/test/canary/kit-build.test.ts (#2177)"
 		},
 		{
-			"id": "packages/compiler/src/kit-patches.ts > public_env_patch > <anonymous>~5bb4aa > replace:1~0ab970",
+			"id": "packages/compiler/src/kit-patches.ts > public_env_patch > <anonymous>~9efb01 > replace:1~556dde",
 			"reason": "constant work: the replacement text, once per patch (#2177)"
 		},
 		{
@@ -110,7 +106,19 @@
 		},
 		{
 			"id": "packages/core/src/server/env-seed.ts > env_seed_script",
-			"reason": "once per csr=false document whose region imports Kit's env: one devalue serialization of Kit's rendered public env (a few variables); proven in packages/core/test/server-seed-word.test.ts (#2177)"
+			"reason": "once per csr=false document whose region imports Kit's env: one call to EnvText.of (a pass over a few variables on a hit) and one marked script string; proven in packages/core/test/server-seed-word.test.ts (#2177)"
+		},
+		{
+			"id": "packages/core/src/server/env-seed.ts > EnvText > of",
+			"reason": "per csr=false document that asks for Kit's env: a hit is one #same pass over Kit's few public variables; it serializes again only after a value changed (once per server in production, once per edit in dev); proven in packages/core/test/server-seed-word.test.ts (#2177)"
+		},
+		{
+			"id": "packages/core/src/server/env-seed.ts > EnvText > #same",
+			"reason": "one pass over Kit's few public variables, one Map lookup and one Object.is each; proven in packages/core/test/server-seed-word.test.ts (#2177)"
+		},
+		{
+			"id": "packages/core/src/server/seed-shape.ts > PageAsk > note",
+			"reason": "per region render, beside the page recorder's own work: one merge_seed_ask over the region's keys (the fold the recorder made before) and one boolean; proven in packages/core/test/request-bag.test.ts and packages/core/test/server-seed-word.test.ts (#2177)"
 		},
 		{
 			"id": "packages/compiler/src/messages.ts > WARNED > kit_env_unpatched > text",
