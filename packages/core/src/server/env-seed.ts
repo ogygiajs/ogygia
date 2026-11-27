@@ -14,6 +14,44 @@ import { ogygia_script } from './document-assembly.ts';
 import { response_mark } from './response-mark.ts';
 
 /**
+ * The env's text, made again only when a variable's value changed: Kit's `rendered_env` is one
+ * object per server, which Kit's `set_env` writes into (again in dev, on an edit). A hit is one
+ * pass over its variables, comparing each value with the one the text was made from.
+ */
+class EnvText {
+	#from = new Map<string, unknown>();
+	#text: string | null = null;
+	#made = false;
+
+	/** `env` as devalue text; null where it holds no variable, or does not serialize (said once
+	 *  per change, with `kit_env_unshipped`). */
+	of(env: Record<string, unknown>): string | null {
+		if (this.#made && this.#same(env)) return this.#text;
+		this.#from = new Map(Object.entries(env));
+		this.#made = true;
+		this.#text = null;
+		if (this.#from.size === 0) return null;
+		try {
+			this.#text = devalue_text(env, {});
+		} catch (e) {
+			warn('kit_env_unshipped', { reason: e instanceof Error ? e.message : String(e) });
+		}
+		return this.#text;
+	}
+
+	#same(env: Record<string, unknown>): boolean {
+		let n = 0;
+		for (const k in env) {
+			if (!Object.hasOwn(env, k)) continue;
+			if (!this.#from.has(k) || !Object.is(this.#from.get(k), env[k])) return false;
+			n++;
+		}
+		return n === this.#from.size;
+	}
+}
+const ENV_TEXT = new EnvText();
+
+/**
  * Kit's public env as one `<script type="application/ogygia-env">`, marked with `request`'s mark:
  * exactly what Kit puts in its boot payload on a csr=true page (Kit 3's `rendered_env`, public
  * variables only), serialized with devalue as Kit does. Null: this Kit has none, it holds no
@@ -21,13 +59,8 @@ import { response_mark } from './response-mark.ts';
  */
 export function env_seed_script(request: Request): string | null {
 	const env = kit_public_env();
-	if (env === null || Object.keys(env).length === 0) return null;
-	let text: string;
-	try {
-		text = devalue_text(env, {});
-	} catch (e) {
-		warn('kit_env_unshipped', { reason: e instanceof Error ? e.message : String(e) });
-		return null;
-	}
+	if (env === null) return null;
+	const text = ENV_TEXT.of(env);
+	if (text === null) return null;
 	return ogygia_script('env', text, `${RESPONSE_MARK}="${response_mark(request)}"`);
 }
