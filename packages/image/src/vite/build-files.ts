@@ -13,7 +13,10 @@
  *   app folder that is not there yet). A `remoteImage()` source is fetched here, under
  *   `image({ remote })` (./remote.ts), and its files are named by the bytes it got, not by its
  *   URL: every prerendered page's name of them is rewritten to that, so a URL whose bytes change
- *   gets new file names, never an old file kept forever under a new picture.
+ *   gets new file names, never an old file kept forever under a new picture. A card that shows a
+ *   remote image is named the same way, by the bytes it got (../card.ts `card_shown_id`); the URLs
+ *   it read are kept in the store, so a warm build fetches them again and draws nothing when their
+ *   bytes name a file it has.
  *
  * One build makes each file once: every make, the prerender's head start and the build's end alike,
  * runs in the build's own thread as one flight per file, a few at once.
@@ -247,12 +250,6 @@ class BuildMakes {
 		return data;
 	}
 
-	/** The card `recipe` names (its `tail`), as the build writes it: kept by its recipe when it shows
-	 *  no remote image; else named by the bytes of the remote images it shows
-	 *  (../card.ts `card_shown_id`), which every build fetches again (`fetch_remote`, the build
-	 *  cache's revalidating fetch), so a host's new picture names a new file and the old one is
-	 *  never written under it. A warm build reads the URLs the card showed from the store and draws
-	 *  nothing when their bytes name a file it has. */
 	async card(
 		recipe: Omit<Recipe, 'src'>,
 		tail: string,

@@ -85,15 +85,10 @@ const fetches = new Line('image remote fetches', FETCHES_MAX);
 interface Made {
 	data: Uint8Array;
 	on_disk: boolean;
-	/** Its `cache-control`. */
 	header: string;
-	/** How long a copy kept in memory may be answered: a file made from remote bytes, until the end
-	 *  of its `remote.maxAge` window. */
 	keep_ms: number;
 }
 
-/** A file's `remote.maxAge` window: its store key's suffix, its `cache-control`, and the seconds
- *  left in it. */
 interface Window {
 	key: string;
 	header: string;
@@ -178,7 +173,6 @@ const remote_originals = flights.keyed<{ url: string }>()<'url', never, Promise<
 
 interface Original {
 	bytes: Uint8Array;
-	/** Whether it shows bytes a remote URL gave (a card that names a remote image). */
 	shown: boolean;
 }
 
