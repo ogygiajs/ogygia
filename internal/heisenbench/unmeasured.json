@@ -5466,7 +5466,7 @@
 		},
 		{
 			"id": "packages/compiler/src/vite/graph-compiled.ts > graph_compiled > walk",
-			"reason": "build only, server leg: once per module of the bundler's graph per wait, one set lookup then the bundler's load, Rolldown's work; test/graph-compiled.test.ts runs it"
+			"reason": "build only, server leg: once per module of the bundler's graph per wait, one set lookup, and the bundler's load only for a module with no code yet, Rolldown's work; test/graph-compiled.test.ts runs it"
 		},
 		{
 			"id": "packages/compiler/src/vite/graph-compiled.ts > importer_of_each_import",
