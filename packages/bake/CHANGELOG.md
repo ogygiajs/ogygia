@@ -1,5 +1,14 @@
 # @ogygia/bake
 
+## 0.15.1
+
+### Patch Changes
+
+- Updated dependencies [[`617b3c7`](https://github.com/ogygiajs/ogygia/commit/617b3c74f1ac68adfe5598e664fbc5adba3a0689)]:
+  - @ogygia/machine@0.15.1
+  - @ogygia/compiler@0.15.1
+  - @ogygia/core@0.15.1
+
 ## 0.15.0
 
 ### Patch Changes
