@@ -78,3 +78,44 @@ test("a usage sample in a Svelte component's markup comment is not a surface", (
 		['html (module) {@html} 1', "request q searchParams('q') 1"]
 	);
 });
+
+test("every call of devalue's parse is a decoder, with or without revivers, by any name it is imported as", () => {
+	const src = dedent`
+		import { parse, stringify } from 'devalue';
+		import { parse as read_wire } from 'devalue';
+		import * as devalue from 'devalue';
+		export function a(el: Element) {
+			return parse(el.textContent ?? '');
+		}
+		export function b(text: string) {
+			return read_wire(text) ?? devalue.parse(decode(text), { X: (v) => v });
+		}
+		export function c(text: string) {
+			return JSON.parse(text) ?? url.parse(text) ?? parse(text, revivers);
+		}
+	`;
+	assert.deepEqual(
+		scan_file('d.ts', src)
+			.map((e) => `${e.kind} ${e.where} ${e.what} ${e.count}`)
+			.sort(),
+		[
+			'decode a devalue parse 1',
+			'decode b devalue parse 2',
+			'decode c JSON.parse 1',
+			'decode c devalue parse 1'
+		]
+	);
+});
+
+test("a parse in a file that does not import devalue's is a decoder only with revivers", () => {
+	const src = dedent`
+		import type { parse } from 'devalue';
+		export function a(text: string) {
+			return parse(text) ?? parse(text, revivers);
+		}
+	`;
+	assert.deepEqual(
+		scan_file('e.ts', src).map((e) => `${e.kind} ${e.where} ${e.what} ${e.count}`),
+		['decode a devalue parse 1']
+	);
+});
