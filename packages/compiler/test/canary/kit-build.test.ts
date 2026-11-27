@@ -198,7 +198,7 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 		});
 
 		it.skipIf(app.major < 3)(
-			"sends its server module's `rendered_env` as a csr=true page's payload env",
+			"sends its server module's rendered_env as a csr=true page's payload env",
 			async () => {
 				const rendered = JSON.parse(
 					await app.node(`

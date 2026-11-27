@@ -319,7 +319,7 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 **Do not:** Inline env values into the client module (dev went stale until a restart; a build never had them). Send anything but `rendered_env` (private variables must never reach the page). Write the channel on a page no region asked for it on.
 
-**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > generates every module the patch table patches, in the text each row reads`, `packages/compiler/test/canary/kit-build.test.ts > sends its server module's \`rendered_env\` as a csr=true page's payload env`, `packages/compiler/test/vite-hooks.test.ts > Kit 3's $app/env/public (KIT-PUBLIC-ENV)`, `packages/core/test/server-seed-word.test.ts > Kit's public env (KIT-PUBLIC-ENV)`, `packages/core/test/browser/side-channel-seeds.test.ts > Kit's public env reads the server's channel, not one the page markup carries before it`, `apps/palaestra/e2e/kit3.spec.ts` (a dynamic variable on a csr=false page, built and in dev, and an edited default in dev)
+**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > generates every module the patch table patches, in the text each row reads`, `packages/compiler/test/canary/kit-build.test.ts > sends its server module's rendered_env as a csr=true page's payload env`, `packages/compiler/test/vite-hooks.test.ts > Kit 3's $app/env/public (KIT-PUBLIC-ENV)`, `packages/core/test/server-seed-word.test.ts > Kit's public env (KIT-PUBLIC-ENV)`, `packages/core/test/browser/side-channel-seeds.test.ts > Kit's public env reads the server's channel, not one the page markup carries before it`, `apps/palaestra/e2e/kit3.spec.ts` (a dynamic variable on a csr=false page, built and in dev, and an edited default in dev)
 
 ---
 
