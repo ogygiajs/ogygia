@@ -129,7 +129,6 @@ import {
 	watch_programs
 } from './rules.ts';
 import { PAGE_FACTS_SELECTOR } from '../page-facts-script.ts';
-import { HELD_KIT_ENV, KIT_ENV_SELECTOR } from './kit-env-held.ts';
 import { linked } from './boot-link.ts';
 import {
 	background_start,
@@ -347,10 +346,6 @@ export function region_fragment(html: VerifiedHtml): {
 	for (const facts of frag.querySelectorAll(PAGE_FACTS_SELECTOR)) {
 		facts.remove();
 		queued.push(facts.textContent ?? '');
-	}
-	for (const env of frag.querySelectorAll(KIT_ENV_SELECTOR)) {
-		env.remove();
-		HELD_KIT_ENV.hold(env.textContent ?? '');
 	}
 	const links = frag.querySelectorAll(`link[${OGYGIA_REGION_CSS}]`);
 	const pending: Array<Promise<void>> = [];

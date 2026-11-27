@@ -234,7 +234,7 @@ describe("Kit's public env (KIT-PUBLIC-ENV)", () => {
 		expect(env![1]).toBe(runtime?.[1]);
 	});
 
-	it('a region rendered for a page (a server hole, a remote call) carries it in its answer when an island in it imports it', async () => {
+	it('a region rendered for a page (a server hole, a remote call) carries no env channel in its answer, even when an island in it imports it (#2219)', async () => {
 		set_kit_public_env({ PUBLIC_REGION: 'eu' });
 		const { kit_page_facts_tail } = await import('../src/server/kit-context.ts');
 		const answer = (url: string, remote: boolean, render: () => void): string => {
@@ -258,11 +258,7 @@ describe("Kit's public env (KIT-PUBLIC-ENV)", () => {
 			['https://app.test/__ogygia__?id=hole', false],
 			['https://app.test/_app/remote/abc/header', true]
 		] as const) {
-			const env = /<script type="application\/ogygia-env"[^>]*>([^<]*)<\/script>/.exec(
-				answer(url, remote, reads_env)
-			);
-			expect(env, url).not.toBeNull();
-			expect((await import('devalue')).parse(env![1]!)).toEqual({ PUBLIC_REGION: 'eu' });
+			expect(answer(url, remote, reads_env), url).not.toContain('application/ogygia-env');
 			expect(answer(url, remote, reads_none), url).not.toContain('application/ogygia-env');
 		}
 	});

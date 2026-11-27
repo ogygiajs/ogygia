@@ -54,7 +54,6 @@ import {
 	note_render_page_ask,
 	prepare_render_page,
 	render_page,
-	render_page_env_script,
 	render_page_facts_script,
 	render_page_version
 } from './server/render-page.ts';
@@ -251,7 +250,7 @@ set_page_recorder((snapshot, seed, remotes, entry, env) => {
 	// a render FOR a page (a hole, a remote call): its islands' asks are the render-page model's —
 	// the answer carries those keys of the looked-up page (server/render-page.ts)
 	const event = live_event();
-	if (event && note_render_page_ask(event, seed, env)) return;
+	if (event && note_render_page_ask(event, seed)) return;
 	const asks = HAS & F_PAGE && seed !== false;
 	const bag = bag_of();
 	if (!bag) {
@@ -281,8 +280,7 @@ set_render_page_port({
 		return prepare_render_page(live_event() ?? undefined, app_transport, reads_data);
 	},
 	tail() {
-		const event = live_event() ?? undefined;
-		return render_page_facts_script(event, app_transport) + render_page_env_script(event);
+		return render_page_facts_script(live_event() ?? undefined, app_transport);
 	},
 	version(hole_id) {
 		if (!hole_reads_page_data(hole_id)) return '';

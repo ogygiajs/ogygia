@@ -109,14 +109,6 @@
 			"reason": "one pass over Kit's few public variables, one Map lookup and one Object.is each; proven in packages/core/test/server-seed-word.test.ts (#2177)"
 		},
 		{
-			"id": "packages/core/src/runtime/kit-env-held.ts > HeldKitEnv > hold",
-			"reason": "browser only, constant: one field write per env channel the router or the hydrate core reads off an answer; proven in packages/core/test/browser/kit-env-answers.test.ts (#2177)"
-		},
-		{
-			"id": "packages/core/src/runtime/kit-env-held.ts > HeldKitEnv > text",
-			"reason": "browser only, constant: one field read, once per document as Kit's $app/env/public runs; proven in packages/core/test/browser/kit-env-answers.test.ts (#2177)"
-		},
-		{
 			"id": "packages/core/src/server/seed-shape.ts > PageAsk > note",
 			"reason": "per region render, beside the page recorder's own work: one merge_seed_ask over the region's keys (the fold the recorder made before) and one boolean; proven in packages/core/test/request-bag.test.ts and packages/core/test/server-seed-word.test.ts (#2177)"
 		},

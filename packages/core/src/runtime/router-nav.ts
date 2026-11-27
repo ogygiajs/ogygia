@@ -38,7 +38,6 @@ import {
 	text_of
 } from '../wire-markup.ts';
 import { KNOWN_HEADER_CAP } from '../contract/known-copies.ts';
-import { HELD_KIT_ENV, KIT_ENV_TYPE } from './kit-env-held.ts';
 import { add_head_owners, adopt_owner_record, head_owners } from '../head-owners.ts';
 import { release_head_nodes } from './head-release.ts';
 import {
@@ -543,16 +542,8 @@ async function run_page_fetch(
 function warm_modules(href: string, html: string) {
 	if (warmed_pages().has(href)) return;
 	warmed_pages().set(href, true);
-	let mark: string | undefined;
 	for (const t of tags(html, 'script')) {
-		if (mark === undefined && t.attrs.has(OGYGIA_RUNTIME)) mark = t.attrs.get(OG_MARK) ?? '';
-		const type = t.attrs.get('type');
-		if (type === KIT_ENV_TYPE && mark && t.attrs.get(OG_MARK) === mark) {
-			const env = text_of(html, t, 'script');
-			if (env !== null) HELD_KIT_ENV.hold(env);
-			continue;
-		}
-		if (type !== 'application/json' || !t.attrs.has(OGYGIA_GRAPH)) continue;
+		if (t.attrs.get('type') !== 'application/json' || !t.attrs.has(OGYGIA_GRAPH)) continue;
 		const json = text_of(html, t, 'script');
 		if (json !== null) register_island_graph(json, new URL(href, location.href).href);
 	}
