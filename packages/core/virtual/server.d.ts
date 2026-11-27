@@ -6,6 +6,7 @@
 declare module 'ogygia:server' {
 export const devtools_boot_url: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/devtools-boot-url']['devtools_boot_url'];
 export const kit_public_env: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/kit-env']['kit_public_env'];
+export const kit_env_build: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/kit-env']['kit_env_build'];
 export const create_remote_key: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/kit-wire']['create_remote_key'];
 export const profiler_maps: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/profiler-maps']['profiler_maps'];
 export const rate_limit: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/rate-limit']['rate_limit'];

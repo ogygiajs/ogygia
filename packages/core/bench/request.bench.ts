@@ -47,6 +47,8 @@ import {
 import { kit_asset } from '../src/kit-paths.ts';
 import { graph_hrefs as graph_hrefs_of } from '../src/region-parts/locate.ts';
 import { set_island_deps } from '../test/_stubs/server.region-deps.ts';
+import { set_kit_public_env } from '../test/_stubs/server.kit-env.ts';
+import { env_seed_script } from '../src/server/env-seed.ts';
 import { csr_true_routes } from '../test/_stubs/server.route-csr.ts';
 import {
 	content_data,
@@ -98,6 +100,8 @@ interface PageOptions {
 	function_leaf?: boolean;
 	/** remote queries resolved during the render, two of them callable by the page's islands */
 	remotes?: boolean;
+	/** the header island's client imports Kit's `$app/env/public` (the page ships Kit's public env) */
+	env?: boolean;
 }
 
 const CSR_FALSE_ROUTE = '/[...path]';
@@ -198,9 +202,10 @@ function render_island(
 	graph: string[],
 	props: Record<string, unknown>,
 	ask: SeedAsk,
-	remotes: string[] = []
+	remotes: string[] = [],
+	env = false
 ): void {
-	record_page({ data, form: null, error: null, status: 200 }, ask, remotes, entry);
+	record_page({ data, form: null, error: null, status: 200 }, ask, remotes, entry, env);
 	const tail = document_tail()!;
 	const wire = new PropsWire(props, entry);
 	const fp = region_fingerprint(entry, wire.canonical);
@@ -235,7 +240,15 @@ function content_request(blocks: number, o: PageOptions = {}): Request_ {
 	if (o.function_leaf) Object.assign(data.site, { format_price: (n: number) => `${n} USD` });
 	const reads = o.reads ?? true;
 	with_request_store({ event, state }, () => {
-		render_island(data, island_entry(900), graph_hrefs(900), header(), reads && ['site']);
+		render_island(
+			data,
+			island_entry(900),
+			graph_hrefs(900),
+			header(),
+			reads && ['site'],
+			[],
+			o.env ?? false
+		);
 		data.page.blocks.forEach((block, i) => {
 			if (i % 11 === 5) return render_hole(data, i, csr);
 			// twelve block components in the list; every instance takes its block from `page.data`
@@ -282,6 +295,24 @@ bench('inject_client_seeds: a CMS page, 250 blocks, csr=false, the seed read', s
 bench('inject_client_seeds: the CMS page, no island reads the seed', seeded, {
 	setup: () => content_request(250, { reads: false }),
 	scale: (_ctx, k) => content_request(25 * k, { reads: false })
+});
+
+/** Kit's public env, as Kit 3 renders it for a page (`rendered_env`): a few public variables. */
+const KIT_PUBLIC_ENV = {
+	PUBLIC_REGION: 'eu',
+	PUBLIC_API_ORIGIN: 'https://api.example.com',
+	PUBLIC_FEATURES: 'search,cart'
+};
+
+bench("inject_client_seeds: the CMS page, its header island imports Kit's public env", seeded, {
+	setup: () => {
+		set_kit_public_env(KIT_PUBLIC_ENV);
+		return content_request(250, { env: true });
+	},
+	scale: (_ctx, k) => {
+		set_kit_public_env(KIT_PUBLIC_ENV);
+		return content_request(25 * k, { env: true });
+	}
 });
 
 bench('inject_client_seeds: the CMS page with setContext values for its islands', seeded, {
@@ -424,6 +455,32 @@ bench(
 	{
 		setup: () => asks_of(250, 8),
 		scale: (_ctx, k) => asks_of(250, 8 * k)
+	}
+);
+
+bench(
+	"page ask: every region's ask noted, one of them asking for Kit's public env",
+	({ asks }) => {
+		const page = new PageAsk(true);
+		asks.forEach((ask, i) => page.note(ask, i === 0));
+		return page.env;
+	},
+	{
+		setup: () => asks_of(250, 8),
+		scale: (_ctx, k) => asks_of(250 * k, 8)
+	}
+);
+
+bench(
+	"env seed: Kit's public env for the next page, unchanged since the last (the made text read again)",
+	({ request }) => env_seed_script(request)?.length ?? 0,
+	{
+		setup: () => {
+			set_kit_public_env(KIT_PUBLIC_ENV);
+			const request = new Request('https://shop.example.com/');
+			env_seed_script(new Request('https://shop.example.com/before'));
+			return { request };
+		}
 	}
 );
 

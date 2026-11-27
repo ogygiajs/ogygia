@@ -261,6 +261,30 @@
 			"name": "Kit's public env whose text does not read back reads empty, and says kit_env_missing"
 		},
 		{
+			"site": "packages/core/src/runtime/kit-env.ts > missing > import:0",
+			"reason": "the warning's chunk, loaded only when the reader has something to say; a download that fails leaves the env empty and nothing unhandled (the test's network drops the chunk in 3 engines)",
+			"test": "packages/core/test/browser/kit-env-warning-lost.test.ts",
+			"name": "a page with no env channel whose warning chunk does not load still reads an empty env, and leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/runtime/kit-env.ts > missing > reject:0",
+			"reason": "the import's rejection, as above; proved by hand: with the handler gone the test fails on an unhandled rejection in 3 engines",
+			"test": "packages/core/test/browser/kit-env-warning-lost.test.ts",
+			"name": "a page with no env channel whose warning chunk does not load still reads an empty env, and leaves nothing unhandled"
+		},
+		{
+			"site": "packages/compiler/src/kit-patches.ts > kit_env_build > parse:0",
+			"reason": "an app's package.json that does not parse names no package: the root's folder names the app, so the build still has an identity",
+			"test": "packages/compiler/test/kit-env-build.test.ts",
+			"name": "a package.json that does not parse: the root's folder names the app"
+		},
+		{
+			"site": "packages/compiler/src/kit-patches.ts > kit_env_build > catch:0",
+			"reason": "as above; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/kit-env-build.test.ts",
+			"name": "a package.json that does not parse: the root's folder names the app"
+		},
+		{
 			"site": "packages/core/src/server/env-seed.ts > EnvText > of > catch:0",
 			"reason": "a public env value devalue cannot carry writes no env channel and says kit_env_unshipped, so the page still renders; proved by hand: the catch made to rethrow turns the test red",
 			"test": "packages/core/test/server-seed-word.test.ts",

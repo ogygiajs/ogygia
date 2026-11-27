@@ -4,7 +4,7 @@
 // script of the same type, before or after the server's. Islands read the server's channel, never the
 // markup's (#893): the one bearing the mark of the document's head runtime script, as the handle
 // writes both (INVARIANTS RESPONSE-MARK).
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { stringify } from 'devalue';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { init } from '../../src/runtime/lazy-link.ts';
@@ -58,6 +58,9 @@ const REMOTE = { type: 'application/ogygia-remote' };
 const CTX = { type: 'application/ogygia-ctx', 'data-ogygia-provide-page': '' };
 const HOLES = { type: 'application/ogygia-holes', 'data-ogygia-holes': '' };
 const page_seed = (who: string) => JSON.stringify({ data: { who } });
+// (the env channel's text: the env and the build that wrote it, server/env-seed.ts)
+const BUILD = 'side-channel-build';
+const env_text = (env: Record<string, unknown>) => stringify({ build: BUILD, env });
 const who = () => (page_state.data as { who?: string }).who;
 
 beforeEach(() => {
@@ -158,10 +161,10 @@ it("Kit's public env reads the server's channel, not one the page markup carries
 	const { kit_env } = await import('../../src/runtime/kit-env.ts');
 	const ENV = { type: 'application/ogygia-env' };
 	runtime_script(document, MARK);
-	script(markup_block(), ENV, stringify({ PUBLIC_REGION: 'markup' }), null);
-	script(document.body, ENV, stringify({ PUBLIC_REGION: 'server' }), MARK);
+	script(markup_block(), ENV, env_text({ PUBLIC_REGION: 'markup' }), null);
+	script(document.body, ENV, env_text({ PUBLIC_REGION: 'server' }), MARK);
 
-	expect(kit_env()).toEqual({ PUBLIC_REGION: 'server' });
+	expect(kit_env(BUILD)).toEqual({ PUBLIC_REGION: 'server' });
 });
 
 it("Kit's public env with no server channel reads empty, and says kit_env_missing", async () => {
@@ -170,31 +173,27 @@ it("Kit's public env with no server channel reads empty, and says kit_env_missin
 	script(
 		markup_block(),
 		{ type: 'application/ogygia-env' },
-		stringify({ PUBLIC_REGION: 'x' }),
+		env_text({ PUBLIC_REGION: 'x' }),
 		null
 	);
-	const said: unknown[] = [];
-	const warn = console.warn;
-	console.warn = (...a: unknown[]) => void said.push(...a);
+	const said = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	try {
-		expect(kit_env()).toEqual({});
+		expect(kit_env(BUILD)).toEqual({});
+		await expect.poll(() => said.mock.calls.flat().join(' ')).toContain('kit_env_missing');
 	} finally {
-		console.warn = warn;
+		said.mockRestore();
 	}
-	expect(said.join(' ')).toContain('kit_env_missing');
 });
 
 it("Kit's public env whose text does not read back reads empty, and says kit_env_missing", async () => {
 	const { kit_env } = await import('../../src/runtime/kit-env.ts');
 	runtime_script(document, MARK);
 	script(document.body, { type: 'application/ogygia-env' }, '{not devalue', MARK);
-	const said: unknown[] = [];
-	const warn = console.warn;
-	console.warn = (...a: unknown[]) => void said.push(...a);
+	const said = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	try {
-		expect(kit_env()).toEqual({});
+		expect(kit_env(BUILD)).toEqual({});
+		await expect.poll(() => said.mock.calls.flat().join(' ')).toContain('kit_env_missing');
 	} finally {
-		console.warn = warn;
+		said.mockRestore();
 	}
-	expect(said.join(' ')).toContain('kit_env_missing');
 });

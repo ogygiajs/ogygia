@@ -7,7 +7,10 @@
  *
  * @packageDocumentation
  */
+import { createHash } from 'node:crypto';
+import path from 'node:path';
 import { dedent, OGYGIA_VERSION } from '@ogygia/core/contract';
+import type { Fs } from './fs.ts';
 import { warn } from './messages.ts';
 
 /** One patch of a Kit module, applied to the browser's copy only. */
@@ -89,15 +92,57 @@ export function patch_kit_module(code: string, id: string): string {
 	return out;
 }
 
+/** What names an app for its env channel: its package name (else its root's folder name), its base
+ *  and its app dir. */
+export interface KitEnvApp {
+	readonly root: string;
+	readonly base: string;
+	readonly app_dir: string;
+	readonly fs: Fs;
+}
+
+/**
+ * The build's identity on Kit's env channel: the server writes it beside the env, and the browser's
+ * reader reads the env only when the channel bears its own. Both legs of one app make the same one
+ * from the same facts (the app's name, base and app dir); a federated peer is another app, so its
+ * reader never takes the host's env as its own. It holds no path and no time, so a build made again
+ * is byte-identical.
+ */
+export function kit_env_build(app: KitEnvApp): string {
+	let name = '';
+	const pkg = app.fs.read(path.join(app.root, 'package.json'));
+	if (pkg !== null) {
+		try {
+			const read = (JSON.parse(pkg) as { name?: unknown }).name;
+			if (typeof read === 'string') name = read;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a package.json that does not parse names no package: the root's folder names the app
+		} catch {}
+	}
+	return createHash('sha256')
+		.update([name || path.basename(app.root), app.base, app.app_dir].join('\0'))
+		.digest('hex')
+		.slice(0, 12);
+}
+
 /**
  * `ogygia:server/kit-env` for the app's Kit major: Kit 3's `rendered_env`, the object Kit puts in its
- * boot payload as `env` on a csr=true page (public variables only, set again as Kit's server starts).
- * Any other Kit: `null`.
+ * boot payload as `env` on a csr=true page (public variables only, set again as Kit's server starts),
+ * and the build's identity (`kit_env_build`). Any other Kit: a `null` env.
  */
-export function kit_public_env_module(major: number | null): string {
-	if (major === null || major < 3) return 'export function kit_public_env() { return null; }\n';
-	return dedent`
+export function kit_public_env_module(major: number | null, build: string): string {
+	const id = `export const kit_env_build = ${JSON.stringify(build)};\n`;
+	if (major === null || major < 3)
+		return `${id}export function kit_public_env() { return null; }\n`;
+	return `${id}${dedent`
 		import { rendered_env } from '<sveltekit:generated>/env/config.js';
 		export function kit_public_env() { return rendered_env; }
+	`}`;
+}
+
+/** `ogygia:boot/kit-env`: the runtime's reader at `file`, bound to the build's identity. */
+export function kit_env_reader_module(file: string, build: string): string {
+	return dedent`
+		import { kit_env as read } from ${JSON.stringify(file)};
+		export const kit_env = () => read(${JSON.stringify(build)});
 	`;
 }

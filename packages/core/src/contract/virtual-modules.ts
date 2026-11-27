@@ -226,10 +226,12 @@ export interface KitWireModule {
  *  `rendered_env`), or `null` where this Kit has none ogygia reads. */
 export interface KitEnvModule {
 	kit_public_env(): Record<string, unknown> | null;
+	/** This build's identity, written beside the env so only this build's reader reads it. */
+	readonly kit_env_build: string;
 }
 
-/** `ogygia:boot/kit-env`: the browser's reader of that env (runtime/kit-env.ts), which Kit's patched
- *  `$app/env/public` imports. */
+/** `ogygia:boot/kit-env`: the browser's reader of that env (runtime/kit-env.ts), bound to this
+ *  build's `kit_env_build`, which Kit's patched `$app/env/public` imports. */
 export interface KitEnvReaderModule {
 	kit_env(): Record<string, unknown>;
 }

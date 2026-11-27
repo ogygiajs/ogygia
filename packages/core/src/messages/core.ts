@@ -14,6 +14,11 @@ import { prose } from '../contract/prose.ts';
 import { OG_PREFIX, OGYGIA_KEEP, OGYGIA_PREFIX } from '../wire-markup.ts';
 
 const BUG = 'An ogygia bug: please report it with the page that shows it.';
+const KIT_ENV_MISSING_WHY: Readonly<Record<'absent' | 'unreadable' | 'other-build', string>> = {
+	absent: 'carries no public env from the server',
+	unreadable: 'carries a public env that does not read back',
+	'other-build': "carries another app's public env"
+};
 const PROMISE_UNRESOLVED: ReadonlyMap<string, string> = new Map([
 	['stream', 'a streamed page.data promise never got its value: the page loaded without it.'],
 	[
@@ -977,18 +982,22 @@ export const WARNINGS = {
 		`
 	},
 	kit_env_missing: {
-		text: (a: { why: 'absent' | 'unreadable' }): string => prose`
+		text: (a: { why: keyof typeof KIT_ENV_MISSING_WHY }): string => prose`
 			an island imports SvelteKit's \`$app/env/public\` on a page Kit does not start, and the
-			page ${a.why === 'absent' ? 'carries no public env from the server' : 'carries a public env that does not read back'}:
+			page ${KIT_ENV_MISSING_WHY[a.why]}:
 			its dynamic public variables read \`undefined\`.
 		`,
 		details: (): string => prose`
 			On a \`csr = false\` page Kit's client never starts, so it never hands its public env to
 			\`$app/env/public\`. The server writes that env into the page instead, for every region
-			whose code imports the module, and the module reads it from there. This page had none
-			(or one that did not decode), so the variables marked \`static: false\` read
-			\`undefined\`. Usually the region was rendered by a path that does not ask for the env
-			(a page this build did not render, or another build's page). ${BUG}
+			whose code imports the module, and the module reads it from there, as the module first
+			runs. Known cases where it finds none of its own: an island inside a region the server
+			renders later (a \`defer\` hole) or a remote call's answer, an island a router prefetch
+			warms before its page is open (both #2219, https://github.com/ogygiajs/ogygia/issues/2219),
+			and a federated peer's island on the host's page, which reads an empty env rather than
+			the host's (#2221, https://github.com/ogygiajs/ogygia/issues/2221). Outside those, a page
+			whose own region imports the module and carries no env, or one that does not decode, is an
+			ogygia bug: please report it with the page that shows it.
 		`
 	},
 	store_not_extensible: {

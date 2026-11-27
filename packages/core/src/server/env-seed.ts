@@ -6,7 +6,7 @@
  *
  * @packageDocumentation
  */
-import { kit_public_env } from 'ogygia:server';
+import { kit_env_build, kit_public_env } from 'ogygia:server';
 import { RESPONSE_MARK } from '../contract/response-mark.ts';
 import { warn } from '../messages/server.ts';
 import { devalue_text } from './devalue-text.ts';
@@ -25,7 +25,7 @@ class EnvText {
 		let text: string | null = null;
 		if (from.size > 0) {
 			try {
-				text = devalue_text(env, {});
+				text = devalue_text({ build: kit_env_build, env }, {});
 			} catch (e) {
 				warn('kit_env_unshipped', { reason: e instanceof Error ? e.message : String(e) });
 			}
@@ -49,7 +49,9 @@ const ENV_TEXT = new EnvText();
 /**
  * Kit's public env as one `<script type="application/ogygia-env">`, marked with `request`'s mark:
  * exactly what Kit puts in its boot payload on a csr=true page (Kit 3's `rendered_env`, public
- * variables only), serialized with devalue as Kit does. Null: this Kit has none, it holds no
+ * variables only), serialized with devalue as Kit does, beside the build that wrote it
+ * (`kit_env_build`, the constant the build's browser reader is bound to), so a region of another
+ * build (a federated peer's) never reads it as its own. Null: this Kit has none, it holds no
  * variable, or it does not serialize (said with `kit_env_unshipped`).
  */
 export function env_seed_script(request: Request): string | null {

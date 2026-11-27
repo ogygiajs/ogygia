@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { with_request_store } from '@sveltejs/kit/internal/server';
 import { HAS, set_server_word } from './_stubs/server.runtime-flags.ts';
 import { F_CONTEXT, F_PAGE, F_REMOTE_SEEDS } from '../src/contract/features.ts';
-import { set_kit_public_env } from './_stubs/server.kit-env.ts';
+import { kit_env_build, set_kit_public_env } from './_stubs/server.kit-env.ts';
 
 const { handle } = await import('../src/hooks.ts');
 const { record_ctx, page_context_script } = await import('../src/context-registry.ts');
@@ -181,7 +181,10 @@ describe("Kit's public env (KIT-PUBLIC-ENV)", () => {
 			/<script type="application\/ogygia-env" data-og-mark="([^"]+)">([^<]*)<\/script>/.exec(html);
 		expect(script, html).not.toBeNull();
 		expect(html).toContain(`data-og-mark="${script![1]}"`);
-		expect((await import('devalue')).parse(script![2]!)).toEqual({ PUBLIC_REGION: 'eu</script>' });
+		expect((await import('devalue')).parse(script![2]!)).toEqual({
+			build: kit_env_build,
+			env: { PUBLIC_REGION: 'eu</script>' }
+		});
 	});
 
 	it('a page whose regions never import it carries none', async () => {

@@ -896,7 +896,7 @@ test("a page's marked side channel in the head is that page's, after a page that
 	const marked = (mark: string) =>
 		`<script type="text/plain" data-ogygia-runtime src="${src}" data-og-mark="${mark}"></script>`;
 	const channel = (mark: string) =>
-		`<script type="application/ogygia-env" data-og-mark="${mark}">${stringify({ PUBLIC_REGION: 'eu' })}</script>`;
+		`<script type="application/ogygia-env" data-og-mark="${mark}">${stringify({ build: 'nav-build', env: { PUBLIC_REGION: 'eu' } })}</script>`;
 	const live = document.createElement('template');
 	live.innerHTML = marked('a'.repeat(24));
 	document.head.append(live.content.firstElementChild!);
@@ -906,7 +906,7 @@ test("a page's marked side channel in the head is that page's, after a page that
 	await go('/rn-env-c');
 	const said = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	try {
-		expect(kit_env()).toEqual({ PUBLIC_REGION: 'eu' });
+		expect(kit_env('nav-build')).toEqual({ PUBLIC_REGION: 'eu' });
 		expect(said.mock.calls.flat().join(' ')).not.toContain('kit_env_missing');
 	} finally {
 		said.mockRestore();

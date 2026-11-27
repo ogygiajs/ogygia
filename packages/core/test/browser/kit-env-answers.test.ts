@@ -12,6 +12,7 @@ import { reset_load_scheduler } from '../../src/runtime/load-scheduler.ts';
 import { is_warmed_module } from '../../src/runtime/island-warm.ts';
 import { reset_document_painted } from '../../src/runtime/schedule.ts';
 import { region_fragment } from './_html.ts';
+import { kit_env_build } from '../_stubs/server.kit-env.ts';
 
 const real_fetch = window.fetch;
 const ISLAND = '/test/browser/fixtures/reads-kit-env.ts';
@@ -22,9 +23,11 @@ const island = async (copy: string): Promise<Record<string, unknown>> =>
 		}
 	).env;
 
+/** The env channel's text as this build's server writes it. */
+const env_text = (env: Record<string, unknown>) => stringify({ build: kit_env_build, env });
 /** A page as the server sends it: its runtime script and its env channel bear `mark`. */
-const next_page = (copy: string, env: object, mark: string) =>
-	`<!doctype html><html><head><script type="module" data-ogygia-runtime src="/_app/og-rt.js" data-og-mark="${mark}"></script><script type="application/ogygia-env" data-og-mark="${mark}">${stringify(env)}</script></head><body><ogygia-region wake="load" entry="${ISLAND}?${copy}"><p>next</p></ogygia-region></body></html>`;
+const next_page = (copy: string, env: Record<string, unknown>, mark: string) =>
+	`<!doctype html><html><head><script type="module" data-ogygia-runtime src="/_app/og-rt.js" data-og-mark="${mark}"></script><script type="application/ogygia-env" data-og-mark="${mark}">${env_text(env)}</script></head><body><ogygia-region wake="load" entry="${ISLAND}?${copy}"><p>next</p></ogygia-region></body></html>`;
 
 let served = '';
 let said: MockInstance<typeof console.warn>;
@@ -53,7 +56,7 @@ test('a prefetch from a page with no env channel: the island it warms reads an e
 	await nav.fetch_page(new URL('/kit-env-next', location.href).href, undefined, 'prefetch');
 	await expect.poll(() => is_warmed_module(`${ISLAND}?prefetched`), { timeout: 2_000 }).toBe(true);
 	expect(await island('prefetched')).toEqual({});
-	expect(said.mock.calls.flat().join(' ')).toContain('kit_env_missing');
+	await expect.poll(() => said.mock.calls.flat().join(' ')).toContain('kit_env_missing');
 });
 
 test("a channel another build wrote (a federated peer's region on the host's page) reads as an empty env, and says kit_env_missing", async () => {
@@ -72,9 +75,9 @@ test("a channel another build wrote (a federated peer's region on the host's pag
 
 test('an island inside a region answer, on a page with no env channel, reads an empty env and says kit_env_missing', async () => {
 	const { frag } = region_fragment(
-		`<script type="application/ogygia-env">${stringify({ PUBLIC_REGION: 'hole' })}</script><p>hole</p>`
+		`<script type="application/ogygia-env">${env_text({ PUBLIC_REGION: 'hole' })}</script><p>hole</p>`
 	);
 	expect(frag.querySelector('p')).not.toBeNull();
 	expect(await island('answer')).toEqual({});
-	expect(said.mock.calls.flat().join(' ')).toContain('kit_env_missing');
+	await expect.poll(() => said.mock.calls.flat().join(' ')).toContain('kit_env_missing');
 });

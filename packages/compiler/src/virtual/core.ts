@@ -7,7 +7,7 @@ import {
 	kit_major as kit_major_of,
 	rootLayoutCsrTrue
 } from '../kit.ts';
-import { kit_public_env_module } from '../kit-patches.ts';
+import { kit_env_build, kit_env_reader_module, kit_public_env_module } from '../kit-patches.ts';
 import {
 	generateFeatureCodeSource,
 	generateHydrateFeaturesSource,
@@ -483,8 +483,9 @@ export const kit_wire: Family<KitWireModule> = virtual.family({
 export const kit_env: Family<KitEnvModule> = virtual.family({
 	realm: 'server',
 	id: 'kit-env',
-	exports: { kit_public_env: 'kit_public_env' },
-	load: ({ ctx }: CoreApp, { ssr }) => kit_public_env_module(ssr ? kit_major_of(ctx.root) : null)
+	exports: { kit_public_env: 'kit_public_env', kit_env_build: 'kit_env_build' },
+	load: ({ ctx }: CoreApp, { ssr }) =>
+		kit_public_env_module(ssr ? kit_major_of(ctx.root) : null, kit_env_build(ctx))
 });
 
 /** KIT-PUBLIC-ENV, the browser's half: the reader Kit's patched `$app/env/public` imports. */
@@ -494,7 +495,7 @@ export const kit_env_reader: Family<KitEnvReaderModule> = virtual.family({
 	load({ ctx }: CoreApp) {
 		const rt = ctx.is_build ? null : dev_runtime_of(ctx.runtime_dir);
 		const file = posix(`${rt?.dir ?? ctx.runtime_dir}/kit-env${rt?.ts ? '.ts' : '.js'}`);
-		return `export { kit_env } from ${JSON.stringify(file)};\n`;
+		return kit_env_reader_module(file, kit_env_build(ctx));
 	}
 });
 
