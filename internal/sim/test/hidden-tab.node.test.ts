@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
 import { act } from '../src/workload.ts';
-import { islands_wake, mpa_equivalent } from '../src/oracles.ts';
+import { as_it_stands, islands_wake, mpa_equivalent } from '../src/oracles.ts';
 
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
@@ -185,6 +185,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 	};
 
 	it('behind with a frame owed, it is looked at before it is judged against a shown fresh load: a visible island its hole brought after it went behind wakes then (#2176)', async () => {
+		const { rest_at_end } = await import('../src/cli.ts');
 		const world = await World.make({
 			seed: 1,
 			builds: [{ id: 'v1', output: OUTPUT }],
@@ -192,7 +193,11 @@ describe.skipIf(!built)('a tab behind another', () => {
 		});
 		try {
 			const { v, front, tab, inner } = await behind_owing(world);
-			expect(await mpa_equivalent(world, v, tab)).toBeNull();
+			const stood = await rest_at_end(world, v);
+			expect(stood.get(tab), 'its observers had a frame: it is not judged as it stood').toBe(
+				undefined
+			);
+			expect(await mpa_equivalent(world, v, tab, undefined, stood.get(tab))).toBeNull();
 			expect(inner()!.hasAttribute('data-hydrated'), 'it woke once looked at').toBe(true);
 			expect(front.hidden, 'and the tab in front is in front again').toBe(false);
 			expect(tab.owes_frame()).toBe(false);
@@ -324,7 +329,8 @@ describe.skipIf(!built)('a tab behind another', () => {
 		}
 	});
 
-	it('went behind before its observers had a frame, though it was shown as its document came: a visible island that woke there with no frame is an MPA difference, though the look would wake it (#2091)', async () => {
+	it('went behind before its observers had a frame, though it was shown as its document came: a visible island that woke there with no frame is an MPA difference, though the run end looks at it before it judges it (#2091)', async () => {
+		const { rest_at_end } = await import('../src/cli.ts');
 		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
 		try {
 			const v = world.visitor('v');
@@ -369,13 +375,18 @@ describe.skipIf(!built)('a tab behind another', () => {
 			expect(visible!.hasAttribute('data-hydrated'), 'it woke behind, with no frame').toBe(true);
 			expect(tab.framed.has(tab.realm), 'its observers had none').toBe(false);
 			expect(tab.owes_frame(), 'so it is owed a look').toBe(true);
-			expect((await mpa_equivalent(world, v, tab))?.oracle).toBe('mpa-equivalence');
+			const stood = await rest_at_end(world, v);
+			expect(tab.framed.has(tab.realm), 'the run end looked').toBe(true);
+			expect((await mpa_equivalent(world, v, tab, undefined, stood.get(tab)))?.oracle).toBe(
+				'mpa-equivalence'
+			);
 		} finally {
 			await world.end();
 		}
 	});
 
 	it('is judged against a shown fresh load when its islands had a frame before it went behind', async () => {
+		const { rest_at_end } = await import('../src/cli.ts');
 		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
 		try {
 			const v = world.visitor('v');
@@ -389,7 +400,28 @@ describe.skipIf(!built)('a tab behind another', () => {
 			const doc = tab.page.mainFrame.document as unknown as Document;
 			const visible = doc.querySelector('[data-gate-visible] > ogygia-region[wake="visible"]');
 			expect(visible!.hasAttribute('data-hydrated'), 'it woke while shown').toBe(true);
-			expect(await mpa_equivalent(world, v, tab)).toBeNull();
+			const stood = await rest_at_end(world, v);
+			expect(stood.get(tab), 'it is owed no look: it is not judged as it stood').toBe(undefined);
+			expect(await mpa_equivalent(world, v, tab, undefined, stood.get(tab))).toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
+
+	it('loaded behind and never shown, it is owed no look and not judged as it stands; a difference it showed as it stood, before the run end looked, is the finding: it is not loaded fresh again (#2091)', async () => {
+		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const v = world.visitor('v');
+			const front = world.tab(v);
+			await world.go(front, 'goto', '/');
+			await act(world, v, { kind: 'background', path: '/wake-gate' }, 'https://app.test');
+			const tab = v.tabs[1];
+			const at = world.network.exchanges.length;
+			expect(await as_it_stands(world, v, tab)).toBeNull();
+			expect(world.network.exchanges.length, 'no fresh load as it stands').toBe(at);
+			const stood = { oracle: 'mpa-equivalence', detail: 'as it stood' } as const;
+			expect(await mpa_equivalent(world, v, tab, undefined, stood)).toBe(stood);
+			expect(world.network.exchanges.length, 'no fresh load').toBe(at);
 		} finally {
 			await world.end();
 		}

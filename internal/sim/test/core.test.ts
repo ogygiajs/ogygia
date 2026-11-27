@@ -486,7 +486,7 @@ describe('the network', () => {
 		expect(loop.now).toBeGreaterThan(at);
 	});
 
-	it('two holds by one test each keep their own requests, and the network ending fails what is still held', async () => {
+	it('two holds by one test each keep their own requests, and the network ending fails what is still held, and leaves one lost meanwhile as it was', async () => {
 		const loop = new Loop(rng(1));
 		const net = new Network({ loop, rng: rng(1), faults: new Set() });
 		const asked: string[] = [];
@@ -504,16 +504,23 @@ describe('the network', () => {
 			() => 'answered',
 			(e: unknown) => (e instanceof Error ? e.message : String(e))
 		);
+		void net.send('tab-2#1', new Request('https://app.test/lost'), handler).catch(() => {});
 		second();
 		await loop.run(10_000);
 		expect(asked, 'a request any hold names stays until every such hold lets go').toEqual([]);
+		net.offline('tab-2', true);
 		first();
 		await loop.run(10_000);
 		expect(asked).toEqual(['/one', '/two']);
 		expect(await one).toBeInstanceOf(Response);
 		expect(await two).toBeInstanceOf(Response);
+		expect(net.held(), 'one lost meanwhile is held no more').toEqual(['https://app.test/three']);
 		net.end();
 		expect(await three).toMatch(/Failed to fetch/);
+		expect(
+			net.exchanges.find((e) => e.url.endsWith('/lost'))!.status,
+			'the end leaves one lost meanwhile as it was lost'
+		).toBe('offline');
 		expect(net.busy()).toBe(false);
 		third();
 		await loop.run(10_000);

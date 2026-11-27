@@ -81,6 +81,43 @@ describe.skipIf(!built)('rest', () => {
 			await world.end();
 		}
 	}, 120_000);
+
+	it('names a request a hold still keeps when it gives up at the horizon while ticks keep the pages from rest: the request asked after its quiesce gave up', async () => {
+		const horizon = 60_000;
+		const world = await World.make({ seed: 1, builds: [{ id: 'v1', output: OUTPUT }], horizon });
+		try {
+			const tab = world.tab(world.visitor('v'));
+			await world.go(tab, 'goto', '/');
+			await world.loop.run(horizon - 31_500 - world.loop.now);
+			world.network.hold((url) => url.pathname === '/never-let-go');
+			const w = tab.page.mainFrame.window as unknown as Window;
+			// (a tick every 100 ms: no quiesce rests, nor are the pages quiet between ticks)
+			w.setInterval(() => {}, 100);
+			// (asked once the quiesce's 30 s budget ended, before the horizon)
+			w.setTimeout(() => void w.fetch('/never-let-go').catch(() => {}), 30_800);
+			await expect(world.rest()).rejects.toThrow(
+				/a hold still keeps https:\/\/app\.test\/never-let-go/
+			);
+		} finally {
+			await world.end();
+		}
+	}, 120_000);
+
+	it('the world ending fails a request a hold still keeps', async () => {
+		const world = await World.make({ seed: 1, builds: [{ id: 'v1', output: OUTPUT }] });
+		const tab = world.tab(world.visitor('v'));
+		await world.go(tab, 'goto', '/');
+		world.network.hold((url) => url.pathname === '/never-let-go');
+		const w = tab.page.mainFrame.window as unknown as Window;
+		const heard = w.fetch('/never-let-go').then(
+			() => 'answered',
+			(e: unknown) => (e instanceof Error ? e.message : String(e))
+		);
+		await world.loop.run(1_000);
+		await world.end();
+		const never = new Promise((done) => setTimeout(() => done('never settled'), 1_000));
+		expect(await Promise.race([heard, never])).toMatch(/Failed to fetch/);
+	}, 120_000);
 });
 
 // (the generated app of seed 8: /p3's live regions tick for good, and their ticks put islands in)
