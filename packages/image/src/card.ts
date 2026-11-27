@@ -6,8 +6,8 @@
  *   return { share: ShareCard({ title: post.title }) };   // a +page.server.ts load
  *
  * The plugin writes each card as a module that hands {@link card} its spec. A card's source id is a
- * hash of its digest (every module and font it is made from, and the engine's versions), its size and
- * its props, so a change to any of them names new files and nothing else does. Its files' URLs carry
+ * hash of its digest (every module and font it is made from, and the engine's versions), its size,
+ * its props and the version of ogygia's draw, so a change to any of them names new files. Its files' URLs carry
  * the props (`.card/<card>/<props>`, ./recipe.ts), signed with the rest, so the endpoint renders only
  * the props the server named. Server only: the descriptor's `src` is a URL the server mints.
  *
@@ -18,7 +18,7 @@ import { OgygiaError } from './messages.ts';
 import { b64url_encode, mint, type Recipe } from './recipe.ts';
 import { RenderError } from './render-messages.ts';
 import { sha256 } from './sha256.ts';
-import { ENCODER_VERSION } from './source-id.ts';
+import { CARD_DRAW_VERSION, ENCODER_VERSION } from './source-id.ts';
 
 /** The most a card's props may take in its URLs: base64url characters of their JSON. */
 export const PROPS_MAX = 2048;
@@ -109,10 +109,10 @@ function b64url(bytes: Uint8Array): string {
 	return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-/** The source id of `spec`'s card with props `json`: `c` and a hash of its digest, size and
- *  props. */
+/** The source id of `spec`'s card with props `json`: `c` and a hash of its digest, size, props
+ *  and the versions of the encoder and of the draw ({@link CARD_DRAW_VERSION}). */
 export function card_id(spec: Pick<CardSpec, 'digest' | 'width' | 'height'>, json: string): string {
-	const text = `card\0${spec.digest}\0${spec.width}x${spec.height}\0${json}\0encoder ${ENCODER_VERSION}`;
+	const text = `card\0${spec.digest}\0${spec.width}x${spec.height}\0${json}\0encoder ${ENCODER_VERSION}\0draw ${CARD_DRAW_VERSION}`;
 	return `c${b64url(sha256(new TextEncoder().encode(text))).slice(0, ID_LENGTH)}`;
 }
 

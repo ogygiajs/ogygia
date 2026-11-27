@@ -17,7 +17,8 @@
  *   `remoteImage()` takes, ../image-type.ts): `image_card_source`.
  *
  * Then the tree is checked whole, once, right before satori ({@link drawable}): every address left
- * in it is bytes, a `data:` URL of a raster type or a `#` reference, or the card is refused. The
+ * in it is bytes or a `data:` URL of a file resvg draws ({@link resvg_draws}), or a `#` reference,
+ * or the card is refused. The
  * guard is closed by that check, not by reading CSS the way satori does.
  *
  * @packageDocumentation
@@ -65,16 +66,92 @@ export function card_image_reader(
 
 type Node = { type?: unknown; props?: { [prop: string]: unknown } };
 
-const URL_RE = /url\(\s*(['"]?)(.*?)\1\s*\)/g;
-const URL_OPEN_RE = /url\(/gi;
-const SAFE_AFTER_OPEN_RE = /^\s*['"]?\s*(?:data:|#|['"]?\s*\))/i;
+const SPACE_RE = /\s/;
 const HREF_PROPS: ReadonlySet<string> = new Set(['href', 'xlinkHref', 'xlink:href']);
-const DATA_AFTER_OPEN_RE = /^\s*(['"]?)\s*(data:[^'")]*)/i;
 
-/** The image types resvg draws, and so the only ones the tree satori is handed may hold: satori
- *  writes any image it is given into its SVG as it is, and resvg draws a WebP or an AVIF as
- *  nothing, with no error. The card's fitter makes every other type again as one of these. */
-export const RESVG_DRAWS: ReadonlySet<string> = new Set(['image/png', 'image/jpeg', 'image/gif']);
+/** One `url(` in a string: where it starts and ends, the address it names (its quotes taken off),
+ *  and whether it is closed (an unclosed one runs to the end of the string). */
+export interface UrlSpan {
+	start: number;
+	end: number;
+	src: string;
+	closed: boolean;
+}
+
+/** Every `url(` in `value` (any case), read one way for the rewrite and for the check before the
+ *  draw, so the two cannot disagree: a quoted address ends at its quote and then a `)`, any other
+ *  at the first `)`; with no such end the span is unclosed. */
+export function url_spans(value: string): UrlSpan[] {
+	const spans: UrlSpan[] = [];
+	const lower = value.toLowerCase();
+	let from = 0;
+	for (;;) {
+		const start = lower.indexOf('url(', from);
+		if (start === -1) return spans;
+		let at = start + 4;
+		while (at < value.length && SPACE_RE.test(value[at]!)) at++;
+		const quote = value[at] === '"' || value[at] === "'" ? value[at]! : '';
+		let src: string;
+		let close: number;
+		if (quote !== '') {
+			const shut = value.indexOf(quote, at + 1);
+			src = value.slice(at + 1, shut === -1 ? value.length : shut);
+			close = shut === -1 ? -1 : shut + 1;
+			while (close !== -1 && close < value.length && SPACE_RE.test(value[close]!)) close++;
+			if (close !== -1 && value[close] !== ')') close = -1;
+		} else {
+			close = value.indexOf(')', at);
+			src = value.slice(at, close === -1 ? value.length : close).trimEnd();
+		}
+		const end = close === -1 ? value.length : close + 1;
+		spans.push({ start, end, src, closed: close !== -1 });
+		from = end;
+	}
+}
+
+const JPEG_SOF_DRAWN: ReadonlySet<number> = new Set([0xc0, 0xc1, 0xc2]);
+const JPEG_NO_LENGTH = (marker: number): boolean =>
+	marker === 0x01 || (marker >= 0xd0 && marker <= 0xd8);
+
+function jpeg_drawn(bytes: Uint8Array): boolean {
+	let at = 2;
+	while (at + 3 < bytes.length) {
+		if (bytes[at] !== 0xff) return false;
+		const marker = bytes[at + 1]!;
+		if (marker === 0xff) {
+			at += 1;
+			continue;
+		}
+		if (JPEG_NO_LENGTH(marker)) {
+			at += 2;
+			continue;
+		}
+		if (marker === 0xda || marker === 0xd9) return false;
+		const length = (bytes[at + 2]! << 8) | bytes[at + 3]!;
+		if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+			if (at + 9 >= bytes.length) return false;
+			const components = bytes[at + 9]!;
+			return (
+				JPEG_SOF_DRAWN.has(marker) && bytes[at + 4] === 8 && (components === 1 || components === 3)
+			);
+		}
+		at += 2 + length;
+	}
+	return false;
+}
+
+/** Does resvg draw these bytes: a PNG of at most 8 bits a sample, a JPEG of 8 bits in one or three
+ *  components (no CMYK) coded as baseline or progressive, or a GIF. These are the only files the
+ *  tree satori is handed may hold: satori writes any image it is given into its SVG as it is, and
+ *  resvg draws the rest (a WebP, an AVIF, a CMYK JPEG) as nothing, with no error. The card's fitter
+ *  makes every other file again as one of these. */
+export function resvg_draws(bytes: Uint8Array): boolean {
+	const type = image_type(bytes);
+	if (type === 'image/gif') return true;
+	if (type === 'image/png') return bytes.length > 24 && bytes[24]! <= 8;
+	if (type === 'image/jpeg') return jpeg_drawn(bytes);
+	return false;
+}
 
 function is_ref(src: string): boolean {
 	return src.trim() === '' || src.startsWith('#');
@@ -96,12 +173,18 @@ function walk(
 	const { type, props } = node as Node;
 	if (props === undefined) return node;
 	const svg = in_svg || type === 'svg';
-	const text = (value: string): string =>
-		value.includes('url(')
-			? value.replace(URL_RE, (whole, _q: string, src: string) =>
-					is_ref(src) ? whole : `url(${String(each(src, 'other'))})`
-				)
-			: value;
+	const text = (value: string): string => {
+		const parts: string[] = [];
+		let at = 0;
+		for (const span of url_spans(value)) {
+			if (!span.closed || is_ref(span.src)) continue;
+			parts.push(value.slice(at, span.start), `url(${String(each(span.src, 'other'))})`);
+			at = span.end;
+		}
+		if (at === 0) return value;
+		parts.push(value.slice(at));
+		return parts.join('');
+	};
 	const next: { [prop: string]: unknown } = {};
 	for (const [key, value] of Object.entries(props)) {
 		if (key === 'children') next[key] = walk(value, svg, each);
@@ -206,29 +289,32 @@ export async function inline_images<T>(
 }
 
 /** Refuse `tree` (`image_card_source`) unless every address left in it is one satori cannot fetch
- *  and resvg draws: an `ArrayBuffer` or a `data:` URL whose bytes are a type of
- *  {@link RESVG_DRAWS}, or a `#` reference, in every `src`, `href`, `xlink:href` and after every
+ *  and resvg draws: an `ArrayBuffer` or a `data:` URL whose bytes resvg draws
+ *  ({@link resvg_draws}), or a `#` reference, in every `src`, `href`, `xlink:href` and after every
  *  `url(` of every string, closed or not. Run on the tree satori is handed, right before the draw. */
 export function drawable(tree: unknown, file: string): void {
 	const fail = (src: string, reason: string): never => {
 		throw refused(file, src.slice(0, 64), reason);
 	};
 	const drawn = (src: string, bytes: Uint8Array | null): void => {
+		if (bytes !== null && resvg_draws(bytes)) return;
 		const type = bytes === null ? null : image_type(bytes);
-		if (type === null || !RESVG_DRAWS.has(type))
-			fail(
-				src,
-				`its bytes are ${type ?? 'no image'}, and resvg draws only PNG, JPEG and GIF (an SVG can name addresses of its own)`
-			);
+		fail(
+			src,
+			`its bytes are ${type ?? 'no image'} that resvg does not draw: it draws only an 8-bit PNG, an 8-bit grey or RGB JPEG and a GIF (an SVG can name addresses of its own)`
+		);
 	};
 	const text = (value: string): void => {
-		if (!value.toLowerCase().includes('url(')) return;
-		for (const m of value.matchAll(URL_OPEN_RE)) {
-			const after = value.slice(m.index + m[0].length);
-			if (!SAFE_AFTER_OPEN_RE.test(after))
-				fail(after, 'a url() here names no image ogygia read (an unclosed url() reads as one)');
-			const data = DATA_AFTER_OPEN_RE.exec(after)?.[2];
-			if (data !== undefined) drawn(data, data_bytes(data));
+		for (const span of url_spans(value)) {
+			if (!span.closed)
+				fail(
+					value.slice(span.start),
+					'its url( has no closing paren, and satori would read it as one'
+				);
+			if (is_ref(span.src)) continue;
+			if (!/^data:/i.test(span.src))
+				fail(span.src, 'a url() here names no image ogygia read before the draw');
+			drawn(span.src, data_bytes(span.src));
 		}
 	};
 	const visit = (node: unknown): void => {

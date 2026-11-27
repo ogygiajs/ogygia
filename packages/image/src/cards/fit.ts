@@ -8,9 +8,10 @@
  *
  * @packageDocumentation
  */
+import type { Metadata } from 'sharp';
 import { metadata_of, pipeline, shown_size, too_large } from '../pixels.ts';
 import { image_type } from '../image-type.ts';
-import { RESVG_DRAWS } from './images.ts';
+import { resvg_draws } from './images.ts';
 
 /** The most pixels an image a card draws keeps, in cards of its card's size. */
 export const CARD_COVER_TIMES = 4;
@@ -23,11 +24,24 @@ export function card_scale(width: number, height: number, card_w: number, card_h
 	return Math.min(1, cover, pixels);
 }
 
+const DRAWN_AS_IS: ReadonlySet<string | undefined> = new Set(['srgb', 'b-w']);
+
+function drawn_as_is(bytes: Uint8Array, meta: Metadata): boolean {
+	return (
+		resvg_draws(bytes) &&
+		DRAWN_AS_IS.has(meta.space) &&
+		meta.depth === 'uchar' &&
+		meta.hasProfile !== true &&
+		(meta.orientation ?? 1) === 1
+	);
+}
+
 /** `bytes` (a PNG, JPEG, GIF, WebP, AVIF or TIFF) as an image a `card_w` × `card_h` card draws:
- *  kept when it is no larger than the card needs and resvg draws its type ({@link RESVG_DRAWS}),
- *  else made again at the size the card needs (a PNG when it has alpha, a JPEG when not), so a
- *  WebP, AVIF or TIFF is always made again. Throws, saying why, when its header does not read or it is past the
- *  one-frame limit. */
+ *  kept when it is no larger than the card needs and resvg draws it as it is (an 8-bit sRGB or
+ *  grey PNG, JPEG or GIF with no colour profile and no EXIF turn), else made again at the size the
+ *  card needs, as 8-bit sRGB (a PNG when it has alpha, a JPEG when not): so a WebP, AVIF, TIFF,
+ *  CMYK JPEG, 16-bit PNG or a file with a colour profile is always made again. Throws, saying why,
+ *  when its header does not read or it is past the one-frame limit. */
 export async function fit_to_card(
 	bytes: Uint8Array,
 	card_w: number,
@@ -42,10 +56,10 @@ export async function fit_to_card(
 	if (why !== null) throw new Error(why);
 	const { width, height } = shown_size(meta, {}, (meta.pages ?? 1) > 1);
 	const scale = card_scale(width, height, card_w, card_h);
-	if (scale === 1 && RESVG_DRAWS.has(type) && (meta.orientation ?? 1) === 1) return { bytes, type };
+	if (scale === 1 && drawn_as_is(bytes, meta)) return { bytes, type };
 	const w = Math.max(1, Math.round(width * scale));
 	const h = Math.max(1, Math.round(height * scale));
-	const img = pipeline(bytes, {}, false, w, h);
+	const img = pipeline(bytes, {}, false, w, h).toColourspace('srgb');
 	const out = meta.hasAlpha ? img.png() : img.jpeg({ quality: 90 });
 	return {
 		bytes: new Uint8Array(await out.toBuffer()),

@@ -388,9 +388,12 @@ BUILT (V4 R9). `import.meta.og.image.card('./Card.svelte', { width, height, font
   the realm's sharp: the build's, or the maker's `fit` at the endpoint, so a server whose maker is
   not sharp bundles no sharp and refuses a card's image, `image_card_source`; refused
   from its header past `FRAME_PIXELS_MAX`, made smaller to the least size that covers the card and
-  at most 4 cards of pixels, re-encoded as PNG with alpha or JPEG; a type resvg does not draw,
-  `RESVG_DRAWS` = PNG, JPEG, GIF, is re-encoded at any size: resvg draws a WebP or AVIF as
-  nothing, with no error) and handed over as bytes: an
+  at most 4 cards of pixels, re-encoded as 8-bit sRGB PNG with alpha or JPEG; a file resvg does
+  not draw as it is is re-encoded at any size: `resvg_draws(bytes)` = an 8-bit PNG, an 8-bit grey
+  or RGB baseline/progressive JPEG (no CMYK, 12-bit, arithmetic or lossless), a GIF, read from the
+  bytes; the fitter also wants sharp's `space` sRGB or `b-w`, `depth` uchar, no ICC profile (resvg
+  reads none: a Display P3 file draws off-colour) and no EXIF turn. resvg draws a WebP, AVIF or CMYK
+  JPEG as nothing, with no error) and handed over as bytes: an
   `<img src>` as an `ArrayBuffer` (satori keeps a module-level LRU of 500 `data:` texts; bytes it
   does not keep), any other as a `data:` URL of the type its bytes are. A link's `href` outside an
   SVG names no image and is left out of the tree. Then `drawable()` checks the tree satori is

@@ -6581,8 +6581,20 @@
 			"reason": "one Set read per reason (nine), constant work"
 		},
 		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~e375d3 > stayed",
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~e12236 > stayed",
 			"reason": "once per plugin at config time: one array push, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~e12236 > get routesDir",
+			"reason": "a plugin's read of the routes folder: one seam call, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > routes_dir",
+			"reason": "the empty seam a plugin sees before the build is set up: throws, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > routes_dir",
+			"reason": "the routes seam hands a plugin Kit's routes folder, one field read"
 		},
 		{
 			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > whyStayed",
@@ -8703,10 +8715,6 @@
 		{
 			"id": "packages/image/src/cards/images.ts > walk > text",
 			"reason": "per string value of a card's element: one url( test, a replace only where it holds one"
-		},
-		{
-			"id": "packages/image/src/cards/images.ts > walk > text > replace:1~08c206",
-			"reason": "per url() of a card's element: one callback"
 		},
 		{
 			"id": "packages/image/src/cards/images.ts > prop_kind",

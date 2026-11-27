@@ -5,11 +5,12 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import zlib from 'node:zlib';
-import sharp from 'sharp';
+import sharp, { type Sharp } from 'sharp';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { CardSpec } from '../src/card.ts';
-import { card_png } from '../src/cards/engine.ts';
+import { card_png, engine } from '../src/cards/engine.ts';
 import { fit_to_card } from '../src/cards/fit.ts';
+import { resvg_draws } from '../src/cards/images.ts';
 
 const drawn: unknown[] = [];
 
@@ -181,6 +182,7 @@ describe("a card's images, as satori is handed them", () => {
 	});
 
 	test("a style's url( with no closing paren is refused, coded, and satori never calls fetch", async () => {
+		await engine();
 		const fetched = vi
 			.spyOn(globalThis, 'fetch')
 			.mockImplementation(() => Promise.reject(new Error('satori fetched')));
@@ -199,6 +201,34 @@ describe("a card's images, as satori is handed them", () => {
 		expect(fetched).not.toHaveBeenCalled();
 		expect(drawn).toEqual([]);
 	});
+
+	test("a style's url(data: with no closing paren is refused, coded, before the draw: no data: image reaches satori unfitted (a 9000 x 9000 PNG)", async () => {
+		const huge = await sharp({
+			create: { width: 9000, height: 9000, channels: 3, background: '#ff0000' }
+		})
+			.png({ palette: true, colours: 2 })
+			.toBuffer();
+		const data = `data:image/png;base64,${huge.toString('base64')}`;
+		let fits = 0;
+		for (const tail of ['!', '', ' '])
+			await expect(
+				card_png(
+					spec_of(
+						`<div style="display: flex; width: 10px; height: 10px; background-image: url(${data}${tail}"></div>`
+					),
+					{},
+					[FONT],
+					undefined,
+					(bytes, w, h) => {
+						fits += 1;
+						return fit_to_card(bytes, w, h);
+					}
+				),
+				JSON.stringify(tail)
+			).rejects.toMatchObject({ code: 'image_card_source' });
+		expect(fits).toBe(0);
+		expect(drawn).toEqual([]);
+	}, 60_000);
 
 	test("a link's href (a card made from page markup) is no image: never read, and the card draws", async () => {
 		const asked: string[] = [];
@@ -248,6 +278,63 @@ describe("a card's images, as satori is handed them", () => {
 		}
 	);
 
+	test.each([
+		{
+			file: 'CMYK JPEG',
+			background: '#ff0000',
+			make: (img: Sharp) => img.toColourspace('cmyk').jpeg()
+		},
+		{
+			file: 'Display P3 JPEG',
+			background: '#ff0000',
+			make: (img: Sharp) => img.withIccProfile('p3').jpeg()
+		},
+		{
+			file: '16-bit PNG',
+			background: '#ff0000',
+			make: (img: Sharp) => img.toColourspace('rgb16').png()
+		},
+		{
+			file: 'grey PNG',
+			background: '#808080',
+			make: (img: Sharp) => img.toColourspace('b-w').png()
+		},
+		{
+			file: '16-bit grey PNG',
+			background: '#808080',
+			make: (img: Sharp) => img.toColourspace('grey16').png()
+		}
+	])(
+		'a small $file on a card draws its own pixels, as an <img> and as a background url() (resvg draws a CMYK JPEG as nothing and reads no colour profile)',
+		async ({ background, make }) => {
+			const bytes = await make(
+				sharp({ create: { width: 300, height: 300, channels: 3, background } })
+			).toBuffer();
+			const color = await pixel(new Uint8Array(bytes), 100, 100);
+			expect(color, 'the file is not the blue under it').not.toEqual([0, 0, 255]);
+			const data = `data:image/jpeg;base64,${bytes.toString('base64')}`;
+			for (const markup of [
+				'<img src="https://cms.example.com/a" style="width: 300px; height: 300px">',
+				`<div style="display: flex; width: 300px; height: 300px; background-image: url(${data})"></div>`
+			]) {
+				const png = await card_png(
+					spec_of(
+						`<div style="display: flex; width: ${W}px; height: ${H}px; background-color: #0000ff">${markup}</div>`
+					),
+					{},
+					[FONT],
+					() => Promise.resolve(new Uint8Array(bytes)),
+					fit_to_card
+				);
+				const seen = await pixel(png, 100, 100);
+				expect(
+					seen.every((v, i) => Math.abs(v - color[i]!) <= 6),
+					`${markup.slice(0, 4)}: drew ${seen.join(',')}`
+				).toBe(true);
+			}
+		}
+	);
+
 	test("an <img> read as a Buffer that is a view into a larger pool hands satori that image's bytes alone, not the pool's", async () => {
 		const red = await sharp({
 			create: { width: 300, height: 300, channels: 3, background: '#ff0000' }
@@ -285,6 +372,65 @@ describe("a card's images, as satori is handed them", () => {
 			)
 		).rejects.toMatchObject({ code: 'image_card_source' });
 		expect(drawn).toEqual([]);
+	});
+
+	test('a file resvg cannot draw never reaches it: a fit that hands back a CMYK JPEG or a 16-bit PNG is refused, coded', async () => {
+		const red = sharp({ create: { width: 8, height: 8, channels: 3, background: '#f00' } });
+		for (const [bytes, type] of [
+			[await red.clone().toColourspace('cmyk').jpeg().toBuffer(), 'image/jpeg'],
+			[await red.clone().toColourspace('rgb16').png().toBuffer(), 'image/png']
+		] as const)
+			await expect(
+				card_png(
+					spec_of('<img src="https://cms.example.com/a" style="width: 10px; height: 10px">'),
+					{},
+					[FONT],
+					() => Promise.resolve(new Uint8Array(bytes)),
+					(b) => Promise.resolve({ bytes: b, type })
+				),
+				type
+			).rejects.toMatchObject({ code: 'image_card_source' });
+		expect(drawn).toEqual([]);
+	});
+
+	test('resvg draws a JPEG only when it is 8-bit, grey or RGB, baseline or progressive: no 12-bit, arithmetic, lossless or CMYK file passes', () => {
+		const jpeg = (sof: number, precision: number, components: number) =>
+			new Uint8Array([
+				0xff,
+				0xd8,
+				0xff,
+				0xe0,
+				0,
+				4,
+				0,
+				0,
+				0xff,
+				0xff,
+				0xc4,
+				0,
+				2,
+				0xff,
+				sof,
+				0,
+				8 + 3 * components,
+				precision,
+				0,
+				8,
+				0,
+				8,
+				components,
+				...Array.from({ length: 3 * components }, () => 0)
+			]);
+		expect(resvg_draws(jpeg(0xc0, 8, 3))).toBe(true);
+		expect(resvg_draws(jpeg(0xc2, 8, 1))).toBe(true);
+		expect(resvg_draws(jpeg(0xc1, 8, 3))).toBe(true);
+		expect(resvg_draws(jpeg(0xc0, 12, 3))).toBe(false);
+		expect(resvg_draws(jpeg(0xc0, 8, 4))).toBe(false);
+		expect(resvg_draws(jpeg(0xc3, 8, 3))).toBe(false);
+		expect(resvg_draws(jpeg(0xc9, 8, 3))).toBe(false);
+		expect(resvg_draws(jpeg(0xca, 8, 3))).toBe(false);
+		expect(resvg_draws(new Uint8Array([0xff, 0xd8, 0xff, 0xda, 0, 2]))).toBe(false);
+		expect(resvg_draws(new Uint8Array([0xff, 0xd8, 0xff]))).toBe(false);
 	});
 
 	test('an SVG data: URL is refused in a card, coded (it can name addresses of its own)', async () => {
