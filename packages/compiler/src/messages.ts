@@ -815,6 +815,20 @@ const WARNED = {
 			\`writable(seed)\`, and guard the side effects inside the factory.
 		`
 	},
+	kit_dev_env_unread: {
+		text: (a: { file: string }): string => prose`
+			${a.file}: SvelteKit's dev \`$app/env/public\` module is not in the shape ogygia knows, so
+			it still reads Kit's boot payload. A region that imports it on a \`csr = false\` page will
+			fail to hydrate in dev. ${BUG}
+		`,
+		details: (): string => prose`
+			In dev, SvelteKit's browser module for \`$app/env/public\` reads its values from the
+			payload Kit's client boot writes. A \`csr = false\` page never boots Kit's client, so
+			ogygia makes that module fall back to the env Kit renders. This time it could not: the
+			module did not read the payload the way ogygia expects, or Kit's dev server did not
+			hand over its rendered env. A newer SvelteKit may have changed the module.
+		`
+	},
 	scoped_css_failed: {
 		text: (a: { file: string; reason: string }): string =>
 			`scoped CSS for ${a.file} could not be compiled (${a.reason}) — shipping its style bodies unscoped`,

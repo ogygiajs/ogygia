@@ -152,6 +152,7 @@ import { import_chain } from '../virtual/resolver.ts';
 import { CompileCtx, type PackageScan } from '../ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
+import { KIT_DEV_PUBLIC_ENV_RE, kit_dev_public_env, ssr_runner } from './kit-env.ts';
 import { app_compile_options, svelte_compile, type SvelteCompile } from './svelte-options.ts';
 
 const KIT_CLIENT_APP_RE = /\/generated\/(?:build\/|dev\/)?client(-optimized)?\/app\.js$/;
@@ -968,6 +969,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const leg = leg_of(this);
 				if (!leg.server && KIT_CLIENT_APP_RE.test(id)) {
 					source += KIT_PAGE_THREAD + KIT_DISCLOSE_VERSION;
+				}
+				if (!leg.server && is_dev && KIT_DEV_PUBLIC_ENV_RE.test(id)) {
+					source = (await kit_dev_public_env(source, id, ssr_runner(vite_server))) ?? source;
 				}
 				source = compiler.split_realm_imports(source) ?? source;
 
