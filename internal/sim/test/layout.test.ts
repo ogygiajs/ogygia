@@ -19,7 +19,7 @@ type IO = new (
 function page(body: string) {
 	const loop = new Loop(rng(1));
 	const w = new Window({ url: 'https://app.test/' });
-	install_layout(w as never, loop, 'tab-1#1');
+	const layout = install_layout(w as never, loop, 'tab-1#1');
 	w.document.write(`<html><head></head><body>${body}</body></html>`);
 	const IO = (w as unknown as { IntersectionObserver: IO }).IntersectionObserver;
 	const seen: string[] = [];
@@ -27,7 +27,7 @@ function page(body: string) {
 		for (const e of entries) seen.push(`${loop.now} ${e.target.id} ${e.isIntersecting}`);
 	});
 	const $ = (id: string) => w.document.getElementById(id) as unknown as Element;
-	return { loop, w, IO, io, seen, $ };
+	return { loop, w, IO, io, seen, $, layout };
 }
 
 describe('a simulated document has a layout, and its IntersectionObserver reports from it', () => {
@@ -80,10 +80,12 @@ describe('a simulated document has a layout, and its IntersectionObserver report
 		await loop.run(500);
 		expect(seen).toEqual([]);
 		expect(frames, 'no frame behind').toEqual([]);
+		expect(layout.owes(), 'it owes the frame it waits for').toBe(true);
 		hidden = false;
 		layout.shown();
 		await loop.run(100);
 		expect(seen).toEqual(['512 top true']);
+		expect(layout.owes(), 'which shown() gave it').toBe(false);
 		expect(frames).toEqual([512]);
 	});
 
@@ -108,6 +110,27 @@ describe('a simulated document has a layout, and its IntersectionObserver report
 		expect(layout.owes(), 'one that came on screen').toBe(true);
 		await w.happyDOM.close();
 		expect(layout.owes(), 'its document closed').toBe(false);
+	});
+
+	it('owes no frame for a layout change no DOM change made: a frame reports from the layout it kept', async () => {
+		const { loop, w, io, seen, $, layout } = page(
+			'<p id="top">top</p><div id="tall" style="height: 2000px"></div><p id="below">below</p>'
+		);
+		io.observe($('top'));
+		io.observe($('below'));
+		await loop.run(100);
+		seen.length = 0;
+		// (a constructed sheet adopted: no node changes, so the host's ear hears nothing)
+		const sheet = new (w as unknown as { CSSStyleSheet: typeof CSSStyleSheet }).CSSStyleSheet();
+		sheet.replaceSync('#tall { display: none }');
+		(w.document as unknown as { adoptedStyleSheets: CSSStyleSheet[] }).adoptedStyleSheets = [sheet];
+		expect(
+			boxes(w.document as unknown as Document).get($('below'))!.y,
+			'the case it is for: the layout as it stands moved it on screen'
+		).toBeLessThan(720);
+		expect(layout.owes()).toBe(false);
+		await loop.run(100);
+		expect(seen, 'no frame reports it').toEqual([]);
 	});
 
 	it('a root margin widens the viewport', async () => {

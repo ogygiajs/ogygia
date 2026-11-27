@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
 import { act } from '../src/workload.ts';
-import { islands_wake, mpa_equivalent, visitor_looks } from '../src/oracles.ts';
+import { islands_wake, mpa_equivalent } from '../src/oracles.ts';
 
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
@@ -100,7 +100,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 		}
 	});
 
-	it('is judged against a fresh load behind another tab when it went behind before its islands had a frame, though it was shown as its document came (#2091, #2092)', async () => {
+	it('went behind before its islands had a frame, though it was shown as its document came: it is looked at before it is judged, and its visible island wakes then (#2091, #2092)', async () => {
 		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
 		try {
 			const v = world.visitor('v');
@@ -116,7 +116,11 @@ describe.skipIf(!built)('a tab behind another', () => {
 			const visible = doc.querySelector('[data-gate-visible] > ogygia-region[wake="visible"]');
 			expect(visible, 'an on-screen visible island').not.toBeNull();
 			expect(visible!.hasAttribute('data-hydrated'), 'its first frame waits behind').toBe(false);
+			expect(tab.owes_frame(), 'its observers are owed that frame').toBe(true);
 			expect(await mpa_equivalent(world, v, tab)).toBeNull();
+			expect(visible!.hasAttribute('data-hydrated'), 'it woke once looked at').toBe(true);
+			expect(tab.framed.has(tab.realm), 'so it had its frame').toBe(true);
+			expect(front.hidden, 'and the tab in front is in front again').toBe(false);
 		} finally {
 			await world.end();
 		}
@@ -129,8 +133,8 @@ describe.skipIf(!built)('a tab behind another', () => {
 	 * build's region ids: dst.md). With `deaf`, a runtime that watches the hole's targets and never
 	 * hears them come on screen: each is watched by an observer of its own whose reports go nowhere.
 	 */
-	const behind_owing = async (world: World, deaf = false) => {
-		const v = world.visitor('v');
+	const behind_owing = async (world: World, deaf = false, who = 'v') => {
+		const v = world.visitor(who);
 		const front = world.tab(v);
 		await world.go(front, 'goto', '/');
 		const tab = world.tab(v);
@@ -215,28 +219,34 @@ describe.skipIf(!built)('a tab behind another', () => {
 		}
 	});
 
-	it('the run end looks at each tab behind that owes a frame, and puts the tab in front back (#2176)', async () => {
-		const world = await World.make({
-			seed: 1,
-			builds: [{ id: 'v1', output: OUTPUT }],
-			secret: 'sim-secret'
-		});
-		try {
-			const { v, front, tab, inner } = await behind_owing(world, true);
-			expect(
-				islands_wake(tab, world),
-				'its islands are not judged while it owes a frame'
-			).toBeNull();
-			await visitor_looks(world, v);
-			expect(front.hidden).toBe(false);
-			expect(tab.hidden).toBe(true);
-			expect(tab.owes_frame()).toBe(false);
-			expect(inner()!.hasAttribute('data-hydrated')).toBe(false);
-			expect(islands_wake(tab, world)?.oracle).toBe('islands-wake');
-		} finally {
-			await world.end();
+	it.each(['the visitor', 'one of a crowd'])(
+		"the run end looks at each tab behind that owes a frame before it judges it, and puts the tab in front back: %s's (#2176)",
+		async (whose) => {
+			const { rest_at_end } = await import('../src/cli.ts');
+			const world = await World.make({
+				seed: 1,
+				builds: [{ id: 'v1', output: OUTPUT }],
+				secret: 'sim-secret'
+			});
+			try {
+				const crowd = whose !== 'the visitor';
+				const { v, front, tab, inner } = await behind_owing(world, true, crowd ? 'crowd-1' : 'v');
+				if (crowd) world.crowd.push(v);
+				expect(
+					islands_wake(tab, world),
+					'its visible islands are not judged while it owes a frame'
+				).toBeNull();
+				await rest_at_end(world, crowd ? world.visitor('v') : v);
+				expect(front.hidden).toBe(false);
+				expect(tab.hidden).toBe(true);
+				expect(tab.owes_frame()).toBe(false);
+				expect(inner()!.hasAttribute('data-hydrated')).toBe(false);
+				expect(islands_wake(tab, world)?.oracle).toBe('islands-wake');
+			} finally {
+				await world.end();
+			}
 		}
-	});
+	);
 
 	it('is judged against a shown fresh load when its islands had a frame before it went behind', async () => {
 		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });

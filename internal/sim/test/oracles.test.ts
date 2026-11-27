@@ -514,14 +514,15 @@ describe("a hole's fallback does not stand", () => {
 
 describe('an island that wakes on its own is awake', () => {
 	/** `wire`: the document's requests, each `[url, status]`; `hidden`: the tab is behind another;
-	 *  `framed`: it was shown, and its observers had frames, and it owes `owes` one. */
+	 *  `behind`: whether it was shown (`seen`), its observers had frames (`framed`), an animation
+	 *  frame it asked for waits (`waits`), and its observers are owed a report (`told`: false). */
 	const at_rest = async (
 		body: string,
 		wire: Array<[string, number | 'dropped']> = [],
 		hidden = false,
-		framed = false,
-		owes = false
+		behind: { seen?: boolean; framed?: boolean; waits?: boolean; told?: boolean } = {}
 	) => {
+		const { framed = false, seen = framed, waits = false, told = true } = behind;
 		const { Window } = await import('happy-dom');
 		// (the simulator's viewport: src/layout.ts)
 		const w = new Window({ url: 'https://app.test/p1', width: 1280, height: 720 });
@@ -531,9 +532,10 @@ describe('an island that wakes on its own is awake', () => {
 			name: 'tab-1',
 			documents: 1,
 			hidden,
-			seen: new Set(framed ? ['tab-1#1'] : []),
+			seen: new Set(seen ? ['tab-1#1'] : []),
 			framed: new Set(framed ? ['tab-1#1'] : []),
-			owes_frame: () => owes,
+			platform: { waits_frame: () => waits },
+			owes_frame: () => waits || !told,
 			page: { mainFrame: { url: 'https://app.test/p1', document: w.document } }
 		} as unknown as Parameters<typeof islands_wake>[0];
 		const world = {
@@ -618,11 +620,30 @@ describe('an island that wakes on its own is awake', () => {
 		).toBeNull();
 	});
 
-	it('finds a visible island on screen asleep in a tab behind another whose frames told its observers all there is, and passes one there while a frame is owed (#2176)', async () => {
-		expect((await at_rest(visible(), [], true, true))?.oracle).toBe('islands-wake');
-		expect((await at_rest(island('load'), [], true, true))?.oracle).toBe('islands-wake');
-		expect(await at_rest(visible(), [], true, true, true)).toBeNull();
-		expect(await at_rest(island('load'), [], true, true, true)).toBeNull();
+	it('finds a visible island on screen asleep in a tab behind another whose frames told its observers all there is, and passes one there while its observers are owed a report (#2176)', async () => {
+		const told = { framed: true };
+		expect((await at_rest(visible(), [], true, told))?.oracle).toBe('islands-wake');
+		expect((await at_rest(island('load'), [], true, told))?.oracle).toBe('islands-wake');
+		expect(await at_rest(visible(), [], true, { framed: true, told: false })).toBeNull();
+		// (one shown as it came and behind before its observers had a frame, #2091)
+		expect(await at_rest(visible(), [], true, { seen: true, told: false })).toBeNull();
+	});
+
+	it('owes a load island its wake in a tab behind another whose observers alone are owed a report: it waits for no frame (#2176)', async () => {
+		const owed = { framed: true, told: false };
+		expect((await at_rest(island('load'), [], true, owed))?.oracle).toBe('islands-wake');
+		const never_framed = { seen: true, told: false };
+		expect((await at_rest(island('load'), [], true, never_framed))?.oracle).toBe('islands-wake');
+	});
+
+	it('passes every island of a tab behind another, shown before, while an animation frame it asked for waits for the visitor to look (gen 262, seed 11)', async () => {
+		expect(await at_rest(island('load'), [], true, { framed: true, waits: true })).toBeNull();
+		expect(await at_rest(island('load'), [], true, { seen: true, waits: true })).toBeNull();
+		expect(await at_rest(visible(), [], true, { framed: true, waits: true })).toBeNull();
+	});
+
+	it('owes a load island its wake in a tab loaded behind another and never shown, though an animation frame waits there: a hidden document paints no frame, so its paint gate takes a task (mutant hidden-document-waits-for-a-frame)', async () => {
+		expect((await at_rest(island('load'), [], true, { waits: true }))?.oracle).toBe('islands-wake');
 	});
 
 	it('owes a media island its wake only while its query matches (the viewport is 1280 px wide)', async () => {
