@@ -15,7 +15,7 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
-test('the map names the failed file and the host does not say it is gone: the failure stands at once, with no timer run, the map read once and the file not asked for again', async () => {
+test('the map names the failed file and the host does not say it is gone: the failure stands at once, with the clock stopped and no timer left waiting, the map read once and the file not asked for again', async () => {
 	timeline_full();
 	const identity = '/test/browser/fixtures/ogygia/og-region.000000000aa6.js';
 	const gone = './immutable/og-region.000000000aa6.Uu33Vv44.js';
