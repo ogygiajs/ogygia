@@ -26,6 +26,20 @@ export function merge_seed_ask(current: SeedKeys | null, ask: SeedAsk): SeedKeys
 	return next;
 }
 
+/** What a page's regions asked of the server, one record per page: the page seed's keys (null: no
+ *  seed) and whether a region's client imports Kit's `$app/env/public` (KIT-PUBLIC-ENV). */
+export class PageAsk {
+	keys: SeedKeys | null = null;
+	env = false;
+
+	/** Fold one region's ask in: `seed` its page keys (`false`: none, when `seeds` is off), `env`
+	 *  whether it imports Kit's public env. */
+	note(seed: SeedAsk, env: boolean, seeds: boolean): void {
+		if (seeds) this.keys = merge_seed_ask(this.keys, seed);
+		if (env) this.env = true;
+	}
+}
+
 /** Rules builds: the top-level keys of `page.data` the shaped seed leaves out, sorted (none when it
  *  ships whole). The page names them so a read of one in the browser breaks a rule
  *  (`rule_seed_key_unshipped`, ../runtime/rules.ts). */

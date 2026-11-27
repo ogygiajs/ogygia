@@ -173,7 +173,11 @@ const SERVER_MODULE_EXT_RE = /\.(server|remote)\.(ts|js|mjs)$/;
 const SERVER_DIR_RE = /\/(src\/lib\/server|server)\//;
 const IMPORT_SPEC_G =
 	/\bfrom\s*['"]([^'"\n]+)['"]|\bimport\s*['"]([^'"\n]+)['"]|\bimport\s*\(\s*['"]([^'"\n]+)['"]/g;
-const PAGE_FREE_APP_MODULES: ReadonlySet<string> = new Set(['$app/environment', '$app/paths']);
+const PAGE_FREE_APP_MODULES: ReadonlySet<string> = new Set([
+	'$app/environment',
+	'$app/paths',
+	'$app/env/public'
+]);
 const ASSET_EXTS =
 	'css|scss|sass|less|styl|pcss|postcss|json|svg|png|jpe?g|gif|webp|avif|ico|bmp|woff2?|ttf|otf|eot|txt|wasm|mp4|webm|mp3|wav';
 const ASSET_EXT_RE = new RegExp(`\\.(?:${ASSET_EXTS})$`, 'i');

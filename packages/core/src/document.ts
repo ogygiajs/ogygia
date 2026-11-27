@@ -207,7 +207,7 @@ export async function document(
 		}
 	}
 	const request = live_event()?.request;
-	if (HAS & F_PAGE && request && read_seed_ask()?.env) {
+	if (request && read_seed_ask()?.env) {
 		const env_script = env_seed_script(request);
 		if (env_script) head.push(env_script);
 	}

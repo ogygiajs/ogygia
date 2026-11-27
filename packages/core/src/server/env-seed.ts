@@ -1,6 +1,6 @@
 /**
  * KIT-PUBLIC-ENV, the server's half: the page seed's sibling for Kit's public env, written by the
- * handle (a Kit page) and by `document()` (a router page) under the page feature's bit, only where
+ * handle (a Kit page) and by `document()` (a router page) on its own ask, under no feature's bit, only where
  * a region on the page asked for it (its client code imports Kit's `$app/env/public`). The browser's
  * half is runtime/kit-env.ts.
  *
