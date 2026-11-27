@@ -9,9 +9,9 @@ import { beforeAll, describe, expect, test, vi } from 'vitest';
 import { card_id } from '../src/card.ts';
 import type { RenderConfig } from '../src/config.ts';
 import { build_handoff } from '../src/handoff.ts';
-import { b64url_encode, recipe_path, recipe_tail, type Recipe } from '../src/recipe.ts';
+import { b64url_encode, recipe_file, recipe_path, recipe_tail, type Recipe } from '../src/recipe.ts';
 import { remoteImage } from '../src/remote-image.ts';
-import { note_built, note_origin } from '../src/store.ts';
+import { FileStore, note_built, note_origin } from '../src/store.ts';
 import { handoff_for, write_built } from '../src/vite/build-files.ts';
 import { id_of, make_images } from './fixtures.ts';
 
@@ -274,7 +274,7 @@ describe('a prerendered card that shows a remote image', () => {
 	async function build(
 		card_id_now: string,
 		fetch_remote: (url: string, where?: string) => Promise<string> = () => Promise.resolve(at.file)
-	): Promise<{ name: string; color: number[] }> {
+	): Promise<{ name: string; color: number[]; shown: string }> {
 		delete process.env.__OGYGIA_IMAGE_BUILD;
 		const handoff = await handoff_for(true);
 		const recipe: Recipe = {
@@ -286,6 +286,7 @@ describe('a prerendered card that shows a remote image', () => {
 			from: 'card',
 			card: card_tail
 		};
+		const shown = new FileStore(handoff.store).file(`${recipe_file(recipe)}.shown`);
 		note_built(handoff.minted, recipe_path(recipe, recipe_tail(recipe, [''])));
 		const out = output(`<img src="${handoff.mark}/_app/immutable/og/${card_id_now}-64x32.png">`);
 		await write_built(
@@ -301,7 +302,7 @@ describe('a prerendered card that shows a remote image', () => {
 		const name = /\/_app\/immutable\/og\/(c[\w-]+)-64x32\.png/.exec(page)![1]!;
 		const file = path.join(out, 'client', '_app', 'immutable', 'og', `${name}-64x32.png`);
 		const { data } = await sharp(fs.readFileSync(file)).raw().toBuffer({ resolveWithObject: true });
-		return { name, color: [...data.subarray(0, 3)] };
+		return { name, color: [...data.subarray(0, 3)], shown };
 	}
 
 	test("is named by the bytes it drew: when the host's image changes, the next (warm) build writes a new file, never the old picture under the old name", async () => {
@@ -326,5 +327,22 @@ describe('a prerendered card that shows a remote image', () => {
 			return Promise.resolve(at.file);
 		});
 		expect(asked).toEqual(['a share card']);
+	});
+
+	test('a record of the URLs it showed that is torn, or not a list of http(s) URLs, is a miss: the card is drawn again, never a failed build', async () => {
+		const id = card_id({ digest: random_digest(), width: 64, height: 32 }, json);
+		at.file = await solid('#ff00ff');
+		const first = await build(id);
+		for (const record of ['["https://images.ex', '{}', '[1]', '["file:///etc/passwd"]']) {
+			fs.writeFileSync(first.shown, record);
+			const fetched: string[] = [];
+			const again = await build(id, (url) => {
+				fetched.push(url);
+				return Promise.resolve(at.file);
+			});
+			expect([again.name, again.color], record).toEqual([first.name, [255, 0, 255]]);
+			expect(fetched, record).toEqual([url]);
+			expect(JSON.parse(fs.readFileSync(first.shown, 'utf8')), record).toEqual([url]);
+		}
 	});
 });
