@@ -4,14 +4,7 @@
 	"tasks": {
 		"check": {
 			"dependsOn": ["^build", "ogygia#build"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"e2e/app/package.json",
-				"e2e/app/src/**",
-				"e2e/app/svelte.config.js",
-				"e2e/app/tsconfig.json",
-				"e2e/app/vite.config.ts"
-			]
+			"inputs": ["$TURBO_DEFAULT$"]
 		},
 		"test": {
 			"dependsOn": ["^build", "ogygia#build"],

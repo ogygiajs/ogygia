@@ -1,6 +1,3 @@
-// The e2e fixture's real build, twice in one folder: a cold build (no build cache), then a warm one
-// that keeps node_modules/.ogygia and .svelte-kit. The fixture is copied to a folder of its own, its
-// node_modules linked entry by entry, so its build cache and output are this test's alone.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -17,6 +14,10 @@ const COPIED: readonly string[] = [
 	'tsconfig.json'
 ];
 const BUILD_MS = 180_000;
+const PNG_ONE =
+	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC';
+const PNG_TWO =
+	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYPgPAAEDAQAIicLsAAAAAElFTkSuQmCC';
 const SECRET = 'cold-warm-build-secret-0123456789abcdef';
 
 let app = '';
@@ -36,6 +37,25 @@ beforeAll(() => {
 	for (const name of COPIED)
 		fs.cpSync(path.join(FIXTURE, name), path.join(app, name), { recursive: true });
 	link_modules(path.join(FIXTURE, 'node_modules'), path.join(app, 'node_modules'));
+	const page = path.join(app, 'src', 'routes', 'cold-warm-assets');
+	fs.mkdirSync(page, { recursive: true });
+	for (const [name, bytes] of [
+		['one.png', PNG_ONE],
+		['two.png', PNG_TWO]
+	] as const)
+		fs.writeFileSync(path.join(page, name), Buffer.from(bytes, 'base64'));
+	fs.writeFileSync(
+		path.join(page, '+page.svelte'),
+		[
+			'<script>',
+			"\timport one from './one.png?no-inline';",
+			"\timport two from './two.png?no-inline';",
+			'</script>',
+			'',
+			'<img src={one} alt="one" /><img src={two} alt="two" />',
+			''
+		].join('\n')
+	);
 });
 
 afterAll(() => {
@@ -61,7 +81,6 @@ function build(): void {
 
 const BUILD_KEY_RE = /(\bbuild_key\s*=\s*)"[0-9a-f]{64}"/g;
 
-/** Every file under `dir`, by its path there: its bytes, as text. */
 function files(dir: string): Map<string, string> {
 	const out = new Map<string, string>();
 	for (const name of fs.readdirSync(dir, { recursive: true, encoding: 'utf8' }).sort()) {
@@ -71,8 +90,6 @@ function files(dir: string): Map<string, string> {
 	return out;
 }
 
-/** The build keys a build's files bake (random per build, so a leaked bundle says nothing of the
- *  app's secret), and its files with each key blanked. */
 function keyed(built: Map<string, string>): { keys: string[]; files: Map<string, string> } {
 	const keys: string[] = [];
 	const out = new Map<string, string>();
@@ -87,7 +104,6 @@ function keyed(built: Map<string, string>): { keys: string[]; files: Map<string,
 	return { keys, files: out };
 }
 
-/** Each markup entry the build cache holds: its inode and time, which a rewrite changes. */
 function markup_entries(): Map<string, string> {
 	const dir = path.join(app, 'node_modules', '.ogygia', 'markup');
 	const out = new Map<string, string>();
@@ -111,6 +127,9 @@ test(
 
 		expect(cached.size).toBeGreaterThan(0);
 		expect(markup_entries()).toEqual(cached);
+		expect(
+			[...cold.files.keys()].filter((name) => name.endsWith('.png')).length
+		).toBeGreaterThanOrEqual(2);
 		expect(cold.keys).toHaveLength(1);
 		expect(warm.keys).toHaveLength(1);
 		expect(warm.keys[0]).not.toBe(cold.keys[0]);
