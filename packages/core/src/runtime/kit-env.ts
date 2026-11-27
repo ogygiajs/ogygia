@@ -34,7 +34,9 @@ function missing(why: Missing, cause?: unknown): Record<string, unknown> {
 	return {};
 }
 
-function channel(doc: Document): Element | null {
+/** The env channel bearing `doc`'s mark, or null: RESPONSE-MARK's `server_channel`, spelled again
+ *  with no import of the runtime's. */
+export function env_channel(doc: Document): Element | null {
 	const mark = doc.head?.querySelector(KIT_ENV_RUNTIME_SELECTOR)?.getAttribute(KIT_ENV_MARK_ATTR);
 	if (!mark) return null;
 	for (const el of doc.querySelectorAll(KIT_ENV_SELECTOR))
@@ -48,7 +50,7 @@ const is_record = (v: unknown): v is Record<string, unknown> => v !== null && ty
  *  `build` wrote it. An empty env, said with `kit_env_missing`, where the document carries none, it
  *  does not read back, or another build wrote it. */
 export function kit_env(build: string): Record<string, unknown> {
-	const el = typeof document === 'undefined' ? null : channel(document);
+	const el = typeof document === 'undefined' ? null : env_channel(document);
 	if (el === null) return missing('absent');
 	let sent: unknown;
 	try {

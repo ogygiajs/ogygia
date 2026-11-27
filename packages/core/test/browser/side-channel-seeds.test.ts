@@ -14,6 +14,7 @@ import { page_state } from '../../src/shims/page-store.svelte.ts';
 import { query_responses } from '../../src/shims/kit-remote/client-stub.ts';
 import { collect_provided_context, serialize_provided_context } from '../../src/context-bridge.ts';
 import { hole_facts_of } from '../../src/runtime/hole-facts.ts';
+import { server_channel } from '../../src/runtime/response-mark.ts';
 
 init(link_boot());
 
@@ -182,6 +183,58 @@ it("Kit's public env with no server channel reads empty, and says kit_env_missin
 		await expect.poll(() => said.mock.calls.flat().join(' ')).toContain('kit_env_missing');
 	} finally {
 		said.mockRestore();
+	}
+});
+
+it("Kit's env reader finds the channel the runtime's door finds, in every document shape", async () => {
+	const { env_channel, KIT_ENV_SELECTOR } = await import('../../src/runtime/kit-env.ts');
+	const ENV = { type: 'application/ogygia-env' };
+	const OTHER = 'fedcba9876543210fedcba98';
+	const shapes: Record<string, (doc: Document) => void> = {
+		'markup before the server': (doc) => {
+			runtime_script(doc, MARK);
+			script(markup_block(doc), ENV, env_text({ who: 'markup' }), null);
+			script(doc.body, ENV, env_text({ who: 'server' }), MARK);
+		},
+		"markup after the server, and another response's": (doc) => {
+			runtime_script(doc, MARK);
+			script(doc.body, ENV, env_text({ who: 'server' }), MARK);
+			script(markup_block(doc), ENV, env_text({ who: 'markup' }), null);
+			script(markup_block(doc), ENV, env_text({ who: 'other' }), OTHER);
+		},
+		'a later runtime script, with another mark': (doc) => {
+			runtime_script(doc, MARK);
+			const late = doc.createElement('script');
+			late.setAttribute('data-ogygia-runtime', '');
+			late.setAttribute(MARK_ATTR, OTHER);
+			doc.head.append(late);
+			script(markup_block(doc), ENV, env_text({ who: 'markup' }), OTHER);
+			script(doc.body, ENV, env_text({ who: 'server' }), MARK);
+		},
+		'a runtime script with no mark': (doc) => {
+			runtime_script(doc, null);
+			script(markup_block(doc), ENV, env_text({ who: 'markup' }), null);
+		},
+		'no runtime script': (doc) => {
+			script(doc.body, ENV, env_text({ who: 'server' }), MARK);
+		},
+		'the runtime script in the body only': (doc) => {
+			const el = doc.createElement('script');
+			el.setAttribute('data-ogygia-runtime', '');
+			el.setAttribute(MARK_ATTR, MARK);
+			doc.body.append(el);
+			script(doc.body, ENV, env_text({ who: 'server' }), MARK);
+		},
+		'two server channels': (doc) => {
+			runtime_script(doc, MARK);
+			script(doc.body, ENV, env_text({ who: 'first' }), MARK);
+			script(doc.body, ENV, env_text({ who: 'second' }), MARK);
+		}
+	};
+	for (const [name, make] of Object.entries(shapes)) {
+		const doc = document.implementation.createHTMLDocument(name);
+		make(doc);
+		expect(env_channel(doc), name).toBe(server_channel(doc, KIT_ENV_SELECTOR));
 	}
 });
 

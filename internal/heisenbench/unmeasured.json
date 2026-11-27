@@ -97,7 +97,7 @@
 			"reason": "once per document, at the evaluation of Kit's $app/env/public on a page Kit never started: one head querySelector, one querySelectorAll of the env scripts, one devalue parse and one string compare of the build; proven in packages/core/test/browser/side-channel-seeds.test.ts and packages/core/test/browser/kit-env-unlinked.test.ts (#2177)"
 		},
 		{
-			"id": "packages/core/src/runtime/kit-env.ts > channel",
+			"id": "packages/core/src/runtime/kit-env.ts > env_channel",
 			"reason": "browser only, once per document with kit_env: one head querySelector and one querySelectorAll of the env scripts; proven in packages/core/test/browser/kit-env-unlinked.test.ts and packages/core/test/browser/side-channel-seeds.test.ts (#2177)"
 		},
 		{
@@ -118,7 +118,23 @@
 		},
 		{
 			"id": "packages/compiler/src/kit-patches.ts > kit_env_build",
-			"reason": "build time, once per load of the two kit-env virtual modules: one package.json read and one sha256 of three short strings; proven in packages/compiler/test/kit-env-build.test.ts (#2221)"
+			"reason": "build time, once per compile of a Kit 3 app (CompileCtx > get kit_env_build keeps it): one sha256 over package.json and the files of src and the routes dir; proven in packages/compiler/test/kit-env-build.test.ts (#2221)"
+		},
+		{
+			"id": "packages/compiler/src/kit-patches.ts > hash_tree",
+			"reason": "build time, inside kit_env_build: one listing and one read per file of the app's source, once per compile; proven in packages/compiler/test/kit-env-build.test.ts (#2221)"
+		},
+		{
+			"id": "packages/compiler/src/kit-patches.ts > by_name",
+			"reason": "build time: the sort compare of hash_tree, two string compares (#2221)"
+		},
+		{
+			"id": "packages/compiler/src/kit-patches.ts > kit_public_env_re",
+			"reason": "module constant: builds the three env regexes once when the compiler loads (#2177)"
+		},
+		{
+			"id": "packages/compiler/src/ctx.ts > CompileCtx > get kit_env_build",
+			"reason": "build time: kit_env_build once per CompileCtx, then a field read per load of the two kit-env virtual modules; proven in packages/compiler/test/vite-hooks.test.ts (#2221)"
 		},
 		{
 			"id": "packages/compiler/src/messages.ts > WARNED > kit_env_unpatched > text",
