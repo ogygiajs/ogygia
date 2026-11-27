@@ -216,7 +216,7 @@ describe('entry_location: the handoff read at render time', () => {
 		}
 	};
 	const with_handoff = (json: unknown) =>
-		island_deps_module(true, false).replace(
+		island_deps_module(true, null).replace(
 			"'__OGYGIA_ISLAND_DEPS_INLINE__'",
 			JSON.stringify(JSON.stringify(json))
 		);
@@ -243,10 +243,8 @@ describe('entry_location: the handoff read at render time', () => {
 		).toBeNull();
 	});
 	it('the client leg knows no location; in dev the identity is the location', async () => {
-		expect(
-			(await load_module(island_deps_module(false, false))).entry_location('/x.js')
-		).toBeNull();
-		const dev = await load_module(island_deps_module(true, true));
+		expect((await load_module(island_deps_module(false, null))).entry_location('/x.js')).toBeNull();
+		const dev = await load_module(island_deps_module(true, '/app'));
 		expect(dev.entry_location('/x.js')).toBe('/x.js');
 		expect(dev.entry_location('')).toBeNull();
 	});

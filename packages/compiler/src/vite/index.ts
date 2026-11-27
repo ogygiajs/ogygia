@@ -132,7 +132,6 @@ import { derive_css_scope_owners, type DevGraphModule } from '../dev/css-scope.t
 import {
 	collectIslandDepModulepreloads,
 	collect_inline_css,
-	DEV_FN_MANIFEST_KEY,
 	remote_hash_of,
 	summarize_chunk_contents
 } from '../link/island-deps.ts';
@@ -154,7 +153,8 @@ import { import_chain } from '../virtual/resolver.ts';
 import { CompileCtx, type PackageScan } from '../ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
-import { dev_kit_env_build_key, patch_kit_module } from '../kit-patches.ts';
+import { patch_kit_module } from '../kit-patches.ts';
+import { open_dev_bridge } from '../dev-bridge.ts';
 import { app_compile_options, svelte_compile, type SvelteCompile } from './svelte-options.ts';
 
 import {
@@ -768,11 +768,14 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			configureServer(server) {
 				const compiler = compiler_of(session, 'configureServer');
 				vite_server = server;
-				(globalThis as Record<symbol, unknown>)[Symbol.for(DEV_FN_MANIFEST_KEY)] = () =>
-					compiler.fn_manifest();
-				(globalThis as Record<symbol, unknown>)[
-					Symbol.for(dev_kit_env_build_key(compiler.ctx.root))
-				] = () => compiler.ctx.kit_env_build;
+				const served = dev_owner.child();
+				served.defer(
+					open_dev_bridge(root, {
+						fn_manifest: () => compiler_of(session, 'fn_manifest').fn_manifest(),
+						kit_env_build: () => compiler_of(session, 'kit_env_build').kit_env_build()
+					})
+				);
+				if (server.httpServer) served.on(server.httpServer, 'close', () => served.close());
 				if (measure) {
 					install_dev_maps(server);
 					install_dev_client_maps(server);

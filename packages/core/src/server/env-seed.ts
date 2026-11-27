@@ -55,11 +55,12 @@ const ENV_TEXT = new EnvText();
  * (`kit_env_build()`, read as it is written: the identity the build's browser reader is bound to,
  * which a dev app makes once it gains its first dynamic public variable), so a region of another
  * build (a federated peer's) never reads it as its own. Null: this Kit has none, it holds no
- * variable, or it does not serialize (said with `kit_env_unshipped`).
+ * variable (the identity is then never asked: a dev server would read Kit's env config for it), or
+ * it does not serialize (said with `kit_env_unshipped`).
  */
 export function env_seed_script(request: Request): string | null {
 	const env = kit_public_env();
-	if (env === null) return null;
+	if (env === null || Object.keys(env).length === 0) return null;
 	const text = ENV_TEXT.of(kit_env_build(), env);
 	if (text === null) return null;
 	return ogygia_script('env', text, `${RESPONSE_MARK}="${response_mark(request)}"`);

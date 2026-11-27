@@ -18,6 +18,7 @@ import {
 	is_route_component,
 	type FileEvent
 } from './kit.ts';
+import { kit_env_build } from './kit-patches.ts';
 import { run_module_macros } from './macros/pipeline.ts';
 import { fn_manifest_entries } from './macros/dollar.ts';
 import { is_script_request } from './script-request.ts';
@@ -109,6 +110,7 @@ interface Build {
 	handoff: ServerHandoff | null;
 	server_runtime: HandedRuntime | null;
 	router_css_roots: string[] | null;
+	kit_env_build: string | null;
 	readonly resolve_memo: Map<string, string | null>;
 	readonly reach_memo: Map<string, boolean>;
 	readonly specs_memo: Map<string, readonly string[]>;
@@ -134,6 +136,7 @@ const new_build = (program: Program): Build => ({
 	handoff: null,
 	server_runtime: null,
 	router_css_roots: null,
+	kit_env_build: null,
 	resolve_memo: new Map(),
 	reach_memo: new Map(),
 	specs_memo: new Map(),
@@ -536,6 +539,30 @@ export class Compiler implements CoreApp {
 		this.#build = new_build(program);
 		this.profiler = profiler;
 		this.#ctx = ctx;
+	}
+
+	/**
+	 * The app's identity on Kit's env channel (kit-patches.ts `kit_env_build`), made once per build
+	 * and kept on it, so a build's server leg and client leg (each with its own context) bear one,
+	 * though the source changes between them. A dev app with no identity yet (`''`) is asked again,
+	 * so one that gains its first dynamic public variable gets its own
+	 * (test/kit-env-build.test.ts, test/vite-hooks.test.ts).
+	 */
+	kit_env_build(): string {
+		const build = this.#build;
+		if (build.kit_env_build !== null) return build.kit_env_build;
+		const ctx = this.#ctx;
+		const id = kit_env_build({
+			root: ctx.root,
+			base: ctx.base,
+			app_dir: ctx.app_dir,
+			routes_dir: ctx.kit_dirs.routes_dir,
+			out_dir: ctx.kit_dirs.out_dir,
+			mode: ctx.is_build ? 'build' : 'dev',
+			fs: ctx.fs
+		});
+		if (id !== '' || ctx.is_build) build.kit_env_build = id;
+		return id;
 	}
 
 	/** A compiler with context `ctx` that carries on this one's build (its program, legs and caches):

@@ -2406,6 +2406,9 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 			'function',
 			'function'
 		]);
+		const read = bridge as { fn_manifest(): Record<string, string>; kit_env_build(): string };
+		expect(read.fn_manifest()).toEqual({});
+		expect(read.kit_env_build()).toMatch(/^[0-9a-f]{12}$/);
 		const named = JSON.stringify(found[0]!.description);
 		for (const spec of ['ogygia:server/region-deps', 'ogygia:server/kit-env']) {
 			const code = (await load(p, spec, 'ssr')) ?? '';

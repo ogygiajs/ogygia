@@ -5,13 +5,11 @@ import { dedent } from '@ogygia/core/contract';
 import { describe, expect, it } from 'vitest';
 import { memory_fs, type Fs } from '../src/fs.ts';
 import { CompileCtx, normalize_import_keys } from '../src/index.ts';
+import { Compiler } from '../src/driver.ts';
+import { Program } from '../src/program.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
-import {
-	dev_kit_env_build_key,
-	kit_env_build,
-	kit_env_reader_module,
-	kit_public_env_module
-} from '../src/kit-patches.ts';
+import { open_dev_bridge } from '../src/dev-bridge.ts';
+import { kit_env_build, kit_env_reader_module, kit_public_env_module } from '../src/kit-patches.ts';
 
 const PAGE = '<h1>home</h1>\n';
 
@@ -97,20 +95,26 @@ describe("the build's identity on Kit's env channel (KIT-PUBLIC-ENV)", () => {
 
 	it("dev: the server module writes the dev server's identity as each channel is written, so an app that gains its first dynamic public variable writes the one its reader, made later, is bound to", () => {
 		const code = kit_public_env_module(3, { kind: 'dev', root: '/a/web' });
-		const slot = Symbol.for(dev_kit_env_build_key('/a/web'));
-		const other = Symbol.for(dev_kit_env_build_key('/a/peer'));
-		const g = globalThis as Record<symbol, unknown>;
 		let now = '';
-		g[slot] = () => now;
-		g[other] = () => 'peer-build';
+		const bridge = (kit_env_build: () => string) => ({ fn_manifest: () => ({}), kit_env_build });
+		const close = open_dev_bridge(
+			'/a/web',
+			bridge(() => now)
+		);
+		const close_peer = open_dev_bridge(
+			'/a/peer',
+			bridge(() => 'peer-build')
+		);
 		try {
 			const read = server_build_fn(code);
 			expect(read()).toBe('');
 			now = kit_env_build(app('/a/web', 'my-app'));
 			expect(read()).toBe(now);
+			close();
+			expect(read()).toBe('');
 		} finally {
-			delete g[slot];
-			delete g[other];
+			close();
+			close_peer();
 		}
 	});
 
@@ -190,18 +194,16 @@ describe("the build's identity is made only for an app whose payload carries an 
 		expect(kit_env_build(with_config(a, STATIC_ONLY_CONFIG).app)).toBe('');
 	});
 
-	it('dev: an app that gains its first dynamic public variable gets its identity, and keeps it', () => {
-		const a = app('/a/web', 'my-app');
-		const config = '/a/web/.svelte-kit/generated/dev/env/config.js';
-		a.fs.set(config, STATIC_ONLY_CONFIG);
-		const ctx = new CompileCtx(
+	/** A context for `a`, served (dev) or built. */
+	const ctx_of = (a: ReturnType<typeof app>, is_build: boolean) =>
+		new CompileCtx(
 			partial_ctx_init({
 				root: a.root,
 				base: '',
 				app_dir: a.app_dir,
-				libDir: '/a/web/src/lib',
-				is_dev: true,
-				is_build: false,
+				libDir: `${a.root}/src/lib`,
+				is_dev: !is_build,
+				is_build,
 				import_keys: normalize_import_keys(undefined),
 				resolve_alias: [],
 				presets: {},
@@ -209,12 +211,45 @@ describe("the build's identity is made only for an app whose payload carries an 
 				fs: a.fs
 			})
 		);
-		expect(ctx.kit_env_build).toBe('');
+	const compiler_of = (a: ReturnType<typeof app>, is_build: boolean) =>
+		new Compiler(
+			new Program({ forms: true, router: true }),
+			{ prof: {} as Compiler['profiler']['prof'], P: false, outHash: new Map() },
+			ctx_of(a, is_build)
+		);
+
+	it('dev: an app that gains its first dynamic public variable gets its identity, and keeps it', () => {
+		const a = app('/a/web', 'my-app');
+		const config = '/a/web/.svelte-kit/generated/dev/env/config.js';
+		a.fs.set(config, STATIC_ONLY_CONFIG);
+		const compiler = compiler_of(a, false);
+		expect(compiler.kit_env_build()).toBe('');
 		a.fs.set(config, DYNAMIC_CONFIG);
-		const made = ctx.kit_env_build;
+		const made = compiler.kit_env_build();
 		expect(made).toBe(kit_env_build({ ...a, mode: 'dev' }));
 		a.fs.set('/a/web/src/routes/+page.svelte', '<h1>edited</h1>\n');
-		expect(ctx.kit_env_build).toBe(made);
+		expect(compiler.kit_env_build()).toBe(made);
+	});
+
+	it("a build makes its identity once, kept on the build its next leg's context carries on: both legs bear one, though the source changes between them", () => {
+		const a = app('/a/web', 'my-app');
+		a.fs.set('/a/web/.svelte-kit/generated/build/env/config.js', DYNAMIC_CONFIG);
+		const server = compiler_of(a, true);
+		const made = server.kit_env_build();
+		a.fs.set('/a/web/src/lib/Generated.svelte', '<p>written mid-build</p>\n');
+		const client = server.with_ctx(ctx_of(a, true));
+		expect(client.kit_env_build()).toBe(made);
+		expect(compiler_of(a, true).kit_env_build()).not.toBe(made);
+	});
+
+	it('a build with no dynamic public variable keeps having no identity', () => {
+		const a = app('/a/web', 'my-app');
+		const config = '/a/web/.svelte-kit/generated/build/env/config.js';
+		a.fs.set(config, STATIC_ONLY_CONFIG);
+		const compiler = compiler_of(a, true);
+		expect(compiler.kit_env_build()).toBe('');
+		a.fs.set(config, DYNAMIC_CONFIG);
+		expect(compiler.kit_env_build()).toBe('');
 	});
 
 	it("is made from the source when Kit's env config cannot be read", () => {

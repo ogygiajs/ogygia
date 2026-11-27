@@ -98,6 +98,8 @@ export interface CoreApp {
 	routes_dir(): string;
 	/** the plugins listed beside `ogygia()` */
 	plugins(): CorePlugins;
+	/** the app's identity on Kit's env channel, one per build (`Compiler.kit_env_build`) */
+	kit_env_build(): string;
 }
 
 /** The plugins listed beside `ogygia()`: their server halves, browser halves, and the route
@@ -117,7 +119,8 @@ export const CORE_PARTS: Parts<CoreApp> = {
 	region_names: 'regions',
 	router_css_roots: 'styles',
 	routes_dir: 'routes',
-	plugins: 'plugins'
+	plugins: 'plugins',
+	kit_env_build: 'options'
 };
 
 type Value<T extends object> = ValueEntry<CoreApp, T>;
@@ -414,7 +417,11 @@ export const region_deps: Family<RegionDepsModule> = virtual.family({
 		handoff_problem: 'handoff_problem'
 	},
 	load: ({ ctx }: CoreApp, { ssr }) =>
-		island_deps_module(ssr, ctx.is_dev, path.relative(ctx.root, ctx.kit_dirs.out_dir))
+		island_deps_module(
+			ssr,
+			ctx.is_dev ? ctx.root : null,
+			path.relative(ctx.root, ctx.kit_dirs.out_dir)
+		)
 });
 
 export const router_css: Family = virtual.family({
@@ -484,12 +491,13 @@ export const kit_env: Family<KitEnvModule> = virtual.family({
 	realm: 'server',
 	id: 'kit-env',
 	exports: { kit_public_env: 'kit_public_env', kit_env_build: 'kit_env_build' },
-	load({ ctx }: CoreApp, { ssr }) {
+	load(app: CoreApp, { ssr }) {
+		const { ctx } = app;
 		const major = ssr ? kit_major_of(ctx.root) : null;
 		if (major === null || major < 3) return kit_public_env_module(major, { kind: 'fixed', id: '' });
 		return kit_public_env_module(
 			major,
-			ctx.is_build ? { kind: 'fixed', id: ctx.kit_env_build } : { kind: 'dev', root: ctx.root }
+			ctx.is_build ? { kind: 'fixed', id: app.kit_env_build() } : { kind: 'dev', root: ctx.root }
 		);
 	}
 });
@@ -498,10 +506,11 @@ export const kit_env: Family<KitEnvModule> = virtual.family({
 export const kit_env_reader: Family<KitEnvReaderModule> = virtual.family({
 	realm: 'boot',
 	id: 'kit-env',
-	load({ ctx }: CoreApp) {
+	load(app: CoreApp) {
+		const { ctx } = app;
 		const rt = ctx.is_build ? null : dev_runtime_of(ctx.runtime_dir);
 		const file = posix(`${rt?.dir ?? ctx.runtime_dir}/kit-env${rt?.ts ? '.ts' : '.js'}`);
-		return kit_env_reader_module(file, ctx.kit_env_build);
+		return kit_env_reader_module(file, app.kit_env_build());
 	}
 });
 

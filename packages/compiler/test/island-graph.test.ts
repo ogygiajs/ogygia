@@ -102,9 +102,9 @@ describe('preload is gone', () => {
 
 	it('the minted virtual module no longer exports a policy', () => {
 		for (const [ssr, dev] of [
-			[false, false],
-			[true, true],
-			[true, false]
+			[false, null],
+			[true, '/app'],
+			[true, null]
 		] as const)
 			expect(island_deps_module(ssr, dev)).not.toContain('preloadPolicy');
 	});

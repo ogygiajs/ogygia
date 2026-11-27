@@ -158,11 +158,11 @@ describe('kit.files.routes / kit.outDir', () => {
 	});
 
 	it('the SSR deps reader falls back to the configured outDir under cwd, not `.svelte-kit`', () => {
-		const src = island_deps_module(true, false, '.svelte-kit-v2');
+		const src = island_deps_module(true, null, '.svelte-kit-v2');
 		expect(src).toContain(`path.join(cwd, ".svelte-kit-v2", 'og-region-deps.json')`);
 		expect(src).not.toContain(`'.svelte-kit'`);
 		// the default stays the default
-		expect(island_deps_module(true, false)).toContain(
+		expect(island_deps_module(true, null)).toContain(
 			`path.join(cwd, ".svelte-kit", 'og-region-deps.json')`
 		);
 	});

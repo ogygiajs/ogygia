@@ -17,6 +17,7 @@ import {
 } from '@ogygia/core/contract';
 import { is_generated_specifier } from '../virtual/table.ts';
 import { KIT_PUBLIC_ENV_CLIENT_RE } from '../kit-patches.ts';
+import { dev_bridge_call } from '../dev-bridge.ts';
 
 /** The server module's string slot the client leg writes the deps JSON into (link/relocations.ts). */
 export const ISLAND_DEPS_INLINE_TOKEN = '__OGYGIA_ISLAND_DEPS_INLINE__';
@@ -676,17 +677,14 @@ export function collect_inline_css(
 	return out;
 }
 
-/** The global (by `Symbol.for` name) the dev server's plugin fills with a reader of the og.$
- *  factories the compiler holds now (tag → factory source): the dev `fn_manifest()` asks it, so a
- *  page carries the factories of a module that never runs in the browser, as a build's handoff
- *  does (apps/palaestra/e2e/dev-dollar-fn.spec.ts). */
-export const DEV_FN_MANIFEST_KEY = 'ogygia.dev.fn-manifest';
-
 /**
  * `ogygia:server/region-deps` emitter — the SSR-render-time reader of the deps handoff.
- * Client: every reader answers none (the SSR HTML carries every hint). Dev: a region's CSS is its
- * module URL (the client imports it), the page always seeds, remotes are `null` (may call
- * anything), and an identity is its own location. SSR: read the handoff JSON at *render* time —
+ * Client: every reader answers none (the SSR HTML carries every hint). Dev (`dev_root`: the app's
+ * root): a region's CSS is its module URL (the client imports it), the page always seeds, remotes
+ * are `null` (may call anything), an identity is its own location, and the og.$ factories are the
+ * ones the compiler holds now, read through the dev bridge (dev-bridge.ts), so a page carries the
+ * factories of a module that never runs in the browser, as a build's handoff does
+ * (apps/palaestra/e2e/dev-dollar-fn.spec.ts). SSR: read the handoff JSON at *render* time —
  * Kit builds the server bundle before the client, so baking at `load()` would always be empty;
  * prerender/live SSR run after client generateBundle. Resolve via import.meta.url walk (not absolute
  * build-machine paths) so adapters find `output/server/og-region-deps.json` next to the server bundle.
@@ -695,7 +693,7 @@ export const DEV_FN_MANIFEST_KEY = 'ogygia.dev.fn-manifest';
  */
 export function island_deps_module(
 	ssr: boolean,
-	is_dev: boolean,
+	dev_root: string | null,
 	out_dir_rel = '.svelte-kit'
 ): string {
 	if (!ssr)
@@ -721,7 +719,7 @@ export function island_deps_module(
 			export function location_map() { return null; }
 			export function handoff_problem() { return null; }
 		`;
-	if (is_dev)
+	if (dev_root !== null)
 		return dedent`
 			export function region_deps(_entry) { return []; }
 			export function wake_code() { return []; }
@@ -740,7 +738,7 @@ export function island_deps_module(
 			export function chunk_barrels(_href) { return null; }
 			export function chunk_duplicates() { return null; }
 			export function fn_manifest() {
-				const m = globalThis[Symbol.for(${JSON.stringify(DEV_FN_MANIFEST_KEY)})]?.();
+				const m = ${dev_bridge_call(dev_root, 'fn_manifest')};
 				return m && Object.keys(m).length > 0 ? m : null;
 			}
 			export function entry_location(identity) { return identity || null; }
