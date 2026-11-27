@@ -67,6 +67,8 @@ export interface SimPlatform extends Platform {
 	/** Its tab is shown again: the animation frames asked for while it was hidden come at the next
 	 *  frame. */
 	readonly shown: () => void;
+	/** Whether an animation frame asked for while its tab was hidden waits for it to be shown. */
+	readonly waits_frame: () => boolean;
 	/** Timers and callbacks set and not yet run or cleared. */
 	readonly outstanding: () => number;
 	/** Their trace labels (with `SIM_SITES=1`, each names the code that set it). */
@@ -117,6 +119,7 @@ export function platform(
 	SimPlatform,
 	| 'realm'
 	| 'shown'
+	| 'waits_frame'
 	| 'outstanding'
 	| 'pending'
 	| 'setTimeout'
@@ -217,6 +220,7 @@ export function platform(
 			parked.clear();
 			for (const [id, fn] of waiting) frame(fn, id);
 		},
+		waits_frame: () => parked.size > 0,
 		outstanding: () => live.size,
 		pending: () => [...live.values()].map((t) => t.label),
 		setTimeout: (fn, ms) => arm('timeout', ms ?? 0, fn),

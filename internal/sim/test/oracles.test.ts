@@ -22,6 +22,7 @@ import {
 	gate_open_early,
 	no_viewport_wait,
 	normalize,
+	owes_look,
 	parsed_first,
 	rewrite_rendered,
 	live_regions_out,
@@ -513,12 +514,16 @@ describe("a hole's fallback does not stand", () => {
 });
 
 describe('an island that wakes on its own is awake', () => {
-	/** `wire`: the document's requests, each `[url, status]`; `hidden`: the tab is behind another. */
+	/** `wire`: the document's requests, each `[url, status]`; `hidden`: the tab is behind another;
+	 *  `behind`: whether it was shown (`seen`), its observers had frames (`framed`), an animation
+	 *  frame it asked for waits (`waits`), and its observers are owed a report (`told`: false). */
 	const at_rest = async (
 		body: string,
 		wire: Array<[string, number | 'dropped']> = [],
-		hidden = false
+		hidden = false,
+		behind: { seen?: boolean; framed?: boolean; waits?: boolean; told?: boolean } = {}
 	) => {
+		const { framed = false, seen = framed, waits = false, told = true } = behind;
 		const { Window } = await import('happy-dom');
 		// (the simulator's viewport: src/layout.ts)
 		const w = new Window({ url: 'https://app.test/p1', width: 1280, height: 720 });
@@ -528,6 +533,10 @@ describe('an island that wakes on its own is awake', () => {
 			name: 'tab-1',
 			documents: 1,
 			hidden,
+			seen: new Set(seen ? ['tab-1#1'] : []),
+			framed: new Set(framed ? ['tab-1#1'] : []),
+			platform: { waits_frame: () => waits },
+			owes_frame: () => waits || !told,
 			page: { mainFrame: { url: 'https://app.test/p1', document: w.document } }
 		} as unknown as Parameters<typeof islands_wake>[0];
 		const world = {
@@ -610,6 +619,34 @@ describe('an island that wakes on its own is awake', () => {
 				`${fold(1000)}<ogygia-region wake="visible" entry="/_app/n3.js">${island('load')}</ogygia-region>`
 			)
 		).toBeNull();
+	});
+
+	it('finds a visible island on screen asleep in a tab behind another whose frames told its observers all there is, and passes one there while its observers are owed a report (#2176)', async () => {
+		const told = { framed: true };
+		expect((await at_rest(visible(), [], true, told))?.oracle).toBe('islands-wake');
+		expect((await at_rest(island('load'), [], true, told))?.oracle).toBe('islands-wake');
+		expect(await at_rest(visible(), [], true, { framed: true, told: false })).toBeNull();
+		expect(
+			await at_rest(visible(), [], true, { seen: true, told: false }),
+			'one shown as it came and behind before its observers had a frame (#2091)'
+		).toBeNull();
+	});
+
+	it('owes a load island its wake in a tab behind another whose observers alone are owed a report: it waits for no frame (#2176)', async () => {
+		const owed = { framed: true, told: false };
+		expect((await at_rest(island('load'), [], true, owed))?.oracle).toBe('islands-wake');
+		const never_framed = { seen: true, told: false };
+		expect((await at_rest(island('load'), [], true, never_framed))?.oracle).toBe('islands-wake');
+	});
+
+	it('passes every island of a tab behind another, shown before, while an animation frame it asked for waits for the visitor to look (gen 262, seed 11)', async () => {
+		expect(await at_rest(island('load'), [], true, { framed: true, waits: true })).toBeNull();
+		expect(await at_rest(island('load'), [], true, { seen: true, waits: true })).toBeNull();
+		expect(await at_rest(visible(), [], true, { framed: true, waits: true })).toBeNull();
+	});
+
+	it('owes a load island its wake in a tab loaded behind another and never shown, though an animation frame waits there: a hidden document paints no frame, so its paint gate takes a task (mutant hidden-document-waits-for-a-frame)', async () => {
+		expect((await at_rest(island('load'), [], true, { waits: true }))?.oracle).toBe('islands-wake');
 	});
 
 	it('owes a media island its wake only while its query matches (the viewport is 1280 px wide)', async () => {
@@ -1756,5 +1793,28 @@ describe("a mounted peer's page answers as the peer did", () => {
 	it("finds a peer's page that shows another visitor than the app's (a mutant that dropped the claims survived), and passes the app's", async () => {
 		expect((await judged('<p data-gen-who></p>', [], '/peer/who'))?.oracle).toBe('peer-answers');
 		expect(await judged('<p data-gen-who>visitor</p>', [], '/peer/who')).toBeNull();
+	});
+});
+
+describe('a tab owed a look', () => {
+	const tab = (o: { hidden: boolean; url?: string }) =>
+		({
+			realm: 'tab-1#2',
+			hidden: o.hidden,
+			seen: new Set(['tab-1#2']),
+			owes_frame: () => true,
+			page: { mainFrame: { url: o.url ?? 'https://app.test/p1' } }
+		}) as unknown as Parameters<typeof owes_look>[0];
+
+	it('is one behind another: a tab in front owes no look, though its next frame would do something', () => {
+		expect(owes_look(tab({ hidden: true }))).toBe(true);
+		expect(owes_look(tab({ hidden: false }))).toBe(false);
+	});
+
+	it('keeps a known finding as it stood for a page not loaded over http: there is no fresh load to judge it against', async () => {
+		const stood = { oracle: 'known', detail: 'as it stood' } as const;
+		const at = tab({ hidden: true, url: 'about:blank' });
+		const nowhere = undefined as never;
+		expect(await mpa_equivalent(nowhere, nowhere, at, undefined, stood)).toBe(stood);
 	});
 });
