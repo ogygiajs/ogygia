@@ -12,6 +12,8 @@ import { fileURLToPath } from 'node:url';
 import { srcsetCandidates } from '@ogygia/core/plugin/utils';
 import sharp from 'sharp';
 import { test, expect } from '@ogygia/tooling/e2e';
+import { ASKED_PATH, MARK_PATH, REMOTE_ORIGIN } from './app/remote-host.ts';
+import { photo_card_misses } from './card-pixels.ts';
 import { WHOLE_LINKS, linked, VERCEL_IMAGES } from './vercel-links.ts';
 
 const APP = fileURLToPath(new URL('./app/', import.meta.url));
@@ -142,28 +144,68 @@ test('the function holds sharp, the encoder the config lists, and makes every fi
 	}
 });
 
-test("the function cannot draw a live page's share card: Vercel's file tracing leaves out satori's harfbuzz wasm, so it answers 500, kept nowhere; a prerendered page's card is the build's file", async ({
+test("the function draws a live page's share card on request, kept forever: Vercel's file tracing keeps satori's harfbuzz wasm, which harfbuzz reads by a path no tracer follows; a prerendered page's card is the build's file", async ({
 	request
 }) => {
 	expect(
 		fs.existsSync(path.join(FUNC, 'packages/image/e2e/app/node_modules/@resvg/resvg-js'))
 	).toBe(true);
 	const traced = fs.readdirSync(path.join(FUNC, 'node_modules/.pnpm'));
-	const harfbuzz = traced.find((d) => d.startsWith('harfbuzzjs@'));
 	expect(
-		harfbuzz &&
-			fs.existsSync(
-				path.join(FUNC, 'node_modules/.pnpm', harfbuzz, 'node_modules/harfbuzzjs/hb.wasm')
-			)
-	).toBeFalsy();
+		traced.some(
+			(d) =>
+				d.startsWith('harfbuzzjs@') &&
+				fs.existsSync(path.join(FUNC, 'node_modules/.pnpm', d, 'node_modules/harfbuzzjs/hb.wasm'))
+		)
+	).toBe(true);
 	const url = (await named(request, ['/late/card?title=On+Vercel'], SIGNED_RE)).find((u) =>
 		u.includes('/.card/')
 	)!;
 	const res = await request.get(url);
-	expect(res.status(), url).toBe(500);
-	expect(res.headers()['cache-control']).toBe('no-store');
+	expect(res.status(), url).toBe(200);
+	expect(res.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
+	const meta = await sharp(await res.body()).metadata();
+	expect([res.headers()['content-type'], meta.format, meta.width, meta.height]).toEqual([
+		'image/png',
+		'png',
+		1200,
+		630
+	]);
 	const built = (await named(request, ['/card'], /\/_app\/immutable\/og\/c[\w-]+\.png/g))[0]!;
 	expect((await request.get(built)).status(), built).toBe(200);
+});
+
+test("the function draws a live card that names images, each fitted to the card by sharp (an asset of the build as an <img>, a small remote WebP as a style's url()), kept for remote.maxAge since it shows a remote image, never immutable: the function's trace holds sharp's native binary and libvips for this platform", async ({
+	request
+}) => {
+	const pnpm = path.join(FUNC, 'node_modules/.pnpm');
+	const platform = `${process.platform}-${process.arch}`;
+	const holds = (pkg: string, re: RegExp): boolean =>
+		fs.readdirSync(pnpm).some((d) => {
+			const lib = path.join(pnpm, d, 'node_modules/@img', pkg, 'lib');
+			return fs.existsSync(lib) && fs.readdirSync(lib).some((f) => re.test(f));
+		});
+	expect(holds(`sharp-${platform}`, /\.node$/)).toBe(true);
+	expect(holds(`sharp-libvips-${platform}`, /^libvips-cpp\./)).toBe(true);
+	const asked = async (): Promise<number> => {
+		const counts = (await (await request.get(`${REMOTE_ORIGIN}${ASKED_PATH}`)).json()) as Record<
+			string,
+			number
+		>;
+		return counts[MARK_PATH] ?? 0;
+	};
+	const url = (await named(request, ['/late/card/photo'], SIGNED_RE)).find((u) =>
+		u.includes('/.card/')
+	)!;
+	const before = await asked();
+	const res = await request.get(url);
+	expect(res.status(), url).toBe(200);
+	expect(await asked(), 'the function fetched the remote WebP it drew').toBeGreaterThan(before);
+	expect(res.headers()['content-type'], url).toBe('image/png');
+	expect(res.headers()['cache-control'], url).toMatch(
+		/^public, max-age=\d+, stale-while-revalidate=\d+$/
+	);
+	expect(await photo_card_misses(await res.body())).toEqual([]);
 });
 
 test("a live page's moving image offers a still sharp makes, since Vercel cannot keep one frame", async ({

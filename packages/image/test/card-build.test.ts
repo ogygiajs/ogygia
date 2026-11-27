@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { beforeAll, describe, expect, test } from 'vitest';
 import { check, dead_fields } from '@ogygia/machine/testing';
 import { dedent } from '@ogygia/core/contract';
@@ -13,7 +14,8 @@ import {
 	CARD_ENGINE_CHECK,
 	card_digest,
 	Cards,
-	CARD_PREFIX
+	CARD_PREFIX,
+	engine_files
 } from '../src/vite/card.ts';
 import { image_call_edits } from '../src/vite/macro.ts';
 
@@ -171,7 +173,8 @@ describe("the card's module", () => {
 			() => 'chunks/settle.js',
 			dir,
 			() => 'chunks/card-abc.js',
-			() => ({ importedIds: [], dynamicallyImportedIds: [] })
+			() => ({ importedIds: [], dynamicallyImportedIds: [] }),
+			() => dir
 		)!;
 		expect(out).not.toContain('__ogygia_image_card');
 		expect(out).toMatch(/"digest":"[\w-]{43}"/);
@@ -182,9 +185,37 @@ describe("the card's module", () => {
 				() => 'a.js',
 				dir,
 				String,
-				() => null
+				() => null,
+				() => dir
 			)
 		).toBeNull();
+	});
+
+	test("a server card's chunk names the files its engine reads by a path no tracer follows (satori's harfbuzz wasm), each a URL relative to the chunk", () => {
+		const { cards, name } = named();
+		const code = cards.module(name, 'server')!;
+		expect(code).toContain('export const engine_files = "__ogygia_image_engine_files__";');
+		expect(cards.module(name, 'dev')).not.toContain('engine_files');
+		expect(cards.module(name, 'edge')).not.toContain('engine_files');
+		const root = fileURLToPath(new URL('..', import.meta.url));
+		const files = engine_files(root);
+		expect(files).toHaveLength(1);
+		expect(files[0]).toMatch(/[\\/]harfbuzzjs[\\/]hb\.wasm$/);
+		expect(fs.existsSync(files[0]!)).toBe(true);
+		const out_dir = path.join(dir, 'output/server');
+		const out = cards.render_chunk(
+			code,
+			() => 'chunks/card-abc.js',
+			root,
+			String,
+			() => null,
+			() => out_dir
+		)!;
+		const rel = /export const engine_files = \[new URL\("([^"]+)", import\.meta\.url\)\];/.exec(
+			out
+		)![1]!;
+		const chunk = pathToFileURL(path.join(out_dir, 'chunks/card-abc.js'));
+		expect(fileURLToPath(new URL(rel, chunk))).toBe(files[0]);
 	});
 });
 

@@ -28,6 +28,8 @@ async function picture(width: number, height: number, background: string): Promi
 
 /** The path of the small WebP the photo card draws (src/lib/cards/PhotoCard.svelte). */
 export const MARK_PATH = '/photos/mark.webp';
+/** The path that answers how many times this host was asked for each path, as JSON. */
+export const ASKED_PATH = '/__asked';
 /** The one color of {@link MARK_PATH}. */
 export const MARK_RGB: readonly [number, number, number] = [228, 87, 46];
 
@@ -44,8 +46,15 @@ export async function serve_remote_host(): Promise<http.Server | null> {
 		['/photos/cover.jpg', await picture(1600, 900, '#5b8c5a')],
 		[MARK_PATH, await mark()]
 	]);
+	const asked = new Map<string, number>();
 	const server = http.createServer((req, res) => {
 		const at = (req.url ?? '/').split('?')[0]!;
+		if (at === ASKED_PATH) {
+			res.writeHead(200, { 'content-type': 'application/json' });
+			res.end(JSON.stringify(Object.fromEntries(asked)));
+			return;
+		}
+		asked.set(at, (asked.get(at) ?? 0) + 1);
 		if (at.startsWith('/moved/')) {
 			res.writeHead(302, { location: at.replace('/moved/', '/photos/') });
 			res.end();
