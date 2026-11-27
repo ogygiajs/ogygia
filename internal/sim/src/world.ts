@@ -800,6 +800,7 @@ export class World {
 	async end(): Promise<void> {
 		// (closing a page waits for its documents to finish: on real time now, the loop has stopped)
 		completion_on_the_loop(null);
+		this.network.end();
 		try {
 			await this.browsers.end();
 		} finally {

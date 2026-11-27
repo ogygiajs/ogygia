@@ -60,6 +60,19 @@ export type Handler = (request: Request) => Promise<Response>;
 /** Hears a response's body end: all of it came (`whole`), or it broke off on the way. */
 export type Ended = (whole: boolean, status: number) => void;
 
+/** A test's hold on requests (`Network.hold`): which it names, and those it keeps now. */
+interface Hold {
+	readonly match: (url: URL, realm: string) => boolean;
+	readonly keeps: Set<Held>;
+}
+
+/** A request kept off the wire: the holds keeping it, how it goes once they let go, how it fails. */
+interface Held {
+	readonly by: Set<Hold>;
+	readonly go: () => void;
+	readonly drop: () => void;
+}
+
 /** What the network saw, for the oracles and the trace. */
 export interface Exchange {
 	readonly id: number;
@@ -341,22 +354,33 @@ export class Network {
 		return this.#offline.has(realm);
 	}
 
-	/** Each hold's test, and the requests it keeps until it is let go (`hold`). */
-	readonly #holds = new Map<(url: URL, realm: string) => boolean, Array<() => void>>();
+	/** Each hold (`hold`), with the requests it keeps until it is let go. */
+	readonly #holds = new Set<Hold>();
 
 	/**
-	 * Keeps each request `match` names (its address, the document asking) off the wire until the
-	 * returned function lets them go: each then starts its way from that moment, its fate drawn as it
-	 * would be. A test's ordering, on any build: a request's delays are drawn by its address, which
-	 * holds the build's region ids (test/hidden-tab.node.test.ts).
+	 * Keeps each request that would go on the wire and that `match` names (its address, the document
+	 * asking) off it until the returned function lets it go: each then starts its way from that
+	 * moment, its fate drawn as it would be, once every hold that keeps it let it go. A test's
+	 * ordering, on any build: a request's delays are drawn by its address, which holds the build's
+	 * region ids (test/hidden-tab.node.test.ts). What is still held when the network ends fails.
 	 */
 	hold(match: (url: URL, realm: string) => boolean): () => void {
-		const held: Array<() => void> = [];
-		this.#holds.set(match, held);
+		const hold: Hold = { match, keeps: new Set() };
+		this.#holds.add(hold);
 		return () => {
-			if (!this.#holds.delete(match)) return;
-			for (const go of held) go();
+			if (!this.#holds.delete(hold)) return;
+			for (const held of hold.keeps) {
+				held.by.delete(hold);
+				if (held.by.size === 0) held.go();
+			}
 		};
+	}
+
+	/** The network's world is over: each request still held fails, and no hold keeps any more. */
+	end(): void {
+		const held = new Set([...this.#holds].flatMap((h) => [...h.keeps]));
+		this.#holds.clear();
+		for (const h of held) h.drop();
 	}
 
 	/** Each calm tab's pace: ms added to every leg of its requests. */
@@ -574,14 +598,23 @@ export class Network {
 							});
 					}
 				);
-			for (const [match, held] of this.#holds)
-				if (match(target, realm)) {
-					held.push(() => {
-						if (!lost && !signal?.aborted) on_its_way();
-					});
-					return;
+			const by = new Set([...this.#holds].filter((h) => h.match(target, realm)));
+			if (by.size === 0) return void on_its_way();
+			const held: Held = {
+				by,
+				go: () => {
+					if (!lost && !signal?.aborted) on_its_way();
+				},
+				drop: () => {
+					if (lost || signal?.aborted) return;
+					lost = true;
+					this.#on_wire.delete(ex);
+					hang_up();
+					ex.status = 'aborted';
+					fail('its world ended');
 				}
-			on_its_way();
+			};
+			for (const h of by) h.keeps.add(held);
 		});
 	}
 
