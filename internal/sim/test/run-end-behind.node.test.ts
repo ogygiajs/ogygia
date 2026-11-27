@@ -23,8 +23,39 @@ vi.mock('../src/layout.ts', async (original) => {
 		install_layout: (...args: Install) => real.install_layout(...(broken_by.layout?.(args) ?? args))
 	};
 });
+/** A case's switch, `as_main`: the run end judges a tab owed a look as main did, against a fresh
+ *  load (`mpa_equivalent`), and finds nothing as it stood. And when it judged what: each tab's
+ *  comparison `run()` asks for, and the servers' HTML. */
+const end = vi.hoisted(() => ({ as_main: false, judged: [] as string[] }));
+vi.mock('../src/oracles.ts', async (original) => {
+	const real = await original<typeof import('../src/oracles.ts')>();
+	return {
+		...real,
+		as_it_stands: async (...args: Parameters<typeof real.as_it_stands>) => {
+			if (!end.as_main) return real.as_it_stands(...args);
+			await real.mpa_equivalent(...args);
+			return null;
+		},
+		mpa_equivalent: (...args: Parameters<typeof real.mpa_equivalent>) => {
+			end.judged.push(`${args[2].name} at ${args[0].loop.now}`);
+			return real.mpa_equivalent(...args);
+		}
+	};
+});
+vi.mock('../src/html.ts', async (original) => {
+	const real = await original<typeof import('../src/html.ts')>();
+	return {
+		...real,
+		html_sent: (...args: Parameters<typeof real.html_sent>) => {
+			end.judged.push(`html sent at ${args[0].loop.now}`);
+			return real.html_sent(...args);
+		}
+	};
+});
 afterEach(() => {
 	broken_by.layout = null;
+	end.as_main = false;
+	end.judged = [];
 });
 
 /** Calls `then` each time `window`'s document changes its visibility (its page's own listeners
@@ -199,5 +230,51 @@ describe.skipIf(!ready)('a seeded run judges a tab behind another', () => {
 		const end = res.log.find((l) => l.includes('# run end judged at'));
 		expect(end, 'it was owed a look at the run end').toMatch(/tab-2 owed a look$/);
 		expect(res.broken.filter((b) => b.detail.includes('/wake-gate'))).toEqual([]);
+	}, 300_000);
+
+	it("at the end, a tab owed a look whose observers had their frames spends main's comparison on the shared world, so every tab after it and every check after them judge at main's moment (#2176)", async () => {
+		// (as above: it is owed a look the first time it goes behind; a third tab comes after it)
+		const plan: Plan = {
+			actions: [
+				{ kind: 'open', path: '/wake-gate' },
+				{ kind: 'open', path: '/' },
+				{ kind: 'reload', tab: 0 }
+			],
+			idle: true
+		};
+		const once = async () => {
+			let behind_once = false;
+			broken_by.layout = (args) => {
+				if (!second(args[2])) return args;
+				const window = args[0] as unknown as typeof globalThis;
+				on_visibility(window, (hidden) => {
+					const island = window.document.querySelector(VISIBLE);
+					if (!hidden) return island?.setAttribute('data-hydrated', '');
+					if (behind_once) return;
+					behind_once = true;
+					island?.removeAttribute('data-hydrated');
+					new window.IntersectionObserver(() => {}).observe(window.document.body);
+				});
+				return args;
+			};
+			end.judged = [];
+			const res = await run(1, plan.actions.length, Infinity, undefined, plan);
+			const at_end = res.log.find((l) => l.includes('# run end judged at'));
+			return { at_end, judged: end.judged.filter((j) => !j.startsWith('tab-2 ')) };
+		};
+		process.env.SIM_APP = APP;
+		const { run } = await import('../src/cli.ts');
+		end.as_main = true;
+		const was = await once();
+		end.as_main = false;
+		const is = await once();
+		expect(is.at_end, 'the case it is for: tab-2 owed a look').toMatch(/tab-2 owed a look$/);
+		expect(
+			was.judged.some((j) => j.startsWith('tab-3 ')),
+			'and tab-3 judged after it'
+		).toBe(true);
+		expect(is, "every tab not owed a look, and every check after them, at main's moment").toEqual(
+			was
+		);
 	}, 300_000);
 });
