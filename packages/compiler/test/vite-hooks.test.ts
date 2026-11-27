@@ -2452,4 +2452,43 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		sb.httpServer.emit('close');
 		expect(slots()).toEqual([]);
 	});
+
+	it('a newer dev server of the root closing first leaves the older one reading its own bridge', async () => {
+		kit3();
+		const a = await setup('serve');
+		const b = await setup('serve');
+		const sa = dev_server();
+		const sb = dev_server();
+		a.p.configureServer(sa);
+		const [slot] = slots();
+		const read = () => (g[slot!] as { kit_env_build(): string } | undefined)?.kit_env_build();
+		const older = read();
+		b.p.configureServer(sb);
+		sb.httpServer.emit('close');
+		expect(read()).toBe(older);
+		expect(older).toMatch(/^[0-9a-f]{12}$/);
+		sa.httpServer.emit('close');
+		expect(slots()).toEqual([]);
+	});
+
+	it('one plugin serving a restarted dev server: the old server closing its plugins leaves the new one open', async () => {
+		kit3();
+		const { p } = await setup('serve');
+		const env = (name: string) => ({
+			name,
+			config: { consumer: name === 'ssr' ? 'server' : 'client' }
+		});
+		const restarted = () => ({
+			...dev_server(),
+			environments: { client: env('client'), ssr: env('ssr') }
+		});
+		const old_server = restarted();
+		const new_server = restarted();
+		p.configureServer(old_server);
+		p.configureServer(new_server);
+		for (const e of Object.values(old_server.environments)) p.closeBundle.call({ environment: e });
+		expect(slots()).toHaveLength(1);
+		for (const e of Object.values(new_server.environments)) p.closeBundle.call({ environment: e });
+		expect(slots()).toEqual([]);
+	});
 });
