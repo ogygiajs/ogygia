@@ -7,10 +7,10 @@
  *
  * @packageDocumentation
  */
-import { createHash } from 'node:crypto';
+import { createHash, type Hash } from 'node:crypto';
 import path from 'node:path';
 import { dedent, OGYGIA_VERSION } from '@ogygia/core/contract';
-import type { Fs } from './fs.ts';
+import type { Fs, FsEntry } from './fs.ts';
 import { warn } from './messages.ts';
 
 /** One patch of a Kit module, applied to the browser's copy only. */
@@ -34,9 +34,10 @@ const KIT_PAGE_THREAD = `\n${dedent`
 `}\n`;
 const KIT_DISCLOSE_VERSION = `((globalThis.__ogygia ??= {}).v ??= new Set()).add(${JSON.stringify(OGYGIA_VERSION)});\n`;
 
+const kit_public_env_re = (mode: string) =>
+	new RegExp(`/generated/${mode}/env/public/client\\.js$`);
 /** Kit 3's browser `$app/env/public`, as Kit generates it under its out dir (dev and build). */
-export const KIT_PUBLIC_ENV_CLIENT_RE: RegExp =
-	/\/generated\/(?:build|dev)\/env\/public\/client\.js$/;
+export const KIT_PUBLIC_ENV_CLIENT_RE: RegExp = kit_public_env_re('(?:build|dev)');
 const KIT_ENV_READER = `import { kit_env as __og_kit_env } from 'ogygia:boot/kit-env';\n`;
 const DYNAMIC_READ_RE = /=\s*env\./;
 
@@ -63,7 +64,7 @@ export const KIT_PATCHES: readonly KitPatch[] = [
 	},
 	{
 		name: "Kit 3's dev $app/env/public: the env of a page Kit never started",
-		id: /\/generated\/dev\/env\/public\/client\.js$/,
+		id: kit_public_env_re('dev'),
 		kits: [3],
 		mode: 'dev',
 		patch: public_env_patch(
@@ -74,7 +75,7 @@ export const KIT_PATCHES: readonly KitPatch[] = [
 	},
 	{
 		name: "Kit 3's built $app/env/public: the env of a page Kit never started",
-		id: /\/generated\/build\/env\/public\/client\.js$/,
+		id: kit_public_env_re('build'),
 		kits: [3],
 		mode: 'build',
 		patch: public_env_patch(
@@ -92,36 +93,54 @@ export function patch_kit_module(code: string, id: string): string {
 	return out;
 }
 
-/** What names an app for its env channel: its package name (else its root's folder name), its base
- *  and its app dir. */
+/** What names an app for its env channel: its package.json, its base, its app dir and its source
+ *  (`src`, and Kit's routes dir where it is not under `src`). */
 export interface KitEnvApp {
 	readonly root: string;
 	readonly base: string;
 	readonly app_dir: string;
+	readonly routes_dir: string;
 	readonly fs: Fs;
+}
+
+const by_name = (a: FsEntry, b: FsEntry) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+
+function hash_tree(files: Fs, dir: string, rel: string, into: Hash): void {
+	const entries = files.list(dir);
+	if (entries === null) return;
+	for (const e of [...entries].sort(by_name)) {
+		if (e.name.startsWith('.')) continue;
+		const at = `${rel}/${e.name}`;
+		if (e.kind === 'dir') hash_tree(files, path.join(dir, e.name), at, into);
+		else if (e.kind === 'file')
+			into.update(`\0${at}\0`).update(files.read(path.join(dir, e.name)) ?? '');
+		else into.update(`\0${at}\0${e.kind}`);
+	}
 }
 
 /**
  * The build's identity on Kit's env channel: the server writes it beside the env, and the browser's
  * reader reads the env only when the channel bears its own. Both legs of one app make the same one
- * from the same facts (the app's name, base and app dir); a federated peer is another app, so its
- * reader never takes the host's env as its own. It holds no path and no time, so a build made again
- * is byte-identical.
+ * from the same facts: the app's package.json, base and app dir, and every file of its source but
+ * dot files (ogygia's keep-client route is one, and is there for one leg only). A federated peer is
+ * another app, so its reader never takes the host's env as its own; only a peer built from the very
+ * same source shares it. It holds no absolute path and no time, so a build made again is
+ * byte-identical.
  */
 export function kit_env_build(app: KitEnvApp): string {
-	let name = '';
-	const pkg = app.fs.read(path.join(app.root, 'package.json'));
-	if (pkg !== null) {
-		try {
-			const read = (JSON.parse(pkg) as { name?: unknown }).name;
-			if (typeof read === 'string') name = read;
-			// oxlint-disable-next-line ogygia/no-silent-failures -- a package.json that does not parse names no package: the root's folder names the app
-		} catch {}
-	}
-	return createHash('sha256')
-		.update([name || path.basename(app.root), app.base, app.app_dir].join('\0'))
-		.digest('hex')
-		.slice(0, 12);
+	const hash = createHash('sha256').update([app.base, app.app_dir].join('\0'));
+	hash.update('\0package.json\0').update(app.fs.read(path.join(app.root, 'package.json')) ?? '');
+	const src = path.join(app.root, 'src');
+	hash_tree(app.fs, src, 'src', hash);
+	const routes = path.relative(src, app.routes_dir);
+	if (routes.startsWith('..') || path.isAbsolute(routes))
+		hash_tree(
+			app.fs,
+			app.routes_dir,
+			path.relative(app.root, app.routes_dir).split(path.sep).join('/'),
+			hash
+		);
+	return hash.digest('hex').slice(0, 12);
 }
 
 /**

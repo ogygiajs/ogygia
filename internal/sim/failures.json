@@ -273,18 +273,6 @@
 			"name": "a page with no env channel whose warning chunk does not load still reads an empty env, and leaves nothing unhandled"
 		},
 		{
-			"site": "packages/compiler/src/kit-patches.ts > kit_env_build > parse:0",
-			"reason": "an app's package.json that does not parse names no package: the root's folder names the app, so the build still has an identity",
-			"test": "packages/compiler/test/kit-env-build.test.ts",
-			"name": "a package.json that does not parse: the root's folder names the app"
-		},
-		{
-			"site": "packages/compiler/src/kit-patches.ts > kit_env_build > catch:0",
-			"reason": "as above; proved by hand: the catch made to rethrow turns the test red",
-			"test": "packages/compiler/test/kit-env-build.test.ts",
-			"name": "a package.json that does not parse: the root's folder names the app"
-		},
-		{
 			"site": "packages/core/src/server/env-seed.ts > EnvText > of > catch:0",
 			"reason": "a public env value devalue cannot carry writes no env channel and says kit_env_unshipped, so the page still renders; proved by hand: the catch made to rethrow turns the test red",
 			"test": "packages/core/test/server-seed-word.test.ts",

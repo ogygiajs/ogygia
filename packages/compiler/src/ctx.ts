@@ -1,6 +1,7 @@
 import { strip_bom } from './bom.ts';
 import { node_fs, type Fs } from './fs.ts';
 import { default_kit_dirs, route_reader, type KitDirs, type Routes } from './kit.ts';
+import { kit_env_build } from './kit-patches.ts';
 import { islandVirtualId } from './ids.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
 import type { ClientRealmFile, ServerRealm } from './link/caps.ts';
@@ -273,6 +274,20 @@ export class CompileCtx {
 		this.#pkg_roots = this.pkg_scan
 			.map((p) => ({ root: p.root, name: p.name }))
 			.sort((a, b) => b.root.length - a.root.length);
+	}
+
+	#kit_env_build: string | null = null;
+
+	/** The app's identity on Kit's env channel (kit-patches.ts `kit_env_build`), read once: the
+	 *  server module and the browser's reader a dev server serves at different times carry one. */
+	get kit_env_build(): string {
+		return (this.#kit_env_build ??= kit_env_build({
+			root: this.root,
+			base: this.base,
+			app_dir: this.app_dir,
+			routes_dir: this.kit_dirs.routes_dir,
+			fs: this.fs
+		}));
 	}
 
 	/** True when `code` carries an ogygia `with { … }` island hint (gates node_modules `.svelte`). */
