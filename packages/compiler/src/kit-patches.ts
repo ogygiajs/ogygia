@@ -103,7 +103,7 @@ export interface KitEnvApp {
 	readonly fs: Fs;
 }
 
-const by_name = (a: FsEntry, b: FsEntry) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+const by_name = (a: FsEntry, b: FsEntry) => Number(a.name > b.name) - Number(a.name < b.name);
 
 function hash_tree(files: Fs, dir: string, rel: string, into: Hash): void {
 	const entries = files.list(dir);
