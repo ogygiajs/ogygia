@@ -87,6 +87,29 @@ describe('a simulated document has a layout, and its IntersectionObserver report
 		expect(frames).toEqual([512]);
 	});
 
+	it('owes a frame while an observer has a target it never reported or one that moved, and a closed document owes none', async () => {
+		const loop = new Loop(rng(1));
+		const w = new Window({ url: 'https://app.test/' });
+		const layout = install_layout(w as never, loop, 'tab-1#1');
+		w.document.write(
+			'<html><head></head><body><p id="top">top</p><div id="tall" style="height: 2000px"></div><p id="below">below</p></body></html>'
+		);
+		expect(layout.owes(), 'no observer').toBe(false);
+		const IO = (w as unknown as { IntersectionObserver: IO }).IntersectionObserver;
+		const io = new IO(() => {});
+		io.observe(w.document.getElementById('top') as unknown as Element);
+		expect(layout.owes(), 'a target never reported').toBe(true);
+		await loop.run(100);
+		expect(layout.owes()).toBe(false);
+		io.observe(w.document.getElementById('below') as unknown as Element);
+		await loop.run(100);
+		expect(layout.owes(), 'one off screen, reported').toBe(false);
+		w.document.getElementById('tall')!.remove();
+		expect(layout.owes(), 'one that came on screen').toBe(true);
+		await w.happyDOM.close();
+		expect(layout.owes(), 'its document closed').toBe(false);
+	});
+
 	it('a root margin widens the viewport', async () => {
 		const { loop, IO, seen, $ } = page(
 			'<div style="height: 1000px"></div><p id="near">near</p><div style="height: 2000px"></div><p id="far">far</p>'
