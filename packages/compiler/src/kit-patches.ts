@@ -37,11 +37,6 @@ export const KIT_PUBLIC_ENV_CLIENT_RE: RegExp =
 const KIT_ENV_READER = `import { kit_env as __og_kit_env } from 'ogygia:boot/kit-env';\n`;
 const DYNAMIC_READ_RE = /=\s*env\./;
 
-/**
- * The patch of one `$app/env/public` shape: Kit's payload `read`, made to fall back to `fallback`
- * (the env the server sent) where the module reads a dynamic variable, else to `inert` (an empty
- * env, which asks the server for nothing; `null`: the read cannot throw, so it stays as Kit wrote it).
- */
 function public_env_patch(read: string, fallback: string, inert: string | null): KitPatch['patch'] {
 	return (code, id) => {
 		const dynamic = DYNAMIC_READ_RE.test(code);
