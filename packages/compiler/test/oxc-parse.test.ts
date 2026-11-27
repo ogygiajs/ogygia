@@ -24,6 +24,13 @@ describe('parse_module', () => {
 		});
 	});
 
+	it('a source the parser refuses outright has no import record, never a throw', async () => {
+		const { module_record } = await import('../src/parse/oxc.ts');
+		expect(module_record(null as unknown as string, '/a/b.ts')).toBe(null);
+		expect(module_record('import a from', '/a/b.ts')).toBe(null);
+		expect(module_record(`import a from './a.js';`, '/a/b.ts')?.staticImports).toHaveLength(1);
+	});
+
 	it('a module that imports the parser without parsing never loads vite', async () => {
 		vi.resetModules();
 		vi.doMock('vite', () => {

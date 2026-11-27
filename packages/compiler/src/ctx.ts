@@ -143,6 +143,8 @@ export interface CompileCtxInit {
 	app_shims: Record<string, string>;
 	/** `command === 'build'` — gates the transform-time deterministic island-chunk emit. */
 	is_build: boolean;
+	/** A build made with `OGYGIA_RULES=1`: the build-time rules run (`island_graph_late`). */
+	rules?: boolean;
 	/** Core's event emits compiled in (a plugin's `b.events()`: devtools). Bakes the standalone dock
 	 *  boot for csr=true pages into `ogygia:server/devtools-boot-url`. */
 	devtools: boolean;
@@ -205,6 +207,7 @@ export class CompileCtx {
 	readonly client_binding_stub_file: string;
 	readonly app_shims: Record<string, string>;
 	readonly is_build: boolean;
+	readonly rules: boolean;
 	readonly devtools: boolean;
 	/** `with { … }` hint matcher — a node_modules `.svelte` is only transformed when it carries one
 	 *  (so a library can declare its own islands). Built once from the resolved import keys. */
@@ -260,6 +263,7 @@ export class CompileCtx {
 		this.client_binding_stub_file = init.client_binding_stub_file;
 		this.app_shims = init.app_shims;
 		this.is_build = init.is_build;
+		this.rules = init.rules ?? false;
 		this.devtools = init.devtools;
 		const hint_keys = Object.values(init.import_keys).filter(
 			(v) => typeof v === 'string'

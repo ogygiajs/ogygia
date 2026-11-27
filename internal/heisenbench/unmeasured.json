@@ -6209,7 +6209,7 @@
 			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~0a165a > CompileCtx:0~15d8e4 > flatMap:0~f1f41f",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~d2741b > CompileCtx:0~20200d > flatMap:0~f1f41f",
 			"reason": "once per config: the markdown formats' extensions; every build runs it"
 		},
 		{
@@ -6915,10 +6915,6 @@
 		{
 			"id": "packages/core/src/region-parts/live-value.svelte.ts > LiveValue > attach",
 			"reason": "browser only: hands a held live value to its element after hydration; test/browser/region-client.test.ts runs it"
-		},
-		{
-			"id": "packages/core/src/region-parts/locate.ts > graph_hrefs > add",
-			"reason": "only for an island with live entries (the bench islands have none): one Set check per chunk, constant work each"
 		},
 		{
 			"id": "packages/core/src/region-parts/plan.svelte.ts > RegionPlan > set arm",
@@ -9603,6 +9599,46 @@
 		{
 			"id": "packages/compiler/src/messages.ts > WARNED > server_exports_kept > text",
 			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > island_graph_late > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > island_graph_late > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/link/island-imports.ts > parsed_component_imports > walk:1~797ce4 > enter",
+			"reason": "the AST walk's callback (closure, not replayable): one runtime_spec per node of a component Svelte parses, only one whose markup holds an import(); proven in packages/compiler/test/island-imports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > #closure",
+			"reason": "a class method over the build's island graph (not replayable): the island closure walk, once per island at prescan and once per client build at buildStart, linear in the modules an island reaches; proven in packages/compiler/test/island-closure-packages.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > #app_resolve",
+			"reason": "a class method over the app's file system (not replayable): one import of the prescan walk, a few stat calls; proven in packages/compiler/test/island-closure-alias.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > #bundler_resolve",
+			"reason": "a class method that asks the bundler's resolver (a function: not cloneable), once per level of the client build's walk; proven in packages/compiler/test/island-closure-packages.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > #imports_of",
+			"reason": "a class method over the compiler's import memo (not replayable): one map read per walked file, else island_imports, which its tests replay; proven in packages/compiler/test/island-closure-packages.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > follow_island_closure",
+			"reason": "build only, once per client leg at buildStart: takes the bundler's resolver (a function: not cloneable) and drives #closure; proven in packages/compiler/test/island-closure-packages.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > #imports_app_shim",
+			"reason": "OGYGIA_RULES builds only, client leg: one #imports_of read per module transformed outside the island graph; proven in packages/compiler/test/island-closure-packages.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > check_island_order",
+			"reason": "OGYGIA_RULES builds only, once per client leg at buildEnd: one set lookup per module that read $app/* outside the island graph; proven in packages/compiler/test/island-closure-packages.test.ts"
 		}
 	]
 }

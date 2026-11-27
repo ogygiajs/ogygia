@@ -3861,6 +3861,18 @@
 			"name": "a source the parser refuses outright (a read that came back null) is a failed parse, never a throw"
 		},
 		{
+			"site": "packages/compiler/src/parse/oxc.ts > module_record > catch:0",
+			"reason": "`catch { return null; }`: proved: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/oxc-parse.test.ts",
+			"name": "a source the parser refuses outright has no import record, never a throw"
+		},
+		{
+			"site": "packages/compiler/src/driver.ts > Compiler > check_island_order > throw:0",
+			"reason": "the rule's own refusal: a module that read $app/* joined the island graph after its client transform; proved: the throw removed turns the test red",
+			"test": "packages/compiler/test/island-closure-packages.test.ts",
+			"name": "one that joins after its client transform ran fails the rule"
+		},
+		{
 			"site": "packages/compiler/src/parse/oxc.ts > parse_module > result:1",
 			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
 			"test": "packages/compiler/test/oxc-parse.test.ts",

@@ -74,10 +74,10 @@
 	{
 		"id": "compiler-closure-unreadable-file",
 		"file": "packages/compiler/src/driver.ts",
-		"in": "Compiler > mark_island_closure > walk",
-		"code": "if (src == null) return;",
+		"in": "Compiler > closure",
+		"code": "if (src == null) continue;",
 		"operator": "statement",
-		"from": "if (src == null) return;",
+		"from": "if (src == null) continue;",
 		"to": ""
 	},
 	{

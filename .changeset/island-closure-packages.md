@@ -1,0 +1,5 @@
+---
+"@ogygia/compiler": patch
+---
+
+A client build no longer names its client chunks by bundler order: before any module loads, it follows each island's imports through package imports, so a package module both a page and an island import always reads the `$app/*` shims an island needs. Two builds of the same source write the same client files for every import the build can read up front (static imports other than a nameless `export {} from`, and `import()` of a literal string in `.svelte`, `.js`, `.ts`, `.jsx` and `.tsx` files and their `.mjs`, `.cjs`, `.mts` and `.cts` forms; imports in comments and whole `import type`/`export type` statements left out, while an import whose names are each `type` is followed, since `verbatimModuleSyntax` keeps it); a build made with `OGYGIA_RULES=1` stops with `island_graph_late` on a module that reads `$app/*` and is reached only another way. On a csr=true page such a shared module now always goes through the shim: there `page`, `navigating` and `$app/navigation` are Kit's own, while `updated` reads `false` and `updated.check()` resolves `false`.
