@@ -410,8 +410,9 @@ again when it is shown (a refetch on visibility) asks it in that look, and the w
 The MPA check judges a tab behind against a fresh load behind another tab too, unless its document's
 observers had a frame (`Tab.framed`): one never shown, or one whose runtime watched nothing. One
 owed a look whose observers never had a frame (#2091) is judged both ways: first as it stands,
-against a fresh load behind (a `visible` island that woke behind with no frame is a difference
-there, which the look would hide), then once looked at, against a shown one.
+by the run's end before its look (`as_it_stands`, inside `rest_at_end`), against a fresh load
+behind (a `visible` island that woke behind with no frame is a difference there, which the look
+would hide), then once looked at, against a shown one (`test/run-end-behind.node.test.ts`).
 Mutation: the paint gate's hidden branch (schedule.ts, `hidden-document-waits-for-a-frame`) died on
 gen 262. A look hides it in a tab shown before (the frame comes then), never in one loaded behind
 and never shown: that one is owed no look, so its islands are judged though a frame waits there

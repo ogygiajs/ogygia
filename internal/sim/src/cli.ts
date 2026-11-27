@@ -45,6 +45,7 @@ import {
 	Leaks,
 	mpa_equivalent,
 	visitor_looks,
+	as_it_stands,
 	no_cross_visitor_cache,
 	no_foreign_html,
 	normalize,
@@ -312,14 +313,21 @@ function on_a_tab(a: Action, tabs: number): Action {
  * test/found/deploy-recovery-waits.test.ts). At each rest, each visitor, the crowd's too, looks at
  * each tab of theirs behind another that owes a frame ({@link visitor_looks}), so a tab is judged as
  * the visitor sees it once they look, and a backoff what the look woke set is waited out too
- * (test/hidden-tab.node.test.ts, #2176).
+ * (test/hidden-tab.node.test.ts, #2176). Before each look, each tab of `v`'s that look would hide
+ * something in is judged as it stands ({@link as_it_stands}): each difference that found, by tab,
+ * for `mpa_equivalent` (test/run-end-behind.node.test.ts, #2091).
  */
-export async function rest_at_end(world: World, v: Visitor): Promise<void> {
+export async function rest_at_end(world: World, v: Visitor): Promise<Map<Tab, Broken>> {
 	const visitors = (): Visitor[] => [v, ...world.crowd];
+	const stood = new Map<Tab, Broken>();
 	for (const t of v.tabs) world.network.offline(t.name, false);
 	const until = Math.min(world.loop.now + 60_000, world.loop.horizon);
 	for (;;) {
 		await world.rest();
+		for (const t of v.tabs) {
+			const b = await as_it_stands(world, v, t);
+			if (b) stood.set(t, b);
+		}
 		for (const who of visitors()) await visitor_looks(world, who);
 		if (
 			!(
@@ -330,7 +338,7 @@ export async function rest_at_end(world: World, v: Visitor): Promise<void> {
 					.some((t) => !world.on_release(t.realm) && t.platform?.pending().includes('timeout'))
 			)
 		)
-			break;
+			return stood;
 		await world.loop.step();
 	}
 }
@@ -615,7 +623,7 @@ export async function run(
 		}
 		// (a `--step` past the last action prints the trace through rest)
 		if (broken.every((b) => b.oracle === 'known') && stop_at > total) {
-			await rest_at_end(world, v);
+			const stood = await rest_at_end(world, v);
 			hear_moves();
 			await at_rest?.(world, v);
 			for (const t of judged())
@@ -636,7 +644,7 @@ export async function run(
 				const w = faulted(world, t) ? null : waste(world, t);
 				if (w) broken.push(w);
 				log.note(`${t.name} ${t.page.mainFrame.url} judged against a fresh load`);
-				const b = await mpa_equivalent(world, v, t);
+				const b = await mpa_equivalent(world, v, t, undefined, stood.get(t));
 				if (b)
 					broken.push(outage && b.oracle !== 'known' ? { ...b, oracle: 'outage-recovery' } : b);
 			}

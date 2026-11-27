@@ -529,29 +529,47 @@ export async function visitor_looks(world: World, v: Visitor, tabs: Tab[] = v.ta
 }
 
 /**
+ * {@link mpa_equivalent} of a tab as it stands, before the visitor looks at it: one owed a look
+ * whose observers never had a frame (#2091), against a fresh load behind another tab. The look
+ * would wake its `visible` islands, and so hide one that woke behind with no frame; the run's end
+ * judges each such tab with this before its look (`rest_at_end`). Null for any other tab
+ * (test/hidden-tab.node.test.ts, test/run-end-behind.node.test.ts).
+ */
+export async function as_it_stands(world: World, v: Visitor, tab: Tab): Promise<Broken | null> {
+	if (!owes_look(tab) || tab.framed.has(tab.realm)) return null;
+	return as_fresh(
+		world,
+		v,
+		tab,
+		(doc) => replicas_as_one(doc, normalize(doc), world.replicas),
+		true
+	);
+}
+
+/**
  * MPA EQUIVALENCE, the core promise: after any sequence of actions, what a tab shows equals a fresh
  * hard load of its URL by a visitor with the same cookies, once both are at rest. Checked in a new
  * browser (its own module instances and caches) with the tab's cookies copied in. `view` is what
  * is compared (all of `normalize` by default; a found bug's test may compare one part). A tab owed
- * a look ({@link owes_look}) is judged once the visitor looked ({@link visitor_looks}); one whose
- * observers never had a frame is judged first as it stands too, against a fresh load behind another
- * tab: the look would wake its `visible` islands, and hide one that woke behind with no frame
- * (test/hidden-tab.node.test.ts, #2091).
+ * a look ({@link owes_look}) is judged once the visitor looked ({@link visitor_looks}). `stood` is
+ * what {@link as_it_stands} found before the run's end looked: a difference there is the finding,
+ * and a `known` one is kept only if the looked-at tab shows none (test/hidden-tab.node.test.ts,
+ * #2091).
  */
 export async function mpa_equivalent(
 	world: World,
 	v: Visitor,
 	tab: Tab,
-	view: (doc: Document) => string = normalize
+	view: (doc: Document) => string = normalize,
+	stood?: Broken
 ): Promise<Broken | null> {
+	if (stood !== undefined && stood.oracle !== 'known') return stood;
 	const url = tab.page.mainFrame.url;
-	if (!url.startsWith('http')) return null;
-	const as_one = (doc: Document) => replicas_as_one(doc, view(doc), world.replicas);
-	const unframed = () => tab.hidden && !tab.framed.has(tab.realm);
-	const before = owes_look(tab) && unframed() ? await as_fresh(world, v, tab, as_one, true) : null;
-	if (before !== null && before.oracle !== 'known') return before;
+	if (!url.startsWith('http')) return stood ?? null;
 	await visitor_looks(world, v, [tab]);
-	return (await as_fresh(world, v, tab, as_one, unframed())) ?? before;
+	const as_one = (doc: Document) => replicas_as_one(doc, view(doc), world.replicas);
+	const behind = tab.hidden && !tab.framed.has(tab.realm);
+	return (await as_fresh(world, v, tab, as_one, behind)) ?? stood ?? null;
 }
 
 /**
