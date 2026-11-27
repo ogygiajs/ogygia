@@ -6085,20 +6085,12 @@
 			"reason": "the AST walk's per-node visitor, constant work per node; the macro tests run it on every module they rewrite"
 		},
 		{
-			"id": "packages/compiler/src/macros/pipeline.ts > template_calls",
-			"reason": "the macro check, only for a component whose text names import.meta.og. outside its scripts (rare: a docs page or a template call); one Svelte parse then; test/macros-need-plugin.test.ts runs it"
-		},
-		{
 			"id": "packages/compiler/src/macros/pipeline.ts > template_calls > some:0~3d5b23",
 			"reason": "per marker occurrence of the macro check above, constant work per script block; test/macros-need-plugin.test.ts runs it"
 		},
 		{
 			"id": "packages/compiler/src/macros/pipeline.ts > template_calls > walk_ast:1~772d67",
 			"reason": "the AST walk's per-node visitor of the macro check above, constant work per node; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > markdown_scripts",
-			"reason": "the macro check of a markdown page that names import.meta.og. (rare), linear in its text; test/macros-need-plugin.test.ts runs it"
 		},
 		{
 			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > scripts > map:0~0690ae",
@@ -6121,40 +6113,12 @@
 			"reason": "the markdown check above: its prose's {…} expressions, linear in its text; test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/parse/scan.ts > prose_expressions",
-			"reason": "the markdown check above: its prose's {…} expressions, linear in its text but for an unclosed brace (a page Svelte refuses anyway); test/markdown-code.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > frontmatter_end",
-			"reason": "once per markdown check above: two regex runs over the page's first lines; test/markdown-code.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > markdown_prose",
-			"reason": "the markdown check above, only for a markdown page that names import.meta.og.: one CommonMark parse (micromark, linear) and its code tokens blanked; test/markdown-code.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > script_blocks",
-			"reason": "the markdown check above: its blocks that start a line, linear in its text; test/macros-need-plugin.test.ts runs it"
-		},
-		{
 			"id": "packages/compiler/src/parse/scan.ts > script_blocks > filter:0~fa9df2",
 			"reason": "per block of the markdown check above, constant work per block; test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/parse/scan.ts > markdown_expressions",
-			"reason": "the macro check of a markdown page that names import.meta.og. (rare): its prose's {…} expressions, linear in its text; test/macros-need-plugin.test.ts runs it"
-		},
-		{
 			"id": "packages/compiler/src/parse/scan.ts > prose_expressions > filter:0~e6fdc6",
 			"reason": "per block of the markdown check above, constant work per block; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > expression_end",
-			"reason": "per prose expression of the markdown check above, linear in its text; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > blank",
-			"reason": "per HTML comment of the markdown check above, one blank run; test/macros-need-plugin.test.ts runs it"
 		},
 		{
 			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > regions",
@@ -6165,36 +6129,12 @@
 			"reason": "the code-regions handle handed to a plugin macro, one call of ModuleCode.regions; test/macros-need-plugin.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > constructor",
-			"reason": "once per module the macro pipeline runs on: two extension tests; test/macros-need-plugin.test.ts runs it"
-		},
-		{
 			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > #page_of",
 			"reason": "per markdown reading of the macro check: one string compare against the page it read last; test/markdown-parse-once.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls",
-			"reason": "the macro check, only for a module whose text names import.meta.og.: the og calls of its regions, linear in them; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls_macro",
-			"reason": "the macro check of a module outside the app that names a plugin macro (rare): the calls above, one scan; test/macros-own-source.test.ts runs it"
-		},
-		{
 			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls_macro > some:0~cc31b7",
 			"reason": "per call of the check above, two string tests"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > in_regions",
-			"reason": "the macro check, only for a module whose text names import.meta.og. after its macros ran: the og calls of its regions, linear in them; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > in_regions > flatMap:0~6407d7",
-			"reason": "per region of the macro check above, one call scan; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > in_regions > flatMap:0~6407d7 > map:0~6a5b20",
-			"reason": "per call found by the macro check above, one offset shift, constant work; test/macros-need-plugin.test.ts runs it"
 		},
 		{
 			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls > map:0~f7bc6b",
@@ -6917,10 +6857,6 @@
 			"reason": "browser only: hands a held live value to its element after hydration; test/browser/region-client.test.ts runs it"
 		},
 		{
-			"id": "packages/core/src/region-parts/locate.ts > graph_hrefs > add",
-			"reason": "only for an island with live entries (the bench islands have none): one Set check per chunk, constant work each"
-		},
-		{
 			"id": "packages/core/src/region-parts/plan.svelte.ts > RegionPlan > set arm",
 			"reason": "a setter Svelte writes for a $derived class field; Region only reads the field, never assigns it"
 		},
@@ -6979,18 +6915,6 @@
 		{
 			"id": "packages/insights/src/page-insights.ts > analyze_page > map:0~e59b9a",
 			"reason": "a queued island's name and wait joined into a finding's message, inside analyze_page's pass, constant work per island"
-		},
-		{
-			"id": "packages/content/src/markdown/extensions.ts > hold_markdown_extensions",
-			"reason": "config time: reads the resolved plugin list for markdown extensions once per resolved config, linear in the plugins; packages/content/test/markdown-extensions.test.ts runs it"
-		},
-		{
-			"id": "packages/content/src/markdown/extensions.ts > is_extension",
-			"reason": "config time: reads the resolved plugin list for markdown extensions once per resolved config, linear in the plugins; packages/content/test/markdown-extensions.test.ts runs it"
-		},
-		{
-			"id": "packages/content/src/markdown/extensions.ts > markdown_extensions",
-			"reason": "config time: reads the resolved plugin list for markdown extensions once per resolved config, linear in the plugins; packages/content/test/markdown-extensions.test.ts runs it"
 		},
 		{
 			"id": "packages/content/src/markdown/index.ts > ogygiaPreprocess > rehype_chain",
@@ -7417,32 +7341,8 @@
 			"reason": "build only: one path resolve and existence check per twin of one macro call, once per call per build; packages/image/e2e runs it"
 		},
 		{
-			"id": "packages/image/src/vite/macro.ts > is_url",
-			"reason": "build only: one regex test per macro call, once per call per build; test/macro.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/options.ts > check_remote",
-			"reason": "config time, once per image() call: a few key checks over the listed hosts; test/remote.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/on-disk.ts > is_remote",
-			"reason": "dev only: one path compare and stat per endpoint request for a remote original; test/remote.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/server.ts > root_handoff",
 			"reason": "once per process, at module load: reads the dev handoff; test/server-*.test.ts run it"
-		},
-		{
-			"id": "packages/image/src/remote-hosts.ts > rule_of",
-			"reason": "config time, once per hosts entry: one regex and URL parse; test/remote.test.ts runs it (fast-check)"
-		},
-		{
-			"id": "packages/image/src/remote-hosts.ts > bare",
-			"reason": "once per hosts entry and per remote URL matched: one trailing-dot test; test/remote.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/remote-hosts.ts > over_shared",
-			"reason": "config time, once per *. hosts entry: one label split and a compare against each listed suffix; test/remote.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/remote-hosts.ts > over_shared > some:0~b5fb94",
@@ -7453,16 +7353,8 @@
 			"reason": "config time, per label of an entry against a suffix's: one anchored regex test"
 		},
 		{
-			"id": "packages/image/src/remote-hosts.ts > label_re",
-			"reason": "module load, once per label of a suffix family: one escape"
-		},
-		{
 			"id": "packages/image/src/remote-hosts.ts > label_re > replace:1~b67932",
 			"reason": "module load, per special character of a family's label: one replacement"
-		},
-		{
-			"id": "packages/image/src/remote-hosts.ts > is_host_entry",
-			"reason": "config time, once per hosts entry; test/remote.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/remote-hosts.ts > entry_for",
@@ -7485,14 +7377,6 @@
 			"reason": "one compare per listed host per remote URL and redirect hop, at build and per remote file the endpoint makes; test/remote.test.ts runs it (fast-check)"
 		},
 		{
-			"id": "packages/image/src/remote-hosts.ts > host_rule",
-			"reason": "config time: one entry read per hosts entry; test/vercel.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/remote-hosts.ts > private_address",
-			"reason": "once per address a *.-listed host resolves to, per connection; its time is the resolver's; test/remote-image.test.ts runs it (fast-check)"
-		},
-		{
 			"id": "packages/image/src/remote-hosts.ts > private_address > some:0~bcdc15",
 			"reason": "nine prefix compares per IPv6 address resolved for a *.-listed host; test/remote-image.test.ts runs it"
 		},
@@ -7501,20 +7385,8 @@
 			"reason": "one shift per prefix compare; test/remote-image.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/remote-hosts.ts > in_v4",
-			"reason": "fifteen range compares per IPv4 address resolved for a *.-listed host; test/remote-image.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/remote-hosts.ts > in_v4 > some:0~5f70a8",
 			"reason": "one range compare; test/remote-image.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/remote-hosts.ts > v4_of",
-			"reason": "one regex test and four numbers per address; test/remote-image.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/remote-hosts.ts > v6_of",
-			"reason": "one split of at most eight groups per IPv6 address; test/remote-image.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/remote-fetch.ts > discard",
@@ -7523,10 +7395,6 @@
 		{
 			"id": "packages/image/src/remote-fetch.ts > discard > catch:0~a1b2d0",
 			"reason": "an empty catch of a body cancel; no work"
-		},
-		{
-			"id": "packages/image/src/remote-fetch.ts > too_large",
-			"reason": "only on a refused fetch: builds one error"
 		},
 		{
 			"id": "packages/image/src/remote-fetch.ts > body_of",
@@ -7555,14 +7423,6 @@
 		{
 			"id": "packages/image/src/remote-fetch.ts > fetch_image > timeout:0~a81881",
 			"reason": "closes the scope at the timeout, at most once per remote fetch"
-		},
-		{
-			"id": "packages/image/src/image-type.ts > image_type",
-			"reason": "at most nine short compares of an image's first bytes, once per remote fetch or card image; test/remote-request.test.ts and test/card-images.test.ts run it"
-		},
-		{
-			"id": "packages/image/src/image-type.ts > starts",
-			"reason": "at most eight byte compares; test/remote-request.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/remote-fetch.ts > web_get",
@@ -7613,42 +7473,6 @@
 			"reason": "network bound: copies one answer's headers into a Response, once per hop; test/remote.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/remote-image.ts > remoteImage",
-			"reason": "one URL parse and one SHA-256 of the URL (remote_id) per remoteImage() a server load calls; test/remote-image.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/remote-image.ts > remote_id",
-			"reason": "one SHA-256 of a URL (sha256.ts) per remoteImage(); test/remote-image.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/remote-image.ts > b64url",
-			"reason": "one base64url of 32 bytes per remoteImage(); test/remote-image.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/remote-image.ts > side",
-			"reason": "constant work: one integer check per side; test/remote-image.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/remote-image.ts > invalid",
-			"reason": "only on bad input: builds one error"
-		},
-		{
-			"id": "packages/image/src/sha256.ts > sha256",
-			"reason": "one SHA-256 of a URL (under a hundred bytes: two blocks) per remoteImage(); test/remote-image.test.ts runs it (fast-check against node:crypto)"
-		},
-		{
-			"id": "packages/image/src/sha256.ts > rotr",
-			"reason": "one rotate, six per round; test/remote-image.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/recipe.ts > recipe_tail",
-			"reason": "one source_tail, or one base64url of a remote URL, per file URL the server names; test/remote-image.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/recipe.ts > remote_of_tail",
-			"reason": "one regex, one base64url decode and one URL parse per remote file asked for; test/remote-image.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/server.ts > listed",
 			"reason": "one URL decode and one host match per remote file asked for; test/remote-request.test.ts runs it"
 		},
@@ -7689,60 +7513,24 @@
 			"reason": "build only: one byte search per remote source per prerendered file; test/build-write.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/vite/encoder.ts > remote_pattern",
-			"reason": "config time: one pattern per hosts entry, for a message; test/vercel.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/vite/vercel-config.ts > pattern_takes",
 			"reason": "build only: one regex test per remotePatterns entry per probe, once per build; test/vercel.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/vercel-config.ts > remote_missing",
-			"reason": "build only: once per build that lists vercel(); test/vercel.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/vite/vercel-config.ts > remote_missing > some:0~bce8b1",
 			"reason": "build only: one pattern_takes per remotePatterns entry"
 		},
 		{
-			"id": "packages/image/src/vite/remote.ts > file_of",
-			"reason": "module load only: three paths"
-		},
-		{
 			"id": "packages/image/src/vite/remote.ts > remote_module",
 			"reason": "build only: one virtual module's source per build; the e2e modes load it"
-		},
-		{
-			"id": "packages/image/src/vite/remote.ts > remote_src",
-			"reason": "build only: one base64url per remote image a module names; test/macro.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/remote.ts > url_of_remote_src",
-			"reason": "build only: one prefix check per resolved import; test/plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/remote.ts > remote_name",
-			"reason": "build only: one sha256 of a URL per remote image; test/remote.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/vite/remote.ts > remote_url",
 			"reason": "build only: one URL parse and host check per remote image a module names; test/macro.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/vite/remote.ts > is_listed",
-			"reason": "build only: one URL parse per markdown image or frontmatter string; test/markdown.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/remote.ts > is_remote_file",
-			"reason": "build only: one path compare per og-image module; test/plugin.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/vite/remote.ts > read_kept",
 			"reason": "build only: reads one small JSON file per remote image per process; test/remote.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/remote.ts > write_atomic",
-			"reason": "build only: writes a fetched image and its JSON once per changed image; its time is the disk's"
 		},
 		{
 			"id": "packages/image/src/vite/remote.ts > fetched_file",
@@ -7781,14 +7569,6 @@
 			"reason": "config time, once per resolved config: one package.json read and a node_modules walk up the app's folders; packages/image/test/encoder-check.test.ts runs every branch"
 		},
 		{
-			"id": "packages/image/src/vite/encoder.ts > encoder_runtime",
-			"reason": "config time, once per resolved config: one adapter table lookup"
-		},
-		{
-			"id": "packages/image/src/vite/encoder.ts > adapter_kind",
-			"reason": "config time, at most twice per resolved config: up to five regex tests on the adapter name; test/encoder-check.test.ts runs every row"
-		},
-		{
 			"id": "packages/image/src/vite/encoder.ts > adapter_kind > find:0~7b7494",
 			"reason": "config time: one regex test per adapter row; test/encoder-check.test.ts runs it"
 		},
@@ -7805,16 +7585,8 @@
 			"reason": "config time, once per peer per resolved config: one module resolution, then with NODE_PATH set one existsSync per folder up; test/peers.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/vite/peers.ts > in_node_modules",
-			"reason": "config time, with NODE_PATH set only: one existsSync per folder from the app root up; test/peers.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/vite/peers.ts > resolves",
 			"reason": "config time, once per peer per resolved config: one module resolution from the app root, an answer of the file system"
-		},
-		{
-			"id": "packages/image/src/vite/peers.ts > listed_in",
-			"reason": "config time: one package.json field read per peer; test/peers.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/vite/peers.ts > listed_in > has",
@@ -7825,44 +7597,16 @@
 			"reason": "a dynamic import the module loader caches: the pixel work it hands out is measured in its own benches"
 		},
 		{
-			"id": "packages/image/src/vite/encoder.ts > sharp",
-			"reason": "config time: its options checked and one small object, once per vite.config load; test/encode-settings.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/encoder.ts > plain_object",
-			"reason": "config time, per option object sharp() reads: one type test"
-		},
-		{
-			"id": "packages/image/src/vite/encoder.ts > avif_effort_of",
-			"reason": "config time, once per plugin: the sharp() of a few encoders"
-		},
-		{
 			"id": "packages/image/src/vite/encoder.ts > avif_effort_of > find:0~98e869",
 			"reason": "per encoder of the check above (one to three), one field test"
-		},
-		{
-			"id": "packages/image/src/vite/encoder.ts > encoders_of",
-			"reason": "config time, once per plugin: an array check; packages/image/test/plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/encoder.ts > maker_of",
-			"reason": "config time: a find over the app's encoders (one or two), once per resolved config and per maker module load"
 		},
 		{
 			"id": "packages/image/src/vite/encoder.ts > endpoint_of > find:0~65061e",
 			"reason": "config time: one comparison per encoder the app lists"
 		},
 		{
-			"id": "packages/image/src/vite/encoder.ts > endpoint_of",
-			"reason": "config time: one find over the encoders the app lists"
-		},
-		{
 			"id": "packages/image/src/vite/encoder.ts > cloudflare",
 			"reason": "config time, once per vite.config load: checks two options and filters the 27 needs; test/cloudflare.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/encoder.ts > namer_plan",
-			"reason": "build time, once per namer module: maps the encoders the app lists; test/cloudflare.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/vite/encoder.ts > namer_plan > filter:0~fa39ee",
@@ -7873,16 +7617,8 @@
 			"reason": "build time: one string per encoder the app lists"
 		},
 		{
-			"id": "packages/image/src/vite/encoder.ts > link_plan",
-			"reason": "build time: one filter of the fixed needs list per linking encoder; test/vercel.test.ts and test/cloudflare.test.ts run it"
-		},
-		{
 			"id": "packages/image/src/vite/encoder.ts > link_plan > filter:0~192a5f",
 			"reason": "build time: one lookup per need of a fixed 31-row list"
-		},
-		{
-			"id": "packages/image/src/vite/encoder.ts > vercel",
-			"reason": "config time, once per vite.config load: checks two options and filters the 31 needs; test/vercel.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/vite/encoder.ts > vercel > filter:0~c77c05",
@@ -7893,20 +7629,12 @@
 			"reason": "config time: sorts the default sizes, 15 numbers"
 		},
 		{
-			"id": "packages/image/src/vite/encoder.ts > whole_list",
-			"reason": "config time: checks and sorts the sizes or qualities an app passes vercel(), once per vite.config load; test/vercel.test.ts runs every refusal"
-		},
-		{
 			"id": "packages/image/src/vite/encoder.ts > whole_list > every:0~3ee636",
 			"reason": "config time: one integer check per size or quality the app lists"
 		},
 		{
 			"id": "packages/image/src/vite/encoder.ts > whole_list > sort:0~0af0c1",
 			"reason": "config time: one comparison per pair of sizes the app lists"
-		},
-		{
-			"id": "packages/image/src/vite/encoder.ts > widths_of",
-			"reason": "config time, once per image() call: a find over the encoders the app lists"
 		},
 		{
 			"id": "packages/image/src/vite/encoder.ts > widths_of > find:0~6eb69d",
@@ -7937,80 +7665,16 @@
 			"reason": "config time: one comparison per encoder the app lists"
 		},
 		{
-			"id": "packages/image/src/vite/vercel-config.ts > vercel_config_missing",
-			"reason": "build time, once per server build: compares a few short lists of sizes, qualities and formats; test/vercel.test.ts runs every gap"
-		},
-		{
 			"id": "packages/image/src/vite/vercel-config.ts > vercel_config_missing > some:0~628cdd",
 			"reason": "build time: one regex per remote pattern the adapter lists"
-		},
-		{
-			"id": "packages/image/src/encoders/capabilities.ts > cannot",
-			"reason": "build time: walks the fixed capability table once per encoder; test/cloudflare.test.ts snapshots it"
 		},
 		{
 			"id": "packages/image/src/encoders/capabilities.ts > cannot > filter:0~6be14e",
 			"reason": "build time: one table lookup per need of a fixed 27-row list"
 		},
 		{
-			"id": "packages/image/src/encoders/needs.ts > needs_of",
-			"reason": "render, per file of a live page with a non-sharp encoder: a set over at most 27 fixed needs, constant work; test/cloudflare.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/encoders/needs.ts > needs_of > filter:0~291c84",
-			"reason": "constant work: one set lookup per need of a fixed 27-row list"
-		},
-		{
-			"id": "packages/image/src/encoders/needs.ts > quarter",
-			"reason": "constant work: one modulo and four comparisons"
-		},
-		{
-			"id": "packages/image/src/encoders/cloudflare.ts > cloudflare_link",
-			"reason": "render, per file of a live page with cloudflare(): a fixed list of at most 12 options joined; snapshotted in test/cloudflare.test.ts"
-		},
-		{
-			"id": "packages/image/src/encoders/cloudflare.ts > cloudflare_steps",
-			"reason": "constant work: at most four transform objects from one recipe; test/cloudflare.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/encoders/cloudflare.ts > fit_of",
-			"reason": "once per Cloudflare link or binding step list: one source-kind test, constant work; test/cloudflare.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/encoders/cloudflare.ts > flip_of",
-			"reason": "constant work: two comparisons"
-		},
-		{
-			"id": "packages/image/src/encoders/cloudflare.ts > quality_of",
-			"reason": "constant work: one or two comparisons and a lookup"
-		},
-		{
 			"id": "packages/image/src/namers/resolve.ts > namer",
 			"reason": "once per process: closes over the plan the plugin wrote"
-		},
-		{
-			"id": "packages/image/src/encoders/vercel.ts > quality_of",
-			"reason": "constant work: one comparison and a lookup"
-		},
-		{
-			"id": "packages/image/src/encoders/vercel.ts > vercel_link",
-			"reason": "render, per file of a live page with vercel(): a find over its sizes and one escaped URL; snapshotted in test/vercel.test.ts"
-		},
-		{
-			"id": "packages/image/src/encoders/vercel.ts > vercel_link > find:0~b999a8",
-			"reason": "constant work: one comparison per size vercel() lists"
-		},
-		{
-			"id": "packages/image/src/encoders/vercel.ts > vercel_unmet",
-			"reason": "render, per file of a live page with vercel(): a scan of its sizes and qualities; test/vercel.test.ts runs every refusal"
-		},
-		{
-			"id": "packages/image/src/encoders/vercel.ts > vercel_unmet > some:0~b999a8",
-			"reason": "constant work: one comparison per size vercel() lists"
-		},
-		{
-			"id": "packages/image/src/layout.ts > snapped",
-			"reason": "render, per image laid out with an encoder that lists widths (vercel()): the ladder (at most a dozen widths) snapped over the sizes; test/vercel.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/layout.ts > snapped > map:0~e2fca9",
@@ -8031,14 +7695,6 @@
 		{
 			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_vercel_config > details",
 			"reason": "error path: the docs page's words"
-		},
-		{
-			"id": "packages/image/src/namers/resolve.ts > unmet",
-			"reason": "constant work: a find over at most 27 needs"
-		},
-		{
-			"id": "packages/image/src/namers/resolve.ts > unmet > find:0~6e2a55",
-			"reason": "constant work: one includes over at most 27 needs"
 		},
 		{
 			"id": "packages/image/src/makers/binding.ts > CacheStore > constructor",
@@ -8069,10 +7725,6 @@
 			"reason": "the Images binding's work (a remote service), once per file; test/binding-maker.test.ts and the cloudflare e2e mode run it"
 		},
 		{
-			"id": "packages/image/src/makers/binding.ts > binding_of",
-			"reason": "constant work: two property reads and a type check"
-		},
-		{
 			"id": "packages/image/src/makers/binding.ts > stream_of",
 			"reason": "constant work: wraps the bytes in a stream"
 		},
@@ -8097,20 +7749,8 @@
 			"reason": "a message's prose for its docs page and the printed message: constant text"
 		},
 		{
-			"id": "packages/image/src/vite/encoder.ts > maker_module",
-			"reason": "config time: one string per build, when Vite loads virtual:ogygia-image/maker; packages/image/test/plugin.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/vite/encoder.ts > namer_module",
 			"reason": "config time: one constant string per build, when Vite loads virtual:ogygia-image/namer; packages/image/test/plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/encoder.ts > file_of",
-			"reason": "module load: three fileURLToPath calls, once per process"
-		},
-		{
-			"id": "packages/image/src/vite/options.ts > check_encoders",
-			"reason": "config time, once per plugin: a check over the app's encoders (one or two); packages/image/test/options.test.ts runs every branch"
 		},
 		{
 			"id": "packages/image/src/vite/options.ts > check_encoders > map:0~b8435c",
@@ -8121,16 +7761,8 @@
 			"reason": "config time: one set lookup per encoder the app lists"
 		},
 		{
-			"id": "packages/image/src/namers/endpoint.ts > name",
-			"reason": "constant work: returns null (sharp has no links), once per live file URL a render names"
-		},
-		{
 			"id": "packages/image/src/makers/none.ts > make",
 			"reason": "constant work: one rejection per endpoint ask, in an app whose encoders make no file at its endpoint"
-		},
-		{
-			"id": "packages/image/src/on-disk.ts > exists",
-			"reason": "one existsSync, in dev (an image added since start) or after the build's end (an SPA fallback page) only; test/server-after-build.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/reader.ts > read_original",
@@ -8139,10 +7771,6 @@
 		{
 			"id": "packages/image/src/verify.ts > verify",
 			"reason": "constant work per endpoint request around app.verify (core's HMAC, measured in core's capability benches) and parse_recipe (measured); test/server.test.ts runs every refusal"
-		},
-		{
-			"id": "packages/content/src/markdown/rehype-text-lt.ts > escape_text_lt",
-			"reason": "compile time, once per markdown text node: returns at once without a `<`, else one pass over the text; the markdown compile benches include it"
 		},
 		{
 			"id": "packages/content/src/markdown/rehype-text-lt.ts > rehypeTextLt",
@@ -8241,20 +7869,12 @@
 			"reason": "constant work: the signer's refusal response (a 403 with two headers), on a refusal only"
 		},
 		{
-			"id": "packages/image/src/verify.ts > message",
-			"reason": "the server realm's glue over app.sign / app.verify (core's HMAC, measured in core's capability benches) and Kit's event; recipe_path and parse_recipe are measured; test/server.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/server.ts > no_encoder",
 			"reason": "a runtime without sharp: one coded warning per process, then a constant 500; test/server-no-encoder.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/server.ts > prerendered",
 			"reason": "prerender only: one set lookup, one appended line and one channel message per recipe a page names; test/server-prerender.test.ts and the e2e static and base builds run it"
-		},
-		{
-			"id": "packages/image/src/store.ts > built_channel",
-			"reason": "prerender and build only: one string per recipe noted and one per build; test/build-head-start.test.ts and the e2e static and base builds run it"
 		},
 		{
 			"id": "packages/image/src/server.ts > root_relative",
@@ -8333,10 +7953,6 @@
 			"reason": "once per store opened: one readdir and one stat per version folder beside it; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/store.ts > runtime_store",
-			"reason": "once per live server: two mkdirs, two lstats and the store opened; test/server.test.ts runs it"
-		},
-		{
 			"id": "packages/content/src/markdown/index.ts > all_exist",
 			"reason": "one stat per file a kept markdown compile's extensions read, on a cache hit only (none for a post with no image); test/markdown-extensions.test.ts runs it"
 		},
@@ -8381,10 +7997,6 @@
 			"reason": "dev only (the hook is not in a build): wraps each page request's resolve; the e2e dev mode runs it"
 		},
 		{
-			"id": "packages/image/src/pixels.ts > within",
-			"reason": "constant work per remote file made: three divisions and a box; test/remote-request.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/vite/font-face.ts > face_of",
 			"reason": "build time, once per card font file: reads its name and OS/2 tables; test/card.test.ts runs it, fuzzed"
 		},
@@ -8397,32 +8009,12 @@
 			"reason": "message wording: the docs build only"
 		},
 		{
-			"id": "packages/image/src/share-rule.ts > unshown_share_images",
-			"reason": "dev only: one walk of core's tag reader (measured in core's markup benches) over a page chunk, an attribute read per meta tag; test/card.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/recipe.ts > card_of_tail",
-			"reason": "constant work per card file asked or noted: one regex and one base64url decode of at most 2048 characters; test/card.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/card-browser.ts > card_in_browser",
-			"reason": "browser only, and only to refuse: throws image_no_server; test/card.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/card.ts > card",
 			"reason": "once per card module load: returns the card's descriptor maker; test/card.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/card.ts > card > <anonymous>~02b444",
 			"reason": "once per card a page names: card_json over props of at most 2048 characters, one SHA-256 of under 2.2 KB (sha256.ts, fast-checked) and one mint (measured with the recipes); test/card.test.ts and the e2e card pages run it"
-		},
-		{
-			"id": "packages/image/src/card.ts > card_json",
-			"reason": "once per card a page names: a canonical JSON walk of props capped at 2048 characters; test/card.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/card.ts > canonical",
-			"reason": "once per card a page names: a canonical JSON walk of props capped at 2048 characters; test/card.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/card.ts > canonical > map:0~2eec34",
@@ -8433,20 +8025,8 @@
 			"reason": "once per card a page names: a canonical JSON walk of props capped at 2048 characters; test/card.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/card.ts > plain",
-			"reason": "constant work: one prototype read per object in a card's props; test/card.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/card.ts > refuse",
-			"reason": "an error path only: throws image_card_props; test/card.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/card.ts > card_id",
 			"reason": "once per card a page names and per card file made: one SHA-256 of under 2.2 KB; test/card.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/card.ts > b64url",
-			"reason": "constant work: 32 bytes to base64url, once per card id; test/card.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/cards/list.ts > find_card",
@@ -8539,10 +8119,6 @@
 		{
 			"id": "packages/image/src/messages.ts > IMAGE_WARNINGS > image_share_format > text",
 			"reason": "message text, built only when said (a dev warning, once per URL); the e2e dev mode says it"
-		},
-		{
-			"id": "packages/image/src/vite/macro.ts > member_of",
-			"reason": "build only, an error path: names what a macro call's first argument is; test/card-build.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/vite/font-face.ts > font_face",
@@ -8673,10 +8249,6 @@
 			"reason": "build time, once per server build's end: makes the build's reader of a card's images; test/card.test.ts runs the reader it wraps"
 		},
 		{
-			"id": "packages/image/src/vite/card.ts > compiled_css",
-			"reason": "build time, once per module a card reaches: one regex scan of its built code for its compiled CSS; test/card-build.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/vite/card.ts > compiled_css > map:0~2b89ca",
 			"reason": "once per compiled CSS block a card's module holds: one capture read"
 		},
@@ -8719,10 +8291,6 @@
 		{
 			"id": "packages/image/src/settle.ts > undecoded",
 			"reason": "only on a remote image that does not decode: builds one error and keeps it in the failure memory"
-		},
-		{
-			"id": "packages/image/src/vite/build-files.ts > shown_urls",
-			"reason": "build time, once per prerendered card that showed a remote image: one JSON.parse of a few URLs; test/build-write.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/vite/build-files.ts > shown_urls > every:0~b7a0fd",
@@ -8769,10 +8337,6 @@
 			"reason": "only on a fetched card image that does not fit: one route and one error"
 		},
 		{
-			"id": "packages/image/src/cards/images.ts > routed",
-			"reason": "once per image a card draw names: a prefix test and at most one URL parse; test/card.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/cards/images.ts > routed > some:0~869aa2",
 			"reason": "once per image a card draw names: two prefix tests"
 		},
@@ -8793,20 +8357,8 @@
 			"reason": "per string value of a card's element: one url( test, a replace only where it holds one"
 		},
 		{
-			"id": "packages/image/src/cards/images.ts > prop_kind",
-			"reason": "per prop of a card's element: one or two set lookups"
-		},
-		{
 			"id": "packages/image/src/cards/images.ts > drawn_image",
 			"reason": "once per image a card draw names: one read and one fit (sharp), next to which this is nothing; test/card-images.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/cards/images.ts > as_buffer",
-			"reason": "once per <img> a card draw names: one copy of a card-sized image's bytes"
-		},
-		{
-			"id": "packages/image/src/cards/images.ts > drawable",
-			"reason": "once per card draw: one walk of the element tree satori is handed; test/card-images.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/cards/images.ts > drawable > visit",
@@ -8829,18 +8381,6 @@
 			"reason": "once per image a card draw names: sharp reads its header and, when larger than the card, makes it smaller; native work, timed by sharp, not steps; test/card-images.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/maker.ts > unreadable",
-			"reason": "an error path only: once per failed make or fit, at most three regex tests of its message; test/card-images.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/maker.ts > source_failure",
-			"reason": "an error path only: once per failed make or fit, one unreadable() and at most one error built; test/card-images.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/cards/fit.ts > card_scale",
-			"reason": "once per image a card draw names: three divisions and a square root"
-		},
-		{
 			"id": "packages/image/src/cards/engine.ts > fit_of",
 			"reason": "once per card draw: makes its fitter"
 		},
@@ -8849,20 +8389,8 @@
 			"reason": "once per card draw: one tree walk, then one read per image; test/card.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/cards/images.ts > data_bytes",
-			"reason": "once per data: URL a card draw names: one decode to check its image type; test/card.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/cards/images.ts > is_ref",
-			"reason": "once per address-like value of a card's element: one prefix test"
-		},
-		{
 			"id": "packages/image/src/cards/images.ts > no_images",
 			"reason": "only when a card names an image with no reader given: one rejection; test/card.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/cards/images.ts > refused",
-			"reason": "only on a refused card image: builds one coded error; test/card.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/cards/read.ts > endpoint_images",
@@ -8877,32 +8405,8 @@
 			"reason": "once per server start: per image under src/, one tail of its URL and one split; test/card-endpoint-read.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/vite/card.ts > file_of",
-			"reason": "once per plugin load: five module paths; the plugin's tests run it"
-		},
-		{
-			"id": "packages/image/src/vite/card.ts > font_file",
-			"reason": "build time, once per font a card call names: resolves and reads the file; test/card-build.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/card.ts > is_card_component",
-			"reason": "build and dev, once per module transformed and per import resolved from a card component: one indexOf, one endsWith and one regex; test/card.test.ts runs it"
-		},
-		{
 			"id": "packages/image/src/vite/card.ts > read_file",
 			"reason": "build time, once per module of a card's graph: one file read; test/card-build.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/card.ts > rel_of",
-			"reason": "build time, one path.relative per card file and per module of its graph; test/card-build.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/card.ts > side",
-			"reason": "build time, constant work: one integer check per card side; test/card-build.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/card.ts > with_injected_css",
-			"reason": "build and dev, once per card component compiled: one walk of core's tag reader to its options tag; test/card.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/vite/build-files.ts > BuildMakes > constructor",
@@ -8973,10 +8477,6 @@
 			"reason": "build time, once per file the build makes or writes: a start and a release; test/build-write.test.ts and the e2e static and base builds run it"
 		},
 		{
-			"id": "packages/image/src/vite/build-files.ts > noted_original",
-			"reason": "build time, once per prerendered file made: one or two exists checks and a file read; test/build-write.test.ts and the e2e static and base builds run it"
-		},
-		{
 			"id": "packages/image/src/vite/index.ts > output_of",
 			"reason": "config time, a few times per build: one path resolve; the e2e static and base builds run it"
 		},
@@ -8990,10 +8490,6 @@
 		},
 		{
 			"id": "packages/image/src/vite/build-files.ts > jobs_of",
-			"reason": "build time, once per build: the warmed and the noted files, encoded side by side with sharp (or read from the store); the e2e static and base builds run it"
-		},
-		{
-			"id": "packages/image/src/vite/build-files.ts > unmark",
 			"reason": "build time, once per build: the warmed and the noted files, encoded side by side with sharp (or read from the store); the e2e static and base builds run it"
 		},
 		{
@@ -9037,52 +8533,12 @@
 			"reason": "constant work per request: one null check; in a prerender, once, one appended line; test/server-prerender.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/encoders/cloudflare.ts > CLOUDFLARE_LINKS > link",
-			"reason": "constant work: calls cloudflare_link, one link built from one recipe"
-		},
-		{
-			"id": "packages/image/src/encoders/cloudflare.ts > CLOUDFLARE_LINKS > unmet",
-			"reason": "constant: no limits past the capability table"
-		},
-		{
-			"id": "packages/image/src/encoders/vercel.ts > VERCEL_LINKS > link",
-			"reason": "constant work: calls vercel_link, one find over the sizes"
-		},
-		{
-			"id": "packages/image/src/encoders/vercel.ts > VERCEL_LINKS > unmet",
-			"reason": "render, per file of a live page on vercel(): one find over its sizes and one over its qualities; test/vercel.test.ts runs every branch"
-		},
-		{
-			"id": "packages/image/src/namers/resolve.ts > code_of",
-			"reason": "constant work: one property read"
-		},
-		{
-			"id": "packages/image/src/vite/encoder.ts > check_platform",
-			"reason": "config time, once per server build: one table lookup; test/plugin.test.ts runs every row's answer"
-		},
-		{
 			"id": "packages/image/src/vite/encoder.ts > check_platform > find:0~9a8f5e",
 			"reason": "config time: one find over the encoders the app lists"
 		},
 		{
-			"id": "packages/image/src/vite/encoder.ts > originals_pattern",
-			"reason": "config time: one regex escape of one path"
-		},
-		{
 			"id": "packages/image/src/vite/encoder.ts > vercel_images",
 			"reason": "config time: one object spread"
-		},
-		{
-			"id": "packages/image/src/vite/index.ts > originals_of",
-			"reason": "config time: one template string"
-		},
-		{
-			"id": "packages/image/src/vite/options.ts > check_qualities",
-			"reason": "config time, once per vite.config load: one includes per preset; test/vercel.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/vite/options.ts > list_rule",
-			"reason": "config time, once per vite.config load: a few passes over a list of at most three encoders; test/options.test.ts runs every refusal"
 		},
 		{
 			"id": "packages/image/src/vite/options.ts > list_rule > filter:0~2f857f",
@@ -9105,10 +8561,6 @@
 			"reason": "config time, on a refusal only: one name per encoder"
 		},
 		{
-			"id": "packages/image/src/vite/vercel-config.ts > local_missing",
-			"reason": "once per vercel() server build, after the adapter: two or three regex tests per localPatterns entry; test/vercel.test.ts runs every branch"
-		},
-		{
 			"id": "packages/image/src/vite/vercel-config.ts > local_missing > some:0~1c71a3",
 			"reason": "once per build: one pass over the adapter's localPatterns"
 		},
@@ -9117,24 +8569,12 @@
 			"reason": "once per build: one pass over the adapter's localPatterns"
 		},
 		{
-			"id": "packages/image/src/vite/vercel-config.ts > matches",
-			"reason": "once per build: one regex test"
-		},
-		{
 			"id": "packages/image/src/store.ts > FileStore > static shared",
 			"reason": "once per store folder per process: a map lookup, and the load started the first time; test/server.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/store.ts > FileStore > static shared > catch:0~a1b2d0",
 			"reason": "once per store folder per process: a map lookup, and the load started the first time; test/server.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/store.ts > note_origin",
-			"reason": "once per prerender: one file written with the origin Kit prerenders at; test/server-prerender.test.ts runs it"
-		},
-		{
-			"id": "packages/image/src/store.ts > origin_of",
-			"reason": "once per build: one small file read at the build's end; test/build-write.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/source-id.ts > source_id",
