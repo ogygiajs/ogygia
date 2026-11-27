@@ -621,7 +621,7 @@ An art twin is a crop of the same source (`aspect`, `position`, `width`), or ano
 const hero = import.meta.og.image('./hero.jpg', { art: { '(max-width: 600px)': './hero-tall.jpg' } });
 ```
 
-`media` is a condition in parentheses, like `(max-width: 600px)`, one per twin: no comma and no media type, so it can be joined with the dark condition. A crop of a source that has a dark file comes first as the dark file at `<media> and (prefers-color-scheme: dark)`. `getImage(of, { art })` lays out the same rows. A `priority` image writes one preload per row set, each with the media it is shown at, so each visitor preloads only the file the picture will pick. `warm` makes every twin's files too.
+`media` is a condition in parentheses, like `(max-width: 600px)`, one per twin: no comma and no media type, so it can be joined with the dark condition. A crop of a source that has a dark file comes first as the dark file at `<media> and (prefers-color-scheme: dark)`. `getImage(of, { art })` lays out the same rows. A list kept apart from the markup is a `Twin[]` (`import type { Twin } from '@ogygia/image'`). A `priority` image writes one preload per row set, each with the media it is shown at, so each visitor preloads only the file the picture will pick. `warm` makes every twin's files too.
 
 ## Warm presets
 
@@ -868,7 +868,7 @@ export function beside(id: string, rel: string): ImageDescriptor {
 
 ## Outside `<Img>`
 
-`getImage(descriptor, { preset, layout, width, aspect, … })` returns what `<Img>` renders: `src`, `srcset`, `sizes`, `width`, `height`, the `<source>` rows (twins first, then formats) and the preloads, with the same file URLs (signed on a live server, the build's files on a prerendered page, an encoder's links where it names them). Use it for a CSS background, an Open Graph tag or a component of your own. Like `<Img>`, it runs on the server:
+`getImage(descriptor, { preset, layout, width, aspect, … })` returns what `<Img>` renders: `src`, `srcset`, `sizes`, `width`, `height`, the `<source>` rows (twins first, then formats) and the preloads (types `Laid`, `LaidSource`, `LaidPreload`), with the same file URLs (signed on a live server, the build's files on a prerendered page, an encoder's links where it names them). Use it for a CSS background, an Open Graph tag or a component of your own. Like `<Img>`, it runs on the server:
 
 ```svelte
 <script lang="ts">
