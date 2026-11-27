@@ -8,6 +8,18 @@ changeset, written by the release: do not edit by hand.
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.15.0
+
+### Minor Changes
+
+- [#2189](https://github.com/ogygiajs/ogygia/pull/2189) [`9c12103`](https://github.com/ogygiajs/ogygia/commit/9c12103b2ba2a63328716420da98c71c62b1b386) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A smaller boot and a faster server: the compiler now builds each page's runtime with only the features its regions use, so a static page's boot is about 28% smaller (brotli), a plain server's output about 25% smaller, server requests do about half the work, plain servers answer about 20% more requests a second, and router navigations are about 30% faster.
+
+### Patch Changes
+
+- Updated dependencies [[`2d05423`](https://github.com/ogygiajs/ogygia/commit/2d05423ff383db7ac873fa5f3d25d30df7de9c56), [`594e3e9`](https://github.com/ogygiajs/ogygia/commit/594e3e93953e6ba7834611fd36b1430c4bf830d5), [`fc5a003`](https://github.com/ogygiajs/ogygia/commit/fc5a00371ad6e2ea954edaf9d5486774d4f03aab), [`9c12103`](https://github.com/ogygiajs/ogygia/commit/9c12103b2ba2a63328716420da98c71c62b1b386)]:
+  - @ogygia/compiler@0.15.0
+  - @ogygia/core@0.15.0
+
 ## 0.14.4
 
 ### Patch Changes
