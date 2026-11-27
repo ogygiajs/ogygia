@@ -37,14 +37,21 @@ export const KIT_PUBLIC_ENV_CLIENT_RE: RegExp =
 const KIT_ENV_READER = `import { kit_env as __og_kit_env } from 'ogygia:boot/kit-env';\n`;
 const DYNAMIC_READ_RE = /=\s*env\./;
 
-function public_env_patch(read: string, fallback: string): KitPatch['patch'] {
+/**
+ * The patch of one `$app/env/public` shape: Kit's payload `read`, made to fall back to `fallback`
+ * (the env the server sent) where the module reads a dynamic variable, else to `inert` (an empty
+ * env, which asks the server for nothing; `null`: the read cannot throw, so it stays as Kit wrote it).
+ */
+function public_env_patch(read: string, fallback: string, inert: string | null): KitPatch['patch'] {
 	return (code, id) => {
-		if (!DYNAMIC_READ_RE.test(code)) return null;
+		const dynamic = DYNAMIC_READ_RE.test(code);
+		const to = dynamic ? fallback : inert;
+		if (to === null) return null;
 		if (!code.includes(read)) {
 			warn('kit_env_unpatched', { file: id });
 			return null;
 		}
-		return KIT_ENV_READER + code.replace(read, () => fallback);
+		return (dynamic ? KIT_ENV_READER : '') + code.replace(read, () => to);
 	};
 }
 
@@ -63,7 +70,8 @@ export const KIT_PATCHES: readonly KitPatch[] = [
 		mode: 'dev',
 		patch: public_env_patch(
 			'const { env } = globalThis.__sveltekit_dev;',
-			'const { env } = globalThis.__sveltekit_dev ?? { env: __og_kit_env() };'
+			'const { env } = globalThis.__sveltekit_dev ?? { env: __og_kit_env() };',
+			'const { env } = globalThis.__sveltekit_dev ?? { env: {} };'
 		)
 	},
 	{
@@ -73,7 +81,8 @@ export const KIT_PATCHES: readonly KitPatch[] = [
 		mode: 'build',
 		patch: public_env_patch(
 			'const env = payload.env;',
-			'const env = payload.env ?? __og_kit_env();'
+			'const env = payload.env ?? __og_kit_env();',
+			null
 		)
 	}
 ];
