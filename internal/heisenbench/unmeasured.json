@@ -5465,8 +5465,8 @@
 			"reason": "build only, server leg: one set lookup per module of the bundler's graph per round of a wait"
 		},
 		{
-			"id": "packages/compiler/src/vite/graph-compiled.ts > graph_compiled > map:0~51fe64",
-			"reason": "build only, server leg: hands each module of a round to the bundler's load, Rolldown's work"
+			"id": "packages/compiler/src/vite/graph-compiled.ts > graph_compiled > walk",
+			"reason": "build only, server leg: once per module of the bundler's graph per wait, one set lookup then the bundler's load, Rolldown's work; test/graph-compiled.test.ts runs it"
 		},
 		{
 			"id": "packages/compiler/src/vite/graph-compiled.ts > compiled",
