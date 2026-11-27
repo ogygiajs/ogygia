@@ -138,7 +138,7 @@
 		},
 		{
 			"id": "packages/core/src/server/hmac.ts > derive_build_key",
-			"reason": "build only, once per build: one HKDF over the app's secret, Node's crypto; test/build-key.test.ts runs it"
+			"reason": "build only, once per build: one HKDF over the app's secret in Node's crypto, which the replay cannot count (the gate lists it as not replayable without this); test/build-key.test.ts runs it"
 		},
 		{
 			"id": "packages/core/src/server/html-scan.ts > kit_boot_script > is_kit_boot_script:1~dc8962",
