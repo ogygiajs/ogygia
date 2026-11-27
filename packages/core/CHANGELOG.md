@@ -1,5 +1,11 @@
 # @ogygia/core
 
+## 0.15.0
+
+### Minor Changes
+
+- [#2189](https://github.com/ogygiajs/ogygia/pull/2189) [`9c12103`](https://github.com/ogygiajs/ogygia/commit/9c12103b2ba2a63328716420da98c71c62b1b386) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A smaller boot and a faster server: the compiler now builds each page's runtime with only the features its regions use, so a static page's boot is about 28% smaller (brotli), a plain server's output about 25% smaller, server requests do about half the work, plain servers answer about 20% more requests a second, and router navigations are about 30% faster.
+
 ## 0.14.4
 
 ### Patch Changes

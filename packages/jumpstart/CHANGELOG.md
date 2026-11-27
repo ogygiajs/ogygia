@@ -1,5 +1,13 @@
 # @ogygia/jumpstart
 
+## 0.15.0
+
+### Patch Changes
+
+- Updated dependencies [[`2d05423`](https://github.com/ogygiajs/ogygia/commit/2d05423ff383db7ac873fa5f3d25d30df7de9c56), [`594e3e9`](https://github.com/ogygiajs/ogygia/commit/594e3e93953e6ba7834611fd36b1430c4bf830d5), [`fc5a003`](https://github.com/ogygiajs/ogygia/commit/fc5a00371ad6e2ea954edaf9d5486774d4f03aab), [`9c12103`](https://github.com/ogygiajs/ogygia/commit/9c12103b2ba2a63328716420da98c71c62b1b386)]:
+  - @ogygia/compiler@0.15.0
+  - @ogygia/core@0.15.0
+
 ## 0.14.0
 
 ### Minor Changes
