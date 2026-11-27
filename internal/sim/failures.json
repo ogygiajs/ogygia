@@ -4065,6 +4065,12 @@
 			"name": "without ogygia() a plugin reading the region table is told so"
 		},
 		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > routes_dir > throw:0",
+			"reason": "`throw new Error('resolve_plugins: no routes folder without ogygia()');`: proved: with no throw (the old src/routes fallback) the test is red (v4f-test-nit5-red.log)",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "without ogygia() a plugin reading the routes folder is told so, never handed src/routes (an app's files.routes may name another)"
+		},
+		{
 			"site": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:0",
 			"reason": "`throw` of an unreadable realm; proved by hand: the throw made a return of nothing turns the test red",
 			"test": "packages/compiler/test/plugins.test.ts",
