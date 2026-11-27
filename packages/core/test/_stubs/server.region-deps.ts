@@ -54,6 +54,12 @@ export const region_remotes = (_entry: string): string[] | null => remotes;
 export function set_island_remotes(v: string[] | null) {
 	remotes = v;
 }
+// (fail-open true)
+let reads_env = true;
+export const region_reads_env = (_entry: string): boolean => reads_env;
+export function set_reads_env(v: boolean) {
+	reads_env = v;
+}
 type Interactivity = {
 	handlers: number;
 	state: number;

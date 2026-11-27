@@ -976,6 +976,21 @@ export const WARNINGS = {
 			(hooks.ts), or pass plain data.
 		`
 	},
+	kit_env_missing: {
+		text: (a: { why: 'absent' | 'unreadable' }): string => prose`
+			an island imports SvelteKit's \`$app/env/public\` on a page Kit does not start, and the
+			page ${a.why === 'absent' ? 'carries no public env from the server' : 'carries a public env that does not read back'}:
+			its dynamic public variables read \`undefined\`.
+		`,
+		details: (): string => prose`
+			On a \`csr = false\` page Kit's client never starts, so it never hands its public env to
+			\`$app/env/public\`. The server writes that env into the page instead, for every region
+			whose code imports the module, and the module reads it from there. This page had none
+			(or one that did not decode), so the variables marked \`static: false\` read
+			\`undefined\`. Usually the region was rendered by a path that does not ask for the env
+			(a page this build did not render, or another build's page). ${BUG}
+		`
+	},
 	store_not_extensible: {
 		text: (a: { tag: string }): string => prose`
 			store "${a.tag}": the store object is not extensible (frozen/sealed), so it cannot carry

@@ -27,6 +27,10 @@ declare module 'ogygia:boot/hydrate-features' {
 const module: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:boot/hydrate-features'];
 export = module;
 }
+declare module 'ogygia:boot/kit-env' {
+const module: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:boot/kit-env'];
+export = module;
+}
 declare module 'ogygia:boot/remote-seeds' {
 const module: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:boot/remote-seeds'];
 export = module;

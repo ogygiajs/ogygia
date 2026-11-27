@@ -153,3 +153,48 @@ it("a hole's facts come from the server's holes record, not one the page markup 
 
 	expect(hole_facts_of(document, '/hole.js')?.endpoint).toBe('/server-endpoint');
 });
+
+it("Kit's public env reads the server's channel, not one the page markup carries before it", async () => {
+	const { kit_env } = await import('../../src/runtime/kit-env.ts');
+	const ENV = { type: 'application/ogygia-env' };
+	runtime_script(document, MARK);
+	script(markup_block(), ENV, stringify({ PUBLIC_REGION: 'markup' }), null);
+	script(document.body, ENV, stringify({ PUBLIC_REGION: 'server' }), MARK);
+
+	expect(kit_env()).toEqual({ PUBLIC_REGION: 'server' });
+});
+
+it("Kit's public env with no server channel reads empty, and says kit_env_missing", async () => {
+	const { kit_env } = await import('../../src/runtime/kit-env.ts');
+	runtime_script(document, MARK);
+	script(
+		markup_block(),
+		{ type: 'application/ogygia-env' },
+		stringify({ PUBLIC_REGION: 'x' }),
+		null
+	);
+	const said: unknown[] = [];
+	const warn = console.warn;
+	console.warn = (...a: unknown[]) => void said.push(...a);
+	try {
+		expect(kit_env()).toEqual({});
+	} finally {
+		console.warn = warn;
+	}
+	expect(said.join(' ')).toContain('kit_env_missing');
+});
+
+it("Kit's public env whose text does not read back reads empty, and says kit_env_missing", async () => {
+	const { kit_env } = await import('../../src/runtime/kit-env.ts');
+	runtime_script(document, MARK);
+	script(document.body, { type: 'application/ogygia-env' }, '{not devalue', MARK);
+	const said: unknown[] = [];
+	const warn = console.warn;
+	console.warn = (...a: unknown[]) => void said.push(...a);
+	try {
+		expect(kit_env()).toEqual({});
+	} finally {
+		console.warn = warn;
+	}
+	expect(said.join(' ')).toContain('kit_env_missing');
+});

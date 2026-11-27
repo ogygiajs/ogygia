@@ -1,7 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import { dedent } from '@ogygia/core/contract';
 import { isMainThread } from 'node:worker_threads';
 import { loadEnv, type Plugin, type Rolldown, type ViteDevServer } from 'vite';
 import { configure_build_cache } from '../build-cache.ts';
@@ -152,16 +151,9 @@ import { import_chain } from '../virtual/resolver.ts';
 import { CompileCtx, type PackageScan } from '../ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
-import { KIT_DEV_PUBLIC_ENV_RE, kit_dev_public_env, ssr_runner } from './kit-env.ts';
+import { patch_kit_module } from '../kit-patches.ts';
 import { app_compile_options, svelte_compile, type SvelteCompile } from './svelte-options.ts';
 
-const KIT_CLIENT_APP_RE = /\/generated\/(?:build\/|dev\/)?client(-optimized)?\/app\.js$/;
-const KIT_PAGE_THREAD = `\n${dedent`
-	import { page as __og_kit_page, navigating as __og_kit_nav } from '$app/state';
-	import * as __og_kit_navigation from '$app/navigation';
-	globalThis[Symbol.for('ogygia.kit-page')] = { page: __og_kit_page, navigating: __og_kit_nav, navigation: __og_kit_navigation };
-`}\n`;
-const KIT_DISCLOSE_VERSION = `((globalThis.__ogygia ??= {}).v ??= new Set()).add(${JSON.stringify(OGYGIA_VERSION)});\n`;
 import {
 	scan_entry_pattern,
 	KIT_REMOTE_CLIENT,
@@ -967,12 +959,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				let source = code;
 
 				const leg = leg_of(this);
-				if (!leg.server && KIT_CLIENT_APP_RE.test(id)) {
-					source += KIT_PAGE_THREAD + KIT_DISCLOSE_VERSION;
-				}
-				if (!leg.server && is_dev && KIT_DEV_PUBLIC_ENV_RE.test(id)) {
-					source = (await kit_dev_public_env(source, id, ssr_runner(vite_server))) ?? source;
-				}
+				if (!leg.server) source = patch_kit_module(source, id);
 				source = compiler.split_realm_imports(source) ?? source;
 
 				const result = await compiler.transform_module(source, id, {

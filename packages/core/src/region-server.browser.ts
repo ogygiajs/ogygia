@@ -18,6 +18,7 @@ export const content_css: typeof Server.content_css = empty;
 export const region_reads_page: typeof Server.region_reads_page = () => false;
 export const region_page_keys: typeof Server.region_page_keys = none;
 export const region_remotes: typeof Server.region_remotes = none;
+export const region_reads_env: typeof Server.region_reads_env = () => false;
 export const region_interactivity: typeof Server.region_interactivity = none;
 export const entry_location: typeof Server.entry_location = none;
 export const make_region_endpoint: typeof Server.make_region_endpoint = blank;

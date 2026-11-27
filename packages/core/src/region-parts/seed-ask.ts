@@ -1,5 +1,10 @@
 import { page } from '$app/state';
-import { region_page_keys, region_reads_page, region_remotes } from '#region-server';
+import {
+	region_page_keys,
+	region_reads_env,
+	region_reads_page,
+	region_remotes
+} from '#region-server';
 import { record_page } from '../page-seed-registry.ts';
 import type { SeedAsk } from '../server/seed-shape.ts';
 import type { DeferredRegion } from '../region.ts';
@@ -44,6 +49,13 @@ export class PageSeedAsk {
 		return module ? region_remotes(module) : [];
 	}
 
+	/** Whether the module imports Kit's `$app/env/public` (a promise may: it asks). */
+	get env(): boolean {
+		const module = this.#module;
+		if (module === null) return true;
+		return module ? region_reads_env(module) : false;
+	}
+
 	/** Hands the ask to the page seed recorder, with the page it reads (on the server only). */
 	record(): void {
 		if (typeof window === 'undefined') {
@@ -52,7 +64,8 @@ export class PageSeedAsk {
 					{ data: page.data, form: page.form, error: page.error, status: page.status },
 					this.seed,
 					this.remotes,
-					this.entry
+					this.entry,
+					this.env
 				);
 				// oxlint-disable-next-line ogygia/no-silent-failures -- an isolated render without a live page; the recorder is unset there anyway
 			} catch {}

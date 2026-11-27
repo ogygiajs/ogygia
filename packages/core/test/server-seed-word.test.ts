@@ -3,10 +3,11 @@
 // `HAS`): the page seed (`page`: and the sidecars written against it), the remote seed
 // (`remote-seeds`) and the drop-in context root (`context`). Whatever the server writes, the
 // runtime the same build ships can revive; a feature left out of the word writes nothing.
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { with_request_store } from '@sveltejs/kit/internal/server';
 import { HAS, set_server_word } from './_stubs/server.runtime-flags.ts';
 import { F_CONTEXT, F_PAGE, F_REMOTE_SEEDS } from '../src/contract/features.ts';
+import { set_kit_public_env } from './_stubs/server.kit-env.ts';
 
 const { handle } = await import('../src/hooks.ts');
 const { record_ctx, page_context_script } = await import('../src/context-registry.ts');
@@ -115,7 +116,7 @@ describe('the page seed', () => {
 			record_page({ data: { a: 1 } }, ['a']);
 			read = read_seed_ask();
 		});
-		expect(read).toEqual({ wanted: false, keys: null });
+		expect(read).toEqual({ wanted: false, keys: null, env: false });
 	});
 });
 
@@ -165,6 +166,51 @@ describe('the remote seed', () => {
 		const html = await page(calls_any, remotes());
 		expect(html).not.toContain('application/ogygia-remote');
 		expect(html).not.toContain('ONE');
+	});
+});
+
+describe("Kit's public env (KIT-PUBLIC-ENV)", () => {
+	const reads_env = () => record_page({ data: {} }, false, [], '/islands/env.js', true);
+	const reads_none = () => record_page({ data: {} }, false, [], '/islands/plain.js', false);
+	afterEach(() => set_kit_public_env(null));
+
+	it('a page whose region imports it carries what Kit renders, marked as the response', async () => {
+		set_kit_public_env({ PUBLIC_REGION: 'eu</script>' });
+		const html = await page(reads_env);
+		const script =
+			/<script type="application\/ogygia-env" data-og-mark="([^"]+)">([^<]*)<\/script>/.exec(html);
+		expect(script, html).not.toBeNull();
+		expect(html).toContain(`data-og-mark="${script![1]}"`);
+		expect((await import('devalue')).parse(script![2]!)).toEqual({ PUBLIC_REGION: 'eu</script>' });
+	});
+
+	it('a page whose regions never import it carries none', async () => {
+		set_kit_public_env({ PUBLIC_REGION: 'eu' });
+		expect(await page(reads_none)).not.toContain('application/ogygia-env');
+	});
+
+	it('none ships where Kit has no dynamic public variable, or no env ogygia reads (Kit 2)', async () => {
+		set_kit_public_env({});
+		expect(await page(reads_env)).not.toContain('application/ogygia-env');
+		set_kit_public_env(null);
+		expect(await page(reads_env)).not.toContain('application/ogygia-env');
+	});
+
+	it('without the page feature: none ships', async () => {
+		without(F_PAGE);
+		set_kit_public_env({ PUBLIC_REGION: 'eu' });
+		expect(await page(reads_env)).not.toContain('application/ogygia-env');
+	});
+
+	it('a value devalue cannot carry ships nothing, and says kit_env_unshipped', async () => {
+		const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			set_kit_public_env({ PUBLIC_FN: () => 1 });
+			expect(await page(reads_env)).not.toContain('application/ogygia-env');
+			expect(warned.mock.calls.flat().join(' ')).toContain('kit_env_unshipped');
+		} finally {
+			warned.mockRestore();
+		}
 	});
 });
 

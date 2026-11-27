@@ -255,6 +255,18 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/runtime/kit-env.ts > kit_env > catch:0",
+			"reason": "the server's env channel whose text does not decode reads as an empty env, said with kit_env_missing, so Kit's patched $app/env/public still evaluates and the island hydrates; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/browser/side-channel-seeds.test.ts",
+			"name": "Kit's public env whose text does not read back reads empty, and says kit_env_missing"
+		},
+		{
+			"site": "packages/core/src/server/env-seed.ts > env_seed_script > catch:0",
+			"reason": "a public env value devalue cannot carry writes no env channel and says kit_env_unshipped, so the page still renders; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/server-seed-word.test.ts",
+			"name": "a value devalue cannot carry ships nothing, and says kit_env_unshipped"
+		},
+		{
 			"site": "packages/core/src/runtime/island-warm.ts > warm_key > catch:0",
 			"reason": "a fetched page's module link whose href no URL parser takes is its own key, so the router's warmed-module ask answers no instead of throwing out of the swap; proved by hand: the catch made to rethrow turns the test red",
 			"test": "packages/core/test/browser/island-warm-key.test.ts",

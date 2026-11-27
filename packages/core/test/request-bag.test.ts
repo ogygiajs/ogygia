@@ -191,7 +191,7 @@ describe("a Kit page's request bag", () => {
 			record_page({ data: { a: 1 } }, ['a']);
 			read = read_seed_ask();
 		});
-		expect(read).toEqual({ wanted: true, keys: new Set(['a']) });
+		expect(read).toEqual({ wanted: true, keys: new Set(['a']), env: false });
 	});
 
 	it('a csr=false page with a region tells the runtime so in its head', async () => {
@@ -235,7 +235,7 @@ describe("the server router's document asks", () => {
 			record_page({ data: { a: 1 } }, ['a']);
 			read = read_seed_ask();
 		});
-		expect(read).toEqual({ wanted: true, keys: new Set(['a']) });
+		expect(read).toEqual({ wanted: true, keys: new Set(['a']), env: false });
 	});
 
 	it('a document whose regions read no page reads back no ask', () => {
@@ -245,7 +245,17 @@ describe("the server router's document asks", () => {
 			record_page({ data: { a: 1 } }, false);
 			read = read_seed_ask();
 		});
-		expect(read).toEqual({ wanted: false, keys: null });
+		expect(read).toEqual({ wanted: false, keys: null, env: false });
+	});
+
+	it("a document whose region imports Kit's public env reads back that ask, with no page ask", () => {
+		let read: unknown;
+		run(() => {
+			open_ask_scope();
+			record_page({ data: { a: 1 } }, false, [], '/islands/env.js', true);
+			read = read_seed_ask();
+		});
+		expect(read).toEqual({ wanted: false, keys: null, env: true });
 	});
 
 	it('a render with no ask scope and no page reads back nothing', () => {

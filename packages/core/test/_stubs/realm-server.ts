@@ -21,6 +21,7 @@ export {
 	region_page_keys,
 	region_page_why,
 	region_remotes,
+	region_reads_env,
 	fn_manifest,
 	entry_location,
 	location_map,
@@ -37,6 +38,7 @@ export {
 	hole_css
 } from 'ogygia:server/region-endpoint';
 export { create_remote_key } from 'ogygia:server/kit-wire';
+export { kit_public_env } from 'ogygia:server/kit-env';
 export { rate_limit } from 'ogygia:server/rate-limit';
 export { profiler_maps } from 'ogygia:server/profiler-maps';
 export {

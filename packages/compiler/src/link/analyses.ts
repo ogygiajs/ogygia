@@ -169,7 +169,7 @@ export const ANALYSES: readonly Analysis[] = [
 	},
 	{
 		name: 'island_remotes',
-		predicts: 'the remote seeds and page seed each island needs',
+		predicts: "the remote seeds, page seed and Kit's public env each island needs",
 		direction: 'over',
 		fallback: 'all (no map fails open)',
 		where: {

@@ -93,6 +93,7 @@ import { F_CONTEXT, F_FRAMES, F_PAGE, F_REMOTE_SEEDS } from './contract/features
 import { HeadTags } from './server/head-presence.ts';
 import { page_code_origins } from './server/page-code-origins.ts';
 import { assemble, ogygia_script, rope } from './server/document-assembly.ts';
+import { env_seed_script } from './server/env-seed.ts';
 import {
 	remote_seed_script,
 	ship_page_seed,
@@ -195,6 +196,8 @@ type RequestBag = {
 	seed_keys: import('./server/seed-shape.ts').SeedKeys | null;
 	seed_asks: Map<string, SeedAsk> | null;
 	remotes_wanted: Set<string> | null;
+	/** some region on the page imports Kit's `$app/env/public` (KIT-PUBLIC-ENV) */
+	env_wanted: boolean;
 	tail: DocumentTail;
 	measure_memo: MeasureMemo;
 	deferred: Deferred[] | null;
@@ -239,15 +242,20 @@ set_ask_scope_opener(() => {
 	const request = request_of();
 	if (request && !bags.has(request) && !doc_asks.has(request)) doc_asks.set(request, null);
 });
+const doc_env = shared<WeakSet<Request>>({
+	name: 'ogygia.document-env-asks',
+	version: 1,
+	make: () => new WeakSet()
+});
 set_seed_ask_reader(() => {
 	const bag = bag_of();
-	if (bag) return { wanted: bag.seed_keys !== null, keys: bag.seed_keys };
+	if (bag) return { wanted: bag.seed_keys !== null, keys: bag.seed_keys, env: bag.env_wanted };
 	const request = request_of();
 	if (!request || !doc_asks.has(request)) return undefined;
 	const keys = doc_asks.get(request) ?? null;
-	return { wanted: keys !== null, keys };
+	return { wanted: keys !== null, keys, env: doc_env.has(request) };
 });
-set_page_recorder((snapshot, seed, remotes, entry) => {
+set_page_recorder((snapshot, seed, remotes, entry, env) => {
 	// a render FOR a page (a hole, a remote call): its islands' asks are the render-page model's —
 	// the answer carries those keys of the looked-up page (server/render-page.ts)
 	const event = live_event();
@@ -256,10 +264,13 @@ set_page_recorder((snapshot, seed, remotes, entry) => {
 	const bag = bag_of();
 	if (!bag) {
 		const request = request_of();
-		if (asks && request && doc_asks.has(request))
-			doc_asks.set(request, merge_seed_ask(doc_asks.get(request) ?? null, seed));
+		if (request && doc_asks.has(request)) {
+			if (asks) doc_asks.set(request, merge_seed_ask(doc_asks.get(request) ?? null, seed));
+			if (HAS & F_PAGE && env) doc_env.add(request);
+		}
 		return;
 	}
+	if (HAS & F_PAGE && env) bag.env_wanted = true;
 	const first = bag.page === null;
 	bag.page = { ...bag.page, ...snapshot };
 	if (HAS & F_PAGE && first) walk_page_seed(bag.page.data, bag.measure_memo);
@@ -624,6 +635,7 @@ class OgygiaHandle {
 				seed_keys: null,
 				seed_asks: request_stats_detailed() ? new Map() : null,
 				remotes_wanted: HAS & F_REMOTE_SEEDS ? new Set() : null,
+				env_wanted: false,
 				tail: new DocumentTail(),
 				measure_memo: new MeasureMemo(),
 				deferred: null,
@@ -1033,6 +1045,11 @@ class OgygiaHandle {
 					kind: 'page',
 					bytes: page_payload.text.length
 				});
+		}
+
+		if (HAS & F_PAGE && bag!.env_wanted) {
+			const env_script = env_seed_script(bag!.request);
+			if (env_script) scripts.push(env_script);
 		}
 
 		if (HAS & F_REMOTE_SEEDS && state?.remote?.implicit) {

@@ -9,7 +9,10 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import * as devalue from 'devalue';
+import { dedent } from '@ogygia/core/contract';
 import { clientBuildWillSkip, resolve_kit_paths, route_reader } from '../../src/kit.ts';
+import { KIT_PATCHES } from '../../src/kit-patches.ts';
 import { node_fs } from '../../src/fs.ts';
 import { APP_DIR, KitApp, OUT_DIR } from '../../../core/test/canary/kit-app.ts';
 import { broke, KITS, type Internal } from '../../../core/test/canary/upstream.ts';
@@ -53,6 +56,20 @@ const CONFIG: Internal = {
 	issue: 1720
 };
 
+const PATCHES: Internal = {
+	upstream: "SvelteKit's generated browser modules (its client app, Kit 3's `$app/env/public`)",
+	used_by: ['packages/compiler/src/kit-patches.ts (KIT_PATCHES)'],
+	issue: 2177
+};
+const PUBLIC_ENV: Internal = {
+	upstream: "SvelteKit 3's rendered public env (`rendered_env`, what its payload sends as `env`)",
+	used_by: [
+		'packages/compiler/src/kit-patches.ts (kit_public_env_module)',
+		'packages/core/src/server/env-seed.ts (env_seed_script)'
+	],
+	issue: 2177
+};
+
 const KIT_DIRS = path.join(import.meta.dirname, '../../src/vite/kit-dirs.ts');
 
 /** The CSS a page links, read back from the build's client output. */
@@ -67,11 +84,81 @@ const has_client_entry = (app: KitApp) =>
 
 vi.setConfig({ hookTimeout: 120_000, testTimeout: 30_000 });
 
+const REGION_DEFAULT = 'canary region';
+
+/** Kit 3 only: a dynamic public variable (`src/env.js`) and a csr=true page that reads it, so Kit
+ *  sends its public env in its payload there. */
+function with_public_env(app: KitApp): KitApp {
+	if (app.major < 3) return app;
+	fs.writeFileSync(
+		path.join(app.dir, 'src/env.js'),
+		dedent`
+			import { defineEnvVars } from '@sveltejs/kit/env';
+			export const variables = defineEnvVars({
+				PUBLIC_REGION: { public: true, static: false, schema: (v) => v ?? ${JSON.stringify(REGION_DEFAULT)} }
+			});
+		`
+	);
+	fs.mkdirSync(path.join(app.dir, 'src/pages/env'), { recursive: true });
+	fs.writeFileSync(
+		path.join(app.dir, 'src/pages/env/+page.svelte'),
+		dedent`
+			<script>
+				import { PUBLIC_REGION } from '$app/env/public';
+			</script>
+			<p data-region>{PUBLIC_REGION}</p>
+		`
+	);
+	return app;
+}
+
+/** Each row of the patch table whose module this Kit generates for `mode` finds Kit's text where
+ *  it reads it, in the module Kit wrote. */
+function expect_patches_apply(app: KitApp, mode: 'dev' | 'build'): void {
+	const dir = path.join(app.out_dir, 'generated');
+	const files = (fs.readdirSync(dir, { recursive: true }) as string[])
+		.map((f) => path.join(dir, f).split(path.sep).join('/'))
+		.filter((f) => !f.includes(`/generated/${mode === 'dev' ? 'build' : 'dev'}/`));
+	const rows = KIT_PATCHES.filter(
+		(row) => row.kits.includes(app.major) && (row.mode ?? mode) === mode
+	);
+	expect(rows.length).toBeGreaterThan(0);
+	for (const row of rows) {
+		const file = files.find((f) => row.id.test(f));
+		expect(file, broke(PATCHES, `Kit generated no module for "${row.name}"`)).toBeDefined();
+		const code = fs.readFileSync(file!, 'utf8');
+		expect(
+			row.patch(code, file!),
+			broke(PATCHES, `"${row.name}" finds nothing to patch in ${file}:\n${code}`)
+		).not.toBeNull();
+	}
+}
+
+/** What Kit 3 puts in its payload as `env` on a csr=true page, read from the page. */
+async function payload_env(app: KitApp): Promise<string | undefined> {
+	const html = await app.text('/env');
+	return /\benv:\s*(\{[^}]*\})/.exec(html)?.[1];
+}
+
 describe.each(Object.entries(KITS))('%s', (_, root) => {
 	describe('served from dev', () => {
-		const app = new KitApp(root, 'dev');
+		const app = with_public_env(new KitApp(root, 'dev'));
 		beforeAll(() => app.start());
 		afterAll(() => app.stop());
+
+		it('generates every module the patch table patches, in the text each row reads', () => {
+			expect_patches_apply(app, 'dev');
+		});
+
+		it.skipIf(app.major < 3)(
+			"sends its rendered public env in a csr=true page's payload, as the server's channel does",
+			async () => {
+				expect(
+					await payload_env(app),
+					broke(PUBLIC_ENV, "Kit's payload env is not its rendered public env")
+				).toBe(devalue.uneval({ PUBLIC_REGION: REGION_DEFAULT }));
+			}
+		);
 
 		it("a remote file's client module imports the remote functions client the compiler resolves", async () => {
 			const index = resolve_kit_paths(app.dir).kit_remote_index;
@@ -88,7 +175,7 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 	});
 
 	describe('served from a build', () => {
-		const app = new KitApp(root, 'build');
+		const app = with_public_env(new KitApp(root, 'build'));
 		beforeAll(async () => {
 			app.export_from('create_remote_key', resolve_kit_paths(app.dir).kit_wire_path!);
 			await app.start();
@@ -105,6 +192,30 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 				broke(WIRE, `Kit's own seed does not carry the key \`${keys[0]}\`:\n${html}`)
 			).toContain(JSON.stringify(keys[0]));
 		});
+
+		it('generates every module the patch table patches, in the text each row reads (build)', () => {
+			expect_patches_apply(app, 'build');
+		});
+
+		it.skipIf(app.major < 3)(
+			"sends its server module's `rendered_env` as a csr=true page's payload env",
+			async () => {
+				const rendered = JSON.parse(
+					await app.node(`
+					const config = await import(${JSON.stringify(path.join(app.out_dir, 'generated/build/env/config.js'))});
+					config.set_env({});
+					console.log(JSON.stringify(config.rendered_env));
+				`)
+				) as Record<string, unknown>;
+				expect(rendered, broke(PUBLIC_ENV, 'the server module renders another env')).toEqual({
+					PUBLIC_REGION: REGION_DEFAULT
+				});
+				expect(
+					await payload_env(app),
+					broke(PUBLIC_ENV, "Kit's payload env is not its rendered public env")
+				).toBe(devalue.uneval(rendered));
+			}
+		);
 
 		it('keeps its client build while one route node is csr=true, as the compiler predicts', () => {
 			expect(

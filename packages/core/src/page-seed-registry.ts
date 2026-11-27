@@ -53,7 +53,9 @@ type Recorder = (
 	seed: SeedAsk,
 	remotes: readonly string[] | null,
 	/** the region's entry (`''` for a region with no client entry) — the seed explainer's "who" */
-	entry: string
+	entry: string,
+	/** the region's client code imports Kit's `$app/env/public`: the page carries Kit's public env */
+	env: boolean
 ) => void;
 
 /** Server (`hooks.ts`) installs a request-scoped recorder. */
@@ -67,7 +69,12 @@ export function set_page_recorder(fn: Recorder | null): void {
  *  handle owns (no reader installed, or no bag). The server router's document reads it after its
  *  render, so a router page seeds like a Kit page: only when an island reads it, only what is read. */
 type AskReader = () =>
-	| { wanted: boolean; keys: import('./server/seed-shape.ts').SeedKeys | null }
+	| {
+			wanted: boolean;
+			keys: import('./server/seed-shape.ts').SeedKeys | null;
+			/** some region asked for Kit's public env */
+			env: boolean;
+	  }
 	| undefined;
 /** Server (`hooks.ts`) installs the reader beside the recorder. */
 export function set_seed_ask_reader(fn: AskReader | null): void {
@@ -92,12 +99,14 @@ export function open_ask_scope(): void {
 
 /** Region.svelte calls this during SSR with Kit's real page; the client is a no-op. `seed: false`
  *  records the snapshot without asking for the client seed (no island on the page reads it);
- *  `remotes` names the remote modules this region's client can call (`null` = any). */
+ *  `remotes` names the remote modules this region's client can call (`null` = any); `env` says it
+ *  imports Kit's `$app/env/public`. */
 export function record_page(
 	snapshot: PageSnapshot,
 	seed: SeedAsk = 'all',
 	remotes: readonly string[] | null = null,
-	entry = ''
+	entry = '',
+	env = false
 ): void {
-	server_ports()?.page_recorder?.(snapshot, seed, remotes, entry);
+	server_ports()?.page_recorder?.(snapshot, seed, remotes, entry, env);
 }

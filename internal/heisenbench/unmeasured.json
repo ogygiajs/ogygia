@@ -65,19 +65,75 @@
 			"reason": "constant work: string checks first, one path compare only for a relative import ending in Kit's remote-functions index; proven in packages/compiler/test/vite-hooks.test.ts (#2041)"
 		},
 		{
-			"id": "packages/compiler/src/vite/kit-env.ts > kit_dev_public_env",
-			"reason": "dev only, once per load of Kit's public env module: reads Kit's rendered env from its server module; never in a build; proven in packages/compiler/test/vite-hooks.test.ts and apps/palaestra/e2e/kit3.spec.ts (#2177)"
+			"id": "packages/compiler/src/kit-patches.ts > patch_kit_module",
+			"reason": "build and dev, once per transformed browser module: three regex tests against the module id, a patch only for Kit's own generated modules; proven in packages/compiler/test/vite-hooks.test.ts (#2177)"
 		},
 		{
-			"id": "packages/compiler/src/vite/kit-env.ts > ssr_runner",
-			"reason": "dev only, constant work: picks the dev server's SSR module runner; proven in packages/compiler/test/vite-hooks.test.ts (#2177)"
+			"id": "packages/compiler/src/kit-patches.ts > patch",
+			"reason": "once per load of Kit's client app module: appends a constant; proven in packages/compiler/test/vite-hooks.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/messages.ts > WARNED > kit_dev_env_unread > text",
+			"id": "packages/compiler/src/kit-patches.ts > public_env_patch",
+			"reason": "module constant: builds the two env rows of the patch table once when the compiler loads (#2177)"
+		},
+		{
+			"id": "packages/compiler/src/kit-patches.ts > public_env_patch > <anonymous>~5bb4aa",
+			"reason": "once per load of Kit's $app/env/public module: one regex test, one includes, one replace; proven in packages/compiler/test/vite-hooks.test.ts and packages/compiler/test/canary/kit-build.test.ts (#2177)"
+		},
+		{
+			"id": "packages/compiler/src/kit-patches.ts > public_env_patch > <anonymous>~5bb4aa > replace:1~0ab970",
+			"reason": "constant work: the replacement text, once per patch (#2177)"
+		},
+		{
+			"id": "packages/compiler/src/kit-patches.ts > kit_public_env_module",
+			"reason": "once per load of ogygia:server/kit-env: a constant by the Kit major; proven in packages/compiler/test/canary/kit-build.test.ts (#2177)"
+		},
+		{
+			"id": "packages/compiler/src/link/island-deps.ts > collectIslandDepModulepreloads > reads_env",
+			"reason": "build time, once per client build: one regex test per module id of an island's closure, beside the remotes walk over the same ids; proven in packages/compiler/test/island-deps.test.ts (#2177)"
+		},
+		{
+			"id": "packages/compiler/src/link/island-deps.ts > collectIslandDepModulepreloads > reads_env > some:0~92b2b3",
+			"reason": "build time: the predicate of reads_env, one regex test (#2177)"
+		},
+		{
+			"id": "packages/core/src/region-parts/seed-ask.ts > PageSeedAsk > get env",
+			"reason": "constant work: one handoff map lookup per region render, beside the page and remotes asks; proven in packages/core/test/server-seed-word.test.ts (#2177)"
+		},
+		{
+			"id": "packages/core/src/region-server.browser.ts > region_reads_env",
+			"reason": "constant: the browser's stand-in answers false"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env.ts > kit_env",
+			"reason": "once per document, at the evaluation of Kit's $app/env/public on a page Kit never started: one marked querySelector and one devalue parse of the env; proven in packages/core/test/browser/side-channel-seeds.test.ts (#2177)"
+		},
+		{
+			"id": "packages/core/src/server/env-seed.ts > env_seed_script",
+			"reason": "once per csr=false document whose region imports Kit's env: one devalue serialization of Kit's rendered public env (a few variables); proven in packages/core/test/server-seed-word.test.ts (#2177)"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > WARNED > kit_env_unpatched > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/compiler/src/messages.ts > WARNED > kit_dev_env_unread > details",
+			"id": "packages/compiler/src/messages.ts > WARNED > kit_env_unpatched > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > kit_env_missing > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > kit_env_missing > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > kit_env_unshipped > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > kit_env_unshipped > details",
 			"reason": "a message table entry: wording only"
 		},
 		{

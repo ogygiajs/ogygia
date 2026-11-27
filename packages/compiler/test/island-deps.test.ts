@@ -299,6 +299,7 @@ describe('collectIslandDepModulepreloads', () => {
 			page: {},
 			page_keys: {},
 			remotes: {},
+			env: {},
 			interactivity: {},
 			hazards: {},
 			contents: {},
@@ -819,6 +820,43 @@ describe('collectIslandDepModulepreloads', () => {
 // REMOTE SEED ONLY WHEN REACHABLE — per facade, the Kit remote modules anywhere in its chunk
 // closure (static + dynamic), named by the id-hash Kit mints them with, so the handle can seed an
 // SSR-resolved remote only for a page with an island that can call it.
+describe("Kit's public env map (KIT-PUBLIC-ENV)", () => {
+	const KIT_ENV = '/app/.svelte-kit/generated/build/env/public/client.js';
+	const chunk = (fileName: string, moduleIds: string[], dynamicImports: string[] = []) => ({
+		type: 'chunk',
+		fileName,
+		moduleIds,
+		imports: [],
+		dynamicImports
+	});
+	const facade = (moduleIds: string[], dynamicImports: string[] = []) =>
+		chunk('_app/immutable/og-region.aaaaaaaaaaaa.js', moduleIds, dynamicImports);
+	const bundle = (chunks: ReturnType<typeof chunk>[]) =>
+		Object.fromEntries(chunks.map((c) => [c.fileName, c]));
+
+	test("an island whose closure holds Kit's $app/env/public reads it, behind a dynamic import too", () => {
+		expect(collectIslandDepModulepreloads(bundle([facade([KIT_ENV])])).env[FACADE]).toBe(true);
+		const lazy = bundle([
+			facade(['/app/src/lib/A.svelte'], ['_app/immutable/chunks/lazy.js']),
+			chunk('_app/immutable/chunks/lazy.js', [KIT_ENV])
+		]);
+		expect(collectIslandDepModulepreloads(lazy).env[FACADE]).toBe(true);
+	});
+
+	test('an island without it reads none, and the server answers so; an unknown entry fails open', () => {
+		const r = collectIslandDepModulepreloads(bundle([facade(['/app/src/lib/A.svelte'])]));
+		expect(r.env[FACADE]).toBe(false);
+		const server = island_deps_module(true, false);
+		expect(server).toContain("lookup('env', entry");
+		expect(
+			/region_reads_env\(_entry\) \{ return true; \}/.test(island_deps_module(true, true))
+		).toBe(true);
+		expect(
+			/region_reads_env\(_entry\) \{ return false; \}/.test(island_deps_module(false, false))
+		).toBe(true);
+	});
+});
+
 describe('remotes map', () => {
 	const CWD = '/app';
 	const hash_of = (id: string) => remote_hash_of(id, CWD);

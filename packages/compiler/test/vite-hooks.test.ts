@@ -867,105 +867,100 @@ describe('transform', () => {
 		expect(await threaded(in_env('client', 'client'))).toBe(true);
 	});
 
-	describe("Kit 3's dev $app/env/public", () => {
-		const KIT_ENV = dedent`
-			const { env } = globalThis.__sveltekit_dev;
+	describe("Kit 3's $app/env/public (KIT-PUBLIC-ENV)", () => {
+		const KIT_ENV = {
+			dev: dedent`
+				const { env } = globalThis.__sveltekit_dev;
 
-			export const PUBLIC_GREETING = "hello";
-			export const PUBLIC_REGION = env.PUBLIC_REGION;
-		`;
-		const env_module = () => path.join(root, '.svelte-kit/generated/dev/env/public/client.js');
-		const rendered_env = { PUBLIC_REGION: 'eu' };
-		const dev_server = () => ({
-			environments: {
-				ssr: {
-					runner: {
-						import: async (id: string) =>
-							id === '<sveltekit:generated>/env/config.js' ? { rendered_env } : {}
-					}
-				}
-			}
-		});
-		const evaluate = (code: string, global: Record<string, unknown>) => {
+				export const PUBLIC_GREETING = "hello";
+				export const PUBLIC_REGION = env.PUBLIC_REGION;
+			`,
+			build: dedent`
+				import { payload } from "../../../../node_modules/@sveltejs/kit/src/runtime/client/payload.js";
+				const env = payload.env;
+
+				export const PUBLIC_GREETING = "hello";
+				export const PUBLIC_REGION = env.PUBLIC_REGION;
+			`
+		};
+		const env_module = (mode: 'dev' | 'build') =>
+			path.join(root, `.svelte-kit/generated/${mode}/env/public/client.js`);
+		const IMPORT_RE = /^import \{ (\w+)(?: as (\w+))? \} from .*$/gm;
+		/** The module run as the browser would: Kit's payload (`{}` where Kit never started) and the
+		 *  env the server sent (`kit_env`) handed in for its imports. */
+		const evaluate = (code: string, kit: Record<string, unknown> | null, sent: unknown) => {
 			const out: Record<string, unknown> = {};
-			// oxlint-disable-next-line typescript/no-implied-eval -- the module text under test, run with a stand-in globalThis
-			new Function('globalThis', 'out', code.replaceAll('export const ', 'out.'))(global, out);
+			const given: Record<string, unknown> = { payload: kit ?? {}, kit_env: () => sent };
+			const global = kit ? { __sveltekit_dev: kit } : {};
+			const body = code.replace(
+				IMPORT_RE,
+				(_, name: string, local?: string) => `const ${local ?? name} = given.${name};`
+			);
+			// oxlint-disable-next-line typescript/no-implied-eval -- the module text under test, its imports handed in
+			new Function('given', 'globalThis', 'out', body.replaceAll('export const ', 'out.'))(
+				given,
+				global,
+				out
+			);
 			return out;
 		};
-		const served = async (leg: Leg) => {
+		const patched = async (mode: 'dev' | 'build', leg: Leg = 'client', code = KIT_ENV[mode]) => {
 			app();
-			const { p } = await setup('serve');
-			p.configureServer(dev_server());
-			const out = (await p.transform.call(hook_this(leg), KIT_ENV, env_module(), {
+			const { p } = await setup(mode === 'dev' ? 'serve' : 'build');
+			if (mode === 'build') await begin(p, leg);
+			const out = (await p.transform.call(hook_this(leg), code, env_module(mode), {
 				ssr: leg === 'ssr'
 			})) as { code: string } | null;
-			return out?.code ?? KIT_ENV;
+			return out?.code ?? code;
 		};
 
-		it("keeps a value with $ patterns as written ($&, $', $$ are not replacement patterns)", async () => {
-			const region = rendered_env.PUBLIC_REGION;
-			rendered_env.PUBLIC_REGION = "a$&b$'c$$d";
+		for (const mode of ['dev', 'build'] as const) {
+			it(`${mode}: reads on a document Kit never boots (csr=false), with the env the server sent`, async () => {
+				expect(evaluate(await patched(mode), null, { PUBLIC_REGION: 'eu' })).toEqual({
+					PUBLIC_GREETING: 'hello',
+					PUBLIC_REGION: 'eu'
+				});
+			});
+
+			it(`${mode}: reads Kit's own payload where Kit boots (csr=true)`, async () => {
+				expect(
+					evaluate(await patched(mode), { env: { PUBLIC_REGION: 'us' } }, { PUBLIC_REGION: 'eu' })
+				).toEqual({ PUBLIC_GREETING: 'hello', PUBLIC_REGION: 'us' });
+			});
+
+			it(`${mode}: holds no value of its own, so an edited variable reads as the server sends it`, async () => {
+				const code = await patched(mode);
+				expect(code).not.toContain('"eu"');
+				expect(evaluate(code, null, { PUBLIC_REGION: 'edited' }).PUBLIC_REGION).toBe('edited');
+			});
+
+			it(`${mode}: is left as Kit wrote it on the server`, async () => {
+				expect(await patched(mode, 'ssr')).toBe(KIT_ENV[mode]);
+			});
+		}
+
+		it('a module with only static variables is left as Kit wrote it (it reads no payload)', async () => {
+			const code = dedent`
+				const env = payload.env;
+
+				export const PUBLIC_GREETING = "hello";
+			`;
+			expect(await patched('build', 'client', code)).toBe(code);
+		});
+
+		it('a module in a shape ogygia does not know is left alone, and says kit_env_unpatched', async () => {
+			const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			try {
-				expect(evaluate(await served('client'), {}).PUBLIC_REGION).toBe("a$&b$'c$$d");
+				const code = dedent`
+					const env = read_it();
+
+					export const PUBLIC_REGION = env.PUBLIC_REGION;
+				`;
+				expect(await patched('build', 'client', code)).toBe(code);
+				expect(warned.mock.calls.flat().join(' ')).toContain('kit_env_unpatched');
 			} finally {
-				rendered_env.PUBLIC_REGION = region;
+				warned.mockRestore();
 			}
-		});
-
-		it('reads on a document Kit never boots (csr=false), with the values Kit renders', async () => {
-			expect(evaluate(await served('client'), {})).toEqual({
-				PUBLIC_GREETING: 'hello',
-				PUBLIC_REGION: 'eu'
-			});
-		});
-
-		it("reads Kit's own payload where Kit boots (csr=true)", async () => {
-			const kit = { __sveltekit_dev: { env: { PUBLIC_REGION: 'us' } } };
-			expect(evaluate(await served('client'), kit)).toEqual({
-				PUBLIC_GREETING: 'hello',
-				PUBLIC_REGION: 'us'
-			});
-		});
-
-		it('is left as Kit wrote it on the server', async () => {
-			expect(await served('ssr')).toBe(KIT_ENV);
-		});
-	});
-
-	describe("Kit 3's built $app/env/public", () => {
-		const KIT_ENV = dedent`
-			import { payload } from "../../../../node_modules/@sveltejs/kit/src/runtime/client/payload.js";
-			const env = payload.env;
-
-			export const PUBLIC_GREETING = "hello";
-			export const PUBLIC_REGION = env.PUBLIC_REGION;
-		`;
-		const env_module = () => path.join(root, '.svelte-kit/generated/build/env/public/client.js');
-		const IMPORT_RE = /^import \{ (\w+)(?: as (\w+))? \} from .*$/gm;
-		const evaluate = (code: string, payload: Record<string, unknown>, sent: unknown) => {
-			const out: Record<string, unknown> = {};
-			const given: Record<string, unknown> = { payload, kit_env: () => sent };
-			const body = code.replace(IMPORT_RE, (_, name: string, local?: string) => {
-				return `const ${local ?? name} = given.${name};`;
-			});
-			// oxlint-disable-next-line typescript/no-implied-eval -- the module text under test, its imports handed in
-			new Function('given', 'out', body.replaceAll('export const ', 'out.'))(given, out);
-			return out;
-		};
-		const built = async () => {
-			app();
-			const p = await begin((await setup('build')).p, 'client');
-			const out = (await p.transform.call(hook_this('client'), KIT_ENV, env_module(), {
-				ssr: false
-			})) as { code: string } | null;
-			return out?.code ?? KIT_ENV;
-		};
-
-		it('reads on a document Kit never boots (csr=false), with the env the server sent', async () => {
-			expect(evaluate(await built(), {}, { PUBLIC_REGION: 'eu' })).toEqual({
-				PUBLIC_GREETING: 'hello',
-				PUBLIC_REGION: 'eu'
-			});
 		});
 	});
 

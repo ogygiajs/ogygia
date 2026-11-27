@@ -5,6 +5,7 @@
 
 declare module 'ogygia:server' {
 export const devtools_boot_url: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/devtools-boot-url']['devtools_boot_url'];
+export const kit_public_env: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/kit-env']['kit_public_env'];
 export const create_remote_key: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/kit-wire']['create_remote_key'];
 export const profiler_maps: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/profiler-maps']['profiler_maps'];
 export const rate_limit: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/rate-limit']['rate_limit'];
@@ -23,6 +24,7 @@ export const region_reads_page: import('../dist/contract/virtual-modules.js').Vi
 export const region_page_keys: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/region-deps']['region_page_keys'];
 export const region_page_why: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/region-deps']['region_page_why'];
 export const region_remotes: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/region-deps']['region_remotes'];
+export const region_reads_env: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/region-deps']['region_reads_env'];
 export const fn_manifest: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/region-deps']['fn_manifest'];
 export const entry_location: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/region-deps']['entry_location'];
 export const location_map: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/region-deps']['location_map'];
@@ -55,6 +57,10 @@ export { sign, region_sign } from '../dist/server/hmac.js';
 }
 declare module 'ogygia:server/devtools-boot-url' {
 export const devtools_boot_url: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/devtools-boot-url']['devtools_boot_url'];
+}
+declare module 'ogygia:server/kit-env' {
+const module: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/kit-env'];
+export = module;
 }
 declare module 'ogygia:server/kit-wire' {
 const module: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/kit-wire'];
