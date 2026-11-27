@@ -20,4 +20,12 @@ describe("a build's key under the app's secret", () => {
 		expect(key).not.toContain(Buffer.from(SECRET).toString('hex'));
 		expect(key).not.toContain(salt);
 	});
+
+	it('is refused for a blank secret, so no build signs with a key anyone can work out', () => {
+		for (const blank of ['', ' ', '\t\n ']) {
+			expect(() => derive_build_key(blank), JSON.stringify(blank)).toThrow(
+				expect.objectContaining({ code: 'build_key_blank_secret' })
+			);
+		}
+	});
 });

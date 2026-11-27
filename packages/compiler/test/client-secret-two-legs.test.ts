@@ -3,6 +3,7 @@
 // per-build random that only the server leg's instance holds; the client leg's check of its finished
 // bundle (`refuse_client_secrets`) must look for THAT key, which reaches it through the server leg's
 // handoff file, not for a random of its own that appears nowhere.
+import { hkdfSync } from 'node:crypto';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -39,6 +40,27 @@ function leg_plugin(ssr: boolean): Plugin {
 		'configResolved runs at once'
 	).toBeUndefined();
 	return plugin;
+}
+
+/** The key one server leg bakes into `ogygia:server/secret`. */
+async function baked_key(): Promise<string | undefined> {
+	const server = leg_plugin(true);
+	await handler(server.buildStart!).call(env('ssr') as never, {} as never);
+	const secret_module = (await handler(server.load!).call(
+		env('ssr') as never,
+		'\0ogygia:server/secret',
+		{ ssr: true }
+	)) as string | { code: string };
+	const code = typeof secret_module === 'string' ? secret_module : secret_module.code;
+	return /"([0-9a-f]{64})"/.exec(code)?.[1];
+}
+
+function app_root(): string {
+	const dir = realpathSync(mkdtempSync(path.join(tmpdir(), 'og-two-legs-')));
+	mkdirSync(path.join(dir, 'src/routes'), { recursive: true });
+	writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'app', type: 'module' }));
+	writeFileSync(path.join(dir, 'src/routes/+page.svelte'), '<h1>page</h1>\n');
+	return dir;
 }
 
 const env = (name: 'ssr' | 'client') => ({
@@ -88,4 +110,30 @@ test("a client chunk holding the server leg's per-build key fails the build, wit
 		if (had === undefined) delete process.env.OGYGIA_SECRET;
 		else process.env.OGYGIA_SECRET = had;
 	}
+});
+
+test('a build without OGYGIA_SECRET bakes a key of its own, never one worked out from a blank secret', async () => {
+	const had = process.env.OGYGIA_SECRET;
+	const keys: (string | undefined)[] = [];
+	try {
+		for (const value of [undefined, '', '   ']) {
+			if (value === undefined) delete process.env.OGYGIA_SECRET;
+			else process.env.OGYGIA_SECRET = value;
+			root = app_root();
+			keys.push(await baked_key());
+			rmSync(root, { recursive: true, force: true });
+			root = '';
+		}
+	} finally {
+		if (had === undefined) delete process.env.OGYGIA_SECRET;
+		else process.env.OGYGIA_SECRET = had;
+	}
+	for (const key of keys) expect(key).toMatch(/^[0-9a-f]{64}$/);
+	expect(new Set(keys).size, 'each build draws its own key').toBe(keys.length);
+	const from_blank = ['', ' ', '   '].map((blank) =>
+		Buffer.from(
+			hkdfSync('sha256', Buffer.from(blank), Buffer.alloc(0), Buffer.from('ogygia-build-key-v1'), 32)
+		).toString('hex')
+	);
+	for (const key of keys) expect(from_blank).not.toContain(key);
 });
