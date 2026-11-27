@@ -1,8 +1,9 @@
 // KIT-PUBLIC-ENV: the build's identity on Kit's env channel. The server module and the browser's
 // reader carry the same one for one app, so the reader takes its own server's env; another app (a
 // federated peer) has another, so its reader never takes the host's env as its own.
+import { dedent } from '@ogygia/core/contract';
 import { describe, expect, it } from 'vitest';
-import { memory_fs } from '../src/fs.ts';
+import { memory_fs, type Fs } from '../src/fs.ts';
 import { kit_env_build, kit_env_reader_module, kit_public_env_module } from '../src/kit-patches.ts';
 
 const PAGE = '<h1>home</h1>\n';
@@ -19,7 +20,50 @@ const app = (
 	const all: Record<string, string> = {};
 	if (name !== null) all[`${root}/package.json`] = JSON.stringify({ name });
 	for (const [rel, text] of Object.entries(files)) all[`${root}/${rel}`] = text;
-	return { root, base, app_dir, routes_dir: `${root}/src/routes`, fs: memory_fs(all) };
+	return {
+		root,
+		base,
+		app_dir,
+		routes_dir: `${root}/src/routes`,
+		out_dir: `${root}/.svelte-kit`,
+		mode: 'build' as const,
+		fs: memory_fs(all)
+	};
+};
+
+const STATIC_ONLY_CONFIG = dedent`
+	const variables = {};
+	export const explicit_public_env = {};
+	export const rendered_env = {};
+	explicit_public_env.PUBLIC_GREETING = "hello";
+	export function set_env(env) {
+		const issues = {};
+		const SECRET_TOKEN = validate(variables, env.SECRET_TOKEN, "SECRET_TOKEN", issues);
+		dynamic_private_env.SECRET_TOKEN = SECRET_TOKEN;
+	}
+`;
+const DYNAMIC_CONFIG = dedent`
+	export const rendered_env = {};
+	export function set_env(env) {
+		const issues = {};
+		const PUBLIC_REGION = validate(variables, env.PUBLIC_REGION, "PUBLIC_REGION", issues);
+		explicit_public_env.PUBLIC_REGION = PUBLIC_REGION;
+		rendered_env.PUBLIC_REGION = PUBLIC_REGION;
+	}
+`;
+
+/** `a` with Kit's generated env config for its mode, and every listing and read of its files
+ *  counted. */
+const with_config = (a: ReturnType<typeof app>, config: string) => {
+	const files = a.fs;
+	files.set(`${a.out_dir}/generated/${a.mode}/env/config.js`, config);
+	const seen: string[] = [];
+	const fs: Fs = {
+		read: (abs) => (seen.push(abs), files.read(abs)),
+		list: (dir) => (seen.push(dir), files.list(dir)),
+		stat: (abs) => files.stat(abs)
+	};
+	return { app: { ...a, fs }, seen };
 };
 
 describe("the build's identity on Kit's env channel (KIT-PUBLIC-ENV)", () => {
@@ -77,5 +121,40 @@ describe("the build's identity on Kit's env channel (KIT-PUBLIC-ENV)", () => {
 			return kit_env_build({ ...a, routes_dir: '/a/web/pages' });
 		};
 		expect(at(PAGE)).not.toBe(at('<h1>peer</h1>\n'));
+	});
+});
+
+describe("the build's identity is made only for an app whose payload carries an env (KIT-PUBLIC-ENV)", () => {
+	for (const mode of ['dev', 'build'] as const) {
+		it(`${mode}: an app with no dynamic public variable reads only Kit's env config, walks none of its source, and has no identity`, () => {
+			const { app: a, seen } = with_config(
+				{ ...app('/a/web', 'my-app'), mode },
+				STATIC_ONLY_CONFIG
+			);
+			expect(kit_env_build(a)).toBe('');
+			expect(seen).toEqual([`/a/web/.svelte-kit/generated/${mode}/env/config.js`]);
+		});
+
+		it(`${mode}: an app with a dynamic public variable is named by its source`, () => {
+			const at = (page: string) =>
+				kit_env_build(
+					with_config(
+						{ ...app('/a/web', 'my-app', { files: { 'src/routes/+page.svelte': page } }), mode },
+						DYNAMIC_CONFIG
+					).app
+				);
+			expect(at(PAGE)).toMatch(/^[0-9a-f]{12}$/);
+			expect(at(PAGE)).not.toBe(at('<h1>peer</h1>\n'));
+		});
+	}
+
+	it("reads the config of the mode it is made for, not another mode's left on disk", () => {
+		const a = app('/a/web', 'my-app');
+		a.fs.set('/a/web/.svelte-kit/generated/dev/env/config.js', DYNAMIC_CONFIG);
+		expect(kit_env_build(with_config(a, STATIC_ONLY_CONFIG).app)).toBe('');
+	});
+
+	it("is made from the source when Kit's env config cannot be read", () => {
+		expect(kit_env_build(app('/a/web', 'my-app'))).toMatch(/^[0-9a-f]{12}$/);
 	});
 });

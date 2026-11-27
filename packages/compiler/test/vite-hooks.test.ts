@@ -976,6 +976,43 @@ describe('transform', () => {
 				warned.mockRestore();
 			}
 		});
+
+		for (const read of [
+			'export const { PUBLIC_REGION } = env;',
+			'export const PUBLIC_REGION = env["PUBLIC_REGION"];',
+			'export const PUBLIC_REGION = (0, env).PUBLIC_REGION;'
+		])
+			for (const mode of ['dev', 'build'] as const)
+				it(`${mode}: a module that reads its env in a way ogygia does not know (${read}) is left alone, and says kit_env_unpatched`, async () => {
+					const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+					try {
+						const anchor =
+							mode === 'dev'
+								? 'const { env } = globalThis.__sveltekit_dev;'
+								: 'const env = payload.env;';
+						const code = `${anchor}\n\n${read}\n`;
+						expect(await patched(mode, 'client', code)).toBe(code);
+						expect(warned.mock.calls.flat().join(' ')).toContain('kit_env_unpatched');
+					} finally {
+						warned.mockRestore();
+					}
+				});
+
+		it('a module with only static variables whose values name env says nothing', async () => {
+			const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			try {
+				const code = dedent`
+					const env = payload.env;
+
+					export const PUBLIC_HOST = "env.example.com";
+					export const PUBLIC_CONFIG = {env:"a",b:'env',c:\`env\`};
+				`;
+				expect(await patched('build', 'client', code)).toBe(code);
+				expect(warned).not.toHaveBeenCalled();
+			} finally {
+				warned.mockRestore();
+			}
+		});
 	});
 
 	it("a module's names from a realm module are imported from the entries that have them", async () => {
