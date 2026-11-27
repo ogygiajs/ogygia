@@ -2,7 +2,7 @@
  * THE region signing key, decided once at first use (the first mint or verify), not at module eval:
  * a host that fills `process.env` after the server's modules load (an adapter loading a `.env` late)
  * still counts. The app's `handle({ secret })` wins, then the runtime's `OGYGIA_SECRET`, else this
- * build's random key.
+ * build's key (derived from the secret the build saw, else random).
  *
  * Process-wide on `globalThis`, not module state (like the islands endpoint, server/endpoint.ts):
  * one server can load this file as two copies (pnpm gives a package one folder per set of peer
@@ -114,7 +114,7 @@ export function key_fingerprint(secret: string): string {
 }
 
 /** One message per process (a shared Symbol: one across every copy of this module): a server
- *  signing with this build's random key. */
+ *  signing with this build's key. */
 function warn_build_key(): void {
 	const g = globalThis as Record<symbol, unknown>;
 	const K = Symbol.for('ogygia.build-key-warned');
