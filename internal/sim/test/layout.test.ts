@@ -19,7 +19,7 @@ type IO = new (
 function page(body: string) {
 	const loop = new Loop(rng(1));
 	const w = new Window({ url: 'https://app.test/' });
-	install_layout(w as never, loop, 'tab-1#1');
+	const layout = install_layout(w as never, loop, 'tab-1#1');
 	w.document.write(`<html><head></head><body>${body}</body></html>`);
 	const IO = (w as unknown as { IntersectionObserver: IO }).IntersectionObserver;
 	const seen: string[] = [];
@@ -27,7 +27,7 @@ function page(body: string) {
 		for (const e of entries) seen.push(`${loop.now} ${e.target.id} ${e.isIntersecting}`);
 	});
 	const $ = (id: string) => w.document.getElementById(id) as unknown as Element;
-	return { loop, w, IO, io, seen, $ };
+	return { loop, w, IO, io, seen, $, layout };
 }
 
 describe('a simulated document has a layout, and its IntersectionObserver reports from it', () => {
@@ -80,11 +80,77 @@ describe('a simulated document has a layout, and its IntersectionObserver report
 		await loop.run(500);
 		expect(seen).toEqual([]);
 		expect(frames, 'no frame behind').toEqual([]);
+		expect(layout.owes(), 'it owes the frame it waits for').toBe(true);
 		hidden = false;
 		layout.shown();
 		await loop.run(100);
 		expect(seen).toEqual(['512 top true']);
+		expect(layout.owes(), 'which shown() gave it').toBe(false);
 		expect(frames).toEqual([512]);
+	});
+
+	it('owes a frame while an observer has a target it never reported or one that moved, and a closed document owes none', async () => {
+		const loop = new Loop(rng(1));
+		const w = new Window({ url: 'https://app.test/' });
+		const layout = install_layout(w as never, loop, 'tab-1#1');
+		w.document.write(
+			'<html><head></head><body><p id="top">top</p><div id="tall" style="height: 2000px"></div><p id="below">below</p></body></html>'
+		);
+		expect(layout.owes(), 'no observer').toBe(false);
+		const IO = (w as unknown as { IntersectionObserver: IO }).IntersectionObserver;
+		const io = new IO(() => {});
+		io.observe(w.document.getElementById('top') as unknown as Element);
+		expect(layout.owes(), 'a target never reported').toBe(true);
+		await loop.run(100);
+		expect(layout.owes()).toBe(false);
+		io.observe(w.document.getElementById('below') as unknown as Element);
+		await loop.run(100);
+		expect(layout.owes(), 'one off screen, reported').toBe(false);
+		w.document.getElementById('tall')!.remove();
+		expect(layout.owes(), 'no frame asked until the change is heard').toBe(false);
+		await Promise.resolve();
+		expect(layout.owes(), 'one that came on screen').toBe(true);
+		await w.happyDOM.close();
+		expect(layout.owes(), 'its document closed').toBe(false);
+	});
+
+	/** A page whose `below` an adopted constructed sheet moved on screen: no node changed, so the
+	 *  host's ear heard nothing, and no frame is asked. */
+	const sheet_moved = async () => {
+		const p = page(
+			'<p id="top">top</p><div id="tall" style="height: 2000px"></div><p id="below">below</p>'
+		);
+		p.io.observe(p.$('top'));
+		p.io.observe(p.$('below'));
+		await p.loop.run(100);
+		p.seen.length = 0;
+		const sheet = new (p.w as unknown as { CSSStyleSheet: typeof CSSStyleSheet }).CSSStyleSheet();
+		sheet.replaceSync('#tall { display: none }');
+		(p.w.document as unknown as { adoptedStyleSheets: CSSStyleSheet[] }).adoptedStyleSheets = [
+			sheet
+		];
+		expect(
+			boxes(p.w.document as unknown as Document).get(p.$('below'))!.y,
+			'the case it is for: the layout as it stands moved it on screen'
+		).toBeLessThan(720);
+		return p;
+	};
+
+	it('owes no frame for a layout change no DOM change made (an adopted stylesheet): a frame reports from the layout it kept', async () => {
+		const { loop, seen, layout } = await sheet_moved();
+		expect(layout.owes()).toBe(false);
+		await loop.run(100);
+		expect(seen, 'no frame reports it').toEqual([]);
+	});
+
+	it('owes no frame for a layout change no DOM change made, while a frame is asked: that frame reports from the layout it kept, not the one as it stands', async () => {
+		const { loop, w, io, seen, layout } = await sheet_moved();
+		const extra = w.document.createElement('p') as unknown as Element;
+		io.observe(extra);
+		io.unobserve(extra);
+		expect(layout.owes(), 'a frame is asked, and nothing it would report').toBe(false);
+		await loop.run(100);
+		expect(seen, 'that frame reports nothing').toEqual([]);
 	});
 
 	it('a root margin widens the viewport', async () => {

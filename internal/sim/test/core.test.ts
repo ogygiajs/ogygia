@@ -454,6 +454,79 @@ describe('the network', () => {
 		expect(net.exchanges.map((e) => e.status)).toEqual(['aborted']);
 	});
 
+	it('a held request reaches its server only once let go, and one called off or lost meanwhile never does', async () => {
+		const loop = new Loop(rng(1));
+		const net = new Network({ loop, rng: rng(1), faults: new Set() });
+		const asked: string[] = [];
+		const handler = async (r: Request) => {
+			asked.push(new URL(r.url).pathname);
+			return new Response('x');
+		};
+		const let_go = net.hold((url) => url.pathname !== '/free');
+		const called_off = new AbortController();
+		const answered = net.send('tab-1#1', new Request('https://app.test/held'), handler);
+		void net
+			.send('tab-1#1', new Request('https://app.test/off', { signal: called_off.signal }), handler)
+			.catch(() => {});
+		void net.send('tab-2#1', new Request('https://app.test/lost'), handler).catch(() => {});
+		void net.send('tab-1#1', new Request('https://app.test/free'), handler);
+		await loop.run(10_000);
+		expect(asked).toEqual(['/free']);
+		expect(net.busy()).toBe(true);
+		called_off.abort();
+		net.offline('tab-2', true);
+		await loop.run(100);
+		const at = loop.now;
+		let_go();
+		let_go();
+		await loop.run();
+		expect(await answered).toBeInstanceOf(Response);
+		expect(asked).toEqual(['/free', '/held']);
+		expect(net.exchanges.find((e) => e.url.endsWith('/held'))!.status).toBe(200);
+		expect(loop.now).toBeGreaterThan(at);
+	});
+
+	it('two holds by one test each keep their own requests, and the network ending fails what is still held, and leaves one lost meanwhile as it was', async () => {
+		const loop = new Loop(rng(1));
+		const net = new Network({ loop, rng: rng(1), faults: new Set() });
+		const asked: string[] = [];
+		const handler = async (r: Request) => {
+			asked.push(new URL(r.url).pathname);
+			return new Response('x');
+		};
+		const any = () => true;
+		const first = net.hold(any);
+		const one = net.send('tab-1#1', new Request('https://app.test/one'), handler);
+		const second = net.hold(any);
+		const two = net.send('tab-1#1', new Request('https://app.test/two'), handler);
+		const third = net.hold(any);
+		const three = net.send('tab-1#1', new Request('https://app.test/three'), handler).then(
+			() => 'answered',
+			(e: unknown) => (e instanceof Error ? e.message : String(e))
+		);
+		void net.send('tab-2#1', new Request('https://app.test/lost'), handler).catch(() => {});
+		second();
+		await loop.run(10_000);
+		expect(asked, 'a request any hold names stays until every such hold lets go').toEqual([]);
+		net.offline('tab-2', true);
+		first();
+		await loop.run(10_000);
+		expect(asked).toEqual(['/one', '/two']);
+		expect(await one).toBeInstanceOf(Response);
+		expect(await two).toBeInstanceOf(Response);
+		expect(net.held(), 'one lost meanwhile is held no more').toEqual(['https://app.test/three']);
+		net.end();
+		expect(await three).toMatch(/Failed to fetch/);
+		expect(
+			net.exchanges.find((e) => e.url.endsWith('/lost'))!.status,
+			'the end leaves one lost meanwhile as it was lost'
+		).toBe('offline');
+		expect(net.busy()).toBe(false);
+		third();
+		await loop.run(10_000);
+		expect(asked).toEqual(['/one', '/two']);
+	});
+
 	it('each visitor comes from a client address of its own, and its server hops keep it', async () => {
 		// (a crowd of visitors shared one address, so a per-client rate limit saw one client)
 		const loop = new Loop(rng(1));

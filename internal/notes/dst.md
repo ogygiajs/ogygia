@@ -35,6 +35,10 @@ works, what is built, and how to add to it.
      origin's answer, so a page whose only failed hops were such GETs is judged whole (a stalled hop
      beside it still excuses the app's 504). The MPA check reads the replica as its first origin
      (its files, and a region sheet lifted beside the same file at the first: `replicas_as_one`).
+     A test that needs an answer to come after some moment holds its request (`Network.hold`) and
+     lets it go then: a request's delays are drawn by its address, and a region's address holds the
+     build's region ids, so a seed's delays order it one way on one build and another way on a
+     rebuild of the same commit (`test/hidden-tab.node.test.ts`, CI run 45967491968).
    - `server.ts`: a built Kit app (`.svelte-kit/output`) served in process, static files plus
      `Server.respond`. Each instance loads its own copy of the output (its own module graph), placed
      beside the app's output so it resolves the app's dependencies.
@@ -384,12 +388,55 @@ its animation frames wait until it is shown (`platform.ts` parks them; a documen
 happy-dom's own, which writes the content, and is never parked). The `background` action opens a
 tab behind the one looked at. A tab brought to the front is looked at 300 ms before the visitor acts
 in it (gen 193, seed 8: a reload at once counted the old document's late requests as the next
-one's). A document loaded behind and never shown owes its wakes after every action (`islands-wake`);
-one shown before it went behind is set aside: a frame it asked for then waits, as a browser's does.
+one's). A document behind another owes its wakes after every action (`islands-wake`), as it stands.
+One shown before it went behind is owed a look while its next frame would do something
+(`owes_look`, `Tab.owes_frame`: run an animation frame it asked for behind, or tell an observer of a
+target it never reported or one that moved across the viewport since, in the layout that frame
+reports from). Meanwhile, as a browser's waits: with an animation frame waiting, none of its islands
+is judged (any may wait on it); with only its observers owed, its `visible` islands are not, and
+every other wake is owed. Owed no look, it owes every wake; its on-screen `visible` islands too
+once its observers had a frame (`Tab.framed`), and not before (they never had one to wake by).
+The run's end is two steps (cli.ts). First it rests as it always has (`rest_at_end`: the tabs back
+online, then rest and step while a judged tab has a timer set, a minute at most, with no look),
+and every end-of-run oracle judges every tab at that moment, a tab owed a look then as it stands,
+what it waits for set aside as between actions (`test/hidden-tab.node.test.ts` › at main's moment:
+the same moment, and the same findings, as before tabs were looked at). A tab owed a look is
+compared as main compared it (`as_it_stands`: the same fresh loads on the shared world, the same
+time), so every tab after it and every check after them judge at main's moment
+(`test/run-end-behind.node.test.ts` › spends main's comparison); only one whose observers never
+had a frame keeps that finding. Which tabs are owed a look is decided once, at that rest: one that
+stops owing it while a tab before it is compared (its page stops watching) is still compared as
+main did (`test/run-end-behind.node.test.ts` › owes none by the time it is compared). Then each tab
+owed a look
+at that moment, and only those, is looked at once (`look_at_end`, a crowd's tabs too): it is shown,
+and stays shown while it has a timer set, its own minute from the look (a look may wake an island
+whose download fails, and its retry's 1, 3 and 9 s run in front, where the retry wakes too), then
+the tab in front is put back. Those tabs alone are judged again: their islands' wakes, and the
+visitor's against a shown fresh load, unless the look's own requests met a fault (palaestra seed
+13). A `visible` island that never wakes once looked at is `islands-wake` and an MPA difference
+(#2176: a `visible` island its hole brought after it went behind; and #2091: one shown as it came
+but behind before its observers had a frame; palaestra seed 1000004158). Time the look takes hides
+nothing in another tab, which is not judged again; a tab that owes a new look after its one (one
+that asks an animation frame in each frame) is not looked at again; while a frame waits it gets no
+wake check (`islands_wake` sets the tab aside), only the MPA comparison.
+The look shows the tab, and the tab in front goes behind and back: each hears `visibilitychange`
+twice. The waste checks (`waste`, `asked_twice_each`) judge before it, so a page that asks the
+server again when it is shown is not counted for the look.
+The tradeoff: a tab owed a look whose observers had their frames is compared only after its look,
+up to its own minute in front, so a real difference that heals within that minute (a backoff slower
+than main's minute) is missed there, and so is one whose look's own requests met a fault (the tab
+is then not compared at all); only such tabs, which main compared with what no browser shows.
 The MPA check judges a tab behind against a fresh load behind another tab too, unless its document's
-observers had a frame while it was shown (`Tab.framed`): one shown as it came but behind before its
-runtime watched anything has an on-screen `visible` island asleep, as a never-shown one does (#2091).
-Mutation: the paint gate's hidden branch (schedule.ts) died on gen 262.
+observers had a frame (`Tab.framed`): one never shown, or one whose runtime watched nothing. One
+owed a look whose observers never had a frame (#2091) is judged both ways: first as it stands at
+the end's first step (`as_it_stands`), against a fresh load behind (a `visible` island that woke
+behind with no frame, at once or after a timer, is a difference there, which the look would hide,
+and is the finding; what a retry fills in late is in it by then), then, showing none, once looked
+at, against a shown one (`test/run-end-behind.node.test.ts`, `test/hidden-tab.node.test.ts`).
+Mutation: the paint gate's hidden branch (schedule.ts, `hidden-document-waits-for-a-frame`) died on
+gen 262. A look hides it in a tab shown before (the frame comes then), never in one loaded behind
+and never shown: that one is owed no look, so its islands are judged though a frame waits there
+(`test/oracles.test.ts`).
 
 Some seeds' engine has no `requestIdleCallback` (stream `idle engine`, 30%: Safari's), so code that
 waits for an idle moment takes its own fallback (core's `#on_idle` pause; mutation: died on gen 262).

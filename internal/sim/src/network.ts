@@ -60,6 +60,22 @@ export type Handler = (request: Request) => Promise<Response>;
 /** Hears a response's body end: all of it came (`whole`), or it broke off on the way. */
 export type Ended = (whole: boolean, status: number) => void;
 
+/** A test's hold on requests (`Network.hold`): which it names, and those it keeps now. */
+interface Hold {
+	readonly match: (url: URL, realm: string) => boolean;
+	readonly keeps: Set<Held>;
+}
+
+/** A request kept off the wire: its address, whether it is still asked (not called off or lost),
+ *  the holds keeping it, how it goes once they let go, how it fails. */
+interface Held {
+	readonly url: string;
+	readonly live: () => boolean;
+	readonly by: Set<Hold>;
+	readonly go: () => void;
+	readonly drop: () => void;
+}
+
 /** What the network saw, for the oracles and the trace. */
 export interface Exchange {
 	readonly id: number;
@@ -341,6 +357,41 @@ export class Network {
 		return this.#offline.has(realm);
 	}
 
+	/** Each hold (`hold`), with the requests it keeps until it is let go. */
+	readonly #holds = new Set<Hold>();
+
+	/**
+	 * Keeps each request that would go on the wire and that `match` names (its address, the document
+	 * asking) off it until the returned function lets it go: each then starts its way from that
+	 * moment, its fate drawn as it would be, once every hold that keeps it let it go. A test's
+	 * ordering, on any build: a request's delays are drawn by its address, which holds the build's
+	 * region ids (test/hidden-tab.node.test.ts). What is still held when the network ends fails.
+	 */
+	hold(match: (url: URL, realm: string) => boolean): () => void {
+		const hold: Hold = { match, keeps: new Set() };
+		this.#holds.add(hold);
+		return () => {
+			if (!this.#holds.delete(hold)) return;
+			for (const held of hold.keeps) {
+				held.by.delete(hold);
+				if (held.by.size === 0) held.go();
+			}
+		};
+	}
+
+	/** The address of each request a hold keeps off the wire now (one called off or lost is not). */
+	held(): string[] {
+		const held = new Set([...this.#holds].flatMap((h) => [...h.keeps]));
+		return [...held].filter((h) => h.live()).map((h) => h.url);
+	}
+
+	/** The network's world is over: each request still held fails, and no hold keeps any more. */
+	end(): void {
+		const held = new Set([...this.#holds].flatMap((h) => [...h.keeps]));
+		this.#holds.clear();
+		for (const h of held) h.drop();
+	}
+
 	/** Each calm tab's pace: ms added to every leg of its requests. */
 	readonly #calm = new Map<string, number>();
 
@@ -488,71 +539,93 @@ export class Network {
 				loop.add('net', `offline ${ex.id}`, 0, () => fail(why));
 			});
 			signal?.addEventListener('abort', () => this.#on_wire.delete(ex), { once: true });
-			loop.add(
-				'net',
-				`request ${ex.id} ${request.method} ${new URL(request.url).pathname}`,
-				this.#latency(fate, pace),
-				() => {
-					// (the duplicate is a connection of its own, closed once its answer is thrown away)
-					const copy_line = dup ? new AbortController() : null;
-					const copy =
-						copy_line !== null ? new Request(request.clone(), { signal: copy_line.signal }) : null;
-					const address = calm
-						? REFERENCE_ADDRESS
-						: (this.#addresses.get(behalf.split('#')[0]) ?? VISITOR_ADDRESS);
-					ex.address = address;
-					const answer = (r: Request) =>
-						answering.run(ex, () =>
-							asked_by.run(behalf, () => client.run(address, () => handler(r)))
-						);
-					void answer(new Request(request, { signal: line.signal }))
-						.then(async (response) => {
-							// the duplicate is answered too, and its answer thrown away (as a proxy's retry)
-							if (copy !== null)
-								await answer(copy).then(
-									(r) => {
-										copy_line?.abort(new DOMException('The connection closed', 'AbortError'));
-										return r.body?.cancel();
-									},
-									() => {}
-								);
-							// (called off before it came, it stays `aborted`: the client never got it)
-							if (!lost && !signal?.aborted) ex.status = response.status;
-							ex.build = response.headers.get(ANSWERED_BY) ?? undefined;
-							const leg = this.#latency(fate, pace) + stall - midway;
-							loop.add('net', `response ${ex.id} ${response.status}`, leg, () => {
-								if (signal?.aborted || lost) {
-									hang_up();
-									void response.body?.cancel();
-									return;
-								}
+			const on_its_way = () =>
+				loop.add(
+					'net',
+					`request ${ex.id} ${request.method} ${new URL(request.url).pathname}`,
+					this.#latency(fate, pace),
+					() => {
+						// (the duplicate is a connection of its own, closed once its answer is thrown away)
+						const copy_line = dup ? new AbortController() : null;
+						const copy =
+							copy_line !== null
+								? new Request(request.clone(), { signal: copy_line.signal })
+								: null;
+						const address = calm
+							? REFERENCE_ADDRESS
+							: (this.#addresses.get(behalf.split('#')[0]) ?? VISITOR_ADDRESS);
+						ex.address = address;
+						const answer = (r: Request) =>
+							answering.run(ex, () =>
+								asked_by.run(behalf, () => client.run(address, () => handler(r)))
+							);
+						void answer(new Request(request, { signal: line.signal }))
+							.then(async (response) => {
+								// the duplicate is answered too, and its answer thrown away (as a proxy's retry)
+								if (copy !== null)
+									await answer(copy).then(
+										(r) => {
+											copy_line?.abort(new DOMException('The connection closed', 'AbortError'));
+											return r.body?.cancel();
+										},
+										() => {}
+									);
+								// (called off before it came, it stays `aborted`: the client never got it)
+								if (!lost && !signal?.aborted) ex.status = response.status;
+								ex.build = response.headers.get(ANSWERED_BY) ?? undefined;
+								const leg = this.#latency(fate, pace) + stall - midway;
+								loop.add('net', `response ${ex.id} ${response.status}`, leg, () => {
+									if (signal?.aborted || lost) {
+										hang_up();
+										void response.body?.cancel();
+										return;
+									}
+									this.#on_wire.delete(ex);
+									resolve(
+										this.#deliver(
+											ex,
+											response,
+											fate,
+											cut,
+											tamper,
+											signal,
+											pace,
+											midway,
+											ended,
+											hang_up
+										)
+									);
+								});
+							})
+							.catch((error: unknown) => {
+								if (lost) return;
 								this.#on_wire.delete(ex);
-								resolve(
-									this.#deliver(
-										ex,
-										response,
-										fate,
-										cut,
-										tamper,
-										signal,
-										pace,
-										midway,
-										ended,
-										hang_up
-									)
+								ex.status = 500;
+								loop.add('net', `error ${ex.id}`, this.#latency(fate, pace), () =>
+									fail(error instanceof Error ? error.message : String(error))
 								);
 							});
-						})
-						.catch((error: unknown) => {
-							if (lost) return;
-							this.#on_wire.delete(ex);
-							ex.status = 500;
-							loop.add('net', `error ${ex.id}`, this.#latency(fate, pace), () =>
-								fail(error instanceof Error ? error.message : String(error))
-							);
-						});
+					}
+				);
+			const by = new Set([...this.#holds].filter((h) => h.match(target, realm)));
+			if (by.size === 0) return void on_its_way();
+			const held: Held = {
+				url: request.url,
+				live: () => !lost && !signal?.aborted,
+				by,
+				go: () => {
+					if (!lost && !signal?.aborted) on_its_way();
+				},
+				drop: () => {
+					if (lost || signal?.aborted) return;
+					lost = true;
+					this.#on_wire.delete(ex);
+					hang_up();
+					ex.status = 'aborted';
+					fail('its world ended');
 				}
-			);
+			};
+			for (const h of by) h.keeps.add(held);
 		});
 	}
 

@@ -2,8 +2,9 @@
 // to 6 actions; re-picked as seed 13 once a request's fate stopped reading its file's hash (#2110),
 // the plan the same: the visitor goes to /head-budget/via-factory in tab 1, then acts in tab 0 before the
 // page's runtime ran, so tab 1 goes behind. Its document was shown as it came, but its visible
-// island never had a frame, and sleeps as a browser's would. A shown fresh load wakes it: the page is
-// judged against a fresh load behind another tab instead.
+// island never had a frame, and sleeps as a browser's would; a shown fresh load wakes it. The run's
+// end judges the tab as it stands against a fresh load behind another tab, then looks at it (its
+// island wakes then) and judges it against a shown fresh load.
 //
 //   1. new tab at /nested-css
 //   2. tab 1: reload
