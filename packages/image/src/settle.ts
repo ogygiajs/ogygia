@@ -90,6 +90,7 @@ interface Made {
 
 interface Window {
 	key: string;
+	previous: string;
 	ends_at: number;
 	max_age: number;
 }
@@ -281,7 +282,16 @@ function remote_keep(max_age: number, now_s: number, url: string): Window {
 	const at = Math.floor(now_s) + spread(url, span);
 	const window = Math.floor(at / span);
 	const left = Math.max(1, (window + 1) * span - at);
-	return { key: `@${span}.${window}`, ends_at: (Math.floor(now_s) + left) * 1000, max_age };
+	return {
+		key: `@${span}.${window}`,
+		previous: `@${span}.${window - 1}`,
+		ends_at: (Math.floor(now_s) + left) * 1000,
+		max_age
+	};
+}
+
+async function last_window(key: string, window: Window | null): Promise<Kept | null> {
+	return store === null || window === null ? null : store.open(`${key}${window.previous}`);
 }
 
 function kept_for(window: Window | null): number {
@@ -312,7 +322,9 @@ async function kept_file(
  *  remote URL's bytes (a recipe whose tail names the URL, fetched under `image({ remote })`, or a
  *  card that shows a remote image) is kept, and answered to be kept, until the end of the current
  *  `remote.maxAge` window, never forever, so the URL's new bytes go out within that time; a card
- *  that shows only the build's images is kept forever. */
+ *  that shows only the build's images is kept forever. When the host fails (a 5xx answer here)
+ *  after a window ends, the last window's file, while the store holds it, is answered instead, to
+ *  be kept 30 s, the time a failed URL is not fetched again. */
 export async function settle(
 	recipe: ParsedRecipe,
 	key: string,
@@ -358,6 +370,15 @@ export async function settle(
 			said_each.once(`image_remote_refused ${named}`, () =>
 				warn('image_remote_refused', { url: named, status: e.status, reason: e.message })
 			);
+			const last = e.status >= 500 ? await last_window(key, window) : null;
+			if (last)
+				return new Response(last.body, {
+					headers: {
+						'content-type': type,
+						'content-length': String(last.size),
+						'cache-control': `public, max-age=${FAILED_KEEP_MS / 1000}`
+					}
+				});
 			return new Response('the remote image could not be fetched', {
 				status: e.status,
 				headers: { 'cache-control': 'no-store' }
