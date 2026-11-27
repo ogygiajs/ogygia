@@ -225,7 +225,6 @@ const doc_asks = shared<WeakMap<Request, PageAsk>>({
 	make: () => new WeakMap()
 });
 const request_of = () => live_event()?.request;
-/** A page's ask record, keeping page keys only where this build's runtime reads the page seed. */
 const page_ask = (): PageAsk => new PageAsk(!!(HAS & F_PAGE));
 const ref_names_of = shared<WeakMap<Request, RefNames>>({
 	name: 'ogygia.request-ref-names',

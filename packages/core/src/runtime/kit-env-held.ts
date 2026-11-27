@@ -19,12 +19,10 @@ export const KIT_ENV_SELECTOR: `script[type="${typeof KIT_ENV_TYPE}"]` = `script
 class HeldKitEnv {
 	#text: string | null = null;
 
-	/** Keep the env text of an answer the runtime read. */
 	hold(text: string): void {
 		this.#text = text;
 	}
 
-	/** The env text last held, or null. */
 	text(): string | null {
 		return this.#text;
 	}
