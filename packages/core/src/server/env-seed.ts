@@ -13,18 +13,11 @@ import { devalue_text } from './devalue-text.ts';
 import { ogygia_script } from './document-assembly.ts';
 import { response_mark } from './response-mark.ts';
 
-/**
- * The env's text, made again only when a variable's value changed: Kit's `rendered_env` is one
- * object per server, which Kit's `set_env` writes into (again in dev, on an edit). A hit is one
- * pass over its variables, comparing each value with the one the text was made from.
- */
 class EnvText {
 	#from = new Map<string, unknown>();
 	#text: string | null = null;
 	#made = false;
 
-	/** `env` as devalue text; null where it holds no variable, or does not serialize (said once
-	 *  per change, with `kit_env_unshipped`). */
 	of(env: Record<string, unknown>): string | null {
 		if (this.#made && this.#same(env)) return this.#text;
 		this.#from = new Map(Object.entries(env));

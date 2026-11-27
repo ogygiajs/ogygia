@@ -234,7 +234,7 @@ describe("Kit's public env (KIT-PUBLIC-ENV)", () => {
 		expect(env![1]).toBe(runtime?.[1]);
 	});
 
-	it('an edited variable ships its new value on the next page', async () => {
+	it('an edited variable ships its new value on the next page, though Kit writes it into the same object', async () => {
 		const env: Record<string, unknown> = { PUBLIC_REGION: 'eu' };
 		set_kit_public_env(env);
 		expect(await page(reads_env)).toContain('eu');
