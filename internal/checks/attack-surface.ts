@@ -68,6 +68,9 @@ const PATTERNS: Record<Kind, Array<[RegExp, (m: RegExpExecArray) => string]>> = 
 
 const DEVALUE_PARSE = 'devalue parse';
 
+const DOLLAR_G = /\$/g;
+const escape_name = (name: string): string => name.replace(DOLLAR_G, '\\$');
+
 /** The calls of devalue's `parse` a file's own imports name: `parse` (or its local name) from a
  *  value import of devalue, and `<ns>.parse` from a namespace import. A type import names none. */
 function devalue_parse_calls(text: string): RegExp[] {
@@ -75,10 +78,10 @@ function devalue_parse_calls(text: string): RegExp[] {
 	for (const m of text.matchAll(/\bimport\s*\{([^}]*)\}\s*from\s*['"]devalue['"]/g))
 		for (const spec of m[1]!.split(',')) {
 			const named = /^\s*parse(?:\s+as\s+([\w$]+))?\s*$/.exec(spec);
-			if (named) calls.push(new RegExp(`(?<![.\\w$])${named[1] ?? 'parse'}\\(`, 'g'));
+			if (named) calls.push(new RegExp(`(?<![.\\w$])${escape_name(named[1] ?? 'parse')}\\(`, 'g'));
 		}
 	for (const m of text.matchAll(/\bimport\s*\*\s*as\s+([\w$]+)\s+from\s*['"]devalue['"]/g))
-		calls.push(new RegExp(`\\b${m[1]}\\.parse\\(`, 'g'));
+		calls.push(new RegExp(`(?<![.\\w$])${escape_name(m[1]!)}\\.parse\\(`, 'g'));
 	return calls;
 }
 
