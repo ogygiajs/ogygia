@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import zlib from 'node:zlib';
-import sharp from 'sharp';
+import sharp, { type Sharp } from 'sharp';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { CardSpec } from '../src/card.ts';
 import { card_png, engine } from '../src/cards/engine.ts';
@@ -282,27 +282,27 @@ describe("a card's images, as satori is handed them", () => {
 		{
 			file: 'CMYK JPEG',
 			background: '#ff0000',
-			make: (img: sharp.Sharp) => img.toColourspace('cmyk').jpeg()
+			make: (img: Sharp) => img.toColourspace('cmyk').jpeg()
 		},
 		{
 			file: 'Display P3 JPEG',
 			background: '#ff0000',
-			make: (img: sharp.Sharp) => img.withIccProfile('p3').jpeg()
+			make: (img: Sharp) => img.withIccProfile('p3').jpeg()
 		},
 		{
 			file: '16-bit PNG',
 			background: '#ff0000',
-			make: (img: sharp.Sharp) => img.toColourspace('rgb16').png()
+			make: (img: Sharp) => img.toColourspace('rgb16').png()
 		},
 		{
 			file: 'grey PNG',
 			background: '#808080',
-			make: (img: sharp.Sharp) => img.toColourspace('b-w').png()
+			make: (img: Sharp) => img.toColourspace('b-w').png()
 		},
 		{
 			file: '16-bit grey PNG',
 			background: '#808080',
-			make: (img: sharp.Sharp) => img.toColourspace('grey16').png()
+			make: (img: Sharp) => img.toColourspace('grey16').png()
 		}
 	])(
 		'a small $file on a card draws its own pixels, as an <img> and as a background url() (resvg draws a CMYK JPEG as nothing and reads no colour profile)',
