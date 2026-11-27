@@ -513,11 +513,14 @@ describe("a hole's fallback does not stand", () => {
 });
 
 describe('an island that wakes on its own is awake', () => {
-	/** `wire`: the document's requests, each `[url, status]`; `hidden`: the tab is behind another. */
+	/** `wire`: the document's requests, each `[url, status]`; `hidden`: the tab is behind another;
+	 *  `framed`: it was shown, and its observers had frames, and it owes `owes` one. */
 	const at_rest = async (
 		body: string,
 		wire: Array<[string, number | 'dropped']> = [],
-		hidden = false
+		hidden = false,
+		framed = false,
+		owes = false
 	) => {
 		const { Window } = await import('happy-dom');
 		// (the simulator's viewport: src/layout.ts)
@@ -528,6 +531,9 @@ describe('an island that wakes on its own is awake', () => {
 			name: 'tab-1',
 			documents: 1,
 			hidden,
+			seen: new Set(framed ? ['tab-1#1'] : []),
+			framed: new Set(framed ? ['tab-1#1'] : []),
+			owes_frame: () => owes,
 			page: { mainFrame: { url: 'https://app.test/p1', document: w.document } }
 		} as unknown as Parameters<typeof islands_wake>[0];
 		const world = {
@@ -610,6 +616,13 @@ describe('an island that wakes on its own is awake', () => {
 				`${fold(1000)}<ogygia-region wake="visible" entry="/_app/n3.js">${island('load')}</ogygia-region>`
 			)
 		).toBeNull();
+	});
+
+	it('finds a visible island on screen asleep in a tab behind another whose frames told its observers all there is, and passes one there while a frame is owed (#2176)', async () => {
+		expect((await at_rest(visible(), [], true, true))?.oracle).toBe('islands-wake');
+		expect((await at_rest(island('load'), [], true, true))?.oracle).toBe('islands-wake');
+		expect(await at_rest(visible(), [], true, true, true)).toBeNull();
+		expect(await at_rest(island('load'), [], true, true, true)).toBeNull();
 	});
 
 	it('owes a media island its wake only while its query matches (the viewport is 1280 px wide)', async () => {

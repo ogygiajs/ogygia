@@ -125,7 +125,9 @@ describe.skipIf(!built)('a tab behind another', () => {
 	/**
 	 * A tab that painted, then went behind before its top holes answered: the nested `visible`
 	 * island they bring waits for a frame. Its hole requests are held until it is behind, so it is
-	 * the same case on every build (`deaf`: what the runtime hears of that island once shown).
+	 * the same case on every build (a request's delays are drawn by its address, which holds the
+	 * build's region ids: dst.md). With `deaf`, a runtime that watches the hole's targets and never
+	 * hears them come on screen: each is watched by an observer of its own whose reports go nowhere.
 	 */
 	const behind_owing = async (world: World, deaf = false) => {
 		const v = world.visitor('v');
@@ -160,10 +162,11 @@ describe.skipIf(!built)('a tab behind another', () => {
 		).toEqual(['pending', 'pending']);
 		world.browsers.focus(v, front);
 		if (deaf) {
-			// (a runtime that watches the island and never hears it come on screen: each target in
-			// the hole is watched by an observer of its own whose reports go nowhere)
 			const IO = (tab.page.mainFrame.window as unknown as typeof globalThis).IntersectionObserver;
-			const observe = IO.prototype.observe;
+			const observe = Object.getOwnPropertyDescriptor(IO.prototype, 'observe')!.value as (
+				this: IntersectionObserver,
+				target: Element
+			) => void;
 			IO.prototype.observe = function (this: IntersectionObserver, target: Element) {
 				if (target.closest('[data-mx-hole]') === null) return observe.call(this, target);
 				observe.call(new IO(() => {}), target);
@@ -220,6 +223,10 @@ describe.skipIf(!built)('a tab behind another', () => {
 		});
 		try {
 			const { v, front, tab, inner } = await behind_owing(world, true);
+			expect(
+				islands_wake(tab, world),
+				'its islands are not judged while it owes a frame'
+			).toBeNull();
 			await visitor_looks(world, v);
 			expect(front.hidden).toBe(false);
 			expect(tab.hidden).toBe(true);
