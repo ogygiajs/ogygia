@@ -33,6 +33,10 @@ function app_files(): Record<string, string> {
 			export const late = () => page.url.pathname;
 		`,
 		[`${ROOT}/src/lib/late-plain.ts`]: `export const late_plain = 1;\n`,
+		[`${ROOT}/src/lib/late-comment.ts`]: dedent`
+			/** @example import { invalidate } from '$app/navigation'; */
+			export const late_comment = 1;
+		`,
 		[`${PKG}/index.js`]: dedent`
 			// import { gone } from 'pkg-commented';
 			/** @example import { tryLogin } from '$lib/server/auth' */
@@ -218,6 +222,16 @@ describe('a rules build stops when a module that reads `$app/*` joins the island
 			rules: true,
 			transform_first: true,
 			file: 'late-plain.ts'
+		});
+		expect(compiler.program.island_graph.has(abs)).toBe(true);
+		expect(() => compiler.check_island_order()).not.toThrow();
+	});
+
+	test('one that names `$app/*` only in a comment imports none, so its late join passes', async () => {
+		const { compiler, abs } = await late_join({
+			rules: true,
+			transform_first: true,
+			file: 'late-comment.ts'
 		});
 		expect(compiler.program.island_graph.has(abs)).toBe(true);
 		expect(() => compiler.check_island_order()).not.toThrow();
