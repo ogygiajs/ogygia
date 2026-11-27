@@ -271,7 +271,10 @@ describe('a prerendered card that shows a remote image', () => {
 		return file;
 	};
 
-	async function build(card_id_now: string): Promise<{ name: string; color: number[] }> {
+	async function build(
+		card_id_now: string,
+		fetch_remote: (url: string, where?: string) => Promise<string> = () => Promise.resolve(at.file)
+	): Promise<{ name: string; color: number[] }> {
 		delete process.env.__OGYGIA_IMAGE_BUILD;
 		const handoff = await handoff_for(true);
 		const recipe: Recipe = {
@@ -290,7 +293,7 @@ describe('a prerendered card that shows a remote image', () => {
 			CFG,
 			[],
 			out,
-			() => Promise.resolve(at.file),
+			fetch_remote,
 			async (_tail: string, _id: string, remote?: (url: URL) => Promise<Uint8Array>) =>
 				remote ? remote(new URL(url)) : new Uint8Array(fs.readFileSync(at.file))
 		);
@@ -312,5 +315,16 @@ describe('a prerendered card that shows a remote image', () => {
 		expect(second.name).not.toBe(first.name);
 		at.file = await solid('#0000ff');
 		expect((await build(id)).name, 'the same bytes name the same file').toBe(second.name);
+	});
+
+	test("fetches its remote image as a share card, so the build's remote messages name a card as the asker", async () => {
+		const id = card_id({ digest: random_digest(), width: 64, height: 32 }, json);
+		at.file = await solid('#00ff00');
+		const asked: (string | undefined)[] = [];
+		await build(id, (_url, where) => {
+			asked.push(where);
+			return Promise.resolve(at.file);
+		});
+		expect(asked).toEqual(['a share card']);
 	});
 });
