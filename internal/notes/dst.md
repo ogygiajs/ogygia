@@ -404,7 +404,10 @@ the same moment, and the same findings, as before tabs were looked at). A tab ow
 compared as main compared it (`as_it_stands`: the same fresh loads on the shared world, the same
 time), so every tab after it and every check after them judge at main's moment
 (`test/run-end-behind.node.test.ts` › spends main's comparison); only one whose observers never
-had a frame keeps that finding. Then each tab owed a look
+had a frame keeps that finding. Which tabs are owed a look is decided once, at that rest: one that
+stops owing it while a tab before it is compared (its page stops watching) is still compared as
+main did (`test/run-end-behind.node.test.ts` › owes none by the time it is compared). Then each tab
+owed a look
 at that moment, and only those, is looked at once (`look_at_end`, a crowd's tabs too): it is shown,
 and stays shown while it has a timer set, its own minute from the look (a look may wake an island
 whose download fails, and its retry's 1, 3 and 9 s run in front, where the retry wakes too), then

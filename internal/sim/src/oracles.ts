@@ -516,11 +516,12 @@ export function owes_look(tab: Tab): boolean {
  * observers never had a frame (#2091), loaded fresh behind another tab: the look would wake its
  * `visible` islands, and so hide one that woke behind with no frame. For one that had its frames,
  * the fresh load is shown, and what it waits for until the look is a difference no browser would
- * show: null, and the tab is judged once looked at. Null, with no fresh load, for a tab not owed a
- * look (test/hidden-tab.node.test.ts).
+ * show: null, and the tab is judged once looked at. Which tabs are owed a look is the run end's
+ * rest's to say (cli.ts `rest_at_end`), not this: one owed a look there that owes none by the time
+ * it is compared still spends main's comparison (test/run-end-behind.node.test.ts › owes none by
+ * the time it is compared).
  */
 export async function as_it_stands(world: World, v: Visitor, tab: Tab): Promise<Broken | null> {
-	if (!owes_look(tab)) return null;
 	const b = await mpa_equivalent(world, v, tab);
 	return tab.framed.has(tab.realm) ? null : b;
 }
