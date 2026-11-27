@@ -21,6 +21,7 @@ import type { Plugin as VitePlugin } from 'vite';
 import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
 import { bridge } from '../bridge.ts';
 import { ogygiaPresetPreprocess, type MarkdownOptions } from '../markdown/index.ts';
+import { hold_markdown_extensions } from '../markdown/extensions.ts';
 import { snippet_macros } from '../macros/snippets.ts';
 import { rewrite_loaders } from '../macros/loaders.ts';
 import { rewrite_regions } from '../macros/regions.ts';
@@ -78,10 +79,12 @@ export function content(options: ContentOptions = {}): [OgygiaPlugin, ...VitePlu
 	const exts = markdown_extensions();
 
 	let root = '';
+	let routes_dir = '';
 	const plugin = definePlugin({
 		name: '@ogygia/content',
 		build(b) {
 			root = b.root;
+			routes_dir = b.routesDir;
 			b.files({ root: path.dirname(LIB_DIR), dirs: [path.join(LIB_DIR, 'site', 'components')] });
 			// each content() call is owned by the run of the module that makes it (dev: core marks it)
 			b.definers('@ogygia/content', ['content']);
@@ -114,7 +117,12 @@ export function content(options: ContentOptions = {}): [OgygiaPlugin, ...VitePlu
 			}
 		}
 	});
-	return [plugin, content_hmr(hmr), content_checks(() => root, exts), content_leaks()];
+	return [
+		plugin,
+		content_hmr(hmr),
+		content_checks(() => root, exts),
+		content_leaks(() => routes_dir)
+	];
 }
 
 type ContentBridgePresets = NonNullable<typeof bridge.contentPresets>;
@@ -128,6 +136,9 @@ function content_checks(get_root: () => string, exts: readonly string[]): VitePl
 	return {
 		name: 'ogygia:content-checks',
 		enforce: 'pre',
+		configResolved(config) {
+			hold_markdown_extensions(config.plugins);
+		},
 		transform(code, id) {
 			// vite-plugin-svelte strips the query from the `filename` its preprocessors see, so the id
 			// can't carry the preset that far — this pre-transform (which DOES see the full id) tags the

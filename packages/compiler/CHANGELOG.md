@@ -1,5 +1,20 @@
 # @ogygia/compiler
 
+## 0.16.0
+
+### Patch Changes
+
+- [#2161](https://github.com/ogygiajs/ogygia/pull/2161) [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A plugin macro call that its plugin does not compile now fails the build with `macro_in_markup` instead of reaching the page and throwing there: a call in a component's template expression, in a markdown page's (`.svx`, `.md`) prose expression (`{…}`), or in a markdown page's `<script>` for a macro that does not compile there. A markdown page's prose expression without the plugin listed fails with `macro_needs_plugin`, like a script call.
+
+- [#2161](https://github.com/ogygiajs/ogygia/pull/2161) [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A plugin macro call shown as text (a docs page writing `import.meta.og.image(path)` in prose, a code span or a fenced code sample, wherever it sits: a list item, a block quote, any indent, a span over two lines, a markdown page's frontmatter) no longer fails with `macro_needs_plugin`, while a real call still does: in a component's `<script>` or template expression, and in a markdown page's (`.svx`, `.md`) `<script>` or markup, whatever brace its frontmatter or prose leaves open.
+
+- [#2200](https://github.com/ogygiajs/ogygia/pull/2200) [`0e044f2`](https://github.com/ogygiajs/ogygia/commit/0e044f2d9e57da362f29241b82cfb4422fb77716) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The server build no longer waits forever on an external that a plugin marks external only for the module that imports it.
+
+- [#2200](https://github.com/ogygiajs/ogygia/pull/2200) [`0e044f2`](https://github.com/ogygiajs/ogygia/commit/0e044f2d9e57da362f29241b82cfb4422fb77716) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The server build no longer fixes its runtime features while the bundler has parsed a module but not yet started loading its imports, which could stop the build with `server_features_late` for a feature the server's code would have carried.
+- Updated dependencies [[`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44), [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44)]:
+  - @ogygia/core@0.16.0
+  - @ogygia/machine@0.16.0
+
 ## 0.15.1
 
 ### Patch Changes

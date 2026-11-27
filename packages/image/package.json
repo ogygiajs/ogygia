@@ -1,0 +1,132 @@
+{
+	"name": "@ogygia/image",
+	"version": "0.16.0",
+	"description": "Images for ogygia apps: files made on first request from signed recipes, responsive srcset from layout intent, blur placeholders, markdown and frontmatter images",
+	"keywords": [
+		"image",
+		"ogygia",
+		"responsive",
+		"sharp",
+		"sveltekit",
+		"vite"
+	],
+	"homepage": "https://ogygiajs.dev",
+	"license": "MIT",
+	"author": "Puru Vijayvargia <devpuruvj@gmail.com>",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ogygiajs/ogygia.git",
+		"directory": "packages/image"
+	},
+	"files": [
+		"dist",
+		"ambient.d.ts",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"svelte": "./src/index.ts",
+			"default": "./src/index.ts"
+		},
+		"./Img.svelte": {
+			"types": "./dist/Img.svelte.d.ts",
+			"svelte": "./src/Img.svelte",
+			"default": "./src/Img.svelte"
+		},
+		"./vite": {
+			"types": "./dist/vite/index.d.ts",
+			"default": "./src/vite/index.ts"
+		},
+		"./internal/messages": {
+			"types": "./dist/messages.d.ts",
+			"default": "./src/messages.ts"
+		},
+		"./types": {
+			"types": "./ambient.d.ts"
+		}
+	},
+	"publishConfig": {
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"svelte": "./dist/index.js",
+				"default": "./dist/index.js"
+			},
+			"./Img.svelte": {
+				"types": "./dist/Img.svelte.d.ts",
+				"svelte": "./dist/Img.svelte",
+				"default": "./dist/Img.svelte"
+			},
+			"./vite": {
+				"types": "./dist/vite/index.d.ts",
+				"default": "./dist/vite/index.js"
+			},
+			"./internal/messages": {
+				"types": "./dist/messages.d.ts",
+				"default": "./dist/messages.js"
+			},
+			"./types": {
+				"types": "./ambient.d.ts"
+			}
+		},
+		"access": "public"
+	},
+	"scripts": {
+		"build": "tsdown",
+		"prepublishOnly": "pnpm run build",
+		"check": "tsc -p . && svelte-check --tsconfig ./tsconfig.check.json --fail-on-warnings && tsc -p test && tsc -p e2e && vitest run",
+		"test": "vitest run",
+		"e2e": "playwright test && IMAGE_E2E_MODE=server playwright test && IMAGE_E2E_MODE=static playwright test && IMAGE_E2E_MODE=dev playwright test && IMAGE_E2E_MODE=base playwright test && IMAGE_E2E_MODE=cloudflare playwright test --pass-with-no-tests && IMAGE_E2E_MODE=cloudflare-links playwright test --pass-with-no-tests && IMAGE_E2E_MODE=vercel playwright test --pass-with-no-tests && IMAGE_E2E_MODE=vercel-alone playwright test --pass-with-no-tests"
+	},
+	"dependencies": {
+		"@ogygia/machine": "workspace:^"
+	},
+	"devDependencies": {
+		"@fontsource/jetbrains-mono": "catalog:",
+		"@ogygia/compiler": "workspace:*",
+		"@ogygia/config": "workspace:*",
+		"@ogygia/content": "workspace:*",
+		"@ogygia/core": "workspace:*",
+		"@ogygia/tooling": "workspace:*",
+		"@playwright/test": "catalog:",
+		"@resvg/resvg-js": "catalog:",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"@types/node": "catalog:",
+		"@typescript/native": "catalog:tsgo",
+		"fast-check": "catalog:",
+		"ogygia": "workspace:*",
+		"satori": "catalog:",
+		"satori-html": "catalog:",
+		"sharp": "catalog:",
+		"svelte": "catalog:",
+		"svelte-check": "catalog:",
+		"tsdown": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:",
+		"vitest": "catalog:"
+	},
+	"peerDependencies": {
+		"@ogygia/compiler": "workspace:^",
+		"@ogygia/core": "workspace:^",
+		"@resvg/resvg-js": "catalog:peers",
+		"satori": "catalog:peers",
+		"satori-html": "catalog:peers",
+		"sharp": "catalog:peers",
+		"svelte": "catalog:peers",
+		"vite": "catalog:peers"
+	},
+	"peerDependenciesMeta": {
+		"@resvg/resvg-js": {
+			"optional": true
+		},
+		"satori": {
+			"optional": true
+		},
+		"satori-html": {
+			"optional": true
+		}
+	}
+}

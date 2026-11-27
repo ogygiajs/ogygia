@@ -3,7 +3,11 @@
 // each URL is resolved against the next page once, after the parse, and a node's key names the
 // file it means, so one file linked two ways (page-relative on two depths, root-relative) is one.
 import { expect, test } from 'vitest';
+import { link_boot } from '../../src/runtime/boot-link.ts';
+import { init } from '../../src/runtime/lazy-link.ts';
 import { head_node_key, resolve_head_urls } from '../../src/runtime/router-nav.ts';
+
+init(link_boot());
 
 const parse = (head: string) =>
 	new DOMParser().parseFromString(`<head>${head}</head>`, 'text/html');

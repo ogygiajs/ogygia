@@ -12,6 +12,7 @@ The `ogygia` package is the region system: islands, lakes, holes, held regions, 
 | Package                                           | Plugin                           | What it is for                                                                                         |
 | ------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | [`@ogygia/content`](/docs/content/overview)       | `content({ markdown, presets })` | Content collections, markdown with Shiki, the docs and blog shells, search.                            |
+| [`@ogygia/image`](/docs/content/images)           | `image({ presets })`             | Responsive images made as pages ask: AVIF and WebP, a srcset, a blur placeholder, markdown, cards.     |
 | [`@ogygia/router`](/docs/router/overview)         | `router()`                       | The server router: pages, layouts, loads, actions and endpoints as one typed table.                    |
 | [`@ogygia/postrender`](/docs/postrender/overview) | `postrender({ ttl, default })`   | Pages stored whole on their first request and served as bytes.                                         |
 | [`@ogygia/devtools`](/docs/devtools/overview)     | `devtools({ dock, profiler })`   | The in-page dock and the SSR profiler.                                                                 |

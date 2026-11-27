@@ -53,6 +53,7 @@ export type MarkKey =
 	| 'html'
 	| 'hydWindow'
 	| 'hydration'
+	| 'img'
 	| 'kept'
 	| 'lake'
 	| 'late'
@@ -123,6 +124,7 @@ export type MarkKey =
 	| 'stitched'
 	| 'stub'
 	| 'tab'
+	| 'theme'
 	| 'vitals'
 	| 'win'
 	| 'wire'
@@ -190,6 +192,7 @@ export const OG_HTML = 'data-og-html';
 export const HTML_RANGE_MARK = '@html';
 export const OG_HYD_WINDOW = 'data-og-hyd-window';
 export const OG_HYDRATION = 'data-og-hydration';
+export const OG_IMG = 'data-og-img';
 export const OG_KEPT = 'data-og-kept';
 export const OG_LAKE = 'data-og-lake';
 export const OG_LATE = 'data-og-late';
@@ -260,6 +263,7 @@ export const OG_STATIC = 'data-og-static';
 export const OG_STITCHED = 'data-og-stitched';
 export const OG_STUB = 'data-og-stub';
 export const OG_TAB = 'data-og-tab';
+export const OG_THEME = 'data-og-theme';
 export const OG_VITALS = 'data-og-vitals';
 export const OG_WIN = 'data-og-win';
 export const OG_WIRE = 'data-og-wire';
@@ -321,6 +325,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	html: { attr: OG_HTML, by: 'page' },
 	hydWindow: { attr: OG_HYD_WINDOW, by: 'devtools' },
 	hydration: { attr: OG_HYDRATION, by: 'devtools' },
+	img: { attr: OG_IMG, by: 'page' },
 	kept: { attr: OG_KEPT, by: 'page' },
 	lake: { attr: OG_LAKE, by: 'page' },
 	late: { attr: OG_LATE, by: 'page' },
@@ -391,6 +396,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	stitched: { attr: OG_STITCHED, by: 'page' },
 	stub: { attr: OG_STUB, by: 'docs' },
 	tab: { attr: OG_TAB, by: 'devtools' },
+	theme: { attr: OG_THEME, by: 'page' },
 	vitals: { attr: OG_VITALS, by: 'devtools' },
 	win: { attr: OG_WIN, by: 'devtools' },
 	wire: { attr: OG_WIRE, by: 'page' },

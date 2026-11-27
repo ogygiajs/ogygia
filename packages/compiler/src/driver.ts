@@ -602,6 +602,7 @@ export class Compiler implements CoreApp {
 				pkgRoot: ctx.pkg_root,
 				dollarHoists: this.dollar_hoists,
 				macros: ctx.macros,
+				markdownExts: ctx.markdown_exts,
 				ownSource: (file) => ctx.is_own_source(file),
 				watch
 			},

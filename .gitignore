@@ -18,6 +18,7 @@ dist/
 !/packages/core/src/types.d.ts
 !/packages/devtools/src/ambient.d.ts
 !/packages/federation/src/ambient.d.ts
+!/packages/image/src/virtual.d.ts
 !/packages/postrender/src/ambient.d.ts
 # (a planted duplicate module: the devtools lab imports one package by its src and its dist path —
 # the dist copy IS the fixture)

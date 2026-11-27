@@ -11,7 +11,8 @@
  * plain module singleton can be two instances across that boundary (the config may bundle the package
  * or externalize it), so the bridge lives on a `Symbol.for` global slot shared by the whole process.
  */
-import { registry, slot, type Registry, type Scope } from '@ogygia/machine';
+import { registry, slot, type KeyedRegistry, type Registry, type Scope } from '@ogygia/machine';
+import type { MarkdownExtension } from './markdown/extensions.ts';
 
 export type ContentBridge = {
 	/** Rewrite marked imports in already-preprocessed svelte + register the islands (`b.markup()`'s
@@ -46,12 +47,23 @@ export type ContentBridge = {
 	contentModules: Registry<readonly [string, string]>;
 	/** The last scan's lifetime (its modules are held under it), until the next scan ends it. */
 	contentScan: Scope | null;
+	/**
+	 * Markdown extensions other Vite plugins offer (`api.ogygiaMarkdown`, see
+	 * {@link MarkdownExtension}), by name. `content()` reads them off the resolved plugin list and
+	 * holds them under {@link markdownExtensionsScope}: a config that no longer lists one drops it.
+	 */
+	markdownExtensions: KeyedRegistry<string, MarkdownExtension>;
+	/** The lifetime of the last resolved config's extensions, until the next config ends it. */
+	markdownExtensionsScope: Scope | null;
 };
 
-// (version 3: the markdown order; 2: the modules are a registry. Shapes a copy from before could not read)
+/**
+ * The bridge itself. Its version moves with each shape a copy from before could not read: 4 the
+ * markdown extensions, 3 the markdown order, 2 the modules as a registry.
+ */
 export const bridge: ContentBridge = slot<ContentBridge>({
 	name: 'ogygia.content-bridge',
-	version: 3,
+	version: 4,
 	make: () => ({
 		transform: null,
 		scan: null,
@@ -59,6 +71,8 @@ export const bridge: ContentBridge = slot<ContentBridge>({
 		markdownOrder: 'unset',
 		contentPresets: null,
 		contentModules: registry(),
-		contentScan: null
+		contentScan: null,
+		markdownExtensions: registry.keyed(),
+		markdownExtensionsScope: null
 	})
 });

@@ -194,6 +194,17 @@ import { bake } from '@ogygia/bake';
 export default defineConfig({ plugins: [ogygia(), bake(), sveltekit()] });
 ```
 
+### `image()`
+
+`import.meta.og.image(src, options?)`, `import.meta.og.image.glob(pattern, options?)` and `import.meta.og.image.card(component, { width, height, fonts })` are a plugin, `image()` from `@ogygia/image/vite`, listed beside `ogygia()`. Without it, a call fails the build with `macro_needs_plugin`. Its types come from `/// <reference types="@ogygia/image/types" />`. The macro gives a source descriptor (`.card` a function of the card's props that gives one); `<Img of={…} preset="…">` from `@ogygia/image` renders it. On a live server and in dev each file is a signed URL its server half makes on first request (or an encoder's link, with `cloudflare()` or `vercel()`); a prerendered page's files are made by the build as static files under `_app/immutable/og/`. With `content({ markdown })`, local markdown images and `./` frontmatter image paths become descriptors too. See [Images](/docs/content/images).
+
+```ts
+import { image } from '@ogygia/image/vite';
+export default defineConfig({
+  plugins: [ogygia(), image({ presets: { thumb: { width: 400, aspect: '1/1' } } }), sveltekit()]
+});
+```
+
 ### `jumpstart()`
 
 A server build in a few files is a plugin, `jumpstart()` from `@ogygia/jumpstart`, listed beside `ogygia()`. An app adds it on purpose. It shapes the server build only, for a fast cold start on a slow serverless box.
@@ -371,16 +382,17 @@ Use these instead of `$app/navigation` inside islands. See [SPA router](/docs/ap
 
 Each feature below is a separate package that you install and list once beside `ogygia()` in your Vite config, as described in [Packages](/docs/start/packages). Each has its own section in these docs, with its own entry points and API pages.
 
-| Package                                           | Plugin                           | Imports in app code                                                                                                                                            |
-| ------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`@ogygia/content`](/docs/content/overview)       | `content({ markdown, presets })` | `@ogygia/content`, `/server`, `/markdown`, `/docs-shell`, `/slot`, `/theme.css`, `/shell.css`, `/types`; see [Entry points & config](/docs/content/api/config) |
-| [`@ogygia/flags`](/docs/flags/overview)           | `flags()`                        | `flag`, `decide` from `@ogygia/flags`; `openfeature`, `ofrep` from `@ogygia/flags/openfeature`                                                                 |
-| [`@ogygia/postrender`](/docs/postrender/overview) | `postrender({ ttl, default })`   | `postrender` and the store and CDN adapters from `@ogygia/postrender`                                                                                          |
-| [`@ogygia/federation`](/docs/federation/overview) | `federation()`                   | `federate`, `mount` from `@ogygia/federation`                                                                                                                  |
-| [`@ogygia/router`](/docs/router/overview)         | `router()`                       | `routes`, `page`, … from `@ogygia/router`; `api` from `@ogygia/router/api`                                                                                     |
-| [`@ogygia/devtools`](/docs/devtools/overview)     | `devtools({ dock, profiler })`   | `@ogygia/devtools` (event sinks), `/report`, `/profiler`, `/profiler/client`, `/profiler/storage/*`                                                            |
-| [`@ogygia/testing`](/docs/testing/overview)       | none (a test helper)             | `@ogygia/testing`                                                                                                                                              |
-| [`@ogygia/cli`](/docs/cli/overview)               | none (the command)               | `npx ogygia …`; see [Commands](/docs/cli/commands)                                                                                                             |
-| [`@ogygia/core`](/docs/core/overview)             | none (for plugin authors)        | `@ogygia/core/plugin`, `/plugin/client`, `/plugin/utils`, …; see [Writing a plugin](/docs/core/plugins)                                                        |
+| Package                                           | Plugin                                                                                                  | Imports in app code                                                                                                                                            |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@ogygia/content`](/docs/content/overview)       | `content({ markdown, presets })`                                                                        | `@ogygia/content`, `/server`, `/markdown`, `/docs-shell`, `/slot`, `/theme.css`, `/shell.css`, `/types`; see [Entry points & config](/docs/content/api/config) |
+| [`@ogygia/image`](/docs/content/images)           | `image({ presets, markdown, encoder, theme, remote })`, `sharp({ effort })`, `cloudflare()`, `vercel()` | `Img`, `getImage`, `isImage`, `remoteImage` from `@ogygia/image`; `/Img.svelte`, `/types`; see [Images](/docs/content/images)                                  |
+| [`@ogygia/flags`](/docs/flags/overview)           | `flags()`                                                                                               | `flag`, `decide` from `@ogygia/flags`; `openfeature`, `ofrep` from `@ogygia/flags/openfeature`                                                                 |
+| [`@ogygia/postrender`](/docs/postrender/overview) | `postrender({ ttl, default })`                                                                          | `postrender` and the store and CDN adapters from `@ogygia/postrender`                                                                                          |
+| [`@ogygia/federation`](/docs/federation/overview) | `federation()`                                                                                          | `federate`, `mount` from `@ogygia/federation`                                                                                                                  |
+| [`@ogygia/router`](/docs/router/overview)         | `router()`                                                                                              | `routes`, `page`, … from `@ogygia/router`; `api` from `@ogygia/router/api`                                                                                     |
+| [`@ogygia/devtools`](/docs/devtools/overview)     | `devtools({ dock, profiler })`                                                                          | `@ogygia/devtools` (event sinks), `/report`, `/profiler`, `/profiler/client`, `/profiler/storage/*`                                                            |
+| [`@ogygia/testing`](/docs/testing/overview)       | none (a test helper)                                                                                    | `@ogygia/testing`                                                                                                                                              |
+| [`@ogygia/cli`](/docs/cli/overview)               | none (the command)                                                                                      | `npx ogygia …`; see [Commands](/docs/cli/commands)                                                                                                             |
+| [`@ogygia/core`](/docs/core/overview)             | none (for plugin authors)                                                                               | `@ogygia/core/plugin`, `/plugin/client`, `/plugin/utils`, …; see [Writing a plugin](/docs/core/plugins)                                                        |
 
 `@ogygia/tsdown-plugin-svelte` is not in the table, because nothing in an app imports it: it is a tsdown plugin for building component libraries. Its [section](/docs/tsdown-plugin-svelte/overview) has its options and API.

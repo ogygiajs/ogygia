@@ -23,7 +23,7 @@ export function nul_lines(bytes: Uint8Array): number[] {
 
 /** Each tracked file under `packages/*\/src` with a NUL byte, as `file:line`. */
 export function find_nul_bytes(root: string = ROOT): string[] {
-	const files = execFileSync('git', ['ls-files', '-z', 'packages/*/src/**'], {
+	const files = execFileSync('git', ['ls-files', '-z', ':(glob)packages/*/src/**'], {
 		cwd: root,
 		encoding: 'utf8'
 	})

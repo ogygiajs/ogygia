@@ -45,6 +45,7 @@ describe('postrender() — the vite value', () => {
 		const keys: string[] = [];
 		definition(postrenderPlugin()).build!({
 			root: '/',
+			routesDir: '/src/routes',
 			dev: true,
 			routeConfig: (k) => void keys.push(k),
 			foreignHydrate: () => {},

@@ -126,6 +126,7 @@ test.describe('dev: an installed (not linked) ogygia runs as one copy in the bro
 			'esm-env',
 			'estree-walker',
 			'magic-string',
+			'micromark',
 			'rolldown',
 			'tinyglobby',
 			'@neodrag'

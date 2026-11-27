@@ -323,6 +323,82 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 ---
 
+## IMAGE-SIGNED-RECIPE — the image endpoint makes only what the app signed, from what it ships
+
+**What:** `@ogygia/image`'s endpoint (`/__ogygia__/i/<sig>/<recipe>`) makes a file only for a recipe
+the app signed (`app.sign('image|<recipe path>')`, the plugin's own domain under the region key), of
+an original in the build's list (`Originals`: the assets the SSR imports gave), named by a hash of
+that original's bytes. The order is fixed: method (GET/HEAD, else 405), then the signature (else a
+uniform `deny('sig')` 403), then the strict recipe parse (a tail with `.`/`..` segments, a
+backslash or NUL is no recipe), then the list (else 404), then the query (a 308 to the bare URL).
+Every refusal is `no-store`; a made file is `immutable`, but one made from a remote URL's bytes (a
+`remoteImage()` file, or a card that shows a remote image) is kept for its `remote.maxAge` window,
+never `immutable` (`packages/image/test/card-remote-live.test.ts`). The original is re-read and checked
+against the id the recipe names: an edited source never answers the old URL with new pixels.
+
+**Why:** A signed URL never expires: it is minted once per recipe and kept by every CDN forever, so
+the signature is the whole door. Only the server holds the key; the signer's domain separation
+means no region capability or other plugin's signature verifies here, and an image signature
+verifies nowhere else.
+
+**No rate limit (on purpose):** unlike the region endpoint (PROBE-THEN-RENDER), a forged flood is a
+cheap HMAC check and a 403 with no encode; a replay of harvested URLs is bounded by the store
+(each recipe that makes a file is made once), by the memory of failed remote URLs (a remote URL
+that failed is answered its remembered status for 30 s, with no fetch, and said once per failing
+streak), by the fetch line (16) and the encode queue (`parallel`), each with its 503 past a full
+line. Do not "align" it with the region limiter: there is no costly work before the signature to
+protect.
+
+**Do not:**
+
+- Sign a recipe whose source is not an asset of this build, or derive a recipe from the request.
+- Answer a refused request with anything a cache may keep.
+- Read an original at a path built from the request: read it at the URL its import gave
+  (`Originals.url`), which is what Kit's `read()` takes.
+
+**Enforced by:** `packages/image/test/server.test.ts > a URL whose recipe was changed after signing is refused, naming why and the key`, `packages/image/test/server.test.ts > a URL with no signature, or a forged one, is refused`, `packages/image/test/server.test.ts > a signed recipe naming an original the app does not ship is not found`, `packages/image/test/server.test.ts > a signed URL asked with any method but GET or HEAD is answered 405`, `packages/image/test/recipe.test.ts > a tail that climbs out of its folder is no recipe`, `packages/image/test/settle-live.test.ts > a signed URL asked with a query string is sent to the bare URL, and nothing is made`, `packages/image/test/server-assets-path.test.ts > with paths.assets set to a CDN, a signed file is made from the original Kit serves there`, `packages/core/test/plugin-signing.test.ts > a v3 region signature does not verify as a plugin signature of any field`, `packages/image/test/remote-request.test.ts > a remote URL that failed is not fetched again for a while: its files answer the remembered status, said once, and it is asked again once the memory ends`, `packages/image/test/card-endpoint.test.ts > a live card whose image the remote host refuses answers the remote's status, not a 500 for the card`
+
+---
+
+## IMAGE-REMOTE-SSRF — every fetch of an image goes through one guard
+
+**What:** `@ogygia/image` fetches an image from another host in four places: a build source
+(`import.meta.og.image('https://…')`), a prerendered `remoteImage()`, the endpoint's live
+`remoteImage()` file, and an image a share card's markup names. Every one goes through
+`fetch_image` (`src/remote-fetch.ts`) under `image({ remote })`: the host must be in `hosts` (each
+redirect hop checked again, at most 3), credentials and other schemes are refused, the body is
+capped by `maxBytes` (by length and while streaming), the whole chain by `timeout`, and the bytes
+must say and start like a raster image. A host taken only by a `*.` entry must resolve to public
+addresses only, checked in the connection's own lookup (so DNS rebinding is covered); a host an
+entry names itself is trusted wherever it points. A `*.` entry over a public suffix anyone can host
+under (`*.co.uk`, `*.github.io`) is refused. With an encoder's own links (`cloudflare()`,
+`vercel()`), an unlisted host gets no link at all (the CDN would fetch it), only the endpoint's
+URL, which refuses it. A card's engine (satori) never fetches: every address a card's markup names
+(any element's `src`, an SVG element's `href` or `xlink:href`, any `url()`, its entities decoded
+first; a link's `href` outside an SVG is left out) is read by the card's realm through this guard,
+fitted to the card by sharp (refused from its header past the one-frame limit, made smaller past
+what the card draws) and handed over as bytes, or the card is refused (`image_card_source`); a
+`data:` URL must hold raster bytes (an SVG can name addresses itself). The tree satori is handed is
+checked whole right before the draw: an address left in it that is not bytes, a raster `data:` URL
+or a `#` reference (an unclosed `url(` included) refuses the card. A remote image is never made
+larger than its real size, and no recipe asks for more pixels than one frame may have, whatever
+size its URL's owner claims.
+
+**Why:** `remoteImage()` and cards take URLs from CMS or user data. Without one guard, any of those
+paths is a server-side request forgery (cloud metadata, intranet hosts) or a memory bomb.
+
+**Do not:**
+
+- Fetch an image anywhere but through `fetch_image` with the app's `RemoteHosts`, its limits and
+  the runtime's transport (Node's checks the `*.` rule; a Worker's `fetch` reaches no private
+  address).
+- Hand a URL to anything that fetches it itself (satori, a CDN link) without checking its host.
+- Trust a size a URL's owner states.
+
+**Enforced by:** `packages/image/test/remote-request.test.ts > a host listed only by *. that resolves to a private address is never connected to; one the list names itself is`, `packages/image/test/remote-request.test.ts > past maxBytes is 413, past the timeout 504, an error status or not an image 502, a redirect off the list 404: each kept nowhere, each said`, `packages/image/test/remote-request.test.ts > a small remote image the CMS says is huge is never made larger than it is`, `packages/image/test/remote-image.test.ts > loopback, private, link-local (cloud metadata), shared, reserved and multicast addresses are private; a public one is not`, `packages/image/test/remote.test.ts > redirects are followed, each hop checked, at most 3`, `packages/image/test/remote.test.ts > a *. entry over a public suffix anyone can host under is refused; one over a name below it, or that name itself, is not`, `packages/image/test/remote-image-links.test.ts`, `packages/image/test/card.test.ts > an image a card's markup names at an address the app does not read it from is refused, coded, and never fetched`, `packages/image/test/card.test.ts > an SVG <image>'s href, a mask's url() and a data: SVG in a card are the realm's to read or refuse: satori never calls fetch`, `packages/image/test/card.test.ts > a card's image URLs reach its realm as the markup means them: &amp; in a query, &quot; around a url()`, `packages/image/test/card-images.test.ts > a small file of huge dimensions (a 20000 x 20000 PNG header) is refused, coded, before anything decodes it`, `packages/image/test/card-images.test.ts > an image larger than the card reaches satori fitted to it: covering the card, at most four times its pixels`, `packages/image/test/card-images.test.ts > a style's url( with no closing paren is refused, coded, and satori never calls fetch`
+
+---
+
 ## Related docs
 
 - Product vocabulary: [`DESIGN.md`](./DESIGN.md)
