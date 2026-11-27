@@ -3,13 +3,15 @@
  * reads its dynamic public variables from Kit's boot payload, which only Kit's client boot fills.
  * On a csr=false page that boot never runs, so the compiler makes the module read this instead
  * (compiler kit-patches.ts): the env the server rendered for the page, written as the
- * `application/ogygia-env` side channel (server/document-seeds.ts `env_seed_script`). Only Kit's
- * patched module imports it, so a page whose islands never import Kit's env never loads it.
+ * `application/ogygia-env` side channel (server/env-seed.ts `env_seed_script`). Only Kit's patched
+ * module imports it, so a page whose islands never import Kit's env never loads it. It reads the
+ * channel through the boot's link, as every lazy chunk does (messages/lazy.ts).
  *
  * @packageDocumentation
  */
 import { parse } from 'devalue';
-import { server_channel } from './response-mark.ts';
+import { boot_link_or_null } from './lazy-link.ts';
+import { L_SERVER_CHANNEL } from './boot-link-index.ts';
 import { warn } from '../messages/lazy.ts';
 
 /** The side channel the server writes the env into. */
@@ -18,7 +20,9 @@ export const KIT_ENV_SELECTOR = 'script[type="application/ogygia-env"]';
 /** The public env the server sent this document, as Kit would have put it in its payload. An empty
  *  env, said with `kit_env_missing`, where the document carries none or it does not read back. */
 export function kit_env(): Record<string, unknown> {
-	const el = typeof document === 'undefined' ? null : server_channel(document, KIT_ENV_SELECTOR);
+	const read =
+		typeof document === 'undefined' ? undefined : boot_link_or_null()?.[L_SERVER_CHANNEL];
+	const el = read ? read(document, KIT_ENV_SELECTOR) : null;
 	if (el) {
 		try {
 			const env = parse(el.textContent ?? '');
