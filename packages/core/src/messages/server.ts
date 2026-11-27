@@ -135,34 +135,18 @@ export const SERVER_ERRORS = {
 			and the first path stays.
 		`
 	},
-	build_key_blank_secret: {
-		text: (): string => prose`
-			a build key was asked for from a blank OGYGIA_SECRET. Anyone can work out a key made from
-			no secret, so the build refuses to bake one.
-		`,
-		details: (): string => prose`
-			A build with \`OGYGIA_SECRET\` bakes a key worked out from the secret into its server
-			bundle; a build without one bakes a random key of its own. Something asked for the first
-			kind with an empty or blank secret. A key made from nothing is the same for every app, so
-			capabilities signed with it could be forged.
-
-			This is a bug in ogygia or in a plugin that calls it: a build without a secret must draw a
-			random key. Report it with the build's config.
-		`
-	},
 	secret_missing_at_runtime: {
 		text: (): string => prose`
 			OGYGIA_SECRET was set when this app was built but is not set where it runs: region
-			capabilities are signed with the key this build derived from it, not with the secret, so
-			every hole minted by a deployment that has the secret (another backend behind the same CDN,
-			the previous deploy) is refused (403, x-ogygia-deny: foreign-key). Set OGYGIA_SECRET in the server's runtime environment, or pass
+			capabilities are signed with this build's random key, so every hole minted by another
+			deployment (another backend behind the same CDN, the previous deploy) is refused (403,
+			x-ogygia-deny: foreign-key). Set OGYGIA_SECRET in the server's runtime environment, or pass
 			it to handle({ secret }) (e.g. from $env/static/private).
 		`,
 		details: (): string => prose`
-			The build saw \`OGYGIA_SECRET\` but the running server does not, so it signs with the key
-			the build derived from it. A page from a deployment that has the secret carries
-			capabilities signed with the secret, and the islands endpoint refuses them
-			(\`x-ogygia-deny: foreign-key\`).
+			The build saw \`OGYGIA_SECRET\` but the running server does not, so it signs with a random
+			key of its own. A page from another deployment carries capabilities signed with another
+			key, and the islands endpoint refuses them (\`x-ogygia-deny: foreign-key\`).
 
 			${SECRET_FIX}
 		`

@@ -279,7 +279,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Secrets and keys: environment secrets, MACs, key derivation, signatures
 
-26 entries.
+25 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -291,7 +291,6 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/plugin/testing.ts` | `TEST_SIGNER` | `createHmac` | 1 |
 | `packages/core/src/plugin/testing.ts` | `verify` | `createHmac` | 1 |
 | `packages/core/src/plugin/testing.ts` | `verify` | `timingSafeEqual` | 1 |
-| `packages/core/src/server/hmac.ts` | `derive_build_key` | `hkdfSync` | 1 |
 | `packages/core/src/server/hmac.ts` | `derive_id_salt` | `hkdfSync` | 1 |
 | `packages/core/src/server/hmac.ts` | `derive_mac_key` | `hkdfSync` | 1 |
 | `packages/core/src/server/hmac.ts` | `hex_equal` | `timingSafeEqual` | 1 |

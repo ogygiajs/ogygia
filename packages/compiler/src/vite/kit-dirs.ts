@@ -6,12 +6,7 @@ import { warn } from '../messages.ts';
 
 const CONFIG_FILES = ['svelte.config.js', 'svelte.config.mjs'];
 
-type KitOptions = {
-	files?: { routes?: string };
-	outDir?: string;
-	inlineStyleThreshold?: number;
-	version?: { name?: unknown };
-};
+type KitOptions = { files?: { routes?: string }; outDir?: string; inlineStyleThreshold?: number };
 
 type PluginOption = unknown;
 
@@ -64,11 +59,9 @@ export async function load_kit_config(root: string, plugins?: PluginOption): Pro
 		out_dir: path.resolve(root, kit.outDir ?? DEFAULT_KIT_DIRS.out)
 	};
 	const threshold = kit.inlineStyleThreshold;
-	const version = kit.version?.name;
 	return {
 		dirs,
 		inline_style_threshold:
-			typeof threshold === 'number' && Number.isFinite(threshold) && threshold > 0 ? threshold : 0,
-		version: typeof version === 'string' && version.trim() !== '' ? version : null
+			typeof threshold === 'number' && Number.isFinite(threshold) && threshold > 0 ? threshold : 0
 	};
 }

@@ -59,6 +59,8 @@ function build(): void {
 		throw new Error(`the fixture's build failed:\n${`${res.stdout}${res.stderr}`.slice(-4000)}`);
 }
 
+const BUILD_KEY_RE = /(\bbuild_key\s*=\s*)"[0-9a-f]{64}"/g;
+
 /** Every file under `dir`, by its path there: its bytes, as text. */
 function files(dir: string): Map<string, string> {
 	const out = new Map<string, string>();
@@ -67,6 +69,22 @@ function files(dir: string): Map<string, string> {
 		if (fs.statSync(abs).isFile()) out.set(name, fs.readFileSync(abs, 'latin1'));
 	}
 	return out;
+}
+
+/** The build keys a build's files bake (random per build, so a leaked bundle says nothing of the
+ *  app's secret), and its files with each key blanked. */
+function keyed(built: Map<string, string>): { keys: string[]; files: Map<string, string> } {
+	const keys: string[] = [];
+	const out = new Map<string, string>();
+	for (const [name, text] of built)
+		out.set(
+			name,
+			text.replace(BUILD_KEY_RE, (whole: string, head: string) => {
+				keys.push(whole.slice(head.length));
+				return `${head}"<build key>"`;
+			})
+		);
+	return { keys, files: out };
 }
 
 /** Each markup entry the build cache holds: its inode and time, which a rewrite changes. */
@@ -82,20 +100,25 @@ function markup_entries(): Map<string, string> {
 }
 
 test(
-	'a warm build (the build cache kept) writes the same output, byte for byte, as a cold build of the same source and secret',
+	"a warm build (the build cache kept) writes the same output, byte for byte, as a cold build of the same source, but for each build's own random key",
 	() => {
 		const output = path.join(app, '.svelte-kit', 'output');
 		build();
-		const cold = files(output);
+		const cold = keyed(files(output));
 		const cached = markup_entries();
 		build();
-		const warm = files(output);
+		const warm = keyed(files(output));
 
 		expect(cached.size).toBeGreaterThan(0);
 		expect(markup_entries()).toEqual(cached);
-		expect([...cold.keys()].some((name) => name.startsWith(`server${path.sep}`))).toBe(true);
-		expect([...warm.keys()]).toEqual([...cold.keys()]);
-		const differ = [...cold].filter(([name, text]) => warm.get(name) !== text).map(([n]) => n);
+		expect(cold.keys).toHaveLength(1);
+		expect(warm.keys).toHaveLength(1);
+		expect(warm.keys[0]).not.toBe(cold.keys[0]);
+		expect([...cold.files.keys()].some((name) => name.startsWith(`server${path.sep}`))).toBe(true);
+		expect([...warm.files.keys()]).toEqual([...cold.files.keys()]);
+		const differ = [...cold.files]
+			.filter(([name, text]) => warm.files.get(name) !== text)
+			.map(([n]) => n);
 		expect(differ).toEqual([]);
 	},
 	BUILD_MS * 2

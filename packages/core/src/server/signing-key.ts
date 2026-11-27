@@ -2,7 +2,7 @@
  * THE region signing key, decided once at first use (the first mint or verify), not at module eval:
  * a host that fills `process.env` after the server's modules load (an adapter loading a `.env` late)
  * still counts. The app's `handle({ secret })` wins, then the runtime's `OGYGIA_SECRET`, else this
- * build's key (derived from the secret the build saw, else random).
+ * build's random key.
  *
  * Process-wide on `globalThis`, not module state (like the islands endpoint, server/endpoint.ts):
  * one server can load this file as two copies (pnpm gives a package one folder per set of peer
@@ -20,12 +20,11 @@ import { OgygiaError, warn } from '../messages/server.ts';
 
 export interface SigningKey {
 	secret: string;
-	/** the runtime has its own secret (the app's or the env's), shared by every deployment that sets the same value; false: the key the build baked */
+	/** the app's or the env's: survives redeploys and is shared by every deployment that sets the same value */
 	stable: boolean;
 	/** 8-char key fingerprint (`&k=` on capabilities, `x-ogygia-key` on refusals) */
 	fp: string;
-	/** where the secret came from: `handle({ secret })`, `OGYGIA_SECRET`, or this build's key (derived
-	 *  from the secret the build saw, else random) */
+	/** where the secret came from: `handle({ secret })`, `OGYGIA_SECRET`, or this build's random key */
 	source: 'option' | 'env' | 'build';
 }
 
@@ -49,7 +48,7 @@ const SLOT = Symbol.for('ogygia.signing-key');
 const SOURCE_NAME: Record<SigningKey['source'], string> = {
 	option: 'handle({ secret })',
 	env: 'OGYGIA_SECRET',
-	build: "this build's key"
+	build: "this build's random key"
 };
 
 const slots = globalThis as unknown as Record<symbol, KeySlot | undefined>;
@@ -114,7 +113,7 @@ export function key_fingerprint(secret: string): string {
 }
 
 /** One message per process (a shared Symbol: one across every copy of this module): a server
- *  signing with this build's key. */
+ *  signing with this build's random key. */
 function warn_build_key(): void {
 	const g = globalThis as Record<symbol, unknown>;
 	const K = Symbol.for('ogygia.build-key-warned');

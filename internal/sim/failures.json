@@ -255,12 +255,6 @@
 	],
 	"covered": [
 		{
-			"site": "packages/core/src/server/hmac.ts > derive_build_key > throw:0",
-			"reason": "a blank secret makes no build key (build_key_blank_secret), so no build signs with a key anyone can work out; the test failed on the old code, which returned a key",
-			"test": "packages/core/test/build-key.test.ts",
-			"name": "is refused for a blank secret, so no build signs with a key anyone can work out"
-		},
-		{
 			"site": "packages/core/src/runtime/island-warm.ts > warm_key > catch:0",
 			"reason": "a fetched page's module link whose href no URL parser takes is its own key, so the router's warmed-module ask answers no instead of throwing out of the swap; proved by hand: the catch made to rethrow turns the test red",
 			"test": "packages/core/test/browser/island-warm-key.test.ts",

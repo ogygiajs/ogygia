@@ -9,7 +9,6 @@ import {
 	content_css_key,
 	DEFAULT_REGION_TTL_SEC,
 	RENEW_WINDOW_SEC,
-	derive_build_key,
 	derive_id_salt,
 	secret_has_min_entropy,
 	MIN_SECRET_BYTES,
@@ -250,8 +249,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let devtools_effective = false;
 	let devtools_lazy = false;
 
-	const random_build_key = crypto.randomBytes(32).toString('hex');
-	let build_secret = random_build_key;
+	const build_secret = crypto.randomBytes(32).toString('hex');
 	let id_salt = '';
 
 	let svelte: SvelteCompile | null = null;
@@ -581,7 +579,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			configResolved(config) {
 				root = config.root;
-				kit ??= { dirs: default_kit_dirs(root), inline_style_threshold: 0, version: null };
+				kit ??= { dirs: default_kit_dirs(root), inline_style_threshold: 0 };
 				base = config.base || '';
 				svelte = svelte_compile(config.plugins);
 				svelte_async = svelte_async_enabled(svelte);
@@ -636,11 +634,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						throw new OgygiaError('secret_too_short', { min_bytes: MIN_SECRET_BYTES });
 					}
 					id_salt = derive_id_salt(env_secret);
-					build_secret =
-						kit.version === null ? random_build_key : derive_build_key(env_secret, kit.version);
 				} else {
 					id_salt = '';
-					build_secret = random_build_key;
 				}
 
 				({ kit_wire_path, kit_remote_index, universal_hooks, client_hooks, kit_transport_init } =

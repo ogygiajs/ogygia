@@ -19,11 +19,9 @@ import {
 	type KeyObject
 } from 'node:crypto';
 import { cache, capability, type Capability } from '@ogygia/machine';
-import { OgygiaError } from '../messages/server.ts';
 import { PRERENDER_REGION_TTL_SEC, REGION_CAPABILITY_VERSION, is_lower_hex } from './endpoint.ts';
 const MAC_INFO = Buffer.from('ogygia-mac-v1');
 const ID_SALT_INFO = Buffer.from('ogygia-id-salt-v1');
-const BUILD_KEY_INFO = Buffer.from('ogygia-build-key-v1');
 
 /** Minimum UTF-8 byte length for a user-supplied `OGYGIA_SECRET` in production builds. */
 export const MIN_SECRET_BYTES = 16;
@@ -50,25 +48,6 @@ export function derive_mac_key(secret: string): KeyObject {
 export function derive_id_salt(secret: string): string {
 	return Buffer.from(
 		hkdfSync('sha256', Buffer.from(secret, 'utf8'), Buffer.alloc(0), ID_SALT_INFO, 16)
-	).toString('hex');
-}
-
-/** HKDF-SHA256 → the 32-byte build key (hex) a build with the app's secret bakes into its server
- *  bundle: a function of the secret and the app's version (Kit's `version.name`, the HKDF salt),
- *  so two builds of one source, secret and version write the same bundle, a key leaked from one
- *  version's bundle is no use to another's, and the bundle holds no secret it was derived from.
- *  A blank secret is refused (`build_key_blank_secret`): a key made from it is the same for every
- *  app. */
-export function derive_build_key(secret: string, version: string): string {
-	if (secret.trim() === '') throw new OgygiaError('build_key_blank_secret');
-	return Buffer.from(
-		hkdfSync(
-			'sha256',
-			Buffer.from(secret, 'utf8'),
-			Buffer.from(version, 'utf8'),
-			BUILD_KEY_INFO,
-			32
-		)
 	).toString('hex');
 }
 

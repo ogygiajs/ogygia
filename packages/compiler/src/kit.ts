@@ -226,9 +226,6 @@ export interface KitConfig {
 	dirs: KitDirs;
 	/** `kit.inlineStyleThreshold` in bytes (0: inline nothing) */
 	inline_style_threshold: number;
-	/** `kit.version.name`, the app's version (null: Kit's config does not say, so Kit draws one per
-	 *  build the build cannot know) */
-	version: string | null;
 }
 
 /** The dirs an app with no Kit config has. */

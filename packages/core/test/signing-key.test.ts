@@ -173,7 +173,7 @@ describe('handle({ secret })', () => {
 		signing_key();
 		configure_signing_secret('a-later-secret');
 		expect(error).toHaveBeenCalledTimes(1);
-		expect(conflict_from(error.mock.calls[0][0])).toContain("this build's key");
+		expect(conflict_from(error.mock.calls[0][0])).toContain("this build's random key");
 		expect(signing_key().secret).toBe('build-random-key');
 	});
 

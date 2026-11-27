@@ -13,7 +13,7 @@ const config = {
 	kit: {
 		adapter: adapter(),
 		outDir: process.env.OGYGIA_E2E_OUT_DIR,
-		// @why Kit bakes its version (default: the build's time) into its output and ogygia's build key (test: test/cold-warm-build.test.ts › a warm build (the build cache kept) writes the same output, byte for byte, as a cold build of the same source and secret)
+		// @why Kit bakes its version (default: the build's time) into its output (test: test/cold-warm-build.test.ts › a warm build (the build cache kept) writes the same output, byte for byte, as a cold build of the same source, but for each build's own random key)
 		...(process.env.CONTENT_E2E_KIT_VERSION
 			? { version: { name: process.env.CONTENT_E2E_KIT_VERSION } }
 			: {}),

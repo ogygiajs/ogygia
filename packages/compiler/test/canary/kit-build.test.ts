@@ -157,8 +157,7 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 						routes_dir: path.join(app.dir, 'src/pages'),
 						out_dir: path.join(app.dir, OUT_DIR)
 					},
-					inline_style_threshold: 0,
-					version: expect.stringMatching(/\S/)
+					inline_style_threshold: 0
 				},
 				app_dir: JSON.stringify(APP_DIR)
 			});
