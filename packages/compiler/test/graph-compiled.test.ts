@@ -75,23 +75,49 @@ test('a waiting module loads after every other module has compiled: a dynamic im
 	expect(WORD_RE.exec(code)?.[1]).toBe(['a.js', 'late/one.js', 'late/two.js', 'main.js'].join(','));
 }, 20_000);
 
-test('a waiting module waits for the imports a load resolved, even before the bundler lists them as modules (#2192: under load on CI the feature word read only main.js)', async () => {
-	const imports: Record<string, string[]> = { 'main.js': ['a.js'], 'a.js': ['b.js'], 'b.js': [] };
-	const listed = new Set(['main.js']);
-	const loaded: string[] = [];
-	const graph = {
-		getModuleIds: () => listed,
-		getModuleInfo: (id: string) =>
-			loaded.includes(id)
-				? { code: '', importedIds: imports[id], dynamicallyImportedIds: [] }
-				: { code: null, importedIds: [], dynamicallyImportedIds: [] },
-		resolve: async () => ({ external: false }),
-		load: async ({ id }: { id: string }) => {
-			loaded.push(id);
-			// (the bundler lists a resolved import as a module only a while later)
-			setTimeout(() => imports[id].forEach((i) => listed.add(i)), 50);
-		}
-	};
-	await graph_compiled(graph, () => false);
-	expect(loaded.sort()).toEqual(['a.js', 'b.js', 'main.js']);
-});
+test('a waiting module waits for the imports of a module the bundler has parsed but whose imports it has not yet started (#2192: on CI the feature word read only main.js)', async () => {
+	write({
+		'main.js': dedent`
+			import { a } from './a.js';
+			console.log(a);
+		`,
+		'a.js': dedent`
+			import { b } from './b.js';
+			export const a = b;
+		`,
+		'b.js': 'export const b = 1;'
+	});
+	const main = path.join(dir, 'main.js');
+	const parsed = Promise.withResolvers<void>();
+	const compiled = new Set<string>();
+	const bundle = await rolldown({
+		input: { main, word: 'virtual:word' },
+		plugins: [
+			{
+				name: 'answers',
+				resolveId(source) {
+					return source === 'virtual:word' ? '\0virtual:word' : null;
+				},
+				async load(id) {
+					if (id !== '\0virtual:word') return null;
+					await parsed.promise;
+					await graph_compiled(this, (m) => m === id);
+					return `export const word = "compiled before word: ${[...compiled].sort().join(',')}";\n`;
+				},
+				transform(_code, id) {
+					if (id.startsWith(dir)) compiled.add(path.relative(dir, id));
+					return null;
+				},
+				async moduleParsed(info) {
+					if (info.id !== main) return;
+					parsed.resolve();
+					await new Promise((settle) => setTimeout(settle, 100));
+				}
+			}
+		]
+	});
+	const { output } = await bundle.generate({ format: 'es' });
+	await bundle.close();
+	const code = output.map((c) => ('code' in c ? c.code : '')).join('\n');
+	expect(WORD_RE.exec(code)?.[1]).toBe(['a.js', 'b.js', 'main.js'].join(','));
+}, 20_000);
