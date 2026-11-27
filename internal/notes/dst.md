@@ -399,7 +399,8 @@ once its observers had a frame (`Tab.framed`), and not before (they never had on
 Every tab owed a look is looked at (`visitor_looks`: shown until the world rests, then the tab in
 front is put back) at the run's end before any tab is judged (`rest_at_end`, every visitor's, a
 crowd's too, inside its wait for backoffs: a look may wake an island whose download fails, and its
-retry's 1, 3 and 9 s are waited out before the end judges it) and by the MPA check itself; then it
+retry's 1, 3 and 9 s are waited out before the end judges it; the end's two waits share one
+minute, and only a look gives the second its own, from that look) and by the MPA check itself; then it
 is judged as a shown one, and a `visible` island that never wakes once looked at is `islands-wake`
 and an MPA difference (#2176: a `visible` island its hole brought after it went behind; and #2091:
 one shown as it came but behind before its observers had a frame; `test/hidden-tab.node.test.ts`;

@@ -512,9 +512,13 @@ export function owes_look(tab: Tab): boolean {
  * look ({@link owes_look}) is shown until the world rests, then the tab that was in front is put
  * back. What waited for that frame (a `visible` island its hole brought after it went behind, one
  * whose first frame came after it went behind) has had it, so the tab is judged as one that was
- * shown (test/hidden-tab.node.test.ts, #2176, #2091).
+ * shown (test/hidden-tab.node.test.ts, #2176, #2091). Whether it looked at any.
  */
-export async function visitor_looks(world: World, v: Visitor, tabs: Tab[] = v.tabs): Promise<void> {
+export async function visitor_looks(
+	world: World,
+	v: Visitor,
+	tabs: Tab[] = v.tabs
+): Promise<boolean> {
 	const front = v.tabs.find((t) => !t.hidden);
 	let looked = false;
 	for (const t of tabs) {
@@ -523,9 +527,10 @@ export async function visitor_looks(world: World, v: Visitor, tabs: Tab[] = v.ta
 		await world.rest();
 		looked = true;
 	}
-	if (!looked || front === undefined) return;
+	if (!looked || front === undefined) return looked;
 	world.browsers.focus(v, front);
 	await world.rest();
+	return true;
 }
 
 /**

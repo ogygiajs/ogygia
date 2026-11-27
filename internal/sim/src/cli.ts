@@ -317,15 +317,17 @@ function on_a_tab(a: Action, tabs: number): Action {
  * the crowd's too, looks at each tab of theirs behind another that owes a frame
  * ({@link visitor_looks}), and the backoffs are waited out again, looking at each rest, so a tab is
  * judged as the visitor sees it once they look, and a backoff what the look woke set is waited out
- * too (test/hidden-tab.node.test.ts, #2176).
+ * too (test/hidden-tab.node.test.ts, #2176). Both waits share the one minute; a look gives the
+ * second its own, from that look (test/hidden-tab.node.test.ts).
  */
 export async function rest_at_end(world: World, v: Visitor): Promise<Map<Tab, Broken>> {
 	const visitors = (): Visitor[] => [v, ...world.crowd];
+	const minute = (): number => Math.min(world.loop.now + 60_000, world.loop.horizon);
+	let until = minute();
 	const wait_out = async (look: boolean): Promise<void> => {
-		const until = Math.min(world.loop.now + 60_000, world.loop.horizon);
 		for (;;) {
 			await world.rest();
-			if (look) for (const who of visitors()) await visitor_looks(world, who);
+			if (look) for (const who of visitors()) if (await visitor_looks(world, who)) until = minute();
 			if (
 				!(
 					world.loop.now < until &&
