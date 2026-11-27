@@ -435,7 +435,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 		}
 	});
 
-	it('is judged against a shown fresh load when its islands had a frame before it went behind', async () => {
+	it('is judged against a shown fresh load when its islands had a frame before it went behind; showing no difference there, a known finding as it stood is kept', async () => {
 		const { rest_at_end } = await import('../src/cli.ts');
 		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
 		try {
@@ -453,6 +453,11 @@ describe.skipIf(!built)('a tab behind another', () => {
 			const stood = await rest_at_end(world, v);
 			expect(stood.get(tab), 'it is owed no look: it is not judged as it stood').toBe(undefined);
 			expect(await mpa_equivalent(world, v, tab, undefined, stood.get(tab))).toBeNull();
+			const known = { oracle: 'known', detail: 'a filed bug, as it stood' } as const;
+			expect(
+				await mpa_equivalent(world, v, tab, undefined, known),
+				'a known finding as it stood is kept when the tab, judged, shows no difference'
+			).toBe(known);
 		} finally {
 			await world.end();
 		}

@@ -22,6 +22,7 @@ import {
 	gate_open_early,
 	no_viewport_wait,
 	normalize,
+	owes_look,
 	parsed_first,
 	rewrite_rendered,
 	live_regions_out,
@@ -1792,5 +1793,28 @@ describe("a mounted peer's page answers as the peer did", () => {
 	it("finds a peer's page that shows another visitor than the app's (a mutant that dropped the claims survived), and passes the app's", async () => {
 		expect((await judged('<p data-gen-who></p>', [], '/peer/who'))?.oracle).toBe('peer-answers');
 		expect(await judged('<p data-gen-who>visitor</p>', [], '/peer/who')).toBeNull();
+	});
+});
+
+describe('a tab owed a look', () => {
+	const tab = (o: { hidden: boolean; url?: string }) =>
+		({
+			realm: 'tab-1#2',
+			hidden: o.hidden,
+			seen: new Set(['tab-1#2']),
+			owes_frame: () => true,
+			page: { mainFrame: { url: o.url ?? 'https://app.test/p1' } }
+		}) as unknown as Parameters<typeof owes_look>[0];
+
+	it('is one behind another: a tab in front owes no look, though its next frame would do something', () => {
+		expect(owes_look(tab({ hidden: true }))).toBe(true);
+		expect(owes_look(tab({ hidden: false }))).toBe(false);
+	});
+
+	it('keeps a known finding as it stood for a page not loaded over http: there is no fresh load to judge it against', async () => {
+		const stood = { oracle: 'known', detail: 'as it stood' } as const;
+		const at = tab({ hidden: true, url: 'about:blank' });
+		const nowhere = undefined as never;
+		expect(await mpa_equivalent(nowhere, nowhere, at, undefined, stood)).toBe(stood);
 	});
 });
