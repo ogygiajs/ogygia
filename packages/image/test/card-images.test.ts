@@ -164,14 +164,18 @@ describe("a card's images, as satori is handed them", () => {
 		expect(images_in(drawn[0])[0]).toBeInstanceOf(ArrayBuffer);
 	});
 
-	test('a server that fits no image (sharp makes no file there) refuses a card that names one, coded, before the draw', async () => {
+	test('a server that fits no image (sharp makes no file there) refuses a card that names one, coded, before it reads the image or draws', async () => {
 		const small = await solid(8, 8);
+		const reads: string[] = [];
 		await expect(
 			card_png(
 				spec_of('<img src="https://cms.example.com/a.png" style="width: 10px; height: 10px">'),
 				{},
 				[FONT],
-				() => Promise.resolve(new Uint8Array(small)),
+				(src) => {
+					reads.push(src);
+					return Promise.resolve(new Uint8Array(small));
+				},
 				null
 			)
 		).rejects.toMatchObject({
@@ -179,6 +183,7 @@ describe("a card's images, as satori is handed them", () => {
 			message: expect.stringMatching(/fits no image to a card/)
 		});
 		expect(drawn).toEqual([]);
+		expect(reads, 'an image it cannot fit is never fetched').toEqual([]);
 	});
 
 	test("a style's url( with no closing paren is refused, coded, and satori never calls fetch", async () => {

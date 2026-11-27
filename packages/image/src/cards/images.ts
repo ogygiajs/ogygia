@@ -27,8 +27,14 @@ import { image_type } from '../image-type.ts';
 import { OgygiaError } from '../messages.ts';
 import { source_tail } from '../recipe.ts';
 
-/** How a card's realm reads one image its markup names, by the URL the markup wrote. */
-export type CardImageRead = (src: string) => Promise<Uint8Array>;
+/** How a card's realm reads one image its markup names, by the URL the markup wrote. `unfit`, when
+ *  the realm keeps a failure memory of its own for the URLs it fetches: the failure a draw throws
+ *  when the bytes read for `src` cannot be fitted to the card (undefined, or no `unfit`:
+ *  `image_card_source`). */
+export interface CardImageRead {
+	(src: string): Promise<Uint8Array>;
+	unfit?: (src: string, reason: string) => Error | undefined;
+}
 
 /** How a card's images are fitted to it before the draw: the bytes satori is handed and their
  *  type, or a throw saying why the image cannot be drawn. */
@@ -38,30 +44,44 @@ export type CardImageFit = (bytes: Uint8Array) => Promise<{ bytes: Uint8Array; t
 export const no_images: CardImageRead = () =>
 	Promise.reject(new Error('this card is drawn with no image reader'));
 
+function routed(src: string, prefixes: readonly string[]): 'local' | URL | null {
+	const own = prefixes.some((p) => p !== '' && src.startsWith(`${p}/`));
+	if (own || (src.startsWith('/') && !src.startsWith('//'))) return 'local';
+	let url: URL | null = null;
+	try {
+		url = new URL(src);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a src that is no absolute URL is refused by the reader, saying what it must be
+	} catch {}
+	return url !== null && (url.protocol === 'https:' || url.protocol === 'http:') ? url : null;
+}
+
 /** A realm's reader: `local` reads an asset of the build by its tail (and the URL as written),
- *  `remote` fetches a URL through `image({ remote })`'s guard (null: no `remote` is set). */
+ *  `remote` fetches a URL through `image({ remote })`'s guard (null: no `remote` is set), and
+ *  `undecoded` is the failure of a fetched URL whose bytes cannot be fitted to the card (null: it
+ *  is `image_card_source`). */
 export function card_image_reader(
 	prefixes: readonly string[],
 	local: (tail: string, src: string) => Promise<Uint8Array>,
-	remote: ((url: URL) => Promise<Uint8Array>) | null
+	remote: ((url: URL) => Promise<Uint8Array>) | null,
+	undecoded: ((url: URL, reason: string) => Error) | null = null
 ): CardImageRead {
-	return (src) => {
-		const own = prefixes.some((p) => p !== '' && src.startsWith(`${p}/`));
-		if (own || (src.startsWith('/') && !src.startsWith('//')))
-			return local(source_tail(src, prefixes), src);
-		let url: URL | null = null;
-		try {
-			url = new URL(src);
-			// oxlint-disable-next-line ogygia/no-silent-failures -- a src that is no absolute URL is refused just below, saying what it must be
-		} catch {}
-		if (url === null || (url.protocol !== 'https:' && url.protocol !== 'http:'))
+	const read: CardImageRead = (src) => {
+		const to = routed(src, prefixes);
+		if (to === 'local') return local(source_tail(src, prefixes), src);
+		if (to === null)
 			return Promise.reject(
 				new Error('it is no asset URL of this build (root-relative) and no http(s) URL')
 			);
 		if (remote === null)
 			return Promise.reject(new Error('image({ remote }) is not set, so a card fetches no URL'));
-		return remote(url);
+		return remote(to);
 	};
+	if (remote !== null && undecoded !== null)
+		read.unfit = (src, reason) => {
+			const to = routed(src, prefixes);
+			return to instanceof URL ? undecoded(to, reason) : undefined;
+		};
+	return read;
 }
 
 type Node = { type?: unknown; props?: { [prop: string]: unknown } };
@@ -231,12 +251,19 @@ async function drawn_image(
 	src: string,
 	file: string,
 	read: CardImageRead,
-	fit: CardImageFit
+	fit: CardImageFit | null
 ): Promise<{ bytes: Uint8Array; type: string }> {
+	const shown = src.startsWith('data:') ? src.slice(0, 64) : src;
+	if (fit === null)
+		throw refused(
+			file,
+			shown,
+			'this server fits no image to a card: sharp makes no file here (list sharp() in image({ encoder }))'
+		);
 	let bytes: Uint8Array | null;
 	if (src.startsWith('data:')) {
 		bytes = data_bytes(src);
-		if (bytes === null) throw refused(file, src.slice(0, 64), 'its data does not decode');
+		if (bytes === null) throw refused(file, shown, 'its data does not decode');
 	} else
 		try {
 			bytes = await read(src);
@@ -251,7 +278,9 @@ async function drawn_image(
 	} catch (e) {
 		const code = (e as { code?: unknown }).code;
 		if (typeof code === 'string' && code.startsWith('image_')) throw e;
-		throw refused(file, src.startsWith('data:') ? src.slice(0, 64) : src, (e as Error).message);
+		const reason = (e as Error).message;
+		const own = src.startsWith('data:') ? undefined : read.unfit?.(src, reason);
+		throw own ?? refused(file, shown, reason);
 	}
 }
 
@@ -265,14 +294,15 @@ function as_buffer(bytes: Uint8Array): ArrayBuffer {
  *  (an `<img src>` as an `ArrayBuffer`, satori keeps no copy of it; any other as a `data:` URL of
  *  the type its bytes are), and every link's `href` outside an SVG left out. A `data:` URL is read
  *  like any address: its bytes must be a PNG, JPEG, GIF, WebP, AVIF or TIFF (an SVG is refused:
- *  it can name addresses of its own). One `read` cannot read, or `fit` cannot fit, is
- *  `image_card_source`; a coded refusal of the realm's own (such as `image_remote_host` at build)
- *  and a {@link RealmAnswer} stay as they are. */
+ *  it can name addresses of its own). One `read` cannot read, or `fit` cannot fit (or any, with no
+ *  `fit`: nothing is read then), is `image_card_source`, but for a fetched URL whose bytes do not
+ *  fit when `read.unfit` names the failure; a coded refusal of the realm's own (such as
+ *  `image_remote_host` at build) and a {@link RealmAnswer} stay as they are. */
 export async function inline_images<T>(
 	tree: T,
 	file: string,
 	read: CardImageRead,
-	fit: CardImageFit
+	fit: CardImageFit | null
 ): Promise<T> {
 	const srcs = new Set<string>();
 	walk(tree, false, (src) => srcs.add(src));

@@ -43,8 +43,8 @@ vi.mock('virtual:ogygia-image/cards', async () => {
 		card_module: () =>
 			Promise.resolve({
 				spec,
-				png: (props: CardProps, fonts: readonly ArrayBuffer[], images: never) =>
-					card_png(spec, props, fonts, images)
+				png: (props: CardProps, fonts: readonly ArrayBuffer[], images: never, fit: never) =>
+					card_png(spec, props, fonts, images, fit)
 			})
 	};
 });

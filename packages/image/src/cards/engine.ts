@@ -80,15 +80,8 @@ export async function engine(): Promise<Engine> {
 	return loaded;
 }
 
-function fit_of(spec: CardSpec, fit: ImageFit | null): CardImageFit {
-	if (fit === null)
-		return () =>
-			Promise.reject(
-				new Error(
-					'this server fits no image to a card: sharp makes no file here (list sharp() in image({ encoder }))'
-				)
-			);
-	return (bytes) => fit(bytes, spec.width, spec.height);
+function fit_of(spec: CardSpec, fit: ImageFit | null): CardImageFit | null {
+	return fit === null ? null : (bytes) => fit(bytes, spec.width, spec.height);
 }
 
 function decoded(node: unknown): unknown {

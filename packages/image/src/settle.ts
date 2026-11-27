@@ -130,6 +130,13 @@ function remembered(url: string, e: unknown): unknown {
 	return named;
 }
 
+function undecoded(url: URL, reason: string): Refused {
+	return remembered(
+		url.href,
+		new Refused(502, `the image did not decode: ${reason}`, url.href)
+	) as Refused;
+}
+
 const STATUS_OF: Readonly<Record<FailKind, number>> = {
 	status: 502,
 	'no answer': 502,
@@ -191,7 +198,8 @@ const card_originals = flights.keyed<{ tail: string; id: string }>()<
 				: (url) => {
 						shown = true;
 						return remote_bytes(url);
-					}
+					},
+			undecoded
 		);
 		const bytes = await card_original(tail, id, images);
 		return { bytes, shown };
@@ -253,10 +261,7 @@ const makes = flights.keyed<Ask>()<
 				data = await make(bytes, ask.recipe, ask.platform);
 			} catch (e) {
 				if (ask.url === null || !(e instanceof SourceUnreadable)) throw e;
-				throw remembered(
-					ask.url.href,
-					new Refused(502, `the image did not decode: ${(e as Error).message}`, ask.url.href)
-				);
+				throw undecoded(ask.url, (e as Error).message);
 			}
 			const file = window === null ? ask.key : `${ask.key}${window.key}`;
 			const on_disk = store !== null && (await store.keep(file, data));
