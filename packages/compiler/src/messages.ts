@@ -224,7 +224,7 @@ export const BUILD_ERRORS = {
 		`
 	},
 	as_region_removed: {
-		until: '0.15',
+		until: '0.16',
 		text: (a: { host: string; fixes: string }): string =>
 			`${a.host}: import.meta.og.asRegion is gone. Mark the import itself; a named import takes the same options:\n${a.fixes}`,
 		details: (): string => prose`
@@ -391,7 +391,7 @@ export const BUILD_ERRORS = {
 		`
 	},
 	hole_wake_removed: {
-		until: '0.15',
+		until: '0.16',
 		text: (a: {
 			host: string;
 			said?: string;
@@ -457,7 +457,7 @@ export const BUILD_ERRORS = {
 		`
 	},
 	barrels_option_removed: {
-		until: '0.15',
+		until: '0.16',
 		text: (): string => prose`
 			\`ogygia({ barrels })\` is gone: the barrel rewrite is a plugin now. Install
 			\`@ogygia/barrels\` and list \`barrels({ … })\` (from \`@ogygia/barrels\`) beside

@@ -1,5 +1,11 @@
 # @ogygia/machine
 
+## 0.15.1
+
+### Patch Changes
+
+- [#2193](https://github.com/ogygiajs/ogygia/pull/2193) [`617b3c7`](https://github.com/ogygiajs/ogygia/commit/617b3c74f1ac68adfe5598e664fbc5adba3a0689) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Published with the functions `@ogygia/core` 0.15.0 imports (`runDef`, `trustedFlights` and the rest). 0.15.0 of the other packages was released while npm still had `@ogygia/machine` 0.14.0, so installing it failed to load; every package now releases at one version.
+
 ## 0.14.0
 
 ### Minor Changes

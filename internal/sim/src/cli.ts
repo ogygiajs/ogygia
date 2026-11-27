@@ -12,7 +12,7 @@
  *   --jobs N                         # worlds at once, each in its own process (default: cores - 1)
  *
  * Seeds run in a pool of worker processes (each world has its own host, and a worker is replaced
- * after a few dozen runs: a loaded server graph is never freed). A seed's replay runs in another
+ * once its heap is half full: a loaded server graph is never freed). A seed's replay runs in another
  * worker than its first run where the pool has two, so state a process keeps between worlds shows
  * as a replay difference too.
  *
@@ -31,7 +31,8 @@ import { availableParallelism } from 'node:os';
 // (the host's real timers: a run replaces the global ones with its simulated ones)
 import { clearInterval as clearRealInterval, setInterval as real_interval } from 'node:timers';
 import { basename, join, relative, resolve } from 'node:path';
-import { Watchdog } from './watchdog.ts';
+import { getHeapStatistics } from 'node:v8';
+import { Watchdog, worker_full, type Heap } from './watchdog.ts';
 import { fileURLToPath } from 'node:url';
 import { describe, act, next_action, ACTION_KINDS, type Action, type Mix } from './workload.ts';
 import { html_kept, html_sent } from './html.ts';
@@ -1128,8 +1129,6 @@ const JOBS = Math.max(
 	1,
 	Number(arg('--jobs') ?? Math.min(RUNS * (REPLAY ? 2 : 1), availableParallelism() - 1))
 );
-/** Runs a worker takes before it is replaced (each world's server graph stays loaded). */
-const WORKER_RUNS = 25;
 
 interface Job {
 	seed: number;
@@ -1232,7 +1231,7 @@ class Pool {
 				missed: []
 			}
 		});
-		const done = (message: { result?: RunResult; error?: string; hung?: string }) => {
+		const done = (message: { result?: RunResult; error?: string; hung?: string; heap?: Heap }) => {
 			w.child.off('exit', died);
 			job.resolve(
 				message.hung !== undefined
@@ -1242,7 +1241,8 @@ class Pool {
 						: { result: message.result, worker: w.id }
 			);
 			// (a hung run's worker ends itself)
-			if (message.hung !== undefined || ++w.runs >= WORKER_RUNS) {
+			w.runs++;
+			if (message.hung !== undefined || (message.heap !== undefined && worker_full(message.heap))) {
 				w.child.kill();
 				this.#live--;
 			} else this.#idle.push(w);
@@ -1285,14 +1285,19 @@ function worker(): void {
 		timed(job.seed, job.steps, job.stop_at ?? Infinity, job.plan).then(
 			(result) => {
 				clearRealInterval(watchdog);
-				process.send!({ result });
+				process.send!({ result, heap: heap_now() });
 			},
 			(error: unknown) => {
 				clearRealInterval(watchdog);
-				process.send!({ error: String((error as Error)?.stack ?? error) });
+				process.send!({ error: String((error as Error)?.stack ?? error), heap: heap_now() });
 			}
 		);
 	});
+}
+
+/** This worker's heap, as it stands. */
+function heap_now(): Heap {
+	return { used: process.memoryUsage().heapUsed, limit: getHeapStatistics().heap_size_limit };
 }
 
 /** Real ms a run's loop may run no task before the run is called hung. */
