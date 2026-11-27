@@ -65,6 +65,22 @@
 			"reason": "constant work: string checks first, one path compare only for a relative import ending in Kit's remote-functions index; proven in packages/compiler/test/vite-hooks.test.ts (#2041)"
 		},
 		{
+			"id": "packages/compiler/src/vite/kit-env.ts > kit_dev_public_env",
+			"reason": "dev only, once per load of Kit's public env module: reads Kit's rendered env from its server module; never in a build; proven in packages/compiler/test/vite-hooks.test.ts and apps/palaestra/e2e/kit3.spec.ts (#2177)"
+		},
+		{
+			"id": "packages/compiler/src/vite/kit-env.ts > ssr_runner",
+			"reason": "dev only, constant work: picks the dev server's SSR module runner; proven in packages/compiler/test/vite-hooks.test.ts (#2177)"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > WARNED > kit_dev_env_unread > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > WARNED > kit_dev_env_unread > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
 			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > settled",
 			"reason": "constant work: one resolved promise, made only when a departed island's query is read after it left; proven in packages/core/test/remote-cache-holders.test.ts (#2007)"
 		},
