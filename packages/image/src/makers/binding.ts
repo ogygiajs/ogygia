@@ -11,13 +11,7 @@ import {
 	STEPS_VERSION,
 	type CloudflareTransform
 } from '../encoders/cloudflare.ts';
-import {
-	CannotMake,
-	source_failure,
-	type Kept,
-	type MadeStore,
-	type Maker
-} from '../maker.ts';
+import { CannotMake, source_failure, type Kept, type MadeStore, type Maker } from '../maker.ts';
 import { warn } from '../messages.ts';
 
 interface Transformer {
