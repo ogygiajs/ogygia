@@ -902,6 +902,16 @@ describe('transform', () => {
 			return out?.code ?? KIT_ENV;
 		};
 
+		it("keeps a value with $ patterns as written ($&, $', $$ are not replacement patterns)", async () => {
+			const region = rendered_env.PUBLIC_REGION;
+			rendered_env.PUBLIC_REGION = "a$&b$'c$$d";
+			try {
+				expect(evaluate(await served('client'), {}).PUBLIC_REGION).toBe("a$&b$'c$$d");
+			} finally {
+				rendered_env.PUBLIC_REGION = region;
+			}
+		});
+
 		it('reads on a document Kit never boots (csr=false), with the values Kit renders', async () => {
 			expect(evaluate(await served('client'), {})).toEqual({
 				PUBLIC_GREETING: 'hello',
