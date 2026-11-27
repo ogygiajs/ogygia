@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 import { clock } from '@ogygia/machine';
 
-const io = vi.hoisted(() => ({ port: 0, address: '127.0.0.1', fail_encodes: 0 }));
+const io = vi.hoisted(() => ({ port: 0, address: '127.0.0.1', fail_encodes: 0, no_store: false }));
 vi.hoisted(() => {
 	delete process.env.__OGYGIA_IMAGE_BUILD;
 });
@@ -27,6 +27,9 @@ vi.mock('virtual:ogygia-image/maker', async () => {
 	const sharp_maker = await import('../src/makers/sharp.ts');
 	return {
 		...sharp_maker,
+		get store() {
+			return io.no_store ? null : sharp_maker.store;
+		},
 		make: (...args: Parameters<typeof sharp_maker.make>) => {
 			if (io.fail_encodes > 0) {
 				io.fail_encodes--;
@@ -180,6 +183,30 @@ describe('the image endpoint, for a remote image', () => {
 			);
 			expect(asked).toEqual(['cms.example.test/photo-b.jpg', 'cms.example.test/photo-b.jpg']);
 		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	test("a file kept in memory (no store) is sent with what is left of its window, not its first ask's max-age", async () => {
+		const at = Date.parse('2026-01-02T00:00:00Z');
+		vi.useFakeTimers({ toFake: ['Date'], now: at });
+		io.no_store = true;
+		try {
+			const [url] = urls_of('http://cms.example.test/photo-memory.jpg');
+			asked.length = 0;
+			const first = await get(url!);
+			expect(first.status).toBe(200);
+			const left = Number(/max-age=(\d+)/.exec(first.headers.get('cache-control')!)![1]);
+			expect(left).toBeGreaterThan(1);
+			vi.setSystemTime(at + (left - 1) * 1000);
+			const later = await get(url!);
+			expect(later.status).toBe(200);
+			expect(asked, 'kept in memory: one fetch').toEqual(['cms.example.test/photo-memory.jpg']);
+			expect(later.headers.get('cache-control')).toBe(
+				'public, max-age=1, stale-while-revalidate=60'
+			);
+		} finally {
+			io.no_store = false;
 			vi.useRealTimers();
 		}
 	});

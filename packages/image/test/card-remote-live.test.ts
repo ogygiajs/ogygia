@@ -13,7 +13,12 @@ import { afterAll, beforeAll, expect, test, vi } from 'vitest';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 import type { CardProps, CardSpec } from '../src/card.ts';
 
-const io = vi.hoisted(() => ({ address: '127.0.0.1', port: 0, mark: Buffer.alloc(0) as Buffer }));
+const io = vi.hoisted(() => ({
+	address: '127.0.0.1',
+	port: 0,
+	mark: Buffer.alloc(0) as Buffer,
+	no_store: false
+}));
 const MONO = createRequire(import.meta.url).resolve(
 	'@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff'
 );
@@ -58,6 +63,15 @@ vi.mock('virtual:ogygia-image/cards', async () => {
 				png: (props: CardProps, fonts: readonly ArrayBuffer[], images: never, fit: never) =>
 					card_png(spec, props, fonts, images, fit)
 			});
+		}
+	};
+});
+vi.mock('virtual:ogygia-image/maker', async () => {
+	const sharp_maker = await import('../src/makers/sharp.ts');
+	return {
+		...sharp_maker,
+		get store() {
+			return io.no_store ? null : sharp_maker.store;
 		}
 	};
 });
@@ -134,6 +148,28 @@ test("a live card that shows a remote image is never sent immutable: it is kept 
 	const later = await get(src);
 	expect(later.status).toBe(200);
 	expect(await pixel(later)).toEqual([0, 0, 255]);
+});
+
+test('a live card that shows a remote image, kept in memory (no store), is sent with what is left of its window, not its first ask’s max-age', async () => {
+	io.no_store = true;
+	try {
+		const now = Math.floor(clock.wall() / 1000) * 1000;
+		const wall = vi.spyOn(clock, 'wall').mockImplementation(() => now);
+		let src = '';
+		let left = 0;
+		for (let n = 0; left < 2; n++) {
+			src = card(specs.remote)({ memory: n }).src;
+			const first = await get(src);
+			expect(first.status).toBe(200);
+			left = Number(/max-age=(\d+)/.exec(first.headers.get('cache-control')!)![1]);
+		}
+		wall.mockImplementation(() => now + (left - 1) * 1000);
+		const later = await get(src);
+		expect(later.status).toBe(200);
+		expect(later.headers.get('cache-control')).toBe('public, max-age=1, stale-while-revalidate=60');
+	} finally {
+		io.no_store = false;
+	}
 });
 
 test('a live card that shows only the build’s images stays immutable', async () => {
