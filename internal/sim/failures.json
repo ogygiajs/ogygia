@@ -255,6 +255,24 @@
 	],
 	"covered": [
 		{
+			"site": "packages/compiler/src/vite/graph-compiled.ts > (module) > policy:0",
+			"reason": "the server build's wait checks again for a module the bundler named but has not begun, after growing pauses; a module the bundler never begins (its importer failed in moduleParsed) keeps the wait from moving until its quiet time ends, and the wait settles so the build reports that failure",
+			"test": "packages/compiler/test/graph-compiled.test.ts",
+			"name": "a waiting module settles when an importer fails in moduleParsed, so the build reports that failure"
+		},
+		{
+			"site": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun > check > timer:0",
+			"reason": "an import the bundler named but has not listed yet is checked again on this timer until its task begins, then waited on",
+			"test": "packages/compiler/test/graph-compiled.test.ts",
+			"name": "a waiting module waits for the imports of a module the bundler has parsed but whose imports it has not yet started (#2192: on CI the feature word read only main.js)"
+		},
+		{
+			"site": "packages/compiler/src/vite/graph-compiled.ts > graph_compiled > walk > stale:0",
+			"reason": "a module the bundler never begins reads STALE once the wait's quiet time ends, and the walk stops there instead of loading it",
+			"test": "packages/compiler/test/graph-compiled.test.ts",
+			"name": "a waiting module settles when an importer fails in moduleParsed, so the build reports that failure"
+		},
+		{
 			"site": "packages/core/src/runtime/island-warm.ts > warm_key > catch:0",
 			"reason": "a fetched page's module link whose href no URL parser takes is its own key, so the router's warmed-module ask answers no instead of throwing out of the swap; proved by hand: the catch made to rethrow turns the test red",
 			"test": "packages/core/test/browser/island-warm-key.test.ts",
