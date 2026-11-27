@@ -280,16 +280,20 @@ export class CompileCtx {
 			.sort((a, b) => b.root.length - a.root.length);
 	}
 
-	#kit_env_build: string | null = null;
+	#kit_env_build = '';
 
-	/** The app's identity on Kit's env channel (kit-patches.ts `kit_env_build`), read once: the
-	 *  server module and the browser's reader a dev server serves at different times carry one. */
+	/** The app's identity on Kit's env channel (kit-patches.ts `kit_env_build`), made once: the
+	 *  server module and the browser's reader a dev server serves at different times carry one.
+	 *  No identity (`''`) is asked again, so a dev app that gains its first dynamic public variable
+	 *  gets its own. */
 	get kit_env_build(): string {
-		return (this.#kit_env_build ??= kit_env_build({
+		return (this.#kit_env_build ||= kit_env_build({
 			root: this.root,
 			base: this.base,
 			app_dir: this.app_dir,
 			routes_dir: this.kit_dirs.routes_dir,
+			out_dir: this.kit_dirs.out_dir,
+			mode: this.is_build ? 'build' : 'dev',
 			fs: this.fs
 		}));
 	}

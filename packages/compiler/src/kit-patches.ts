@@ -40,13 +40,24 @@ const kit_public_env_re = (mode: string) =>
 export const KIT_PUBLIC_ENV_CLIENT_RE: RegExp = kit_public_env_re('(?:build|dev)');
 const KIT_ENV_READER = `import { kit_env as __og_kit_env } from 'ogygia:boot/kit-env';\n`;
 const DYNAMIC_READ_RE = /=\s*env\./;
+const STRING_LITERAL_G = /"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g;
+const ENV_REFERENCE_RE = /(?<![\w$.])env(?![\w$]|\s*:)/;
+
+function reads_env_unknown(code: string, read: string): boolean {
+	return ENV_REFERENCE_RE.test(code.replace(read, '').replace(STRING_LITERAL_G, '""'));
+}
 
 function public_env_patch(read: string, fallback: string, inert: string | null): KitPatch['patch'] {
 	return (code, id) => {
 		const dynamic = DYNAMIC_READ_RE.test(code);
+		const anchored = code.includes(read);
+		if (!dynamic && anchored && reads_env_unknown(code, read)) {
+			warn('kit_env_unpatched', { file: id });
+			return null;
+		}
 		const to = dynamic ? fallback : inert;
 		if (to === null) return null;
-		if (!code.includes(read)) {
+		if (!anchored) {
 			warn('kit_env_unpatched', { file: id });
 			return null;
 		}
@@ -94,13 +105,26 @@ export function patch_kit_module(code: string, id: string): string {
 }
 
 /** What names an app for its env channel: its package.json, its base, its app dir and its source
- *  (`src`, and Kit's routes dir where it is not under `src`). */
+ *  (`src`, and Kit's routes dir where it is not under `src`); and where Kit wrote its env config
+ *  (`kit.outDir`, for the serve mode). */
 export interface KitEnvApp {
 	readonly root: string;
 	readonly base: string;
 	readonly app_dir: string;
 	readonly routes_dir: string;
+	readonly out_dir: string;
+	readonly mode: 'dev' | 'build';
 	readonly fs: Fs;
+}
+
+const DYNAMIC_PUBLIC_SET_RE = /\brendered_env\.[\w$]+\s*=/;
+
+/** True when the env config Kit generated for the app's mode (`<outDir>/generated/<mode>/env/config.js`)
+ *  sets a dynamic public variable (`public: true, static: false`), the only kind Kit's payload, and
+ *  so the channel, carries; true too when it cannot be read. */
+export function kit_env_dynamic(app: Pick<KitEnvApp, 'out_dir' | 'mode' | 'fs'>): boolean {
+	const config = app.fs.read(path.join(app.out_dir, 'generated', app.mode, 'env', 'config.js'));
+	return config === null || DYNAMIC_PUBLIC_SET_RE.test(config);
 }
 
 const by_name = (a: FsEntry, b: FsEntry) => Number(a.name > b.name) - Number(a.name < b.name);
@@ -125,9 +149,12 @@ function hash_tree(files: Fs, dir: string, rel: string, into: Hash): void {
  * dot files (ogygia's keep-client route is one, and is there for one leg only). A federated peer is
  * another app, so its reader never takes the host's env as its own; only a peer built from the very
  * same source shares it. It holds no absolute path and no time, so a build made again is
- * byte-identical.
+ * byte-identical. An app whose Kit env config sets no dynamic public variable (`kit_env_dynamic`)
+ * has an empty env, so the server writes no channel and the browser reads none: it has no
+ * identity (`''`, as a Kit 2 app has) and its source is not read.
  */
 export function kit_env_build(app: KitEnvApp): string {
+	if (!kit_env_dynamic(app)) return '';
 	const hash = createHash('sha256').update([app.base, app.app_dir].join('\0'));
 	hash.update('\0package.json\0').update(app.fs.read(path.join(app.root, 'package.json')) ?? '');
 	const src = path.join(app.root, 'src');

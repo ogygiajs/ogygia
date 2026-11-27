@@ -4,6 +4,8 @@
 import { dedent } from '@ogygia/core/contract';
 import { describe, expect, it } from 'vitest';
 import { memory_fs, type Fs } from '../src/fs.ts';
+import { CompileCtx, normalize_import_keys } from '../src/index.ts';
+import { partial_ctx_init } from './_compile-ctx.ts';
 import { kit_env_build, kit_env_reader_module, kit_public_env_module } from '../src/kit-patches.ts';
 
 const PAGE = '<h1>home</h1>\n';
@@ -26,7 +28,7 @@ const app = (
 		app_dir,
 		routes_dir: `${root}/src/routes`,
 		out_dir: `${root}/.svelte-kit`,
-		mode: 'build' as const,
+		mode: 'build' as 'dev' | 'build',
 		fs: memory_fs(all)
 	};
 };
@@ -152,6 +154,33 @@ describe("the build's identity is made only for an app whose payload carries an 
 		const a = app('/a/web', 'my-app');
 		a.fs.set('/a/web/.svelte-kit/generated/dev/env/config.js', DYNAMIC_CONFIG);
 		expect(kit_env_build(with_config(a, STATIC_ONLY_CONFIG).app)).toBe('');
+	});
+
+	it('dev: an app that gains its first dynamic public variable gets its identity, and keeps it', () => {
+		const a = app('/a/web', 'my-app');
+		const config = '/a/web/.svelte-kit/generated/dev/env/config.js';
+		a.fs.set(config, STATIC_ONLY_CONFIG);
+		const ctx = new CompileCtx(
+			partial_ctx_init({
+				root: a.root,
+				base: '',
+				app_dir: a.app_dir,
+				libDir: '/a/web/src/lib',
+				is_dev: true,
+				is_build: false,
+				import_keys: normalize_import_keys(undefined),
+				resolve_alias: [],
+				presets: {},
+				app_shims: {},
+				fs: a.fs
+			})
+		);
+		expect(ctx.kit_env_build).toBe('');
+		a.fs.set(config, DYNAMIC_CONFIG);
+		const made = ctx.kit_env_build;
+		expect(made).toBe(kit_env_build({ ...a, mode: 'dev' }));
+		a.fs.set('/a/web/src/routes/+page.svelte', '<h1>edited</h1>\n');
+		expect(ctx.kit_env_build).toBe(made);
 	});
 
 	it("is made from the source when Kit's env config cannot be read", () => {

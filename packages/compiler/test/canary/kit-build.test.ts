@@ -15,6 +15,7 @@ import { clientBuildWillSkip, resolve_kit_paths, route_reader } from '../../src/
 import {
 	KIT_PATCHES,
 	KIT_PUBLIC_ENV_CLIENT_RE,
+	kit_env_dynamic,
 	kit_public_env_module
 } from '../../src/kit-patches.ts';
 import { node_fs } from '../../src/fs.ts';
@@ -68,7 +69,7 @@ const PATCHES: Internal = {
 const PUBLIC_ENV: Internal = {
 	upstream: "SvelteKit 3's rendered public env (`rendered_env`, what its payload sends as `env`)",
 	used_by: [
-		'packages/compiler/src/kit-patches.ts (kit_public_env_module)',
+		'packages/compiler/src/kit-patches.ts (kit_public_env_module, kit_env_dynamic)',
 		'packages/core/src/server/env-seed.ts (env_seed_script)'
 	],
 	issue: 2177
@@ -176,6 +177,17 @@ function expect_patches_apply(app: KitApp, mode: 'dev' | 'build'): void {
 	}
 }
 
+/** Kit's env config for `mode` sets the app's dynamic public variable where the compiler looks for
+ *  one before it makes the build's identity. */
+function expect_dynamic_env_seen(app: KitApp, mode: 'dev' | 'build'): void {
+	const config = path.join(app.out_dir, 'generated', mode, 'env', 'config.js');
+	expect(
+		kit_env_dynamic({ out_dir: app.out_dir, mode, fs: node_fs }),
+		broke(PUBLIC_ENV, `the compiler sees no dynamic public variable in ${config}`)
+	).toBe(true);
+	expect(fs.readFileSync(config, 'utf8')).toContain('rendered_env.PUBLIC_REGION =');
+}
+
 /** Kit's rendered public env holds no private variable and no static one. */
 function expect_no_private_or_static(env: string | Record<string, unknown> | undefined): void {
 	const text = typeof env === 'string' ? env : JSON.stringify(env);
@@ -201,6 +213,13 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 		it('generates every module the patch table patches, in the text each row reads', () => {
 			expect_patches_apply(app, 'dev');
 		});
+
+		it.skipIf(app.major < 3)(
+			'sets its dynamic public variable in its env config, where the compiler looks before it hashes the source',
+			() => {
+				expect_dynamic_env_seen(app, 'dev');
+			}
+		);
 
 		it.skipIf(app.major < 3)(
 			"sends its rendered public env in a csr=true page's payload, as the server's channel does",
@@ -265,6 +284,13 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 		it('generates every module the patch table patches, in the text each row reads (build)', () => {
 			expect_patches_apply(app, 'build');
 		});
+
+		it.skipIf(app.major < 3)(
+			'sets its dynamic public variable in its env config, where the compiler looks before it hashes the source (build)',
+			() => {
+				expect_dynamic_env_seen(app, 'build');
+			}
+		);
 
 		it.skipIf(app.major < 3)(
 			"sends its server module's rendered_env as a csr=true page's payload env",
