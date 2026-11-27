@@ -454,6 +454,38 @@ describe('the network', () => {
 		expect(net.exchanges.map((e) => e.status)).toEqual(['aborted']);
 	});
 
+	it('a held request reaches its server only once let go, and one called off or lost meanwhile never does', async () => {
+		const loop = new Loop(rng(1));
+		const net = new Network({ loop, rng: rng(1), faults: new Set() });
+		const asked: string[] = [];
+		const handler = async (r: Request) => {
+			asked.push(new URL(r.url).pathname);
+			return new Response('x');
+		};
+		const let_go = net.hold((url) => url.pathname !== '/free');
+		const called_off = new AbortController();
+		const answered = net.send('tab-1#1', new Request('https://app.test/held'), handler);
+		void net
+			.send('tab-1#1', new Request('https://app.test/off', { signal: called_off.signal }), handler)
+			.catch(() => {});
+		void net.send('tab-2#1', new Request('https://app.test/lost'), handler).catch(() => {});
+		void net.send('tab-1#1', new Request('https://app.test/free'), handler);
+		await loop.run(10_000);
+		expect(asked).toEqual(['/free']);
+		expect(net.busy()).toBe(true);
+		called_off.abort();
+		net.offline('tab-2', true);
+		await loop.run(100);
+		const at = loop.now;
+		let_go();
+		let_go();
+		await loop.run();
+		expect(await answered).toBeInstanceOf(Response);
+		expect(asked).toEqual(['/free', '/held']);
+		expect(net.exchanges.find((e) => e.url.endsWith('/held'))!.status).toBe(200);
+		expect(loop.now).toBeGreaterThan(at);
+	});
+
 	it('each visitor comes from a client address of its own, and its server hops keep it', async () => {
 		// (a crowd of visitors shared one address, so a per-client rate limit saw one client)
 		const loop = new Loop(rng(1));

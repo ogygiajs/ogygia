@@ -35,6 +35,10 @@ works, what is built, and how to add to it.
      origin's answer, so a page whose only failed hops were such GETs is judged whole (a stalled hop
      beside it still excuses the app's 504). The MPA check reads the replica as its first origin
      (its files, and a region sheet lifted beside the same file at the first: `replicas_as_one`).
+     A test that needs an answer to come after some moment holds its request (`Network.hold`) and
+     lets it go then: a request's delays are drawn by its address, and a region's address holds the
+     build's region ids, so a seed's delays order it one way on one build and another way on a
+     rebuild of the same commit (`test/hidden-tab.node.test.ts`, CI run 45967491968).
    - `server.ts`: a built Kit app (`.svelte-kit/output`) served in process, static files plus
      `Server.respond`. Each instance loads its own copy of the output (its own module graph), placed
      beside the app's output so it resolves the app's dependencies.
