@@ -178,7 +178,7 @@ describe('a tombstone (a code that only points at a removed spelling) names the 
 	const before = (a: [number, number], b: [number, number]) =>
 		a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
 
-	it('the 0.14 tombstones go in 0.16 (0.15.0 shipped with them; a patch release removes no error)', () => {
+	it('the 0.14 tombstones go in 0.17 (0.16.0 shipped with them before each had a coded fallback, #2223)', () => {
 		const until = (code: string) => (TABLES[code] as { until?: string } | undefined)?.until;
 		expect({
 			as_region_removed: until('as_region_removed'),
@@ -186,10 +186,10 @@ describe('a tombstone (a code that only points at a removed spelling) names the 
 			handle_transform_moved: until('handle_transform_moved'),
 			hole_wake_removed: until('hole_wake_removed')
 		}).toEqual({
-			as_region_removed: '0.16',
-			barrels_option_removed: '0.16',
-			handle_transform_moved: '0.16',
-			hole_wake_removed: '0.16'
+			as_region_removed: '0.17',
+			barrels_option_removed: '0.17',
+			handle_transform_moved: '0.17',
+			hole_wake_removed: '0.17'
 		});
 	});
 
