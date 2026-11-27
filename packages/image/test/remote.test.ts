@@ -195,10 +195,12 @@ describe('hosts', () => {
 				const hosts = new RemoteHosts([entry]);
 				const inside = below ? other.endsWith(`.${listed}`) : other === listed;
 				expect(hosts.allows(new URL(`https://${other}/a.jpg`))).toBe(inside);
-				expect(hosts.allows(new URL(`https://${listed}.${other}/a.jpg`))).toBe(false);
+				expect(hosts.allows(new URL(`https://${listed}.${other}/a.jpg`))).toBe(
+					below && `${listed}.${other}`.endsWith(`.${listed}`)
+				);
 				expect(hosts.allows(new URL(`http://${listed}/a.jpg`))).toBe(false);
 			}),
-			{ numRuns: 500 }
+			{ numRuns: 500, examples: [['y.s', 'y.s', true]] }
 		);
 	});
 

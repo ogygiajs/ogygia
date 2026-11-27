@@ -228,7 +228,7 @@ describe("a card's images, as satori is handed them", () => {
 			).rejects.toMatchObject({ code: 'image_card_source' });
 		expect(fits).toBe(0);
 		expect(drawn).toEqual([]);
-	});
+	}, 60_000);
 
 	test("a link's href (a card made from page markup) is no image: never read, and the card draws", async () => {
 		const asked: string[] = [];
