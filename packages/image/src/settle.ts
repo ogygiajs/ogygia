@@ -29,7 +29,7 @@ import { said, said_each, warn } from './messages.ts';
 import { remote as REMOTE, transport } from 'virtual:ogygia-image/remote';
 import { card_original, draws, endpoint_images, NoCard } from './cards/read.ts';
 import { RealmAnswer } from './cards/images.ts';
-import { CannotMake, SourceUnreadable } from './maker.ts';
+import { CannotMake, SourceUnreadable, type Kept } from './maker.ts';
 import { Changed, read_original } from './reader.ts';
 import { card_of_tail, remote_of_tail, type ParsedRecipe } from './recipe.ts';
 import type { FailKind } from './remote-fetch.ts';
@@ -85,6 +85,19 @@ const fetches = new Line('image remote fetches', FETCHES_MAX);
 interface Made {
 	data: Uint8Array;
 	on_disk: boolean;
+	/** Its `cache-control`. */
+	header: string;
+	/** How long a copy kept in memory may be answered: a file made from remote bytes, until the end
+	 *  of its `remote.maxAge` window. */
+	keep_ms: number;
+}
+
+/** A file's `remote.maxAge` window: its store key's suffix, its `cache-control`, and the seconds
+ *  left in it. */
+interface Window {
+	key: string;
+	header: string;
+	left: number;
 }
 
 interface Ask {
@@ -93,6 +106,7 @@ interface Ask {
 	original: string;
 	url: URL | null;
 	card: boolean;
+	window: Window | null;
 	platform: unknown;
 }
 
@@ -162,16 +176,33 @@ const remote_originals = flights.keyed<{ url: string }>()<'url', never, Promise<
 	}
 });
 
+interface Original {
+	bytes: Uint8Array;
+	/** Whether it shows bytes a remote URL gave (a card that names a remote image). */
+	shown: boolean;
+}
+
 const card_originals = flights.keyed<{ tail: string; id: string }>()<
 	'tail' | 'id',
 	never,
-	Promise<Uint8Array>
+	Promise<Original>
 >({
 	name: 'card originals',
 	key: ['tail', 'id'],
 	keep: 0,
-	run: ({ tail, id }: { tail: string; id: string }): Promise<Uint8Array> =>
-		card_original(tail, id, CARD_IMAGES)
+	run: async ({ tail, id }: { tail: string; id: string }): Promise<Original> => {
+		let shown = false;
+		const images = endpoint_images(
+			REMOTE === null
+				? null
+				: (url) => {
+						shown = true;
+						return remote_bytes(url);
+					}
+		);
+		const bytes = await card_original(tail, id, images);
+		return { bytes, shown };
+	}
 });
 
 async function remote_bytes(url: URL): Promise<Uint8Array> {
@@ -188,21 +219,19 @@ async function remote_bytes(url: URL): Promise<Uint8Array> {
 	return bytes;
 }
 
-const CARD_IMAGES = endpoint_images(REMOTE === null ? null : remote_bytes);
-
-async function original_bytes(ask: Ask): Promise<Uint8Array> {
+async function original_bytes(ask: Ask): Promise<Original> {
 	if (ask.card) {
-		const bytes = await card_originals.get({ tail: ask.recipe.tail, id: ask.recipe.id });
-		if (bytes === STALE) throw new Error('the card was dropped before it was drawn');
-		return bytes;
+		const drawn = await card_originals.get({ tail: ask.recipe.tail, id: ask.recipe.id });
+		if (drawn === STALE) throw new Error('the card was dropped before it was drawn');
+		return drawn;
 	}
-	if (ask.url === null) return read_original(ask.original, ask.recipe.id);
-	return remote_bytes(ask.url);
+	if (ask.url !== null) return { bytes: await remote_bytes(ask.url), shown: true };
+	return { bytes: await read_original(ask.original, ask.recipe.id), shown: false };
 }
 
 const makes = flights.keyed<Ask>()<
 	'key',
-	'recipe' | 'original' | 'url' | 'card' | 'platform',
+	'recipe' | 'original' | 'url' | 'card' | 'window' | 'platform',
 	Promise<Made>
 >({
 	name: 'image files',
@@ -212,15 +241,20 @@ const makes = flights.keyed<Ask>()<
 		original: 'the key names the source by content, and a run checks the original against it',
 		url: "the key's tail names a remote source's URL, and its id the URL",
 		card: "the key's id names a card's digest, size and props",
+		window:
+			"the asking time's remote.maxAge window: a make from remote bytes keeps its file under the window it started in, in memory to that window's end",
 		platform: "one process's requests carry the same bindings"
 	},
-	keep: (made: Fresh<Made>) => (made.on_disk ? 0 : Infinity),
+	keep: (made: Fresh<Made>) => (made.on_disk ? 0 : made.keep_ms),
 	max: MEMORY_MAX,
 	weigh: (made: Fresh<Made>) => made.data.byteLength,
 	run: async (ask: Ask): Promise<Made> => {
 		const fetched = ask.url === null ? null : await remote_bytes(ask.url);
 		return encodes.run(async (): Promise<Made> => {
-			const bytes = fetched ?? (await original_bytes(ask));
+			const original: Original =
+				fetched === null ? await original_bytes(ask) : { bytes: fetched, shown: true };
+			const bytes = original.bytes;
+			const window = original.shown ? ask.window : null;
 			let data: Uint8Array;
 			try {
 				data = await make(bytes, ask.recipe, ask.platform);
@@ -231,8 +265,11 @@ const makes = flights.keyed<Ask>()<
 					new Refused(502, `the image did not decode: ${(e as Error).message}`, ask.url.href)
 				);
 			}
-			const on_disk = store !== null && (await store.keep(ask.key, data));
-			return { data, on_disk };
+			const file = window === null ? ask.key : `${ask.key}${window.key}`;
+			const on_disk = store !== null && (await store.keep(file, data));
+			return window === null
+				? { data, on_disk, header: KEEP, keep_ms: Infinity }
+				: { data, on_disk, header: window.header, keep_ms: window.left * 1000 };
 		});
 	}
 });
@@ -243,22 +280,37 @@ function spread(text: string, span: number): number {
 	return bucket32(text) % span;
 }
 
-function remote_keep(max_age: number, now_s: number, url: string): { key: string; header: string } {
+function remote_keep(max_age: number, now_s: number, url: string): Window {
 	const span = Math.max(1, max_age);
 	const at = Math.floor(now_s) + spread(url, span);
 	const window = Math.floor(at / span);
 	const left = Math.max(1, (window + 1) * span - at);
 	return {
 		key: `@${span}.${window}`,
-		header: `public, max-age=${left}, stale-while-revalidate=${max_age}`
+		header: `public, max-age=${left}, stale-while-revalidate=${max_age}`,
+		left
 	};
 }
 
+async function kept_file(
+	key: string,
+	plain: boolean,
+	window: Window | null
+): Promise<{ file: Kept; header: string } | null> {
+	if (store === null) return null;
+	const own = plain ? await store.open(key) : null;
+	if (own) return { file: own, header: KEEP };
+	if (window === null) return null;
+	const windowed = await store.open(`${key}${window.key}`);
+	return windowed ? { file: windowed, header: window.header } : null;
+}
+
 /** The response for one verified recipe (`key` its file, ../recipe.ts `recipe_file`; `original` the
- *  asset URL Kit's `read()` takes; `platform` the request's `event.platform`). A recipe whose tail
- *  names a remote URL is made from the URL's bytes, fetched under `image({ remote })`; its file is
- *  kept, and answered to be kept, until the end of the current `remote.maxAge` window, never
- *  forever, so the URL's new bytes go out within that time. */
+ *  asset URL Kit's `read()` takes; `platform` the request's `event.platform`). A file made from a
+ *  remote URL's bytes (a recipe whose tail names the URL, fetched under `image({ remote })`, or a
+ *  card that shows a remote image) is kept, and answered to be kept, until the end of the current
+ *  `remote.maxAge` window, never forever, so the URL's new bytes go out within that time; a card
+ *  that shows only the build's images is kept forever. */
 export async function settle(
 	recipe: ParsedRecipe,
 	key: string,
@@ -270,27 +322,27 @@ export async function settle(
 	const card = card_of_tail(recipe.tail) !== null;
 	if (card && !draws) return built_card(key, original, type, platform);
 	const window =
-		url === null ? null : remote_keep(REMOTE?.maxAge ?? 0, clock.wall() / 1000, url.href);
-	const file = window === null ? key : `${key}${window.key}`;
-	const keep = window === null ? KEEP : window.header;
+		url === null && !card
+			? null
+			: remote_keep(REMOTE?.maxAge ?? 0, clock.wall() / 1000, url?.href ?? key);
 	try {
-		const kept = await store?.open(file);
+		const kept = await kept_file(key, url === null, window);
 		if (kept) {
-			return new Response(kept.body, {
+			return new Response(kept.file.body, {
 				headers: {
 					'content-type': type,
-					'content-length': String(kept.size),
-					'cache-control': keep
+					'content-length': String(kept.file.size),
+					'cache-control': kept.header
 				}
 			});
 		}
-		const made = await makes.get({ key: file, recipe, original, url, card, platform });
+		const made = await makes.get({ key, recipe, original, url, card, window, platform });
 		if (made === STALE) return failed(key, 'the encode was dropped before it finished');
 		return new Response(new Uint8Array(made.data), {
 			headers: {
 				'content-type': type,
 				'content-length': String(made.data.byteLength),
-				'cache-control': keep
+				'cache-control': made.header
 			}
 		});
 	} catch (e) {
@@ -340,7 +392,7 @@ async function built_card(
 	said_each.once(`image_no_encoder card ${key}`, () =>
 		warn('image_no_encoder', {
 			what: 'card',
-			reason: `the card ${key} was not made by the build (no prerendered page names it), and this server draws no card`
+			reason: `the card ${key} was not made by the build under this name (no prerendered page names it, or it shows a remote image, so the build named it by the bytes it got), and this server draws no card`
 		})
 	);
 	return new Response('Not Found', { status: 404, headers: { 'cache-control': 'no-store' } });

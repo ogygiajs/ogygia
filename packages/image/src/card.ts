@@ -116,6 +116,16 @@ export function card_id(spec: Pick<CardSpec, 'digest' | 'width' | 'height'>, jso
 	return `c${b64url(sha256(new TextEncoder().encode(text))).slice(0, ID_LENGTH)}`;
 }
 
+/** The source id of a card `id` drawn with remote images: `id` and every remote URL it read with
+ *  the source id of the bytes it got (`reads`, URL to id), so a host's new picture names a new
+ *  file. A card that read no remote image keeps `id`. */
+export function card_shown_id(id: string, reads: ReadonlyMap<string, string>): string {
+	if (reads.size === 0) return id;
+	const shown = [...reads].sort(([a], [b]) => (a < b ? -1 : 1));
+	const text = `card shown\0${id}\0${shown.map(([url, of]) => `${url}\0${of}`).join('\0')}`;
+	return `c${b64url(sha256(new TextEncoder().encode(text))).slice(0, ID_LENGTH)}`;
+}
+
 /** The descriptor maker of one card: `(props) => ImageDescriptor`, whose `src` is its own-size PNG. */
 export function card(spec: CardSpec): (props: CardProps) => ImageDescriptor {
 	return (props) => {

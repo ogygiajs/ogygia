@@ -293,11 +293,12 @@ function read_file(file: string): Buffer | null {
 /** The build's reader of a card's images: an asset of Kit's server `output` (what the live
  *  endpoint's `read()` serves, so a card draws the same at build and live: an asset server code
  *  imports, never a `static/` file or one only the client imports), a URL with `remote` (the
- *  build's guarded, cached fetch: the file it kept; null: no `image({ remote })`). */
+ *  build's guarded, cached fetch, which notes the bytes the card shows; null: no
+ *  `image({ remote })`). */
 export function build_card_images(
 	output: string,
 	prefixes: readonly string[],
-	remote: ((url: string) => Promise<string>) | null
+	remote: ((url: URL) => Promise<Uint8Array>) | null
 ): CardImageRead {
 	const server = path.join(output, 'server');
 	return card_image_reader(
@@ -310,7 +311,7 @@ export function build_card_images(
 				`${tail} is no file of this build's server assets (an asset the server imports, as import.meta.og.image() gives; a static/ file is not one)`
 			);
 		},
-		remote === null ? null : async (url) => fs.readFileSync(await remote(url.href))
+		remote
 	);
 }
 

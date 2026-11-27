@@ -297,9 +297,7 @@ describe('a prerendered card that shows a remote image', () => {
 		const page = fs.readFileSync(path.join(out, 'prerendered', 'pages', 'index.html'), 'utf8');
 		const name = /\/_app\/immutable\/og\/(c[\w-]+)-64x32\.png/.exec(page)![1]!;
 		const file = path.join(out, 'client', '_app', 'immutable', 'og', `${name}-64x32.png`);
-		const { data } = await sharp(fs.readFileSync(file))
-			.raw()
-			.toBuffer({ resolveWithObject: true });
+		const { data } = await sharp(fs.readFileSync(file)).raw().toBuffer({ resolveWithObject: true });
 		return { name, color: [...data.subarray(0, 3)] };
 	}
 

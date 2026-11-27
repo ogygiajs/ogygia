@@ -331,7 +331,9 @@ an original in the build's list (`Originals`: the assets the SSR imports gave), 
 that original's bytes. The order is fixed: method (GET/HEAD, else 405), then the signature (else a
 uniform `deny('sig')` 403), then the strict recipe parse (a tail with `.`/`..` segments, a
 backslash or NUL is no recipe), then the list (else 404), then the query (a 308 to the bare URL).
-Every refusal is `no-store`; a made file is `immutable`. The original is re-read and checked
+Every refusal is `no-store`; a made file is `immutable`, but one made from a remote URL's bytes (a
+`remoteImage()` file, or a card that shows a remote image) is kept for its `remote.maxAge` window,
+never `immutable` (`packages/image/test/card-remote-live.test.ts`). The original is re-read and checked
 against the id the recipe names: an edited source never answers the old URL with new pixels.
 
 **Why:** A signed URL never expires: it is minted once per recipe and kept by every CDN forever, so

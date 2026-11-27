@@ -415,12 +415,18 @@ BUILT (V4 R9). `import.meta.og.image.card('./Card.svelte', { width, height, font
   module: a build's list of the cards' own emitted chunks (written at `renderChunk`), dev's
   import by name, the edge's none (`cards/none.ts`). The own-size PNG is drawn once per tail in
   the encode queue (satori-html → entities decoded in the tree → satori → resvg; satori's refusal
-  = `image_card_css`), then the maker resizes/converts it; kept forever. A card whose digest
+  = `image_card_css`), then the maker resizes/converts it; kept forever, unless the draw read a
+  remote URL (the per-draw reader notes it): then it is a remote file, kept under the key's
+  `remote.maxAge` window and sent with that window's header, never `immutable`. A card whose digest
   changed since minting (`card_id` mismatch) or a name the server lacks = 404
   `image_source_changed`.
 - **Build** (`build-files.ts`): a prerendered page's card recipe is noted like any other; the
   build's end imports the card's chunk from the server output, draws it with the fonts' files and
-  makes each file with sharp into `<appDir>/immutable/og/`. No head start for cards.
+  makes each file with sharp into `<appDir>/immutable/og/`. No head start for cards. A card whose
+  draw read remote URLs (fetched through `write_built`'s remote fetch) is named
+  `card_shown_id(id, url → source id)` and every prerendered name of it rewritten, as a
+  `remoteImage()` file is; the URLs it read are kept as `<key>.shown` in the store, so a warm
+  build refetches them (revalidated), finds the named file and draws nothing.
 - **Edge** (no engine: adapter-cloudflare and other edge adapters): the build warns
   `image_no_encoder` (`what: 'card'`); a live page's card URL is answered from the platform's
   `ASSETS` with the build's file of the same recipe when a prerendered page made it, else 404

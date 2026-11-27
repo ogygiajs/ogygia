@@ -13,7 +13,7 @@ import { afterAll, beforeAll, expect, test, vi } from 'vitest';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 import type { CardProps, CardSpec } from '../src/card.ts';
 
-const io = vi.hoisted(() => ({ address: '127.0.0.1', port: 0, mark: Buffer.alloc(0) }));
+const io = vi.hoisted(() => ({ address: '127.0.0.1', port: 0, mark: Buffer.alloc(0) as Buffer }));
 const MONO = createRequire(import.meta.url).resolve(
 	'@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff'
 );
@@ -21,7 +21,7 @@ const specs = vi.hoisted(() => {
 	const of = (card: string, markup: string): CardSpec => ({
 		card,
 		file: 'src/lib/Card.svelte',
-		digest: `d-${process.pid}-${Date.now()}`,
+		digest: `${card}-${process.pid}-${Date.now()}`,
 		width: 600,
 		height: 315,
 		fonts: [{ name: 'JetBrains Mono', weight: 500, style: 'normal', src: '/font.woff' }],
