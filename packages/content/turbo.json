@@ -2,6 +2,28 @@
 	"$schema": "https://turborepo.com/schema.json",
 	"extends": ["//"],
 	"tasks": {
+		"check": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"e2e/app/package.json",
+				"e2e/app/src/**",
+				"e2e/app/svelte.config.js",
+				"e2e/app/tsconfig.json",
+				"e2e/app/vite.config.ts"
+			]
+		},
+		"test": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!e2e/*",
+				"!playwright.config.ts",
+				"e2e/app/package.json",
+				"e2e/app/src/**",
+				"e2e/app/svelte.config.js",
+				"e2e/app/tsconfig.json",
+				"e2e/app/vite.config.ts"
+			]
+		},
 		"e2e": {
 			"dependsOn": ["^build", "build", "content-e2e-app#fixture"]
 		}
