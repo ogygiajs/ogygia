@@ -236,7 +236,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/image/src/handoff.ts` | `build_handoff` | `JSON.parse` | 1 |
 | `packages/image/src/recipe.ts` | `b64url_decode` | `atob` | 1 |
 | `packages/image/src/recipe.ts` | `parse_recipe` | `JSON.parse` | 1 |
-| `packages/image/src/vite/build-files.ts` | `of` | `JSON.parse` | 1 |
+| `packages/image/src/vite/build-files.ts` | `shown_urls` | `JSON.parse` | 1 |
 | `packages/image/src/vite/card.ts` | `build_card_images` | `JSON.parse` | 1 |
 | `packages/image/src/vite/card.ts` | `installed_version` | `JSON.parse` | 1 |
 | `packages/image/src/vite/index.ts` | `image` | `JSON.parse` | 1 |

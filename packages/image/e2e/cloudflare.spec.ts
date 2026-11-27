@@ -208,7 +208,9 @@ test("a live page's card that shows a remote image is 404 kept nowhere, though a
 	expect(card.headers()['cache-control']).toBe('no-store');
 	await expect
 		.poll(() => server_log_since(from))
-		.toMatch(/shows a remote image, so the build named it by the bytes it got[\s\S]*image_no_encoder/);
+		.toMatch(
+			/shows a remote image, so the build named it by the bytes it got[\s\S]*image_no_encoder/
+		);
 });
 
 test('the endpoint refuses a forged signature and a POST, kept nowhere', async ({ request }) => {
