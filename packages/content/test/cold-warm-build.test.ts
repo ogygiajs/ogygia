@@ -20,7 +20,25 @@ const PNG_ONE =
 const PNG_TWO =
 	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYPgPAAEDAQAIicLsAAAAAElFTkSuQmCC';
 const SECRET = 'cold-warm-build-secret-0123456789abcdef';
+const PAGE_SIDE_FIRST_CONFIG = 'vite.page-side-first.config.ts';
 const ISLAND_SIDE_FIRST_CONFIG = 'vite.island-side-first.config.ts';
+const ORDERED_CONFIG_HEAD = dedent`
+	import { sveltekit } from '@sveltejs/kit/vite';
+	import { ogygia } from 'ogygia/vite';
+	import { content } from '@ogygia/content/vite';
+	import { defineConfig } from 'vite';
+
+	const INTERNAL = '/core/dist/internal.js';
+	const REGION = '/core/dist/Region.svelte';
+	const SHARED = ['/core/dist/region-parts/plan.svelte.js', '/core/dist/region-parts/seed-ask.js'];
+	const island_side = (source, importer) =>
+		source === './Region.svelte' && importer?.endsWith(INTERNAL) === true;
+	const plugins = (hold) => [hold, ogygia(), content({ markdown: {} }), sveltekit()];
+	const in_client = (make) => {
+		const state = make();
+		return (ctx) => (ctx.environment?.name === 'client' ? state : null);
+	};
+`;
 
 let app = '';
 
@@ -60,36 +78,54 @@ beforeAll(() => {
 		`
 	);
 	fs.writeFileSync(
-		path.join(app, ISLAND_SIDE_FIRST_CONFIG),
-		dedent`
-			import { sveltekit } from '@sveltejs/kit/vite';
-			import { ogygia } from 'ogygia/vite';
-			import { content } from '@ogygia/content/vite';
-			import { defineConfig } from 'vite';
+		path.join(app, PAGE_SIDE_FIRST_CONFIG),
+		`${ORDERED_CONFIG_HEAD}\n${dedent`
+			const built = in_client(() => new Map(SHARED.map((tail) => [tail, Promise.withResolvers()])));
+			const hold = {
+				name: 'hold-island-side-until-shared-built',
+				enforce: 'pre',
+				async resolveId(source, importer) {
+					const shared = built(this);
+					if (shared && island_side(source, importer))
+						await Promise.all([...shared.values()].map((b) => b.promise));
+					return null;
+				},
+				transform: {
+					order: 'post',
+					handler(_code, id) {
+						for (const [tail, b] of built(this) ?? [])
+							if (id.split('?')[0].endsWith(tail)) b.resolve();
+						return null;
+					}
+				}
+			};
 
-			const REGION = '/core/dist/Region.svelte';
-			const INTERNAL = '/core/dist/internal.js';
-			let heard = () => {};
-			const island_side = new Promise((resolve) => (heard = resolve));
-			const settled = island_side.then(() => new Promise((resolve) => setTimeout(resolve, 200)));
+			export default defineConfig({ plugins: plugins(hold) });
+		`}\n`
+	);
+	fs.writeFileSync(
+		path.join(app, ISLAND_SIDE_FIRST_CONFIG),
+		`${ORDERED_CONFIG_HEAD}\n${dedent`
+			const island_resolved = in_client(() => Promise.withResolvers());
 			const hold = {
 				name: 'hold-region-until-island-side',
 				enforce: 'pre',
-				resolveId(source, importer) {
-					if (source === './Region.svelte' && importer?.endsWith(INTERNAL)) heard();
-					return null;
+				async resolveId(source, importer) {
+					const heard = island_resolved(this);
+					if (!heard || !island_side(source, importer)) return null;
+					const resolved = await this.resolve(source, importer, { skipSelf: true });
+					heard.resolve();
+					return resolved;
 				},
 				async load(id) {
-					if (id.endsWith(REGION))
-						await Promise.race([settled, new Promise((resolve) => setTimeout(resolve, 3000))]);
+					const heard = island_resolved(this);
+					if (heard && id.split('?')[0].endsWith(REGION)) await heard.promise;
 					return null;
 				}
 			};
 
-			export default defineConfig({
-				plugins: [hold, ogygia(), content({ markdown: {} }), sveltekit()]
-			});
-		`
+			export default defineConfig({ plugins: plugins(hold) });
+		`}\n`
 	);
 });
 
@@ -186,7 +222,7 @@ test(
 	"a build writes the same output whichever importer of a shared package module the bundler reaches first: a page's, or an island's (#2184)",
 	() => {
 		const output = path.join(app, '.svelte-kit', 'output');
-		build();
+		build(PAGE_SIDE_FIRST_CONFIG);
 		const page_side_first = keyed(files(output)).files;
 		build(ISLAND_SIDE_FIRST_CONFIG);
 		const island_side_first = keyed(files(output)).files;
