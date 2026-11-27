@@ -329,22 +329,26 @@ describe.skipIf(!built)('a tab behind another', () => {
 		}
 	});
 
-	it('went behind before its observers had a frame, though it was shown as its document came: a visible island that woke there with no frame is an MPA difference, though the run end looks at it before it judges it (#2091)', async () => {
-		const { rest_at_end } = await import('../src/cli.ts');
-		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
-		try {
-			const v = world.visitor('v');
-			const front = world.tab(v);
-			await world.go(front, 'goto', '/');
-			const tab = world.tab(v);
-			world.browsers.focus(v, tab);
-			await world.start(tab, 'goto', '/wake-gate', 0);
-			expect(tab.seen.has(tab.realm), 'the case it is for: shown as its document came').toBe(true);
-			const w = tab.page.mainFrame.window as unknown as {
-				IntersectionObserver: new (cb: IntersectionObserverCallback) => IntersectionObserver;
-				setTimeout(fn: () => void, ms: number): number;
-			};
-			const Real = w.IntersectionObserver;
+	/**
+	 * A tab shown at `/wake-gate` as its document came, then put behind another before its observers
+	 * had a frame, the world at rest: it is owed a look. With `report` (ms), each observer it makes
+	 * then reports its target on screen that long after it is watched, with no frame: a runtime that
+	 * wakes a `visible` island behind.
+	 */
+	const unframed_behind = async (world: World, report?: number) => {
+		const v = world.visitor('v');
+		const front = world.tab(v);
+		await world.go(front, 'goto', '/');
+		const tab = world.tab(v);
+		world.browsers.focus(v, tab);
+		await world.start(tab, 'goto', '/wake-gate', 0);
+		expect(tab.seen.has(tab.realm), 'the case it is for: shown as its document came').toBe(true);
+		const w = tab.page.mainFrame.window as unknown as {
+			IntersectionObserver: new (cb: IntersectionObserverCallback) => IntersectionObserver;
+			setTimeout(fn: () => void, ms: number): number;
+		};
+		const Real = w.IntersectionObserver;
+		if (report !== undefined)
 			w.IntersectionObserver = class extends Real {
 				readonly #told: IntersectionObserverCallback;
 				constructor(cb: IntersectionObserverCallback) {
@@ -365,21 +369,67 @@ describe.skipIf(!built)('a tab behind another', () => {
 							time: 0
 						};
 						this.#told([entry as unknown as IntersectionObserverEntry], this);
-					}, 0);
+					}, report);
 				}
 			};
-			world.browsers.focus(v, front);
-			await world.rest();
-			const doc = tab.page.mainFrame.document as unknown as Document;
-			const visible = doc.querySelector('[data-gate-visible] > ogygia-region[wake="visible"]');
-			expect(visible!.hasAttribute('data-hydrated'), 'it woke behind, with no frame').toBe(true);
-			expect(tab.framed.has(tab.realm), 'its observers had none').toBe(false);
-			expect(tab.owes_frame(), 'so it is owed a look').toBe(true);
+		world.browsers.focus(v, front);
+		await world.rest();
+		const doc = tab.page.mainFrame.document as unknown as Document;
+		const visible = doc.querySelector('[data-gate-visible] > ogygia-region[wake="visible"]')!;
+		expect(tab.framed.has(tab.realm), 'its observers had no frame').toBe(false);
+		expect(tab.owes_frame(), 'so it is owed a look').toBe(true);
+		return { v, tab, doc, visible, window: w };
+	};
+
+	it('went behind before its observers had a frame, though it was shown as its document came: a visible island that woke there with no frame is an MPA difference, though the run end looks at it before it judges it (#2091)', async () => {
+		const { rest_at_end } = await import('../src/cli.ts');
+		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const { v, tab, visible } = await unframed_behind(world, 0);
+			expect(visible.hasAttribute('data-hydrated'), 'it woke behind, with no frame').toBe(true);
 			const stood = await rest_at_end(world, v);
 			expect(tab.framed.has(tab.realm), 'the run end looked').toBe(true);
 			expect((await mpa_equivalent(world, v, tab, undefined, stood.get(tab)))?.oracle).toBe(
 				'mpa-equivalence'
 			);
+		} finally {
+			await world.end();
+		}
+	});
+
+	it('went behind before its observers had a frame: a visible island that wakes there with no frame only after a timer (its report 20 s late) is an MPA difference too: the run end waits out the timers before it judges the tab as it stands, and only then looks (#2091)', async () => {
+		const { rest_at_end } = await import('../src/cli.ts');
+		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const { v, tab, visible } = await unframed_behind(world, 20_000);
+			expect(visible.hasAttribute('data-hydrated'), 'not awake yet at the first rest').toBe(false);
+			const stood = await rest_at_end(world, v);
+			expect(stood.get(tab)?.oracle, 'it woke behind, with no frame, as it stood').toBe(
+				'mpa-equivalence'
+			);
+			expect((await mpa_equivalent(world, v, tab, undefined, stood.get(tab)))?.oracle).toBe(
+				'mpa-equivalence'
+			);
+		} finally {
+			await world.end();
+		}
+	});
+
+	it('went behind before its observers had a frame: what a retry fills in 5 s later is there before the run end judges the tab as it stands, so it is no difference (#2091)', async () => {
+		const { rest_at_end } = await import('../src/cli.ts');
+		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const { v, tab, doc, window } = await unframed_behind(world);
+			const missing = doc.querySelector('main h1, h1')!;
+			const text = missing.textContent;
+			missing.textContent = '';
+			window.setTimeout(() => {
+				missing.textContent = text;
+			}, 5000);
+			const stood = await rest_at_end(world, v);
+			expect(missing.textContent, 'its retry landed').toBe(text);
+			expect(stood.get(tab), 'judged as it stood once it landed').toBe(undefined);
+			expect(await mpa_equivalent(world, v, tab, undefined, stood.get(tab))).toBeNull();
 		} finally {
 			await world.end();
 		}
