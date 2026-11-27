@@ -61,6 +61,26 @@ describe.skipIf(!built)('rest', () => {
 		}
 		for (const ms of took) expect(ms).toBeLessThanOrEqual(31_000);
 	}, 120_000);
+
+	it('names a request a hold still keeps when it gives up at the horizon: a test that never let one go fails at that rest, not at World.end', async () => {
+		const world = await World.make({
+			seed: 1,
+			builds: [{ id: 'v1', output: OUTPUT }],
+			horizon: 60_000
+		});
+		try {
+			const tab = world.tab(world.visitor('v'));
+			await world.go(tab, 'goto', '/');
+			world.network.hold((url) => url.pathname === '/never-let-go');
+			const w = tab.page.mainFrame.window as unknown as Window;
+			void w.fetch('/never-let-go').catch(() => {});
+			await expect(world.rest()).rejects.toThrow(
+				/a hold still keeps https:\/\/app\.test\/never-let-go/
+			);
+		} finally {
+			await world.end();
+		}
+	}, 120_000);
 });
 
 // (the generated app of seed 8: /p3's live regions tick for good, and their ticks put islands in)

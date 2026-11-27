@@ -248,6 +248,133 @@ describe.skipIf(!built)('a tab behind another', () => {
 		}
 	);
 
+	/**
+	 * A tab shown at `path` until its observers had their frames, then put behind another, the world
+	 * at rest, and one of its `load` islands made to wake only in an animation frame its page asks for
+	 * behind: `then` runs in that frame, and wakes it.
+	 */
+	const frame_asked_behind = async (
+		world: World,
+		path: string,
+		then: (wake: () => void, window: Window) => void
+	) => {
+		const v = world.visitor('v');
+		const front = world.tab(v);
+		await world.go(front, 'goto', '/');
+		const tab = world.tab(v);
+		world.browsers.focus(v, tab);
+		await world.go(tab, 'goto', path);
+		world.browsers.focus(v, front);
+		await world.rest();
+		expect(tab.framed.has(tab.realm), 'the case it is for: its observers had frames').toBe(true);
+		expect(tab.owes_frame(), 'and are owed nothing').toBe(false);
+		const doc = tab.page.mainFrame.document as unknown as Document;
+		const island = doc.querySelector('ogygia-region[entry][wake="load"][data-hydrated]');
+		expect(island, 'a load island, awake').not.toBeNull();
+		island!.removeAttribute('data-hydrated');
+		let ran = false;
+		const window = tab.page.mainFrame.window as unknown as Window;
+		window.requestAnimationFrame(() => {
+			ran = true;
+			then(() => island!.setAttribute('data-hydrated', ''), window);
+		});
+		await world.rest();
+		expect(ran, 'no frame behind').toBe(false);
+		return { v, front, tab, island: island!, ran: () => ran };
+	};
+
+	it('behind with an animation frame it asked for there waiting, it owes that frame and none of its islands is judged; the run end looks, and the frame runs (#2176)', async () => {
+		const { rest_at_end } = await import('../src/cli.ts');
+		const world = await World.make({
+			seed: 1,
+			builds: [{ id: 'v1', output: OUTPUT }],
+			secret: 'sim-secret'
+		});
+		try {
+			const { v, front, tab, island, ran } = await frame_asked_behind(world, '/', (wake) => wake());
+			expect(tab.owes_frame(), 'it owes the frame its page asked for').toBe(true);
+			expect(islands_wake(tab, world), 'its islands wait on that frame').toBeNull();
+			await rest_at_end(world, v);
+			expect(ran(), 'the visitor looked: the frame ran').toBe(true);
+			expect(island.hasAttribute('data-hydrated')).toBe(true);
+			expect(tab.owes_frame()).toBe(false);
+			expect(islands_wake(tab, world)).toBeNull();
+			expect(front.hidden, 'and the tab in front is in front again').toBe(false);
+		} finally {
+			await world.end();
+		}
+	});
+
+	it('the run end waits out a backoff that what its look woke set (a retry after 3 s) before it judges the tab (#2176)', async () => {
+		const { rest_at_end } = await import('../src/cli.ts');
+		const world = await World.make({
+			seed: 1,
+			builds: [{ id: 'v1', output: OUTPUT }],
+			secret: 'sim-secret'
+		});
+		try {
+			const { v, tab, island } = await frame_asked_behind(world, '/', (wake, window) =>
+				window.setTimeout(wake, 3000)
+			);
+			await rest_at_end(world, v);
+			expect(island.hasAttribute('data-hydrated'), 'its retry ran').toBe(true);
+			expect(islands_wake(tab, world)).toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
+
+	it('went behind before its observers had a frame, though it was shown as its document came: a visible island that woke there with no frame is an MPA difference, though the look would wake it (#2091)', async () => {
+		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const v = world.visitor('v');
+			const front = world.tab(v);
+			await world.go(front, 'goto', '/');
+			const tab = world.tab(v);
+			world.browsers.focus(v, tab);
+			await world.start(tab, 'goto', '/wake-gate', 0);
+			expect(tab.seen.has(tab.realm), 'the case it is for: shown as its document came').toBe(true);
+			const w = tab.page.mainFrame.window as unknown as {
+				IntersectionObserver: new (cb: IntersectionObserverCallback) => IntersectionObserver;
+				setTimeout(fn: () => void, ms: number): number;
+			};
+			const Real = w.IntersectionObserver;
+			w.IntersectionObserver = class extends Real {
+				readonly #told: IntersectionObserverCallback;
+				constructor(cb: IntersectionObserverCallback) {
+					super(cb);
+					this.#told = cb;
+				}
+				observe(target: Element): void {
+					super.observe(target);
+					w.setTimeout(() => {
+						const rect = { x: 0, y: 0, width: 1, height: 1, top: 0, left: 0, right: 1, bottom: 1 };
+						const entry = {
+							target,
+							isIntersecting: true,
+							intersectionRatio: 1,
+							boundingClientRect: rect,
+							intersectionRect: rect,
+							rootBounds: rect,
+							time: 0
+						};
+						this.#told([entry as unknown as IntersectionObserverEntry], this);
+					}, 0);
+				}
+			};
+			world.browsers.focus(v, front);
+			await world.rest();
+			const doc = tab.page.mainFrame.document as unknown as Document;
+			const visible = doc.querySelector('[data-gate-visible] > ogygia-region[wake="visible"]');
+			expect(visible!.hasAttribute('data-hydrated'), 'it woke behind, with no frame').toBe(true);
+			expect(tab.framed.has(tab.realm), 'its observers had none').toBe(false);
+			expect(tab.owes_frame(), 'so it is owed a look').toBe(true);
+			expect((await mpa_equivalent(world, v, tab))?.oracle).toBe('mpa-equivalence');
+		} finally {
+			await world.end();
+		}
+	});
+
 	it('is judged against a shown fresh load when its islands had a frame before it went behind', async () => {
 		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
 		try {

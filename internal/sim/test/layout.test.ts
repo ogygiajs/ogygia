@@ -114,25 +114,43 @@ describe('a simulated document has a layout, and its IntersectionObserver report
 		expect(layout.owes(), 'its document closed').toBe(false);
 	});
 
-	it('owes no frame for a layout change no DOM change made: a frame reports from the layout it kept', async () => {
-		const { loop, w, io, seen, $, layout } = page(
+	/** A page whose `below` an adopted constructed sheet moved on screen: no node changed, so the
+	 *  host's ear heard nothing, and no frame is asked. */
+	const sheet_moved = async () => {
+		const p = page(
 			'<p id="top">top</p><div id="tall" style="height: 2000px"></div><p id="below">below</p>'
 		);
-		io.observe($('top'));
-		io.observe($('below'));
-		await loop.run(100);
-		seen.length = 0;
-		// (a constructed sheet adopted: no node changes, so the host's ear hears nothing)
-		const sheet = new (w as unknown as { CSSStyleSheet: typeof CSSStyleSheet }).CSSStyleSheet();
+		p.io.observe(p.$('top'));
+		p.io.observe(p.$('below'));
+		await p.loop.run(100);
+		p.seen.length = 0;
+		const sheet = new (p.w as unknown as { CSSStyleSheet: typeof CSSStyleSheet }).CSSStyleSheet();
 		sheet.replaceSync('#tall { display: none }');
-		(w.document as unknown as { adoptedStyleSheets: CSSStyleSheet[] }).adoptedStyleSheets = [sheet];
+		(p.w.document as unknown as { adoptedStyleSheets: CSSStyleSheet[] }).adoptedStyleSheets = [
+			sheet
+		];
 		expect(
-			boxes(w.document as unknown as Document).get($('below'))!.y,
+			boxes(p.w.document as unknown as Document).get(p.$('below'))!.y,
 			'the case it is for: the layout as it stands moved it on screen'
 		).toBeLessThan(720);
+		return p;
+	};
+
+	it('owes no frame for a layout change no DOM change made (an adopted stylesheet): a frame reports from the layout it kept', async () => {
+		const { loop, seen, layout } = await sheet_moved();
 		expect(layout.owes()).toBe(false);
 		await loop.run(100);
 		expect(seen, 'no frame reports it').toEqual([]);
+	});
+
+	it('owes no frame for a layout change no DOM change made, while a frame is asked: that frame reports from the layout it kept, not the one as it stands', async () => {
+		const { loop, w, io, seen, layout } = await sheet_moved();
+		const extra = w.document.createElement('p') as unknown as Element;
+		io.observe(extra);
+		io.unobserve(extra);
+		expect(layout.owes(), 'a frame is asked, and nothing it would report').toBe(false);
+		await loop.run(100);
+		expect(seen, 'that frame reports nothing').toEqual([]);
 	});
 
 	it('a root margin widens the viewport', async () => {

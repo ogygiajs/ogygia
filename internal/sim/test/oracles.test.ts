@@ -625,8 +625,10 @@ describe('an island that wakes on its own is awake', () => {
 		expect((await at_rest(visible(), [], true, told))?.oracle).toBe('islands-wake');
 		expect((await at_rest(island('load'), [], true, told))?.oracle).toBe('islands-wake');
 		expect(await at_rest(visible(), [], true, { framed: true, told: false })).toBeNull();
-		// (one shown as it came and behind before its observers had a frame, #2091)
-		expect(await at_rest(visible(), [], true, { seen: true, told: false })).toBeNull();
+		expect(
+			await at_rest(visible(), [], true, { seen: true, told: false }),
+			'one shown as it came and behind before its observers had a frame (#2091)'
+		).toBeNull();
 	});
 
 	it('owes a load island its wake in a tab behind another whose observers alone are owed a report: it waits for no frame (#2176)', async () => {
