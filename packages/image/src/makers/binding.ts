@@ -11,7 +11,7 @@ import {
 	STEPS_VERSION,
 	type CloudflareTransform
 } from '../encoders/cloudflare.ts';
-import { CannotMake, type Kept, type MadeStore, type Maker } from '../maker.ts';
+import { CannotMake, source_failure, type Kept, type MadeStore, type Maker } from '../maker.ts';
 import { warn } from '../messages.ts';
 
 interface Transformer {
@@ -98,10 +98,14 @@ export function binding_maker(binding: string): Maker {
 			const images = binding_of(platform, binding);
 			if (images === null) throw new CannotMake('image_binding_missing', { binding });
 			const { transforms, output } = cloudflare_steps(recipe);
-			let t = images.input(stream_of(bytes));
-			for (const step of transforms) t = t.transform(step);
-			const res = (await t.output(output)).response();
-			return new Uint8Array(await res.arrayBuffer());
+			try {
+				let t = images.input(stream_of(bytes));
+				for (const step of transforms) t = t.transform(step);
+				const res = (await t.output(output)).response();
+				return new Uint8Array(await res.arrayBuffer());
+			} catch (e) {
+				throw source_failure(e);
+			}
 		},
 		store: new CacheStore(worker_cache),
 		fit: null

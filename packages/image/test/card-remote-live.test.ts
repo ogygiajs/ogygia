@@ -19,6 +19,7 @@ const io = vi.hoisted(() => ({
 	mark: Buffer.alloc(0) as Buffer,
 	no_store: false,
 	down: false,
+	fail_fits: 0,
 	asked: [] as string[]
 }));
 const MONO = createRequire(import.meta.url).resolve(
@@ -41,6 +42,10 @@ const specs = vi.hoisted(() => {
 		remote: of(
 			'RemoteMarkCard00',
 			'<img src="http://cms.example.test/mark.png" style="width: 300px; height: 300px">'
+		),
+		loaded: of(
+			'LoadedMarkCard00',
+			'<img src="http://cms.example.test/loaded.png" style="width: 300px; height: 300px">'
 		),
 		broken: of(
 			'BrokenMarkCard00',
@@ -78,6 +83,13 @@ vi.mock('virtual:ogygia-image/maker', async () => {
 		...sharp_maker,
 		get store() {
 			return io.no_store ? null : sharp_maker.store;
+		},
+		fit: (...args: Parameters<typeof sharp_maker.fit>) => {
+			if (io.fail_fits > 0) {
+				io.fail_fits--;
+				return Promise.reject(new Error('vips_malloc: out of memory'));
+			}
+			return sharp_maker.fit(...args);
 		}
 	};
 });
@@ -202,6 +214,46 @@ test('a live card whose remote image does not decode is that URL’s failure, as
 		expect(said.join('\n')).toMatch(/did not decode/);
 		expect(said.join('\n')).not.toMatch(/image_settle_failed/);
 	} finally {
+		warn.mockRestore();
+	}
+});
+
+test('a live card whose image fails to fit for a reason of the server’s own (out of memory) fails that ask only: 500, and remoteImage() of the same URL still fetches and is made', async () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	try {
+		io.asked.length = 0;
+		io.fail_fits = 1;
+		const src = card(specs.loaded)({}).src;
+		const res = await get(src);
+		expect(res.status).toBe(500);
+		const said = warn.mock.calls.map((c) => String(c[0])).join('\n');
+		expect(said).toMatch(/out of memory[\s\S]*image_settle_failed/);
+		expect(said).not.toMatch(/image_remote_refused/);
+		const { remoteImage } = await import('../src/remote-image.ts');
+		const { lay_out } = await import('../src/layout.ts');
+		const { mint } = await import('../src/recipe.ts');
+		const urls: string[] = [];
+		lay_out(
+			remoteImage('http://cms.example.test/loaded.png', { width: 300, height: 300 }),
+			{ width: 150, formats: ['webp'] },
+			{
+				formats: ['webp'],
+				breakpoints: [150, 300],
+				presets: {},
+				paths: { base: '', assets: '', app_dir: '_app' },
+				warmed: false
+			},
+			(recipe) => {
+				const minted = mint(recipe, false)!;
+				urls.push(minted);
+				return minted;
+			}
+		);
+		expect((await get(urls[0]!)).status).toBe(200);
+		expect(io.asked).toEqual(['/loaded.png', '/loaded.png']);
+		expect((await get(src)).status).toBe(200);
+	} finally {
+		io.fail_fits = 0;
 		warn.mockRestore();
 	}
 });

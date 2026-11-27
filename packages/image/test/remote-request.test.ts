@@ -17,7 +17,8 @@ const io = vi.hoisted(() => ({
 	address: '127.0.0.1',
 	fail_encodes: 0,
 	no_store: false,
-	down: false
+	down: false,
+	cut: false
 }));
 vi.hoisted(() => {
 	delete process.env.__OGYGIA_IMAGE_BUILD;
@@ -73,6 +74,7 @@ const { lay_out } = await import('../src/layout.ts');
 const { ctx } = startPlugin(server, { name: '@ogygia/image' });
 
 let jpg: Buffer;
+let noise: Buffer;
 let upstream: http.Server;
 const asked: string[] = [];
 
@@ -81,12 +83,22 @@ beforeAll(async () => {
 	jpg = await sharp({ create: { width: 160, height: 90, channels: 3, background: '#3a6ea5' } })
 		.jpeg()
 		.toBuffer();
+	const grain = Buffer.alloc(160 * 90 * 3);
+	for (let i = 0; i < grain.length; i++) grain[i] = (i * 2654435761) >>> 24;
+	noise = await sharp(grain, { raw: { width: 160, height: 90, channels: 3 } })
+		.jpeg()
+		.toBuffer();
 	upstream = http.createServer((req, res) => {
 		const at = req.url ?? '/';
 		asked.push(`${req.headers.host?.split(':')[0]}${at}`);
 		if (io.down) {
 			res.writeHead(500);
 			res.end();
+		} else if (at.startsWith('/cut')) {
+			res.writeHead(200, { 'content-type': 'image/jpeg' });
+			res.end(
+				io.cut || at === '/cut.jpg' ? noise.subarray(0, Math.floor(noise.length * 0.6)) : noise
+			);
 		} else if (at.startsWith('/photo')) {
 			setTimeout(() => {
 				res.writeHead(200, { 'content-type': 'image/jpeg' });
@@ -370,6 +382,47 @@ describe('the image endpoint, for a remote image', () => {
 			expect(asked).toEqual(['cms.example.test/broken.jpg']);
 			expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toMatch(/did not decode/);
 		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	test("an original whose header reads but whose pixels are cut short is the URL's failure: 502, remembered (one fetch), said once", async () => {
+		const warn = quiet();
+		try {
+			asked.length = 0;
+			const [url] = urls_of('http://cms.example.test/cut.jpg', 160);
+			const statuses = [];
+			for (let i = 0; i < 3; i++) statuses.push((await get(url!)).status);
+			expect(statuses).toEqual([502, 502, 502]);
+			expect(asked).toEqual(['cms.example.test/cut.jpg']);
+			const said = warn.mock.calls.map((c) => String(c[0]));
+			expect(said.filter((line) => /image_remote_refused/.test(line))).toHaveLength(1);
+			expect(said.join('\n')).toMatch(/did not decode/);
+			expect(said.join('\n')).not.toMatch(/image_settle_failed/);
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	test("past its window, an original whose pixels are now cut short is the last window's file for 30 s", async () => {
+		const warn = quiet();
+		const at = Date.parse('2026-01-04T00:00:00Z');
+		vi.useFakeTimers({ toFake: ['Date'], now: at });
+		try {
+			const [url] = urls_of('http://cms.example.test/cut-later.jpg', 160);
+			const first = await get(url!);
+			expect(first.status).toBe(200);
+			const left = Number(/max-age=(\d+)/.exec(first.headers.get('cache-control')!)![1]);
+			const bytes = Buffer.from(await first.arrayBuffer());
+			io.cut = true;
+			vi.setSystemTime(at + left * 1000);
+			const held = await get(url!);
+			expect(held.status).toBe(200);
+			expect(held.headers.get('cache-control')).toBe('public, max-age=30');
+			expect(Buffer.from(await held.arrayBuffer()).equals(bytes)).toBe(true);
+		} finally {
+			io.cut = false;
+			vi.useRealTimers();
 			warn.mockRestore();
 		}
 	});

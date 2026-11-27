@@ -200,6 +200,15 @@ test("a live page's card that shows a remote image is 404 kept nowhere, though a
 	const at = /property="og:image" content="([^"]+)"/.exec(await res.text())![1]!;
 	const live = new URL(at.replaceAll('&amp;', '&')).pathname;
 	expect(live).toMatch(/^\/__ogygia__\/i\/[^/]+\/c[\w-]{32}-1200x630\/\.card\//);
+	const props = /\/\.card\/[\w-]+\/([\w-]+)(?:\.\w+)?$/.exec(live)![1]!;
+	const prerendered = fs.readFileSync(
+		path.join(APP, 'src/routes/card/photo/+page.server.ts'),
+		'utf8'
+	);
+	expect(
+		JSON.parse(Buffer.from(props, 'base64url').toString('utf8')),
+		'the live card has the props /card/photo prerenders, so the same card is made both ways'
+	).toEqual({ title: /PhotoCard\(\{ title: '([^']+)' \}\)/.exec(prerendered)![1] });
 	const built = (await named(request, ['/card/photo'], /\/_app\/immutable\/og\/c[\w-]+\.png/g))[0]!;
 	expect(built, 'the build renamed it').not.toContain(/\/(c[\w-]{32})-1200x630\//.exec(live)![1]);
 	const from = server_log_size();

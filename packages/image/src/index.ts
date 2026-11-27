@@ -6,8 +6,14 @@
  * @packageDocumentation
  */
 export { default as Img } from './Img.svelte';
-export { isImage, type ImageDescriptor, type ImageFormat, type ImageOps } from './descriptor.ts';
+export {
+	isImage,
+	type ImageDescriptor,
+	type ImageFormat,
+	type ImageOps,
+	type Twin
+} from './descriptor.ts';
 export type { ImageLayout, ImagePosition, ImagePreset, OutputFormat } from './config.ts';
-export type { Laid, LaidSource, LayoutRequest } from './layout.ts';
+export type { Laid, LaidPreload, LaidSource, LayoutRequest } from './layout.ts';
 export { getImage, type GetImageOptions } from './render.ts';
 export { remoteImage, type RemoteImageOptions } from './remote-image.ts';

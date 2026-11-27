@@ -8805,8 +8805,12 @@
 			"reason": "once per image a card draw names: sharp reads its header and, when larger than the card, makes it smaller; native work, timed by sharp, not steps; test/card-images.test.ts runs it"
 		},
 		{
-			"id": "packages/image/src/cards/fit.ts > fit_to_card > catch:0~e67d9a",
-			"reason": "an error path only: a header that does not read, said as the reason; test/card-images.test.ts runs it"
+			"id": "packages/image/src/maker.ts > unreadable",
+			"reason": "an error path only: once per failed make or fit, at most three regex tests of its message; test/card-images.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/maker.ts > source_failure",
+			"reason": "an error path only: once per failed make or fit, one unreadable() and at most one error built; test/card-images.test.ts runs it"
 		},
 		{
 			"id": "packages/image/src/cards/fit.ts > card_scale",

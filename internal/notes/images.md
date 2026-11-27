@@ -302,9 +302,12 @@ checked here: where it is fetched.
   bytes must be a JPEG/PNG/GIF/WebP/ISO-BMFF/TIFF signature), one flight per URL (`keep: 0`), in
   the fetch line (16, §5) before the encode takes its slot. Refusals, each `no-store`: 404 unlisted
   hop or private address, 413 too large, 504 timeout, 502 status / no answer / not an image / did
-  not decode (the maker's `SourceUnreadable`: its header does not read, or it is past one frame's
-  pixels; any other failed encode, such as memory under load, is that one file's 500
-  `image_settle_failed`, remembered nowhere). A refused URL is remembered for 30 s (a machine `cache`, at most 1024 URLs): every
+  not decode. "Did not decode" is one rule for every maker and the card fitter: `maker.ts
+  unreadable(e)` says whether a decoder's failure is a broken file (a libvips loader error, cut
+  pixels included, past one frame's pixels, or an Images binding error about its input: 9412,
+  9413, 9520, 9523), and only then is it `SourceUnreadable`, the URL's 502; any other failure
+  (memory under load, the platform) is that one ask's 500 `image_settle_failed`, remembered
+  nowhere. A refused URL is remembered for 30 s (a machine `cache`, at most 1024 URLs): every
   file of it is answered the same status with no fetch meanwhile, so a replayed URL costs one
   fetch per 30 s. `image_remote_refused` is said once per failing streak per URL (`said_each`,
   its own memory beside the constant keys' `said`), and said again after a good fetch.
@@ -425,9 +428,10 @@ BUILT (V4 R9). `import.meta.og.image.card('./Card.svelte', { width, height, font
   = `image_card_css`), then the maker resizes/converts it; kept forever, unless the draw read a
   remote URL (the per-draw reader notes it): then it is a remote file, kept under the key's
   `remote.maxAge` window and sent with that window's header, never `immutable`. A remote image
-  whose bytes do not fit the card is that URL's failure (the reader's `unfit` hook: 502,
-  remembered 30 s, said once), the same rule as a `remoteImage()` file that does not decode; a
-  server with no fitter reads no image at all. A card whose digest
+  the fitter finds a broken file (`SourceUnreadable`, the same `unreadable(e)` rule as a
+  `remoteImage()` file) is that URL's failure (the reader's `unfit` hook: 502, remembered 30 s,
+  said once); any other fit failure (memory) is that card's 500 `image_card_source`, remembered
+  nowhere; a server with no fitter reads no image at all. A card whose digest
   changed since minting (`card_id` mismatch) or a name the server lacks = 404
   `image_source_changed`.
 - **Build** (`build-files.ts`): a prerendered page's card recipe is noted like any other; the

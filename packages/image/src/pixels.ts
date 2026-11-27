@@ -8,7 +8,7 @@
 import sharp, { type Metadata, type Sharp } from 'sharp';
 import { DEFAULT_AVIF_EFFORT, DEFAULT_QUALITY } from './config.ts';
 import type { ImageFormat, ImageOps } from './descriptor.ts';
-import { SourceUnreadable } from './maker.ts';
+import { source_failure, SourceUnreadable } from './maker.ts';
 import { FRAME_PIXELS_MAX, REMOTE_TAIL } from './recipe.ts';
 
 /** The libvips version the files are made with: part of every cache key. */
@@ -153,7 +153,9 @@ export async function placeholder_of(
 }
 
 /** One recipe's file from its original's bytes (every frame kept when the original moves, its
- *  first only for a `still`), AVIF at `avif_effort`. An original {@link too_large} to read fails, saying why. */
+ *  first only for a `still`), AVIF at `avif_effort`. An original {@link too_large} to read, or
+ *  whose header or pixels do not decode, fails as `SourceUnreadable`, saying why; any other failure
+ *  (memory) is thrown as it is. */
 export async function encode_recipe(
 	bytes: Uint8Array,
 	recipe: {
@@ -169,7 +171,7 @@ export async function encode_recipe(
 	avif_effort: number = DEFAULT_AVIF_EFFORT
 ): Promise<Buffer> {
 	const meta = await metadata_of(bytes).catch((e: unknown) => {
-		throw new SourceUnreadable((e as Error).message);
+		throw source_failure(e);
 	});
 	const why = too_large(meta);
 	if (why !== null) throw new SourceUnreadable(`the original is too large to read: ${why}`);
@@ -177,7 +179,9 @@ export async function encode_recipe(
 	const box = recipe.tail?.startsWith(REMOTE_TAIL)
 		? within(recipe, shown_size(meta, recipe.ops ?? {}, animated))
 		: recipe;
-	return encode(bytes, box, animated, pixels_read(meta), avif_effort);
+	return encode(bytes, box, animated, pixels_read(meta), avif_effort).catch((e: unknown) => {
+		throw source_failure(e);
+	});
 }
 
 function within<T extends { width: number; height: number }>(
