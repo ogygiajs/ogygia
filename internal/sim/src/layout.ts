@@ -516,9 +516,10 @@ export function install_layout(
 			ask_frame();
 		},
 		/** Whether the next frame would tell an observer something: a target it never reported, or
-		 *  one that crossed the viewport or left it since (in the layout as it stands). */
+		 *  one that crossed the viewport or left it since (in the layout as it stands). A closed
+		 *  document has no next frame. */
 		owes() {
-			if (observers.size === 0) return false;
+			if (observers.size === 0 || w.closed) return false;
 			const at = boxes(w.document);
 			for (const o of observers) if (o.owes(at)) return true;
 			return false;
