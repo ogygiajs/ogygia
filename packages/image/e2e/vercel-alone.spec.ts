@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, expect } from '@ogygia/tooling/e2e';
 import { server_log_since, server_log_size } from '@ogygia/tooling/e2e/server-log.ts';
+import { ASKED_PATH, MARK_PATH, REMOTE_ORIGIN } from './app/remote-host.ts';
 import { linked, VERCEL_IMAGES, WHOLE_LINKS } from './vercel-links.ts';
 
 const OUTPUT = fileURLToPath(new URL('./app/.vercel/output/', import.meta.url));
@@ -53,7 +54,7 @@ test('vercel() alone cannot make a still, so no page offers one, and a live movi
 		.toMatch(/vercel\(\) cannot make on a page rendered on request: source gif/);
 });
 
-test('a live card is drawn with no sharp, and one that names an image is refused, image_card_source saying to list sharp()', async ({
+test('a live card is drawn with no sharp, and one that names an image is refused before any fetch, image_card_source saying to list sharp()', async ({
 	request
 }) => {
 	const card = async (page: string): Promise<import('@playwright/test').APIResponse> => {
@@ -61,8 +62,16 @@ test('a live card is drawn with no sharp, and one that names an image is refused
 		const url = (html.match(SIGNED_RE) ?? []).find((u) => u.includes('/.card/'))!;
 		return request.get(url);
 	};
+	const asked = async (): Promise<number> => {
+		const counts = (await (await request.get(`${REMOTE_ORIGIN}${ASKED_PATH}`)).json()) as Record<
+			string,
+			number
+		>;
+		return counts[MARK_PATH] ?? 0;
+	};
 	const plain = await card('/late/card?title=Alone');
 	expect([plain.status(), plain.headers()['content-type']]).toEqual([200, 'image/png']);
+	const before = await asked();
 	const from = server_log_size();
 	const photo = await card('/late/card/photo');
 	expect(photo.status()).toBe(500);
@@ -70,6 +79,7 @@ test('a live card is drawn with no sharp, and one that names an image is refused
 		.poll(() => server_log_since(from))
 		.toMatch(/this server fits no image to a card: sharp makes no file here \(list sharp\(\)/);
 	expect(server_log_since(from)).toContain('image_card_source');
+	expect(await asked(), 'the remote WebP was fetched').toBe(before);
 });
 
 test('prerendered pages name the files the build made, served from the output', async ({

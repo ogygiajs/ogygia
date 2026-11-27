@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { srcsetCandidates } from '@ogygia/core/plugin/utils';
 import sharp from 'sharp';
 import { test, expect } from '@ogygia/tooling/e2e';
+import { ASKED_PATH, MARK_PATH, REMOTE_ORIGIN } from './app/remote-host.ts';
 import { photo_card_misses } from './card-pixels.ts';
 import { WHOLE_LINKS, linked, VERCEL_IMAGES } from './vercel-links.ts';
 
@@ -186,11 +187,20 @@ test("the function draws a live card that names images, each fitted to the card 
 		});
 	expect(holds(`sharp-${platform}`, /\.node$/)).toBe(true);
 	expect(holds(`sharp-libvips-${platform}`, /^libvips-cpp\./)).toBe(true);
+	const asked = async (): Promise<number> => {
+		const counts = (await (await request.get(`${REMOTE_ORIGIN}${ASKED_PATH}`)).json()) as Record<
+			string,
+			number
+		>;
+		return counts[MARK_PATH] ?? 0;
+	};
 	const url = (await named(request, ['/late/card/photo'], SIGNED_RE)).find((u) =>
 		u.includes('/.card/')
 	)!;
+	const before = await asked();
 	const res = await request.get(url);
 	expect(res.status(), url).toBe(200);
+	expect(await asked(), 'the function fetched the remote WebP it drew').toBeGreaterThan(before);
 	expect(res.headers()['content-type'], url).toBe('image/png');
 	expect(res.headers()['cache-control'], url).toMatch(
 		/^public, max-age=\d+, stale-while-revalidate=\d+$/
