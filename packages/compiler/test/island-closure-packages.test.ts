@@ -24,10 +24,22 @@ function app_files(): Record<string, string> {
 			<script>
 			import { read } from 'pkg-shared';
 			import { local } from './local.ts';
+			import { view } from './view.tsx';
 			</script>
-			<p>{read()} {local}</p>
+			<p>{read()} {local} {view}</p>
 		`,
 		[`${ROOT}/src/lib/local.ts`]: `export const local = 1;\n`,
+		[`${ROOT}/src/lib/view.tsx`]: dedent`
+			import { deep } from './deep.mts';
+			export const view = () => <b>{deep}</b>;
+		`,
+		[`${ROOT}/src/lib/deep.mts`]: `export { deeper as deep } from './deeper.cts';\n`,
+		[`${ROOT}/src/lib/deeper.cts`]: `export { last as deeper } from './last.jsx';\n`,
+		[`${ROOT}/src/lib/last.jsx`]: dedent`
+			import { end } from './end.ts';
+			export const last = () => <i>{end}</i>;
+		`,
+		[`${ROOT}/src/lib/end.ts`]: `export const end = 1;\n`,
 		[`${ROOT}/src/lib/late.ts`]: dedent`
 			import { page } from '$app/state';
 			export const late = () => page.url.pathname;
@@ -138,20 +150,24 @@ describe('a client build follows each island through its package imports before 
 		expect(island_graph.has(`${ROOT}/src/lib/local.ts`), 'the app walk').toBe(true);
 	});
 
-	test('an import in a comment and a type-only import in a package are not followed', async () => {
+	test('an island’s .tsx, .mts, .cts and .jsx imports are read and followed like its .ts ones', async () => {
+		const source = app_files();
+		const { compiler } = make_compiler(memory_fs(source));
+		await client_build(compiler, fake_resolver(source));
+		const { island_graph } = compiler.program;
+		for (const file of ['deep.mts', 'deeper.cts', 'last.jsx', 'end.ts'])
+			expect(island_graph.has(`${ROOT}/src/lib/${file}`), file).toBe(true);
+	});
+
+	test('an import in a comment and a whole-statement type import in a package are not followed; one whose names are each `type` is', async () => {
 		const source = app_files();
 		const { compiler } = make_compiler(memory_fs(source));
 		const resolver = fake_resolver(source);
 		await client_build(compiler, resolver);
 		const specs = resolver.asked.map((a) => a.split(' > ')[1]);
-		for (const spec of [
-			'pkg-commented',
-			'$lib/server/auth',
-			'pkg-types',
-			'pkg-types-inline',
-			'pkg-types-export'
-		])
+		for (const spec of ['pkg-commented', '$lib/server/auth', 'pkg-types', 'pkg-types-export'])
 			expect(specs, spec).not.toContain(spec);
+		expect(specs).toContain('pkg-types-inline');
 	});
 
 	test('the bundler is asked only past where the app walk stopped, and a level of imports at once', async () => {
@@ -163,19 +179,39 @@ describe('a client build follows each island through its package imports before 
 			'src/lib/Reader.svelte > pkg-shared',
 			'node_modules/pkg-shared/index.js > ./state.js',
 			'node_modules/pkg-shared/index.js > ./typed.ts',
-			'node_modules/pkg-shared/state.js > ./lazy.js'
+			'node_modules/pkg-shared/state.js > ./lazy.js',
+			'node_modules/pkg-shared/typed.ts > pkg-types-inline'
 		]);
 		expect(resolver.most()).toBe(2);
 	});
 
-	test('a watch rebuild asks the bundler again only for the app files’ imports', async () => {
+	test('a rebuild of one compiler asks the bundler again only for the app files’ imports and the package imports that did not resolve', async () => {
 		const source = app_files();
 		const { compiler } = make_compiler(memory_fs(source));
 		const first = fake_resolver(source);
 		await client_build(compiler, first);
 		const again = fake_resolver(source);
 		await client_build(compiler, again);
-		expect(again.asked).toEqual(['src/lib/Reader.svelte > pkg-shared']);
+		expect(again.asked).toEqual([
+			'src/lib/Reader.svelte > pkg-shared',
+			'node_modules/pkg-shared/typed.ts > pkg-types-inline'
+		]);
+		expect(compiler.program.island_graph.has(`${PKG}/lazy.js`)).toBe(true);
+	});
+
+	test('a package import the bundler could not resolve is asked again on the next rebuild, and joins when it resolves', async () => {
+		const source = app_files();
+		const { compiler } = make_compiler(memory_fs(source));
+		const working = fake_resolver(source);
+		const failing = (spec: string, importer: string) =>
+			spec === './lazy.js' ? Promise.resolve(null) : working.resolve(spec, importer);
+		compiler.start_leg('client', false);
+		compiler.prescan();
+		await compiler.follow_island_closure(failing);
+		expect(compiler.program.island_graph.has(`${PKG}/lazy.js`)).toBe(false);
+		const again = fake_resolver(source);
+		await client_build(compiler, again);
+		expect(again.asked).toContain('node_modules/pkg-shared/state.js > ./lazy.js');
 		expect(compiler.program.island_graph.has(`${PKG}/lazy.js`)).toBe(true);
 	});
 });
