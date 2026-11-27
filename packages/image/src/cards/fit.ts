@@ -26,9 +26,6 @@ export function card_scale(width: number, height: number, card_w: number, card_h
 
 const DRAWN_AS_IS: ReadonlySet<string | undefined> = new Set(['srgb', 'b-w']);
 
-/** Does resvg draw `bytes`, read as `meta`, as the page would show them: a file it draws
- *  ({@link resvg_draws}) of 8-bit sRGB or grey samples, with no colour profile (resvg reads none)
- *  and no EXIF turn (resvg turns none). */
 function drawn_as_is(bytes: Uint8Array, meta: Metadata): boolean {
 	return (
 		resvg_draws(bytes) &&

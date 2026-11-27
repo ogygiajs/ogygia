@@ -71,7 +71,7 @@ const HREF_PROPS: ReadonlySet<string> = new Set(['href', 'xlinkHref', 'xlink:hre
 
 /** One `url(` in a string: where it starts and ends, the address it names (its quotes taken off),
  *  and whether it is closed (an unclosed one runs to the end of the string). */
-interface UrlSpan {
+export interface UrlSpan {
 	start: number;
 	end: number;
 	src: string;
