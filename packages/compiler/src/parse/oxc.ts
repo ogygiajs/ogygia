@@ -60,13 +60,17 @@ export function parse_module(code: string, id: string): ParseResult {
 type Span = { start: number; end: number };
 /** What a module imports and re-exports, as oxc's parse records it (offsets exact against the code). */
 export interface ModuleRecord {
-	readonly staticImports: ReadonlyArray<{
-		moduleRequest: Span & { value: string };
-		entries: ReadonlyArray<{ isType: boolean }>;
-	}>;
-	readonly staticExports: ReadonlyArray<{
-		entries: ReadonlyArray<{ moduleRequest: (Span & { value: string }) | null; isType: boolean }>;
-	}>;
+	readonly staticImports: ReadonlyArray<
+		Span & {
+			moduleRequest: Span & { value: string };
+			entries: ReadonlyArray<{ isType: boolean }>;
+		}
+	>;
+	readonly staticExports: ReadonlyArray<
+		Span & {
+			entries: ReadonlyArray<{ moduleRequest: (Span & { value: string }) | null; isType: boolean }>;
+		}
+	>;
 	readonly dynamicImports: ReadonlyArray<{ moduleRequest: Span }>;
 }
 

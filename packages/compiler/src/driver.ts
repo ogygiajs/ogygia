@@ -174,6 +174,7 @@ type RegistryResolve = (
 ) => Promise<{ id: string } | null>;
 const SCRIPT_MODULE_RE = /\.(?:[cm]?[jt]sx?)$/;
 const SOURCE_EXT_RE = /\.(svelte|ts|js|mjs|cjs)$/;
+const CLOSURE_SOURCE_RE = /\.(?:svelte|[cm]?[jt]sx?)$/;
 const SERVER_MODULE_EXT_RE = /\.(server|remote)\.(ts|js|mjs)$/;
 const SERVER_DIR_RE = /\/(src\/lib\/server|server)\//;
 const NODE_MODULES_DIR = `${path.sep}node_modules${path.sep}`;
@@ -997,8 +998,11 @@ export class Compiler implements CoreApp {
 	#closure_added: string[] = [];
 	/** Each walked file's imports, with the source they were read from (kept across rebuilds). */
 	readonly #closure_imports = new Map<string, { src: string; specs: readonly string[] }>();
-	/** What the bundler resolved each package file's import to (`importer\0spec`), across rebuilds. */
-	readonly #package_resolves = new Map<string, string | null>();
+	/** What the bundler resolved each package file's import to (`importer\0spec`), across the
+	 *  rebuilds of this compiler: a Kit 3 builder's watch. Kit 2 runs each client build as a new
+	 *  `vite.build`, a new plugin, so there it starts empty. An import that did not resolve is not
+	 *  kept. */
+	readonly #package_resolves = new Map<string, string>();
 
 	#mark_registered_closures(result: TransformResult): void {
 		if (!this.#ctx.is_dev) return;
@@ -1086,7 +1090,7 @@ export class Compiler implements CoreApp {
 					island_graph.add(file);
 					added.push(file);
 				}
-				if (!SOURCE_EXT_RE.test(file)) {
+				if (!CLOSURE_SOURCE_RE.test(file)) {
 					if (app && !ASSET_EXT_RE.test(file)) program.island_reads_page = true;
 					continue;
 				}
@@ -1136,7 +1140,8 @@ export class Compiler implements CoreApp {
 	}
 
 	/** One level of the walk through the bundler's resolver, all at once. An import a package file
-	 *  makes resolves the same in every rebuild of one watch, so it is asked once. */
+	 *  makes resolves the same in every rebuild of one compiler, so once resolved it is not asked
+	 *  again; one that failed is asked again. */
 	async #bundler_resolve(
 		edges: readonly ClosureEdge[],
 		resolve: ClosureResolve
@@ -1153,7 +1158,8 @@ export class Compiler implements CoreApp {
 		const found = await Promise.all(asks);
 		for (let i = 0; i < keys.length; i++) {
 			const key = keys[i];
-			if (key !== null) known.set(key, found[i]);
+			const id = found[i];
+			if (key !== null && id !== null) known.set(key, id);
 		}
 		return found;
 	}

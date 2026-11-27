@@ -1,8 +1,10 @@
 /**
  * What a module imports at run time, for the island closure walk (`Compiler.mark_island_closure`):
- * its static imports and re-exports that are not type-only, its bare `import '…'`s, and each
- * `import()` of a literal specifier. An import inside a comment is no import, and neither is a type:
- * the bundler never loads either. A script is read from oxc's import record, a component from its
+ * its static imports and re-exports, its bare `import '…'`s, and each `import()` of a literal
+ * specifier. An import inside a comment is no import, and neither is a whole `import type` or
+ * `export type` statement: the bundler never loads either. An import whose names are each `type`
+ * is followed, since `verbatimModuleSyntax` keeps it as a bare import (following one the bundler
+ * drops only marks more island code). A script is read from oxc's import record, a component from its
  * parse (its scripts and its template, where `{#await import('…')}` may sit).
  *
  * What it cannot see the bundler still loads: an `import()` of a computed specifier, a glob, an
@@ -20,6 +22,8 @@ const IMPORT_SPEC_G =
 	/\bfrom\s*['"]([^'"\n]+)['"]|\bimport\s*['"]([^'"\n]+)['"]|\bimport\s*\(\s*['"]([^'"\n]+)['"]/g;
 const LITERAL_SPEC_RE = /^(?:'([^'\\]*)'|"([^"\\]*)"|`([^`\\$]*)`)$/;
 const DYNAMIC_IMPORT_RE = /\bimport\s*\(/;
+const TYPE_IMPORT_RE = /^import\s+type\b/;
+const TYPE_EXPORT_RE = /^export\s+type\b/;
 
 /** The specifiers `src` (the module at `file`) imports at run time, each once. */
 export function island_imports(src: string, file: string): string[] {
@@ -31,18 +35,27 @@ function script_imports(src: string, file: string): Set<string> | null {
 	const record = module_record(src, file);
 	if (!record) return null;
 	const out = new Set<string>();
-	for (const imp of record.staticImports) {
-		let value = imp.entries.length === 0;
-		for (const e of imp.entries) if (!e.isType) value = true;
-		if (value) out.add(imp.moduleRequest.value);
+	for (const imp of record.staticImports)
+		if (!type_only(src, imp, TYPE_IMPORT_RE)) out.add(imp.moduleRequest.value);
+	for (const exp of record.staticExports) {
+		if (type_only(src, exp, TYPE_EXPORT_RE)) continue;
+		for (const e of exp.entries) if (e.moduleRequest) out.add(e.moduleRequest.value);
 	}
-	for (const exp of record.staticExports)
-		for (const e of exp.entries) if (e.moduleRequest && !e.isType) out.add(e.moduleRequest.value);
 	for (const dyn of record.dynamicImports) {
 		const m = LITERAL_SPEC_RE.exec(src.slice(dyn.moduleRequest.start, dyn.moduleRequest.end));
 		if (m) out.add(m[1] ?? m[2] ?? m[3]);
 	}
 	return out;
+}
+
+function type_only(
+	src: string,
+	stmt: { start: number; end: number; entries: readonly { isType: boolean }[] },
+	head: RegExp
+): boolean {
+	if (stmt.entries.length === 0) return false;
+	for (const e of stmt.entries) if (!e.isType) return false;
+	return head.test(src.slice(stmt.start, stmt.end));
 }
 
 function component_imports(src: string, file: string): Set<string> | null {
@@ -86,13 +99,8 @@ function parsed_component_imports(src: string, file: string): Set<string> | null
 
 function runtime_spec(node: AstNode): string | null {
 	switch (node.type) {
-		case 'ImportDeclaration': {
-			if (node.importKind === 'type') return null;
-			const specifiers: AstNode[] = node.specifiers ?? [];
-			let value = specifiers.length === 0;
-			for (const s of specifiers) if (s.importKind !== 'type') value = true;
-			return value ? literal(node.source) : null;
-		}
+		case 'ImportDeclaration':
+			return node.importKind === 'type' ? null : literal(node.source);
 		case 'ExportAllDeclaration':
 		case 'ExportNamedDeclaration':
 			return node.exportKind === 'type' ? null : literal(node.source);

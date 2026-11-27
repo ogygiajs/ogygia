@@ -20,7 +20,13 @@ async function built_with(verbatim: boolean): Promise<{ code: string; imports: s
 			export const a: A | null = null;
 		`;
 		write('entry.ts', `${entry}\n`);
-		write('typed.ts', `console.log('typed.ts ran');\nexport type A = number;\n`);
+		write(
+			'typed.ts',
+			`${dedent`
+				console.log('typed.ts ran');
+				export type A = number;
+			`}\n`
+		);
 		const out = (await build({
 			root,
 			configFile: false,
@@ -30,7 +36,7 @@ async function built_with(verbatim: boolean): Promise<{ code: string; imports: s
 				minify: false,
 				lib: { entry: path.join(root, 'entry.ts'), formats: ['es'], fileName: 'entry' }
 			}
-		})) as Rollup.RollupOutput[];
+		})) as Rollup.RolldownOutput[];
 		const code = out[0].output.map((o) => (o.type === 'chunk' ? o.code : '')).join('\n');
 		return { code, imports: island_imports(entry, path.join(root, 'entry.ts')) };
 	} finally {
