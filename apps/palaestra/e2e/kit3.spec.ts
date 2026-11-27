@@ -11,7 +11,9 @@
 // The app: a lake in a csr=false layout (islands + a hole inside) serving a csr=false page and a
 // csr=true page; an island with a remote form and the query it refreshes; an island whose query
 // argument is a custom transport type; an island reading `page`; an island reading a static and a
-// dynamic public env var (dev also edits the dynamic one's default and reloads).
+// dynamic public env var (dev also edits the dynamic one's default and reloads); outside the lake, a
+// page whose only region wakes on interaction and reads the dynamic var, opened straight and reached
+// by the router from a page that carries no env.
 //
 // Standalone install (not a workspace member): a workspace link would resolve ogygia's own Kit 2 dev
 // install next to the app's Kit 3. Usage: pnpm exec playwright test kit3
@@ -136,6 +138,38 @@ async function exercise(
 	check(`${at} no errors or warnings`, errs.length === 0, errs.slice(0, 3).join(' | '));
 }
 
+/** The env pages: /env's only region wakes on interaction and imports $app/env/public, read straight
+ *  away and after a router navigation from /plain, a page that carries no env. */
+async function env_pages(page: Page, base: string, region_name = 'region from env') {
+	const errs: string[] = [];
+	page.on('pageerror', (e) => errs.push(e.message));
+	page.on('console', (m) => {
+		if (m.type() === 'error' || m.type() === 'warning') errs.push(`${m.type()}: ${m.text()}`);
+	});
+	const read = async (at: string) => {
+		await page.click('[data-env-click]');
+		await expect
+			.poll(() => page.textContent('[data-env-click-value]'), {
+				message: `${at} the interaction region reads the dynamic public env var`,
+				timeout: 10_000
+			})
+			.toBe(`read: ${region_name}`);
+	};
+
+	await page.goto(`${base}/env`, { waitUntil: 'networkidle' });
+	await read('/env:');
+
+	await page.goto(`${base}/plain`, { waitUntil: 'networkidle' });
+	await page.click('[data-hello]');
+	check('/plain: its island hydrated', (await page.textContent('[data-hello]')) === 'hello 1');
+	const stamp = await stamp_document(page);
+	await page.click('[data-to-env]');
+	await page.waitForSelector('[data-page="env"]');
+	check('/plain → /env: by the router (no reload)', (await document_stamp(page)) === stamp);
+	await read('/plain → /env:');
+	check('env pages: no errors or warnings', errs.length === 0, errs.slice(0, 3).join(' | '));
+}
+
 test.describe('SvelteKit 3: build + dev on the packed ogygia (self-building fixture)', () => {
 	test.describe.configure({ mode: 'serial' });
 	test.beforeAll(() => {
@@ -167,6 +201,7 @@ test.describe('SvelteKit 3: build + dev on the packed ogygia (self-building fixt
 			const context = await browser.newContext({ extraHTTPHeaders: PROTO });
 			await exercise(await context.newPage(), base, '/', false);
 			await exercise(await context.newPage(), base, '/kit', true);
+			await env_pages(await context.newPage(), base);
 			await context.close();
 		} finally {
 			await srv?.kill();
@@ -199,10 +234,13 @@ test.describe('SvelteKit 3: build + dev on the packed ogygia (self-building fixt
 			// warm both pages first: dev discovers island deps on first render (one re-optimize)
 			await fetch(`${base}/`);
 			await fetch(`${base}/kit`);
+			await fetch(`${base}/env`);
+			await fetch(`${base}/plain`);
 			await sleep(1500);
 			const context = await browser.newContext();
 			await exercise(await context.newPage(), base, '/', false);
 			await exercise(await context.newPage(), base, '/kit', true);
+			await env_pages(await context.newPage(), base);
 
 			// a dynamic variable's default edited while dev runs: the next load reads the new value
 			const env_file = join(APP, 'src/env.js');
