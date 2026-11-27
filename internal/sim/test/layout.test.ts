@@ -107,6 +107,8 @@ describe('a simulated document has a layout, and its IntersectionObserver report
 		await loop.run(100);
 		expect(layout.owes(), 'one off screen, reported').toBe(false);
 		w.document.getElementById('tall')!.remove();
+		expect(layout.owes(), 'no frame asked until the change is heard').toBe(false);
+		await Promise.resolve();
 		expect(layout.owes(), 'one that came on screen').toBe(true);
 		await w.happyDOM.close();
 		expect(layout.owes(), 'its document closed').toBe(false);

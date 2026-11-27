@@ -304,6 +304,36 @@ function on_a_tab(a: Action, tabs: number): Action {
 	return 'tab' in a && a.tab >= tabs ? { ...a, tab: a.tab % Math.max(1, tabs) } : a;
 }
 
+/**
+ * THE RUN'S END RESTS, before any end-of-run oracle judges a tab: `v`'s tabs back on the network,
+ * then rest. A wait on its way out is not a hang: a backoff of seconds is a page's one-shot timer,
+ * due later than rest's 2 s, so time runs on while one is set, a minute at most, resting again after
+ * each (a backoff's try goes on the wire and may set the next, the rollover's 1, 3 and 9 s;
+ * test/found/deploy-recovery-waits.test.ts). Then each visitor, the crowd's too, looks at each tab
+ * of theirs behind another that owes a frame ({@link visitor_looks}), so a tab is judged as the
+ * visitor sees it once they look (test/hidden-tab.node.test.ts, #2176).
+ */
+export async function rest_at_end(world: World, v: Visitor): Promise<void> {
+	const visitors = (): Visitor[] => [v, ...world.crowd];
+	for (const t of v.tabs) world.network.offline(t.name, false);
+	const until = Math.min(world.loop.now + 60_000, world.loop.horizon);
+	for (;;) {
+		await world.rest();
+		if (
+			!(
+				world.loop.now < until &&
+				world.loop.next_at <= until &&
+				visitors()
+					.flatMap((who) => who.tabs)
+					.some((t) => !world.on_release(t.realm) && t.platform?.pending().includes('timeout'))
+			)
+		)
+			break;
+		await world.loop.step();
+	}
+	for (const who of visitors()) await visitor_looks(world, who);
+}
+
 /** One seeded run. */
 export async function run(
 	seed: number,
@@ -588,25 +618,7 @@ export async function run(
 		}
 		// (a `--step` past the last action prints the trace through rest)
 		if (broken.every((b) => b.oracle === 'known') && stop_at > total) {
-			for (const t of v.tabs) world.network.offline(t.name, false);
-			// (a wait on its way out is not a hang: a backoff of seconds is a page's one-shot timer,
-			// due later than rest's 2 s. Time runs on while one is set, a minute at most, then rest.
-			// Rest again after each: a backoff's try goes on the wire and may set the next backoff,
-			// the rollover's 1, 3 and 9 s; test/found/deploy-recovery-waits.test.ts)
-			const until = Math.min(world.loop.now + 60_000, world.loop.horizon);
-			for (;;) {
-				await world.rest();
-				if (
-					!(
-						world.loop.now < until &&
-						world.loop.next_at <= until &&
-						judged().some((t) => t.platform?.pending().includes('timeout'))
-					)
-				)
-					break;
-				await world.loop.step();
-			}
-			for (const who of [v, ...world.crowd]) await visitor_looks(world, who);
+			await rest_at_end(world, v);
 			hear_moves();
 			await at_rest?.(world, v);
 			for (const t of judged())
