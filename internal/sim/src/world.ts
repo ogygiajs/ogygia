@@ -740,7 +740,7 @@ export class World {
 		// (a quiesce whose next task is past its budget returns without running it: step to it)
 		for (;;) {
 			if (await this.quiesce()) return;
-			if (this.loop.next_at > this.loop.horizon) return;
+			if (this.loop.next_at > this.loop.horizon) return this.#gave_up();
 			if (this.#wire_quiet()) break;
 			await this.loop.step();
 		}
@@ -753,9 +753,19 @@ export class World {
 		for (;;) {
 			await this.loop.settle();
 			if (this.#wire_quiet() && this.#pages_quiet(PAGE_GAP_MS)) return;
-			if (this.loop.next_at > end || this.loop.next_at > this.loop.horizon) return;
+			if (this.loop.next_at > this.loop.horizon) return this.#gave_up();
+			if (this.loop.next_at > end) return;
 			await this.loop.step();
 		}
+	}
+
+	/** Rest gave up at the horizon: a request a test's hold still keeps is why, and is named. */
+	#gave_up(): void {
+		const held = this.network.held();
+		if (held.length > 0)
+			throw new Error(
+				`rest gave up at the horizon: a hold still keeps ${held.join(', ')} (let it go: Network.hold)`
+			);
 	}
 
 	#wire_quiet(): boolean {

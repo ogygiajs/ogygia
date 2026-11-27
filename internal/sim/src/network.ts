@@ -66,8 +66,11 @@ interface Hold {
 	readonly keeps: Set<Held>;
 }
 
-/** A request kept off the wire: the holds keeping it, how it goes once they let go, how it fails. */
+/** A request kept off the wire: its address, whether it is still asked (not called off or lost),
+ *  the holds keeping it, how it goes once they let go, how it fails. */
 interface Held {
+	readonly url: string;
+	readonly live: () => boolean;
 	readonly by: Set<Hold>;
 	readonly go: () => void;
 	readonly drop: () => void;
@@ -376,6 +379,12 @@ export class Network {
 		};
 	}
 
+	/** The address of each request a hold keeps off the wire now (one called off or lost is not). */
+	held(): string[] {
+		const held = new Set([...this.#holds].flatMap((h) => [...h.keeps]));
+		return [...held].filter((h) => h.live()).map((h) => h.url);
+	}
+
 	/** The network's world is over: each request still held fails, and no hold keeps any more. */
 	end(): void {
 		const held = new Set([...this.#holds].flatMap((h) => [...h.keeps]));
@@ -601,6 +610,8 @@ export class Network {
 			const by = new Set([...this.#holds].filter((h) => h.match(target, realm)));
 			if (by.size === 0) return void on_its_way();
 			const held: Held = {
+				url: request.url,
+				live: () => !lost && !signal?.aborted,
 				by,
 				go: () => {
 					if (!lost && !signal?.aborted) on_its_way();

@@ -532,7 +532,11 @@ export async function visitor_looks(world: World, v: Visitor, tabs: Tab[] = v.ta
  * MPA EQUIVALENCE, the core promise: after any sequence of actions, what a tab shows equals a fresh
  * hard load of its URL by a visitor with the same cookies, once both are at rest. Checked in a new
  * browser (its own module instances and caches) with the tab's cookies copied in. `view` is what
- * is compared (all of `normalize` by default; a found bug's test may compare one part).
+ * is compared (all of `normalize` by default; a found bug's test may compare one part). A tab owed
+ * a look ({@link owes_look}) is judged once the visitor looked ({@link visitor_looks}); one whose
+ * observers never had a frame is judged first as it stands too, against a fresh load behind another
+ * tab: the look would wake its `visible` islands, and hide one that woke behind with no frame
+ * (test/hidden-tab.node.test.ts, #2091).
  */
 export async function mpa_equivalent(
 	world: World,
@@ -542,14 +546,30 @@ export async function mpa_equivalent(
 ): Promise<Broken | null> {
 	const url = tab.page.mainFrame.url;
 	if (!url.startsWith('http')) return null;
-	const raw = view;
-	view = (doc) => replicas_as_one(doc, raw(doc), world.replicas);
+	const as_one = (doc: Document) => replicas_as_one(doc, view(doc), world.replicas);
+	const unframed = () => tab.hidden && !tab.framed.has(tab.realm);
+	const before = owes_look(tab) && unframed() ? await as_fresh(world, v, tab, as_one, true) : null;
+	if (before !== null && before.oracle !== 'known') return before;
 	await visitor_looks(world, v, [tab]);
+	return (await as_fresh(world, v, tab, as_one, unframed())) ?? before;
+}
+
+/**
+ * {@link mpa_equivalent}'s comparison of `tab` as it stands with a fresh load of its URL, loaded
+ * behind another tab when `behind` (one never framed: a `visible` island sleeps there too).
+ */
+async function as_fresh(
+	world: World,
+	v: Visitor,
+	tab: Tab,
+	view: (doc: Document) => string,
+	behind: boolean
+): Promise<Broken | null> {
+	const url = tab.page.mainFrame.url;
 	let shown = view(tab.page.mainFrame.document as unknown as Document);
 	// (a page a build a deploy replaced answered is compared with a fresh load from that build: an
 	// old page is the old release's, whole)
 	const build = world.build_of(tab.realm);
-	const behind = tab.hidden && !tab.framed.has(tab.realm);
 	const fresh_load = (w: World, visitor: Visitor, at: string, name: string, pace = 0) =>
 		w.as_of(
 			build,

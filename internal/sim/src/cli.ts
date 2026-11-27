@@ -309,9 +309,10 @@ function on_a_tab(a: Action, tabs: number): Action {
  * then rest. A wait on its way out is not a hang: a backoff of seconds is a page's one-shot timer,
  * due later than rest's 2 s, so time runs on while one is set, a minute at most, resting again after
  * each (a backoff's try goes on the wire and may set the next, the rollover's 1, 3 and 9 s;
- * test/found/deploy-recovery-waits.test.ts). Then each visitor, the crowd's too, looks at each tab
- * of theirs behind another that owes a frame ({@link visitor_looks}), so a tab is judged as the
- * visitor sees it once they look (test/hidden-tab.node.test.ts, #2176).
+ * test/found/deploy-recovery-waits.test.ts). At each rest, each visitor, the crowd's too, looks at
+ * each tab of theirs behind another that owes a frame ({@link visitor_looks}), so a tab is judged as
+ * the visitor sees it once they look, and a backoff what the look woke set is waited out too
+ * (test/hidden-tab.node.test.ts, #2176).
  */
 export async function rest_at_end(world: World, v: Visitor): Promise<void> {
 	const visitors = (): Visitor[] => [v, ...world.crowd];
@@ -319,6 +320,7 @@ export async function rest_at_end(world: World, v: Visitor): Promise<void> {
 	const until = Math.min(world.loop.now + 60_000, world.loop.horizon);
 	for (;;) {
 		await world.rest();
+		for (const who of visitors()) await visitor_looks(world, who);
 		if (
 			!(
 				world.loop.now < until &&
@@ -331,7 +333,6 @@ export async function rest_at_end(world: World, v: Visitor): Promise<void> {
 			break;
 		await world.loop.step();
 	}
-	for (const who of visitors()) await visitor_looks(world, who);
 }
 
 /** One seeded run. */
@@ -469,11 +470,7 @@ export async function run(
 					leaks.check(t, pressed.get(t.name) === t.documents),
 					live_events(t, world),
 					GEN_PEER ? peer_answers(t, world, since, GEN_PEER.mount) : null,
-					// (a document loaded behind another tab and never looked at is at rest once the world
-					// is: its islands wake all the same, with no frame to wait for. One that was shown may
-					// have asked for a frame just before it went behind, which waits until it is shown
-					// again, as a browser's does; gen 262, seed 11)
-					t.hidden && !t.seen.has(t.realm) ? islands_wake(t, world) : null
+					t.hidden ? islands_wake(t, world) : null
 				])
 					// (a known one once: it is told again after every action while the bug stands)
 					if (b && !(b.oracle === 'known' && broken.some((k) => k.detail.endsWith(b.detail))))

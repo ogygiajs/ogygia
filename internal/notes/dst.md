@@ -388,21 +388,30 @@ its animation frames wait until it is shown (`platform.ts` parks them; a documen
 happy-dom's own, which writes the content, and is never parked). The `background` action opens a
 tab behind the one looked at. A tab brought to the front is looked at 300 ms before the visitor acts
 in it (gen 193, seed 8: a reload at once counted the old document's late requests as the next
-one's). A document loaded behind and never shown owes its wakes after every action (`islands-wake`);
-one shown before it went behind is owed a look while its next frame would do something
+one's). A document behind another owes its wakes after every action (`islands-wake`), as it stands.
+One shown before it went behind is owed a look while its next frame would do something
 (`owes_look`, `Tab.owes_frame`: run an animation frame it asked for behind, or tell an observer of a
 target it never reported or one that moved across the viewport since, in the layout that frame
 reports from). Meanwhile, as a browser's waits: with an animation frame waiting, none of its islands
 is judged (any may wait on it); with only its observers owed, its `visible` islands are not, and
-every other wake is owed. Owed no look, it owes every wake, its `visible` islands on screen too.
+every other wake is owed. Owed no look, it owes every wake; its on-screen `visible` islands too
+once its observers had a frame (`Tab.framed`), and not before (they never had one to wake by).
 Every tab owed a look is looked at (`visitor_looks`: shown until the world rests, then the tab in
 front is put back) at the run's end before any tab is judged (`rest_at_end`, every visitor's, a
-crowd's too) and by the MPA check itself; then it is judged as a shown one, and a `visible` island
-that never wakes once looked at is `islands-wake` and an MPA difference (#2176: a `visible` island
-its hole brought after it went behind; and #2091: one shown as it came but behind before its
-observers had a frame; `test/hidden-tab.node.test.ts`; palaestra seed 1000004158).
+crowd's too, inside its wait for backoffs: a look may wake an island whose download fails, and its
+retry's 1, 3 and 9 s are waited out before the end judges it) and by the MPA check itself; then it
+is judged as a shown one, and a `visible` island that never wakes once looked at is `islands-wake`
+and an MPA difference (#2176: a `visible` island its hole brought after it went behind; and #2091:
+one shown as it came but behind before its observers had a frame; `test/hidden-tab.node.test.ts`;
+palaestra seed 1000004158). A look shows the tab, and the tab in front goes behind and back: each
+hears `visibilitychange` twice, and time runs while the world rests. A page that asks the server
+again when it is shown (a refetch on visibility) asks it in that look, and the waste checks
+(`waste`, `asked_twice_each`) count it as any other second ask.
 The MPA check judges a tab behind against a fresh load behind another tab too, unless its document's
-observers had a frame (`Tab.framed`): one never shown, or one whose runtime watched nothing.
+observers had a frame (`Tab.framed`): one never shown, or one whose runtime watched nothing. One
+owed a look whose observers never had a frame (#2091) is judged both ways: first as it stands,
+against a fresh load behind (a `visible` island that woke behind with no frame is a difference
+there, which the look would hide), then once looked at, against a shown one.
 Mutation: the paint gate's hidden branch (schedule.ts, `hidden-document-waits-for-a-frame`) died on
 gen 262. A look hides it in a tab shown before (the frame comes then), never in one loaded behind
 and never shown: that one is owed no look, so its islands are judged though a frame waits there

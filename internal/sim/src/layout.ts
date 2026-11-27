@@ -515,12 +515,12 @@ export function install_layout(
 			parked = false;
 			ask_frame();
 		},
-		/** Whether the frame asked for (one parked while hidden, which `shown()` gives, or one on its
-		 *  way) would tell an observer something: a target it never reported, or one that crossed the
+		/** Whether the next frame (one parked while hidden, which `shown()` gives, or one on its way)
+		 *  would tell an observer something: a target it never reported, or one that crossed the
 		 *  viewport or left it since, in the layout that frame reports from (the last one kept unless
-		 *  the DOM changed). A closed document has no next frame. */
+		 *  the DOM changed; every change heard asks a frame, so with none asked that is the kept one,
+		 *  and it owes nothing). A closed document has no next frame. */
 		owes() {
-			if (!(parked || (frame !== null && !frame.cancelled))) return false;
 			if (observers.size === 0 || w.closed) return false;
 			const at = dirty ? boxes(w.document) : (last_boxes ?? boxes(w.document));
 			for (const o of observers) if (o.owes(at)) return true;
