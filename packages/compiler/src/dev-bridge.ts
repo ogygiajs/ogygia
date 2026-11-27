@@ -25,13 +25,31 @@ export const dev_bridge_key = (root: string): string => `ogygia.dev.bridge:${roo
 export const dev_bridge_call = (root: string, reader: keyof DevBridge): string =>
 	`globalThis[Symbol.for(${JSON.stringify(dev_bridge_key(root))})]?.${reader}()`;
 
-/** Opens `bridge` for the app at `root`, in place of any other; its close removes it only while it
- *  is still the one open (a second dev server of the root opened its own since). */
+/** The global of a root: the readers of the newest bridge still open, over every open one. */
+interface DevBridgeSlot extends DevBridge {
+	readonly open: DevBridge[];
+}
+
+/** Opens `bridge` for the app at `root` over any other open there; its close takes only it away, so
+ *  the newest one left answers, and the global goes with the last. */
 export function open_dev_bridge(root: string, bridge: DevBridge): () => void {
 	const key = Symbol.for(dev_bridge_key(root));
-	const slots = globalThis as Record<symbol, unknown>;
-	slots[key] = bridge;
+	const slots = globalThis as Record<symbol, DevBridgeSlot | undefined>;
+	const slot = (slots[key] ??= dev_bridge_slot());
+	slot.open.push(bridge);
 	return () => {
-		if (slots[key] === bridge) delete slots[key];
+		const at = slot.open.indexOf(bridge);
+		if (at !== -1) slot.open.splice(at, 1);
+		if (slot.open.length === 0 && slots[key] === slot) delete slots[key];
+	};
+}
+
+function dev_bridge_slot(): DevBridgeSlot {
+	const open: DevBridge[] = [];
+	const newest = (): DevBridge => open[open.length - 1]!;
+	return {
+		open,
+		fn_manifest: () => newest().fn_manifest(),
+		kit_env_build: () => newest().kit_env_build()
 	};
 }

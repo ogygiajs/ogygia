@@ -169,7 +169,7 @@ import type { OgygiaOptions } from './options.ts';
 import { SVELTE_DEV_ISLAND_ENTRIES } from './svelte-entries.ts';
 import { OgygiaError, warn, line } from '../messages.ts';
 import { RouteWatch } from './route-watch.ts';
-import { scope } from '@ogygia/machine';
+import { scope, type Scope } from '@ogygia/machine';
 
 const DEV_CSS_FILE_RE = /\.(css|scss|sass|less|styl)$/;
 const BACKSLASH_G = /\\/g;
@@ -437,6 +437,13 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	};
 
 	const dev_owner = scope();
+	/** each dev server's own scope, by its environments: one plugin can serve a restarted server */
+	const served_by_env = new WeakMap<object, Scope>();
+	/** the scope of the dev server whose environment runs a hook; with none named, every server's */
+	const served_of = (ctx: unknown): Scope => {
+		const env = (ctx as { environment?: object } | null)?.environment;
+		return (env && served_by_env.get(env)) ?? dev_owner;
+	};
 	const route_watch = new RouteWatch(
 		dev_owner,
 		(file, event) => compiler_of(session, 'watchChange').routes_changed(file, event),
@@ -769,6 +776,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const compiler = compiler_of(session, 'configureServer');
 				vite_server = server;
 				const served = dev_owner.child();
+				for (const env of Object.values(server.environments ?? {})) served_by_env.set(env, served);
 				served.defer(
 					open_dev_bridge(root, {
 						fn_manifest: () => compiler_of(session, 'fn_manifest').fn_manifest(),
@@ -1072,7 +1080,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			closeBundle() {
-				if (is_dev) dev_owner.close();
+				if (is_dev) served_of(this).close();
 				compiler_of(session, 'closeBundle').end_leg(env_of(this)?.name ?? null);
 			},
 
