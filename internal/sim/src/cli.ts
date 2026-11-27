@@ -44,6 +44,7 @@ import {
 	hydrates_as_sent,
 	Leaks,
 	mpa_equivalent,
+	visitor_looks,
 	no_cross_visitor_cache,
 	no_foreign_html,
 	normalize,
@@ -479,9 +480,8 @@ export async function run(
 			// (and no hole that wakes on its own still shows its fallback, pressed or not: a press
 			// changes what a region shows, never whether a hole is owed its answer)
 			fallback_stands(t, world),
-			// (and no island that wakes on its own still sleeps: its twin for islands. Not in a
-			// document behind another that was shown before: a frame it asked for then waits)
-			t.hidden && t.seen.has(t.realm) ? null : islands_wake(t, world),
+			// (and no island that wakes on its own still sleeps: its twin for islands)
+			islands_wake(t, world),
 			// (and every live region was heard announcing the tick it shows, pressed or not: a press
 			// changes a button's own count, which the oracle leaves out, never a tick)
 			live_events(t, world),
@@ -606,6 +606,9 @@ export async function run(
 					break;
 				await world.loop.step();
 			}
+			// (the visitor looks at each tab behind that owes a frame, so the end judges what that
+			// frame brings: test/hidden-tab.node.test.ts, #2176)
+			for (const who of [v, ...world.crowd]) await visitor_looks(world, who);
 			hear_moves();
 			await at_rest?.(world, v);
 			for (const t of judged())

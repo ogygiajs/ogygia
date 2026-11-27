@@ -496,6 +496,27 @@ export function replicas_as_one(
 }
 
 /**
+ * THE VISITOR LOOKS, before a run's end judges its tabs: each of `tabs` (of visitor `v`) behind
+ * another whose document had frames and owes one (`Tab.owes_frame`) is shown until the world rests,
+ * then the tab that was in front is put back. What waited for that frame (a `visible` island its
+ * hole brought after it went behind) has had it, so the tab is judged as one that was shown
+ * (test/hidden-tab.node.test.ts, #2176).
+ */
+export async function visitor_looks(world: World, v: Visitor, tabs: Tab[] = v.tabs): Promise<void> {
+	const front = v.tabs.find((t) => !t.hidden);
+	let looked = false;
+	for (const t of tabs) {
+		if (!t.hidden || !t.framed.has(t.realm) || !t.owes_frame()) continue;
+		world.browsers.focus(v, t);
+		await world.rest();
+		looked = true;
+	}
+	if (!looked || front === undefined) return;
+	world.browsers.focus(v, front);
+	await world.rest();
+}
+
+/**
  * MPA EQUIVALENCE, the core promise: after any sequence of actions, what a tab shows equals a fresh
  * hard load of its URL by a visitor with the same cookies, once both are at rest. Checked in a new
  * browser (its own module instances and caches) with the tab's cookies copied in. `view` is what
@@ -511,15 +532,12 @@ export async function mpa_equivalent(
 	if (!url.startsWith('http')) return null;
 	const raw = view;
 	view = (doc) => replicas_as_one(doc, raw(doc), world.replicas);
+	await visitor_looks(world, v, [tab]);
 	let shown = view(tab.page.mainFrame.document as unknown as Document);
 	// (a page a build a deploy replaced answered is compared with a fresh load from that build: an
 	// old page is the old release's, whole)
 	const build = world.build_of(tab.realm);
 	const behind = tab.hidden && !tab.framed.has(tab.realm);
-	// (a tab behind that had frames and owes one, a visible island its hole brought after it went
-	// behind: what it shows waits for the visitor to look, and no fresh load, shown or behind, shows
-	// that; palaestra seed 1000004158, test/hidden-tab.node.test.ts)
-	if (tab.hidden && !behind && tab.owes_frame()) return null;
 	const fresh_load = (w: World, visitor: Visitor, at: string, name: string, pace = 0) =>
 		w.as_of(
 			build,
@@ -660,20 +678,22 @@ type Due = (el: Element, when: string | null, margin: string | null) => boolean;
  * trigger vocabulary: `load`, `idle`, `visible`, `interaction` or a media query) has fired once the
  * world is at rest. `load` and `idle` always, and so does none named or a value core does not hold
  * (it runs on load). `visible` when the region is on screen in the simulator's layout, the viewport
- * grown by its `margin` (src/layout.ts, the layout its observer reported), in a shown document: a
- * browser renders no frame for a tab behind another, so its observer reports nothing there. A media
+ * grown by its `margin` (src/layout.ts, the layout its observer reported), in a shown document, or
+ * one behind another tab whose frames told its observers all there is (it had frames and owes none,
+ * `Tab.owes_frame`): a browser renders no frame for a tab behind another, so its observer reports
+ * nothing new there (test/hidden-tab.node.test.ts). A media
  * query when it matches. `interaction` never: only the visitor fires it. A mutant that dropped a
  * region's margin survived every other oracle (core.ts `#on_visible`, the hole's `prefetch`).
  */
 function schedules(tab: Tab, doc: Document): Due {
 	let at: Map<Element, Box> | null = null;
+	const told = !tab.hidden || (tab.framed.has(tab.realm) && !tab.owes_frame());
 	const view = doc.defaultView as unknown as {
 		matchMedia?(q: string): { matches: boolean };
 	} | null;
 	return (el, when, margin) => {
 		if (when === 'interaction') return false;
-		if (when === 'visible')
-			return !tab.hidden && on_screen((at ??= boxes(doc)), el, margin || undefined);
+		if (when === 'visible') return told && on_screen((at ??= boxes(doc)), el, margin || undefined);
 		// (a media query: a `(` with a `)` after it, as core reads one)
 		const open = when?.indexOf('(') ?? -1;
 		if (when && open !== -1 && when.indexOf(')', open) !== -1)
@@ -764,12 +784,14 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
  * Its twin for
  * holes is {@link fallback_stands}; the MPA check cannot see it (the fresh load runs the same code
  * and sleeps there too). Set aside: a document a fault touched (its code may have failed to
- * download) unless only an outage did (the network came back, and it wakes again), and one a
- * deploy failed a download of.
+ * download) unless only an outage did (the network came back, and it wakes again), one a
+ * deploy failed a download of, and one behind another tab, shown before, that owes a frame
+ * (`Tab.owes_frame`: what it asked of a frame then waits until the visitor looks; gen 262, seed 11).
  */
 export function islands_wake(tab: Tab, world: World): Broken | null {
 	const url = tab.page.mainFrame.url;
 	if (!url.startsWith('http') || world.skewed_for(tab.realm)) return null;
+	if (tab.hidden && tab.seen.has(tab.realm) && tab.owes_frame()) return null;
 	if (faulted(world, tab) && !outage_only(world, tab)) return null;
 	if (!world.network.online(tab.name)) return null;
 	// (its document's files still coming is work in flight, not an island asleep: a stalled runtime

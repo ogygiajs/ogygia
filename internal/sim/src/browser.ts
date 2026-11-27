@@ -73,9 +73,9 @@ export interface Tab {
 	/** The realms of its documents whose observers had a frame (a tab renders one only while shown):
 	 *  one shown as it came but behind before its runtime watched anything never had one. */
 	readonly framed: Set<string>;
-	/** Whether its document's next frame would tell an observer something (a region it never
-	 *  reported, or one that came on screen or left it since): behind another tab, that frame waits
-	 *  until the visitor looks. */
+	/** Whether its document's next frame would do something: run an animation frame asked for
+	 *  while it was hidden, or tell an observer of a target it never reported, or one that came on
+	 *  screen or left it since. Behind another tab, that frame waits until the visitor looks. */
 	owes_frame(): boolean;
 	/** The address of its document whose island load gate had opened when DOMContentLoaded fired
 	 *  (oracles.ts `parsed_first`), or null. */
@@ -843,7 +843,8 @@ export class Browsers {
 			hidden: false,
 			seen: new Set(),
 			framed: new Set(),
-			owes_frame: () => this.#layouts.get(tab)?.owes() ?? false,
+			owes_frame: () =>
+				tab.platform?.waits_frame() === true || this.#layouts.get(tab)?.owes() === true,
 			early_gate: null,
 			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
 			listening: () => [],
