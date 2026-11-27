@@ -8585,6 +8585,70 @@
 			"reason": "one utimes, at most once a day per file found; test/server.test.ts runs it"
 		},
 		{
+			"id": "packages/image/src/card.ts > card_shown_id > sort:0~ced8af",
+			"reason": "once per card draw that showed a remote image (a draw is tens of milliseconds of satori and resvg): sorts the few URLs it read"
+		},
+		{
+			"id": "packages/image/src/card.ts > card_shown_id > map:0~e7431b",
+			"reason": "once per card draw that showed a remote image: joins each URL it read with its source id"
+		},
+		{
+			"id": "packages/image/src/encoders/capabilities.ts > decisions:0~463a89 > decide",
+			"reason": "one table row per encoder need (a decisions() table, every row listed); test/cloudflare.test.ts and test/vercel.test.ts check its rows"
+		},
+		{
+			"id": "packages/image/src/makers/sharp-at.ts > sharp_maker",
+			"reason": "once per realm: makes sharp's maker (a store, not cloneable); test/encode-settings.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/makers/sharp-at.ts > sharp_maker > make",
+			"reason": "hands one recipe to encode_recipe, whose encode is libvips work; test/encode-settings.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/remote-hosts.ts > map:0~cac3e1",
+			"reason": "module constant: splits each public suffix into label patterns once when the module loads; test/remote.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/settle.ts > call:0~733e88 > run",
+			"reason": "once per remote URL per window (a flights shares it): one network fetch under remote.hosts; test/remote-request.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/settle.ts > call:0~d045b8 > run",
+			"reason": "once per card per process (a flights shares it): reads the card's originals before a satori draw; test/card-remote-live.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/settle.ts > call:0~915abc > keep",
+			"reason": "one comparison per made file: how long memory keeps it; test/remote-request.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/settle.ts > call:0~915abc > weigh",
+			"reason": "one byteLength per made file; test/server.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/settle.ts > call:0~915abc > run",
+			"reason": "once per file the endpoint makes (a flights shares it): reads the original, then a libvips encode; test/server.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/settle.ts > call:0~915abc > run > run:0~fb59da",
+			"reason": "the encode the line of encodes lets through: one libvips make per file; test/server.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/build-files.ts > BuildMakes > call:0~20cf02 > run",
+			"reason": "build time, once per file the build makes (a flights shares it): one libvips make in turn; test/build-files.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/build-files.ts > BuildMakes > call:0~20cf02 > run > in_turn:1~693a9e",
+			"reason": "build time, once per file the build makes: one libvips make in its turn; test/build-files.test.ts runs it"
+		},
+		{
+			"id": "packages/image/src/vite/encoder.ts > decisions:0~a2578a > decide",
+			"reason": "build time, once per server build: one table row; test/encoder-check.test.ts checks every row"
+		},
+		{
+			"id": "packages/image/src/vite/encoder.ts > decisions:0~7e84bb > decide",
+			"reason": "build time, once per server build: one table row; test/plugin.test.ts checks its rows"
+		},
+		{
 			"id": "packages/compiler/src/kit.ts > route_reader > routes > derived:2~eff2ef",
 			"reason": "build only: the route facts' derived csr per route node, once per route per build (a route tree, not replayable); proven in packages/compiler/test/route-csr.test.ts"
 		},
