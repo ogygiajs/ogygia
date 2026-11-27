@@ -4,16 +4,17 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { beforeAll, expect, test, vi } from 'vitest';
 import { startPlugin } from '@ogygia/core/plugin/testing';
-import { ENCODER_VERSION } from '../src/store.ts';
+import { ENCODER_VERSION } from '../src/source-id.ts';
 import { id_of, make_images } from './fixtures.ts';
 
-const io = vi.hoisted(() => ({ file: '', reads: 0 }));
+const io = vi.hoisted(() => ({ file: '', id: '', reads: 0 }));
 vi.hoisted(() => {
 	delete process.env.__OGYGIA_IMAGE_BUILD;
 });
 
 vi.mock('virtual:ogygia-image/sources', () => ({
-	default: { '/src/lib/a.png': '/_app/immutable/assets/a.Ab12.png' }
+	default: { '/src/lib/a.png': '/_app/immutable/assets/a.Ab12.png' },
+	remote: []
 }));
 vi.mock('virtual:ogygia-image/config', () => ({
 	default: { paths: { base: '', assets: '', app_dir: '_app' } }
@@ -38,13 +39,14 @@ beforeAll(async () => {
 	fs.chmodSync(dir, 0o500);
 	process.env.TMPDIR = tmp;
 	io.file = (await make_images()).small;
+	io.id = await id_of(io.file);
 });
 
 test('a file the store cannot write is still answered, said once, and kept in memory instead', async () => {
 	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	const url = mint(
 		{
-			id: id_of(io.file),
+			id: io.id,
 			src: '/_app/immutable/assets/a.Ab12.png',
 			width: 40,
 			height: 40,

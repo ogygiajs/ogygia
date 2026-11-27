@@ -1,7 +1,8 @@
 import { expect, test, vi } from 'vitest';
 
 vi.mock('virtual:ogygia-image/sources', () => ({
-	default: { '/src/lib/a.jpg': '/_app/immutable/assets/a.Ab12.jpg' }
+	default: { '/src/lib/a.jpg': '/_app/immutable/assets/a.Ab12.jpg' },
+	remote: []
 }));
 vi.mock('virtual:ogygia-image/config', () => ({
 	default: { paths: { base: '', assets: '', app_dir: '_app' } }

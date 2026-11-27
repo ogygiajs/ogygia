@@ -5,13 +5,14 @@ import { beforeAll, expect, test, vi } from 'vitest';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 import { id_of, make_images } from './fixtures.ts';
 
-const io = vi.hoisted(() => ({ file: '', reads: 0, slow: false }));
+const io = vi.hoisted(() => ({ file: '', id: '', reads: 0, slow: false }));
 vi.hoisted(() => {
 	delete process.env.__OGYGIA_IMAGE_BUILD;
 });
 
 vi.mock('virtual:ogygia-image/sources', () => ({
-	default: { '/src/lib/a.png': '/_app/immutable/assets/a.Ab12.png' }
+	default: { '/src/lib/a.png': '/_app/immutable/assets/a.Ab12.png' },
+	remote: []
 }));
 vi.mock('virtual:ogygia-image/config', () => ({
 	default: { paths: { base: '', assets: '', app_dir: '_app' } }
@@ -45,7 +46,7 @@ async function get(url: string): Promise<Response> {
 const url_at = (width: number): string =>
 	mint(
 		{
-			id: id_of(io.file),
+			id: io.id,
 			src: '/_app/immutable/assets/a.Ab12.png',
 			width,
 			height: width,
@@ -57,6 +58,7 @@ const url_at = (width: number): string =>
 beforeAll(async () => {
 	process.env.TMPDIR = fs.mkdtempSync(path.join(os.tmpdir(), 'og-image-live-'));
 	io.file = (await make_images()).small;
+	io.id = await id_of(io.file);
 });
 
 test('a signed URL asked with a query string is sent to the bare URL, and nothing is made', async () => {

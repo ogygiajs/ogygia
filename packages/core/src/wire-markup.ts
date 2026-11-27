@@ -124,6 +124,7 @@ export type MarkKey =
 	| 'stitched'
 	| 'stub'
 	| 'tab'
+	| 'theme'
 	| 'vitals'
 	| 'win'
 	| 'wire'
@@ -262,6 +263,7 @@ export const OG_STATIC = 'data-og-static';
 export const OG_STITCHED = 'data-og-stitched';
 export const OG_STUB = 'data-og-stub';
 export const OG_TAB = 'data-og-tab';
+export const OG_THEME = 'data-og-theme';
 export const OG_VITALS = 'data-og-vitals';
 export const OG_WIN = 'data-og-win';
 export const OG_WIRE = 'data-og-wire';
@@ -394,6 +396,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	stitched: { attr: OG_STITCHED, by: 'page' },
 	stub: { attr: OG_STUB, by: 'docs' },
 	tab: { attr: OG_TAB, by: 'devtools' },
+	theme: { attr: OG_THEME, by: 'page' },
 	vitals: { attr: OG_VITALS, by: 'devtools' },
 	win: { attr: OG_WIN, by: 'devtools' },
 	wire: { attr: OG_WIRE, by: 'page' },

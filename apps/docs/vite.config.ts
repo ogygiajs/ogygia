@@ -5,6 +5,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { ogygia } from 'ogygia/vite';
 import { content } from '@ogygia/content/vite';
 import { devtools } from '@ogygia/devtools/vite';
+import { cloudflare, image } from '@ogygia/image/vite';
 import { diff_markers, inline_markers } from '@ogygia/content/markdown';
 import { defineConfig, type Plugin } from 'vite';
 import { load_ogygia_themes } from './src/lib/code/shiki-themes.ts';
@@ -120,6 +121,7 @@ export default defineConfig(({ command }) => ({
 				}
 			}
 		}),
+		image({ encoder: cloudflare() }),
 		sveltekit()
 	]
 }));

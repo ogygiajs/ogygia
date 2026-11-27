@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, test } from 'vitest';
 import { plan_image, settle } from '../src/vite/plan.ts';
 import { encode, encode_recipe } from '../src/pixels.ts';
 import { placeholder_style } from '../src/placeholder.ts';
-import { source_id } from '../src/store.ts';
+import { source_id } from '../src/source-id.ts';
 import { canvas_gif, header_png, make_images } from './fixtures.ts';
 
 let img: Awaited<ReturnType<typeof make_images>>;
@@ -61,7 +61,7 @@ describe('plan_image', () => {
 		expect(c.id).toBe(a.id);
 		expect(a.ph).toBeDefined();
 		expect(c.ph).toBeUndefined();
-		expect(a.id).toBe(source_id(fs.readFileSync(img.jpg)));
+		expect(a.id).toBe(await source_id(fs.readFileSync(img.jpg)));
 	});
 
 	test('two files with the same bytes are one source: the descriptor, not the plan, names the file', async () => {

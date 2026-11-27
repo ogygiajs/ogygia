@@ -1,9 +1,4 @@
-<svelte:options css="injected" />
-
 <script lang="ts">
-	// Self-contained OG card, rendered to HTML on the server then rasterised by satori → resvg.
-	// `css="injected"` inlines this component's CSS into the render output so satori can consume it
-	// (satori only understands its flexbox CSS subset — keep the rules below within it).
 	let {
 		title = 'SSR islands for SvelteKit',
 		category = '',
@@ -92,7 +87,6 @@
 			rgba(6, 9, 7, 0) 60%
 		);
 		overflow: hidden;
-		/* the one serif face the endpoint loads: weight 400, upright */
 		font-family: 'Geist Serif';
 	}
 	.rule {

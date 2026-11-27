@@ -11,10 +11,22 @@ import sharp from 'sharp';
 import { test, expect } from '@ogygia/tooling/e2e';
 import { E2E_OUT_DIR } from '@ogygia/tooling/e2e/build.ts';
 import { server_log } from '@ogygia/tooling/e2e/server-log.ts';
+import { photo_card_misses } from './card-pixels.ts';
 import { marked_files } from './marks.ts';
 
 const MODE = process.env.IMAGE_E2E_MODE ?? 'node';
-const PAGES = ['/', '/blog/first-post', '/blog/second-post', '/blog/third-post'];
+const PAGES = [
+	'/',
+	'/blog/first-post',
+	'/blog/second-post',
+	'/blog/third-post',
+	'/blog/fourth-post',
+	'/twins',
+	'/remote',
+	'/cms',
+	'/card',
+	'/card/photo'
+];
 const IMAGE_URL_RE = /\/(?:__ogygia__\/i|_app\/immutable\/og)\/[^\s",)]+/g;
 const SIGNED_URL_RE = /\/__ogygia__\/i\/[^\s",)]+/g;
 
@@ -235,10 +247,20 @@ test.describe('macro images (/)', () => {
 		expect([logo.width, logo.height]).toEqual(['120', '40']);
 	});
 
-	test('an animated GIF is served as an animated WebP', async ({ page, request }) => {
+	test('an animated GIF is served as an animated WebP, its only <source> rows the reduced-motion still', async ({
+		page,
+		request
+	}) => {
 		await page.goto('/');
 		const spinner = await attrs(page.locator('#spinner'));
-		expect(spinner.picture).toBeNull();
+		expect(spinner.picture).toBe('yes');
+		const medias = await page
+			.locator('picture:has(#spinner) source')
+			.evaluateAll((els) => els.map((el) => el.getAttribute('media')));
+		expect(medias).toEqual([
+			'(prefers-reduced-motion: reduce)',
+			'(prefers-reduced-motion: reduce)'
+		]);
 		expect(spinner.src).toMatch(/\.webp$/);
 		const f = await fetch_file(request, spinner.src!);
 		expect(f.type).toBe('image/webp');
@@ -365,7 +387,7 @@ test.describe('the image endpoint', () => {
 		for (const url of seen) {
 			const res = await request.get(url);
 			expect(res.status(), url).toBe(200);
-			const ext = /\.(avif|webp)$/.exec(url)?.[1];
+			const ext = /\.(avif|webp|png)$/.exec(url)?.[1];
 			expect(res.headers()['content-type'], url).toBe(`image/${ext}`);
 		}
 	});
@@ -386,8 +408,31 @@ test.describe('the image endpoint', () => {
 			const res = await request.get(bad);
 			expect(res.status(), bad).toBe(403);
 			expect(res.headers()['x-ogygia-deny'], bad).toBe('sig');
+			expect(res.headers()['cache-control'], bad).toBe('no-store');
 		}
+		const posted = await request.post(url);
+		expect(posted.status()).toBe(405);
+		expect(posted.headers()['cache-control']).toBe('no-store');
 		expect((await request.get(url)).status()).toBe(200);
+	});
+
+	test('a file the build made is sent to be kept forever, and one it did not make is a 404 that is not', async ({
+		page,
+		request
+	}) => {
+		test.skip(
+			MODE === 'static' || MODE === 'dev',
+			'a static host and the dev server serve no build'
+		);
+		await page.goto('/');
+		const built = (await attrs(page.locator('#warmed'))).src!;
+		expect(built).toMatch(/^\/_app\/immutable\/og\//);
+		const res = await request.get(built);
+		expect(res.status()).toBe(200);
+		expect(res.headers()['cache-control']).toBe('public,max-age=31536000,immutable');
+		const missing = await request.get('/_app/immutable/og/AAAAAAAAAAAAAAAA-48x48.avif');
+		expect(missing.status()).toBe(404);
+		expect(missing.headers()['cache-control']).not.toMatch(/immutable/);
 	});
 
 	test('a file URL asked with a query string is sent to the bare URL, so a CDN keeps one copy', async ({
@@ -460,6 +505,222 @@ test.describe('the image endpoint', () => {
 			const f = await fetch_file(request, url);
 			expect(f.width, url).toBe(f.height);
 		}
+	});
+});
+
+test.describe('remote images (/remote, /blog/fourth-post)', () => {
+	const ID_RE = /\/(?:__ogygia__\/i\/[^/]+|_app\/immutable\/og)\/([\w-]+?)-\d+x\d+/;
+
+	test('a listed URL in the macro is a source: its files load, made from the fetched bytes', async ({
+		page,
+		request
+	}) => {
+		await page.goto('/remote');
+		const a = await attrs(page.locator('#remote'));
+		expect(a.picture).toBe('yes');
+		expect([a.width, a.height]).toEqual(['300', '200']);
+		expect(a.background).toMatch(/^url\("?data:image\/webp;base64,/);
+		await every_image_loads(page);
+		const f = await fetch_file(request, urls(a.avif).at(-1)!);
+		expect([f.type, f.width, f.height]).toEqual(['image/avif', 600, 400]);
+	});
+
+	test('a URL behind a redirect names the same source: the id is the bytes, not the URL', async ({
+		page
+	}) => {
+		await page.goto('/remote');
+		const direct = await attrs(page.locator('#remote'));
+		const moved = await attrs(page.locator('#remote-moved'));
+		expect(ID_RE.exec(moved.src!)![1]).toBe(ID_RE.exec(direct.src!)![1]);
+	});
+
+	test("a remote source's warmed preset names static files the build made", async ({
+		page,
+		request
+	}) => {
+		await page.goto('/remote');
+		const a = await attrs(page.locator('#remote-thumb'));
+		const all = [...urls(a.avif), ...urls(a.srcset), a.src!];
+		for (const url of all) {
+			expect(url).toMatch(
+				MODE === 'dev' ? /^\/__ogygia__\/i\// : /^\/_app\/immutable\/og\/[\w-]+\.(avif|webp)$/
+			);
+			const f = await fetch_file(request, url);
+			expect(f.width, url).toBe(f.height);
+		}
+	});
+
+	test('a frontmatter URL and a body image on a listed host render through <Img>', async ({
+		page
+	}) => {
+		await page.goto('/blog/fourth-post');
+		const cover = await attrs(page.locator('#cover'));
+		expect(cover.picture).toBe('yes');
+		expect([cover.width, cover.height]).toEqual(['1600', '900']);
+		const body = await attrs(page.getByAltText('A field on a listed host'));
+		expect(body.picture).toBe('yes');
+		expect(body.sizes).toBe('(min-width: 720px) 720px, 100vw');
+		await every_image_loads(page);
+	});
+});
+
+test.describe('remote images at request (/cms, /late/cms)', () => {
+	const REMOTE_ID_RE = /\/r[\w-]{32}-\d+x\d+\/\.remote\/[\w-]+\.(?:avif|webp)$/;
+
+	async function late_url(request: APIRequestContext, id: string): Promise<string> {
+		const res = await request.get('/late/cms');
+		expect(res.status()).toBe(200);
+		return urls(server_attrs(await res.text(), id).avif)[0]!;
+	}
+
+	test("a CMS image from a server load renders in its box and loads; live, its files are the endpoint's, named by the URL and kept for remote.maxAge, never forever; prerendered, files the build made from the bytes", async ({
+		page,
+		request
+	}) => {
+		await page.goto('/cms');
+		const a = await attrs(page.locator('#cms'));
+		expect(a.picture).toBe('yes');
+		expect([a.width, a.height]).toEqual(['400', '225']);
+		expect(a.background).toBeNull();
+		await every_image_loads(page);
+		const all = [...urls(a.avif), ...urls(a.srcset)];
+		for (const url of all) {
+			if (MODE === 'static')
+				expect(url).toMatch(/^\/_app\/immutable\/og\/[\w-]{16}-\d+x\d+\.(avif|webp)$/);
+			else expect(url).toMatch(REMOTE_ID_RE);
+			const res = await request.get(url);
+			expect(res.status(), url).toBe(200);
+			if (MODE === 'static') continue;
+			expect(res.headers()['cache-control'], url).toMatch(
+				/^public, max-age=\d+, stale-while-revalidate=86400$/
+			);
+		}
+		const f = await fetch_file(request, urls(a.avif).at(-1)!);
+		expect([f.type, f.width, f.height]).toEqual(['image/avif', 800, 450]);
+	});
+
+	test('a .remote/ tail changed to name another URL, though listed, is refused by the signature', async ({
+		request
+	}) => {
+		test.skip(MODE === 'static', 'a prerendered page names no signed URL');
+		const url = await late_url(request, 'listed');
+		const other = Buffer.from('http://127.0.0.1:4176/photos/cover.jpg').toString('base64url');
+		const forged = url.replace(/\.remote\/[\w-]+/, `.remote/${other}`);
+		const res = await request.get(forged);
+		expect(res.status()).toBe(403);
+		expect(res.headers()['x-ogygia-deny']).toBe('sig');
+		expect((await request.get(url)).status()).toBe(200);
+	});
+
+	test('an unlisted host the app signed is 404, a body past maxBytes 413, a host past remote.timeout 504, each kept nowhere', async ({
+		request
+	}) => {
+		test.skip(MODE === 'static', 'every page prerendered: no request reaches an endpoint');
+		for (const [id, status] of [
+			['unlisted', 404],
+			['huge', 413],
+			['slow', 504]
+		] as const) {
+			const res = await request.get(await late_url(request, id));
+			expect(res.status(), id).toBe(status);
+			expect(res.headers()['cache-control'], id).toBe('no-store');
+		}
+	});
+});
+
+test.describe('share cards (/card, /late/card)', () => {
+	const CARD_URL_RE = /\/c[\w-]{32}-1200x630\/\.card\/[\w-]{16}\/([\w-]+)\.png$/;
+
+	async function og_image(page: Page, path: string): Promise<URL> {
+		await page.goto(path);
+		return new URL((await page.locator('meta[property="og:image"]').getAttribute('content'))!);
+	}
+
+	test("a card's own src is a 1200 x 630 PNG, absolute in og:image: prerendered, a file the build made under og/; live, a signed URL kept forever; its <Img> loads", async ({
+		page,
+		request
+	}) => {
+		const og = await og_image(page, '/card');
+		if (MODE === 'static') {
+			expect(og.origin).toBe('https://example.com');
+			expect(og.pathname).toMatch(/^\/_app\/immutable\/og\/c[\w-]{32}-1200x630\.png$/);
+			const app = fileURLToPath(new URL('./app/', import.meta.url));
+			expect(fs.existsSync(path.join(app, 'build/static', og.pathname))).toBe(true);
+		} else {
+			expect(og.origin).toBe(new URL(page.url()).origin);
+			expect(og.pathname).toMatch(CARD_URL_RE);
+		}
+		const res = await request.get(og.pathname);
+		expect(res.status()).toBe(200);
+		if (MODE !== 'static')
+			expect(res.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
+		const meta = await sharp(await res.body()).metadata();
+		expect([res.headers()['content-type'], meta.format, meta.width, meta.height]).toEqual([
+			'image/png',
+			'png',
+			1200,
+			630
+		]);
+		await every_image_loads(page);
+	});
+
+	test("a card that names images draws them, read and fitted by the build or the server that draws it: an asset of the build as an <img>, a small remote WebP as a style's url(); it shows a remote image, so live it is kept for remote.maxAge, never immutable", async ({
+		page,
+		request
+	}) => {
+		const og = await og_image(page, '/card/photo');
+		if (MODE === 'static') expect(og.pathname).toMatch(/^\/_app\/immutable\/og\/c[\w-]+\.png$/);
+		else expect(og.pathname).toMatch(CARD_URL_RE);
+		const res = await request.get(og.pathname);
+		expect(res.status(), await res.text().catch(() => '')).toBe(200);
+		if (MODE !== 'static')
+			expect(res.headers()['cache-control']).toMatch(
+				/^public, max-age=\d+, stale-while-revalidate=\d+$/
+			);
+		expect(await photo_card_misses(await res.body())).toEqual([]);
+	});
+
+	test('a card rendered on request draws the props its load named, one source per props', async ({
+		page,
+		request
+	}) => {
+		test.skip(MODE === 'static', 'every page prerendered: no request reaches an endpoint');
+		const a = await og_image(page, '/late/card?title=First');
+		const b = await og_image(page, '/late/card?title=Second');
+		expect(a.pathname).toMatch(CARD_URL_RE);
+		expect(a.pathname.split('/')[4]).not.toBe(b.pathname.split('/')[4]);
+		const props = CARD_URL_RE.exec(a.pathname)![1]!;
+		expect(JSON.parse(Buffer.from(props, 'base64url').toString('utf8'))).toEqual({
+			title: 'First'
+		});
+		for (const url of [a, b]) {
+			const f = await fetch_file(request, url.pathname);
+			expect([f.type, f.width, f.height]).toEqual(['image/png', 1200, 630]);
+		}
+	});
+
+	test('a .card/ tail changed to other props is refused by the signature', async ({
+		page,
+		request
+	}) => {
+		test.skip(MODE === 'static', 'a prerendered page names no signed URL');
+		const og = await og_image(page, '/late/card?title=Mine');
+		const other = Buffer.from(JSON.stringify({ title: 'Forged' })).toString('base64url');
+		const forged = og.pathname.replace(/(\.card\/[\w-]+\/)[\w-]+/, `$1${other}`);
+		const res = await request.get(forged);
+		expect(res.status()).toBe(403);
+		expect(res.headers()['x-ogygia-deny']).toBe('sig');
+		expect((await request.get(og.pathname)).status()).toBe(200);
+	});
+
+	test('in dev, a share image that is WebP or AVIF says image_share_format', async ({
+		request
+	}) => {
+		test.skip(MODE !== 'dev', 'a dev rule');
+		expect((await request.get('/late/card?format=webp')).status()).toBe(200);
+		await expect
+			.poll(() => fs.readFileSync(server_log()!, 'utf8'))
+			.toMatch(/image_share_format\?path=%2Flate%2Fcard/);
 	});
 });
 
@@ -671,5 +932,119 @@ test.describe('with the runtime', () => {
 		await expect
 			.poll(() => cover.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0))
 			.toBe(true);
+	});
+});
+
+/** Every file URL a `<picture>`'s rows and `<img>` name. */
+async function picture_urls(picture: Locator): Promise<string[]> {
+	return picture.evaluate((el) => {
+		const out: string[] = [];
+		for (const node of el.querySelectorAll('source, img'))
+			for (const attr of ['srcset', 'src']) {
+				const v = node.getAttribute(attr);
+				if (v)
+					for (const c of v.split(', '))
+						out.push(new URL(c.split(' ')[0]!, location.href).pathname);
+			}
+		return out;
+	});
+}
+
+/** The `<img>` the visitor sees, once it has pixels: its file and its box. */
+async function shown(page: Page, selector: string): Promise<{ src: string; w: number; h: number }> {
+	const img = page.locator(selector).filter({ visible: true });
+	await expect(img).toHaveCount(1);
+	await img.scrollIntoViewIfNeeded();
+	await expect
+		.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0))
+		.toBe(true);
+	return img.evaluate((el: HTMLImageElement) => {
+		const r = el.getBoundingClientRect();
+		return { src: new URL(el.currentSrc).pathname, w: r.width, h: r.height };
+	});
+}
+
+test.describe('twins (/twins)', () => {
+	const LIGHT = 'picture[data-og-theme="light"]';
+	const DARK = 'picture[data-og-theme="dark"]';
+
+	test('the system theme picks the picture: light shows the light file, dark the dark one', async ({
+		page
+	}) => {
+		for (const scheme of ['light', 'dark'] as const) {
+			await page.emulateMedia({ colorScheme: scheme });
+			await page.goto('/twins');
+			const own = await picture_urls(page.locator(scheme === 'dark' ? DARK : LIGHT));
+			const seen = await shown(page, `${LIGHT} img, ${DARK} img`);
+			expect(own, scheme).toContain(seen.src);
+		}
+	});
+
+	test('a data-theme switch shows the other picture, only the shown picture downloads, and nothing shifts', async ({
+		page,
+		browserName
+	}) => {
+		const asked: string[] = [];
+		page.on('request', (r) => asked.push(new URL(r.url()).pathname));
+		await page.emulateMedia({ colorScheme: 'light' });
+		await page.goto('/twins');
+		const light = await picture_urls(page.locator(LIGHT));
+		const dark = await picture_urls(page.locator(DARK));
+		const before = await shown(page, `${LIGHT} img, ${DARK} img`);
+		expect(light).toContain(before.src);
+		expect(asked.filter((u) => dark.includes(u))).toEqual([]);
+
+		await page.evaluate(() => {
+			(window as { __shift?: number }).__shift = 0;
+			new PerformanceObserver((list) => {
+				for (const e of list.getEntries() as (PerformanceEntry & { value: number })[])
+					(window as { __shift?: number }).__shift! += e.value;
+			}).observe({ type: 'layout-shift' as never, buffered: false });
+			document.documentElement.dataset.theme = 'dark';
+		});
+		const after = await shown(page, `${LIGHT} img, ${DARK} img`);
+		expect(dark).toContain(after.src);
+		expect([after.w, after.h]).toEqual([before.w, before.h]);
+		if (browserName === 'chromium')
+			expect(await page.evaluate(() => (window as { __shift?: number }).__shift)).toBe(0);
+
+		await page.emulateMedia({ colorScheme: 'dark' });
+		await page.evaluate(() => (document.documentElement.dataset.theme = 'light'));
+		expect(light).toContain((await shown(page, `${LIGHT} img, ${DARK} img`)).src);
+	});
+
+	test('asking for less motion shows the first frame of a moving image, a still file', async ({
+		page,
+		request
+	}) => {
+		await page.emulateMedia({ reducedMotion: 'reduce' });
+		await page.goto('/twins');
+		const still = await shown(page, '#motion');
+		expect(still.src).toMatch(/-\d+x\d+-s[./]/);
+		const bytes = Buffer.from(await (await request.get(still.src)).body());
+		expect((await sharp(bytes, { animated: true }).metadata()).pages ?? 1).toBe(1);
+
+		await page.emulateMedia({ reducedMotion: 'no-preference' });
+		await page.goto('/twins');
+		const moving = await shown(page, '#motion');
+		expect(moving.src).not.toMatch(/-s[./]/);
+		expect([moving.w, moving.h]).toEqual([still.w, still.h]);
+	});
+
+	test('art direction: a narrow screen shows each art twin in its own box; a wide one the source', async ({
+		page
+	}) => {
+		const ratio = async (id: string): Promise<number> => {
+			const s = await shown(page, `#${id}`);
+			return s.w / s.h;
+		};
+		await page.setViewportSize({ width: 400, height: 900 });
+		await page.goto('/twins');
+		for (const id of ['art-preset', 'art-macro', 'art-prop'])
+			expect(await ratio(id), id).toBeCloseTo(0.8, 1);
+		await page.setViewportSize({ width: 1200, height: 900 });
+		await page.goto('/twins');
+		expect(await ratio('art-preset')).toBeCloseTo(16 / 9, 1);
+		for (const id of ['art-macro', 'art-prop']) expect(await ratio(id), id).toBeCloseTo(1.8, 1);
 	});
 });

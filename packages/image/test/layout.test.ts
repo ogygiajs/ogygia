@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { lay_out } from '../src/layout.ts';
-import type { RenderConfig } from '../src/config.ts';
+import { DEFAULT_BREAKPOINTS, type RenderConfig } from '../src/config.ts';
 import type { ImageDescriptor } from '../src/descriptor.ts';
 import { parse_recipe, recipe_path, type Recipe } from '../src/recipe.ts';
 
@@ -22,20 +22,49 @@ const url = (r: Recipe): string =>
 
 describe('lay_out', () => {
 	test('constrained with a width offers its 1× and 2× and the breakpoints under 2×', () => {
-		const laid = lay_out(image(), { width: 600 }, CFG, url);
-		expect(laid.width).toBe(600);
-		expect(laid.height).toBe(400);
-		expect(laid.sizes).toBe('(min-width: 600px) 600px, 100vw');
+		const laid = lay_out(image(), { width: 450 }, CFG, url);
+		expect(laid.width).toBe(450);
+		expect(laid.height).toBe(300);
+		expect(laid.sizes).toBe('(min-width: 450px) 450px, 100vw');
 		expect(laid.sources).toEqual([
 			{
 				type: 'image/avif',
-				srcset: '/600x400.avif 600w, /640x427.avif 640w, /960x640.avif 960w, /1200x800.avif 1200w'
+				srcset: '/450x300.avif 450w, /640x427.avif 640w, /900x600.avif 900w'
 			}
 		]);
-		expect(laid.srcset).toBe(
-			'/600x400.webp 600w, /640x427.webp 640w, /960x640.webp 960w, /1200x800.webp 1200w'
-		);
-		expect(laid.src).toBe('/600x400.webp');
+		expect(laid.srcset).toBe('/450x300.webp 450w, /640x427.webp 640w, /900x600.webp 900w');
+		expect(laid.src).toBe('/450x300.webp');
+	});
+
+	test('a breakpoint within a tenth of a width the layout names makes no file of its own', () => {
+		const ladder = (desc: Partial<ImageDescriptor>, req: object): string[] =>
+			lay_out(image(desc), req, { ...CFG, breakpoints: DEFAULT_BREAKPOINTS }, url)
+				.srcset!.split(', ')
+				.map((c) => c.split(' ')[1]!);
+		expect(ladder({}, { width: 900 })).toEqual([
+			'320w',
+			'480w',
+			'640w',
+			'900w',
+			'1280w',
+			'1600w',
+			'1800w'
+		]);
+		expect(ladder({ width: 1205, height: 499 }, { width: 900 })).toEqual([
+			'320w',
+			'480w',
+			'640w',
+			'900w',
+			'1205w'
+		]);
+		expect(ladder({ width: 1300, height: 800 }, { layout: 'fullWidth' })).toEqual([
+			'320w',
+			'480w',
+			'640w',
+			'960w',
+			'1300w'
+		]);
+		expect(ladder({}, { width: 600 })).toEqual(['320w', '480w', '600w', '960w', '1200w']);
 	});
 
 	test('constrained never asks for a raster wider than its pixels', () => {
@@ -74,7 +103,7 @@ describe('lay_out', () => {
 		expect([laid.width, laid.height, laid.cover]).toEqual([400, 400, true]);
 		expect(laid.sizes).toBe('(min-width: 400px) 400px, 100vw');
 		expect(laid.srcset).toBe('/400x400.webp 400w, /640x640.webp 640w, /800x800.webp 800w');
-		expect(laid.preload.href).toBe('/400x400.avif');
+		expect(laid.preloads.map((p) => p.href)).toEqual(['/400x400.avif']);
 	});
 
 	test('an aspect crops every file to that shape, no wider than the source covers', () => {
@@ -108,10 +137,25 @@ describe('lay_out', () => {
 		expect(laid.sources).toEqual([]);
 	});
 
-	test('an animated source is offered as WebP only', () => {
-		const laid = lay_out(image({ animated: true, format: 'gif' }), { width: 600 }, CFG, url);
-		expect(laid.sources).toEqual([]);
+	test('an animated source moves as WebP only, with a still of its first frame for reduced motion', () => {
+		const still = (r: Recipe): string => `${url(r)}${r.still ? '?still' : ''}`;
+		const laid = lay_out(image({ animated: true, format: 'gif' }), { width: 600 }, CFG, still);
+		expect(laid.sources.map((s) => [s.media, s.type, s.srcset.split(', ')[0]])).toEqual([
+			['(prefers-reduced-motion: reduce)', 'image/avif', '/600x400.avif?still 600w'],
+			['(prefers-reduced-motion: reduce)', 'image/webp', '/600x400.webp?still 600w']
+		]);
 		expect(laid.src).toBe('/600x400.webp');
+		expect(laid.srcset).not.toContain('?still');
+	});
+
+	test('no still is offered when the encoders cannot make one', () => {
+		const laid = lay_out(
+			image({ animated: true, format: 'gif' }),
+			{ width: 600 },
+			{ ...CFG, stills: false },
+			url
+		);
+		expect(laid.sources).toEqual([]);
 	});
 
 	test('quality: the request over the source over the plugin', () => {
@@ -142,8 +186,10 @@ describe('lay_out', () => {
 
 	test('the preload names the best format', () => {
 		const laid = lay_out(image(), { layout: 'fullWidth' }, CFG, url);
-		expect(laid.preload.type).toBe('image/avif');
-		expect(laid.preload.srcset).toContain('.avif 2048w');
+		expect(laid.preloads).toHaveLength(1);
+		expect(laid.preloads[0]!.type).toBe('image/avif');
+		expect(laid.preloads[0]!.srcset).toContain('.avif 2048w');
+		expect(laid.preloads[0]!.media).toBeUndefined();
 	});
 });
 

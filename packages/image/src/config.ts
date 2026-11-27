@@ -5,6 +5,7 @@
  *
  * @packageDocumentation
  */
+import type { Twin } from './descriptor.ts';
 
 /** A format a page asks the endpoint to make. */
 export type OutputFormat = 'avif' | 'webp' | 'png' | 'jpeg';
@@ -55,6 +56,10 @@ export interface ImagePreset {
 	quality?: number;
 	/** The formats to offer, best first. */
 	formats?: OutputFormat[];
+	/** Art direction: another crop at another media condition, each laid out with its own box
+	 *  (`[{ media: '(max-width: 600px)', aspect: '4/5', position: 'attention' }]`). The first whose
+	 *  media matches is shown. An `<Img art>` of its own replaces these. */
+	art?: Twin[];
 }
 
 /** Where the app is served from, as Kit's config says (`paths.base`, `paths.assets`, `appDir`). */
@@ -74,10 +79,30 @@ export interface RenderConfig {
 	/** The build made the files of every warmed preset (`import.meta.og.image(src, { warm })`) as
 	 *  static files: `<Img>` names those directly. False in dev, where the endpoint makes them. */
 	warmed: boolean;
+	/** The only widths the encoder that names live files makes (Vercel's `images.sizes`): every
+	 *  file's width is snapped up to one of them, or to the source's whole width. Absent: any. */
+	widths?: readonly number[];
+	/** `image({ theme })` is set: a dark twin is a second `<picture>` the plugin's stylesheet shows
+	 *  by the app's theme selectors, not a `<source media>`. */
+	themed?: true;
+	/** The app's encoders cannot make the first frame of a moving image (`vercel()` alone): no
+	 *  reduced-motion still is offered. */
+	stills?: false;
 }
 
 export const DEFAULT_BREAKPOINTS: readonly number[] = [320, 480, 640, 960, 1280, 1600, 2048];
 export const DEFAULT_FORMATS: readonly OutputFormat[] = ['avif', 'webp'];
+/** The quality a lossy file is made at when neither the source nor the page says one. A PNG is
+ *  lossless unless a quality is said. */
+export const DEFAULT_QUALITY: Readonly<Record<'avif' | 'webp' | 'jpeg', number>> = {
+	avif: 60,
+	webp: 80,
+	jpeg: 80
+};
+
+/** How hard sharp works on an AVIF file (0 to 9) unless `sharp({ effort: { avif } })` says: 2
+ *  makes a build about twice as fast as 4 for 0.2% more bytes (DECISIONS 174, the owner's ruling). */
+export const DEFAULT_AVIF_EFFORT = 2;
 
 const ASPECT_RE = /^\s*(\d+(?:\.\d+)?)\s*[/:]\s*(\d+(?:\.\d+)?)\s*$/;
 

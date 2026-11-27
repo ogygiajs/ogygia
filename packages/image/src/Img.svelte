@@ -7,16 +7,25 @@ preset's. Every file is a signed URL the image endpoint makes on first request. 
 ships no script, and no inline event handler. Besides its own props it passes `class`, `id`,
 `style`, `title`, `crossorigin`, `referrerpolicy` and `draggable` to the `<img>`.
 
+A source with twins (a dark file, art direction, a moving image's still) renders them as
+`<source media>` rows the browser picks from. With `image({ theme })`, a source with a dark file
+renders two `<picture>`s, one per theme, and the plugin's stylesheet shows one; `id` goes on the
+light one's `<img>`.
+
 ```svelte
 <Img of={hero} preset="cover" alt="The harbor at dusk" />
 <Img of={post.data.cover} preset="thumb" alt={post.data.title} />
 <Img of={avatar} layout="fixed" width={48} alt="" />
+<Img of={hero} preset="cover" art={[{ media: '(max-width: 600px)', aspect: '4/5' }]} alt="…" />
 ```
 -->
 <script lang="ts">
+	import 'virtual:ogygia-image/theme.css';
+	import { untrack } from 'svelte';
 	import type { HTMLImgAttributes } from 'svelte/elements';
-	import type { ImageDescriptor } from './descriptor.ts';
+	import type { ImageDescriptor, Twin } from './descriptor.ts';
 	import type { ImageLayout, ImagePosition } from './config.ts';
+	import type { Laid } from './layout.ts';
 	import { placeholder_style } from './placeholder.ts';
 	import { getImage, preset_of } from './render.ts';
 
@@ -49,6 +58,9 @@ ships no script, and no inline event handler. Besides its own props it passes `c
 		/** Glide into the same source on the next page in a client-side navigation (a view
 		 *  transition named by the source). At most one per source on a page. */
 		morph?: boolean;
+		/** Art direction: another crop (`aspect`, `position`, `width`) or another source (`of`) at
+		 *  another media condition, each with its own box. Replaces the preset's `art`. */
+		art?: Twin[];
 	};
 
 	let {
@@ -64,6 +76,7 @@ ships no script, and no inline event handler. Besides its own props it passes `c
 		priority,
 		placeholder,
 		morph,
+		art,
 		class: klass,
 		id,
 		style,
@@ -73,99 +86,131 @@ ships no script, and no inline event handler. Besides its own props it passes `c
 		draggable
 	}: Props = $props();
 
+	type Theme = 'light' | 'dark';
+	type Files = { src: string; srcset: string | undefined; sources: string[] };
+
 	const p = $derived(preset_of(preset));
 	const shown = $derived(layout ?? p.layout ?? 'constrained');
 	const first = $derived(priority ?? p.priority ?? false);
 	const laid = $derived(
-		getImage(of, { preset, layout: shown, width, height, aspect, position, sizes })
+		getImage(of, { preset, layout: shown, width, height, aspect, position, sizes, art })
 	);
+	const dark_of = $derived(of.twins?.find((t) => t.theme === 'dark')?.of);
+	const preloads = $derived(laid.dark ? [...laid.preloads, ...laid.dark.preloads] : laid.preloads);
 	const server_preload = $derived(
 		typeof document === 'undefined'
 			? null
 			: document.head.querySelector(`link[rel="preload"][data-og-img="${of.id}"]`)
 	);
-	let kept = $state<{
-		id: string;
-		src: string;
-		srcset: string | undefined;
-		sources: string[];
-	} | null>(null);
-	const files = $derived(
-		kept?.id === of.id
-			? kept
-			: { src: laid.src, srcset: laid.srcset, sources: laid.sources.map((s) => s.srcset) }
-	);
+	let kept = $state<{ id: string; files: Partial<Record<Theme, Files>> } | null>(null);
 
-	function keep(img: HTMLImageElement): void {
-		const sources = img.parentElement?.querySelectorAll('source') ?? [];
-		kept = {
-			id: of.id,
-			src: img.getAttribute('src') ?? laid.src,
-			srcset: img.getAttribute('srcset') ?? undefined,
-			sources: [...sources].map((s, i) => s.getAttribute('srcset') ?? laid.sources[i]!.srcset)
+	function files_of(theme: Theme | undefined, l: Laid): Files {
+		const own = kept?.id === of.id ? kept.files[theme ?? 'light'] : undefined;
+		return own ?? { src: l.src, srcset: l.srcset, sources: l.sources.map((s) => s.srcset) };
+	}
+
+	function keep(theme: Theme | undefined, l: Laid) {
+		return (img: HTMLImageElement): void => {
+			const sources = img.parentElement?.querySelectorAll('source') ?? [];
+			const files: Files = {
+				src: img.getAttribute('src') ?? l.src,
+				srcset: img.getAttribute('srcset') ?? undefined,
+				sources: [...sources].map((s, i) => s.getAttribute('srcset') ?? l.sources[i]!.srcset)
+			};
+			const id = of.id;
+			const before = untrack(() => (kept?.id === id ? kept.files : {}));
+			kept = { id, files: { ...before, [theme ?? 'light']: files } };
 		};
 	}
-	const css = $derived(
-		[
-			(placeholder ?? p.placeholder ?? true) ? placeholder_style(of.ph) : '',
-			laid.cover ? `object-fit:cover;aspect-ratio:${laid.width}/${laid.height}` : '',
-			(morph ?? p.morph) ? `view-transition-name:og-img-${of.id}` : '',
-			typeof style === 'string' ? style : ''
-		]
-			.filter(Boolean)
-			.join(';') || undefined
-	);
+
+	function css(l: Laid, ph: string | undefined): string | undefined {
+		const boxes_differ = l.sources.some(
+			(s) => s.width !== undefined && s.width * l.height !== s.height! * l.width
+		);
+		return (
+			[
+				(placeholder ?? p.placeholder ?? true) ? placeholder_style(ph) : '',
+				l.cover
+					? `object-fit:cover${boxes_differ ? '' : `;aspect-ratio:${l.width}/${l.height}`}`
+					: '',
+				(morph ?? p.morph) ? `view-transition-name:og-img-${of.id}` : '',
+				typeof style === 'string' ? style : ''
+			]
+				.filter(Boolean)
+				.join(';') || undefined
+		);
+	}
 </script>
 
 <svelte:head>
 	{#if first && !server_preload}
-		<link
-			rel="preload"
-			as="image"
-			href={laid.preload.href}
-			imagesrcset={laid.preload.srcset}
-			imagesizes={laid.preload.sizes}
-			type={laid.preload.type}
-			fetchpriority="high"
-			data-og-img={of.id}
-		/>
+		{#each preloads as preload (preload.media)}
+			<link
+				rel="preload"
+				as="image"
+				href={preload.href}
+				imagesrcset={preload.srcset}
+				imagesizes={preload.sizes}
+				type={preload.type}
+				media={preload.media}
+				fetchpriority="high"
+				data-og-img={of.id}
+			/>
+		{/each}
 	{/if}
 </svelte:head>
 
-{#snippet img()}
+{#snippet img(l: Laid, files: Files, theme: Theme | undefined, ph: string | undefined)}
 	<!-- svelte-ignore hydration_attribute_changed -- the browser cannot sign: it keeps the server's URLs, read back by keep() -->
 	<img
-		{@attach keep}
+		{@attach keep(theme, l)}
 		class={klass}
-		{id}
+		id={theme === 'dark' ? undefined : id}
 		{title}
 		{crossorigin}
 		{referrerpolicy}
 		{draggable}
 		src={files.src}
 		srcset={files.srcset}
-		sizes={laid.sizes}
-		width={laid.width}
-		height={laid.height}
+		sizes={l.sizes}
+		width={l.width}
+		height={l.height}
 		{alt}
 		loading={first ? 'eager' : 'lazy'}
 		decoding={first ? 'sync' : 'async'}
 		fetchpriority={first ? 'high' : undefined}
 		data-og-img={shown}
-		style={css}
+		style={css(l, ph)}
 	/>
 {/snippet}
 
-{#if laid.sources.length}
-	<picture>
-		{#each laid.sources as source, i (source.type)}
-			<!-- svelte-ignore hydration_attribute_changed -- the browser cannot sign: it keeps the server's URLs, read back by keep() -->
-			<source type={source.type} srcset={files.sources[i]} sizes={laid.sizes} />
-		{/each}
-		{@render img()}
-	</picture>
+{#snippet pic(l: Laid, theme: Theme | undefined, ph: string | undefined)}
+	{@const files = files_of(theme, l)}
+	{#if l.sources.length || theme}
+		<picture data-og-theme={theme}>
+			{#each l.sources as source, i (`${source.media}|${source.type}`)}
+				<!-- svelte-ignore hydration_attribute_changed -- the browser cannot sign: it keeps the server's URLs, read back by keep() -->
+				<source
+					media={source.media}
+					type={source.type}
+					srcset={files.sources[i]}
+					sizes={source.sizes ?? l.sizes}
+					width={source.width}
+					height={source.height}
+				/>
+			{/each}
+			{@render img(l, files, theme, ph)}
+		</picture>
+	{:else}
+		{@render img(l, files, theme, ph)}
+	{/if}
+{/snippet}
+
+{#if laid.dark}
+	{@render pic(laid, 'light', of.ph)}
+	{@render pic(laid.dark, 'dark', dark_of?.ph)}
 {:else}
-	{@render img()}
+	{@render pic(laid, undefined, of.ph)}
 {/if}
 
 <style>

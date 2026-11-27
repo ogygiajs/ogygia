@@ -3,7 +3,7 @@
 // build. The URL carries the build's mark, so Kit's crawler does not ask for a file that is not
 // there yet, and each recipe is noted for the build's end to make.
 import fs from 'node:fs';
-import { describe, expect, test, vi } from 'vitest';
+import { beforeAll, describe, expect, test, vi } from 'vitest';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 
 const run = vi.hoisted(() => {
@@ -19,14 +19,17 @@ const run = vi.hoisted(() => {
 });
 
 vi.mock('virtual:ogygia-image/sources', () => ({
-	default: { '/src/lib/harbor dusk.jpg': '/shop/_app/immutable/assets/harbor%20dusk.Ab12.jpg' }
+	default: { '/src/lib/harbor dusk.jpg': '/shop/_app/immutable/assets/harbor%20dusk.Ab12.jpg' },
+	remote: []
 }));
 vi.mock('virtual:ogygia-image/config', () => ({
 	default: { paths: { base: '/shop', assets: '', app_dir: '_app' } }
 }));
 vi.mock('$app/environment', () => ({ building: true, dev: false }));
+const reads = vi.hoisted(() => ({ count: 0 }));
 vi.mock('$app/server', () => ({
 	read: () => {
+		reads.count++;
 		throw new Error('not read in this test');
 	}
 }));
@@ -37,6 +40,10 @@ const { origin_of } = await import('../src/store.ts');
 const { app, ctx } = startPlugin(server, { name: '@ogygia/image' });
 
 const HARBOR = { id: 'h1', src: '/shop/_app/immutable/assets/harbor%20dusk.Ab12.jpg' };
+
+beforeAll(async () => {
+	await server.request!(ctx(new Request('https://example.com/')));
+});
 
 describe('a prerendered page', () => {
 	test('names each file under the app folder at the base, by its recipe, behind the build mark, signing nothing', () => {
@@ -66,5 +73,11 @@ describe('a prerendered page', () => {
 		expect(
 			lines.filter((l) => l === 'h1-640x427/_app/immutable/assets/harbor%20dusk.Ab12.jpg.webp')
 		).toHaveLength(1);
+	});
+
+	test('reads no original and makes no file: the build makes every file the prerender names', async () => {
+		mint({ ...HARBOR, width: 960, height: 640, format: 'avif' as const }, false);
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(reads.count).toBe(0);
 	});
 });

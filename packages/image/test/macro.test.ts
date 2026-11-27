@@ -6,6 +6,8 @@ import { dedent } from '@ogygia/core/plugin/utils';
 import type { MacroHandler } from '@ogygia/compiler/vite';
 import { image_call_edits, options_of_query } from '../src/vite/macro.ts';
 import { image } from '../src/vite/index.ts';
+import { RemoteHosts } from '../src/remote-hosts.ts';
+import { url_of_remote_src } from '../src/vite/remote.ts';
 
 /** `src` with the macro's edits applied, as ogygia's pipeline applies them. */
 function rewrite_image_calls(...args: Parameters<typeof image_call_edits>): string {
@@ -114,10 +116,73 @@ describe('rewrite_image_calls', () => {
 		expect(() => call(`{ warm: [] }`)).toThrow(/image option 'warm' must be a preset name/);
 	});
 
-	test('a remote URL fails with what to do instead', () => {
-		expect(() =>
-			rewrite_image_calls(`import.meta.og.image('https://example.com/a.jpg');`, mod())
-		).toThrow(/remote images are not supported yet/);
+	test('a listed remote URL is a source: an import of the remote module, options kept', () => {
+		const hosts = new RemoteHosts(['*.example.com']);
+		const out = rewrite_image_calls(
+			`const a = import.meta.og.image('https://images.Example.com/a.jpg', { quality: 70 });`,
+			mod(),
+			undefined,
+			undefined,
+			[],
+			hosts
+		);
+		const spec = /from "([^"]+)"/.exec(out)![1]!;
+		const [bare, query] = spec.split('?') as [string, string];
+		expect(url_of_remote_src(bare)).toBe('https://images.example.com/a.jpg');
+		expect(options_of_query(query)).toEqual({ quality: 70 });
+	});
+
+	test('a URL on a host the app does not list, or with no hosts at all, fails naming the line to add', () => {
+		for (const hosts of [null, new RemoteHosts(['images.example.com'])])
+			expect(() =>
+				rewrite_image_calls(
+					`import.meta.og.image('https://cdn.other.com/a.jpg');`,
+					mod(),
+					undefined,
+					undefined,
+					[],
+					hosts
+				)
+			).toThrow(
+				/page\.ts:1: 'https:\/\/cdn\.other\.com\/a\.jpg' is on a host[\s\S]*Add 'cdn\.other\.com'/
+			);
+		for (const src of [
+			'//images.example.com/a.jpg',
+			'data:image/png;base64,AA',
+			'ftp://images.example.com/a.jpg'
+		])
+			expect(() =>
+				rewrite_image_calls(
+					`import.meta.og.image('${src}');`,
+					mod(),
+					undefined,
+					undefined,
+					[],
+					new RemoteHosts(['images.example.com'])
+				)
+			).toThrow(/is no image URL the build can fetch/);
+	});
+
+	test('a glob stays local, and a twin is a file of the app', () => {
+		const hosts = new RemoteHosts(['images.example.com']);
+		const call = (code: string) => () =>
+			rewrite_image_calls(code, mod(), undefined, undefined, [], hosts);
+		expect(call(`import.meta.og.image.glob('https://images.example.com/*.jpg');`)).toThrow(
+			/image option 'pattern' must be a pattern of local files/
+		);
+		expect(
+			call(`import.meta.og.image('./hero.jpg', { dark: 'https://images.example.com/d.jpg' });`)
+		).toThrow(/image option 'dark' must be a path relative to this file/);
+		const out = rewrite_image_calls(
+			`import.meta.og.image('https://images.example.com/a.jpg', { dark: './hero.jpg' });`,
+			mod(),
+			undefined,
+			undefined,
+			[],
+			hosts
+		);
+		const query = /from "[^"?]+\?([^"]+)"/.exec(out)![1]!;
+		expect(options_of_query(query).dark).toBe(path.join(dir, 'hero.jpg').split(path.sep).join('/'));
 	});
 
 	test('a hand-written og-image query that is not the macro’s fails with its code', () => {

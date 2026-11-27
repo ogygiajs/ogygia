@@ -6,9 +6,16 @@ import { test, expect } from '@ogygia/tooling/e2e';
 import { E2E_OUT_DIR } from '@ogygia/tooling/e2e/build.ts';
 import { marked_files } from './marks.ts';
 
-const PAGES = ['/base/', '/base/blog/first-post', '/base/blog/third-post', '/base/island'];
+const PAGES = [
+	'/base/',
+	'/base/blog/first-post',
+	'/base/blog/third-post',
+	'/base/island',
+	'/base/twins',
+	'/base/card'
+];
 const FILE_RE = /\/[^\s",()]*(?:__ogygia__\/i|_app\/immutable\/og)\/[^\s",)]+/g;
-const BUILT_RE = /^\/base\/_app\/immutable\/og\/[\w-]+\.(?:avif|webp)$/;
+const BUILT_RE = /^\/base\/_app\/immutable\/og\/[\w-]+\.(?:avif|webp|png)$/;
 
 test('every image file each page names sits under the base, and loads as an image', async ({
 	request
@@ -25,7 +32,7 @@ test('every image file each page names sits under the base, and loads as an imag
 		expect(url, url).toMatch(BUILT_RE);
 		const res = await request.get(url);
 		expect(res.status(), url).toBe(200);
-		expect(res.headers()['content-type'], url).toMatch(/^image\/(avif|webp)$/);
+		expect(res.headers()['content-type'], url).toMatch(/^image\/(avif|webp|png)$/);
 	}
 });
 
@@ -47,6 +54,31 @@ test('the page loads every image, its CSS background and its warmed preset under
 		await expect
 			.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0))
 			.toBe(true);
+	}
+});
+
+test('with no image({ theme }), a dark file is a <source media> row the system theme picks', async ({
+	page
+}) => {
+	const chart = page.locator('img[alt="A chart"]');
+	await expect(page.locator('picture[data-og-theme]')).toHaveCount(0);
+	const picked = async (): Promise<string> => {
+		await chart.scrollIntoViewIfNeeded();
+		await expect
+			.poll(() => chart.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0))
+			.toBe(true);
+		return chart.evaluate((el: HTMLImageElement) => new URL(el.currentSrc).pathname);
+	};
+	for (const scheme of ['light', 'dark'] as const) {
+		await page.emulateMedia({ colorScheme: scheme });
+		await page.goto('/base/twins');
+		const row = page.locator(
+			'picture:has(img[alt="A chart"]) source[media="(prefers-color-scheme: dark)"]'
+		);
+		const dark = (await row.first().getAttribute('srcset'))!
+			.split(', ')
+			.map((c) => c.split(' ')[0]!);
+		expect(dark.includes(await picked()), scheme).toBe(scheme === 'dark');
 	}
 });
 

@@ -1,6 +1,8 @@
 /**
  * Markdown images, for `@ogygia/content`: a local `![alt](./harbor.jpg)` renders through `<Img>`, and
- * a frontmatter value that is a path to a local image (`cover: ./cover.jpg`) becomes a descriptor.
+ * a frontmatter value that is a path to a local image (`cover: ./cover.jpg`) becomes a descriptor. A
+ * body image or frontmatter URL on a host `image({ remote: { hosts } })` lists does too (fetched at
+ * build, ./remote.ts); one on any other host stays a plain `<img>` or string.
  *
  * The two packages do not import each other. The image plugin offers a markdown extension on its
  * Vite plugin object (`api.ogygiaMarkdown`); `content()` holds it for as long as the config lists the
@@ -16,6 +18,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { next_any_tag, tag_name } from '@ogygia/core/contract';
 import { image_specifier } from './macro.ts';
+import { RemoteHosts } from '../remote-hosts.ts';
+import { is_listed, REMOTE_PREFIX, remote_src } from './remote.ts';
 import { OgygiaError } from '../messages.ts';
 import type {
 	MARKDOWN_EXTENSION_API,
@@ -129,6 +133,7 @@ function shipped_code(): string {
 /** The markdown extension `image(opts)` offers content, or `null` with `markdown: false`. */
 export function markdown_extension(opts: ImagePluginOptions): ImageMarkdownExtension | null {
 	if (opts.markdown === false) return null;
+	const hosts = opts.remote ? new RemoteHosts(opts.remote.hosts) : null;
 	const width = opts.markdown?.width;
 	const animated = opts.markdown?.animated;
 	const still = opts.presets?.prose ? 'prose' : undefined;
@@ -159,11 +164,12 @@ export function markdown_extension(opts: ImagePluginOptions): ImageMarkdownExten
 					child.type === 'element' &&
 					child.tagName === 'img' &&
 					typeof src === 'string' &&
-					is_local_image(src)
+					(is_local_image(src) || is_listed(src, hosts))
 				) {
-					const rel = local_specifier(filename, path_of_url(filename, src), src);
 					const name = `__og_md_image_${imports.length}`;
-					const spec = image_specifier(rel);
+					const spec = is_local_image(src)
+						? image_specifier(local_specifier(filename, path_of_url(filename, src), src))
+						: image_specifier(remote_src(new URL(src).href));
 					imports.push([name, spec]);
 					const alt = typeof child.properties?.alt === 'string' ? child.properties.alt : '';
 					const title = child.properties?.title;
@@ -200,7 +206,7 @@ export function markdown_extension(opts: ImagePluginOptions): ImageMarkdownExten
 				lines.push(`import ${COMPONENT} from '@ogygia/image/Img.svelte';`);
 				for (const [name, spec] of imports) {
 					lines.push(`import ${name} from ${JSON.stringify(spec)};`);
-					files.push(file_of(spec));
+					if (!spec.startsWith(REMOTE_PREFIX)) files.push(file_of(spec));
 				}
 			}
 			const meta = METADATA_RE.exec(code);
@@ -221,6 +227,13 @@ export function markdown_extension(opts: ImagePluginOptions): ImageMarkdownExten
 						names.push(name);
 						lines.push(`import ${name} from ${JSON.stringify(spec)};`);
 						files.push(file_of(spec));
+						return name;
+					}
+					if (typeof value === 'string' && is_listed(value, hosts)) {
+						const spec = image_specifier(remote_src(new URL(value).href));
+						const name = `__og_fm_image_${n++}`;
+						names.push(name);
+						lines.push(`import ${name} from ${JSON.stringify(spec)};`);
 						return name;
 					}
 					if (Array.isArray(value)) return `[${value.map(emit).join(',')}]`;

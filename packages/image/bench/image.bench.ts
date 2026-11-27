@@ -26,6 +26,10 @@ import { built_url, parse_recipe, recipe_path, source_tail, type Recipe } from '
 import { image_call_edits, options_of_query, image_specifier } from '../src/vite/macro.ts';
 import { markdown_extension } from '../src/vite/markdown.ts';
 import { check_image_options, check_plugin_options } from '../src/vite/options.ts';
+import { CLOUDFLARE_LINKS } from '../src/encoders/cloudflare.ts';
+import { VERCEL_LINKS } from '../src/encoders/vercel.ts';
+import { namer } from '../src/namers/resolve.ts';
+import { cloudflare, namer_plan, sharp, vercel } from '../src/vite/encoder.ts';
 
 const DIR = path.join(os.tmpdir(), 'og-image-bench');
 const QUERY_RE = /\?(og-image=[^"]+)/g;
@@ -95,6 +99,71 @@ bench(
 	{
 		setup: () => ({ images: Array.from({ length: 40 }, (_, i) => descriptor(i)) }),
 		scale: (_ctx, k) => ({ images: Array.from({ length: 40 * k }, (_, i) => descriptor(i)) })
+	}
+);
+
+const LINK_NAMERS: readonly ((r: Recipe) => string)[] = [
+	cloudflare({ links: true }),
+	vercel({ sizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840] })
+].map((e) => {
+	const name = namer(namer_plan([e, sharp()], false), {
+		cloudflare: CLOUDFLARE_LINKS,
+		vercel: VERCEL_LINKS
+	});
+	return (r: Recipe) => name(r) ?? url(r);
+});
+
+bench(
+	"lay_out with an encoder's links: a page of forty images named by cloudflare() links, then vercel() links, each file's needs read against the link's",
+	({ images }) => {
+		let n = 0;
+		for (const name of LINK_NAMERS)
+			for (let i = 0; i < images.length; i++) {
+				const d = images[i]!;
+				const laid = lay_out(d, preset_request(LAYOUTS[i % LAYOUTS.length]!), CFG, name);
+				n += laid.src.length + (laid.srcset?.length ?? 0) + laid.sources.length;
+			}
+		return n;
+	},
+	{
+		setup: () => ({ images: Array.from({ length: 40 }, (_, i) => descriptor(i)) }),
+		scale: (_ctx, k) => ({ images: Array.from({ length: 40 * k }, (_, i) => descriptor(i)) })
+	}
+);
+
+/** A source with twins: every third has a dark file, every fourth moves (a still is laid out). */
+function twinned(i: number): ImageDescriptor {
+	const d = descriptor(i);
+	const dark = { ...descriptor(i + 1000), width: d.width, height: d.height };
+	return {
+		...d,
+		...(i % 4 === 0 ? { animated: true, format: 'gif' as const } : {}),
+		...(i % 3 === 0
+			? { twins: [{ media: '(prefers-color-scheme: dark)', theme: 'dark' as const, of: dark }] }
+			: {})
+	};
+}
+
+const ART: ImagePreset = {
+	layout: 'fullWidth',
+	aspect: '16/9',
+	art: [{ media: '(max-width: 600px)', aspect: '4/5', position: 'attention' }]
+};
+
+bench(
+	'lay_out with twins: a page of twenty images with dark files, art direction and moving sources, with and without a theme',
+	({ images }) => {
+		let n = 0;
+		for (let i = 0; i < images.length; i++) {
+			const cfg = i % 2 ? CFG : { ...CFG, themed: true as const };
+			const laid = lay_out(images[i]!, preset_request(i % 5 ? ART : LAYOUTS[1]!), cfg, url);
+			n += laid.sources.length + laid.preloads.length + (laid.dark?.sources.length ?? 0);
+		}
+		return n;
+	},
+	{
+		setup: () => ({ images: Array.from({ length: 20 }, (_, i) => twinned(i)) }),
+		scale: (_ctx, k) => ({ images: Array.from({ length: 20 * k }, (_, i) => twinned(i)) })
 	}
 );
 

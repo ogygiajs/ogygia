@@ -8,9 +8,18 @@
  * - WARMED: `import.meta.og.image(src, { warm: 'cover' })` asks for the `cover` preset's files, for a
  *   page rendered on a live server. Every source the server build read with `warm` is listed.
  * - PRERENDERED: every file a prerendered page names. The server realm notes each recipe on disk
- *   (Kit's prerender runs in a worker) and starts it at once, and names it with the build's mark in
- *   front (Kit's crawler does not follow it: it would 404 a file under the app folder that is not
- *   there yet).
+ *   (Kit's prerender runs in a worker) and tells the build, which starts it at once, and names it
+ *   with the build's mark in front (Kit's crawler does not follow it: it would 404 a file under the
+ *   app folder that is not there yet). A `remoteImage()` source is fetched here, under
+ *   `image({ remote })` (./remote.ts), and its files are named by the bytes it got, not by its
+ *   URL: every prerendered page's name of them is rewritten to that, so a URL whose bytes change
+ *   gets new file names, never an old file kept forever under a new picture. A card that shows a
+ *   remote image is named the same way, by the bytes it got (../card.ts `card_shown_id`); the URLs
+ *   it read are kept in the store, so a warm build fetches them again and draws nothing when their
+ *   bytes name a file it has.
+ *
+ * One build makes each file once: every make, the prerender's head start and the build's end alike,
+ * runs in the build's own thread as one flight per file, a few at once.
  *
  * Each file is written to the client output, under `<appDir>/immutable/og/`, which every adapter
  * serves as a file kept forever; then the mark is removed from every prerendered file, so its URLs
@@ -25,22 +34,39 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { BuildCache } from '@ogygia/compiler';
-import { clock, random } from '@ogygia/machine';
-import type { RenderConfig } from '../config.ts';
+import { BroadcastChannel } from 'node:worker_threads';
+import {
+	clock,
+	flights,
+	queue,
+	random,
+	scope,
+	STALE,
+	type Place,
+	type Queue,
+	type Scope
+} from '@ogygia/machine';
+import { card_shown_id } from '../card.ts';
+import { DEFAULT_AVIF_EFFORT, type RenderConfig } from '../config.ts';
 import type { ImageDescriptor } from '../descriptor.ts';
 import { lay_out, preset_request } from '../layout.ts';
 import { OgygiaError } from '../messages.ts';
 import { pixels } from './encoder.ts';
-import { built_file, built_url, parse_recipe, recipe_file, type Recipe } from '../recipe.ts';
 import {
-	build_handoff,
-	BUILD_ENV,
-	FileStore,
-	open_build_store,
-	origin_of,
-	source_id,
-	type BuildHandoff
-} from '../store.ts';
+	BUILT_DIR,
+	built_file,
+	built_url,
+	card_of_tail,
+	parse_recipe,
+	recipe_file,
+	remote_of_tail,
+	type ParsedRecipe,
+	type Recipe
+} from '../recipe.ts';
+import { build_handoff, BUILD_ENV, type BuildHandoff } from '../handoff.ts';
+import { entry_for } from '../remote-hosts.ts';
+import { source_id } from '../source-id.ts';
+import { built_channel, FileStore, open_build_store, origin_of } from '../store.ts';
 
 const PARALLEL = Math.max(1, Math.min(8, os.availableParallelism()));
 
@@ -70,17 +96,21 @@ function remove_old_runs(runs: string): void {
  * mark (a random host: no page names it by chance). A build
  * keeps the one it started until its end removes the notes' folder (Kit and its plugins resolve the
  * config more than once in one build); a dev server or a preview takes any there is, or starts one
- * with no notes.
+ * with no notes. Given Kit's build `output` (by the build's start, never by a config that Kit's
+ * workers resolve for themselves), this thread starts each file the prerender notes as the note
+ * comes, from the original in that output: one thread makes the build's files.
  */
 export async function handoff_for(
 	build: boolean,
-	root: string = process.cwd()
+	root: string = process.cwd(),
+	output: string | null = null,
+	avif_effort: number = DEFAULT_AVIF_EFFORT
 ): Promise<BuildHandoff> {
 	const open = build_handoff();
 	if (open && (!build || (open.minted && fs.existsSync(path.dirname(open.minted))))) {
-		if (open.root === root) return open;
-		const rooted = { ...open, root };
-		process.env[BUILD_ENV] = JSON.stringify(rooted);
+		const rooted = open.root === root ? open : { ...open, root };
+		if (rooted !== open) process.env[BUILD_ENV] = JSON.stringify(rooted);
+		if (build && output !== null) BuildMakes.of(rooted, output);
 		return rooted;
 	}
 	const cache = new BuildCache('image').dir() ?? fs.mkdtempSync(path.join(os.tmpdir(), 'og-img-'));
@@ -95,13 +125,16 @@ export async function handoff_for(
 		mark = `//${id.replaceAll('-', '').slice(0, 16)}.ogygia.invalid`;
 	}
 	const handoff: BuildHandoff = {
-		store: open_build_store(path.join(cache, 'files'), (await pixels()).VIPS_VERSION),
+		store: open_build_store(path.join(cache, 'files'), (await pixels()).VIPS_VERSION, avif_effort),
 		minted,
 		mark,
 		written: '',
-		root
+		root,
+		avif_effort,
+		remote: path.join(cache, 'remote')
 	};
 	process.env[BUILD_ENV] = JSON.stringify(handoff);
+	if (build && output !== null) BuildMakes.of(handoff, output);
 	return handoff;
 }
 
@@ -110,38 +143,195 @@ export async function handoff_for(
 export interface WarmSource {
 	file: string;
 	desc: Omit<ImageDescriptor, 'src'>;
+	/** Each twin's original file, by its source id. */
+	originals: Readonly<Record<string, string>>;
 	presets: string[];
 }
 
-async function each<T>(items: readonly T[], work: (item: T) => Promise<void>): Promise<unknown[]> {
-	const failures: unknown[] = [];
-	let next = 0;
-	const lane = async (): Promise<void> => {
-		while (next < items.length) {
-			const item = items[next++]!;
-			try {
-				await work(item);
-			} catch (e) {
-				failures.push(e);
-			}
+interface Turn {
+	run: () => Promise<void>;
+	gone: () => void;
+}
+
+function line_of(name: string, owner: Scope): Queue<Turn> {
+	return queue<Turn>({
+		name,
+		max: PARALLEL,
+		owner,
+		start: (turn: Turn, place: Place) => {
+			// oxlint-disable-next-line ogygia/no-silent-failures -- run() settles its caller's promise with the failure and never rejects itself
+			void turn.run().finally(() => place.release());
+		},
+		stale: (turn: Turn) => turn.gone()
+	});
+}
+
+function in_turn<T>(line: Queue<Turn>, work: () => Promise<T>): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		line.push({
+			run: () => work().then(resolve, reject),
+			gone: () => reject(new Error('the build ended before its turn came'))
+		});
+	});
+}
+
+function noted_original(output: string, recipe: ParsedRecipe): Uint8Array {
+	for (const side of ['client', 'server']) {
+		const file = path.join(output, side, ...recipe.tail.split('/'));
+		if (fs.existsSync(file)) return fs.readFileSync(file);
+	}
+	throw new Error(`its original ${recipe.tail} is not in the build output`);
+}
+
+interface Ask {
+	key: string;
+	recipe: Omit<Recipe, 'src'>;
+	original: () => Uint8Array | Promise<Uint8Array>;
+}
+
+const SHOWN = '.shown';
+
+class BuildMakes {
+	static #open = new Map<string, BuildMakes>();
+
+	readonly #minted: string;
+	readonly #store: FileStore;
+	readonly #avif_effort: number;
+	readonly #scope: Scope = scope();
+	readonly #encodes: Queue<Turn> = line_of('image build encodes', this.#scope);
+	readonly #writes: Queue<Turn> = line_of('image build writes', this.#scope);
+	readonly #makes = flights.keyed<Ask>()<'key', 'recipe' | 'original', Promise<Uint8Array>>({
+		name: 'image build files',
+		key: ['key'],
+		ignore: {
+			recipe: 'the key is the recipe',
+			original: 'the key names the source by content, and a make checks the original against it'
+		},
+		keep: 0,
+		run: ({ key, recipe, original }: Ask): Promise<Uint8Array> =>
+			in_turn(this.#encodes, () => made(this.#store, key, recipe, original, this.#avif_effort))
+	});
+
+	private constructor(handoff: BuildHandoff, output: string) {
+		this.#minted = handoff.minted;
+		this.#store = FileStore.shared(handoff.store);
+		this.#avif_effort = handoff.avif_effort;
+		const channel = new BroadcastChannel(built_channel(handoff.minted));
+		channel.unref();
+		channel.onmessage = (event: unknown) => {
+			const recipe = parse_recipe(String((event as MessageEvent).data));
+			if (
+				recipe === null ||
+				remote_of_tail(recipe.tail) !== null ||
+				card_of_tail(recipe.tail) !== null
+			)
+				return;
+			// oxlint-disable-next-line ogygia/no-silent-failures -- a head start only: the build's end asks for the file again and fails out loud
+			void this.make(recipe, () => noted_original(output, recipe)).catch(() => {});
+		};
+		this.#scope.defer(() => channel.close());
+	}
+
+	static of(handoff: BuildHandoff, output: string): BuildMakes {
+		let makes = BuildMakes.#open.get(handoff.minted);
+		if (!makes) {
+			makes = new BuildMakes(handoff, output);
+			BuildMakes.#open.set(handoff.minted, makes);
 		}
-	};
-	await Promise.all(Array.from({ length: Math.min(PARALLEL, items.length) }, lane));
-	return failures;
+		return makes;
+	}
+
+	async make(
+		recipe: Omit<Recipe, 'src'>,
+		original: () => Uint8Array | Promise<Uint8Array>
+	): Promise<Uint8Array> {
+		const data = await this.#makes.get({ key: recipe_file(recipe), recipe, original });
+		if (data === STALE) throw new Error('the build ended before the file was made');
+		return data;
+	}
+
+	async card(
+		recipe: Omit<Recipe, 'src'>,
+		tail: string,
+		draw_card: DrawCard,
+		fetch_remote: FetchRemote
+	): Promise<{ recipe: Omit<Recipe, 'src'>; data: Uint8Array }> {
+		const plain = recipe_file(recipe);
+		const kept = await this.#store.find(plain);
+		if (kept) return { recipe, data: await fs.promises.readFile(kept.file) };
+		const fetch = async (url: string): Promise<Uint8Array> =>
+			new Uint8Array(await fs.promises.readFile(await fetch_remote(url, 'a share card')));
+		const record = await this.#store.find(`${plain}${SHOWN}`);
+		const urls = record && shown_urls(await fs.promises.readFile(record.file, 'utf8'));
+		if (urls) {
+			const reads = new Map<string, string>();
+			for (const url of urls) reads.set(url, await source_id(await fetch(url)));
+			const named = { ...recipe, id: card_shown_id(recipe.id, reads) };
+			const hit = await this.#store.find(recipe_file(named));
+			if (hit) return { recipe: named, data: await fs.promises.readFile(hit.file) };
+		}
+		const reads = new Map<string, string>();
+		const data = await in_turn(this.#encodes, async () => {
+			const png = await draw_card(tail, recipe.id, async (url) => {
+				const bytes = await fetch(url.href);
+				reads.set(url.href, await source_id(bytes));
+				return bytes;
+			});
+			return (await pixels()).encode_recipe(png, recipe, this.#avif_effort);
+		});
+		const named = { ...recipe, id: card_shown_id(recipe.id, reads) };
+		if (reads.size)
+			await this.#store.keep(
+				`${plain}${SHOWN}`,
+				new TextEncoder().encode(JSON.stringify([...reads.keys()].sort()))
+			);
+		await this.#store.keep(recipe_file(named), data);
+		return { recipe: named, data };
+	}
+
+	write(dest: string, data: Uint8Array): Promise<void> {
+		return in_turn(this.#writes, async () => {
+			await fs.promises.mkdir(path.dirname(dest), { recursive: true });
+			await fs.promises.writeFile(dest, data);
+		});
+	}
+
+	close(): void {
+		BuildMakes.#open.delete(this.#minted);
+		this.#scope.close();
+	}
+}
+
+const HTTP_URL_RE = /^https?:\/\//i;
+
+function shown_urls(text: string): string[] | null {
+	let urls: unknown;
+	try {
+		urls = JSON.parse(text);
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a torn record is a miss: the card is drawn again and its record kept anew
+	} catch {
+		return null;
+	}
+	return Array.isArray(urls) &&
+		urls.length > 0 &&
+		urls.every((url) => typeof url === 'string' && HTTP_URL_RE.test(url))
+		? (urls as string[])
+		: null;
 }
 
 async function made(
 	store: FileStore,
 	key: string,
 	recipe: Omit<Recipe, 'src'>,
-	original: () => Uint8Array
+	original: () => Uint8Array | Promise<Uint8Array>,
+	avif_effort: number
 ): Promise<Uint8Array> {
 	const kept = await store.find(key);
 	if (kept) return fs.promises.readFile(kept.file);
-	const bytes = original();
-	if (source_id(bytes) !== recipe.id)
+	const bytes = await original();
+	if ((await source_id(bytes)) !== recipe.id)
 		throw new Error(`its original is not the source ${recipe.id} any more`);
-	const data = await (await pixels()).encode_recipe(bytes, recipe);
+	const data = await (await pixels()).encode_recipe(bytes, recipe, avif_effort);
 	await store.keep(key, data);
 	return data;
 }
@@ -150,6 +340,8 @@ interface Job {
 	recipe: Omit<Recipe, 'src'>;
 	source: string;
 	original: () => Uint8Array;
+	remote?: URL;
+	card?: string;
 }
 
 function jobs_of(
@@ -164,10 +356,11 @@ function jobs_of(
 			const preset = cfg.presets[name];
 			if (!preset) continue;
 			lay_out({ ...source.desc, src: '' }, preset_request(preset), cfg, (recipe) => {
+				const file = source.originals[recipe.id] ?? source.file;
 				jobs.set(built_file(recipe), {
 					recipe,
-					source: source.file,
-					original: () => fs.readFileSync(source.file)
+					source: file,
+					original: () => fs.readFileSync(file)
 				});
 				return '';
 			});
@@ -185,19 +378,57 @@ function jobs_of(
 				source: line,
 				reason: 'not an image recipe'
 			});
+		const remote = remote_of_tail(recipe.tail);
+		const card = card_of_tail(recipe.tail);
 		jobs.set(built_file(recipe), {
 			recipe,
-			source: recipe.tail,
-			original: () => {
-				for (const side of ['client', 'server']) {
-					const file = path.join(output, side, ...recipe.tail.split('/'));
-					if (fs.existsSync(file)) return fs.readFileSync(file);
-				}
-				throw new Error(`its original ${recipe.tail} is not in the build output`);
-			}
+			source:
+				remote?.href ?? (card === null ? recipe.tail : `the card ${card.card} (${card.props})`),
+			original: () => noted_original(output, recipe),
+			...(remote !== null ? { remote } : {}),
+			...(card !== null ? { card: recipe.tail } : {})
 		});
 	}
 	return jobs;
+}
+
+/** How the build fetches a remote image a prerendered page names (a `remoteImage()`, or an image a
+ *  card shows): its file in the build cache, under `image({ remote })` (./remote.ts
+ *  `RemoteImages`); `where` names who asked, for a message. */
+export type FetchRemote = (url: string, where: string) => Promise<string>;
+
+/** How the build draws a card a prerendered page names: the own-size PNG of the card its tail
+ *  names, when it is the source `id` (./card.ts `Cards.draw`), every remote image it shows read
+ *  with `remote` (the build's remote fetch, so the build names the card by those bytes). */
+export type DrawCard = (
+	tail: string,
+	id: string,
+	remote: (url: URL) => Promise<Uint8Array>
+) => Promise<Uint8Array>;
+
+function no_card(tail: string): Promise<Uint8Array> {
+	return Promise.reject(new Error(`its tail ${tail} names no card this build has`));
+}
+
+function no_remote(url: string, where: string): Promise<string> {
+	return Promise.reject(
+		new OgygiaError('image_remote_host', {
+			where,
+			url,
+			entry: entry_for(new URL(url))
+		})
+	);
+}
+
+async function remote_made(
+	makes: BuildMakes,
+	recipe: Omit<Recipe, 'src'>,
+	url: URL,
+	fetch_remote: FetchRemote
+): Promise<{ recipe: Omit<Recipe, 'src'>; data: Uint8Array }> {
+	const bytes = await fs.promises.readFile(await fetch_remote(url.href, 'a prerendered page'));
+	const named = { ...recipe, id: await source_id(bytes) };
+	return { recipe: named, data: await makes.make(named, () => bytes) };
 }
 
 const SCHEMES: readonly Buffer[] = [Buffer.from('https:'), Buffer.from('http:')];
@@ -232,7 +463,30 @@ function unmarked(bytes: Buffer, cut: Buffer, origin: string, name: string): Buf
 	return Buffer.concat(parts);
 }
 
-function unmark(dir: string, mark: string, origin: string): void {
+function renamed_in(bytes: Buffer, renamed: ReadonlyMap<string, string>): Buffer {
+	let out = bytes;
+	for (const [from, to] of renamed) {
+		const was = Buffer.from(`${BUILT_DIR}/${from}-`);
+		if (out.indexOf(was) === -1) continue;
+		const now = Buffer.from(`${BUILT_DIR}/${to}-`);
+		const parts: Buffer[] = [];
+		let at = 0;
+		for (let i = out.indexOf(was); i !== -1; i = out.indexOf(was, at)) {
+			parts.push(out.subarray(at, i), now);
+			at = i + was.length;
+		}
+		parts.push(out.subarray(at));
+		out = Buffer.concat(parts);
+	}
+	return out;
+}
+
+function unmark(
+	dir: string,
+	mark: string,
+	origin: string,
+	renamed: ReadonlyMap<string, string>
+): void {
 	const cut = Buffer.from(mark);
 	const label = Buffer.from(mark.slice(2));
 	let names: string[];
@@ -245,12 +499,15 @@ function unmark(dir: string, mark: string, origin: string): void {
 	for (const name of names) {
 		const file = path.join(dir, name);
 		if (!fs.statSync(file).isFile()) continue;
-		const bytes = fs.readFileSync(file);
-		if (bytes.indexOf(label) === -1) continue;
-		const out = unmarked(bytes, cut, origin, name);
-		if (out.indexOf(label) !== -1)
-			throw new OgygiaError('image_mark_left', { file: name, form: 'escaped or encoded it' });
-		fs.writeFileSync(file, out);
+		const bytes: Buffer = fs.readFileSync(file);
+		let out: Buffer = bytes;
+		if (mark !== '' && bytes.indexOf(label) !== -1) {
+			out = unmarked(bytes, cut, origin, name);
+			if (out.indexOf(label) !== -1)
+				throw new OgygiaError('image_mark_left', { file: name, form: 'escaped or encoded it' });
+		}
+		out = renamed_in(out, renamed);
+		if (out !== bytes) fs.writeFileSync(file, out);
 	}
 }
 
@@ -262,32 +519,62 @@ export async function write_built(
 	handoff: BuildHandoff,
 	cfg: RenderConfig,
 	warmed: Iterable<WarmSource>,
-	output: string
+	output: string,
+	fetch_remote: FetchRemote = no_remote,
+	draw_card: DrawCard = no_card
 ): Promise<void> {
-	const jobs = jobs_of(handoff, cfg, warmed, output);
-	const store = FileStore.shared(handoff.store);
+	const makes = BuildMakes.of(handoff, output);
 	const client = path.join(output, 'client', cfg.paths.app_dir);
-	const failures = await each([...jobs], async ([name, { recipe, source, original }]) => {
-		try {
-			const data = await made(store, recipe_file(recipe), recipe, original);
-			const dest = path.join(client, ...name.split('/'));
-			await fs.promises.mkdir(path.dirname(dest), { recursive: true });
-			await fs.promises.writeFile(dest, data);
-		} catch (e) {
-			throw new OgygiaError('image_unsettled', {
-				url: built_url(cfg.paths, recipe),
-				source,
-				reason: (e as Error).message
-			});
-		}
-	});
+	const renamed = new Map<string, string>();
+	let settled: PromiseSettledResult<void>[];
+	try {
+		const jobs = jobs_of(handoff, cfg, warmed, output);
+		settled = await Promise.allSettled(
+			[...jobs].map(async ([name, { recipe, source, original, remote, card }]) => {
+				try {
+					if (card !== undefined) {
+						const made = await makes.card(recipe, card, draw_card, fetch_remote);
+						if (made.recipe.id !== recipe.id) renamed.set(recipe.id, made.recipe.id);
+						const file = built_file(made.recipe);
+						await makes.write(path.join(client, ...file.split('/')), made.data);
+						return;
+					}
+					if (remote !== undefined) {
+						const made = await remote_made(makes, recipe, remote, fetch_remote);
+						renamed.set(recipe.id, made.recipe.id);
+						const file = built_file(made.recipe);
+						await makes.write(path.join(client, ...file.split('/')), made.data);
+						return;
+					}
+					const data = await makes.make(recipe, original);
+					await makes.write(path.join(client, ...name.split('/')), data);
+				} catch (e) {
+					throw new OgygiaError('image_unsettled', {
+						url: built_url(cfg.paths, recipe),
+						source,
+						reason: (e as Error).message
+					});
+				}
+			})
+		);
+	} finally {
+		makes.close();
+	}
 	const origin = origin_of(handoff.minted);
 	fs.rmSync(path.dirname(handoff.minted), { recursive: true, force: true });
+	const failures = settled.flatMap((s) => (s.status === 'rejected' ? [s.reason as Error] : []));
 	if (failures.length) {
-		for (const more of failures.slice(1)) console.error((more as Error).message);
+		for (const more of failures.slice(1)) console.error(more.message);
 		throw failures[0];
 	}
-	if (handoff.mark) unmark(path.join(output, 'prerendered'), handoff.mark, origin);
-	const done: BuildHandoff = { ...handoff, minted: '', mark: '', written: client };
+	if (handoff.mark || renamed.size)
+		unmark(path.join(output, 'prerendered'), handoff.mark, origin, renamed);
+	const done: BuildHandoff = {
+		...handoff,
+		minted: '',
+		mark: '',
+		written: client,
+		...(renamed.size ? { renamed: Object.fromEntries(renamed) } : {})
+	};
 	process.env[BUILD_ENV] = JSON.stringify(done);
 }

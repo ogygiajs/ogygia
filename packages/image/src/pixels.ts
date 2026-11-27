@@ -6,7 +6,10 @@
  * @packageDocumentation
  */
 import sharp, { type Metadata, type Sharp } from 'sharp';
+import { DEFAULT_AVIF_EFFORT, DEFAULT_QUALITY } from './config.ts';
 import type { ImageFormat, ImageOps } from './descriptor.ts';
+import { source_failure, SourceUnreadable } from './maker.ts';
+import { FRAME_PIXELS_MAX, REMOTE_TAIL } from './recipe.ts';
 
 /** The libvips version the files are made with: part of every cache key. */
 export const VIPS_VERSION: string = sharp.versions.vips;
@@ -31,17 +34,12 @@ export function metadata_of(bytes: Uint8Array): Promise<Metadata> {
 	return sharp(bytes, { animated: true, limitInputPixels: false }).metadata();
 }
 
-/** The most pixels one frame may have: sharp's own default limit (16383 × 16383). */
-export const FRAME_PIXELS_MAX = 268402689;
+export { FRAME_PIXELS_MAX };
 
 /** The most pixels an animation's frames may add up to. sharp reads the frames one after another,
  *  so memory stays small; the time an encode takes grows with them (a 1200 × 800 recording of 300
  *  frames, 288 million pixels, takes about half a second). */
 export const ANIMATION_PIXELS_MAX: number = 2 ** 32;
-
-/** How hard sharp works on an AVIF file (0 to 9): 2 makes a build about twice as fast as 4 for
- *  0.2% more bytes (DECISIONS 174, the owner's ruling). */
-export const AVIF_EFFORT = 2;
 
 /** The pixels an encode of a source with `meta` reads: one frame, or every frame of an
  *  animation. */
@@ -104,7 +102,8 @@ export async function encode(
 		ops?: ImageOps;
 	},
 	animated: boolean,
-	pixels: number = FRAME_PIXELS_MAX
+	pixels: number = FRAME_PIXELS_MAX,
+	avif_effort: number = DEFAULT_AVIF_EFFORT
 ): Promise<Buffer> {
 	let img = pipeline(
 		bytes,
@@ -116,10 +115,16 @@ export async function encode(
 		pixels
 	);
 	const q = file.quality;
-	if (file.format === 'avif') img = img.avif({ quality: q ?? 60, effort: AVIF_EFFORT });
+	if (file.format === 'avif')
+		img = img.avif({ quality: q ?? DEFAULT_QUALITY.avif, effort: avif_effort });
 	else if (file.format === 'webp')
-		img = img.webp({ quality: q ?? 80, effort: 4, ...(animated ? { loop: 0 } : {}) });
-	else if (file.format === 'jpeg') img = img.jpeg({ quality: q ?? 80, mozjpeg: true });
+		img = img.webp({
+			quality: q ?? DEFAULT_QUALITY.webp,
+			effort: 4,
+			...(animated ? { loop: 0 } : {})
+		});
+	else if (file.format === 'jpeg')
+		img = img.jpeg({ quality: q ?? DEFAULT_QUALITY.jpeg, mozjpeg: true });
 	else img = img.png({ compressionLevel: 9, ...(q !== undefined ? { quality: q } : {}) });
 	return img.toBuffer();
 }
@@ -147,8 +152,10 @@ export async function placeholder_of(
 	return `data:image/webp;base64,${tiny.toString('base64')}`;
 }
 
-/** One recipe's file from its original's bytes (every frame kept when the original moves). An
- *  original {@link too_large} to read fails, saying why. */
+/** One recipe's file from its original's bytes (every frame kept when the original moves, its
+ *  first only for a `still`), AVIF at `avif_effort`. An original {@link too_large} to read, or
+ *  whose header or pixels do not decode, fails as `SourceUnreadable`, saying why; any other failure
+ *  (memory) is thrown as it is. */
 export async function encode_recipe(
 	bytes: Uint8Array,
 	recipe: {
@@ -157,11 +164,35 @@ export async function encode_recipe(
 		format: ImageFormat;
 		quality?: number;
 		position?: string;
+		still?: true;
 		ops?: ImageOps;
-	}
+		tail?: string;
+	},
+	avif_effort: number = DEFAULT_AVIF_EFFORT
 ): Promise<Buffer> {
-	const meta = await metadata_of(bytes);
+	const meta = await metadata_of(bytes).catch((e: unknown) => {
+		throw source_failure(e);
+	});
 	const why = too_large(meta);
-	if (why !== null) throw new Error(`the original is too large to read: ${why}`);
-	return encode(bytes, recipe, (meta.pages ?? 1) > 1, pixels_read(meta));
+	if (why !== null) throw new SourceUnreadable(`the original is too large to read: ${why}`);
+	const animated = !recipe.still && (meta.pages ?? 1) > 1;
+	const box = recipe.tail?.startsWith(REMOTE_TAIL)
+		? within(recipe, shown_size(meta, recipe.ops ?? {}, animated))
+		: recipe;
+	return encode(bytes, box, animated, pixels_read(meta), avif_effort).catch((e: unknown) => {
+		throw source_failure(e);
+	});
+}
+
+function within<T extends { width: number; height: number }>(
+	box: T,
+	source: { width: number; height: number }
+): T {
+	const scale = Math.min(1, source.width / box.width, source.height / box.height);
+	if (scale === 1) return box;
+	return {
+		...box,
+		width: Math.max(1, Math.floor(box.width * scale)),
+		height: Math.max(1, Math.floor(box.height * scale))
+	};
 }

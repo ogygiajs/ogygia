@@ -7,8 +7,9 @@ import path from 'node:path';
 import type { Plugin, ResolvedConfig } from 'vite';
 import { expect, test, vi } from 'vitest';
 import { check, dead_fields } from '@ogygia/machine/testing';
+import { IMAGE_WARNINGS } from '../src/messages.ts';
 import { ENCODER } from '../src/vite/encoder.ts';
-import { image } from '../src/vite/index.ts';
+import { cloudflare, image, sharp, type ImagePluginOptions } from '../src/vite/index.ts';
 
 const PNP = vi.hoisted(() => {
 	delete process.env.__OGYGIA_IMAGE_BUILD;
@@ -50,8 +51,13 @@ function app(listed: 'dependencies' | 'devDependencies' | null, installed: boole
 	return root;
 }
 
-async function resolved(root: string, adapter: string | null, command = 'build'): Promise<void> {
-	const plugin = image().find((p) => p.name === '@ogygia/image:load') as Plugin;
+async function resolved(
+	root: string,
+	adapter: string | null,
+	command = 'build',
+	options: ImagePluginOptions = {}
+): Promise<void> {
+	const plugin = image(options).find((p) => p.name === '@ogygia/image:load') as Plugin;
 	const define: Record<string, string> = { __SVELTEKIT_APP_DIR__: '"_app"' };
 	if (adapter) define.__SVELTEKIT_ADAPTER_NAME__ = adapter;
 	await (plugin.configResolved as (c: unknown) => unknown)({
@@ -119,27 +125,102 @@ test('the dev server fails, coded, when the app does not install sharp', async (
 	await expect(resolved(app('devDependencies', true), null, 'serve')).resolves.toBeUndefined();
 });
 
-test('an edge build warns that its server cannot encode, and needs sharp only to build', async () => {
+test('a Cloudflare build that lists no encoder fails, coded, naming cloudflare() and sharp() for prerendered images only', async () => {
+	for (const adapter of [EDGE, '"@sveltejs/adapter-cloudflare-workers"'])
+		await expect(resolved(app('devDependencies', true), adapter)).rejects.toMatchObject({
+			code: 'image_option_invalid',
+			message: expect.stringMatching(/cloudflare\(\)[\s\S]*sharp\(\)/)
+		});
+});
+
+test('any other edge build that lists no encoder fails too, coded, naming sharp() for prerendered images only; with sharp() it warns', async () => {
 	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-	await expect(resolved(app('devDependencies', true), EDGE)).resolves.toBeUndefined();
+	try {
+		for (const adapter of ['"svelte-adapter-deno"', '"@example/adapter-edge"']) {
+			const error = await resolved(app('devDependencies', true), adapter).catch((e: unknown) => e);
+			expect(error, adapter).toMatchObject({
+				code: 'image_option_invalid',
+				message: expect.stringMatching(/sharp\(\)/)
+			});
+			expect((error as Error).message, adapter).not.toMatch(/list cloudflare\(\)/);
+			await expect(
+				resolved(app('devDependencies', true), adapter, 'build', { encoder: sharp() })
+			).resolves.toBeUndefined();
+		}
+		expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toMatch(/image_no_encoder/);
+	} finally {
+		warn.mockRestore();
+	}
+});
+
+test('a Cloudflare Workers adapter is Cloudflare for cloudflare() too', async () => {
+	await expect(
+		resolved(app('devDependencies', true), '"@sveltejs/adapter-cloudflare-workers"', 'build', {
+			encoder: cloudflare()
+		})
+	).resolves.toBeUndefined();
+});
+
+test('an edge build with sharp() listed says once that its server cannot encode and names cloudflare(), and needs sharp only to build', async () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	const chosen = { encoder: sharp() };
+	await expect(
+		resolved(app('devDependencies', true), EDGE, 'build', chosen)
+	).resolves.toBeUndefined();
+	await expect(
+		resolved(app('devDependencies', true), EDGE, 'build', chosen)
+	).resolves.toBeUndefined();
 	expect(warn.mock.calls.map((c) => String(c[0]))).toEqual([
-		expect.stringMatching(/image_adapter_no_encoder/)
+		expect.stringMatching(
+			/adapter-cloudflare runs the app where sharp, a native Node module, cannot load.*image_no_encoder/s
+		)
 	]);
+	expect(IMAGE_WARNINGS.image_no_encoder.details()).toContain('encoder: cloudflare()');
 	warn.mockRestore();
-	await expect(resolved(app(null, false), EDGE)).rejects.toThrow(/image_sharp_missing/);
+	await expect(resolved(app(null, false), EDGE, 'build', chosen)).rejects.toThrow(
+		/image_sharp_missing/
+	);
+});
+
+test('an edge build with cloudflare() says nothing, and needs sharp only to build, devDependencies being enough', async () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	const encoder = { encoder: cloudflare() };
+	await expect(
+		resolved(app('devDependencies', true), EDGE, 'build', encoder)
+	).resolves.toBeUndefined();
+	expect(warn).not.toHaveBeenCalled();
+	warn.mockRestore();
+	await expect(resolved(app(null, false), EDGE, 'build', encoder)).rejects.toThrow(
+		/image_sharp_missing/
+	);
 });
 
 test('every row of the encoder table: nothing goes on without sharp listed and installed, and no server without it in dependencies', () => {
 	check(ENCODER, {
 		'no sharp installed fails': (r) => !('plan' in r) || r.input.installed || r.plan === 'missing',
 		'not listed fails': (r) => !('plan' in r) || r.input.listed !== 'none' || r.plan === 'missing',
-		'a server goes on only with sharp in dependencies': (r) =>
+		'a server whose maker is sharp goes on only with sharp in dependencies': (r) =>
 			!('plan' in r) ||
+			r.input.maker !== 'sharp' ||
 			r.input.runtime !== 'server' ||
 			r.plan !== 'ok' ||
 			r.input.listed === 'dependencies',
-		'an edge build that has sharp warns': (r) =>
-			!('plan' in r) || r.input.runtime !== 'edge' || r.plan !== 'ok'
+		'an edge build whose maker is sharp warns': (r) =>
+			!('plan' in r) || r.input.maker !== 'sharp' || r.input.runtime !== 'edge' || r.plan !== 'ok',
+		'an edge build is asked to choose its encoder exactly when it chose none and sharp is there': (
+			r
+		) =>
+			!('plan' in r) ||
+			(r.plan === 'choose') ===
+				(r.input.runtime === 'edge' &&
+					r.input.maker === 'sharp' &&
+					!r.input.chosen &&
+					r.input.installed &&
+					r.input.listed !== 'none'),
+		'with no maker or the binding, sharp is needed only to build': (r) =>
+			!('plan' in r) ||
+			r.input.maker === 'sharp' ||
+			r.plan === (r.input.installed && r.input.listed !== 'none' ? 'ok' : 'missing')
 	});
 	expect(dead_fields(ENCODER)).toEqual([]);
 });

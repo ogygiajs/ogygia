@@ -79,20 +79,27 @@
 		"prepublishOnly": "pnpm run build",
 		"check": "tsc -p . && svelte-check --tsconfig ./tsconfig.check.json --fail-on-warnings && tsc -p test && tsc -p e2e && vitest run",
 		"test": "vitest run",
-		"e2e": "playwright test && IMAGE_E2E_MODE=server playwright test && IMAGE_E2E_MODE=static playwright test && IMAGE_E2E_MODE=dev playwright test && IMAGE_E2E_MODE=base playwright test"
+		"e2e": "playwright test && IMAGE_E2E_MODE=server playwright test && IMAGE_E2E_MODE=static playwright test && IMAGE_E2E_MODE=dev playwright test && IMAGE_E2E_MODE=base playwright test && IMAGE_E2E_MODE=cloudflare playwright test --pass-with-no-tests && IMAGE_E2E_MODE=cloudflare-links playwright test --pass-with-no-tests && IMAGE_E2E_MODE=vercel playwright test --pass-with-no-tests && IMAGE_E2E_MODE=vercel-alone playwright test --pass-with-no-tests"
 	},
 	"dependencies": {
 		"@ogygia/machine": "workspace:^"
 	},
 	"devDependencies": {
+		"@fontsource/jetbrains-mono": "catalog:",
 		"@ogygia/compiler": "workspace:*",
 		"@ogygia/config": "workspace:*",
+		"@ogygia/content": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@ogygia/tooling": "workspace:*",
 		"@playwright/test": "catalog:",
+		"@resvg/resvg-js": "catalog:",
 		"@sveltejs/vite-plugin-svelte": "catalog:",
 		"@types/node": "catalog:",
 		"@typescript/native": "catalog:tsgo",
+		"fast-check": "catalog:",
+		"ogygia": "workspace:*",
+		"satori": "catalog:",
+		"satori-html": "catalog:",
 		"sharp": "catalog:",
 		"svelte": "catalog:",
 		"svelte-check": "catalog:",
@@ -104,8 +111,22 @@
 	"peerDependencies": {
 		"@ogygia/compiler": "workspace:^",
 		"@ogygia/core": "workspace:^",
+		"@resvg/resvg-js": "catalog:peers",
+		"satori": "catalog:peers",
+		"satori-html": "catalog:peers",
 		"sharp": "catalog:peers",
 		"svelte": "catalog:peers",
 		"vite": "catalog:peers"
+	},
+	"peerDependenciesMeta": {
+		"@resvg/resvg-js": {
+			"optional": true
+		},
+		"satori": {
+			"optional": true
+		},
+		"satori-html": {
+			"optional": true
+		}
 	}
 }

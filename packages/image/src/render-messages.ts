@@ -32,6 +32,36 @@ export const IMAGE_RENDER_ERRORS = {
 			and changed there): both go into the image's \`style\` attribute.
 		`
 	},
+	image_remote_invalid: {
+		text: (a: { key: string; value: string; want: string }): string =>
+			`remoteImage(): ${a.key} ${a.value} must be ${a.want}.`,
+		details: (): string => prose`
+			\`remoteImage(url, { width, height })\` names an image a server load knows only at request (a
+			CMS entry's cover): an \`https://\` URL (or \`http://\` from a host listed with it) with no
+			user or password in it, and the image's own width and height in pixels, whole numbers from
+			1 to 99999, so the page reserves its box before the file arrives. \`alt\` is text, and
+			\`version\` a string or a number that changes when the bytes behind the URL do. Whether the
+			URL's host is listed in \`image({ remote: { hosts } })\` is checked where it is fetched:
+			the image endpoint, or the build for a prerendered page.
+		`
+	},
+	image_encoder_cannot: {
+		text: (a: { encoder: string; need: string }): string => prose`
+			<Img> asked for a file ${a.encoder} cannot make on a page rendered on request: ${a.need}.
+		`,
+		details: (): string => prose`
+			A file a page asks for on request is made by the app's encoder (\`image({ encoder })\`),
+			and not every encoder can make every crop and operation: Cloudflare has no \`entropy\`
+			crop, no turn other than a quarter, and no \`normalize\`, \`negate\`, \`tint\`, \`gamma\`, or
+			\`modulate\` hue or lightness; Vercel only resizes (no crop, position or operation, no
+			named PNG or JPEG, no GIF, TIFF or animated source, only its \`sizes\` and
+			\`qualities\`). A prerendered page is not affected: the build makes its files with sharp.
+			List an encoder that can after it (\`encoder: [vercel(), sharp()]\`: the first that can
+			make a file makes it), pick a crop or operation the encoder can make, prerender the page,
+			or warm the preset (\`import.meta.og.image(src, { warm: 'cover' })\`) so the build makes
+			those files. The docs list what each encoder can make.
+		`
+	},
 	image_no_server: {
 		text: (): string => prose`
 			<Img> rendered on the server, but the image plugin's server half is not running, so no file

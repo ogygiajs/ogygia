@@ -134,14 +134,115 @@ export const IMAGE_ERRORS = {
 			hand.
 		`
 	},
-	image_remote_unsupported: {
-		text: (a: { file: string; src: string }): string => prose`
-			${a.file}: import.meta.og.image('${a.src}') — remote images are not supported yet. Download the
-			file into the project, or render a plain \`<img>\` for it.
-		`,
+	image_remote_host: {
+		text: (a: { where: string; url: string; entry: string; via?: string }): string =>
+			a.entry === ''
+				? prose`
+					${a.where}: '${a.url}' is no image URL the build can fetch: a remote image is an
+					https:// URL (or http:// from a host listed with it) on a host image({ remote: { hosts } })
+					lists.
+				`
+				: prose`
+					${a.where}: ${a.via === undefined ? `'${a.url}'` : `'${a.via}' redirects to '${a.url}', which`}
+					is on a host image({ remote: { hosts } }) does not list. Add '${a.entry}' to
+					\`hosts\` if the app should take images from it.
+				`,
 		details: (): string => prose`
-			This version encodes files that are part of the app. A URL on another host would need fetching
-			at build and an allowlist of hosts; that is planned, not built.
+			The build fetches a remote image (\`import.meta.og.image('https://…')\`, a markdown image or a
+			frontmatter URL) only from the hosts the app lists in vite.config:
+			\`image({ remote: { hosts: ['images.example.com', '*.cdn.example.com'] } })\`. A name with
+			\`*.\` in front lists every name below it; plain \`http://\` is taken only from an entry
+			that says \`http://\`. Each redirect is checked the same way, so a listed host cannot hand
+			the build a file from one that is not. A markdown or frontmatter URL on a host that is not
+			listed stays a plain \`<img>\` or string.
+		`
+	},
+	image_remote_failed: {
+		text: (a: { where: string; url: string; reason: string }): string =>
+			`${a.where}: the build could not fetch the image ${a.url} (${a.reason}), and has no copy of it.`,
+		details: (): string => prose`
+			A remote image is fetched once into the build cache (\`node_modules/.ogygia/image/remote/\`)
+			and asked again on every build with its \`etag\` or \`last-modified\`, so an unchanged image is
+			not downloaded again. This one could not be fetched and was never fetched before: the host
+			answered an error status, took longer than \`remote.timeout\` (default 10 s), sent more
+			than \`remote.maxBytes\` (default 20 MB), followed more than 3 redirects, or sent something
+			that is not a PNG, JPEG, WebP, AVIF, GIF or TIFF image. Check the URL in a browser, or
+			raise the limit in \`image({ remote })\`.
+		`
+	},
+	image_card_engine_missing: {
+		text: (a: { missing: string; dependencies?: boolean }): string =>
+			a.dependencies
+				? prose`
+					This server build draws share cards on request with ${a.missing}, but the app's
+					package.json does not list them all in its \`dependencies\`: add them there
+					(\`pnpm add satori satori-html @resvg/resvg-js\`).
+				`
+				: prose`
+					A share card (\`import.meta.og.image.card()\`) is drawn with satori, satori-html and
+					resvg, and the app has not installed ${a.missing}: \`pnpm add satori satori-html
+					@resvg/resvg-js\`.
+				`,
+		details: (): string => prose`
+			A card is drawn from its component by three packages the app installs itself, so an app
+			with no card loads none of them: satori-html reads the component's HTML and CSS, satori lays
+			it out and draws it as SVG, and resvg (\`@resvg/resvg-js\`, a native module) turns that into a
+			PNG. The build draws every card a prerendered page names. A server that draws cards on
+			request needs them in \`dependencies\` (not \`devDependencies\`): a server adapter may bundle
+			every package its app does not list there (adapter-node does), and resvg bundled cannot
+			find its native binary.
+		`
+	},
+	image_card_font: {
+		text: (a: { where: string; font: string; why: string }): string =>
+			`${a.where}: the card's font ${a.font} cannot be used: ${a.why}.`,
+		details: (): string => prose`
+			satori draws a card's text with the fonts the card lists and no other (it reads no system
+			font): \`fonts: ['./serif.woff', '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff']\`,
+			each a path relative to the file, or a package's file. Each must be a TrueType, OpenType or
+			WOFF file (\`.ttf\`, \`.otf\`, \`.woff\`): satori reads no WOFF2. The build reads each file's
+			family, weight and style from the file itself; the card's CSS names the family
+			(\`font-family: 'Geist Serif'\`) and the weight.
+		`
+	},
+	image_card_css: {
+		text: (a: { file: string; property: string | null; reason: string }): string =>
+			a.property === null
+				? `${a.file}: satori cannot draw this card (${a.reason}).`
+				: `${a.file}: satori cannot draw this card's CSS property '${a.property}' (${a.reason}).`,
+		details: (): string => prose`
+			A share card is drawn by satori, which lays out a subset of CSS: flexbox (every element
+			with more than one child says \`display: flex\`), sizes, margins and padding, borders and
+			radii, colors and gradients, fonts, text, transforms, opacity, and absolute positioning.
+			It has no grid, no floats, no \`calc()\` in every property, no CSS variables in every
+			place, and no \`z-index\`. The message names what it refused: change it to something in that
+			subset. The images docs list what works.
+		`
+	},
+	image_card_source: {
+		text: (a: { file: string; src: string; reason: string }): string =>
+			`${a.file}: this card names the image ${a.src}, which it cannot draw (${a.reason}).`,
+		details: (): string => prose`
+			A card never lets its drawing engine fetch an image itself: that would fetch any address
+			its markup names, private ones included, with no size or time limit. Each image a card
+			names (an \`<img src>\`, a style's \`url()\`) is read by ogygia and handed over as bytes.
+			It may be an image of the build (the \`src\` of an \`import.meta.og.image()\` descriptor, a
+			root-relative asset URL), an \`http(s)\` URL on a host \`image({ remote: { hosts } })\`
+			lists (fetched under its size and time limits, like \`remoteImage()\`), or a \`data:\` URL.
+			Its bytes must be PNG, JPEG, GIF, WebP, AVIF or TIFF. A relative path, another scheme, or a URL
+			with no \`remote\` set is refused.
+		`
+	},
+	image_card_props: {
+		text: (a: { file: string; at: string; why: string }): string =>
+			`${a.file}: a card's props must be JSON, and small: ${a.at}: ${a.why}.`,
+		details: (): string => prose`
+			A card's files carry its props in their URLs, signed with the rest, so the server that
+			makes a file on request needs nothing but the URL, and nobody can ask it for props the
+			page did not name. So the props are one plain object of what JSON holds (strings, finite
+			numbers, booleans, null, arrays and plain objects; no \`undefined\`, Date, Map or function),
+			at most 2048 characters once written in the URL: a title and a few fields. Pass the text
+			the card shows, not the record it came from.
 		`
 	},
 	image_not_found: {
@@ -225,6 +326,25 @@ export const IMAGE_ERRORS = {
 			The encoder (sharp) could not decode the file: it may be damaged, empty, or in a format it
 			does not read (AVIF, WebP, PNG, JPEG, GIF, TIFF and SVG are read).
 		`
+	},
+	image_vercel_config: {
+		text: (a: { missing: string; have: string; line: string }): string => prose`
+			vercel() names files Vercel's image optimizer would refuse: the adapter's output config
+			lacks ${a.missing} (it has ${a.have}). Hand the encoder's images to the adapter:
+			${a.line}.
+		`,
+		details: (): string => prose`
+			With \`vercel()\`, a page rendered on request names each file as a
+			\`/_vercel/image?url=…&w=…&q=…\` link, and Vercel answers it only when the deployment's
+			\`images\` config (\`.vercel/output/config.json\`, written by adapter-vercel) allows that
+			width (\`sizes\`), that quality (\`qualities\`, when it lists any), the format the browser
+			gets (\`formats\`), and, for a full-URL \`paths.assets\`, its host (\`domains\` or
+			\`remotePatterns\`). Pass the encoder's own: keep it in one file
+			(\`export const encoder = vercel({ sizes })\`), import it in svelte.config.js and in
+			vite.config, and write \`adapter({ images: encoder.images })\`, adding the assets host to
+			\`domains\` if there is one. \`vercel()\` needs adapter-vercel: \`/_vercel/image\` exists
+			only on Vercel.
+		`
 	}
 };
 
@@ -252,25 +372,32 @@ export const IMAGE_WARNINGS = {
 		`
 	},
 	image_no_encoder: {
-		text: (a: { reason: string }): string =>
-			`this server cannot make image files: the encoder (sharp) did not load (${a.reason}); image requests answer 500.`,
+		text: (a: { reason: string; what?: 'file' | 'card' }): string =>
+			a.what === 'card'
+				? `this server cannot draw share cards: ${a.reason}.`
+				: `this server cannot make image files: the encoder (sharp) did not load (${a.reason}); image requests answer 500.`,
 		details: (): string => prose`
-			Image files are made by sharp, a native Node module. A runtime without it (an edge or
-			Workers runtime, an install that skipped sharp's binary) cannot make them. Prerender the
+			With \`sharp()\`, the default encoder, image files are made by sharp, a native Node module.
+			A runtime without it (an edge or Workers runtime, an install that skipped sharp's binary)
+			cannot make them. On Cloudflare Workers, list the encoder that can:
+			\`image({ encoder: cloudflare() })\` from \`@ogygia/image/vite\`. Otherwise prerender the
 			pages that show images (their files are made at build), warm the presets server-rendered
 			pages use (\`import.meta.og.image(src, { warm: 'cover' })\`), or deploy to a Node server.
+			A share card (\`import.meta.og.image.card()\`) is drawn by satori and resvg, which run in
+			Node only: on an edge runtime, a page rendered on request serves a card's files only when
+			the build made them, because a prerendered page names the same card with the same props.
+			Prerender the pages that show cards, or deploy to a Node server.
 		`
 	},
-	image_adapter_no_encoder: {
-		text: (a: { adapter: string }): string => prose`
-			${a.adapter} runs the app where the image encoder (sharp) cannot load: a server-rendered page's
-			images will answer 500 unless the page is prerendered or its preset warmed.
-		`,
+	image_binding_missing: {
+		text: (a: { binding: string }): string =>
+			`the image endpoint makes files with the Cloudflare Images binding ${a.binding}, but this Worker has no such binding; image requests answer 500.`,
 		details: (): string => prose`
-			The image endpoint makes a file the first time a page asks for it, with sharp, a native Node
-			module. This adapter's runtime has no native modules. Files of prerendered pages and of
-			warmed presets (\`import.meta.og.image(src, { warm: 'cover' })\`) are made at build and served
-			as static files, so those work everywhere.
+			\`cloudflare()\` makes each file a page rendered on request asks for with the Worker's Images
+			binding, read from \`event.platform.env\`. Add it to the Worker's wrangler config
+			(\`"images": { "binding": "IMAGES" }\`), or name the one it has:
+			\`cloudflare({ binding: 'MY_IMAGES' })\`. Outside a Worker (a Node server) there is no
+			binding: use \`sharp()\` there.
 		`
 	},
 	image_store_write_failed: {
@@ -298,6 +425,46 @@ export const IMAGE_WARNINGS = {
 			per file.
 		`
 	},
+	image_still_left_out: {
+		text: (a: { encoders: string }): string => prose`
+			${a.encoders} cannot make the first frame of a moving image, so no moving image offers a
+			still to visitors who ask for less motion.
+		`,
+		details: (): string => prose`
+			A moving image (an animated GIF or WebP) gets a still twin: its first frame, shown at
+			\`(prefers-reduced-motion: reduce)\`, which is what WCAG 2.2.2 asks for. A file a page
+			rendered on request names is made by the app's encoder, and Vercel's optimizer serves a
+			moving source as it is, with no way to keep one frame. List \`sharp()\` after it
+			(\`encoder: [vercel(), sharp()]\`) so the app's endpoint makes stills, or prerender the
+			pages that show moving images.
+		`
+	},
+	image_remote_stale: {
+		text: (a: { where: string; url: string; reason: string }): string =>
+			`${a.where}: the build could not ask for the image ${a.url} again (${a.reason}): it uses the copy it fetched before, which may be out of date.`,
+		details: (): string => prose`
+			Every build asks the host whether a remote image changed (one request with the copy's
+			\`etag\` or \`last-modified\`). The host could not be reached, or did not answer with an
+			image, so the build uses the copy in its cache (\`node_modules/.ogygia/image/remote/\`): an
+			offline build still works. If the image changed on the host, this build shows the old
+			one. Build again once the host answers.
+		`
+	},
+	image_remote_refused: {
+		text: (a: { url: string; status: number; reason: string }): string =>
+			`the image endpoint answered ${a.status} for a file of the remote image ${a.url}: ${a.reason}.`,
+		details: (): string => prose`
+			A \`remoteImage(url, { width, height })\` is made by the image endpoint from the URL's bytes,
+			fetched when a file is first asked for, under \`image({ remote: { hosts, maxBytes, timeout } })\`.
+			It answers 404 when the URL's host is not in \`hosts\` (the URL was signed, but the list
+			changed since, or \`remote\` is not set), when a redirect leads to a host that is not, or
+			when a host listed only by a \`*.\` entry resolves to a private address (list that host
+			itself to allow it); 413 when the image is past \`maxBytes\`; 504 when it took longer than
+			\`timeout\`; 502 when the host answered an error status, could not be reached, or sent
+			something that is not a JPEG, PNG, WebP, AVIF, GIF or TIFF image. None of these answers is
+			kept by a browser or a CDN, so the next ask tries again.
+		`
+	},
 	image_store_unsafe: {
 		text: (a: { dir: string }): string =>
 			`the image file store ${a.dir} is not a folder only this user owns: files are made on every ask, and not kept.`,
@@ -306,6 +473,16 @@ export const IMAGE_WARNINGS = {
 			its user can read and write. Another user's folder, or a link, at that place could hand out
 			files it chose, under URLs browsers keep forever, so the server keeps nothing there. Remove
 			the folder, or run the server as the user that owns it.
+		`
+	},
+	image_share_format: {
+		text: (a: { path: string; url: string }): string =>
+			`${a.path}: the share image ${a.url} is ${a.url.endsWith('.avif') ? 'AVIF' : 'WebP'}, which most link previews do not show.`,
+		details: (): string => prose`
+			An \`og:image\` (or \`twitter:image\`) is read by the crawlers of chat apps and social sites,
+			and most of them read PNG and JPEG only. Name a PNG or JPEG file there: a share card's own
+			\`src\` is a PNG, and a preset for share images says its format
+			(\`share: { width: 1200, height: 630, formats: ['png'] }\`). Said in dev only.
 		`
 	}
 };
@@ -320,3 +497,7 @@ export const warn: Own['warn'] = own.warn;
 /** The warnings of a condition that lasts (a full line of encodes, a store that cannot write): each
  *  is said once per streak, `said.once(key, …)` when it starts and `said.ok(key)` when it ends. */
 export const said: Say = say();
+
+/** The warnings said once per thing (a URL, a card), with a memory of their own: a churn of URLs
+ *  never lets {@link said}'s constant and streak keys go, so those are never said twice. */
+export const said_each: Say = say();

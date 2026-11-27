@@ -1,7 +1,7 @@
 /**
  * COMPILE: one image file → its source plan (id, shown size, format, whether it moves, its
  * placeholder). No file is encoded here: pages ask for those at render, and the image endpoint makes
- * them. The id names the source's bytes alone (../store.ts `source_id`), so whoever makes a file can
+ * them. The id names the source's bytes alone (../source-id.ts `source_id`), so whoever makes a file can
  * check its original against it. The plan is kept in the build cache by the id and the source's
  * options, so a warm build or a dev restart reads no pixels it already measured.
  *
@@ -13,7 +13,7 @@ import { BuildCache } from '@ogygia/compiler';
 import type { Metadata } from 'sharp';
 import type { ImageFormat, ImageOps } from '../descriptor.ts';
 import { OgygiaError } from '../messages.ts';
-import { source_id } from '../store.ts';
+import { source_id } from '../source-id.ts';
 import { pixels } from './encoder.ts';
 import type { ImageOptions, ImagePluginOptions } from './options.ts';
 
@@ -84,7 +84,7 @@ export async function plan_image(file: string, settings: Settings): Promise<Plan
 		throw new OgygiaError('image_not_found', { file, src: file });
 	}
 	const { metadata_of, placeholder_of, shown_size, too_large, VIPS_VERSION } = await pixels();
-	const id = source_id(bytes);
+	const id = await source_id(bytes);
 	const key = digest([id, JSON.stringify({ ...settings, plan: PLAN_VERSION, vips: VIPS_VERSION })]);
 	const kept = plans.get(key);
 	if (kept) return kept;

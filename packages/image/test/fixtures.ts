@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import sharp from 'sharp';
-import { source_id } from '../src/store.ts';
+import { source_id } from '../src/source-id.ts';
 
 /** An animated GIF of `frames` frames on a `width` × `height` canvas, each frame one pixel drawn on
  *  it, so the file stays a few kilobytes however many pixels it decodes to (a screen recording's
@@ -71,7 +71,7 @@ export function app_with_sharp(root: string): string {
 	return root;
 }
 
-export function id_of(file: string): string {
+export function id_of(file: string): Promise<string> {
 	return source_id(fs.readFileSync(file));
 }
 

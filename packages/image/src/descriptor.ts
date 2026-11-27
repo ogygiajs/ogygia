@@ -6,6 +6,7 @@
  *
  * @packageDocumentation
  */
+import type { ImagePosition } from './config.ts';
 
 /** A format an image is in: a source's own, or one a page asks for. */
 export type ImageFormat = 'avif' | 'webp' | 'png' | 'jpeg' | 'gif' | 'svg' | 'tiff';
@@ -28,10 +29,11 @@ export interface ImageOps {
 
 /** One image source, ready to render. */
 export interface ImageDescriptor {
-	/** The source's identity: a hash of its bytes. */
+	/** The source's identity: a hash of its bytes (of its URL and `version`, for a remote source known
+	 *  only at request). */
 	id: string;
 	/** The original file, shipped as an asset: what the image endpoint reads, and what a browser-only
-	 *  render shows. */
+	 *  render shows. A remote source's URL. */
 	src: string;
 	/** Intrinsic width, in pixels (after the operations). */
 	width: number;
@@ -54,6 +56,36 @@ export interface ImageDescriptor {
 	warm?: string[];
 	/** Alt text the source carries (a markdown image's text). */
 	alt?: string;
+	/** Where the source comes from when it is not a file the build read: `'remote'`, a URL known only
+	 *  at request (`remoteImage()`), which `src` names and the image endpoint fetches; `'card'`, a
+	 *  share card (`import.meta.og.image.card()`) rendered from its props, whose own-size PNG `src`
+	 *  names. */
+	from?: 'remote' | 'card';
+	/** A share card's component and props, as its files' URLs carry them (`<card>/<props>`). */
+	card?: string;
+	/** Other candidate sets of this image, each chosen by a media condition: a dark file (the
+	 *  macro's `dark`) and the designer's other files (the macro's `art`). One level: a twin's own
+	 *  descriptor has no twins. */
+	twins?: Twin[];
+}
+
+/** Another candidate set of an image, chosen by a media condition: a dark file, an art-directed
+ *  crop or file, or (made at render, never stored) the first frame of a moving image. */
+export interface Twin {
+	/** The media condition this twin answers, like `(max-width: 600px)`. */
+	media: string;
+	/** Another source; absent: the same source (another crop of it). */
+	of?: ImageDescriptor;
+	/** The box's shape for this twin only. */
+	aspect?: number | string;
+	/** Where this twin's crop keeps. */
+	position?: ImagePosition;
+	/** Display width for this twin only, CSS pixels. */
+	width?: number;
+	/** The first frame only (the reduced-motion still). Made at render, never stored. */
+	still?: true;
+	/** A dark twin: also follows the app's theme selectors (`image({ theme })`). */
+	theme?: 'dark';
 }
 
 /** Is `value` an image descriptor? For a schema: `v.custom<ImageDescriptor>(isImage)` (valibot) or

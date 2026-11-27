@@ -1,6 +1,6 @@
 ---
 title: Images
-summary: '@ogygia/image turns your image files into responsive images. Pages ask for the files they need, by layout or by preset, and the image endpoint makes each one the first time it is asked for: in dev, in a prerender, or on a live server. One component renders them as server HTML, with no client script. Markdown images and frontmatter covers work the same way.'
+summary: '@ogygia/image turns your image files into responsive images. Pages ask for the files they need, by layout or by preset: the image endpoint makes each one the first time it is asked for, in dev or on a live server, and the build makes a prerendered page''s files. One component renders them as server HTML, with no client script. Markdown images and frontmatter covers work the same way.'
 related:
   - content/collections
   - content/markdown
@@ -102,20 +102,21 @@ A pattern that matches nothing fails the build. To pick an image at run time, re
 <Img of={hero} preset="thumb" alt="The harbor at dusk" />
 ```
 
-| Prop          | Default         | What it does                                                                                  |
-| ------------- | --------------- | --------------------------------------------------------------------------------------------- |
-| `of`          | required        | The descriptor: from the macro, a markdown image, or a frontmatter image.                     |
-| `alt`         | required        | What the image shows. Use `""` for a decorative image.                                        |
-| `preset`      | none            | A preset from `image({ presets })`. The props below say over it.                              |
-| `layout`      | `'constrained'` | How the image sits on the page (below).                                                       |
-| `width`       | none            | Display width in CSS pixels.                                                                  |
-| `height`      | none            | Display height in CSS pixels. With `width`, the files are cropped to that box.                |
-| `aspect`      | none            | The box's shape, `16 / 9` or `'16/9'`: the files are cropped to it.                           |
-| `position`    | `'center'`      | Where a crop keeps: `'top'`, `'bottom'`, `'left'`, `'right'`, or `'attention'` / `'entropy'`. |
-| `priority`    | `false`         | The page's main image (its LCP). It loads eagerly, at high priority, preloaded from the head. |
-| `placeholder` | `true`          | Paint the blur placeholder until the image arrives.                                           |
-| `morph`       | `false`         | Glide into the same source on the next page in a client-side navigation (a view transition).  |
-| `sizes`       | derived         | Replaces the `sizes` the layout works out, for a layout the three intents cannot say.         |
+| Prop          | Default         | What it does                                                                                             |
+| ------------- | --------------- | -------------------------------------------------------------------------------------------------------- |
+| `of`          | required        | The descriptor: from the macro, a markdown image, or a frontmatter image.                                |
+| `alt`         | required        | What the image shows. Use `""` for a decorative image.                                                   |
+| `preset`      | none            | A preset from `image({ presets })`. The props below say over it.                                         |
+| `layout`      | `'constrained'` | How the image sits on the page (below).                                                                  |
+| `width`       | none            | Display width in CSS pixels.                                                                             |
+| `height`      | none            | Display height in CSS pixels. With `width`, the files are cropped to that box.                           |
+| `aspect`      | none            | The box's shape, `16 / 9` or `'16/9'`: the files are cropped to it.                                      |
+| `position`    | `'center'`      | Where a crop keeps: `'top'`, `'bottom'`, `'left'`, `'right'`, or `'attention'` / `'entropy'`.            |
+| `priority`    | `false`         | The page's main image (its LCP). It loads eagerly, at high priority, preloaded from the head.            |
+| `placeholder` | `true`          | Paint the blur placeholder until the image arrives.                                                      |
+| `morph`       | `false`         | Glide into the same source on the next page in a client-side navigation (a view transition).             |
+| `sizes`       | derived         | Replaces the `sizes` the layout works out, for a layout the three intents cannot say.                    |
+| `art`         | preset's        | Art direction: another crop or file at another media condition (see Twins). Replaces the preset's `art`. |
 
 `class`, `id`, `style`, `title`, `crossorigin`, `referrerpolicy` and `draggable` pass through to the `<img>`. Other attributes do not: a spread onto an `<img>` makes Svelte write inline `onload`/`onerror` handlers, which a strict CSP blocks.
 
@@ -125,7 +126,7 @@ Sizes are whole pixels. A `width` or `height` with a fraction (`width={1000 / 3}
 
 ### Presets
 
-A preset is a name for how your site shows an image. It takes the same keys as the props above (`layout`, `width`, `height`, `aspect`, `position`, `sizes`, `priority`, `placeholder`, `morph`) plus `quality` and `formats`. Declare it once, then use it on any image:
+A preset is a name for how your site shows an image. It takes the same keys as the props above (`layout`, `width`, `height`, `aspect`, `position`, `sizes`, `priority`, `placeholder`, `morph`, `art`) plus `quality` and `formats`. Declare it once, then use it on any image:
 
 ```svelte
 <Img of={post.data.cover} preset="thumb" alt={post.data.title} />   <!-- a square file, 400 wide -->
@@ -141,7 +142,7 @@ A markdown image in a post uses the `prose` preset when there is one.
 - **`fullWidth`**: the container's full width, on every screen. Use it for heroes and banners.
 - **`fixed`**: exactly `width` × `height` CSS pixels, at 1× and 2× density. Use it for avatars and icons.
 
-The files follow from the layout. A `constrained` image 400 pixels wide asks for a 400-pixel file and an 800-pixel one, plus the smaller steps of the width ladder for narrow screens, never the 2048-pixel file. A `fixed` 48-pixel avatar asks for exactly 48 and 96. A `fullWidth` image asks for the whole ladder. With an `aspect`, or both `width` and `height`, every file is cut to that shape, never wider than the source can cover.
+The files follow from the layout. A `constrained` image 400 pixels wide asks for a 400-pixel file and an 800-pixel one, plus the smaller steps of the width ladder for narrow screens, never the 2048-pixel file. A step within a tenth of a width the layout names is left out: a 900-pixel image gets no 960-pixel file beside its 900 one. A `fixed` 48-pixel avatar asks for exactly 48 and 96. A `fullWidth` image asks for the whole ladder. With an `aspect`, or both `width` and `height`, every file is cut to that shape, never wider than the source can cover.
 
 ### `priority`
 
@@ -166,7 +167,7 @@ The layout's own CSS is a zero-specificity rule on `data-og-img`, so any class o
 
 ## The image endpoint
 
-On a live server and in dev, each file URL is a recipe: the source, the width and height, the format, and any crop or quality, all in the URL's path. The server signs it with the app's key (the same key that signs ogygia's regions: `handle({ secret })` or `OGYGIA_SECRET`), so nobody can ask the endpoint for a size no page asked for. A changed or unsigned URL is refused with a 403 that says why (`x-ogygia-deny: sig`) and names the key it checked with (`x-ogygia-key`, its fingerprint), and the placeholder stays painted.
+On a live server and in dev, each file URL is a recipe: the source, the width and height, the format, and any crop or quality, all in the URL's path. The server signs it with the app's key (the same key that signs ogygia's regions: `handle({ secret })` or `OGYGIA_SECRET`), so nobody can ask the endpoint for a size no page asked for. (A platform's links, from `cloudflare()` or `vercel()`, are not signed: see each below.) A changed or unsigned URL is refused with a 403 that says why (`x-ogygia-deny: sig`) and names the key it checked with (`x-ogygia-key`, its fingerprint), and the placeholder stays painted.
 
 The endpoint makes the file the first time it is asked for, keeps it on disk, and sends it with `cache-control: public, max-age=31536000, immutable`. In dev and during a build the files are kept in the build cache (`node_modules/.ogygia/image/files/`, at most 2 GB), so a CI run that keeps that folder makes nothing twice. A live server keeps them in a folder under the system's temporary folder that only its user can open (`image_store_unsafe` when another user's folder, or a link, sits there), at most 512 MB while it runs. Past either size, the least recently asked files go first; files nobody asked for in a month go when the server starts. Each process counts its own files against the size (a build and its prerender worker each keep their own count).
 
@@ -200,6 +201,44 @@ Each name is the recipe alone: the source's content hash, the size, and any crop
 - **An SPA fallback page** (`adapter-static({ fallback: '404.html' })`) renders after the build wrote its files, so it names them as they are, or the original where no prerendered page asked for that file.
 - **Pages rendered on a live server keep signed URLs**, except a warmed preset's.
 
+### Cache headers
+
+ogygia writes no header file: each adapter already sends Kit's `_app/immutable/` files with a header that keeps them forever, and the build's files sit there. What each one sends (the last column matters when a page asks for a file the server does not have, as when a deploy is half rolled out):
+
+| Adapter              | Who sends it                                                         | A file the build made                  | A file under `_app/immutable/` that is not there          |
+| -------------------- | -------------------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------- |
+| `adapter-node`       | the adapter's file server                                            | `public,max-age=31536000,immutable`    | 404, `public, max-age=0, must-revalidate`                 |
+| `adapter-cloudflare` | Kit's rule, appended to `_headers`                                   | `public, immutable, max-age=31536000`  | 404, with the same rule (under `wrangler dev`): see below |
+| `adapter-vercel`     | a route in `.vercel/output/config.json`                              | `public, immutable, max-age=31536000`  | 404, `no-store`                                           |
+| `adapter-netlify`    | Kit's rule (`_headers` in version 6, the Frameworks API config in 7) | `public, immutable, max-age=31536000`  | the host's 404                                            |
+| `adapter-static`     | your host                                                            | the rule below, if your host takes one | the host's 404                                            |
+
+With `adapter-static`, give the host the rule yourself. On Cloudflare Pages and Netlify, a `static/_headers` file (the adapter copies it to the site's root):
+
+```txt
+/_app/immutable/*
+  Cache-Control: public, immutable, max-age=31536000
+```
+
+On Vercel, the same rule in `vercel.json`:
+
+```json
+{
+	"headers": [
+		{
+			"source": "/_app/immutable/(.*)",
+			"headers": [{ "key": "Cache-Control", "value": "public, immutable, max-age=31536000" }]
+		}
+	]
+}
+```
+
+GitHub Pages takes no headers, and sends `max-age=600`: a browser checks the file again after ten minutes, and gets the same bytes, since a file's name is what it holds.
+
+On adapter-cloudflare, a missing file under `_app/immutable/` comes back 404 with the keep-forever header: Kit's Worker hands every such path to the static assets, and the `_headers` rule covers the 404 too. A browser may then keep that 404 for a year. It happens when a page from a new deploy reaches an old one's assets (a gradual deployment, or two versions live at once): that browser shows a broken image until its cache is cleared. Kit's own scripts share this, but Kit reloads the page when its version changes; an image does not. No `_headers` line can fix it, since a rule cannot tell a 404 from a file, so it waits on the adapter. Until then, deploy all at once (no gradual rollout) on Cloudflare Workers.
+
+A file the image endpoint makes is sent with `public, max-age=31536000, immutable` on every adapter. Every answer that refuses (403 for a signature, 404, 405 for a method other than GET or HEAD, 500 with no encoder, 503 when busy) is sent with `no-store`, so no cache keeps it.
+
 ## Absolute URLs: `og:image` and RSS
 
 A share image and a feed need absolute URLs. Set the site's origin as Kit's prerender origin once:
@@ -217,7 +256,9 @@ Then make the URL absolute against the page's URL, on a prerendered page or a li
   import { page } from '$app/state';
   import { getImage } from '@ogygia/image';
   let { data } = $props();
-  const share = $derived(new URL(getImage(data.cover, { width: 1200 }).src, page.url).href);
+  const share = $derived(
+    new URL(getImage(data.cover, { width: 1200, formats: ['jpeg'] }).src, page.url).href
+  );
 </script>
 
 <svelte:head>
@@ -282,13 +323,209 @@ The enclosure's type follows the file's format (a preset with `formats: ['jpeg']
 
 Link the feed from a layout (`<link rel="alternate" type="application/rss+xml" href="/feed.xml">`) so Kit's crawler prerenders it. On a live server the same code names the signed URLs at the request's origin.
 
-The encoder, sharp, is a native Node module. A runtime that cannot load it (an edge or Workers runtime) answers image requests with a coded 500 (`image_no_encoder`), and a build for such an adapter warns (`image_adapter_no_encoder`). Prerendered pages and warmed presets are made by the build as static files, so they should work there too, but no edge adapter's build has been checked yet.
+The default encoder, sharp, is a native Node module. A runtime that cannot load it (an edge or Workers runtime) answers image requests with a coded 500 (`image_no_encoder`), and a build for such an adapter with `sharp()` says so once (`image_no_encoder`). Prerendered pages and warmed presets are made by the build as static files, so they work there. A build for such an adapter that lists no encoder fails (`image_option_invalid`): on Cloudflare (adapter-cloudflare or adapter-cloudflare-workers), list `cloudflare()`; on any edge adapter, `encoder: sharp()` says only prerendered pages show images. An edge adapter is known by its package (Cloudflare's, Deno's, one named `-edge`): adapter-netlify with `edge: true` and adapter-vercel with `runtime: 'edge'` are not seen as edge builds, so neither fails nor warns; list the encoder yourself there. On Vercel, use `vercel()` (below).
 
 Without `OGYGIA_SECRET`, each server build signs with its own random key, so a server-rendered page's signed URLs change with each deploy. Set the secret to keep them. A prerendered page's files need no secret.
 
+Link previews show PNG and JPEG; most show no AVIF or WebP. In dev, a page whose `og:image` or `twitter:image` names an AVIF or WebP file says `image_share_format`. Name the format for a share image (`formats: ['jpeg']` above, or a preset's `formats`).
+
+## Share cards: `import.meta.og.image.card()`
+
+A share card is a Svelte component drawn as a PNG: a page's title on the site's own design, one image per page, with no route to write and no list of pages to keep. The card is a source like any other image, so a prerendered page's card is made by the build, and a page rendered on request has its card made by the image endpoint the first time a crawler asks.
+
+Cards are drawn by three packages your app installs, so an app with no card loads none of them: [satori-html](https://github.com/natemoo-re/satori-html) reads the component's HTML and CSS, [satori](https://github.com/vercel/satori) lays it out and draws it as SVG, and resvg turns that into a PNG.
+
+```sh
+pnpm add satori satori-html @resvg/resvg-js
+```
+
+A build with a card and none of them fails with `image_card_engine_missing`. A server that draws cards on request needs them in `dependencies` (resvg is a native module: bundled, it cannot find its binary).
+
+Name the card once, in a module the server loads. The component's path is relative to the file, like an import; `width` and `height` are the PNG's size; `fonts` are the faces it draws text with:
+
+```ts title=src/lib/share.ts
+export const ShareCard = import.meta.og.image.card<{ title: string; section?: string }>(
+  './ShareCard.svelte',
+  {
+    width: 1200,
+    height: 630,
+    fonts: ['./fonts/serif.woff', '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff']
+  }
+);
+```
+
+`ShareCard(props)` returns the card's descriptor. Call it on the server, in a load (or a page's server render), and pass the descriptor on:
+
+```ts title=src/routes/blog/[slug]/+page.server.ts
+import { ShareCard } from '$lib/share';
+
+export const load = async ({ params }) => {
+  const post = await blog.get(params.slug);
+  return { post, share: ShareCard({ title: post.data.title, section: 'Blog' }) };
+};
+```
+
+Its `src` is the card's own PNG, at its own size. Make it absolute for `og:image`. It is an image like any other, so `<Img>` and `getImage()` take it too:
+
+```svelte title=src/routes/blog/[slug]/+page.svelte
+<script lang="ts">
+  import { page } from '$app/state';
+  import { Img } from '@ogygia/image';
+  let { data } = $props();
+</script>
+
+<svelte:head>
+  <meta property="og:image" content={new URL(data.share.src, page.url).href} />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+</svelte:head>
+
+<Img of={data.share} preset="thumb" alt="" />
+```
+
+The component renders with the card's props, on the server, like a page. Its scoped CSS goes with it (and that of every component it imports), so write the card as you would any component:
+
+```svelte title=src/lib/ShareCard.svelte
+<script lang="ts">
+  let { title, section = '' }: { title: string; section?: string } = $props();
+</script>
+
+<div class="card">
+  {#if section}<span class="chip">{section}</span>{/if}
+  <div class="title">{title}</div>
+</div>
+
+<style>
+  .card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 1200px;
+    height: 630px;
+    padding: 64px;
+    background: #102a43;
+    font-family: 'Serif';
+  }
+  .chip { display: flex; font-family: 'JetBrains Mono'; font-size: 24px; color: #f0b429; }
+  .title { display: flex; font-size: 72px; color: #f0f4f8; }
+</style>
+```
+
+What a card can be:
+
+- **Props are JSON, and small.** One plain object of strings, finite numbers, booleans, `null`, arrays and plain objects, at most 2048 characters once written in a URL (`image_card_props`). The props ride in each file's URL, signed with the rest, so a server makes a card on request from its URL alone, and nobody can ask it for props the page did not name. Pass the text the card shows, not the record it came from.
+- **Fonts are files.** Each is a `.woff`, `.ttf` or `.otf` file (satori reads no WOFF2), a path relative to the file or a package's file, and a card lists at least one: satori reads no system font. The build reads each file's family, weight and style from the file itself; the CSS names the family. A font that does not read fails with `image_card_font`.
+- **CSS is satori's.** satori lays out a subset of CSS: flexbox (an element with more than one child says `display: flex`), sizes, margins and padding, borders and radii, colors and gradients, `position: absolute`, transforms, opacity, fonts and text. There is no grid, no float and no `z-index`. What it cannot draw fails the build or the request with `image_card_css`, naming the property and the card.
+- **Images are read by ogygia, never fetched by the engine.** Every address a card's markup names (an `<img src>`, an SVG `<image href>`, a style's `url()`, any element's `src`, an SVG element's `href`) may name an image of the build (the `src` of an `import.meta.og.image()` descriptor, an asset the server imports: not a `static/` file, which the live endpoint cannot read), an `http(s)` URL on a host `image({ remote: { hosts } })` lists (fetched under its `maxBytes`, `timeout` and private-address rule, like `remoteImage()`), or a `data:` URL, in PNG, JPEG, GIF, WebP, AVIF or TIFF (the types `remoteImage()` takes). Anything else (a relative path, a `static/` file, an SVG `data:` URL, `<Img>`'s signed file URLs, a URL with no `remote` set, a `url(` with no closing paren) fails with `image_card_source`: satori would otherwise fetch any address the markup names, private ones included. A `#…` reference inside the card's own SVG is not an address, and a link's `href` (an `<a>` in markup a card shares with a page) names no image: it is left out. Each image is fitted to the card before the draw, with sharp (the build's, or the server's when sharp makes its files; a server with no sharp encoder refuses a card's image): one past 268,402,689 pixels (16383 × 16383) is refused from its header, and a larger one than the card needs is drawn from a copy at the card's size, so a small file of huge dimensions cannot take the draw's memory. A WebP, AVIF or TIFF, a CMYK or 12-bit JPEG, a 16-bit PNG and a file with a colour profile are always drawn from an sRGB PNG or JPEG copy, since resvg draws the first ones as nothing and reads no colour profile. A remote host that refuses a card's image answers the card's file with the same status as the image itself (`502`, `504`, `413`), and a full fetch line `503`.
+- **Keep props small, and never request input.** Each distinct set of props is another PNG to draw and keep, and the props ride in the URL (some proxies refuse long paths). Pass a title, not a query string or a user's free text.
+- **A card loads nothing.** It is a function of its props and the images it shows: the same props and the same image bytes draw the same PNG. Its file names hold a digest of every module and font the card is made from and the engine's versions, so changing a child component, its CSS or a font names new files.
+- **A card that shows a remote image is a remote file.** The host can change the picture behind a URL, so such a card follows `remote.maxAge` like `remoteImage()`: a server that draws it keeps it, and sends it to be kept, until the end of the current window (`public, max-age=<seconds left>, stale-while-revalidate=<maxAge>`), never `immutable`, and draws it again after. The build names its file by the bytes it got, which it asks the host for again on every build, so a changed picture names a new file. A card that shows only the build's images is kept forever.
+
+Where a card's files are made:
+
+| Page                              | Made by                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------- |
+| prerendered                       | the build, under `_app/immutable/og/` (`c…-1200x630.png`)               |
+| rendered on request, Node/Vercel  | the image endpoint, on the first ask, kept forever (or `remote.maxAge`) |
+| rendered on request, Workers/edge | the build's file, when a prerendered page named the same card and props |
+| dev                               | the dev server, again after each edit                                   |
+
+satori and resvg run in Node only. On Workers (or another edge runtime) a page rendered on request names its card's file as always, and the Worker serves it from the build's static files when a prerendered page made the same card with the same props and it shows no remote image (the build names one that does by the bytes it got, which the Worker cannot know); otherwise it answers 404, and says `image_no_encoder`. A build for such an adapter with a card says so once. Prerender the pages that show cards, or have a prerendered page name the cards your live pages show. A Vercel function runs Node, so it draws cards like any Node server: the build names satori's text shaper (a WebAssembly file it reads by a path Vercel's file tracing cannot see) in the card's server chunk, so the function bundle keeps it.
+
+A card's descriptor is minted by the server, so calling `ShareCard()` in the browser fails with `image_no_server`. On a page Kit hydrates (`csr = true`), make the card in the page's server load and pass the descriptor down.
+
+## Cloudflare Workers: `cloudflare()`
+
+On adapter-cloudflare, list `cloudflare()` as the encoder. A prerendered page's files are still made by the build, with sharp, as static files (sharp is needed to build only: `devDependencies` is enough). A page the Worker renders on request names its files one of two ways:
+
+```ts
+// vite.config.ts
+import { cloudflare, image } from '@ogygia/image/vite';
+
+image({ presets, encoder: cloudflare() }); // links (the default)
+image({ presets, encoder: cloudflare({ links: false }) }); // the Images binding
+image({ presets, encoder: cloudflare({ links: false, binding: 'MY_IMAGES' }) });
+```
+
+- **Links** (`links: true`, the default): each file is an [Image Transformations](https://developers.cloudflare.com/images/transform-images/transform-via-url/) link, `/cdn-cgi/image/width=640,height=360,fit=cover,quality=60,format=avif/_app/immutable/assets/hero.Ab12.jpg`, made and kept by Cloudflare's CDN. Turn transformations on for the zone. The options come in one fixed order, so a file has one URL. An island names the same links in the browser: no key is needed. `wrangler dev` does not serve `/cdn-cgi/image`, so these files load only once deployed. Links are not signed: once transformations are on, anyone can ask `/cdn-cgi/image` for any of your originals at any size, quality or option, and Cloudflare bills each one it makes. Keep the zone's transformation sources at their default (this zone only), never "any origin". For a door no one else can open, use `links: false`: the Worker's endpoint signs every file.
+- **The Images binding** (`links: false`): the Worker's own image endpoint makes each file with its [Images binding](https://developers.cloudflare.com/images/transform-images/bindings/) and keeps it in the Worker's cache (`caches.default`), sent `public, max-age=31536000, immutable`. Use it where the zone has no transformations. Cloudflare's docs promise a working cache to a Worker on a custom domain; on a `workers.dev` address that is not stated, and a cache that keeps nothing means every ask is made, and billed, again. Add the binding to the Worker's wrangler config; `wrangler dev` runs it locally:
+
+```jsonc
+// wrangler.jsonc
+{
+	"compatibility_flags": ["nodejs_compat"],
+	"images": { "binding": "IMAGES" }
+}
+```
+
+A Worker with no such binding answers each image 500 and says `image_binding_missing` once. `cloudflare()` on any adapter but adapter-cloudflare or adapter-cloudflare-workers fails the server build with `image_option_invalid`: its links and binding exist only on Cloudflare. adapter-auto counts as another adapter (it cannot be handed a platform's config): list `@sveltejs/adapter-cloudflare` itself. The dev server makes every file with sharp, as always, but refuses what Cloudflare cannot make, so a page fails in dev where it would fail deployed.
+
+What each encoder can make:
+
+| A file that needs                                        | sharp | Cloudflare (links and binding)                                      |
+| -------------------------------------------------------- | ----- | ------------------------------------------------------------------- |
+| a box, cropped to cover                                  | yes   | `fit=cover` (`fit=crop` for a remote source: never enlarged)        |
+| `position` center, top, bottom, left, right              | yes   | `gravity=` (center is the default)                                  |
+| `position: 'attention'`                                  | yes   | `gravity=auto`                                                      |
+| `position: 'entropy'`                                    | yes   | no                                                                  |
+| `rotate` 90, 180, 270                                    | yes   | `rotate=`                                                           |
+| `rotate` by any other angle                              | yes   | no                                                                  |
+| `flip`, `flop`                                           | yes   | `flip=v`, `flip=h`                                                  |
+| `grayscale`                                              | yes   | `saturation=0`                                                      |
+| `modulate` brightness, saturation                        | yes   | `brightness=`, `saturation=`                                        |
+| `blur`, `sharpen`                                        | yes   | `blur=` (twice the sigma), `sharpen=1`                              |
+| `normalize`, `negate`, `tint`, `modulate` hue, lightness | yes   | no                                                                  |
+| `gamma`                                                  | yes   | no (Cloudflare's gamma is an exposure curve)                        |
+| AVIF, WebP, JPEG                                         | yes   | `format=` (AVIF past 1200 pixels a side comes back as WebP or JPEG) |
+| PNG from a PNG source                                    | yes   | no `format=` (the source's own format is kept)                      |
+| PNG from any other source                                | yes   | the binding only (a link's `format=` takes no `png`)                |
+| an AVIF source                                           | yes   | no (Cloudflare reads AVIF on an Enterprise plan only)               |
+
+A page rendered on request that asks Cloudflare for something it cannot make fails to render with `image_encoder_cannot`, naming the encoder and the need: pick another position or op, prerender the page, or warm the preset (the build makes warmed files with sharp). Cloudflare and sharp blur, sharpen and scale differently, so their files differ a little. An animated image keeps its frames (Cloudflare delivers one past 50 megapixels over all its frames untransformed). The Worker's bundle holds no sharp.
+
+## Vercel: `vercel()`
+
+On adapter-vercel, `vercel()` names each file of a page rendered on request as a link to Vercel's [Image Optimization](https://vercel.com/docs/image-optimization), `/_vercel/image?url=%2F_app%2Fimmutable%2Fassets%2Fhero.Ab12.jpg&w=640&q=60`, made and kept by Vercel's CDN. An island names the same links in the browser. A prerendered page's files are still made by the build, with sharp, as static files.
+
+Vercel only resizes: it keeps the source's shape, makes only the widths its `images.sizes` lists and the qualities its `images.qualities` lists, and picks AVIF or WebP from the browser's `Accept` header. It cannot crop (an `aspect`, a `height` with a `width`), place a crop (`position`), apply an operation (`ops`), name PNG or JPEG, or resize a GIF, a TIFF or an animated image (it sends those as they are). So list `sharp()` after it. A list is in order of priority: the first encoder that can make a file makes it, here Vercel's link for a plain resize and the app's own sharp endpoint for the rest. A list holds one platform (`cloudflare()` or `vercel()`), at most one encoder that makes files at the app's endpoint (`sharp()`, or `cloudflare()` with its binding), and `sharp()` last, since it makes every file and nothing after it would be asked. Any other list fails the build with `image_option_invalid`: `[sharp(), vercel()]`, `[cloudflare(), sharp()]`, `[cloudflare(), vercel()]`.
+
+```ts
+// image.config.ts: one encoder, read by both configs
+import { sharp, vercel } from '@ogygia/image/vite';
+
+export const VERCEL = vercel({ sizes: [256, 640, 960, 1280, 1920] });
+export const encoder = [VERCEL, sharp()];
+```
+
+```js
+// svelte.config.js
+import adapter from '@sveltejs/adapter-vercel';
+import { VERCEL } from './image.config.ts';
+
+export default { kit: { adapter: adapter({ images: VERCEL.images }) } };
+```
+
+```ts
+// vite.config.ts
+import { encoder } from './image.config.ts';
+
+image({ presets, encoder });
+```
+
+| Option      | Default                                                               | What it does                                                                                                                                                                                                                                                                                                                        |
+| ----------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sizes`     | 16, 32, 48, 64, 96, 128, 256, 384, then 320 to 2048 (the breakpoints) | The widths Vercel may make. Every width a page asks for is snapped up to one of these, or to the image's own width: every file of the app, the crops sharp makes and the prerendered files too, so one ladder serves all. Keep the small widths when you list your own: without 48 and 96, a 48 px `fixed` avatar is made 256 wide. |
+| `qualities` | `[60, 80]` (AVIF's and WebP's own)                                    | The qualities Vercel may make, 1 to 100. A plugin or preset `quality` must be one of these, or the build fails (`image_option_invalid`). A file at another quality is not Vercel's to make.                                                                                                                                         |
+
+`VERCEL.images` is the adapter's `images` config: `{ sizes, qualities, formats: ['image/avif', 'image/webp'], domains: [], localPatterns: [{ pathname: '^/_app/immutable/assets/.+$', search: '' }] }`. The build checks it: once adapter-vercel has written `.vercel/output/config.json`, a width, quality or format the app names that its `images` lacks, the host of a full-URL `paths.assets` missing from `domains` or `remotePatterns`, or a host of `image({ remote: { hosts } })` missing from `remotePatterns` (a [`remoteImage()`](#remote-images-images-known-only-at-request-remoteimage)'s link names its URL), fails the build with `image_vercel_config` and the exact value to pass. So does an `images` that opens more than the app needs: no `qualities` (any quality), or `localPatterns` unset or wider than the app's originals (the optimizer could read any path of the deployment, a page or an endpoint included), or `remotePatterns` that reach a host `hosts` does not list. With another `paths.base` or `appDir`, the message gives the `localPatterns` to pass. So does `vercel()` on another adapter, adapter-auto included: `/_vercel/image` exists only on Vercel.
+
+Vercel's links are not signed. Anyone can ask `/_vercel/image` for any of your originals at any width in `sizes` and any quality in `qualities`, and Vercel bills each one it makes. That is why the defaults are tight: list only the widths and qualities your pages use. For a door no one else can open, leave `vercel()` out: the sharp endpoint signs every file.
+
+With `vercel()` alone (no `sharp()` after it), the server holds no encoder at all, and the function's bundle no sharp (sharp is needed to build only). A page rendered on request that asks for a file Vercel cannot make fails to render with `image_encoder_cannot`, naming the need; so does the dev server, which makes every file with sharp but refuses what production could not. A share card rendered on request is still drawn by the function (its PNG needs no encoder), but one that names an image fails with `image_card_source`, since only sharp fits a card's images: list `sharp()` after `vercel()` for those. Each width keeps its two `<source>` rows (AVIF at quality 60, WebP at 80): the browser picks the row, Vercel the format. `vercel dev` does not run the optimizer, so these files load only once deployed. adapter-vercel's deprecated `runtime: 'edge'` cannot build an ogygia server today: its bundle cannot import Node's `crypto` and `fs`, which ogygia's server uses.
+
 ## Formats and options
 
-By default each image is offered as AVIF (quality 60) and WebP (quality 80), and the `<img>` fallback is WebP. sharp makes AVIF at effort 2 (of 0 to 9): about twice as fast as 4, for files about 0.2% larger. Some files are special:
+By default each image is offered as AVIF (quality 60) and WebP (quality 80), and the `<img>` fallback is WebP. sharp makes AVIF at effort 2 (of 0 to 9): about twice as fast as 4, for files about 0.2% larger. To spend more build time on smaller files, set it: `image({ encoder: sharp({ effort: { avif: 6 } }) })` (a whole number from 0 to 9, else the build fails with `image_option_invalid`). It applies to every file sharp makes: the build's, the dev server's and the endpoint's. Some files are special:
 
 - **An animated GIF or WebP** is offered as animated WebP only. Every frame is kept: a 1200 × 800 screen recording of 300 frames encodes in about half a second. A frame past 16383 × 16383 pixels, or an animation past 4,294,967,296 pixels over all its frames, fails the build with the file's name (`image_too_large`).
 - **An SVG** is served as it is: it already scales.
@@ -296,23 +533,28 @@ By default each image is offered as AVIF (quality 60) and WebP (quality 80), and
 
 The plugin's options:
 
-| Option        | Default                                  | What it does                                                                                                                                                            |
-| ------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `presets`     | `{}`                                     | Named ways to show an image (above).                                                                                                                                    |
-| `quality`     | 60 for AVIF, 80 for the rest             | Encoder quality, 1 to 100.                                                                                                                                              |
-| `formats`     | `['avif', 'webp']`                       | The formats to offer, best first: `'avif'`, `'webp'`, `'png'`, `'jpeg'`.                                                                                                |
-| `placeholder` | `true`                                   | Make the blur placeholder.                                                                                                                                              |
-| `breakpoints` | `[320, 480, 640, 960, 1280, 1600, 2048]` | The width ladder a responsive image is offered at, capped at the image's own width.                                                                                     |
-| `markdown`    | `{}`                                     | Markdown images: `{ width }` is the prose column's width when there is no `prose` preset; `{ animated }` names the preset a moving image takes; `false` turns them off. |
+| Option        | Default                                  | What it does                                                                                                                                                                               |
+| ------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `presets`     | `{}`                                     | Named ways to show an image (above).                                                                                                                                                       |
+| `quality`     | 60 for AVIF, 80 for the rest             | Encoder quality, 1 to 100.                                                                                                                                                                 |
+| `formats`     | `['avif', 'webp']`                       | The formats to offer, best first: `'avif'`, `'webp'`, `'png'`, `'jpeg'`.                                                                                                                   |
+| `placeholder` | `true`                                   | Make the blur placeholder.                                                                                                                                                                 |
+| `breakpoints` | `[320, 480, 640, 960, 1280, 1600, 2048]` | The width ladder a responsive image is offered at, capped at the image's own width. A step within a tenth of a width the layout names (its width, twice it, the source's own) is left out. |
+| `markdown`    | `{}`                                     | Markdown images: `{ width }` is the prose column's width when there is no `prose` preset; `{ animated }` names the preset a moving image takes; `false` turns them off.                    |
+| `encoder`     | `sharp()`                                | Who makes the files: `sharp()`, `cloudflare()` or `vercel()` from `@ogygia/image/vite`, or a list in order of priority: the first that can make a file makes it (see Vercel).              |
+| `theme`       | none                                     | An app with a theme switch: `{ dark, light }`, the CSS selectors its two themes are written by. A dark file then follows them (see Twins).                                                 |
+| `remote`      | none                                     | Images on other hosts: `{ hosts, maxBytes?, timeout?, maxAge? }` (see Remote images).                                                                                                      |
 
 A source's own options, in the macro's second argument, belong to the file whatever page shows it:
 
-| Option        | Default | What it does                                                          |
-| ------------- | ------- | --------------------------------------------------------------------- |
-| `quality`     | plugin  | Encoder quality for every file made from this source.                 |
-| `placeholder` | plugin  | Make the blur placeholder.                                            |
-| `ops`         | none    | Pixel operations, applied before any resize or crop (below).          |
-| `warm`        | none    | A preset name, or a list: make those presets' files at build (below). |
+| Option        | Default | What it does                                                           |
+| ------------- | ------- | ---------------------------------------------------------------------- |
+| `quality`     | plugin  | Encoder quality for every file made from this source.                  |
+| `placeholder` | plugin  | Make the blur placeholder.                                             |
+| `ops`         | none    | Pixel operations, applied before any resize or crop (below).           |
+| `warm`        | none    | A preset name, or a list: make those presets' files at build (below).  |
+| `dark`        | none    | The dark file, the same shape: shown when the theme is dark (Twins).   |
+| `art`         | none    | Other files by media condition, `{ '(max-width: 600px)': './x.jpg' }`. |
 
 An unknown option or a wrong value fails the build with the key it did not expect (`image_option_unknown`, `image_option_invalid`), so a typo never goes unnoticed.
 
@@ -321,6 +563,65 @@ An unknown option or a wrong value fails the build with the key it did not expec
 ```ts
 const team = import.meta.og.image('./team.jpg', { quality: 70, ops: { grayscale: true } });
 ```
+
+## Twins: dark, art direction, less motion
+
+A twin is another set of files for the same image, chosen by a media condition. Each becomes a `<source media>` row before the format rows, and the browser shows the first row that matches. Each row carries its own `width` and `height`, so the page keeps the right box at every media: nothing shifts. No JavaScript runs.
+
+The rows go in one fixed order, and that order is the whole rule:
+
+1. **The still** of a moving image, at `(prefers-reduced-motion: reduce)`.
+2. **Each art twin**, the page's first, then the source's.
+3. **The dark file**, at `(prefers-color-scheme: dark)`.
+4. The source's own formats.
+
+### Less motion
+
+A moving image (an animated GIF or WebP) gets a still twin by itself: its first frame, as AVIF and WebP, shown to a visitor whose system asks for less motion. This is what WCAG 2.2.2 asks for, with no play button and no script. The still's file name has `-s` after its size. Cloudflare makes it with `anim=false`. Vercel's optimizer cannot keep one frame: with `vercel()` alone no image offers a still, and the build says so (`image_still_left_out`). List `sharp()` after it and the endpoint makes them.
+
+### Dark
+
+```ts
+const chart = import.meta.og.image('./chart.png', { dark: './chart-dark.png' });
+```
+
+The dark file must have the same shape as the light one, or the build fails (`image_option_invalid`): a different shape would move the page when the theme flips. It gets its own placeholder.
+
+Without more, the visitor's system theme picks. An app with its own theme switch says how its themes are written:
+
+```ts
+image({ theme: { dark: ':root[data-theme="dark"]', light: ':root[data-theme="light"]' } })
+```
+
+A `<source media>` cannot read an attribute, so with `theme` set an image with a dark file renders two `<picture>`s (`data-og-theme="light"` and `"dark"`), and the plugin's stylesheet shows one: the dark one when the dark selector matches, or when the system prefers dark and the light selector does not. The stylesheet is a CSS file, so a strict CSP allows it, and an app without `theme` gets an empty one. Both images are lazy, and a lazy image that is hidden is never fetched: only the shown picture downloads. A `priority` image cannot be lazy, so both load, and each preload carries its theme's media: only a visitor whose chosen theme differs from the system pays for both. The `id` prop goes on the light picture's `<img>`.
+
+### Art direction
+
+Art direction is a page decision, so it lives on presets and props:
+
+```ts
+image({
+  presets: {
+    hero: {
+      layout: 'fullWidth',
+      aspect: '16/9',
+      art: [{ media: '(max-width: 600px)', aspect: '4/5', position: 'attention' }]
+    }
+  }
+});
+```
+
+```svelte
+<Img of={hero} preset="hero" art={[{ media: '(max-width: 600px)', of: heroTall }]} alt="…" />
+```
+
+An art twin is a crop of the same source (`aspect`, `position`, `width`), or another source (`of`), which keeps its own shape unless it says an `aspect`. A designer's second file can also ride with the source:
+
+```ts
+const hero = import.meta.og.image('./hero.jpg', { art: { '(max-width: 600px)': './hero-tall.jpg' } });
+```
+
+`media` is a condition in parentheses, like `(max-width: 600px)`, one per twin: no comma and no media type, so it can be joined with the dark condition. A crop of a source that has a dark file comes first as the dark file at `<media> and (prefers-color-scheme: dark)`. `getImage(of, { art })` lays out the same rows. A list kept apart from the markup is a `Twin[]` (`import type { Twin } from '@ogygia/image'`). A `priority` image writes one preload per row set, each with the media it is shown at, so each visitor preloads only the file the picture will pick. `warm` makes every twin's files too.
 
 ## Warm presets
 
@@ -332,6 +633,89 @@ const team = import.meta.og.image('./team.jpg', { warm: ['cover', 'thumb'] });
 ```
 
 The build writes those files under Kit's `_app/immutable/og/`, like a prerendered page's, and `<Img of={hero} preset="cover">` names them directly, on the server and in an island alike. Saying something over the preset (`<Img of={hero} preset="cover" width={300}>`) asks for other files, which the endpoint makes as usual. A name the config does not declare fails the build (`image_warm_unknown`). In dev every file comes from the endpoint.
+
+## Remote images
+
+An image on another host is fetched at build, from the hosts the app lists (one whose URL a page learns only at request is [`remoteImage()`](#remote-images-images-known-only-at-request-remoteimage)):
+
+```ts title=vite.config.ts
+image({
+	remote: {
+		hosts: ['images.example.com', '*.cdn.example.com'],
+		maxBytes: 20_000_000, // the default: 20 MB
+		timeout: 10_000 // the default: 10 s, redirects and body included
+	}
+});
+```
+
+```ts
+const hero = import.meta.og.image('https://images.example.com/a/hero.jpg', { warm: 'cover' });
+```
+
+From there it is a file like any other: its id is the hash of its bytes, its original ships as one of the app's assets, it gets a placeholder, `warm` works, and a prerendered page's files are made by the build. Every option a local file takes works on it, and a local `dark` or `art` file can go with it.
+
+- **Hosts.** An entry is a host name, with a port when it is not the default. `*.` in front lists every name below it, one level or more (`*.cdn.example.com` takes `a.cdn.example.com` and `a.b.cdn.example.com`, not `cdn.example.com`). Images come over `https://` only, unless an entry starts with `http://` (`'http://127.0.0.1:4100'`, for a test server or an intranet). A URL on any other host fails the build (`image_remote_host`), naming the line to add. An entry takes no path and no address range, and `*.` never goes over a suffix anyone can host under (`*.co.uk`, `*.github.io`, `*.vercel.app`, `*.workers.dev`, `*.s3.amazonaws.com`, a regional storage name such as `*.s3.us-east-1.amazonaws.com`, a shared storage or image CDN name such as `*.public.blob.vercel-storage.com`, `*.b-cdn.net` or `*.imgix.net`, a name above one such as `*.googleapis.com` or `*.us-east-1.amazonaws.com`, and the like are refused, with or without DNS's trailing dot): list your own name below it (`*.mysite.github.io`). An entry that names a host itself takes every path on it, so a storage host that serves every tenant's files under one name lets every tenant's images through: list your own bucket's or account's name where the service gives you one.
+- **The build cache.** Each image is fetched once into `node_modules/.ogygia/image/remote/`, with its `etag` and `last-modified`. Every build asks again with them, once per image, and a `304` keeps the copy: an unchanged image is not downloaded again. Keep that folder between CI runs, like the rest of the build cache.
+- **Offline.** If the host cannot be reached or answers an error, a build that has a copy uses it and warns (`image_remote_stale`): an offline build still works, but may show an old image. A build with no copy fails (`image_remote_failed`), with the reason: the status, the timeout, too large, or not an image (only PNG, JPEG, WebP, AVIF, GIF and TIFF are taken).
+- **Redirects** are followed by the build itself, at most 3, and each one's host must be listed too, so a listed host cannot hand the build a file from one that is not.
+- **Size and time.** The body is counted as it arrives and dropped past `maxBytes`; the whole fetch gets `timeout` milliseconds.
+- **The dev server** fetches each image once per start.
+- **`.glob()` stays local**: a remote image is one URL.
+- **Private addresses.** A host an entry names itself (`'cms.intranet.example'`, `'http://127.0.0.1:4100'`) is trusted wherever it points: an intranet's server or a test server works. A host taken only by a `*.` entry is a name someone below the listed one chose, so it is fetched from only when every address it resolves to is public: never a loopback, private, link-local (a cloud's metadata address), shared or reserved one. The check runs on the address the connection is made to, so a name cannot answer a public address first and a private one after. To fetch from a private host, list it by name.
+
+In markdown, a body image and a frontmatter URL on a listed host become descriptors too ([Markdown images](#markdown-images)); one on any other host stays a plain `<img>` or string.
+
+### Images known only at request: `remoteImage()`
+
+A CMS page learns its images when it is asked for. `remoteImage(url, { width, height })` makes a descriptor of one in a server load, with no build step:
+
+```ts title=src/routes/blog/[slug]/+page.server.ts
+import { remoteImage } from '@ogygia/image';
+
+export const load = async ({ params }) => {
+	const entry = await cms.entry(params.slug);
+	return {
+		title: entry.title,
+		cover: remoteImage(entry.cover.url, {
+			width: entry.cover.width,
+			height: entry.cover.height,
+			alt: entry.cover.alt,
+			version: entry.cover.updatedAt // optional: see below
+		})
+	};
+};
+```
+
+```svelte title=src/routes/blog/[slug]/+page.svelte
+<Img of={data.cover} preset="cover" alt={data.cover.alt} />
+```
+
+`width` and `height` are the image's own: the page reserves its box from them, so ask the CMS for them. A file is never made larger than the image really is (sharp and Cloudflare only shrink a remote source), but the `srcset` is planned from the size you state: a size larger than the real one lists wide files that are no sharper, only bigger to download. The format is read from the URL's extension (JPEG when it names none). It has no placeholder. Its host must be in `image({ remote: { hosts } })`, which is checked where it is fetched.
+
+```ts title=vite.config.ts
+image({
+	remote: {
+		hosts: ['images.cms.example.com'],
+		maxAge: 86_400 // the default: how long a file made from it is kept, in seconds
+	}
+});
+```
+
+- **On a live server and in dev**, the image endpoint fetches the URL the first time a file is asked for, under `hosts`, `maxBytes`, `timeout` and the redirect rule above, and makes the file. The URL rides in the file's signed URL (`…/.remote/<the URL, encoded>.avif`), so no one can make the endpoint fetch another one. All the files of one URL asked at once share one fetch, and fetches count against the same cap as the endpoint's encodes.
+- **Never kept forever.** The bytes behind a URL can change, so its files are kept, and sent to be kept, until the end of the current `maxAge` window (`public, max-age=<seconds left>, stale-while-revalidate=<maxAge>`), never `immutable`. Each URL's windows start at a point of their own, so a server's remote files do not all expire at once; `maxAge` is 1 second or more. After that the next ask fetches the URL again. A CMS whose URLs change with each revision can pass that revision as `version`: another version is another source, with files of its own.
+- **Refusals**, none of them kept by a browser or a CDN, each said once per URL while it keeps failing, in the server's log (`image_remote_refused`). A URL that failed is not fetched again for 30 seconds: its files are answered the same status meanwhile. A card's image is answered the same way. The refusals: `404` for a host `hosts` does not list (also one listed when the page was rendered and taken out since), a redirect to one, or a `*.` host on a private address; `413` past `maxBytes`; `504` past `timeout`; `502` for an error status, no answer, or something that is not a PNG, JPEG, WebP, AVIF, GIF or TIFF image or does not decode as one (a file cut short included). A failure of the server's own while it makes a file or a card, such as running out of memory, is not the URL's: that one request is answered `500`, and the next one tries again. When a `502` or `504` comes just after a window ended, a server that still keeps the file of the window before answers that file instead, sent to be kept 30 seconds, so a host that is down for a while does not take its images away at once; one window later, with no newer file, the refusal is answered.
+- **In a prerendered page**, the build fetches it, the same way and into the same cache as a build-time remote image, and makes its files as static files named by the bytes it got, not by the URL: a URL whose bytes change gets new file names in the next build. A build with no `remote` set fails (`image_unsettled`, naming the host to list).
+- **With `cloudflare()` links**, a file is `/cdn-cgi/image/<options>/https://images.cms.example.com/…`, made by Cloudflare's CDN from the URL. The zone must allow that origin: in the dashboard, Images, Transformations, the zone's sources must list the CMS's host (or allow any origin, which lets anyone resize any image through your zone). With `cloudflare({ links: false })`, the Worker's endpoint fetches the URL itself and makes the file with the Images binding.
+- **With `vercel()`**, a file is `/_vercel/image?url=https%3A%2F%2Fimages.cms.example.com%2F…`, and Vercel fetches only from the hosts its `images.remotePatterns` lists. `vercel()` cannot know `hosts`, so add one entry per host to the adapter's `images`; the build checks that they reach every host in `hosts` and no other (`image_vercel_config`, which prints the exact value):
+
+```js title=svelte.config.js
+adapter({
+	images: {
+		...VERCEL.images,
+		remotePatterns: [{ protocol: 'https', hostname: '^images\\.cms\\.example\\.com$' }]
+	}
+});
+```
 
 ## Markdown images
 
@@ -350,7 +734,7 @@ cover: ./cover.jpg
 - **A missing file fails the build** (`image_not_found`), naming the post and the path.
 - **The `prose` preset** (or `markdown.width` without one) is how every body image is shown, so a phone and a laptop each get a file that fits. Leave both out and each image is as wide as itself.
 - **A moving image** (an animated GIF or WebP) can take its own preset: `image({ presets: { motion: { width: 400, sizes: '33vw' } }, markdown: { animated: 'motion' } })`. Its width and `sizes` reach the `srcset`, so the browser downloads the narrow file, and a prerendered page's build makes only that preset's files. Still images keep the `prose` preset. The name must be a declared preset, or the build fails (`image_option_invalid`). In a component, read `of.animated` and pick the preset yourself.
-- **Remote and site-absolute images** (`https://…`, `/static/x.png`) stay plain `<img>` tags, and the `img` slot of `site({ components })` still gets them.
+- **Remote images on a listed host** (`image({ remote: { hosts } })`) render through `<Img>` like local ones ([Remote images](#remote-images)). Any other remote image and site-absolute images (`/static/x.png`) stay plain `<img>` tags, and the `img` slot of `site({ components })` still gets them.
 - **HTML `<img>` tags in markdown** that name a local file fail the build (`image_markdown_html`): they would ship as a broken link. Write them as `![alt](./photo.jpg)`.
 - **`import.meta.og.md(text)`** renders markdown from a string, which has no file to resolve against, so a local image there fails the build (`image_markdown_no_file`). Use a site-absolute URL there, or move the markdown into a `.md` file.
 
@@ -360,7 +744,7 @@ To turn markdown images off, pass `image({ markdown: false })`. Markdown images 
 
 ## Frontmatter images
 
-A frontmatter value that starts with `./` or `../` and ends in an image extension becomes a descriptor at build, wherever it sits (a nested object or a list works too). Other strings stay strings: `images/share.png` or `diagram.png` are left alone. A missing file fails the build.
+A frontmatter value that starts with `./` or `../` and ends in an image extension becomes a descriptor at build, wherever it sits (a nested object or a list works too). Other strings stay strings: `images/share.png` or `diagram.png` are left alone. A missing file fails the build. A URL on a host `image({ remote: { hosts } })` lists (`cover: https://images.example.com/c.jpg`) becomes a descriptor too, fetched at build ([Remote images](#remote-images)); a URL on any other host stays a string.
 
 In the collection's schema, accept the descriptor with `isImage`, a check that a value is a descriptor. Define the collection in a `.server.ts` file, like every collection ([Collections](/docs/content/collections)), so its posts never reach a browser bundle:
 
@@ -484,7 +868,7 @@ export function beside(id: string, rel: string): ImageDescriptor {
 
 ## Outside `<Img>`
 
-`getImage(descriptor, { preset, layout, width, aspect, … })` returns what `<Img>` renders: `src`, `srcset`, `sizes`, `width`, `height`, the `<source>` list and the preload, with the same file URLs (signed on a live server, the build's files on a prerendered page). Use it for a CSS background, an Open Graph tag or a component of your own. Like `<Img>`, it runs on the server:
+`getImage(descriptor, { preset, layout, width, aspect, … })` returns what `<Img>` renders: `src`, `srcset`, `sizes`, `width`, `height`, the `<source>` rows (twins first, then formats) and the preloads (types `Laid`, `LaidSource`, `LaidPreload`), with the same file URLs (signed on a live server, the build's files on a prerendered page, an encoder's links where it names them). Use it for a CSS background, an Open Graph tag or a component of your own. Like `<Img>`, it runs on the server:
 
 ```svelte
 <script lang="ts">
@@ -496,25 +880,25 @@ export function beside(id: string, rel: string): ImageDescriptor {
 <section style="background-image: url({laid.src})">…</section>
 ```
 
-An `<Img>` inside an island keeps the server's file URLs when it hydrates. A render that only ever happens in the browser has no key to sign with, so it shows the original file.
+An `<Img>` inside an island keeps the server's file URLs when it hydrates. A render that only ever happens in the browser has no key to sign with: it names a warmed preset's files, or the encoder's links (`cloudflare()`, `vercel()`), and otherwise shows the original file.
 
 ## Moving from Astro's `astro:assets`
 
-| Astro                                               | ogygia                                                                                                              |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `import hero from './hero.jpg'`                     | `const hero = import.meta.og.image('./hero.jpg')`                                                                   |
-| `<Image src={hero} alt="…" />`                      | `<Img of={hero} alt="…" />`                                                                                         |
-| `<Picture formats={['avif', 'webp']} />`            | `<Img>`: AVIF and WebP are the default                                                                              |
-| `widths={[600, 1200]}`, `sizes="…"`                 | a preset, or `layout` and `width`; `sizes` only as an escape hatch                                                  |
-| `layout="full-width"` / `"constrained"` / `"fixed"` | `layout="fullWidth"` / `"constrained"` / `"fixed"`                                                                  |
-| `loading="eager"` + `fetchpriority="high"`          | `priority`                                                                                                          |
-| `getImage({ src })`                                 | `getImage(descriptor, { … })`                                                                                       |
-| `image()` in a markdown collection's schema         | `v.custom<ImageDescriptor>(isImage)`, with a `./` or `../` path                                                     |
-| `image()` in a JSON collection's schema             | a `v.string()` field, looked up in an `import.meta.og.image.glob()` ([Images named in JSON](#images-named-in-json)) |
-| `import.meta.glob('./*.jpg', { eager: true })`      | `import.meta.og.image.glob('./*.jpg')`                                                                              |
-| `![alt](./photo.jpg)` in `.md` / `.mdx`             | the same, with `content({ markdown })` and `image()` listed                                                         |
-| images encoded at build, content-hashed names       | a prerendered site's files made at build, named by their recipe                                                     |
-| GIFs styled narrower (`figure.gif { width: 33vw }`) | a preset for them, named by `image({ markdown: { animated: 'motion' } })`                                           |
+| Astro                                               | ogygia                                                                                                                                 |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `import hero from './hero.jpg'`                     | `const hero = import.meta.og.image('./hero.jpg')`                                                                                      |
+| `<Image src={hero} alt="…" />`                      | `<Img of={hero} alt="…" />`                                                                                                            |
+| `<Picture formats={['avif', 'webp']} />`            | `<Img>`: AVIF and WebP are the default                                                                                                 |
+| `widths={[600, 1200]}`, `sizes="…"`                 | a preset, or `layout` and `width`; `sizes` only as an escape hatch                                                                     |
+| `layout="full-width"` / `"constrained"` / `"fixed"` | `layout="fullWidth"` / `"constrained"` / `"fixed"`                                                                                     |
+| `loading="eager"` + `fetchpriority="high"`          | `priority`                                                                                                                             |
+| `getImage({ src })`                                 | `getImage(descriptor, { … })`                                                                                                          |
+| `image()` in a markdown collection's schema         | `v.custom<ImageDescriptor>(isImage)`, with a `./` or `../` path                                                                        |
+| `image()` in a JSON collection's schema             | a `v.string()` field, looked up in an `import.meta.og.image.glob()` ([Images named in JSON](#frontmatter-images-images-named-in-json)) |
+| `import.meta.glob('./*.jpg', { eager: true })`      | `import.meta.og.image.glob('./*.jpg')`                                                                                                 |
+| `![alt](./photo.jpg)` in `.md` / `.mdx`             | the same, with `content({ markdown })` and `image()` listed                                                                            |
+| images encoded at build, content-hashed names       | a prerendered site's files made at build, named by their recipe                                                                        |
+| GIFs styled narrower (`figure.gif { width: 33vw }`) | a preset for them, named by `image({ markdown: { animated: 'motion' } })`                                                              |
 
 A few differences to know when you move a site:
 
@@ -522,7 +906,7 @@ A few differences to know when you move a site:
 - **Images live under `src/`.** A file outside it fails the build (`image_outside_src`).
 - **A static site's image URLs stay the same across builds**, like Astro's `_astro/` files, with no secret to set. They sit under `_app/immutable/og/` and are named by the source's content and the recipe, not the file's name.
 - **Animated GIFs** become animated WebP, never AVIF. There is no option to turn them off, and a preset's `formats` do not apply to them: a GIF cover's `og:image` is an animated WebP too.
-- **Remote images** are not supported yet: a URL in the macro fails the build (`image_remote_unsupported`). Markdown leaves remote images as plain `<img>`.
+- **Remote images**: Astro's `image.domains` and `image.remotePatterns` become one list, `image({ remote: { hosts } })`. `domains: ['images.example.com']` is `hosts: ['images.example.com']`; a `remotePatterns` entry `{ protocol: 'https', hostname: '**.example.com' }` is `'*.example.com'` (one level or more, like Astro's `**.`); Astro's `*.` (exactly one level) has no twin here, so list each name or use `*.`; `{ protocol: 'http', hostname: 'localhost', port: '4100' }` is `'http://localhost:4100'`. A `pathname` pattern has no twin: a host is listed whole. Astro fetches a remote image at build and does not know its size until then; here the build fetches it once into its cache and asks again on each build, so the page always reserves its box.
 - **`<Img>` takes a fixed set of attributes** (listed above). A `data-*` or `aria-*` attribute is not passed through.
 - **MDX components** are not part of `@ogygia/content`'s markdown. Rename `.mdx` posts to `.md` (or `.svx`, which takes Svelte components). Delete each post's image wiring (`import BlogImage from …` and `export const components = { img: BlogImage }`): `![]()` images render through `<Img>` on their own. Any other MDX component (a `<Tweet id="…">`) needs a Svelte component in a `.svx` post, or a plain link.
 - **Collections live in `.server.ts` files** and pages load them in `+page.server.ts`, not a universal `+page.ts` (which cannot import a server module). An awaited body and a descriptor cross to the page.

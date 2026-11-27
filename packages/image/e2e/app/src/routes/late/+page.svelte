@@ -6,5 +6,5 @@
 
 <h1>images added late</h1>
 {#each Object.entries(late) as [key, img] (key)}
-	<Img of={img} width={80} alt={key} />
+	<Img of={img} width={80} aspect="2/1" position="top" alt={key} />
 {/each}

@@ -16,7 +16,8 @@ vi.hoisted(() => {
 vi.mock('virtual:ogygia-image/sources', () => ({
 	default: {
 		'/src/lib/harbor.jpg': 'https://cdn.example.com/_app/immutable/assets/harbor.Ab12.jpg'
-	}
+	},
+	remote: []
 }));
 vi.mock('virtual:ogygia-image/config', () => ({
 	default: { paths: { base: '/docs', assets: 'https://cdn.example.com', app_dir: '_app' } }
@@ -40,7 +41,7 @@ let id = '';
 beforeAll(async () => {
 	const img = await make_images();
 	files.set('_app/immutable/assets/harbor.Ab12.jpg', img.jpg);
-	id = id_of(img.jpg);
+	id = await id_of(img.jpg);
 });
 
 describe('paths.assets', () => {

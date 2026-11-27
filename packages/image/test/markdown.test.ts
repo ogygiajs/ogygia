@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, test } from 'vitest';
 import { dedent } from '@ogygia/core/plugin/utils';
 import { EXTENSION_API, markdown_extension } from '../src/vite/markdown.ts';
 import { image } from '../src/vite/index.ts';
+import { url_of_remote_src } from '../src/vite/remote.ts';
 
 type Hast = {
 	type?: string;
@@ -224,6 +225,29 @@ describe('markdown body images', () => {
 			bridge().rehype()(tree, { filename: post });
 			expect(tree.children![0]!.children![0]!.tagName).toBe('img');
 		}
+	});
+
+	test('a body image and a frontmatter URL on a listed host become descriptors; an unlisted one stays plain', () => {
+		const ext = markdown_extension({ remote: { hosts: ['images.example.com'] } })!;
+		const rehype = ext.rehype[0].plugin;
+		const listed = tree_of({ src: 'https://images.example.com/a.jpg', alt: 'A' });
+		rehype()(listed, { filename: post });
+		expect(listed.children![0]!.value).toMatch(/^<!--og-image:/);
+		const raw = listed.children![1]!.children![0]!;
+		expect(raw.type).toBe('raw');
+		expect(raw.value).toMatch(/^<Og__Img of=\{__og_md_image_0\} alt="A"/);
+		const other = tree_of({ src: 'https://cdn.other.com/a.jpg', alt: '' });
+		rehype()(other, { filename: post });
+		expect(other.children![0]!.children![0]!.tagName).toBe('img');
+
+		const code = `<!--og-image:${Buffer.from(JSON.stringify([])).toString('base64url')}-->export const metadata = {"cover":"https://images.example.com/c.jpg","link":"https://cdn.other.com/c.jpg"};\n`;
+		const out = ext.finish(code, post);
+		expect(out.code).toContain(
+			'export const metadata = {"cover":__og_fm_image_0,"link":"https://cdn.other.com/c.jpg"};'
+		);
+		const spec = /import __og_fm_image_0 from "([^"?]+)\?og-image"/.exec(out.lines.join('\n'))![1]!;
+		expect(url_of_remote_src(spec)).toBe('https://images.example.com/c.jpg');
+		expect(out.files).toEqual([]);
 	});
 
 	test('image() offers the extension on its Vite plugin api, and markdown: false offers none', () => {
