@@ -54,13 +54,21 @@ export function derive_id_salt(secret: string): string {
 }
 
 /** HKDF-SHA256 → the 32-byte build key (hex) a build with the app's secret bakes into its server
- *  bundle: a function of the secret alone, so two builds of one source and secret write the same
- *  bundle, and the bundle holds no secret it was derived from. A blank secret is refused
- *  (`build_key_blank_secret`): a key made from it is the same for every app. */
-export function derive_build_key(secret: string): string {
+ *  bundle: a function of the secret and the app's version (Kit's `version.name`, the HKDF salt),
+ *  so two builds of one source, secret and version write the same bundle, a key leaked from one
+ *  version's bundle is no use to another's, and the bundle holds no secret it was derived from.
+ *  A blank secret is refused (`build_key_blank_secret`): a key made from it is the same for every
+ *  app. */
+export function derive_build_key(secret: string, version: string): string {
 	if (secret.trim() === '') throw new OgygiaError('build_key_blank_secret');
 	return Buffer.from(
-		hkdfSync('sha256', Buffer.from(secret, 'utf8'), Buffer.alloc(0), BUILD_KEY_INFO, 32)
+		hkdfSync(
+			'sha256',
+			Buffer.from(secret, 'utf8'),
+			Buffer.from(version, 'utf8'),
+			BUILD_KEY_INFO,
+			32
+		)
 	).toString('hex');
 }
 

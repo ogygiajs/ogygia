@@ -10,6 +10,7 @@ import path from 'node:path';
 import { afterEach, expect, test } from 'vitest';
 import type { Plugin } from 'vite';
 import { ogygia } from '../src/vite/index.ts';
+import { derive_build_key } from '@ogygia/core/contract';
 
 type Hook<T> = T | { handler: T };
 const handler = <T>(hook: Hook<T>): T =>
@@ -142,4 +143,49 @@ test('a build without OGYGIA_SECRET bakes a key of its own, never one worked out
 		).toString('hex')
 	);
 	for (const key of keys) expect(from_blank).not.toContain(key);
+});
+
+test("a build with OGYGIA_SECRET bakes the key of its secret and the app's version, and a random one where Kit's config names no version", async () => {
+	const had = process.env.OGYGIA_SECRET;
+	const secret = 'two-legs-secret-0123456789abcdef0123';
+	const baked = async (config: string | null) => {
+		root = app_root();
+		if (config !== null) writeFileSync(path.join(root, 'svelte.config.js'), config);
+		const server = ogygia().find((p) => p.name === 'ogygia')!;
+		await handler(server.config as Hook<(c: object, e: object) => unknown>).call(
+			null as never,
+			{ root, plugins: [] },
+			{ command: 'build', mode: 'production' }
+		);
+		handler(server.configResolved!).call(
+			null as never,
+			{
+				root,
+				base: '/',
+				command: 'build',
+				mode: 'production',
+				envDir: false,
+				build: { ssr: true }
+			} as never
+		);
+		await handler(server.buildStart!).call(env('ssr') as never, {} as never);
+		const out = (await handler(server.load!).call(env('ssr') as never, '\0ogygia:server/secret', {
+			ssr: true
+		})) as string | { code: string };
+		rmSync(root, { recursive: true, force: true });
+		root = '';
+		return /"([0-9a-f]{64})"/.exec(typeof out === 'string' ? out : out.code)?.[1];
+	};
+	const versioned = (v: string) => `export default { kit: { version: { name: '${v}' } } };`;
+	process.env.OGYGIA_SECRET = secret;
+	try {
+		expect(await baked(versioned('v1'))).toBe(derive_build_key(secret, 'v1'));
+		expect(await baked(versioned('v2'))).toBe(derive_build_key(secret, 'v2'));
+		const unversioned = [await baked(null), await baked(null)];
+		expect(unversioned[0]).not.toBe(unversioned[1]);
+		expect(unversioned).not.toContain(derive_build_key(secret, ''));
+	} finally {
+		if (had === undefined) delete process.env.OGYGIA_SECRET;
+		else process.env.OGYGIA_SECRET = had;
+	}
 });

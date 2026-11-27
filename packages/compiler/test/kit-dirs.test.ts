@@ -63,12 +63,18 @@ describe('kit.files.routes / kit.outDir', () => {
 			{ name: 'ogygia' },
 			Promise.resolve([
 				{ name: 'vite-plugin-svelte:config' },
-				setup({ files: { routes: 'src/r3' }, outDir: '.out3', inlineStyleThreshold: 2048 })
+				setup({
+					files: { routes: 'src/r3' },
+					outDir: '.out3',
+					inlineStyleThreshold: 2048,
+					version: { name: '1764230000000' }
+				})
 			])
 		];
 		expect(await load_kit_config(root, kit3)).toEqual({
 			dirs: { routes_dir: join(root, 'src/r3'), out_dir: join(root, '.out3') },
-			inline_style_threshold: 2048
+			inline_style_threshold: 2048,
+			version: '1764230000000'
 		});
 		// Kit 2: the svelte config, Kit's options under `kit` — preferred over the file it was read from
 		const kit2_root = app({
@@ -146,6 +152,19 @@ describe('kit.files.routes / kit.outDir', () => {
 		expect(await at('Infinity')).toBe(0);
 		expect(await at("'big'")).toBe(0);
 		expect((await load_kit_config(app({}))).inline_style_threshold).toBe(0);
+	});
+
+	it("the app's version is Kit's version.name, or null where the config does not say", async () => {
+		const at = async (v: string) =>
+			(
+				await load_kit_config(
+					app({ 'svelte.config.js': `export default { kit: { version: { name: ${v} } } };` })
+				)
+			).version;
+		expect(await at("'v1.2.3'")).toBe('v1.2.3');
+		expect(await at("' '")).toBe(null);
+		expect(await at('42')).toBe(null);
+		expect((await load_kit_config(app({}))).version).toBe(null);
 	});
 
 	it("the app's universal and client hooks are found as .ts or .js", () => {

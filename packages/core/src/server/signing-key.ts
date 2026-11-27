@@ -20,7 +20,7 @@ import { OgygiaError, warn } from '../messages/server.ts';
 
 export interface SigningKey {
 	secret: string;
-	/** the app's or the env's: survives redeploys and is shared by every deployment that sets the same value */
+	/** the runtime has its own secret (the app's or the env's), shared by every deployment that sets the same value; false: the key the build baked */
 	stable: boolean;
 	/** 8-char key fingerprint (`&k=` on capabilities, `x-ogygia-key` on refusals) */
 	fp: string;

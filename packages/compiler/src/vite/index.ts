@@ -581,7 +581,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			configResolved(config) {
 				root = config.root;
-				kit ??= { dirs: default_kit_dirs(root), inline_style_threshold: 0 };
+				kit ??= { dirs: default_kit_dirs(root), inline_style_threshold: 0, version: null };
 				base = config.base || '';
 				svelte = svelte_compile(config.plugins);
 				svelte_async = svelte_async_enabled(svelte);
@@ -636,7 +636,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						throw new OgygiaError('secret_too_short', { min_bytes: MIN_SECRET_BYTES });
 					}
 					id_salt = derive_id_salt(env_secret);
-					build_secret = derive_build_key(env_secret);
+					build_secret =
+						kit.version === null ? random_build_key : derive_build_key(env_secret, kit.version);
 				} else {
 					id_salt = '';
 					build_secret = random_build_key;
