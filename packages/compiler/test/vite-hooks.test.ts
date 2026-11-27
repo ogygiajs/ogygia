@@ -17,6 +17,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { uneval } from 'devalue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	APP_SHIMS,
@@ -1013,6 +1014,39 @@ describe('transform', () => {
 				warned.mockRestore();
 			}
 		});
+
+		for (const mode of ['dev', 'build'] as const) {
+			const anchor =
+				mode === 'dev' ? 'const { env } = globalThis.__sveltekit_dev;' : 'const env = payload.env;';
+
+			it(`${mode}: a module with only static variables whose value is a regex naming env (as Kit's devalue writes it) evaluates where Kit never boots, and says nothing`, async () => {
+				const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+				try {
+					const code = `${anchor}\n\nexport const PUBLIC_PATTERN = ${uneval(/env/g)};\n`;
+					const out = await patched(mode, 'client', code);
+					expect(out).not.toContain('ogygia:boot/kit-env');
+					if (mode === 'build') expect(out).toBe(code);
+					else expect(String(evaluate(out, null, undefined).PUBLIC_PATTERN)).toBe('/env/g');
+					expect(warned).not.toHaveBeenCalled();
+				} finally {
+					warned.mockRestore();
+				}
+			});
+
+			it(`${mode}: a module with only static variables whose string value holds a dynamic read's text imports no reader, and says nothing`, async () => {
+				const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+				try {
+					const code = `${anchor}\n\nexport const PUBLIC_NOTE = ${uneval('a = env.b')};\n`;
+					const out = await patched(mode, 'client', code);
+					expect(out).not.toContain('ogygia:boot/kit-env');
+					if (mode === 'build') expect(out).toBe(code);
+					else expect(evaluate(out, null, undefined)).toEqual({ PUBLIC_NOTE: 'a = env.b' });
+					expect(warned).not.toHaveBeenCalled();
+				} finally {
+					warned.mockRestore();
+				}
+			});
+		}
 	});
 
 	it("a module's names from a realm module are imported from the entries that have them", async () => {
