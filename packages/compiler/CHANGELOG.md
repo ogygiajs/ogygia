@@ -1,5 +1,29 @@
 # @ogygia/compiler
 
+## 0.15.1
+
+### Patch Changes
+
+- Updated dependencies [[`617b3c7`](https://github.com/ogygiajs/ogygia/commit/617b3c74f1ac68adfe5598e664fbc5adba3a0689)]:
+  - @ogygia/machine@0.15.1
+  - @ogygia/core@0.15.1
+
+## 0.15.0
+
+### Minor Changes
+
+- [#2189](https://github.com/ogygiajs/ogygia/pull/2189) [`9c12103`](https://github.com/ogygiajs/ogygia/commit/9c12103b2ba2a63328716420da98c71c62b1b386) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A smaller boot and a faster server: the compiler now builds each page's runtime with only the features its regions use, so a static page's boot is about 28% smaller (brotli), a plain server's output about 25% smaller, server requests do about half the work, plain servers answer about 20% more requests a second, and router navigations are about 30% faster.
+
+### Patch Changes
+
+- [#2150](https://github.com/ogygiajs/ogygia/pull/2150) [`2d05423`](https://github.com/ogygiajs/ogygia/commit/2d05423ff383db7ac873fa5f3d25d30df7de9c56) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A region placed by a component outside `src/` (an installed package such as `@ogygia/content`'s `DocsShell`, or a workspace package) now gets the runtime features it needs: the server build names the runtime its pages load once it has compiled every module, and the client build ships exactly that runtime, also when one compiler builds both. A kept region's next-page props reach it, and the build no longer warns `runtime_marks_late` for such a component. If the client build's scan finds a feature that runtime lacks, the build stops with `runtime_features_unnamed`; a handoff that names no runtime stops it with `server_runtime_unnamed`; and a handoff the server build cannot write now stops the build instead of only warning.
+
+- [#2155](https://github.com/ogygiajs/ogygia/pull/2155) [`594e3e9`](https://github.com/ogygiajs/ogygia/commit/594e3e93953e6ba7834611fd36b1430c4bf830d5) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A build stops with `server_features_late` when a component the server build reached only while bundling (an installed package's component it does not list in `"ogygia.files"`) needs a runtime feature the server's own code was built without, naming the feature and the component, instead of rendering that region without its code.
+
+- [#2167](https://github.com/ogygiajs/ogygia/pull/2167) [`fc5a003`](https://github.com/ogygiajs/ogygia/commit/fc5a00371ad6e2ea954edaf9d5486774d4f03aab) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The server build fixes which runtime features its code carries only once it has compiled every other module of its bundle, so a component outside the app's `src/` that it reaches while bundling (such as `@ogygia/router`'s layout chain in an app that uses `@ogygia/federation`) is counted, instead of stopping the build with `server_features_late`.
+- Updated dependencies [[`9c12103`](https://github.com/ogygiajs/ogygia/commit/9c12103b2ba2a63328716420da98c71c62b1b386)]:
+  - @ogygia/core@0.15.0
+
 ## 0.14.2
 
 ### Patch Changes

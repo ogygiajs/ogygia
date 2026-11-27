@@ -4,6 +4,16 @@
  * running tasks is never hung: how fast the host is would then decide a seed's result, and the two
  * runs of one seed would differ (test/watchdog.test.ts).
  */
+/** A worker's heap after a run: bytes in use and the most it may hold. */
+export type Heap = { used: number; limit: number };
+
+/** Whether a worker should retire after its run: each run keeps its server graph (a loaded graph
+ *  is never freed), so a worker past half its heap may not fit the next one. The heap's limit, not
+ *  a count of runs, says when: it follows the host's memory (test/watchdog.test.ts). */
+export function worker_full(heap: Heap): boolean {
+	return heap.used > heap.limit / 2;
+}
+
 export class Watchdog {
 	readonly #quiet_ms: number;
 	/** Tasks the loop had run when last asked (-1: no world, no loop yet). */
