@@ -479,7 +479,7 @@ export const kit_wire: Family<KitWireModule> = virtual.family({
 });
 
 /** KIT-PUBLIC-ENV, the server's half: the public env Kit puts in its boot payload (kit-patches.ts
- *  `KIT_PUBLIC_ENV_SOURCE`), `null` on a Kit ogygia reads none from. */
+ *  `kit_public_env_module`), `null` on a Kit ogygia reads none from. */
 export const kit_env: Family<KitEnvModule> = virtual.family({
 	realm: 'server',
 	id: 'kit-env',
