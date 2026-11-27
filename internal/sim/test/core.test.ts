@@ -486,6 +486,40 @@ describe('the network', () => {
 		expect(loop.now).toBeGreaterThan(at);
 	});
 
+	it('two holds by one test each keep their own requests, and the network ending fails what is still held', async () => {
+		const loop = new Loop(rng(1));
+		const net = new Network({ loop, rng: rng(1), faults: new Set() });
+		const asked: string[] = [];
+		const handler = async (r: Request) => {
+			asked.push(new URL(r.url).pathname);
+			return new Response('x');
+		};
+		const any = () => true;
+		const first = net.hold(any);
+		const one = net.send('tab-1#1', new Request('https://app.test/one'), handler);
+		const second = net.hold(any);
+		const two = net.send('tab-1#1', new Request('https://app.test/two'), handler);
+		const third = net.hold(any);
+		const three = net.send('tab-1#1', new Request('https://app.test/three'), handler).then(
+			() => 'answered',
+			(e: unknown) => (e instanceof Error ? e.message : String(e))
+		);
+		second();
+		await loop.run(10_000);
+		expect(asked, 'a request any hold names stays until every such hold lets go').toEqual([]);
+		first();
+		await loop.run(10_000);
+		expect(asked).toEqual(['/one', '/two']);
+		expect(await one).toBeInstanceOf(Response);
+		expect(await two).toBeInstanceOf(Response);
+		net.end();
+		expect(await three).toMatch(/Failed to fetch/);
+		expect(net.busy()).toBe(false);
+		third();
+		await loop.run(10_000);
+		expect(asked).toEqual(['/one', '/two']);
+	});
+
 	it('each visitor comes from a client address of its own, and its server hops keep it', async () => {
 		// (a crowd of visitors shared one address, so a per-client rate limit saw one client)
 		const loop = new Loop(rng(1));
