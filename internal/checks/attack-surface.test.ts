@@ -107,6 +107,20 @@ test("every call of devalue's parse is a decoder, with or without revivers, by a
 	);
 });
 
+test("devalue's parse imported under a name with a $ in it is listed", () => {
+	const src = dedent`
+		import { parse as $parse } from 'devalue';
+		import * as $dv from 'devalue';
+		export function a(text: string) {
+			return $parse(text) ?? $dv.parse(text);
+		}
+	`;
+	assert.deepEqual(
+		scan_file('d.ts', src).map((e) => `${e.kind} ${e.where} ${e.what} ${e.count}`),
+		['decode a devalue parse 2']
+	);
+});
+
 test("a parse in a file that does not import devalue's is a decoder only with revivers", () => {
 	const src = dedent`
 		import type { parse } from 'devalue';
