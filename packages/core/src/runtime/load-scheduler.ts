@@ -12,6 +12,7 @@ import { on_screen, watch_viewport } from './viewport.ts';
 import type { CriticalOutcome } from '../contract/runtime-hooks.ts';
 import { criticalSettled, loadStarted } from 'ogygia:boot/hooks';
 import { downloaded, hear_responses } from './import-again.ts';
+import { srcset_candidates } from '../srcset.ts';
 
 export { fetch_priority_of, type LoadClass } from './load-class.ts';
 
@@ -193,20 +194,16 @@ function pending_critical(): Element[] {
 	return out;
 }
 
-/** The URLs a preload link may fetch: its `href`, else each `imagesrcset` candidate's. */
+/** The URLs a preload link may fetch: each `imagesrcset` candidate's (the browser picks one), and its `href`. */
 export function preload_urls(link: HTMLLinkElement): string[] {
-	if (link.href) return [link.href];
-	const set = link.getAttribute('imagesrcset');
-	if (!set) return [];
 	const out: string[] = [];
-	for (const part of set.split(',')) {
-		const candidate = part.trim();
-		let end = 0;
-		while (end < candidate.length && candidate.charCodeAt(end) > 32) end++;
-		const url = candidate.slice(0, end);
-		if (!url) continue;
+	if (link.href) out.push(link.href);
+	const set = link.getAttribute('imagesrcset');
+	if (!set) return out;
+	for (const { url } of srcset_candidates(set)) {
 		try {
-			out.push(new URL(url, document.baseURI).href);
+			const href = new URL(url, document.baseURI).href;
+			if (!out.includes(href)) out.push(href);
 			// oxlint-disable-next-line ogygia/no-silent-failures -- not a URL: the candidate is skipped
 		} catch {}
 	}

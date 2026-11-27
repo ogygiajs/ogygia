@@ -1,6 +1,6 @@
 {
 	"name": "@ogygia/cli",
-	"version": "0.15.1",
+	"version": "0.16.0",
 	"description": "The ogygia command line: init and site scaffolds, the AI skill, the MCP server, perf budgets and bisect, federation keys and catalogs",
 	"keywords": [
 		"cli",

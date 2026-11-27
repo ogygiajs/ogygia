@@ -28,7 +28,7 @@ import {
 	type FoundTag
 } from '@ogygia/core/internal/server';
 import { cache } from '@ogygia/machine';
-import { attr, decodeText, html, type Html } from '@ogygia/core/plugin/utils';
+import { attr, decodeText, html, srcsetCandidates, type Html } from '@ogygia/core/plugin/utils';
 import { capability, clock, random, type Capability } from '@ogygia/machine';
 
 // ── paths the handle serves ──────────────────────────────────────────────────────────────────
@@ -493,15 +493,36 @@ export function child_traceparent(incoming?: string | null): {
 // ── asset absolutizing ───────────────────────────────────────────────────────────────────────
 const ABSOLUTE_RE = /^[a-z][a-z0-9+.-]*:|^\/\//i;
 // (the asset attributes' names in any case (`asset_suffix`) in any case: where an asset ref can be; a tag without one is not read)
-const ASSET_ATTR_ANY_CASE = /entry|endpoint|href|src/gi;
-const ASSET_PATH_RE = /(?:^|\/)(_app|og)\//;
-const ASSET_EXT_RE = /\.(js|css|woff2?)(\?|$)/;
+const ASSET_ATTR_ANY_CASE = /entry|endpoint|href|src|style/gi;
+const ASSET_PATH_RE = /(?:^|\/)(?:(?:_app|og|__ogygia__\/i|cdn-cgi\/image)\/|_vercel\/image\?)/;
+const ASSET_EXT_RE = /\.(js|css|woff2?|avif|webp|png|jpe?g|gif|svg)(\?|$)/i;
 
 /** One asset ref pinned to `origin`; an app-local link (or an absolute URL) as it is. */
 function pin_asset(value: string, origin: string): string {
 	if (ABSOLUTE_RE.test(value)) return value;
 	if (!ASSET_PATH_RE.test(value) && !ASSET_EXT_RE.test(value)) return value;
 	return new URL(value, `${origin}/`).href;
+}
+
+const CSS_URL_RE =
+	/(url\(\s*)(&quot;|&#34;|&#39;|&apos;|["']?)((?:[^"'()\s&]|&(?!quot;|#34;|#39;|apos;))+)(\2\s*\))/gi;
+
+function pin_style(value: string, origin: string): string {
+	return value.replace(
+		CSS_URL_RE,
+		(_, open: string, quote: string, url: string, close: string) =>
+			open + quote + pin_asset(url, origin) + close
+	);
+}
+
+function pin_srcset(value: string, origin: string): string {
+	let out = '';
+	let at = 0;
+	for (const { url, start, end } of srcsetCandidates(value)) {
+		out += value.slice(at, start) + pin_asset(url, origin);
+		at = end;
+	}
+	return out + value.slice(at);
 }
 
 // (the attribute's name in any case: where a graph script can be; a script without it is not read)
@@ -544,21 +565,27 @@ function pin_endpoint(value: string, origin: string): string {
 	return ABSOLUTE_RE.test(value) ? value : new URL(value, `${origin}/`).href;
 }
 
-/** Where the asset name (`entry`, `endpoint`, `href`, `src`, in any ASCII case) that ends
- *  `html[ns, ne)`, an attribute's name as written, starts, or -1. An attribute holds an asset ref
- *  when its name is one, or ends in one after a character no word holds (`data-src`,
- *  `xlink:href`). */
+const PIN_BY_NAME_LENGTH: Readonly<Record<number, (value: string, origin: string) => string>> = {
+	8: pin_endpoint,
+	6: pin_srcset,
+	11: pin_srcset
+};
+
 function asset_suffix(html: string, ns: number, ne: number): number {
 	// (told apart by their last letter: most names are out there)
 	switch (html.charCodeAt(ne - 1) | 32) {
 		case 99 /* c */:
 			return ends_with(html, ns, ne, 'src') ? ne - 3 : -1;
+		case 101:
+			return ends_with(html, ns, ne, 'style') ? ne - 5 : -1;
 		case 102 /* f */:
 			return ends_with(html, ns, ne, 'href') ? ne - 4 : -1;
 		case 121 /* y */:
 			return ends_with(html, ns, ne, 'entry') ? ne - 5 : -1;
 		case 116 /* t */:
-			return ends_with(html, ns, ne, 'endpoint') ? ne - 8 : -1;
+			if (ends_with(html, ns, ne, 'endpoint')) return ne - 8;
+			if (ends_with(html, ns, ne, 'imagesrcset')) return ne - 11;
+			return ends_with(html, ns, ne, 'srcset') ? ne - 6 : -1;
 		default:
 			return -1;
 	}
@@ -619,7 +646,11 @@ export function absolutize(html: string, origin: string): string {
 		seen.push(ns, ne);
 		if (vs === ve) return;
 		const value = html.slice(vs, ve);
-		const pinned = ne - suffix === 8 ? pin_endpoint(value, origin) : pin_asset(value, origin);
+		const pin =
+			(html.charCodeAt(ne - 1) | 32) === 101
+				? pin_style
+				: (PIN_BY_NAME_LENGTH[ne - suffix] ?? pin_asset);
+		const pinned = pin(value, origin);
 		if (pinned === value) return;
 		out += html.slice(pos, vs) + pinned;
 		pos = ve;

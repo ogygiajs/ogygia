@@ -1044,6 +1044,9 @@ describe('the largest paint marked lazy', () => {
 			'The largest paint (img hero.jpg in Hero) carries loading="lazy"'
 		);
 		expect(at(true)?.fix).toContain('fetchpriority="high"');
+		expect(at(true)?.fix).toContain(
+			'`<Img>` from `@ogygia/image` does both when it is given `priority`'
+		);
 		expect(at(false)).toBeUndefined();
 	});
 });

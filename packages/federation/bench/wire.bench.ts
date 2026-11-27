@@ -119,6 +119,42 @@ bench(
 	}
 );
 
+bench(
+	'absolutize: a fragment of responsive images, every srcset and imagesrcset candidate pinned',
+	({ html }) => absolutize(html, ORIGIN).length,
+	{
+		setup: () => {
+			const set = (i: number, ext: string) =>
+				[320, 640, 1280]
+					.map((w) => `/__ogygia__/i/s${i}/h${i}-${w}x${w}/a.jpg.${ext} ${w}w`)
+					.join(', ');
+			const parts: string[] = [
+				`<link rel="preload" as="image" href="/__ogygia__/i/s/h-640x640/a.jpg.avif" imagesrcset="${set(0, 'avif')}">`
+			];
+			for (let i = 0; i < 20; i++)
+				parts.push(
+					`<picture><source type="image/avif" srcset="${set(i, 'avif')}"><img src="/__ogygia__/i/s${i}/h${i}-640x640/a.jpg.webp" srcset="${set(i, 'webp')}" alt=""></picture>`
+				);
+			return { html: parts.join('') };
+		}
+	}
+);
+
+bench(
+	'absolutize: a fragment of CSS backgrounds, every image a style attribute names pinned',
+	({ html }) => absolutize(html, ORIGIN).length,
+	{
+		setup: () => {
+			const parts: string[] = [];
+			for (let i = 0; i < 20; i++)
+				parts.push(
+					`<section style="background-image:url(/__ogygia__/i/s${i}/h${i}-1280x720/a.jpg.webp);color:red"><p style="margin:0">x</p></section>`
+				);
+			return { html: parts.join('') };
+		}
+	}
+);
+
 /** The replay guard after a busy minute: `expired` signatures at the end of their window, then live
  *  ones. (A signature is kept until its ts plus the skew window, never longer: the guard's age
  *  timer, and its sweep, run as they would.) */

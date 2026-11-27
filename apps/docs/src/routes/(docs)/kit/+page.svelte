@@ -1,11 +1,13 @@
 <script lang="ts">
 	import Counter from '$lib/demos/Counter.svelte' with { wake: 'load' };
 	import PageHead from '$lib/PageHead.svelte';
-	import { SERVER_PAGE_TITLES } from '$lib/og/card';
+
+	let { data } = $props();
 </script>
 
 <PageHead
-	title={SERVER_PAGE_TITLES.kit}
+	title="csr = true"
+	share={data.share}
 	description="A Kit-hydrated route that keeps the client build available — islands still work as normal components."
 />
 

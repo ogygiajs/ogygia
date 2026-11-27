@@ -65,6 +65,7 @@ import {
 	L_RUNTIME_SESSION,
 	L_SHEETS_IN_USE,
 	L_SOFT,
+	L_SRCSET_CANDIDATES,
 	L_STALE,
 	L_VOUCH_PAGE_ANSWER,
 	L_WARM_ISLAND_MODULE,
@@ -256,27 +257,13 @@ function own_live_head(page: URL): void {
 }
 
 function resolve_srcset(value: string, page: URL): string {
-	// @why the HTML spec splits a srcset at a comma only after whitespace or at a URL's end: a comma inside a URL is the URL's (test: test/browser/head-urls.test.ts › a candidate URL with a comma inside it stays one URL)
-	const out: string[] = [];
-	const space = (c: number) => c <= 32;
-	let i = 0;
-	while (i < value.length) {
-		while (i < value.length && (space(value.charCodeAt(i)) || value[i] === ',')) i++;
-		if (i >= value.length) break;
-		const start = i;
-		while (i < value.length && !space(value.charCodeAt(i))) i++;
-		let url = value.slice(start, i);
-		let descriptor = '';
-		if (url.endsWith(',')) url = url.replace(/,+$/, '');
-		else {
-			const from = i;
-			while (i < value.length && value[i] !== ',') i++;
-			descriptor = value.slice(from, i).trim();
-		}
-		const resolved = page_relative_resolved(url, page);
-		out.push(descriptor ? `${resolved} ${descriptor}` : resolved);
-	}
-	return out.join(', ');
+	return boot_link()
+		[L_SRCSET_CANDIDATES](value)
+		.map(({ url, descriptor }) => {
+			const resolved = page_relative_resolved(url, page);
+			return descriptor ? `${resolved} ${descriptor}` : resolved;
+		})
+		.join(', ');
 }
 
 const NOT_PAGE_RELATIVE = /^(?:[a-z][a-z0-9+.-]*:|\/)/i;

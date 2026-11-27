@@ -35,6 +35,60 @@ describe('absolutize', () => {
 		);
 	});
 
+	it("pins every candidate of an image's srcset and its preload's imagesrcset, built or dev", () => {
+		const one = '/__ogygia__/i/5f2a/h1-320x180/_app/immutable/assets/hero.Ab12.jpg.avif';
+		const two = '/__ogygia__/i/9c1e/h1-640x360/_app/immutable/assets/hero.Ab12.jpg.avif';
+		const dev = '/src/lib/images/hero.jpg';
+		const html = `<link rel="preload" as="image" href="${one}" imagesrcset="${one} 320w, ${two} 640w" imagesizes="100vw"><picture><source type="image/avif" srcset="${one} 320w, ${two} 640w"><img src="${dev}" srcset="${dev} 1x,${two} 2x" alt=""></picture><a href="/blog/post">a post</a>`;
+		expect(absolutize(html, O)).toBe(
+			`<link rel="preload" as="image" href="${O}${one}" imagesrcset="${O}${one} 320w, ${O}${two} 640w" imagesizes="100vw"><picture><source type="image/avif" srcset="${O}${one} 320w, ${O}${two} 640w"><img src="${O}${dev}" srcset="${O}${dev} 1x,${O}${two} 2x" alt=""></picture><a href="/blog/post">a post</a>`
+		);
+	});
+
+	it('pins a Cloudflare link whose options hold commas as one candidate, in src and srcset alike', () => {
+		const one =
+			'/cdn-cgi/image/width=320,height=180,fit=cover,format=avif/_app/immutable/assets/hero.jpg';
+		const two =
+			'/cdn-cgi/image/width=640,height=360,fit=cover,format=avif/_app/immutable/assets/hero.jpg';
+		const html = `<img src="${one}" srcset="${one} 320w,${two} 640w" alt=""><img srcset="${one}, ${two} 2x" alt="">`;
+		expect(absolutize(html, O)).toBe(
+			`<img src="${O}${one}" srcset="${O}${one} 320w,${O}${two} 640w" alt=""><img srcset="${O}${one}, ${O}${two} 2x" alt="">`
+		);
+	});
+
+	it("pins a Vercel link (its source is in the query, encoded) to the peer, in src, srcset and a style's url()", () => {
+		const one = '/_vercel/image?url=%2F_app%2Fimmutable%2Fassets%2Fhero.jpg&amp;w=640&amp;q=75';
+		const two = '/_vercel/image?url=%2F_app%2Fimmutable%2Fassets%2Fhero.jpg&amp;w=1280&amp;q=75';
+		const html = `<img src="${one}" srcset="${one} 640w, ${two} 1280w" alt=""><div style="background:url(&quot;${two}&quot;)"></div>`;
+		expect(absolutize(html, O)).toBe(
+			`<img src="${O}${one}" srcset="${O}${one} 640w, ${O}${two} 1280w" alt=""><div style="background:url(&quot;${O}${two}&quot;)"></div>`
+		);
+	});
+
+	it("pins the image endpoint's files, and leaves the shell's other /__ogygia__/ paths to the shell", () => {
+		const img = '/__ogygia__/i/5f2a/h1-320x180/_app/immutable/assets/hero.Ab12.jpg.avif';
+		const html = `<img src="${img}" alt=""><a href="/__ogygia__/devtools/">x</a><link rel="prefetch" href="/__ogygia__/r/a">`;
+		expect(absolutize(html, O)).toBe(
+			`<img src="${O}${img}" alt=""><a href="/__ogygia__/devtools/">x</a><link rel="prefetch" href="/__ogygia__/r/a">`
+		);
+	});
+
+	it("pins a style url() whose query's & is written &#38; or bare (markup Svelte did not write), and its numeric quotes", () => {
+		const q = '/_vercel/image?url=%2F_app%2Fimmutable%2Fassets%2Fhero.jpg';
+		const html = `<div style="background:url(${q}&#38;w=640)"></div><div style="background:url(${q}&w=640)"></div><div style="background:url(&#34;${q}&amp;w=640&#34;)"></div>`;
+		expect(absolutize(html, O)).toBe(
+			`<div style="background:url(${O}${q}&#38;w=640)"></div><div style="background:url(${O}${q}&w=640)"></div><div style="background:url(&#34;${O}${q}&amp;w=640&#34;)"></div>`
+		);
+	});
+
+	it('pins an image a style attribute names (a CSS background from getImage), and leaves its other urls', () => {
+		const img = '/__ogygia__/i/5f2a/h1-1280x720/_app/immutable/assets/hero.Ab12.jpg.webp';
+		const html = `<section style="background-image:url(${img});color:red"></section><div style="background:url(&quot;/_app/immutable/assets/a.png&quot;) no-repeat, url('/blog/x')"></div><p style="color:blue">x</p>`;
+		expect(absolutize(html, O)).toBe(
+			`<section style="background-image:url(${O}${img});color:red"></section><div style="background:url(&quot;${O}/_app/immutable/assets/a.png&quot;) no-repeat, url('/blog/x')"></div><p style="color:blue">x</p>`
+		);
+	});
+
 	it('pins each attribute whose names differ past ASCII, each in its own value (#1115)', () => {
 		// (the browser lower-cases ASCII only: `data-Äsrc` and `data-äsrc` are two attributes)
 		expect(absolutize(`<x-widget data-Äsrc="/og/a.js" data-äsrc="/og/b.js">`, O)).toBe(

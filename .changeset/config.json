@@ -21,6 +21,7 @@
 			"@ogygia/machine",
 			"@ogygia/barrels",
 			"@ogygia/bake",
+			"@ogygia/image",
 			"@ogygia/insights",
 			"@ogygia/data-shake",
 			"@ogygia/jumpstart"

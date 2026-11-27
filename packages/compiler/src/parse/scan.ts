@@ -1,4 +1,5 @@
 import { next_any_tag, tag_name, type FoundTag } from '@ogygia/core/contract';
+import { parse, postprocess, preprocess, type Options } from 'micromark';
 import { OgygiaError } from '../messages.ts';
 
 const WS_RE = /\s/;
@@ -183,7 +184,12 @@ export function match_close(src: string, open: number): number {
 
 /** One located `import.meta.og.<method>(<args>)` call. `args` is the VERBATIM text between the
  *  parens; `method` is the dotted tail after the shared prefix (`loader.git`, `code`, `regions`). */
-export type OgCall = { start: number; end: number; method: string; args: string };
+export type OgCall = {
+	start: number;
+	end: number;
+	method: string;
+	args: string;
+};
 
 const IDENT = /[A-Za-z0-9_$.]/;
 
@@ -204,7 +210,12 @@ export function find_og_calls(src: string, prefix: string): OgCall[] {
 		while (q < src.length && WS_RE.test(src[q]!)) q++;
 		const close = method && src[q] === '(' ? match_close(src, q) : -1;
 		if (close < 0) return p;
-		calls.push({ start: met.at, end: close + 1, method, args: src.slice(q + 1, close) });
+		calls.push({
+			start: met.at,
+			end: close + 1,
+			method,
+			args: src.slice(q + 1, close)
+		});
 		return close + 1;
 	});
 	return calls;
@@ -218,7 +229,10 @@ export function split_first_string(args: string, who: string): { value: string; 
 	while (i < args.length && WS_RE.test(args[i]!)) i++;
 	const q = args[i];
 	if (q !== "'" && q !== '"' && q !== '`') {
-		throw new OgygiaError('call_arg_not_literal', { call: who, got: args.slice(0, 24) });
+		throw new OgygiaError('call_arg_not_literal', {
+			call: who,
+			got: args.slice(0, 24)
+		});
 	}
 	let j = i + 1;
 	for (; j < args.length; j++) {
@@ -232,7 +246,10 @@ export function split_first_string(args: string, who: string): { value: string; 
 	let k = j + 1;
 	while (k < args.length && WS_RE.test(args[k]!)) k++;
 	if (k < args.length && args[k] !== ',') {
-		throw new OgygiaError('call_arg_in_expression', { call: who, near: args.slice(i, k + 8) });
+		throw new OgygiaError('call_arg_in_expression', {
+			call: who,
+			near: args.slice(i, k + 8)
+		});
 	}
 	if (args[k] === ',') k++;
 	return { value, rest: args.slice(k).trim() };
@@ -272,6 +289,133 @@ export function og_js_regions(
 			.filter((b) => b.kind === 'script')
 			.map((b) => ({ code: src.slice(b.start, b.end), offset: b.start }));
 	return null;
+}
+
+const LINE_LEAD_RE = /^ {0,3}$/;
+
+/**
+ * The `<script>` blocks of a markdown page (`.svx`, `.md`): the ones its preprocessor keeps as
+ * script, so a block that starts a line outside code. A fence's text and a code span are text,
+ * blanked before the walk so a `<script>` written there is never a block. Offsets are the source's.
+ * test/macros-need-plugin.test.ts, test/markdown-code.test.ts.
+ */
+export function markdown_scripts(src: string): JsRegion[] {
+	return new MarkdownPage(src).scripts();
+}
+
+/** One markdown page's text, parsed at most once: its {@link markdown_scripts} and its
+ *  {@link markdown_expressions} read the same parse. */
+export class MarkdownPage {
+	readonly src: string;
+	#prose: string | null = null;
+
+	constructor(src: string) {
+		this.src = src;
+	}
+
+	#read(): string {
+		return (this.#prose ??= markdown_prose(this.src));
+	}
+
+	/** The page's `<script>` blocks, as {@link markdown_scripts}. */
+	scripts(): JsRegion[] {
+		return script_blocks(this.#read()).map((b) => ({
+			code: this.src.slice(b.start, b.end),
+			offset: b.start
+		}));
+	}
+
+	/** The page's template expressions, as {@link markdown_expressions}. */
+	expressions(): JsRegion[] {
+		return prose_expressions(this.src, this.#read());
+	}
+}
+
+const COMMENT_RE = /<!--[\s\S]*?(?:-->|$)/g;
+
+/**
+ * The template expressions of a markdown page (`.svx`, `.md`): each `{…}` of its prose (in text or
+ * in an attribute), which its preprocessor hands Svelte as code. Fenced code, code spans, HTML
+ * comments and the page's `<script>` / `<style>` blocks are not prose; a `\{` is text. Offsets are
+ * the source's. test/macros-need-plugin.test.ts.
+ */
+export function markdown_expressions(src: string): JsRegion[] {
+	return new MarkdownPage(src).expressions();
+}
+
+function prose_expressions(src: string, read: string): JsRegion[] {
+	const prose = read.replace(COMMENT_RE, blank);
+	let text = prose;
+	for (const b of script_blocks(prose).concat(
+		component_blocks(prose).filter((b) => b.kind === 'style')
+	))
+		text = text.slice(0, b.open) + ' '.repeat(b.close - b.open) + text.slice(b.close);
+	const out: JsRegion[] = [];
+	for (let at = text.indexOf('{'); at !== -1; at = text.indexOf('{', at + 1)) {
+		if (text[at - 1] === '\\') continue;
+		const close = expression_end(text, at);
+		if (close < 0) continue;
+		out.push({ code: src.slice(at + 1, close), offset: at + 1 });
+		at = close;
+	}
+	return out;
+}
+
+function blank(text: string): string {
+	return text.replace(/[^\n]/g, ' ');
+}
+
+function expression_end(text: string, open: number): number {
+	let depth = 0;
+	for (let i = open; i < text.length; i++) {
+		const c = text[i];
+		if (c === '"' || c === "'" || c === '`') {
+			for (i++; i < text.length && text[i] !== c; i++) if (text[i] === '\\') i++;
+		} else if (c === '{') depth++;
+		else if (c === '}' && --depth === 0) return i;
+	}
+	return -1;
+}
+
+const NO_INDENTED_CODE: Options = { extensions: [{ disable: { null: ['codeIndented'] } }] };
+const FRONTMATTER_OPEN_RE = /^﻿?(?:[ \t]*(?:\r\n|\r|\n))*---(?:\r\n|\r|\n)/;
+const FRONTMATTER_CLOSE_RE = /(?<=[\r\n])---/g;
+
+function frontmatter_end(src: string): number {
+	const open = FRONTMATTER_OPEN_RE.exec(src);
+	if (open === null) return 0;
+	FRONTMATTER_CLOSE_RE.lastIndex = open[0].length - 1;
+	const close = FRONTMATTER_CLOSE_RE.exec(src);
+	return close === null ? 0 : close.index + 3;
+}
+
+function markdown_prose(page: string): string {
+	const front = frontmatter_end(page);
+	const src = front === 0 ? page : blank(page.slice(0, front)) + page.slice(front);
+	const events = postprocess(
+		parse(NO_INDENTED_CODE)
+			.document()
+			.write(preprocess()(src, undefined, true))
+	);
+	let out = '';
+	let at = 0;
+	for (const [kind, token] of events) {
+		if (kind !== 'enter' || (token.type !== 'codeFlowValue' && token.type !== 'codeText')) continue;
+		const start = token.start.offset;
+		const end = token.end.offset;
+		if (start < at) continue;
+		out += src.slice(at, start) + blank(src.slice(start, end));
+		at = end;
+	}
+	return out + src.slice(at);
+}
+
+function script_blocks(prose: string): ComponentBlock[] {
+	return component_blocks(prose).filter(
+		(b) =>
+			b.kind === 'script' &&
+			LINE_LEAD_RE.test(prose.slice(prose.lastIndexOf('\n', b.open - 1) + 1, b.open))
+	);
 }
 
 /** A `<script>` or `<style>` block of a component's source. */

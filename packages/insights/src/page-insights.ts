@@ -1486,7 +1486,7 @@ export function analyze_page(
 			code: 'lcp-lazy',
 			severity: 'warn',
 			message: `The largest paint (${lp.lcp_tag ?? 'img'}${file ? ` ${file}` : ''}${lp.lcp_fp ? ` in ${by_fp.get(lp.lcp_fp)?.name ?? lp.lcp_fp.slice(0, 8)}` : ''}) carries loading="lazy": the browser waits to fetch it until layout says it is on screen, and puts it behind the page's other downloads.`,
-			fix: 'Drop `loading="lazy"` on images of the first screen (keep it for the ones below), and give the hero `fetchpriority="high"`.',
+			fix: 'Drop `loading="lazy"` on images of the first screen (keep it for the ones below), and give the hero `fetchpriority="high"`. An `<Img>` from `@ogygia/image` does both when it is given `priority`.',
 			fps: lp.lcp_fp ? [lp.lcp_fp] : []
 		});
 	}

@@ -52,13 +52,16 @@ export {
 } from '../region/transform.ts';
 export { rewrite_lake_import_to_placeholder } from '../region/emit.ts';
 export type { ImportKeys } from '../region/transform.ts';
-export { definePlugin } from './plugin-api.ts';
+export { definePlugin, MARKDOWN_EXTENSION_API } from './plugin-api.ts';
 export type {
+	MarkdownExtension,
+	MarkdownFinish,
 	OgygiaPlugin,
 	PluginDefinition,
 	BuildContext,
 	MacroHandler,
 	MacroContext,
+	MacroResult,
 	PrescanHook,
 	MarkupSource,
 	MarkupRegions,
@@ -354,7 +357,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			names: () => compiler_of(session, 'regions.names').region_names(),
 			hosts: () => compiler_of(session, 'regions.hosts').region_hosts(),
 			whyStayed: (file, importers) => why_stayed(file, importers)
-		}
+		},
+		routes_dir: () => kit.dirs.routes_dir
 	};
 	const why_stayed = (file: string, importers: Iterable<string>): BarrelLeftReason[] => {
 		const ids = [...importers];
@@ -657,6 +661,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						resolve_alias,
 						component_css,
 						macros,
+						markdown_exts: markup.flatMap((m) => m.extensions),
 						page_reads,
 						prescans,
 						plugins: listed_plugins,

@@ -267,6 +267,12 @@
 			"name": "a value devalue cannot carry ships nothing, and says kit_env_unshipped"
 		},
 		{
+			"site": "packages/compiler/src/macros/pipeline.ts > template_calls > catch:0",
+			"reason": "markup Svelte cannot parse names no template call: the macro check passes it on and the Svelte compile reports it; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/macros-need-plugin.test.ts",
+			"name": "markup Svelte cannot parse names no template call: the check passes it on, for the Svelte compile to report"
+		},
+		{
 			"site": "packages/compiler/src/vite/graph-compiled.ts > (module) > policy:0",
 			"reason": "the server build's wait checks again for a module the bundler named but has not begun, after growing pauses; a module the bundler never begins (its importer failed in moduleParsed) keeps the wait from moving until its quiet time ends, and the wait settles so the build reports that failure",
 			"test": "packages/compiler/test/graph-compiled.test.ts",
@@ -4089,6 +4095,12 @@
 			"name": "without ogygia() a plugin reading the region table is told so"
 		},
 		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > routes_dir > throw:0",
+			"reason": "`throw new Error('resolve_plugins: no routes folder without ogygia()');`: proved: with no throw (the old src/routes fallback) the test is red (v4f-test-nit5-red.log)",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "without ogygia() a plugin reading the routes folder is told so, never handed src/routes (an app's files.routes may name another)"
+		},
+		{
 			"site": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > throw:0",
 			"reason": "`throw` of an unreadable realm; proved by hand: the throw made a return of nothing turns the test red",
 			"test": "packages/compiler/test/plugins.test.ts",
@@ -4441,6 +4453,12 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/macros-pipeline.test.ts",
 			"name": "one whose plugin is not listed fails the build, naming the package to list"
+		},
+		{
+			"site": "packages/compiler/src/macros/pipeline.ts > run_module_macros > throw:1",
+			"reason": "a listed plugin's call left where no macro compiles it fails the build (macro_in_markup); proved by its red run: before the throw existed the test failed (the build passed)",
+			"test": "packages/compiler/test/macros-need-plugin.test.ts",
+			"name": "with the plugin listed, a call in a component's template fails the build with macro_in_markup"
 		},
 		{
 			"site": "packages/compiler/src/macros/source.ts > misuse > throw:0",
@@ -5179,6 +5197,18 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/content/test/markdown.test.ts",
 			"name": "unknown preset on a variant errors listing the configured names"
+		},
+		{
+			"site": "packages/content/src/markdown/index.ts > all_exist > import:0",
+			"reason": "node:fs, a Node built-in the markdown preprocessor (a build and dev step, run in Node) always has; the test reaches it with a kept compile whose read file is gone, and the compile runs again",
+			"test": "packages/content/test/markdown-extensions.test.ts",
+			"name": "a file the extension’s output reads, gone since the document was kept, compiles it again so the extension says so"
+		},
+		{
+			"site": "packages/content/src/markdown/extensions.ts > hold_markdown_extensions > throw:0",
+			"reason": "an offer content cannot read fails the config with content_markdown_extension_invalid, naming the plugin; the test holds the code and the name",
+			"test": "packages/content/test/markdown-extensions.test.ts",
+			"name": "an offer content cannot read fails with a code, naming the plugin"
 		},
 		{
 			"site": "packages/content/src/markdown/render-md.ts > render_markdown > throw:0",

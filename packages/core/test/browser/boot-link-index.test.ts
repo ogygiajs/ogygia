@@ -55,6 +55,7 @@ import {
 	with_devalue
 } from '../../src/runtime/devalue-lane.ts';
 import { OgygiaError, warn } from '../../src/messages/core.ts';
+import { srcset_candidates } from '../../src/srcset.ts';
 
 const link = link_boot();
 
@@ -118,7 +119,8 @@ test('each place in the boot link holds the helper its number names', () => {
 		L_JUMP_TO_HASH: jump_to_hash,
 		L_FRAGMENT_TARGET: fragment_target,
 		L_RESOLVE_ADDRESS: resolve_address,
-		L_WIRE_CODEC: wire_codec
+		L_WIRE_CODEC: wire_codec,
+		L_SRCSET_CANDIDATES: srcset_candidates
 	};
 	const places = index as unknown as Record<string, number>;
 	for (const [name, helper] of Object.entries(want)) expect(link[places[name]], name).toBe(helper);
