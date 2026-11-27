@@ -606,8 +606,6 @@ export async function run(
 					break;
 				await world.loop.step();
 			}
-			// (the visitor looks at each tab behind that owes a frame, so the end judges what that
-			// frame brings: test/hidden-tab.node.test.ts, #2176)
 			for (const who of [v, ...world.crowd]) await visitor_looks(world, who);
 			hear_moves();
 			await at_rest?.(world, v);
