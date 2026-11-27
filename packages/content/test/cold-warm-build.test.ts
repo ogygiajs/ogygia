@@ -22,11 +22,28 @@ const PNG_TWO =
 const SECRET = 'cold-warm-build-secret-0123456789abcdef';
 const PAGE_SIDE_FIRST_CONFIG = 'vite.page-side-first.config.ts';
 const ISLAND_SIDE_FIRST_CONFIG = 'vite.island-side-first.config.ts';
+const HELD_MARK = 'order-held.txt';
 const ORDERED_CONFIG_HEAD = dedent`
+	import { writeFileSync } from 'node:fs';
 	import { sveltekit } from '@sveltejs/kit/vite';
 	import { ogygia } from 'ogygia/vite';
 	import { content } from '@ogygia/content/vite';
 	import { defineConfig } from 'vite';
+
+	const gate = () => {
+		const opens = Promise.withResolvers();
+		let opened = false;
+		return {
+			open() {
+				opened = true;
+				opens.resolve();
+			},
+			async pass() {
+				if (!opened) writeFileSync('${HELD_MARK}', 'held');
+				await opens.promise;
+			}
+		};
+	};
 
 	const INTERNAL = '/core/dist/internal.js';
 	const REGION = '/core/dist/Region.svelte';
@@ -80,21 +97,21 @@ beforeAll(() => {
 	fs.writeFileSync(
 		path.join(app, PAGE_SIDE_FIRST_CONFIG),
 		`${ORDERED_CONFIG_HEAD}\n${dedent`
-			const built = in_client(() => new Map(SHARED.map((tail) => [tail, Promise.withResolvers()])));
+			const built = in_client(() => new Map(SHARED.map((tail) => [tail, gate()])));
 			const hold = {
 				name: 'hold-island-side-until-shared-built',
 				enforce: 'pre',
 				async resolveId(source, importer) {
 					const shared = built(this);
 					if (shared && island_side(source, importer))
-						await Promise.all([...shared.values()].map((b) => b.promise));
+						await Promise.all([...shared.values()].map((g) => g.pass()));
 					return null;
 				},
 				transform: {
 					order: 'post',
 					handler(_code, id) {
-						for (const [tail, b] of built(this) ?? [])
-							if (id.split('?')[0].endsWith(tail)) b.resolve();
+						for (const [tail, g] of built(this) ?? [])
+							if (id.split('?')[0].endsWith(tail)) g.open();
 						return null;
 					}
 				}
@@ -106,7 +123,7 @@ beforeAll(() => {
 	fs.writeFileSync(
 		path.join(app, ISLAND_SIDE_FIRST_CONFIG),
 		`${ORDERED_CONFIG_HEAD}\n${dedent`
-			const island_resolved = in_client(() => Promise.withResolvers());
+			const island_resolved = in_client(gate);
 			const hold = {
 				name: 'hold-region-until-island-side',
 				enforce: 'pre',
@@ -114,12 +131,12 @@ beforeAll(() => {
 					const heard = island_resolved(this);
 					if (!heard || !island_side(source, importer)) return null;
 					const resolved = await this.resolve(source, importer, { skipSelf: true });
-					heard.resolve();
+					heard.open();
 					return resolved;
 				},
 				async load(id) {
 					const heard = island_resolved(this);
-					if (heard && id.split('?')[0].endsWith(REGION)) await heard.promise;
+					if (heard && id.split('?')[0].endsWith(REGION)) await heard.pass();
 					return null;
 				}
 			};
@@ -145,8 +162,10 @@ function build(config?: string): void {
 		cwd: app,
 		env,
 		encoding: 'utf8',
-		maxBuffer: 256 * 1024 * 1024
+		maxBuffer: 256 * 1024 * 1024,
+		timeout: BUILD_MS
 	});
+	if (res.error) throw new Error(`the fixture's build did not finish: ${res.error.message}`);
 	if (res.status !== 0)
 		throw new Error(`the fixture's build failed:\n${`${res.stdout}${res.stderr}`.slice(-4000)}`);
 }
@@ -222,11 +241,21 @@ test(
 	"a build writes the same output whichever importer of a shared package module the bundler reaches first: a page's, or an island's (#2184)",
 	() => {
 		const output = path.join(app, '.svelte-kit', 'output');
-		build(PAGE_SIDE_FIRST_CONFIG);
+		const held = (config: string): boolean => {
+			const mark = path.join(app, HELD_MARK);
+			fs.rmSync(mark, { force: true });
+			build(config);
+			return fs.existsSync(mark);
+		};
+		const page_side_held = held(PAGE_SIDE_FIRST_CONFIG);
 		const page_side_first = keyed(files(output)).files;
-		build(ISLAND_SIDE_FIRST_CONFIG);
+		const island_side_held = held(ISLAND_SIDE_FIRST_CONFIG);
 		const island_side_first = keyed(files(output)).files;
 
+		expect(
+			{ page_side_held, island_side_held },
+			'one of the two orders is not the bundler’s own: its hold had to wait'
+		).not.toEqual({ page_side_held: false, island_side_held: false });
 		const client = (built: Map<string, string>) =>
 			[...built.keys()].filter((name) => name.startsWith(`client${path.sep}`));
 		expect(client(island_side_first)).toEqual(client(page_side_first));
