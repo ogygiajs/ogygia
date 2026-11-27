@@ -464,7 +464,7 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 					render_config(opts, paths, true, widths, stills),
 					warmed.values(),
 					output,
-					remote ? (url) => remote.file(dir, url, 'a prerendered page') : undefined,
+					remote ? (url, where) => remote.file(dir, url, where) : undefined,
 					(tail, id, fetch) =>
 						cards.draw(tail, id, build_card_images(output, prefixes, remote ? fetch : null))
 				);

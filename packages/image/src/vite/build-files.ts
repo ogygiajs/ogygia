@@ -260,7 +260,7 @@ class BuildMakes {
 		const kept = await this.#store.find(plain);
 		if (kept) return { recipe, data: await fs.promises.readFile(kept.file) };
 		const fetch = async (url: string): Promise<Uint8Array> =>
-			new Uint8Array(await fs.promises.readFile(await fetch_remote(url)));
+			new Uint8Array(await fs.promises.readFile(await fetch_remote(url, 'a share card')));
 		const urls = await this.#store.find(`${plain}${SHOWN}`);
 		if (urls) {
 			const reads = new Map<string, string>();
@@ -375,9 +375,10 @@ function jobs_of(
 	return jobs;
 }
 
-/** How the build fetches a remote image a prerendered page names (`remoteImage()`): its file in
- *  the build cache, under `image({ remote })` (./remote.ts `RemoteImages`). */
-export type FetchRemote = (url: string) => Promise<string>;
+/** How the build fetches a remote image a prerendered page names (a `remoteImage()`, or an image a
+ *  card shows): its file in the build cache, under `image({ remote })` (./remote.ts
+ *  `RemoteImages`); `where` names who asked, for a message. */
+export type FetchRemote = (url: string, where: string) => Promise<string>;
 
 /** How the build draws a card a prerendered page names: the own-size PNG of the card its tail
  *  names, when it is the source `id` (./card.ts `Cards.draw`), every remote image it shows read
@@ -392,10 +393,10 @@ function no_card(tail: string): Promise<Uint8Array> {
 	return Promise.reject(new Error(`its tail ${tail} names no card this build has`));
 }
 
-function no_remote(url: string): Promise<string> {
+function no_remote(url: string, where: string): Promise<string> {
 	return Promise.reject(
 		new OgygiaError('image_remote_host', {
-			where: 'a prerendered page',
+			where,
 			url,
 			entry: entry_for(new URL(url))
 		})
@@ -408,7 +409,7 @@ async function remote_made(
 	url: URL,
 	fetch_remote: FetchRemote
 ): Promise<{ recipe: Omit<Recipe, 'src'>; data: Uint8Array }> {
-	const bytes = await fs.promises.readFile(await fetch_remote(url.href));
+	const bytes = await fs.promises.readFile(await fetch_remote(url.href, 'a prerendered page'));
 	const named = { ...recipe, id: await source_id(bytes) };
 	return { recipe: named, data: await makes.make(named, () => bytes) };
 }
