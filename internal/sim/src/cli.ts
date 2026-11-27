@@ -310,37 +310,44 @@ function on_a_tab(a: Action, tabs: number): Action {
  * then rest. A wait on its way out is not a hang: a backoff of seconds is a page's one-shot timer,
  * due later than rest's 2 s, so time runs on while one is set, a minute at most, resting again after
  * each (a backoff's try goes on the wire and may set the next, the rollover's 1, 3 and 9 s;
- * test/found/deploy-recovery-waits.test.ts). At each rest, each visitor, the crowd's too, looks at
- * each tab of theirs behind another that owes a frame ({@link visitor_looks}), so a tab is judged as
- * the visitor sees it once they look, and a backoff what the look woke set is waited out too
- * (test/hidden-tab.node.test.ts, #2176). Before each look, each tab of `v`'s that look would hide
- * something in is judged as it stands ({@link as_it_stands}): each difference that found, by tab,
- * for `mpa_equivalent` (test/run-end-behind.node.test.ts, #2091).
+ * test/found/deploy-recovery-waits.test.ts). Once those are run out, each tab of `v`'s that a look
+ * would hide something in is judged as it stands ({@link as_it_stands}), so what its timers woke
+ * with no frame, or filled in late, is in it (test/hidden-tab.node.test.ts, #2091): each difference
+ * that found, by tab, for `mpa_equivalent` (test/run-end-behind.node.test.ts). Then each visitor,
+ * the crowd's too, looks at each tab of theirs behind another that owes a frame
+ * ({@link visitor_looks}), and the backoffs are waited out again, looking at each rest, so a tab is
+ * judged as the visitor sees it once they look, and a backoff what the look woke set is waited out
+ * too (test/hidden-tab.node.test.ts, #2176).
  */
 export async function rest_at_end(world: World, v: Visitor): Promise<Map<Tab, Broken>> {
 	const visitors = (): Visitor[] => [v, ...world.crowd];
+	const wait_out = async (look: boolean): Promise<void> => {
+		const until = Math.min(world.loop.now + 60_000, world.loop.horizon);
+		for (;;) {
+			await world.rest();
+			if (look) for (const who of visitors()) await visitor_looks(world, who);
+			if (
+				!(
+					world.loop.now < until &&
+					world.loop.next_at <= until &&
+					visitors()
+						.flatMap((who) => who.tabs)
+						.some((t) => !world.on_release(t.realm) && t.platform?.pending().includes('timeout'))
+				)
+			)
+				return;
+			await world.loop.step();
+		}
+	};
 	const stood = new Map<Tab, Broken>();
 	for (const t of v.tabs) world.network.offline(t.name, false);
-	const until = Math.min(world.loop.now + 60_000, world.loop.horizon);
-	for (;;) {
-		await world.rest();
-		for (const t of v.tabs) {
-			const b = await as_it_stands(world, v, t);
-			if (b) stood.set(t, b);
-		}
-		for (const who of visitors()) await visitor_looks(world, who);
-		if (
-			!(
-				world.loop.now < until &&
-				world.loop.next_at <= until &&
-				visitors()
-					.flatMap((who) => who.tabs)
-					.some((t) => !world.on_release(t.realm) && t.platform?.pending().includes('timeout'))
-			)
-		)
-			return stood;
-		await world.loop.step();
+	await wait_out(false);
+	for (const t of v.tabs) {
+		const b = await as_it_stands(world, v, t);
+		if (b) stood.set(t, b);
 	}
+	await wait_out(true);
+	return stood;
 }
 
 /** One seeded run. */
