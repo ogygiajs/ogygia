@@ -1054,6 +1054,46 @@ export class Compiler implements CoreApp {
 	}
 
 	/**
+	 * BUILD, client leg, before any module loads: finish the island closure through the bundler's
+	 * own resolver, past the bare package specifiers {@link mark_island_closure} stops at. A package
+	 * module an island reaches is island code (its `$app/*` imports read the shims); left to the
+	 * resolver, it became island code only when an island's import of it resolved before the module
+	 * itself was transformed, so a module a page also imports was shimmed or not by bundler order,
+	 * and identical builds wrote different client chunks (#2184).
+	 */
+	async follow_island_closure(
+		resolve: (spec: string, importer: string) => Promise<string | null>
+	): Promise<void> {
+		const ctx = this.#ctx;
+		const { island_graph } = this.program;
+		const queue = [...island_graph];
+		const queued = new Set(queue);
+		for (let i = 0; i < queue.length; i++) {
+			const file = queue[i];
+			if (!SOURCE_EXT_RE.test(file)) continue;
+			const src = ctx.read_file(file);
+			if (src == null) continue;
+			const specs = new Set<string>();
+			for (const m of src.matchAll(IMPORT_SPEC_G)) {
+				const spec = m[1] || m[2] || m[3];
+				if (!spec || spec[0] === '\0' || spec.startsWith('$app/') || spec.startsWith('$env/'))
+					continue;
+				if (is_generated_specifier(spec) || is_island_path(spec)) continue;
+				specs.add(spec);
+			}
+			const found = await Promise.all([...specs].map((spec) => resolve(spec, file)));
+			for (const id of found) {
+				if (id === null || id.startsWith('\0')) continue;
+				const dep = strip_id(id);
+				island_graph.add(dep);
+				if (queued.has(dep)) continue;
+				queued.add(dep);
+				queue.push(dep);
+			}
+		}
+	}
+
+	/**
 	 * Scan ENTRIES for Vite's dep optimizer: every hydrate island's component file and the host file
 	 * that places it — real, absolute, on-disk source paths. Under `csr = false` Kit ships no client
 	 * entry and registers only `routes/**\/+*` as scan entries, so Vite's scanner reaches an island

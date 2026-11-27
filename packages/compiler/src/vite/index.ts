@@ -731,6 +731,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				}
 
 				if (is_build && !server_leg) {
+					await compiler.follow_island_closure(bundler_resolve(this));
 					const emit_runtime =
 						!standalone &&
 						(hasAnyCsrFalseRoute(compiler.ctx.routes, kit.dirs.routes_dir) ||
