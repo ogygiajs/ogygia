@@ -73,6 +73,10 @@ export interface Tab {
 	/** The realms of its documents whose observers had a frame (a tab renders one only while shown):
 	 *  one shown as it came but behind before its runtime watched anything never had one. */
 	readonly framed: Set<string>;
+	/** Whether its document's next frame would tell an observer something (a region it never
+	 *  reported, or one that came on screen or left it since): behind another tab, that frame waits
+	 *  until the visitor looks. */
+	owes_frame(): boolean;
 	/** The address of its document whose island load gate had opened when DOMContentLoaded fired
 	 *  (oracles.ts `parsed_first`), or null. */
 	early_gate: string | null;
@@ -356,7 +360,7 @@ export class Browsers {
 	/** Each document's window, by its realm's `Promise`: whose a rejection nobody handled is. */
 	readonly #by_promise = new WeakMap<object, { tab: Tab; window: object }>();
 	/** Each tab's document's layout (its IntersectionObserver frames wait while the tab is hidden). */
-	readonly #layouts = new WeakMap<Tab, { shown(): void }>();
+	readonly #layouts = new WeakMap<Tab, { shown(): void; owes(): boolean }>();
 	/** The last error happy-dom wrote to a tab's page console (why an element's load failed). */
 	readonly #said = new WeakMap<Tab, string>();
 	/** Documents whose answer came, and whose content happy-dom has not written yet: it writes it in
@@ -839,6 +843,7 @@ export class Browsers {
 			hidden: false,
 			seen: new Set(),
 			framed: new Set(),
+			owes_frame: () => this.#layouts.get(tab)?.owes() ?? false,
 			early_gate: null,
 			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
 			listening: () => [],

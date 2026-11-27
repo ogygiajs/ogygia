@@ -516,6 +516,10 @@ export async function mpa_equivalent(
 	// old page is the old release's, whole)
 	const build = world.build_of(tab.realm);
 	const behind = tab.hidden && !tab.framed.has(tab.realm);
+	// (a tab behind that had frames and owes one, a visible island its hole brought after it went
+	// behind: what it shows waits for the visitor to look, and no fresh load, shown or behind, shows
+	// that; palaestra seed 1000004158, test/hidden-tab.node.test.ts)
+	if (tab.hidden && !behind && tab.owes_frame()) return null;
 	const fresh_load = (w: World, visitor: Visitor, at: string, name: string, pace = 0) =>
 		w.as_of(
 			build,

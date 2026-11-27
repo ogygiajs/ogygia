@@ -365,7 +365,8 @@ type Callback = (entries: object[], observer: object) => void;
 /**
  * Gives `window` (a document of realm `realm`) its layout's IntersectionObserver. Its frames are
  * tasks of `realm` on `loop`; a closed window's frame does nothing, and a hidden tab's (`hidden`)
- * waits until the returned `shown()`. `framed` hears each frame its observers looked at.
+ * waits until the returned `shown()`. `framed` hears each frame its observers looked at; `owes()`
+ * says whether the next frame would tell an observer something.
  */
 export function install_layout(
 	window: object,
@@ -373,7 +374,7 @@ export function install_layout(
 	realm: string,
 	hidden: () => boolean = () => false,
 	framed: () => void = () => {}
-): { shown(): void } {
+): { shown(): void; owes(): boolean } {
 	const w = window as {
 		document: Document;
 		closed: boolean;
@@ -460,14 +461,23 @@ export function install_layout(
 		takeRecords(): object[] {
 			return [];
 		}
+		/** A target's box in layout `at`, and whether it crosses the root. */
+		#place(target: Target, at: Map<Element, Box>): { box: Box; on: boolean } {
+			const box = (target.isConnected ? at.get(target) : undefined) ?? { x: 0, y: 0, w: 0, h: 0 };
+			return { box, on: target.isConnected && crosses(box, this.#root) };
+		}
+		/** Whether a frame in layout `at` would report a target (new or changed), as {@link look} does. */
+		owes(at: Map<Element, Box>): boolean {
+			for (const [target, was] of this.#targets)
+				if (was !== this.#place(target, at).on) return true;
+			return false;
+		}
 		/** At a frame: each target new or changed, reported. */
 		look(): void {
 			const at = last_boxes ?? (last_boxes = boxes(w.document));
-			const root = this.#root;
 			const entries: object[] = [];
 			for (const [target, was] of this.#targets) {
-				const box = (target.isConnected ? at.get(target) : undefined) ?? { x: 0, y: 0, w: 0, h: 0 };
-				const on = target.isConnected && crosses(box, root);
+				const { box, on } = this.#place(target, at);
 				if (was === on) continue;
 				this.#targets.set(target, on);
 				const rect = {
@@ -504,6 +514,14 @@ export function install_layout(
 			if (!parked) return;
 			parked = false;
 			ask_frame();
+		},
+		/** Whether the next frame would tell an observer something: a target it never reported, or
+		 *  one that crossed the viewport or left it since (in the layout as it stands). */
+		owes() {
+			if (observers.size === 0) return false;
+			const at = boxes(w.document);
+			for (const o of observers) if (o.owes(at)) return true;
+			return false;
 		}
 	};
 }

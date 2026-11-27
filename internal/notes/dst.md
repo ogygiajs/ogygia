@@ -389,6 +389,10 @@ one shown before it went behind is set aside: a frame it asked for then waits, a
 The MPA check judges a tab behind against a fresh load behind another tab too, unless its document's
 observers had a frame while it was shown (`Tab.framed`): one shown as it came but behind before its
 runtime watched anything has an on-screen `visible` island asleep, as a never-shown one does (#2091).
+One that had frames but owes one (`Tab.owes_frame`: its next frame would tell an observer something,
+such as a `visible` island its hole brought after it went behind) is not judged until it is shown:
+some of its islands woke in front and some wait, and no fresh load, shown or behind, holds that
+(#2176).
 Mutation: the paint gate's hidden branch (schedule.ts) died on gen 262.
 
 Some seeds' engine has no `requestIdleCallback` (stream `idle engine`, 30%: Safari's), so code that
