@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, expect, test } from 'vitest';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const FIXTURE = fileURLToPath(new URL('../e2e/app', import.meta.url));
 const COPIED: readonly string[] = [
@@ -46,15 +47,14 @@ beforeAll(() => {
 		fs.writeFileSync(path.join(page, name), Buffer.from(bytes, 'base64'));
 	fs.writeFileSync(
 		path.join(page, '+page.svelte'),
-		[
-			'<script>',
-			"\timport one from './one.png?no-inline';",
-			"\timport two from './two.png?no-inline';",
-			'</script>',
-			'',
-			'<img src={one} alt="one" /><img src={two} alt="two" />',
-			''
-		].join('\n')
+		dedent`
+			<script>
+				import one from './one.png?no-inline';
+				import two from './two.png?no-inline';
+			</script>
+
+			<img src={one} alt="one" /><img src={two} alt="two" />
+		`
 	);
 });
 
