@@ -1,5 +1,15 @@
 # @ogygia/core
 
+## 0.16.0
+
+### Patch Changes
+
+- [#2161](https://github.com/ogygiajs/ogygia/pull/2161) [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44) Thanks [@PuruVJ](https://github.com/PuruVJ)! - Island code no longer waits up to 2.5 s for a priority image preload that carries both `href` and `imagesrcset` when the browser fetched one of its `imagesrcset` candidates (a cached hero on a repeat visit, for example): any candidate, or the `href`, counts as the preload's download. A candidate whose URL holds commas (an image CDN link such as `/cdn-cgi/image/width=640,height=360/…`) is read as one URL.
+
+- [#2161](https://github.com/ogygiajs/ogygia/pull/2161) [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A new dev and e2e rule, `rule_transition_name_unique`: two rendered elements on a page with one inline `view-transition-name` (two `<Img morph>` of one source, say) are reported with a code, since the browser then skips the whole view transition without a word. The rule runs in browsers without `checkVisibility` too (Safari before 17.4).
+- Updated dependencies []:
+  - @ogygia/machine@0.16.0
+
 ## 0.15.1
 
 ### Patch Changes

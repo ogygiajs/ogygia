@@ -1,5 +1,20 @@
 # @ogygia/federation
 
+## 0.16.0
+
+### Patch Changes
+
+- [#2161](https://github.com/ogygiajs/ogygia/pull/2161) [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A fragment's image links now load from the peer on the shell: a `/cdn-cgi/image/…` link whose options hold commas stays one srcset candidate, and a `/_vercel/image?url=…` link (in `src`, `srcset` or a style's `url()`) is pinned to the peer's origin.
+
+- [#2161](https://github.com/ogygiajs/ogygia/pull/2161) [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A fragment's images load from the app that rendered it: every candidate of a `srcset` and of a preload's `imagesrcset` is pinned to the peer's origin, as are paths under `/__ogygia__/` and image files (`.avif`, `.webp`, `.png`, `.jpg`, `.gif`, `.svg`) named by `src` or `href`. Before, those pointed at the host page's server.
+
+- [#2161](https://github.com/ogygiajs/ogygia/pull/2161) [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44) Thanks [@PuruVJ](https://github.com/PuruVJ)! - A fragment's CSS backgrounds load from the app that rendered it: an image a `style` attribute names with `url(…)` (a `getImage()` background, say) is pinned to the peer's origin. Before, it pointed at the host page's server.
+- Updated dependencies [[`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44), [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44), [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44), [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44), [`0e044f2`](https://github.com/ogygiajs/ogygia/commit/0e044f2d9e57da362f29241b82cfb4422fb77716), [`0e044f2`](https://github.com/ogygiajs/ogygia/commit/0e044f2d9e57da362f29241b82cfb4422fb77716)]:
+  - @ogygia/compiler@0.16.0
+  - @ogygia/core@0.16.0
+  - @ogygia/router@0.16.0
+  - @ogygia/machine@0.16.0
+
 ## 0.15.1
 
 ### Patch Changes

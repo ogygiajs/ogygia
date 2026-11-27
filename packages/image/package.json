@@ -1,6 +1,6 @@
 {
 	"name": "@ogygia/image",
-	"version": "0.14.0",
+	"version": "0.16.0",
 	"description": "Images for ogygia apps: files made on first request from signed recipes, responsive srcset from layout intent, blur placeholders, markdown and frontmatter images",
 	"keywords": [
 		"image",
