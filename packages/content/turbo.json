@@ -3,6 +3,7 @@
 	"extends": ["//"],
 	"tasks": {
 		"check": {
+			"dependsOn": ["^build", "ogygia#build"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"e2e/app/package.json",
@@ -13,6 +14,7 @@
 			]
 		},
 		"test": {
+			"dependsOn": ["^build", "ogygia#build"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!e2e/*",
