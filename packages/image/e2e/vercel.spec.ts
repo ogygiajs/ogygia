@@ -174,7 +174,7 @@ test("the function draws a live page's share card on request, kept forever: Verc
 	expect((await request.get(built)).status(), built).toBe(200);
 });
 
-test("the function draws a live card that names images, each fitted to the card by sharp (an asset of the build as an <img>, a small remote WebP as a style's url()): the function's trace holds sharp's native binary and libvips for this platform", async ({
+test("the function draws a live card that names images, each fitted to the card by sharp (an asset of the build as an <img>, a small remote WebP as a style's url()), kept for remote.maxAge since it shows a remote image, never immutable: the function's trace holds sharp's native binary and libvips for this platform", async ({
 	request
 }) => {
 	const pnpm = path.join(FUNC, 'node_modules/.pnpm');
@@ -192,6 +192,9 @@ test("the function draws a live card that names images, each fitted to the card 
 	const res = await request.get(url);
 	expect(res.status(), url).toBe(200);
 	expect(res.headers()['content-type'], url).toBe('image/png');
+	expect(res.headers()['cache-control'], url).toMatch(
+		/^public, max-age=\d+, stale-while-revalidate=\d+$/
+	);
 	expect(await photo_card_misses(await res.body())).toEqual([]);
 });
 
