@@ -234,6 +234,39 @@ describe("Kit's public env (KIT-PUBLIC-ENV)", () => {
 		expect(env![1]).toBe(runtime?.[1]);
 	});
 
+	it('a region rendered for a page (a server hole, a remote call) carries it in its answer when an island in it imports it', async () => {
+		set_kit_public_env({ PUBLIC_REGION: 'eu' });
+		const { kit_page_facts_tail } = await import('../src/server/kit-context.ts');
+		const answer = (url: string, remote: boolean, render: () => void): string => {
+			const u = new URL(url);
+			const event = {
+				url: u,
+				request: new Request(u, { headers: { referer: 'https://app.test/p' } }),
+				isRemoteRequest: remote,
+				route: { id: null },
+				params: {},
+				locals: {}
+			};
+			let tail = '';
+			with_request_store({ event, state: {} } as never, () => {
+				render();
+				tail = kit_page_facts_tail();
+			});
+			return tail;
+		};
+		for (const [url, remote] of [
+			['https://app.test/__ogygia__?id=hole', false],
+			['https://app.test/_app/remote/abc/header', true]
+		] as const) {
+			const env = /<script type="application\/ogygia-env"[^>]*>([^<]*)<\/script>/.exec(
+				answer(url, remote, reads_env)
+			);
+			expect(env, url).not.toBeNull();
+			expect((await import('devalue')).parse(env![1]!)).toEqual({ PUBLIC_REGION: 'eu' });
+			expect(answer(url, remote, reads_none), url).not.toContain('application/ogygia-env');
+		}
+	});
+
 	it('an edited variable ships its new value on the next page, though Kit writes it into the same object', async () => {
 		const env: Record<string, unknown> = { PUBLIC_REGION: 'eu' };
 		set_kit_public_env(env);
