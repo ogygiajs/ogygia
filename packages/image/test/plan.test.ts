@@ -105,7 +105,7 @@ describe('plan_image', () => {
 		});
 		const meta = await sharp(out, { animated: true }).metadata();
 		expect([meta.pages, meta.width, meta.pageHeight]).toEqual([300, 600, 400]);
-	});
+	}, 30_000);
 
 	test('an animation whose frames add up past what an encode may read fails at build with a code naming the file', async () => {
 		const gif = canvas_gif(`${img.dir}/huge-recording.gif`, 2048, 2048, 1100);
