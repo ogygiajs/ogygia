@@ -908,8 +908,6 @@ export function island_deps_module(
 			return lookup('remotes', entry, Array.isArray);
 		}
 
-		// KIT-PUBLIC-ENV: does this island's client closure import Kit's $app/env/public? FAIL-OPEN
-		// true: no map (a pre-env handoff), or an entry the build never saw.
 		export function region_reads_env(entry) {
 			const v = lookup('env', entry, (x) => typeof x === 'boolean');
 			return v === null ? true : v;

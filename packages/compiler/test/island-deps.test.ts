@@ -848,6 +848,7 @@ describe("Kit's public env map (KIT-PUBLIC-ENV)", () => {
 		expect(r.env[FACADE]).toBe(false);
 		const server = island_deps_module(true, null);
 		expect(server).toContain("lookup('env', entry");
+		expect(server).toContain('return v === null ? true : v;');
 		expect(
 			/region_reads_env\(_entry\) \{ return true; \}/.test(island_deps_module(true, '/app'))
 		).toBe(true);
