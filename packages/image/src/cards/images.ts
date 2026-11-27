@@ -174,14 +174,16 @@ function walk(
 	if (props === undefined) return node;
 	const svg = in_svg || type === 'svg';
 	const text = (value: string): string => {
-		let out = '';
+		const parts: string[] = [];
 		let at = 0;
 		for (const span of url_spans(value)) {
 			if (!span.closed || is_ref(span.src)) continue;
-			out += `${value.slice(at, span.start)}url(${String(each(span.src, 'other'))})`;
+			parts.push(value.slice(at, span.start), `url(${String(each(span.src, 'other'))})`);
 			at = span.end;
 		}
-		return at === 0 ? value : out + value.slice(at);
+		if (at === 0) return value;
+		parts.push(value.slice(at));
+		return parts.join('');
 	};
 	const next: { [prop: string]: unknown } = {};
 	for (const [key, value] of Object.entries(props)) {
