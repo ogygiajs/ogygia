@@ -196,10 +196,52 @@ describe("Kit's public env (KIT-PUBLIC-ENV)", () => {
 		expect(await page(reads_env)).not.toContain('application/ogygia-env');
 	});
 
-	it('without the page feature: none ships', async () => {
+	it('without the page feature: a region that imports it and reads no page still gets it', async () => {
 		without(F_PAGE);
 		set_kit_public_env({ PUBLIC_REGION: 'eu' });
-		expect(await page(reads_env)).not.toContain('application/ogygia-env');
+		const html = await page(reads_env);
+		expect(html).toContain('application/ogygia-env');
+		expect(html).not.toContain('application/ogygia-page');
+	});
+
+	it('a streamed page whose region imports it carries it', async () => {
+		set_kit_public_env({ PUBLIC_REGION: 'eu' });
+		const streamed = () =>
+			record_page({ data: { later: new Promise(() => {}) } }, 'all', [], '/islands/env.js', true);
+		const html = await page(streamed, {}, { 'sec-fetch-mode': 'navigate' });
+		expect(html).toContain(PAGE_DEFER_BOOTSTRAP);
+		expect(html).toContain('application/ogygia-env');
+	});
+
+	it("a router page's document() whose region imports it carries it, marked as the response", async () => {
+		set_kit_public_env({ PUBLIC_REGION: 'eu' });
+		const { document } = await import('../src/document.ts');
+		const { region } = await import('../src/region.ts');
+		const { default: ReadsKitEnv } = await import('./_fixtures/ReadsKitEnv.svelte');
+		let html = '';
+		const u = new URL('https://app.test/r');
+		const event = { url: u, request: new Request(u), route: { id: null }, params: {}, locals: {} };
+		await with_request_store({ event, state: {} } as never, async () => {
+			html = await (
+				await document(region(ReadsKitEnv as never, {} as never), {
+					pageState: { url: { href: u.href }, params: {}, route: { id: '/r' } }
+				})
+			).text();
+		});
+		const runtime = /<script data-og-mark="([^"]+)"[^>]*data-ogygia-runtime/.exec(html);
+		const env = /<script type="application\/ogygia-env" data-og-mark="([^"]+)">/.exec(html);
+		expect(env, html).not.toBeNull();
+		expect(env![1]).toBe(runtime?.[1]);
+	});
+
+	it('an edited variable ships its new value on the next page', async () => {
+		const env: Record<string, unknown> = { PUBLIC_REGION: 'eu' };
+		set_kit_public_env(env);
+		expect(await page(reads_env)).toContain('eu');
+		env.PUBLIC_REGION = 'edited';
+		const html = await page(reads_env);
+		expect(html).toContain('edited');
+		expect(html).not.toContain('"eu"');
 	});
 
 	it('a value devalue cannot carry ships nothing, and says kit_env_unshipped', async () => {
