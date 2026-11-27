@@ -710,20 +710,4 @@ describe.skipIf(!built)('a tab behind another', () => {
 			await world.end();
 		}
 	});
-
-	it('loaded behind and never shown, it is owed no look and not judged as it stands (#2091)', async () => {
-		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
-		try {
-			const v = world.visitor('v');
-			const front = world.tab(v);
-			await world.go(front, 'goto', '/');
-			await act(world, v, { kind: 'background', path: '/wake-gate' }, 'https://app.test');
-			const tab = v.tabs[1];
-			const at = world.network.exchanges.length;
-			expect(await as_it_stands(world, v, tab)).toBeNull();
-			expect(world.network.exchanges.length, 'no fresh load as it stands').toBe(at);
-		} finally {
-			await world.end();
-		}
-	});
 });

@@ -26,12 +26,13 @@ vi.mock('../src/layout.ts', async (original) => {
 /** A case's switch, `as_main`: the run end judges a tab owed a look as main did, against a fresh
  *  load (`mpa_equivalent`), and finds nothing as it stood. And when it judged what: each tab's
  *  comparison `run()` asks for, and the servers' HTML. */
-const end = vi.hoisted(() => ({ as_main: false, judged: [] as string[] }));
+const end = vi.hoisted(() => ({ as_main: false, judged: [] as string[], stands: [] as string[] }));
 vi.mock('../src/oracles.ts', async (original) => {
 	const real = await original<typeof import('../src/oracles.ts')>();
 	return {
 		...real,
 		as_it_stands: async (...args: Parameters<typeof real.as_it_stands>) => {
+			end.stands.push(`${args[2].name} ${real.owes_look(args[2]) ? 'owed' : 'not owed'} a look`);
 			if (!end.as_main) return real.as_it_stands(...args);
 			await real.mpa_equivalent(...args);
 			return null;
@@ -56,6 +57,7 @@ afterEach(() => {
 	broken_by.layout = null;
 	end.as_main = false;
 	end.judged = [];
+	end.stands = [];
 });
 
 /** Calls `then` each time `window`'s document changes its visibility (its page's own listeners
@@ -276,5 +278,136 @@ describe.skipIf(!ready)('a seeded run judges a tab behind another', () => {
 		expect(is, "every tab not owed a look, and every check after them, at main's moment").toEqual(
 			was
 		);
+	}, 300_000);
+
+	it("at the end, a tab owed a look at its rest that owes none by the time it is compared still spends main's comparison, so every tab after it and every check after them judge at main's moment (#2176)", async () => {
+		// (as above, and once the run end has rested its page stops watching, on a 1 s interval
+		// that runs while the tab before it is compared)
+		const plan: Plan = {
+			actions: [
+				{ kind: 'open', path: '/wake-gate' },
+				{ kind: 'open', path: '/' },
+				{ kind: 'reload', tab: 0 }
+			],
+			idle: true
+		};
+		const once = async () => {
+			let behind_once = false;
+			let rested = false;
+			broken_by.layout = (args) => {
+				if (!second(args[2])) return args;
+				const window = args[0] as unknown as typeof globalThis;
+				on_visibility(window, (hidden) => {
+					const island = window.document.querySelector(VISIBLE);
+					if (!hidden) return island?.setAttribute('data-hydrated', '');
+					if (behind_once) return;
+					behind_once = true;
+					island?.removeAttribute('data-hydrated');
+					const watch = new window.IntersectionObserver(() => {});
+					watch.observe(window.document.body);
+					window.setInterval(() => rested && watch.disconnect(), 1000);
+				});
+				return args;
+			};
+			end.judged = [];
+			end.stands = [];
+			const res = await run(
+				1,
+				plan.actions.length,
+				Infinity,
+				async () => {
+					rested = true;
+				},
+				plan
+			);
+			const at_end = res.log.find((l) => l.includes('# run end judged at'));
+			return {
+				at_end,
+				stands: end.stands,
+				judged: end.judged.filter((j) => !j.startsWith('tab-2 '))
+			};
+		};
+		process.env.SIM_APP = APP;
+		const { run } = await import('../src/cli.ts');
+		end.as_main = true;
+		const was = await once();
+		end.as_main = false;
+		const is = await once();
+		expect(is.at_end, 'the case it is for: tab-2 owed a look at its rest').toMatch(
+			/tab-2 owed a look$/
+		);
+		expect(is.stands, 'and owed none by the time it is compared').toEqual([
+			'tab-2 not owed a look'
+		]);
+		expect(
+			was.judged.some((j) => j.startsWith('tab-3 ')),
+			'and tab-3 judged after it'
+		).toBe(true);
+		expect(is, "every tab after it, and every check after them, at main's moment").toEqual(was);
+	}, 300_000);
+
+	it('at the end, a tab owed a look at its rest whose observers had no frame is judged as it stood, though it owes none by the time it is compared: a visible island awake there, which a fresh load behind another tab sleeps, is an MPA difference (#2091)', async () => {
+		// (as the #2091 case above, and once the run end has rested its page stops watching, on a
+		// 1 s interval that runs while the tab before it is compared)
+		let behind_once = false;
+		let rested = false;
+		broken_by.layout = (args) => {
+			if (!second(args[2])) return args;
+			const window = args[0] as unknown as typeof globalThis;
+			const framed = args[4];
+			on_visibility(window, (hidden) => {
+				if (!hidden || behind_once) return;
+				behind_once = true;
+				const watch = new window.IntersectionObserver(() => {});
+				watch.observe(window.document.body);
+				window.setInterval(() => rested && watch.disconnect(), 1000);
+			});
+			return [args[0], args[1], args[2], args[3], () => behind_once && framed?.()];
+		};
+		process.env.SIM_APP = APP;
+		const { run } = await import('../src/cli.ts');
+		const plan: Plan = {
+			actions: [
+				{ kind: 'open', path: '/wake-gate' },
+				{ kind: 'reload', tab: 0 }
+			],
+			idle: true
+		};
+		const res = await run(
+			1,
+			plan.actions.length,
+			Infinity,
+			async () => {
+				rested = true;
+			},
+			plan
+		);
+		expect(behind_once, 'the case it is for: it went behind').toBe(true);
+		const at_end = res.log.find((l) => l.includes('# run end judged at'));
+		expect(at_end, 'it was owed a look at its rest').toMatch(/tab-2 owed a look$/);
+		expect(end.stands, 'and owed none by the time it is compared').toEqual([
+			'tab-2 not owed a look'
+		]);
+		expect(res.broken.find((b) => b.detail.includes('/wake-gate'))?.oracle).toBe('mpa-equivalence');
+	}, 300_000);
+
+	it('at the end, a tab loaded behind and never shown is owed no look and not judged as it stands (#2091)', async () => {
+		process.env.SIM_APP = APP;
+		const { run } = await import('../src/cli.ts');
+		const plan: Plan = {
+			actions: [
+				{ kind: 'goto', tab: 0, path: '/' },
+				{ kind: 'background', path: '/wake-gate' }
+			],
+			idle: true
+		};
+		const res = await run(1, plan.actions.length, Infinity, undefined, plan);
+		const at_end = res.log.find((l) => l.includes('# run end judged at'));
+		expect(at_end, 'it is owed no look').toMatch(/no tab owed a look$/);
+		expect(end.stands, 'it is not judged as it stands').toEqual([]);
+		expect(
+			res.log.some((l) => l.includes('/wake-gate judged against a fresh load')),
+			'it is judged against a fresh load'
+		).toBe(true);
 	}, 300_000);
 });
