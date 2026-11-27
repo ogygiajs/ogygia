@@ -396,26 +396,31 @@ reports from). Meanwhile, as a browser's waits: with an animation frame waiting,
 is judged (any may wait on it); with only its observers owed, its `visible` islands are not, and
 every other wake is owed. Owed no look, it owes every wake; its on-screen `visible` islands too
 once its observers had a frame (`Tab.framed`), and not before (they never had one to wake by).
-Every tab owed a look is looked at (`visitor_looks`: shown until the world rests, then the tab in
-front is put back) at the run's end before any tab is judged (`rest_at_end`, every visitor's, a
-crowd's too, inside its wait for backoffs: a look may wake an island whose download fails, and its
-retry's 1, 3 and 9 s are waited out before the end judges it; the end's two waits share one
-minute, and only a look gives the second its own, from that look) and by the MPA check itself; then it
-is judged as a shown one, and a `visible` island that never wakes once looked at is `islands-wake`
-and an MPA difference (#2176: a `visible` island its hole brought after it went behind; and #2091:
-one shown as it came but behind before its observers had a frame; `test/hidden-tab.node.test.ts`;
-palaestra seed 1000004158). A look shows the tab, and the tab in front goes behind and back: each
-hears `visibilitychange` twice, and time runs while the world rests. A page that asks the server
-again when it is shown (a refetch on visibility) asks it in that look, and the waste checks
-(`waste`, `asked_twice_each`) count it as any other second ask.
+The run's end is two steps (cli.ts). First it rests as it always has (`rest_at_end`: the tabs back
+online, then rest and step while a judged tab has a timer set, a minute at most, with no look),
+and every end-of-run oracle judges every tab at that moment, a tab owed a look then as it stands,
+what it waits for set aside as between actions (`test/hidden-tab.node.test.ts` › at main's moment:
+the same moment, and the same findings, as before tabs were looked at). Then each tab owed a look
+at that moment, and only those, is looked at once (`look_at_end`, a crowd's tabs too): it is shown,
+and stays shown while it has a timer set, its own minute from the look (a look may wake an island
+whose download fails, and its retry's 1, 3 and 9 s run in front, where the retry wakes too), then
+the tab in front is put back. Those tabs alone are judged again: their islands' wakes, and the
+visitor's against a shown fresh load, unless the look's own requests met a fault (palaestra seed
+13). A `visible` island that never wakes once looked at is `islands-wake` and an MPA difference
+(#2176: a `visible` island its hole brought after it went behind; and #2091: one shown as it came
+but behind before its observers had a frame; palaestra seed 1000004158). Time the look takes hides
+nothing in another tab, which is not judged again; a tab that owes a new look after its one (one
+that asks an animation frame in each frame) is judged as it then stands, and not looked at again.
+The look shows the tab, and the tab in front goes behind and back: each hears `visibilitychange`
+twice. The waste checks (`waste`, `asked_twice_each`) judge before it, so a page that asks the
+server again when it is shown is not counted for the look.
 The MPA check judges a tab behind against a fresh load behind another tab too, unless its document's
 observers had a frame (`Tab.framed`): one never shown, or one whose runtime watched nothing. One
-owed a look whose observers never had a frame (#2091) is judged both ways: first as it stands,
-by the run's end once its timers ran out and before its look (`as_it_stands`, inside
-`rest_at_end`), against a fresh load behind (a `visible` island that woke behind with no frame, at
-once or after a timer, is a difference there, which the look would hide; what a retry fills in late
-is in it by then), then once looked at, against a shown one (`test/run-end-behind.node.test.ts`,
-`test/hidden-tab.node.test.ts`).
+owed a look whose observers never had a frame (#2091) is judged both ways: first as it stands at
+the end's first step (`as_it_stands`), against a fresh load behind (a `visible` island that woke
+behind with no frame, at once or after a timer, is a difference there, which the look would hide,
+and is the finding; what a retry fills in late is in it by then), then, showing none, once looked
+at, against a shown one (`test/run-end-behind.node.test.ts`, `test/hidden-tab.node.test.ts`).
 Mutation: the paint gate's hidden branch (schedule.ts, `hidden-document-waits-for-a-frame`) died on
 gen 262. A look hides it in a tab shown before (the frame comes then), never in one loaded behind
 and never shown: that one is owed no look, so its islands are judged though a frame waits there

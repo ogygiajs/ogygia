@@ -95,6 +95,7 @@ describe.skipIf(!ready)('a seeded run judges a tab behind another', () => {
 		};
 		process.env.SIM_APP = APP;
 		const { run } = await import('../src/cli.ts');
+		const { owes_look } = await import('../src/oracles.ts');
 		const plan: Plan = {
 			actions: [
 				{ kind: 'open', path: '/wake-gate' },
@@ -102,19 +103,101 @@ describe.skipIf(!ready)('a seeded run judges a tab behind another', () => {
 			],
 			idle: true
 		};
-		let looked = false;
+		let owed = false;
 		const res = await run(
 			1,
 			plan.actions.length,
 			Infinity,
 			async (_, v) => {
 				const t = v.tabs[1];
-				looked = t.hidden && t.framed.has(t.realm);
+				owed = owes_look(t) && !t.framed.has(t.realm);
 			},
 			plan
 		);
 		expect(behind_once, 'the case it is for: it went behind').toBe(true);
-		expect(looked, 'and the run end looked at it').toBe(true);
+		expect(owed, 'and the run end judged it owed a look, before it looked').toBe(true);
+		const end = res.log.findIndex((l) => l.includes('# run end judged at'));
+		expect(res.log[end], 'it was owed a look at the run end').toMatch(/tab-2 owed a look$/);
+		expect(
+			res.log.slice(end).some((l) => l.endsWith('# tab-2 shown')),
+			'then the visitor looked'
+		).toBe(true);
 		expect(res.broken.find((b) => b.detail.includes('/wake-gate'))?.oracle).toBe('mpa-equivalence');
+		expect(
+			res.log.some((l) => l.includes('/wake-gate looked at, judged against a fresh load')),
+			'the difference as it stood is the finding: it is not loaded fresh again'
+		).toBe(false);
+	}, 300_000);
+
+	it('at the end, a tab owed a look is judged again once looked at, and only then: a visible island that sleeps again each time the tab goes behind, set aside while it is owed the look, is an islands-wake finding after it (#2176)', async () => {
+		// (as above, it is owed a look once behind; and its on-screen visible island goes back to
+		// sleep each time the tab goes behind, so as it stands it matches a fresh load behind)
+		let behind_once = false;
+		broken_by.layout = (args) => {
+			if (!second(args[2])) return args;
+			const window = args[0] as unknown as typeof globalThis;
+			const framed = args[4];
+			on_visibility(window, (hidden) => {
+				if (!hidden) return;
+				window.document.querySelector(VISIBLE)?.removeAttribute('data-hydrated');
+				if (behind_once) return;
+				behind_once = true;
+				new window.IntersectionObserver(() => {}).observe(window.document.body);
+			});
+			return [args[0], args[1], args[2], args[3], () => behind_once && framed?.()];
+		};
+		process.env.SIM_APP = APP;
+		const { run } = await import('../src/cli.ts');
+		const plan: Plan = {
+			actions: [
+				{ kind: 'open', path: '/wake-gate' },
+				{ kind: 'reload', tab: 0 }
+			],
+			idle: true
+		};
+		const res = await run(1, plan.actions.length, Infinity, undefined, plan);
+		expect(behind_once, 'the case it is for: it went behind').toBe(true);
+		const wake = res.broken.filter((b) => b.oracle === 'islands-wake');
+		expect(
+			res.broken.some((b) => b.oracle === 'mpa-equivalence' && b.detail.includes('/wake-gate')),
+			'and an MPA difference, once looked at'
+		).toBe(true);
+		expect(
+			wake.map((b) => b.detail.split(':')[0]),
+			'once, after the look'
+		).toEqual(['looked at']);
+	}, 300_000);
+
+	it('at the end, a tab owed a look whose observers had their frames is judged at its rest with what it waits for set aside, not against a shown fresh load: a visible island asleep there that wakes once looked at is no difference (#2176)', async () => {
+		// (the first time it goes behind its on-screen visible island goes back to sleep and its page
+		// watches a target it never had reported, so it is owed a look; it wakes when shown)
+		let behind_once = false;
+		broken_by.layout = (args) => {
+			if (!second(args[2])) return args;
+			const window = args[0] as unknown as typeof globalThis;
+			on_visibility(window, (hidden) => {
+				const island = window.document.querySelector(VISIBLE);
+				if (!hidden) return island?.setAttribute('data-hydrated', '');
+				if (behind_once) return;
+				behind_once = true;
+				island?.removeAttribute('data-hydrated');
+				new window.IntersectionObserver(() => {}).observe(window.document.body);
+			});
+			return args;
+		};
+		process.env.SIM_APP = APP;
+		const { run } = await import('../src/cli.ts');
+		const plan: Plan = {
+			actions: [
+				{ kind: 'open', path: '/wake-gate' },
+				{ kind: 'reload', tab: 0 }
+			],
+			idle: true
+		};
+		const res = await run(1, plan.actions.length, Infinity, undefined, plan);
+		expect(behind_once, 'the case it is for: it went behind').toBe(true);
+		const end = res.log.find((l) => l.includes('# run end judged at'));
+		expect(end, 'it was owed a look at the run end').toMatch(/tab-2 owed a look$/);
+		expect(res.broken.filter((b) => b.detail.includes('/wake-gate'))).toEqual([]);
 	}, 300_000);
 });

@@ -44,7 +44,7 @@ import {
 	hydrates_as_sent,
 	Leaks,
 	mpa_equivalent,
-	visitor_looks,
+	owes_look,
 	as_it_stands,
 	no_cross_visitor_cache,
 	no_foreign_html,
@@ -306,50 +306,65 @@ function on_a_tab(a: Action, tabs: number): Action {
 }
 
 /**
- * THE RUN'S END RESTS, before any end-of-run oracle judges a tab: `v`'s tabs back on the network,
- * then rest. A wait on its way out is not a hang: a backoff of seconds is a page's one-shot timer,
- * due later than rest's 2 s, so time runs on while one is set, a minute at most, resting again after
- * each (a backoff's try goes on the wire and may set the next, the rollover's 1, 3 and 9 s;
- * test/found/deploy-recovery-waits.test.ts). Once those are run out, each tab of `v`'s that a look
- * would hide something in is judged as it stands ({@link as_it_stands}), so what its timers woke
- * with no frame, or filled in late, is in it (test/hidden-tab.node.test.ts, #2091): each difference
- * that found, by tab, for `mpa_equivalent` (test/run-end-behind.node.test.ts). Then each visitor,
- * the crowd's too, looks at each tab of theirs behind another that owes a frame
- * ({@link visitor_looks}), and the backoffs are waited out again, looking at each rest, so a tab is
- * judged as the visitor sees it once they look, and a backoff what the look woke set is waited out
- * too (test/hidden-tab.node.test.ts, #2176). Both waits share the one minute; a look gives the
- * second its own, from that look (test/hidden-tab.node.test.ts).
+ * Rests, and runs time on while one of `tabs` has a timer set, a minute at most, resting again
+ * after each step: a wait on a run's way out is not a hang. A backoff of seconds is a page's
+ * one-shot timer, due later than rest's 2 s, and its try goes on the wire and may set the next (the
+ * rollover's 1, 3 and 9 s; test/found/deploy-recovery-waits.test.ts).
  */
-export async function rest_at_end(world: World, v: Visitor): Promise<Map<Tab, Broken>> {
-	const visitors = (): Visitor[] => [v, ...world.crowd];
-	const minute = (): number => Math.min(world.loop.now + 60_000, world.loop.horizon);
-	let until = minute();
-	const wait_out = async (look: boolean): Promise<void> => {
-		for (;;) {
-			await world.rest();
-			if (look) for (const who of visitors()) if (await visitor_looks(world, who)) until = minute();
-			if (
-				!(
-					world.loop.now < until &&
-					world.loop.next_at <= until &&
-					visitors()
-						.flatMap((who) => who.tabs)
-						.some((t) => !world.on_release(t.realm) && t.platform?.pending().includes('timeout'))
-				)
+async function wait_timers(world: World, tabs: () => Tab[]): Promise<void> {
+	const until = Math.min(world.loop.now + 60_000, world.loop.horizon);
+	for (;;) {
+		await world.rest();
+		if (
+			!(
+				world.loop.now < until &&
+				world.loop.next_at <= until &&
+				tabs().some((t) => t.platform?.pending().includes('timeout'))
 			)
-				return;
-			await world.loop.step();
-		}
-	};
-	const stood = new Map<Tab, Broken>();
-	for (const t of v.tabs) world.network.offline(t.name, false);
-	await wait_out(false);
-	for (const t of v.tabs) {
-		const b = await as_it_stands(world, v, t);
-		if (b) stood.set(t, b);
+		)
+			return;
+		await world.loop.step();
 	}
-	await wait_out(true);
-	return stood;
+}
+
+/**
+ * THE RUN'S END RESTS, before any end-of-run oracle judges a tab: `v`'s tabs back on the network,
+ * then {@link wait_timers} on every judged tab (`v`'s and the crowd's, none a release served), with
+ * no look. Every end-of-run oracle judges every tab at the moment this leaves; a tab owed a look
+ * then ({@link owes_look}) as it stands, what it waits for set aside, as between actions
+ * (test/hidden-tab.node.test.ts › at main's moment). Those tabs, for {@link look_at_end}.
+ */
+export async function rest_at_end(world: World, v: Visitor): Promise<Tab[]> {
+	const judged = (): Tab[] =>
+		[v, ...world.crowd].flatMap((who) => who.tabs).filter((t) => !world.on_release(t.realm));
+	for (const t of v.tabs) world.network.offline(t.name, false);
+	await wait_timers(world, judged);
+	return judged().filter(owes_look);
+}
+
+/**
+ * THE VISITOR LOOKS, once the run's end judged every tab at its rest ({@link rest_at_end}): each
+ * visitor, the crowd's too, looks at each of their tabs in `owed` once. The tab is shown, and stays shown through {@link wait_timers} on it alone, its own minute from
+ * the look: what waited for a frame (a `visible` island its hole brought after it went behind, one
+ * whose first frame came after it went behind) has it, and a backoff what woke then set is waited
+ * out in front, where its retry wakes too (test/hidden-tab.node.test.ts, #2176, #2091; palaestra
+ * seed 13, test/found/behind-before-first-frame.test.ts). Then the tab that was in front is put
+ * back. Only those tabs are judged again, so time this takes hides nothing in any other; one that
+ * owes a new look after it is judged as it then stands, and not looked at again
+ * (test/hidden-tab.node.test.ts › looks at a tab once).
+ */
+export async function look_at_end(world: World, v: Visitor, owed: readonly Tab[]): Promise<void> {
+	for (const who of [v, ...world.crowd]) {
+		const front = who.tabs.find((t) => !t.hidden);
+		const looked = who.tabs.filter((t) => owed.includes(t));
+		for (const t of looked) {
+			world.browsers.focus(who, t);
+			await wait_timers(world, () => [t]);
+		}
+		if (looked.length === 0 || front === undefined) continue;
+		world.browsers.focus(who, front);
+		await world.rest();
+	}
 }
 
 /** One seeded run. */
@@ -632,30 +647,42 @@ export async function run(
 		}
 		// (a `--step` past the last action prints the trace through rest)
 		if (broken.every((b) => b.oracle === 'known') && stop_at > total) {
-			const stood = await rest_at_end(world, v);
+			const owed = await rest_at_end(world, v);
+			log.note(
+				`run end judged at ${world.loop.now} ms, ${owed.map((t) => t.name).join(' ') || 'no tab'} owed a look`
+			);
 			hear_moves();
 			await at_rest?.(world, v);
 			for (const t of judged())
 				for (const b of owed_at_rest(t))
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
-			for (const t of v.tabs.filter((t) => !world.on_release(t.realm))) {
-				// (a document a deploy failed a download of is degraded as a faulted one is: by the host.
-				// One only an outage touched is back on the network, and owes what a fresh load shows:
-				// THE OUTAGE OVER, the page recovers)
-				const outage = outage_only(world, t);
-				if (
-					pressed.get(t.name) === t.documents ||
-					(faulted(world, t) && !outage) ||
-					world.skewed_for(t.realm)
-				)
-					continue;
+			// (a document a deploy failed a download of is degraded as a faulted one is: by the host.
+			// One only an outage touched is back on the network, and owes what a fresh load shows:
+			// THE OUTAGE OVER, the page recovers. Asked again once the visitor looked: the look's own
+			// requests may meet a fault; palaestra seed 13, test/found/behind-before-first-frame.test.ts)
+			const compared = (t: Tab): boolean =>
+				pressed.get(t.name) !== t.documents &&
+				!(faulted(world, t) && !outage_only(world, t)) &&
+				!world.skewed_for(t.realm);
+			const recovers = (t: Tab, b: Broken): Broken =>
+				outage_only(world, t) && b.oracle !== 'known' ? { ...b, oracle: 'outage-recovery' } : b;
+			/** The visitor's tabs owed a look, each with a `known` finding it showed as it stood: each is
+			 *  judged against a shown fresh load once looked at. */
+			const looked_at = new Map<Tab, Broken | undefined>();
+			for (const t of v.tabs.filter((t) => !world.on_release(t.realm) && compared(t))) {
 				// (NO WASTE: a document the network or an outage touched asks again on purpose)
 				const w = faulted(world, t) ? null : waste(world, t);
 				if (w) broken.push(w);
+				if (owed.includes(t)) {
+					log.note(`${t.name} ${t.page.mainFrame.url} judged as it stands`);
+					const stood = await as_it_stands(world, v, t);
+					if (stood && stood.oracle !== 'known') broken.push(recovers(t, stood));
+					else looked_at.set(t, stood ?? undefined);
+					continue;
+				}
 				log.note(`${t.name} ${t.page.mainFrame.url} judged against a fresh load`);
-				const b = await mpa_equivalent(world, v, t, undefined, stood.get(t));
-				if (b)
-					broken.push(outage && b.oracle !== 'known' ? { ...b, oracle: 'outage-recovery' } : b);
+				const b = await mpa_equivalent(world, v, t);
+				if (b) broken.push(recovers(t, b));
 			}
 			// (NO WASTE in any document of the run, a left one's too, each up to what disturbed it)
 			const asked = asked_twice_each(
@@ -676,6 +703,20 @@ export async function run(
 				if (markup_changed(world, t)) continue;
 				const kept = html_kept(t);
 				if (kept) broken.push({ ...kept, detail: `${t.page.mainFrame.url}: ${kept.detail}` });
+			}
+			// (then the tabs owed a look, and only those, are looked at and judged again: what each
+			// set aside as it stood, its islands' wakes, and against a shown fresh load)
+			await look_at_end(world, v, owed);
+			hear_moves();
+			for (const t of owed) {
+				const b = islands_wake(t, world);
+				if (b) broken.push({ ...b, detail: `looked at: ${b.detail}` });
+			}
+			for (const [t, stood] of looked_at) {
+				if (!compared(t)) continue;
+				log.note(`${t.name} ${t.page.mainFrame.url} looked at, judged against a fresh load`);
+				const b = await mpa_equivalent(world, v, t, undefined, stood);
+				if (b) broken.push(recovers(t, b));
 			}
 		}
 		for (const b of broken) log.note(`broken ${b.oracle}: ${b.detail}`);

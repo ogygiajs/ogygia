@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
 import { act } from '../src/workload.ts';
-import type { Visitor } from '../src/browser.ts';
+import type { Tab, Visitor } from '../src/browser.ts';
 import {
 	as_it_stands,
 	islands_wake,
@@ -20,6 +20,23 @@ const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
 const built = existsSync(`${OUTPUT}/server/index.js`);
+
+/**
+ * The run's end for `v`, in `run()`'s order: it rests (`rest_at_end`), each of `v`'s tabs owed a
+ * look then is judged as it stands (`as_it_stands`), and the visitor looks (`look_at_end`). What
+ * each showed as it stood, by tab.
+ */
+const run_end = async (world: World, v: Visitor): Promise<Map<Tab, Broken>> => {
+	const { rest_at_end, look_at_end } = await import('../src/cli.ts');
+	const owed = await rest_at_end(world, v);
+	const stood = new Map<Tab, Broken>();
+	for (const t of v.tabs.filter((t) => owed.includes(t))) {
+		const b = await as_it_stands(world, v, t);
+		if (b) stood.set(t, b);
+	}
+	await look_at_end(world, v, owed);
+	return stood;
+};
 
 describe.skipIf(!built)('a tab behind another', () => {
 	it('loads hidden, paints no frame until looked at, and hears each change', async () => {
@@ -107,7 +124,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 		}
 	});
 
-	it('went behind before its islands had a frame, though it was shown as its document came: it is looked at before it is judged, and its visible island wakes then (#2091, #2092)', async () => {
+	it('went behind before its islands had a frame, though it was shown as its document came: the run end judges it as it stands, then looks at it before it judges it again, and its visible island wakes then (#2091, #2092)', async () => {
 		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
 		try {
 			const v = world.visitor('v');
@@ -124,7 +141,8 @@ describe.skipIf(!built)('a tab behind another', () => {
 			expect(visible, 'an on-screen visible island').not.toBeNull();
 			expect(visible!.hasAttribute('data-hydrated'), 'its first frame waits behind').toBe(false);
 			expect(tab.owes_frame(), 'its observers are owed that frame').toBe(true);
-			expect(await mpa_equivalent(world, v, tab)).toBeNull();
+			const stood = await run_end(world, v);
+			expect(await mpa_equivalent(world, v, tab, undefined, stood.get(tab))).toBeNull();
 			expect(visible!.hasAttribute('data-hydrated'), 'it woke once looked at').toBe(true);
 			expect(tab.framed.has(tab.realm), 'so it had its frame').toBe(true);
 			expect(front.hidden, 'and the tab in front is in front again').toBe(false);
@@ -192,7 +210,6 @@ describe.skipIf(!built)('a tab behind another', () => {
 	};
 
 	it('behind with a frame owed, it is looked at before it is judged against a shown fresh load: a visible island its hole brought after it went behind wakes then (#2176)', async () => {
-		const { rest_at_end } = await import('../src/cli.ts');
 		const world = await World.make({
 			seed: 1,
 			builds: [{ id: 'v1', output: OUTPUT }],
@@ -200,7 +217,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 		});
 		try {
 			const { v, front, tab, inner } = await behind_owing(world);
-			const stood = await rest_at_end(world, v);
+			const stood = await run_end(world, v);
 			expect(stood.get(tab), 'its observers had a frame: it is not judged as it stood').toBe(
 				undefined
 			);
@@ -215,7 +232,6 @@ describe.skipIf(!built)('a tab behind another', () => {
 	});
 
 	it('behind with a frame owed, a visible island that never wakes once the visitor looks is caught at the run end, by the MPA check and by the wake check (#2176)', async () => {
-		const { rest_at_end } = await import('../src/cli.ts');
 		const world = await World.make({
 			seed: 1,
 			builds: [{ id: 'v1', output: OUTPUT }],
@@ -223,7 +239,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 		});
 		try {
 			const { v, tab, inner } = await behind_owing(world, true);
-			const stood = await rest_at_end(world, v);
+			const stood = await run_end(world, v);
 			expect((await mpa_equivalent(world, v, tab, undefined, stood.get(tab)))?.oracle).toBe(
 				'mpa-equivalence'
 			);
@@ -238,7 +254,6 @@ describe.skipIf(!built)('a tab behind another', () => {
 	it.each(['the visitor', 'one of a crowd'])(
 		"the run end looks at each tab behind that owes a frame before it judges it, and puts the tab in front back: %s's (#2176)",
 		async (whose) => {
-			const { rest_at_end } = await import('../src/cli.ts');
 			const world = await World.make({
 				seed: 1,
 				builds: [{ id: 'v1', output: OUTPUT }],
@@ -252,7 +267,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 					islands_wake(tab, world),
 					'its visible islands are not judged while it owes a frame'
 				).toBeNull();
-				await rest_at_end(world, crowd ? world.visitor('v') : v);
+				await run_end(world, crowd ? world.visitor('v') : v);
 				expect(front.hidden).toBe(false);
 				expect(tab.hidden).toBe(true);
 				expect(tab.owes_frame()).toBe(false);
@@ -300,7 +315,6 @@ describe.skipIf(!built)('a tab behind another', () => {
 	};
 
 	it('behind with an animation frame it asked for there waiting, it owes that frame and none of its islands is judged; the run end looks, and the frame runs (#2176)', async () => {
-		const { rest_at_end } = await import('../src/cli.ts');
 		const world = await World.make({
 			seed: 1,
 			builds: [{ id: 'v1', output: OUTPUT }],
@@ -310,7 +324,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 			const { v, front, tab, island, ran } = await frame_asked_behind(world, '/', (wake) => wake());
 			expect(tab.owes_frame(), 'it owes the frame its page asked for').toBe(true);
 			expect(islands_wake(tab, world), 'its islands wait on that frame').toBeNull();
-			await rest_at_end(world, v);
+			await run_end(world, v);
 			expect(ran(), 'the visitor looked: the frame ran').toBe(true);
 			expect(island.hasAttribute('data-hydrated')).toBe(true);
 			expect(tab.owes_frame()).toBe(false);
@@ -322,7 +336,6 @@ describe.skipIf(!built)('a tab behind another', () => {
 	});
 
 	it('the run end waits out a backoff that what its look woke set (a retry after 3 s) before it judges the tab (#2176)', async () => {
-		const { rest_at_end } = await import('../src/cli.ts');
 		const world = await World.make({
 			seed: 1,
 			builds: [{ id: 'v1', output: OUTPUT }],
@@ -332,7 +345,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 			const { v, tab, island } = await frame_asked_behind(world, '/', (wake, window) =>
 				window.setTimeout(wake, 3000)
 			);
-			await rest_at_end(world, v);
+			await run_end(world, v);
 			expect(island.hasAttribute('data-hydrated'), 'its retry ran').toBe(true);
 			expect(islands_wake(tab, world)).toBeNull();
 		} finally {
@@ -398,13 +411,19 @@ describe.skipIf(!built)('a tab behind another', () => {
 		}
 		const world = await make();
 		const made = await setup(world);
-		await rest_at_end(world, made.v);
-		return { was, is: { at: world.loop.now, found: judge(world, made)?.oracle }, world, made };
+		const owed = await rest_at_end(world, made.v);
+		return {
+			was,
+			is: { at: world.loop.now, found: judge(world, made)?.oracle },
+			world,
+			made,
+			owed
+		};
 	};
 
 	it("the run end judges a page no tab of which owes a look at main's moment: a load island a page with a 100 ms tick wakes only 100 s in is asleep there, an islands-wake finding, and nothing after it waits", async () => {
 		const { look_at_end } = await import('../src/cli.ts');
-		const { was, is, world, made } = await as_main(
+		const { was, is, world, made, owed } = await as_main(
 			async (world) => {
 				const v = world.visitor('v');
 				const tab = world.tab(v);
@@ -423,16 +442,17 @@ describe.skipIf(!built)('a tab behind another', () => {
 		try {
 			expect(was.found, 'main finds it').toBe('islands-wake');
 			expect(is, "the run end judges at main's moment, and finds it").toEqual(was);
+			expect(owed, 'no tab owes a look').toEqual([]);
 			const at = world.loop.now;
-			await look_at_end(world, made.v, []);
-			expect(world.loop.now, 'no tab owes a look: no more time').toBe(at);
+			await look_at_end(world, made.v, owed);
+			expect(world.loop.now, 'so no more time').toBe(at);
 		} finally {
 			await world.end();
 		}
 	});
 
 	it("the run end judges every tab at main's moment though another owes a look: a load island the tab in front, with a 5 s timer, wakes only 90 s in is asleep there, an islands-wake finding (#2176)", async () => {
-		const { was, is, world, made } = await as_main(
+		const { was, is, world, made, owed } = await as_main(
 			async (world) => {
 				const { v, front, tab } = await behind_owing(world);
 				const window = front.page.mainFrame.window as unknown as Window;
@@ -449,7 +469,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 		try {
 			expect(was.found, 'main finds it').toBe('islands-wake');
 			expect(is, "the run end judges at main's moment, and finds it").toEqual(was);
-			expect(owes_look(made.tab), 'the case it is for: the other tab owes a look then').toBe(true);
+			expect(owed, 'the case it is for: the other tab owes a look then').toEqual([made.tab]);
 		} finally {
 			await world.end();
 		}
@@ -478,8 +498,13 @@ describe.skipIf(!built)('a tab behind another', () => {
 			const owed = await rest_at_end(world, v);
 			expect(heard, 'no look before the run end judges at its first moment').toEqual([]);
 			expect(owed).toEqual([tab]);
+			const looked = world.loop.now;
 			await look_at_end(world, v, owed);
 			expect(heard, 'one look').toEqual(['visible', 'hidden']);
+			expect(
+				world.loop.now - looked,
+				"the look waits on the looked-at tab's timers alone, not the minute the 5 s one in front would keep it"
+			).toBeLessThan(60_000);
 			expect(owes_look(tab), 'it owes a new look').toBe(true);
 			expect(islands_wake(tab, world), 'its islands wait on that frame').toBeNull();
 			expect(front.hidden).toBe(false);
@@ -488,8 +513,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 		}
 	});
 
-	it("the run end waits out the timers a minute at most when no tab owes a look: its second wait shares the first one's minute, so a load island a page wakes only 90 s in is still asleep, an islands-wake finding", async () => {
-		const { rest_at_end } = await import('../src/cli.ts');
+	it('the run end waits out the timers a minute at most when no tab owes a look, and no more after it: a load island a page wakes only 90 s in is still asleep, an islands-wake finding', async () => {
 		const world = await World.make({
 			seed: 1,
 			builds: [{ id: 'v1', output: OUTPUT }],
@@ -508,7 +532,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 			window.setTimeout(() => island.setAttribute('data-hydrated', ''), 90_000);
 			renewing(window, 5000);
 			const from = world.loop.now;
-			await rest_at_end(world, v);
+			await run_end(world, v);
 			expect(world.loop.now - from, 'a minute, and the rest after it').toBeLessThan(90_000);
 			expect(island.hasAttribute('data-hydrated')).toBe(false);
 			expect(islands_wake(tab, world)?.oracle).toBe('islands-wake');
@@ -517,8 +541,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 		}
 	});
 
-	it('the run end gives a look its own minute: what a look a minute in woke, a retry 30 s later, is waited out (#2176)', async () => {
-		const { rest_at_end } = await import('../src/cli.ts');
+	it('the run end gives a look its own minute, and the tab stays in front through it: what a look a minute in woke, a retry 30 s later that wakes in a frame, is waited out where it has that frame (#2176)', async () => {
 		const world = await World.make({
 			seed: 1,
 			builds: [{ id: 'v1', output: OUTPUT }],
@@ -527,12 +550,12 @@ describe.skipIf(!built)('a tab behind another', () => {
 		});
 		try {
 			const { v, front, tab, island } = await frame_asked_behind(world, '/', (wake, window) =>
-				window.setTimeout(wake, 30_000)
+				window.setTimeout(() => window.requestAnimationFrame(wake), 30_000)
 			);
 			renewing(front.page.mainFrame.window as unknown as Window, 5000);
 			const from = world.loop.now;
-			await rest_at_end(world, v);
-			expect(world.loop.now - from, 'its first wait took the whole minute').toBeGreaterThanOrEqual(
+			await run_end(world, v);
+			expect(world.loop.now - from, 'its rest took the whole minute').toBeGreaterThanOrEqual(
 				60_000
 			);
 			expect(island.hasAttribute('data-hydrated'), 'its retry ran').toBe(true);
@@ -543,7 +566,6 @@ describe.skipIf(!built)('a tab behind another', () => {
 	});
 
 	it("the run end does not wait on a timer in a document a release served: what it does is the release's", async () => {
-		const { rest_at_end } = await import('../src/cli.ts');
 		const world = await World.make({
 			seed: 1,
 			builds: [{ id: 'v1', output: OUTPUT, released: '0.12.0' }],
@@ -557,7 +579,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 			expect(world.on_release(tab.realm), 'the case it is for').toBe(true);
 			renewing(tab.page.mainFrame.window as unknown as Window, 5000);
 			const from = world.loop.now;
-			await rest_at_end(world, v);
+			await run_end(world, v);
 			expect(world.loop.now - from).toBeLessThan(30_000);
 		} finally {
 			await world.end();
@@ -616,33 +638,26 @@ describe.skipIf(!built)('a tab behind another', () => {
 		return { v, tab, doc, visible, window: w };
 	};
 
-	it('went behind before its observers had a frame, though it was shown as its document came: a visible island that woke there with no frame is an MPA difference, though the run end looks at it before it judges it (#2091)', async () => {
-		const { rest_at_end } = await import('../src/cli.ts');
+	it('went behind before its observers had a frame, though it was shown as its document came: a visible island that woke there with no frame is an MPA difference, judged as it stood before the run end looks at it (#2091)', async () => {
 		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
 		try {
 			const { v, tab, visible } = await unframed_behind(world, 0);
 			expect(visible.hasAttribute('data-hydrated'), 'it woke behind, with no frame').toBe(true);
-			const stood = await rest_at_end(world, v);
+			const stood = await run_end(world, v);
 			expect(tab.framed.has(tab.realm), 'the run end looked').toBe(true);
-			expect((await mpa_equivalent(world, v, tab, undefined, stood.get(tab)))?.oracle).toBe(
-				'mpa-equivalence'
-			);
+			expect(stood.get(tab)?.oracle, 'as it stood').toBe('mpa-equivalence');
 		} finally {
 			await world.end();
 		}
 	});
 
 	it('went behind before its observers had a frame: a visible island that wakes there with no frame only after a timer (its report 20 s late) is an MPA difference too: the run end waits out the timers before it judges the tab as it stands, and only then looks (#2091)', async () => {
-		const { rest_at_end } = await import('../src/cli.ts');
 		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
 		try {
 			const { v, tab, visible } = await unframed_behind(world, 20_000);
 			expect(visible.hasAttribute('data-hydrated'), 'not awake yet at the first rest').toBe(false);
-			const stood = await rest_at_end(world, v);
+			const stood = await run_end(world, v);
 			expect(stood.get(tab)?.oracle, 'it woke behind, with no frame, as it stood').toBe(
-				'mpa-equivalence'
-			);
-			expect((await mpa_equivalent(world, v, tab, undefined, stood.get(tab)))?.oracle).toBe(
 				'mpa-equivalence'
 			);
 		} finally {
@@ -651,7 +666,6 @@ describe.skipIf(!built)('a tab behind another', () => {
 	});
 
 	it('went behind before its observers had a frame: what a retry fills in 5 s later is there before the run end judges the tab as it stands, so it is no difference (#2091)', async () => {
-		const { rest_at_end } = await import('../src/cli.ts');
 		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
 		try {
 			const { v, tab, doc, window } = await unframed_behind(world);
@@ -661,7 +675,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 			window.setTimeout(() => {
 				missing.textContent = text;
 			}, 5000);
-			const stood = await rest_at_end(world, v);
+			const stood = await run_end(world, v);
 			expect(missing.textContent, 'its retry landed').toBe(text);
 			expect(stood.get(tab), 'judged as it stood once it landed').toBe(undefined);
 			expect(await mpa_equivalent(world, v, tab, undefined, stood.get(tab))).toBeNull();
@@ -671,7 +685,6 @@ describe.skipIf(!built)('a tab behind another', () => {
 	});
 
 	it('is judged against a shown fresh load when its islands had a frame before it went behind; showing no difference there, a known finding as it stood is kept', async () => {
-		const { rest_at_end } = await import('../src/cli.ts');
 		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
 		try {
 			const v = world.visitor('v');
@@ -685,7 +698,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 			const doc = tab.page.mainFrame.document as unknown as Document;
 			const visible = doc.querySelector('[data-gate-visible] > ogygia-region[wake="visible"]');
 			expect(visible!.hasAttribute('data-hydrated'), 'it woke while shown').toBe(true);
-			const stood = await rest_at_end(world, v);
+			const stood = await run_end(world, v);
 			expect(stood.get(tab), 'it is owed no look: it is not judged as it stood').toBe(undefined);
 			expect(await mpa_equivalent(world, v, tab, undefined, stood.get(tab))).toBeNull();
 			const known = { oracle: 'known', detail: 'a filed bug, as it stood' } as const;
@@ -698,7 +711,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 		}
 	});
 
-	it('loaded behind and never shown, it is owed no look and not judged as it stands; a difference it showed as it stood, before the run end looked, is the finding: it is not loaded fresh again (#2091)', async () => {
+	it('loaded behind and never shown, it is owed no look and not judged as it stands (#2091)', async () => {
 		const world = await World.make({ seed: 274517864, builds: [{ id: 'v1', output: OUTPUT }] });
 		try {
 			const v = world.visitor('v');
@@ -709,9 +722,6 @@ describe.skipIf(!built)('a tab behind another', () => {
 			const at = world.network.exchanges.length;
 			expect(await as_it_stands(world, v, tab)).toBeNull();
 			expect(world.network.exchanges.length, 'no fresh load as it stands').toBe(at);
-			const stood = { oracle: 'mpa-equivalence', detail: 'as it stood' } as const;
-			expect(await mpa_equivalent(world, v, tab, undefined, stood)).toBe(stood);
-			expect(world.network.exchanges.length, 'no fresh load').toBe(at);
 		} finally {
 			await world.end();
 		}
