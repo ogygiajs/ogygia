@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
 import { act } from '../src/workload.ts';
-import { islands_wake, mpa_equivalent } from '../src/oracles.ts';
+import { islands_wake, mpa_equivalent, visitor_looks } from '../src/oracles.ts';
 
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
@@ -122,57 +122,110 @@ describe.skipIf(!built)('a tab behind another', () => {
 		}
 	});
 
-	it('is not judged while behind with a frame owed: a visible island its hole brought after it went behind wakes when the visitor looks (#2176)', async () => {
-		// (its region requests are held until it is behind: seed 6's delays brought them after its
-		// first frame on one build and before it on another of the same commit, since a request's
-		// delays are drawn by its address and the address holds the build's region ids; CI run
-		// 45967491968)
+	/**
+	 * A tab that painted, then went behind before its top holes answered: the nested `visible`
+	 * island they bring waits for a frame. Its hole requests are held until it is behind, so it is
+	 * the same case on every build (`deaf`: what the runtime hears of that island once shown).
+	 */
+	const behind_owing = async (world: World, deaf = false) => {
+		const v = world.visitor('v');
+		const front = world.tab(v);
+		await world.go(front, 'goto', '/');
+		const tab = world.tab(v);
+		const top_hole = (url: URL) => {
+			const props = url.searchParams.get('props');
+			if (url.pathname !== '/__ogygia__' || props === null) return false;
+			const [, start] = JSON.parse(Buffer.from(props, 'base64url').toString()) as unknown[];
+			return start === 710 || start === 720;
+		};
+		const let_go = world.network.hold(
+			(url, realm) => realm.split('#')[0] === tab.name && top_hole(url)
+		);
+		world.browsers.focus(v, tab);
+		await world.start(tab, 'goto', '/nest-matrix/kit', 0);
+		const doc = tab.page.mainFrame.document as unknown as Document;
+		const inner = () =>
+			doc.querySelector(
+				'[data-case="snippet-root-hole"] [data-mx-hole] ogygia-region[wake="visible"]'
+			);
+		while (!tab.framed.has(tab.realm) && (await world.loop.step()));
+		expect(tab.framed.has(tab.realm), 'the case it is for: its islands had a frame').toBe(true);
+		expect(inner(), 'and its top holes had not answered yet').toBeNull();
+		const holes = world.network.exchanges.filter(
+			(e) => e.from === tab.realm && top_hole(new URL(e.url))
+		);
+		expect(
+			holes.map((e) => e.status),
+			'they are asked, and on the wire'
+		).toEqual(['pending', 'pending']);
+		world.browsers.focus(v, front);
+		if (deaf) {
+			// (a runtime that watches the island and never hears it come on screen: each target in
+			// the hole is watched by an observer of its own whose reports go nowhere)
+			const IO = (tab.page.mainFrame.window as unknown as typeof globalThis).IntersectionObserver;
+			const observe = IO.prototype.observe;
+			IO.prototype.observe = function (this: IntersectionObserver, target: Element) {
+				if (target.closest('[data-mx-hole]') === null) return observe.call(this, target);
+				observe.call(new IO(() => {}), target);
+			};
+		}
+		let_go();
+		await world.rest();
+		expect(inner(), 'the hole answered behind').not.toBeNull();
+		expect(inner()!.hasAttribute('data-hydrated'), 'its island waits for a frame').toBe(false);
+		expect(tab.owes_frame(), 'and it owes that frame').toBe(true);
+		return { v, front, tab, inner };
+	};
+
+	it('behind with a frame owed, it is looked at before it is judged against a shown fresh load: a visible island its hole brought after it went behind wakes then (#2176)', async () => {
 		const world = await World.make({
 			seed: 1,
 			builds: [{ id: 'v1', output: OUTPUT }],
 			secret: 'sim-secret'
 		});
 		try {
-			const v = world.visitor('v');
-			const front = world.tab(v);
-			await world.go(front, 'goto', '/');
-			const tab = world.tab(v);
-			const top_hole = (url: URL) => {
-				const props = url.searchParams.get('props');
-				if (url.pathname !== '/__ogygia__' || props === null) return false;
-				const [, start] = JSON.parse(Buffer.from(props, 'base64url').toString()) as unknown[];
-				return start === 710 || start === 720;
-			};
-			const let_go = world.network.hold(
-				(url, realm) => realm.split('#')[0] === tab.name && top_hole(url)
-			);
-			world.browsers.focus(v, tab);
-			await world.start(tab, 'goto', '/nest-matrix/kit', 0);
-			const doc = tab.page.mainFrame.document as unknown as Document;
-			const inner = () =>
-				doc.querySelector(
-					'[data-case="snippet-root-hole"] [data-mx-hole] ogygia-region[wake="visible"]'
-				);
-			while (!tab.framed.has(tab.realm) && (await world.loop.step()));
-			expect(tab.framed.has(tab.realm), 'the case it is for: its islands had a frame').toBe(true);
-			expect(inner(), 'and its top holes had not answered yet').toBeNull();
-			const holes = world.network.exchanges.filter(
-				(e) => e.from === tab.realm && top_hole(new URL(e.url))
-			);
-			expect(
-				holes.map((e) => e.status),
-				'they are asked, and on the wire'
-			).toEqual(['pending', 'pending']);
-			world.browsers.focus(v, front);
-			let_go();
-			await world.rest();
-			expect(inner(), 'the hole answered behind').not.toBeNull();
-			expect(inner()!.hasAttribute('data-hydrated'), 'its island waits for a frame').toBe(false);
+			const { v, front, tab, inner } = await behind_owing(world);
 			expect(await mpa_equivalent(world, v, tab)).toBeNull();
-			world.browsers.focus(v, tab);
-			await world.rest();
-			expect(inner()!.hasAttribute('data-hydrated'), 'it wakes once looked at').toBe(true);
-			expect(await mpa_equivalent(world, v, tab)).toBeNull();
+			expect(inner()!.hasAttribute('data-hydrated'), 'it woke once looked at').toBe(true);
+			expect(front.hidden, 'and the tab in front is in front again').toBe(false);
+			expect(tab.owes_frame()).toBe(false);
+			expect(islands_wake(tab, world)).toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
+
+	it('behind with a frame owed, a visible island that never wakes once the visitor looks is caught at the run end, by the MPA check and by the wake check (#2176)', async () => {
+		const world = await World.make({
+			seed: 1,
+			builds: [{ id: 'v1', output: OUTPUT }],
+			secret: 'sim-secret'
+		});
+		try {
+			const { v, tab, inner } = await behind_owing(world, true);
+			expect((await mpa_equivalent(world, v, tab))?.oracle).toBe('mpa-equivalence');
+			expect(inner()!.hasAttribute('data-hydrated'), 'it never woke').toBe(false);
+			expect(tab.owes_frame(), 'though its frame came').toBe(false);
+			expect(islands_wake(tab, world)?.oracle).toBe('islands-wake');
+		} finally {
+			await world.end();
+		}
+	});
+
+	it('the run end looks at each tab behind that owes a frame, and puts the tab in front back (#2176)', async () => {
+		const world = await World.make({
+			seed: 1,
+			builds: [{ id: 'v1', output: OUTPUT }],
+			secret: 'sim-secret'
+		});
+		try {
+			const { v, front, tab, inner } = await behind_owing(world, true);
+			await visitor_looks(world, v);
+			expect(front.hidden).toBe(false);
+			expect(tab.hidden).toBe(true);
+			expect(tab.owes_frame()).toBe(false);
+			expect(inner()!.hasAttribute('data-hydrated')).toBe(false);
+			expect(islands_wake(tab, world)?.oracle).toBe('islands-wake');
 		} finally {
 			await world.end();
 		}
