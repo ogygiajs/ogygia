@@ -189,6 +189,16 @@ export const CONTENT_BUILD_ERRORS = {
 			is built, or let \`sveltekit()\` load it.
 		`
 	},
+	content_markdown_extension_invalid: {
+		text: (a: { plugin: string }): string =>
+			`the Vite plugin '${a.plugin}' offers a markdown extension content cannot read.`,
+		details: (): string => prose`
+			A plugin offers a markdown extension on its \`api.ogygiaMarkdown\`: a \`name\`, a
+			\`cache_key()\`, and optionally \`rehype\` entries and a \`finish\` step. This one is not
+			shaped that way, so its markdown would compile without it. The plugin and this version of
+			\`@ogygia/content\` do not fit: update them together.
+		`
+	},
 	content_preset_empty: {
 		text: (a: { name: string }): string =>
 			`presets.${a.name} is empty — a preset with nothing is a mistake.`,

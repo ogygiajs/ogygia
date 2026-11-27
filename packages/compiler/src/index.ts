@@ -1,5 +1,7 @@
 export * from './region/transform.ts';
 export { parse_module, type AstNode } from './parse/oxc.ts';
+export { walk_ast, line_of, literal_of, NOT_LITERAL } from './parse/ast.ts';
+export type { Edit } from './splice.ts';
 export { parse_roots } from './parse/roots.ts';
 export * from './fouc-css.ts';
 export * from './free-vars.ts';

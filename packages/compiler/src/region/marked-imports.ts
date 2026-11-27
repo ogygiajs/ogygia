@@ -1,16 +1,11 @@
 import type { SvelteNode } from './ir.ts';
 import { OgygiaError } from '../messages.ts';
+import { line_of } from '../parse/ast.ts';
 
 /** One name a marked import binds: its local name and the export it reads (`'default'` or a name). */
 export interface MarkedBinding {
 	local: string;
 	exportName: string;
-}
-
-function line_of(src: string, offset: number): number {
-	let line = 1;
-	for (let i = 0; i < offset; i++) if (src.charCodeAt(i) === 10) line++;
-	return line;
 }
 
 function line_col(src: string, offset: number): string {

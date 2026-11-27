@@ -6,7 +6,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-122 entries.
+129 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -116,6 +116,13 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/federation/src/wire.ts` | `(module)` | `headers.get(TS_HEADER)` | 1 |
 | `packages/federation/src/wire.ts` | `(module)` | `headers.get(USER_HEADER)` | 1 |
 | `packages/flags/src/index.ts` | `override` | `searchParams('og-exp')` | 1 |
+| `packages/image/src/makers/binding.ts` | `open` | `headers.get('content-length')` | 1 |
+| `packages/image/src/remote-fetch.ts` | `body_of` | `headers.get('content-length')` | 1 |
+| `packages/image/src/remote-fetch.ts` | `fetch_chain` | `headers.get('content-encoding')` | 1 |
+| `packages/image/src/remote-fetch.ts` | `fetch_chain` | `headers.get('content-type')` | 1 |
+| `packages/image/src/remote-fetch.ts` | `fetch_chain` | `headers.get('etag')` | 1 |
+| `packages/image/src/remote-fetch.ts` | `fetch_chain` | `headers.get('last-modified')` | 1 |
+| `packages/image/src/remote-fetch.ts` | `fetch_chain` | `headers.get('location')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-encoding')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-length')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('vary')` | 1 |
@@ -135,7 +142,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-103 entries.
+121 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -223,6 +230,24 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/federation/src/wire.ts` | `private_key` | `Buffer.from base64` | 1 |
 | `packages/federation/src/wire.ts` | `public_key` | `Buffer.from base64` | 1 |
 | `packages/federation/src/wire.ts` | `signature_bytes` | `Buffer.from base64` | 1 |
+| `packages/image/src/cards/images.ts` | `data_bytes` | `Buffer.from base64` | 1 |
+| `packages/image/src/cards/images.ts` | `data_bytes` | `decodeURIComponent` | 1 |
+| `packages/image/src/cards/read.ts` | `(module)` | `JSON.parse` | 1 |
+| `packages/image/src/handoff.ts` | `build_handoff` | `JSON.parse` | 1 |
+| `packages/image/src/recipe.ts` | `b64url_decode` | `atob` | 1 |
+| `packages/image/src/recipe.ts` | `parse_recipe` | `JSON.parse` | 1 |
+| `packages/image/src/vite/build-files.ts` | `shown_urls` | `JSON.parse` | 1 |
+| `packages/image/src/vite/card.ts` | `build_card_images` | `JSON.parse` | 1 |
+| `packages/image/src/vite/card.ts` | `installed_version` | `JSON.parse` | 1 |
+| `packages/image/src/vite/index.ts` | `image` | `JSON.parse` | 1 |
+| `packages/image/src/vite/index.ts` | `kit_paths` | `JSON.parse` | 1 |
+| `packages/image/src/vite/macro.ts` | `options_of_query` | `Buffer.from base64url` | 1 |
+| `packages/image/src/vite/macro.ts` | `options_of_query` | `JSON.parse` | 1 |
+| `packages/image/src/vite/markdown.ts` | `markdown_extension` | `Buffer.from base64url` | 1 |
+| `packages/image/src/vite/markdown.ts` | `markdown_extension` | `JSON.parse` | 2 |
+| `packages/image/src/vite/peers.ts` | `peer_state` | `JSON.parse` | 1 |
+| `packages/image/src/vite/remote.ts` | `read_kept` | `JSON.parse` | 1 |
+| `packages/image/src/vite/vercel-config.ts` | `(module)` | `JSON.parse` | 1 |
 | `packages/insights/src/fp-drift.ts` | `(module)` | `JSON.parse` | 2 |
 | `packages/insights/src/fp-drift.ts` | `revive` | `devalue unflatten` | 1 |
 | `packages/insights/src/page-insights.ts` | `defer_keys` | `JSON.parse` | 1 |
@@ -311,7 +336,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Routes: paths ogygia answers on its own
 
-12 entries.
+13 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -326,4 +351,5 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/federation/src/wire.ts` | `FRAGMENT_BASE` | `/og/fragment/` | 1 |
 | `packages/federation/src/wire.ts` | `FRAGMENT_ROUTES_PATH` | `/og/fragment/page` | 1 |
 | `packages/federation/src/wire.ts` | `THAW_PATH` | `/og/thaw` | 1 |
+| `packages/image/src/recipe.ts` | `IMAGE_PREFIX` | `/__ogygia__/i/` | 1 |
 | `packages/testing/src/vite.ts` | `NAMES_PATH` | `/__ogygia_devtools_meta` | 1 |

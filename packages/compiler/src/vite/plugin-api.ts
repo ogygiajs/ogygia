@@ -16,7 +16,7 @@ import {
 import { OgygiaError } from '../messages.ts';
 import type { Definers } from './definers.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
-import type { MacroContext } from '../macros/pipeline.ts';
+import type { MacroContext, MacroResult } from '../macros/pipeline.ts';
 import type { PrescanHook } from '../ctx.ts';
 
 /** Where `definePlugin` puts the definition on the Vite plugin it returns. A registered symbol, so a
@@ -53,10 +53,11 @@ export interface PluginDefinition<Options = unknown> {
 
 /** A `import.meta.og.<name>` macro: rewrites a module that contains the marker (it is called only
  *  then), before the island transform or region minting see it. Returns the new code (the same
- *  string when nothing changed). */
-export type MacroHandler = (code: string, m: MacroContext) => string | Promise<string>;
+ *  string when nothing changed), or the edits that make it: edits keep the module's source map, a
+ *  string loses it. */
+export type MacroHandler = (code: string, m: MacroContext) => MacroResult | Promise<MacroResult>;
 
-export type { MacroContext, PrescanHook };
+export type { MacroContext, MacroResult, PrescanHook };
 
 /** A source format that becomes Svelte only through a preprocessor (markdown → Svelte): how its
  *  islands and its modules' CSS reach the build. */
@@ -72,6 +73,37 @@ export interface MarkupSource {
 	 *  style imports). The plugin keeps filling it ([path, source] pairs); the build reads it late. */
 	modules?: Iterable<readonly [string, string]>;
 }
+
+/** What a markdown extension's `finish` hands back. */
+export interface MarkdownFinish {
+	/** The compiled module, rewritten. */
+	code: string;
+	/** Module-script lines to add (imports, exports). */
+	lines: string[];
+	/** The body now renders a component or an expression: it is never emitted as a static region. */
+	dynamic: boolean;
+	/** Files the output names (an image a post shows): watched like the document's own, and a kept
+	 *  compile of the document whose file is gone compiles again, so the extension's check runs. */
+	files?: readonly string[];
+}
+
+/** A markdown extension one plugin offers another's markdown pipeline (its Vite plugin's
+ *  `api[MARKDOWN_EXTENSION_API]`): the one contract both sides compile against. `R` is the
+ *  pipeline's rehype entry. */
+export interface MarkdownExtension<R = unknown> {
+	/** Who offers it: one extension per name, the last config's. */
+	name: string;
+	/** What changes the compiled output besides the document and the pipeline's own settings: part
+	 *  of the document cache key. Read on every compile. */
+	cache_key: () => string;
+	/** Rehype entries, staged like the pipeline's own (after the app's own entries of each stage). */
+	rehype?: readonly R[];
+	/** After mdsvex, before the island transform: rewrite the compiled module. */
+	finish?: (code: string, filename: string) => MarkdownFinish;
+}
+
+/** The Vite plugin `api` key a markdown extension is offered under. */
+export const MARKDOWN_EXTENSION_API = 'ogygiaMarkdown';
 
 /** What the build hands back for a markup source: run the region transform on preprocessed Svelte. */
 export interface MarkupRegions {
@@ -151,6 +183,8 @@ export interface BuildContext {
 	readonly regions: RegionsSeam;
 	/** The app's root directory. */
 	readonly root: string;
+	/** Kit's routes folder (`kit.files.routes`), absolute. */
+	readonly routesDir: string;
 	/** `vite dev` (true) or `vite build` (false). */
 	readonly dev: boolean;
 	/** A key this plugin reads inside Kit's own `config` page option (`export const config = { <key>:
@@ -342,6 +376,8 @@ export interface BuildSeams {
 	exports: ExportsSeam;
 	pinned_imports: (code: string) => (decl: PinnedDecl) => boolean;
 	regions: RegionsSeam;
+	/** Kit's routes folder (`kit.files.routes`), absolute. */
+	routes_dir: () => string;
 }
 
 const MACRO_NAME_RE = /^[a-z][A-Za-z0-9]*$/;
@@ -374,6 +410,9 @@ const NO_SEAMS: BuildSeams = {
 		whyStayed: () => {
 			throw new Error('resolve_plugins: no region table without ogygia()');
 		}
+	},
+	routes_dir: () => {
+		throw new Error('resolve_plugins: no routes folder without ogygia()');
 	}
 };
 
@@ -581,6 +620,9 @@ export function resolve_plugins(
 		}
 		plugin.build?.({
 			root,
+			get routesDir() {
+				return seams.routes_dir();
+			},
 			dev,
 			exports: seams.exports,
 			pinnedImports: seams.pinned_imports,

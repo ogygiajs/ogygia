@@ -23,6 +23,7 @@ on:
       - 'packages/flags/**'
       - 'packages/barrels/**'
       - 'packages/bake/**'
+      - 'packages/image/**'
       - 'packages/data-shake/**'
       - 'packages/jumpstart/**'
       - 'packages/postrender/**'
@@ -143,7 +144,7 @@ jobs:
           './packages/ogygia' './packages/core' './packages/compiler' './packages/flags' './packages/postrender'
           './packages/federation' './packages/content' './packages/devtools' './packages/router'
           './packages/testing' './packages/cli' './packages/machine' './packages/barrels'
-          './packages/insights' './packages/bake' './packages/data-shake'
+          './packages/insights' './packages/bake' './packages/image' './packages/data-shake'
           './packages/jumpstart'
 
       # Ask ogygiajs/bench to measure what was just published (it installs this commit's build

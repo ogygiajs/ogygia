@@ -1,5 +1,6 @@
 import { og_js_regions, find_og_calls, type JsRegion } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
+import { line_of, walk_ast } from '../parse/ast.ts';
 import { og_member } from './wire.ts';
 import { OgygiaError } from '../messages.ts';
 import { splice_text, type Edit } from '../splice.ts';
@@ -11,32 +12,12 @@ const IMPORT = `import { __og_source } from 'ogygia/internal';`;
 
 type Node = AstNode;
 
-function line_of(src: string, offset: number): number {
-	let line = 1;
-	for (let i = 0; i < offset && i < src.length; i++) if (src[i] === '\n') line++;
-	return line;
-}
-
 function misuse(id: string, src: string, offset: number, what: string): never {
 	throw new OgygiaError('macro_source_misuse', {
 		file: id,
 		line: line_of(src, offset),
 		problem: what
 	});
-}
-
-function walk(node: Node, visit: (n: Node) => void): void {
-	visit(node);
-	for (const key in node) {
-		if (key === 'type' || key === 'start' || key === 'end') continue;
-		const child = node[key];
-		if (Array.isArray(child)) {
-			for (const c of child)
-				if (c && typeof c === 'object' && typeof c.type === 'string') walk(c, visit);
-		} else if (child && typeof child === 'object' && typeof child.type === 'string') {
-			walk(child, visit);
-		}
-	}
 }
 
 function ast_edits_or_null_unparsed(
@@ -90,7 +71,7 @@ function ast_edits_or_null_unparsed(
 		}
 	}
 
-	walk(program, (n) => {
+	walk_ast(program, (n) => {
 		if (
 			n.type === 'CallExpression' &&
 			og_member(n.callee as Node) === 'source' &&

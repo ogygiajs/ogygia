@@ -1191,6 +1191,16 @@ export const WARNINGS = {
 			Removing \`dataShake()\` ships all of \`page.data\` again.
 		`
 	},
+	rule_transition_name_unique: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a view-transition name is one element's: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only. A view transition pairs an element of the old page with one of the new by
+			its \`view-transition-name\`. When two elements on a page share a name, the browser skips
+			the whole transition, not only that pair. Give each element its own name, or name only one:
+			two \`<Img morph>\` of one source on a page share \`og-img-<id>\`, so keep \`morph\` on one.
+		`
+	},
 	rule_region_program_shipped: {
 		text: (a: { detail: string }): string =>
 			`rule broken, every region on the page has its program in the build: ${a.detail}`,

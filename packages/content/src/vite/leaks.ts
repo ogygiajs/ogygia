@@ -11,6 +11,7 @@ import { is_island_path } from '@ogygia/compiler';
 import { warn } from '../messages/build.ts';
 
 const CORPUS_RE = /\.(svx|md)(\?|$)/;
+const ROUTE_FILE_RE = /\/\+(?:page|layout|error)(?:@[^/.]*)?\.(?:svx|md)(?:\?|$)/;
 /** A `?…type=style…` / `lang.css` sub-import id — a CSS face, never a corpus JS leak. */
 const CONTENT_STYLE_QUERY_RE = /[?&](?:type=style|lang\.css)/;
 
@@ -18,7 +19,7 @@ interface Leg {
 	environment?: { name?: string; config?: { consumer?: string } };
 }
 
-export function content_leaks(): VitePlugin {
+export function content_leaks(routes_dir: () => string): VitePlugin {
 	let root = '';
 	let is_build = false;
 	let is_ssr = false;
@@ -34,12 +35,15 @@ export function content_leaks(): VitePlugin {
 			const env = (this as Leg | null)?.environment;
 			const server_leg = env ? env.name === 'ssr' || env.config?.consumer === 'server' : is_ssr;
 			if (!is_build || server_leg) return;
-			warn_content_leaks(bundle as Record<string, unknown>, root);
+			warn_content_leaks(bundle as Record<string, unknown>, root, routes_dir());
 		}
 	};
 }
 
-function warn_content_leaks(bundle: Record<string, unknown>, root: string): void {
+function warn_content_leaks(bundle: Record<string, unknown>, root: string, routes: string): void {
+	const routes_prefix = `${routes.split(path.sep).join('/').replace(/\/+$/, '')}/`;
+	const route_file = (id: string): boolean =>
+		id.startsWith(routes_prefix) && ROUTE_FILE_RE.test(id);
 	try {
 		const leaks: Array<{ chunk: string; modules: string[] }> = [];
 		for (const [key, chunk] of Object.entries(bundle)) {
@@ -51,7 +55,11 @@ function warn_content_leaks(bundle: Record<string, unknown>, root: string): void
 			// purpose (see the client-leg content-CSS emit) — it carries no corpus JS, so it is not
 			// a leak. Only a real corpus JS module counts.
 			const corpus = ids.filter(
-				(id) => CORPUS_RE.test(id) && !is_island_path(id) && !CONTENT_STYLE_QUERY_RE.test(id)
+				(id) =>
+					CORPUS_RE.test(id) &&
+					!route_file(id) &&
+					!is_island_path(id) &&
+					!CONTENT_STYLE_QUERY_RE.test(id)
 			);
 			if (corpus.length)
 				leaks.push({ chunk: (chunk as { fileName?: string }).fileName ?? key, modules: corpus });

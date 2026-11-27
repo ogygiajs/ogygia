@@ -1,0 +1,142 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the capability table, row by row 1`] = `
+"| encoder          | need                    | can   | as                                                                                |
+| ---------------- | ----------------------- | ----- | --------------------------------------------------------------------------------- |
+| sharp            | box                     | true  | resize fit 'cover'                                                                |
+| sharp            | crop                    | true  | resize fit 'cover'                                                                |
+| sharp            | position center         | true  | position 'centre'                                                                 |
+| sharp            | position top            | true  | position 'top'                                                                    |
+| sharp            | position bottom         | true  | position 'bottom'                                                                 |
+| sharp            | position left           | true  | position 'left'                                                                   |
+| sharp            | position right          | true  | position 'right'                                                                  |
+| sharp            | position attention      | true  | strategy.attention                                                                |
+| sharp            | position entropy        | true  | strategy.entropy                                                                  |
+| sharp            | rotate quarter          | true  | rotate()                                                                          |
+| sharp            | rotate other            | true  | rotate()                                                                          |
+| sharp            | flip                    | true  | flip()                                                                            |
+| sharp            | flop                    | true  | flop()                                                                            |
+| sharp            | grayscale               | true  | grayscale()                                                                       |
+| sharp            | blur                    | true  | blur(sigma)                                                                       |
+| sharp            | sharpen                 | true  | sharpen()                                                                         |
+| sharp            | normalize               | true  | normalize()                                                                       |
+| sharp            | negate                  | true  | negate()                                                                          |
+| sharp            | gamma                   | true  | gamma()                                                                           |
+| sharp            | tint                    | true  | tint()                                                                            |
+| sharp            | modulate brightness     | true  | modulate({ brightness })                                                          |
+| sharp            | modulate saturation     | true  | modulate({ saturation })                                                          |
+| sharp            | modulate hue            | true  | modulate({ hue })                                                                 |
+| sharp            | modulate lightness      | true  | modulate({ lightness })                                                           |
+| sharp            | format avif             | true  | avif()                                                                            |
+| sharp            | format webp             | true  | webp()                                                                            |
+| sharp            | format png              | true  | png()                                                                             |
+| sharp            | format jpeg             | true  | jpeg({ mozjpeg })                                                                 |
+| sharp            | png from another format | true  | png()                                                                             |
+| sharp            | source avif             | true  | reads AVIF                                                                        |
+| sharp            | source gif              | true  | reads GIF                                                                         |
+| sharp            | source tiff             | true  | reads TIFF                                                                        |
+| sharp            | animated                | true  | { animated: true } keeps every frame                                              |
+| sharp            | still                   | true  | { pages: 1 } reads the first frame                                                |
+| cloudflare       | box                     | true  | fit=cover (fit=crop for a remote source: never enlarged)                          |
+| cloudflare       | crop                    | true  | fit=cover (fit=crop for a remote source: never enlarged)                          |
+| cloudflare       | position center         | true  | no gravity (the center is the default)                                            |
+| cloudflare       | position top            | true  | gravity=top                                                                       |
+| cloudflare       | position bottom         | true  | gravity=bottom                                                                    |
+| cloudflare       | position left           | true  | gravity=left                                                                      |
+| cloudflare       | position right          | true  | gravity=right                                                                     |
+| cloudflare       | position attention      | true  | gravity=auto (saliency)                                                           |
+| cloudflare       | position entropy        | false | no gravity keeps the busiest part                                                 |
+| cloudflare       | rotate quarter          | true  | rotate=90\\|180\\|270                                                               |
+| cloudflare       | rotate other            | false | rotate takes 90, 180 or 270 only                                                  |
+| cloudflare       | flip                    | true  | flip=v                                                                            |
+| cloudflare       | flop                    | true  | flip=h                                                                            |
+| cloudflare       | grayscale               | true  | saturation=0                                                                      |
+| cloudflare       | blur                    | true  | blur=<radius 1–250> (twice the sigma)                                             |
+| cloudflare       | sharpen                 | true  | sharpen=1                                                                         |
+| cloudflare       | normalize               | false | no option stretches the levels                                                    |
+| cloudflare       | negate                  | false | no option inverts the colors                                                      |
+| cloudflare       | gamma                   | false | gamma is an exposure curve there, not sharp's gamma-correct resize                |
+| cloudflare       | tint                    | false | no option tints                                                                   |
+| cloudflare       | modulate brightness     | true  | brightness=<multiplier>                                                           |
+| cloudflare       | modulate saturation     | true  | saturation=<multiplier>                                                           |
+| cloudflare       | modulate hue            | false | no option turns the hue                                                           |
+| cloudflare       | modulate lightness      | false | no option adds lightness                                                          |
+| cloudflare       | format avif             | true  | format=avif (WebP or JPEG past 1200 px a side)                                    |
+| cloudflare       | format webp             | true  | format=webp                                                                       |
+| cloudflare       | format png              | true  | output({ format: 'image/png' })                                                   |
+| cloudflare       | format jpeg             | true  | format=jpeg                                                                       |
+| cloudflare       | png from another format | true  | output({ format: 'image/png' })                                                   |
+| cloudflare       | source avif             | false | reads AVIF on an Enterprise plan only                                             |
+| cloudflare       | source gif              | true  | reads GIF, animations included                                                    |
+| cloudflare       | source tiff             | true  | reads TIFF (its first page)                                                       |
+| cloudflare       | animated                | true  | anim=true (the default) keeps every frame                                         |
+| cloudflare       | still                   | true  | anim=false keeps the first frame                                                  |
+| cloudflare links | box                     | true  | fit=cover (fit=crop for a remote source: never enlarged)                          |
+| cloudflare links | crop                    | true  | fit=cover (fit=crop for a remote source: never enlarged)                          |
+| cloudflare links | position center         | true  | no gravity (the center is the default)                                            |
+| cloudflare links | position top            | true  | gravity=top                                                                       |
+| cloudflare links | position bottom         | true  | gravity=bottom                                                                    |
+| cloudflare links | position left           | true  | gravity=left                                                                      |
+| cloudflare links | position right          | true  | gravity=right                                                                     |
+| cloudflare links | position attention      | true  | gravity=auto (saliency)                                                           |
+| cloudflare links | position entropy        | false | no gravity keeps the busiest part                                                 |
+| cloudflare links | rotate quarter          | true  | rotate=90\\|180\\|270                                                               |
+| cloudflare links | rotate other            | false | rotate takes 90, 180 or 270 only                                                  |
+| cloudflare links | flip                    | true  | flip=v                                                                            |
+| cloudflare links | flop                    | true  | flip=h                                                                            |
+| cloudflare links | grayscale               | true  | saturation=0                                                                      |
+| cloudflare links | blur                    | true  | blur=<radius 1–250> (twice the sigma)                                             |
+| cloudflare links | sharpen                 | true  | sharpen=1                                                                         |
+| cloudflare links | normalize               | false | no option stretches the levels                                                    |
+| cloudflare links | negate                  | false | no option inverts the colors                                                      |
+| cloudflare links | gamma                   | false | gamma is an exposure curve there, not sharp's gamma-correct resize                |
+| cloudflare links | tint                    | false | no option tints                                                                   |
+| cloudflare links | modulate brightness     | true  | brightness=<multiplier>                                                           |
+| cloudflare links | modulate saturation     | true  | saturation=<multiplier>                                                           |
+| cloudflare links | modulate hue            | false | no option turns the hue                                                           |
+| cloudflare links | modulate lightness      | false | no option adds lightness                                                          |
+| cloudflare links | format avif             | true  | format=avif (WebP or JPEG past 1200 px a side)                                    |
+| cloudflare links | format webp             | true  | format=webp                                                                       |
+| cloudflare links | format png              | true  | no format= (a PNG source's own format is kept)                                    |
+| cloudflare links | format jpeg             | true  | format=jpeg                                                                       |
+| cloudflare links | png from another format | false | format= takes no png                                                              |
+| cloudflare links | source avif             | false | reads AVIF on an Enterprise plan only                                             |
+| cloudflare links | source gif              | true  | reads GIF, animations included                                                    |
+| cloudflare links | source tiff             | true  | reads TIFF (its first page)                                                       |
+| cloudflare links | animated                | true  | anim=true (the default) keeps every frame                                         |
+| cloudflare links | still                   | true  | anim=false keeps the first frame                                                  |
+| vercel           | box                     | true  | w=<a width of images.sizes>; the height follows the source                        |
+| vercel           | crop                    | false | no crop: w= keeps the source's shape                                              |
+| vercel           | position center         | true  | nothing is cut, so nothing to place                                               |
+| vercel           | position top            | false | no crop                                                                           |
+| vercel           | position bottom         | false | no crop                                                                           |
+| vercel           | position left           | false | no crop                                                                           |
+| vercel           | position right          | false | no crop                                                                           |
+| vercel           | position attention      | false | no crop                                                                           |
+| vercel           | position entropy        | false | no crop                                                                           |
+| vercel           | rotate quarter          | false | only resizes (w=, q=): no option for it                                           |
+| vercel           | rotate other            | false | only resizes (w=, q=): no option for it                                           |
+| vercel           | flip                    | false | only resizes (w=, q=): no option for it                                           |
+| vercel           | flop                    | false | only resizes (w=, q=): no option for it                                           |
+| vercel           | grayscale               | false | only resizes (w=, q=): no option for it                                           |
+| vercel           | blur                    | false | only resizes (w=, q=): no option for it                                           |
+| vercel           | sharpen                 | false | only resizes (w=, q=): no option for it                                           |
+| vercel           | normalize               | false | only resizes (w=, q=): no option for it                                           |
+| vercel           | negate                  | false | only resizes (w=, q=): no option for it                                           |
+| vercel           | gamma                   | false | only resizes (w=, q=): no option for it                                           |
+| vercel           | tint                    | false | only resizes (w=, q=): no option for it                                           |
+| vercel           | modulate brightness     | false | only resizes (w=, q=): no option for it                                           |
+| vercel           | modulate saturation     | false | only resizes (w=, q=): no option for it                                           |
+| vercel           | modulate hue            | false | only resizes (w=, q=): no option for it                                           |
+| vercel           | modulate lightness      | false | only resizes (w=, q=): no option for it                                           |
+| vercel           | format avif             | true  | picked from the Accept header (images.formats lists it)                           |
+| vercel           | format webp             | true  | picked from the Accept header (images.formats lists it)                           |
+| vercel           | format png              | false | names no format: a browser that takes neither AVIF nor WebP gets the source's own |
+| vercel           | format jpeg             | false | names no format: a browser that takes neither AVIF nor WebP gets the source's own |
+| vercel           | png from another format | false | names no format                                                                   |
+| vercel           | source avif             | true  | reads AVIF                                                                        |
+| vercel           | source gif              | false | served as it is: only JPEG, PNG, WebP and AVIF sources are optimized              |
+| vercel           | source tiff             | false | served as it is: only JPEG, PNG, WebP and AVIF sources are optimized              |
+| vercel           | animated                | false | an animated source is served as it is, not resized                                |
+| vercel           | still                   | false | no option keeps one frame                                                         |"
+`;

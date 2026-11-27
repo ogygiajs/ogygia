@@ -1,7 +1,16 @@
 // The e2e harness's build step (src/e2e/build.ts): a fixture app is built once before its suite,
 // from its own directory (a webServer command) or from `metadata.build` (a Playwright globalSetup).
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -118,5 +127,27 @@ describe('e2e build', () => {
 	it("the e2e task builds the app's libraries first, so the build step builds only the app", () => {
 		const turbo = JSON.parse(readFileSync(join(ROOT, 'turbo.json'), 'utf8'));
 		expect(turbo.tasks.e2e.dependsOn).toContain('^build');
+	});
+
+	it("a package's e2e task builds the libraries its fixture app installs before the app starts", () => {
+		const packages = join(ROOT, 'packages');
+		const missing: string[] = [];
+		for (const pkg of readdirSync(packages)) {
+			const e2e = join(packages, pkg, 'e2e');
+			if (!existsSync(e2e)) continue;
+			for (const app of readdirSync(e2e)) {
+				const dir = join(e2e, app);
+				if (!existsSync(join(dir, 'vite.config.ts')) || !existsSync(join(dir, 'package.json')))
+					continue;
+				const name: string = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).name;
+				const own = join(packages, pkg, 'turbo.json');
+				const depends: string[] = existsSync(own)
+					? (JSON.parse(readFileSync(own, 'utf8')).tasks?.e2e?.dependsOn ?? [])
+					: [];
+				if (!depends.includes(`${name}#fixture`) || !depends.includes('build'))
+					missing.push(`packages/${pkg}/turbo.json e2e needs "build" and "${name}#fixture"`);
+			}
+		}
+		expect(missing).toEqual([]);
 	});
 });

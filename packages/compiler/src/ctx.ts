@@ -104,6 +104,9 @@ export interface CompileCtxInit {
 	component_css?: ComponentCss;
 	/** The plugins' `import.meta.og.*` macros (`b.macro`), in plugin order. Optional (default none). */
 	macros?: readonly PluginMacro[];
+	/** The markdown formats' extensions (`b.markup()`), whose scripts the macro check reads.
+	 *  Optional (default none). */
+	markdown_exts?: readonly string[];
 	/** The plugin that reads which `page.data` keys a module reads (`b.pageReads`), handed each
 	 *  module the build compiles. Optional (default none: every region gets all of `page.data`). */
 	page_reads?: PageReadsSink | null;
@@ -183,6 +186,7 @@ export class CompileCtx {
 	}
 	readonly component_css: ComponentCss | undefined;
 	readonly macros: readonly PluginMacro[];
+	readonly markdown_exts: readonly string[];
 	readonly page_reads: PageReadsSink | null;
 	readonly prescans: readonly PrescanHook[];
 	readonly plugins: readonly string[];
@@ -237,6 +241,7 @@ export class CompileCtx {
 		this.resolve_alias = init.resolve_alias;
 		this.component_css = init.component_css;
 		this.macros = init.macros ?? [];
+		this.markdown_exts = init.markdown_exts ?? [];
 		this.page_reads = init.page_reads ?? null;
 		this.prescans = init.prescans ?? [];
 		this.plugins = init.plugins ?? [];

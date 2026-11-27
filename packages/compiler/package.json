@@ -70,6 +70,7 @@
 		"devalue": "catalog:",
 		"estree-walker": "^3.0.3",
 		"magic-string": "catalog:",
+		"micromark": "catalog:",
 		"tinyglobby": "^0.2.17"
 	},
 	"devDependencies": {
@@ -81,6 +82,7 @@
 		"@types/node": "catalog:",
 		"@typescript/native": "catalog:tsgo",
 		"fast-check": "catalog:",
+		"mdsvex": "catalog:",
 		"rolldown": "catalog:",
 		"sass-embedded": "^1.104.1",
 		"svelte": "catalog:",
