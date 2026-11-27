@@ -24,7 +24,8 @@ export interface SigningKey {
 	stable: boolean;
 	/** 8-char key fingerprint (`&k=` on capabilities, `x-ogygia-key` on refusals) */
 	fp: string;
-	/** where the secret came from: `handle({ secret })`, `OGYGIA_SECRET`, or this build's random key */
+	/** where the secret came from: `handle({ secret })`, `OGYGIA_SECRET`, or this build's key (derived
+	 *  from the secret the build saw, else random) */
 	source: 'option' | 'env' | 'build';
 }
 
@@ -48,7 +49,7 @@ const SLOT = Symbol.for('ogygia.signing-key');
 const SOURCE_NAME: Record<SigningKey['source'], string> = {
 	option: 'handle({ secret })',
 	env: 'OGYGIA_SECRET',
-	build: "this build's random key"
+	build: "this build's key"
 };
 
 const slots = globalThis as unknown as Record<symbol, KeySlot | undefined>;

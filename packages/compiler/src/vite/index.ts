@@ -9,6 +9,7 @@ import {
 	content_css_key,
 	DEFAULT_REGION_TTL_SEC,
 	RENEW_WINDOW_SEC,
+	derive_build_key,
 	derive_id_salt,
 	secret_has_min_entropy,
 	MIN_SECRET_BYTES,
@@ -249,7 +250,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let devtools_effective = false;
 	let devtools_lazy = false;
 
-	const build_secret = crypto.randomBytes(32).toString('hex');
+	const random_build_key = crypto.randomBytes(32).toString('hex');
+	let build_secret = random_build_key;
 	let id_salt = '';
 
 	let svelte: SvelteCompile | null = null;
@@ -634,8 +636,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						throw new OgygiaError('secret_too_short', { min_bytes: MIN_SECRET_BYTES });
 					}
 					id_salt = derive_id_salt(env_secret);
+					build_secret = derive_build_key(env_secret);
 				} else {
 					id_salt = '';
+					build_secret = random_build_key;
 				}
 
 				({ kit_wire_path, kit_remote_index, universal_hooks, client_hooks, kit_transport_init } =
