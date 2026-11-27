@@ -38,7 +38,12 @@ import {
 	set_request_stats_sink,
 	type RequestStatsSink
 } from '../src/server/request-stats.ts';
-import { merge_seed_ask, shape_page_data, type SeedAsk } from '../src/server/seed-shape.ts';
+import {
+	merge_seed_ask,
+	PageAsk,
+	shape_page_data,
+	type SeedAsk
+} from '../src/server/seed-shape.ts';
 import { kit_asset } from '../src/kit-paths.ts';
 import { graph_hrefs as graph_hrefs_of } from '../src/region-parts/locate.ts';
 import { set_island_deps } from '../test/_stubs/server.region-deps.ts';
@@ -163,7 +168,7 @@ function bag_of(request: Request): Bag {
 	const bag: Bag = {
 		request,
 		page: null,
-		seed_keys: null,
+		ask: new PageAsk(true),
 		seed_asks: request_stats_detailed() ? new Map() : null,
 		remotes_wanted: new Set(),
 		tail: new DocumentTail(),
@@ -483,7 +488,7 @@ function streamed_listing(items: number): { data: ListingData & { reviews: Promi
 
 bench(
 	'explain_seed: per page.data key, its size and why it ships',
-	({ handle, data, bag }) => handle.explain_seed(data, bag.seed_keys, bag).keys.length,
+	({ handle, data, bag }) => handle.explain_seed(data, bag.ask.keys, bag).keys.length,
 	{ setup: () => explained(250), scale: (_ctx, k) => explained(25 * k) }
 );
 

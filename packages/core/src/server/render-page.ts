@@ -29,6 +29,7 @@ import type { PageSnapshot } from '../page-seed-registry.ts';
 import { look_up_page, type PageFacts } from './page-facts.ts';
 import { merge_seed_ask, shape_page_data, type SeedAsk, type SeedKeys } from './seed-shape.ts';
 import { PAGE_FACTS_SCRIPT_TYPE } from '../page-facts-script.ts';
+import { env_seed_script } from './env-seed.ts';
 import { line } from '../messages/server.ts';
 import { note_hole_page_read } from './rules.ts';
 import { bucket32 } from '../contract/hash.ts';
@@ -270,14 +271,17 @@ export function render_page_version(
 const fnv1a = (text: string): string => bucket32(text).toString(36);
 
 const asks_of = new WeakMap<Request, SeedKeys>();
+const env_asked = new WeakSet<Request>();
 
 /**
  * An island rendering FOR a page asks for the `page.data` keys its client reads (Region.svelte's
- * record, the build's answer): kept for the answer's facts. `true` when the request renders for a
- * page — the ask is this model's, never a page render's snapshot.
+ * record, the build's answer), and for Kit's public env when its client imports `$app/env/public`
+ * (KIT-PUBLIC-ENV): kept for the answer's facts. `true` when the request renders for a page — the
+ * ask is this model's, never a page render's snapshot.
  */
-export function note_render_page_ask(event: RequestEvent, seed: SeedAsk): boolean {
+export function note_render_page_ask(event: RequestEvent, seed: SeedAsk, env: boolean): boolean {
 	if (!renders_for_a_page(event)) return false;
+	if (env) env_asked.add(event.request);
 	if (seed !== false) {
 		const merged = merge_seed_ask(asks_of.get(event.request) ?? null, seed);
 		if (merged) asks_of.set(event.request, merged);
@@ -289,7 +293,8 @@ export function note_render_page_ask(event: RequestEvent, seed: SeedAsk): boolea
  * ONE PAGE, NOT TWO: what an answer rendered FOR a page carries — the looked-up `page.data` keys its
  * islands read, so they hydrate against the values their HTML was rendered from (the runtime merges
  * them into the page store: seeds.ts). `''` when no island in it reads the page, the page was not
- * looked up, or a value does not serialize (a still-streaming promise).
+ * looked up, or a value does not serialize (a still-streaming promise). Its sibling for Kit's public
+ * env is {@link render_page_env_script}.
  */
 export function render_page_facts_script(
 	event: RequestEvent | undefined,
@@ -308,4 +313,14 @@ export function render_page_facts_script(
 	} catch {
 		return '';
 	}
+}
+
+/**
+ * What an answer rendered FOR a page carries for Kit's public env (KIT-PUBLIC-ENV): the env channel
+ * (server/env-seed.ts) where an island in it imports Kit's `$app/env/public`, which the runtime holds
+ * for Kit's module (runtime/kit-env-held.ts). `''` when none asks, or Kit has no env to send.
+ */
+export function render_page_env_script(event: RequestEvent | undefined): string {
+	if (!event || !renders_for_a_page(event) || !env_asked.has(event.request)) return '';
+	return env_seed_script(event.request) ?? '';
 }

@@ -13,34 +13,36 @@ import { devalue_text } from './devalue-text.ts';
 import { ogygia_script } from './document-assembly.ts';
 import { response_mark } from './response-mark.ts';
 
+type Made = { kind: 'unmade' } | { kind: 'made'; from: Map<string, unknown>; text: string | null };
+
 class EnvText {
-	#from = new Map<string, unknown>();
-	#text: string | null = null;
-	#made = false;
+	#made: Made = { kind: 'unmade' };
 
 	of(env: Record<string, unknown>): string | null {
-		if (this.#made && this.#same(env)) return this.#text;
-		this.#from = new Map(Object.entries(env));
-		this.#made = true;
-		this.#text = null;
-		if (this.#from.size === 0) return null;
-		try {
-			this.#text = devalue_text(env, {});
-		} catch (e) {
-			warn('kit_env_unshipped', { reason: e instanceof Error ? e.message : String(e) });
+		const made = this.#made;
+		if (made.kind === 'made' && same(made.from, env)) return made.text;
+		const from = new Map(Object.entries(env));
+		let text: string | null = null;
+		if (from.size > 0) {
+			try {
+				text = devalue_text(env, {});
+			} catch (e) {
+				warn('kit_env_unshipped', { reason: e instanceof Error ? e.message : String(e) });
+			}
 		}
-		return this.#text;
+		this.#made = { kind: 'made', from, text };
+		return text;
 	}
+}
 
-	#same(env: Record<string, unknown>): boolean {
-		let n = 0;
-		for (const k in env) {
-			if (!Object.hasOwn(env, k)) continue;
-			if (!this.#from.has(k) || !Object.is(this.#from.get(k), env[k])) return false;
-			n++;
-		}
-		return n === this.#from.size;
+function same(from: ReadonlyMap<string, unknown>, env: Record<string, unknown>): boolean {
+	let n = 0;
+	for (const k in env) {
+		if (!Object.hasOwn(env, k)) continue;
+		if (!from.has(k) || !Object.is(from.get(k), env[k])) return false;
+		n++;
 	}
+	return n === from.size;
 }
 const ENV_TEXT = new EnvText();
 

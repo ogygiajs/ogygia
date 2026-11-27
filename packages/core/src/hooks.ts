@@ -54,6 +54,7 @@ import {
 	note_render_page_ask,
 	prepare_render_page,
 	render_page,
+	render_page_env_script,
 	render_page_facts_script,
 	render_page_version
 } from './server/render-page.ts';
@@ -224,6 +225,8 @@ const doc_asks = shared<WeakMap<Request, PageAsk>>({
 	make: () => new WeakMap()
 });
 const request_of = () => live_event()?.request;
+/** A page's ask record, keeping page keys only where this build's runtime reads the page seed. */
+const page_ask = (): PageAsk => new PageAsk(!!(HAS & F_PAGE));
 const ref_names_of = shared<WeakMap<Request, RefNames>>({
 	name: 'ogygia.request-ref-names',
 	version: 1,
@@ -238,7 +241,7 @@ set_ref_names_reader(() => {
 });
 set_ask_scope_opener(() => {
 	const request = request_of();
-	if (request && !bags.has(request) && !doc_asks.has(request)) doc_asks.set(request, new PageAsk());
+	if (request && !bags.has(request) && !doc_asks.has(request)) doc_asks.set(request, page_ask());
 });
 set_seed_ask_reader(() => {
 	const request = request_of();
@@ -249,15 +252,15 @@ set_page_recorder((snapshot, seed, remotes, entry, env) => {
 	// a render FOR a page (a hole, a remote call): its islands' asks are the render-page model's —
 	// the answer carries those keys of the looked-up page (server/render-page.ts)
 	const event = live_event();
-	if (event && note_render_page_ask(event, seed)) return;
+	if (event && note_render_page_ask(event, seed, env)) return;
 	const asks = HAS & F_PAGE && seed !== false;
 	const bag = bag_of();
 	if (!bag) {
 		const request = request_of();
-		if (request) doc_asks.get(request)?.note(seed, env, !!(HAS & F_PAGE));
+		if (request) doc_asks.get(request)?.note(seed, env);
 		return;
 	}
-	bag.ask.note(seed, env, !!(HAS & F_PAGE));
+	bag.ask.note(seed, env);
 	const first = bag.page === null;
 	bag.page = { ...bag.page, ...snapshot };
 	if (HAS & F_PAGE && first) walk_page_seed(bag.page.data, bag.measure_memo);
@@ -279,7 +282,8 @@ set_render_page_port({
 		return prepare_render_page(live_event() ?? undefined, app_transport, reads_data);
 	},
 	tail() {
-		return render_page_facts_script(live_event() ?? undefined, app_transport);
+		const event = live_event() ?? undefined;
+		return render_page_facts_script(event, app_transport) + render_page_env_script(event);
 	},
 	version(hole_id) {
 		if (!hole_reads_page_data(hole_id)) return '';
@@ -618,7 +622,7 @@ class OgygiaHandle {
 			// `inject_client_seeds` via the SAME bag reference passed through as a closure.
 			const bag: RequestBag = {
 				page: null,
-				ask: new PageAsk(),
+				ask: page_ask(),
 				seed_asks: request_stats_detailed() ? new Map() : null,
 				remotes_wanted: HAS & F_REMOTE_SEEDS ? new Set() : null,
 				tail: new DocumentTail(),

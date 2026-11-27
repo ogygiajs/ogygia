@@ -105,8 +105,12 @@
 			"reason": "per csr=false document that asks for Kit's env: a hit is one #same pass over Kit's few public variables; it serializes again only after a value changed (once per server in production, once per edit in dev); proven in packages/core/test/server-seed-word.test.ts (#2177)"
 		},
 		{
-			"id": "packages/core/src/server/env-seed.ts > EnvText > #same",
+			"id": "packages/core/src/server/env-seed.ts > same",
 			"reason": "one pass over Kit's few public variables, one Map lookup and one Object.is each; proven in packages/core/test/server-seed-word.test.ts (#2177)"
+		},
+		{
+			"id": "packages/core/src/server/render-page.ts > render_page_env_script",
+			"reason": "per render root rendered for a page: one WeakSet read, and where an island asked, one env_seed_script (a pass over Kit's few public variables on a hit); proven in packages/core/test/server-seed-word.test.ts (#2177)"
 		},
 		{
 			"id": "packages/core/src/server/seed-shape.ts > PageAsk > note",

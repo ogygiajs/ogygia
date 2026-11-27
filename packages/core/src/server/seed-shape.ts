@@ -31,11 +31,17 @@ export function merge_seed_ask(current: SeedKeys | null, ask: SeedAsk): SeedKeys
 export class PageAsk {
 	keys: SeedKeys | null = null;
 	env = false;
+	readonly #seeds: boolean;
 
-	/** Fold one region's ask in: `seed` its page keys (`false`: none, when `seeds` is off), `env`
-	 *  whether it imports Kit's public env. */
-	note(seed: SeedAsk, env: boolean, seeds: boolean): void {
-		if (seeds) this.keys = merge_seed_ask(this.keys, seed);
+	/** `seeds`: the page seed is shipped at all (the build's runtime reads it); without it no
+	 *  region's page keys are kept. */
+	constructor(seeds: boolean) {
+		this.#seeds = seeds;
+	}
+
+	/** Fold one region's ask in: `seed` its page keys, `env` whether it imports Kit's public env. */
+	note(seed: SeedAsk, env: boolean): void {
+		if (this.#seeds) this.keys = merge_seed_ask(this.keys, seed);
 		if (env) this.env = true;
 	}
 }
