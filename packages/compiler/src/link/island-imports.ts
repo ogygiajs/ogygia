@@ -14,7 +14,7 @@
 import { walk } from 'estree-walker';
 import { module_record, type AstNode } from '../parse/oxc.ts';
 import { parse_roots } from '../parse/roots.ts';
-import { component_blocks } from '../parse/scan.ts';
+import { component_blocks, type ComponentBlock } from '../parse/scan.ts';
 
 const IMPORT_SPEC_G =
 	/\bfrom\s*['"]([^'"\n]+)['"]|\bimport\s*['"]([^'"\n]+)['"]|\bimport\s*\(\s*['"]([^'"\n]+)['"]/g;
@@ -32,8 +32,9 @@ function script_imports(src: string, file: string): Set<string> | null {
 	if (!record) return null;
 	const out = new Set<string>();
 	for (const imp of record.staticImports) {
-		if (imp.entries.length > 0 && imp.entries.every((e) => e.isType)) continue;
-		out.add(imp.moduleRequest.value);
+		let value = imp.entries.length === 0;
+		for (const e of imp.entries) if (!e.isType) value = true;
+		if (value) out.add(imp.moduleRequest.value);
 	}
 	for (const exp of record.staticExports)
 		for (const e of exp.entries) if (e.moduleRequest && !e.isType) out.add(e.moduleRequest.value);
@@ -46,15 +47,18 @@ function script_imports(src: string, file: string): Set<string> | null {
 
 function component_imports(src: string, file: string): Set<string> | null {
 	const blocks = component_blocks(src);
-	const scripts = blocks.filter((b) => b.kind === 'script');
-	const instance = scripts.filter((b) => !b.module).length;
-	if (scripts.length - instance > 1 || instance > 1) return parsed_component_imports(src, file);
+	const scripts: ComponentBlock[] = [];
+	let instance = 0;
 	let markup = '';
 	let at = 0;
 	for (const b of blocks) {
 		markup += src.slice(at, b.open);
 		at = b.close;
+		if (b.kind !== 'script') continue;
+		scripts.push(b);
+		if (!b.module) instance++;
 	}
+	if (scripts.length - instance > 1 || instance > 1) return parsed_component_imports(src, file);
 	if (DYNAMIC_IMPORT_RE.test(markup + src.slice(at))) return parsed_component_imports(src, file);
 	const out = new Set<string>();
 	for (const b of scripts) {
@@ -85,8 +89,9 @@ function runtime_spec(node: AstNode): string | null {
 		case 'ImportDeclaration': {
 			if (node.importKind === 'type') return null;
 			const specifiers: AstNode[] = node.specifiers ?? [];
-			if (specifiers.length > 0 && specifiers.every((s) => s.importKind === 'type')) return null;
-			return literal(node.source);
+			let value = specifiers.length === 0;
+			for (const s of specifiers) if (s.importKind !== 'type') value = true;
+			return value ? literal(node.source) : null;
 		}
 		case 'ExportAllDeclaration':
 		case 'ExportNamedDeclaration':
