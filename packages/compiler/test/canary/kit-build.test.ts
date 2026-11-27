@@ -12,7 +12,7 @@ import path from 'node:path';
 import * as devalue from 'devalue';
 import { dedent } from '@ogygia/core/contract';
 import { clientBuildWillSkip, resolve_kit_paths, route_reader } from '../../src/kit.ts';
-import { KIT_PATCHES } from '../../src/kit-patches.ts';
+import { KIT_PATCHES, KIT_PUBLIC_ENV_CLIENT_RE } from '../../src/kit-patches.ts';
 import { node_fs } from '../../src/fs.ts';
 import { APP_DIR, KitApp, OUT_DIR } from '../../../core/test/canary/kit-app.ts';
 import { broke, KITS, type Internal } from '../../../core/test/canary/upstream.ts';
@@ -85,6 +85,8 @@ const has_client_entry = (app: KitApp) =>
 vi.setConfig({ hookTimeout: 120_000, testTimeout: 30_000 });
 
 const REGION_DEFAULT = 'canary region';
+const PRIVATE_DEFAULT = 'canary private value';
+const STATIC_DEFAULT = 'canary static value';
 
 /** Kit 3 only: a dynamic public variable (`src/env.js`) and a csr=true page that reads it, so Kit
  *  sends its public env in its payload there. */
@@ -95,7 +97,9 @@ function with_public_env(app: KitApp): KitApp {
 		dedent`
 			import { defineEnvVars } from '@sveltejs/kit/env';
 			export const variables = defineEnvVars({
-				PUBLIC_REGION: { public: true, static: false, schema: (v) => v ?? ${JSON.stringify(REGION_DEFAULT)} }
+				PUBLIC_REGION: { public: true, static: false, schema: (v) => v ?? ${JSON.stringify(REGION_DEFAULT)} },
+				SECRET_TOKEN: { public: false, static: false, schema: (v) => v ?? ${JSON.stringify(PRIVATE_DEFAULT)} },
+				PUBLIC_BUILT_IN: { public: true, static: true, schema: (v) => v ?? ${JSON.stringify(STATIC_DEFAULT)} }
 			});
 		`
 	);
@@ -127,11 +131,27 @@ function expect_patches_apply(app: KitApp, mode: 'dev' | 'build'): void {
 		const file = files.find((f) => row.id.test(f));
 		expect(file, broke(PATCHES, `Kit generated no module for "${row.name}"`)).toBeDefined();
 		const code = fs.readFileSync(file!, 'utf8');
+		const patched = row.patch(code, file!);
 		expect(
-			row.patch(code, file!),
+			patched,
 			broke(PATCHES, `"${row.name}" finds nothing to patch in ${file}:\n${code}`)
 		).not.toBeNull();
+		if (KIT_PUBLIC_ENV_CLIENT_RE.test(file!))
+			expect(
+				patched,
+				broke(PATCHES, `"${row.name}" does not see the app's dynamic variable in ${file}:\n${code}`)
+			).toContain(`from 'ogygia:boot/kit-env'`);
 	}
+}
+
+/** Kit's rendered public env holds no private variable and no static one. */
+function expect_no_private_or_static(env: string | Record<string, unknown> | undefined): void {
+	const text = typeof env === 'string' ? env : JSON.stringify(env);
+	for (const [name, value] of [
+		['SECRET_TOKEN', PRIVATE_DEFAULT],
+		['PUBLIC_BUILT_IN', STATIC_DEFAULT]
+	])
+		expect(text, broke(PUBLIC_ENV, `Kit's rendered public env holds ${name}`)).not.toContain(value);
 }
 
 /** What Kit 3 puts in its payload as `env` on a csr=true page, read from the page. */
@@ -153,10 +173,11 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 		it.skipIf(app.major < 3)(
 			"sends its rendered public env in a csr=true page's payload, as the server's channel does",
 			async () => {
-				expect(
-					await payload_env(app),
-					broke(PUBLIC_ENV, "Kit's payload env is not its rendered public env")
-				).toBe(devalue.uneval({ PUBLIC_REGION: REGION_DEFAULT }));
+				const env = await payload_env(app);
+				expect_no_private_or_static(env);
+				expect(env, broke(PUBLIC_ENV, "Kit's payload env is not its rendered public env")).toBe(
+					devalue.uneval({ PUBLIC_REGION: REGION_DEFAULT })
+				);
 			}
 		);
 
@@ -207,6 +228,7 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 					console.log(JSON.stringify(config.rendered_env));
 				`)
 				) as Record<string, unknown>;
+				expect_no_private_or_static(rendered);
 				expect(rendered, broke(PUBLIC_ENV, 'the server module renders another env')).toEqual({
 					PUBLIC_REGION: REGION_DEFAULT
 				});

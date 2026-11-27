@@ -3,4 +3,4 @@
 '@ogygia/core': patch
 ---
 
-On SvelteKit 3, a region on a `csr = false` page that imports `$app/env/public` now hydrates and reads its dynamic public variables (`static: false`), in a build and in `vite dev`, where it threw on import before. This holds inside a server hole and a region a remote call renders, and for an island a router prefetch loads ahead of its page.
+On SvelteKit 3, a region on a `csr = false` page that imports `$app/env/public` now hydrates and reads its dynamic public variables (`static: false`), in a build and in `vite dev`, on streamed pages and on server-router pages, where it threw on import before. An island the server renders later (a `defer` hole, a remote call's region) or one a router prefetch loads ahead of its page reads an empty env and warns `kit_env_missing` instead of throwing; carrying the env there is #2219.
