@@ -351,7 +351,7 @@ export async function rest_at_end(world: World, v: Visitor): Promise<Tab[]> {
  * where its retry wakes too (test/hidden-tab.node.test.ts, #2176, #2091; palaestra seed 13,
  * test/found/behind-before-first-frame.test.ts). Then the tab that was in front is put back. Only
  * those tabs are judged again, so time this takes hides nothing in any other; one that owes a new
- * look after it is judged as it then stands, and not looked at again
+ * look after it is not looked at again (while a frame waits, its wakes are set aside)
  * (test/hidden-tab.node.test.ts › looks at a tab once). Judged again, by `run()`: what each set
  * aside as it stood, its islands' wakes (test/run-end-behind.node.test.ts › is judged again once
  * looked at), and the visitor's against a shown fresh load, one with a `known` finding as it stood

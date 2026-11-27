@@ -417,13 +417,15 @@ visitor's against a shown fresh load, unless the look's own requests met a fault
 (#2176: a `visible` island its hole brought after it went behind; and #2091: one shown as it came
 but behind before its observers had a frame; palaestra seed 1000004158). Time the look takes hides
 nothing in another tab, which is not judged again; a tab that owes a new look after its one (one
-that asks an animation frame in each frame) is judged as it then stands, and not looked at again.
+that asks an animation frame in each frame) is not looked at again; while a frame waits it gets no
+wake check (`islands_wake` sets the tab aside), only the MPA comparison.
 The look shows the tab, and the tab in front goes behind and back: each hears `visibilitychange`
 twice. The waste checks (`waste`, `asked_twice_each`) judge before it, so a page that asks the
 server again when it is shown is not counted for the look.
 The tradeoff: a tab owed a look whose observers had their frames is compared only after its look,
 up to its own minute in front, so a real difference that heals within that minute (a backoff slower
-than main's minute) is missed there; only such tabs, which main compared with what no browser shows.
+than main's minute) is missed there, and so is one whose look's own requests met a fault (the tab
+is then not compared at all); only such tabs, which main compared with what no browser shows.
 The MPA check judges a tab behind against a fresh load behind another tab too, unless its document's
 observers had a frame (`Tab.framed`): one never shown, or one whose runtime watched nothing. One
 owed a look whose observers never had a frame (#2091) is judged both ways: first as it stands at
