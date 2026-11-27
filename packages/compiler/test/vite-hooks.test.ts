@@ -948,6 +948,20 @@ describe('transform', () => {
 			expect(await patched('build', 'client', code)).toBe(code);
 		});
 
+		it('dev: a module with only static variables evaluates on a document Kit never boots, and asks the server for nothing', async () => {
+			const code = await patched(
+				'dev',
+				'client',
+				dedent`
+					const { env } = globalThis.__sveltekit_dev;
+
+					export const PUBLIC_GREETING = "hello";
+				`
+			);
+			expect(code).not.toContain('ogygia:boot/kit-env');
+			expect(evaluate(code, null, undefined)).toEqual({ PUBLIC_GREETING: 'hello' });
+		});
+
 		it('a module in a shape ogygia does not know is left alone, and says kit_env_unpatched', async () => {
 			const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			try {
