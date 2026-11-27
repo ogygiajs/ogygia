@@ -127,3 +127,34 @@ test('a Worker with no such binding answers 500 kept nowhere, says image_binding
 	expect(cache.kept.size).toBe(kept);
 	warn.mockRestore();
 });
+
+test('a file the binding cannot decode (an Images error about the input) is a broken source; any other binding failure is that one file’s', async () => {
+	const { binding_maker } = await import('../src/makers/binding.ts');
+	const { SourceUnreadable } = await import('../src/maker.ts');
+	const failing = (error: Error) => ({
+		env: {
+			IMAGES: {
+				input: () => ({
+					transform() {
+						return this;
+					},
+					output: () => Promise.reject(error)
+				})
+			}
+		}
+	});
+	const recipe = { width: 40, height: 20, format: 'webp' } as never;
+	const maker = binding_maker('IMAGES');
+	for (const code of [9412, 9413, 9520, 9523]) {
+		const error = Object.assign(new Error(`IMAGES_TRANSFORM_ERROR ${code}: bad input`), { code });
+		const thrown = await maker.make(new Uint8Array(8), recipe, failing(error)).catch((e) => e);
+		expect(thrown, `code ${code}`).toBeInstanceOf(SourceUnreadable);
+	}
+	for (const error of [
+		Object.assign(new Error('IMAGES_TRANSFORM_ERROR 9422: usage limit reached'), { code: 9422 }),
+		new Error('Network connection lost.')
+	]) {
+		const thrown = await maker.make(new Uint8Array(8), recipe, failing(error)).catch((e) => e);
+		expect(thrown).toBe(error);
+	}
+});

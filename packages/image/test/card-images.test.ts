@@ -466,3 +466,53 @@ describe("a card's images, as satori is handed them", () => {
 		expect(String(value)).toMatch(/^data:image\/png;base64,/);
 	});
 });
+
+describe('a broken file is one rule: SourceUnreadable, for a card’s fitter and an encode alike', () => {
+	const grain = Buffer.alloc(640 * 360 * 3);
+	for (let i = 0; i < grain.length; i++) grain[i] = (i * 2654435761) >>> 24;
+	const noise = (): Sharp => sharp(grain, { raw: { width: 640, height: 360, channels: 3 } });
+	const formats: Readonly<Record<string, (s: Sharp) => Sharp>> = {
+		png: (s) => s.png(),
+		jpeg: (s) => s.jpeg(),
+		webp: (s) => s.webp(),
+		gif: (s) => s.gif(),
+		avif: (s) => s.avif(),
+		tiff: (s) => s.tiff()
+	};
+
+	for (const [name, as] of Object.entries(formats))
+		test(`a file cut short (${name}) is SourceUnreadable to the fitter and to an encode`, async () => {
+			const { SourceUnreadable } = await import('../src/maker.ts');
+			const { encode_recipe } = await import('../src/pixels.ts');
+			const whole = await as(noise()).toBuffer();
+			const cut = new Uint8Array(whole.subarray(0, Math.floor(whole.length * 0.6)));
+			expect(await fit_to_card(cut, 100, 56).catch((e: unknown) => e)).toBeInstanceOf(
+				SourceUnreadable
+			);
+			expect(
+				await encode_recipe(cut, { width: 100, height: 56, format: 'webp' }).catch(
+					(e: unknown) => e
+				)
+			).toBeInstanceOf(SourceUnreadable);
+		});
+
+	test('a failure of the server’s own (out of memory) is not a broken file, whoever reports it', async () => {
+		const { unreadable } = await import('../src/maker.ts');
+		for (const message of [
+			'vips_malloc: out of memory --- size == 1048576',
+			'VipsJpeg: Insufficient memory (case 4)',
+			'std::bad_alloc',
+			'ENOMEM: out of memory',
+			'Network connection lost.'
+		])
+			expect(unreadable(new Error(message)), message).toBe(false);
+		for (const message of [
+			'VipsJpeg: premature end of JPEG image',
+			'vipspng: libpng read error',
+			'Input buffer contains unsupported image format',
+			'Input buffer has corrupt header: gifload_buffer: Invalid frame data',
+			'Input image exceeds pixel limit'
+		])
+			expect(unreadable(new Error(message)), message).toBe(true);
+	});
+});
