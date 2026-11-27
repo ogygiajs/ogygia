@@ -20,6 +20,42 @@ const PNG_ONE =
 const PNG_TWO =
 	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYPgPAAEDAQAIicLsAAAAAElFTkSuQmCC';
 const SECRET = 'cold-warm-build-secret-0123456789abcdef';
+const PAGE_SIDE_FIRST_CONFIG = 'vite.page-side-first.config.ts';
+const ISLAND_SIDE_FIRST_CONFIG = 'vite.island-side-first.config.ts';
+const HELD_MARK = 'order-held.txt';
+const ORDERED_CONFIG_HEAD = dedent`
+	import { writeFileSync } from 'node:fs';
+	import { sveltekit } from '@sveltejs/kit/vite';
+	import { ogygia } from 'ogygia/vite';
+	import { content } from '@ogygia/content/vite';
+	import { defineConfig } from 'vite';
+
+	const gate = () => {
+		const opens = Promise.withResolvers();
+		let opened = false;
+		return {
+			open() {
+				opened = true;
+				opens.resolve();
+			},
+			async pass() {
+				if (!opened) writeFileSync('${HELD_MARK}', 'held');
+				await opens.promise;
+			}
+		};
+	};
+
+	const INTERNAL = '/core/dist/internal.js';
+	const REGION = '/core/dist/Region.svelte';
+	const SHARED = ['/core/dist/region-parts/plan.svelte.js', '/core/dist/region-parts/seed-ask.js'];
+	const island_side = (source, importer) =>
+		source === './Region.svelte' && importer?.endsWith(INTERNAL) === true;
+	const plugins = (hold) => [hold, ogygia(), content({ markdown: {} }), sveltekit()];
+	const in_client = (make) => {
+		const state = make();
+		return (ctx) => (ctx.environment?.name === 'client' ? state : null);
+	};
+`;
 
 let app = '';
 
@@ -36,7 +72,9 @@ function link_modules(from: string, to: string): void {
 beforeAll(() => {
 	app = fs.mkdtempSync(path.join(os.tmpdir(), 'og-content-cold-warm-'));
 	for (const name of COPIED)
-		fs.cpSync(path.join(FIXTURE, name), path.join(app, name), { recursive: true });
+		fs.cpSync(path.join(FIXTURE, name), path.join(app, name), {
+			recursive: true
+		});
 	link_modules(path.join(FIXTURE, 'node_modules'), path.join(app, 'node_modules'));
 	const page = path.join(app, 'src', 'routes', 'cold-warm-assets');
 	fs.mkdirSync(page, { recursive: true });
@@ -56,25 +94,78 @@ beforeAll(() => {
 			<img src={one} alt="one" /><img src={two} alt="two" />
 		`
 	);
+	fs.writeFileSync(
+		path.join(app, PAGE_SIDE_FIRST_CONFIG),
+		`${ORDERED_CONFIG_HEAD}\n${dedent`
+			const built = in_client(() => new Map(SHARED.map((tail) => [tail, gate()])));
+			const hold = {
+				name: 'hold-island-side-until-shared-built',
+				enforce: 'pre',
+				async resolveId(source, importer) {
+					const shared = built(this);
+					if (shared && island_side(source, importer))
+						await Promise.all([...shared.values()].map((g) => g.pass()));
+					return null;
+				},
+				transform: {
+					order: 'post',
+					handler(_code, id) {
+						for (const [tail, g] of built(this) ?? [])
+							if (id.split('?')[0].endsWith(tail)) g.open();
+						return null;
+					}
+				}
+			};
+
+			export default defineConfig({ plugins: plugins(hold) });
+		`}\n`
+	);
+	fs.writeFileSync(
+		path.join(app, ISLAND_SIDE_FIRST_CONFIG),
+		`${ORDERED_CONFIG_HEAD}\n${dedent`
+			const island_resolved = in_client(gate);
+			const hold = {
+				name: 'hold-region-until-island-side',
+				enforce: 'pre',
+				async resolveId(source, importer) {
+					const heard = island_resolved(this);
+					if (!heard || !island_side(source, importer)) return null;
+					const resolved = await this.resolve(source, importer, { skipSelf: true });
+					heard.open();
+					return resolved;
+				},
+				async load(id) {
+					const heard = island_resolved(this);
+					if (heard && id.split('?')[0].endsWith(REGION)) await heard.pass();
+					return null;
+				}
+			};
+
+			export default defineConfig({ plugins: plugins(hold) });
+		`}\n`
+	);
 });
 
 afterAll(() => {
 	if (app) fs.rmSync(app, { recursive: true, force: true });
 });
 
-function build(): void {
+function build(config?: string): void {
 	const env: NodeJS.ProcessEnv = {
 		...process.env,
 		OGYGIA_SECRET: SECRET,
 		CONTENT_E2E_KIT_VERSION: 'cold-warm'
 	};
 	delete env.OGYGIA_E2E_OUT_DIR;
-	const res = spawnSync('node', ['node_modules/vite/bin/vite.js', 'build'], {
+	const args = ['node_modules/vite/bin/vite.js', 'build', ...(config ? ['--config', config] : [])];
+	const res = spawnSync('node', args, {
 		cwd: app,
 		env,
 		encoding: 'utf8',
-		maxBuffer: 256 * 1024 * 1024
+		maxBuffer: 256 * 1024 * 1024,
+		timeout: BUILD_MS
 	});
+	if (res.error) throw new Error(`the fixture's build did not finish: ${res.error.message}`);
 	if (res.status !== 0)
 		throw new Error(`the fixture's build failed:\n${`${res.stdout}${res.stderr}`.slice(-4000)}`);
 }
@@ -90,7 +181,10 @@ function files(dir: string): Map<string, string> {
 	return out;
 }
 
-function keyed(built: Map<string, string>): { keys: string[]; files: Map<string, string> } {
+function keyed(built: Map<string, string>): {
+	keys: string[];
+	files: Map<string, string>;
+} {
 	const keys: string[] = [];
 	const out = new Map<string, string>();
 	for (const [name, text] of built)
@@ -137,6 +231,36 @@ test(
 		expect([...warm.files.keys()]).toEqual([...cold.files.keys()]);
 		const differ = [...cold.files]
 			.filter(([name, text]) => warm.files.get(name) !== text)
+			.map(([n]) => n);
+		expect(differ).toEqual([]);
+	},
+	BUILD_MS * 2
+);
+
+test(
+	"a build writes the same output whichever importer of a shared package module the bundler reaches first: a page's, or an island's (#2184)",
+	() => {
+		const output = path.join(app, '.svelte-kit', 'output');
+		const held = (config: string): boolean => {
+			const mark = path.join(app, HELD_MARK);
+			fs.rmSync(mark, { force: true });
+			build(config);
+			return fs.existsSync(mark);
+		};
+		const page_side_held = held(PAGE_SIDE_FIRST_CONFIG);
+		const page_side_first = keyed(files(output)).files;
+		const island_side_held = held(ISLAND_SIDE_FIRST_CONFIG);
+		const island_side_first = keyed(files(output)).files;
+
+		expect(
+			{ page_side_held, island_side_held },
+			'one of the two orders is not the bundler’s own: its hold had to wait'
+		).not.toEqual({ page_side_held: false, island_side_held: false });
+		const client = (built: Map<string, string>) =>
+			[...built.keys()].filter((name) => name.startsWith(`client${path.sep}`));
+		expect(client(island_side_first)).toEqual(client(page_side_first));
+		const differ = [...page_side_first]
+			.filter(([name, text]) => island_side_first.get(name) !== text)
 			.map(([n]) => n);
 		expect(differ).toEqual([]);
 	},

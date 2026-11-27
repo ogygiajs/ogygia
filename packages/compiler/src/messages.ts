@@ -122,6 +122,27 @@ export const BUILD_ERRORS = {
 			app runs. Write the value itself: \`true\`, \`false\`, a number, a string or \`null\`.
 		`
 	},
+	island_graph_late: {
+		text: (a: { modules: string }): string => prose`
+			An island reaches ${a.modules} only through an import ogygia could not read before the
+			build loaded it, so whether it reads the island's \`$app/*\` or Kit's hung on load order.
+		`,
+		details: (): string => prose`
+			Before a client build loads any module, ogygia follows each island's imports so that every
+			module an island reaches reads the island's \`$app/*\`, whichever page or island the
+			bundler meets first. It reads the imports a module spells out: static imports and
+			\`import()\` of a literal string, in \`.svelte\`, \`.js\`, \`.ts\`, \`.jsx\`, \`.tsx\`
+			and their \`.mjs\`/\`.cjs\`/\`.mts\`/\`.cts\` forms. An \`import()\` of a computed
+			string, an \`import.meta.glob\`, an \`export {} from\` with no names, an import a plugin
+			writes, and any import made by a file
+			of another kind (a markdown page or other source a plugin compiles) is only seen when the
+			bundler loads it, and here that came after the module was already built as page code.
+
+			Import the module with a static import (or a literal \`import()\`) from an island-side
+			file of a kind listed above, so the build sees it up front. This check runs in builds made
+			with \`OGYGIA_RULES=1\`.
+		`
+	},
 	island_import_unresolved: {
 		text: (a: { specifier: string; host: string }): string => prose`
 			cannot resolve '${a.specifier}' imported by the generated island module for ${a.host}.
