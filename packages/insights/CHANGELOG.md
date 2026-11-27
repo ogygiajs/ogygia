@@ -1,5 +1,14 @@
 # @ogygia/insights
 
+## 0.16.0
+
+### Patch Changes
+
+- [#2161](https://github.com/ogygiajs/ogygia/pull/2161) [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44) Thanks [@PuruVJ](https://github.com/PuruVJ)! - The `lcp-lazy` finding's fix now says that an `<Img>` from `@ogygia/image` drops lazy loading and raises the fetch priority when it is given `priority`.
+- Updated dependencies [[`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44), [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44)]:
+  - @ogygia/core@0.16.0
+  - @ogygia/machine@0.16.0
+
 ## 0.15.1
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @ogygia/cli
 
+## 0.16.0
+
+### Patch Changes
+
+- Updated dependencies [[`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44), [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44), [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44), [`c109084`](https://github.com/ogygiajs/ogygia/commit/c1090845d74defac73935634c65c90571a9aee44), [`0e044f2`](https://github.com/ogygiajs/ogygia/commit/0e044f2d9e57da362f29241b82cfb4422fb77716), [`0e044f2`](https://github.com/ogygiajs/ogygia/commit/0e044f2d9e57da362f29241b82cfb4422fb77716)]:
+  - @ogygia/compiler@0.16.0
+  - @ogygia/core@0.16.0
+  - @ogygia/machine@0.16.0
+
 ## 0.15.1
 
 ### Patch Changes
