@@ -208,6 +208,7 @@ describe.skipIf(!built)('a tab behind another', () => {
 	});
 
 	it('behind with a frame owed, a visible island that never wakes once the visitor looks is caught at the run end, by the MPA check and by the wake check (#2176)', async () => {
+		const { rest_at_end } = await import('../src/cli.ts');
 		const world = await World.make({
 			seed: 1,
 			builds: [{ id: 'v1', output: OUTPUT }],
@@ -215,7 +216,10 @@ describe.skipIf(!built)('a tab behind another', () => {
 		});
 		try {
 			const { v, tab, inner } = await behind_owing(world, true);
-			expect((await mpa_equivalent(world, v, tab))?.oracle).toBe('mpa-equivalence');
+			const stood = await rest_at_end(world, v);
+			expect((await mpa_equivalent(world, v, tab, undefined, stood.get(tab)))?.oracle).toBe(
+				'mpa-equivalence'
+			);
 			expect(inner()!.hasAttribute('data-hydrated'), 'it never woke').toBe(false);
 			expect(tab.owes_frame(), 'though its frame came').toBe(false);
 			expect(islands_wake(tab, world)?.oracle).toBe('islands-wake');
@@ -324,6 +328,88 @@ describe.skipIf(!built)('a tab behind another', () => {
 			await rest_at_end(world, v);
 			expect(island.hasAttribute('data-hydrated'), 'its retry ran').toBe(true);
 			expect(islands_wake(tab, world)).toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
+
+	/** A timer in `window` that sets itself again each `ms`: a page that always has one pending. */
+	const renewing = (window: Window, ms: number): void => {
+		const tick = (): void => void window.setTimeout(tick, ms);
+		tick();
+	};
+
+	it("the run end waits out the timers a minute at most when no tab owes a look: its second wait shares the first one's minute, so a load island a page wakes only 90 s in is still asleep, an islands-wake finding", async () => {
+		const { rest_at_end } = await import('../src/cli.ts');
+		const world = await World.make({
+			seed: 1,
+			builds: [{ id: 'v1', output: OUTPUT }],
+			secret: 'sim-secret',
+			horizon: 600_000
+		});
+		try {
+			const v = world.visitor('v');
+			const tab = world.tab(v);
+			await world.go(tab, 'goto', '/');
+			const window = tab.page.mainFrame.window as unknown as Window;
+			const island = window.document.querySelector(
+				'ogygia-region[entry][wake="load"][data-hydrated]'
+			)!;
+			island.removeAttribute('data-hydrated');
+			window.setTimeout(() => island.setAttribute('data-hydrated', ''), 90_000);
+			renewing(window, 5000);
+			const from = world.loop.now;
+			await rest_at_end(world, v);
+			expect(world.loop.now - from, 'a minute, and the rest after it').toBeLessThan(90_000);
+			expect(island.hasAttribute('data-hydrated')).toBe(false);
+			expect(islands_wake(tab, world)?.oracle).toBe('islands-wake');
+		} finally {
+			await world.end();
+		}
+	});
+
+	it('the run end gives a look its own minute: what a look a minute in woke, a retry 30 s later, is waited out (#2176)', async () => {
+		const { rest_at_end } = await import('../src/cli.ts');
+		const world = await World.make({
+			seed: 1,
+			builds: [{ id: 'v1', output: OUTPUT }],
+			secret: 'sim-secret',
+			horizon: 600_000
+		});
+		try {
+			const { v, front, tab, island } = await frame_asked_behind(world, '/', (wake, window) =>
+				window.setTimeout(wake, 30_000)
+			);
+			renewing(front.page.mainFrame.window as unknown as Window, 5000);
+			const from = world.loop.now;
+			await rest_at_end(world, v);
+			expect(world.loop.now - from, 'its first wait took the whole minute').toBeGreaterThanOrEqual(
+				60_000
+			);
+			expect(island.hasAttribute('data-hydrated'), 'its retry ran').toBe(true);
+			expect(islands_wake(tab, world)).toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
+
+	it("the run end does not wait on a timer in a document a release served: what it does is the release's", async () => {
+		const { rest_at_end } = await import('../src/cli.ts');
+		const world = await World.make({
+			seed: 1,
+			builds: [{ id: 'v1', output: OUTPUT, released: '0.12.0' }],
+			secret: 'sim-secret',
+			horizon: 600_000
+		});
+		try {
+			const v = world.visitor('v');
+			const tab = world.tab(v);
+			await world.go(tab, 'goto', '/');
+			expect(world.on_release(tab.realm), 'the case it is for').toBe(true);
+			renewing(tab.page.mainFrame.window as unknown as Window, 5000);
+			const from = world.loop.now;
+			await rest_at_end(world, v);
+			expect(world.loop.now - from).toBeLessThan(30_000);
 		} finally {
 			await world.end();
 		}
