@@ -1158,6 +1158,14 @@ export class Compiler implements CoreApp {
 		return found;
 	}
 
+	/** Whether `file` imports an `$app/*` module an island reads through a shim (a mention in a
+	 *  comment is no import). */
+	#imports_app_shim(file: string, src: string): boolean {
+		for (const spec of this.#imports_of(file, src))
+			if (Object.hasOwn(this.#ctx.app_shims, spec)) return true;
+		return false;
+	}
+
 	/** The imports of `file`, read once per version of its source (link/island-imports.ts). */
 	#imports_of(file: string, src: string): readonly string[] {
 		const had = this.#closure_imports.get(file);
@@ -1804,7 +1812,7 @@ export class Compiler implements CoreApp {
 			ctx.rules &&
 			!island_graph.has(id_n) &&
 			(id_n.endsWith('.svelte') || SCRIPT_MODULE_RE.test(id_n)) &&
-			code.search(APP_SHIM_IMPORT) !== -1
+			this.#imports_app_shim(id_n, code)
 		)
 			this.#build.transformed_outside_islands.add(id_n);
 		if (ctx.is_dev && is_script_request(id)) {
