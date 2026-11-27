@@ -7,7 +7,14 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
 import { act } from '../src/workload.ts';
-import { as_it_stands, islands_wake, mpa_equivalent } from '../src/oracles.ts';
+import type { Visitor } from '../src/browser.ts';
+import {
+	as_it_stands,
+	islands_wake,
+	mpa_equivalent,
+	owes_look,
+	type Broken
+} from '../src/oracles.ts';
 
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
@@ -338,6 +345,148 @@ describe.skipIf(!built)('a tab behind another', () => {
 		const tick = (): void => void window.setTimeout(tick, ms);
 		tick();
 	};
+
+	/**
+	 * The run end's wait as main had it before #2176: the visitor's tabs back on the network, then
+	 * rest, and step while a judged tab has a timer set, a minute at most, with no look. The run end
+	 * judges every tab at the moment this leaves, a tab owed a look as it then stands.
+	 */
+	const main_rest = async (world: World, v: Visitor): Promise<void> => {
+		for (const t of v.tabs) world.network.offline(t.name, false);
+		const until = Math.min(world.loop.now + 60_000, world.loop.horizon);
+		for (;;) {
+			await world.rest();
+			if (
+				!(
+					world.loop.now < until &&
+					world.loop.next_at <= until &&
+					[v, ...world.crowd]
+						.flatMap((who) => who.tabs)
+						.filter((t) => !world.on_release(t.realm))
+						.some((t) => t.platform?.pending().includes('timeout'))
+				)
+			)
+				return;
+			await world.loop.step();
+		}
+	};
+
+	/**
+	 * `setup` run in two worlds of one seed: one ends as main did ({@link main_rest}), the other
+	 * through the run end's first step. Each world's moment and what `judge` finds there.
+	 */
+	const as_main = async <T>(
+		setup: (world: World) => Promise<T & { v: Visitor }>,
+		judge: (world: World, made: T) => Broken | null
+	) => {
+		const { rest_at_end } = await import('../src/cli.ts');
+		const make = () =>
+			World.make({
+				seed: 1,
+				builds: [{ id: 'v1', output: OUTPUT }],
+				secret: 'sim-secret',
+				horizon: 600_000
+			});
+		const main = await make();
+		let was: { at: number; found: string | undefined };
+		try {
+			const made = await setup(main);
+			await main_rest(main, made.v);
+			was = { at: main.loop.now, found: judge(main, made)?.oracle };
+		} finally {
+			await main.end();
+		}
+		const world = await make();
+		const made = await setup(world);
+		await rest_at_end(world, made.v);
+		return { was, is: { at: world.loop.now, found: judge(world, made)?.oracle }, world, made };
+	};
+
+	it("the run end judges a page no tab of which owes a look at main's moment: a load island a page with a 100 ms tick wakes only 100 s in is asleep there, an islands-wake finding, and nothing after it waits", async () => {
+		const { look_at_end } = await import('../src/cli.ts');
+		const { was, is, world, made } = await as_main(
+			async (world) => {
+				const v = world.visitor('v');
+				const tab = world.tab(v);
+				await world.go(tab, 'goto', '/');
+				const window = tab.page.mainFrame.window as unknown as Window;
+				const island = window.document.querySelector(
+					'ogygia-region[entry][wake="load"][data-hydrated]'
+				)!;
+				island.removeAttribute('data-hydrated');
+				window.setTimeout(() => island.setAttribute('data-hydrated', ''), 100_000);
+				renewing(window, 100);
+				return { v, tab };
+			},
+			(world, { tab }) => islands_wake(tab, world)
+		);
+		try {
+			expect(was.found, 'main finds it').toBe('islands-wake');
+			expect(is, "the run end judges at main's moment, and finds it").toEqual(was);
+			const at = world.loop.now;
+			await look_at_end(world, made.v, []);
+			expect(world.loop.now, 'no tab owes a look: no more time').toBe(at);
+		} finally {
+			await world.end();
+		}
+	});
+
+	it("the run end judges every tab at main's moment though another owes a look: a load island the tab in front, with a 5 s timer, wakes only 90 s in is asleep there, an islands-wake finding (#2176)", async () => {
+		const { was, is, world, made } = await as_main(
+			async (world) => {
+				const { v, front, tab } = await behind_owing(world);
+				const window = front.page.mainFrame.window as unknown as Window;
+				const island = window.document.querySelector(
+					'ogygia-region[entry][wake="load"][data-hydrated]'
+				)!;
+				island.removeAttribute('data-hydrated');
+				window.setTimeout(() => island.setAttribute('data-hydrated', ''), 90_000);
+				renewing(window, 5000);
+				return { v, front, tab };
+			},
+			(world, { front }) => islands_wake(front, world)
+		);
+		try {
+			expect(was.found, 'main finds it').toBe('islands-wake');
+			expect(is, "the run end judges at main's moment, and finds it").toEqual(was);
+			expect(owes_look(made.tab), 'the case it is for: the other tab owes a look then').toBe(true);
+		} finally {
+			await world.end();
+		}
+	});
+
+	it('the run end looks at a tab once: one that asks for an animation frame in each frame owes a new look after it, and is judged as it then stands, though the tab in front keeps a 5 s timer (#2176)', async () => {
+		const { rest_at_end, look_at_end } = await import('../src/cli.ts');
+		const world = await World.make({
+			seed: 1,
+			builds: [{ id: 'v1', output: OUTPUT }],
+			secret: 'sim-secret',
+			horizon: 600_000
+		});
+		try {
+			const { v, front, tab } = await frame_asked_behind(world, '/', (wake, window) => {
+				wake();
+				const again = (): void => void window.requestAnimationFrame(again);
+				again();
+			});
+			renewing(front.page.mainFrame.window as unknown as Window, 5000);
+			const window = tab.page.mainFrame.window as unknown as Window;
+			const heard: string[] = [];
+			window.document.addEventListener('visibilitychange', () =>
+				heard.push(window.document.visibilityState)
+			);
+			const owed = await rest_at_end(world, v);
+			expect(heard, 'no look before the run end judges at its first moment').toEqual([]);
+			expect(owed).toEqual([tab]);
+			await look_at_end(world, v, owed);
+			expect(heard, 'one look').toEqual(['visible', 'hidden']);
+			expect(owes_look(tab), 'it owes a new look').toBe(true);
+			expect(islands_wake(tab, world), 'its islands wait on that frame').toBeNull();
+			expect(front.hidden).toBe(false);
+		} finally {
+			await world.end();
+		}
+	});
 
 	it("the run end waits out the timers a minute at most when no tab owes a look: its second wait shares the first one's minute, so a load island a page wakes only 90 s in is still asleep, an islands-wake finding", async () => {
 		const { rest_at_end } = await import('../src/cli.ts');
