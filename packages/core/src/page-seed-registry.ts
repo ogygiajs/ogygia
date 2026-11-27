@@ -54,7 +54,6 @@ type Recorder = (
 	remotes: readonly string[] | null,
 	/** the region's entry (`''` for a region with no client entry) — the seed explainer's "who" */
 	entry: string,
-	/** the region's client code imports Kit's `$app/env/public`: the page carries Kit's public env */
 	env: boolean
 ) => void;
 
@@ -72,7 +71,6 @@ type AskReader = () =>
 	| {
 			wanted: boolean;
 			keys: import('./server/seed-shape.ts').SeedKeys | null;
-			/** some region asked for Kit's public env */
 			env: boolean;
 	  }
 	| undefined;

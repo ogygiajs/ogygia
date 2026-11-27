@@ -196,7 +196,6 @@ type RequestBag = {
 	seed_keys: import('./server/seed-shape.ts').SeedKeys | null;
 	seed_asks: Map<string, SeedAsk> | null;
 	remotes_wanted: Set<string> | null;
-	/** some region on the page imports Kit's `$app/env/public` (KIT-PUBLIC-ENV) */
 	env_wanted: boolean;
 	tail: DocumentTail;
 	measure_memo: MeasureMemo;
