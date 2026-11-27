@@ -132,7 +132,13 @@ test('a build without OGYGIA_SECRET bakes a key of its own, never one worked out
 	expect(new Set(keys).size, 'each build draws its own key').toBe(keys.length);
 	const from_blank = ['', ' ', '   '].map((blank) =>
 		Buffer.from(
-			hkdfSync('sha256', Buffer.from(blank), Buffer.alloc(0), Buffer.from('ogygia-build-key-v1'), 32)
+			hkdfSync(
+				'sha256',
+				Buffer.from(blank),
+				Buffer.alloc(0),
+				Buffer.from('ogygia-build-key-v1'),
+				32
+			)
 		).toString('hex')
 	);
 	for (const key of keys) expect(from_blank).not.toContain(key);
