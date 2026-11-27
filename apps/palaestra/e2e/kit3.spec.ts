@@ -5,10 +5,11 @@
 // - its generated client entry moved under `generated/{build,dev}/`, so the kit-page thread was never
 //   appended and islands on csr=true pages never got Kit's page;
 // - the thread imported `$app/stores`, which Kit 3 removed (subscribing throws);
-// - its remote ARGUMENT encoding reads the app's transport from a module only Kit's boot fills.
+// - its remote ARGUMENT encoding reads the app's transport from a module only Kit's boot fills;
+// - its dev `$app/env/public` reads `globalThis.__sveltekit_dev`, which only Kit's boot sets.
 // The app: a lake in a csr=false layout (islands + a hole inside) serving a csr=false page and a
 // csr=true page; an island with a remote form and the query it refreshes; an island whose query
-// argument is a custom transport type; an island reading `page`.
+// argument is a custom transport type; an island reading `page`; an island reading a public env var.
 //
 // Standalone install (not a workspace member): a workspace link would resolve ogygia's own Kit 2 dev
 // install next to the app's Kit 3. Usage: pnpm exec playwright test kit3
@@ -87,6 +88,10 @@ async function exercise(page: Page, base: string, path: string, kit_page: boolea
 
 	await page.click('[data-counter]');
 	check(`${at} island interactive`, (await page.textContent('[data-counter]')) === 'count 1');
+	check(
+		`${at} an island that imports $app/env/public reads its value`,
+		(await page.textContent('[data-public-env]')) === 'hello from env'
+	);
 
 	// a custom transport type as a remote ARGUMENT, re-sent from the browser
 	check(

@@ -867,6 +867,61 @@ describe('transform', () => {
 		expect(await threaded(in_env('client', 'client'))).toBe(true);
 	});
 
+	describe("Kit 3's dev $app/env/public", () => {
+		const KIT_ENV = dedent`
+			const { env } = globalThis.__sveltekit_dev;
+
+			export const PUBLIC_GREETING = "hello";
+			export const PUBLIC_REGION = env.PUBLIC_REGION;
+		`;
+		const env_module = () => path.join(root, '.svelte-kit/generated/dev/env/public/client.js');
+		const rendered_env = { PUBLIC_REGION: 'eu' };
+		const dev_server = () => ({
+			environments: {
+				ssr: {
+					runner: {
+						import: async (id: string) =>
+							id === '<sveltekit:generated>/env/config.js' ? { rendered_env } : {}
+					}
+				}
+			}
+		});
+		const evaluate = (code: string, global: Record<string, unknown>) => {
+			const out: Record<string, unknown> = {};
+			// oxlint-disable-next-line typescript/no-implied-eval -- the module text under test, run with a stand-in globalThis
+			new Function('globalThis', 'out', code.replaceAll('export const ', 'out.'))(global, out);
+			return out;
+		};
+		const served = async (leg: Leg) => {
+			app();
+			const { p } = await setup('serve');
+			p.configureServer(dev_server());
+			const out = (await p.transform.call(hook_this(leg), KIT_ENV, env_module(), {
+				ssr: leg === 'ssr'
+			})) as { code: string } | null;
+			return out?.code ?? KIT_ENV;
+		};
+
+		it('reads on a document Kit never boots (csr=false), with the values Kit renders', async () => {
+			expect(evaluate(await served('client'), {})).toEqual({
+				PUBLIC_GREETING: 'hello',
+				PUBLIC_REGION: 'eu'
+			});
+		});
+
+		it("reads Kit's own payload where Kit boots (csr=true)", async () => {
+			const kit = { __sveltekit_dev: { env: { PUBLIC_REGION: 'us' } } };
+			expect(evaluate(await served('client'), kit)).toEqual({
+				PUBLIC_GREETING: 'hello',
+				PUBLIC_REGION: 'us'
+			});
+		});
+
+		it('is left as Kit wrote it on the server', async () => {
+			expect(await served('ssr')).toBe(KIT_ENV);
+		});
+	});
+
 	it("a module's names from a realm module are imported from the entries that have them", async () => {
 		app();
 		const { p } = await setup('serve');

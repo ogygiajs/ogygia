@@ -3,7 +3,8 @@
 A real SvelteKit 3 app on the packed `ogygia`, the way an app installs it from npm. It has a lake in
 a `csr = false` layout (regions and a hole inside), serving one `csr = false` page and one
 `csr = true` page. It also has a region with a remote form and the query it refreshes, a region whose
-query argument is a custom transport type, and a region that reads `page`.
+query argument is a custom transport type, a region that reads `page`, and a region that reads a
+public env var from `$app/env/public` (declared in `src/env.js`).
 
 Internal. Never published. Its one user is `apps/palaestra/e2e/kit3.spec.ts`, which builds the
 libraries, packs `ogygia`, copies this app to a temp folder outside the repo, installs it there, and
