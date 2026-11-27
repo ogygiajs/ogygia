@@ -137,6 +137,10 @@
 			"reason": "the CLI's one-shot vite config probe: a file check per name, run once per command"
 		},
 		{
+			"id": "packages/core/src/server/hmac.ts > derive_build_key",
+			"reason": "build only, once per build: one HKDF over the app's secret, Node's crypto; test/build-key.test.ts runs it"
+		},
+		{
 			"id": "packages/core/src/server/html-scan.ts > kit_boot_script > is_kit_boot_script:1~dc8962",
 			"reason": "one attribute lookup on a tag the walk already read, constant work; kit-gate.test.ts runs it"
 		},
