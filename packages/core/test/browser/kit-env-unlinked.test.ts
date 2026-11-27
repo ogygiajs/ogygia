@@ -8,7 +8,7 @@ import { stringify } from 'devalue';
 import { boot_link_or_null } from '../../src/runtime/lazy-link.ts';
 import { RESPONSE_MARK } from '../../src/contract/response-mark.ts';
 import { OGYGIA_RUNTIME } from '../../src/wire-markup.ts';
-import { kit_env_build } from '../_stubs/server.kit-env.ts';
+import { FIXTURE_BUILD } from '../_stubs/server.kit-env.ts';
 
 const ISLAND = '/test/browser/fixtures/reads-kit-env.ts';
 const island = async (copy: string): Promise<Record<string, unknown>> =>
@@ -41,7 +41,7 @@ afterEach(() => {
 
 test("a region's module that runs before any lazy chunk took the boot's link reads the env its page carries", async () => {
 	expect(boot_link_or_null()).toBeNull();
-	page('a'.repeat(24), kit_env_build, { PUBLIC_REGION: 'eu' });
+	page('a'.repeat(24), FIXTURE_BUILD, { PUBLIC_REGION: 'eu' });
 	const said = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	expect(await island('unlinked')).toEqual({ PUBLIC_REGION: 'eu' });
 	expect(said.mock.calls.flat().join(' ')).not.toContain('kit_env_missing');

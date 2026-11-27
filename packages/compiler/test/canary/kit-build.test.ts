@@ -121,7 +121,7 @@ function with_public_env(app: KitApp): KitApp {
 	);
 	fs.writeFileSync(
 		path.join(app.dir, 'src/lib/kit-env.js'),
-		kit_public_env_module(app.major, 'canary-build')
+		kit_public_env_module(app.major, { kind: 'fixed', id: 'canary-build' })
 	);
 	app.export_from('kit_public_env', './kit-env.js');
 	app.export_from('kit_env_build', './kit-env.js');
@@ -133,7 +133,7 @@ function with_public_env(app: KitApp): KitApp {
 			import { devalue_text, kit_env_build, kit_public_env } from '$lib/ogygia';
 			export const GET = () => {
 				const env = kit_public_env();
-				return Response.json({ env, channel: devalue_text({ build: kit_env_build, env }, {}) });
+				return Response.json({ env, channel: devalue_text({ build: kit_env_build(), env }, {}) });
 			};
 		`
 	);

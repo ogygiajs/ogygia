@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { with_request_store } from '@sveltejs/kit/internal/server';
 import { HAS, set_server_word } from './_stubs/server.runtime-flags.ts';
 import { F_CONTEXT, F_PAGE, F_REMOTE_SEEDS } from '../src/contract/features.ts';
-import { kit_env_build, set_kit_public_env } from './_stubs/server.kit-env.ts';
+import { FIXTURE_BUILD, set_kit_env_build, set_kit_public_env } from './_stubs/server.kit-env.ts';
 
 const { handle } = await import('../src/hooks.ts');
 const { record_ctx, page_context_script } = await import('../src/context-registry.ts');
@@ -172,18 +172,37 @@ describe('the remote seed', () => {
 describe("Kit's public env (KIT-PUBLIC-ENV)", () => {
 	const reads_env = () => record_page({ data: {} }, false, [], '/islands/env.js', true);
 	const reads_none = () => record_page({ data: {} }, false, [], '/islands/plain.js', false);
-	afterEach(() => set_kit_public_env(null));
-
-	it('a page whose region imports it carries what Kit renders, marked as the response', async () => {
-		set_kit_public_env({ PUBLIC_REGION: 'eu</script>' });
-		const html = await page(reads_env);
+	afterEach(() => {
+		set_kit_public_env(null);
+		set_kit_env_build(FIXTURE_BUILD);
+	});
+	const channel = async (html: string) => {
 		const script =
 			/<script type="application\/ogygia-env" data-og-mark="([^"]+)">([^<]*)<\/script>/.exec(html);
 		expect(script, html).not.toBeNull();
 		expect(html).toContain(`data-og-mark="${script![1]}"`);
-		expect((await import('devalue')).parse(script![2]!)).toEqual({
-			build: kit_env_build,
+		return (await import('devalue')).parse(script![2]!);
+	};
+
+	it('a page whose region imports it carries what Kit renders, marked as the response', async () => {
+		set_kit_public_env({ PUBLIC_REGION: 'eu</script>' });
+		expect(await channel(await page(reads_env))).toEqual({
+			build: FIXTURE_BUILD,
 			env: { PUBLIC_REGION: 'eu</script>' }
+		});
+	});
+
+	it("the channel bears the server's identity as it is written, not one kept from an earlier page with the same env (a dev app that gains its first dynamic public variable)", async () => {
+		set_kit_public_env({ PUBLIC_REGION: 'eu' });
+		set_kit_env_build('');
+		expect(await channel(await page(reads_env))).toEqual({
+			build: '',
+			env: { PUBLIC_REGION: 'eu' }
+		});
+		set_kit_env_build('first-dynamic');
+		expect(await channel(await page(reads_env))).toEqual({
+			build: 'first-dynamic',
+			env: { PUBLIC_REGION: 'eu' }
 		});
 	});
 

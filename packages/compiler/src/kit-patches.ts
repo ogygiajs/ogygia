@@ -43,15 +43,12 @@ const DYNAMIC_READ_RE = /=\s*env\./;
 const STRING_LITERAL_G = /"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g;
 const ENV_REFERENCE_RE = /(?<![\w$.])env(?![\w$]|\s*:)/;
 
-function reads_env_unknown(code: string, read: string): boolean {
-	return ENV_REFERENCE_RE.test(code.replace(read, '').replace(STRING_LITERAL_G, '""'));
-}
-
 function public_env_patch(read: string, fallback: string, inert: string | null): KitPatch['patch'] {
 	return (code, id) => {
-		const dynamic = DYNAMIC_READ_RE.test(code);
+		const bare = code.replace(STRING_LITERAL_G, '""');
+		const dynamic = DYNAMIC_READ_RE.test(bare);
 		const anchored = code.includes(read);
-		if (!dynamic && anchored && reads_env_unknown(code, read)) {
+		if (!dynamic && anchored && ENV_REFERENCE_RE.test(bare.replace(read, ''))) {
 			warn('kit_env_unpatched', { file: id });
 			return null;
 		}
@@ -170,13 +167,28 @@ export function kit_env_build(app: KitEnvApp): string {
 	return hash.digest('hex').slice(0, 12);
 }
 
+/** The global (by `Symbol.for` name, one per app root) the dev server's plugin fills with a reader of
+ *  the app's identity now (`CompileCtx > kit_env_build`): the dev server module asks it each time it
+ *  writes the channel, so a dev app that gains its first dynamic public variable writes the identity
+ *  its browser reader, made later, is bound to (apps/palaestra/e2e/kit3.spec.ts). */
+export const dev_kit_env_build_key = (root: string): string => `ogygia.dev.kit-env-build:${root}`;
+
+/** The identity the server module writes: the build's own, or, in dev, the dev server's of `root`
+ *  as each channel is written. */
+export type KitEnvBuild =
+	| { readonly kind: 'fixed'; readonly id: string }
+	| { readonly kind: 'dev'; readonly root: string };
+
 /**
  * `ogygia:server/kit-env` for the app's Kit major: Kit 3's `rendered_env`, the object Kit puts in its
  * boot payload as `env` on a csr=true page (public variables only, set again as Kit's server starts),
- * and the build's identity (`kit_env_build`). Any other Kit: a `null` env.
+ * and the identity its channel is written with (`kit_env_build()`). Any other Kit: a `null` env.
  */
-export function kit_public_env_module(major: number | null, build: string): string {
-	const id = `export const kit_env_build = ${JSON.stringify(build)};\n`;
+export function kit_public_env_module(major: number | null, build: KitEnvBuild): string {
+	const id =
+		build.kind === 'fixed'
+			? `export function kit_env_build() { return ${JSON.stringify(build.id)}; }\n`
+			: `export function kit_env_build() { return globalThis[Symbol.for(${JSON.stringify(dev_kit_env_build_key(build.root))})]?.() ?? ''; }\n`;
 	if (major === null || major < 3)
 		return `${id}export function kit_public_env() { return null; }\n`;
 	return `${id}${dedent`

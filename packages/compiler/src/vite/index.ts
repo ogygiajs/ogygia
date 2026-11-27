@@ -154,7 +154,7 @@ import { import_chain } from '../virtual/resolver.ts';
 import { CompileCtx, type PackageScan } from '../ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
-import { patch_kit_module } from '../kit-patches.ts';
+import { dev_kit_env_build_key, patch_kit_module } from '../kit-patches.ts';
 import { app_compile_options, svelte_compile, type SvelteCompile } from './svelte-options.ts';
 
 import {
@@ -770,6 +770,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				vite_server = server;
 				(globalThis as Record<symbol, unknown>)[Symbol.for(DEV_FN_MANIFEST_KEY)] = () =>
 					compiler.fn_manifest();
+				(globalThis as Record<symbol, unknown>)[
+					Symbol.for(dev_kit_env_build_key(compiler.ctx.root))
+				] = () => compiler.ctx.kit_env_build;
 				if (measure) {
 					install_dev_maps(server);
 					install_dev_client_maps(server);

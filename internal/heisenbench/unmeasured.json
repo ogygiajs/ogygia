@@ -73,22 +73,6 @@
 			"reason": "module constant: builds the two env rows of the patch table once when the compiler loads (#2177)"
 		},
 		{
-			"id": "packages/compiler/src/kit-patches.ts > public_env_patch > <anonymous>~050da8",
-			"reason": "once per load of Kit's $app/env/public module (one small generated module per leg): one regex test, one includes, one replace, and for a module with no dynamic read reads_env_unknown; proven in packages/compiler/test/vite-hooks.test.ts and packages/compiler/test/canary/kit-build.test.ts (#2177)"
-		},
-		{
-			"id": "packages/compiler/src/kit-patches.ts > public_env_patch > <anonymous>~050da8 > replace:1~556dde",
-			"reason": "constant work: the replacement text, once per patch (#2177)"
-		},
-		{
-			"id": "packages/compiler/src/kit-patches.ts > reads_env_unknown",
-			"reason": "build time, inside the patch of Kit's $app/env/public module with no dynamic read: two replaces and one regex test over that one small generated module, once per load; proven in packages/compiler/test/vite-hooks.test.ts (#2192)"
-		},
-		{
-			"id": "packages/compiler/src/kit-patches.ts > kit_env_dynamic",
-			"reason": "build time, at the head of kit_env_build: one read of Kit's generated env config and one regex test (0.02 ms measured on an app of 5,000 source files); proven in packages/compiler/test/kit-env-build.test.ts and packages/compiler/test/canary/kit-build.test.ts (#2192)"
-		},
-		{
 			"id": "packages/compiler/src/link/island-deps.ts > collectIslandDepModulepreloads > reads_env",
 			"reason": "build time, once per client build: one regex test per module id of an island's closure, beside the remotes walk over the same ids; proven in packages/compiler/test/island-deps.test.ts (#2177)"
 		},
@@ -123,26 +107,6 @@
 		{
 			"id": "packages/core/src/runtime/kit-env.ts > missing > then:1~a1b2d0",
 			"reason": "browser only: the warning's chunk did not load; constant (#2177)"
-		},
-		{
-			"id": "packages/compiler/src/kit-patches.ts > kit_env_build",
-			"reason": "build time, per load of the two kit-env virtual modules of a Kit 3 app (CompileCtx > get kit_env_build keeps the identity once made): an app with no dynamic public variable reads only Kit's env config (kit_env_dynamic, 0.02 ms); one with one hashes package.json and the files of src and the routes dir once per compile, measured at 73 ms for 5,000 source files (20 MB) and 171 ms with 200 MB of media beside them, warm cache; proven in packages/compiler/test/kit-env-build.test.ts (#2221, #2192)"
-		},
-		{
-			"id": "packages/compiler/src/kit-patches.ts > hash_tree",
-			"reason": "build time, inside kit_env_build, only for an app with a dynamic public variable: one listing and one read per file of the app's source, once per compile (73 ms for 5,000 files, 20 MB, warm cache); proven in packages/compiler/test/kit-env-build.test.ts (#2221, #2192)"
-		},
-		{
-			"id": "packages/compiler/src/kit-patches.ts > by_name",
-			"reason": "build time: the sort compare of hash_tree, two string compares (#2221)"
-		},
-		{
-			"id": "packages/compiler/src/kit-patches.ts > kit_public_env_re",
-			"reason": "module constant: builds the three env regexes once when the compiler loads (#2177)"
-		},
-		{
-			"id": "packages/compiler/src/ctx.ts > CompileCtx > get kit_env_build",
-			"reason": "build time, per load of the two kit-env virtual modules: a field read once the identity is made, else kit_env_build (one config read for an app with no dynamic public variable); proven in packages/compiler/test/kit-env-build.test.ts (#2221, #2192)"
 		},
 		{
 			"id": "packages/compiler/src/messages.ts > WARNED > kit_env_unpatched > text",

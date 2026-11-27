@@ -6,9 +6,25 @@ import { describe, expect, it } from 'vitest';
 import { memory_fs, type Fs } from '../src/fs.ts';
 import { CompileCtx, normalize_import_keys } from '../src/index.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
-import { kit_env_build, kit_env_reader_module, kit_public_env_module } from '../src/kit-patches.ts';
+import {
+	dev_kit_env_build_key,
+	kit_env_build,
+	kit_env_reader_module,
+	kit_public_env_module
+} from '../src/kit-patches.ts';
 
 const PAGE = '<h1>home</h1>\n';
+
+const KIT_ENV_BUILD_RE = /^export function kit_env_build\(\) \{ (.*) \}$/m;
+
+/** The server module's `kit_env_build`, as a function (the rest of the module is not run). */
+const server_build_fn = (code: string): (() => string) => {
+	const body = KIT_ENV_BUILD_RE.exec(code)?.[1];
+	expect(body, code).toBeDefined();
+	// oxlint-disable-next-line typescript/no-implied-eval -- the module's function text under test
+	return new Function(body!) as () => string;
+};
+const server_build = (code: string): string => server_build_fn(code)();
 
 const app = (
 	root: string,
@@ -71,13 +87,31 @@ const with_config = (a: ReturnType<typeof app>, config: string) => {
 describe("the build's identity on Kit's env channel (KIT-PUBLIC-ENV)", () => {
 	it('is the same in the server module and the browser reader of one app', () => {
 		const build = kit_env_build(app('/srv/host', 'host-app'));
-		expect(kit_public_env_module(3, build)).toContain(`kit_env_build = ${JSON.stringify(build)}`);
-		expect(kit_public_env_module(null, build)).toContain(
-			`kit_env_build = ${JSON.stringify(build)}`
-		);
+		const fixed = { kind: 'fixed', id: build } as const;
+		expect(server_build(kit_public_env_module(3, fixed))).toBe(build);
+		expect(server_build(kit_public_env_module(null, fixed))).toBe(build);
 		expect(kit_env_reader_module('/rt/kit-env.js', build)).toContain(
 			`read(${JSON.stringify(build)})`
 		);
+	});
+
+	it("dev: the server module writes the dev server's identity as each channel is written, so an app that gains its first dynamic public variable writes the one its reader, made later, is bound to", () => {
+		const code = kit_public_env_module(3, { kind: 'dev', root: '/a/web' });
+		const slot = Symbol.for(dev_kit_env_build_key('/a/web'));
+		const other = Symbol.for(dev_kit_env_build_key('/a/peer'));
+		const g = globalThis as Record<symbol, unknown>;
+		let now = '';
+		g[slot] = () => now;
+		g[other] = () => 'peer-build';
+		try {
+			const read = server_build_fn(code);
+			expect(read()).toBe('');
+			now = kit_env_build(app('/a/web', 'my-app'));
+			expect(read()).toBe(now);
+		} finally {
+			delete g[slot];
+			delete g[other];
+		}
 	});
 
 	it('differs for another app: another name, base or app dir', () => {

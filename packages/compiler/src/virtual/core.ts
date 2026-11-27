@@ -486,7 +486,11 @@ export const kit_env: Family<KitEnvModule> = virtual.family({
 	exports: { kit_public_env: 'kit_public_env', kit_env_build: 'kit_env_build' },
 	load({ ctx }: CoreApp, { ssr }) {
 		const major = ssr ? kit_major_of(ctx.root) : null;
-		return kit_public_env_module(major, major !== null && major >= 3 ? ctx.kit_env_build : '');
+		if (major === null || major < 3) return kit_public_env_module(major, { kind: 'fixed', id: '' });
+		return kit_public_env_module(
+			major,
+			ctx.is_build ? { kind: 'fixed', id: ctx.kit_env_build } : { kind: 'dev', root: ctx.root }
+		);
 	}
 });
 

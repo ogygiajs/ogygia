@@ -1022,7 +1022,11 @@ describe('transform', () => {
 			it(`${mode}: a module with only static variables whose value is a regex naming env (as Kit's devalue writes it) evaluates where Kit never boots, and says nothing`, async () => {
 				const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
 				try {
-					const code = `${anchor}\n\nexport const PUBLIC_PATTERN = ${uneval(/env/g)};\n`;
+					const code = dedent`
+						${anchor}
+
+						export const PUBLIC_PATTERN = ${uneval(/env/g)};
+					`;
 					const out = await patched(mode, 'client', code);
 					expect(out).not.toContain('ogygia:boot/kit-env');
 					if (mode === 'build') expect(out).toBe(code);
@@ -1036,7 +1040,11 @@ describe('transform', () => {
 			it(`${mode}: a module with only static variables whose string value holds a dynamic read's text imports no reader, and says nothing`, async () => {
 				const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
 				try {
-					const code = `${anchor}\n\nexport const PUBLIC_NOTE = ${uneval('a = env.b')};\n`;
+					const code = dedent`
+						${anchor}
+
+						export const PUBLIC_NOTE = ${uneval('a = env.b')};
+					`;
 					const out = await patched(mode, 'client', code);
 					expect(out).not.toContain('ogygia:boot/kit-env');
 					if (mode === 'build') expect(out).toBe(code);

@@ -13,24 +13,26 @@ import { devalue_text } from './devalue-text.ts';
 import { ogygia_script } from './document-assembly.ts';
 import { response_mark } from './response-mark.ts';
 
-type Made = { kind: 'unmade' } | { kind: 'made'; from: Map<string, unknown>; text: string | null };
+type Made =
+	| { kind: 'unmade' }
+	| { kind: 'made'; build: string; from: Map<string, unknown>; text: string | null };
 
 class EnvText {
 	#made: Made = { kind: 'unmade' };
 
-	of(env: Record<string, unknown>): string | null {
+	of(build: string, env: Record<string, unknown>): string | null {
 		const made = this.#made;
-		if (made.kind === 'made' && same(made.from, env)) return made.text;
+		if (made.kind === 'made' && made.build === build && same(made.from, env)) return made.text;
 		const from = new Map(Object.entries(env));
 		let text: string | null = null;
 		if (from.size > 0) {
 			try {
-				text = devalue_text({ build: kit_env_build, env }, {});
+				text = devalue_text({ build, env }, {});
 			} catch (e) {
 				warn('kit_env_unshipped', { reason: e instanceof Error ? e.message : String(e) });
 			}
 		}
-		this.#made = { kind: 'made', from, text };
+		this.#made = { kind: 'made', build, from, text };
 		return text;
 	}
 }
@@ -50,14 +52,15 @@ const ENV_TEXT = new EnvText();
  * Kit's public env as one `<script type="application/ogygia-env">`, marked with `request`'s mark:
  * exactly what Kit puts in its boot payload on a csr=true page (Kit 3's `rendered_env`, public
  * variables only), serialized with devalue as Kit does, beside the build that wrote it
- * (`kit_env_build`, the constant the build's browser reader is bound to), so a region of another
+ * (`kit_env_build()`, read as it is written: the identity the build's browser reader is bound to,
+ * which a dev app makes once it gains its first dynamic public variable), so a region of another
  * build (a federated peer's) never reads it as its own. Null: this Kit has none, it holds no
  * variable, or it does not serialize (said with `kit_env_unshipped`).
  */
 export function env_seed_script(request: Request): string | null {
 	const env = kit_public_env();
 	if (env === null) return null;
-	const text = ENV_TEXT.of(env);
+	const text = ENV_TEXT.of(kit_env_build(), env);
 	if (text === null) return null;
 	return ogygia_script('env', text, `${RESPONSE_MARK}="${response_mark(request)}"`);
 }
