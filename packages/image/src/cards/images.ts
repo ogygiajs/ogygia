@@ -24,13 +24,14 @@
  * @packageDocumentation
  */
 import { image_type } from '../image-type.ts';
+import { SourceUnreadable } from '../maker.ts';
 import { OgygiaError } from '../messages.ts';
 import { source_tail } from '../recipe.ts';
 
 /** How a card's realm reads one image its markup names, by the URL the markup wrote. `unfit`, when
  *  the realm keeps a failure memory of its own for the URLs it fetches: the failure a draw throws
- *  when the bytes read for `src` cannot be fitted to the card (undefined, or no `unfit`:
- *  `image_card_source`). */
+ *  when the bytes read for `src` are a broken file (the fitter threw `SourceUnreadable`; undefined,
+ *  no `unfit`, or any other failure of the fit: `image_card_source`). */
 export interface CardImageRead {
 	(src: string): Promise<Uint8Array>;
 	unfit?: (src: string, reason: string) => Error | undefined;
@@ -279,8 +280,8 @@ async function drawn_image(
 		const code = (e as { code?: unknown }).code;
 		if (typeof code === 'string' && code.startsWith('image_')) throw e;
 		const reason = (e as Error).message;
-		const own = src.startsWith('data:') ? undefined : read.unfit?.(src, reason);
-		throw own ?? refused(file, shown, reason);
+		const broken = e instanceof SourceUnreadable && !src.startsWith('data:');
+		throw (broken ? read.unfit?.(src, reason) : undefined) ?? refused(file, shown, reason);
 	}
 }
 
@@ -295,8 +296,8 @@ function as_buffer(bytes: Uint8Array): ArrayBuffer {
  *  the type its bytes are), and every link's `href` outside an SVG left out. A `data:` URL is read
  *  like any address: its bytes must be a PNG, JPEG, GIF, WebP, AVIF or TIFF (an SVG is refused:
  *  it can name addresses of its own). One `read` cannot read, or `fit` cannot fit (or any, with no
- *  `fit`: nothing is read then), is `image_card_source`, but for a fetched URL whose bytes do not
- *  fit when `read.unfit` names the failure; a coded refusal of the realm's own (such as
+ *  `fit`: nothing is read then), is `image_card_source`, but for a fetched URL whose bytes are a
+ *  broken file (`SourceUnreadable`) when `read.unfit` names the failure; a coded refusal of the realm's own (such as
  *  `image_remote_host` at build) and a {@link RealmAnswer} stay as they are. */
 export async function inline_images<T>(
 	tree: T,

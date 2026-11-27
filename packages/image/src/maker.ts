@@ -37,10 +37,39 @@ export class CannotMake extends Error {
 	}
 }
 
-/** The original's own bytes cannot be read (its header does not decode, or it is past the pixels
- *  one frame may have): every file of it fails the same way. Any other failure of a make is that
- *  one file's. */
+/** The original's own bytes cannot be read (they are no image, its header or its pixels do not
+ *  decode, or it is past the pixels one frame may have): every file of it fails the same way, so a
+ *  fetched URL's is that URL's failure. Any other failure of a make or a fit (memory, the
+ *  platform) is that one ask's. Thrown only after {@link unreadable} says so. */
 export class SourceUnreadable extends Error {}
+
+const OWN_FAILURE_RE =
+	/out of memory|insufficient memory|memory area too large|bad_alloc|ENOMEM|cannot allocate|unable to allocate/i;
+const VIPS_SOURCE_RE =
+	/^(?:Input (?:buffer|file|image) |Vips(?:Jpeg|Png|Gif|Webp|Tiff|Heif|ForeignLoad\w*): |vipspng: |\w+load(?:_\w+)?: |heif: |source: |Warning treated as error)|premature end|corrupt/im;
+const BINDING_SOURCE_CODES: ReadonlySet<number> = new Set([9412, 9413, 9520, 9523]);
+const BINDING_SOURCE_RE = /\b(?:9412|9413|9520|9523):/;
+
+/** Whether `e`, thrown by a decoder, says the bytes it was given are a broken file: a libvips
+ *  loader's error (sharp), or an Images binding error about its input (no image 9412, too many
+ *  pixels 9413, a format it does not take 9520, one it could not read 9523). A failure of the
+ *  server's own (out of memory) never is, whoever reports it. The one line between a source's
+ *  failure and an ask's. */
+export function unreadable(e: unknown): boolean {
+	if (e instanceof SourceUnreadable) return true;
+	if (!(e instanceof Error)) return false;
+	if (OWN_FAILURE_RE.test(e.message)) return false;
+	const code = (e as { code?: unknown }).code;
+	if (typeof code === 'number') return BINDING_SOURCE_CODES.has(code);
+	return VIPS_SOURCE_RE.test(e.message) || BINDING_SOURCE_RE.test(e.message);
+}
+
+/** `e` as a {@link SourceUnreadable} when {@link unreadable} says it is one, prefixed by `why`;
+ *  else `e` as it is. */
+export function source_failure(e: unknown, why = ''): unknown {
+	if (e instanceof SourceUnreadable || !unreadable(e)) return e;
+	return new SourceUnreadable(`${why}${(e as Error).message}`);
+}
 
 /** An image fitted to a `width` × `height` card: the bytes a card's engine is handed and their
  *  type, or a throw saying why it cannot be drawn (../cards/fit.ts). */

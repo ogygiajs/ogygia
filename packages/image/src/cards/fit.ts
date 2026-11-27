@@ -11,6 +11,7 @@
 import type { Metadata } from 'sharp';
 import { metadata_of, pipeline, shown_size, too_large } from '../pixels.ts';
 import { image_type } from '../image-type.ts';
+import { source_failure, SourceUnreadable } from '../maker.ts';
 import { resvg_draws } from './images.ts';
 
 /** The most pixels an image a card draws keeps, in cards of its card's size. */
@@ -40,20 +41,22 @@ function drawn_as_is(bytes: Uint8Array, meta: Metadata): boolean {
  *  kept when it is no larger than the card needs and resvg draws it as it is (an 8-bit sRGB or
  *  grey PNG, JPEG or GIF with no colour profile and no EXIF turn), else made again at the size the
  *  card needs, as 8-bit sRGB (a PNG when it has alpha, a JPEG when not): so a WebP, AVIF, TIFF,
- *  CMYK JPEG, 16-bit PNG or a file with a colour profile is always made again. Throws, saying why,
- *  when its header does not read or it is past the one-frame limit. */
+ *  CMYK JPEG, 16-bit PNG or a file with a colour profile is always made again. Throws
+ *  `SourceUnreadable`, saying why, when its bytes are no such image, its header or pixels do not
+ *  decode, or it is past the one-frame limit; any other failure (memory) as it is. */
 export async function fit_to_card(
 	bytes: Uint8Array,
 	card_w: number,
 	card_h: number
 ): Promise<{ bytes: Uint8Array; type: string }> {
 	const type = image_type(bytes);
-	if (type === null) throw new Error('its bytes are no PNG, JPEG, GIF, WebP, AVIF or TIFF');
+	if (type === null)
+		throw new SourceUnreadable('its bytes are no PNG, JPEG, GIF, WebP, AVIF or TIFF');
 	const meta = await metadata_of(bytes).catch((e: unknown) => {
-		throw new Error(`its header does not read: ${(e as Error).message}`);
+		throw source_failure(e, 'its header does not read: ');
 	});
 	const why = too_large(meta);
-	if (why !== null) throw new Error(why);
+	if (why !== null) throw new SourceUnreadable(why);
 	const { width, height } = shown_size(meta, {}, (meta.pages ?? 1) > 1);
 	const scale = card_scale(width, height, card_w, card_h);
 	if (scale === 1 && drawn_as_is(bytes, meta)) return { bytes, type };
@@ -61,8 +64,8 @@ export async function fit_to_card(
 	const h = Math.max(1, Math.round(height * scale));
 	const img = pipeline(bytes, {}, false, w, h).toColourspace('srgb');
 	const out = meta.hasAlpha ? img.png() : img.jpeg({ quality: 90 });
-	return {
-		bytes: new Uint8Array(await out.toBuffer()),
-		type: meta.hasAlpha ? 'image/png' : 'image/jpeg'
-	};
+	const made = await out.toBuffer().catch((e: unknown) => {
+		throw source_failure(e, 'its pixels do not decode: ');
+	});
+	return { bytes: new Uint8Array(made), type: meta.hasAlpha ? 'image/png' : 'image/jpeg' };
 }
