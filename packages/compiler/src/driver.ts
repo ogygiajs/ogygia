@@ -556,10 +556,13 @@ export class Compiler implements CoreApp {
 			root: ctx.root,
 			base: ctx.base,
 			app_dir: ctx.app_dir,
-			routes_dir: ctx.kit_dirs.routes_dir,
 			out_dir: ctx.kit_dirs.out_dir,
 			mode: ctx.is_build ? 'build' : 'dev',
-			fs: ctx.fs
+			fs: ctx.fs,
+			browser_files: () => {
+				this.prescan();
+				return this.program.island_graph;
+			}
 		});
 		if (id !== '' || ctx.is_build) build.kit_env_build = id;
 		return id;

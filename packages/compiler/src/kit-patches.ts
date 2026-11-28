@@ -7,11 +7,11 @@
  *
  * @packageDocumentation
  */
-import { createHash, type Hash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { dedent, OGYGIA_VERSION } from '@ogygia/core/contract';
 import { dev_bridge_call } from './dev-bridge.ts';
-import type { Fs, FsEntry } from './fs.ts';
+import type { Fs } from './fs.ts';
 import { warn } from './messages.ts';
 
 /** One patch of a Kit module, applied to the browser's copy only. */
@@ -104,17 +104,18 @@ export function patch_kit_module(code: string, id: string): string {
 	return out;
 }
 
-/** What names an app for its env channel: its package.json, its base, its app dir and its source
- *  (`src`, and Kit's routes dir where it is not under `src`); and where Kit wrote its env config
- *  (`kit.outDir`, for the serve mode). */
+/** What names an app for its env channel: its base, its app dir and the code it ships to the
+ *  browser; and where Kit wrote its env config (`kit.outDir`, for the serve mode). */
 export interface KitEnvApp {
 	readonly root: string;
 	readonly base: string;
 	readonly app_dir: string;
-	readonly routes_dir: string;
 	readonly out_dir: string;
 	readonly mode: 'dev' | 'build';
 	readonly fs: Fs;
+	/** the absolute paths of the app's island code (the compiler's island closure), asked only for
+	 *  an app with a dynamic public variable */
+	readonly browser_files: () => Iterable<string>;
 }
 
 const DYNAMIC_PUBLIC_SET_RE = /\brendered_env\.[\w$]+\s*=/;
@@ -127,46 +128,31 @@ export function kit_env_dynamic(app: Pick<KitEnvApp, 'out_dir' | 'mode' | 'fs'>)
 	return config === null || DYNAMIC_PUBLIC_SET_RE.test(config);
 }
 
-const by_name = (a: FsEntry, b: FsEntry) => Number(a.name > b.name) - Number(a.name < b.name);
-
-function hash_tree(files: Fs, dir: string, rel: string, into: Hash): void {
-	const entries = files.list(dir);
-	if (entries === null) return;
-	for (const e of [...entries].sort(by_name)) {
-		if (e.name.startsWith('.')) continue;
-		const at = `${rel}/${e.name}`;
-		if (e.kind === 'dir') hash_tree(files, path.join(dir, e.name), at, into);
-		else if (e.kind === 'file')
-			into.update(`\0${at}\0`).update(files.read(path.join(dir, e.name)) ?? '');
-		else into.update(`\0${at}\0${e.kind}`);
-	}
-}
+const NODE_MODULES_SEGMENT_RE = /(?:^|\/)node_modules\//;
 
 /**
  * The build's identity on Kit's env channel: the server writes it beside the env, and the browser's
- * reader reads the env only when the channel bears its own. Both legs of one app make the same one
- * from the same facts: the app's package.json, base and app dir, and every file of its source but
- * dot files (ogygia's keep-client route is one, and is there for one leg only). A federated peer is
- * another app, so its reader never takes the host's env as its own; only a peer built from the very
- * same source shares it. It holds no absolute path and no time, so a build made again is
- * byte-identical. An app whose Kit env config sets no dynamic public variable (`kit_env_dynamic`)
- * has an empty env, so the server writes no channel and the browser reads none: it has no
- * identity (`''`, as a Kit 2 app has) and its source is not read.
+ * reader reads the env only when the channel bears its own. It ships in every page with a channel,
+ * so it is made only of what the browser already gets: the app's base and app dir, and the app's
+ * own island code (every file of the island closure not in a package, by its path from the root),
+ * so it tells nothing of a server-only file. Both legs of one app make the same one from the same
+ * facts. A federated peer with other island code is another app, so its reader never takes the
+ * host's env as its own; a peer whose island code is byte for byte the host's shares it. It holds
+ * no absolute path and no time, so a build made again is byte-identical. An app whose Kit env
+ * config sets no dynamic public variable (`kit_env_dynamic`) has an empty env, so the server writes
+ * no channel and the browser reads none: it has no identity (`''`, as a Kit 2 app has) and no file
+ * of its code is read.
  */
 export function kit_env_build(app: KitEnvApp): string {
 	if (!kit_env_dynamic(app)) return '';
 	const hash = createHash('sha256').update([app.base, app.app_dir].join('\0'));
-	hash.update('\0package.json\0').update(app.fs.read(path.join(app.root, 'package.json')) ?? '');
-	const src = path.join(app.root, 'src');
-	hash_tree(app.fs, src, 'src', hash);
-	const routes = path.relative(src, app.routes_dir);
-	if (routes.startsWith('..') || path.isAbsolute(routes))
-		hash_tree(
-			app.fs,
-			app.routes_dir,
-			path.relative(app.root, app.routes_dir).split(path.sep).join('/'),
-			hash
-		);
+	const files: [rel: string, abs: string][] = [];
+	for (const abs of app.browser_files()) {
+		const rel = path.relative(app.root, abs).split(path.sep).join('/');
+		if (!NODE_MODULES_SEGMENT_RE.test(rel)) files.push([rel, abs]);
+	}
+	files.sort(([a], [b]) => Number(a > b) - Number(a < b));
+	for (const [rel, abs] of files) hash.update(`\0${rel}\0`).update(app.fs.read(abs) ?? '');
 	return hash.digest('hex').slice(0, 12);
 }
 
