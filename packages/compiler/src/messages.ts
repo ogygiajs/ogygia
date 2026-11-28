@@ -867,7 +867,8 @@ const WARNED = {
 		text: (a: { name: string }): string => prose`
 			${a.name}: ogygia found no SvelteKit Vite plugin holding a \`version.name\`, so the
 			identity on its public env channel is made without it or Kit's \`paths.base\`. Another
-			app with the same package name and app dir reads this app's public env as its own. Add
+			app with the same package name and app dir that also has no \`sveltekit()\` plugin
+			reads this app's public env as its own. Add
 			\`sveltekit()\` to the plugins in vite.config.
 		`,
 		details: (): string => prose`
