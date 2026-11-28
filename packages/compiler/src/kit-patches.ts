@@ -41,13 +41,14 @@ const kit_public_env_re = (mode: string) =>
 export const KIT_PUBLIC_ENV_CLIENT_RE: RegExp = kit_public_env_re('(?:build|dev)');
 const KIT_ENV_READER = `import { kit_env as __og_kit_env } from 'ogygia:boot/kit-env';\n`;
 const DYNAMIC_READ_RE = /=\s*env\./;
-const STRING_LITERAL_G = /"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g;
+const STRING_OR_COMMENT_G =
+	/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`|\/\/[^\n]*|\/\*[\s\S]*?\*\//g;
 const ENV_REFERENCE_RE = /(?<![\w$.])env(?![\w$]|\s*:)/;
 
 function public_env_patch(read: string, fallback: string, inert: string | null): KitPatch['patch'] {
 	return (code, id) => {
 		if (code.trim() === '') return null;
-		const bare = code.replace(STRING_LITERAL_G, '""');
+		const bare = code.replace(STRING_OR_COMMENT_G, (m) => (m[0] === '/' ? ' ' : '""'));
 		const dynamic = DYNAMIC_READ_RE.test(bare);
 		const anchored = code.includes(read);
 		if (!dynamic && anchored && ENV_REFERENCE_RE.test(bare.replace(read, ''))) {
