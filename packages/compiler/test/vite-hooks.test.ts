@@ -2629,6 +2629,31 @@ describe('the dev server', () => {
 		expect(s.invalidated.some((id) => id.includes('runtime-entry'))).toBe(true);
 	});
 
+	it("a transform on the older of two dev servers that moves what a loaded virtual module read drops that module from both servers' graphs", async () => {
+		app();
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		await load(p, 'ogygia:boot/runtime-entry', 'client');
+		write('src/lib/Idle.svelte', '<p>idle</p>\n');
+		const host = write(
+			'src/routes/idle/+page.svelte',
+			dedent`
+				<script>
+					import Idle from '$lib/Idle.svelte' with { wake: 'idle' };
+				</script>
+				<Idle />
+			`
+		);
+		const on_a = { ...hook_this('ssr'), environment: a.environments.ssr };
+		await p.transform.call(on_a, readFileSync(host, 'utf8'), host, { ssr: true });
+		const dropped = (s: ReturnType<typeof served>) =>
+			s.invalidated.some((id) => id.includes('runtime-entry'));
+		expect({ a: dropped(a), b: dropped(b) }).toEqual({ a: true, b: true });
+	});
+
 	it('closing an older dev server while a newer one is open leaves the newer one serving a hook with no environment', async () => {
 		app();
 		const { p } = await setup('serve');
