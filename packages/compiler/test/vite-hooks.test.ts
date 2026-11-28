@@ -2552,6 +2552,50 @@ describe('the dev server', () => {
 		}
 	});
 
+	it("a server whose second read already found nothing is not replayed when another server's watcher later reports a new edit", async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		await load(p, 'ogygia:server/route-csr', 'ssr');
+		vi.useFakeTimers();
+		try {
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			p.watchChange.call(heard_on(a), options, { event: 'update' });
+			vi.advanceTimersByTime(1_000);
+			await load(p, 'ogygia:server/route-csr', 'ssr');
+			write('src/routes/+page.ts', 'export const csr = false;\n');
+			p.watchChange.call(heard_on(b), options, { event: 'update' });
+			vi.advanceTimersByTime(1_000);
+			expect({ a: a.replayed, b: b.replayed }).toEqual({ a: [], b: [] });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('deleting a route file another server has a second read pending on replays no change on that server', async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		await load(p, 'ogygia:server/route-csr', 'ssr');
+		vi.useFakeTimers();
+		try {
+			p.watchChange.call(heard_on(a), options, { event: 'update' });
+			rmSync(options);
+			p.watchChange.call(heard_on(b), options, { event: 'delete' });
+			expect(a.replayed).toEqual([]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it('a half-written save heard before its dev server closes is never read again on the closed server', async () => {
 		app();
 		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
