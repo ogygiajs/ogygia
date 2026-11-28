@@ -50,10 +50,10 @@ test.describe('POSTRENDER dev leg: vite dev never serves/fills the store (edits 
 	});
 
 	test('a REFUSED page: no would-store, still re-renders (the named console note is dev-server-side)', async () => {
-		await fetch(`${base}/fr/fr/flagged`);
-		const f2 = await fetch(`${base}/fr/fr/flagged`);
+		await fetch(`${base}/fr/fr/stream`);
+		const f2 = await fetch(`${base}/fr/fr/stream`);
 		check('dev: refused page carries no would-store', via(f2) === null, via(f2) ?? '(none)');
-		check('dev: refused page re-rendered too', ((await renders())['/fr/fr/flagged'] ?? 0) === 2);
+		check('dev: refused page re-rendered too', ((await renders())['/fr/fr/stream'] ?? 0) === 2);
 	});
 
 	test('the right handle order says nothing', () => {

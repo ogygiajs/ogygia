@@ -51,6 +51,9 @@ export interface ServerApp<Options = undefined> {
 	 *  set of the render running now and in the request's (`facts.reads`), so no cache keeps that
 	 *  render for another visitor. The first reason names it. */
 	perVisitor(request: Request, reason: string): void;
+	/** A bounded-cardinality variant read by `request`'s code (a `flag()` bucket): it lands in
+	 *  `facts.reads.variants`, allowing variant-keyed caches to store one entry per variant branch. */
+	variantRead(request: Request, name: string, variant: string): void;
 	/** Note `event`'s personal reads from now on (a cookie, a personal header or the headers whole, a
 	 *  `locals` value that is not its default, the client address, per-request `platform` data, a
 	 *  `fetch` that carries the visitor's cookies) the same way. Once per request. */

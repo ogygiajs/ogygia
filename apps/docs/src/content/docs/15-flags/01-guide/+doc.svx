@@ -28,7 +28,7 @@ plugins: [ogygia(), flags(), sveltekit()]
 
 Keep the plugin listed in every app that reads flags. Without it a flag still decides from its native rule, but the request never learns that a flag was read, and that matters in three places:
 
-- **Stored pages.** Each read marks the render as per-visitor, so [postrender](/docs/postrender/guide) never stores one variant of an A/B test and serves it to everyone. Without the plugin nothing marks the render, and a stored page can keep the variant of whoever requested it first.
+- **Stored pages.** Bounded flag reads record `(flagName, variant)` on the request so [postrender](/docs/postrender/guide#variant-keyed-caching) stores one copy per arm combination behind a decision trie (and marks custom targeting-function flags per-request), never serving one visitor's variant to everyone. Without the plugin nothing records the read, and a stored page can keep the variant of whoever requested it first.
 - **Federation.** Each decision is recorded on the request, which is how a [mount carries it](#one-world-across-teams) to other teams.
 - **Sources and exposures.** The plugin primes a `decide({ source })` once at the start of each request and drains the `exposure` sink at the end. Without it, the source is ignored and exposures are only sent when a batch fills up or its timer fires.
 
@@ -401,6 +401,94 @@ A sink that throws or rejects never breaks a request; the failure is logged once
 ```svelte
 <section data-og-exp={data.stamp}>…</section>
 ```
+
+## Connecting variants to external systems
+
+Because `flag()` resolves deterministically on the server before HTML leaves your origin, every external system in your stack can consume the exact same variant assignment without shipping a client flag SDK:
+
+### 1. Analytics and experimentation warehouses (`decide({ exposure })`)
+
+`decide({ exposure })` streams `{ name, variant, sub, at }` batches to your warehouse, product analytics or experimentation pipeline (BigQuery, Snowflake, Amplitude, PostHog, Segment). When [`@ogygia/postrender`](/docs/postrender/guide#variant-keyed-caching) serves a variant-cached page from the store, walking the decision trie calls `evaluateFlag` for each branch along that visitor's arm, so **warm cache hits emit exposure events identically to cold SSR renders** — cached experiments never under-count traffic.
+
+### 2. Browser RUM, heatmaps and client analytics (`stamp(c)`)
+
+Client-side telemetry tools (RUM, session replay, heatmaps, tag managers) often want the active variants attached to pageviews and web-vital spans. Read `stamp(c)` in your layout or page load (it formats every decided flag on the request as `'hero:bold,summer-promo:on'`) and expose it in markup or a `<meta>` tag:
+
+```ts title=src/routes/+layout.server.ts
+import { stamp } from '@ogygia/flags';
+import { hero, promo } from '$lib/flags';
+
+export const load = (event) => {
+  const variant = hero(event);
+  const hasPromo = promo(event);
+  return { variant, hasPromo, expStamp: stamp(event) };
+};
+```
+
+```svelte title=src/routes/+layout.svelte
+<script>
+  let { data, children } = $props();
+</script>
+
+<svelte:head>
+  {#if data.expStamp}
+    <meta name="og-variants" content={data.expStamp} />
+  {/if}
+</svelte:head>
+
+<div data-og-exp={data.expStamp}>
+  {@render children()}
+</div>
+```
+
+### 3. CDN edge caching and targeted invalidation (Akamai & Tencent Cloud EdgeOne)
+
+By default, `@ogygia/postrender` caches variant arms in your origin store (`ValkeyStore`, `UpstashStore`, `CloudflareKvStore`) and stamps `cache-control: private, no-store` so a URL-keyed CDN cannot serve one arm to another. To cache each arm at the CDN edge as well:
+
+1. Compute or forward a canonical variant request header at the edge (for example `x-og-variants: hero=bold` from an Akamai EdgeWorker or EdgeOne edge function using the `og-vid` cookie).
+2. Include `x-og-variants` in the CDN's cache key (**Akamai Property Manager:** _Cache ID Modification_ on `x-og-variants` + _Remove Vary Header_; **Tencent Cloud EdgeOne:** _Cache Key → Header_ on `x-og-variants`).
+3. Enable `variants: { header: 'x-og-variants' }` on `AkamaiEdge` or `EdgeOneEdge` in `hooks.server.ts`.
+
+Every edge-cached response then carries `og_flag_<name>` and `og_exp_<name>_<variant>` cache tags alongside your CMS/catalog tags, so your flag control plane's webhook can evict an entire experiment or a single arm immediately when weights change or a kill switch flips:
+
+```ts title=src/routes/api/flags-webhook/+server.ts
+import { postrender } from '@ogygia/postrender';
+
+export async function POST({ request }) {
+  const { flagName, retiredVariant } = await request.json();
+  if (retiredVariant) {
+    await postrender.invalidateTags([`og_exp_${flagName}_${retiredVariant}`]);
+  } else {
+    await postrender.invalidateTags([`og_flag_${flagName}`]);
+  }
+  return new Response(null, { status: 204 });
+}
+```
+
+### 4. Downstream backend APIs, search and commerce services
+
+When a server load or remote function calls an internal ranking, search, pricing or recommendation service that needs the visitor's active arms, forward `stamp(c)` (or individual decisions) as an outbound header:
+
+```ts title=src/routes/search/+page.server.ts
+import { stamp } from '@ogygia/flags';
+import { rankingModel } from '$lib/flags';
+
+export const load = async (event) => {
+  const arm = rankingModel(event);
+  const res = await fetch('https://search.internal.example.com/query', {
+    headers: {
+      'x-experiment-arm': arm,
+      'x-og-variants': stamp(event)
+    }
+  });
+  return { results: await res.json() };
+};
+```
+
+### 5. External flag control planes (`decide({ source })`) and federated apps
+
+- **Upstream control planes:** Connect LaunchDarkly, Flagsmith, Unleash, flagd or an internal rules service through [`openfeature()`](#sources-reference-openfeatureclient-options), [`ofrep()`](#sources-reference-ofrepoptions) or [a custom source](#sources-reference-a-custom-source). Decisions still validate against your declared variants and feed postrender's variant trie automatically.
+- **Cross-team micro-frontends:** With [`@ogygia/federation`](/docs/federation/guide), every decided bucket rides in the shell's signed claims ([One world across teams](#one-world-across-teams)), so downstream mounted apps render and log the exact same variant without re-bucketing.
 
 ## One world across teams
 

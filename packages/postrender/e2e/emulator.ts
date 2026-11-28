@@ -14,6 +14,8 @@ const EDGEGRID_AUTH_RE =
 	/^EG1-HMAC-SHA256 client_token=[^;]+;access_token=[^;]+;timestamp=\d{8}T\d\d:\d\d:\d\d\+0000;nonce=[0-9a-f-]{36};signature=[A-Za-z0-9+/=]+$/;
 const SIGV4_AUTH_RE =
 	/^AWS4-HMAC-SHA256 Credential=[^/]+\/\d{8}\/us-east-1\/cloudfront\/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=[0-9a-f]{64}$/;
+const TC3_AUTH_RE =
+	/^TC3-HMAC-SHA256 Credential=[^/]+\/\d{4}-\d\d-\d\d\/teo\/tc3_request, SignedHeaders=content-type;host;x-tc-action, Signature=[0-9a-f]{64}$/;
 const S_MAXAGE_RE = /s-maxage=(\d+)/;
 const CF_PATH_RE = /<Path>([^<]+)<\/Path>/g;
 // ESI (the akamai personality processes it; cloudfront passes the tags through — the real split)
@@ -51,12 +53,13 @@ const FORWARD_HEADERS = [
 	'surrogate-control',
 	'location',
 	'edge-cache-tag',
+	'cache-tag',
 	'set-cookie',
 	'x-ogygia-postrender'
 ];
 
 export function start_edge_emulator(options: {
-	name: 'akamai' | 'cloudfront';
+	name: 'akamai' | 'cloudfront' | 'edgeone';
 	port: number;
 	upstream: string;
 }): Promise<EdgeEmulator> {
@@ -146,7 +149,10 @@ export function start_edge_emulator(options: {
 		}
 
 		// ── the REAL purge API surfaces ──────────────────────────────────────────────────────
-		if (name === 'akamai' && url.pathname.startsWith('/ccu/v3/invalidate/')) {
+		if (
+			name === 'akamai' &&
+			(url.pathname.startsWith('/ccu/v3/delete/') || url.pathname.startsWith('/ccu/v3/invalidate/'))
+		) {
 			const auth_ok = EDGEGRID_AUTH_RE.test(req.headers.authorization ?? '');
 			const body = JSON.parse(String(await read_body(req)) || '{}') as { objects?: string[] };
 			if (fail_mode === 'purge-500') {
@@ -160,7 +166,7 @@ export function start_edge_emulator(options: {
 				res.end('{"detail":"bad EdgeGrid auth"}');
 				return;
 			}
-			const is_tag = url.pathname.includes('/invalidate/tag');
+			const is_tag = url.pathname.includes('/tag/');
 			for (const obj of body.objects ?? []) {
 				if (is_tag) {
 					purges.push({ kind: 'tag', value: obj, auth_ok });
@@ -174,7 +180,7 @@ export function start_edge_emulator(options: {
 				}
 			}
 			res.writeHead(201, { 'content-type': 'application/json' });
-			res.end('{"httpStatus":201,"detail":"queued"}');
+			res.end('{"httpStatus":201,"purgeId":"emu-purge","supportId":"emu-sup","detail":"queued"}');
 			return;
 		}
 		if (
@@ -200,6 +206,54 @@ export function start_edge_emulator(options: {
 			}
 			res.writeHead(201, { 'content-type': 'text/xml' });
 			res.end('<Invalidation><Status>InProgress</Status></Invalidation>');
+			return;
+		}
+		if (
+			name === 'edgeone' &&
+			req.method === 'POST' &&
+			String(req.headers['x-tc-action'] ?? '').toLowerCase() === 'createpurgetask'
+		) {
+			const auth_ok =
+				TC3_AUTH_RE.test(req.headers.authorization ?? '') &&
+				req.headers['x-tc-version'] === '2022-09-01' &&
+				/^\d+$/.test(String(req.headers['x-tc-timestamp'] ?? ''));
+			const body = JSON.parse(String(await read_body(req)) || '{}') as {
+				Type?: 'purge_url' | 'purge_prefix' | 'purge_tag';
+				Targets?: string[];
+			};
+			if (fail_mode === 'purge-500') {
+				res.writeHead(500, { 'content-type': 'application/json' });
+				res.end('{"Response":{"Error":{"Code":"InternalError","Message":"injected failure"}}}');
+				return;
+			}
+			if (!auth_ok) {
+				purges.push({ kind: 'url', value: '(bad auth)', auth_ok: false });
+				res.writeHead(200, { 'content-type': 'application/json' });
+				res.end(
+					'{"Response":{"Error":{"Code":"AuthFailure.SignatureFailure","Message":"bad TC3 auth"},"RequestId":"emu-eo-req"}}'
+				);
+				return;
+			}
+			for (const obj of body.Targets ?? []) {
+				if (body.Type === 'purge_tag') {
+					purges.push({ kind: 'tag', value: obj, auth_ok });
+					for (const [key, entry] of cache) {
+						if (entry.tags.includes(obj)) cache.delete(key);
+					}
+				} else if (body.Type === 'purge_prefix') {
+					const pathname = obj.startsWith('http') ? new URL(obj).pathname : obj;
+					purges.push({ kind: 'path', value: pathname, auth_ok });
+					for (const key of cache.keys()) {
+						if (key === pathname || key.startsWith(pathname)) cache.delete(key);
+					}
+				} else {
+					const pathname = obj.startsWith('http') ? new URL(obj).pathname : obj;
+					purges.push({ kind: 'url', value: pathname, auth_ok });
+					cache.delete(pathname);
+				}
+			}
+			res.writeHead(200, { 'content-type': 'application/json' });
+			res.end('{"Response":{"JobId":"emu-eo-job","FailedList":[],"RequestId":"emu-eo-req"}}');
 			return;
 		}
 
@@ -275,7 +329,7 @@ export function start_edge_emulator(options: {
 				status: upstream_res.status,
 				headers: stored_headers,
 				body,
-				tags: (headers['edge-cache-tag'] ?? '')
+				tags: (headers['edge-cache-tag'] ?? headers['cache-tag'] ?? '')
 					.split(',')
 					.map((t) => t.trim())
 					.filter(Boolean),
@@ -294,10 +348,11 @@ export function start_edge_emulator(options: {
 
 	return new Promise((resolve) => {
 		server.listen(port, '127.0.0.1', () => {
+			const actual_port = (server.address() as { port: number }).port;
 			resolve({
 				name,
-				port,
-				base: `http://127.0.0.1:${port}`,
+				port: actual_port,
+				base: `http://127.0.0.1:${actual_port}`,
 				state: () => ({ keys: [...cache.keys()], hits, misses, purges }),
 				close: () => new Promise<void>((r) => server.close(() => r()))
 			});

@@ -75,10 +75,10 @@ A component's schedule rides on its import attribute, so two imports of one file
 ## With other packages
 
 - **[@ogygia/router](/docs/router/overview)** gives every flag the visitor declared once on the table (`routes(table, { visitor })`), picks a page per variant with `hero.pick({ control: Hero, bold: HeroBold })`, and gates a whole route with `when(checkout, page(NewCheckout))`.
-- **[@ogygia/postrender](/docs/postrender/overview)** never stores a page whose render read a flag, so one visitor's variant is never served to everyone. This is one reason to keep the plugin listed.
+- **[@ogygia/postrender](/docs/postrender/overview)** caches bounded `flag()` variants per arm combination behind a decision trie (never serving one visitor's variant to another, and still recording exposures on cache hits), while keeping custom targeting-function flags per-request. This is one reason to keep the plugin listed.
 - **[@ogygia/federation](/docs/federation/overview)** carries every decision across a mount, so a visitor sees the same variant in each team's part of the page ([One world across teams](/docs/flags/guide#one-world-across-teams)).
 
 ## Where to go next
 
-- [Flags & experiments](/docs/flags/guide): `pick`, the visitor, vendor values, OpenFeature and OFREP sources, precedence, QA overrides, layers, exposures and the flag manifest.
+- [Flags & experiments](/docs/flags/guide): `pick`, the visitor, vendor values, OpenFeature and OFREP sources, precedence, QA overrides, layers, exposures, connecting variants to external systems, and the flag manifest.
 - API: [`@ogygia/flags`](/docs/flags/api/flags) and [`@ogygia/flags/openfeature`](/docs/flags/api/openfeature).

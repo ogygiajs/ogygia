@@ -13,7 +13,7 @@
  * through the other.
  */
 import { slot as shared } from '@ogygia/machine';
-import { note_visitor_read, ReadSet, type Reads } from './reads.ts';
+import { note_variant_read, note_visitor_read, ReadSet, type Reads } from './reads.ts';
 
 export interface RequestFacts {
 	/** This render MAY be stored and served to others later (a plugin decided so before the render):
@@ -94,4 +94,10 @@ export function current_facts(): RequestFacts | null {
  *  work running now, and the request's. */
 export function note_per_visitor(request: Request, reason: string): void {
 	note_visitor_read(facts_of(request).reads, reason);
+}
+
+/** A bounded-cardinality variant read by `request`'s code: into the read set of the work running
+ *  now, and the request's. */
+export function note_variant(request: Request, name: string, variant: string): void {
+	note_variant_read(facts_of(request).reads, name, variant);
 }

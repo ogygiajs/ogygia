@@ -161,15 +161,23 @@ export async function evict_tags(
 	const failed: unknown[] = [];
 	for (const tag of tags) {
 		try {
-			for (const key of await evict_by_tag(tag)) keys.add(key);
+			for (const key of await evict_by_tag(tag)) {
+				const nul = key.indexOf('\0');
+				keys.add(nul === -1 ? key : key.slice(0, nul));
+			}
 		} catch (e) {
 			warn('postrender_tag_evict_failed', { tag }, e);
 			failed.push(e);
 		}
 	}
 	const jobs: Job[] = [];
-	for (const key of keys)
-		for (const edge of edges) jobs.push(edge_job(edge, (e) => e.purgeUrl(key)));
+	for (const edge of edges) {
+		if (edge.purgeTags) {
+			jobs.push(edge_job(edge, (e) => e.purgeTags!(tags)));
+		} else {
+			for (const key of keys) jobs.push(edge_job(edge, (e) => e.purgeUrl(key)));
+		}
+	}
 	await settle_all('invalidate(tags)', jobs);
 	return { keys: [...keys], failed };
 }
@@ -434,6 +442,20 @@ export async function invalidate(target: string | SourceFn, args?: unknown[]): P
 	await invalidate_tags([tag]); // (which stales the flights)
 	// peers file the pages that baked a fragment which read this source under `r:<me>:<tag>`
 	notify_thaw([tag]);
+}
+
+/** Evict stored pages and CDN cache entries carrying any of `tags` across origin store and every edge. */
+export async function invalidateTags(tags: readonly string[]): Promise<void> {
+	const clean = [...new Set(tags.map((t) => t.trim()).filter(Boolean))];
+	if (clean.length === 0) return;
+	record({
+		domain: 'server',
+		name: 'server.postrender',
+		op: 'invalidate-tags',
+		url: clean.join(',')
+	});
+	await invalidate_tags(clean);
+	notify_thaw(clean);
 }
 
 /** Bulk eviction by URL subtree — `{ prefix: '/fr/fr/' }` is a locale nuke, `{ prefix: '/docs' }`

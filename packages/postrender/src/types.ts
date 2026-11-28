@@ -1,4 +1,9 @@
-/** A stored page: a finished page response, or a permanent redirect. */
+/** Decision trie stored at `pathname` when a page reads bounded `flag()` variants. */
+export type VariantTrieNode =
+	| { kind: 'leaf'; key: string }
+	| { kind: 'branch'; flag: string; arms: Record<string, VariantTrieNode> };
+
+/** A stored page: a finished page response, a permanent redirect, or a variant decision trie. */
 export type PostrenderEntry =
 	| {
 			kind: 'page';
@@ -25,6 +30,12 @@ export type PostrenderEntry =
 			location: string;
 			created: number;
 			/** The build that stored it: as a page's. */
+			build?: string;
+	  }
+	| {
+			kind: 'variants';
+			trie: VariantTrieNode;
+			created: number;
 			build?: string;
 	  };
 
@@ -64,14 +75,18 @@ export interface PostrenderMeta {
 	url: string;
 	/** The policy TTL in seconds (the s-maxage the verdict grants). */
 	ttl: number;
+	/** Bounded flag variants read during this render (`[flagName, variant]`), if any. */
+	variants?: ReadonlyArray<readonly [string, string]>;
+	/** App-emitted and source cache tags associated with this response. */
+	tags?: readonly string[];
 }
 
 /**
  * The edge contract. `headers(meta)` returns extra response headers the CDN stores by —
- * Akamai stamps depth-capped PREFIX tags (`p:/fr`, `p:/fr/fr`, …) since Fast Purge can't take
+ * Akamai stamps depth-capped PREFIX tags (`og_p/fr`, `og_p/fr/fr`, …) since Fast Purge can't take
  * an arbitrary prefix; CloudFront needs none (path wildcards are native). `purgeUrl`/`purgeWhere`
- * speak the CDN's REAL purge API. Adapters never fan out — ogygia calls every edge with
- * `allSettled` (one edge down ≠ publish down).
+ * (and optional `purgeTags`) speak the CDN's REAL purge API. Adapters never fan out — ogygia calls
+ * every edge with `allSettled` (one edge down ≠ publish down).
  */
 export interface EdgeAdapter {
 	/** Adapter name for logs/harness assertions ("akamai", "cloudfront"). */
@@ -79,6 +94,7 @@ export interface EdgeAdapter {
 	headers(meta: PostrenderMeta): Record<string, string>;
 	purgeUrl(url: string): Promise<void>;
 	purgeWhere(filter: { prefix: string }): Promise<void>;
+	purgeTags?(tags: readonly string[]): Promise<void>;
 }
 
 /** `postrender.handle({ … })` — the live objects (clients, creds) a server keeps its pages with. */

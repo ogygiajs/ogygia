@@ -7,7 +7,7 @@ related:
   - router/overview
 ---
 
-`@ogygia/postrender` moves the cost of a page from one render per request to one render per change. The first request renders the page as usual. If that render read nothing personal (no cookie, no flag, no streamed promise, no query string), the whole response is stored, and every later request for that URL gets the stored bytes: Kit, your loads and Svelte never run on a hit. An invalidation clears the page, and the next request renders it again, once.
+`@ogygia/postrender` moves the cost of a page from one render per request to one render per change. The first request renders the page as usual. If that render read nothing personal (no session cookie, no personal header, no streamed promise, no query string), the whole response is stored, and every later request for that URL gets the stored bytes: Kit, your loads and Svelte never run on a hit. Pages that read bounded [`@ogygia/flags`](/docs/flags/overview) variants store one copy per arm combination behind a decision trie, so A/B tests stay fast without serving one visitor's variant to another. An invalidation clears the page, and the next request renders it again, once.
 
 It suits pages that would be prerendered except that their content changes after the build, such as CMS pages, docs and product listings.
 
@@ -57,8 +57,9 @@ When the content behind a page changes, clear it, for example from a CMS webhook
 import { postrender } from '@ogygia/postrender';
 
 export async function POST({ request }) {
-  const { path } = await request.json();
-  await postrender.invalidate(path);                        // one URL
+  const { path, tags } = await request.json();
+  if (path) await postrender.invalidate(path);              // one URL
+  if (tags) await postrender.invalidateTags(tags);          // external cache tags
   await postrender.invalidateWhere({ prefix: '/blog/' });   // a subtree
   return new Response(null, { status: 204 });
 }
@@ -81,11 +82,11 @@ A stored page can still carry per-visitor parts. A [server island](/docs/regions
 ## With other packages
 
 - **[@ogygia/router](/docs/router/overview).** A route table sets the same `config` key at table, layout and page level: `page(Account, { config: { postrender: false } })`. [Programmatic routes](/docs/postrender/guide#whole-app-or-opt-in-programmatic-routes) has the full example.
-- **[@ogygia/flags](/docs/flags/overview).** Each flag read marks the render as per-visitor, so a page that runs an A/B test is never stored with one visitor's variant. List the `flags()` plugin for this to work.
+- **[@ogygia/flags](/docs/flags/overview).** Bounded `flag()` reads record `(flagName, variant)` so postrender stores one copy per arm combination behind a decision trie and stamps `private, no-store` at the CDN edge unless [variant edge keying](/docs/postrender/guide#variant-keyed-caching) is configured. Targeting-function flags still mark the render per-request. List the `flags()` plugin for this to work.
 - **[@ogygia/federation](/docs/federation/overview).** A remote fragment is a region, so a publish or a deploy on another team clears every stored page that baked its fragments ([cross-app thaw](/docs/federation/guide#cross-app-thaw)).
 - **[@ogygia/devtools](/docs/devtools/overview).** The SSR profiler notices a page that renders the same bytes on every request, with no personal reads, and names it as one a cache or postrender could answer ([Reading a report](/docs/devtools/profiler/reading-reports)).
 
 ## Where to go next
 
-- [Postrender](/docs/postrender/guide): what gets stored, the three invalidation grammars, stores and CDN edges, serve-time stitching.
+- [Postrender](/docs/postrender/guide): what gets stored, variant-keyed A/B caching, the four invalidation grammars, stores and CDN edges (`AkamaiEdge`, `EdgeOneEdge`, `CloudflareEdge`, `CloudFrontEdge`), serve-time stitching.
 - API: [`@ogygia/postrender`](/docs/postrender/api/postrender).

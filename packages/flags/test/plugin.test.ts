@@ -81,11 +81,27 @@ describe('the server realm primes the source with the visitor', () => {
 });
 
 describe('facts a read reports', () => {
-	it('a read is a per-visitor read (a stored page never keeps one variant) and an assignment', () => {
+	it('a read is a bounded variant read (keyed per branch, never one variant for everyone) and an assignment', () => {
 		const hero = flag('plugin-test-hero', { a: 1, b: 1 });
 		const request = new Request('http://x/');
 		const variant = hero({ request, url: new URL('http://x/') });
-		expect(app.facts(request).reads.perVisitor).toBe('flag:plugin-test-hero');
+		expect(app.facts(request).reads.perVisitor).toBeNull();
+		expect(app.facts(request).reads.variants).toEqual([['plugin-test-hero', variant]]);
 		expect(app.facts(request).assignments).toEqual({ 'plugin-test-hero': variant });
+	});
+
+	it('evaluateFlag evaluates a registered flag and edgeHeader overrides native rules', async () => {
+		flag('plugin-edge-banner', { off: 100, on: 0 });
+		decide({ edgeHeader: 'x-og-variants' });
+		try {
+			const request = new Request('http://x/', {
+				headers: { 'x-og-variants': 'plugin-edge-banner=on, invalid=nope' }
+			});
+			const c = ctx(request);
+			expect(await server.evaluateFlag?.(request, c.event, 'plugin-edge-banner')).toBe('on');
+			expect(await server.evaluateFlag?.(request, c.event, 'nonexistent')).toBeUndefined();
+		} finally {
+			decide({ edgeHeader: null });
+		}
 	});
 });

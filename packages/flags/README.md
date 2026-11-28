@@ -29,6 +29,6 @@ export const hero = flag('hero', { control: 80, bold: 20 }); // weighted variant
 hero(c); // 'control' | 'bold', sticky per visitor
 ```
 
-A native `flag()` works without the plugin. The plugin primes a `decide({ source })` (OpenFeature, OFREP, or your own function) one time per request, and drains the `exposure` sink at the end of each request. OpenFeature lives at `@ogygia/flags/openfeature`.
+A native `flag()` works without the plugin. Listing `flags()` primes `decide({ source })` (OpenFeature, OFREP, or your own function) once per request, drains the `exposure` sink at the end of each request, carries decisions across `@ogygia/federation` mounts, and records bounded variant reads so `@ogygia/postrender` caches A/B-tested pages per arm behind a decision trie without poisoning shared caches. Use `stamp(c)` (`'hero:bold'`) to forward active variants to RUM/DOM attributes, CDN edge headers, or downstream backend APIs. OpenFeature lives at `@ogygia/flags/openfeature`.
 
 Docs: [@ogygia/flags](https://ogygiajs.dev/docs/flags/overview), with the full [Flags & experiments](https://ogygiajs.dev/docs/flags/guide) guide.

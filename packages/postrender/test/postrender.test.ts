@@ -787,11 +787,11 @@ describe('edge adapters', () => {
 			site: 'https://www.example.com'
 		});
 		const headers = edge.headers({ url: '/fr/fr/solar/', ttl: 3600 });
-		expect(headers['edge-cache-tag']).toBe('p:/fr, p:/fr/fr, p:/fr/fr/solar');
+		expect(headers['edge-cache-tag']).toContain('og_p/fr, og_p/fr/fr, og_p/fr/fr/solar');
 		expect(headers['cache-control']).toContain('s-maxage=3600');
 
 		await edge.purgeUrl('/fr/fr/solar/');
-		expect(captured[0].url).toContain('/ccu/v3/invalidate/url/production');
+		expect(captured[0].url).toContain('/ccu/v3/delete/url/production');
 		expect(JSON.parse(String(captured[0].init.body))).toEqual({
 			objects: ['https://www.example.com/fr/fr/solar/']
 		});
@@ -824,8 +824,8 @@ describe('edge adapters', () => {
 		expect(fields.signature).toBe(createHmac('sha256', key).update(data).digest('base64'));
 
 		await edge.purgeWhere({ prefix: '/fr/fr/' });
-		expect(captured[1].url).toContain('/ccu/v3/invalidate/tag/production');
-		expect(JSON.parse(String(captured[1].init.body))).toEqual({ objects: ['p:/fr/fr'] });
+		expect(captured[1].url).toContain('/ccu/v3/delete/tag/production');
+		expect(JSON.parse(String(captured[1].init.body))).toEqual({ objects: ['og_p/fr/fr'] });
 	});
 
 	it('cloudfront: SigV4-signed CreateInvalidation; prefix becomes path + wildcard', async () => {

@@ -25,10 +25,14 @@ export interface Reads {
 	/** The render read its page (`page.data`, or the url of the page it renders for): its output
 	 *  is one page's. */
 	readonly pageData: boolean;
+	/** Bounded-cardinality variant reads (`[flagName, variant]`) in first-read order. */
+	readonly variants: ReadonlyArray<readonly [string, string]>;
 	/** A per-visitor input was read (the first one names the set). */
 	visitor(input: string): void;
 	/** The render's page was read. */
 	page(): void;
+	/** A bounded-cardinality variant was read. */
+	variant(name: string, variant: string): void;
 }
 
 /** A read set ({@link Reads}) that keeps its own reads and passes each up to `parent`. */
@@ -36,6 +40,8 @@ export class ReadSet implements Reads {
 	readonly #parent: Reads | null;
 	#per_visitor: string | null = null;
 	#page_data = false;
+	#variants: Array<readonly [string, string]> = [];
+	#variant_names = new Set<string>();
 
 	/** A new read set inside `parent` (its reads pass up to it). */
 	constructor(parent: Reads | null = null) {
@@ -50,6 +56,10 @@ export class ReadSet implements Reads {
 		return this.#page_data;
 	}
 
+	get variants(): ReadonlyArray<readonly [string, string]> {
+		return this.#variants;
+	}
+
 	visitor(input: string): void {
 		if (this.#per_visitor === null) this.#per_visitor = input;
 		this.#parent?.visitor(input);
@@ -58,6 +68,14 @@ export class ReadSet implements Reads {
 	page(): void {
 		this.#page_data = true;
 		this.#parent?.page();
+	}
+
+	variant(name: string, value: string): void {
+		if (!this.#variant_names.has(name)) {
+			this.#variant_names.add(name);
+			this.#variants.push([name, value]);
+		}
+		this.#parent?.variant(name, value);
 	}
 }
 
@@ -82,6 +100,13 @@ export function note_visitor_read(request_reads: Reads, input: string): void {
 	const open = open_reads();
 	open?.visitor(input);
 	request_reads.visitor(input);
+}
+
+/** A bounded-cardinality variant read by `request`'s code: into the running work's set and the request's. */
+export function note_variant_read(request_reads: Reads, name: string, variant: string): void {
+	const open = open_reads();
+	open?.variant(name, variant);
+	request_reads.variant(name, variant);
 }
 
 const PERSONAL_HEADERS: ReadonlySet<string> = new Set([

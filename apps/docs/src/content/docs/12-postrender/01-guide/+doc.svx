@@ -98,22 +98,62 @@ Postrender watches each eligible render, and a page **stays per-request** when i
 - reads a cookie, a personal header or a `locals` value that returned a **non-default** value (a function in `locals`, such as a session getter, counts as a value; so do `in` and listing its keys),
 - reads the request's headers whole while one of them is personal (copying them into a new `Request` or `Headers`, `Object.fromEntries`, a loop, a `clone()` of the request), or asks `has()` for a personal one. Personal headers are the cookie, authorization, language, user agent and referer, and the ones a host or proxy adds per visitor: the client's address (`x-forwarded-for`, `forwarded`, `x-real-ip`), the forwarded host, and location or session headers,
 - calls `getClientAddress()`, reads per-request `platform` data (anything but `platform.env`, `platform.caches` and the `waitUntil` hand-off), or calls `fetch` on its own origin (or a subdomain) while the request carries a cookie or `authorization`, since Kit sends them along,
-- reads a [feature flag](/docs/flags/guide), because a page under an A/B test must never store one variant,
+- reads an unbounded [feature flag](/docs/flags/guide) declared with a custom targeting function (`flag('beta', (c) => …)`), because an arbitrary predicate may depend on per-visitor state (bounded kill switches, percentage rollouts and weighted variant flags are stored per arm — see [Variant-keyed caching](#variant-keyed-caching)),
 - writes a cookie, sets `set-cookie`, answers with a status other than 200, or streams load promises,
 - or was requested with a query string.
 
-A request that carries a cookie or an `authorization` header is also never **stored**, even when its render read nothing personal: it still gets a stored copy when there is one, but its own render is not kept and is stamped `private, no-store`. A route whose pages are the same with and without them (a site that sets an analytics cookie on everyone, say) opts in with `config = { postrender: 'with-credentials' }`. The purity check above still applies to those renders.
+A request that carries a cookie (other than the anonymous `og-vid` visitor cookie) or an `authorization` header is also never **stored**, even when its render read nothing personal: it still gets a stored copy when there is one, but its own render is not kept and is stamped `private, no-store`. A route whose pages are the same with and without them (a site that sets an analytics cookie on everyone, say) opts in with `config = { postrender: 'with-credentials' }`. The purity check above still applies to those renders.
 
-Each refusal is **named in a dev note** (`cookie:session`, `locals.user`, `flag:hero`), so an almost-pure page tells you exactly which read keeps it per-request. Reads that return the default value still allow storing. The render an anonymous visitor gets (where `cookies.get('consent')` returns `undefined` and `locals.user` is empty) **is** the canonical copy, which formalizes the familiar cookie-less CDN cache key. Once it is stored, every visitor receives the canonical copy. Content that really has to differ per visitor belongs in a `render: 'deferred'` hole: the shell is stored, and the hole fetches fresh for each visitor. The hole's signed URL is minted with the long lifetime used for prerendering, so a warm stored page never carries expired holes (set a stable `OGYGIA_SECRET`). Deferred regions from another team's app get the same lifetime; see [Fragment federation](/docs/federation/guide#a-remote-fragment-is-a-region-deferred-remote-regions-on-stored-pages).
+Each refusal is **named in a dev note** (`cookie:session`, `locals.user`, `flag:beta`), so an almost-pure page tells you exactly which read keeps it per-request. Reads that return the default value still allow storing. The render an anonymous visitor gets (where `cookies.get('consent')` returns `undefined` and `locals.user` is empty) **is** the canonical copy, which formalizes the familiar cookie-less CDN cache key. Once it is stored, every visitor receives the canonical copy. Content that really has to differ per visitor belongs in a `render: 'deferred'` hole: the shell is stored, and the hole fetches fresh for each visitor. The hole's signed URL is minted with the long lifetime used for prerendering, so a warm stored page never carries expired holes (set a stable `OGYGIA_SECRET`). Deferred regions from another team's app get the same lifetime; see [Fragment federation](/docs/federation/guide#a-remote-fragment-is-a-region-deferred-remote-regions-on-stored-pages).
 
-## Invalidation: three grammars
+## Variant-keyed caching
+
+Server-rendered A/B testing traditionally hits a **Cache × A/B Test Wall**: caching a page under its URL serves the first visitor's experiment arm to everyone (poisoning both the user experience and experiment metrics), whereas disabling caching on any page that reads a flag forces every request back through full SSR for the duration of the test.
+
+Postrender and [`@ogygia/flags`](/docs/flags/guide) resolve this by separating **bounded variant reads** from personal reads:
+
+1. **Bounded variant read tracking.** Reading a kill switch (`flag('new-checkout')`), a percentage rollout (`flag('promo', 20)`), or a weighted split (`flag('hero', { control: 80, bold: 20 })`) records `(flagName, variant)` on the request (`facts.reads.variants`) instead of disqualifying the render. Custom targeting-function flags (`flag('beta', (c) => …)`) still mark the render per-request because their predicate can inspect arbitrary request fields.
+2. **Decision trie at origin (`VariantTrieNode`).** Instead of pre-expanding a Cartesian product of every flag in your app, postrender stores a compact decision trie at `<pathname>` and files each rendered arm under `<pathname>\0v:flag1=arm1&flag2=arm2` (capped at 16 leaves per page; server-rendered region caches use the same trie). On a warm hit, postrender walks only the flags that branch actually read — if the `control` arm of `hero` never reads `subPromo`, visitors in `control` never evaluate or split on `subPromo` — and still records the visitor's exposure event in `decide({ exposure })`.
+3. **Edge safety by default, opt-in CDN variant keying.** Because an unconfigured CDN keys only by URL, postrender, `AkamaiEdge` and `EdgeOneEdge` stamp variant-keyed responses `cache-control: private, no-store` by default: your origin store (`ValkeyStore`, `UpstashStore`, `CloudflareKvStore`, `MemoryStore`) serves every arm as pre-rendered bytes with zero SSR, while no CDN can accidentally serve arm B to a visitor in arm A.
+
+When your CDN computes or forwards a canonical variant header at the edge and includes that header in its cache key, opt the edge adapter in with `variants: { header }`:
+
+```ts title=src/hooks.server.ts
+import { AkamaiEdge, EdgeOneEdge, postrender, ValkeyStore } from '@ogygia/postrender';
+
+export const handle = sequence(
+  postrender.handle({
+    store: new ValkeyStore(client),
+    edge: [
+      new AkamaiEdge({
+        ...akamaiCreds,
+        variants: { header: 'x-og-variants' }
+      }),
+      new EdgeOneEdge({
+        ...edgeOneCreds,
+        variants: { header: 'x-og-variants' }
+      })
+    ]
+  }),
+  ogygia.handle()
+);
+```
+
+With `variants: { header: 'x-og-variants' }` enabled:
+
+- **Akamai setup:** In Property Manager, add **Cache ID Modification** (include request header `x-og-variants`) and **Remove Vary Header** (Akamai refuses to cache responses carrying `Vary` on non-Accept-Encoding headers unless stripped at the edge).
+- **Tencent Cloud EdgeOne setup:** Include `x-og-variants` in the zone's **Cache Key → Header** rule.
+- **Atomic invalidation across all arms:** Every variant response is stamped `public, s-maxage=<ttl>` and tagged with `og_u_<fnv1a32(pathname)>`, `og_flag_<name>` and `og_exp_<name>_<variant>`. Calling `postrender.invalidate('/landing/')` purges `og_u_<hash>` by tag so every cached variant ARL for `/landing/` is evicted in one call, while `postrender.invalidateTags(['og_flag_hero'])` or `postrender.invalidateTags(['og_exp_hero_bold'])` evicts an entire experiment or a single arm across the site.
+
+## Invalidation: four grammars
 
 ```ts title=src/routes/api/publish/+server.ts (or any server module)
 import { postrender } from '@ogygia/postrender';
 
-await postrender.invalidate('/fr/fr/solar/');             // exact URL — the CMS-webhook case
-await postrender.invalidateWhere({ prefix: '/fr/fr/' });  // subtree — a locale or section nuke
-await postrender.invalidate(loadDoc, ['promo']);          // declared source — see below
+await postrender.invalidate('/fr/fr/solar/');                    // exact URL — the CMS-webhook case
+await postrender.invalidateWhere({ prefix: '/fr/fr/' });         // subtree — a locale or section nuke
+await postrender.invalidate(loadDoc, ['promo']);                 // declared source — see below
+await postrender.invalidateTags(['site_cms_fr', 'site_top20']);  // external cache tags
 ```
 
 These reach the store and edges you gave `postrender.handle()`, with nothing else to set up. A successful form action also evicts its own page automatically, which mirrors Kit's behaviour of actions invalidating loads.
@@ -128,6 +168,8 @@ export const loadDoc = import.meta.og.source(async (slug: string) => fetchDoc(sl
 
 Every stored page whose render called `loadDoc('promo')` files a receipt, and `postrender.invalidate(loadDoc, ['promo'])` evicts exactly those pages, at the origin **and** at every edge, however many there are and whatever locale they are in. The macro follows the [macro rules](/docs/macros/overview): top-level `export const` only, verified against the AST, with loud build errors. Pass `{ key: (…args) => string }` to canonicalize unusual argument shapes.
 
+**External cache tags (`invalidateTags`)** bridge CMS, catalog and CDN tag taxonomies (country tags, category tags, environment prefixes). Any `edge-cache-tag` or `cache-tag` header your load or endpoint sets on the response is captured, trimmed, indexed in the origin store (including variant entries), and merged into the CDN's tag header. Calling `postrender.invalidateTags(['site_cms_fr'])` evicts matching entries from the origin store, sends a single batched tag purge to tag-capable edges (`AkamaiEdge`, `EdgeOneEdge`), and fans out clean URL purges to URL-only edges (`CloudFrontEdge`, `CloudflareEdge`).
+
 ## Stores and edges
 
 Live objects can't be passed through the Vite config, so they are the argument of `postrender.handle()`:
@@ -135,18 +177,18 @@ Live objects can't be passed through the Vite config, so they are the argument o
 ```ts title=src/hooks.server.ts
 import { sequence } from '@sveltejs/kit/hooks';
 import * as ogygia from 'ogygia/server';
-import { postrender, ValkeyStore, AkamaiEdge, CloudFrontEdge } from '@ogygia/postrender';
+import { postrender, ValkeyStore, AkamaiEdge, EdgeOneEdge, CloudFrontEdge } from '@ogygia/postrender';
 
 export const handle = sequence(
   postrender.handle({
     store: new ValkeyStore(client),                         // or new UpstashStore({ url, token }),
-    edge: [new AkamaiEdge(creds), new CloudFrontEdge(cfg)]  //    new CloudflareKvStore(env.PAGES)
+    edge: [new AkamaiEdge(creds), new EdgeOneEdge(cnCreds), new CloudFrontEdge(cfg)]
   }),
   ogygia.handle()
 );
 ```
 
-The available stores are `MemoryStore` (the default), `ValkeyStore` (ioredis or node-redis), `UpstashStore` (REST, built for serverless) and `CloudflareKvStore` (Workers KV, with the binding coming from `import { env } from 'cloudflare:workers'`). The available edges are `AkamaiEdge` (EdgeGrid-signed Fast Purge), `CloudFrontEdge` (SigV4 invalidations) and `CloudflareEdge` (zone purge). Eligible responses are stamped `cache-control: public, s-maxage=<ttl>` plus each edge's tags, so your CDN follows headers proven per page instead of a blanket rule. An invalidation fans out to the store and every edge at the same time, and one edge being down never fails a publish or a request.
+The available stores are `MemoryStore` (the default), `ValkeyStore` (ioredis or node-redis), `UpstashStore` (REST, built for serverless) and `CloudflareKvStore` (Workers KV, with the binding coming from `import { env } from 'cloudflare:workers'`). The available edges are `AkamaiEdge` (EdgeGrid-signed Fast Purge v3), `EdgeOneEdge` (Tencent Cloud EdgeOne `TC3-HMAC-SHA256` `CreatePurgeTask` for China and global zones), `CloudFrontEdge` (SigV4 invalidations) and `CloudflareEdge` (zone purge). Eligible responses are stamped `cache-control: public, s-maxage=<ttl>` plus each edge's tags, so your CDN follows headers proven per page instead of a blanket rule. An invalidation fans out to the store and every edge at the same time, and one edge being down never fails a publish or a request.
 
 ### Adapter config
 
@@ -161,11 +203,12 @@ Each adapter is a class you construct in `hooks.server.ts`. The stores:
 
 The edges:
 
-| Edge                                                                                        | Config                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `new AkamaiEdge({ host, clientToken, clientSecret, accessToken, site, network?, maxAge? })` | EdgeGrid credentials for Fast Purge, and `site`, the public origin that purged paths are made absolute against. `network` is `'production'` (default) or `'staging'`. Each stored page gets an `edge-cache-tag` header with its first three path prefixes (`p:/fr`, `p:/fr/fr`, `p:/fr/fr/x`), and `invalidateWhere` purges by that tag, so a prefix deeper than three segments is not purged at the edge and expires with its `s-maxage`. |
-| `new CloudflareEdge({ zoneId, apiToken, site, maxAge? })`                                   | The zone, an API token with the `Zone.Cache Purge` permission, and the public origin. A URL is purged by file on every plan; `invalidateWhere` purges by prefix, which Cloudflare offers on Enterprise plans. Stored pages get the same prefix tags under `cache-tag`.                                                                                                                                                                     |
-| `new CloudFrontEdge({ distributionId, accessKeyId, secretAccessKey })`                      | The distribution and AWS credentials allowed to create invalidations. It adds no headers, because CloudFront follows the page's `cache-control`, and `invalidateWhere({ prefix })` invalidates `<prefix>` and `<prefix>/*`.                                                                                                                                                                                                                |
+| Edge                                                                                                                      | Config                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `new AkamaiEdge({ host, clientToken, clientSecret, accessToken, site, network?, method?, variants?, onPurge?, maxAge? })` | EdgeGrid credentials for Fast Purge v3 (`method` defaults to `'delete'`, or `'invalidate'`; `network` defaults to `'production'`, or `'staging'`). Stamps Akamai-legal `edge-cache-tag` tokens (no colons, `<= 128` chars, `<= 128` tags, whitespace trimmed) reserving structural prefix (`og_p/fr`, `og_p/fr/fr`, `og_p/fr/fr/x`), URL (`og_u_<hash>`) and variant (`og_flag_<name>`, `og_exp_<name>_<arm>`) tags even when app tags exceed 128. Set `variants: { header }` when Property Manager includes `header` in Cache ID Modification; `onPurge` receives audit metadata (`purgeId`, `supportId`, `httpStatus`). |
+| `new EdgeOneEdge({ zoneId, secretId, secretKey, site, host?, method?, variants?, onPurge?, maxAge? })`                    | Tencent Cloud EdgeOne API v3 (`TC3-HMAC-SHA256`, `CreatePurgeTask`; `host` defaults to `'teo.tencentcloudapi.com'`, or `'teo.intl.tencentcloudapi.com'`). Submits both decoded and percent-encoded URLs on `purgeUrl` when special characters are present, purges trailing-slash directories via `purge_prefix` (`method` defaults to `'delete'`), batches `purge_tag` up to 1000 targets, stamps `cache-tag`, and honors `variants: { header }` and `onPurge` (`jobId`, `requestId`).                                                                                                                                    |
+| `new CloudflareEdge({ zoneId, apiToken, site, maxAge? })`                                                                 | The zone, an API token with the `Zone.Cache Purge` permission, and the public origin. A URL is purged by file on every plan; `invalidateWhere` purges by prefix, which Cloudflare offers on Enterprise plans. Stored pages get the depth-capped prefix tags under `cache-tag`.                                                                                                                                                                                                                                                                                                                                            |
+| `new CloudFrontEdge({ distributionId, accessKeyId, secretAccessKey })`                                                    | The distribution and AWS credentials allowed to create invalidations. It adds no headers, because CloudFront follows the page's `cache-control`, and `invalidateWhere({ prefix })` invalidates `<prefix>` and `<prefix>/*`.                                                                                                                                                                                                                                                                                                                                                                                               |
 
 `maxAge` sets the `s-maxage` that edge is granted, and defaults to the `ttl`. Every edge also takes `baseUrl`, which sends its API calls to another address, such as an emulator in your tests.
 
@@ -192,7 +235,7 @@ interface PostrenderStore {
 
 A store that throws never fails a request: a failed `get` is treated as a miss and a failed `put` is skipped. It never fails an invalidation either. A failed eviction is logged as a warning that names the store, the edges are still purged, and when `evictByTag` fails for one tag, the other tags are still evicted.
 
-An edge is an object with a name and three methods:
+An edge is an object with a name, three required methods, and an optional `purgeTags` method:
 
 ```ts
 import type { EdgeAdapter } from '@ogygia/postrender';
@@ -209,14 +252,18 @@ export function myCdn(opts: { site: string; token: string }): EdgeAdapter {
 
   return {
     name: 'my-cdn',
-    headers: ({ ttl }) => ({ 'cache-control': `public, s-maxage=${ttl}` }),
+    headers: ({ ttl, variants }) =>
+      variants?.length
+        ? { 'cache-control': 'private, no-store' }
+        : { 'cache-control': `public, s-maxage=${ttl}` },
     purgeUrl: (url) => purge({ urls: [opts.site + url] }),
     purgeWhere: ({ prefix }) => purge({ prefix: opts.site + prefix }),
+    purgeTags: (tags) => purge({ tags }),
   };
 }
 ```
 
-`headers({ url, ttl })` returns extra headers for a page as it is stored. They are added after postrender's own `cache-control` and validators, so an edge can replace them, and a `headers` that throws is ignored. A page with `stitch: 'serve'` holes never gets them, because it is never cached at the edge. `purgeUrl` receives a pathname, so make it absolute for your CDN, and `purgeWhere` receives the same normalized prefix as a store. Postrender calls every edge in parallel and waits for all of them, and a purge that rejects is logged as a warning and never fails the invalidation. Edges are not purged when a form action evicts its own page; the edge copy then expires with its `s-maxage`.
+`headers({ url, ttl, variants, tags })` returns extra headers for a page as it is stored. They are added after postrender's own `cache-control` and validators, so an edge can replace them, and a `headers` that throws is ignored. A page with `stitch: 'serve'` holes never gets them, because it is never cached at the edge. `purgeUrl` receives a pathname, so make it absolute for your CDN, `purgeWhere` receives the same normalized prefix as a store, and when `purgeTags` is implemented, `invalidate(fn, args)` and `invalidateTags(tags)` call `purgeTags` once instead of fanning out `N` individual `purgeUrl` calls. Postrender calls every edge in parallel and waits for all of them, and a purge that rejects is logged as a warning and never fails the invalidation. Edges are not purged when a form action evicts its own page; the edge copy then expires with its `s-maxage`.
 
 ## Serve-time stitching
 

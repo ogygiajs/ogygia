@@ -39,6 +39,7 @@ import { B64Url } from './payload.ts';
 import { REF_WIRE_KEY, ref_reviver } from '../ref.ts';
 import { facts_of } from '../plugin/facts.ts';
 import { observe_reads } from '../plugin/reads.ts';
+import { live_event } from './live-event.ts';
 import { request_scope } from '../plugin/request-scope.ts';
 import type { HtmlPass } from '../plugin/index.ts';
 import { register_wire_kind } from '../live-transport.ts';
@@ -347,7 +348,11 @@ export class IslandsEndpoint {
 				},
 				cache,
 				report,
-				signal
+				signal,
+				(name) => {
+					const ev = live_event();
+					return ev ? ask.evaluateFlag(ev.request, ev, name) : undefined;
+				}
 			);
 		} catch (e) {
 			// `keepFallback()` ends a render on purpose: the page's fallback is right for this

@@ -35,6 +35,12 @@ export interface ServerHooks {
 	 *  shell's peers). Sync, and every implementation's answers count: read through
 	 *  {@link code_origins}, written on the runtime's script (runtime/code-origins.ts). */
 	codeOrigins(): readonly string[];
+	/** Evaluate a named flag for this request when a cache layer walks a variant decision trie. */
+	evaluateFlag(
+		request: Request,
+		event: RequestEvent,
+		name: string
+	): string | undefined | Promise<string | undefined>;
 }
 
 type AnyFn = (...args: unknown[]) => unknown;

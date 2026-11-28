@@ -1,14 +1,19 @@
 import type { ServerApp } from '@ogygia/core/plugin';
+import { slot } from '@ogygia/machine';
 
-let current: ServerApp | null = null;
+const state = slot<{ current: ServerApp | null }>({
+	name: 'ogygia.flags.app',
+	version: 1,
+	make: () => ({ current: null })
+});
 
 export function set_flags_app(app: ServerApp | null): void {
-	current = app;
+	state.current = app;
 }
 
 /** The server process, set once by the server realm's `setup`. Null in a browser bundle (the
  *  server realm is never imported there) and in a unit test that does not start the plugin:
  *  reads then record nothing. */
 export function flags_app(): ServerApp | null {
-	return current;
+	return state.current;
 }

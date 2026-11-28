@@ -312,3 +312,61 @@ describe('cached_render — one render per key in flight (#244)', () => {
 		expect(renders).toBe(0);
 	});
 });
+
+describe('render cache: bounded variant trie', () => {
+	it('caches one entry per variant branch and serves hits via evaluate_flag', async () => {
+		const { open_reads } = await import('../src/plugin/reads.ts');
+		let current = 'control';
+		let renders = 0;
+		const cache = { key: render_cache_key('hero-hole', 'p', ''), ttl: 60 };
+		const body = () => {
+			renders++;
+			open_reads()?.variant('hero', current);
+			return `<p>${current}</p>`;
+		};
+		const outcomes: string[] = [];
+
+		current = 'control';
+		expect(
+			await cached_render(
+				body,
+				cache,
+				(o) => outcomes.push(o),
+				undefined,
+				() => current
+			)
+		).toBe('<p>control</p>');
+		expect(
+			await cached_render(
+				body,
+				cache,
+				(o) => outcomes.push(o),
+				undefined,
+				() => current
+			)
+		).toBe('<p>control</p>');
+
+		current = 'bold';
+		expect(
+			await cached_render(
+				body,
+				cache,
+				(o) => outcomes.push(o),
+				undefined,
+				() => current
+			)
+		).toBe('<p>bold</p>');
+		expect(
+			await cached_render(
+				body,
+				cache,
+				(o) => outcomes.push(o),
+				undefined,
+				() => current
+			)
+		).toBe('<p>bold</p>');
+
+		expect(renders).toBe(2);
+		expect(outcomes).toEqual(['miss', 'hit', 'miss', 'hit']);
+	});
+});

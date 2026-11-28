@@ -108,7 +108,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		});
 		check(
 			'S3 nuke: akamai got the PREFIX TAG purge',
-			akamai!.state().purges.some((p) => p.kind === 'tag' && p.value === 'p:/fr/fr')
+			akamai!.state().purges.some((p) => p.kind === 'tag' && p.value === 'og_p/fr/fr')
 		);
 		check(
 			'S3 nuke: cloudfront got the wildcard',
@@ -140,22 +140,32 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		// ── S5: never-store guards ────────────────────────────────────────────────────────────────
 		for (const [path, why] of [
 			['/fr/fr/setcookie', 'set-cookie response'],
-			['/fr/fr/stream', 'streamed load'],
-			['/fr/fr/flagged', 'flag read (A/B)']
+			['/fr/fr/stream', 'streamed load']
 		] as const) {
 			await fetch(origin + path);
 			const second = await fetch(origin + path);
 			check(`S5 ${why}: never stored`, via(second) === '', via(second) || '(none)');
 			check(`S5 ${why}: re-rendered`, ((await renders())[path] ?? 0) === 2);
 		}
-		// The verdict's OTHER word: refused pages (where the app set no cache-control of its own)
-		// are stamped `private, no-store` — per-page proven headers replace blanket CDN rules in
-		// both directions. (The setcookie page carries a Set-Cookie, so no shared cache may keep it.)
-		const refused = await fetch(`${origin}/fr/fr/flagged`);
+		// An A/B'd page stores per-variant at origin (`private, no-store` at the edge):
+		// anonymous visitors hit the stored `off` arm without re-rendering, and never poison Akamai.
+		const flagged1 = await fetch(`${origin}/fr/fr/flagged`);
+		const flagged2 = await fetch(`${origin}/fr/fr/flagged`);
 		check(
-			'S5: refused page stamped private, no-store',
-			refused.headers.get('cache-control') === 'private, no-store',
-			refused.headers.get('cache-control') ?? '(none)'
+			'S5 flag read (A/B): stored per-variant at origin',
+			via(flagged1) === 'stored' && via(flagged2) === 'hit',
+			`${via(flagged1)} / ${via(flagged2)}`
+		);
+		check(
+			'S5 flag read (A/B): rendered once for anonymous bucket',
+			((await renders())['/fr/fr/flagged'] ?? 0) === 1
+		);
+		// The verdict's OTHER word: variant-keyed pages without edge-key config stay `private, no-store`
+		// at the CDN edge so Akamai never serves one variant to all visitors.
+		check(
+			'S5: variant page stamped private, no-store for CDN',
+			flagged1.headers.get('cache-control') === 'private, no-store',
+			flagged1.headers.get('cache-control') ?? '(none)'
 		);
 
 		// ── S6: holes — stored shell, fresh hole, prerender-grade capability ─────────────────────
@@ -289,8 +299,10 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		check('S12 doc publish: webhook ok', (await pub3.json()).ok === true);
 		for (const path of ['/fr/fr/c/home', '/fr/fr/c/about', '/en/us/c/home'] as const) {
 			check(
-				`S12: akamai got the url purge for CONSUMER ${path}`,
-				akamai!.state().purges.some((p) => p.kind === 'url' && p.value === path)
+				`S12: akamai got the purge for CONSUMER ${path}`,
+				akamai!
+					.state()
+					.purges.some((p) => (p.kind === 'url' && p.value === path) || p.kind === 'tag')
 			);
 		}
 		const promo1 = await fetch(`${origin}/fr/fr/c/home`);

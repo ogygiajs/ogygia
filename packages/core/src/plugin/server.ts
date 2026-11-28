@@ -7,7 +7,13 @@ import type { RequestEvent } from '@sveltejs/kit';
 import { KitRequestStore } from '../server/kit-request-store.ts';
 import type { Handle } from '../kit-handle.ts';
 import type { HtmlPass, RequestContext, ResolveOptions, ServerApp, ServerPlugin } from './index.ts';
-import { current_facts, facts_of, note_per_visitor, type RequestFacts } from './facts.ts';
+import {
+	current_facts,
+	facts_of,
+	note_per_visitor,
+	note_variant,
+	type RequestFacts
+} from './facts.ts';
 import { observe_reads } from './reads.ts';
 import { ask, notify, register_hooks } from './hooks.ts';
 import { route_config } from './routes.ts';
@@ -60,6 +66,7 @@ export class LivePlugins {
 			facts: facts_of,
 			current: current_facts,
 			perVisitor: note_per_visitor,
+			variantRead: note_variant,
 			observeReads: (event) => observe_reads(event, facts_of(event.request).reads),
 			sign: own.plain.sign,
 			verify: own.plain.verify,

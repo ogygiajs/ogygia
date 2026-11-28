@@ -1,5 +1,5 @@
 import { handle } from './handle.ts';
-import { invalidate, invalidateWhere } from './registry.ts';
+import { invalidate, invalidateTags, invalidateWhere } from './registry.ts';
 
 /**
  * Pages stored at request time, on the server only. Prerender renders a page at build time;
@@ -12,25 +12,30 @@ import { invalidate, invalidateWhere } from './registry.ts';
  * plugins: [ogygia(), postrender(), sveltekit()]
  *
  * // hooks.server.ts: the live store and CDN edges, BEFORE ogygia's handle
- * import { postrender, ValkeyStore, AkamaiEdge } from '@ogygia/postrender';
+ * import { postrender, ValkeyStore, AkamaiEdge, EdgeOneEdge } from '@ogygia/postrender';
  * export const handle = sequence(
- *   postrender.handle({ store: new ValkeyStore(client), edge: [new AkamaiEdge(creds)] }),
+ *   postrender.handle({
+ *     store: new ValkeyStore(client),
+ *     edge: [new AkamaiEdge(akamaiCreds), new EdgeOneEdge(edgeOneCreds)]
+ *   }),
  *   ogygia.handle()
  * );
  *
  * // a route opts out in Kit's own config: export const config = { postrender: false };
  *
- * // anywhere server-side (CMS publish webhook):
+ * // anywhere server-side (CMS or flag publish webhook):
  * await postrender.invalidate('/fr/fr/solar/');            // exact URL
  * await postrender.invalidate(loadContent, [args]);        // og.source reverse index
+ * await postrender.invalidateTags(['site_cms_fr']);        // external cache tags
  * await postrender.invalidateWhere({ prefix: '/fr/fr/' }); // subtree nuke
  * ```
  */
 export const postrender: {
 	handle: typeof handle;
 	invalidate: typeof invalidate;
+	invalidateTags: typeof invalidateTags;
 	invalidateWhere: typeof invalidateWhere;
-} = { handle, invalidate, invalidateWhere };
+} = { handle, invalidate, invalidateTags, invalidateWhere };
 
 export { MemoryStore } from './memory-store.ts';
 export { ValkeyStore } from './adapters/valkey.ts';
@@ -39,8 +44,10 @@ export { CloudflareKvStore } from './adapters/cloudflare-kv.ts';
 export { AkamaiEdge } from './adapters/akamai.ts';
 export { CloudFrontEdge } from './adapters/cloudfront.ts';
 export { CloudflareEdge } from './adapters/cloudflare.ts';
+export { EdgeOneEdge } from './adapters/edgeone.ts';
 export type {
 	PostrenderEntry,
+	VariantTrieNode,
 	PostrenderStore,
 	PostrenderPutOptions,
 	PostrenderMeta,
@@ -50,6 +57,7 @@ export type {
 export type { ValkeyLike } from './adapters/valkey.ts';
 export type { UpstashConfig } from './adapters/upstash.ts';
 export type { KvNamespaceLike } from './adapters/cloudflare-kv.ts';
-export type { AkamaiConfig } from './adapters/akamai.ts';
+export type { AkamaiConfig, AkamaiPurgeAudit } from './adapters/akamai.ts';
 export type { CloudfrontConfig } from './adapters/cloudfront.ts';
 export type { CloudflareConfig } from './adapters/cloudflare.ts';
+export type { EdgeOneConfig, EdgeOnePurgeAudit } from './adapters/edgeone.ts';

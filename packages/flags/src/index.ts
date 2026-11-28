@@ -28,6 +28,7 @@ import {
 	registry,
 	say,
 	scope,
+	slot,
 	timers
 } from '@ogygia/machine';
 
@@ -48,6 +49,16 @@ const BOOL_VARIANT: ReadonlyMap<unknown, string> = new Map([
 const CLAIMS = Symbol.for('ogygia.claims');
 /** Per-request source resolution, cached on the Request (GC'd with it): its {@link Prime}. */
 const RESOLVED = Symbol.for('ogygia.flags.resolved');
+/** Anonymous `og-vid` cookie stashed before `observe_reads` wraps `event.cookies`. */
+const REQUEST_VID = Symbol.for('ogygia.flags.vid');
+
+export function set_request_vid(request: Request, vid: string): void {
+	(request as unknown as Record<symbol, string | undefined>)[REQUEST_VID] = vid;
+}
+
+function get_request_vid(request: Request): string | undefined {
+	return (request as unknown as Record<symbol, string | undefined>)[REQUEST_VID];
+}
 
 type Decision = { variant: string; value?: unknown };
 /**
@@ -81,7 +92,7 @@ function visitor_of(c: CtxLike): Visitor | undefined {
 	if (id_of(c.visitor)) return c.visitor;
 	const claims = (c.request as unknown as Record<symbol, Visitor | undefined>)[CLAIMS];
 	if (id_of(claims)) return claims;
-	const vid = c.cookies?.get('og-vid');
+	const vid = get_request_vid(c.request) ?? c.cookies?.get('og-vid');
 	return vid ? { vid, anonymous: true } : c.visitor;
 }
 
@@ -125,6 +136,8 @@ export interface ExposureEvent {
 	variant: string;
 	/** the sticky identity the decision keyed on (undefined = anonymous) */
 	sub?: string;
+	/** the anonymous visitor id (`og-vid`), when bucketed without a `sub` */
+	vid?: string;
 	at: number;
 }
 
@@ -134,6 +147,9 @@ export interface DecideOptions {
 	/** Honor `?og-exp=name:variant` beyond dev — gate on something a visitor can't forge (a session
 	 *  role, a signed QA cookie). Default: dev only. */
 	overrides?: (c: CtxLike) => boolean;
+	/** Trusted inbound header from an edge/CDN (e.g. Akamai EdgeWorkers / Cache ID Modification)
+	 *  carrying `name:variant,name2:variant2` or `name=variant`. Validated against declared variants. */
+	edgeHeader?: string | null;
 	/** Exposure sink — called with a BATCH of events (batching is built in: flushed at `max`
 	 *  events, after `ms`, or at each request's end). A throwing sink never breaks a request. */
 	exposure?: (events: ExposureEvent[]) => void | Promise<void>;
@@ -143,6 +159,7 @@ export interface DecideOptions {
 
 let _source: FlagSource | null = null;
 let _override_gate: (c: CtxLike) => boolean = () => DEV;
+let _edge_header: string | null = null;
 let _exposure: ((events: ExposureEvent[]) => void | Promise<void>) | null = null;
 let _batch = { max: 25, ms: 2000 };
 
@@ -158,6 +175,7 @@ export function decide(opts: DecideOptions): void {
 		source_reset();
 	}
 	if (opts.overrides) _override_gate = opts.overrides;
+	if ('edgeHeader' in opts) _edge_header = opts.edgeHeader ?? null;
 	if ('exposure' in opts) _exposure = opts.exposure ?? null;
 	if (opts.batch) _batch = { max: opts.batch.max ?? 25, ms: opts.batch.ms ?? 2000 };
 }
@@ -265,10 +283,23 @@ export function flush_exposures(): Promise<void> | undefined {
 /** Every constructed flag self-registers here — the complete name list a source is asked for, and
  *  the set federation auto-carries. Import your flags (route modules do this at startup; on plain
  *  Kit, `import './flags'` in hooks.server.ts to prime the source from the first request). */
-const _registry = registry.keyed<string, Definition>();
+const _registry = slot({
+	name: 'ogygia.flags.registry',
+	version: 1,
+	make: () => registry.keyed<string, Definition>()
+});
 
-/** A flag as defined: what a source is asked about, and the layer it is a member of. */
-type Definition = { query: FlagQuery; layer: string | undefined };
+/** A flag as defined: what a source is asked about, the layer it is a member of, and its evaluator. */
+type Definition = {
+	query: FlagQuery;
+	layer: string | undefined;
+	evaluate?: (c: CtxLike) => string;
+};
+
+/** Evaluate a registered flag by name (used by cache layers walking a variant decision trie). */
+export function evaluate_flag(name: string, c: CtxLike): string | undefined {
+	return _registry.get(name)?.evaluate?.(c);
+}
 
 /** Who owns a definition made outside a marked call (a build, or a test calling flag() itself):
  *  this module's run, as long as `_registry` beside it (a reload of this module makes both anew).
@@ -378,6 +409,23 @@ function override(c: CtxLike, name: string): string | undefined {
 	return undefined;
 }
 
+function edge_variant(c: CtxLike, name: string): string | undefined {
+	if (!_edge_header) return undefined;
+	const raw = c.request.headers.get(_edge_header);
+	if (!raw) return undefined;
+	for (const part of raw.split(',')) {
+		const trimmed = part.trim();
+		const sep = trimmed.includes('=') ? '=' : ':';
+		const at = trimmed.indexOf(sep);
+		if (at === -1) continue;
+		if (trimmed.slice(0, at).trim() === name) {
+			const v = trimmed.slice(at + 1).trim();
+			if (v) return v;
+		}
+	}
+	return undefined;
+}
+
 // ── layers: mutual exclusion (a `layer: 'name'` string option) ───────────────────────────────
 
 // (a layer's members are the flags defined now with that layer: the registry is the one table)
@@ -481,15 +529,6 @@ export function flag(
 	const target =
 		typeof shape === 'function' ? (shape as (c: CtxLike) => boolean | undefined) : null;
 
-	_registry.set(
-		name,
-		{
-			query: { name, variants, kind: is_record ? 'variant' : 'boolean' },
-			layer: opts.layer || undefined
-		},
-		defining() ?? DEFINED_HERE
-	);
-
 	const memo = new WeakMap<Request, string>();
 
 	const compute = (c: CtxLike): string => {
@@ -497,6 +536,8 @@ export function flag(
 		if (o && variants.includes(o)) return o;
 		const carried_v = carried(c, name);
 		if (carried_v && variants.includes(carried_v)) return carried_v;
+		const edge_v = edge_variant(c, name);
+		if (edge_v && variants.includes(edge_v)) return edge_v;
 		const src = resolved_for(c, name);
 		if (src) return src.variant;
 		const v = visitor_id(c);
@@ -525,28 +566,47 @@ export function flag(
 	};
 
 	const bucket = (c: CtxLike): string => {
-		// every READ (fresh or memoized) is a per-visitor read: an A/B'd page must never be stored as
-		// ONE variant for everyone, nor a cached hole kept as one (the render's read set, #434). Priming
-		// deliberately does not report: it touches cookies on every request whether or not the page
-		// reads a flag.
+		const cached = memo.get(c.request);
+		const variant = cached ?? compute(c);
+		// Every READ (fresh or memoized) reports the variant to the request's read set so variant-keyed
+		// caches (postrender, render-cache) keep one entry per branch without serving one variant to
+		// another.
 		const app = flags_app();
-		if (app) app.perVisitor(c.request, `flag:${name}`);
+		if (app) app.variantRead(c.request, name, variant);
 		else if (!BROWSER) {
 			// read on a server where the plugin never started: nothing reports the read, so a store
 			// plugin could keep ONE variant of an A/B'd page for everyone. Say it once, loudly.
 			_said.once('flags_plugin_not_running', () => warn('flags_plugin_not_running'));
 		}
-		const cached = memo.get(c.request);
 		if (cached !== undefined) return cached;
-		const variant = compute(c);
 		memo.set(c.request, variant);
 		record_assigned(c, name, variant);
-		emit_exposure({ name, variant, sub: c.visitor?.sub, at: DEV ? 0 : now() });
+		const who = visitor_of(c);
+		emit_exposure({
+			name,
+			variant,
+			sub: who?.sub,
+			...(who?.vid ? { vid: who.vid } : {}),
+			at: DEV ? 0 : now()
+		});
 		return variant;
 	};
 
+	_registry.set(
+		name,
+		{
+			query: { name, variants, kind: is_record ? 'variant' : 'boolean' },
+			layer: opts.layer || undefined,
+			evaluate: bucket
+		},
+		defining() ?? DEFINED_HERE
+	);
+
 	const value = (c: CtxLike): unknown => {
 		const raw = resolved_for(c, name)?.value;
+		if (raw !== undefined) {
+			flags_app()?.perVisitor(c.request, `flag-value:${name}`);
+		}
 		if (raw !== undefined && opts.value) {
 			const r = opts.value['~standard'].validate(raw);
 			// Standard Schema validate is sync for our purpose; a thenable or an issues[] → fall back.

@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { note_visitor_read, open_reads, ReadSet, set_open_reads } from '../src/plugin/reads.ts';
+import {
+	note_variant_read,
+	note_visitor_read,
+	open_reads,
+	ReadSet,
+	set_open_reads
+} from '../src/plugin/reads.ts';
 
 afterEach(() => set_open_reads(null));
 
@@ -45,5 +51,23 @@ describe('read sets', () => {
 		const work = new ReadSet();
 		set_open_reads(() => work);
 		expect(copy.open_reads()).toBe(work);
+	});
+
+	it('variant reads propagate to parent, preserve first-read order, and deduplicate by flag name', () => {
+		const page = new ReadSet();
+		const hole = new ReadSet(page);
+		set_open_reads(() => hole);
+		note_variant_read(page, 'hero', 'bold');
+		note_variant_read(page, 'hero', 'bold');
+		note_variant_read(page, 'promo', 'on');
+		expect(hole.variants).toEqual([
+			['hero', 'bold'],
+			['promo', 'on']
+		]);
+		expect(page.variants).toEqual([
+			['hero', 'bold'],
+			['promo', 'on']
+		]);
+		expect(page.perVisitor).toBeNull();
 	});
 });

@@ -36,6 +36,7 @@ import {
 	self_evict,
 	store_call,
 	store_get,
+	store_put,
 	store_render,
 	type Flight,
 	type Runtime
@@ -44,7 +45,8 @@ import { observe_event, type Observation } from './observe.ts';
 import { esi_rewrite, stitch_html, stitch_modes } from './stitch.ts';
 import { set_postrender_app } from './app.ts';
 import { warn } from './messages.ts';
-import type { PostrenderEntry } from './types.ts';
+import { variant_store_key } from './key.ts';
+import type { PostrenderEntry, VariantTrieNode } from './types.ts';
 
 /** The plugin's serializable policy (`postrender({ ttl, default })`, normalized by the factory). */
 export interface PostrenderServerOptions {
@@ -206,6 +208,9 @@ export function postrender_response(
 			headers: { location: entry.location, [VIA_HEADER]: via }
 		});
 	}
+	if (entry.kind !== 'page') {
+		return new Response(null, { status: 404 });
+	}
 	if (request) {
 		const etag = entry.headers.etag;
 		const inm = request.headers.get('if-none-match');
@@ -356,7 +361,16 @@ async function capture(
 	flight: Flight
 ): Promise<Captured> {
 	const { path, facts } = ctx;
-	const tags = [...(facts.sources ?? []), build_tag(version)];
+	const app_tags = [
+		...new Set(
+			[response.headers.get('edge-cache-tag') ?? '', response.headers.get('cache-tag') ?? '']
+				.join(',')
+				.split(',')
+				.map((t) => t.trim())
+				.filter(Boolean)
+		)
+	];
+	const tags = [...new Set([...app_tags, ...(facts.sources ?? []), build_tag(version)])];
 	/** Store `entry`, unless an invalidation started while the store was being written to (the
 	 *  flight went stale; its evict may have run first): then the entry comes back out, and the
 	 *  page stays per-request (no hit is served from it meanwhile, `retracting`). Labeled with this
@@ -387,11 +401,66 @@ async function capture(
 			headers: response.headers
 		});
 	try {
-		return await capture_page(html, answered, content_type, put, ctx, runtime, ttl);
+		return await capture_page(
+			html,
+			answered,
+			content_type,
+			app_tags,
+			put,
+			ctx,
+			runtime,
+			ttl,
+			flight
+		);
 	} catch (failed) {
 		// (the body is read: the page goes out rebuilt from it, not stored)
 		return { stored: false, response: answered(), failed };
 	}
+}
+
+const MAX_PAGE_VARIANTS = 16;
+
+function count_trie_leaves(node: VariantTrieNode): number {
+	if (node.kind === 'leaf') return 1;
+	let total = 0;
+	for (const child of Object.values(node.arms)) total += count_trie_leaves(child);
+	return total;
+}
+
+function insert_trie(
+	root: VariantTrieNode | null,
+	path: ReadonlyArray<readonly [string, string]>,
+	key: string
+): VariantTrieNode {
+	if (root && count_trie_leaves(root) >= MAX_PAGE_VARIANTS) return root;
+	const build_from = (i: number): VariantTrieNode =>
+		i >= path.length
+			? { kind: 'leaf', key }
+			: { kind: 'branch', flag: path[i][0], arms: { [path[i][1]]: build_from(i + 1) } };
+	if (!root) return build_from(0);
+	const merge = (node: VariantTrieNode, i: number): VariantTrieNode => {
+		if (i >= path.length || node.kind !== 'branch' || node.flag !== path[i][0]) return node;
+		const [_, variant] = path[i];
+		const child = node.arms[variant];
+		if (!child) {
+			return { ...node, arms: { ...node.arms, [variant]: build_from(i + 1) } };
+		}
+		return { ...node, arms: { ...node.arms, [variant]: merge(child, i + 1) } };
+	};
+	return merge(root, 0);
+}
+
+async function walk_trie(
+	root: VariantTrieNode,
+	evaluate: (name: string) => Promise<string | undefined>
+): Promise<string | null> {
+	let node: VariantTrieNode | undefined = root;
+	while (node && node.kind === 'branch') {
+		const v = await evaluate(node.flag);
+		if (v === undefined) return null;
+		node = node.arms[v];
+	}
+	return node?.kind === 'leaf' ? node.key : null;
 }
 
 /** The read page's verdict and store (`capture`, past the body read). */
@@ -399,17 +468,21 @@ async function capture_page(
 	html: string,
 	answered: () => Response,
 	content_type: string,
+	app_tags: readonly string[],
 	put: (entry: PostrenderEntry) => Promise<boolean>,
 	ctx: Ctx,
 	runtime: Runtime,
-	ttl: number
+	ttl: number,
+	flight: Flight
 ): Promise<Captured> {
-	const { path } = ctx;
+	const { path, facts } = ctx;
 	// Belt and braces for streamed pages WITHOUT regions (no page snapshot to probe): Kit's boot
 	// only declares its deferred-map when the page carries pending promises — buffering such a
 	// response bakes ONE settle's inline resolve scripts into the copy. Never store it.
 	if (KIT_DEFERRED_BOOT_RE.test(html)) return { stored: false, response: answered() };
 	const created = clock.wall(); // wall: stored, read by every instance
+	const variants = facts.reads.variants;
+	const has_variants = variants.length > 0;
 	// STITCH holes, two modes (stitch.ts):
 	//  - `stitch="serve"` flips the entry's nature: the SHELL stores (renders once), but every
 	//    serve is per-visitor (holes re-render + splice at ORIGIN). So: no shared-cache headers, no
@@ -426,21 +499,38 @@ async function capture_page(
 	// cache-control — later wins). Merged into the STORED entry too, so hits replay them.
 	// Validators ride the entry: the etag IS the render's identity, `last-modified` its store
 	// time — every later revalidation (CDN prefresh, browser reload) can answer 304.
-	const headers: Record<string, string> = has_serve
-		? { 'content-type': content_type, 'cache-control': 'private, no-store' }
-		: {
-				'content-type': content_type,
-				'cache-control': `public, s-maxage=${ttl}`,
-				etag: `"${createHash('sha256').update(stored_html).digest('hex').slice(0, 32)}"`,
-				'last-modified': new Date(created).toUTCString(),
-				...(modes.edge ? { 'surrogate-control': 'content="ESI/1.0"' } : {})
-			};
+	const headers: Record<string, string> =
+		has_serve || has_variants
+			? { 'content-type': content_type, 'cache-control': 'private, no-store' }
+			: {
+					'content-type': content_type,
+					'cache-control': `public, s-maxage=${ttl}`,
+					etag: `"${createHash('sha256').update(stored_html).digest('hex').slice(0, 32)}"`,
+					'last-modified': new Date(created).toUTCString(),
+					...(modes.edge ? { 'surrogate-control': 'content="ESI/1.0"' } : {})
+				};
+	const all_tags = [...app_tags, ...(facts.sources ?? []), build_tag(version)];
 	if (!has_serve) {
 		for (const edge of runtime.edges) {
 			try {
-				Object.assign(headers, edge.headers({ url: path, ttl }));
+				Object.assign(
+					headers,
+					edge.headers({
+						url: path,
+						ttl,
+						...(has_variants ? { variants } : {}),
+						tags: all_tags
+					})
+				);
 				// oxlint-disable-next-line ogygia/no-silent-failures -- an edge adapter never fails a render; the page is stored without that edge's headers, and the edge serves it by its own rules
 			} catch {}
+		}
+		if (has_variants && (headers['cache-control'] ?? '').includes('public') && !headers.etag) {
+			headers.etag = `"${createHash('sha256').update(stored_html).digest('hex').slice(0, 32)}"`;
+			headers['last-modified'] = new Date(created).toUTCString();
+		}
+		if (!has_variants && app_tags.length > 0 && !headers['edge-cache-tag']) {
+			headers['edge-cache-tag'] = app_tags.join(', ');
 		}
 	}
 	const entry: PostrenderEntry = {
@@ -451,6 +541,24 @@ async function capture_page(
 		created,
 		...(has_serve ? { stitch: true } : {})
 	};
+	if (has_variants) {
+		const vkey = variant_store_key(path, variants);
+		const tags = [...new Set([...app_tags, ...(facts.sources ?? []), build_tag(version)])];
+		if (!(await store_render(runtime, vkey, { ...entry, build: version }, { ttl, tags }, flight))) {
+			return { stored: false, response: answered() };
+		}
+		const existing = await store_get(runtime, path);
+		const base_trie =
+			existing?.kind === 'variants' && servable(existing, ttl) ? existing.trie : null;
+		const trie = insert_trie(base_trie, variants, vkey);
+		await store_put(
+			runtime,
+			path,
+			{ kind: 'variants', trie, created, build: version },
+			{ ttl, tags }
+		);
+		return { stored: true, entry, response: postrender_response(entry, 'stored') };
+	}
 	if (!(await put(entry))) return { stored: false, response: answered() };
 	return { stored: true, entry, response: postrender_response(entry, 'stored') };
 }
@@ -471,10 +579,17 @@ function opted_in(ctx: Ctx): Storing {
 	return ctx.options.default;
 }
 
-/** The request carries the visitor's credentials: a cookie or an `authorization` header. Read
- *  before the render's reads are watched (they are not the render's). */
+/** The request carries the visitor's credentials: a cookie (other than anonymous `og-vid`) or an
+ *  `authorization` header. Read before the render's reads are watched (they are not the render's). */
 function credentialed(request: Request): boolean {
-	return request.headers.has('cookie') || request.headers.has('authorization');
+	if (request.headers.has('authorization')) return true;
+	const cookie = request.headers.get('cookie');
+	if (!cookie) return false;
+	for (const part of cookie.split(';')) {
+		const trimmed = part.trim();
+		if (trimmed && !trimmed.startsWith('og-vid=')) return true;
+	}
+	return false;
 }
 
 const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
@@ -520,8 +635,21 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		// over it; so is one a stale render is taking back out, which may be the page from before a
 		// publish, #332)
 		if (hit && servable(hit, ctx.options.ttl) && !retracting(path)) {
-			ctx.app.devtools({ domain: 'server', name: 'server.postrender', op: 'hit', url: path });
-			return serve(hit, 'hit', ctx);
+			if (hit.kind === 'variants') {
+				const vkey = await walk_trie(hit.trie, (name) =>
+					ctx.app.ask.evaluateFlag(event.request, event, name)
+				);
+				if (vkey) {
+					const vhit = await store_get(runtime, vkey);
+					if (vhit && servable(vhit, ctx.options.ttl) && !retracting(vkey)) {
+						ctx.app.devtools({ domain: 'server', name: 'server.postrender', op: 'hit', url: path });
+						return serve(vhit, 'hit', ctx);
+					}
+				}
+			} else {
+				ctx.app.devtools({ domain: 'server', name: 'server.postrender', op: 'hit', url: path });
+				return serve(hit, 'hit', ctx);
+			}
 		}
 		if (!may_store) {
 			state.credentials = true;
