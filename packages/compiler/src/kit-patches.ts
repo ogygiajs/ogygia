@@ -113,9 +113,35 @@ export interface KitEnvApp {
 	readonly out_dir: string;
 	readonly mode: 'dev' | 'build';
 	readonly fs: Fs;
-	/** the absolute paths of the app's island code (the compiler's island closure), asked only for
-	 *  an app with a dynamic public variable */
+	/** the ids of the app's island code (`kit_env_files`, as the scan left it), asked only for an
+	 *  app with a dynamic public variable; only a file of the app's own read from it */
 	readonly browser_files: () => Iterable<string>;
+}
+
+const SERVER_ONLY_NAME_RE = /\.(?:remote|server)\.[^/\\]*$/;
+
+/**
+ * The app's browser code: its island components (`roots`) and what they import along the island
+ * closure's edges (`edges`: each module to the modules its imports resolved to), never entering a
+ * remote file (`*.remote.*`), a server-only module (`*.server.*`) or a file under `lib_server`
+ * (Kit's `$lib/server/`, with its trailing separator). The browser gets a remote function as a
+ * fetch, never its module nor what that imports, so a file only those reach is no browser code.
+ */
+export function kit_env_files(
+	roots: Iterable<string>,
+	edges: ReadonlyMap<string, readonly string[]>,
+	lib_server: string
+): string[] {
+	const seen = new Set<string>();
+	const stack = [...roots];
+	while (stack.length > 0) {
+		const id = stack.pop()!;
+		if (seen.has(id) || SERVER_ONLY_NAME_RE.test(id) || id.startsWith(lib_server)) continue;
+		seen.add(id);
+		const next = edges.get(id);
+		if (next) stack.push(...next);
+	}
+	return [...seen];
 }
 
 const DYNAMIC_PUBLIC_SET_RE = /\brendered_env\.[\w$]+\s*=/;
@@ -129,13 +155,15 @@ export function kit_env_dynamic(app: Pick<KitEnvApp, 'out_dir' | 'mode' | 'fs'>)
 }
 
 const NODE_MODULES_SEGMENT_RE = /(?:^|\/)node_modules\//;
+const OUTSIDE_ROOT_RE = /^\.\.(?:\/|$)/;
 
 /**
  * The build's identity on Kit's env channel: the server writes it beside the env, and the browser's
  * reader reads the env only when the channel bears its own. It ships in every page with a channel,
  * so it is made only of what the browser already gets: the app's base and app dir, and the app's
- * own island code (every file of the island closure not in a package, by its path from the root),
- * so it tells nothing of a server-only file. Both legs of one app make the same one from the same
+ * own island code (every file of `browser_files` that is a file under the root and not in a
+ * package, by its path from the root; a virtual or `\0` id is no file of the app), so it tells
+ * nothing of a server-only file. Both legs of one app make the same one from the same
  * facts. A federated peer with other island code is another app, so its reader never takes the
  * host's env as its own; a peer whose island code is byte for byte the host's shares it. It holds
  * no absolute path and no time, so a build made again is byte-identical. An app whose Kit env
@@ -146,13 +174,16 @@ const NODE_MODULES_SEGMENT_RE = /(?:^|\/)node_modules\//;
 export function kit_env_build(app: KitEnvApp): string {
 	if (!kit_env_dynamic(app)) return '';
 	const hash = createHash('sha256').update([app.base, app.app_dir].join('\0'));
-	const files: [rel: string, abs: string][] = [];
-	for (const abs of app.browser_files()) {
-		const rel = path.relative(app.root, abs).split(path.sep).join('/');
-		if (!NODE_MODULES_SEGMENT_RE.test(rel)) files.push([rel, abs]);
+	const files = new Map<string, string>();
+	for (const id of app.browser_files()) {
+		if (!path.isAbsolute(id)) continue;
+		const rel = path.relative(app.root, id).split(path.sep).join('/');
+		if (OUTSIDE_ROOT_RE.test(rel) || path.isAbsolute(rel) || NODE_MODULES_SEGMENT_RE.test(rel))
+			continue;
+		const text = app.fs.read(id);
+		if (text !== null) files.set(rel, text);
 	}
-	files.sort(([a], [b]) => Number(a > b) - Number(a < b));
-	for (const [rel, abs] of files) hash.update(`\0${rel}\0`).update(app.fs.read(abs) ?? '');
+	for (const rel of [...files.keys()].sort()) hash.update(`\0${rel}\0`).update(files.get(rel)!);
 	return hash.digest('hex').slice(0, 12);
 }
 

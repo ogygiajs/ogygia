@@ -18,7 +18,7 @@ import {
 	is_route_component,
 	type FileEvent
 } from './kit.ts';
-import { kit_env_build } from './kit-patches.ts';
+import { kit_env_build, kit_env_files } from './kit-patches.ts';
 import { run_module_macros } from './macros/pipeline.ts';
 import { fn_manifest_entries } from './macros/dollar.ts';
 import { is_script_request } from './script-request.ts';
@@ -111,6 +111,8 @@ interface Build {
 	server_runtime: HandedRuntime | null;
 	router_css_roots: string[] | null;
 	kit_env_build: string | null;
+	kit_env_files: readonly string[] | null;
+	readonly closure_edges: Map<string, string[]>;
 	readonly resolve_memo: Map<string, string | null>;
 	readonly reach_memo: Map<string, boolean>;
 	readonly specs_memo: Map<string, readonly string[]>;
@@ -137,6 +139,8 @@ const new_build = (program: Program): Build => ({
 	server_runtime: null,
 	router_css_roots: null,
 	kit_env_build: null,
+	kit_env_files: null,
+	closure_edges: new Map(),
 	resolve_memo: new Map(),
 	reach_memo: new Map(),
 	specs_memo: new Map(),
@@ -544,7 +548,9 @@ export class Compiler implements CoreApp {
 	/**
 	 * The app's identity on Kit's env channel (kit-patches.ts `kit_env_build`), made once per build
 	 * and kept on it, so a build's server leg and client leg (each with its own context) bear one,
-	 * though the source changes between them. A dev app with no identity yet (`''`) is asked again,
+	 * though the source changes between them. It is made from the app's browser code as the scan
+	 * left it (`Build.kit_env_files`), so a module the bundler adds to the island graph later does
+	 * not move it. A dev app with no identity yet (`''`) is asked again,
 	 * so one that gains its first dynamic public variable gets its own
 	 * (test/kit-env-build.test.ts, test/vite-hooks.test.ts).
 	 */
@@ -561,7 +567,7 @@ export class Compiler implements CoreApp {
 			fs: ctx.fs,
 			browser_files: () => {
 				this.prescan();
-				return this.program.island_graph;
+				return build.kit_env_files ?? [];
 			}
 		});
 		if (id !== '' || ctx.is_build) build.kit_env_build = id;
@@ -856,6 +862,14 @@ export class Compiler implements CoreApp {
 			);
 
 		this.#walk_closures();
+		const roots: string[] = [];
+		for (const entry of program.registry.values())
+			if (entry.componentPath) roots.push(strip_id(entry.componentPath));
+		this.#build.kit_env_files = kit_env_files(
+			roots,
+			this.#build.closure_edges,
+			`${path.join(ctx.libDir, 'server')}${path.sep}`
+		);
 
 		if (!runtime_marks.context) {
 			const reads: { file: string; keys: string[] }[] = [];
@@ -1113,6 +1127,7 @@ export class Compiler implements CoreApp {
 		const program = this.program;
 		const { island_graph } = program;
 		const seen = this.#build.island_closure_seen;
+		const closure_edges = this.#build.closure_edges;
 		const added: string[] = [];
 		let level = files;
 		let edges = [...pending];
@@ -1149,7 +1164,13 @@ export class Compiler implements CoreApp {
 			for (let i = 0; i < edges.length; i++) {
 				const id = found[i] ?? null;
 				if (id !== null) {
-					if (!id.startsWith('\0')) next.push(id);
+					if (!id.startsWith('\0')) {
+						next.push(id);
+						const { importer } = edges[i]!;
+						const out = closure_edges.get(importer);
+						if (out) out.push(strip_id(id));
+						else closure_edges.set(importer, [strip_id(id)]);
+					}
 				} else if (app) {
 					program.island_reads_page = true;
 					if (this.#ctx.is_build) this.#build.closure_frontier.push(edges[i]);

@@ -1,6 +1,7 @@
 // KIT-PUBLIC-ENV: the build's identity on Kit's env channel. The server module and the browser's
 // reader carry the same one for one app, so the reader takes its own server's env; another app (a
 // federated peer) has another, so its reader never takes the host's env as its own.
+import { tmpdir } from 'node:os';
 import { dedent } from '@ogygia/core/contract';
 import { describe, expect, it } from 'vitest';
 import { memory_fs, type Fs } from '../src/fs.ts';
@@ -285,6 +286,76 @@ describe("the build's identity is made only for an app whose payload carries an 
 		it('two apps with other browser code differ', () => {
 			const other = { 'src/lib/Counter.svelte': COUNTER.replace('{n}', '[{n}]') };
 			expect(browser_app(other)).not.toBe(browser_app());
+		});
+
+		const REMOTE_COUNTER = dedent`
+			<script>
+			import { step } from './step.ts';
+			import { get_n } from './data.remote.ts';
+			let n = $state(0);
+			</script>
+			<button onclick={async () => (n += step + (await get_n()))}>{n}</button>
+		`;
+		const REMOTE_APP: Record<string, string> = {
+			'src/lib/Counter.svelte': REMOTE_COUNTER,
+			'src/lib/data.remote.ts': dedent`
+				import { query } from '$app/server';
+				import { db } from '$lib/server/db.ts';
+				import { scale } from './scale.ts';
+				export const get_n = query(async () => scale(db.n));
+			`,
+			'src/lib/server/db.ts': "export const db = { n: 1, key: 'hunter2' };\n",
+			'src/lib/scale.ts': 'export const scale = (n: number) => n * 2;\n'
+		};
+
+		it('an island that calls a remote function: editing the remote file, the server file it imports or a file only it imports leaves the identity as it was', () => {
+			const before = browser_app(REMOTE_APP);
+			expect(before).toMatch(/^[0-9a-f]{12}$/);
+			const edited = (rel: string, text: string) => browser_app({ ...REMOTE_APP, [rel]: text });
+			expect(edited('src/lib/server/db.ts', "export const db = { n: 1, key: 'hunter3' };\n")).toBe(
+				before
+			);
+			expect(
+				edited('src/lib/data.remote.ts', `// a comment\n${REMOTE_APP['src/lib/data.remote.ts']}`)
+			).toBe(before);
+			expect(edited('src/lib/scale.ts', 'export const scale = (n: number) => n * 3;\n')).toBe(
+				before
+			);
+			expect(edited('src/lib/step.ts', 'export const step = 2;\n')).not.toBe(before);
+		});
+
+		it('one app under two roots, built from two working folders, has one identity', () => {
+			const at = (root: string, cwd: string) => {
+				const was = process.cwd();
+				process.chdir(cwd);
+				try {
+					const a = app(root, 'my-app', { files: ISLAND_APP });
+					a.fs.set(`${root}/.svelte-kit/generated/build/env/config.js`, DYNAMIC_CONFIG);
+					return compiler_of(a, true).kit_env_build();
+				} finally {
+					process.chdir(was);
+				}
+			};
+			const one = at('/a/web', '/');
+			expect(one).toMatch(/^[0-9a-f]{12}$/);
+			expect(at('/elsewhere/deep/web', '/')).toBe(one);
+			expect(at('/a/web', tmpdir())).toBe(one);
+		});
+
+		it('is made from the island code the scan found: a module the bundler adds to the island graph later leaves it', async () => {
+			const late = '/a/web/src/lib/late.ts';
+			const a = app('/a/web', 'my-app', { files: ISLAND_APP });
+			a.fs.set('/a/web/.svelte-kit/generated/build/env/config.js', DYNAMIC_CONFIG);
+			const compiler = compiler_of(a, true);
+			const scanned = compiler_of(a, true).kit_env_build();
+			compiler.prescan();
+			a.fs.set(late, 'export const late = 1;\n');
+			await compiler.resolve_id('./late.ts', '/a/web/src/lib/Counter.svelte', {
+				ssr: false,
+				resolve: async () => ({ id: late })
+			});
+			expect(compiler.program.island_graph.has(late)).toBe(true);
+			expect(compiler.kit_env_build()).toBe(scanned);
 		});
 	});
 
