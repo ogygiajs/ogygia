@@ -863,6 +863,23 @@ const WARNED = {
 			expects. A newer SvelteKit may have changed the module.
 		`
 	},
+	kit_env_version_unread: {
+		text: (a: { name: string }): string => prose`
+			${a.name}: ogygia could not read SvelteKit's \`kit.version.name\`, so the identity on its
+			public env channel is made from the package name, base and app dir only. Another app
+			with the same three reads this app's public env as its own. Set \`kit.version.name\` in
+			svelte.config.js.
+		`,
+		details: (): string => prose`
+			On a \`csr = false\` page ogygia writes Kit's public env into the page beside an
+			identity of the build, and an island takes that env only when the identity is its own
+			build's. The identity is made from the app's package name, base, app dir and Kit's
+			\`version.name\`, which ogygia reads off SvelteKit's own Vite plugin or, failing that,
+			svelte.config.js. This time it found none, so a federated app with the same package
+			name, base and app dir (built at another time) is not told apart. Setting
+			\`kit.version.name\` (a commit hash, say) in svelte.config.js fixes it.
+		`
+	},
 	scoped_css_failed: {
 		text: (a: { file: string; reason: string }): string =>
 			`scoped CSS for ${a.file} could not be compiled (${a.reason}) — shipping its style bodies unscoped`,

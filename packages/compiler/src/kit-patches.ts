@@ -8,10 +8,7 @@
  * @packageDocumentation
  */
 import { createHash } from 'node:crypto';
-import path from 'node:path';
 import { dedent, OGYGIA_VERSION } from '@ogygia/core/contract';
-import { dev_bridge_call } from './dev-bridge.ts';
-import type { Fs } from './fs.ts';
 import { warn } from './messages.ts';
 
 /** One patch of a Kit module, applied to the browser's copy only. */
@@ -104,107 +101,57 @@ export function patch_kit_module(code: string, id: string): string {
 	return out;
 }
 
-/** What names an app for its env channel: its base, its app dir and the code it ships to the
- *  browser; and where Kit wrote its env config (`kit.outDir`, for the serve mode). */
+/** What names an app on its env channel: only values the app already makes public. */
 export interface KitEnvApp {
-	readonly root: string;
+	/** the `name` of the app's package.json (`''` when it has none) */
+	readonly name: string;
 	readonly base: string;
 	readonly app_dir: string;
-	readonly out_dir: string;
-	readonly mode: 'dev' | 'build';
-	readonly fs: Fs;
-	/** the ids of the app's island code (`kit_env_files`, as the scan left it), asked only for an
-	 *  app with a dynamic public variable; only a file of the app's own read from it */
-	readonly browser_files: () => Iterable<string>;
+	/** Kit's resolved `version.name`, which Kit serves at `<app dir>/version.json` (Kit's default
+	 *  is the time its config was loaded); `null` when it could not be read */
+	readonly version: string | null;
 }
 
-const SERVER_ONLY_NAME_RE = /\.(?:remote|server)\.[^/\\]*$/;
-
-/**
- * The app's browser code: its island components (`roots`) and what they import along the island
- * closure's edges (`edges`: each module to the modules its imports resolved to), never entering a
- * remote file (`*.remote.*`), a server-only module (`*.server.*`) or a file under `lib_server`
- * (Kit's `$lib/server/`, with its trailing separator). The browser gets a remote function as a
- * fetch, never its module nor what that imports, so a file only those reach is no browser code.
- */
-export function kit_env_files(
-	roots: Iterable<string>,
-	edges: ReadonlyMap<string, readonly string[]>,
-	lib_server: string
-): string[] {
-	const seen = new Set<string>();
-	const stack = [...roots];
-	while (stack.length > 0) {
-		const id = stack.pop()!;
-		if (seen.has(id) || SERVER_ONLY_NAME_RE.test(id) || id.startsWith(lib_server)) continue;
-		seen.add(id);
-		const next = edges.get(id);
-		if (next) stack.push(...next);
+/** The `name` a package.json's `text` holds: `''` when there is none, or the text does not parse. */
+export function package_name(text: string | null): string {
+	if (text === null) return '';
+	try {
+		const name = (JSON.parse(text) as { name?: unknown } | null)?.name;
+		return typeof name === 'string' ? name : '';
+		// oxlint-disable-next-line ogygia/no-silent-failures -- a package.json that does not parse names no package: the identity is made from the other values
+	} catch {
+		return '';
 	}
-	return [...seen];
 }
-
-const DYNAMIC_PUBLIC_SET_RE = /\brendered_env\.[\w$]+\s*=/;
-
-/** True when the env config Kit generated for the app's mode (`<outDir>/generated/<mode>/env/config.js`)
- *  sets a dynamic public variable (`public: true, static: false`), the only kind Kit's payload, and
- *  so the channel, carries; true too when it cannot be read. */
-export function kit_env_dynamic(app: Pick<KitEnvApp, 'out_dir' | 'mode' | 'fs'>): boolean {
-	const config = app.fs.read(path.join(app.out_dir, 'generated', app.mode, 'env', 'config.js'));
-	return config === null || DYNAMIC_PUBLIC_SET_RE.test(config);
-}
-
-const NODE_MODULES_SEGMENT_RE = /(?:^|\/)node_modules\//;
-const OUTSIDE_ROOT_RE = /^\.\.(?:\/|$)/;
 
 /**
  * The build's identity on Kit's env channel: the server writes it beside the env, and the browser's
  * reader reads the env only when the channel bears its own. It ships in every page with a channel,
- * so it is made only of what the browser already gets: the app's base and app dir, and the app's
- * own island code (every file of `browser_files` that is a file under the root and not in a
- * package, by its path from the root; a virtual or `\0` id is no file of the app), so it tells
- * nothing of a server-only file. Both legs of one app make the same one from the same
- * facts. A federated peer with other island code is another app, so its reader never takes the
- * host's env as its own; a peer whose island code is byte for byte the host's shares it. It holds
- * no absolute path and no time, so a build made again is byte-identical. An app whose Kit env
- * config sets no dynamic public variable (`kit_env_dynamic`) has an empty env, so the server writes
- * no channel and the browser reads none: it has no identity (`''`, as a Kit 2 app has) and no file
- * of its code is read.
+ * so it is made only of values the app already makes public, never of a file of its source: its
+ * package name, base, app dir and Kit's `version.name`, as one digest. Both legs and the dev server
+ * of one app make the same one from the same values. A federated peer is built at another time, so
+ * with Kit's default `version.name` it has another identity, and its reader never takes the host's
+ * env as its own; an app that pins `version.name` (to a commit, say) has one identity on every build
+ * of that version. Two apps with the same package name, base, app dir and pinned version share one.
+ * It holds no path, so one app built from two folders has one identity. With no `version.name` it is
+ * made from the other three, and `kit_env_version_unread` says so.
  */
 export function kit_env_build(app: KitEnvApp): string {
-	if (!kit_env_dynamic(app)) return '';
-	const hash = createHash('sha256').update([app.base, app.app_dir].join('\0'));
-	const files = new Map<string, string>();
-	for (const id of app.browser_files()) {
-		if (!path.isAbsolute(id)) continue;
-		const rel = path.relative(app.root, id).split(path.sep).join('/');
-		if (OUTSIDE_ROOT_RE.test(rel) || path.isAbsolute(rel) || NODE_MODULES_SEGMENT_RE.test(rel))
-			continue;
-		const text = app.fs.read(id);
-		if (text !== null) files.set(rel, text);
-	}
-	for (const rel of [...files.keys()].sort()) hash.update(`\0${rel}\0`).update(files.get(rel)!);
-	return hash.digest('hex').slice(0, 12);
+	if (app.version === null) warn('kit_env_version_unread', { name: app.name || '(unnamed)' });
+	return createHash('sha256')
+		.update(JSON.stringify([app.name, app.base, app.app_dir, app.version]))
+		.digest('hex')
+		.slice(0, 12);
 }
-
-/** The identity the server module writes: the build's own, or, in dev, the dev server's of `root`
- *  as each channel is written, read through the dev bridge (dev-bridge.ts), so a dev app that
- *  gains its first dynamic public variable writes the identity its browser reader, made later, is
- *  bound to (apps/palaestra/e2e/kit3.spec.ts). */
-export type KitEnvBuild =
-	| { readonly kind: 'fixed'; readonly id: string }
-	| { readonly kind: 'dev'; readonly root: string };
 
 /**
  * `ogygia:server/kit-env` for the app's Kit major: Kit 3's `rendered_env`, the object Kit puts in its
  * boot payload as `env` on a csr=true page (public variables only, set again as Kit's server starts),
- * and the identity its channel is written with (`kit_env_build()`). Any other Kit: a `null` env.
+ * and the identity its channel is written with (`kit_env_build()`, the build's or the dev server's).
+ * Any other Kit: a `null` env.
  */
-export function kit_public_env_module(major: number | null, build: KitEnvBuild): string {
-	const id =
-		build.kind === 'fixed'
-			? `export function kit_env_build() { return ${JSON.stringify(build.id)}; }\n`
-			: `export function kit_env_build() { return ${dev_bridge_call(build.root, 'kit_env_build')} ?? ''; }\n`;
+export function kit_public_env_module(major: number | null, build: string): string {
+	const id = `export function kit_env_build() { return ${JSON.stringify(build)}; }\n`;
 	if (major === null || major < 3)
 		return `${id}export function kit_public_env() { return null; }\n`;
 	return `${id}${dedent`

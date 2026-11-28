@@ -16,9 +16,6 @@ export interface DevBridge {
 	/** the og.$ factories the compiler holds (tag → factory source): `ogygia:server/region-deps`
 	 *  `fn_manifest()` (apps/palaestra/e2e/dev-dollar-fn.spec.ts) */
 	fn_manifest(): Record<string, string>;
-	/** the app's identity on Kit's env channel: `ogygia:server/kit-env` `kit_env_build()`
-	 *  (apps/palaestra/e2e/kit3.spec.ts) */
-	kit_env_build(): string;
 }
 
 /** One open dev server: the scope it serves in (closed when it closes), its environments, the
@@ -60,10 +57,6 @@ export class DevServers {
 
 	fn_manifest(): Record<string, string> | undefined {
 		return this.newest()?.bridge.fn_manifest();
-	}
-
-	kit_env_build(): string | undefined {
-		return this.newest()?.bridge.kit_env_build();
 	}
 
 	/** The newest dev server still open, of `plugin` when given. */

@@ -494,11 +494,7 @@ export const kit_env: Family<KitEnvModule> = virtual.family({
 	load(app: CoreApp, { ssr }) {
 		const { ctx } = app;
 		const major = ssr ? kit_major_of(ctx.root) : null;
-		if (major === null || major < 3) return kit_public_env_module(major, { kind: 'fixed', id: '' });
-		return kit_public_env_module(
-			major,
-			ctx.is_build ? { kind: 'fixed', id: app.kit_env_build() } : { kind: 'dev', root: ctx.root }
-		);
+		return kit_public_env_module(major, major === null || major < 3 ? '' : app.kit_env_build());
 	}
 });
 
@@ -510,7 +506,8 @@ export const kit_env_reader: Family<KitEnvReaderModule> = virtual.family({
 		const { ctx } = app;
 		const rt = ctx.is_build ? null : dev_runtime_of(ctx.runtime_dir);
 		const file = posix(`${rt?.dir ?? ctx.runtime_dir}/kit-env${rt?.ts ? '.ts' : '.js'}`);
-		return kit_env_reader_module(file, app.kit_env_build());
+		const major = kit_major_of(ctx.root);
+		return kit_env_reader_module(file, major === null || major < 3 ? '' : app.kit_env_build());
 	}
 });
 

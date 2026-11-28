@@ -46,6 +46,7 @@ import { remote_hash_of } from '../src/link/island-deps.ts';
 import { BuildCache, __set_build_cache_root } from '../src/build-cache.ts';
 import { scan_entry_pattern } from '../src/vite/paths.ts';
 import { load_kit_config } from '../src/vite/kit-dirs.ts';
+import { Compiler } from '../src/driver.ts';
 import { DEV_CLIENT_MAPS, DEV_MAPS, DEV_PAGE_KEYS } from '../src/vite/dev-maps.ts';
 import { dev_servers, type DevServers } from '../src/dev-bridge.ts';
 import type { OgygiaOptions } from '../src/vite/options.ts';
@@ -101,15 +102,6 @@ function app({ csr = false }: { csr?: boolean } = {}): void {
 	);
 	write('src/routes/+layout.ts', `export const csr = ${csr};\n`);
 }
-
-/** Kit 3's generated env config for an app with one dynamic public variable. */
-const DYNAMIC_ENV_CONFIG = dedent`
-	export const rendered_env = {};
-	export function set_env(env) {
-		const PUBLIC_REGION = env.PUBLIC_REGION;
-		rendered_env.PUBLIC_REGION = PUBLIC_REGION;
-	}
-`;
 
 /** What a hook's `this` carries: its environment (the leg), and the bundler calls it makes. */
 function hook_this(leg: Leg) {
@@ -1098,21 +1090,72 @@ describe('transform', () => {
 			});
 		}
 
-		it("a build's two legs bear one identity, though a plugin writes into src between them", async () => {
+		const kit3_app = () => {
 			app();
 			write(
 				'node_modules/@sveltejs/kit/package.json',
 				JSON.stringify({ name: '@sveltejs/kit', version: '3.1.0' })
 			);
-			write('.svelte-kit/generated/build/env/config.js', DYNAMIC_ENV_CONFIG);
-			const { p, resolved } = await setup('build');
+			write('package.json', JSON.stringify({ name: 'my-app', private: true }));
+		};
+		/** Kit's own setup plugin, holding its resolved options (Kit 3's flat), `version.name` too. */
+		const kit_setup = (name: string) => ({
+			name: 'vite-plugin-sveltekit-setup',
+			api: { options: { version: { name, pollInterval: 0 } } }
+		});
+		const server_id = (code: string | null) =>
+			/kit_env_build\(\) \{ return "([0-9a-f]{12})"; \}/.exec(code ?? '')?.[1];
+
+		it("a build's two legs bear one identity, though a plugin writes into src between them", async () => {
+			kit3_app();
+			const { p, resolved } = await setup('build', { plugins: [kit_setup('1700000000000')] });
 			await begin(p, 'ssr');
 			const server = (await load(p, 'ogygia:server/kit-env', 'ssr')) ?? '';
-			const id = /kit_env_build\(\) \{ return "([0-9a-f]{12})"; \}/.exec(server)?.[1];
+			const id = server_id(server);
 			expect(id, server).toBeDefined();
 			write('src/lib/Generated.svelte', '<p>written mid-build</p>\n');
 			p.configResolved.call(hook_this('client'), { ...resolved });
 			await begin(p, 'client');
+			expect(await load(p, 'ogygia:boot/kit-env', 'client')).toContain(
+				`read(${JSON.stringify(id)})`
+			);
+		});
+
+		it("the identity is made of Kit's version.name as Kit's own plugin resolved it: another name, another identity; one pinned name, one identity", async () => {
+			kit3_app();
+			const built = async (name: string) => {
+				const { p } = await setup('build', { plugins: [Promise.resolve([kit_setup(name)])] });
+				await begin(p, 'ssr');
+				return server_id(await load(p, 'ogygia:server/kit-env', 'ssr'));
+			};
+			const first = await built('1700000000000');
+			expect(first).toBeDefined();
+			expect(await built('1700000000001')).not.toBe(first);
+			write('src/lib/Counter.svelte', '<button>edited</button>\n');
+			expect(await built('1700000000000')).toBe(first);
+		});
+
+		it('an app on a Kit with no env channel (before 3) has no identity, and says nothing of a version.name', async () => {
+			app();
+			const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			try {
+				const { p } = await setup('build');
+				await begin(p, 'ssr', 'client');
+				expect(await load(p, 'ogygia:server/kit-env', 'ssr')).toContain('return "";');
+				expect(await load(p, 'ogygia:boot/kit-env', 'client')).toContain('read("")');
+				expect(warned).not.toHaveBeenCalled();
+			} finally {
+				warned.mockRestore();
+			}
+		});
+
+		it('dev: the server module bears the identity its browser reader is bound to from the start, before the app has any dynamic public variable', async () => {
+			kit3_app();
+			const { p } = await setup('serve', { plugins: [kit_setup('1700000000000')] });
+			const server = await load(p, 'ogygia:server/kit-env', 'ssr');
+			const id = server_id(server);
+			expect(id, server ?? '').toBeDefined();
+			expect(server).not.toContain('Symbol.for');
 			expect(await load(p, 'ogygia:boot/kit-env', 'client')).toContain(
 				`read(${JSON.stringify(id)})`
 			);
@@ -2654,81 +2697,102 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		for (const s of slots()) delete g[s];
 	});
 
-	it('is one global per app root holding both readers, and both generated server modules read through it', async () => {
+	/** Each compiler's og.$ factories, told apart by the base its context was made with. */
+	const fn_manifest_by_base = () =>
+		vi.spyOn(Compiler.prototype, 'fn_manifest').mockImplementation(function (this: Compiler) {
+			return { base: this.ctx.base };
+		});
+
+	it('is one global per app root, and the generated server module reads through it', async () => {
 		kit3();
 		const { p } = await setup('serve');
 		p.configureServer(dev_server());
 		const found = slots();
 		expect(found).toHaveLength(1);
-		const bridge = g[found[0]!] as Record<string, unknown>;
-		expect([typeof bridge.fn_manifest, typeof bridge.kit_env_build]).toEqual([
-			'function',
-			'function'
-		]);
-		const read = bridge as { fn_manifest(): Record<string, string>; kit_env_build(): string };
-		expect(read.fn_manifest()).toEqual({});
-		expect(read.kit_env_build()).toMatch(/^[0-9a-f]{12}$/);
+		const bridge = g[found[0]!] as { fn_manifest(): Record<string, string> };
+		expect(bridge.fn_manifest()).toEqual({});
 		const named = JSON.stringify(found[0]!.description);
-		for (const spec of ['ogygia:server/region-deps', 'ogygia:server/kit-env']) {
-			const code = (await load(p, spec, 'ssr')) ?? '';
-			const keys = [...code.matchAll(/Symbol\.for\(("[^"]*")\)/g)].map((m) => m[1]);
-			expect(keys, spec).toEqual([named]);
-		}
+		const code = (await load(p, 'ogygia:server/region-deps', 'ssr')) ?? '';
+		const keys = [...code.matchAll(/Symbol\.for\(("[^"]*")\)/g)].map((m) => m[1]);
+		expect(keys).toEqual([named]);
 	});
 
 	it('reads the compiler the session holds when it is asked, not the one it was opened with', async () => {
 		kit3();
-		write('.svelte-kit/generated/dev/env/config.js', DYNAMIC_ENV_CONFIG);
-		const { p, resolved } = await setup('serve');
-		p.configureServer(dev_server());
-		const bridge = g[slots()[0]!] as { kit_env_build(): string };
-		const before = bridge.kit_env_build();
-		expect(before).toMatch(/^[0-9a-f]{12}$/);
-		write('src/routes/+page.svelte', '<h1>edited</h1>\n');
-		await p.config.handler.call(
-			hook_this('ssr'),
-			{ root, plugins: [] },
-			{ command: 'serve', mode: 'development' }
-		);
-		p.configResolved.call(hook_this('ssr'), resolved);
-		const after = bridge.kit_env_build();
-		expect(after).toMatch(/^[0-9a-f]{12}$/);
-		expect(after).not.toBe(before);
+		const spied = fn_manifest_by_base();
+		try {
+			const { p, resolved } = await setup('serve');
+			p.configureServer(dev_server());
+			const bridge = g[slots()[0]!] as { fn_manifest(): Record<string, string> };
+			expect(bridge.fn_manifest()).toEqual({ base: '/' });
+			await p.config.handler.call(
+				hook_this('ssr'),
+				{ root, plugins: [] },
+				{ command: 'serve', mode: 'development' }
+			);
+			p.configResolved.call(hook_this('ssr'), { ...resolved, base: '/next/' });
+			expect(bridge.fn_manifest()).toEqual({ base: '/next/' });
+		} finally {
+			spied.mockRestore();
+		}
 	});
 
 	it("closes with its dev server, a second dev server of the same root keeps its own, and the root's global goes with the last", async () => {
 		kit3();
-		const a = await setup('serve');
-		const b = await setup('serve');
-		const sa = dev_server();
-		const sb = dev_server();
-		a.p.configureServer(sa);
-		b.p.configureServer(sb);
-		const [slot] = slots();
-		const read = () => (g[slot!] as { kit_env_build(): string } | undefined)?.kit_env_build();
-		sa.httpServer.emit('close');
-		expect(read()).toMatch(/^[0-9a-f]{12}$/);
-		sb.httpServer.emit('close');
-		expect(read()).toBe(undefined);
+		const spied = fn_manifest_by_base();
+		try {
+			const a = await setup('serve');
+			const b = await setup('serve', { resolved: { base: '/b/' } });
+			const sa = dev_server();
+			const sb = dev_server();
+			a.p.configureServer(sa);
+			b.p.configureServer(sb);
+			const [slot] = slots();
+			const read = () => (g[slot!] as { fn_manifest(): unknown } | undefined)?.fn_manifest();
+			sa.httpServer.emit('close');
+			expect(read()).toEqual({ base: '/b/' });
+			sb.httpServer.emit('close');
+			expect(read()).toBeUndefined();
+			expect(slots()).toEqual([]);
+		} finally {
+			spied.mockRestore();
+		}
+	});
+
+	it('with every dev server of the root closed, the generated server module reads nothing', async () => {
+		kit3();
+		const { p } = await setup('serve');
+		const s = dev_server();
+		p.configureServer(s);
+		const region_deps = (await load(p, 'ogygia:server/region-deps', 'ssr')) ?? '';
+		s.httpServer.emit('close');
+		const fn = /export function fn_manifest\(\) \{[^]*?\n?\s*\}\n/.exec(region_deps);
+		expect(fn).not.toBeNull();
 		expect(slots()).toEqual([]);
+		// oxlint-disable-next-line typescript/no-implied-eval -- the generated module's function text under test
+		expect(new Function(`${fn![0].replace('export ', '')}return fn_manifest();`)()).toBeNull();
 	});
 
 	it('a newer dev server of the root closing first leaves the older one reading its own bridge', async () => {
 		kit3();
-		const a = await setup('serve');
-		const b = await setup('serve');
-		const sa = dev_server();
-		const sb = dev_server();
-		a.p.configureServer(sa);
-		const [slot] = slots();
-		const read = () => (g[slot!] as { kit_env_build(): string } | undefined)?.kit_env_build();
-		const older = read();
-		b.p.configureServer(sb);
-		sb.httpServer.emit('close');
-		expect(read()).toBe(older);
-		expect(older).toMatch(/^[0-9a-f]{12}$/);
-		sa.httpServer.emit('close');
-		expect(read()).toBe(undefined);
+		const spied = fn_manifest_by_base();
+		try {
+			const a = await setup('serve');
+			const b = await setup('serve', { resolved: { base: '/b/' } });
+			const sa = dev_server();
+			const sb = dev_server();
+			a.p.configureServer(sa);
+			const [slot] = slots();
+			const read = () => (g[slot!] as { fn_manifest(): unknown } | undefined)?.fn_manifest();
+			b.p.configureServer(sb);
+			expect(read()).toEqual({ base: '/b/' });
+			sb.httpServer.emit('close');
+			expect(read()).toEqual({ base: '/' });
+			sa.httpServer.emit('close');
+			expect(read()).toBeUndefined();
+		} finally {
+			spied.mockRestore();
+		}
 	});
 
 	it('one plugin serving a restarted dev server: the old server closing its plugins leaves the new one open', async () => {

@@ -6,7 +6,12 @@ import { warn } from '../messages.ts';
 
 const CONFIG_FILES = ['svelte.config.js', 'svelte.config.mjs'];
 
-type KitOptions = { files?: { routes?: string }; outDir?: string; inlineStyleThreshold?: number };
+type KitOptions = {
+	files?: { routes?: string };
+	outDir?: string;
+	inlineStyleThreshold?: number;
+	version?: { name?: unknown };
+};
 
 type PluginOption = unknown;
 
@@ -49,8 +54,10 @@ async function kit_options_from_file(root: string): Promise<KitOptions | null> {
 	}
 }
 
-/** Read `root`'s Kit config (defaults when absent or unreadable): its dirs and inline-style
- *  threshold, for the plugin that asked to hold. `plugins`: the Vite config's plugin list. */
+/** Read `root`'s Kit config (defaults when absent or unreadable): its dirs, inline-style threshold
+ *  and `version.name`, for the plugin that asked to hold. `plugins`: the Vite config's plugin list.
+ *  Kit's own plugin holds its options as Kit resolved them, so its `version.name` is the one Kit
+ *  ships (its default, the time the config loaded, filled in); the file holds only a pinned one. */
 export async function load_kit_config(root: string, plugins?: PluginOption): Promise<KitConfig> {
 	const kit: KitOptions =
 		(await kit_options_from_plugins(plugins)) ?? (await kit_options_from_file(root)) ?? {};
@@ -59,9 +66,11 @@ export async function load_kit_config(root: string, plugins?: PluginOption): Pro
 		out_dir: path.resolve(root, kit.outDir ?? DEFAULT_KIT_DIRS.out)
 	};
 	const threshold = kit.inlineStyleThreshold;
+	const version = kit.version?.name;
 	return {
 		dirs,
 		inline_style_threshold:
-			typeof threshold === 'number' && Number.isFinite(threshold) && threshold > 0 ? threshold : 0
+			typeof threshold === 'number' && Number.isFinite(threshold) && threshold > 0 ? threshold : 0,
+		version: typeof version === 'string' ? version : null
 	};
 }

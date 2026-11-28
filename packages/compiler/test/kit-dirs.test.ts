@@ -68,7 +68,8 @@ describe('kit.files.routes / kit.outDir', () => {
 		];
 		expect(await load_kit_config(root, kit3)).toEqual({
 			dirs: { routes_dir: join(root, 'src/r3'), out_dir: join(root, '.out3') },
-			inline_style_threshold: 2048
+			inline_style_threshold: 2048,
+			version: null
 		});
 		// Kit 2: the svelte config, Kit's options under `kit` — preferred over the file it was read from
 		const kit2_root = app({
@@ -132,6 +133,29 @@ describe('kit.files.routes / kit.outDir', () => {
 		expect(ctx().kit_dirs).toEqual(default_kit_dirs(root));
 		const given = { routes_dir: join(root, 'r'), out_dir: join(root, 'o') };
 		expect(ctx(given).kit_dirs).toEqual(given);
+	});
+
+	it("Kit's version.name: off Kit's own plugin as Kit resolved it, or as the config file pins it; null when neither has one", async () => {
+		const setup = (options: object) => [{ name: 'vite-plugin-sveltekit-setup', api: { options } }];
+		const version = async (root: string, plugins?: unknown) =>
+			(await load_kit_config(root, plugins)).version;
+		const bare = app({});
+		expect(await version(bare, setup({ version: { name: '1700000000000' } }))).toBe(
+			'1700000000000'
+		);
+		expect(await version(bare, setup({ kit: { version: { name: '4f3c2a1' } } }))).toBe('4f3c2a1');
+		expect(await version(bare, setup({}))).toBeNull();
+		const pinned = app({
+			'svelte.config.js': "export default { kit: { version: { name: '4f3c2a1' } } };"
+		});
+		expect(await version(pinned)).toBe('4f3c2a1');
+		expect(await version(app({ 'svelte.config.js': 'export default { kit: {} };' }))).toBeNull();
+		expect(
+			await version(
+				app({ 'svelte.config.js': 'export default { kit: { version: { name: 7 } } };' })
+			)
+		).toBeNull();
+		expect(await version(bare)).toBeNull();
 	});
 
 	it("Kit's inlineStyleThreshold is read for the region CSS too; none, or a value that is not a positive number, is 0", async () => {

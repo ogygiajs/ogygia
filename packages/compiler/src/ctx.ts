@@ -66,6 +66,9 @@ export interface CompileCtxInit {
 	 *  `asset()`'s job — `Region.svelte` runs every baked entry / runtime URL through it at SSR — so
 	 *  ogygia never bakes a base into these URLs (doing so double-applies it). */
 	app_dir: string;
+	/** Kit's resolved `kit.version.name`, as the plugin read it (vite/kit-dirs.ts
+	 *  `load_kit_config`); `null` (the default) when it read none. */
+	kit_version?: string | null;
 	libDir: string;
 	/** A plugin asked for the build's measurement data (`b.measure()`: the profiler) — embedded maps,
 	 *  per-island detail. */
@@ -162,6 +165,8 @@ export class CompileCtx {
 	readonly kit_dirs: KitDirs;
 	readonly base: string;
 	readonly app_dir: string;
+	/** Kit's resolved `kit.version.name`, `null` when it was not read. */
+	readonly kit_version: string | null;
 	readonly libDir: string;
 	readonly pkg_scan: PackageScan[];
 	readonly page_importers: readonly string[];
@@ -227,6 +232,7 @@ export class CompileCtx {
 		this.kit_dirs = init.kit_dirs ?? default_kit_dirs(init.root);
 		this.base = init.base;
 		this.app_dir = init.app_dir;
+		this.kit_version = init.kit_version ?? null;
 		this.libDir = init.libDir;
 		this.pkg_scan = init.pkg_scan ?? [];
 		this.page_importers = init.page_importers ?? [];

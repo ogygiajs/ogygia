@@ -117,6 +117,18 @@
 			"reason": "a message table entry: wording only"
 		},
 		{
+			"id": "packages/compiler/src/messages.ts > WARNED > kit_env_version_unread > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > WARNED > kit_env_version_unread > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > kit_env_build",
+			"reason": "once per build: reads the app's package.json and digests four short strings (kit-patches.ts kit_env_build), kept on the build after; reads the compiler's context (a live object, not replayable); proven in packages/compiler/test/kit-env-build.test.ts (#2192)"
+		},
+		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > kit_env_missing > text",
 			"reason": "a message table entry: wording only"
 		},
@@ -6269,7 +6281,7 @@
 			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~d2741b > CompileCtx:0~20200d > flatMap:0~f1f41f",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~36aceb > CompileCtx:0~0e7542 > flatMap:0~f1f41f",
 			"reason": "once per config: the markdown formats' extensions; every build runs it"
 		},
 		{
@@ -9713,10 +9725,6 @@
 			"reason": "dev server only: forwards to the newest open dev server's bridge reader (a live closure, not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
-			"id": "packages/compiler/src/dev-bridge.ts > DevServers > kit_env_build",
-			"reason": "dev server only: forwards to the newest open dev server's bridge reader (a live closure, not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
-		},
-		{
 			"id": "packages/compiler/src/dev-bridge.ts > DevServers > newest",
 			"reason": "dev server only, once per bridge read, watched file event and dev transform: a backwards walk of the registry's snapshot of open dev servers (live objects, not cloneable), one or two long; proven in packages/compiler/test/vite-hooks.test.ts › the dev server › closing the newest dev server leaves the older one serving a hook with no environment, as the dev bridge then reads the older one"
 		},
@@ -9727,10 +9735,6 @@
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > add:0~544add > bridge > fn_manifest",
 			"reason": "dev server only: reads the session's compiler as it is asked (a live object, not replayable); the compiler's fn_manifest does the work; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > add:0~544add > bridge > kit_env_build",
-			"reason": "dev server only: reads the session's compiler as it is asked (a live object, not replayable); the compiler's kit_env_build does the work; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > drop_on_every_open_server",
