@@ -1065,6 +1065,27 @@ describe('transform', () => {
 				}
 			});
 
+			it(`${mode}: a module with only static variables and comments naming env imports no reader, and says nothing`, async () => {
+				const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+				try {
+					const code = dedent`
+						${anchor}
+
+						// env
+						/* a = env.b */
+						export const PUBLIC_URL = "https://example.com"; // env
+					`;
+					const out = await patched(mode, 'client', code);
+					expect(out).not.toContain('ogygia:boot/kit-env');
+					if (mode === 'build') expect(out).toBe(code);
+					else
+						expect(evaluate(out, null, undefined)).toEqual({ PUBLIC_URL: 'https://example.com' });
+					expect(warned).not.toHaveBeenCalled();
+				} finally {
+					warned.mockRestore();
+				}
+			});
+
 			it(`${mode}: the empty module Kit writes for an app with no src/env.js is left as Kit wrote it, and says nothing`, async () => {
 				const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
 				try {
