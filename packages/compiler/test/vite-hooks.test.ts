@@ -2488,11 +2488,29 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		a.p.configureServer(sa);
 		b.p.configureServer(sb);
 		const [slot] = slots();
-		const held = g[slot!];
+		const read = () => (g[slot!] as { kit_env_build(): string | undefined }).kit_env_build();
 		sa.httpServer.emit('close');
-		expect(g[slot!]).toBe(held);
+		expect(read()).toMatch(/^[0-9a-f]{12}$/);
 		sb.httpServer.emit('close');
-		expect(slots()).toEqual([]);
+		expect(read()).toBeUndefined();
+	});
+
+	it('with every dev server of the root closed, both generated server modules read nothing', async () => {
+		kit3();
+		const { p } = await setup('serve');
+		const s = dev_server();
+		p.configureServer(s);
+		const region_deps = (await load(p, 'ogygia:server/region-deps', 'ssr')) ?? '';
+		const kit_env = (await load(p, 'ogygia:server/kit-env', 'ssr')) ?? '';
+		s.httpServer.emit('close');
+		const run = (code: string, name: string): unknown => {
+			const fn = new RegExp(`export function ${name}\\(\\) \\{[^]*?\\n?\\s*\\}\\n`).exec(code);
+			expect(fn, name).not.toBeNull();
+			return new Function(`${fn![0].replace('export ', '')}return ${name}();`)();
+		};
+		expect(slots()).toHaveLength(1);
+		expect(run(region_deps, 'fn_manifest')).toBeNull();
+		expect(run(kit_env, 'kit_env_build')).toBe('');
 	});
 
 	it('a newer dev server of the root closing first leaves the older one reading its own bridge', async () => {
@@ -2503,13 +2521,13 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		const sb = dev_server();
 		a.p.configureServer(sa);
 		const [slot] = slots();
-		const read = () => (g[slot!] as { kit_env_build(): string } | undefined)?.kit_env_build();
+		const read = () => (g[slot!] as { kit_env_build(): string | undefined }).kit_env_build();
 		const older = read();
 		b.p.configureServer(sb);
 		sb.httpServer.emit('close');
 		expect(read()).toBe(older);
 		expect(older).toMatch(/^[0-9a-f]{12}$/);
 		sa.httpServer.emit('close');
-		expect(slots()).toEqual([]);
+		expect(read()).toBeUndefined();
 	});
 });

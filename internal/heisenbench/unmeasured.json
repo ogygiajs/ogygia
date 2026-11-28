@@ -9705,20 +9705,16 @@
 			"reason": "dev server only, once per configureServer: takes a live bridge of closures over the session (not cloneable) and writes a globalThis slot; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
-			"id": "packages/compiler/src/dev-bridge.ts > open_dev_bridge > <anonymous>~804898",
-			"reason": "dev server only, once when a dev server closes: takes its bridge off the root's globalThis slot (hidden state); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
-		},
-		{
-			"id": "packages/compiler/src/dev-bridge.ts > DevBridgeSlot > #newest",
-			"reason": "dev server only: one array read of the open bridges, which are live closures (not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+			"id": "packages/compiler/src/dev-bridge.ts > open_dev_bridge > <anonymous>~a23714",
+			"reason": "dev server only, once when a dev server's scope closes: one splice of its bridge off the root's globalThis slot (hidden state); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
 			"id": "packages/compiler/src/dev-bridge.ts > DevBridgeSlot > fn_manifest",
-			"reason": "dev server only: forwards to the newest open bridge's reader (a live closure, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+			"reason": "dev server only: forwards to the newest open bridge's reader (a live closure, not replayable), or answers undefined with none open; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
 			"id": "packages/compiler/src/dev-bridge.ts > DevBridgeSlot > kit_env_build",
-			"reason": "dev server only: forwards to the newest open bridge's reader (a live closure, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+			"reason": "dev server only: forwards to the newest open bridge's reader (a live closure, not replayable), or answers undefined with none open; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > open_dev_bridge:1~2f21ad > fn_manifest",

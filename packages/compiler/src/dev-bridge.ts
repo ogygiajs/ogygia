@@ -25,34 +25,28 @@ export const dev_bridge_key = (root: string): string => `ogygia.dev.bridge:${roo
 export const dev_bridge_call = (root: string, reader: keyof DevBridge): string =>
 	`globalThis[Symbol.for(${JSON.stringify(dev_bridge_key(root))})]?.${reader}()`;
 
-/** The global of a root: every bridge open there, answering with the newest one still open. */
-export class DevBridgeSlot implements DevBridge {
+/** The global of a root, made at its first open and kept for the process: every bridge open there,
+ *  answering with the newest one still open, and `undefined` while none is. */
+export class DevBridgeSlot {
 	/** the open bridges, oldest first */
 	readonly open: DevBridge[] = [];
 
-	fn_manifest(): Record<string, string> {
-		return this.#newest().fn_manifest();
+	fn_manifest(): Record<string, string> | undefined {
+		return this.open.at(-1)?.fn_manifest();
 	}
 
-	kit_env_build(): string {
-		return this.#newest().kit_env_build();
-	}
-
-	#newest(): DevBridge {
-		return this.open[this.open.length - 1]!;
+	kit_env_build(): string | undefined {
+		return this.open.at(-1)?.kit_env_build();
 	}
 }
 
-/** Opens `bridge` for the app at `root` over any other open there; its close takes only it away, so
- *  the newest one left answers, and the global goes with the last. */
+/** Opens `bridge` for the app at `root` over any other open there. Its close, run once by the
+ *  scope of the dev server that opened it, takes only it away, so the newest one left answers. */
 export function open_dev_bridge(root: string, bridge: DevBridge): () => void {
-	const key = Symbol.for(dev_bridge_key(root));
 	const slots = globalThis as Record<symbol, DevBridgeSlot | undefined>;
-	const slot = (slots[key] ??= new DevBridgeSlot());
+	const slot = (slots[Symbol.for(dev_bridge_key(root))] ??= new DevBridgeSlot());
 	slot.open.push(bridge);
 	return () => {
-		const at = slot.open.indexOf(bridge);
-		if (at !== -1) slot.open.splice(at, 1);
-		if (slot.open.length === 0 && slots[key] === slot) delete slots[key];
+		slot.open.splice(slot.open.indexOf(bridge), 1);
 	};
 }
