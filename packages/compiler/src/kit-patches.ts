@@ -135,8 +135,9 @@ export function package_name(text: string | null): string {
  * identity, and its reader never takes the host's env as its own; an app that pins `version.name`
  * (to a commit, say) has one identity on every build of that version. Two apps with the same package
  * name, base and app dir share one when they pin the same version or are built in one process. It
- * holds no path, so one app built from two folders has one identity. With no `version.name` it is
- * made from the other three, and `kit_env_version_unread` says so.
+ * holds no path, so one app built from two folders has one identity. With no `version.name` read
+ * (no Kit setup plugin, so no `paths.base` either) it is made from the package name and app dir,
+ * and `kit_env_version_unread` says so.
  */
 export function kit_env_build(app: KitEnvApp): string {
 	if (app.version === null) warn('kit_env_version_unread', { name: app.name || '(unnamed)' });

@@ -362,6 +362,33 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 				version: read.version
 			});
 		});
+
+		it.skipIf(app.major < 3)(
+			"reads a set paths.base as Kit's identity, the value Kit defines, not Vite's base",
+			async () => {
+				const read = JSON.parse(
+					await app.node(`
+						import { resolveConfig } from 'vite';
+						import { sveltekit } from '@sveltejs/kit/vite';
+						import { kit_identity } from ${JSON.stringify(KIT_DIRS)};
+						const resolved = await resolveConfig({
+							configFile: false,
+							logLevel: 'warn',
+							plugins: [await sveltekit({ files: { routes: 'src/pages' }, outDir: ${JSON.stringify(OUT_DIR)}, appDir: ${JSON.stringify(APP_DIR)}, paths: { base: '/canary' } })]
+						}, 'build');
+						console.log(JSON.stringify({
+							identity: kit_identity(resolved.plugins).base,
+							define: JSON.parse(resolved.define.__SVELTEKIT_PATHS_BASE__),
+							vite: resolved.base
+						}));
+					`)
+				) as { identity: string; define: string; vite: string };
+				expect(
+					read,
+					broke(CONFIG, 'the compiler reads another paths.base than the one Kit defines')
+				).toEqual({ identity: '/canary', define: '/canary', vite: './' });
+			}
+		);
 	});
 
 	describe('served from a build whose every route node is csr=false', () => {
