@@ -30,6 +30,11 @@ export interface BuildHandoff {
 	/** Once the build's end wrote its files: the source id each remote image's files were named by
 	 *  instead (its bytes', in place of its URL's), by the URL's id. */
 	renamed?: Readonly<Record<string, string>>;
+	/** The build's end wrote its files before this build's prerender (a Kit 3 watch rebuild, whose
+	 *  prerender comes after every plugin hook): a page names only files under `written`, and naming
+	 *  any other fails its render (`image_watch_rebuild`). The build keeps this handoff until the
+	 *  rebuild is over. */
+	late?: true;
 	/** The app's root (Vite's `root`). */
 	root: string;
 	/** The AVIF effort the build makes its files at (`sharp({ effort: { avif } })`). */
@@ -57,7 +62,8 @@ export function build_handoff(): BuildHandoff | null {
 		root: typeof v.root === 'string' ? v.root : '',
 		avif_effort: typeof v.avif_effort === 'number' ? v.avif_effort : DEFAULT_AVIF_EFFORT,
 		remote: typeof v.remote === 'string' ? v.remote : '',
-		...(v.renamed !== null && typeof v.renamed === 'object' ? { renamed: v.renamed } : {})
+		...(v.renamed !== null && typeof v.renamed === 'object' ? { renamed: v.renamed } : {}),
+		...(v.late === true ? { late: true } : {})
 	};
 }
 

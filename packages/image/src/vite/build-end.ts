@@ -8,25 +8,34 @@
  *   the server leg's own `writeBundle` (`order: 'post'`), right after Kit's;
  * - an app build hook: Kit 3 builds every leg and prerenders inside its own `buildApp`, then adapts
  *   in a later one (`order: 'post'`, listed after this plugin), so the end waits for this plugin's
- *   last `buildApp`, which runs between the two.
+ *   last `buildApp`, which runs between the two;
+ * - a watch rebuild of legs an app build hook built: Kit 3 rebuilds, prerenders and adapts straight
+ *   from its watcher, after every plugin hook, so no hook falls between its prerender and its
+ *   adapter. The end runs as the server leg is written, before the prerender, and is `late`: the
+ *   prerender names only files the build has made, and fails on any other (`image_watch_rebuild`).
+ *
+ * A new app build starts fresh whatever state the last one left (a failed build runs no last hook).
  *
  * @packageDocumentation
  */
 import { machine } from '@ogygia/machine';
 
+/** The build's end: makes the files, then points the prerendered pages at them. `late` when it runs
+ *  before the prerender (a watch rebuild of legs an app build hook built). */
+export type End = (late: boolean) => Promise<void>;
+
 type EndStates = {
-	/** no app build hook is running: a leg's end is the build's */
 	outside: {};
-	/** the app build hooks are running, and the legs may build inside them */
 	inside: {};
-	/** the server leg was written inside them: its end waits for the last one */
-	waiting: { end: () => Promise<void> };
+	waiting: { end: End; watched: boolean };
+	watching: {};
 };
 
 const END_STEPS = {
 	outside: ['inside'],
-	inside: ['waiting', 'outside'],
-	waiting: ['outside']
+	inside: ['inside', 'waiting', 'outside'],
+	waiting: ['inside', 'outside', 'watching'],
+	watching: ['inside']
 } as const;
 
 const END = machine<EndStates>()({ name: 'image build end', initial: 'outside', steps: END_STEPS });
@@ -34,22 +43,26 @@ const END = machine<EndStates>()({ name: 'image build end', initial: 'outside', 
 export class BuildEnd {
 	readonly #life = END.create();
 
-	/** The app build hooks start (this plugin's first `buildApp`). */
+	/** The app build hooks start (this plugin's first `buildApp`), fresh whatever the last build
+	 *  left. */
 	open(): void {
 		this.#life.go('inside');
 	}
 
-	/** The server leg was written: its end runs now, or once the app build hooks reach their last. */
-	async written(end: () => Promise<void>): Promise<void> {
-		if (this.#life.move('inside', 'waiting', { end })) return;
-		await end();
+	/** The server leg was written (`watched` under `vite build --watch`): its end runs now, or once
+	 *  the app build hooks reach their last. */
+	async written(end: End, watched: boolean): Promise<void> {
+		if (this.#life.move('inside', 'waiting', { end, watched })) return;
+		await end(this.#life.now.kind === 'watching');
 	}
 
-	/** The app build hooks reach this plugin's last `buildApp`: a waiting end runs now. */
+	/** The app build hooks reach this plugin's last `buildApp`: a waiting end runs now, and a watched
+	 *  build's rebuilds come after. */
 	async close(): Promise<void> {
 		const now = this.#life.now;
-		if (now.kind === 'outside') return;
-		this.#life.go('outside');
-		if (now.kind === 'waiting') await now.end();
+		if (now.kind === 'inside') this.#life.go('outside');
+		if (now.kind !== 'waiting') return;
+		this.#life.go(now.watched ? 'watching' : 'outside');
+		await now.end(false);
 	}
 }

@@ -11,23 +11,33 @@ import { build_env, image_srcs, kit3_app } from './kit3-app.ts';
 const BUILD_MS = 240_000;
 const ADAPTED = '✔ done';
 const EDITED = '<h1>images, edited</h1>';
+const REFUSED = 'image_watch_rebuild';
 
 let app = '';
 let watch: ChildProcess | null = null;
 let log = '';
 
-function adapted(times: number): Promise<void> {
+function seen_until(found: () => boolean): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const seen = (): void => {
-			if (log.split(ADAPTED).length - 1 >= times) {
-				watch?.stdout?.off('data', seen);
-				resolve();
-			}
+			if (!found()) return;
+			watch?.stdout?.off('data', seen);
+			watch?.stderr?.off('data', seen);
+			resolve();
 		};
 		watch?.once('exit', () => reject(new Error(`the watch build stopped:\n${log.slice(-4000)}`)));
 		watch?.stdout?.on('data', seen);
+		watch?.stderr?.on('data', seen);
 		seen();
 	});
+}
+
+function adapted(times: number): Promise<void> {
+	return seen_until(() => log.split(ADAPTED).length - 1 >= times);
+}
+
+function logged(text: string): Promise<void> {
+	return seen_until(() => log.includes(text));
 }
 
 beforeAll(async () => {
@@ -64,3 +74,19 @@ test('on Kit 3, a watch rebuild writes every image file its prerendered pages na
 		expect(fs.existsSync(path.join(app, 'build', ...src.split('/')))).toBe(true);
 	}
 });
+
+test(
+	'on Kit 3, a watch rebuild whose page names an image file no build made stops before the adapter, out loud',
+	async () => {
+		const before = fs.readFileSync(path.join(app, 'build/about.html'), 'utf8');
+		const page = path.join(app, 'src/routes/about/+page.svelte');
+		fs.writeFileSync(
+			page,
+			fs.readFileSync(page, 'utf8').replace('preset="thumb"', 'preset="thumb" width={123}')
+		);
+		await logged(REFUSED);
+		expect(fs.readFileSync(path.join(app, 'build/about.html'), 'utf8')).toBe(before);
+		expect(marked_files(app, ['.svelte-kit/output/prerendered', 'build']).marked).toEqual([]);
+	},
+	BUILD_MS
+);

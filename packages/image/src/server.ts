@@ -37,7 +37,7 @@ import { name } from 'virtual:ogygia-image/namer';
 import { remote as REMOTE } from 'virtual:ogygia-image/remote';
 import { remote } from 'virtual:ogygia-image/sources';
 import { build_handoff, published, type BuildHandoff } from './handoff.ts';
-import { said, said_each, warn } from './messages.ts';
+import { OgygiaError, said, said_each, warn } from './messages.ts';
 import {
 	built_file,
 	built_url,
@@ -183,7 +183,10 @@ function start(app: ServerApp<unknown>, disk: OnDisk | null): void {
 		set_minter((recipe) => {
 			const id = Object.hasOwn(renamed, recipe.id) ? renamed[recipe.id]! : recipe.id;
 			const named = id === recipe.id ? recipe : { ...recipe, id };
-			return disk.exists(written, built_file(named)) ? built_url(config.paths, named) : recipe.src;
+			if (disk.exists(written, built_file(named))) return built_url(config.paths, named);
+			if (run.late)
+				throw new OgygiaError('image_watch_rebuild', { url: built_url(config.paths, named) });
+			return recipe.src;
 		});
 		return;
 	}

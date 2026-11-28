@@ -37,7 +37,7 @@ import {
 } from '../config.ts';
 import { OgygiaError, warn } from '../messages.ts';
 import { UNPUBLISHED_RE, type BuildHandoff } from '../handoff.ts';
-import { handoff_for, write_built, type WarmSource } from './build-files.ts';
+import { handoff_for, rebuild_over, write_built, type WarmSource } from './build-files.ts';
 import { BuildEnd } from './build-end.ts';
 import {
 	avif_effort_of,
@@ -171,9 +171,6 @@ interface LegContext {
 	environment?: { name?: string; config?: { build?: { outDir?: string } } };
 }
 
-/** The leg a hook runs in (one bundler environment's build): whether it is Kit's server leg, the
- *  folder it writes, and Kit's output folder (that folder's parent). A leg is its environment, not
- *  the config's `build.ssr`: Kit 3 builds every leg from one config. */
 function leg_of(ctx: unknown, c: ResolvedConfig): { server: boolean; dir: string; output: string } {
 	const env = (ctx as LegContext | null)?.environment;
 	const server = env?.name ? env.name === 'ssr' : !!c.build.ssr;
@@ -319,6 +316,7 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 		async buildStart() {
 			if (!config || !build()) return;
 			const leg = leg_of(this, config);
+			if (leg.server) rebuild_over();
 			const at = runtime_of(this);
 			check_encoder(config.root, at, adapter, maker_of(encoders), opts.encoder !== undefined);
 			if (leg.server) {
@@ -484,16 +482,19 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 				cards.written(dir, (ref) => this.getFileName(ref));
 				const output = path.dirname(dir);
 				const prefixes = [app.assets, app.base];
-				await end.written(() =>
-					write_built(
-						written,
-						render_config(opts, app, true, widths, stills),
-						warmed.values(),
-						output,
-						remote ? (url, where) => remote.file(written.remote, url, where) : undefined,
-						(tail, id, fetch) =>
-							cards.draw(tail, id, build_card_images(output, prefixes, remote ? fetch : null))
-					)
+				await end.written(
+					(late) =>
+						write_built(
+							written,
+							render_config(opts, app, true, widths, stills),
+							warmed.values(),
+							output,
+							remote ? (url, where) => remote.file(written.remote, url, where) : undefined,
+							(tail, id, fetch) =>
+								cards.draw(tail, id, build_card_images(output, prefixes, remote ? fetch : null)),
+							late
+						),
+					this.meta.watchMode
 				);
 			}
 		}
