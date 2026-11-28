@@ -24,7 +24,7 @@ export class RouteWatch<S> {
 	readonly #changed: (file: string, event: FileEvent) => readonly string[];
 	readonly #invalidate: (id: string) => void;
 	readonly #replay: (server: S, file: string) => void;
-	readonly #awaiting = new Map<string, Set<RouteServer<S>>>();
+	readonly #awaiting = new Map<string, Map<RouteServer<S>, number>>();
 
 	constructor(
 		changed: (file: string, event: FileEvent) => readonly string[],
@@ -40,10 +40,13 @@ export class RouteWatch<S> {
 	heard(file: string, event: FileEvent, at: RouteServer<S> | null): void {
 		if (this.#read(file, event) && event !== 'delete') this.#found(file, at);
 		if (!at || event === 'delete') return;
-		const awaiting = this.#awaiting.get(file) ?? new Set<RouteServer<S>>();
-		this.#awaiting.set(file, awaiting.add(at));
+		const awaiting = this.#awaiting.get(file) ?? new Map<RouteServer<S>, number>();
+		this.#awaiting.set(file, awaiting.set(at, (awaiting.get(at) ?? 0) + 1));
 		at.scope.timeout(() => {
-			if (this.#read(file, 'update')) this.#found(file, null);
+			if (this.#read(file, 'update')) return this.#found(file, null);
+			const pending = awaiting.get(at);
+			if (pending === undefined) return;
+			if (pending > 1) awaiting.set(at, pending - 1);
 			else if (awaiting.delete(at) && awaiting.size === 0) this.#awaiting.delete(file);
 		}, WATCHER_DROPS_CHANGES_MS * 2);
 	}
@@ -59,7 +62,7 @@ export class RouteWatch<S> {
 		const awaiting = this.#awaiting.get(file);
 		if (!awaiting) return;
 		this.#awaiting.delete(file);
-		const replay = [...awaiting];
+		const replay = [...awaiting.keys()];
 		awaiting.clear();
 		for (const s of replay) if (s !== heard) this.#replay(s.server, file);
 	}
