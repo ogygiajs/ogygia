@@ -448,7 +448,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		return (env && open_server_holding(env)) || dev_servers(root).newest(dev_owner) || null;
 	};
 	const on_every_open_server = (each: (server: ViteDevServer) => void) => {
-		for (const at of dev_servers(root).open.snapshot()) if (at.plugin === dev_owner) each(at.server);
+		for (const at of dev_servers(root).open.snapshot())
+			if (at.plugin === dev_owner) each(at.server);
 	};
 	const drop_on_every_open_server = (id: string, also?: ViteDevServer) => {
 		on_every_open_server((server) => {

@@ -8,9 +8,7 @@ import { CompileCtx, normalize_import_keys } from '../src/index.ts';
 import { Compiler } from '../src/driver.ts';
 import { Program } from '../src/program.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
-import { scope } from '@ogygia/machine';
-import { dev_servers } from '../src/dev-bridge.ts';
-import type { ViteDevServer } from 'vite';
+import { dev_bridge_key } from '../src/dev-bridge.ts';
 import { kit_env_build, kit_env_reader_module, kit_public_env_module } from '../src/kit-patches.ts';
 
 const PAGE = '<h1>home</h1>\n';
@@ -98,16 +96,11 @@ describe("the build's identity on Kit's env channel (KIT-PUBLIC-ENV)", () => {
 	it("dev: the server module writes the dev server's identity as each channel is written, so an app that gains its first dynamic public variable writes the one its reader, made later, is bound to", () => {
 		const code = kit_public_env_module(3, { kind: 'dev', root: '/a/web' });
 		let now = '';
+		const slots = globalThis as Record<symbol, unknown>;
 		const open = (root: string, kit_env_build: () => string) => {
-			const served = scope();
-			dev_servers(root).add({
-				scope: served,
-				server: {} as ViteDevServer,
-				environments: new Set(),
-				plugin: served,
-				bridge: { fn_manifest: () => ({}), kit_env_build }
-			});
-			return () => served.close();
+			const slot = Symbol.for(dev_bridge_key(root));
+			slots[slot] = { kit_env_build };
+			return () => delete slots[slot];
 		};
 		const close = open('/a/web', () => now);
 		const close_peer = open('/a/peer', () => 'peer-build');
