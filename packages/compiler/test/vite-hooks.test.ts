@@ -2594,6 +2594,65 @@ describe('the dev server', () => {
 		}
 	});
 
+	it('a save one dev server hears half-written and the other hears written is replayed on the first, whose watcher dropped the write', async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		await load(p, 'ogygia:server/route-csr', 'ssr');
+		vi.useFakeTimers();
+		try {
+			write('src/routes/+page.ts', '');
+			p.watchChange.call(heard_on(a), options, { event: 'update' });
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			p.watchChange.call(heard_on(b), options, { event: 'update' });
+			vi.advanceTimersByTime(1_000);
+			expect({ a: a.replayed, b: b.replayed }).toEqual({ a: [options], b: [] });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('a half-written save both dev servers hear is replayed once written only on the one still open, never on the one that closed', async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		await load(p, 'ogygia:server/route-csr', 'ssr');
+		vi.useFakeTimers();
+		try {
+			write('src/routes/+page.ts', '');
+			p.watchChange.call(heard_on(b), options, { event: 'update' });
+			p.watchChange.call(heard_on(a), options, { event: 'update' });
+			for (const e of Object.values(a.environments)) p.closeBundle.call({ environment: e });
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			vi.advanceTimersByTime(1_000);
+			expect({ a: a.replayed, b: b.replayed }).toEqual({ a: [], b: [options] });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("deleting an island's file heard on one of two dev servers drops the same modules from both servers' graphs", async () => {
+		app();
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		const host = path.join(root, 'src/routes/+page.svelte');
+		await p.transform.call(hook_this('ssr'), readFileSync(host, 'utf8'), host, { ssr: true });
+		p.watchChange.call(heard_on(a), path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
+		expect(a.invalidated).not.toEqual([]);
+		expect(b.invalidated).toEqual(a.invalidated);
+	});
+
 	it("a style edit heard by one of two open dev servers drops the router's inlined CSS module from both servers' graphs", async () => {
 		app();
 		const { p } = await setup('serve');
