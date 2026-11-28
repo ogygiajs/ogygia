@@ -2505,6 +2505,31 @@ describe('the dev server', () => {
 		}
 	});
 
+	it("a half-written save heard while an earlier save's second read is pending is still replayed once written: the earlier read's empty answer never drops the later wait", async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const s = served();
+		p.configureServer(s);
+		await load(p, 'ogygia:server/route-csr', 'ssr');
+		vi.useFakeTimers();
+		try {
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			p.watchChange.call(heard_on(s), options, { event: 'update' });
+			await load(p, 'ogygia:server/route-csr', 'ssr');
+			vi.advanceTimersByTime(60);
+			write('src/routes/+page.ts', '');
+			p.watchChange.call(heard_on(s), options, { event: 'update' });
+			await load(p, 'ogygia:server/route-csr', 'ssr');
+			vi.advanceTimersByTime(45);
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			vi.advanceTimersByTime(1_000);
+			expect(s.replayed).toEqual([options]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it('a half-written save heard before its dev server closes is never read again on the closed server', async () => {
 		app();
 		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
