@@ -10,6 +10,7 @@ import { cloudflare, image, sharp, vercel, type ImagePluginOptions } from '../sr
 import { remote_name, remote_src } from '../src/vite/remote.ts';
 import { image_specifier } from '../src/vite/macro.ts';
 import { source_id } from '../src/source-id.ts';
+import { build_handoff, BUILD_ENV } from '../src/handoff.ts';
 import { app_with_sharp, make_images } from './fixtures.ts';
 
 let root: string;
@@ -183,6 +184,34 @@ test("a leg is Kit's server leg by its environment, not the config's build.ssr: 
 	await expect(
 		server_build(on_node, '@sveltejs/adapter-node', { ssr: false })
 	).resolves.not.toThrow();
+});
+
+test("Kit 3's service worker leg, built after the build's end, starts no handoff of its own: no new mark, run or maker", async () => {
+	const plugin = image().find((p) => p.name === '@ogygia/image:load')!;
+	const outDir = path.join(root, '.svelte-kit/output/client');
+	await (plugin.configResolved as (c: unknown) => unknown)({
+		root,
+		command: 'build',
+		build: { outDir, ssr: false },
+		define: { __SVELTEKIT_APP_DIR__: '"_app"' }
+	} as unknown as ResolvedConfig);
+	const started = build_handoff()!;
+	const ended = JSON.stringify({
+		...started,
+		minted: '',
+		mark: '',
+		written: path.join(outDir, '_app')
+	});
+	process.env[BUILD_ENV] = ended;
+	try {
+		await (plugin.buildStart as (this: unknown) => unknown).call({
+			environment: { name: 'serviceWorker', config: { build: { outDir } } }
+		});
+		expect(process.env[BUILD_ENV]).toBe(ended);
+	} finally {
+		delete process.env[BUILD_ENV];
+		fs.rmSync(path.dirname(started.minted), { recursive: true, force: true });
+	}
 });
 
 test("a platform's encoder on another adapter fails the server build, as its links and maker exist only on that platform", async () => {
