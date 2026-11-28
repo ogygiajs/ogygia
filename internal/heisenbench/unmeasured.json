@@ -9041,6 +9041,26 @@
 			"reason": "build time, once per prerendered file made: one or two exists checks and a file read; test/build-write.test.ts and the e2e static and base builds run it"
 		},
 		{
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_watch_rebuild > text",
+			"reason": "a message's one line for its build error: a template over its arguments, printed once when a watch rebuild stops"
+		},
+		{
+			"id": "packages/image/src/messages.ts > IMAGE_ERRORS > image_watch_rebuild > details",
+			"reason": "a message's prose for its docs page and build error: constant text, printed once when a watch rebuild stops"
+		},
+		{
+			"id": "packages/image/src/vite/build-end.ts > BuildEnd > open",
+			"reason": "build only, once per app build: one machine move; proven in test/build-end.test.ts › when an app build hook builds the legs (Kit 3), the end waits for this plugin's last buildApp"
+		},
+		{
+			"id": "packages/image/src/vite/build-end.ts > BuildEnd > written",
+			"reason": "build only, once per server leg written: one machine move, then the build's end (measured in its own files, write_built); proven in test/build-end.test.ts › when an app build hook builds and watches the legs (Kit 3), a rebuild's end runs late, as its server leg is written"
+		},
+		{
+			"id": "packages/image/src/vite/build-end.ts > BuildEnd > close",
+			"reason": "build only, once per app build: one machine move and a waiting end; proven in test/build-end.test.ts › when an app build hook builds the legs (Kit 3), the end waits for this plugin's last buildApp"
+		},
+		{
 			"id": "packages/image/src/vite/build-files.ts > handoff_for",
 			"reason": "build time, once per build: the warmed and the noted files, encoded side by side with sharp (or read from the store); the e2e static and base builds run it"
 		},
