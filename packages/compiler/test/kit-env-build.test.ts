@@ -1,7 +1,7 @@
 // KIT-PUBLIC-ENV: the build's identity on Kit's env channel. The server module and the browser's
 // reader carry the same one for one app, so the reader takes its own server's env; another app (a
 // federated peer) has another, so its reader never takes the host's env as its own. It is made only
-// of values the app already makes public (its package name, base, app dir and Kit's version.name),
+// of values that are not secret (its package name, base, app dir and Kit's version.name),
 // never of a file of its source.
 import { tmpdir } from 'node:os';
 import { dedent } from '@ogygia/core/contract';
@@ -196,7 +196,7 @@ describe("the build's identity on Kit's env channel (KIT-PUBLIC-ENV)", () => {
 		).toBe(id_of({ files: { ...ISLAND_APP, 'package.json': '{ not json' } }));
 	});
 
-	it("when Kit's version.name could not be read: made from the package name, base and app dir, and kit_env_version_unread says so once", () => {
+	it("when Kit's version.name could not be read: made from the other values it has (with no setup plugin, the package name and app dir), and kit_env_version_unread says so once", () => {
 		const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		try {
 			const { fs } = app_fs({});

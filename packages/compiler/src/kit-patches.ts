@@ -101,7 +101,7 @@ export function patch_kit_module(code: string, id: string): string {
 	return out;
 }
 
-/** What names an app on its env channel: only values the app already makes public. */
+/** What names an app on its env channel: only values that are not secret. */
 export interface KitEnvApp {
 	/** the `name` of the app's package.json (`''` when it has none) */
 	readonly name: string;
@@ -128,7 +128,7 @@ export function package_name(text: string | null): string {
 /**
  * The build's identity on Kit's env channel: the server writes it beside the env, and the browser's
  * reader reads the env only when the channel bears its own. It ships in every page with a channel,
- * so it is made only of values the app already makes public, never of a file of its source: its
+ * so it is made only of values that are not secret, never of a file of its source: its
  * package name, Kit's `paths.base`, app dir and Kit's `version.name`, as one digest. Both legs and
  * the dev server of one app make the same one from the same values. A federated peer built in
  * another process has another default `version.name` (Kit fixes it once per process), so another
