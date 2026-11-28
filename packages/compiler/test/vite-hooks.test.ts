@@ -2572,6 +2572,28 @@ describe('the dev server', () => {
 			for (const e of Object.values(s.environments)) p.closeBundle.call({ environment: e });
 	});
 
+	it('a half-written save both open dev servers hear is replayed on both once it is written, not only on the first whose second read finds the change', async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		await load(p, 'ogygia:server/route-csr', 'ssr');
+		vi.useFakeTimers();
+		try {
+			write('src/routes/+page.ts', '');
+			p.watchChange.call(heard_on(a), options, { event: 'update' });
+			p.watchChange.call(heard_on(b), options, { event: 'update' });
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			vi.advanceTimersByTime(1_000);
+			expect({ a: a.replayed, b: b.replayed }).toEqual({ a: [options], b: [options] });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("a style edit heard by one of two open dev servers drops the router's inlined CSS module from both servers' graphs", async () => {
 		app();
 		const { p } = await setup('serve');
