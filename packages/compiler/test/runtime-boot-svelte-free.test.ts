@@ -285,6 +285,7 @@ describe('island-side modules reach the runtime only through its handles', () =>
 		'shims/app-state.svelte.ts',
 		'shims/app-stores.ts',
 		'shims/kit-remote/client-stub.ts',
+		'runtime/kit-env.ts',
 		'app.ts'
 	];
 	for (const rel of ISLAND_SIDE) {

@@ -93,6 +93,7 @@ import { F_CONTEXT, F_FRAMES, F_PAGE, F_REMOTE_SEEDS } from './contract/features
 import { HeadTags } from './server/head-presence.ts';
 import { page_code_origins } from './server/page-code-origins.ts';
 import { assemble, ogygia_script, rope } from './server/document-assembly.ts';
+import { env_seed_script } from './server/env-seed.ts';
 import {
 	remote_seed_script,
 	ship_page_seed,
@@ -109,7 +110,7 @@ import {
 	with_early_holes_meta_csp
 } from './server/early-holes-csp.ts';
 import { kit_gate, kit_start_ungated } from './server/kit-gate.ts';
-import { merge_seed_ask, type SeedKeys } from './server/seed-shape.ts';
+import { PageAsk } from './server/seed-shape.ts';
 import { html_has_kit_bootstrap, marks_critical } from './server/html-scan.ts';
 import { RateLimiter, is_shared_address } from './server/rate-limit.ts';
 import { analyze, MeasureMemo, set_measure_memo_reader } from './seed-refs.ts';
@@ -192,7 +193,7 @@ type RequestBag = {
 	request: Request;
 	page: PageSnapshot | null;
 	csp_sources?: string[];
-	seed_keys: import('./server/seed-shape.ts').SeedKeys | null;
+	ask: PageAsk;
 	seed_asks: Map<string, SeedAsk> | null;
 	remotes_wanted: Set<string> | null;
 	tail: DocumentTail;
@@ -217,12 +218,13 @@ function bag_of(): RequestBag | undefined {
 	return request ? bags.get(request) : undefined;
 }
 if (HAS & F_CONTEXT) install_page_context();
-const doc_asks = shared<WeakMap<Request, SeedKeys | null>>({
+const doc_asks = shared<WeakMap<Request, PageAsk>>({
 	name: 'ogygia.document-asks',
 	version: 1,
 	make: () => new WeakMap()
 });
 const request_of = () => live_event()?.request;
+const page_ask = (): PageAsk => new PageAsk(!!(HAS & F_PAGE));
 const ref_names_of = shared<WeakMap<Request, RefNames>>({
 	name: 'ogygia.request-ref-names',
 	version: 1,
@@ -237,17 +239,14 @@ set_ref_names_reader(() => {
 });
 set_ask_scope_opener(() => {
 	const request = request_of();
-	if (request && !bags.has(request) && !doc_asks.has(request)) doc_asks.set(request, null);
+	if (request && !bags.has(request) && !doc_asks.has(request)) doc_asks.set(request, page_ask());
 });
 set_seed_ask_reader(() => {
-	const bag = bag_of();
-	if (bag) return { wanted: bag.seed_keys !== null, keys: bag.seed_keys };
 	const request = request_of();
-	if (!request || !doc_asks.has(request)) return undefined;
-	const keys = doc_asks.get(request) ?? null;
-	return { wanted: keys !== null, keys };
+	const ask = bag_of()?.ask ?? (request ? doc_asks.get(request) : undefined);
+	return ask && { wanted: ask.keys !== null, keys: ask.keys, env: ask.env };
 });
-set_page_recorder((snapshot, seed, remotes, entry) => {
+set_page_recorder((snapshot, seed, remotes, entry, env) => {
 	// a render FOR a page (a hole, a remote call): its islands' asks are the render-page model's —
 	// the answer carries those keys of the looked-up page (server/render-page.ts)
 	const event = live_event();
@@ -256,14 +255,13 @@ set_page_recorder((snapshot, seed, remotes, entry) => {
 	const bag = bag_of();
 	if (!bag) {
 		const request = request_of();
-		if (asks && request && doc_asks.has(request))
-			doc_asks.set(request, merge_seed_ask(doc_asks.get(request) ?? null, seed));
+		if (request) doc_asks.get(request)?.note(seed, env);
 		return;
 	}
+	bag.ask.note(seed, env);
 	const first = bag.page === null;
 	bag.page = { ...bag.page, ...snapshot };
 	if (HAS & F_PAGE && first) walk_page_seed(bag.page.data, bag.measure_memo);
-	if (asks) bag.seed_keys = merge_seed_ask(bag.seed_keys, seed);
 	if (asks && bag.seed_asks && entry) bag.seed_asks.set(entry, seed);
 	if (remotes === null) bag.remotes_wanted = null;
 	else if (bag.remotes_wanted) for (const h of remotes) bag.remotes_wanted.add(h);
@@ -621,7 +619,7 @@ class OgygiaHandle {
 			// `inject_client_seeds` via the SAME bag reference passed through as a closure.
 			const bag: RequestBag = {
 				page: null,
-				seed_keys: null,
+				ask: page_ask(),
 				seed_asks: request_stats_detailed() ? new Map() : null,
 				remotes_wanted: HAS & F_REMOTE_SEEDS ? new Set() : null,
 				tail: new DocumentTail(),
@@ -1002,7 +1000,7 @@ class OgygiaHandle {
 		const page_snap = bag!.page!;
 		const detail = request_stats_detailed();
 		let seed: ShippedSeed | null = null;
-		if (HAS & F_PAGE && bag!.seed_keys !== null) {
+		if (HAS & F_PAGE && bag!.ask.keys !== null) {
 			const shipped = await ship_page_seed(bag!, event, detail, scripts);
 			if (shipped === STALE) return html;
 			seed = shipped;
@@ -1033,6 +1031,11 @@ class OgygiaHandle {
 					kind: 'page',
 					bytes: page_payload.text.length
 				});
+		}
+
+		if (bag!.ask.env) {
+			const env_script = env_seed_script(bag!.request);
+			if (env_script) scripts.push(env_script);
 		}
 
 		if (HAS & F_REMOTE_SEEDS && state?.remote?.implicit) {

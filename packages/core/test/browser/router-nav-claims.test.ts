@@ -24,6 +24,7 @@ import {
 	L_YIELD_TASK
 } from '../../src/runtime/boot-link-index.ts';
 import { scope } from '@ogygia/machine';
+import { stringify } from 'devalue';
 import { patch } from '../_patch.ts';
 import type { PageGlobals } from '../../src/page-globals.ts';
 
@@ -887,4 +888,28 @@ test('a navigation called off while it waits for the page’s restorer swaps not
 		watch.disconnect();
 		delete page.__og_restore_ready;
 	}
+});
+
+test("a page's marked side channel in the head is that page's, after a page that carried the same text", async () => {
+	const { kit_env } = await import('../../src/runtime/kit-env.ts');
+	const src = `${location.origin}/_app/og-runtime-env.js`;
+	const marked = (mark: string) =>
+		`<script type="text/plain" data-ogygia-runtime src="${src}" data-og-mark="${mark}"></script>`;
+	const channel = (mark: string) =>
+		`<script type="application/ogygia-env" data-og-mark="${mark}">${stringify({ build: 'nav-build', env: { PUBLIC_REGION: 'eu' } })}</script>`;
+	const live = document.createElement('template');
+	live.innerHTML = marked('a'.repeat(24));
+	document.head.append(live.content.firstElementChild!);
+	pages['/rn-env-b'] = { head: marked('b'.repeat(24)) + channel('b'.repeat(24)), body: '<p>b</p>' };
+	pages['/rn-env-c'] = { head: marked('c'.repeat(24)) + channel('c'.repeat(24)), body: '<p>c</p>' };
+	await go('/rn-env-b');
+	await go('/rn-env-c');
+	const said = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	try {
+		expect(kit_env('nav-build')).toEqual({ PUBLIC_REGION: 'eu' });
+		expect(said.mock.calls.flat().join(' ')).not.toContain('kit_env_missing');
+	} finally {
+		said.mockRestore();
+	}
+	expect(document.head.querySelectorAll('script[type="application/ogygia-env"]')).toHaveLength(1);
 });

@@ -4,7 +4,7 @@
 // script of the same type, before or after the server's. Islands read the server's channel, never the
 // markup's (#893): the one bearing the mark of the document's head runtime script, as the handle
 // writes both (INVARIANTS RESPONSE-MARK).
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { stringify } from 'devalue';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { init } from '../../src/runtime/lazy-link.ts';
@@ -14,6 +14,7 @@ import { page_state } from '../../src/shims/page-store.svelte.ts';
 import { query_responses } from '../../src/shims/kit-remote/client-stub.ts';
 import { collect_provided_context, serialize_provided_context } from '../../src/context-bridge.ts';
 import { hole_facts_of } from '../../src/runtime/hole-facts.ts';
+import { server_channel } from '../../src/runtime/response-mark.ts';
 
 init(link_boot());
 
@@ -58,6 +59,9 @@ const REMOTE = { type: 'application/ogygia-remote' };
 const CTX = { type: 'application/ogygia-ctx', 'data-ogygia-provide-page': '' };
 const HOLES = { type: 'application/ogygia-holes', 'data-ogygia-holes': '' };
 const page_seed = (who: string) => JSON.stringify({ data: { who } });
+// (the env channel's text: the env and the build that wrote it, server/env-seed.ts)
+const BUILD = 'side-channel-build';
+const env_text = (env: Record<string, unknown>) => stringify({ build: BUILD, env });
 const who = () => (page_state.data as { who?: string }).who;
 
 beforeEach(() => {
@@ -152,4 +156,97 @@ it("a hole's facts come from the server's holes record, not one the page markup 
 	script(document.body, HOLES, record('/server-endpoint'), MARK);
 
 	expect(hole_facts_of(document, '/hole.js')?.endpoint).toBe('/server-endpoint');
+});
+
+it("Kit's public env reads the server's channel, not one the page markup carries before it", async () => {
+	const { kit_env } = await import('../../src/runtime/kit-env.ts');
+	const ENV = { type: 'application/ogygia-env' };
+	runtime_script(document, MARK);
+	script(markup_block(), ENV, env_text({ PUBLIC_REGION: 'markup' }), null);
+	script(document.body, ENV, env_text({ PUBLIC_REGION: 'server' }), MARK);
+
+	expect(kit_env(BUILD)).toEqual({ PUBLIC_REGION: 'server' });
+});
+
+it("Kit's public env with no server channel reads empty, and says kit_env_missing", async () => {
+	const { kit_env } = await import('../../src/runtime/kit-env.ts');
+	runtime_script(document, MARK);
+	script(
+		markup_block(),
+		{ type: 'application/ogygia-env' },
+		env_text({ PUBLIC_REGION: 'x' }),
+		null
+	);
+	const said = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	try {
+		expect(kit_env(BUILD)).toEqual({});
+		await expect.poll(() => said.mock.calls.flat().join(' ')).toContain('kit_env_missing');
+	} finally {
+		said.mockRestore();
+	}
+});
+
+it("Kit's env reader finds the channel the runtime's door finds, in every document shape", async () => {
+	const { env_channel, KIT_ENV_SELECTOR } = await import('../../src/runtime/kit-env.ts');
+	const ENV = { type: 'application/ogygia-env' };
+	const OTHER = 'fedcba9876543210fedcba98';
+	const shapes: Record<string, (doc: Document) => void> = {
+		'markup before the server': (doc) => {
+			runtime_script(doc, MARK);
+			script(markup_block(doc), ENV, env_text({ who: 'markup' }), null);
+			script(doc.body, ENV, env_text({ who: 'server' }), MARK);
+		},
+		"markup after the server, and another response's": (doc) => {
+			runtime_script(doc, MARK);
+			script(doc.body, ENV, env_text({ who: 'server' }), MARK);
+			script(markup_block(doc), ENV, env_text({ who: 'markup' }), null);
+			script(markup_block(doc), ENV, env_text({ who: 'other' }), OTHER);
+		},
+		'a later runtime script, with another mark': (doc) => {
+			runtime_script(doc, MARK);
+			const late = doc.createElement('script');
+			late.setAttribute('data-ogygia-runtime', '');
+			late.setAttribute(MARK_ATTR, OTHER);
+			doc.head.append(late);
+			script(markup_block(doc), ENV, env_text({ who: 'markup' }), OTHER);
+			script(doc.body, ENV, env_text({ who: 'server' }), MARK);
+		},
+		'a runtime script with no mark': (doc) => {
+			runtime_script(doc, null);
+			script(markup_block(doc), ENV, env_text({ who: 'markup' }), null);
+		},
+		'no runtime script': (doc) => {
+			script(doc.body, ENV, env_text({ who: 'server' }), MARK);
+		},
+		'the runtime script in the body only': (doc) => {
+			const el = doc.createElement('script');
+			el.setAttribute('data-ogygia-runtime', '');
+			el.setAttribute(MARK_ATTR, MARK);
+			doc.body.append(el);
+			script(doc.body, ENV, env_text({ who: 'server' }), MARK);
+		},
+		'two server channels': (doc) => {
+			runtime_script(doc, MARK);
+			script(doc.body, ENV, env_text({ who: 'first' }), MARK);
+			script(doc.body, ENV, env_text({ who: 'second' }), MARK);
+		}
+	};
+	for (const [name, make] of Object.entries(shapes)) {
+		const doc = document.implementation.createHTMLDocument(name);
+		make(doc);
+		expect(env_channel(doc), name).toBe(server_channel(doc, KIT_ENV_SELECTOR));
+	}
+});
+
+it("Kit's public env whose text does not read back reads empty, and says kit_env_missing", async () => {
+	const { kit_env } = await import('../../src/runtime/kit-env.ts');
+	runtime_script(document, MARK);
+	script(document.body, { type: 'application/ogygia-env' }, '{not devalue', MARK);
+	const said = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	try {
+		expect(kit_env(BUILD)).toEqual({});
+		await expect.poll(() => said.mock.calls.flat().join(' ')).toContain('kit_env_missing');
+	} finally {
+		said.mockRestore();
+	}
 });

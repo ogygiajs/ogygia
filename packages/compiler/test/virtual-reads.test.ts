@@ -255,12 +255,14 @@ describe('core’s session parts', () => {
 			'region_names',
 			'router_css_roots',
 			'routes_dir',
-			'plugins'
+			'plugins',
+			'kit_env_build'
 		];
 		expect(Object.keys(CORE_PARTS).sort()).toEqual([...keys].sort());
 		expect(CORE_PARTS.routes_dir).toBe('routes');
 		expect(CORE_PARTS.plugins).toBe('plugins');
 		expect(CORE_PARTS.router_css_roots).toBe('styles');
 		expect(CORE_PARTS.program).toBe('regions');
+		expect(CORE_PARTS.kit_env_build).toBe('options');
 	});
 });

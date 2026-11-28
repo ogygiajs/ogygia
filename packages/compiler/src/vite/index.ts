@@ -1,7 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import { dedent } from '@ogygia/core/contract';
 import { isMainThread } from 'node:worker_threads';
 import { loadEnv, type Plugin, type Rolldown, type ViteDevServer } from 'vite';
 import { configure_build_cache } from '../build-cache.ts';
@@ -110,7 +109,7 @@ import {
 	type KitConfig
 } from '../kit.ts';
 import { node_fs } from '../fs.ts';
-import { load_kit_config } from './kit-dirs.ts';
+import { kit_identity, load_kit_config } from './kit-dirs.ts';
 import {
 	buildFoucCssModuleSource,
 	collectFoucCssReachable,
@@ -133,7 +132,6 @@ import { derive_css_scope_owners, type DevGraphModule } from '../dev/css-scope.t
 import {
 	collectIslandDepModulepreloads,
 	collect_inline_css,
-	DEV_FN_MANIFEST_KEY,
 	remote_hash_of,
 	summarize_chunk_contents
 } from '../link/island-deps.ts';
@@ -155,15 +153,10 @@ import { import_chain } from '../virtual/resolver.ts';
 import { CompileCtx, type PackageScan } from '../ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
+import { patch_kit_module } from '../kit-patches.ts';
+import { open_dev_bridge } from '../dev-bridge.ts';
 import { app_compile_options, svelte_compile, type SvelteCompile } from './svelte-options.ts';
 
-const KIT_CLIENT_APP_RE = /\/generated\/(?:build\/|dev\/)?client(-optimized)?\/app\.js$/;
-const KIT_PAGE_THREAD = `\n${dedent`
-	import { page as __og_kit_page, navigating as __og_kit_nav } from '$app/state';
-	import * as __og_kit_navigation from '$app/navigation';
-	globalThis[Symbol.for('ogygia.kit-page')] = { page: __og_kit_page, navigating: __og_kit_nav, navigation: __og_kit_navigation };
-`}\n`;
-const KIT_DISCLOSE_VERSION = `((globalThis.__ogygia ??= {}).v ??= new Set()).add(${JSON.stringify(OGYGIA_VERSION)});\n`;
 import {
 	scan_entry_pattern,
 	KIT_REMOTE_CLIENT,
@@ -298,7 +291,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 	let root: string;
 	let kit: KitConfig;
-	let base = '';
 	let app_dir = '_app';
 	let libDir: string;
 	let is_dev = false;
@@ -584,7 +576,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			configResolved(config) {
 				root = config.root;
 				kit ??= { dirs: default_kit_dirs(root), inline_style_threshold: 0 };
-				base = config.base || '';
+				const identity = kit_identity(config.plugins);
 				svelte = svelte_compile(config.plugins);
 				svelte_async = svelte_async_enabled(svelte);
 				if (config.command === 'serve') {
@@ -649,8 +641,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					const ctx = new CompileCtx({
 						root,
 						kit_dirs: kit.dirs,
-						base,
+						base: identity.base,
 						app_dir,
+						kit_version: identity.version,
 						libDir,
 						pkg_scan,
 						page_importers,
@@ -775,8 +768,13 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			configureServer(server) {
 				const compiler = compiler_of(session, 'configureServer');
 				vite_server = server;
-				(globalThis as Record<symbol, unknown>)[Symbol.for(DEV_FN_MANIFEST_KEY)] = () =>
-					compiler.fn_manifest();
+				const served = dev_owner.child();
+				served.defer(
+					open_dev_bridge(root, {
+						fn_manifest: () => compiler_of(session, 'fn_manifest').fn_manifest()
+					})
+				);
+				if (server.httpServer) served.on(server.httpServer, 'close', () => served.close());
 				if (measure) {
 					install_dev_maps(server);
 					install_dev_client_maps(server);
@@ -974,9 +972,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				let source = code;
 
 				const leg = leg_of(this);
-				if (!leg.server && KIT_CLIENT_APP_RE.test(id)) {
-					source += KIT_PAGE_THREAD + KIT_DISCLOSE_VERSION;
-				}
+				if (!leg.server) source = patch_kit_module(source, id);
 				source = compiler.split_realm_imports(source) ?? source;
 
 				const result = await compiler.transform_module(source, id, {

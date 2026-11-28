@@ -1,0 +1,6 @@
+---
+'@ogygia/compiler': patch
+'@ogygia/core': patch
+---
+
+On SvelteKit 3, a region on a `csr = false` page that imports `$app/env/public` now hydrates and reads its dynamic public variables (`static: false`), in a build and in `vite dev`, in `vite dev` also when every variable is static (#2177), on streamed pages and on server-router pages, where it threw on import before. An island the server renders later (a `defer` hole, a remote call's region) or one a prefetch loads ahead of its page (a hover preload, on by default in Kit's `app.html`, or the router's) reads an empty env and warns `kit_env_missing` instead of throwing; carrying the env there is #2219. A federated peer's region on the host's page reads an empty env and warns `kit_env_missing`, never the host app's values, unless the peer has the host's package name, `paths.base` and app dir and either pins the same `version.name` or is built in the same process (#2221). Apps are told apart only by those values, never by their source; the identity each page carries is a short digest of them, so a guess at the package name can be checked against it; an app whose `version.name` ogygia cannot read (no `sveltekit()` plugin in its Vite config) warns `kit_env_version_unread`.

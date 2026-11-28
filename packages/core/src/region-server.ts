@@ -13,6 +13,7 @@ export {
 	region_reads_page,
 	region_page_keys,
 	region_remotes,
+	region_reads_env,
 	region_interactivity,
 	entry_location,
 	make_region_endpoint,

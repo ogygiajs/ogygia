@@ -56,6 +56,7 @@ import {
 	runtime_first
 } from './server/head-presence.ts';
 import { page_code_origins } from './server/page-code-origins.ts';
+import { env_seed_script } from './server/env-seed.ts';
 import type { RegionValue } from './region.ts';
 
 export interface DocumentOptions {
@@ -204,6 +205,11 @@ export async function document(
 				`<script type="application/ogygia-page" ${OGYGIA_PAGE}${format}${mark_attr(mark_key)}${RULES && ask ? unshipped_attr(s.data, ask.keys) : ''}>${payload.text}</script>`
 			);
 		}
+	}
+	const request = live_event()?.request;
+	if (request && read_seed_ask()?.env) {
+		const env_script = env_seed_script(request);
+		if (env_script) head.push(env_script);
 	}
 
 	// The runtime bootstrap goes before any script the component's head carries (after its non-JS

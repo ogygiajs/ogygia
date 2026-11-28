@@ -255,6 +255,42 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/runtime/kit-env.ts > kit_env > catch:0",
+			"reason": "the server's env channel whose text does not decode reads as an empty env, said with kit_env_missing, so Kit's patched $app/env/public still evaluates and the island hydrates; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/browser/side-channel-seeds.test.ts",
+			"name": "Kit's public env whose text does not read back reads empty, and says kit_env_missing"
+		},
+		{
+			"site": "packages/core/src/runtime/kit-env.ts > missing > import:0",
+			"reason": "the warning's chunk, loaded only when the reader has something to say; a download that fails leaves the env empty and nothing unhandled (the test's network drops the chunk in 3 engines)",
+			"test": "packages/core/test/browser/kit-env-warning-lost.test.ts",
+			"name": "a page with no env channel whose warning chunk does not load still reads an empty env, and leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/runtime/kit-env.ts > missing > reject:0",
+			"reason": "the import's rejection, as above; proved by hand: with the handler gone the test fails on an unhandled rejection in 3 engines",
+			"test": "packages/core/test/browser/kit-env-warning-lost.test.ts",
+			"name": "a page with no env channel whose warning chunk does not load still reads an empty env, and leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/env-seed.ts > EnvText > of > catch:0",
+			"reason": "a public env value devalue cannot carry writes no env channel and says kit_env_unshipped, so the page still renders; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/server-seed-word.test.ts",
+			"name": "a value devalue cannot carry ships nothing, and says kit_env_unshipped"
+		},
+		{
+			"site": "packages/compiler/src/kit-patches.ts > package_name > parse:0",
+			"reason": "the app's package.json, read once per build for the env channel's identity: text that does not parse names no package, and the identity is made from the base, app dir and version.name",
+			"test": "packages/compiler/test/kit-env-build.test.ts",
+			"name": "an app with no package.json, or one with no name, is named by its base, app dir and version.name"
+		},
+		{
+			"site": "packages/compiler/src/kit-patches.ts > package_name > catch:0",
+			"reason": "as above; proved by hand: the catch made to rethrow turns the test red",
+			"test": "packages/compiler/test/kit-env-build.test.ts",
+			"name": "an app with no package.json, or one with no name, is named by its base, app dir and version.name"
+		},
+		{
 			"site": "packages/compiler/src/macros/pipeline.ts > template_calls > catch:0",
 			"reason": "markup Svelte cannot parse names no template call: the macro check passes it on and the Svelte compile reports it; proved by hand: the catch made to rethrow turns the test red",
 			"test": "packages/compiler/test/macros-need-plugin.test.ts",

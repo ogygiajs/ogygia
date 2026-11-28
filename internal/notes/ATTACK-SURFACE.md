@@ -142,7 +142,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-121 entries.
+127 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -153,6 +153,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/cli/src/perf/cli.ts` | `read_json` | `JSON.parse` | 1 |
 | `packages/compiler/src/build-cache.ts` | `get` | `JSON.parse` | 1 |
 | `packages/compiler/src/fouc-css.ts` | `foucRelFromId` | `decodeURIComponent` | 1 |
+| `packages/compiler/src/kit-patches.ts` | `package_name` | `JSON.parse` | 1 |
 | `packages/compiler/src/kit.ts` | `kit_major` | `JSON.parse` | 1 |
 | `packages/compiler/src/link/emit-gate.ts` | `parse_server_handoff` | `JSON.parse` | 1 |
 | `packages/compiler/src/link/island-deps.ts` | `HANDLER_RE` | `JSON.parse` | 2 |
@@ -161,6 +162,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/compiler/src/virtual/core.ts` | `dev_runtime_of` | `JSON.parse` | 1 |
 | `packages/compiler/src/vite/index.ts` | `ogygia` | `JSON.parse` | 1 |
 | `packages/compiler/src/vite/package-files.ts` | `read_manifest` | `JSON.parse` | 1 |
+| `packages/core/src/context-bridge.ts` | `parse_ctx` | `devalue parse` | 1 |
 | `packages/core/src/contract/core-files.ts` | `(module)` | `JSON.parse` | 1 |
 | `packages/core/src/early-code.ts` | `start_early_code` | `JSON.parse` | 1 |
 | `packages/core/src/early-holes.ts` | `start_early_holes` | `JSON.parse` | 1 |
@@ -170,16 +172,19 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/island-graph-read.ts` | `decode_island_graph` | `JSON.parse` | 1 |
 | `packages/core/src/island-graph-read.ts` | `decode_island_locations` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/hole-facts.ts` | `parse_record` | `JSON.parse` | 1 |
+| `packages/core/src/runtime/kit-env.ts` | `kit_env` | `devalue parse` | 1 |
 | `packages/core/src/runtime/kit-page-thread.svelte.ts` | `kit_boot` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/page-defer.ts` | `(module)` | `devalue parse` | 1 |
 | `packages/core/src/runtime/seeds.ts` | `watch_unshipped` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/wire-format.ts` | `(module)` | `devalue parse` | 1 |
 | `packages/core/src/runtime/wire-format.ts` | `(module)` | `JSON.parse` | 1 |
+| `packages/core/src/server/islands-endpoint.ts` | `#verify_region_mac` | `devalue parse` | 1 |
 | `packages/core/src/server/islands-endpoint.ts` | `render_batch` | `JSON.parse` | 1 |
 | `packages/core/src/server/page-facts.ts` | `(module)` | `decodeURIComponent` | 1 |
 | `packages/core/src/server/page-facts.ts` | `(module)` | `devalue unflatten` | 1 |
 | `packages/core/src/server/page-facts.ts` | `(module)` | `JSON.parse` | 3 |
 | `packages/core/src/server/payload.ts` | `decode` | `atob` | 1 |
+| `packages/core/src/shims/kit-remote/client-stub.ts` | `seed_query_responses` | `devalue parse` | 1 |
 | `packages/devtools/src/build/profiler-maps.ts` | `maps_app_code` | `JSON.parse` | 1 |
 | `packages/devtools/src/build/profiler-maps.ts` | `slim_map` | `JSON.parse` | 1 |
 | `packages/devtools/src/devtools/Devtools.svelte` | `load_layout` | `JSON.parse` | 1 |
@@ -223,6 +228,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/federation/src/peer.ts` | `constructor` | `JSON.parse` | 1 |
 | `packages/federation/src/serve.ts` | `serve_thaw` | `JSON.parse` | 1 |
 | `packages/federation/src/shared-state.ts` | `read_seed` | `JSON.parse` | 1 |
+| `packages/federation/src/shared-state.ts` | `snapshot` | `devalue parse` | 1 |
 | `packages/federation/src/wire.ts` | `any_key` | `Buffer.from base64url` | 1 |
 | `packages/federation/src/wire.ts` | `claims_of` | `Buffer.from base64` | 1 |
 | `packages/federation/src/wire.ts` | `claims_of` | `JSON.parse` | 1 |

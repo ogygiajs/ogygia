@@ -9,7 +9,14 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import * as devalue from 'devalue';
+import { dedent } from '@ogygia/core/contract';
 import { clientBuildWillSkip, resolve_kit_paths, route_reader } from '../../src/kit.ts';
+import {
+	KIT_PATCHES,
+	KIT_PUBLIC_ENV_CLIENT_RE,
+	kit_public_env_module
+} from '../../src/kit-patches.ts';
 import { node_fs } from '../../src/fs.ts';
 import { APP_DIR, KitApp, OUT_DIR } from '../../../core/test/canary/kit-app.ts';
 import { broke, KITS, type Internal } from '../../../core/test/canary/upstream.ts';
@@ -45,15 +52,30 @@ const ASSETS: Internal = {
 };
 const CONFIG: Internal = {
 	upstream:
-		"SvelteKit's config options (`files.routes`, `outDir`, `appDir`, `inlineStyleThreshold`)",
+		"SvelteKit's config options (`files.routes`, `outDir`, `appDir`, `inlineStyleThreshold`, `paths.base`, `version.name`)",
 	used_by: [
-		'packages/compiler/src/vite/kit-dirs.ts (load_kit_config)',
+		'packages/compiler/src/vite/kit-dirs.ts (load_kit_config, kit_identity)',
 		'packages/compiler/src/vite/index.ts (`__SVELTEKIT_APP_DIR__`)'
 	],
 	issue: 1720
 };
 
+const PATCHES: Internal = {
+	upstream: "SvelteKit's generated browser modules (its client app, Kit 3's `$app/env/public`)",
+	used_by: ['packages/compiler/src/kit-patches.ts (KIT_PATCHES)'],
+	issue: 2177
+};
+const PUBLIC_ENV: Internal = {
+	upstream: "SvelteKit 3's rendered public env (`rendered_env`, what its payload sends as `env`)",
+	used_by: [
+		'packages/compiler/src/kit-patches.ts (kit_public_env_module)',
+		'packages/core/src/server/env-seed.ts (env_seed_script)'
+	],
+	issue: 2177
+};
+
 const KIT_DIRS = path.join(import.meta.dirname, '../../src/vite/kit-dirs.ts');
+const DEVALUE_TEXT = path.join(import.meta.dirname, '../../../core/src/server/devalue-text.ts');
 
 /** The CSS a page links, read back from the build's client output. */
 function linked_css(app: KitApp, html: string): string {
@@ -67,11 +89,145 @@ const has_client_entry = (app: KitApp) =>
 
 vi.setConfig({ hookTimeout: 120_000, testTimeout: 30_000 });
 
+const REGION_DEFAULT = 'canary region';
+const PRIVATE_DEFAULT = 'canary private value';
+const STATIC_DEFAULT = 'canary static value';
+
+/** Kit 3 only: a dynamic public variable (`src/env.js`) and a csr=true page that reads it, so Kit
+ *  sends its public env in its payload there. */
+function with_public_env(app: KitApp): KitApp {
+	if (app.major < 3) return app;
+	fs.writeFileSync(
+		path.join(app.dir, 'src/env.js'),
+		dedent`
+			import { defineEnvVars } from '@sveltejs/kit/env';
+			export const variables = defineEnvVars({
+				PUBLIC_REGION: { public: true, static: false, schema: (v) => v ?? ${JSON.stringify(REGION_DEFAULT)} },
+				SECRET_TOKEN: { public: false, static: false, schema: (v) => v ?? ${JSON.stringify(PRIVATE_DEFAULT)} },
+				PUBLIC_BUILT_IN: { public: true, static: true, schema: (v) => v ?? ${JSON.stringify(STATIC_DEFAULT)} }
+			});
+		`
+	);
+	fs.mkdirSync(path.join(app.dir, 'src/pages/env'), { recursive: true });
+	fs.writeFileSync(
+		path.join(app.dir, 'src/pages/env/+page.svelte'),
+		dedent`
+			<script>
+				import { PUBLIC_REGION } from '$app/env/public';
+			</script>
+			<p data-region>{PUBLIC_REGION}</p>
+		`
+	);
+	fs.writeFileSync(
+		path.join(app.dir, 'src/lib/kit-env.js'),
+		kit_public_env_module(app.major, 'canary-build')
+	);
+	app.export_from('kit_public_env', './kit-env.js');
+	app.export_from('kit_env_build', './kit-env.js');
+	app.export_from('devalue_text', DEVALUE_TEXT);
+	fs.mkdirSync(path.join(app.dir, 'src/pages/env-channel'), { recursive: true });
+	fs.writeFileSync(
+		path.join(app.dir, 'src/pages/env-channel/+server.js'),
+		dedent`
+			import { devalue_text, kit_env_build, kit_public_env } from '$lib/ogygia';
+			export const GET = () => {
+				const env = kit_public_env();
+				return Response.json({ env, channel: devalue_text({ build: kit_env_build(), env }, {}) });
+			};
+		`
+	);
+	return app;
+}
+
+/** ogygia's server module as the app's Kit serves it: Kit's rendered env, and the channel text
+ *  core's env seed writes from it (server/env-seed.ts). */
+async function ogygia_env(app: KitApp): Promise<{ env: Record<string, unknown>; channel: string }> {
+	return (await fetch(new URL('/env-channel', app.url))).json() as Promise<{
+		env: Record<string, unknown>;
+		channel: string;
+	}>;
+}
+
+/** Each row of the patch table whose module this Kit generates for `mode` finds Kit's text where
+ *  it reads it, in the module Kit wrote. */
+function expect_patches_apply(app: KitApp, mode: 'dev' | 'build'): void {
+	const dir = path.join(app.out_dir, 'generated');
+	const files = (fs.readdirSync(dir, { recursive: true }) as string[])
+		.map((f) => path.join(dir, f).split(path.sep).join('/'))
+		.filter((f) => !f.includes(`/generated/${mode === 'dev' ? 'build' : 'dev'}/`));
+	const rows = KIT_PATCHES.filter(
+		(row) => row.kits.includes(app.major) && (row.mode ?? mode) === mode
+	);
+	expect(rows.length).toBeGreaterThan(0);
+	for (const row of rows) {
+		const file = files.find((f) => row.id.test(f));
+		expect(file, broke(PATCHES, `Kit generated no module for "${row.name}"`)).toBeDefined();
+		const code = fs.readFileSync(file!, 'utf8');
+		const patched = row.patch(code, file!);
+		expect(
+			patched,
+			broke(PATCHES, `"${row.name}" finds nothing to patch in ${file}:\n${code}`)
+		).not.toBeNull();
+		if (KIT_PUBLIC_ENV_CLIENT_RE.test(file!))
+			expect(
+				patched,
+				broke(PATCHES, `"${row.name}" does not see the app's dynamic variable in ${file}:\n${code}`)
+			).toContain(`from 'ogygia:boot/kit-env'`);
+	}
+}
+
+/** Kit's rendered public env holds no private variable and no static one. */
+function expect_no_private_or_static(env: string | Record<string, unknown> | undefined): void {
+	const text = typeof env === 'string' ? env : JSON.stringify(env);
+	for (const [name, value] of [
+		['SECRET_TOKEN', PRIVATE_DEFAULT],
+		['PUBLIC_BUILT_IN', STATIC_DEFAULT]
+	])
+		expect(text, broke(PUBLIC_ENV, `Kit's rendered public env holds ${name}`)).not.toContain(value);
+}
+
+/** What Kit 3 puts in its payload as `env` on a csr=true page, read from the page. */
+async function payload_env(app: KitApp): Promise<string | undefined> {
+	const html = await app.text('/env');
+	return /\benv:\s*(\{[^}]*\})/.exec(html)?.[1];
+}
+
 describe.each(Object.entries(KITS))('%s', (_, root) => {
 	describe('served from dev', () => {
-		const app = new KitApp(root, 'dev');
+		const app = with_public_env(new KitApp(root, 'dev'));
 		beforeAll(() => app.start());
 		afterAll(() => app.stop());
+
+		it('generates every module the patch table patches, in the text each row reads', () => {
+			expect_patches_apply(app, 'dev');
+		});
+
+		it.skipIf(app.major < 3)(
+			"sends its rendered public env in a csr=true page's payload, as the server's channel does",
+			async () => {
+				const env = await payload_env(app);
+				expect_no_private_or_static(env);
+				expect(env, broke(PUBLIC_ENV, "Kit's payload env is not its rendered public env")).toBe(
+					devalue.uneval({ PUBLIC_REGION: REGION_DEFAULT })
+				);
+			}
+		);
+
+		it.skipIf(app.major < 3)(
+			"ogygia's server module renders Kit's public env in dev, and its channel holds no private or static variable",
+			async () => {
+				const { env, channel } = await ogygia_env(app);
+				expect_no_private_or_static(env);
+				expect_no_private_or_static(channel);
+				expect(env, broke(PUBLIC_ENV, 'the dev server module renders another env')).toEqual({
+					PUBLIC_REGION: REGION_DEFAULT
+				});
+				expect(devalue.parse(channel)).toEqual({
+					build: 'canary-build',
+					env: { PUBLIC_REGION: REGION_DEFAULT }
+				});
+			}
+		);
 
 		it("a remote file's client module imports the remote functions client the compiler resolves", async () => {
 			const index = resolve_kit_paths(app.dir).kit_remote_index;
@@ -88,7 +244,7 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 	});
 
 	describe('served from a build', () => {
-		const app = new KitApp(root, 'build');
+		const app = with_public_env(new KitApp(root, 'build'));
 		beforeAll(async () => {
 			app.export_from('create_remote_key', resolve_kit_paths(app.dir).kit_wire_path!);
 			await app.start();
@@ -105,6 +261,31 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 				broke(WIRE, `Kit's own seed does not carry the key \`${keys[0]}\`:\n${html}`)
 			).toContain(JSON.stringify(keys[0]));
 		});
+
+		it('generates every module the patch table patches, in the text each row reads (build)', () => {
+			expect_patches_apply(app, 'build');
+		});
+
+		it.skipIf(app.major < 3)(
+			"sends its server module's rendered_env as a csr=true page's payload env",
+			async () => {
+				const rendered = JSON.parse(
+					await app.node(`
+					const config = await import(${JSON.stringify(path.join(app.out_dir, 'generated/build/env/config.js'))});
+					config.set_env({});
+					console.log(JSON.stringify(config.rendered_env));
+				`)
+				) as Record<string, unknown>;
+				expect_no_private_or_static(rendered);
+				expect(rendered, broke(PUBLIC_ENV, 'the server module renders another env')).toEqual({
+					PUBLIC_REGION: REGION_DEFAULT
+				});
+				expect(
+					await payload_env(app),
+					broke(PUBLIC_ENV, "Kit's payload env is not its rendered public env")
+				).toBe(devalue.uneval(rendered));
+			}
+		);
 
 		it('keeps its client build while one route node is csr=true, as the compiler predicts', () => {
 			expect(
@@ -128,7 +309,7 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 			).toMatch(/outline:\s*3px dotted/);
 		});
 
-		it('honours `files.routes`, `outDir`, `appDir` and a zero `inlineStyleThreshold`, as the compiler reads them', async () => {
+		it("honours files.routes, outDir, appDir and a zero inlineStyleThreshold, as the compiler reads them, and Kit's resolved paths.base and version.name as its identity reads them", async () => {
 			const html = await app.text('/server');
 			expect(html, broke(CONFIG, '`files.routes` is not where Kit found the page')).toContain(
 				'hello server'
@@ -144,13 +325,29 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 			const read = JSON.parse(
 				await app.node(`
 					import { loadConfigFromFile, resolveConfig } from 'vite';
-					import { load_kit_config } from ${JSON.stringify(KIT_DIRS)};
+					import { kit_identity, load_kit_config } from ${JSON.stringify(KIT_DIRS)};
 					const loaded = await loadConfigFromFile({ command: 'build', mode: 'production' });
 					const kit = await load_kit_config(process.cwd(), loaded.config.plugins);
 					const resolved = await resolveConfig({}, 'build');
-					console.log(JSON.stringify({ kit, app_dir: resolved.define.__SVELTEKIT_APP_DIR__ }));
+					console.log(JSON.stringify({
+						kit,
+						identity: kit_identity(resolved.plugins),
+						app_dir: resolved.define.__SVELTEKIT_APP_DIR__,
+						base: resolved.define.__SVELTEKIT_PATHS_BASE__,
+						version: resolved.define.__SVELTEKIT_APP_VERSION__
+					}));
 				`)
-			) as { kit: { dirs: { routes_dir: string; out_dir: string } }; app_dir: string };
+			) as {
+				kit: { dirs: { routes_dir: string; out_dir: string } };
+				identity: { base: string; version: string | null };
+				app_dir: string;
+				base: string;
+				version: string;
+			};
+			expect(
+				read.identity.version,
+				broke(CONFIG, "the compiler reads no version.name off Kit's resolved plugins")
+			).toMatch(/^\d+$/);
 			expect(read, broke(CONFIG, 'the compiler reads other values than Kit honours')).toEqual({
 				kit: {
 					dirs: {
@@ -159,9 +356,39 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 					},
 					inline_style_threshold: 0
 				},
-				app_dir: JSON.stringify(APP_DIR)
+				identity: { base: JSON.parse(read.base), version: JSON.parse(read.version) },
+				app_dir: JSON.stringify(APP_DIR),
+				base: read.base,
+				version: read.version
 			});
 		});
+
+		it.skipIf(app.major < 3)(
+			"reads a set paths.base as Kit's identity, the value Kit defines, not Vite's base",
+			async () => {
+				const read = JSON.parse(
+					await app.node(`
+						import { resolveConfig } from 'vite';
+						import { sveltekit } from '@sveltejs/kit/vite';
+						import { kit_identity } from ${JSON.stringify(KIT_DIRS)};
+						const resolved = await resolveConfig({
+							configFile: false,
+							logLevel: 'warn',
+							plugins: [await sveltekit({ files: { routes: 'src/pages' }, outDir: ${JSON.stringify(OUT_DIR)}, appDir: ${JSON.stringify(APP_DIR)}, paths: { base: '/canary' } })]
+						}, 'build');
+						console.log(JSON.stringify({
+							identity: kit_identity(resolved.plugins).base,
+							define: JSON.parse(resolved.define.__SVELTEKIT_PATHS_BASE__),
+							vite: resolved.base
+						}));
+					`)
+				) as { identity: string; define: string; vite: string };
+				expect(
+					read,
+					broke(CONFIG, 'the compiler reads another paths.base than the one Kit defines')
+				).toEqual({ identity: '/canary', define: '/canary', vite: './' });
+			}
+		);
 	});
 
 	describe('served from a build whose every route node is csr=false', () => {

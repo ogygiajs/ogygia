@@ -107,6 +107,12 @@ describe('page mark', () => {
 		expect(features).not.toContain('mpa-nav');
 	});
 
+	test("$app/env/public reads no page: Kit's public env ships on its own ask", () => {
+		expect(marks_for(script(`\timport { PUBLIC_REGION } from '$app/env/public';`)).page).toBe(
+			false
+		);
+	});
+
 	test('`$app/state` anywhere in the closure is a reader', () => {
 		const marks = marks_for(script(`\timport { read } from './helper';`), {
 			'src/lib/helper.ts': `${dedent`

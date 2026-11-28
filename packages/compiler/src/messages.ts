@@ -849,6 +849,39 @@ const WARNED = {
 			\`writable(seed)\`, and guard the side effects inside the factory.
 		`
 	},
+	kit_env_unpatched: {
+		text: (a: { file: string }): string => prose`
+			${a.file}: SvelteKit's browser \`$app/env/public\` module is not in the shape ogygia knows,
+			so it still reads only Kit's boot payload. A region that imports it on a \`csr = false\`
+			page will fail to hydrate. ${BUG}
+		`,
+		details: (): string => prose`
+			SvelteKit's browser module for \`$app/env/public\` reads its dynamic public variables
+			from the payload Kit's client boot writes. A \`csr = false\` page never boots Kit's
+			client, so ogygia makes that module fall back to the env the server writes into the
+			page. This time it could not: the module did not read the payload the way ogygia
+			expects. A newer SvelteKit may have changed the module.
+		`
+	},
+	kit_env_version_unread: {
+		text: (a: { name: string }): string => prose`
+			${a.name}: ogygia found no SvelteKit Vite plugin holding a \`version.name\`, so the
+			identity on its public env channel is made without it or Kit's \`paths.base\`. Another
+			app with the same package name and app dir that also has no \`sveltekit()\` plugin
+			reads this app's public env as its own. Add
+			\`sveltekit()\` to the plugins in vite.config.
+		`,
+		details: (): string => prose`
+			On a \`csr = false\` page ogygia writes Kit's public env into the page beside an
+			identity of the build, and an island takes that env only when the identity is its own
+			build's. The identity is made from the app's package name, Kit's \`paths.base\`, the app
+			dir and Kit's \`version.name\`, which ogygia reads off SvelteKit's own Vite plugin (the
+			one \`sveltekit()\` adds) in the resolved plugin list. This time that list held none, so
+			a federated app with the same package name and app dir is not told apart. Add
+			\`sveltekit()\` to the plugins in vite.config; pass it \`version: { name }\` (a commit
+			hash, say) to pin the name.
+		`
+	},
 	scoped_css_failed: {
 		text: (a: { file: string; reason: string }): string =>
 			`scoped CSS for ${a.file} could not be compiled (${a.reason}) — shipping its style bodies unscoped`,

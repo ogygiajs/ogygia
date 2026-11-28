@@ -66,6 +66,25 @@ const PATTERNS: Record<Kind, Array<[RegExp, (m: RegExpExecArray) => string]>> = 
 	route: [[/['"`](\/(?:og\/|__ogygia)[A-Za-z0-9_/.-]*)['"`]/g, (m) => m[1]!]]
 };
 
+const DEVALUE_PARSE = 'devalue parse';
+
+const DOLLAR_G = /\$/g;
+const escape_name = (name: string): string => name.replace(DOLLAR_G, '\\$');
+
+/** The calls of devalue's `parse` a file's own imports name: `parse` (or its local name) from a
+ *  value import of devalue, and `<ns>.parse` from a namespace import. A type import names none. */
+function devalue_parse_calls(text: string): RegExp[] {
+	const calls: RegExp[] = [];
+	for (const m of text.matchAll(/\bimport\s*\{([^}]*)\}\s*from\s*['"]devalue['"]/g))
+		for (const spec of m[1]!.split(',')) {
+			const named = /^\s*parse(?:\s+as\s+([\w$]+))?\s*$/.exec(spec);
+			if (named) calls.push(new RegExp(`(?<![.\\w$])${escape_name(named[1] ?? 'parse')}\\(`, 'g'));
+		}
+	for (const m of text.matchAll(/\bimport\s*\*\s*as\s+([\w$]+)\s+from\s*['"]devalue['"]/g))
+		calls.push(new RegExp(`(?<![.\\w$])${escape_name(m[1]!)}\\.parse\\(`, 'g'));
+	return calls;
+}
+
 /** A line that starts a named function, method or const: the name later lines sit in. */
 const OWNER =
 	/^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s*([\w$]+)|^\s*(?:export\s+)?(?:const|let)\s+([\w$]+)\s*[=:]|^\s*(?:(?:public|private|protected|static|readonly|async|override|get|set)\s+)*(#?[\w$]+)\s*(?:<[^>]*>)?\([^;]*\)\s*(?::[^{;]+)?\{\s*$/;
@@ -89,6 +108,13 @@ export function scan_file(file: string, text: string): Entry[] {
 	// (a Svelte component's markup comment, `<!-- @component … -->`, holds usage samples, not code)
 	const svelte = file.endsWith('.svelte');
 	let in_markup_comment = false;
+	const devalue_calls = devalue_parse_calls(text);
+	const add = (kind: Kind, what: string) => {
+		const key = `${kind}\0${owner}\0${what}`;
+		const e = found.get(key);
+		if (e) e.count++;
+		else found.set(key, { kind, file, where: owner, what, count: 1 });
+	};
 	for (const line of text.split('\n')) {
 		let code = line.replace(/^\s*(\/\/|\*|\/\*).*$/, '');
 		if (svelte) {
@@ -105,15 +131,20 @@ export function scan_file(file: string, text: string): Entry[] {
 		const m = OWNER.exec(code);
 		const name = m && (m[1] ?? m[2] ?? m[3]);
 		if (name && !NOT_OWNER.has(name) && (depth === 0 || (depth === 1 && !m![2]))) owner = name;
+		let imported_parse = false;
+		for (const re of devalue_calls) {
+			re.lastIndex = 0;
+			for (let hit = re.exec(code); hit; hit = re.exec(code)) {
+				imported_parse = true;
+				add('decode', DEVALUE_PARSE);
+			}
+		}
 		for (const kind of Object.keys(PATTERNS) as Kind[]) {
 			for (const [re, what_of] of PATTERNS[kind]) {
 				re.lastIndex = 0;
 				for (let hit = re.exec(code); hit; hit = re.exec(code)) {
 					const what = what_of(hit);
-					const key = `${kind}\0${owner}\0${what}`;
-					const e = found.get(key);
-					if (e) e.count++;
-					else found.set(key, { kind, file, where: owner, what, count: 1 });
+					if (!(imported_parse && what === DEVALUE_PARSE)) add(kind, what);
 				}
 			}
 		}

@@ -25,6 +25,7 @@ import {
 	OG_FP,
 	OG_LATE,
 	OG_LOCATIONS,
+	OG_MARK,
 	OG_OWNER,
 	OG_SLOT,
 	OGYGIA_ANNOUNCER,
@@ -299,7 +300,7 @@ export function head_node_key(node: Element): string {
 		case 'SCRIPT': {
 			const src = url_of(node, 'src');
 			if (src) return `SCRIPT:src:${src}:${node.getAttribute('type') || ''}`;
-			return `SCRIPT:inline:${node.getAttribute('type') || ''}:${node.textContent || ''}`;
+			return `SCRIPT:inline:${node.getAttribute('type') || ''}:${node.getAttribute(OG_MARK) || ''}:${node.textContent || ''}`;
 		}
 		case 'STYLE': {
 			// @why SvelteKit writes one `<style data-sveltekit>` per document, holding that page's own CSS (test: test/browser/router-nav-claims.test.ts › the FOUC bag is a fresh node on every page, even with the same CSS)

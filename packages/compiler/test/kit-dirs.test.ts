@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { load_kit_config } from '../src/vite/kit-dirs.ts';
+import { kit_identity, load_kit_config } from '../src/vite/kit-dirs.ts';
 import {
 	default_kit_dirs,
 	keep_client_dir,
@@ -134,6 +134,29 @@ describe('kit.files.routes / kit.outDir', () => {
 		expect(ctx(given).kit_dirs).toEqual(given);
 	});
 
+	it("Kit's paths.base and version.name: off Kit's own plugin in the resolved plugin list, as Kit resolved them; neither read when no such plugin is in it", () => {
+		const setup = (options: object) => ({ name: 'vite-plugin-sveltekit-setup', api: { options } });
+		expect(
+			kit_identity([
+				{ name: 'other' },
+				setup({ paths: { base: '/shop' }, version: { name: '1700000000000' } })
+			])
+		).toEqual({ base: '/shop', version: '1700000000000' });
+		expect(
+			kit_identity([setup({ kit: { paths: { base: '/b' }, version: { name: '4f3c2a1' } } })])
+		).toEqual({ base: '/b', version: '4f3c2a1' });
+		expect(kit_identity([setup({})])).toEqual({ base: '', version: null });
+		expect(kit_identity([setup({ paths: { base: 1 }, version: { name: 7 } })])).toEqual({
+			base: '',
+			version: null
+		});
+		expect(kit_identity([{ name: 'vite-plugin-sveltekit-setup' }, { name: 'other' }])).toEqual({
+			base: '',
+			version: null
+		});
+		expect(kit_identity([])).toEqual({ base: '', version: null });
+	});
+
 	it("Kit's inlineStyleThreshold is read for the region CSS too; none, or a value that is not a positive number, is 0", async () => {
 		const at = async (v: string) =>
 			(
@@ -158,11 +181,11 @@ describe('kit.files.routes / kit.outDir', () => {
 	});
 
 	it('the SSR deps reader falls back to the configured outDir under cwd, not `.svelte-kit`', () => {
-		const src = island_deps_module(true, false, '.svelte-kit-v2');
+		const src = island_deps_module(true, null, '.svelte-kit-v2');
 		expect(src).toContain(`path.join(cwd, ".svelte-kit-v2", 'og-region-deps.json')`);
 		expect(src).not.toContain(`'.svelte-kit'`);
 		// the default stays the default
-		expect(island_deps_module(true, false)).toContain(
+		expect(island_deps_module(true, null)).toContain(
 			`path.join(cwd, ".svelte-kit", 'og-region-deps.json')`
 		);
 	});

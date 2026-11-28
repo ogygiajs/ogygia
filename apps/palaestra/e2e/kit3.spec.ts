@@ -5,19 +5,25 @@
 // - its generated client entry moved under `generated/{build,dev}/`, so the kit-page thread was never
 //   appended and islands on csr=true pages never got Kit's page;
 // - the thread imported `$app/stores`, which Kit 3 removed (subscribing throws);
-// - its remote ARGUMENT encoding reads the app's transport from a module only Kit's boot fills.
+// - its remote ARGUMENT encoding reads the app's transport from a module only Kit's boot fills;
+// - its `$app/env/public` reads a dynamic variable from Kit's boot payload (`__sveltekit_dev` in dev,
+//   `payload.env` in a build), which only Kit's boot fills.
 // The app: a lake in a csr=false layout (islands + a hole inside) serving a csr=false page and a
 // csr=true page; an island with a remote form and the query it refreshes; an island whose query
-// argument is a custom transport type; an island reading `page`.
+// argument is a custom transport type; an island reading `page`; an island reading a static and a
+// dynamic public env var (dev also edits the dynamic one's default and reloads, and starts once with
+// no dynamic variable, then gains its first and makes it static again); outside the lake, a
+// page whose only region wakes on interaction and reads the dynamic var, opened straight and reached
+// by the router from a page that carries no env.
 //
 // Standalone install (not a workspace member): a workspace link would resolve ogygia's own Kit 2 dev
 // install next to the app's Kit 3. Usage: pnpm exec playwright test kit3
 import { spawnSync, type SpawnSyncOptions } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Page } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
 import { test, expect, check, sleep, stamp_document, document_stamp } from '@ogygia/tooling/e2e';
 import { pack_ogygia, use_packed } from '@ogygia/tooling/e2e/packed.ts';
 import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
@@ -63,7 +69,13 @@ function prepare(): void {
 }
 
 /** One page of the lake: every island hydrated, the hole filled, each island working. */
-async function exercise(page: Page, base: string, path: string, kit_page: boolean) {
+async function exercise(
+	page: Page,
+	base: string,
+	path: string,
+	kit_page: boolean,
+	region_name = 'region from env'
+) {
 	const errs: string[] = [];
 	page.on('pageerror', (e) => errs.push(e.message));
 	page.on('console', (m) => {
@@ -87,6 +99,14 @@ async function exercise(page: Page, base: string, path: string, kit_page: boolea
 
 	await page.click('[data-counter]');
 	check(`${at} island interactive`, (await page.textContent('[data-counter]')) === 'count 1');
+	check(
+		`${at} an island that imports $app/env/public reads its value`,
+		(await page.textContent('[data-public-env]')) === 'hello from env'
+	);
+	check(
+		`${at} an island reads a dynamic public env var (static: false)`,
+		(await page.textContent('[data-public-dynamic-env]')) === region_name
+	);
 
 	// a custom transport type as a remote ARGUMENT, re-sent from the browser
 	check(
@@ -117,6 +137,71 @@ async function exercise(page: Page, base: string, path: string, kit_page: boolea
 		);
 	}
 	check(`${at} no errors or warnings`, errs.length === 0, errs.slice(0, 3).join(' | '));
+}
+
+/** The env pages: /env's only region wakes on interaction and imports $app/env/public, read straight
+ *  away and after a router navigation from /plain, a page that carries no env. */
+async function env_pages(page: Page, base: string, region_name = 'region from env') {
+	const errs: string[] = [];
+	page.on('pageerror', (e) => errs.push(e.message));
+	page.on('console', (m) => {
+		if (m.type() === 'error' || m.type() === 'warning') errs.push(`${m.type()}: ${m.text()}`);
+	});
+	const read = async (at: string) => {
+		await page.click('[data-env-click]');
+		await expect
+			.poll(() => page.textContent('[data-env-click-value]'), {
+				message: `${at} the interaction region reads the dynamic public env var`,
+				timeout: 10_000
+			})
+			.toBe(`read: ${region_name}`);
+	};
+
+	await page.goto(`${base}/env`, { waitUntil: 'networkidle' });
+	await read('/env:');
+
+	await page.goto(`${base}/plain`, { waitUntil: 'networkidle' });
+	await page.click('[data-hello]');
+	check('/plain: its island hydrated', (await page.textContent('[data-hello]')) === 'hello 1');
+	const stamp = await stamp_document(page);
+	await page.click('[data-to-env]');
+	await page.waitForSelector('[data-page="env"]');
+	check('/plain → /env: by the router (no reload)', (await document_stamp(page)) === stamp);
+	await read('/plain → /env:');
+	check('env pages: no errors or warnings', errs.length === 0, errs.slice(0, 3).join(' | '));
+}
+
+/** The app's `vite dev` on DEV_PORT. */
+function spawn_dev(base: string): Promise<SpawnedServer> {
+	return spawn_server({
+		cmd: 'node',
+		args: [
+			'node_modules/vite/bin/vite.js',
+			'dev',
+			'--host',
+			'127.0.0.1',
+			'--port',
+			String(DEV_PORT),
+			'--strictPort'
+		],
+		cwd: APP,
+		env: { OGYGIA_SECRET: SECRET },
+		url: `${base}/`,
+		timeout_ms: 120_000
+	});
+}
+
+/** The text of `selector` on a fresh load of `url`. */
+async function fresh_text(
+	context: BrowserContext,
+	url: string,
+	selector: string
+): Promise<string | null> {
+	const fresh = await context.newPage();
+	await fresh.goto(url, { waitUntil: 'networkidle' });
+	const text = await fresh.textContent(selector);
+	await fresh.close();
+	return text;
 }
 
 test.describe('SvelteKit 3: build + dev on the packed ogygia (self-building fixture)', () => {
@@ -150,6 +235,7 @@ test.describe('SvelteKit 3: build + dev on the packed ogygia (self-building fixt
 			const context = await browser.newContext({ extraHTTPHeaders: PROTO });
 			await exercise(await context.newPage(), base, '/', false);
 			await exercise(await context.newPage(), base, '/kit', true);
+			await env_pages(await context.newPage(), base);
 			await context.close();
 		} finally {
 			await srv?.kill();
@@ -163,31 +249,84 @@ test.describe('SvelteKit 3: build + dev on the packed ogygia (self-building fixt
 		const base = `http://127.0.0.1:${DEV_PORT}`;
 		let srv: SpawnedServer | undefined;
 		try {
-			srv = await spawn_server({
-				cmd: 'node',
-				args: [
-					'node_modules/vite/bin/vite.js',
-					'dev',
-					'--host',
-					'127.0.0.1',
-					'--port',
-					String(DEV_PORT),
-					'--strictPort'
-				],
-				cwd: APP,
-				env: { OGYGIA_SECRET: SECRET },
-				url: `${base}/`,
-				timeout_ms: 120_000
-			});
+			srv = await spawn_dev(base);
 			// warm both pages first: dev discovers island deps on first render (one re-optimize)
 			await fetch(`${base}/`);
 			await fetch(`${base}/kit`);
+			await fetch(`${base}/env`);
+			await fetch(`${base}/plain`);
 			await sleep(1500);
 			const context = await browser.newContext();
 			await exercise(await context.newPage(), base, '/', false);
 			await exercise(await context.newPage(), base, '/kit', true);
+			await env_pages(await context.newPage(), base);
+
+			// a dynamic variable's default edited while dev runs: the next load reads the new value
+			const env_file = join(APP, 'src/env.js');
+			const env_source = readFileSync(env_file, 'utf8');
+			try {
+				writeFileSync(env_file, env_source.replace("'region from env'", "'region edited'"));
+				await expect
+					.poll(() => fresh_text(context, `${base}/`, '[data-public-dynamic-env]'), {
+						timeout: 20_000
+					})
+					.toBe('region edited');
+				await exercise(await context.newPage(), base, '/', false, 'region edited');
+			} finally {
+				writeFileSync(env_file, env_source);
+			}
 			await context.close();
 		} finally {
+			await srv?.kill();
+		}
+	});
+
+	test('dev: an app started with no dynamic public variable reads its first one once it is added, and its static value once it is static again, with no warning', async ({
+		browser
+	}) => {
+		test.setTimeout(5 * 60_000);
+		const base = `http://127.0.0.1:${DEV_PORT}`;
+		const env_file = join(APP, 'src/env.js');
+		const env_source = readFileSync(env_file, 'utf8');
+		const dynamic = "static: false,\n\t\tschema: (value) => value ?? 'region from env'";
+		const static_only = "static: true,\n\t\tschema: (value) => value ?? 'region static'";
+		expect(env_source.includes(dynamic), 'the fixture declares PUBLIC_REGION_NAME dynamic').toBe(
+			true
+		);
+		let srv: SpawnedServer | undefined;
+		try {
+			writeFileSync(env_file, env_source.replace(dynamic, static_only));
+			srv = await spawn_dev(base);
+			await fetch(`${base}/`);
+			await sleep(1500);
+			const context = await browser.newContext();
+			await expect
+				.poll(() => fresh_text(context, `${base}/`, '[data-public-dynamic-env]'), {
+					timeout: 20_000
+				})
+				.toBe('region static');
+
+			writeFileSync(env_file, env_source);
+			await expect
+				.poll(() => fresh_text(context, `${base}/`, '[data-public-dynamic-env]'), {
+					message: 'the first dynamic public variable reads its value after a reload',
+					timeout: 20_000
+				})
+				.toBe('region from env');
+			await exercise(await context.newPage(), base, '/', false);
+
+			// and back: the variable made static again while dev runs reads its static value
+			writeFileSync(env_file, env_source.replace(dynamic, static_only));
+			await expect
+				.poll(() => fresh_text(context, `${base}/`, '[data-public-dynamic-env]'), {
+					message: 'the variable made static again reads its static value after a reload',
+					timeout: 20_000
+				})
+				.toBe('region static');
+			await exercise(await context.newPage(), base, '/', false, 'region static');
+			await context.close();
+		} finally {
+			writeFileSync(env_file, env_source);
 			await srv?.kill();
 		}
 	});

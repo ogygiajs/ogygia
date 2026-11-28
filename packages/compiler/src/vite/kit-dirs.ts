@@ -1,14 +1,28 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { type KitConfig, type KitDirs, DEFAULT_KIT_DIRS } from '../kit.ts';
+import { type KitConfig, type KitDirs, type KitIdentity, DEFAULT_KIT_DIRS } from '../kit.ts';
 import { warn } from '../messages.ts';
 
 const CONFIG_FILES = ['svelte.config.js', 'svelte.config.mjs'];
+const KIT_SETUP_PLUGIN = 'vite-plugin-sveltekit-setup';
 
-type KitOptions = { files?: { routes?: string }; outDir?: string; inlineStyleThreshold?: number };
+type KitOptions = {
+	files?: { routes?: string };
+	outDir?: string;
+	inlineStyleThreshold?: number;
+	paths?: { base?: unknown };
+	version?: { name?: unknown };
+};
 
 type PluginOption = unknown;
+
+function kit_setup_options(p: { name?: string; api?: unknown } | undefined): KitOptions | null {
+	if (p?.name !== KIT_SETUP_PLUGIN) return null;
+	const options = (p.api as { options?: KitOptions & { kit?: KitOptions } } | undefined)?.options;
+	if (!options) return null;
+	return options.kit ?? options;
+}
 
 async function flatten_plugins(option: PluginOption): Promise<{ name?: string; api?: unknown }[]> {
 	const out: { name?: string; api?: unknown }[] = [];
@@ -23,13 +37,11 @@ async function flatten_plugins(option: PluginOption): Promise<{ name?: string; a
 }
 
 async function kit_options_from_plugins(plugins: PluginOption): Promise<KitOptions | null> {
-	const setup = (await flatten_plugins(plugins)).find(
-		(p) => p.name === 'vite-plugin-sveltekit-setup'
-	);
-	const options = (setup?.api as { options?: KitOptions & { kit?: KitOptions } } | undefined)
-		?.options;
-	if (!options) return null;
-	return options.kit ?? options;
+	for (const p of await flatten_plugins(plugins)) {
+		const options = kit_setup_options(p);
+		if (options) return options;
+	}
+	return null;
 }
 
 async function kit_options_from_file(root: string): Promise<KitOptions | null> {
@@ -64,4 +76,24 @@ export async function load_kit_config(root: string, plugins?: PluginOption): Pro
 		inline_style_threshold:
 			typeof threshold === 'number' && Number.isFinite(threshold) && threshold > 0 ? threshold : 0
 	};
+}
+
+/** Kit's `paths.base` and `version.name` as Kit resolved them, off Kit's own setup plugin in
+ *  `plugins`, the resolved config's final plugin list (so one another plugin adds is found too).
+ *  Only that plugin holds them as Kit ships them: in a build Kit sets Vite's `base` to './', and its
+ *  default `version.name` is the time its config loaded. With no such plugin, neither is read. */
+export function kit_identity(
+	plugins: readonly { name?: string; api?: unknown }[] | undefined
+): KitIdentity {
+	for (const p of plugins ?? []) {
+		const kit = kit_setup_options(p);
+		if (!kit) continue;
+		const base = kit.paths?.base;
+		const version = kit.version?.name;
+		return {
+			base: typeof base === 'string' ? base : '',
+			version: typeof version === 'string' ? version : null
+		};
+	}
+	return { base: '', version: null };
 }

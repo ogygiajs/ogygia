@@ -1,9 +1,12 @@
 # internal/kit-sources
 
-Installs SvelteKit 3 (as `@sveltejs/kit3`) next to the Kit 2 the repository runs on, so a test can
-read both. Nothing else lives here: just a `package.json`.
+Installs SvelteKit 3, the oldest (as `@sveltejs/kit3`) and the newest (as `@sveltejs/kit3-latest`),
+next to the Kit 2 the repository runs on, so a test can read each. Nothing else lives here: just a
+`package.json`.
 
-Internal. Never published. Its only reader is `packages/core/test/kit-shim-surface.test.ts`, which
+Internal. Never published. The Kit canaries run a real app on each Kit it installs
+(`packages/core/test/canary/upstream.ts` `KITS`). Its other reader is
+`packages/core/test/kit-shim-surface.test.ts`, which
 checks that the Kit modules ogygia stands in for (the `$app/*` shims and the remote-functions
 stubs) export every name each Kit major reads from them. A missing name breaks the production build.
 

@@ -65,6 +65,86 @@
 			"reason": "constant work: string checks first, one path compare only for a relative import ending in Kit's remote-functions index; proven in packages/compiler/test/vite-hooks.test.ts (#2041)"
 		},
 		{
+			"id": "packages/compiler/src/kit-patches.ts > patch",
+			"reason": "once per load of Kit's client app module: appends a constant; proven in packages/compiler/test/vite-hooks.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/kit-patches.ts > public_env_patch",
+			"reason": "module constant: builds the two env rows of the patch table once when the compiler loads (#2177)"
+		},
+		{
+			"id": "packages/compiler/src/link/island-deps.ts > collectIslandDepModulepreloads > reads_env",
+			"reason": "build time, once per client build: one regex test per module id of an island's closure, beside the remotes walk over the same ids; proven in packages/compiler/test/island-deps.test.ts (#2177)"
+		},
+		{
+			"id": "packages/compiler/src/link/island-deps.ts > collectIslandDepModulepreloads > reads_env > some:0~92b2b3",
+			"reason": "build time: the predicate of reads_env, one regex test (#2177)"
+		},
+		{
+			"id": "packages/core/src/region-server.browser.ts > region_reads_env",
+			"reason": "constant: the browser's stand-in answers false"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env.ts > kit_env",
+			"reason": "once per document, at the evaluation of Kit's $app/env/public on a page Kit never started: one head querySelector, one querySelectorAll of the env scripts, one devalue parse and one string compare of the build; proven in packages/core/test/browser/side-channel-seeds.test.ts and packages/core/test/browser/kit-env-unlinked.test.ts (#2177)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env.ts > env_channel",
+			"reason": "browser only, once per document with kit_env: one head querySelector and one querySelectorAll of the env scripts; proven in packages/core/test/browser/kit-env-unlinked.test.ts and packages/core/test/browser/side-channel-seeds.test.ts (#2177)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env.ts > is_record",
+			"reason": "browser only: one typeof check, at most twice per kit_env; proven in packages/core/test/browser/side-channel-seeds.test.ts (#2177)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env.ts > missing",
+			"reason": "browser only, once per document where kit_env finds no env of its own: starts the import of the warning's chunk; proven in packages/core/test/browser/kit-env-answers.test.ts (#2177, #2221)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env.ts > missing > then:0~1c31ca",
+			"reason": "browser only: the warning, once its chunk loaded; proven in packages/core/test/browser/kit-env-answers.test.ts (#2177)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env.ts > missing > then:1~a1b2d0",
+			"reason": "browser only: the warning's chunk did not load; constant (#2177)"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > WARNED > kit_env_unpatched > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > WARNED > kit_env_unpatched > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > WARNED > kit_env_version_unread > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > WARNED > kit_env_version_unread > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > kit_env_build",
+			"reason": "once per build: reads the app's package.json and digests four short strings (kit-patches.ts kit_env_build), kept on the build after; reads the compiler's context (a live object, not replayable); proven in packages/compiler/test/kit-env-build.test.ts (#2192)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > kit_env_missing > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > kit_env_missing > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > kit_env_unshipped > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > kit_env_unshipped > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
 			"id": "packages/core/src/shims/kit-remote/remote-cache.ts > settled",
 			"reason": "constant work: one resolved promise, made only when a departed island's query is read after it left; proven in packages/core/test/remote-cache-holders.test.ts (#2007)"
 		},
@@ -6209,7 +6289,7 @@
 			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~d2741b > CompileCtx:0~20200d > flatMap:0~f1f41f",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~6de41f > CompileCtx:0~fb47ad > flatMap:0~f1f41f",
 			"reason": "once per config: the markdown formats' extensions; every build runs it"
 		},
 		{
@@ -6935,10 +7015,6 @@
 		{
 			"id": "packages/core/src/region-plan.ts > map:0~aada8b",
 			"reason": "runs once at module load: the index of the table's request states, for the plan cache's row key; constant"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > <anonymous>~b32df9",
-			"reason": "dev server only: one call per page render, a sorted copy of the og.$ hoists the compiler holds (Compiler.fn_manifest, which the build path already measures); apps/palaestra/e2e/dev-dollar-fn.spec.ts runs it"
 		},
 		{
 			"id": "packages/rewrite/src/pass.ts > call_render > map:0~2fef46",
@@ -9639,6 +9715,26 @@
 		{
 			"id": "packages/compiler/src/driver.ts > Compiler > check_island_order",
 			"reason": "OGYGIA_RULES builds only, once per client leg at buildEnd: one set lookup per module that read $app/* outside the island graph; proven in packages/compiler/test/island-closure-packages.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/dev-bridge.ts > open_dev_bridge",
+			"reason": "dev server only, once per configureServer: takes a live bridge of closures over the session (not cloneable) and writes a globalThis slot; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+		},
+		{
+			"id": "packages/compiler/src/dev-bridge.ts > open_dev_bridge > <anonymous>~a23714",
+			"reason": "dev server only, once when a dev server's scope closes: one splice of its bridge off the root's globalThis slot (hidden state); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+		},
+		{
+			"id": "packages/compiler/src/dev-bridge.ts > DevBridgeSlot > fn_manifest",
+			"reason": "dev server only: forwards to the newest open bridge's reader (a live closure, not replayable), or answers undefined with none open; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > open_dev_bridge:1~bab102 > fn_manifest",
+			"reason": "dev server only: reads the session's compiler as it is asked (a live object, not replayable); the compiler's fn_manifest does the work; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > on:2~efa631",
+			"reason": "dev server only, once when its http server closes: closes that server's scope (a live object, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		}
 	]
 }

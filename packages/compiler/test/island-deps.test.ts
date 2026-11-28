@@ -35,7 +35,7 @@ async function load_module(src: string) {
 /** The prod SSR module with `json` as its inlined build handoff. */
 const with_handoff = (json: unknown) =>
 	load_module(
-		island_deps_module(true, false).replace(
+		island_deps_module(true, null).replace(
 			"'__OGYGIA_ISLAND_DEPS_INLINE__'",
 			JSON.stringify(JSON.stringify(json))
 		)
@@ -299,6 +299,7 @@ describe('collectIslandDepModulepreloads', () => {
 			page: {},
 			page_keys: {},
 			remotes: {},
+			env: {},
 			interactivity: {},
 			hazards: {},
 			contents: {},
@@ -819,6 +820,44 @@ describe('collectIslandDepModulepreloads', () => {
 // REMOTE SEED ONLY WHEN REACHABLE — per facade, the Kit remote modules anywhere in its chunk
 // closure (static + dynamic), named by the id-hash Kit mints them with, so the handle can seed an
 // SSR-resolved remote only for a page with an island that can call it.
+describe("Kit's public env map (KIT-PUBLIC-ENV)", () => {
+	const KIT_ENV = '/app/.svelte-kit/generated/build/env/public/client.js';
+	const chunk = (fileName: string, moduleIds: string[], dynamicImports: string[] = []) => ({
+		type: 'chunk',
+		fileName,
+		moduleIds,
+		imports: [],
+		dynamicImports
+	});
+	const facade = (moduleIds: string[], dynamicImports: string[] = []) =>
+		chunk('_app/immutable/og-region.aaaaaaaaaaaa.js', moduleIds, dynamicImports);
+	const bundle = (chunks: ReturnType<typeof chunk>[]) =>
+		Object.fromEntries(chunks.map((c) => [c.fileName, c]));
+
+	test("an island whose closure holds Kit's $app/env/public reads it, behind a dynamic import too", () => {
+		expect(collectIslandDepModulepreloads(bundle([facade([KIT_ENV])])).env[FACADE]).toBe(true);
+		const lazy = bundle([
+			facade(['/app/src/lib/A.svelte'], ['_app/immutable/chunks/lazy.js']),
+			chunk('_app/immutable/chunks/lazy.js', [KIT_ENV])
+		]);
+		expect(collectIslandDepModulepreloads(lazy).env[FACADE]).toBe(true);
+	});
+
+	test('an island without it reads none, and the server answers so; an unknown entry fails open', () => {
+		const r = collectIslandDepModulepreloads(bundle([facade(['/app/src/lib/A.svelte'])]));
+		expect(r.env[FACADE]).toBe(false);
+		const server = island_deps_module(true, null);
+		expect(server).toContain("lookup('env', entry");
+		expect(server).toContain('return v === null ? true : v;');
+		expect(
+			/region_reads_env\(_entry\) \{ return true; \}/.test(island_deps_module(true, '/app'))
+		).toBe(true);
+		expect(
+			/region_reads_env\(_entry\) \{ return false; \}/.test(island_deps_module(false, null))
+		).toBe(true);
+	});
+});
+
 describe('remotes map', () => {
 	const CWD = '/app';
 	const hash_of = (id: string) => remote_hash_of(id, CWD);
@@ -1005,13 +1044,13 @@ describe('remotes map', () => {
 
 	describe('the virtual module off the production server', () => {
 		test('the client leg answers none for every reader', async () => {
-			const m = await load_module(island_deps_module(false, false));
+			const m = await load_module(island_deps_module(false, null));
 			expect(m.region_reads_page('/e/a.js')).toBe(false);
 			expect(m.region_css('/e/a.js')).toEqual([]);
 			expect(m.entry_location('/e/a.js')).toBeNull();
 		});
 		test('dev links a region by its module url, always seeds the page, and an identity is its own location', async () => {
-			const m = await load_module(island_deps_module(true, true));
+			const m = await load_module(island_deps_module(true, '/app'));
 			expect(m.region_css('/src/lib/A.svelte')).toEqual(['/src/lib/A.svelte']);
 			expect(m.region_css('')).toEqual([]);
 			expect(m.region_reads_page('/src/lib/A.svelte')).toBe(true);
@@ -1021,11 +1060,11 @@ describe('remotes map', () => {
 
 	describe('the virtual module\u2019s region_remotes', () => {
 		test('client leg → null (unused there)', () => {
-			const m = ISLAND_REMOTES_FN_RE.exec(island_deps_module(false, false));
+			const m = ISLAND_REMOTES_FN_RE.exec(island_deps_module(false, null));
 			expect(m?.[1]).toContain('return null');
 		});
 		test('dev → null (fail-open: no chunk closure to consult)', () => {
-			const m = ISLAND_REMOTES_FN_RE.exec(island_deps_module(true, true));
+			const m = ISLAND_REMOTES_FN_RE.exec(island_deps_module(true, '/app'));
 			expect(m?.[1]).toContain('return null');
 		});
 		test('prod SSR → reads the handoff\u2019s `remotes` map, null for a missing map or unknown entry', async () => {
@@ -1045,7 +1084,7 @@ describe('the virtual module’s handoff read', () => {
 	const beside = async () => {
 		const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'og-handoff-')));
 		const file = path.join(dir, 'region-deps.mjs');
-		fs.writeFileSync(file, island_deps_module(true, false, '.no-such-out-dir'));
+		fs.writeFileSync(file, island_deps_module(true, null, '.no-such-out-dir'));
 		const handoff = path.join(dir, 'og-region-deps.json');
 		return { m: await import(file), handoff };
 	};
@@ -1139,7 +1178,7 @@ describe('collect_inline_css', () => {
 	});
 
 	test('the virtual module exposes region_css_inline on every leg (null where nothing is kept)', async () => {
-		for (const src of [island_deps_module(false, false), island_deps_module(true, true)])
+		for (const src of [island_deps_module(false, null), island_deps_module(true, '/app')])
 			expect((await load_module(src)).region_css_inline('/a.css')).toBeNull();
 		const m = await with_handoff({ css_inline: { '/a.css': 'a{}', '/n.css': 5 } });
 		expect(m.region_css_inline('/a.css')).toBe('a{}');

@@ -1,7 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { cache } from '@ogygia/machine';
-import { csrTrueRouteIds, errorCsrTrueRouteIds, rootLayoutCsrTrue } from '../kit.ts';
+import {
+	csrTrueRouteIds,
+	errorCsrTrueRouteIds,
+	kit_major as kit_major_of,
+	rootLayoutCsrTrue
+} from '../kit.ts';
+import { kit_env_reader_module, kit_public_env_module } from '../kit-patches.ts';
 import {
 	generateFeatureCodeSource,
 	generateHydrateFeaturesSource,
@@ -53,6 +59,8 @@ import {
 	type RemoteSeedsModule,
 	type KitTransportModule,
 	type KitWireModule,
+	type KitEnvModule,
+	type KitEnvReaderModule,
 	type RegionDepsModule,
 	type RouteConfigModule,
 	type RuntimeFlagsModule,
@@ -90,6 +98,8 @@ export interface CoreApp {
 	routes_dir(): string;
 	/** the plugins listed beside `ogygia()` */
 	plugins(): CorePlugins;
+	/** the app's identity on Kit's env channel, one per build (`Compiler.kit_env_build`) */
+	kit_env_build(): string;
 }
 
 /** The plugins listed beside `ogygia()`: their server halves, browser halves, and the route
@@ -109,7 +119,8 @@ export const CORE_PARTS: Parts<CoreApp> = {
 	region_names: 'regions',
 	router_css_roots: 'styles',
 	routes_dir: 'routes',
-	plugins: 'plugins'
+	plugins: 'plugins',
+	kit_env_build: 'options'
 };
 
 type Value<T extends object> = ValueEntry<CoreApp, T>;
@@ -399,13 +410,18 @@ export const region_deps: Family<RegionDepsModule> = virtual.family({
 		region_page_keys: 'region_page_keys',
 		region_page_why: 'region_page_why',
 		region_remotes: 'region_remotes',
+		region_reads_env: 'region_reads_env',
 		fn_manifest: 'fn_manifest',
 		entry_location: 'entry_location',
 		location_map: 'location_map',
 		handoff_problem: 'handoff_problem'
 	},
 	load: ({ ctx }: CoreApp, { ssr }) =>
-		island_deps_module(ssr, ctx.is_dev, path.relative(ctx.root, ctx.kit_dirs.out_dir))
+		island_deps_module(
+			ssr,
+			ctx.is_dev ? ctx.root : null,
+			path.relative(ctx.root, ctx.kit_dirs.out_dir)
+		)
 });
 
 export const router_css: Family = virtual.family({
@@ -467,6 +483,32 @@ export const kit_wire: Family<KitWireModule> = virtual.family({
 		ctx.kit_wire_path === null
 			? null
 			: `export { create_remote_key } from ${JSON.stringify(ctx.kit_wire_path)};`
+});
+
+/** KIT-PUBLIC-ENV, the server's half: the public env Kit puts in its boot payload (kit-patches.ts
+ *  `kit_public_env_module`), `null` on a Kit ogygia reads none from. */
+export const kit_env: Family<KitEnvModule> = virtual.family({
+	realm: 'server',
+	id: 'kit-env',
+	exports: { kit_public_env: 'kit_public_env', kit_env_build: 'kit_env_build' },
+	load(app: CoreApp, { ssr }) {
+		const { ctx } = app;
+		const major = ssr ? kit_major_of(ctx.root) : null;
+		return kit_public_env_module(major, major === null || major < 3 ? '' : app.kit_env_build());
+	}
+});
+
+/** KIT-PUBLIC-ENV, the browser's half: the reader Kit's patched `$app/env/public` imports. */
+export const kit_env_reader: Family<KitEnvReaderModule> = virtual.family({
+	realm: 'boot',
+	id: 'kit-env',
+	load(app: CoreApp) {
+		const { ctx } = app;
+		const rt = ctx.is_build ? null : dev_runtime_of(ctx.runtime_dir);
+		const file = posix(`${rt?.dir ?? ctx.runtime_dir}/kit-env${rt?.ts ? '.ts' : '.js'}`);
+		const major = kit_major_of(ctx.root);
+		return kit_env_reader_module(file, major === null || major < 3 ? '' : app.kit_env_build());
+	}
 });
 
 export const rate_limit: Value<RateLimitModule> = virtual.value({
@@ -740,6 +782,8 @@ export const CORE_VIRTUALS: readonly Entry<CoreApp>[] = [
 	request_event,
 	region_endpoint,
 	kit_wire,
+	kit_env,
+	kit_env_reader,
 	rate_limit,
 	server_plugins,
 	profiler_maps,

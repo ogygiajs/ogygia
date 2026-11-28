@@ -36,11 +36,13 @@ const version_of = (root: string): string =>
 	(require(path.join(root, 'package.json')) as { version: string }).version;
 
 /** The root of every SvelteKit the workspace installs, by `Kit <version>`: the one the apps build
- *  with (on upstream-watch, the release under test), and Kit 3 from its own importer
- *  (internal/kit-sources), whose peers never move the versions the apps resolve. */
+ *  with (on upstream-watch, the release under test), and the oldest and the newest Kit 3 from
+ *  their own importer (internal/kit-sources), whose peers never move the versions the apps
+ *  resolve. */
 export const KITS: Readonly<Record<string, string>> = Object.fromEntries(
 	[
 		path.dirname(require.resolve('@sveltejs/kit/package.json')),
-		path.dirname(kit_sources.resolve('@sveltejs/kit3/package.json'))
+		path.dirname(kit_sources.resolve('@sveltejs/kit3/package.json')),
+		path.dirname(kit_sources.resolve('@sveltejs/kit3-latest/package.json'))
 	].map((root) => [`Kit ${version_of(root)}`, root])
 );

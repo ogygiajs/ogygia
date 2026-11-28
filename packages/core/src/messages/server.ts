@@ -229,6 +229,19 @@ export const SERVER_WARNINGS = {
 			render is abandoned while no other is.
 		`
 	},
+	kit_env_unshipped: {
+		text: (a: { reason: string }): string => prose`
+			SvelteKit's public env could not be written into a \`csr = false\` page (${a.reason}), so
+			its islands read their dynamic public variables as \`undefined\`.
+		`,
+		details: (): string => prose`
+			On a \`csr = false\` page Kit's client never starts, so ogygia writes Kit's public env into
+			the page for the islands that import \`$app/env/public\`. A variable's value could not be
+			serialized: a schema returned a value devalue cannot carry (a function, a class
+			instance). Return plain data from the variable's \`schema\`: Kit itself cannot send that
+			value to a \`csr = true\` page either.
+		`
+	},
 	page_promise_pending: {
 		text: (a: { path: string; ms: number }): string =>
 			`a promise in the load data of ${a.path || 'a page'} is still pending after ${a.ms} ms: its response stays open until it settles`,

@@ -36,7 +36,7 @@ import {
 import { WIRE_FORMAT_JSON } from './props-wire.ts';
 import { collect_remote_seed } from './remote-seed-gate.ts';
 import { mark_attr, response_mark } from './response-mark.ts';
-import { shape_page_data, unshipped_attr, type SeedKeys } from './seed-shape.ts';
+import { shape_page_data, unshipped_attr, type PageAsk, type SeedKeys } from './seed-shape.ts';
 
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
@@ -46,7 +46,8 @@ const RULES =
 export interface SeedBag {
 	readonly request: Request;
 	readonly page: PageSnapshot | null;
-	readonly seed_keys: SeedKeys | null;
+	/** what the page's regions asked of it (its seed keys, Kit's public env) */
+	readonly ask: PageAsk;
 	readonly tail: DocumentTail;
 	/** the inline scripts the document's head allowed (./early-holes-csp.ts) */
 	readonly csp_sources?: readonly string[];
@@ -106,7 +107,7 @@ export function walk_page_seed(data: unknown, memo: MeasureMemo): void {
 }
 
 /**
- * The page seed of a document some region asked it of (`bag.seed_keys`), into `scripts` in the
+ * The page seed of a document some region asked it of (`bag.ask.keys`), into `scripts` in the
  * document's order: the defer bootstrap (a streamed load on a browser navigation), the document
  * tail (rendered against the seed, so a sidecar that points into it is written as a reference),
  * then the seed itself (PAGE-DUP, PAGE-SEED-EVENT). STALE: the visitor left while a load's
@@ -127,7 +128,7 @@ export async function ship_page_seed(
 		mark_attr(bag.request),
 		!!bag.csp_sources?.includes(EARLY_CODE_SOURCE)
 	);
-	const keys = bag.seed_keys!;
+	const keys = bag.ask.keys!;
 	if (keys !== 'all') for (const k of index.touched) keys.add(k);
 	const shaped_data = shape_page_data(page_snap.data, keys);
 	let seed_data = shaped_data;

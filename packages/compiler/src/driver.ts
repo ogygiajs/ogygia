@@ -18,6 +18,7 @@ import {
 	is_route_component,
 	type FileEvent
 } from './kit.ts';
+import { kit_env_build, package_name } from './kit-patches.ts';
 import { run_module_macros } from './macros/pipeline.ts';
 import { fn_manifest_entries } from './macros/dollar.ts';
 import { is_script_request } from './script-request.ts';
@@ -109,6 +110,7 @@ interface Build {
 	handoff: ServerHandoff | null;
 	server_runtime: HandedRuntime | null;
 	router_css_roots: string[] | null;
+	kit_env_build: string | null;
 	readonly resolve_memo: Map<string, string | null>;
 	readonly reach_memo: Map<string, boolean>;
 	readonly specs_memo: Map<string, readonly string[]>;
@@ -134,6 +136,7 @@ const new_build = (program: Program): Build => ({
 	handoff: null,
 	server_runtime: null,
 	router_css_roots: null,
+	kit_env_build: null,
 	resolve_memo: new Map(),
 	reach_memo: new Map(),
 	specs_memo: new Map(),
@@ -183,7 +186,11 @@ interface ClosureEdge {
 	readonly importer: string;
 }
 type ClosureResolve = (spec: string, importer: string) => Promise<string | null>;
-const PAGE_FREE_APP_MODULES: ReadonlySet<string> = new Set(['$app/environment', '$app/paths']);
+const PAGE_FREE_APP_MODULES: ReadonlySet<string> = new Set([
+	'$app/environment',
+	'$app/paths',
+	'$app/env/public'
+]);
 const ASSET_EXTS =
 	'css|scss|sass|less|styl|pcss|postcss|json|svg|png|jpe?g|gif|webp|avif|ico|bmp|woff2?|ttf|otf|eot|txt|wasm|mp4|webm|mp3|wav';
 const ASSET_EXT_RE = new RegExp(`\\.(?:${ASSET_EXTS})$`, 'i');
@@ -532,6 +539,22 @@ export class Compiler implements CoreApp {
 		this.#build = new_build(program);
 		this.profiler = profiler;
 		this.#ctx = ctx;
+	}
+
+	/**
+	 * The app's identity on Kit's env channel (kit-patches.ts `kit_env_build`): made once per build
+	 * from the app's package name, base, app dir and Kit's `version.name`, and kept on the build, so
+	 * a build's server leg and client leg (each with its own context) bear one, and so does a dev
+	 * server's server module and browser reader (test/kit-env-build.test.ts).
+	 */
+	kit_env_build(): string {
+		const ctx = this.#ctx;
+		return (this.#build.kit_env_build ??= kit_env_build({
+			name: package_name(ctx.fs.read(path.join(ctx.root, 'package.json'))),
+			base: ctx.base,
+			app_dir: ctx.app_dir,
+			version: ctx.kit_version
+		}));
 	}
 
 	/** A compiler with context `ctx` that carries on this one's build (its program, legs and caches):

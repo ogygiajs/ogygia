@@ -67,6 +67,9 @@ export interface RegionDepsModule {
 	region_page_why(entry: string): { file: string; line: number | null; why: string }[] | null;
 	/** The Kit remote-function modules (by id-hash) the island can call; `null` = may call anything. */
 	region_remotes(entry: string): string[] | null;
+	/** The island's client code imports Kit's `$app/env/public` (fail-open: true in dev and for an
+	 *  unknown entry). */
+	region_reads_env(entry: string): boolean;
 	/** og.$ hoisted factories (tag → source) for the page-inline registration; prod SSR only. */
 	fn_manifest(): Record<string, string> | null;
 	/** An entry's identity (its stable URL) → the content-hashed file it is served from. */
@@ -219,6 +222,22 @@ export interface KitWireModule {
 	create_remote_key(id: string, payload: string): string;
 }
 
+/** `ogygia:server/kit-env`: the public env Kit puts in its boot payload on a csr=true page (Kit 3's
+ *  `rendered_env`), or `null` where this Kit has none ogygia reads. */
+export interface KitEnvModule {
+	kit_public_env(): Record<string, unknown> | null;
+	/** This build's identity as the channel is written, beside the env, so only this build's reader
+	 *  reads it: a constant, the same built and in dev, made from the app's package name, Kit's
+	 *  `paths.base`, its app dir and Kit's `version.name`. */
+	kit_env_build(): string;
+}
+
+/** `ogygia:boot/kit-env`: the browser's reader of that env (runtime/kit-env.ts), bound to this
+ *  build's identity (`kit_env_build`), which Kit's patched `$app/env/public` imports. */
+export interface KitEnvReaderModule {
+	kit_env(): Record<string, unknown>;
+}
+
 /** A module that only runs (it exports nothing). */
 export type SideEffectModule = Record<never, never>;
 
@@ -294,6 +313,7 @@ export interface VirtualModules {
 	'ogygia:boot/hooks': HooksModule;
 	'ogygia:boot/hook-bits': HookBitsModule;
 	'ogygia:boot/devtools-meta': DevtoolsMetaModule;
+	'ogygia:boot/kit-env': KitEnvReaderModule;
 	'ogygia:region/transport': TransportModule;
 	'ogygia:region/transportables': TransportablesModule;
 	'ogygia:region/kit-transport': KitTransportModule;
@@ -308,6 +328,7 @@ export interface VirtualModules {
 	'ogygia:server/router-css': SideEffectModule;
 	'ogygia:server/secret': SecretModule;
 	'ogygia:server/kit-wire': KitWireModule;
+	'ogygia:server/kit-env': KitEnvModule;
 	'ogygia:server/rate-limit': RateLimitModule;
 	'ogygia:server/server-plugins': ServerPluginsModule;
 	'ogygia:server/profiler-maps': ProfilerMapsModule;

@@ -16,6 +16,8 @@ import {
 	type IslandHazard
 } from '@ogygia/core/contract';
 import { is_generated_specifier } from '../virtual/table.ts';
+import { KIT_PUBLIC_ENV_CLIENT_RE } from '../kit-patches.ts';
+import { dev_bridge_call } from '../dev-bridge.ts';
 
 /** The server module's string slot the client leg writes the deps JSON into (link/relocations.ts). */
 export const ISLAND_DEPS_INLINE_TOKEN = '__OGYGIA_ISLAND_DEPS_INLINE__';
@@ -118,6 +120,8 @@ export function collectIslandDepModulepreloads(
 	page: Record<string, boolean>;
 	page_keys: Record<string, string[] | null>;
 	remotes: Record<string, string[]>;
+	/** whether an island's chunk closure holds Kit's browser `$app/env/public` (KIT-PUBLIC-ENV) */
+	env: Record<string, boolean>;
 	interactivity: Record<string, IslandInteractivityFacts>;
 	/** each island's components' lines that draw differently in the browser (hydration-hazards.ts),
 	 *  by entry — the app's own and the site kit's (ogygia's content components); not other packages */
@@ -136,6 +140,7 @@ export function collectIslandDepModulepreloads(
 	const page: Record<string, boolean> = {};
 	const page_keys: Record<string, string[] | null> = {};
 	const remotes: Record<string, string[]> = {};
+	const env: Record<string, boolean> = {};
 	const interactivity: Record<string, IslandInteractivityFacts> = {};
 	const hazards: Record<string, IslandHazard[]> = {};
 	const hazards_cache = new Map<string, IslandHazard[]>();
@@ -195,6 +200,10 @@ export function collectIslandDepModulepreloads(
 		}
 		return false;
 	};
+	const reads_env = (fileName: string): boolean =>
+		(bundle[fileName]?.moduleIds ?? []).some((id) =>
+			KIT_PUBLIC_ENV_CLIENT_RE.test(norm(id.split('?')[0]))
+		);
 	const remotes_in = (fileName: string, acc: Set<string>): void => {
 		if (!remote_hash) return;
 		for (const id of bundle[fileName]?.moduleIds ?? []) {
@@ -290,6 +299,7 @@ export function collectIslandDepModulepreloads(
 		const found = new Set<string>();
 		for (const s of full) remotes_in(s, found);
 		remotes[entryUrl] = [...found].sort();
+		env[entryUrl] = [...full].some(reads_env);
 		if (read_source) {
 			let acc: IslandInteractivityFacts | undefined;
 			const seen_files = new Set<string>();
@@ -377,6 +387,7 @@ export function collectIslandDepModulepreloads(
 		page,
 		page_keys,
 		remotes,
+		env,
 		interactivity,
 		hazards,
 		contents,
@@ -666,17 +677,14 @@ export function collect_inline_css(
 	return out;
 }
 
-/** The global (by `Symbol.for` name) the dev server's plugin fills with a reader of the og.$
- *  factories the compiler holds now (tag → factory source): the dev `fn_manifest()` asks it, so a
- *  page carries the factories of a module that never runs in the browser, as a build's handoff
- *  does (apps/palaestra/e2e/dev-dollar-fn.spec.ts). */
-export const DEV_FN_MANIFEST_KEY = 'ogygia.dev.fn-manifest';
-
 /**
  * `ogygia:server/region-deps` emitter — the SSR-render-time reader of the deps handoff.
- * Client: every reader answers none (the SSR HTML carries every hint). Dev: a region's CSS is its
- * module URL (the client imports it), the page always seeds, remotes are `null` (may call
- * anything), and an identity is its own location. SSR: read the handoff JSON at *render* time —
+ * Client: every reader answers none (the SSR HTML carries every hint). Dev (`dev_root`: the app's
+ * root): a region's CSS is its module URL (the client imports it), the page always seeds, remotes
+ * are `null` (may call anything), an identity is its own location, and the og.$ factories are the
+ * ones the compiler holds now, read through the dev bridge (dev-bridge.ts), so a page carries the
+ * factories of a module that never runs in the browser, as a build's handoff does
+ * (apps/palaestra/e2e/dev-dollar-fn.spec.ts). SSR: read the handoff JSON at *render* time —
  * Kit builds the server bundle before the client, so baking at `load()` would always be empty;
  * prerender/live SSR run after client generateBundle. Resolve via import.meta.url walk (not absolute
  * build-machine paths) so adapters find `output/server/og-region-deps.json` next to the server bundle.
@@ -685,7 +693,7 @@ export const DEV_FN_MANIFEST_KEY = 'ogygia.dev.fn-manifest';
  */
 export function island_deps_module(
 	ssr: boolean,
-	is_dev: boolean,
+	dev_root: string | null,
 	out_dir_rel = '.svelte-kit'
 ): string {
 	if (!ssr)
@@ -699,6 +707,7 @@ export function island_deps_module(
 			export function region_page_keys(_entry) { return null; }
 			export function region_page_why(_entry) { return null; }
 			export function region_remotes(_entry) { return null; }
+			export function region_reads_env(_entry) { return false; }
 			export function region_interactivity(_entry) { return null; }
 			export function region_hazards(_entry) { return null; }
 			export function chunk_contents(_href) { return null; }
@@ -710,7 +719,7 @@ export function island_deps_module(
 			export function location_map() { return null; }
 			export function handoff_problem() { return null; }
 		`;
-	if (is_dev)
+	if (dev_root !== null)
 		return dedent`
 			export function region_deps(_entry) { return []; }
 			export function wake_code() { return []; }
@@ -721,6 +730,7 @@ export function island_deps_module(
 			export function region_page_keys(_entry) { return null; }
 			export function region_page_why(_entry) { return null; }
 			export function region_remotes(_entry) { return null; }
+			export function region_reads_env(_entry) { return true; }
 			export function region_interactivity(_entry) { return null; }
 			export function region_hazards(_entry) { return null; }
 			export function chunk_contents(_href) { return null; }
@@ -728,7 +738,7 @@ export function island_deps_module(
 			export function chunk_barrels(_href) { return null; }
 			export function chunk_duplicates() { return null; }
 			export function fn_manifest() {
-				const m = globalThis[Symbol.for(${JSON.stringify(DEV_FN_MANIFEST_KEY)})]?.();
+				const m = ${dev_bridge_call(dev_root, 'fn_manifest')};
 				return m && Object.keys(m).length > 0 ? m : null;
 			}
 			export function entry_location(identity) { return identity || null; }
@@ -896,6 +906,11 @@ export function island_deps_module(
 		// entry the build never saw (a foreign fragment's island) → every SSR-resolved remote seeds.
 		export function region_remotes(entry) {
 			return lookup('remotes', entry, Array.isArray);
+		}
+
+		export function region_reads_env(entry) {
+			const v = lookup('env', entry, (x) => typeof x === 'boolean');
+			return v === null ? true : v;
 		}
 
 		// WAKE ADVISOR facts per entry (handlers / $state / bind: counts over the island's own
