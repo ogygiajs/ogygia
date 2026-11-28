@@ -85,6 +85,66 @@
 			"reason": "constant: the browser's stand-in answers false"
 		},
 		{
+			"id": "packages/core/src/runtime/import-again.ts > code_waits_for",
+			"reason": "constant: answers null until the boot of a Kit 3 app hands over what an island's code waits for"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > on_code_load",
+			"reason": "browser only, once per boot of a Kit 3 app: one assignment; proven in packages/core/test/browser/kit-env-served.test.ts (#2212)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env-first.ts > asked_by",
+			"reason": "browser only, Kit 3 apps: one head querySelector, one querySelectorAll of a script type and one mark compare, beside an island file's download; proven in packages/core/test/browser/kit-env-served.test.ts (#2212)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env-first.ts > env_first",
+			"reason": "browser only, Kit 3 apps, once per island file load: one peek of a map, then asked_by; proven in packages/core/test/browser/kit-env-served.test.ts (#2212)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env-first.ts > env_served",
+			"reason": "browser only, on a prerendered page whose region reads Kit's env: joins one flight, kept once it lands; proven in packages/core/test/browser/kit-env-served.test.ts (#2212)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env-first.ts > env_served > catch:0~ae0427",
+			"reason": "constant: a failed env.js holds no region back; proven in packages/core/test/browser/kit-env-unserved.test.ts (#2212)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env-first.ts > env_served_to",
+			"reason": "browser only, Kit 3 apps, once per page the router reads: asked_by on the fetched document; proven in packages/core/test/browser/kit-env-served-router.test.ts (#2212)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env-first.ts > hold_code_for_env",
+			"reason": "browser only, once per boot of a Kit 3 app: one call; proven in packages/core/test/browser/kit-env-served.test.ts (#2212)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env-first.ts > import_again:0~35c00e",
+			"reason": "browser only, once per document with a prerendered page's ask: starts the env reader's import; proven in packages/core/test/browser/kit-env-reader-lost.test.ts (#2212)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env-first.ts > trustedPlainFlights:0~e4157c > run",
+			"reason": "browser only, once per document with a prerendered page's ask: one chunk and one module load; proven in packages/core/test/browser/kit-env-served.test.ts (#2212)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env-first.ts > trustedPlainFlights:0~e4157c > run > then:0~0b9a70",
+			"reason": "browser only, as the flight's run: one call of serve_kit_env; proven in packages/core/test/browser/kit-env-served.test.ts (#2212)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env-first.ts > trustedPlainFlights:0~e4157c > run > then:0~0b9a70 > serve_kit_env:0~262246",
+			"reason": "browser only, as the flight's run: one origin check and one import; proven in packages/core/test/browser/kit-env-served.test.ts (#2212)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > env_served_to",
+			"reason": "browser only, Kit 3 apps, once per page the router reads: one read of the boot's link and a call; proven in packages/core/test/browser/kit-env-served-router.test.ts (#2212)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env.ts > kit_env_url",
+			"reason": "browser only, once per document with a prerendered page's ask: one startsWith, one indexOf and one string build; proven in packages/core/test/browser/kit-env-served.test.ts (#2212)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-env.ts > serve_kit_env",
+			"reason": "browser only, once per document with a prerendered page's ask: one module load and two type checks; proven in packages/core/test/browser/kit-env-served.test.ts (#2212)"
+		},
+		{
 			"id": "packages/core/src/runtime/kit-env.ts > kit_env",
 			"reason": "once per document, at the evaluation of Kit's $app/env/public on a page Kit never started: one head querySelector, one querySelectorAll of the env scripts, one devalue parse and one string compare of the build; proven in packages/core/test/browser/side-channel-seeds.test.ts and packages/core/test/browser/kit-env-unlinked.test.ts (#2177)"
 		},

@@ -333,6 +333,7 @@ async function measure(
 				__OGYGIA_CONTINUITY_FORMS__: 'true', // form continuity on by default (gated by the profile's marks)
 				__OGYGIA_SERVER_DELTA__: 'false', // server-delta nav is opt-in
 				__OGYGIA_KIT_PAGES__: String(kit), // the app has pages Kit hydrates (the kitchen sink)
+				__OGYGIA_KIT_MAJOR__: '2',
 				// the profiler's browser half and plugin hooks: on only for an app that configured the
 				// profiler or devtools, or installs a client plugin (the kitchen-sink profile does)
 				__OGYGIA_BEACON__: String(extras),
