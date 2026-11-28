@@ -1,11 +1,15 @@
 /**
- * THE DEV BRIDGE: what a dev server's generated server modules read off the compiler serving them,
- * as they run (the module text is made once; what it reads changes while dev runs). One global per
- * app root (by `Symbol.for` name), opened by the plugin's `configureServer` and closed with that
- * server (test/vite-hooks.test.ts › the dev bridge).
+ * THE OPEN DEV SERVERS of an app root: one registry, a `Symbol.for` global per root, of every dev
+ * server a plugin serves there, each held while that server is open (its own scope). The plugin
+ * reads it to find the server a hook runs on and every server a program-wide change goes to; a dev
+ * server's generated server modules read the newest one's bridge off it, as they run (the module
+ * text is made once; what it reads changes while dev runs) (test/vite-hooks.test.ts › the dev
+ * bridge).
  *
  * @packageDocumentation
  */
+import { registry, type Registry, type Scope } from '@ogygia/machine';
+import type { ViteDevServer } from 'vite';
 
 /** The readers a dev server's generated server modules call, each answering now. */
 export interface DevBridge {
@@ -14,7 +18,17 @@ export interface DevBridge {
 	fn_manifest(): Record<string, string>;
 }
 
-/** The `Symbol.for` name of the dev bridge of the app at `root`. */
+/** One open dev server: the scope it serves in (closed when it closes), its environments, the
+ *  plugin serving it (its dev scope) and the bridge its generated server modules read. */
+export interface DevServed {
+	readonly scope: Scope;
+	readonly server: ViteDevServer;
+	readonly environments: ReadonlySet<object>;
+	readonly plugin: Scope;
+	readonly bridge: DevBridge;
+}
+
+/** The `Symbol.for` name of the open dev servers of the app at `root`. */
 export const dev_bridge_key = (root: string): string => `ogygia.dev.bridge:${root}`;
 
 /** A generated server module's call of the bridge's `reader` for the app at `root`: `undefined`
@@ -22,24 +36,47 @@ export const dev_bridge_key = (root: string): string => `ogygia.dev.bridge:${roo
 export const dev_bridge_call = (root: string, reader: keyof DevBridge): string =>
 	`globalThis[Symbol.for(${JSON.stringify(dev_bridge_key(root))})]?.${reader}()`;
 
-/** The global of a root, made at its first open and kept for the process: every bridge open there,
- *  answering with the newest one still open, and `undefined` while none is. */
-export class DevBridgeSlot {
-	/** the open bridges, oldest first */
-	readonly open: DevBridge[] = [];
+/** The global of a root: its open dev servers, oldest first, answering the bridge's readers with the
+ *  newest one still open (nothing while none is). It is the root's global while one is open. */
+export class DevServers {
+	readonly open: Registry<DevServed> = registry<DevServed>();
+	readonly #slot: symbol;
+
+	constructor(slot: symbol) {
+		this.#slot = slot;
+	}
+
+	/** Holds `at` while its scope is open; when the last one closes, the root's global goes. */
+	add(at: DevServed): void {
+		this.open.add(at, at.scope);
+		at.scope.defer(() => {
+			if (this.open.size === 0)
+				delete (globalThis as Record<symbol, DevServers | undefined>)[this.#slot];
+		});
+	}
 
 	fn_manifest(): Record<string, string> | undefined {
-		return this.open.at(-1)?.fn_manifest();
+		return this.newest()?.bridge.fn_manifest();
+	}
+
+	/** The newest dev server still open, of `plugin` when given. */
+	newest(plugin?: Scope): DevServed | undefined {
+		const all = this.open.snapshot();
+		for (let i = all.length - 1; i >= 0; i--)
+			if (plugin === undefined || all[i]!.plugin === plugin) return all[i];
+		return undefined;
 	}
 }
 
-/** Opens `bridge` for the app at `root` over any other open there. Its close, run once by the
- *  scope of the dev server that opened it, takes only it away, so the newest one left answers. */
-export function open_dev_bridge(root: string, bridge: DevBridge): () => void {
-	const slots = globalThis as Record<symbol, DevBridgeSlot | undefined>;
-	const slot = (slots[Symbol.for(dev_bridge_key(root))] ??= new DevBridgeSlot());
-	slot.open.push(bridge);
-	return () => {
-		slot.open.splice(slot.open.indexOf(bridge), 1);
-	};
+/** The open dev servers of the app at `root`, while one is open: one global per root, gone when its
+ *  last open server closes. */
+export function dev_servers(root: string): DevServers | undefined {
+	return (globalThis as Record<symbol, DevServers | undefined>)[Symbol.for(dev_bridge_key(root))];
+}
+
+/** Opens `at` among the dev servers of `root`, making the root's global when none is open. */
+export function serve_dev(root: string, at: DevServed): void {
+	const slots = globalThis as Record<symbol, DevServers | undefined>;
+	const slot = Symbol.for(dev_bridge_key(root));
+	(slots[slot] ??= new DevServers(slot)).add(at);
 }

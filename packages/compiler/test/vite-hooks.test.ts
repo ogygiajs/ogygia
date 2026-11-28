@@ -48,6 +48,7 @@ import { scan_entry_pattern } from '../src/vite/paths.ts';
 import { load_kit_config } from '../src/vite/kit-dirs.ts';
 import { Compiler } from '../src/driver.ts';
 import { DEV_CLIENT_MAPS, DEV_MAPS, DEV_PAGE_KEYS } from '../src/vite/dev-maps.ts';
+import { dev_servers, type DevServers } from '../src/dev-bridge.ts';
 import type { OgygiaOptions } from '../src/vite/options.ts';
 
 const APP_STATE = APP_SHIMS['$app/state'];
@@ -2254,6 +2255,14 @@ describe('the dev server', () => {
 			}
 		};
 	}
+	/** A dev server with its environments, which Vite passes to watchChange as `this.environment`. */
+	function served() {
+		const client = { name: 'client', config: { consumer: 'client' } };
+		const ssr = { name: 'ssr', config: { consumer: 'server' } };
+		return { ...server(), environments: { client, ssr } };
+	}
+	/** The context Vite calls watchChange with: the server's client environment. */
+	const heard_on = (s: ReturnType<typeof served>) => ({ environment: s.environments.client });
 
 	it('an edit to a route, an island or a deleted file reloads the page; a plain module does not', async () => {
 		app();
@@ -2339,13 +2348,15 @@ describe('the dev server', () => {
 		const { p } = await setup('serve');
 		const host = path.join(root, 'src/routes/+page.svelte');
 		await p.transform.call(hook_this('ssr'), readFileSync(host, 'utf8'), host, { ssr: true });
-		const s = server();
+		const s = served();
+		p.configureServer(s);
 		p.handleHotUpdate({ file: host, server: s });
 		expect(s.invalidated.some((id) => id.includes('ogygia:region/'))).toBe(true);
-		// (no configureServer: the hot update's server is the one a watch event reloads)
 		await p.transform.call(hook_this('ssr'), readFileSync(host, 'utf8'), host, { ssr: true });
 		s.sent.length = 0;
-		p.watchChange(path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
+		p.watchChange.call(heard_on(s), path.join(root, 'src/lib/Counter.svelte'), {
+			event: 'delete'
+		});
 		expect(s.sent).toEqual([{ type: 'full-reload', path: '*' }]);
 	});
 
@@ -2440,28 +2451,28 @@ describe('the dev server', () => {
 	it('a deleted island entry reloads the page; an edit or a build does not', async () => {
 		app();
 		const { p } = await setup('serve');
-		const s = server();
+		const s = served();
 		p.configureServer(s);
 		const entry = path.join(root, 'src/lib/Counter.svelte');
-		p.watchChange(entry, { event: 'update' });
+		p.watchChange.call(heard_on(s), entry, { event: 'update' });
 		expect(s.sent).toEqual([]);
-		p.watchChange(entry, { event: 'delete' });
+		p.watchChange.call(heard_on(s), entry, { event: 'delete' });
 		expect(s.sent).toEqual([{ type: 'full-reload', path: '*' }]);
 		const b = await setup('build');
-		const s2 = server();
+		const s2 = served();
 		b.p.configureServer(s2);
-		b.p.watchChange(entry, { event: 'delete' });
+		b.p.watchChange.call(heard_on(s2), entry, { event: 'delete' });
 		expect(s2.sent).toEqual([]);
 	});
 
 	it('a csr flip in dev is seen by the next route-csr load', async () => {
 		app();
 		const { p } = await setup('serve');
-		const s = server();
+		const s = served();
 		p.configureServer(s);
 		const before = await load(p, 'ogygia:server/route-csr', 'ssr');
 		const option = write('src/routes/+layout.ts', 'export const csr = true;\n');
-		p.watchChange(option, { event: 'update' });
+		p.watchChange.call(heard_on(s), option, { event: 'update' });
 		expect(await load(p, 'ogygia:server/route-csr', 'ssr')).not.toBe(before);
 		// (the server graph's copy too: the SSR leg reads the csr set through it)
 		expect(s.invalidated.some((id) => id.includes('route-csr'))).toBe(true);
@@ -2471,17 +2482,17 @@ describe('the dev server', () => {
 		app();
 		const options = write('src/routes/+page.ts', 'export const csr = true;\n');
 		const { p } = await setup('serve');
-		const s = server();
+		const s = served();
 		p.configureServer(s);
 		const csr_true = await load(p, 'ogygia:server/route-csr', 'ssr');
 		write('src/routes/+page.ts', 'export const csr = false;\n');
-		p.watchChange(options, { event: 'update' });
+		p.watchChange.call(heard_on(s), options, { event: 'update' });
 		const csr_false = await load(p, 'ogygia:server/route-csr', 'ssr');
 		expect(csr_false).not.toBe(csr_true);
 		vi.useFakeTimers();
 		try {
 			write('src/routes/+page.ts', '');
-			p.watchChange(options, { event: 'update' });
+			p.watchChange.call(heard_on(s), options, { event: 'update' });
 			expect(await load(p, 'ogygia:server/route-csr', 'ssr'), 'read empty').toBe(csr_false);
 			s.invalidated.length = 0;
 			write('src/routes/+page.ts', 'export const csr = true;\n');
@@ -2494,25 +2505,448 @@ describe('the dev server', () => {
 		}
 	});
 
+	it("a half-written save heard while an earlier save's second read is pending is still replayed once written: the earlier read's empty answer never drops the later wait", async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const s = served();
+		p.configureServer(s);
+		await load(p, 'ogygia:server/route-csr', 'ssr');
+		vi.useFakeTimers();
+		try {
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			p.watchChange.call(heard_on(s), options, { event: 'update' });
+			await load(p, 'ogygia:server/route-csr', 'ssr');
+			vi.advanceTimersByTime(60);
+			write('src/routes/+page.ts', '');
+			p.watchChange.call(heard_on(s), options, { event: 'update' });
+			await load(p, 'ogygia:server/route-csr', 'ssr');
+			vi.advanceTimersByTime(45);
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			vi.advanceTimersByTime(1_000);
+			expect(s.replayed).toEqual([options]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("two half-written saves heard 60 ms apart are replayed once written: the first save's empty second read leaves the second's pending", async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const s = served();
+		p.configureServer(s);
+		await load(p, 'ogygia:server/route-csr', 'ssr');
+		vi.useFakeTimers();
+		try {
+			write('src/routes/+page.ts', '');
+			p.watchChange.call(heard_on(s), options, { event: 'update' });
+			vi.advanceTimersByTime(60);
+			p.watchChange.call(heard_on(s), options, { event: 'update' });
+			vi.advanceTimersByTime(45);
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			vi.advanceTimersByTime(1_000);
+			expect(s.replayed).toEqual([options]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("a server whose second read already found nothing is not replayed when another server's watcher later reports a new edit", async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		await load(p, 'ogygia:server/route-csr', 'ssr');
+		vi.useFakeTimers();
+		try {
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			p.watchChange.call(heard_on(a), options, { event: 'update' });
+			vi.advanceTimersByTime(1_000);
+			await load(p, 'ogygia:server/route-csr', 'ssr');
+			write('src/routes/+page.ts', 'export const csr = false;\n');
+			p.watchChange.call(heard_on(b), options, { event: 'update' });
+			vi.advanceTimersByTime(1_000);
+			expect({ a: a.replayed, b: b.replayed }).toEqual({ a: [], b: [] });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('deleting a route file another server has a second read pending on replays no change on that server', async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		await load(p, 'ogygia:server/route-csr', 'ssr');
+		vi.useFakeTimers();
+		try {
+			p.watchChange.call(heard_on(a), options, { event: 'update' });
+			rmSync(options);
+			p.watchChange.call(heard_on(b), options, { event: 'delete' });
+			expect(a.replayed).toEqual([]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it('a half-written save heard before its dev server closes is never read again on the closed server', async () => {
 		app();
 		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
 		const { p } = await setup('serve');
-		const client = { name: 'client', config: { consumer: 'client' } };
-		const ssr = { name: 'ssr', config: { consumer: 'server' } };
-		const s = { ...server(), environments: { client, ssr } };
+		const s = served();
 		p.configureServer(s);
 		vi.useFakeTimers();
 		try {
 			write('src/routes/+page.ts', '');
-			p.watchChange.call({ environment: client }, options, { event: 'update' });
-			for (const e of [client, ssr]) p.closeBundle.call({ environment: e });
+			p.watchChange.call(heard_on(s), options, { event: 'update' });
+			for (const e of Object.values(s.environments)) p.closeBundle.call({ environment: e });
 			write('src/routes/+page.ts', 'export const csr = true;\n');
 			vi.advanceTimersByTime(1_000);
 			expect(s.replayed).toEqual([]);
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it('a file event heard on one of two dev servers is read again and replayed on that server, never on the other, which once closed hears nothing', async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		const entry = path.join(root, 'src/lib/Counter.svelte');
+		p.watchChange.call(heard_on(a), entry, { event: 'delete' });
+		expect(a.sent).toEqual([{ type: 'full-reload', path: '*' }]);
+		const csr_false = await load(p, 'ogygia:server/route-csr', 'ssr');
+		vi.useFakeTimers();
+		try {
+			write('src/routes/+page.ts', '');
+			p.watchChange.call(heard_on(a), options, { event: 'update' });
+			for (const e of Object.values(b.environments)) p.closeBundle.call({ environment: e });
+			const b_heard = [b.invalidated.length, b.sent.length];
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			vi.advanceTimersByTime(1_000);
+			expect(a.replayed).toEqual([options]);
+			expect(a.invalidated.some((id) => id.includes('route-csr'))).toBe(true);
+			expect(await load(p, 'ogygia:server/route-csr', 'ssr')).not.toBe(csr_false);
+			expect([b.replayed, b.invalidated.length, b.sent.length]).toEqual([[], ...b_heard]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("one edit both open dev servers' watchers hear updates the route answers on both servers, not only the first to hear it", async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = true;\n');
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		await load(p, 'ogygia:server/route-csr', 'ssr');
+		write('src/routes/+page.ts', 'export const csr = false;\n');
+		p.watchChange.call(heard_on(a), options, { event: 'update' });
+		p.watchChange.call(heard_on(b), options, { event: 'update' });
+		const dropped = (s: ReturnType<typeof served>) =>
+			s.invalidated.some((id) => id.includes('route-csr'));
+		expect({ a: dropped(a), b: dropped(b) }).toEqual({ a: true, b: true });
+		for (const s of [a, b])
+			for (const e of Object.values(s.environments)) p.closeBundle.call({ environment: e });
+	});
+
+	it('a half-written save both open dev servers hear is replayed on both once it is written, not only on the first whose second read finds the change', async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		await load(p, 'ogygia:server/route-csr', 'ssr');
+		vi.useFakeTimers();
+		try {
+			write('src/routes/+page.ts', '');
+			p.watchChange.call(heard_on(a), options, { event: 'update' });
+			p.watchChange.call(heard_on(b), options, { event: 'update' });
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			vi.advanceTimersByTime(1_000);
+			expect({ a: a.replayed, b: b.replayed }).toEqual({ a: [options], b: [options] });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('a save one dev server hears half-written and the other hears written is replayed on the first, whose watcher dropped the write', async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		await load(p, 'ogygia:server/route-csr', 'ssr');
+		vi.useFakeTimers();
+		try {
+			write('src/routes/+page.ts', '');
+			p.watchChange.call(heard_on(a), options, { event: 'update' });
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			p.watchChange.call(heard_on(b), options, { event: 'update' });
+			vi.advanceTimersByTime(1_000);
+			expect({ a: a.replayed, b: b.replayed }).toEqual({ a: [options], b: [] });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('a half-written save both dev servers hear is replayed once written only on the one still open, never on the one that closed', async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		await load(p, 'ogygia:server/route-csr', 'ssr');
+		vi.useFakeTimers();
+		try {
+			write('src/routes/+page.ts', '');
+			p.watchChange.call(heard_on(b), options, { event: 'update' });
+			p.watchChange.call(heard_on(a), options, { event: 'update' });
+			for (const e of Object.values(a.environments)) p.closeBundle.call({ environment: e });
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			vi.advanceTimersByTime(1_000);
+			expect({ a: a.replayed, b: b.replayed }).toEqual({ a: [], b: [options] });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("deleting an island's file heard on one of two dev servers drops the same modules from both servers' graphs", async () => {
+		app();
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		const host = path.join(root, 'src/routes/+page.svelte');
+		await p.transform.call(hook_this('ssr'), readFileSync(host, 'utf8'), host, { ssr: true });
+		p.watchChange.call(heard_on(a), path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
+		expect(a.invalidated).not.toEqual([]);
+		expect(b.invalidated).toEqual(a.invalidated);
+	});
+
+	it("a style edit heard by one of two open dev servers drops the router's inlined CSS module from both servers' graphs", async () => {
+		app();
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		await load(p, 'ogygia:server/router-css', 'ssr');
+		p.handleHotUpdate({ file: write('src/lib/X.svelte', '\n'), server: a });
+		const dropped = (s: ReturnType<typeof served>) =>
+			s.invalidated.some((id) => id.includes('router-css'));
+		expect({ a: dropped(a), b: dropped(b) }).toEqual({ a: true, b: true });
+	});
+
+	it("a transform that moves what a loaded virtual module read drops that module from the dev server's graph", async () => {
+		app();
+		const { p } = await setup('serve');
+		const s = served();
+		p.configureServer(s);
+		await load(p, 'ogygia:boot/runtime-entry', 'client');
+		write('src/lib/Idle.svelte', '<p>idle</p>\n');
+		const host = write(
+			'src/routes/idle/+page.svelte',
+			dedent`
+				<script>
+					import Idle from '$lib/Idle.svelte' with { wake: 'idle' };
+				</script>
+				<Idle />
+			`
+		);
+		const on_s = { ...hook_this('ssr'), environment: s.environments.ssr };
+		await p.transform.call(on_s, readFileSync(host, 'utf8'), host, { ssr: true });
+		expect(s.invalidated.some((id) => id.includes('runtime-entry'))).toBe(true);
+	});
+
+	it("a transform on the older of two dev servers that moves what a loaded virtual module read drops that module from both servers' graphs", async () => {
+		app();
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		await load(p, 'ogygia:boot/runtime-entry', 'client');
+		write('src/lib/Idle.svelte', '<p>idle</p>\n');
+		const host = write(
+			'src/routes/idle/+page.svelte',
+			dedent`
+				<script>
+					import Idle from '$lib/Idle.svelte' with { wake: 'idle' };
+				</script>
+				<Idle />
+			`
+		);
+		const on_a = { ...hook_this('ssr'), environment: a.environments.ssr };
+		await p.transform.call(on_a, readFileSync(host, 'utf8'), host, { ssr: true });
+		const dropped = (s: ReturnType<typeof served>) =>
+			s.invalidated.some((id) => id.includes('runtime-entry'));
+		expect({ a: dropped(a), b: dropped(b) }).toEqual({ a: true, b: true });
+	});
+
+	it('closing an older dev server while a newer one is open leaves the newer one serving a hook with no environment', async () => {
+		app();
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		for (const e of Object.values(a.environments)) p.closeBundle.call({ environment: e });
+		p.watchChange.call({}, path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
+		expect({ a: a.sent, b: b.sent }).toEqual({ a: [], b: [{ type: 'full-reload', path: '*' }] });
+	});
+
+	it('closing the newest dev server leaves the older one serving a hook with no environment, as the dev bridge then reads the older one', async () => {
+		app();
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		for (const e of Object.values(b.environments)) p.closeBundle.call({ environment: e });
+		p.watchChange.call({}, path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
+		expect({ a: a.sent, b: b.sent }).toEqual({ a: [{ type: 'full-reload', path: '*' }], b: [] });
+		expect(dev_servers(root)?.newest()?.server).toBe(a);
+	});
+
+	it('a dev closeBundle with no environment closes no dev server: both keep serving, and a server opened after still joins', async () => {
+		app();
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		p.closeBundle.call({});
+		const c = served();
+		p.configureServer(c);
+		p.watchChange.call({}, path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
+		const reload = [{ type: 'full-reload', path: '*' }];
+		expect({ a: a.sent, b: b.sent, c: c.sent }).toEqual({ a: reload, b: reload, c: reload });
+		expect(
+			dev_servers(root)
+				?.open.snapshot()
+				.map((at) => at.server)
+		).toEqual([a, b, c]);
+	});
+
+	it("a module an island pulls into its world, transformed on one of two dev servers, is dropped from every open server's graph", async () => {
+		app();
+		const helper = write(
+			'src/lib/boot.ts',
+			"import { page } from '$app/state'; export const p = page;\n"
+		);
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		write('src/lib/Late.svelte', "<script>import { p } from './boot';</script><p>{p}</p>\n");
+		const host = write(
+			'src/routes/late/+page.svelte',
+			dedent`
+				<script>
+					import Late from '$lib/Late.svelte' with { wake: 'visible' };
+				</script>
+				<Late />
+			`
+		);
+		const on_a = { ...hook_this('ssr'), environment: a.environments.ssr };
+		await p.transform.call(on_a, readFileSync(host, 'utf8'), host, { ssr: true });
+		expect({ a: a.invalidated.includes(helper), b: b.invalidated.includes(helper) }).toEqual({
+			a: true,
+			b: true
+		});
+	});
+
+	it('a hook with no environment, heard after the newest dev server closed, reaches no closed server', async () => {
+		app();
+		const { p } = await setup('serve');
+		const s = served();
+		p.configureServer(s);
+		for (const e of Object.values(s.environments)) p.closeBundle.call({ environment: e });
+		p.watchChange.call({}, path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
+		expect(s.sent).toEqual([]);
+	});
+
+	it('a deleted island entry both open dev servers hear reloads the page on both, once each, and never on a server another ogygia() serves', async () => {
+		app();
+		const { p } = await setup('serve');
+		const other = (await setup('serve')).p;
+		const a = served();
+		const b = served();
+		const c = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		other.configureServer(c);
+		const entry = path.join(root, 'src/lib/Counter.svelte');
+		p.watchChange.call(heard_on(a), entry, { event: 'delete' });
+		p.watchChange.call(heard_on(b), entry, { event: 'delete' });
+		const reload = { type: 'full-reload', path: '*' };
+		expect({ a: a.sent, b: b.sent, c: c.sent }).toEqual({ a: [reload], b: [reload], c: [] });
+	});
+
+	describe('two ogygia() on one root, each serving its own dev server (a restart opens the new one before the old closes)', () => {
+		async function two() {
+			app();
+			const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+			const p1 = (await setup('serve')).p;
+			const p2 = (await setup('serve')).p;
+			const a = served();
+			const b = served();
+			p1.configureServer(a);
+			p2.configureServer(b);
+			return { options, p1, p2, a, b };
+		}
+
+		it("a half-written save one hears with no environment is replayed on its own server, not on the other's newer one", async () => {
+			const { options, p1, a, b } = await two();
+			vi.useFakeTimers();
+			try {
+				write('src/routes/+page.ts', '');
+				p1.watchChange.call({}, options, { event: 'update' });
+				write('src/routes/+page.ts', 'export const csr = true;\n');
+				vi.advanceTimersByTime(1_000);
+				expect({ a: a.replayed, b: b.replayed }).toEqual({ a: [options], b: [] });
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("one's plugins closing on the other's environments leave the other's server open", async () => {
+			const { p1, p2, b } = await two();
+			for (const e of Object.values(b.environments)) p1.closeBundle.call({ environment: e });
+			p2.watchChange.call({}, path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
+			expect(b.sent).toEqual([{ type: 'full-reload', path: '*' }]);
+		});
+
+		it("a style edit one hears drops the router's inlined CSS module from its own server's graph, never the other's", async () => {
+			const { p1, a, b } = await two();
+			await load(p1, 'ogygia:server/router-css', 'ssr');
+			p1.handleHotUpdate({ file: write('src/lib/X.svelte', '\n'), server: a });
+			const dropped = (s: ReturnType<typeof served>) =>
+				s.invalidated.some((id) => id.includes('router-css'));
+			expect({ a: dropped(a), b: dropped(b) }).toEqual({ a: true, b: false });
+		});
 	});
 });
 
@@ -2582,7 +3016,7 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		}
 	});
 
-	it('closes with its dev server, and a second dev server of the same root keeps its own', async () => {
+	it("closes with its dev server, a second dev server of the same root keeps its own, and the root's global goes with the last", async () => {
 		kit3();
 		const spied = fn_manifest_by_base();
 		try {
@@ -2593,14 +3027,30 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 			a.p.configureServer(sa);
 			b.p.configureServer(sb);
 			const [slot] = slots();
-			const read = () => (g[slot!] as { fn_manifest(): unknown }).fn_manifest();
+			const read = () => (g[slot!] as { fn_manifest(): unknown } | undefined)?.fn_manifest();
 			sa.httpServer.emit('close');
 			expect(read()).toEqual({ base: '/b' });
 			sb.httpServer.emit('close');
 			expect(read()).toBeUndefined();
+			expect(slots()).toEqual([]);
 		} finally {
 			spied.mockRestore();
 		}
+	});
+
+	it("a hook that runs after the root's last dev server closed leaves no global behind", async () => {
+		kit3();
+		const { p } = await setup('serve');
+		const s = dev_server();
+		p.configureServer(s);
+		s.httpServer.emit('close');
+		expect(slots()).toEqual([]);
+		const entry = path.join(root, 'src/lib/Counter.svelte');
+		p.watchChange.call(hook_this('ssr'), entry, { event: 'update' });
+		p.watchChange.call(hook_this('ssr'), entry, { event: 'delete' });
+		const host = path.join(root, 'src/routes/+page.svelte');
+		await p.transform.call(hook_this('ssr'), readFileSync(host, 'utf8'), host, { ssr: true });
+		expect(slots()).toEqual([]);
 	});
 
 	it('with every dev server of the root closed, the generated server module reads nothing', async () => {
@@ -2612,7 +3062,7 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		s.httpServer.emit('close');
 		const fn = /export function fn_manifest\(\) \{[^]*?\n?\s*\}\n/.exec(region_deps);
 		expect(fn).not.toBeNull();
-		expect(slots()).toHaveLength(1);
+		expect(slots()).toEqual([]);
 		// oxlint-disable-next-line typescript/no-implied-eval -- the generated module's function text under test
 		expect(new Function(`${fn![0].replace('export ', '')}return fn_manifest();`)()).toBeNull();
 	});
@@ -2627,7 +3077,7 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 			const sb = dev_server();
 			a.p.configureServer(sa);
 			const [slot] = slots();
-			const read = () => (g[slot!] as { fn_manifest(): unknown }).fn_manifest();
+			const read = () => (g[slot!] as { fn_manifest(): unknown } | undefined)?.fn_manifest();
 			b.p.configureServer(sb);
 			expect(read()).toEqual({ base: '/b' });
 			sb.httpServer.emit('close');
@@ -2637,5 +3087,29 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		} finally {
 			spied.mockRestore();
 		}
+	});
+
+	it('one plugin serving a restarted dev server: the old server closing its plugins leaves the new one open', async () => {
+		kit3();
+		const { p } = await setup('serve');
+		const env = (name: string) => ({
+			name,
+			config: { consumer: name === 'ssr' ? 'server' : 'client' }
+		});
+		const restarted = () => ({
+			...dev_server(),
+			environments: { client: env('client'), ssr: env('ssr') }
+		});
+		const old_server = restarted();
+		const new_server = restarted();
+		p.configureServer(old_server);
+		p.configureServer(new_server);
+		const [slot] = slots();
+		const servers = g[slot!] as DevServers;
+		const open = () => servers.open.snapshot().map((at) => at.server);
+		for (const e of Object.values(old_server.environments)) p.closeBundle.call({ environment: e });
+		expect(open()).toEqual([new_server]);
+		for (const e of Object.values(new_server.environments)) p.closeBundle.call({ environment: e });
+		expect(open()).toEqual([]);
 	});
 });

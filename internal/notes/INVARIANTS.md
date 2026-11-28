@@ -323,6 +323,18 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 ---
 
+## DEV-SERVERS — one registry of a root's open dev servers
+
+**What:** A dev server's generated server modules read the compiler serving them through the dev bridge (compiler dev-bridge.ts: one `Symbol.for` global per app root, `dev_bridge_key`, holding the dev `fn_manifest()`'s reader, which reads the compiler the plugin session holds when it is asked). The global is `DevServers`, the one registry of the root's open dev servers: each `configureServer` adds its server, with its environments, the plugin serving it and its bridge, under that server's own scope, so a closing server leaves it by itself, and the root's global goes with the last one; the bridge answers with the newest one still open, and with nothing once none is; a module finds the global by the root only, so while two dev servers of one root are open both read the newest one's compiler (#2229). The plugin reads the same registry: a hook runs on the open server holding its environment, else the newest one it serves still open, and what the compiler hands out once (moved modules, closure marks, route answers, a host's islands) is dropped from every open server it serves, and so is a deleted island entry's full reload, while a replay stays on the server that heard the event; a plugin reads only the servers it serves, never another ogygia()'s on the same root.
+
+**Why:** Vite loads a generated server module once, while what it reads changes as dev runs; and a restart opens the new dev server before the old one closes, or one plugin list serves two servers, so a change heard by one server must reach every server it concerns.
+
+**Do not:** Keep one "current" dev server in a variable, or let a closing server take another's state with it.
+
+**Enforced by:** `packages/compiler/test/vite-hooks.test.ts > the dev bridge: what a dev server's generated server modules read off the compiler serving them`, `packages/compiler/test/vite-hooks.test.ts > the dev server`
+
+---
+
 ## KIT-CONFIG — the Kit options the compiler reads
 
 **What:** The compiler reads `kit.files.routes`, `kit.outDir`, `kit.appDir` and `kit.inlineStyleThreshold` from the app's config (`svelte.config.js` on Kit 2, the `sveltekit()` plugin options on Kit 3), each with Kit's default when unset, and says `kit_config_unreadable` when the config throws as it loads. It reads Kit's `paths.base` and `version.name` (KIT-PUBLIC-ENV's identity) off Kit's own setup plugin in the resolved config's final plugin list (`configResolved`'s `config.plugins`, which holds a plugin another plugin adds too), as Kit resolved them (vite/kit-dirs.ts `kit_identity`), never from a file: Kit 3 has no `svelte.config.js` (it throws `config_file_unsupported` when one exists), and Kit 2 has no env channel, so no identity. It never takes Vite's `base` for `paths.base`: in a build Kit sets Vite's `base` to `./` (its default `paths.relative`). With no setup plugin in the list, neither is read (`''` and `null`).
