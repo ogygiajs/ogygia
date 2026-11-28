@@ -2371,6 +2371,27 @@ describe('the dev server', () => {
 			vi.useRealTimers();
 		}
 	});
+
+	it('a half-written save heard before its dev server closes is never read again on the closed server', async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const client = { name: 'client', config: { consumer: 'client' } };
+		const ssr = { name: 'ssr', config: { consumer: 'server' } };
+		const s = { ...server(), environments: { client, ssr } };
+		p.configureServer(s);
+		vi.useFakeTimers();
+		try {
+			write('src/routes/+page.ts', '');
+			p.watchChange.call({ environment: client }, options, { event: 'update' });
+			for (const e of [client, ssr]) p.closeBundle.call({ environment: e });
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			vi.advanceTimersByTime(1_000);
+			expect(s.replayed).toEqual([]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });
 
 describe("the dev bridge: what a dev server's generated server modules read off the compiler serving them", () => {
