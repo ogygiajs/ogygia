@@ -2994,6 +2994,21 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		}
 	});
 
+	it("a hook that runs after the root's last dev server closed leaves no global behind", async () => {
+		kit3();
+		const { p } = await setup('serve');
+		const s = dev_server();
+		p.configureServer(s);
+		s.httpServer.emit('close');
+		expect(slots()).toEqual([]);
+		const entry = path.join(root, 'src/lib/Counter.svelte');
+		p.watchChange.call(hook_this('ssr'), entry, { event: 'update' });
+		p.watchChange.call(hook_this('ssr'), entry, { event: 'delete' });
+		const host = path.join(root, 'src/routes/+page.svelte');
+		await p.transform.call(hook_this('ssr'), readFileSync(host, 'utf8'), host, { ssr: true });
+		expect(slots()).toEqual([]);
+	});
+
 	it('with every dev server of the root closed, the generated server module reads nothing', async () => {
 		kit3();
 		const { p } = await setup('serve');
