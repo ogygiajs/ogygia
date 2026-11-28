@@ -47,6 +47,7 @@ import { BuildCache, __set_build_cache_root } from '../src/build-cache.ts';
 import { scan_entry_pattern } from '../src/vite/paths.ts';
 import { load_kit_config } from '../src/vite/kit-dirs.ts';
 import { DEV_CLIENT_MAPS, DEV_MAPS, DEV_PAGE_KEYS } from '../src/vite/dev-maps.ts';
+import { dev_servers, type DevServers } from '../src/dev-bridge.ts';
 import type { OgygiaOptions } from '../src/vite/options.ts';
 
 const APP_STATE = APP_SHIMS['$app/state'];
@@ -2422,7 +2423,7 @@ describe('the dev server', () => {
 		}
 	});
 
-	it('a file event heard on one of two dev servers is read again, replayed and reloaded on that server, never on the other', async () => {
+	it('a file event heard on one of two dev servers is read again, replayed and reloaded on that server, never on the other, which once closed hears nothing', async () => {
 		app();
 		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
 		const { p } = await setup('serve');
@@ -2439,12 +2440,13 @@ describe('the dev server', () => {
 			write('src/routes/+page.ts', '');
 			p.watchChange.call(heard_on(a), options, { event: 'update' });
 			for (const e of Object.values(b.environments)) p.closeBundle.call({ environment: e });
+			const b_heard = b.invalidated.length;
 			write('src/routes/+page.ts', 'export const csr = true;\n');
 			vi.advanceTimersByTime(1_000);
 			expect(a.replayed).toEqual([options]);
 			expect(a.invalidated.some((id) => id.includes('route-csr'))).toBe(true);
 			expect(await load(p, 'ogygia:server/route-csr', 'ssr')).not.toBe(csr_false);
-			expect([b.replayed, b.invalidated, b.sent]).toEqual([[], [], []]);
+			expect([b.replayed, b.invalidated.length, b.sent]).toEqual([[], b_heard, []]);
 		} finally {
 			vi.useRealTimers();
 		}
@@ -2526,6 +2528,7 @@ describe('the dev server', () => {
 		for (const e of Object.values(b.environments)) p.closeBundle.call({ environment: e });
 		p.watchChange.call({}, path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
 		expect({ a: a.sent, b: b.sent }).toEqual({ a: [{ type: 'full-reload', path: '*' }], b: [] });
+		expect(dev_servers(root).newest()?.server).toBe(a);
 	});
 
 	it("a module an island pulls into its world, transformed on one of two dev servers, is dropped from every open server's graph", async () => {
@@ -2641,11 +2644,12 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		a.p.configureServer(sa);
 		b.p.configureServer(sb);
 		const [slot] = slots();
-		const held = g[slot!];
+		const read = () => (g[slot!] as { kit_env_build(): string | undefined }).kit_env_build();
 		sa.httpServer.emit('close');
-		expect(g[slot!]).toBe(held);
+		expect(read()).toMatch(/^[0-9a-f]{12}$/);
 		sb.httpServer.emit('close');
-		expect(slots()).toEqual([]);
+		expect(read()).toBe(undefined);
+		expect(slots()).toEqual([slot]);
 	});
 
 	it('a newer dev server of the root closing first leaves the older one reading its own bridge', async () => {
@@ -2663,7 +2667,7 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		expect(read()).toBe(older);
 		expect(older).toMatch(/^[0-9a-f]{12}$/);
 		sa.httpServer.emit('close');
-		expect(slots()).toEqual([]);
+		expect(read()).toBe(undefined);
 	});
 
 	it('one plugin serving a restarted dev server: the old server closing its plugins leaves the new one open', async () => {
@@ -2681,9 +2685,11 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		const new_server = restarted();
 		p.configureServer(old_server);
 		p.configureServer(new_server);
+		const [slot] = slots();
+		const open = () => (g[slot!] as DevServers).open.snapshot().map((at) => at.server);
 		for (const e of Object.values(old_server.environments)) p.closeBundle.call({ environment: e });
-		expect(slots()).toHaveLength(1);
+		expect(open()).toEqual([new_server]);
 		for (const e of Object.values(new_server.environments)) p.closeBundle.call({ environment: e });
-		expect(slots()).toEqual([]);
+		expect(open()).toEqual([]);
 	});
 });

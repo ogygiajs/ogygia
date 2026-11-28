@@ -12,19 +12,21 @@ export interface RouteServer<S> {
 
 /**
  * DEV: what each watched file event changed in the route answers, read when the event comes and
- * once more after the watcher's quiet window, while the dev server it was heard on is open. A save
- * that truncates the file and then writes it is reported at the truncate, so its first read can be
- * a write in progress. When the second read finds a change, the event the watcher dropped is
- * `replay`ed on that server, so it updates what it ran from the file as it does for any event.
+ * once more after the watcher's quiet window, while the dev server it was heard on is open. The
+ * answers are the program's, read once for every server, so each change is `invalidate`d on every
+ * open dev server. A save that truncates the file and then writes it is reported at the truncate,
+ * so its first read can be a write in progress. When the second read finds a change, the event the
+ * watcher dropped is `replay`ed on the server that heard it, so it updates what it ran from the
+ * file as it does for any event.
  */
 export class RouteWatch<S> {
 	readonly #changed: (file: string, event: FileEvent) => readonly string[];
-	readonly #invalidate: (server: S, id: string) => void;
+	readonly #invalidate: (id: string) => void;
 	readonly #replay: (server: S, file: string) => void;
 
 	constructor(
 		changed: (file: string, event: FileEvent) => readonly string[],
-		invalidate: (server: S, id: string) => void,
+		invalidate: (id: string) => void,
 		replay: (server: S, file: string) => void
 	) {
 		this.#changed = changed;
@@ -34,16 +36,16 @@ export class RouteWatch<S> {
 
 	/** The watcher reported `event` at `file`, on `at` (`null`: no dev server is serving yet). */
 	heard(file: string, event: FileEvent, at: RouteServer<S> | null): void {
-		this.#read(file, event, at);
+		this.#read(file, event);
 		if (at && event !== 'delete')
 			at.scope.timeout(() => {
-				if (this.#read(file, 'update', at)) this.#replay(at.server, file);
+				if (this.#read(file, 'update')) this.#replay(at.server, file);
 			}, WATCHER_DROPS_CHANGES_MS * 2);
 	}
 
-	#read(file: string, event: FileEvent, at: RouteServer<S> | null): boolean {
+	#read(file: string, event: FileEvent): boolean {
 		const ids = this.#changed(file, event);
-		if (at) for (const id of ids) this.#invalidate(at.server, id);
+		for (const id of ids) this.#invalidate(id);
 		return ids.length > 0;
 	}
 }
