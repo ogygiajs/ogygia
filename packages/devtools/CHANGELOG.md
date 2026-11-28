@@ -1,5 +1,16 @@
 # @ogygia/devtools
 
+## 0.16.1
+
+### Patch Changes
+
+- Updated dependencies [[`dbd9fd9`](https://github.com/ogygiajs/ogygia/commit/dbd9fd973e28eb873102ab35919bd2c374e7bcda), [`87e6c94`](https://github.com/ogygiajs/ogygia/commit/87e6c94f8b2769fe31633553f3b223d428d39aa6), [`df5ae7b`](https://github.com/ogygiajs/ogygia/commit/df5ae7b96600f838216bf6a819103a340baa164b), [`df5ae7b`](https://github.com/ogygiajs/ogygia/commit/df5ae7b96600f838216bf6a819103a340baa164b)]:
+  - @ogygia/compiler@0.16.1
+  - @ogygia/core@0.16.1
+  - @ogygia/router@0.16.1
+  - @ogygia/insights@0.16.1
+  - @ogygia/machine@0.16.1
+
 ## 0.16.0
 
 ### Patch Changes

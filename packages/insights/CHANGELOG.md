@@ -1,5 +1,13 @@
 # @ogygia/insights
 
+## 0.16.1
+
+### Patch Changes
+
+- Updated dependencies [[`df5ae7b`](https://github.com/ogygiajs/ogygia/commit/df5ae7b96600f838216bf6a819103a340baa164b), [`df5ae7b`](https://github.com/ogygiajs/ogygia/commit/df5ae7b96600f838216bf6a819103a340baa164b)]:
+  - @ogygia/core@0.16.1
+  - @ogygia/machine@0.16.1
+
 ## 0.16.0
 
 ### Patch Changes
