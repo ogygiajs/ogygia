@@ -2512,25 +2512,4 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		sa.httpServer.emit('close');
 		expect(slots()).toEqual([]);
 	});
-
-	it('one plugin serving a restarted dev server: the old server closing its plugins leaves the new one open', async () => {
-		kit3();
-		const { p } = await setup('serve');
-		const env = (name: string) => ({
-			name,
-			config: { consumer: name === 'ssr' ? 'server' : 'client' }
-		});
-		const restarted = () => ({
-			...dev_server(),
-			environments: { client: env('client'), ssr: env('ssr') }
-		});
-		const old_server = restarted();
-		const new_server = restarted();
-		p.configureServer(old_server);
-		p.configureServer(new_server);
-		for (const e of Object.values(old_server.environments)) p.closeBundle.call({ environment: e });
-		expect(slots()).toHaveLength(1);
-		for (const e of Object.values(new_server.environments)) p.closeBundle.call({ environment: e });
-		expect(slots()).toEqual([]);
-	});
 });

@@ -9731,10 +9731,6 @@
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > on:2~efa631",
 			"reason": "dev server only, once when its http server closes: closes that server's scope (a live object, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > served_of",
-			"reason": "dev server only, once per environment when its plugins close: one WeakMap lookup by the live environment (not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		}
 	]
 }
