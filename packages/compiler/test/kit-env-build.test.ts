@@ -50,9 +50,7 @@ const ISLAND_APP: Record<string, string> = {
 		export const get_n = query(async () => db.n);
 	`,
 	'src/lib/server/db.ts': "export const db = { n: 1, key: 'hunter2' };\n",
-	'src/env.js': 'export const variables = {};\n',
-	'.svelte-kit/generated/build/env/config.js': 'export const rendered_env = {};\n',
-	'.svelte-kit/generated/dev/env/config.js': 'export const rendered_env = {};\n'
+	'src/env.js': 'export const variables = {};\n'
 };
 
 interface At {
