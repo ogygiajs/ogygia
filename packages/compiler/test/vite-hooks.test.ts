@@ -2476,6 +2476,16 @@ describe('the dev server', () => {
 		expect(a.invalidated).toContain(helper);
 		expect(b.invalidated).toEqual([]);
 	});
+
+	it('a hook with no environment, heard after the newest dev server closed, reaches no closed server', async () => {
+		app();
+		const { p } = await setup('serve');
+		const s = served();
+		p.configureServer(s);
+		for (const e of Object.values(s.environments)) p.closeBundle.call({ environment: e });
+		p.watchChange.call({}, path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
+		expect(s.sent).toEqual([]);
+	});
 });
 
 describe("the dev bridge: what a dev server's generated server modules read off the compiler serving them", () => {
