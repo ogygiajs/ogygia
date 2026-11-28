@@ -9726,7 +9726,7 @@
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > served_by",
-			"reason": "dev server only, once per environment when its plugins close, once per watched file event and once per dev transform: one WeakMap lookup by the live environment (not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge, and › a half-written save heard before its dev server closes is never read again on the closed server"
+			"reason": "dev server only, once per environment when its plugins close and once per watched file event: one WeakMap lookup by the live environment (not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge, and › a half-written save heard before its dev server closes is never read again on the closed server"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > serving",
