@@ -2569,6 +2569,67 @@ describe('the dev server', () => {
 		p.watchChange.call({}, path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
 		expect(s.sent).toEqual([]);
 	});
+
+	it('a deleted island entry both open dev servers hear reloads the page on both, once each, and never on a server another ogygia() serves', async () => {
+		app();
+		const { p } = await setup('serve');
+		const other = (await setup('serve')).p;
+		const a = served();
+		const b = served();
+		const c = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		other.configureServer(c);
+		const entry = path.join(root, 'src/lib/Counter.svelte');
+		p.watchChange.call(heard_on(a), entry, { event: 'delete' });
+		p.watchChange.call(heard_on(b), entry, { event: 'delete' });
+		const reload = { type: 'full-reload', path: '*' };
+		expect({ a: a.sent, b: b.sent, c: c.sent }).toEqual({ a: [reload], b: [reload], c: [] });
+	});
+
+	describe('two ogygia() on one root, each serving its own dev server (a restart opens the new one before the old closes)', () => {
+		async function two() {
+			app();
+			const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+			const p1 = (await setup('serve')).p;
+			const p2 = (await setup('serve')).p;
+			const a = served();
+			const b = served();
+			p1.configureServer(a);
+			p2.configureServer(b);
+			return { options, p1, p2, a, b };
+		}
+
+		it("a half-written save one hears with no environment is replayed on its own server, not on the other's newer one", async () => {
+			const { options, p1, a, b } = await two();
+			vi.useFakeTimers();
+			try {
+				write('src/routes/+page.ts', '');
+				p1.watchChange.call({}, options, { event: 'update' });
+				write('src/routes/+page.ts', 'export const csr = true;\n');
+				vi.advanceTimersByTime(1_000);
+				expect({ a: a.replayed, b: b.replayed }).toEqual({ a: [options], b: [] });
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("one's plugins closing on the other's environments leave the other's server open", async () => {
+			const { p1, p2, b } = await two();
+			for (const e of Object.values(b.environments)) p1.closeBundle.call({ environment: e });
+			p2.watchChange.call({}, path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
+			expect(b.sent).toEqual([{ type: 'full-reload', path: '*' }]);
+		});
+
+		it("a style edit one hears drops the router's inlined CSS module from its own server's graph, never the other's", async () => {
+			const { p1, a, b } = await two();
+			await load(p1, 'ogygia:server/router-css', 'ssr');
+			p1.handleHotUpdate({ file: write('src/lib/X.svelte', '\n'), server: a });
+			const dropped = (s: ReturnType<typeof served>) =>
+				s.invalidated.some((id) => id.includes('router-css'));
+			expect({ a: dropped(a), b: dropped(b) }).toEqual({ a: true, b: false });
+		});
+	});
 });
 
 describe("the dev bridge: what a dev server's generated server modules read off the compiler serving them", () => {
@@ -2635,7 +2696,7 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		expect(after).not.toBe(before);
 	});
 
-	it('closes with its dev server, and a second dev server of the same root keeps its own', async () => {
+	it("closes with its dev server, a second dev server of the same root keeps its own, and the root's global goes with the last", async () => {
 		kit3();
 		const a = await setup('serve');
 		const b = await setup('serve');
@@ -2644,12 +2705,12 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		a.p.configureServer(sa);
 		b.p.configureServer(sb);
 		const [slot] = slots();
-		const read = () => (g[slot!] as { kit_env_build(): string | undefined }).kit_env_build();
+		const read = () => (g[slot!] as { kit_env_build(): string } | undefined)?.kit_env_build();
 		sa.httpServer.emit('close');
 		expect(read()).toMatch(/^[0-9a-f]{12}$/);
 		sb.httpServer.emit('close');
 		expect(read()).toBe(undefined);
-		expect(slots()).toEqual([slot]);
+		expect(slots()).toEqual([]);
 	});
 
 	it('a newer dev server of the root closing first leaves the older one reading its own bridge', async () => {
@@ -2686,7 +2747,8 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		p.configureServer(old_server);
 		p.configureServer(new_server);
 		const [slot] = slots();
-		const open = () => (g[slot!] as DevServers).open.snapshot().map((at) => at.server);
+		const servers = g[slot!] as DevServers;
+		const open = () => servers.open.snapshot().map((at) => at.server);
 		for (const e of Object.values(old_server.environments)) p.closeBundle.call({ environment: e });
 		expect(open()).toEqual([new_server]);
 		for (const e of Object.values(new_server.environments)) p.closeBundle.call({ environment: e });
