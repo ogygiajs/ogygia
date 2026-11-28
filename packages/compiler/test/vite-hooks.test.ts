@@ -2538,6 +2538,10 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		for (const s of slots()) delete g[s];
 	});
 
+	/** A resolved config whose Kit setup plugin holds `base` as its `paths.base`. */
+	const kit_base = (base: string) => ({
+		plugins: [{ name: 'vite-plugin-sveltekit-setup', api: { options: { paths: { base } } } }]
+	});
 	/** Each compiler's og.$ factories, told apart by the base its context was made with. */
 	const fn_manifest_by_base = () =>
 		vi.spyOn(Compiler.prototype, 'fn_manifest').mockImplementation(function (this: Compiler) {
@@ -2565,14 +2569,14 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 			const { p, resolved } = await setup('serve');
 			p.configureServer(dev_server());
 			const bridge = g[slots()[0]!] as { fn_manifest(): Record<string, string> };
-			expect(bridge.fn_manifest()).toEqual({ base: '/' });
+			expect(bridge.fn_manifest()).toEqual({ base: '' });
 			await p.config.handler.call(
 				hook_this('ssr'),
 				{ root, plugins: [] },
 				{ command: 'serve', mode: 'development' }
 			);
-			p.configResolved.call(hook_this('ssr'), { ...resolved, base: '/next/' });
-			expect(bridge.fn_manifest()).toEqual({ base: '/next/' });
+			p.configResolved.call(hook_this('ssr'), { ...resolved, ...kit_base('/next') });
+			expect(bridge.fn_manifest()).toEqual({ base: '/next' });
 		} finally {
 			spied.mockRestore();
 		}
@@ -2583,7 +2587,7 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		const spied = fn_manifest_by_base();
 		try {
 			const a = await setup('serve');
-			const b = await setup('serve', { resolved: { base: '/b/' } });
+			const b = await setup('serve', { resolved: kit_base('/b') });
 			const sa = dev_server();
 			const sb = dev_server();
 			a.p.configureServer(sa);
@@ -2591,7 +2595,7 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 			const [slot] = slots();
 			const read = () => (g[slot!] as { fn_manifest(): unknown }).fn_manifest();
 			sa.httpServer.emit('close');
-			expect(read()).toEqual({ base: '/b/' });
+			expect(read()).toEqual({ base: '/b' });
 			sb.httpServer.emit('close');
 			expect(read()).toBeUndefined();
 		} finally {
@@ -2618,16 +2622,16 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		const spied = fn_manifest_by_base();
 		try {
 			const a = await setup('serve');
-			const b = await setup('serve', { resolved: { base: '/b/' } });
+			const b = await setup('serve', { resolved: kit_base('/b') });
 			const sa = dev_server();
 			const sb = dev_server();
 			a.p.configureServer(sa);
 			const [slot] = slots();
 			const read = () => (g[slot!] as { fn_manifest(): unknown }).fn_manifest();
 			b.p.configureServer(sb);
-			expect(read()).toEqual({ base: '/b/' });
+			expect(read()).toEqual({ base: '/b' });
 			sb.httpServer.emit('close');
-			expect(read()).toEqual({ base: '/' });
+			expect(read()).toEqual({ base: '' });
 			sa.httpServer.emit('close');
 			expect(read()).toBeUndefined();
 		} finally {

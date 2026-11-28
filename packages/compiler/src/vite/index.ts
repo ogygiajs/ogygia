@@ -109,7 +109,7 @@ import {
 	type KitConfig
 } from '../kit.ts';
 import { node_fs } from '../fs.ts';
-import { load_kit_config } from './kit-dirs.ts';
+import { kit_identity, load_kit_config } from './kit-dirs.ts';
 import {
 	buildFoucCssModuleSource,
 	collectFoucCssReachable,
@@ -291,7 +291,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 	let root: string;
 	let kit: KitConfig;
-	let base = '';
 	let app_dir = '_app';
 	let libDir: string;
 	let is_dev = false;
@@ -576,8 +575,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			configResolved(config) {
 				root = config.root;
-				kit ??= { dirs: default_kit_dirs(root), inline_style_threshold: 0, version: null };
-				base = config.base || '';
+				kit ??= { dirs: default_kit_dirs(root), inline_style_threshold: 0 };
+				const identity = kit_identity(config.plugins);
 				svelte = svelte_compile(config.plugins);
 				svelte_async = svelte_async_enabled(svelte);
 				if (config.command === 'serve') {
@@ -642,9 +641,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					const ctx = new CompileCtx({
 						root,
 						kit_dirs: kit.dirs,
-						base,
+						base: identity.base,
 						app_dir,
-						kit_version: kit.version,
+						kit_version: identity.version,
 						libDir,
 						pkg_scan,
 						page_importers,

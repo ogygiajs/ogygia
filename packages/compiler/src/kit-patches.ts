@@ -105,10 +105,11 @@ export function patch_kit_module(code: string, id: string): string {
 export interface KitEnvApp {
 	/** the `name` of the app's package.json (`''` when it has none) */
 	readonly name: string;
+	/** Kit's resolved `paths.base` */
 	readonly base: string;
 	readonly app_dir: string;
 	/** Kit's resolved `version.name`, which Kit serves at `<app dir>/version.json` (Kit's default
-	 *  is the time its config was loaded); `null` when it could not be read */
+	 *  is fixed once per process); `null` when it could not be read */
 	readonly version: string | null;
 }
 
@@ -128,12 +129,13 @@ export function package_name(text: string | null): string {
  * The build's identity on Kit's env channel: the server writes it beside the env, and the browser's
  * reader reads the env only when the channel bears its own. It ships in every page with a channel,
  * so it is made only of values the app already makes public, never of a file of its source: its
- * package name, base, app dir and Kit's `version.name`, as one digest. Both legs and the dev server
- * of one app make the same one from the same values. A federated peer is built at another time, so
- * with Kit's default `version.name` it has another identity, and its reader never takes the host's
- * env as its own; an app that pins `version.name` (to a commit, say) has one identity on every build
- * of that version. Two apps with the same package name, base, app dir and pinned version share one.
- * It holds no path, so one app built from two folders has one identity. With no `version.name` it is
+ * package name, Kit's `paths.base`, app dir and Kit's `version.name`, as one digest. Both legs and
+ * the dev server of one app make the same one from the same values. A federated peer built in
+ * another process has another default `version.name` (Kit fixes it once per process), so another
+ * identity, and its reader never takes the host's env as its own; an app that pins `version.name`
+ * (to a commit, say) has one identity on every build of that version. Two apps with the same package
+ * name, base and app dir share one when they pin the same version or are built in one process. It
+ * holds no path, so one app built from two folders has one identity. With no `version.name` it is
  * made from the other three, and `kit_env_version_unread` says so.
  */
 export function kit_env_build(app: KitEnvApp): string {
