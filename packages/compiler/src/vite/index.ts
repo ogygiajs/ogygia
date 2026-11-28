@@ -1084,10 +1084,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			closeBundle() {
-				if (is_dev) {
-					const env = env_of_hook(this);
-					(env ? open_server_holding(env)?.scope : dev_owner)?.close();
-				}
+				const env = is_dev ? env_of_hook(this) : undefined;
+				if (env) open_server_holding(env)?.scope.close();
 				compiler_of(session, 'closeBundle').end_leg(env_of(this)?.name ?? null);
 			},
 
