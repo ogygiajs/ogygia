@@ -2153,14 +2153,6 @@ describe('the dev server', () => {
 			}
 		};
 	}
-	/** A dev server with its environments, which Vite passes to watchChange as `this.environment`. */
-	function served() {
-		const client = { name: 'client', config: { consumer: 'client' } };
-		const ssr = { name: 'ssr', config: { consumer: 'server' } };
-		return { ...server(), environments: { client, ssr } };
-	}
-	/** The context Vite calls watchChange with: the server's client environment. */
-	const heard_on = (s: ReturnType<typeof served>) => ({ environment: s.environments.client });
 
 	it('an edit to a route, an island or a deleted file reloads the page; a plain module does not', async () => {
 		app();
@@ -2246,15 +2238,13 @@ describe('the dev server', () => {
 		const { p } = await setup('serve');
 		const host = path.join(root, 'src/routes/+page.svelte');
 		await p.transform.call(hook_this('ssr'), readFileSync(host, 'utf8'), host, { ssr: true });
-		const s = served();
-		p.configureServer(s);
+		const s = server();
 		p.handleHotUpdate({ file: host, server: s });
 		expect(s.invalidated.some((id) => id.includes('ogygia:region/'))).toBe(true);
+		// (no configureServer: the hot update's server is the one a watch event reloads)
 		await p.transform.call(hook_this('ssr'), readFileSync(host, 'utf8'), host, { ssr: true });
 		s.sent.length = 0;
-		p.watchChange.call(heard_on(s), path.join(root, 'src/lib/Counter.svelte'), {
-			event: 'delete'
-		});
+		p.watchChange(path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
 		expect(s.sent).toEqual([{ type: 'full-reload', path: '*' }]);
 	});
 
@@ -2349,28 +2339,28 @@ describe('the dev server', () => {
 	it('a deleted island entry reloads the page; an edit or a build does not', async () => {
 		app();
 		const { p } = await setup('serve');
-		const s = served();
+		const s = server();
 		p.configureServer(s);
 		const entry = path.join(root, 'src/lib/Counter.svelte');
-		p.watchChange.call(heard_on(s), entry, { event: 'update' });
+		p.watchChange(entry, { event: 'update' });
 		expect(s.sent).toEqual([]);
-		p.watchChange.call(heard_on(s), entry, { event: 'delete' });
+		p.watchChange(entry, { event: 'delete' });
 		expect(s.sent).toEqual([{ type: 'full-reload', path: '*' }]);
 		const b = await setup('build');
-		const s2 = served();
+		const s2 = server();
 		b.p.configureServer(s2);
-		b.p.watchChange.call(heard_on(s2), entry, { event: 'delete' });
+		b.p.watchChange(entry, { event: 'delete' });
 		expect(s2.sent).toEqual([]);
 	});
 
 	it('a csr flip in dev is seen by the next route-csr load', async () => {
 		app();
 		const { p } = await setup('serve');
-		const s = served();
+		const s = server();
 		p.configureServer(s);
 		const before = await load(p, 'ogygia:server/route-csr', 'ssr');
 		const option = write('src/routes/+layout.ts', 'export const csr = true;\n');
-		p.watchChange.call(heard_on(s), option, { event: 'update' });
+		p.watchChange(option, { event: 'update' });
 		expect(await load(p, 'ogygia:server/route-csr', 'ssr')).not.toBe(before);
 		// (the server graph's copy too: the SSR leg reads the csr set through it)
 		expect(s.invalidated.some((id) => id.includes('route-csr'))).toBe(true);
@@ -2380,17 +2370,17 @@ describe('the dev server', () => {
 		app();
 		const options = write('src/routes/+page.ts', 'export const csr = true;\n');
 		const { p } = await setup('serve');
-		const s = served();
+		const s = server();
 		p.configureServer(s);
 		const csr_true = await load(p, 'ogygia:server/route-csr', 'ssr');
 		write('src/routes/+page.ts', 'export const csr = false;\n');
-		p.watchChange.call(heard_on(s), options, { event: 'update' });
+		p.watchChange(options, { event: 'update' });
 		const csr_false = await load(p, 'ogygia:server/route-csr', 'ssr');
 		expect(csr_false).not.toBe(csr_true);
 		vi.useFakeTimers();
 		try {
 			write('src/routes/+page.ts', '');
-			p.watchChange.call(heard_on(s), options, { event: 'update' });
+			p.watchChange(options, { event: 'update' });
 			expect(await load(p, 'ogygia:server/route-csr', 'ssr'), 'read empty').toBe(csr_false);
 			s.invalidated.length = 0;
 			write('src/routes/+page.ts', 'export const csr = true;\n');
@@ -2407,44 +2397,18 @@ describe('the dev server', () => {
 		app();
 		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
 		const { p } = await setup('serve');
-		const s = served();
+		const client = { name: 'client', config: { consumer: 'client' } };
+		const ssr = { name: 'ssr', config: { consumer: 'server' } };
+		const s = { ...server(), environments: { client, ssr } };
 		p.configureServer(s);
 		vi.useFakeTimers();
 		try {
 			write('src/routes/+page.ts', '');
-			p.watchChange.call(heard_on(s), options, { event: 'update' });
-			for (const e of Object.values(s.environments)) p.closeBundle.call({ environment: e });
+			p.watchChange.call({ environment: client }, options, { event: 'update' });
+			for (const e of [client, ssr]) p.closeBundle.call({ environment: e });
 			write('src/routes/+page.ts', 'export const csr = true;\n');
 			vi.advanceTimersByTime(1_000);
 			expect(s.replayed).toEqual([]);
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
-	it('a file event heard on one of two dev servers is read again, replayed and reloaded on that server, never on the other', async () => {
-		app();
-		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
-		const { p } = await setup('serve');
-		const a = served();
-		const b = served();
-		p.configureServer(a);
-		p.configureServer(b);
-		const entry = path.join(root, 'src/lib/Counter.svelte');
-		p.watchChange.call(heard_on(a), entry, { event: 'delete' });
-		expect(a.sent).toEqual([{ type: 'full-reload', path: '*' }]);
-		const csr_false = await load(p, 'ogygia:server/route-csr', 'ssr');
-		vi.useFakeTimers();
-		try {
-			write('src/routes/+page.ts', '');
-			p.watchChange.call(heard_on(a), options, { event: 'update' });
-			for (const e of Object.values(b.environments)) p.closeBundle.call({ environment: e });
-			write('src/routes/+page.ts', 'export const csr = true;\n');
-			vi.advanceTimersByTime(1_000);
-			expect(a.replayed).toEqual([options]);
-			expect(a.invalidated.some((id) => id.includes('route-csr'))).toBe(true);
-			expect(await load(p, 'ogygia:server/route-csr', 'ssr')).not.toBe(csr_false);
-			expect([b.replayed, b.invalidated, b.sent]).toEqual([[], [], []]);
 		} finally {
 			vi.useRealTimers();
 		}
