@@ -3237,10 +3237,6 @@
 			"reason": "dev only, once per watched file event: one read (Compiler.routes_changed, benched in packages/compiler/bench/routes.bench.ts as dev file events) and one timer; proven in packages/compiler/test/vite-hooks.test.ts (#1825)"
 		},
 		{
-			"id": "packages/compiler/src/vite/route-watch.ts > RouteWatch > forget",
-			"reason": "dev only, once per closing dev server: a loop over the files still awaiting a second read (live server objects, not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › a half-written save both dev servers hear is replayed once written only on the one still open, never on the one that closed"
-		},
-		{
 			"id": "packages/compiler/src/vite/route-watch.ts > RouteWatch > #found",
 			"reason": "dev only, when a route read finds a file changed: one replay per server still awaiting it (a watcher emit on a live server, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › a save one dev server hears half-written and the other hears written is replayed on the first, whose watcher dropped the write"
 		},
@@ -9739,10 +9735,6 @@
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > at > bridge > fn_manifest",
 			"reason": "dev server only: reads the session's compiler as it is asked (a live object, not replayable); the compiler's fn_manifest does the work; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > defer:0~65d328",
-			"reason": "dev server only, once when a dev server's scope closes: forgets it in the route watch (live objects, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › a half-written save both dev servers hear is replayed once written only on the one still open, never on the one that closed"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > drop_on_every_open_server",
