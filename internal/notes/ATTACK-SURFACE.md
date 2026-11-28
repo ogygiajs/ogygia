@@ -142,7 +142,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-126 entries.
+127 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -153,6 +153,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/cli/src/perf/cli.ts` | `read_json` | `JSON.parse` | 1 |
 | `packages/compiler/src/build-cache.ts` | `get` | `JSON.parse` | 1 |
 | `packages/compiler/src/fouc-css.ts` | `foucRelFromId` | `decodeURIComponent` | 1 |
+| `packages/compiler/src/kit-patches.ts` | `package_name` | `JSON.parse` | 1 |
 | `packages/compiler/src/kit.ts` | `kit_major` | `JSON.parse` | 1 |
 | `packages/compiler/src/link/emit-gate.ts` | `parse_server_handoff` | `JSON.parse` | 1 |
 | `packages/compiler/src/link/island-deps.ts` | `HANDLER_RE` | `JSON.parse` | 2 |

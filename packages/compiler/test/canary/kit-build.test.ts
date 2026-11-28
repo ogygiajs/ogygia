@@ -12,7 +12,11 @@ import path from 'node:path';
 import * as devalue from 'devalue';
 import { dedent } from '@ogygia/core/contract';
 import { clientBuildWillSkip, resolve_kit_paths, route_reader } from '../../src/kit.ts';
-import { KIT_PATCHES, KIT_PUBLIC_ENV_CLIENT_RE, kit_public_env_module } from '../../src/kit-patches.ts';
+import {
+	KIT_PATCHES,
+	KIT_PUBLIC_ENV_CLIENT_RE,
+	kit_public_env_module
+} from '../../src/kit-patches.ts';
 import { node_fs } from '../../src/fs.ts';
 import { APP_DIR, KitApp, OUT_DIR } from '../../../core/test/canary/kit-app.ts';
 import { broke, KITS, type Internal } from '../../../core/test/canary/upstream.ts';

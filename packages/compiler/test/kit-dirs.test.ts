@@ -136,9 +136,7 @@ describe('kit.files.routes / kit.outDir', () => {
 	});
 
 	it("Kit's version.name: off Kit's own plugin as Kit resolved it, or as the config file pins it; null when neither has one", async () => {
-		const setup = (options: object) => [
-			{ name: 'vite-plugin-sveltekit-setup', api: { options } }
-		];
+		const setup = (options: object) => [{ name: 'vite-plugin-sveltekit-setup', api: { options } }];
 		const version = async (root: string, plugins?: unknown) =>
 			(await load_kit_config(root, plugins)).version;
 		const bare = app({});
@@ -153,7 +151,9 @@ describe('kit.files.routes / kit.outDir', () => {
 		expect(await version(pinned)).toBe('4f3c2a1');
 		expect(await version(app({ 'svelte.config.js': 'export default { kit: {} };' }))).toBeNull();
 		expect(
-			await version(app({ 'svelte.config.js': 'export default { kit: { version: { name: 7 } } };' }))
+			await version(
+				app({ 'svelte.config.js': 'export default { kit: { version: { name: 7 } } };' })
+			)
 		).toBeNull();
 		expect(await version(bare)).toBeNull();
 	});

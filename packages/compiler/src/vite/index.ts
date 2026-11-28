@@ -576,7 +576,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			configResolved(config) {
 				root = config.root;
-				kit ??= { dirs: default_kit_dirs(root), inline_style_threshold: 0 };
+				kit ??= { dirs: default_kit_dirs(root), inline_style_threshold: 0, version: null };
 				base = config.base || '';
 				svelte = svelte_compile(config.plugins);
 				svelte_async = svelte_async_enabled(svelte);
@@ -644,6 +644,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						kit_dirs: kit.dirs,
 						base,
 						app_dir,
+						kit_version: kit.version,
 						libDir,
 						pkg_scan,
 						page_importers,
@@ -771,8 +772,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const served = dev_owner.child();
 				served.defer(
 					open_dev_bridge(root, {
-						fn_manifest: () => compiler_of(session, 'fn_manifest').fn_manifest(),
-						kit_env_build: () => compiler_of(session, 'kit_env_build').kit_env_build()
+						fn_manifest: () => compiler_of(session, 'fn_manifest').fn_manifest()
 					})
 				);
 				if (server.httpServer) served.on(server.httpServer, 'close', () => served.close());

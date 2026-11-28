@@ -1134,6 +1134,20 @@ describe('transform', () => {
 			expect(await built('1700000000000')).toBe(first);
 		});
 
+		it('an app on a Kit with no env channel (before 3) has no identity, and says nothing of a version.name', async () => {
+			app();
+			const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			try {
+				const { p } = await setup('build');
+				await begin(p, 'ssr', 'client');
+				expect(await load(p, 'ogygia:server/kit-env', 'ssr')).toContain('return "";');
+				expect(await load(p, 'ogygia:boot/kit-env', 'client')).toContain('read("")');
+				expect(warned).not.toHaveBeenCalled();
+			} finally {
+				warned.mockRestore();
+			}
+		});
+
 		it('dev: the server module bears the identity its browser reader is bound to from the start, before the app has any dynamic public variable', async () => {
 			kit3_app();
 			const { p } = await setup('serve', { plugins: [kit_setup('1700000000000')] });

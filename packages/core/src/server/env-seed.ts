@@ -52,11 +52,10 @@ const ENV_TEXT = new EnvText();
  * Kit's public env as one `<script type="application/ogygia-env">`, marked with `request`'s mark:
  * exactly what Kit puts in its boot payload on a csr=true page (Kit 3's `rendered_env`, public
  * variables only), serialized with devalue as Kit does, beside the build that wrote it
- * (`kit_env_build()`, read as it is written: the identity the build's browser reader is bound to,
- * which a dev app makes once it gains its first dynamic public variable), so a region of another
+ * (`kit_env_build()`, the identity the build's browser reader is bound to), so a region of another
  * build (a federated peer's) never reads it as its own. Null: this Kit has none, it holds no
- * variable (the identity is then never asked: a dev server would read Kit's env config for it), or
- * it does not serialize (said with `kit_env_unshipped`).
+ * variable (the identity is then never asked), or it does not serialize (said with
+ * `kit_env_unshipped`).
  */
 export function env_seed_script(request: Request): string | null {
 	const env = kit_public_env();
