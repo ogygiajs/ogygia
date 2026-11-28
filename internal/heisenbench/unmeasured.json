@@ -9709,19 +9709,15 @@
 			"reason": "dev server only, once when a dev server closes: takes its bridge off the root's globalThis slot (hidden state); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
-			"id": "packages/compiler/src/dev-bridge.ts > dev_bridge_slot",
-			"reason": "dev server only, once per root while a dev server of it is open: makes the globalThis slot's readers (closures: not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
-		},
-		{
-			"id": "packages/compiler/src/dev-bridge.ts > dev_bridge_slot > newest",
+			"id": "packages/compiler/src/dev-bridge.ts > DevBridgeSlot > #newest",
 			"reason": "dev server only: one array read of the open bridges, which are live closures (not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
-			"id": "packages/compiler/src/dev-bridge.ts > dev_bridge_slot > fn_manifest",
+			"id": "packages/compiler/src/dev-bridge.ts > DevBridgeSlot > fn_manifest",
 			"reason": "dev server only: forwards to the newest open bridge's reader (a live closure, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
-			"id": "packages/compiler/src/dev-bridge.ts > dev_bridge_slot > kit_env_build",
+			"id": "packages/compiler/src/dev-bridge.ts > DevBridgeSlot > kit_env_build",
 			"reason": "dev server only: forwards to the newest open bridge's reader (a live closure, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{

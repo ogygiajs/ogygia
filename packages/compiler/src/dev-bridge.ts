@@ -25,9 +25,22 @@ export const dev_bridge_key = (root: string): string => `ogygia.dev.bridge:${roo
 export const dev_bridge_call = (root: string, reader: keyof DevBridge): string =>
 	`globalThis[Symbol.for(${JSON.stringify(dev_bridge_key(root))})]?.${reader}()`;
 
-/** The global of a root: the readers of the newest bridge still open, over every open one. */
-interface DevBridgeSlot extends DevBridge {
-	readonly open: DevBridge[];
+/** The global of a root: every bridge open there, answering with the newest one still open. */
+export class DevBridgeSlot implements DevBridge {
+	/** the open bridges, oldest first */
+	readonly open: DevBridge[] = [];
+
+	fn_manifest(): Record<string, string> {
+		return this.#newest().fn_manifest();
+	}
+
+	kit_env_build(): string {
+		return this.#newest().kit_env_build();
+	}
+
+	#newest(): DevBridge {
+		return this.open[this.open.length - 1]!;
+	}
 }
 
 /** Opens `bridge` for the app at `root` over any other open there; its close takes only it away, so
@@ -35,21 +48,11 @@ interface DevBridgeSlot extends DevBridge {
 export function open_dev_bridge(root: string, bridge: DevBridge): () => void {
 	const key = Symbol.for(dev_bridge_key(root));
 	const slots = globalThis as Record<symbol, DevBridgeSlot | undefined>;
-	const slot = (slots[key] ??= dev_bridge_slot());
+	const slot = (slots[key] ??= new DevBridgeSlot());
 	slot.open.push(bridge);
 	return () => {
 		const at = slot.open.indexOf(bridge);
 		if (at !== -1) slot.open.splice(at, 1);
 		if (slot.open.length === 0 && slots[key] === slot) delete slots[key];
-	};
-}
-
-function dev_bridge_slot(): DevBridgeSlot {
-	const open: DevBridge[] = [];
-	const newest = (): DevBridge => open[open.length - 1]!;
-	return {
-		open,
-		fn_manifest: () => newest().fn_manifest(),
-		kit_env_build: () => newest().kit_env_build()
 	};
 }

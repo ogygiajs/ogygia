@@ -437,9 +437,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	};
 
 	const dev_owner = scope();
-	/** each dev server's own scope, by its environments: one plugin can serve a restarted server */
 	const served_by_env = new WeakMap<object, Scope>();
-	/** the scope of the dev server whose environment runs a hook; with none named, every server's */
 	const served_of = (ctx: unknown): Scope => {
 		const env = (ctx as { environment?: object } | null)?.environment;
 		return (env && served_by_env.get(env)) ?? dev_owner;
