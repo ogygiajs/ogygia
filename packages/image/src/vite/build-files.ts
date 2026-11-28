@@ -514,8 +514,10 @@ function unmark(
 /** The server build's end: write every file the build makes (`warmed`, and the prerender's notes)
  *  under `<output>/client/<appDir>/`, then point every prerendered page at them, and hand the
  *  process (and what it starts after: an adapter's SPA fallback render) a handoff that says so, with
- *  no notes and no mark. `output` is Kit's build output. `late` when this build's prerender comes
- *  after (a Kit 3 watch rebuild): the handoff says so, until {@link rebuild_over}. */
+ *  no notes and no mark. `output` is Kit's build output. Gives back the handoff's `renamed`. `last` is
+ *  the last build's `renamed` when this build's prerender comes after (a Kit 3 watch rebuild): the
+ *  handoff keeps it, so the prerender finds the last build's files, and says it is late, until
+ *  {@link rebuild_over}. */
 export async function write_built(
 	handoff: BuildHandoff,
 	cfg: RenderConfig,
@@ -523,11 +525,11 @@ export async function write_built(
 	output: string,
 	fetch_remote: FetchRemote = no_remote,
 	draw_card: DrawCard = no_card,
-	late = false
-): Promise<void> {
+	last: Readonly<Record<string, string>> | null = null
+): Promise<Readonly<Record<string, string>>> {
 	const makes = BuildMakes.of(handoff, output);
 	const client = path.join(output, 'client', cfg.paths.app_dir);
-	const renamed = new Map<string, string>();
+	const renamed = new Map<string, string>(Object.entries(last ?? {}));
 	let settled: PromiseSettledResult<void>[];
 	try {
 		const jobs = jobs_of(handoff, cfg, warmed, output);
@@ -572,15 +574,17 @@ export async function write_built(
 	if (handoff.mark || renamed.size)
 		unmark(path.join(output, 'prerendered'), handoff.mark, origin, renamed);
 	const { late: _, ...rest } = handoff;
+	const named = Object.fromEntries(renamed);
 	const done: BuildHandoff = {
 		...rest,
 		minted: '',
 		mark: '',
 		written: client,
-		...(renamed.size ? { renamed: Object.fromEntries(renamed) } : {}),
-		...(late ? { late: true } : {})
+		...(renamed.size ? { renamed: named } : {}),
+		...(last !== null ? { late: true } : {})
 	};
 	process.env[BUILD_ENV] = JSON.stringify(done);
+	return named;
 }
 
 /** A server leg starts, so a Kit 3 watch rebuild before it is over: this build starts a handoff of

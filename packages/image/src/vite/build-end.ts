@@ -11,9 +11,10 @@
  *   last `buildApp`, which runs between the two;
  * - a watch rebuild of legs an app build hook built: Kit 3 rebuilds, prerenders and adapts straight
  *   from its watcher, after every plugin hook, so no hook falls between its prerender and its
- *   adapter. The end runs as the server leg is written, before the prerender, and is `late`: the
- *   prerender names only files the build has made, and fails on any other (`image_watch_rebuild`).
- *   Each rebuild's end is a run of its own: it starts once every earlier end is over.
+ *   adapter. The end runs as the server leg is written, before the prerender, and is late: the
+ *   prerender names only files a build has made, found by what the last end named them by, and
+ *   fails on any other (`image_watch_rebuild`). Each rebuild's end is a run of its own: it starts
+ *   once every earlier end is over.
  *
  * A new app build starts fresh whatever state the last one left (a failed build runs no last hook).
  *
@@ -21,17 +22,23 @@
  */
 import { machine, STALE } from '@ogygia/machine';
 
-/** The build's end: makes the files, then points the prerendered pages at them. `late` when it runs
- *  before the prerender (a watch rebuild of legs an app build hook built). */
-export type End = (late: boolean) => Promise<void>;
+/** What a build's end leaves a later rebuild to find its files by: the source id each file was named
+ *  by in place of the one a page names (a remote image's bytes', a card's shown images'), by that
+ *  one (../handoff.ts `BuildHandoff.renamed`). */
+export type Named = Readonly<Record<string, string>>;
+
+/** The build's end: makes the files, then points the prerendered pages at them, and gives back what
+ *  names them. `last` is the last build's, when it runs before the prerender (a watch rebuild of
+ *  legs an app build hook built): the pages find the last build's files by it. */
+export type End = (last: Named | null) => Promise<Named>;
 
 type EndStates = {
 	outside: {};
 	inside: {};
 	waiting: { end: End; watched: boolean };
 	ending: {};
-	watching: {};
-	rebuilding: {};
+	watching: { last: Named };
+	rebuilding: { last: Named };
 };
 
 const END_STEPS = {
@@ -61,21 +68,27 @@ export class BuildEnd {
 		if (this.#life.move('inside', 'waiting', { end, watched })) return;
 		for (;;) {
 			const now = this.#life.now;
-			if (now.kind === 'watching') break;
+			if (now.kind === 'watching') return this.#rebuilt(end, now.last);
 			if (
 				now.kind !== 'ending' &&
 				now.kind !== 'rebuilding' &&
 				!(now.kind === 'waiting' && now.watched)
-			)
-				return end(false);
+			) {
+				await end(null);
+				return;
+			}
 			if ((await this.#life.wait('watching')) === STALE)
 				throw new Error('the build ended before this watch rebuild could end');
 		}
-		this.#life.go('rebuilding');
+	}
+
+	async #rebuilt(end: End, last: Named): Promise<void> {
+		this.#life.go('rebuilding', { last });
+		let named = last;
 		try {
-			await end(true);
+			named = await end(last);
 		} finally {
-			this.#life.move('rebuilding', 'watching');
+			this.#life.move('rebuilding', 'watching', { last: named });
 		}
 	}
 
@@ -87,13 +100,15 @@ export class BuildEnd {
 		if (now.kind !== 'waiting') return;
 		if (!now.watched) {
 			this.#life.go('outside');
-			return now.end(false);
+			await now.end(null);
+			return;
 		}
 		this.#life.go('ending');
+		let last: Named = {};
 		try {
-			await now.end(false);
+			last = await now.end(null);
 		} finally {
-			this.#life.move('ending', 'watching');
+			this.#life.move('ending', 'watching', { last });
 		}
 	}
 }

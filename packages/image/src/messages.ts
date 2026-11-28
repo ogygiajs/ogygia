@@ -112,11 +112,13 @@ export const IMAGE_ERRORS = {
 		details: (): string => prose`
 			On SvelteKit 3, a watch rebuild prerenders the pages and runs the adapter straight from Kit's
 			watcher, after every plugin hook, so the image plugin cannot make a prerendered page's files
-			between the two, as a full build does. A rebuild's pages name only the files the build has
-			already made: those the last build made and those the modules warm. This page names one
-			that neither made (a new image, or new options on one), so the rebuild stops rather than
-			write a page with a missing image. Stop the watch and run \`vite build\` again, or give the
-			image a \`warm\` preset (\`import.meta.og.image('./x.jpg', { warm: 'thumb' })\`).
+			between the two, as a full build does. A rebuild's pages name only files a build has already
+			made: those the last build made (a remote image, and a share card that shows one, as the
+			last build fetched it) and those the modules warm. This page names one that none made (a
+			new image, a new remote URL or share card, or new options on one), so the rebuild stops
+			rather than write a page with a missing image. Stop the watch and run \`vite build\` again,
+			or give a local image a \`warm\` preset
+			(\`import.meta.og.image('./x.jpg', { warm: 'thumb' })\`).
 		`
 	},
 	image_macro_arity: {

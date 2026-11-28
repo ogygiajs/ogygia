@@ -483,7 +483,7 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 				const output = path.dirname(dir);
 				const prefixes = [app.assets, app.base];
 				await end.written(
-					(late) =>
+					(last) =>
 						write_built(
 							written,
 							render_config(opts, app, true, widths, stills),
@@ -492,7 +492,7 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 							remote ? (url, where) => remote.file(written.remote, url, where) : undefined,
 							(tail, id, fetch) =>
 								cards.draw(tail, id, build_card_images(output, prefixes, remote ? fetch : null)),
-							late
+							last
 						),
 					this.meta.watchMode
 				);

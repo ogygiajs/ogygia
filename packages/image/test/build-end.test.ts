@@ -6,8 +6,9 @@ import { expect, test } from 'vitest';
 import { BuildEnd, type End } from '../src/vite/build-end.ts';
 
 function noted(ran: string[], name: string): End {
-	return async (late) => {
-		ran.push(late ? `${name}, late` : name);
+	return async (last) => {
+		ran.push(last !== null ? `${name}, late` : name);
+		return {};
 	};
 }
 
@@ -71,6 +72,7 @@ test("a watch rebuild whose server leg is written while the first build's end ru
 		ran.push('build starts');
 		await first.promise;
 		ran.push('build ends');
+		return {};
 	}, true);
 	const closed = end.close();
 	const rebuilt = end.written(noted(ran, 'rebuild'), true);
@@ -106,6 +108,7 @@ test('a watch rebuild whose server leg is written while the last rebuild ends (K
 		ran.push('rebuild starts');
 		await last.promise;
 		ran.push('rebuild ends');
+		return {};
 	}, true);
 	const next = end.written(noted(ran, 'next rebuild'), true);
 	await Promise.resolve();
@@ -114,6 +117,26 @@ test('a watch rebuild whose server leg is written while the last rebuild ends (K
 	await rebuilt;
 	await next;
 	expect(ran).toEqual(['build', 'rebuild starts', 'rebuild ends', 'next rebuild, late']);
+});
+
+test('a watch rebuild (Kit 3) gets what the last end named its files by, so its pages find the last build files', async () => {
+	const end = new BuildEnd();
+	const got: unknown[] = [];
+	const naming =
+		(named: Record<string, string>): End =>
+		async (last) => {
+			got.push(last);
+			return { ...last, ...named };
+		};
+	end.open();
+	await end.written(naming({ url: 'bytes' }), true);
+	await end.close();
+	await end.written(naming({ card: 'shown' }), true);
+	await expect(
+		end.written(() => Promise.reject(new Error('a file was not made')), true)
+	).rejects.toThrow();
+	await end.written(naming({}), true);
+	expect(got).toEqual([null, { url: 'bytes' }, { url: 'bytes', card: 'shown' }]);
 });
 
 test('a watch rebuild whose end failed (Kit 3) leaves the next rebuild to end, late', async () => {

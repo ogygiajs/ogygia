@@ -31,9 +31,9 @@ export interface BuildHandoff {
 	 *  instead (its bytes', in place of its URL's), by the URL's id. */
 	renamed?: Readonly<Record<string, string>>;
 	/** The build's end wrote its files before this build's prerender (a Kit 3 watch rebuild, whose
-	 *  prerender comes after every plugin hook): a page names only files under `written`, and naming
-	 *  any other fails its render (`image_watch_rebuild`). The build keeps this handoff until the
-	 *  rebuild is over. */
+	 *  prerender comes after every plugin hook): a page names only files under `written`, found by
+	 *  the last build's `renamed` too, and naming any other fails its render
+	 *  (`image_watch_rebuild`). The build keeps this handoff until the rebuild is over. */
 	late?: true;
 	/** The app's root (Vite's `root`). */
 	root: string;
