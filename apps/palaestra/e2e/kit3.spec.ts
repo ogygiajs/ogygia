@@ -242,6 +242,119 @@ test.describe('SvelteKit 3: build + dev on the packed ogygia (self-building fixt
 		}
 	});
 
+	test("production build: a prerendered csr=false page's regions read the deployed server's dynamic public env, as Kit's prerendered csr=true page does", async ({
+		browser
+	}) => {
+		test.setTimeout(5 * 60_000);
+		const base = `http://127.0.0.1:${BUILD_PORT}`;
+		const deployed = 'read: region deployed';
+		const top = `top: region deployed, ${deployed}`;
+		let srv: SpawnedServer | undefined;
+		try {
+			srv = await spawn_server({
+				cmd: 'node',
+				args: ['build/index.js'],
+				cwd: APP,
+				env: {
+					PORT: String(BUILD_PORT),
+					HOST: '127.0.0.1',
+					PROTOCOL_HEADER: 'x-forwarded-proto',
+					OGYGIA_SECRET: SECRET,
+					PUBLIC_REGION_NAME: 'region deployed'
+				},
+				url: `${base}/`
+			});
+			const context = await browser.newContext({ extraHTTPHeaders: PROTO });
+			const errs: string[] = [];
+			const fresh = async () => {
+				const page = await context.newPage();
+				page.on('pageerror', (e) => errs.push(e.message));
+				page.on('console', (m) => {
+					if (m.type() === 'error' || m.type() === 'warning') errs.push(`${m.type()}: ${m.text()}`);
+				});
+				return page;
+			};
+			const shows = async (page: Page, at: string, name: string, value: string) => {
+				await page.waitForSelector('ogygia-region[data-hydrated]');
+				await page.click(`[data-${name}]`);
+				await expect
+					.poll(() => page.textContent(`[data-${name}-value]`), {
+						message: `${at} ${name} reads the deployed value`,
+						timeout: 10_000
+					})
+					.toBe(value);
+			};
+
+			const kit = await fresh();
+			await kit.goto(`${base}/fixed-kit`, { waitUntil: 'networkidle' });
+			await kit.click('[data-env-kit]');
+			expect(await kit.textContent('[data-env-kit-value]'), "Kit's own page").toBe(deployed);
+
+			const opened = await fresh();
+			await opened.goto(`${base}/fixed`, { waitUntil: 'networkidle' });
+			await shows(opened, '/fixed, read as the module runs:', 'env-load', top);
+			await shows(opened, '/fixed, on interaction:', 'env-click', deployed);
+
+			const held = await fresh();
+			let let_env_through = () => {};
+			const gate = new Promise<void>((resolve) => (let_env_through = resolve));
+			await held.route('**/_app/env.js', async (route) => {
+				await gate;
+				await route.continue();
+			});
+			await held.goto(`${base}/fixed`);
+			await held.hover('[data-env-click]');
+			await sleep(1000);
+			expect(
+				await held.locator('ogygia-region[data-hydrated]').count(),
+				'no region runs before the env it reads is in'
+			).toBe(0);
+			let_env_through();
+			await shows(held, '/fixed, the env late:', 'env-load', top);
+			await shows(held, '/fixed, the env late, on interaction:', 'env-click', deployed);
+
+			for (const hover of [false, true]) {
+				const routed = await fresh();
+				await routed.goto(`${base}/plain`, { waitUntil: 'networkidle' });
+				const stamp = await stamp_document(routed);
+				if (hover) {
+					await routed.hover('[data-to-fixed]');
+					await sleep(1000);
+				}
+				await routed.click('[data-to-fixed]');
+				await routed.waitForSelector('[data-page="fixed"]');
+				const at = `/plain → /fixed${hover ? ', hovered first' : ''}:`;
+				check(`${at} by the router (no reload)`, (await document_stamp(routed)) === stamp);
+				await shows(routed, at, 'env-load', top);
+				await shows(routed, at, 'env-click', deployed);
+			}
+
+			const plain = await fresh();
+			let asked = 0;
+			await plain.route('**/_app/env.js', (route) => (asked++, route.continue()));
+			await plain.goto(`${base}/plain`, { waitUntil: 'networkidle' });
+			await plain.goto(`${base}/env`, { waitUntil: 'networkidle' });
+			expect(asked, 'a page that is not prerendered asks for no env module').toBe(0);
+			check('no errors or warnings', errs.length === 0, errs.slice(0, 3).join(' | '));
+
+			const dropped = await context.newPage();
+			const said: string[] = [];
+			dropped.on('console', (m) => said.push(m.text()));
+			await dropped.route('**/_app/env.js*', (route) => route.abort());
+			await dropped.goto(`${base}/fixed`);
+			await dropped.waitForSelector('ogygia-region[data-hydrated]');
+			await expect.poll(() => said.join(' | ')).toContain('kit_env_missing');
+			await dropped.click('[data-env-load]');
+			expect(
+				await dropped.textContent('[data-env-load-value]'),
+				'an env that never comes is said, and the value of the build never stands in for it'
+			).toBe('top: undefined, read: undefined');
+			await context.close();
+		} finally {
+			await srv?.kill();
+		}
+	});
+
 	test('dev: islands hydrate on csr=false and csr=true pages, remote form refreshes', async ({
 		browser
 	}) => {

@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { with_request_store } from '@sveltejs/kit/internal/server';
 import { HAS, set_server_word } from './_stubs/server.runtime-flags.ts';
+import { set_building } from './_stubs/app-env.ts';
 import { F_CONTEXT, F_PAGE, F_REMOTE_SEEDS } from '../src/contract/features.ts';
 import {
 	FIXTURE_BUILD,
@@ -209,6 +210,27 @@ describe("Kit's public env (KIT-PUBLIC-ENV)", () => {
 			build: 'another-build',
 			env: { PUBLIC_REGION: 'eu' }
 		});
+	});
+
+	it("a prerendered page carries no value of the build's: its region's browser asks the server for them, where Kit's prerendered page does", async () => {
+		set_kit_public_env({ PUBLIC_REGION: 'the build value' });
+		set_building(true);
+		try {
+			const html = await page(reads_env);
+			expect(html).not.toContain('the build value');
+			const served =
+				/<script type="application\/ogygia-env-served" data-og-mark="([^"]+)"><\/script>/.exec(
+					html
+				);
+			const runtime = /<script data-og-mark="([^"]+)"[^>]*data-ogygia-runtime/.exec(html);
+			expect(served?.[1], html).toBeDefined();
+			expect(served![1]).toBe(runtime?.[1]);
+			expect(await page(reads_none)).not.toContain('application/ogygia-env');
+			set_kit_public_env({});
+			expect(await page(reads_env)).not.toContain('application/ogygia-env');
+		} finally {
+			set_building(false);
+		}
 	});
 
 	it('a page whose regions never import it carries none', async () => {

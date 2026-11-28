@@ -6,7 +6,9 @@ a `csr = false` layout (regions and a hole inside), serving one `csr = false` pa
 query argument is a custom transport type, a region that reads `page`, and a region that reads a
 static and a dynamic public env var from `$app/env/public` (declared in `src/env.js`). The lake is the
 `(lake)` group's layout. Outside it, `/env` holds one region that wakes on interaction and reads the
-dynamic var, and `/plain` holds one region that reads no env and links to `/env` (a router step).
+dynamic var, and `/plain` holds one region that reads no env and links to `/env` and `/fixed` (router steps). `/fixed`
+is prerendered with `csr = false` and holds a region that reads the dynamic var as its module runs;
+`/fixed-kit` is Kit's own prerendered `csr = true` page that reads it too.
 
 Internal. Never published. Its one user is `apps/palaestra/e2e/kit3.spec.ts`, which builds the
 libraries, packs `ogygia`, copies this app to a temp folder outside the repo, installs it there, and
