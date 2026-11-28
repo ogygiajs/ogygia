@@ -306,6 +306,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		return { name: env.name, server: env.name === 'ssr' || env.config?.consumer === 'server' };
 	};
 	const leg_of = (ctx: unknown): BuildLeg => compiler_of(session, 'leg').leg(env_of(ctx));
+	let vite_server: ViteDevServer | null = null;
 	let kit_wire_path: string | null = null;
 	let kit_remote_index: string | null = null;
 	let universal_hooks: string | null = null;
@@ -442,8 +443,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		const env = (ctx as { environment?: object } | null)?.environment;
 		return env && served_by_env.get(env);
 	};
-	const serving = (ctx: unknown): RouteServer<ViteDevServer> | null =>
-		served_by(ctx) ?? newest_served;
 	const route_watch = new RouteWatch<ViteDevServer>(
 		(file, event) => compiler_of(session, 'watchChange').routes_changed(file, event),
 		invalidate_module_id,
@@ -454,8 +453,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 	const invalidate_islands_for_file = (
 		file: string,
-		{ deleted = false, server }: { deleted?: boolean; server: ViteDevServer }
+		{
+			deleted = false,
+			server = vite_server
+		}: { deleted?: boolean; server?: ViteDevServer | null } = {}
 	) => {
+		if (!server) return false;
 		return compiler_of(session, 'invalidate').invalidate_for_file(file, {
 			deleted,
 			invalidate: (id) => invalidate_module_id(server, id)
@@ -767,6 +770,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			configureServer(server) {
 				const compiler = compiler_of(session, 'configureServer');
+				vite_server = server;
 				const served = dev_owner.child();
 				newest_served = { scope: served, server };
 				for (const env of Object.values(server.environments ?? {}))
@@ -796,12 +800,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			watchChange(id, change) {
 				shapes.invalidate(id, change.event);
-				if (!is_dev) return;
-				const at = serving(this);
-				route_watch.heard(id, change.event, at);
-				if (change.event !== 'delete' || !at) return;
-				if (!invalidate_islands_for_file(id, { deleted: true, server: at.server })) return;
-				at.server.ws.send({ type: 'full-reload', path: '*' });
+				if (is_dev) route_watch.heard(id, change.event, served_by(this) ?? newest_served);
+				if (!is_dev || change.event !== 'delete' || !vite_server) return;
+				if (!invalidate_islands_for_file(id, { deleted: true, server: vite_server })) return;
+				vite_server.ws.send({ type: 'full-reload', path: '*' });
 			},
 
 			buildEnd(error) {
@@ -844,6 +846,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			handleHotUpdate({ file, server }) {
 				const compiler = compiler_of(session, 'handleHotUpdate');
 				if (!is_dev) return;
+				vite_server = server;
 
 				if (STYLE_BEARING_FILE_RE.test(file))
 					for (const mid of compiler.changed('styles')) invalidate_module_id(server, mid);
@@ -984,11 +987,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					emitFile: (chunk) => this.emitFile(chunk),
 					watch: (file) => this.addWatchFile(file)
 				});
-				const at = is_dev ? serving(this) : null;
-				if (at) {
-					for (const mid of compiler.moved()) invalidate_module_id(at.server, mid);
+				if (is_dev && vite_server)
+					for (const mid of compiler.moved()) invalidate_module_id(vite_server, mid);
+				if (is_dev && vite_server) {
 					for (const marked of compiler.drain_closure_marks())
-						invalidate_module_id(at.server, marked);
+						invalidate_module_id(vite_server, marked);
 				}
 				if (result) return result as { code: string; map: Rolldown.SourceMapInput | null };
 				return source === code ? null : { code: source, map: null };
