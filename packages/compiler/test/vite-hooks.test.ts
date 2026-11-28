@@ -2632,6 +2632,22 @@ describe('the dev server', () => {
 		expect(dev_servers(root).newest()?.server).toBe(a);
 	});
 
+	it('a dev closeBundle with no environment closes no dev server: both keep serving, and a server opened after still joins', async () => {
+		app();
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		p.closeBundle.call({});
+		const c = served();
+		p.configureServer(c);
+		p.watchChange.call({}, path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
+		const reload = [{ type: 'full-reload', path: '*' }];
+		expect({ a: a.sent, b: b.sent, c: c.sent }).toEqual({ a: reload, b: reload, c: reload });
+		expect(dev_servers(root).open.snapshot().map((at) => at.server)).toEqual([a, b, c]);
+	});
+
 	it("a module an island pulls into its world, transformed on one of two dev servers, is dropped from every open server's graph", async () => {
 		app();
 		const helper = write(
