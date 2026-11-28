@@ -168,8 +168,8 @@ import {
 import type { OgygiaOptions } from './options.ts';
 import { SVELTE_DEV_ISLAND_ENTRIES } from './svelte-entries.ts';
 import { OgygiaError, warn, line } from '../messages.ts';
-import { RouteWatch } from './route-watch.ts';
-import { scope, type Scope } from '@ogygia/machine';
+import { RouteWatch, type RouteServer } from './route-watch.ts';
+import { scope } from '@ogygia/machine';
 
 const DEV_CSS_FILE_RE = /\.(css|scss|sass|less|styl)$/;
 const BACKSLASH_G = /\\/g;
@@ -437,19 +437,17 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	};
 
 	const dev_owner = scope();
-	const served_by_env = new WeakMap<object, Scope>();
-	const served_of = (ctx: unknown): Scope => {
+	const served_by_env = new WeakMap<object, RouteServer<ViteDevServer>>();
+	let newest_served: RouteServer<ViteDevServer> | null = null;
+	const served_by = (ctx: unknown): RouteServer<ViteDevServer> | undefined => {
 		const env = (ctx as { environment?: object } | null)?.environment;
-		return (env && served_by_env.get(env)) ?? dev_owner;
+		return env && served_by_env.get(env);
 	};
-	const route_watch = new RouteWatch(
-		dev_owner,
+	const route_watch = new RouteWatch<ViteDevServer>(
 		(file, event) => compiler_of(session, 'watchChange').routes_changed(file, event),
-		(id) => {
-			if (vite_server) invalidate_module_id(vite_server, id);
-		},
-		(file) => {
-			vite_server?.watcher.emit('change', file);
+		invalidate_module_id,
+		(server, file) => {
+			server.watcher.emit('change', file);
 		}
 	);
 
@@ -774,7 +772,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const compiler = compiler_of(session, 'configureServer');
 				vite_server = server;
 				const served = dev_owner.child();
-				for (const env of Object.values(server.environments ?? {})) served_by_env.set(env, served);
+				newest_served = { scope: served, server };
+				for (const env of Object.values(server.environments ?? {}))
+					served_by_env.set(env, newest_served);
 				served.defer(
 					open_dev_bridge(root, {
 						fn_manifest: () => compiler_of(session, 'fn_manifest').fn_manifest(),
@@ -800,7 +800,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			watchChange(id, change) {
 				shapes.invalidate(id, change.event);
-				if (is_dev) route_watch.heard(id, change.event);
+				if (is_dev) route_watch.heard(id, change.event, served_by(this) ?? newest_served);
 				if (!is_dev || change.event !== 'delete' || !vite_server) return;
 				if (!invalidate_islands_for_file(id, { deleted: true, server: vite_server })) return;
 				vite_server.ws.send({ type: 'full-reload', path: '*' });
@@ -1078,7 +1078,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			closeBundle() {
-				if (is_dev) served_of(this).close();
+				if (is_dev) (served_by(this)?.scope ?? dev_owner).close();
 				compiler_of(session, 'closeBundle').end_leg(env_of(this)?.name ?? null);
 			},
 
