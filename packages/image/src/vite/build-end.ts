@@ -77,8 +77,7 @@ export class BuildEnd {
 				await end(null);
 				return;
 			}
-			if ((await this.#life.wait('watching')) === STALE)
-				throw new Error('the build ended before this watch rebuild could end');
+			if ((await this.#life.wait('watching')) === STALE) return;
 		}
 	}
 
