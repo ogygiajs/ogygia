@@ -9730,7 +9730,11 @@
 		},
 		{
 			"id": "packages/compiler/src/dev-bridge.ts > dev_servers",
-			"reason": "dev server only: one globalThis read by the root's Symbol.for key, made on first use (a live registry, not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+			"reason": "dev server only: one globalThis read by the root's Symbol.for key (a live registry, not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+		},
+		{
+			"id": "packages/compiler/src/dev-bridge.ts > serve_dev",
+			"reason": "dev server only, once per configureServer: makes the root's global when none is open and adds the server to its registry (live objects, not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge › a hook that runs after the root's last dev server closed leaves no global behind"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > at > bridge > fn_manifest",
