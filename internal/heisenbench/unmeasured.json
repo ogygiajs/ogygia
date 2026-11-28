@@ -9693,6 +9693,18 @@
 			"reason": "OGYGIA_RULES builds only, once per client leg at buildEnd: one set lookup per module that read $app/* outside the island graph; proven in packages/compiler/test/island-closure-packages.test.ts"
 		},
 		{
+			"id": "packages/compiler/src/dev-bridge.ts > DevServers > constructor",
+			"reason": "dev server only, once per app root: keeps the root's Symbol.for slot; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+		},
+		{
+			"id": "packages/compiler/src/dev-bridge.ts > DevServers > add",
+			"reason": "dev server only, once per configureServer: one registry add and one cleanup on the server's own scope (live objects, not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge › closes with its dev server, a second dev server of the same root keeps its own, and the root's global goes with the last"
+		},
+		{
+			"id": "packages/compiler/src/dev-bridge.ts > DevServers > add > defer:0~aeb700",
+			"reason": "dev server only, once when a dev server's scope closes: removes the root's global when no server is left open (a live object, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge › closes with its dev server, a second dev server of the same root keeps its own, and the root's global goes with the last"
+		},
+		{
 			"id": "packages/compiler/src/dev-bridge.ts > DevServers > fn_manifest",
 			"reason": "dev server only: forwards to the newest open dev server's bridge reader (a live closure, not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
@@ -9727,6 +9739,14 @@
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > env_of_hook",
 			"reason": "dev server only: one property read of the bundler's hook context (a live object, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev server"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > on_every_open_server",
+			"reason": "dev server only, once per id the compiler hands out and per deleted island entry: a walk of the open dev servers this plugin serves (live objects, not replayable), one or two long; proven in packages/compiler/test/vite-hooks.test.ts › the dev server › a deleted island entry both open dev servers hear reloads the page on both, once each, and never on a server another ogygia() serves"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > watchChange > on_every_open_server:0~79d82f",
+			"reason": "dev server only, once per open dev server when a deleted island entry reloads: one socket send (a live object, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev server › a deleted island entry both open dev servers hear reloads the page on both, once each, and never on a server another ogygia() serves"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > open_server_holding",
