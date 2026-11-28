@@ -154,7 +154,7 @@ import { CompileCtx, type PackageScan } from '../ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
 import { patch_kit_module } from '../kit-patches.ts';
-import { dev_servers, type DevServed } from '../dev-bridge.ts';
+import { open_dev_bridge } from '../dev-bridge.ts';
 import { app_compile_options, svelte_compile, type SvelteCompile } from './svelte-options.ts';
 
 import {
@@ -168,7 +168,7 @@ import {
 import type { OgygiaOptions } from './options.ts';
 import { SVELTE_DEV_ISLAND_ENTRIES } from './svelte-entries.ts';
 import { OgygiaError, warn, line } from '../messages.ts';
-import { RouteWatch } from './route-watch.ts';
+import { RouteWatch, type RouteServer } from './route-watch.ts';
 import { scope } from '@ogygia/machine';
 
 const DEV_CSS_FILE_RE = /\.(css|scss|sass|less|styl)$/;
@@ -436,28 +436,17 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	};
 
 	const dev_owner = scope();
-	const env_of_hook = (ctx: unknown): object | undefined =>
-		(ctx as { environment?: object } | null)?.environment;
-	const open_server_holding = (env: object): DevServed<ViteDevServer> | undefined => {
-		for (const at of dev_servers(root).open.snapshot())
-			if (at.plugin === dev_owner && at.environments.has(env))
-				return at as DevServed<ViteDevServer>;
-		return undefined;
+	const served_by_env = new WeakMap<object, RouteServer<ViteDevServer>>();
+	let newest_served: RouteServer<ViteDevServer> | null = null;
+	const served_by = (ctx: unknown): RouteServer<ViteDevServer> | undefined => {
+		const env = (ctx as { environment?: object } | null)?.environment;
+		return env && served_by_env.get(env);
 	};
-	const serving = (ctx: unknown): DevServed<ViteDevServer> | null => {
-		const env = env_of_hook(ctx);
-		const at = (env && open_server_holding(env)) || dev_servers(root).newest(dev_owner);
-		return (at as DevServed<ViteDevServer> | undefined) ?? null;
-	};
-	const drop_on_every_open_server = (id: string, also?: ViteDevServer) => {
-		for (const at of dev_servers(root).open.snapshot())
-			if (at.plugin === dev_owner && at.server !== also)
-				invalidate_module_id(at.server as ViteDevServer, id);
-		if (also) invalidate_module_id(also, id);
-	};
+	const serving = (ctx: unknown): RouteServer<ViteDevServer> | null =>
+		served_by(ctx) ?? newest_served;
 	const route_watch = new RouteWatch<ViteDevServer>(
 		(file, event) => compiler_of(session, 'watchChange').routes_changed(file, event),
-		(id) => drop_on_every_open_server(id),
+		invalidate_module_id,
 		(server, file) => {
 			server.watcher.emit('change', file);
 		}
@@ -465,11 +454,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 	const invalidate_islands_for_file = (
 		file: string,
-		{ deleted = false, server }: { deleted?: boolean; server?: ViteDevServer }
+		{ deleted = false, server }: { deleted?: boolean; server: ViteDevServer }
 	) => {
 		return compiler_of(session, 'invalidate').invalidate_for_file(file, {
 			deleted,
-			invalidate: (id) => drop_on_every_open_server(id, server)
+			invalidate: (id) => invalidate_module_id(server, id)
 		});
 	};
 
@@ -779,18 +768,17 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			configureServer(server) {
 				const compiler = compiler_of(session, 'configureServer');
 				const served = dev_owner.child();
-				dev_servers(root).open.add(
-					{
-						scope: served,
-						server,
-						environments: new Set(Object.values(server.environments ?? {})),
-						plugin: dev_owner,
-						bridge: {
-							fn_manifest: () => compiler_of(session, 'fn_manifest').fn_manifest(),
-							kit_env_build: () => compiler_of(session, 'kit_env_build').kit_env_build()
-						}
-					},
-					served
+				const at: RouteServer<ViteDevServer> = { scope: served, server };
+				newest_served = at;
+				for (const env of Object.values(server.environments ?? {})) served_by_env.set(env, at);
+				served.defer(() => {
+					if (newest_served === at) newest_served = null;
+				});
+				served.defer(
+					open_dev_bridge(root, {
+						fn_manifest: () => compiler_of(session, 'fn_manifest').fn_manifest(),
+						kit_env_build: () => compiler_of(session, 'kit_env_build').kit_env_build()
+					})
 				);
 				if (server.httpServer) served.on(server.httpServer, 'close', () => served.close());
 				if (measure) {
@@ -815,7 +803,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const at = serving(this);
 				route_watch.heard(id, change.event, at);
 				if (change.event !== 'delete' || !at) return;
-				if (!invalidate_islands_for_file(id, { deleted: true })) return;
+				if (!invalidate_islands_for_file(id, { deleted: true, server: at.server })) return;
 				at.server.ws.send({ type: 'full-reload', path: '*' });
 			},
 
@@ -861,7 +849,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				if (!is_dev) return;
 
 				if (STYLE_BEARING_FILE_RE.test(file))
-					for (const mid of compiler.changed('styles')) drop_on_every_open_server(mid, server);
+					for (const mid of compiler.changed('styles')) invalidate_module_id(server, mid);
 
 				if (DEV_CSS_FILE_RE.test(file) && !file.includes('/node_modules/')) {
 					const src_prefix = `${path.join(root, 'src')}${path.sep}`;
@@ -999,9 +987,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					emitFile: (chunk) => this.emitFile(chunk),
 					watch: (file) => this.addWatchFile(file)
 				});
-				if (is_dev && dev_servers(root).newest(dev_owner)) {
-					for (const mid of compiler.moved()) drop_on_every_open_server(mid);
-					for (const marked of compiler.drain_closure_marks()) drop_on_every_open_server(marked);
+				const at = is_dev ? serving(this) : null;
+				if (at) {
+					for (const mid of compiler.moved()) invalidate_module_id(at.server, mid);
+					for (const marked of compiler.drain_closure_marks())
+						invalidate_module_id(at.server, marked);
 				}
 				if (result) return result as { code: string; map: Rolldown.SourceMapInput | null };
 				return source === code ? null : { code: source, map: null };
@@ -1088,10 +1078,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			closeBundle() {
-				if (is_dev) {
-					const env = env_of_hook(this);
-					(env ? open_server_holding(env)?.scope : dev_owner)?.close();
-				}
+				if (is_dev) (served_by(this)?.scope ?? dev_owner).close();
 				compiler_of(session, 'closeBundle').end_leg(env_of(this)?.name ?? null);
 			},
 

@@ -9693,27 +9693,31 @@
 			"reason": "OGYGIA_RULES builds only, once per client leg at buildEnd: one set lookup per module that read $app/* outside the island graph; proven in packages/compiler/test/island-closure-packages.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/dev-bridge.ts > DevServers > fn_manifest",
-			"reason": "dev server only: forwards to the newest open dev server's bridge reader (a live closure, not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+			"id": "packages/compiler/src/dev-bridge.ts > open_dev_bridge",
+			"reason": "dev server only, once per configureServer: takes a live bridge of closures over the session (not cloneable) and writes a globalThis slot; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
-			"id": "packages/compiler/src/dev-bridge.ts > DevServers > kit_env_build",
-			"reason": "dev server only: forwards to the newest open dev server's bridge reader (a live closure, not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+			"id": "packages/compiler/src/dev-bridge.ts > open_dev_bridge > <anonymous>~804898",
+			"reason": "dev server only, once when a dev server closes: takes its bridge off the root's globalThis slot (hidden state); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
-			"id": "packages/compiler/src/dev-bridge.ts > DevServers > newest",
-			"reason": "dev server only, once per bridge read, watched file event and dev transform: a backwards walk of the registry's snapshot of open dev servers (live objects, not cloneable), one or two long; proven in packages/compiler/test/vite-hooks.test.ts › the dev server › closing the newest dev server leaves the older one serving a hook with no environment, as the dev bridge then reads the older one"
+			"id": "packages/compiler/src/dev-bridge.ts > DevBridgeSlot > #newest",
+			"reason": "dev server only: one array read of the open bridges, which are live closures (not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
-			"id": "packages/compiler/src/dev-bridge.ts > dev_servers",
-			"reason": "dev server only: one globalThis read by the root's Symbol.for key, made on first use (a live registry, not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+			"id": "packages/compiler/src/dev-bridge.ts > DevBridgeSlot > fn_manifest",
+			"reason": "dev server only: forwards to the newest open bridge's reader (a live closure, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > add:0~544add > bridge > fn_manifest",
+			"id": "packages/compiler/src/dev-bridge.ts > DevBridgeSlot > kit_env_build",
+			"reason": "dev server only: forwards to the newest open bridge's reader (a live closure, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > open_dev_bridge:1~2f21ad > fn_manifest",
 			"reason": "dev server only: reads the session's compiler as it is asked (a live object, not replayable); the compiler's fn_manifest does the work; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > add:0~544add > bridge > kit_env_build",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > open_dev_bridge:1~2f21ad > kit_env_build",
 			"reason": "dev server only: reads the session's compiler as it is asked (a live object, not replayable); the compiler's kit_env_build does the work; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
@@ -9721,20 +9725,16 @@
 			"reason": "dev server only, once when its http server closes: closes that server's scope (a live object, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > drop_on_every_open_server",
-			"reason": "dev server only, once per id the compiler hands out (moved modules, closure marks, route answers, a host's islands): one module-graph invalidation on each open dev server (live objects, not replayable); the ids come from Compiler.moved and routes_changed, benched in packages/compiler/bench/virtual.bench.ts and routes.bench.ts; proven in packages/compiler/test/vite-hooks.test.ts › the dev server › one edit both open dev servers' watchers hear updates the route answers on both servers, not only the first to hear it"
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > defer:0~307865",
+			"reason": "dev server only, once when that server's scope closes: forgets it as the newest dev server (a live object, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › a hook with no environment, heard after the newest dev server closed, reaches no closed server"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > env_of_hook",
-			"reason": "dev server only: one property read of the bundler's hook context (a live object, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev server"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > open_server_holding",
-			"reason": "dev server only, once per environment when its plugins close and once per watched file event: a walk of the open dev servers for the one holding the hook's live environment (not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev server › a half-written save heard before its dev server closes is never read again on the closed server"
+			"id": "packages/compiler/src/vite/index.ts > ogygia > served_by",
+			"reason": "dev server only, once per environment when its plugins close, once per watched file event and once per dev transform: one WeakMap lookup by the live environment (not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge, and › a half-written save heard before its dev server closes is never read again on the closed server"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > serving",
-			"reason": "dev server only, once per watched file event: the open server holding the hook's environment, else the newest one this plugin serves (live objects, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev server › closing an older dev server while a newer one is open leaves the newer one serving a hook with no environment"
+			"reason": "dev server only, once per watched file event and once per dev transform: served_by's lookup, else the newest dev server (live objects, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › a file event heard on one of two dev servers is read again, replayed and reloaded on that server, never on the other"
 		}
 	]
 }

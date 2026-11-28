@@ -1,14 +1,11 @@
 /**
- * THE OPEN DEV SERVERS of an app root: one registry, a `Symbol.for` global per root, of every dev
- * server a plugin serves there, each held while that server is open (its own scope). The plugin
- * reads it to find the server a hook runs on and every server a program-wide change goes to; a dev
- * server's generated server modules read the newest one's bridge off it, as they run (the module
- * text is made once; what it reads changes while dev runs) (test/vite-hooks.test.ts › the dev
- * bridge).
+ * THE DEV BRIDGE: what a dev server's generated server modules read off the compiler serving them,
+ * as they run (the module text is made once; what it reads changes while dev runs). One global per
+ * app root (by `Symbol.for` name), opened by the plugin's `configureServer` and closed with that
+ * server (test/vite-hooks.test.ts › the dev bridge).
  *
  * @packageDocumentation
  */
-import { registry, type Registry, type Scope } from '@ogygia/machine';
 
 /** The readers a dev server's generated server modules call, each answering now. */
 export interface DevBridge {
@@ -20,17 +17,7 @@ export interface DevBridge {
 	kit_env_build(): string;
 }
 
-/** One open dev server: the scope it serves in (closed when it closes), its environments, the
- *  plugin serving it (its dev scope) and the bridge its generated server modules read. */
-export interface DevServed<S = unknown> {
-	readonly scope: Scope;
-	readonly server: S;
-	readonly environments: ReadonlySet<object>;
-	readonly plugin: Scope;
-	readonly bridge: DevBridge;
-}
-
-/** The `Symbol.for` name of the open dev servers of the app at `root`. */
+/** The `Symbol.for` name of the dev bridge of the app at `root`. */
 export const dev_bridge_key = (root: string): string => `ogygia.dev.bridge:${root}`;
 
 /** A generated server module's call of the bridge's `reader` for the app at `root`: `undefined`
@@ -38,30 +25,34 @@ export const dev_bridge_key = (root: string): string => `ogygia.dev.bridge:${roo
 export const dev_bridge_call = (root: string, reader: keyof DevBridge): string =>
 	`globalThis[Symbol.for(${JSON.stringify(dev_bridge_key(root))})]?.${reader}()`;
 
-/** The global of a root: its open dev servers, oldest first, answering the bridge's readers with the
- *  newest one still open (nothing while none is). */
-export class DevServers {
-	readonly open: Registry<DevServed> = registry<DevServed>();
+/** The global of a root: every bridge open there, answering with the newest one still open. */
+export class DevBridgeSlot implements DevBridge {
+	/** the open bridges, oldest first */
+	readonly open: DevBridge[] = [];
 
-	fn_manifest(): Record<string, string> | undefined {
-		return this.newest()?.bridge.fn_manifest();
+	fn_manifest(): Record<string, string> {
+		return this.#newest().fn_manifest();
 	}
 
-	kit_env_build(): string | undefined {
-		return this.newest()?.bridge.kit_env_build();
+	kit_env_build(): string {
+		return this.#newest().kit_env_build();
 	}
 
-	/** The newest dev server still open, of `plugin` when given. */
-	newest(plugin?: Scope): DevServed | undefined {
-		const all = this.open.snapshot();
-		for (let i = all.length - 1; i >= 0; i--)
-			if (plugin === undefined || all[i]!.plugin === plugin) return all[i];
-		return undefined;
+	#newest(): DevBridge {
+		return this.open[this.open.length - 1]!;
 	}
 }
 
-/** The open dev servers of the app at `root`: one global per root, made on first use. */
-export function dev_servers(root: string): DevServers {
-	const slots = globalThis as Record<symbol, DevServers | undefined>;
-	return (slots[Symbol.for(dev_bridge_key(root))] ??= new DevServers());
+/** Opens `bridge` for the app at `root` over any other open there; its close takes only it away, so
+ *  the newest one left answers, and the global goes with the last. */
+export function open_dev_bridge(root: string, bridge: DevBridge): () => void {
+	const key = Symbol.for(dev_bridge_key(root));
+	const slots = globalThis as Record<symbol, DevBridgeSlot | undefined>;
+	const slot = (slots[key] ??= new DevBridgeSlot());
+	slot.open.push(bridge);
+	return () => {
+		const at = slot.open.indexOf(bridge);
+		if (at !== -1) slot.open.splice(at, 1);
+		if (slot.open.length === 0 && slots[key] === slot) delete slots[key];
+	};
 }
