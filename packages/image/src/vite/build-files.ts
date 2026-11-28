@@ -527,6 +527,7 @@ export async function write_built(
 	draw_card: DrawCard = no_card,
 	last: Readonly<Record<string, string>> | null = null
 ): Promise<Readonly<Record<string, string>>> {
+	if (!handoff.minted) return last ?? {};
 	const makes = BuildMakes.of(handoff, output);
 	const client = path.join(output, 'client', cfg.paths.app_dir);
 	const renamed = new Map<string, string>(Object.entries(last ?? {}));
