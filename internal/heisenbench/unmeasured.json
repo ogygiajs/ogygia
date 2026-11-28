@@ -9733,7 +9733,7 @@
 			"reason": "dev server only: one globalThis read by the root's Symbol.for key, made on first use (a live registry, not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > add:0~544add > bridge > fn_manifest",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > add:0~b343ef > bridge > fn_manifest",
 			"reason": "dev server only: reads the session's compiler as it is asked (a live object, not replayable); the compiler's fn_manifest does the work; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
