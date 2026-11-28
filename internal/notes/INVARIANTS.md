@@ -337,13 +337,13 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 ## KIT-CONFIG — the Kit options the compiler reads
 
-**What:** The compiler reads `kit.files.routes`, `kit.outDir`, `kit.appDir` and `kit.inlineStyleThreshold` from the app's config (`svelte.config.js` on Kit 2, the `sveltekit()` plugin options on Kit 3), each with Kit's default when unset, and says `kit_config_unreadable` when the config throws as it loads.
+**What:** The compiler reads `kit.files.routes`, `kit.outDir`, `kit.appDir` and `kit.inlineStyleThreshold` from the app's config (`svelte.config.js` on Kit 2, the `sveltekit()` plugin options on Kit 3), each with Kit's default when unset, and says `kit_config_unreadable` when the config throws as it loads. It reads `kit.version.name` (KIT-PUBLIC-ENV's identity) off Kit's own plugin, as Kit resolved it, and off `svelte.config.js` only where it is pinned; `null` when neither has one.
 
 **Why:** These are Kit's public options, but their place (Kit 3 moved them) and their defaults are Kit's. A renamed or moved option read with the old name falls back to the default without a word, and the compiler then scans the wrong routes or writes to the wrong dir.
 
 **Do not:** Read a Kit option without a default that matches Kit's, or from one place only.
 
-**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > as the compiler reads them`, `packages/compiler/test/canary/kit-build.test.ts > inlines the stylesheets under`, `packages/compiler/test/kit-dirs.test.ts > reads both from svelte.config.js and resolves them against the root`, `packages/compiler/test/kit-dirs.test.ts > off Kit's own plugin: Kit 3's options at the top (vite.config only), Kit 2's under`, `packages/compiler/test/kit-dirs.test.ts > Kit's inlineStyleThreshold is read for the region CSS too`
+**Enforced by:** `packages/compiler/test/canary/kit-build.test.ts > as the compiler reads them`, `packages/compiler/test/canary/kit-build.test.ts > the compiler reads no version.name off Kit's resolved options`, `packages/compiler/test/kit-dirs.test.ts > Kit's version.name: off Kit's own plugin as Kit resolved it, or as the config file pins it; null when neither has one`, `packages/compiler/test/canary/kit-build.test.ts > inlines the stylesheets under`, `packages/compiler/test/kit-dirs.test.ts > reads both from svelte.config.js and resolves them against the root`, `packages/compiler/test/kit-dirs.test.ts > off Kit's own plugin: Kit 3's options at the top (vite.config only), Kit 2's under`, `packages/compiler/test/kit-dirs.test.ts > Kit's inlineStyleThreshold is read for the region CSS too`
 
 ---
 
