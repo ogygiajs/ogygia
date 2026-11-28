@@ -1,0 +1,21 @@
+{
+	"name": "image-e2e-app-kit3",
+	"version": "0.0.0",
+	"private": true,
+	"description": "@ogygia/image's fixture app on SvelteKit 3: two prerendered pages that render an <Img>, built by ../../test/kit3-prerender.test.ts with an adapter that copies the prerendered pages.",
+	"type": "module",
+	"scripts": {
+		"build": "vite build"
+	},
+	"dependencies": {
+		"@ogygia/image": "workspace:*",
+		"ogygia": "workspace:*",
+		"sharp": "catalog:"
+	},
+	"devDependencies": {
+		"@sveltejs/kit": "catalog:kit3",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"svelte": "catalog:kit3",
+		"vite": "catalog:"
+	}
+}
