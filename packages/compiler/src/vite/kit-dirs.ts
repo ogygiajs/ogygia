@@ -17,9 +17,7 @@ type KitOptions = {
 
 type PluginOption = unknown;
 
-/** Kit's options as its setup plugin `p` holds them (Kit 3's flat, Kit 2's under `kit`), or `null`
- *  when `p` is not that plugin. */
-function setup_options(p: { name?: string; api?: unknown } | undefined): KitOptions | null {
+function kit_setup_options(p: { name?: string; api?: unknown } | undefined): KitOptions | null {
 	if (p?.name !== KIT_SETUP_PLUGIN) return null;
 	const options = (p.api as { options?: KitOptions & { kit?: KitOptions } } | undefined)?.options;
 	if (!options) return null;
@@ -40,7 +38,7 @@ async function flatten_plugins(option: PluginOption): Promise<{ name?: string; a
 
 async function kit_options_from_plugins(plugins: PluginOption): Promise<KitOptions | null> {
 	for (const p of await flatten_plugins(plugins)) {
-		const options = setup_options(p);
+		const options = kit_setup_options(p);
 		if (options) return options;
 	}
 	return null;
@@ -88,7 +86,7 @@ export function kit_identity(
 	plugins: readonly { name?: string; api?: unknown }[] | undefined
 ): KitIdentity {
 	for (const p of plugins ?? []) {
-		const kit = setup_options(p);
+		const kit = kit_setup_options(p);
 		if (!kit) continue;
 		const base = kit.paths?.base;
 		const version = kit.version?.name;

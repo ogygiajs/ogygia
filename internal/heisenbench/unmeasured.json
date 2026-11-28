@@ -6289,7 +6289,7 @@
 			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~36aceb > CompileCtx:0~0e7542 > flatMap:0~f1f41f",
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~6de41f > CompileCtx:0~fb47ad > flatMap:0~f1f41f",
 			"reason": "once per config: the markdown formats' extensions; every build runs it"
 		},
 		{
