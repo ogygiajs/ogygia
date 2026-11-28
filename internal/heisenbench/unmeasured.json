@@ -9725,6 +9725,10 @@
 			"reason": "dev server only, once when its http server closes: closes that server's scope (a live object, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		},
 		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > defer:0~307865",
+			"reason": "dev server only, once when that server's scope closes: forgets it as the newest dev server (a live object, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › a hook with no environment, heard after the newest dev server closed, reaches no closed server"
+		},
+		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > served_by",
 			"reason": "dev server only, once per environment when its plugins close, once per watched file event and once per dev transform: one WeakMap lookup by the live environment (not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge, and › a half-written save heard before its dev server closes is never read again on the closed server"
 		},

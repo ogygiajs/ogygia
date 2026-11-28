@@ -768,9 +768,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			configureServer(server) {
 				const compiler = compiler_of(session, 'configureServer');
 				const served = dev_owner.child();
-				newest_served = { scope: served, server };
-				for (const env of Object.values(server.environments ?? {}))
-					served_by_env.set(env, newest_served);
+				const at: RouteServer<ViteDevServer> = { scope: served, server };
+				newest_served = at;
+				for (const env of Object.values(server.environments ?? {})) served_by_env.set(env, at);
+				served.defer(() => {
+					if (newest_served === at) newest_served = null;
+				});
 				served.defer(
 					open_dev_bridge(root, {
 						fn_manifest: () => compiler_of(session, 'fn_manifest').fn_manifest(),
