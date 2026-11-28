@@ -1,7 +1,7 @@
 // KIT-PUBLIC-ENV: the build's identity on Kit's env channel. The server module and the browser's
 // reader carry the same one for one app, so the reader takes its own server's env; another app (a
 // federated peer) has another, so its reader never takes the host's env as its own. It is made only
-// of values the app already makes public (its package name, base, app dir and Kit's version.name),
+// of values that are not secret (its package name, base, app dir and Kit's version.name),
 // never of a file of its source.
 import { tmpdir } from 'node:os';
 import { dedent } from '@ogygia/core/contract';
