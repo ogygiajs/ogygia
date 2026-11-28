@@ -13,12 +13,13 @@
  *   from its watcher, after every plugin hook, so no hook falls between its prerender and its
  *   adapter. The end runs as the server leg is written, before the prerender, and is `late`: the
  *   prerender names only files the build has made, and fails on any other (`image_watch_rebuild`).
+ *   Each rebuild's end is a run of its own: it starts once every earlier end is over.
  *
  * A new app build starts fresh whatever state the last one left (a failed build runs no last hook).
  *
  * @packageDocumentation
  */
-import { machine } from '@ogygia/machine';
+import { machine, STALE } from '@ogygia/machine';
 
 /** The build's end: makes the files, then points the prerendered pages at them. `late` when it runs
  *  before the prerender (a watch rebuild of legs an app build hook built). */
@@ -28,14 +29,18 @@ type EndStates = {
 	outside: {};
 	inside: {};
 	waiting: { end: End; watched: boolean };
+	ending: {};
 	watching: {};
+	rebuilding: {};
 };
 
 const END_STEPS = {
 	outside: ['inside'],
 	inside: ['inside', 'waiting', 'outside'],
-	waiting: ['inside', 'outside', 'watching'],
-	watching: ['inside']
+	waiting: ['inside', 'outside', 'ending'],
+	ending: ['inside', 'watching'],
+	watching: ['inside', 'rebuilding'],
+	rebuilding: ['inside', 'watching']
 } as const;
 
 const END = machine<EndStates>()({ name: 'image build end', initial: 'outside', steps: END_STEPS });
@@ -50,19 +55,45 @@ export class BuildEnd {
 	}
 
 	/** The server leg was written (`watched` under `vite build --watch`): its end runs now, or once
-	 *  the app build hooks reach their last. */
+	 *  the app build hooks reach their last, or, for a watch rebuild of legs they built, late, once
+	 *  every earlier end is over. */
 	async written(end: End, watched: boolean): Promise<void> {
 		if (this.#life.move('inside', 'waiting', { end, watched })) return;
-		await end(this.#life.now.kind === 'watching');
+		for (;;) {
+			const now = this.#life.now;
+			if (now.kind === 'watching') break;
+			if (
+				now.kind !== 'ending' &&
+				now.kind !== 'rebuilding' &&
+				!(now.kind === 'waiting' && now.watched)
+			)
+				return end(false);
+			if ((await this.#life.wait('watching')) === STALE)
+				throw new Error('the build ended before this watch rebuild could end');
+		}
+		this.#life.go('rebuilding');
+		try {
+			await end(true);
+		} finally {
+			this.#life.move('rebuilding', 'watching');
+		}
 	}
 
 	/** The app build hooks reach this plugin's last `buildApp`: a waiting end runs now, and a watched
-	 *  build's rebuilds come after. */
+	 *  build's rebuilds come after it. */
 	async close(): Promise<void> {
 		const now = this.#life.now;
 		if (now.kind === 'inside') this.#life.go('outside');
 		if (now.kind !== 'waiting') return;
-		this.#life.go(now.watched ? 'watching' : 'outside');
-		await now.end(false);
+		if (!now.watched) {
+			this.#life.go('outside');
+			return now.end(false);
+		}
+		this.#life.go('ending');
+		try {
+			await now.end(false);
+		} finally {
+			this.#life.move('ending', 'watching');
+		}
 	}
 }

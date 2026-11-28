@@ -116,6 +116,19 @@ test('a watch rebuild whose server leg is written while the last rebuild ends (K
 	expect(ran).toEqual(['build', 'rebuild starts', 'rebuild ends', 'next rebuild, late']);
 });
 
+test('a watch rebuild whose end failed (Kit 3) leaves the next rebuild to end, late', async () => {
+	const end = new BuildEnd();
+	const ran: string[] = [];
+	end.open();
+	await end.written(noted(ran, 'build'), true);
+	await end.close();
+	await expect(
+		end.written(() => Promise.reject(new Error('a file was not made')), true)
+	).rejects.toThrow('a file was not made');
+	await end.written(noted(ran, 'next rebuild'), true);
+	expect(ran).toEqual(['build', 'next rebuild, late']);
+});
+
 test("a failing end fails this plugin's last buildApp, so the build stops before the adapter", async () => {
 	const end = new BuildEnd();
 	end.open();
