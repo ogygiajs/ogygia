@@ -1538,7 +1538,7 @@
 		},
 		{
 			"id": "packages/core/src/runtime/kit-page-makers.ts > kit_page_flights",
-			"reason": "browser only: makes the Kit page thread's one shared wait (a flights over a runes module's run, not cloneable), once per page; proven in packages/core/test/browser/kit-page-thread.test.ts"
+			"reason": "browser only: makes the Kit page thread's one flights, once per page; proven in packages/core/test/browser/kit-page-thread.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/seeds.ts > no_kit_wait",
@@ -2413,6 +2413,14 @@
 			"reason": "browser only: one candidate list of a parsed head, linear in its length; head-urls.test.ts runs it"
 		},
 		{
+			"id": "packages/core/src/srcset.ts > srcset_candidates",
+			"reason": "browser only: one srcset value of a priority preload or a fetched head, linear in its length; load-scheduler.test.ts and head-urls.test.ts run it"
+		},
+		{
+			"id": "packages/core/src/srcset.ts > space",
+			"reason": "one character compare, constant work"
+		},
+		{
 			"id": "packages/core/src/runtime/router-nav.ts > url_of",
 			"reason": "one URL attribute resolved against the node's page (node.baseURI: a DOM node), constant work"
 		},
@@ -2947,6 +2955,18 @@
 		{
 			"id": "packages/content/src/vite/leaks.ts > content_leaks > writeBundle",
 			"reason": "build only: once per client build, off the request and boot paths; proven in packages/content/test/content-leaks.test.ts"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > filter:0~df106e",
+			"reason": "build only: three regex tests per module id of a finished client bundle, once per build"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > route_file",
+			"reason": "build only: per markdown module id of a finished client bundle, one prefix test and one regex, once per build; test/content-leaks.test.ts runs it"
+		},
+		{
+			"id": "packages/content/src/vite/index.ts > content > content_leaks:0~47cfac",
+			"reason": "build only: once per client bundle, a field read; test/content-leaks.test.ts runs the leak check"
 		},
 		{
 			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > flatMap:0~b437c4",
@@ -5525,6 +5545,38 @@
 			"reason": "build only, server leg: one set lookup per module of the bundler's graph per round of a wait"
 		},
 		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > graph_compiled > walk",
+			"reason": "build only, server leg: once per module of the bundler's graph per wait, one set lookup, and the bundler's load only for a module with no code yet, Rolldown's work; test/graph-compiled.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > importer_of_each_import",
+			"reason": "build only, server leg: at most once per round of a wait that meets a module with no code yet, one pass over the bundler's module infos; test/graph-compiled.test.ts runs it in a real build"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > constructor",
+			"reason": "build only, server leg: once per wait (three per build), three field writes"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun",
+			"reason": "build only, server leg: once per module a wait reaches, one bundler module-info read; test/graph-compiled.test.ts runs it in a real build"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun > task:0~08eb16",
+			"reason": "build only, server leg: once per import the bundler has named but not begun, the promise its wait settles; test/graph-compiled.test.ts holds main.js in moduleParsed to run it"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun > task:0~08eb16 > Promise:0~fd78a2",
+			"reason": "build only, server leg: once per import the bundler has named but not begun, starts its first check; test/graph-compiled.test.ts holds main.js in moduleParsed to run it"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun > task:0~08eb16 > Promise:0~fd78a2 > check",
+			"reason": "build only, server leg: one bundler module-info read per timer tick while an import is named but not begun (ticks of 1 to 50 ms, bounded by the quiet time); test/graph-compiled.test.ts runs it in real builds, the moduleParsed failure case included"
+		},
+		{
+			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun > task:0~08eb16 > Promise:0~fd78a2 > check > timeout:0~0d7472",
+			"reason": "build only, server leg: a scope timer's callback, one call of check per tick"
+		},
+		{
 			"id": "packages/compiler/src/driver.ts > Compiler > server_runtime",
 			"reason": "build only: the server leg's sealed runtime, made once per build and then a memo read per renderChunk"
 		},
@@ -6097,6 +6149,138 @@
 			"reason": "a sort comparator over one module's macro edits (a handful), constant work per compare"
 		},
 		{
+			"id": "packages/compiler/src/macros/source.ts > ast_edits_or_null_unparsed > walk_ast:1~30be9a",
+			"reason": "the AST walk's per-node visitor, constant work per node; the macro tests run it on every module they rewrite"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > template_calls",
+			"reason": "the macro check, only for a component whose text names import.meta.og. outside its scripts (rare: a docs page or a template call); one Svelte parse then; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > template_calls > some:0~3d5b23",
+			"reason": "per marker occurrence of the macro check above, constant work per script block; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > template_calls > walk_ast:1~772d67",
+			"reason": "the AST walk's per-node visitor of the macro check above, constant work per node; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > markdown_scripts",
+			"reason": "the macro check of a markdown page that names import.meta.og. (rare), linear in its text; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > scripts > map:0~0690ae",
+			"reason": "per script block of the markdown check above, one slice; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > constructor",
+			"reason": "once per distinct text of a markdown page that names import.meta.og. (rare): one field; test/markdown-parse-once.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > #read",
+			"reason": "the markdown check above: its one parse, kept for the page's text; test/markdown-parse-once.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > scripts",
+			"reason": "the markdown check above: its script blocks, linear in its text; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > expressions",
+			"reason": "the markdown check above: its prose's {…} expressions, linear in its text; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > prose_expressions",
+			"reason": "the markdown check above: its prose's {…} expressions, linear in its text but for an unclosed brace (a page Svelte refuses anyway); test/markdown-code.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > frontmatter_end",
+			"reason": "once per markdown check above: two regex runs over the page's first lines; test/markdown-code.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > markdown_prose",
+			"reason": "the markdown check above, only for a markdown page that names import.meta.og.: one CommonMark parse (micromark, linear) and its code tokens blanked; test/markdown-code.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > script_blocks",
+			"reason": "the markdown check above: its blocks that start a line, linear in its text; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > script_blocks > filter:0~fa9df2",
+			"reason": "per block of the markdown check above, constant work per block; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > markdown_expressions",
+			"reason": "the macro check of a markdown page that names import.meta.og. (rare): its prose's {…} expressions, linear in its text; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > prose_expressions > filter:0~e6fdc6",
+			"reason": "per block of the markdown check above, constant work per block; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > expression_end",
+			"reason": "per prose expression of the markdown check above, linear in its text; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/parse/scan.ts > blank",
+			"reason": "per HTML comment of the markdown check above, one blank run; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > regions",
+			"reason": "once per plugin macro handler that asks for a module's code regions, the same reading the macros already pay (a markdown page's parse kept for its text); test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > run_module_macros > handler:1~df713b > regions",
+			"reason": "the code-regions handle handed to a plugin macro, one call of ModuleCode.regions; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > constructor",
+			"reason": "once per module the macro pipeline runs on: two extension tests; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > #page_of",
+			"reason": "per markdown reading of the macro check: one string compare against the page it read last; test/markdown-parse-once.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls",
+			"reason": "the macro check, only for a module whose text names import.meta.og.: the og calls of its regions, linear in them; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls_macro",
+			"reason": "the macro check of a module outside the app that names a plugin macro (rare): the calls above, one scan; test/macros-own-source.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls_macro > some:0~cc31b7",
+			"reason": "per call of the check above, two string tests"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > in_regions",
+			"reason": "the macro check, only for a module whose text names import.meta.og. after its macros ran: the og calls of its regions, linear in them; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > in_regions > flatMap:0~6407d7",
+			"reason": "per region of the macro check above, one call scan; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > in_regions > flatMap:0~6407d7 > map:0~6a5b20",
+			"reason": "per call found by the macro check above, one offset shift, constant work; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls > map:0~f7bc6b",
+			"reason": "per template call of the macro check above (rare), one object, constant work; test/macros-need-plugin.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > macro_in_markup > details",
+			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > macro_in_markup > text",
+			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~d2741b > CompileCtx:0~20200d > flatMap:0~f1f41f",
+			"reason": "once per config: the markdown formats' extensions; every build runs it"
+		},
+		{
 			"id": "packages/compiler/src/macros/wire.ts > ast_edits_or_null_unparsed > sort:0~c12a84",
 			"reason": "a sort comparator over one module's wire edits (a handful), constant work per compare"
 		},
@@ -6489,6 +6673,22 @@
 			"reason": "one Set read per reason (nine), constant work"
 		},
 		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~e12236 > stayed",
+			"reason": "once per plugin at config time: one array push, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~e12236 > get routesDir",
+			"reason": "a plugin's read of the routes folder: one seam call, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > routes_dir",
+			"reason": "the empty seam a plugin sees before the build is set up: throws, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > routes_dir",
+			"reason": "the routes seam hands a plugin Kit's routes folder, one field read"
+		},
+		{
 			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > whyStayed",
 			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
 		},
@@ -6839,658 +7039,6 @@
 		{
 			"id": "packages/insights/src/page-insights.ts > analyze_page > map:0~e59b9a",
 			"reason": "a queued island's name and wait joined into a finding's message, inside analyze_page's pass, constant work per island"
-		},
-		{
-			"id": "packages/compiler/src/kit.ts > route_reader > routes > derived:2~eff2ef",
-			"reason": "build only: the route facts' derived csr per route node, once per route per build (a route tree, not replayable); proven in packages/compiler/test/route-csr.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/kit.ts > read_csr_unread",
-			"reason": "build only: reads whether a route option file declares csr in a form only Kit's run can read (a parsed file, not cloneable), once per option file per build; proven in packages/compiler/test/route-csr.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/kit.ts > kit_may_hydrate",
-			"reason": "build only: one walk of the route facts per build (the routes, not cloneable), the __OGYGIA_KIT_PAGES__ define; proven in packages/compiler/test/route-csr.test.ts and vite-hooks.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/kit.ts > kit_may_hydrate > some:0~79f3d7",
-			"reason": "build only: kit_may_hydrate's test of one route node, constant work; proven in packages/compiler/test/route-csr.test.ts"
-		},
-		{
-			"id": "packages/core/src/context.ts > kit_hydrates_document",
-			"reason": "browser only: island code's read of whether Kit hydrates the document (the booted runtime's answer, else the document's probe), once per page; proven in packages/core/test/browser/kit-pages-off.test.ts and kit-pages-refused.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > kit_page_unbuilt",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > region_program_missing",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_program_shipped",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/lazy.ts > published",
-			"reason": "browser only: a lazy chunk's read of the message functions the boot published (one global read), constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/boot-link.ts > KIT_META > document_has",
-			"reason": "a build without Kit pages (__OGYGIA_KIT_PAGES__ false): answers no without probing, constant work; proven in packages/core/test/browser/kit-pages-off.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/boot-link.ts > no_kit",
-			"reason": "a build without Kit pages (__OGYGIA_KIT_PAGES__ false): answers no without probing, constant work; proven in packages/core/test/browser/kit-pages-off.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/kit-boot.ts > no_kit",
-			"reason": "a build without Kit pages (__OGYGIA_KIT_PAGES__ false): answers no without probing, constant work; proven in packages/core/test/browser/kit-pages-off.test.ts"
-		},
-		{
-			"id": "packages/core/src/wire-markup.ts > KitBoot > static document_has > is_kit_boot_script:1~e4af8d",
-			"reason": "browser only: one inline script's attribute test while the document is probed for Kit's boot script, constant work; proven in packages/core/test/browser/kit-pages-refused.test.ts"
-		},
-		{
-			"id": "packages/core/src/wire-markup.ts > kit_answer",
-			"reason": "browser only: island code reads the booted runtime's Kit answer (one global read and call), constant work; proven in packages/core/test/browser/kit-pages-off.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > say_program_missing",
-			"reason": "browser only, an error path: a region whose program its build left out says so once and keeps the server's HTML, constant work; proven in packages/core/test/browser/frames-off.test.ts and live-off.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > get #answer",
-			"reason": "browser only: makes the region element's answer machine on first need (one create), constant work; run by every hole in the browser suite (packages/core/test/browser/hole-lifecycle.test.ts)"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > get #live",
-			"reason": "browser only: makes the region element's live machine on first need (one create), constant work; proven in packages/core/test/browser/live-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > get #paint",
-			"reason": "browser only: makes the region element's paint machine on first need (one create), constant work; proven in packages/core/test/browser/live-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > static #live_link",
-			"reason": "browser only: the live feature's link of accessors into the region element (slots.live_link), made once per page; each accessor is one field read or call; proven in packages/core/test/browser/live-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/hydrate-core.ts > nothing",
-			"reason": "browser only: the catch that lets a visitor promise's rejection go (the visitor reports its own), constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/lakes.ts > LakeState",
-			"reason": "browser only: the lakes feature, over a visit's lake elements (Elements, not cloneable), constant work per lake; proven in packages/core/test/browser (lakes) and apps/palaestra/e2e/lakes.spec.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/live-program.ts > state_of",
-			"reason": "browser only: the live feature (./live-program.ts, installed by live.ts), over a live region element and its tick, constant work per tick besides the morph and the island's own render; proven in packages/core/test/browser/live-region.test.ts and live-static-new-address.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/live-program.ts > hand_back",
-			"reason": "browser only: the live feature (./live-program.ts, installed by live.ts), over a live region element and its tick, constant work per tick besides the morph and the island's own render; proven in packages/core/test/browser/live-region.test.ts and live-static-new-address.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/live-program.ts > apply_live",
-			"reason": "browser only: the live feature (./live-program.ts, installed by live.ts), over a live region element and its tick, constant work per tick besides the morph and the island's own render; proven in packages/core/test/browser/live-region.test.ts and live-static-new-address.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/live-program.ts > morph_live",
-			"reason": "browser only: the live feature (./live-program.ts, installed by live.ts), over a live region element and its tick, constant work per tick besides the morph and the island's own render; proven in packages/core/test/browser/live-region.test.ts and live-static-new-address.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/live-program.ts > live_hydrate",
-			"reason": "browser only: the live feature (./live-program.ts, installed by live.ts), over a live region element and its tick, constant work per tick besides the morph and the island's own render; proven in packages/core/test/browser/live-region.test.ts and live-static-new-address.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/live-program.ts > live_hydrate > cls",
-			"reason": "browser only: the live feature (./live-program.ts, installed by live.ts), over a live region element and its tick, constant work per tick besides the morph and the island's own render; proven in packages/core/test/browser/live-region.test.ts and live-static-new-address.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/page-defer.ts > install_page_defer > live > call:0~c94394",
-			"reason": "browser only: parses a streamed resolve once devalue is in and settles it (a mangled chunk settles null), linear in the chunk; proven in packages/core/test/page-defer.test.ts and packages/core/test/browser/seed-defer-order.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/rules.ts > watch_programs",
-			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
-		},
-		{
-			"id": "packages/core/src/runtime/rules.ts > programs_shipped",
-			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
-		},
-		{
-			"id": "packages/core/src/runtime/schedule.ts > unsnap",
-			"reason": "browser only: a region's lifetime ends and stops its viewport snapshot if it is still the same one (an Element and an IntersectionObserver release, not cloneable), constant work; proven in packages/core/test/browser/region-orderings.test.ts and hole-lifecycle.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/wire-on-use.ts > trustedPlainFlights:0~fb35cc > run",
-			"reason": "browser only: the wire feature's chunk, loaded on first use (a dynamic import, not recorded); its download, failure and retry are proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
-		},
-		{
-			"id": "packages/machine/src/cache.ts > check_cache",
-			"reason": "build only: the options pass (internal/macros) runs it on a cache's literal options, once per call site per build; proven in internal/macros/test/options.test.ts and packages/machine/test/cache.test.ts"
-		},
-		{
-			"id": "packages/machine/src/flights.ts > makers",
-			"reason": "module setup: builds one flights maker (checked or trusted), four per process, constant work"
-		},
-		{
-			"id": "packages/machine/src/machine.ts > graph",
-			"reason": "dev and rules builds only: a definition's graph for the devtools and the docs, linear in its states; proven in packages/machine/test/graph.test.ts"
-		},
-		{
-			"id": "packages/machine/src/machine.ts > paths",
-			"reason": "dev and rules builds only: a definition's paths for tests, linear in its steps; proven in packages/machine/test/graph.test.ts"
-		},
-		{
-			"id": "packages/machine/src/machine.ts > next_of",
-			"reason": "dev and rules builds only: one state's steps for graph()/paths(), linear in its steps; proven in packages/machine/test/graph.test.ts"
-		},
-		{
-			"id": "packages/machine/src/run.ts > notify",
-			"reason": "dev and rules builds only (RULES): tells each move to the observers (devtools, the simulator, rules), constant work per observer; proven in packages/machine/test/machine.test.ts"
-		},
-		{
-			"id": "packages/machine/src/run.ts > enter_told",
-			"reason": "dev and rules builds only (RULES): a move while observers watch, as enter does plus the notice; proven in packages/machine/test/machine.test.ts"
-		},
-		{
-			"id": "packages/machine/src/run.ts > watch_moves",
-			"reason": "dev and rules builds only (RULES): adds one observer of every move, once per watcher; proven in packages/machine/test/machine.test.ts"
-		},
-		{
-			"id": "packages/machine/src/run.ts > checked_data",
-			"reason": "dev builds only (DEV): refuses a state's data that carries its own kind, one own-property test per move"
-		},
-		{
-			"id": "packages/machine/src/run.ts > label",
-			"reason": "error paths only: names a state in a refusal's or a failed timeout's message (one key, as a string), constant work; its input is a definition (functions: not cloneable); proven in packages/machine/test/after.test.ts and packages/machine/test/machine.test.ts"
-		},
-		{
-			"id": "packages/machine/src/run.ts > check",
-			"reason": "dev builds and tests only: a definition's checks before its first machine, linear in its steps; proven in packages/machine/test/machine.test.ts"
-		},
-		{
-			"id": "packages/machine/src/run.ts > definition",
-			"reason": "module setup: hands the runtime's define, once per definition at load, constant work"
-		},
-		{
-			"id": "packages/machine/src/scope.ts > ended",
-			"reason": "module setup: makes the one life closed for good (ENDED), once per process"
-		},
-		{
-			"id": "packages/machine/src/scope.ts > closed_scope",
-			"reason": "module setup: makes the one closed scope (CLOSED), once per process"
-		},
-		{
-			"id": "packages/core/src/hooks.ts > OgygiaHandle > #unbuilt",
-			"reason": "an error path: a request for the islands endpoint on a build without one, one 404 and one said line, constant work; proven in packages/core/test/endpoint-unbuilt.test.ts"
-		},
-		{
-			"id": "packages/core/src/hooks.ts > OgygiaHandle > #unbuilt > once:1~6cf78c",
-			"reason": "an error path: prints the coded line once per handle; proven in packages/core/test/endpoint-unbuilt.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > region_endpoint_unbuilt > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > region_endpoint_unbuilt > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > region_program_unbuilt > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > region_program_unbuilt > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/region-server.browser.ts > say_unbuilt",
-			"reason": "the browser's stand-in: does nothing (the server says the code), constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/schedule-said.ts > say_trigger",
-			"reason": "browser only, a region scheduled on an arm its build left out (HTML the compiler never saw) or on no trigger: never on a bench path, where every schedule is a keyword its arm holds; two attribute reads and one message, constant work; proven in packages/core/test/browser/schedules-missing.test.ts and wake-unknown-trigger.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #arm > on_trigger:2~f418cb > media",
-			"reason": "browser only: a wake or a hole's fetch on a value no keyword holds goes to the media arm (one media query test, then one matchMedia), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts and wake-unknown-trigger.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #lake_arm > media",
-			"reason": "browser only: a lake revalidated on a value no keyword holds goes to the media arm (one media query test, the hole's state, one matchMedia), constant work; proven in packages/core/test/browser/lake-swr-remount.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/arm-media.ts > on_media",
-			"reason": "browser only (matchMedia): one media query test, then the query fired now or one change listener in the visit's scope, constant work; proven in packages/core/test/browser/hole-when.test.ts and hole-lifecycle.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > region_schedule_missing",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/browser-half.ts > import_entry",
-			"reason": "the server's refusal of a browser-only entry load (behind BROWSER at its one caller): never runs in a correct build; proven in packages/core/test/browser-half.test.ts"
-		},
-		{
-			"id": "packages/core/src/browser-half.ts > unmark_html_ranges",
-			"reason": "the server's refusal of the browser's html range unmarking (a snippet's setup, which only a browser runs): never runs in a correct build; proven in packages/core/test/browser-half.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > browser_only_on_server > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > browser_only_on_server > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/server/islands-endpoint.ts > IslandsEndpoint > constructor",
-			"reason": "once per handle (with the frames feature): stores its host and takes the process's render gate, constant work; proven in packages/core/test/endpoint-unbuilt.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/islands-endpoint.ts > IslandsEndpoint > render_batch",
-			"reason": "moved unchanged from hooks.ts OgygiaHandle: one batch POST on a Kit request event nothing can clone; the stream is benched (packages/core/bench/server.bench.ts batch stream) and the body cap proven in packages/core/test/batch-body-cap.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/islands-endpoint.ts > IslandsEndpoint > render_batch > batch_stream:1~1c2fdd",
-			"reason": "moved unchanged from hooks.ts: one batched hole's render, forwarded on a Kit request event nothing can clone; the stream is benched (packages/core/bench/server.bench.ts batch stream)"
-		},
-		{
-			"id": "packages/core/src/server/islands-endpoint.ts > IslandsEndpoint > render_batch > filter:0~ce86bf",
-			"reason": "moved unchanged from hooks.ts: a type test per call of a batch (at most 32), constant work; proven in packages/core/test/batch-render-budget.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/islands-endpoint.ts > IslandsEndpoint > render_hole",
-			"reason": "moved unchanged from hooks.ts: a plugin's stitch of one hole, on a Kit request event nothing can clone; proven in packages/core/test/endpoint-unbuilt.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/islands-endpoint.ts > IslandsEndpoint > #render_capability",
-			"reason": "moved unchanged from hooks.ts: one batched or stitched hole's request machine around its parcel, constant work; the machine is benched (packages/core/bench/region-capability.bench.ts region_request)"
-		},
-		{
-			"id": "packages/core/src/server/islands-endpoint.ts > IslandsEndpoint > #renew_capability",
-			"reason": "moved unchanged from hooks.ts: an expired anonymous hole's re-sign, once per renewal; verify and sign are benched (packages/core/bench/region-capability.bench.ts) and the renewal proven in packages/core/test/older-build-capability.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/region-response.ts > region_denied",
-			"reason": "moved unchanged from hooks.ts: an error path, one 403 Response (not cloneable), constant work; proven in packages/core/test/older-build-capability.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/driver.ts > Compiler > server_word",
-			"reason": "constant work: one field read, once per server build; proven in packages/compiler/test/virtual-core.test.ts and emit-gate.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > bundler_reshake",
-			"reason": "async, handed the bundler's re-shake function (not replayable); once per server build, one re-bundle per chunk with dead exports per round; proven in packages/compiler/test/dead-exports.test.ts and packages/compiler/test/dead-exports-build.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > bundler_reshake > <anonymous>~493f44",
-			"reason": "async, handed the bundler's re-shake function (not replayable); once per server build, one re-bundle per chunk with dead exports per round; proven in packages/compiler/test/dead-exports.test.ts and packages/compiler/test/dead-exports-build.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > bundler_reshake > <anonymous>~493f44 > every:0~aa047d",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > bundler_reshake > <anonymous>~493f44 > rolldown:0~bf5344 > external",
-			"reason": "a plugin hook rolldown calls (closure, not replayable): one string compare per import; packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > bundler_reshake > <anonymous>~493f44 > rolldown:0~bf5344 > load",
-			"reason": "a plugin hook rolldown calls (closure, not replayable): one compare, once per re-bundle; packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > bundler_reshake > <anonymous>~493f44 > rolldown:0~bf5344 > resolveId",
-			"reason": "a plugin hook rolldown calls (closure, not replayable): one compare per import; packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > declared > flatMap:0~00bbf9",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > drop_dead_exports",
-			"reason": "async, handed the bundler's re-shake function (not replayable); once per server build, one re-bundle per chunk with dead exports per round; proven in packages/compiler/test/dead-exports.test.ts and packages/compiler/test/dead-exports-build.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > drop_dead_exports > every:0~8b6353",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > drop_dead_exports > map:0~5181eb",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > drop_dead_exports > some:0~6673d7",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > drop_emptied_module_headers",
-			"reason": "writes into a MagicString (hidden state); one pass over a chunk's line comments, once per changed chunk; proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > drop_emptied_module_headers > forEach:0~a68ea8",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > file_name_in_text > some:0~77256c",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > import_text > filter:0~953618",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > import_text > filter:0~a534aa",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > import_text > filter:0~dd6a8c",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > import_text > slice",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > map:0~098a74",
-			"reason": "builds the 64-entry base64 table once at module load"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > mapped_source_offsets > flush",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > mapped_source_offsets > sort:0~0af0c1",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > names_in > walk:1~8b1372 > enter",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > outside_names > walk:1~afa715 > enter",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > read_chunk > demand",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > read_chunk > map:0~67362e",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > read_chunk > walk:1~d8a176 > enter",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk",
-			"reason": "async, handed the bundler's re-shake function (not replayable); once per server build, one re-bundle per chunk with dead exports per round; proven in packages/compiler/test/dead-exports.test.ts and packages/compiler/test/dead-exports-build.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > shake_server_bundle",
-			"reason": "async, handed the bundler's re-shake function (not replayable); once per server build, one re-bundle per chunk with dead exports per round; proven in packages/compiler/test/dead-exports.test.ts and packages/compiler/test/dead-exports-build.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > vite_own_rolldown",
-			"reason": "resolves Vite's own rolldown from disk, no input; once per server build"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > filter:0~11bfda",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > filter:0~8dc74d",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > filter:0~dc00b3",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > forEach:0~003370",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > forEach:0~cbada9",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > map:0~3761d7",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > map:0~c42af9",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > map:0~cc6457",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > map:0~dbbb7e",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > remapping:1~ae0427",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > some:0~1a2faf",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > some:0~982626",
-			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/messages.ts > WARNED > server_exports_kept > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/messages.ts > WARNED > server_exports_kept > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/vite/graph-compiled.ts > graph_compiled > walk",
-			"reason": "build only, server leg: once per module of the bundler's graph per wait, one set lookup, and the bundler's load only for a module with no code yet, Rolldown's work; test/graph-compiled.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/vite/graph-compiled.ts > importer_of_each_import",
-			"reason": "build only, server leg: at most once per round of a wait that meets a module with no code yet, one pass over the bundler's module infos; test/graph-compiled.test.ts runs it in a real build"
-		},
-		{
-			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > constructor",
-			"reason": "build only, server leg: once per wait (three per build), three field writes"
-		},
-		{
-			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun",
-			"reason": "build only, server leg: once per module a wait reaches, one bundler module-info read; test/graph-compiled.test.ts runs it in a real build"
-		},
-		{
-			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun > task:0~08eb16",
-			"reason": "build only, server leg: once per import the bundler has named but not begun, the promise its wait settles; test/graph-compiled.test.ts holds main.js in moduleParsed to run it"
-		},
-		{
-			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun > task:0~08eb16 > Promise:0~fd78a2",
-			"reason": "build only, server leg: once per import the bundler has named but not begun, starts its first check; test/graph-compiled.test.ts holds main.js in moduleParsed to run it"
-		},
-		{
-			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun > task:0~08eb16 > Promise:0~fd78a2 > check",
-			"reason": "build only, server leg: one bundler module-info read per timer tick while an import is named but not begun (ticks of 1 to 50 ms, bounded by the quiet time); test/graph-compiled.test.ts runs it in real builds, the moduleParsed failure case included"
-		},
-		{
-			"id": "packages/compiler/src/vite/graph-compiled.ts > BegunModules > info_once_begun > task:0~08eb16 > Promise:0~fd78a2 > check > timeout:0~0d7472",
-			"reason": "build only, server leg: a scope timer's callback, one call of check per tick"
-		},
-		{
-			"id": "packages/core/src/srcset.ts > srcset_candidates",
-			"reason": "browser only: one srcset value of a priority preload or a fetched head, linear in its length; load-scheduler.test.ts and head-urls.test.ts run it"
-		},
-		{
-			"id": "packages/core/src/srcset.ts > space",
-			"reason": "one character compare, constant work"
-		},
-		{
-			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > filter:0~df106e",
-			"reason": "build only: three regex tests per module id of a finished client bundle, once per build"
-		},
-		{
-			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > route_file",
-			"reason": "build only: per markdown module id of a finished client bundle, one prefix test and one regex, once per build; test/content-leaks.test.ts runs it"
-		},
-		{
-			"id": "packages/content/src/vite/index.ts > content > content_leaks:0~47cfac",
-			"reason": "build only: once per client bundle, a field read; test/content-leaks.test.ts runs the leak check"
-		},
-		{
-			"id": "packages/compiler/src/macros/source.ts > ast_edits_or_null_unparsed > walk_ast:1~30be9a",
-			"reason": "the AST walk's per-node visitor, constant work per node; the macro tests run it on every module they rewrite"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > template_calls",
-			"reason": "the macro check, only for a component whose text names import.meta.og. outside its scripts (rare: a docs page or a template call); one Svelte parse then; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > template_calls > some:0~3d5b23",
-			"reason": "per marker occurrence of the macro check above, constant work per script block; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > template_calls > walk_ast:1~772d67",
-			"reason": "the AST walk's per-node visitor of the macro check above, constant work per node; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > markdown_scripts",
-			"reason": "the macro check of a markdown page that names import.meta.og. (rare), linear in its text; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > scripts > map:0~0690ae",
-			"reason": "per script block of the markdown check above, one slice; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > constructor",
-			"reason": "once per distinct text of a markdown page that names import.meta.og. (rare): one field; test/markdown-parse-once.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > #read",
-			"reason": "the markdown check above: its one parse, kept for the page's text; test/markdown-parse-once.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > scripts",
-			"reason": "the markdown check above: its script blocks, linear in its text; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > MarkdownPage > expressions",
-			"reason": "the markdown check above: its prose's {…} expressions, linear in its text; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > prose_expressions",
-			"reason": "the markdown check above: its prose's {…} expressions, linear in its text but for an unclosed brace (a page Svelte refuses anyway); test/markdown-code.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > frontmatter_end",
-			"reason": "once per markdown check above: two regex runs over the page's first lines; test/markdown-code.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > markdown_prose",
-			"reason": "the markdown check above, only for a markdown page that names import.meta.og.: one CommonMark parse (micromark, linear) and its code tokens blanked; test/markdown-code.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > script_blocks",
-			"reason": "the markdown check above: its blocks that start a line, linear in its text; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > script_blocks > filter:0~fa9df2",
-			"reason": "per block of the markdown check above, constant work per block; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > markdown_expressions",
-			"reason": "the macro check of a markdown page that names import.meta.og. (rare): its prose's {…} expressions, linear in its text; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > prose_expressions > filter:0~e6fdc6",
-			"reason": "per block of the markdown check above, constant work per block; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > expression_end",
-			"reason": "per prose expression of the markdown check above, linear in its text; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/parse/scan.ts > blank",
-			"reason": "per HTML comment of the markdown check above, one blank run; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > regions",
-			"reason": "once per plugin macro handler that asks for a module's code regions, the same reading the macros already pay (a markdown page's parse kept for its text); test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > run_module_macros > handler:1~df713b > regions",
-			"reason": "the code-regions handle handed to a plugin macro, one call of ModuleCode.regions; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > constructor",
-			"reason": "once per module the macro pipeline runs on: two extension tests; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > #page_of",
-			"reason": "per markdown reading of the macro check: one string compare against the page it read last; test/markdown-parse-once.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls",
-			"reason": "the macro check, only for a module whose text names import.meta.og.: the og calls of its regions, linear in them; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls_macro",
-			"reason": "the macro check of a module outside the app that names a plugin macro (rare): the calls above, one scan; test/macros-own-source.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls_macro > some:0~cc31b7",
-			"reason": "per call of the check above, two string tests"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > in_regions",
-			"reason": "the macro check, only for a module whose text names import.meta.og. after its macros ran: the og calls of its regions, linear in them; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > in_regions > flatMap:0~6407d7",
-			"reason": "per region of the macro check above, one call scan; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > in_regions > flatMap:0~6407d7 > map:0~6a5b20",
-			"reason": "per call found by the macro check above, one offset shift, constant work; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/macros/pipeline.ts > ModuleCode > calls > map:0~f7bc6b",
-			"reason": "per template call of the macro check above (rare), one object, constant work; test/macros-need-plugin.test.ts runs it"
-		},
-		{
-			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > macro_in_markup > details",
-			"reason": "a message's prose for its docs page and build error: constant text, printed once when the build fails"
-		},
-		{
-			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > macro_in_markup > text",
-			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~e12236 > stayed",
-			"reason": "once per plugin at config time: one array push, constant work"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~e12236 > get routesDir",
-			"reason": "a plugin's read of the routes folder: one seam call, constant work"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > routes_dir",
-			"reason": "the empty seam a plugin sees before the build is set up: throws, constant work"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > routes_dir",
-			"reason": "the routes seam hands a plugin Kit's routes folder, one field read"
 		},
 		{
 			"id": "packages/content/src/markdown/extensions.ts > hold_markdown_extensions",
@@ -9657,8 +9205,464 @@
 			"reason": "one utimes, at most once a day per file found; test/server.test.ts runs it"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~d2741b > CompileCtx:0~20200d > flatMap:0~f1f41f",
-			"reason": "once per config: the markdown formats' extensions; every build runs it"
+			"id": "packages/compiler/src/kit.ts > route_reader > routes > derived:2~eff2ef",
+			"reason": "build only: the route facts' derived csr per route node, once per route per build (a route tree, not replayable); proven in packages/compiler/test/route-csr.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/kit.ts > read_csr_unread",
+			"reason": "build only: reads whether a route option file declares csr in a form only Kit's run can read (a parsed file, not cloneable), once per option file per build; proven in packages/compiler/test/route-csr.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/kit.ts > kit_may_hydrate",
+			"reason": "build only: one walk of the route facts per build (the routes, not cloneable), the __OGYGIA_KIT_PAGES__ define; proven in packages/compiler/test/route-csr.test.ts and vite-hooks.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/kit.ts > kit_may_hydrate > some:0~79f3d7",
+			"reason": "build only: kit_may_hydrate's test of one route node, constant work; proven in packages/compiler/test/route-csr.test.ts"
+		},
+		{
+			"id": "packages/core/src/context.ts > kit_hydrates_document",
+			"reason": "browser only: island code's read of whether Kit hydrates the document (the booted runtime's answer, else the document's probe), once per page; proven in packages/core/test/browser/kit-pages-off.test.ts and kit-pages-refused.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > kit_page_unbuilt",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > region_program_missing",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_program_shipped",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/lazy.ts > published",
+			"reason": "browser only: a lazy chunk's read of the message functions the boot published (one global read), constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/boot-link.ts > KIT_META > document_has",
+			"reason": "a build without Kit pages (__OGYGIA_KIT_PAGES__ false): answers no without probing, constant work; proven in packages/core/test/browser/kit-pages-off.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/boot-link.ts > no_kit",
+			"reason": "a build without Kit pages (__OGYGIA_KIT_PAGES__ false): answers no without probing, constant work; proven in packages/core/test/browser/kit-pages-off.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-boot.ts > no_kit",
+			"reason": "a build without Kit pages (__OGYGIA_KIT_PAGES__ false): answers no without probing, constant work; proven in packages/core/test/browser/kit-pages-off.test.ts"
+		},
+		{
+			"id": "packages/core/src/wire-markup.ts > KitBoot > static document_has > is_kit_boot_script:1~e4af8d",
+			"reason": "browser only: one inline script's attribute test while the document is probed for Kit's boot script, constant work; proven in packages/core/test/browser/kit-pages-refused.test.ts"
+		},
+		{
+			"id": "packages/core/src/wire-markup.ts > kit_answer",
+			"reason": "browser only: island code reads the booted runtime's Kit answer (one global read and call), constant work; proven in packages/core/test/browser/kit-pages-off.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > say_program_missing",
+			"reason": "browser only, an error path: a region whose program its build left out says so once and keeps the server's HTML, constant work; proven in packages/core/test/browser/frames-off.test.ts and live-off.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > get #answer",
+			"reason": "browser only: makes the region element's answer machine on first need (one create), constant work; run by every hole in the browser suite (packages/core/test/browser/hole-lifecycle.test.ts)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > get #live",
+			"reason": "browser only: makes the region element's live machine on first need (one create), constant work; proven in packages/core/test/browser/live-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > get #paint",
+			"reason": "browser only: makes the region element's paint machine on first need (one create), constant work; proven in packages/core/test/browser/live-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > static #live_link",
+			"reason": "browser only: the live feature's link of accessors into the region element (slots.live_link), made once per page; each accessor is one field read or call; proven in packages/core/test/browser/live-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/hydrate-core.ts > nothing",
+			"reason": "browser only: the catch that lets a visitor promise's rejection go (the visitor reports its own), constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-page-makers.ts > kit_page_flights",
+			"reason": "browser only: makes the Kit page thread's one shared wait (a flights over a runes module's run, not cloneable), once per page; proven in packages/core/test/browser/kit-page-thread.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > LakeState",
+			"reason": "browser only: the lakes feature, over a visit's lake elements (Elements, not cloneable), constant work per lake; proven in packages/core/test/browser (lakes) and apps/palaestra/e2e/lakes.spec.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/live-program.ts > state_of",
+			"reason": "browser only: the live feature (./live-program.ts, installed by live.ts), over a live region element and its tick, constant work per tick besides the morph and the island's own render; proven in packages/core/test/browser/live-region.test.ts and live-static-new-address.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/live-program.ts > hand_back",
+			"reason": "browser only: the live feature (./live-program.ts, installed by live.ts), over a live region element and its tick, constant work per tick besides the morph and the island's own render; proven in packages/core/test/browser/live-region.test.ts and live-static-new-address.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/live-program.ts > apply_live",
+			"reason": "browser only: the live feature (./live-program.ts, installed by live.ts), over a live region element and its tick, constant work per tick besides the morph and the island's own render; proven in packages/core/test/browser/live-region.test.ts and live-static-new-address.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/live-program.ts > morph_live",
+			"reason": "browser only: the live feature (./live-program.ts, installed by live.ts), over a live region element and its tick, constant work per tick besides the morph and the island's own render; proven in packages/core/test/browser/live-region.test.ts and live-static-new-address.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/live-program.ts > live_hydrate",
+			"reason": "browser only: the live feature (./live-program.ts, installed by live.ts), over a live region element and its tick, constant work per tick besides the morph and the island's own render; proven in packages/core/test/browser/live-region.test.ts and live-static-new-address.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/live-program.ts > live_hydrate > cls",
+			"reason": "browser only: the live feature (./live-program.ts, installed by live.ts), over a live region element and its tick, constant work per tick besides the morph and the island's own render; proven in packages/core/test/browser/live-region.test.ts and live-static-new-address.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/page-defer.ts > install_page_defer > live > call:0~c94394",
+			"reason": "browser only: parses a streamed resolve once devalue is in and settles it (a mangled chunk settles null), linear in the chunk; proven in packages/core/test/page-defer.test.ts and packages/core/test/browser/seed-defer-order.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_programs",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > programs_shipped",
+			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule.ts > unsnap",
+			"reason": "browser only: a region's lifetime ends and stops its viewport snapshot if it is still the same one (an Element and an IntersectionObserver release, not cloneable), constant work; proven in packages/core/test/browser/region-orderings.test.ts and hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/wire-on-use.ts > trustedPlainFlights:0~fb35cc > run",
+			"reason": "browser only: the wire feature's chunk, loaded on first use (a dynamic import, not recorded); its download, failure and retry are proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
+		},
+		{
+			"id": "packages/machine/src/cache.ts > check_cache",
+			"reason": "build only: the options pass (internal/macros) runs it on a cache's literal options, once per call site per build; proven in internal/macros/test/options.test.ts and packages/machine/test/cache.test.ts"
+		},
+		{
+			"id": "packages/machine/src/flights.ts > makers",
+			"reason": "module setup: builds one flights maker (checked or trusted), four per process, constant work"
+		},
+		{
+			"id": "packages/machine/src/machine.ts > graph",
+			"reason": "dev and rules builds only: a definition's graph for the devtools and the docs, linear in its states; proven in packages/machine/test/graph.test.ts"
+		},
+		{
+			"id": "packages/machine/src/machine.ts > paths",
+			"reason": "dev and rules builds only: a definition's paths for tests, linear in its steps; proven in packages/machine/test/graph.test.ts"
+		},
+		{
+			"id": "packages/machine/src/machine.ts > next_of",
+			"reason": "dev and rules builds only: one state's steps for graph()/paths(), linear in its steps; proven in packages/machine/test/graph.test.ts"
+		},
+		{
+			"id": "packages/machine/src/run.ts > notify",
+			"reason": "dev and rules builds only (RULES): tells each move to the observers (devtools, the simulator, rules), constant work per observer; proven in packages/machine/test/machine.test.ts"
+		},
+		{
+			"id": "packages/machine/src/run.ts > enter_told",
+			"reason": "dev and rules builds only (RULES): a move while observers watch, as enter does plus the notice; proven in packages/machine/test/machine.test.ts"
+		},
+		{
+			"id": "packages/machine/src/run.ts > watch_moves",
+			"reason": "dev and rules builds only (RULES): adds one observer of every move, once per watcher; proven in packages/machine/test/machine.test.ts"
+		},
+		{
+			"id": "packages/machine/src/run.ts > checked_data",
+			"reason": "dev builds only (DEV): refuses a state's data that carries its own kind, one own-property test per move"
+		},
+		{
+			"id": "packages/machine/src/run.ts > label",
+			"reason": "error paths only: names a state in a refusal's or a failed timeout's message (one key, as a string), constant work; its input is a definition (functions: not cloneable); proven in packages/machine/test/after.test.ts and packages/machine/test/machine.test.ts"
+		},
+		{
+			"id": "packages/machine/src/run.ts > check",
+			"reason": "dev builds and tests only: a definition's checks before its first machine, linear in its steps; proven in packages/machine/test/machine.test.ts"
+		},
+		{
+			"id": "packages/machine/src/run.ts > definition",
+			"reason": "module setup: hands the runtime's define, once per definition at load, constant work"
+		},
+		{
+			"id": "packages/machine/src/scope.ts > ended",
+			"reason": "module setup: makes the one life closed for good (ENDED), once per process"
+		},
+		{
+			"id": "packages/machine/src/scope.ts > closed_scope",
+			"reason": "module setup: makes the one closed scope (CLOSED), once per process"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #unbuilt",
+			"reason": "an error path: a request for the islands endpoint on a build without one, one 404 and one said line, constant work; proven in packages/core/test/endpoint-unbuilt.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #unbuilt > once:1~6cf78c",
+			"reason": "an error path: prints the coded line once per handle; proven in packages/core/test/endpoint-unbuilt.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > region_endpoint_unbuilt > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > region_endpoint_unbuilt > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > region_program_unbuilt > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > region_program_unbuilt > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/region-server.browser.ts > say_unbuilt",
+			"reason": "the browser's stand-in: does nothing (the server says the code), constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule-said.ts > say_trigger",
+			"reason": "browser only, a region scheduled on an arm its build left out (HTML the compiler never saw) or on no trigger: never on a bench path, where every schedule is a keyword its arm holds; two attribute reads and one message, constant work; proven in packages/core/test/browser/schedules-missing.test.ts and wake-unknown-trigger.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #arm > on_trigger:2~f418cb > media",
+			"reason": "browser only: a wake or a hole's fetch on a value no keyword holds goes to the media arm (one media query test, then one matchMedia), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts and wake-unknown-trigger.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #lake_arm > media",
+			"reason": "browser only: a lake revalidated on a value no keyword holds goes to the media arm (one media query test, the hole's state, one matchMedia), constant work; proven in packages/core/test/browser/lake-swr-remount.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/arm-media.ts > on_media",
+			"reason": "browser only (matchMedia): one media query test, then the query fired now or one change listener in the visit's scope, constant work; proven in packages/core/test/browser/hole-when.test.ts and hole-lifecycle.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > region_schedule_missing",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/browser-half.ts > import_entry",
+			"reason": "the server's refusal of a browser-only entry load (behind BROWSER at its one caller): never runs in a correct build; proven in packages/core/test/browser-half.test.ts"
+		},
+		{
+			"id": "packages/core/src/browser-half.ts > unmark_html_ranges",
+			"reason": "the server's refusal of the browser's html range unmarking (a snippet's setup, which only a browser runs): never runs in a correct build; proven in packages/core/test/browser-half.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > browser_only_on_server > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > browser_only_on_server > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/server/islands-endpoint.ts > IslandsEndpoint > constructor",
+			"reason": "once per handle (with the frames feature): stores its host and takes the process's render gate, constant work; proven in packages/core/test/endpoint-unbuilt.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/islands-endpoint.ts > IslandsEndpoint > render_batch",
+			"reason": "moved unchanged from hooks.ts OgygiaHandle: one batch POST on a Kit request event nothing can clone; the stream is benched (packages/core/bench/server.bench.ts batch stream) and the body cap proven in packages/core/test/batch-body-cap.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/islands-endpoint.ts > IslandsEndpoint > render_batch > batch_stream:1~1c2fdd",
+			"reason": "moved unchanged from hooks.ts: one batched hole's render, forwarded on a Kit request event nothing can clone; the stream is benched (packages/core/bench/server.bench.ts batch stream)"
+		},
+		{
+			"id": "packages/core/src/server/islands-endpoint.ts > IslandsEndpoint > render_batch > filter:0~ce86bf",
+			"reason": "moved unchanged from hooks.ts: a type test per call of a batch (at most 32), constant work; proven in packages/core/test/batch-render-budget.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/islands-endpoint.ts > IslandsEndpoint > render_hole",
+			"reason": "moved unchanged from hooks.ts: a plugin's stitch of one hole, on a Kit request event nothing can clone; proven in packages/core/test/endpoint-unbuilt.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/islands-endpoint.ts > IslandsEndpoint > #render_capability",
+			"reason": "moved unchanged from hooks.ts: one batched or stitched hole's request machine around its parcel, constant work; the machine is benched (packages/core/bench/region-capability.bench.ts region_request)"
+		},
+		{
+			"id": "packages/core/src/server/islands-endpoint.ts > IslandsEndpoint > #renew_capability",
+			"reason": "moved unchanged from hooks.ts: an expired anonymous hole's re-sign, once per renewal; verify and sign are benched (packages/core/bench/region-capability.bench.ts) and the renewal proven in packages/core/test/older-build-capability.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/region-response.ts > region_denied",
+			"reason": "moved unchanged from hooks.ts: an error path, one 403 Response (not cloneable), constant work; proven in packages/core/test/older-build-capability.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/driver.ts > Compiler > server_word",
+			"reason": "constant work: one field read, once per server build; proven in packages/compiler/test/virtual-core.test.ts and emit-gate.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > bundler_reshake",
+			"reason": "async, handed the bundler's re-shake function (not replayable); once per server build, one re-bundle per chunk with dead exports per round; proven in packages/compiler/test/dead-exports.test.ts and packages/compiler/test/dead-exports-build.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > bundler_reshake > <anonymous>~493f44",
+			"reason": "async, handed the bundler's re-shake function (not replayable); once per server build, one re-bundle per chunk with dead exports per round; proven in packages/compiler/test/dead-exports.test.ts and packages/compiler/test/dead-exports-build.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > bundler_reshake > <anonymous>~493f44 > every:0~aa047d",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > bundler_reshake > <anonymous>~493f44 > rolldown:0~bf5344 > external",
+			"reason": "a plugin hook rolldown calls (closure, not replayable): one string compare per import; packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > bundler_reshake > <anonymous>~493f44 > rolldown:0~bf5344 > load",
+			"reason": "a plugin hook rolldown calls (closure, not replayable): one compare, once per re-bundle; packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > bundler_reshake > <anonymous>~493f44 > rolldown:0~bf5344 > resolveId",
+			"reason": "a plugin hook rolldown calls (closure, not replayable): one compare per import; packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > declared > flatMap:0~00bbf9",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > drop_dead_exports",
+			"reason": "async, handed the bundler's re-shake function (not replayable); once per server build, one re-bundle per chunk with dead exports per round; proven in packages/compiler/test/dead-exports.test.ts and packages/compiler/test/dead-exports-build.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > drop_dead_exports > every:0~8b6353",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > drop_dead_exports > map:0~5181eb",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > drop_dead_exports > some:0~6673d7",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > drop_emptied_module_headers",
+			"reason": "writes into a MagicString (hidden state); one pass over a chunk's line comments, once per changed chunk; proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > drop_emptied_module_headers > forEach:0~a68ea8",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > file_name_in_text > some:0~77256c",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > import_text > filter:0~953618",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > import_text > filter:0~a534aa",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > import_text > filter:0~dd6a8c",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > import_text > slice",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > map:0~098a74",
+			"reason": "builds the 64-entry base64 table once at module load"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > mapped_source_offsets > flush",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > mapped_source_offsets > sort:0~0af0c1",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > names_in > walk:1~8b1372 > enter",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > outside_names > walk:1~afa715 > enter",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > read_chunk > demand",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > read_chunk > map:0~67362e",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > read_chunk > walk:1~d8a176 > enter",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk",
+			"reason": "async, handed the bundler's re-shake function (not replayable); once per server build, one re-bundle per chunk with dead exports per round; proven in packages/compiler/test/dead-exports.test.ts and packages/compiler/test/dead-exports-build.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > shake_server_bundle",
+			"reason": "async, handed the bundler's re-shake function (not replayable); once per server build, one re-bundle per chunk with dead exports per round; proven in packages/compiler/test/dead-exports.test.ts and packages/compiler/test/dead-exports-build.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > vite_own_rolldown",
+			"reason": "resolves Vite's own rolldown from disk, no input; once per server build"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > filter:0~11bfda",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > filter:0~8dc74d",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > filter:0~dc00b3",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > forEach:0~003370",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > forEach:0~cbada9",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > map:0~3761d7",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > map:0~c42af9",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > map:0~cc6457",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > map:0~dbbb7e",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > remapping:1~ae0427",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > some:0~1a2faf",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/link/dead-exports.ts > shake_chunk > some:0~982626",
+			"reason": "a callback over one chunk's statements, specifiers or names (closure, not replayable); the pass runs once per server build, linear in the bundle (plain-islands 0.3 s, palaestra 0.4 s); proven in packages/compiler/test/dead-exports.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > WARNED > server_exports_kept > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/messages.ts > WARNED > server_exports_kept > text",
+			"reason": "a message table entry: wording only"
 		},
 		{
 			"id": "packages/compiler/src/messages.ts > BUILD_ERRORS > island_graph_late > details",
