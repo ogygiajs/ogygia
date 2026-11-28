@@ -443,6 +443,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		return (env && served_by_env.get(env)) ?? dev_owner;
 	};
 	const route_watch = new RouteWatch(
+		dev_owner,
 		(file, event) => compiler_of(session, 'watchChange').routes_changed(file, event),
 		(id) => {
 			if (vite_server) invalidate_module_id(vite_server, id);
@@ -799,7 +800,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			watchChange(id, change) {
 				shapes.invalidate(id, change.event);
-				if (is_dev) route_watch.heard(id, change.event, served_of(this));
+				if (is_dev) route_watch.heard(id, change.event);
 				if (!is_dev || change.event !== 'delete' || !vite_server) return;
 				if (!invalidate_islands_for_file(id, { deleted: true, server: vite_server })) return;
 				vite_server.ws.send({ type: 'full-reload', path: '*' });
