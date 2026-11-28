@@ -2645,7 +2645,11 @@ describe('the dev server', () => {
 		p.watchChange.call({}, path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
 		const reload = [{ type: 'full-reload', path: '*' }];
 		expect({ a: a.sent, b: b.sent, c: c.sent }).toEqual({ a: reload, b: reload, c: reload });
-		expect(dev_servers(root).open.snapshot().map((at) => at.server)).toEqual([a, b, c]);
+		expect(
+			dev_servers(root)
+				.open.snapshot()
+				.map((at) => at.server)
+		).toEqual([a, b, c]);
 	});
 
 	it("a module an island pulls into its world, transformed on one of two dev servers, is dropped from every open server's graph", async () => {
