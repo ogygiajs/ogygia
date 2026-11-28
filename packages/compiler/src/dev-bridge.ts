@@ -50,8 +50,8 @@ export class DevServers {
 	add(at: DevServed): void {
 		this.open.add(at, at.scope);
 		at.scope.defer(() => {
-			const slots = globalThis as Record<symbol, DevServers | undefined>;
-			if (this.open.size === 0 && slots[this.#slot] === this) delete slots[this.#slot];
+			if (this.open.size === 0)
+				delete (globalThis as Record<symbol, DevServers | undefined>)[this.#slot];
 		});
 	}
 
