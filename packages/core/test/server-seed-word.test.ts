@@ -197,16 +197,16 @@ describe("Kit's public env (KIT-PUBLIC-ENV)", () => {
 		});
 	});
 
-	it("the channel bears the server's identity as it is written, not one kept from an earlier page with the same env (a dev app that gains its first dynamic public variable)", async () => {
+	it('the channel bears the identity the server module answers as each page is written, not one kept from an earlier page with the same env', async () => {
 		set_kit_public_env({ PUBLIC_REGION: 'eu' });
-		set_kit_env_build('');
+		set_kit_env_build('one-build');
 		expect(await channel(await page(reads_env))).toEqual({
-			build: '',
+			build: 'one-build',
 			env: { PUBLIC_REGION: 'eu' }
 		});
-		set_kit_env_build('first-dynamic');
+		set_kit_env_build('another-build');
 		expect(await channel(await page(reads_env))).toEqual({
-			build: 'first-dynamic',
+			build: 'another-build',
 			env: { PUBLIC_REGION: 'eu' }
 		});
 	});
@@ -216,7 +216,7 @@ describe("Kit's public env (KIT-PUBLIC-ENV)", () => {
 		expect(await page(reads_none)).not.toContain('application/ogygia-env');
 	});
 
-	it("a page whose env holds no variable never asks the build's identity (a dev server with no dynamic public variable reads no config for it)", async () => {
+	it("a page whose env holds no variable never asks the build's identity", async () => {
 		set_kit_public_env({});
 		const before = kit_env_build_asks();
 		expect(await page(reads_env)).not.toContain('application/ogygia-env');

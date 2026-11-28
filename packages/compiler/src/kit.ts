@@ -226,7 +226,14 @@ export interface KitConfig {
 	dirs: KitDirs;
 	/** `kit.inlineStyleThreshold` in bytes (0: inline nothing) */
 	inline_style_threshold: number;
-	/** Kit's resolved `kit.version.name`, `null` when none was read */
+}
+
+/** What Kit's own plugin holds of the values that name an app on its env channel (vite/kit-dirs.ts
+ *  `kit_identity`). */
+export interface KitIdentity {
+	/** Kit's resolved `paths.base` (`''` when none was read) */
+	base: string;
+	/** Kit's resolved `version.name`, `null` when none was read */
 	version: string | null;
 }
 

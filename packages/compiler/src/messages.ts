@@ -865,19 +865,20 @@ const WARNED = {
 	},
 	kit_env_version_unread: {
 		text: (a: { name: string }): string => prose`
-			${a.name}: ogygia could not read SvelteKit's \`kit.version.name\`, so the identity on its
-			public env channel is made from the package name, base and app dir only. Another app
-			with the same three reads this app's public env as its own. Set \`kit.version.name\` in
-			svelte.config.js.
+			${a.name}: ogygia found no SvelteKit Vite plugin holding a \`version.name\`, so the
+			identity on its public env channel is made without it. Another app with the same
+			package name, base and app dir reads this app's public env as its own. Add \`sveltekit()\`
+			to the plugins in vite.config.
 		`,
 		details: (): string => prose`
 			On a \`csr = false\` page ogygia writes Kit's public env into the page beside an
 			identity of the build, and an island takes that env only when the identity is its own
-			build's. The identity is made from the app's package name, base, app dir and Kit's
-			\`version.name\`, which ogygia reads off SvelteKit's own Vite plugin or, failing that,
-			svelte.config.js. This time it found none, so a federated app with the same package
-			name, base and app dir (built at another time) is not told apart. Setting
-			\`kit.version.name\` (a commit hash, say) in svelte.config.js fixes it.
+			build's. The identity is made from the app's package name, Kit's \`paths.base\`, the app
+			dir and Kit's \`version.name\`, which ogygia reads off SvelteKit's own Vite plugin (the
+			one \`sveltekit()\` adds) in the resolved plugin list. This time that list held none, so
+			a federated app with the same package name and app dir is not told apart. Add
+			\`sveltekit()\` to the plugins in vite.config; pass it \`version: { name }\` (a commit
+			hash, say) to pin the name.
 		`
 	},
 	scoped_css_failed: {

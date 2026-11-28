@@ -52,9 +52,9 @@ const ASSETS: Internal = {
 };
 const CONFIG: Internal = {
 	upstream:
-		"SvelteKit's config options (`files.routes`, `outDir`, `appDir`, `inlineStyleThreshold`, `version.name`)",
+		"SvelteKit's config options (`files.routes`, `outDir`, `appDir`, `inlineStyleThreshold`, `paths.base`, `version.name`)",
 	used_by: [
-		'packages/compiler/src/vite/kit-dirs.ts (load_kit_config)',
+		'packages/compiler/src/vite/kit-dirs.ts (load_kit_config, kit_identity)',
 		'packages/compiler/src/vite/index.ts (`__SVELTEKIT_APP_DIR__`)'
 	],
 	issue: 1720
@@ -309,7 +309,7 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 			).toMatch(/outline:\s*3px dotted/);
 		});
 
-		it('honours `files.routes`, `outDir`, `appDir` and a zero `inlineStyleThreshold`, as the compiler reads them', async () => {
+		it("honours files.routes, outDir, appDir and a zero inlineStyleThreshold, as the compiler reads them, and Kit's resolved paths.base and version.name as its identity reads them", async () => {
 			const html = await app.text('/server');
 			expect(html, broke(CONFIG, '`files.routes` is not where Kit found the page')).toContain(
 				'hello server'
@@ -325,24 +325,28 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 			const read = JSON.parse(
 				await app.node(`
 					import { loadConfigFromFile, resolveConfig } from 'vite';
-					import { load_kit_config } from ${JSON.stringify(KIT_DIRS)};
+					import { kit_identity, load_kit_config } from ${JSON.stringify(KIT_DIRS)};
 					const loaded = await loadConfigFromFile({ command: 'build', mode: 'production' });
 					const kit = await load_kit_config(process.cwd(), loaded.config.plugins);
 					const resolved = await resolveConfig({}, 'build');
 					console.log(JSON.stringify({
 						kit,
+						identity: kit_identity(resolved.plugins),
 						app_dir: resolved.define.__SVELTEKIT_APP_DIR__,
+						base: resolved.define.__SVELTEKIT_PATHS_BASE__,
 						version: resolved.define.__SVELTEKIT_APP_VERSION__
 					}));
 				`)
 			) as {
-				kit: { dirs: { routes_dir: string; out_dir: string }; version: string | null };
+				kit: { dirs: { routes_dir: string; out_dir: string } };
+				identity: { base: string; version: string | null };
 				app_dir: string;
+				base: string;
 				version: string;
 			};
 			expect(
-				read.kit.version,
-				broke(CONFIG, "the compiler reads no version.name off Kit's resolved options")
+				read.identity.version,
+				broke(CONFIG, "the compiler reads no version.name off Kit's resolved plugins")
 			).toMatch(/^\d+$/);
 			expect(read, broke(CONFIG, 'the compiler reads other values than Kit honours')).toEqual({
 				kit: {
@@ -350,10 +354,11 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 						routes_dir: path.join(app.dir, 'src/pages'),
 						out_dir: path.join(app.dir, OUT_DIR)
 					},
-					inline_style_threshold: 0,
-					version: JSON.parse(read.version)
+					inline_style_threshold: 0
 				},
+				identity: { base: JSON.parse(read.base), version: JSON.parse(read.version) },
 				app_dir: JSON.stringify(APP_DIR),
+				base: read.base,
 				version: read.version
 			});
 		});

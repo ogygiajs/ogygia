@@ -1098,17 +1098,26 @@ describe('transform', () => {
 			);
 			write('package.json', JSON.stringify({ name: 'my-app', private: true }));
 		};
-		/** Kit's own setup plugin, holding its resolved options (Kit 3's flat), `version.name` too. */
-		const kit_setup = (name: string) => ({
+		/** Kit's own setup plugin, holding its resolved options (Kit 3's flat): `version.name` and
+		 *  `paths.base` too. */
+		const kit_setup = (name: string, base = '') => ({
 			name: 'vite-plugin-sveltekit-setup',
-			api: { options: { version: { name, pollInterval: 0 } } }
+			api: { options: { version: { name, pollInterval: 0 }, paths: { base } } }
 		});
+		/** The plugin set up for `command` as Vite runs it in an app with Kit 3's `sveltekit()`: Kit's
+		 *  setup plugin is in the user's list and in the resolved one, and in a build Kit has set Vite's
+		 *  base to './' (Kit's default `paths.relative`). */
+		const kit3_setup = (command: Command, kit: ReturnType<typeof kit_setup>) =>
+			setup(command, {
+				plugins: [Promise.resolve([kit])],
+				resolved: { plugins: [kit], base: command === 'build' ? './' : '/' }
+			});
 		const server_id = (code: string | null) =>
 			/kit_env_build\(\) \{ return "([0-9a-f]{12})"; \}/.exec(code ?? '')?.[1];
 
 		it("a build's two legs bear one identity, though a plugin writes into src between them", async () => {
 			kit3_app();
-			const { p, resolved } = await setup('build', { plugins: [kit_setup('1700000000000')] });
+			const { p, resolved } = await kit3_setup('build', kit_setup('1700000000000'));
 			await begin(p, 'ssr');
 			const server = (await load(p, 'ogygia:server/kit-env', 'ssr')) ?? '';
 			const id = server_id(server);
@@ -1124,7 +1133,7 @@ describe('transform', () => {
 		it("the identity is made of Kit's version.name as Kit's own plugin resolved it: another name, another identity; one pinned name, one identity", async () => {
 			kit3_app();
 			const built = async (name: string) => {
-				const { p } = await setup('build', { plugins: [Promise.resolve([kit_setup(name)])] });
+				const { p } = await kit3_setup('build', kit_setup(name));
 				await begin(p, 'ssr');
 				return server_id(await load(p, 'ogygia:server/kit-env', 'ssr'));
 			};
@@ -1133,6 +1142,55 @@ describe('transform', () => {
 			expect(await built('1700000000001')).not.toBe(first);
 			write('src/lib/Counter.svelte', '<button>edited</button>\n');
 			expect(await built('1700000000000')).toBe(first);
+		});
+
+		it("the identity is made of Kit's paths.base, not Vite's base, which Kit sets to './' in a build: two apps that differ only by paths.base have two identities", async () => {
+			kit3_app();
+			const built = async (base: string) => {
+				const { p } = await kit3_setup('build', kit_setup('4f3c2a1', base));
+				await begin(p, 'ssr');
+				return server_id(await load(p, 'ogygia:server/kit-env', 'ssr'));
+			};
+			const root_app = await built('');
+			expect(root_app).toBeDefined();
+			expect(await built('/shop')).not.toBe(root_app);
+			expect(await built('/shop')).toBe(await built('/shop'));
+		});
+
+		it("Kit's setup plugin is read off the resolved plugin list, so one another plugin adds is found: its version.name is read, and nothing is said", async () => {
+			kit3_app();
+			const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			try {
+				const built = async (name: string) => {
+					const { p } = await setup('build', {
+						plugins: [{ name: 'adds-sveltekit' }],
+						resolved: { plugins: [{ name: 'adds-sveltekit' }, kit_setup(name)] }
+					});
+					await begin(p, 'ssr');
+					return server_id(await load(p, 'ogygia:server/kit-env', 'ssr'));
+				};
+				expect(await built('1700000000000')).not.toBe(await built('1700000000001'));
+				expect(warned.mock.calls.flat().join(' ')).not.toContain('kit_env_version_unread');
+			} finally {
+				warned.mockRestore();
+			}
+		});
+
+		it('an app on Kit 3 with no Kit setup plugin in its resolved plugins says kit_env_version_unread, naming sveltekit() in vite.config, not svelte.config.js', async () => {
+			kit3_app();
+			const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			try {
+				const { p } = await setup('build');
+				await begin(p, 'ssr');
+				expect(server_id(await load(p, 'ogygia:server/kit-env', 'ssr'))).toBeDefined();
+				const said = warned.mock.calls.flat().join(' ');
+				expect(said).toContain('kit_env_version_unread');
+				expect(said).toContain('sveltekit()');
+				expect(said).toContain('vite.config');
+				expect(said).not.toContain('svelte.config.js');
+			} finally {
+				warned.mockRestore();
+			}
 		});
 
 		it('an app on a Kit with no env channel (before 3) has no identity, and says nothing of a version.name', async () => {
@@ -1151,7 +1209,7 @@ describe('transform', () => {
 
 		it('dev: the server module bears the identity its browser reader is bound to from the start, before the app has any dynamic public variable', async () => {
 			kit3_app();
-			const { p } = await setup('serve', { plugins: [kit_setup('1700000000000')] });
+			const { p } = await kit3_setup('serve', kit_setup('1700000000000'));
 			const server = await load(p, 'ogygia:server/kit-env', 'ssr');
 			const id = server_id(server);
 			expect(id, server ?? '').toBeDefined();
@@ -2697,6 +2755,10 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		for (const s of slots()) delete g[s];
 	});
 
+	/** A resolved config whose Kit setup plugin holds `base` as its `paths.base`. */
+	const kit_base = (base: string) => ({
+		plugins: [{ name: 'vite-plugin-sveltekit-setup', api: { options: { paths: { base } } } }]
+	});
 	/** Each compiler's og.$ factories, told apart by the base its context was made with. */
 	const fn_manifest_by_base = () =>
 		vi.spyOn(Compiler.prototype, 'fn_manifest').mockImplementation(function (this: Compiler) {
@@ -2724,14 +2786,14 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 			const { p, resolved } = await setup('serve');
 			p.configureServer(dev_server());
 			const bridge = g[slots()[0]!] as { fn_manifest(): Record<string, string> };
-			expect(bridge.fn_manifest()).toEqual({ base: '/' });
+			expect(bridge.fn_manifest()).toEqual({ base: '' });
 			await p.config.handler.call(
 				hook_this('ssr'),
 				{ root, plugins: [] },
 				{ command: 'serve', mode: 'development' }
 			);
-			p.configResolved.call(hook_this('ssr'), { ...resolved, base: '/next/' });
-			expect(bridge.fn_manifest()).toEqual({ base: '/next/' });
+			p.configResolved.call(hook_this('ssr'), { ...resolved, ...kit_base('/next') });
+			expect(bridge.fn_manifest()).toEqual({ base: '/next' });
 		} finally {
 			spied.mockRestore();
 		}
@@ -2742,7 +2804,7 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		const spied = fn_manifest_by_base();
 		try {
 			const a = await setup('serve');
-			const b = await setup('serve', { resolved: { base: '/b/' } });
+			const b = await setup('serve', { resolved: kit_base('/b') });
 			const sa = dev_server();
 			const sb = dev_server();
 			a.p.configureServer(sa);
@@ -2750,7 +2812,7 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 			const [slot] = slots();
 			const read = () => (g[slot!] as { fn_manifest(): unknown } | undefined)?.fn_manifest();
 			sa.httpServer.emit('close');
-			expect(read()).toEqual({ base: '/b/' });
+			expect(read()).toEqual({ base: '/b' });
 			sb.httpServer.emit('close');
 			expect(read()).toBeUndefined();
 			expect(slots()).toEqual([]);
@@ -2778,16 +2840,16 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		const spied = fn_manifest_by_base();
 		try {
 			const a = await setup('serve');
-			const b = await setup('serve', { resolved: { base: '/b/' } });
+			const b = await setup('serve', { resolved: kit_base('/b') });
 			const sa = dev_server();
 			const sb = dev_server();
 			a.p.configureServer(sa);
 			const [slot] = slots();
 			const read = () => (g[slot!] as { fn_manifest(): unknown } | undefined)?.fn_manifest();
 			b.p.configureServer(sb);
-			expect(read()).toEqual({ base: '/b/' });
+			expect(read()).toEqual({ base: '/b' });
 			sb.httpServer.emit('close');
-			expect(read()).toEqual({ base: '/' });
+			expect(read()).toEqual({ base: '' });
 			sa.httpServer.emit('close');
 			expect(read()).toBeUndefined();
 		} finally {

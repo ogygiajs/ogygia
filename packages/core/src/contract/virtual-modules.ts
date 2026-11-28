@@ -227,7 +227,8 @@ export interface KitWireModule {
 export interface KitEnvModule {
 	kit_public_env(): Record<string, unknown> | null;
 	/** This build's identity as the channel is written, beside the env, so only this build's reader
-	 *  reads it (a build's constant; in dev, the dev server's identity now). */
+	 *  reads it: a constant, the same built and in dev, made from the app's package name, Kit's
+	 *  `paths.base`, its app dir and Kit's `version.name`. */
 	kit_env_build(): string;
 }
 

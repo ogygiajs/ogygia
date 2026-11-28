@@ -57,6 +57,9 @@ export interface CompileCtxInit {
 	root: string;
 	/** the app's Kit dirs, as the plugin read them (default: `default_kit_dirs(root)`) */
 	kit_dirs?: KitDirs;
+	/** Kit's resolved `paths.base`, as the plugin read it off Kit's own plugin (vite/kit-dirs.ts
+	 *  `kit_identity`), never Vite's `base` (Kit sets that to './' in a build); `''` when none was
+	 *  read. It names the app on Kit's env channel (`Compiler.kit_env_build`). */
 	base: string;
 	/** SvelteKit `config.kit.appDir` (default `_app`) — the dir Kit emits AND serves its immutable
 	 *  assets under. ogygia's runtime + island chunks MUST land here too: a custom appDir otherwise
@@ -66,8 +69,8 @@ export interface CompileCtxInit {
 	 *  `asset()`'s job — `Region.svelte` runs every baked entry / runtime URL through it at SSR — so
 	 *  ogygia never bakes a base into these URLs (doing so double-applies it). */
 	app_dir: string;
-	/** Kit's resolved `kit.version.name`, as the plugin read it (vite/kit-dirs.ts
-	 *  `load_kit_config`); `null` (the default) when it read none. */
+	/** Kit's resolved `version.name`, as the plugin read it off Kit's own plugin (vite/kit-dirs.ts
+	 *  `kit_identity`); `null` (the default) when it read none. */
 	kit_version?: string | null;
 	libDir: string;
 	/** A plugin asked for the build's measurement data (`b.measure()`: the profiler) — embedded maps,
@@ -163,9 +166,10 @@ export class CompileCtx {
 	readonly root: string;
 	/** The app's Kit dirs (`kit.files.routes`, `kit.outDir`). */
 	readonly kit_dirs: KitDirs;
+	/** Kit's resolved `paths.base` (`''` when it was not read), never Vite's `base`. */
 	readonly base: string;
 	readonly app_dir: string;
-	/** Kit's resolved `kit.version.name`, `null` when it was not read. */
+	/** Kit's resolved `version.name`, `null` when it was not read. */
 	readonly kit_version: string | null;
 	readonly libDir: string;
 	readonly pkg_scan: PackageScan[];

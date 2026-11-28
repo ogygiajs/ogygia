@@ -1550,7 +1550,7 @@
 		},
 		{
 			"id": "packages/core/src/runtime/kit-page-makers.ts > kit_page_flights",
-			"reason": "browser only: makes the Kit page thread's one flights, once per page; proven in packages/core/test/browser/kit-page-thread.test.ts"
+			"reason": "browser only: makes the Kit page thread's one shared wait (a flights over a runes module's run, not cloneable), once per page; proven in packages/core/test/browser/kit-page-thread.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/seeds.ts > no_kit_wait",
@@ -6281,10 +6281,6 @@
 			"reason": "a message's one line for the build error: a template over its detail, printed once when the build fails"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~36aceb > CompileCtx:0~0e7542 > flatMap:0~f1f41f",
-			"reason": "once per config: the markdown formats' extensions; every build runs it"
-		},
-		{
 			"id": "packages/compiler/src/macros/wire.ts > ast_edits_or_null_unparsed > sort:0~c12a84",
 			"reason": "a sort comparator over one module's wire edits (a handful), constant work per compare"
 		},
@@ -9289,10 +9285,6 @@
 			"reason": "browser only: the catch that lets a visitor promise's rejection go (the visitor reports its own), constant work"
 		},
 		{
-			"id": "packages/core/src/runtime/kit-page-makers.ts > kit_page_flights",
-			"reason": "browser only: makes the Kit page thread's one shared wait (a flights over a runes module's run, not cloneable), once per page; proven in packages/core/test/browser/kit-page-thread.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/lakes.ts > LakeState",
 			"reason": "browser only: the lakes feature, over a visit's lake elements (Elements, not cloneable), constant work per lake; proven in packages/core/test/browser (lakes) and apps/palaestra/e2e/lakes.spec.ts"
 		},
@@ -9763,6 +9755,10 @@
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > on:2~efa631",
 			"reason": "dev server only, once when its http server closes: closes that server's scope (a live object, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~6de41f > CompileCtx:0~fb47ad > flatMap:0~f1f41f",
+			"reason": "once per config: the markdown formats' extensions; every build runs it"
 		}
 	]
 }
