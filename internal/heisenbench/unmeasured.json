@@ -9759,6 +9759,22 @@
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~6de41f > CompileCtx:0~fb47ad > flatMap:0~f1f41f",
 			"reason": "once per config: the markdown formats' extensions; every build runs it"
+		},
+		{
+			"id": "packages/compiler/src/dev-bridge.ts > open_dev_bridge",
+			"reason": "dev server only, once per configureServer: takes a live bridge of closures over the session (not cloneable) and writes a globalThis slot; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+		},
+		{
+			"id": "packages/compiler/src/dev-bridge.ts > open_dev_bridge > <anonymous>~a23714",
+			"reason": "dev server only, once when a dev server's scope closes: one splice of its bridge off the root's globalThis slot (hidden state); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+		},
+		{
+			"id": "packages/compiler/src/dev-bridge.ts > DevBridgeSlot > fn_manifest",
+			"reason": "dev server only: forwards to the newest open bridge's reader (a live closure, not replayable), or answers undefined with none open; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > configureServer > open_dev_bridge:1~bab102 > fn_manifest",
+			"reason": "dev server only: reads the session's compiler as it is asked (a live object, not replayable); the compiler's fn_manifest does the work; proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge"
 		}
 	]
 }
