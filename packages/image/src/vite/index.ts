@@ -171,11 +171,20 @@ interface LegContext {
 	environment?: { name?: string; config?: { build?: { outDir?: string } } };
 }
 
-function leg_of(ctx: unknown, c: ResolvedConfig): { server: boolean; dir: string; output: string } {
+type LegKind = 'server' | 'client' | 'worker';
+
+const LEG_OF_ENV: ReadonlyMap<string, LegKind> = new Map<string, LegKind>([
+	['ssr', 'server'],
+	// @why Kit 3 builds its service worker as the `serviceWorker` environment, in its last `buildApp`, after this plugin's build end and before the adapter (test: packages/image/test/plugin.test.ts › Kit 3's service worker leg, built after the build's end, starts no handoff of its own: no new mark, run or maker)
+	['serviceWorker', 'worker']
+]);
+
+function leg_of(ctx: unknown, c: ResolvedConfig): { kind: LegKind; dir: string; output: string } {
 	const env = (ctx as LegContext | null)?.environment;
-	const server = env?.name ? env.name === 'ssr' : !!c.build.ssr;
+	const by_config: LegKind = c.build.ssr ? 'server' : 'client';
+	const kind = env?.name ? (LEG_OF_ENV.get(env.name) ?? 'client') : by_config;
 	const dir = path.resolve(c.root, env?.config?.build?.outDir ?? c.build.outDir);
-	return { server, dir, output: path.dirname(dir) };
+	return { kind, dir, output: path.dirname(dir) };
 }
 
 function originals_of(paths: AppPaths | null): string {
@@ -268,7 +277,8 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 	const end = new BuildEnd();
 	const markdown = markdown_extension(opts);
 	const build = (): boolean => config?.command === 'build';
-	const server_build = (ctx: unknown): boolean => build() && !!config && leg_of(ctx, config).server;
+	const server_build = (ctx: unknown): boolean =>
+		build() && !!config && leg_of(ctx, config).kind === 'server';
 	const runtime_of = (ctx: unknown): EncoderRuntime =>
 		(config && encoder_runtime(config.command, server_build(ctx), preview, adapter)) || 'dev';
 	const server_mode = (ctx: unknown): 'server' | 'edge' | 'dev' => {
@@ -316,10 +326,11 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 		async buildStart() {
 			if (!config || !build()) return;
 			const leg = leg_of(this, config);
-			if (leg.server) rebuild_over();
+			if (leg.kind === 'worker') return;
+			if (leg.kind === 'server') rebuild_over();
 			const at = runtime_of(this);
 			check_encoder(config.root, at, adapter, maker_of(encoders), opts.encoder !== undefined);
-			if (leg.server) {
+			if (leg.kind === 'server') {
 				check_platform(encoders, adapter, originals_of(paths), opts.remote?.hosts ?? []);
 				if (!stills)
 					warn('image_still_left_out', {
