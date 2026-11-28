@@ -9041,10 +9041,6 @@
 			"reason": "build time, once per prerendered file made: one or two exists checks and a file read; test/build-write.test.ts and the e2e static and base builds run it"
 		},
 		{
-			"id": "packages/image/src/vite/index.ts > output_of",
-			"reason": "config time, a few times per build: one path resolve; the e2e static and base builds run it"
-		},
-		{
 			"id": "packages/image/src/vite/build-files.ts > handoff_for",
 			"reason": "build time, once per build: the warmed and the noted files, encoded side by side with sharp (or read from the store); the e2e static and base builds run it"
 		},

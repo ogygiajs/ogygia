@@ -38,6 +38,7 @@ import {
 import { OgygiaError, warn } from '../messages.ts';
 import { UNPUBLISHED_RE, type BuildHandoff } from '../handoff.ts';
 import { handoff_for, write_built, type WarmSource } from './build-files.ts';
+import { BuildEnd } from './build-end.ts';
 import {
 	avif_effort_of,
 	check_encoder,
@@ -166,8 +167,18 @@ function kit_paths(define: Record<string, unknown> | undefined): AppPaths | null
 	};
 }
 
-function output_of(c: ResolvedConfig): string {
-	return path.dirname(path.resolve(c.root, c.build.outDir));
+interface LegContext {
+	environment?: { name?: string; config?: { build?: { outDir?: string } } };
+}
+
+/** The leg a hook runs in (one bundler environment's build): whether it is Kit's server leg, the
+ *  folder it writes, and Kit's output folder (that folder's parent). A leg is its environment, not
+ *  the config's `build.ssr`: Kit 3 builds every leg from one config. */
+function leg_of(ctx: unknown, c: ResolvedConfig): { server: boolean; dir: string; output: string } {
+	const env = (ctx as LegContext | null)?.environment;
+	const server = env?.name ? env.name === 'ssr' : !!c.build.ssr;
+	const dir = path.resolve(c.root, env?.config?.build?.outDir ?? c.build.outDir);
+	return { server, dir, output: path.dirname(dir) };
 }
 
 function originals_of(paths: AppPaths | null): string {
@@ -256,13 +267,16 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 	let preview = false;
 	const warmed = new Map<string, WarmSource>();
 	const cards = new Cards();
-	let runtime: EncoderRuntime = 'dev';
+	let adapter: string | null = null;
+	const end = new BuildEnd();
 	const markdown = markdown_extension(opts);
 	const build = (): boolean => config?.command === 'build';
-	const server_build = (): boolean => build() && !!config?.build.ssr;
-	const server_mode = (): 'server' | 'edge' | 'dev' => {
+	const server_build = (ctx: unknown): boolean => build() && !!config && leg_of(ctx, config).server;
+	const runtime_of = (ctx: unknown): EncoderRuntime =>
+		(config && encoder_runtime(config.command, server_build(ctx), preview, adapter)) || 'dev';
+	const server_mode = (ctx: unknown): 'server' | 'edge' | 'dev' => {
 		if (!build()) return 'dev';
-		return runtime === 'edge' ? 'edge' : 'server';
+		return runtime_of(ctx) === 'edge' ? 'edge' : 'server';
 	};
 
 	const ogygia: OgygiaPlugin = definePlugin({
@@ -296,24 +310,31 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 			config = c;
 			paths = kit_paths(c.define);
 			const named = c.define?.__SVELTEKIT_ADAPTER_NAME__;
-			const adapter = typeof named === 'string' ? (JSON.parse(named) as string) : null;
-			const at = encoder_runtime(c.command, !!c.build.ssr, preview, adapter);
-			if (at !== null) {
-				runtime = at;
+			adapter = typeof named === 'string' ? (JSON.parse(named) as string) : null;
+			const at = c.command === 'serve' ? encoder_runtime(c.command, false, preview, adapter) : null;
+			if (at !== null)
 				check_encoder(c.root, at, adapter, maker_of(encoders), opts.encoder !== undefined);
-			}
-			if (c.command === 'build' && c.build.ssr) {
+			handoff = await handoff_for(build(), c.root, null, avif_effort);
+		},
+		async buildStart() {
+			if (!config || !build()) return;
+			const leg = leg_of(this, config);
+			const at = runtime_of(this);
+			check_encoder(config.root, at, adapter, maker_of(encoders), opts.encoder !== undefined);
+			if (leg.server) {
 				check_platform(encoders, adapter, originals_of(paths), opts.remote?.hosts ?? []);
 				if (!stills)
 					warn('image_still_left_out', {
 						encoders: encoders.map((e) => `${e.name}()`).join(', ')
 					});
 			}
-			handoff = await handoff_for(build(), c.root, null, avif_effort);
+			handoff = await handoff_for(true, config.root, leg.output, avif_effort);
 		},
-		async buildStart() {
-			if (config && build())
-				handoff = await handoff_for(true, config.root, output_of(config), avif_effort);
+		buildApp: {
+			order: 'pre',
+			async handler() {
+				if (build()) end.open();
+			}
 		},
 		configureServer(server) {
 			server.watcher.on('change', () => {
@@ -355,12 +376,12 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 			if (id.startsWith(`\0${CARD_PREFIX}`)) {
 				const name = id.slice(CARD_PREFIX.length + 1);
 				if (!options?.ssr) return cards.module(name, 'client') ?? 'export const spec = null;\n';
-				if (config && cards.get(name)) cards.check(config.root, runtime, name);
-				if (server_build() && cards.get(name))
+				if (config && cards.get(name)) cards.check(config.root, runtime_of(this), name);
+				if (server_build(this) && cards.get(name))
 					cards.emitted(name, this.emitFile({ type: 'chunk', id: `${CARD_PREFIX}${name}` }));
-				return cards.module(name, server_mode()) ?? 'export const spec = null;\n';
+				return cards.module(name, server_mode(this)) ?? 'export const spec = null;\n';
 			}
-			if (id === `\0${CARDS_ID}`) return cards.list_module(server_mode());
+			if (id === `\0${CARDS_ID}`) return cards.list_module(server_mode(this));
 			if (id === `\0${MAKER_ID}`) return maker_module(encoders, !build());
 			if (id === `\0${NAMER_ID}`) return namer_module(encoders, !build());
 			if (id === `\0${REMOTE_ID}`)
@@ -433,8 +454,9 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 			return is_card_component(id) ? { code: with_injected_css(code), map: null } : null;
 		},
 		renderChunk(code, chunk, output) {
-			if (!server_build() || !config) return null;
-			const { root, build: built } = config;
+			if (!server_build(this) || !config) return null;
+			const { root } = config;
+			const leg = leg_of(this, config);
 			let out =
 				cards.render_chunk(
 					code,
@@ -442,7 +464,7 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 					root,
 					(ref) => this.getFileName(ref),
 					(id) => this.getModuleInfo(id),
-					() => path.resolve(root, output.dir ?? built.outDir)
+					() => (output.dir ? path.resolve(root, output.dir) : leg.dir)
 				) ?? code;
 			if (out.includes(REMOTE_LIST)) {
 				const names = JSON.stringify(remote?.names() ?? []);
@@ -454,28 +476,40 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 			order: 'post',
 			sequential: true,
 			async handler(out) {
-				if (!handoff || !paths || !config || !server_build()) return;
-				const dir = handoff.remote;
-				cards.written(out.dir ?? path.resolve(config.root, config.build.outDir), (ref) =>
-					this.getFileName(ref)
-				);
-				const output = output_of(config);
-				const prefixes = [paths.assets, paths.base];
-				await write_built(
-					handoff,
-					render_config(opts, paths, true, widths, stills),
-					warmed.values(),
-					output,
-					remote ? (url, where) => remote.file(dir, url, where) : undefined,
-					(tail, id, fetch) =>
-						cards.draw(tail, id, build_card_images(output, prefixes, remote ? fetch : null))
+				if (!handoff || !paths || !config || !server_build(this)) return;
+				const written = handoff;
+				const app = paths;
+				const leg = leg_of(this, config);
+				const dir = out.dir ? path.resolve(config.root, out.dir) : leg.dir;
+				cards.written(dir, (ref) => this.getFileName(ref));
+				const output = path.dirname(dir);
+				const prefixes = [app.assets, app.base];
+				await end.written(() =>
+					write_built(
+						written,
+						render_config(opts, app, true, widths, stills),
+						warmed.values(),
+						output,
+						remote ? (url, where) => remote.file(written.remote, url, where) : undefined,
+						(tail, id, fetch) =>
+							cards.draw(tail, id, build_card_images(output, prefixes, remote ? fetch : null))
+					)
 				);
 			}
 		}
 	};
 
+	const ender: VitePlugin = {
+		name: '@ogygia/image:build-end',
+		apply: 'build',
+		buildApp: {
+			order: 'post',
+			handler: () => end.close()
+		}
+	};
+
 	const vercel = encoders.find((e) => e.name === 'vercel');
-	if (!vercel) return [ogygia, loader];
+	if (!vercel) return [ogygia, loader, ender];
 	check_qualities(opts, vercel.qualities);
 	const asked: OutputFormat[] = [
 		...(opts.formats ?? DEFAULT_FORMATS),
@@ -487,5 +521,5 @@ export function image(options?: ImagePluginOptions): VitePlugin[] {
 		originals: originals_of(paths),
 		hosts: opts.remote?.hosts ?? []
 	}));
-	return [ogygia, loader, checked];
+	return [ogygia, loader, ender, checked];
 }

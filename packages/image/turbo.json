@@ -9,7 +9,7 @@
 			"inputs": ["$TURBO_DEFAULT$", "!e2e/*.ts", "!playwright.config.ts"]
 		},
 		"e2e": {
-			"dependsOn": ["^build", "build", "image-e2e-app#fixture"]
+			"dependsOn": ["^build", "build", "image-e2e-app#fixture", "image-e2e-app-kit3#fixture"]
 		}
 	}
 }

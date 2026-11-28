@@ -147,15 +147,19 @@ test("vercel() alone has no endpoint maker; its sizes bound every file's width; 
 
 async function server_build(options: ImagePluginOptions, adapter: string): Promise<unknown> {
 	const plugin = image(options).find((p) => p.name === '@ogygia/image:load')!;
-	return (plugin.configResolved as (c: unknown) => unknown)({
+	const outDir = path.join(root, '.svelte-kit/output/server');
+	await (plugin.configResolved as (c: unknown) => unknown)({
 		root,
 		command: 'build',
-		build: { ssr: true, outDir: path.join(root, '.svelte-kit/output/server') },
+		build: { outDir },
 		define: {
 			__SVELTEKIT_APP_DIR__: '"_app"',
 			__SVELTEKIT_ADAPTER_NAME__: JSON.stringify(adapter)
 		}
 	} as unknown as ResolvedConfig);
+	return (plugin.buildStart as (this: unknown) => unknown).call({
+		environment: { name: 'ssr', config: { build: { outDir } } }
+	});
 }
 
 test("a platform's encoder on another adapter fails the server build, as its links and maker exist only on that platform", async () => {
