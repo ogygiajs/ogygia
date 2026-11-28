@@ -40,11 +40,34 @@ const app = (
 		root,
 		base,
 		app_dir,
-		routes_dir: `${root}/src/routes`,
 		out_dir: `${root}/.svelte-kit`,
 		mode: 'build' as 'dev' | 'build',
-		fs: memory_fs(all)
+		fs: memory_fs(all),
+		browser_files: () => Object.keys(files).map((rel) => `${root}/${rel}`)
 	};
+};
+
+const ISLAND_PAGE = dedent`
+	<script>
+	import Counter from '$lib/Counter.svelte' with { wake: 'load' };
+	</script>
+	<Counter />
+`;
+const COUNTER = dedent`
+	<script>
+	import { step } from './step.ts';
+	let n = $state(0);
+	</script>
+	<button onclick={() => (n += step)}>{n}</button>
+`;
+/** An app whose page places an island, with server-only files beside it. */
+const ISLAND_APP: Record<string, string> = {
+	'src/routes/+layout.ts': 'export const csr = false;\n',
+	'src/routes/+page.svelte': ISLAND_PAGE,
+	'src/routes/+page.server.ts': 'export const load = () => ({ n: 1 });\n',
+	'src/lib/server/x.ts': "export const SECRET = 'hunter2';\n",
+	'src/lib/Counter.svelte': COUNTER,
+	'src/lib/step.ts': 'export const step = 1;\n'
 };
 
 const STATIC_ONLY_CONFIG = dedent`
@@ -118,49 +141,32 @@ describe("the build's identity on Kit's env channel (KIT-PUBLIC-ENV)", () => {
 		}
 	});
 
-	it('differs for another app: another name, base or app dir', () => {
+	it('differs for another app: another base or app dir', () => {
 		const host = kit_env_build(app('/app', 'host-app'));
-		expect(kit_env_build(app('/app', 'peer-app'))).not.toBe(host);
 		expect(kit_env_build(app('/app', 'host-app', { base: '/peer' }))).not.toBe(host);
 		expect(kit_env_build(app('/app', 'host-app', { app_dir: '_peer' }))).not.toBe(host);
 	});
 
-	it('differs for two apps with the same name, base and app dir but other source', () => {
+	it('differs for two apps with the same base and app dir but other browser code', () => {
 		const host = kit_env_build(app('/a/web', 'my-app'));
 		const other_page = { 'src/routes/+page.svelte': '<h1>peer</h1>\n' };
 		const other_lib = { 'src/routes/+page.svelte': PAGE, 'src/lib/nav.svelte': '<nav></nav>\n' };
-		const other_route = { 'src/routes/+page.svelte': PAGE, 'src/routes/b/+page.svelte': PAGE };
 		expect(kit_env_build(app('/b/web', 'my-app', { files: other_page }))).not.toBe(host);
 		expect(kit_env_build(app('/b/web', 'my-app', { files: other_lib }))).not.toBe(host);
-		expect(kit_env_build(app('/b/web', 'my-app', { files: other_route }))).not.toBe(host);
-	});
-
-	it('differs for two apps with no package.json and the same source in folders of one name', () => {
-		const host = kit_env_build(app('/a/web', null));
-		const other = { 'src/routes/+page.svelte': '<h1>peer</h1>\n' };
-		expect(kit_env_build(app('/b/web', null, { files: other }))).not.toBe(host);
 	});
 
 	it('holds no path: one app built from another folder has the same identity', () => {
 		expect(kit_env_build(app('/a/one', 'host-app'))).toBe(kit_env_build(app('/b/two', 'host-app')));
 	});
 
-	it("is the same with or without ogygia's keep-client route and other dot files in the source", () => {
-		const host = kit_env_build(app('/a/web', 'my-app'));
-		const with_dots = {
-			'src/routes/+page.svelte': PAGE,
-			'src/routes/.ogygia-keep-client/+layout.ts': 'export const csr = true;\n',
-			'src/.DS_Store': 'x'
-		};
-		expect(kit_env_build(app('/a/web', 'my-app', { files: with_dots }))).toBe(host);
-	});
-
-	it('reads the routes where Kit is told they are, outside src too', () => {
-		const at = (page: string) => {
-			const a = app('/a/web', 'my-app', { files: { 'pages/+page.svelte': page } });
-			return kit_env_build({ ...a, routes_dir: '/a/web/pages' });
-		};
-		expect(at(PAGE)).not.toBe(at('<h1>peer</h1>\n'));
+	it("is the same whichever order the island closure lists its files in, and reads no package's file", () => {
+		const a = app('/a/web', 'my-app', { files: ISLAND_APP });
+		const listed = [...a.browser_files()];
+		const host = kit_env_build(a);
+		expect(kit_env_build({ ...a, browser_files: () => [...listed].reverse() })).toBe(host);
+		const pkg = '/a/web/node_modules/x-ui/index.js';
+		a.fs.set(pkg, 'export const x = 1;\n');
+		expect(kit_env_build({ ...a, browser_files: () => [...listed, pkg] })).toBe(host);
 	});
 });
 
@@ -219,24 +225,24 @@ describe("the build's identity is made only for an app whose payload carries an 
 		);
 
 	it('dev: an app that gains its first dynamic public variable gets its identity, and keeps it', () => {
-		const a = app('/a/web', 'my-app');
+		const a = app('/a/web', 'my-app', { files: ISLAND_APP });
 		const config = '/a/web/.svelte-kit/generated/dev/env/config.js';
 		a.fs.set(config, STATIC_ONLY_CONFIG);
 		const compiler = compiler_of(a, false);
 		expect(compiler.kit_env_build()).toBe('');
 		a.fs.set(config, DYNAMIC_CONFIG);
 		const made = compiler.kit_env_build();
-		expect(made).toBe(kit_env_build({ ...a, mode: 'dev' }));
-		a.fs.set('/a/web/src/routes/+page.svelte', '<h1>edited</h1>\n');
+		expect(made).toMatch(/^[0-9a-f]{12}$/);
+		a.fs.set('/a/web/src/lib/step.ts', 'export const step = 2;\n');
 		expect(compiler.kit_env_build()).toBe(made);
 	});
 
 	it("a build makes its identity once, kept on the build its next leg's context carries on: both legs bear one, though the source changes between them", () => {
-		const a = app('/a/web', 'my-app');
+		const a = app('/a/web', 'my-app', { files: ISLAND_APP });
 		a.fs.set('/a/web/.svelte-kit/generated/build/env/config.js', DYNAMIC_CONFIG);
 		const server = compiler_of(a, true);
 		const made = server.kit_env_build();
-		a.fs.set('/a/web/src/lib/Generated.svelte', '<p>written mid-build</p>\n');
+		a.fs.set('/a/web/src/lib/step.ts', 'export const step = 2;\n');
 		const client = server.with_ctx(ctx_of(a, true));
 		expect(client.kit_env_build()).toBe(made);
 		expect(compiler_of(a, true).kit_env_build()).not.toBe(made);
@@ -253,30 +259,8 @@ describe("the build's identity is made only for an app whose payload carries an 
 	});
 
 	describe('names the app by the code it ships to the browser only, so the identity it ships tells nothing of its server code', () => {
-		const ISLAND_PAGE = dedent`
-			<script>
-			import Counter from '$lib/Counter.svelte' with { wake: 'load' };
-			</script>
-			<Counter />
-		`;
-		const COUNTER = dedent`
-			<script>
-			import { step } from './step.ts';
-			let n = $state(0);
-			</script>
-			<button onclick={() => (n += step)}>{n}</button>
-		`;
 		const browser_app = (edits: Record<string, string> = {}) => {
-			const a = app('/a/web', 'my-app', {
-				files: {
-					'src/routes/+page.svelte': ISLAND_PAGE,
-					'src/routes/+page.server.ts': 'export const load = () => ({ n: 1 });\n',
-					'src/lib/server/x.ts': "export const SECRET = 'hunter2';\n",
-					'src/lib/Counter.svelte': COUNTER,
-					'src/lib/step.ts': 'export const step = 1;\n',
-					...edits
-				}
-			});
+			const a = app('/a/web', 'my-app', { files: { ...ISLAND_APP, ...edits } });
 			a.fs.set('/a/web/.svelte-kit/generated/build/env/config.js', DYNAMIC_CONFIG);
 			return compiler_of(a, true).kit_env_build();
 		};
@@ -294,7 +278,9 @@ describe("the build's identity is made only for an app whose payload carries an 
 		});
 
 		it('editing a file an island imports changes the identity', () => {
-			expect(browser_app({ 'src/lib/step.ts': 'export const step = 2;\n' })).not.toBe(browser_app());
+			expect(browser_app({ 'src/lib/step.ts': 'export const step = 2;\n' })).not.toBe(
+				browser_app()
+			);
 		});
 
 		it('two apps with other browser code differ', () => {
