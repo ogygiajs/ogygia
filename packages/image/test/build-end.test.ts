@@ -45,3 +45,30 @@ test("a failing end fails this plugin's last buildApp, so the build stops before
 	await end.written(() => Promise.reject(new Error('a file was not made')));
 	await expect(end.close()).rejects.toThrow('a file was not made');
 });
+
+test('a build that failed after its server leg was written leaves the next build on the same plugin to start fresh', async () => {
+	const end = new BuildEnd();
+	const ran: string[] = [];
+	end.open();
+	await end.written(async () => {
+		ran.push('failed build');
+	});
+	end.open();
+	await end.written(async () => {
+		ran.push('next build');
+	});
+	await end.close();
+	expect(ran).toEqual(['next build']);
+});
+
+test('a build that failed before its server leg was written leaves the next build on the same plugin to start fresh', async () => {
+	const end = new BuildEnd();
+	const ran: string[] = [];
+	end.open();
+	end.open();
+	await end.written(async () => {
+		ran.push('next build');
+	});
+	await end.close();
+	expect(ran).toEqual(['next build']);
+});
