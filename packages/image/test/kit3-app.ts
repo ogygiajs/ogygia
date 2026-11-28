@@ -1,5 +1,6 @@
 // The Kit 3 fixture (e2e/app-kit3), copied to a folder of its own with its node_modules linked
 // entry by entry, so each test's build cache and output are its alone.
+import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -33,6 +34,51 @@ export function build_env(): NodeJS.ProcessEnv {
 	const env: NodeJS.ProcessEnv = { ...process.env };
 	delete env[BUILD_ENV];
 	return env;
+}
+
+/** `vite build --watch` of a fixture copy, with what it logged. */
+export class Kit3Watch {
+	static readonly ADAPTED = '✔ done';
+
+	log = '';
+	readonly #child: ChildProcess;
+
+	constructor(app: string) {
+		this.#child = spawn('node', ['node_modules/vite/bin/vite.js', 'build', '--watch'], {
+			cwd: app,
+			env: build_env()
+		});
+		this.#child.stdout?.on('data', (d: Buffer) => (this.log += d.toString()));
+		this.#child.stderr?.on('data', (d: Buffer) => (this.log += d.toString()));
+	}
+
+	/** Once `found()` holds of the log; rejects if the watch stops first. */
+	until(found: () => boolean): Promise<void> {
+		const child = this.#child;
+		return new Promise((resolve, reject) => {
+			const seen = (): void => {
+				if (!found()) return;
+				child.stdout?.off('data', seen);
+				child.stderr?.off('data', seen);
+				resolve();
+			};
+			child.once('exit', () =>
+				reject(new Error(`the watch build stopped:\n${this.log.slice(-4000)}`))
+			);
+			child.stdout?.on('data', seen);
+			child.stderr?.on('data', seen);
+			seen();
+		});
+	}
+
+	/** How many times the adapter has run. */
+	adapted(): number {
+		return this.log.split(Kit3Watch.ADAPTED).length - 1;
+	}
+
+	stop(): void {
+		this.#child.kill();
+	}
 }
 
 /** The `<img>` URLs of one page the fixture's adapter wrote. */
