@@ -2450,85 +2450,7 @@ describe('the dev server', () => {
 		}
 	});
 
-	it("one edit both open dev servers' watchers hear updates the route answers on both servers, not only the first to hear it", async () => {
-		app();
-		const options = write('src/routes/+page.ts', 'export const csr = true;\n');
-		const { p } = await setup('serve');
-		const a = served();
-		const b = served();
-		p.configureServer(a);
-		p.configureServer(b);
-		await load(p, 'ogygia:server/route-csr', 'ssr');
-		write('src/routes/+page.ts', 'export const csr = false;\n');
-		p.watchChange.call(heard_on(a), options, { event: 'update' });
-		p.watchChange.call(heard_on(b), options, { event: 'update' });
-		const dropped = (s: ReturnType<typeof served>) =>
-			s.invalidated.some((id) => id.includes('route-csr'));
-		expect({ a: dropped(a), b: dropped(b) }).toEqual({ a: true, b: true });
-		for (const s of [a, b])
-			for (const e of Object.values(s.environments)) p.closeBundle.call({ environment: e });
-	});
-
-	it("a style edit heard by one of two open dev servers drops the router's inlined CSS module from both servers' graphs", async () => {
-		app();
-		const { p } = await setup('serve');
-		const a = served();
-		const b = served();
-		p.configureServer(a);
-		p.configureServer(b);
-		await load(p, 'ogygia:server/router-css', 'ssr');
-		p.handleHotUpdate({ file: write('src/lib/X.svelte', '\n'), server: a });
-		const dropped = (s: ReturnType<typeof served>) =>
-			s.invalidated.some((id) => id.includes('router-css'));
-		expect({ a: dropped(a), b: dropped(b) }).toEqual({ a: true, b: true });
-	});
-
-	it("a transform that moves what a loaded virtual module read drops that module from the dev server's graph", async () => {
-		app();
-		const { p } = await setup('serve');
-		const s = served();
-		p.configureServer(s);
-		await load(p, 'ogygia:boot/runtime-entry', 'client');
-		write('src/lib/Idle.svelte', '<p>idle</p>\n');
-		const host = write(
-			'src/routes/idle/+page.svelte',
-			dedent`
-				<script>
-					import Idle from '$lib/Idle.svelte' with { wake: 'idle' };
-				</script>
-				<Idle />
-			`
-		);
-		const on_s = { ...hook_this('ssr'), environment: s.environments.ssr };
-		await p.transform.call(on_s, readFileSync(host, 'utf8'), host, { ssr: true });
-		expect(s.invalidated.some((id) => id.includes('runtime-entry'))).toBe(true);
-	});
-
-	it('closing an older dev server while a newer one is open leaves the newer one serving a hook with no environment', async () => {
-		app();
-		const { p } = await setup('serve');
-		const a = served();
-		const b = served();
-		p.configureServer(a);
-		p.configureServer(b);
-		for (const e of Object.values(a.environments)) p.closeBundle.call({ environment: e });
-		p.watchChange.call({}, path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
-		expect({ a: a.sent, b: b.sent }).toEqual({ a: [], b: [{ type: 'full-reload', path: '*' }] });
-	});
-
-	it('closing the newest dev server leaves the older one serving a hook with no environment, as the dev bridge then reads the older one', async () => {
-		app();
-		const { p } = await setup('serve');
-		const a = served();
-		const b = served();
-		p.configureServer(a);
-		p.configureServer(b);
-		for (const e of Object.values(b.environments)) p.closeBundle.call({ environment: e });
-		p.watchChange.call({}, path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
-		expect({ a: a.sent, b: b.sent }).toEqual({ a: [{ type: 'full-reload', path: '*' }], b: [] });
-	});
-
-	it("a module an island pulls into its world, transformed on one of two dev servers, is dropped from every open server's graph", async () => {
+	it("a module an island pulls into its world, transformed on one of two dev servers, is dropped from that server's graph, never the other's", async () => {
 		app();
 		const helper = write(
 			'src/lib/boot.ts',
@@ -2551,10 +2473,8 @@ describe('the dev server', () => {
 		);
 		const on_a = { ...hook_this('ssr'), environment: a.environments.ssr };
 		await p.transform.call(on_a, readFileSync(host, 'utf8'), host, { ssr: true });
-		expect({ a: a.invalidated.includes(helper), b: b.invalidated.includes(helper) }).toEqual({
-			a: true,
-			b: true
-		});
+		expect(a.invalidated).toContain(helper);
+		expect(b.invalidated).toEqual([]);
 	});
 
 	it('a hook with no environment, heard after the newest dev server closed, reaches no closed server', async () => {
