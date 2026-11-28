@@ -76,8 +76,11 @@ export class Kit3Watch {
 		return this.log.split(Kit3Watch.ADAPTED).length - 1;
 	}
 
-	stop(): void {
+	async stop(): Promise<void> {
+		if (this.#child.exitCode !== null || this.#child.signalCode !== null) return;
+		const exited = new Promise<void>((resolve) => this.#child.once('exit', () => resolve()));
 		this.#child.kill();
+		await exited;
 	}
 }
 

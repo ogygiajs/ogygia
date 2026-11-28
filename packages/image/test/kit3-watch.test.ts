@@ -23,8 +23,8 @@ beforeAll(async () => {
 	await w.until(() => w.adapted() >= 2);
 }, BUILD_MS);
 
-afterAll(() => {
-	watch?.stop();
+afterAll(async () => {
+	await watch?.stop();
 	if (app) fs.rmSync(app, { recursive: true, force: true });
 });
 

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
+import { dedent } from '@ogygia/core/contract';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { marked_files } from '../e2e/marks.ts';
 import { image_srcs, kit3_app, Kit3Watch } from './kit3-app.ts';
@@ -43,13 +44,29 @@ function with_remote_page(origin: string): void {
 	);
 	const route = path.join(app, 'src/routes/cms');
 	fs.mkdirSync(route, { recursive: true });
+	const cover = JSON.stringify(`${origin}/cover.jpg`);
 	fs.writeFileSync(
 		path.join(route, '+page.server.ts'),
-		`import { remoteImage } from '@ogygia/image';\n\nexport const load = () => ({\n\tcover: remoteImage(${JSON.stringify(`${origin}/cover.jpg`)}, { width: 1800, height: 1000, alt: 'A cover' })\n});\n`
+		dedent`
+			import { remoteImage } from '@ogygia/image';
+
+			export const load = () => ({
+				cover: remoteImage(${cover}, { width: 1800, height: 1000, alt: 'A cover' })
+			});
+		`
 	);
 	fs.writeFileSync(
 		path.join(route, '+page.svelte'),
-		`<script lang="ts">\n\timport { Img } from '@ogygia/image';\n\n\tlet { data } = $props();\n</script>\n\n<h1>a CMS page</h1>\n<Img of={data.cover} width={400} alt={data.cover.alt!} id="cms" />\n`
+		dedent`
+			<script lang="ts">
+				import { Img } from '@ogygia/image';
+
+				let { data } = $props();
+			</script>
+
+			<h1>a CMS page</h1>
+			<Img of={data.cover} width={400} alt={data.cover.alt!} id="cms" />
+		`
 	);
 }
 
@@ -64,7 +81,7 @@ beforeAll(async () => {
 }, BUILD_MS);
 
 afterAll(async () => {
-	watch?.stop();
+	await watch?.stop();
 	await new Promise((resolve) => (host ? host.close(resolve) : resolve(undefined)));
 	if (app) fs.rmSync(app, { recursive: true, force: true });
 });
