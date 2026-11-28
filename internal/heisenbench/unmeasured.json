@@ -9061,6 +9061,10 @@
 			"reason": "build only, once per app build: one machine move and a waiting end; proven in test/build-end.test.ts › when an app build hook builds the legs (Kit 3), the end waits for this plugin's last buildApp"
 		},
 		{
+			"id": "packages/image/src/vite/build-end.ts > BuildEnd > #rebuilt",
+			"reason": "build only, once per Kit 3 watch rebuild: two machine moves around the late end (measured in its own files, write_built); proven in test/build-end.test.ts › a watch rebuild (Kit 3) gets what the last end named its files by, so its pages find the last build files"
+		},
+		{
 			"id": "packages/image/src/vite/build-files.ts > handoff_for",
 			"reason": "build time, once per build: the warmed and the noted files, encoded side by side with sharp (or read from the store); the e2e static and base builds run it"
 		},
