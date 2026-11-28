@@ -62,6 +62,60 @@ test("when an app build hook builds and watches the legs (Kit 3), a rebuild's en
 	expect(ran).toEqual(['prerender', 'build', 'rebuild, late', 'next rebuild, late']);
 });
 
+test("a watch rebuild whose server leg is written while the first build's end runs (Kit 3) ends after it, late, never beside it", async () => {
+	const end = new BuildEnd();
+	const ran: string[] = [];
+	const first = Promise.withResolvers<void>();
+	end.open();
+	await end.written(async () => {
+		ran.push('build starts');
+		await first.promise;
+		ran.push('build ends');
+	}, true);
+	const closed = end.close();
+	const rebuilt = end.written(noted(ran, 'rebuild'), true);
+	await Promise.resolve();
+	expect(ran).toEqual(['build starts']);
+	first.resolve();
+	await closed;
+	await rebuilt;
+	expect(ran).toEqual(['build starts', 'build ends', 'rebuild, late']);
+});
+
+test("a watch rebuild whose server leg is written before this plugin's last buildApp (Kit 3) ends after the first build's end, late", async () => {
+	const end = new BuildEnd();
+	const ran: string[] = [];
+	end.open();
+	await end.written(noted(ran, 'build'), true);
+	const rebuilt = end.written(noted(ran, 'rebuild'), true);
+	await Promise.resolve();
+	expect(ran).toEqual([]);
+	await end.close();
+	await rebuilt;
+	expect(ran).toEqual(['build', 'rebuild, late']);
+});
+
+test('a watch rebuild whose server leg is written while the last rebuild ends (Kit 3) ends after it, never beside it', async () => {
+	const end = new BuildEnd();
+	const ran: string[] = [];
+	const last = Promise.withResolvers<void>();
+	end.open();
+	await end.written(noted(ran, 'build'), true);
+	await end.close();
+	const rebuilt = end.written(async () => {
+		ran.push('rebuild starts');
+		await last.promise;
+		ran.push('rebuild ends');
+	}, true);
+	const next = end.written(noted(ran, 'next rebuild'), true);
+	await Promise.resolve();
+	expect(ran).toEqual(['build', 'rebuild starts']);
+	last.resolve();
+	await rebuilt;
+	await next;
+	expect(ran).toEqual(['build', 'rebuild starts', 'rebuild ends', 'next rebuild, late']);
+});
+
 test("a failing end fails this plugin's last buildApp, so the build stops before the adapter", async () => {
 	const end = new BuildEnd();
 	end.open();
