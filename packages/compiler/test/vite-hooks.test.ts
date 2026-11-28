@@ -2530,6 +2530,28 @@ describe('the dev server', () => {
 		}
 	});
 
+	it("two half-written saves heard 60 ms apart are replayed once written: the first save's empty second read leaves the second's pending", async () => {
+		app();
+		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
+		const { p } = await setup('serve');
+		const s = served();
+		p.configureServer(s);
+		await load(p, 'ogygia:server/route-csr', 'ssr');
+		vi.useFakeTimers();
+		try {
+			write('src/routes/+page.ts', '');
+			p.watchChange.call(heard_on(s), options, { event: 'update' });
+			vi.advanceTimersByTime(60);
+			p.watchChange.call(heard_on(s), options, { event: 'update' });
+			vi.advanceTimersByTime(45);
+			write('src/routes/+page.ts', 'export const csr = true;\n');
+			vi.advanceTimersByTime(1_000);
+			expect(s.replayed).toEqual([options]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it('a half-written save heard before its dev server closes is never read again on the closed server', async () => {
 		app();
 		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
