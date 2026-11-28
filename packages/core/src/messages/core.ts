@@ -14,8 +14,12 @@ import { prose } from '../contract/prose.ts';
 import { OG_PREFIX, OGYGIA_KEEP, OGYGIA_PREFIX } from '../wire-markup.ts';
 
 const BUG = 'An ogygia bug: please report it with the page that shows it.';
-const KIT_ENV_MISSING_WHY: Readonly<Record<'absent' | 'unreadable' | 'other-build', string>> = {
+const KIT_ENV_MISSING_WHY: Readonly<
+	Record<'absent' | 'unreadable' | 'other-build' | 'unserved', string>
+> = {
 	absent: 'carries no public env from the server',
+	unserved:
+		"is prerendered and Kit's `env.js` (beside the app's `immutable` files), which holds the deployed server's public env, did not load",
 	unreadable: 'carries a public env that does not read back',
 	'other-build': "carries another app's public env"
 };
@@ -995,7 +999,9 @@ export const WARNINGS = {
 			renders later (a \`defer\` hole) or a remote call's answer, an island a router prefetch
 			warms before its page is open (both #2219, https://github.com/ogygiajs/ogygia/issues/2219),
 			and a federated peer's island on the host's page, which reads an empty env rather than
-			the host's (#2221, https://github.com/ogygiajs/ogygia/issues/2221). Outside those, a page
+			the host's (#2221, https://github.com/ogygiajs/ogygia/issues/2221). A prerendered page's
+			regions wait for SvelteKit's \`env.js\` instead, which the app's server (or the adapter)
+			must serve. Outside those, a page
 			whose own region imports the module and carries no env, or one that does not decode, is an
 			ogygia bug: please report it with the page that shows it.
 		`

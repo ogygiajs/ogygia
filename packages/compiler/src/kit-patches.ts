@@ -163,10 +163,17 @@ export function kit_public_env_module(major: number | null, build: string): stri
 	`}`;
 }
 
-/** `ogygia:boot/kit-env`: the runtime's reader at `file`, bound to the build's identity. */
-export function kit_env_reader_module(file: string, build: string): string {
+/** `ogygia:boot/kit-env`: the runtime's reader at `file`, bound to the build's identity and to where
+ *  Kit serves the app's `env.js` (its resolved `paths`): a prerendered page's env, as Kit's own
+ *  prerendered page loads it, from an address no page's markup can name. */
+export function kit_env_reader_module(
+	file: string,
+	build: string,
+	at: { base: string; app_dir: string; assets: string }
+): string {
 	return dedent`
-		import { kit_env as read } from ${JSON.stringify(file)};
+		import { kit_env as read, serve_kit_env as serve } from ${JSON.stringify(file)};
 		export const kit_env = () => read(${JSON.stringify(build)});
+		export const serve_kit_env = (load) => serve(${JSON.stringify(at)}, load);
 	`;
 }

@@ -35,6 +35,10 @@ import { code_url_or_refuse, import_code, type CodeUrl } from './code-origins.ts
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
+const KIT_MAJOR = typeof __OGYGIA_KIT_MAJOR__ !== 'undefined' ? __OGYGIA_KIT_MAJOR__ : null;
+/** Whether this build's Kit serves an `env.js` a region's code can wait for (kit-env-first.ts). */
+export const KIT_ENV: boolean = KIT_MAJOR !== null && KIT_MAJOR >= 3;
+
 /** How long a failed import waits for its file's timing entry before it reads as "no response". */
 const ENTRY_WAIT_MS = 1000;
 
@@ -342,6 +346,19 @@ const file_loads: FileLoads = plainFlights({
  * an allowed code origin (./code-origins.ts) is taken.
  */
 export function import_file<T>(url: CodeUrl): Promise<T> {
+	const first = KIT_ENV ? code_waits_for() : null;
+	return first === null ? import_served<T>(url) : first.then(() => import_served<T>(url));
+}
+
+/** {@link import_file} with nothing waited for first: a file the boot waits for itself. */
+export function import_served<T>(url: CodeUrl): Promise<T> {
 	// (nothing drops a file's load, so it is never STALE; were it, it is asked for again)
-	return file_loads.get(url).then((m) => (m === STALE ? import_file<T>(url) : (m as T)));
+	return file_loads.get(url).then((m) => (m === STALE ? import_served<T>(url) : (m as T)));
+}
+
+let code_waits_for: () => Promise<unknown> | null = () => null;
+/** The boot hands over what an island's code waits for before its load starts (kit-env-first.ts):
+ *  `null`, the load starts at once. */
+export function on_code_load(first: () => Promise<unknown> | null): void {
+	code_waits_for = first;
 }

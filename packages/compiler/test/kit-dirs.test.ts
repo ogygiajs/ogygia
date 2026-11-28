@@ -139,22 +139,24 @@ describe('kit.files.routes / kit.outDir', () => {
 		expect(
 			kit_identity([
 				{ name: 'other' },
-				setup({ paths: { base: '/shop' }, version: { name: '1700000000000' } })
+				setup({
+					paths: { base: '/shop', assets: 'https://cdn.example.com' },
+					version: { name: '1700000000000' }
+				})
 			])
-		).toEqual({ base: '/shop', version: '1700000000000' });
+		).toEqual({ base: '/shop', assets: 'https://cdn.example.com', version: '1700000000000' });
 		expect(
 			kit_identity([setup({ kit: { paths: { base: '/b' }, version: { name: '4f3c2a1' } } })])
-		).toEqual({ base: '/b', version: '4f3c2a1' });
-		expect(kit_identity([setup({})])).toEqual({ base: '', version: null });
-		expect(kit_identity([setup({ paths: { base: 1 }, version: { name: 7 } })])).toEqual({
-			base: '',
-			version: null
-		});
-		expect(kit_identity([{ name: 'vite-plugin-sveltekit-setup' }, { name: 'other' }])).toEqual({
-			base: '',
-			version: null
-		});
-		expect(kit_identity([])).toEqual({ base: '', version: null });
+		).toEqual({ base: '/b', assets: '', version: '4f3c2a1' });
+		const none = { base: '', assets: '', version: null };
+		expect(kit_identity([setup({})])).toEqual(none);
+		expect(kit_identity([setup({ paths: { base: 1, assets: 2 }, version: { name: 7 } })])).toEqual(
+			none
+		);
+		expect(kit_identity([{ name: 'vite-plugin-sveltekit-setup' }, { name: 'other' }])).toEqual(
+			none
+		);
+		expect(kit_identity([])).toEqual(none);
 	});
 
 	it("Kit's inlineStyleThreshold is read for the region CSS too; none, or a value that is not a positive number, is 0", async () => {

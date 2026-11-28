@@ -236,6 +236,9 @@ export interface KitEnvModule {
  *  build's identity (`kit_env_build`), which Kit's patched `$app/env/public` imports. */
 export interface KitEnvReaderModule {
 	kit_env(): Record<string, unknown>;
+	/** Loads this app's own `env.js` (its URL the build's) with `load` and keeps its env for
+	 *  `kit_env`: a prerendered page's regions wait for it (runtime/kit-env-first.ts). */
+	serve_kit_env(load: (url: string) => Promise<unknown>): Promise<void>;
 }
 
 /** A module that only runs (it exports nothing). */

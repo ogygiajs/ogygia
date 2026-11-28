@@ -114,8 +114,15 @@ describe("the build's identity on Kit's env channel (KIT-PUBLIC-ENV)", () => {
 		expect(build).toMatch(ID_RE);
 		expect(server_build(kit_public_env_module(3, build))).toBe(build);
 		expect(server_build(kit_public_env_module(null, build))).toBe(build);
-		expect(kit_env_reader_module('/rt/kit-env.js', build)).toContain(
-			`read(${JSON.stringify(build)})`
+		expect(
+			kit_env_reader_module('/rt/kit-env.js', build, { base: '', app_dir: '_app', assets: '' })
+		).toContain(`read(${JSON.stringify(build)})`);
+	});
+
+	it("the browser reader is bound to where Kit serves the app's env.js: its resolved paths, never a page's", () => {
+		const at = { base: '/shop', app_dir: 'assets/app', assets: 'https://cdn.example.com' };
+		expect(kit_env_reader_module('/rt/kit-env.js', 'b', at)).toContain(
+			`serve(${JSON.stringify(at)}, load)`
 		);
 	});
 

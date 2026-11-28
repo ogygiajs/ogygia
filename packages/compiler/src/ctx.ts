@@ -72,6 +72,8 @@ export interface CompileCtxInit {
 	/** Kit's resolved `version.name`, as the plugin read it off Kit's own plugin (vite/kit-dirs.ts
 	 *  `kit_identity`); `null` (the default) when it read none. */
 	kit_version?: string | null;
+	/** Kit's resolved `paths.assets`, read as `base` is (`''`, the default: none). */
+	kit_assets?: string;
 	libDir: string;
 	/** A plugin asked for the build's measurement data (`b.measure()`: the profiler) — embedded maps,
 	 *  per-island detail. */
@@ -171,6 +173,8 @@ export class CompileCtx {
 	readonly app_dir: string;
 	/** Kit's resolved `version.name`, `null` when it was not read. */
 	readonly kit_version: string | null;
+	/** Kit's resolved `paths.assets` (`''` when it has none, or it was not read). */
+	readonly kit_assets: string;
 	readonly libDir: string;
 	readonly pkg_scan: PackageScan[];
 	readonly page_importers: readonly string[];
@@ -237,6 +241,7 @@ export class CompileCtx {
 		this.base = init.base;
 		this.app_dir = init.app_dir;
 		this.kit_version = init.kit_version ?? null;
+		this.kit_assets = init.kit_assets ?? '';
 		this.libDir = init.libDir;
 		this.pkg_scan = init.pkg_scan ?? [];
 		this.page_importers = init.page_importers ?? [];

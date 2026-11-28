@@ -6,7 +6,9 @@
  *
  * @packageDocumentation
  */
+import { building } from '$app/env';
 import { kit_env_build, kit_public_env } from 'ogygia:server';
+import { KIT_ENV_SERVED_TYPE } from '../kit-env-served.ts';
 import { RESPONSE_MARK } from '../contract/response-mark.ts';
 import { warn } from '../messages/server.ts';
 import { devalue_text } from './devalue-text.ts';
@@ -53,14 +55,18 @@ const ENV_TEXT = new EnvText();
  * exactly what Kit puts in its boot payload on a csr=true page (Kit 3's `rendered_env`, public
  * variables only), serialized with devalue as Kit does, beside the build that wrote it
  * (`kit_env_build()`, the identity the build's browser reader is bound to), so a region of another
- * build (a federated peer's) never reads it as its own. Null: this Kit has none, it holds no
- * variable (the identity is then never asked), or it does not serialize (said with
- * `kit_env_unshipped`).
+ * build (a federated peer's) never reads it as its own. A page written while the app builds
+ * (prerendered) carries no value, only the marked ask for the deployed server's
+ * (`application/ogygia-env-served`, runtime/kit-env-first.ts), as Kit's own prerendered page loads
+ * `_app/env.js`. Null: this Kit has none, it holds no variable (the identity is then never asked),
+ * or it does not serialize (said with `kit_env_unshipped`).
  */
 export function env_seed_script(request: Request): string | null {
 	const env = kit_public_env();
 	if (env === null || Object.keys(env).length === 0) return null;
+	const mark = `${RESPONSE_MARK}="${response_mark(request)}"`;
+	if (building) return `<script type="${KIT_ENV_SERVED_TYPE}" ${mark}></script>`;
 	const text = ENV_TEXT.of(kit_env_build(), env);
 	if (text === null) return null;
-	return ogygia_script('env', text, `${RESPONSE_MARK}="${response_mark(request)}"`);
+	return ogygia_script('env', text, mark);
 }

@@ -11,7 +11,7 @@ type KitOptions = {
 	files?: { routes?: string };
 	outDir?: string;
 	inlineStyleThreshold?: number;
-	paths?: { base?: unknown };
+	paths?: { base?: unknown; assets?: unknown };
 	version?: { name?: unknown };
 };
 
@@ -78,7 +78,7 @@ export async function load_kit_config(root: string, plugins?: PluginOption): Pro
 	};
 }
 
-/** Kit's `paths.base` and `version.name` as Kit resolved them, off Kit's own setup plugin in
+/** Kit's `paths.base`, `paths.assets` and `version.name` as Kit resolved them, off Kit's own setup plugin in
  *  `plugins`, the resolved config's final plugin list (so one another plugin adds is found too).
  *  Only that plugin holds them as Kit ships them: in a build Kit sets Vite's `base` to './', and its
  *  default `version.name` is the time its config loaded. With no such plugin, neither is read. */
@@ -89,11 +89,13 @@ export function kit_identity(
 		const kit = kit_setup_options(p);
 		if (!kit) continue;
 		const base = kit.paths?.base;
+		const assets = kit.paths?.assets;
 		const version = kit.version?.name;
 		return {
 			base: typeof base === 'string' ? base : '',
+			assets: typeof assets === 'string' ? assets : '',
 			version: typeof version === 'string' ? version : null
 		};
 	}
-	return { base: '', version: null };
+	return { base: '', assets: '', version: null };
 }

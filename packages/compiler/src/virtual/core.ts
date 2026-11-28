@@ -507,7 +507,9 @@ export const kit_env_reader: Family<KitEnvReaderModule> = virtual.family({
 		const rt = ctx.is_build ? null : dev_runtime_of(ctx.runtime_dir);
 		const file = posix(`${rt?.dir ?? ctx.runtime_dir}/kit-env${rt?.ts ? '.ts' : '.js'}`);
 		const major = kit_major_of(ctx.root);
-		return kit_env_reader_module(file, major === null || major < 3 ? '' : app.kit_env_build());
+		const build = major === null || major < 3 ? '' : app.kit_env_build();
+		const { base, app_dir, kit_assets: assets } = ctx;
+		return kit_env_reader_module(file, build, { base, app_dir, assets });
 	}
 });
 

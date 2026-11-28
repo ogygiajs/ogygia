@@ -233,6 +233,8 @@ export interface KitConfig {
 export interface KitIdentity {
 	/** Kit's resolved `paths.base` (`''` when none was read) */
 	base: string;
+	/** Kit's resolved `paths.assets` (`''` when none was read) */
+	assets: string;
 	/** Kit's resolved `version.name`, `null` when none was read */
 	version: string | null;
 }

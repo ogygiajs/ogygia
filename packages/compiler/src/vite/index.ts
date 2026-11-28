@@ -657,6 +657,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						base: identity.base,
 						app_dir,
 						kit_version: identity.version,
+						kit_assets: identity.assets,
 						libDir,
 						pkg_scan,
 						page_importers,

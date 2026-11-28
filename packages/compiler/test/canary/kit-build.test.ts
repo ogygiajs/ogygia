@@ -334,14 +334,16 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 						identity: kit_identity(resolved.plugins),
 						app_dir: resolved.define.__SVELTEKIT_APP_DIR__,
 						base: resolved.define.__SVELTEKIT_PATHS_BASE__,
+						assets: resolved.define.__SVELTEKIT_PATHS_ASSETS__,
 						version: resolved.define.__SVELTEKIT_APP_VERSION__
 					}));
 				`)
 			) as {
 				kit: { dirs: { routes_dir: string; out_dir: string } };
-				identity: { base: string; version: string | null };
+				identity: { base: string; assets: string; version: string | null };
 				app_dir: string;
 				base: string;
+				assets: string;
 				version: string;
 			};
 			expect(
@@ -356,9 +358,14 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 					},
 					inline_style_threshold: 0
 				},
-				identity: { base: JSON.parse(read.base), version: JSON.parse(read.version) },
+				identity: {
+					base: JSON.parse(read.base),
+					assets: JSON.parse(read.assets),
+					version: JSON.parse(read.version)
+				},
 				app_dir: JSON.stringify(APP_DIR),
 				base: read.base,
+				assets: read.assets,
 				version: read.version
 			});
 		});
@@ -374,19 +381,25 @@ describe.each(Object.entries(KITS))('%s', (_, root) => {
 						const resolved = await resolveConfig({
 							configFile: false,
 							logLevel: 'warn',
-							plugins: [await sveltekit({ files: { routes: 'src/pages' }, outDir: ${JSON.stringify(OUT_DIR)}, appDir: ${JSON.stringify(APP_DIR)}, paths: { base: '/canary' } })]
+							plugins: [await sveltekit({ files: { routes: 'src/pages' }, outDir: ${JSON.stringify(OUT_DIR)}, appDir: ${JSON.stringify(APP_DIR)}, paths: { base: '/canary', assets: 'https://cdn.example.com' } })]
 						}, 'build');
 						console.log(JSON.stringify({
 							identity: kit_identity(resolved.plugins).base,
+							assets: kit_identity(resolved.plugins).assets,
 							define: JSON.parse(resolved.define.__SVELTEKIT_PATHS_BASE__),
 							vite: resolved.base
 						}));
 					`)
-				) as { identity: string; define: string; vite: string };
+				) as { identity: string; assets: string; define: string; vite: string };
 				expect(
 					read,
 					broke(CONFIG, 'the compiler reads another paths.base than the one Kit defines')
-				).toEqual({ identity: '/canary', define: '/canary', vite: './' });
+				).toEqual({
+					identity: '/canary',
+					assets: 'https://cdn.example.com',
+					define: '/canary',
+					vite: './'
+				});
 			}
 		);
 	});

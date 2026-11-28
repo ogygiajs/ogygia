@@ -255,6 +255,24 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/runtime/kit-env.ts > serve_kit_env > throw:0",
+			"reason": "an env.js that exports no env is a failed load: nothing is kept, and the env stays what it was",
+			"test": "packages/core/test/browser/kit-env-served.test.ts",
+			"name": "an env module that exports no env is a failed load, never an env"
+		},
+		{
+			"site": "packages/core/src/runtime/kit-env-first.ts > env_served > .catch:0",
+			"reason": "a prerendered page's env.js that does not load: its regions run, a module that reads the env says kit_env_missing, and the next region's code asks again (the test's network drops the file in 3 engines)",
+			"test": "packages/core/test/browser/kit-env-unserved.test.ts",
+			"name": "a prerendered page whose env module does not load: its regions run, one that reads the env reads it empty and says kit_env_missing, and the next region's code asks again"
+		},
+		{
+			"site": "packages/core/src/runtime/kit-env-first.ts > (module) > import:0",
+			"reason": "the env reader's chunk, loaded only for a prerendered page's ask; a download that fails leaves the page's regions running and nothing unhandled (the test's network drops the chunk in 3 engines)",
+			"test": "packages/core/test/browser/kit-env-reader-lost.test.ts",
+			"name": "a prerendered page whose env reader's chunk does not load still runs its regions, and leaves nothing unhandled"
+		},
+		{
 			"site": "packages/core/src/runtime/kit-env.ts > kit_env > catch:0",
 			"reason": "the server's env channel whose text does not decode reads as an empty env, said with kit_env_missing, so Kit's patched $app/env/public still evaluates and the island hydrates; proved by hand: the catch made to rethrow turns the test red",
 			"test": "packages/core/test/browser/side-channel-seeds.test.ts",
@@ -5981,7 +5999,7 @@
 	],
 	"impossible": [
 		{
-			"site": "packages/core/src/runtime/import-again.ts > import_file > stale:0",
+			"site": "packages/core/src/runtime/import-again.ts > import_served > stale:0",
 			"why": "a flights' get is STALE only when its world moves, a drop or dispose ends its flight, a fresh flight supersedes it, or the caller's signal aborts. The island files' flights has no world, and its type, FileLoads, is a get by URL alone: no drop, no dispose, no fresh, no signal compiles. So no island file's load is ever STALE.",
 			"by": "packages/core/src/runtime/import-again.ts",
 			"name": "FileLoads"

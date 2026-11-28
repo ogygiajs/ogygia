@@ -15,7 +15,14 @@ import type { Life, Run } from '@ogygia/machine';
 import { frameAddress, older_by, stands_at } from '../frame.ts';
 import { is_media_query, on_trigger, WAKE } from '../contract/trigger.ts';
 import { OG_FP, OG_HOLE, OG_KEPT, OG_STATIC, OGYGIA_REGION_CSS } from '../wire-markup.ts';
-import { import_again, is_failed_import, on_file_load, on_reload_needed } from './import-again.ts';
+import {
+	import_again,
+	is_failed_import,
+	KIT_ENV,
+	on_file_load,
+	on_reload_needed
+} from './import-again.ts';
+import { hold_code_for_env } from './kit-env-first.ts';
 import { browser_offline, no_response } from './network.ts';
 import { HAS } from 'ogygia:boot';
 import {
@@ -1546,6 +1553,7 @@ export function boot(client_plugins: readonly ClientRealm[] = []): void {
 	// import-again.ts imports nothing)
 	on_reload_needed(say_reload_needed);
 	on_file_load(note_code_sheets);
+	if (KIT_ENV) hold_code_for_env();
 
 	apply_dev_head_region_css();
 

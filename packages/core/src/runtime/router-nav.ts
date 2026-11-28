@@ -69,6 +69,7 @@ import {
 	L_STALE,
 	L_VOUCH_PAGE_ANSWER,
 	L_WARM_ISLAND_MODULE,
+	L_ENV_SERVED_TO,
 	L_HOOKS,
 	L_YIELD_TASK
 } from './boot-link-index.ts';
@@ -98,6 +99,11 @@ const note_entry_location = (entry: string, src: string | null, base?: string) =
 const register_island_graph = (text: string, base: string) =>
 	boot_link()[L_REGISTER_ISLAND_GRAPH](text, base);
 const yield_task = () => boot_link()[L_YIELD_TASK]();
+const KIT_MAJOR = typeof __OGYGIA_KIT_MAJOR__ !== 'undefined' ? __OGYGIA_KIT_MAJOR__ : null;
+const KIT_ENV = KIT_MAJOR !== null && KIT_MAJOR >= 3;
+const env_served_to = (doc: Document) => boot_link()[L_ENV_SERVED_TO]?.(doc);
+// oxlint-disable-next-line ogygia/markup-from-vocabulary -- KIT_ENV_SERVED_TYPE, spelled here: a lazy chunk shares no module with the boot; test/browser/kit-env-served.test.ts holds the spelling
+export const ENV_SERVED_TYPE = 'application/ogygia-env-served';
 const is_stale = (v: unknown): v is Stale => v === boot_link()[L_STALE];
 const jump_to_hash = (hash: string) => boot_link()[L_JUMP_TO_HASH]!(hash);
 
@@ -529,6 +535,10 @@ async function run_page_fetch(
 function warm_modules(href: string, html: string) {
 	if (warmed_pages().has(href)) return;
 	warmed_pages().set(href, true);
+	if (KIT_ENV && html.includes(ENV_SERVED_TYPE)) {
+		const own = boot_link()[L_VOUCH_PAGE_ANSWER](new URL(href, location.href), html);
+		if (own !== null) env_served_to(boot_link()[L_PARSE_PAGE_DOCUMENT](own));
+	}
 	for (const t of tags(html, 'script')) {
 		if (t.attrs.get('type') !== 'application/json' || !t.attrs.has(OGYGIA_GRAPH)) continue;
 		const json = text_of(html, t, 'script');
@@ -543,6 +553,7 @@ function warm_modules(href: string, html: string) {
 }
 
 function preflight(doc: Document, dest: URL) {
+	if (KIT_ENV) env_served_to(doc);
 	for (const l of Array.from(doc.querySelectorAll('link[rel="modulepreload"]'))) {
 		const href = l.getAttribute('href');
 		if (href && is_warmed_module(href, dest.href)) l.remove();

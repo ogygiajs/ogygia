@@ -58,6 +58,8 @@ import {
 } from './ownership.ts';
 import { LoadSlot } from './load-scheduler.ts';
 import { adopt_response, server_channel } from './response-mark.ts';
+import { env_served_to } from './kit-env-first.ts';
+import { KIT_ENV } from './import-again.ts';
 import { fetch_priority_of, PRIORITY } from './load-class.ts';
 import { load_devalue, devalue, with_devalue, needs_devalue } from './devalue-lane.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
@@ -136,7 +138,9 @@ export type BootLink = [
 	fragment_target: typeof import('./fragment.ts').fragment_target | null,
 	resolve_address: typeof import('./interaction.ts').resolve_address | null,
 	wire_codec: typeof import('./wire-on-use.ts').wire_codec,
-	srcset_candidates: typeof import('../srcset.ts').srcset_candidates
+	srcset_candidates: typeof import('../srcset.ts').srcset_candidates,
+	/** a fetched prerendered page's ask for the served env (./kit-env-first.ts), where Kit has one */
+	env_served_to: typeof import('./kit-env-first.ts').env_served_to | null
 ];
 
 const KIT_PAGES = typeof __OGYGIA_KIT_PAGES__ !== 'undefined' ? __OGYGIA_KIT_PAGES__ : true;
@@ -224,6 +228,7 @@ export function make_boot_link(): BootLink {
 		HAS & F_ROUTER ? router.fragment_target : null,
 		HAS & F_INTERACTION ? interaction.resolve_address : null,
 		wire_codec,
-		srcset_candidates
+		srcset_candidates,
+		KIT_ENV ? env_served_to : null
 	];
 }

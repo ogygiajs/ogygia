@@ -120,7 +120,8 @@ test('each place in the boot link holds the helper its number names', () => {
 		L_FRAGMENT_TARGET: fragment_target,
 		L_RESOLVE_ADDRESS: resolve_address,
 		L_WIRE_CODEC: wire_codec,
-		L_SRCSET_CANDIDATES: srcset_candidates
+		L_SRCSET_CANDIDATES: srcset_candidates,
+		L_ENV_SERVED_TO: null
 	};
 	const places = index as unknown as Record<string, number>;
 	for (const [name, helper] of Object.entries(want)) expect(link[places[name]], name).toBe(helper);
