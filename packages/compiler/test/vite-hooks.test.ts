@@ -2506,6 +2506,7 @@ describe("the dev bridge: what a dev server's generated server modules read off 
 		const run = (code: string, name: string): unknown => {
 			const fn = new RegExp(`export function ${name}\\(\\) \\{[^]*?\\n?\\s*\\}\\n`).exec(code);
 			expect(fn, name).not.toBeNull();
+			// oxlint-disable-next-line typescript/no-implied-eval -- the generated module's function text under test
 			return new Function(`${fn![0].replace('export ', '')}return ${name}();`)();
 		};
 		expect(slots()).toHaveLength(1);
