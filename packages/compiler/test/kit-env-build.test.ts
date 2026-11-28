@@ -252,6 +252,57 @@ describe("the build's identity is made only for an app whose payload carries an 
 		expect(compiler.kit_env_build()).toBe('');
 	});
 
+	describe('names the app by the code it ships to the browser only, so the identity it ships tells nothing of its server code', () => {
+		const ISLAND_PAGE = dedent`
+			<script>
+			import Counter from '$lib/Counter.svelte' with { wake: 'load' };
+			</script>
+			<Counter />
+		`;
+		const COUNTER = dedent`
+			<script>
+			import { step } from './step.ts';
+			let n = $state(0);
+			</script>
+			<button onclick={() => (n += step)}>{n}</button>
+		`;
+		const browser_app = (edits: Record<string, string> = {}) => {
+			const a = app('/a/web', 'my-app', {
+				files: {
+					'src/routes/+page.svelte': ISLAND_PAGE,
+					'src/routes/+page.server.ts': 'export const load = () => ({ n: 1 });\n',
+					'src/lib/server/x.ts': "export const SECRET = 'hunter2';\n",
+					'src/lib/Counter.svelte': COUNTER,
+					'src/lib/step.ts': 'export const step = 1;\n',
+					...edits
+				}
+			});
+			a.fs.set('/a/web/.svelte-kit/generated/build/env/config.js', DYNAMIC_CONFIG);
+			return compiler_of(a, true).kit_env_build();
+		};
+
+		it('editing a server-only file leaves the identity as it was', () => {
+			const before = browser_app();
+			expect(before).toMatch(/^[0-9a-f]{12}$/);
+			expect(browser_app({ 'src/lib/server/x.ts': "export const SECRET = 'hunter3';\n" })).toBe(
+				before
+			);
+			expect(
+				browser_app({ 'src/routes/+page.server.ts': 'export const load = () => ({ n: 2 });\n' })
+			).toBe(before);
+			expect(browser_app({ 'package.json': JSON.stringify({ name: 'other-app' }) })).toBe(before);
+		});
+
+		it('editing a file an island imports changes the identity', () => {
+			expect(browser_app({ 'src/lib/step.ts': 'export const step = 2;\n' })).not.toBe(browser_app());
+		});
+
+		it('two apps with other browser code differ', () => {
+			const other = { 'src/lib/Counter.svelte': COUNTER.replace('{n}', '[{n}]') };
+			expect(browser_app(other)).not.toBe(browser_app());
+		});
+	});
+
 	it("is made from the source when Kit's env config cannot be read", () => {
 		expect(kit_env_build(app('/a/web', 'my-app'))).toMatch(/^[0-9a-f]{12}$/);
 	});
