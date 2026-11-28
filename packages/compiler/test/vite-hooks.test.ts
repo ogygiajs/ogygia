@@ -2449,6 +2449,33 @@ describe('the dev server', () => {
 			vi.useRealTimers();
 		}
 	});
+
+	it("a module an island pulls into its world, transformed on one of two dev servers, is dropped from that server's graph, never the other's", async () => {
+		app();
+		const helper = write(
+			'src/lib/boot.ts',
+			"import { page } from '$app/state'; export const p = page;\n"
+		);
+		const { p } = await setup('serve');
+		const a = served();
+		const b = served();
+		p.configureServer(a);
+		p.configureServer(b);
+		write('src/lib/Late.svelte', "<script>import { p } from './boot';</script><p>{p}</p>\n");
+		const host = write(
+			'src/routes/late/+page.svelte',
+			dedent`
+				<script>
+					import Late from '$lib/Late.svelte' with { wake: 'visible' };
+				</script>
+				<Late />
+			`
+		);
+		const on_a = { ...hook_this('ssr'), environment: a.environments.ssr };
+		await p.transform.call(on_a, readFileSync(host, 'utf8'), host, { ssr: true });
+		expect(a.invalidated).toContain(helper);
+		expect(b.invalidated).toEqual([]);
+	});
 });
 
 describe("the dev bridge: what a dev server's generated server modules read off the compiler serving them", () => {
