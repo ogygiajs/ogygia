@@ -9717,7 +9717,7 @@
 			"reason": "dev server only, once per configureServer: one registry add and one cleanup on the server's own scope (live objects, not cloneable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge › closes with its dev server, a second dev server of the same root keeps its own, and the root's global goes with the last"
 		},
 		{
-			"id": "packages/compiler/src/dev-bridge.ts > DevServers > add > defer:0~aeb700",
+			"id": "packages/compiler/src/dev-bridge.ts > DevServers > add > defer:0~0939cb",
 			"reason": "dev server only, once when a dev server's scope closes: removes the root's global when no server is left open (a live object, not replayable); proven in packages/compiler/test/vite-hooks.test.ts › the dev bridge › closes with its dev server, a second dev server of the same root keeps its own, and the root's global goes with the last"
 		},
 		{
