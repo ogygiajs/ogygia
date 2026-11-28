@@ -59,7 +59,9 @@ export class RouteWatch<S> {
 		const awaiting = this.#awaiting.get(file);
 		if (!awaiting) return;
 		this.#awaiting.delete(file);
-		for (const s of awaiting) if (s !== heard) this.#replay(s.server, file);
+		const replay = [...awaiting];
+		awaiting.clear();
+		for (const s of replay) if (s !== heard) this.#replay(s.server, file);
 	}
 
 	#read(file: string, event: FileEvent): boolean {
