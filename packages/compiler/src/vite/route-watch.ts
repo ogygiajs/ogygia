@@ -1,4 +1,4 @@
-import type { Scope } from '@ogygia/machine';
+import { registry, type Registry, type Scope } from '@ogygia/machine';
 import type { FileEvent } from '../kit.ts';
 
 // @why chokidar (Vite's watcher) drops a path's `change` that comes within 50 ms of the one it reported, with no trailing event (test: test/vite-hooks.test.ts › a save the watcher reports half-written is read again once it is written)
@@ -8,6 +8,12 @@ const WATCHER_DROPS_CHANGES_MS = 50;
 export interface RouteServer<S> {
 	readonly scope: Scope;
 	readonly server: S;
+}
+
+interface SecondRead<S> {
+	readonly file: string;
+	readonly at: RouteServer<S>;
+	readonly life: Scope;
 }
 
 /**
@@ -24,7 +30,7 @@ export class RouteWatch<S> {
 	readonly #changed: (file: string, event: FileEvent) => readonly string[];
 	readonly #invalidate: (id: string) => void;
 	readonly #replay: (server: S, file: string) => void;
-	readonly #awaiting = new Map<string, Map<RouteServer<S>, number>>();
+	readonly #waits: Registry<SecondRead<S>> = registry<SecondRead<S>>();
 
 	constructor(
 		changed: (file: string, event: FileEvent) => readonly string[],
@@ -40,31 +46,25 @@ export class RouteWatch<S> {
 	heard(file: string, event: FileEvent, at: RouteServer<S> | null): void {
 		if (this.#read(file, event) && event !== 'delete') this.#found(file, at);
 		if (!at || event === 'delete') return;
-		const awaiting = this.#awaiting.get(file) ?? new Map<RouteServer<S>, number>();
-		this.#awaiting.set(file, awaiting.set(at, (awaiting.get(at) ?? 0) + 1));
-		at.scope.timeout(() => {
-			if (this.#read(file, 'update')) return this.#found(file, null);
-			const pending = awaiting.get(at);
-			if (pending === undefined) return;
-			if (pending > 1) awaiting.set(at, pending - 1);
-			else if (awaiting.delete(at) && awaiting.size === 0) this.#awaiting.delete(file);
+		const life = at.scope.child();
+		this.#waits.add({ file, at, life }, life);
+		life.timeout(() => {
+			if (this.#read(file, 'update')) this.#found(file, null);
+			life.close();
 		}, WATCHER_DROPS_CHANGES_MS * 2);
 	}
 
-	/** DEV: `at` has closed; it awaits no second read and is replayed on no more. */
-	forget(at: RouteServer<S>): void {
-		for (const [file, awaiting] of this.#awaiting)
-			if (awaiting.delete(at) && awaiting.size === 0) this.#awaiting.delete(file);
-	}
-
-	/** A read found `file` changed: every server still awaiting it heard it before, so is replayed (`heard`: the one that just reported it, not replayed). */
+	/** A read found `file` changed: each second read of it still pending ends, and every server
+	 *  one was pending on heard the file before, so is replayed (`heard`: the one that just reported
+	 *  it, not replayed). */
 	#found(file: string, heard: RouteServer<S> | null): void {
-		const awaiting = this.#awaiting.get(file);
-		if (!awaiting) return;
-		this.#awaiting.delete(file);
-		const replay = [...awaiting.keys()];
-		awaiting.clear();
-		for (const s of replay) if (s !== heard) this.#replay(s.server, file);
+		const replay = new Set<RouteServer<S>>();
+		for (const wait of this.#waits.snapshot())
+			if (wait.file === file) {
+				if (wait.at !== heard) replay.add(wait.at);
+				wait.life.close();
+			}
+		for (const s of replay) this.#replay(s.server, file);
 	}
 
 	#read(file: string, event: FileEvent): boolean {

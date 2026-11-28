@@ -788,7 +788,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					plugin: dev_owner,
 					bridge: { fn_manifest: () => compiler_of(session, 'fn_manifest').fn_manifest() }
 				};
-				served.defer(() => route_watch.forget(at));
 				serve_dev(root, at);
 				if (server.httpServer) served.on(server.httpServer, 'close', () => served.close());
 				if (measure) {
