@@ -68,10 +68,15 @@ export class DevServers {
 	}
 }
 
-/** The open dev servers of the app at `root`: one global per root, made on first use and gone
- *  when its last open server closes. */
-export function dev_servers(root: string): DevServers {
+/** The open dev servers of the app at `root`, while one is open: one global per root, gone when its
+ *  last open server closes. */
+export function dev_servers(root: string): DevServers | undefined {
+	return (globalThis as Record<symbol, DevServers | undefined>)[Symbol.for(dev_bridge_key(root))];
+}
+
+/** Opens `at` among the dev servers of `root`, making the root's global when none is open. */
+export function serve_dev(root: string, at: DevServed): void {
 	const slots = globalThis as Record<symbol, DevServers | undefined>;
 	const slot = Symbol.for(dev_bridge_key(root));
-	return (slots[slot] ??= new DevServers(slot));
+	(slots[slot] ??= new DevServers(slot)).add(at);
 }

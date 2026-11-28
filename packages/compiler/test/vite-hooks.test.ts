@@ -2782,7 +2782,7 @@ describe('the dev server', () => {
 		for (const e of Object.values(b.environments)) p.closeBundle.call({ environment: e });
 		p.watchChange.call({}, path.join(root, 'src/lib/Counter.svelte'), { event: 'delete' });
 		expect({ a: a.sent, b: b.sent }).toEqual({ a: [{ type: 'full-reload', path: '*' }], b: [] });
-		expect(dev_servers(root).newest()?.server).toBe(a);
+		expect(dev_servers(root)?.newest()?.server).toBe(a);
 	});
 
 	it('a dev closeBundle with no environment closes no dev server: both keep serving, and a server opened after still joins', async () => {
@@ -2800,7 +2800,7 @@ describe('the dev server', () => {
 		expect({ a: a.sent, b: b.sent, c: c.sent }).toEqual({ a: reload, b: reload, c: reload });
 		expect(
 			dev_servers(root)
-				.open.snapshot()
+				?.open.snapshot()
 				.map((at) => at.server)
 		).toEqual([a, b, c]);
 	});

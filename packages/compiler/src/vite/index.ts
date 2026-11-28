@@ -154,7 +154,7 @@ import { CompileCtx, type PackageScan } from '../ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
 import { patch_kit_module } from '../kit-patches.ts';
-import { dev_servers, type DevServed } from '../dev-bridge.ts';
+import { dev_servers, serve_dev, type DevServed } from '../dev-bridge.ts';
 import { app_compile_options, svelte_compile, type SvelteCompile } from './svelte-options.ts';
 
 import {
@@ -438,16 +438,16 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	const env_of_hook = (ctx: unknown): object | undefined =>
 		(ctx as { environment?: object } | null)?.environment;
 	const open_server_holding = (env: object): DevServed | undefined => {
-		for (const at of dev_servers(root).open.snapshot())
+		for (const at of dev_servers(root)?.open.snapshot() ?? [])
 			if (at.plugin === dev_owner && at.environments.has(env)) return at;
 		return undefined;
 	};
 	const serving = (ctx: unknown): DevServed | null => {
 		const env = env_of_hook(ctx);
-		return (env && open_server_holding(env)) || dev_servers(root).newest(dev_owner) || null;
+		return (env && open_server_holding(env)) || dev_servers(root)?.newest(dev_owner) || null;
 	};
 	const on_every_open_server = (each: (server: ViteDevServer) => void) => {
-		for (const at of dev_servers(root).open.snapshot())
+		for (const at of dev_servers(root)?.open.snapshot() ?? [])
 			if (at.plugin === dev_owner) each(at.server);
 	};
 	const drop_on_every_open_server = (id: string, also?: ViteDevServer) => {
@@ -789,7 +789,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					bridge: { fn_manifest: () => compiler_of(session, 'fn_manifest').fn_manifest() }
 				};
 				served.defer(() => route_watch.forget(at));
-				dev_servers(root).add(at);
+				serve_dev(root, at);
 				if (server.httpServer) served.on(server.httpServer, 'close', () => served.close());
 				if (measure) {
 					install_dev_maps(server);
