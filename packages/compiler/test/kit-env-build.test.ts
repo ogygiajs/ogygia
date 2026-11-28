@@ -10,6 +10,7 @@ import { Program } from '../src/program.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { scope } from '@ogygia/machine';
 import { dev_servers } from '../src/dev-bridge.ts';
+import type { ViteDevServer } from 'vite';
 import { kit_env_build, kit_env_reader_module, kit_public_env_module } from '../src/kit-patches.ts';
 
 const PAGE = '<h1>home</h1>\n';
@@ -99,16 +100,13 @@ describe("the build's identity on Kit's env channel (KIT-PUBLIC-ENV)", () => {
 		let now = '';
 		const open = (root: string, kit_env_build: () => string) => {
 			const served = scope();
-			dev_servers(root).open.add(
-				{
-					scope: served,
-					server: {},
-					environments: new Set(),
-					plugin: served,
-					bridge: { fn_manifest: () => ({}), kit_env_build }
-				},
-				served
-			);
+			dev_servers(root).add({
+				scope: served,
+				server: {} as ViteDevServer,
+				environments: new Set(),
+				plugin: served,
+				bridge: { fn_manifest: () => ({}), kit_env_build }
+			});
 			return () => served.close();
 		};
 		const close = open('/a/web', () => now);

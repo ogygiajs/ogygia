@@ -9,6 +9,7 @@
  * @packageDocumentation
  */
 import { registry, type Registry, type Scope } from '@ogygia/machine';
+import type { ViteDevServer } from 'vite';
 
 /** The readers a dev server's generated server modules call, each answering now. */
 export interface DevBridge {
@@ -22,9 +23,9 @@ export interface DevBridge {
 
 /** One open dev server: the scope it serves in (closed when it closes), its environments, the
  *  plugin serving it (its dev scope) and the bridge its generated server modules read. */
-export interface DevServed<S = unknown> {
+export interface DevServed {
 	readonly scope: Scope;
-	readonly server: S;
+	readonly server: ViteDevServer;
 	readonly environments: ReadonlySet<object>;
 	readonly plugin: Scope;
 	readonly bridge: DevBridge;
@@ -39,9 +40,23 @@ export const dev_bridge_call = (root: string, reader: keyof DevBridge): string =
 	`globalThis[Symbol.for(${JSON.stringify(dev_bridge_key(root))})]?.${reader}()`;
 
 /** The global of a root: its open dev servers, oldest first, answering the bridge's readers with the
- *  newest one still open (nothing while none is). */
+ *  newest one still open (nothing while none is). It is the root's global while one is open. */
 export class DevServers {
 	readonly open: Registry<DevServed> = registry<DevServed>();
+	readonly #slot: symbol;
+
+	constructor(slot: symbol) {
+		this.#slot = slot;
+	}
+
+	/** Holds `at` while its scope is open; when the last one closes, the root's global goes. */
+	add(at: DevServed): void {
+		this.open.add(at, at.scope);
+		at.scope.defer(() => {
+			const slots = globalThis as Record<symbol, DevServers | undefined>;
+			if (this.open.size === 0 && slots[this.#slot] === this) delete slots[this.#slot];
+		});
+	}
 
 	fn_manifest(): Record<string, string> | undefined {
 		return this.newest()?.bridge.fn_manifest();
@@ -60,8 +75,10 @@ export class DevServers {
 	}
 }
 
-/** The open dev servers of the app at `root`: one global per root, made on first use. */
+/** The open dev servers of the app at `root`: one global per root, made on first use and gone
+ *  when its last open server closes. */
 export function dev_servers(root: string): DevServers {
 	const slots = globalThis as Record<symbol, DevServers | undefined>;
-	return (slots[Symbol.for(dev_bridge_key(root))] ??= new DevServers());
+	const slot = Symbol.for(dev_bridge_key(root));
+	return (slots[slot] ??= new DevServers(slot));
 }

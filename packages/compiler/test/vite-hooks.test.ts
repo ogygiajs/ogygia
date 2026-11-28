@@ -2423,7 +2423,7 @@ describe('the dev server', () => {
 		}
 	});
 
-	it('a file event heard on one of two dev servers is read again, replayed and reloaded on that server, never on the other, which once closed hears nothing', async () => {
+	it('a file event heard on one of two dev servers is read again and replayed on that server, never on the other, which once closed hears nothing', async () => {
 		app();
 		const options = write('src/routes/+page.ts', 'export const csr = false;\n');
 		const { p } = await setup('serve');
@@ -2440,13 +2440,13 @@ describe('the dev server', () => {
 			write('src/routes/+page.ts', '');
 			p.watchChange.call(heard_on(a), options, { event: 'update' });
 			for (const e of Object.values(b.environments)) p.closeBundle.call({ environment: e });
-			const b_heard = b.invalidated.length;
+			const b_heard = [b.invalidated.length, b.sent.length];
 			write('src/routes/+page.ts', 'export const csr = true;\n');
 			vi.advanceTimersByTime(1_000);
 			expect(a.replayed).toEqual([options]);
 			expect(a.invalidated.some((id) => id.includes('route-csr'))).toBe(true);
 			expect(await load(p, 'ogygia:server/route-csr', 'ssr')).not.toBe(csr_false);
-			expect([b.replayed, b.invalidated.length, b.sent]).toEqual([[], b_heard, []]);
+			expect([b.replayed, b.invalidated.length, b.sent.length]).toEqual([[], ...b_heard]);
 		} finally {
 			vi.useRealTimers();
 		}
