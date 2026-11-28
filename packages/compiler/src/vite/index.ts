@@ -781,13 +781,15 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			configureServer(server) {
 				const compiler = compiler_of(session, 'configureServer');
 				const served = dev_owner.child();
-				dev_servers(root).add({
+				const at: DevServed = {
 					scope: served,
 					server,
 					environments: new Set(Object.values(server.environments ?? {})),
 					plugin: dev_owner,
 					bridge: { fn_manifest: () => compiler_of(session, 'fn_manifest').fn_manifest() }
-				});
+				};
+				served.defer(() => route_watch.forget(at));
+				dev_servers(root).add(at);
 				if (server.httpServer) served.on(server.httpServer, 'close', () => served.close());
 				if (measure) {
 					install_dev_maps(server);

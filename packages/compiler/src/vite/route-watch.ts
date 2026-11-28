@@ -15,10 +15,10 @@ export interface RouteServer<S> {
  * once more after the watcher's quiet window, while the dev server it was heard on is open. The
  * answers are the program's, read once for every server, so each change is `invalidate`d on every
  * open dev server. A save that truncates the file and then writes it is reported at the truncate,
- * so its first read can be a write in progress. When a second read finds a change, the event the
- * watcher dropped is `replay`ed on every still-open server that heard the file and has not read it
- * again yet, so each updates what it ran from the file as it does for any event: the read is shared,
- * so only the first server's second read can see the change.
+ * so its first read can be a write in progress. When any read finds a change, the event a watcher
+ * may have dropped is `replay`ed on every open server that heard the file before and has not read
+ * it again yet, so each updates what it ran from the file as it does for any event: the read is
+ * shared, so another server's read can be the one that sees the change.
  */
 export class RouteWatch<S> {
 	readonly #changed: (file: string, event: FileEvent) => readonly string[];
@@ -38,19 +38,28 @@ export class RouteWatch<S> {
 
 	/** The watcher reported `event` at `file`, on `at` (`null`: no dev server is serving yet). */
 	heard(file: string, event: FileEvent, at: RouteServer<S> | null): void {
-		this.#read(file, event);
+		if (this.#read(file, event) && event !== 'delete') this.#found(file, at);
 		if (!at || event === 'delete') return;
 		const awaiting = this.#awaiting.get(file) ?? new Set<RouteServer<S>>();
-		for (const s of awaiting) if (s.scope.closed) awaiting.delete(s);
 		this.#awaiting.set(file, awaiting.add(at));
 		at.scope.timeout(() => {
-			const changed = this.#read(file, 'update');
-			const replay = changed ? [...awaiting] : [];
-			if (changed) awaiting.clear();
-			else awaiting.delete(at);
-			if (awaiting.size === 0 && this.#awaiting.get(file) === awaiting) this.#awaiting.delete(file);
-			for (const s of replay) if (!s.scope.closed) this.#replay(s.server, file);
+			if (this.#read(file, 'update')) this.#found(file, null);
+			else if (awaiting.delete(at) && awaiting.size === 0) this.#awaiting.delete(file);
 		}, WATCHER_DROPS_CHANGES_MS * 2);
+	}
+
+	/** DEV: `at` has closed; it awaits no second read and is replayed on no more. */
+	forget(at: RouteServer<S>): void {
+		for (const [file, awaiting] of this.#awaiting)
+			if (awaiting.delete(at) && awaiting.size === 0) this.#awaiting.delete(file);
+	}
+
+	/** A read found `file` changed: every server still awaiting it heard it before, so is replayed (`heard`: the one that just reported it, not replayed). */
+	#found(file: string, heard: RouteServer<S> | null): void {
+		const awaiting = this.#awaiting.get(file);
+		if (!awaiting) return;
+		this.#awaiting.delete(file);
+		for (const s of awaiting) if (s !== heard) this.#replay(s.server, file);
 	}
 
 	#read(file: string, event: FileEvent): boolean {
