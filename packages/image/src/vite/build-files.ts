@@ -107,10 +107,10 @@ export async function handoff_for(
 	avif_effort: number = DEFAULT_AVIF_EFFORT
 ): Promise<BuildHandoff> {
 	const open = build_handoff();
-	if (open && (!build || (open.minted && fs.existsSync(path.dirname(open.minted))))) {
+	if (open && (!build || open.late || (open.minted && fs.existsSync(path.dirname(open.minted))))) {
 		const rooted = open.root === root ? open : { ...open, root };
 		if (rooted !== open) process.env[BUILD_ENV] = JSON.stringify(rooted);
-		if (build && output !== null) BuildMakes.of(rooted, output);
+		if (build && output !== null && !rooted.late) BuildMakes.of(rooted, output);
 		return rooted;
 	}
 	const cache = new BuildCache('image').dir() ?? fs.mkdtempSync(path.join(os.tmpdir(), 'og-img-'));
@@ -514,18 +514,23 @@ function unmark(
 /** The server build's end: write every file the build makes (`warmed`, and the prerender's notes)
  *  under `<output>/client/<appDir>/`, then point every prerendered page at them, and hand the
  *  process (and what it starts after: an adapter's SPA fallback render) a handoff that says so, with
- *  no notes and no mark. `output` is Kit's build output. */
+ *  no notes and no mark. `output` is Kit's build output. Gives back the handoff's `renamed`. `last` is
+ *  the last build's `renamed` when this build's prerender comes after (a Kit 3 watch rebuild): the
+ *  handoff keeps it, so the prerender finds the last build's files, and says it is late, until
+ *  {@link rebuild_over}. */
 export async function write_built(
 	handoff: BuildHandoff,
 	cfg: RenderConfig,
 	warmed: Iterable<WarmSource>,
 	output: string,
 	fetch_remote: FetchRemote = no_remote,
-	draw_card: DrawCard = no_card
-): Promise<void> {
+	draw_card: DrawCard = no_card,
+	last: Readonly<Record<string, string>> | null = null
+): Promise<Readonly<Record<string, string>>> {
+	if (!handoff.minted) return last ?? {};
 	const makes = BuildMakes.of(handoff, output);
 	const client = path.join(output, 'client', cfg.paths.app_dir);
-	const renamed = new Map<string, string>();
+	const renamed = new Map<string, string>(Object.entries(last ?? {}));
 	let settled: PromiseSettledResult<void>[];
 	try {
 		const jobs = jobs_of(handoff, cfg, warmed, output);
@@ -569,12 +574,25 @@ export async function write_built(
 	}
 	if (handoff.mark || renamed.size)
 		unmark(path.join(output, 'prerendered'), handoff.mark, origin, renamed);
+	const { late: _, ...rest } = handoff;
+	const named = Object.fromEntries(renamed);
 	const done: BuildHandoff = {
-		...handoff,
+		...rest,
 		minted: '',
 		mark: '',
 		written: client,
-		...(renamed.size ? { renamed: Object.fromEntries(renamed) } : {})
+		...(renamed.size ? { renamed: named } : {}),
+		...(last !== null ? { late: true } : {})
 	};
 	process.env[BUILD_ENV] = JSON.stringify(done);
+	return named;
+}
+
+/** A server leg starts, so a Kit 3 watch rebuild before it is over: this build starts a handoff of
+ *  its own. */
+export function rebuild_over(): void {
+	const open = build_handoff();
+	if (!open?.late) return;
+	const { late: _, ...rest } = open;
+	process.env[BUILD_ENV] = JSON.stringify(rest);
 }

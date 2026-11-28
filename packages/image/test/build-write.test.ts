@@ -51,6 +51,41 @@ function output(page: string): string {
 	return out;
 }
 
+test("a late end (a Kit 3 watch rebuild) hands its prerender the last build's renamed sources, so a page finds the files the last build named by bytes", async () => {
+	const handoff = await handoff_for(true);
+	const out = output('<p>no image yet</p>');
+	const named = await write_built(handoff, CFG, [], out, undefined, undefined, { url: 'bytes' });
+	expect(named).toEqual({ url: 'bytes' });
+	expect(build_handoff()).toMatchObject({ late: true, renamed: { url: 'bytes' }, mark: '' });
+	delete process.env.__OGYGIA_IMAGE_BUILD;
+	fs.rmSync(out, { recursive: true, force: true });
+});
+
+test('an end handed a handoff whose files are already written (no notes file) writes nothing and deletes no folder, not even the working one', async () => {
+	const handoff = await handoff_for(true);
+	const out = output('<p>no image</p>');
+	await write_built(handoff, CFG, [], out);
+	const written = build_handoff()!;
+	expect(written.minted).toBe('');
+	const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'og-image-cwd-'));
+	const was = process.cwd();
+	process.chdir(cwd);
+	try {
+		fs.writeFileSync(path.join(cwd, 'keep.txt'), 'kept');
+		expect(
+			await write_built(written, CFG, [], out, undefined, undefined, { url: 'bytes' })
+		).toEqual({
+			url: 'bytes'
+		});
+		expect(fs.readFileSync(path.join(cwd, 'keep.txt'), 'utf8')).toBe('kept');
+	} finally {
+		process.chdir(was);
+		delete process.env.__OGYGIA_IMAGE_BUILD;
+		fs.rmSync(cwd, { recursive: true, force: true });
+		fs.rmSync(out, { recursive: true, force: true });
+	}
+});
+
 test("a prerendered page's files are written under the app folder, and its marked URLs name them", async () => {
 	const handoff = await handoff_for(true);
 	note_built(handoff.minted, `${id}-64x43/_app/immutable/assets/h.Ab12.jpg.webp`);

@@ -60,12 +60,17 @@ async function resolved(
 	const plugin = image(options).find((p) => p.name === '@ogygia/image:load') as Plugin;
 	const define: Record<string, string> = { __SVELTEKIT_APP_DIR__: '"_app"' };
 	if (adapter) define.__SVELTEKIT_ADAPTER_NAME__ = adapter;
+	const outDir = path.join(root, '.svelte-kit/output/server');
 	await (plugin.configResolved as (c: unknown) => unknown)({
 		root,
 		command,
-		build: { ssr: command === 'build', outDir: path.join(root, '.svelte-kit/output/server') },
+		build: { outDir },
 		define
 	} as unknown as ResolvedConfig);
+	if (command === 'build')
+		await (plugin.buildStart as (this: unknown) => unknown).call({
+			environment: { name: 'ssr', config: { build: { outDir } } }
+		});
 }
 
 test('a node server build fails, coded, when the app does not install sharp itself', async () => {

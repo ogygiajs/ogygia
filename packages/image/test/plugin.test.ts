@@ -10,6 +10,7 @@ import { cloudflare, image, sharp, vercel, type ImagePluginOptions } from '../sr
 import { remote_name, remote_src } from '../src/vite/remote.ts';
 import { image_specifier } from '../src/vite/macro.ts';
 import { source_id } from '../src/source-id.ts';
+import { build_handoff, BUILD_ENV } from '../src/handoff.ts';
 import { app_with_sharp, make_images } from './fixtures.ts';
 
 let root: string;
@@ -145,18 +146,73 @@ test("vercel() alone has no endpoint maker; its sizes bound every file's width; 
 	expect(String(await load(plain, '\0virtual:ogygia-image/config'))).not.toContain('widths');
 });
 
-async function server_build(options: ImagePluginOptions, adapter: string): Promise<unknown> {
+async function server_build(
+	options: ImagePluginOptions,
+	adapter: string,
+	leg: { environment?: string; ssr?: boolean } = { environment: 'ssr' }
+): Promise<unknown> {
 	const plugin = image(options).find((p) => p.name === '@ogygia/image:load')!;
-	return (plugin.configResolved as (c: unknown) => unknown)({
+	const outDir = path.join(root, '.svelte-kit/output/server');
+	await (plugin.configResolved as (c: unknown) => unknown)({
 		root,
 		command: 'build',
-		build: { ssr: true, outDir: path.join(root, '.svelte-kit/output/server') },
+		build: { outDir, ssr: leg.ssr ?? false },
 		define: {
 			__SVELTEKIT_APP_DIR__: '"_app"',
 			__SVELTEKIT_ADAPTER_NAME__: JSON.stringify(adapter)
 		}
 	} as unknown as ResolvedConfig);
+	return (plugin.buildStart as (this: unknown) => unknown).call(
+		leg.environment === undefined
+			? {}
+			: { environment: { name: leg.environment, config: { build: { outDir } } } }
+	);
 }
+
+test("a leg is Kit's server leg by its environment, not the config's build.ssr: Kit 3 builds every leg from one config", async () => {
+	const on_node = { encoder: cloudflare() };
+	const refused = /\/e\/image_option_invalid/;
+	await expect(
+		server_build(on_node, '@sveltejs/adapter-node', { environment: 'ssr', ssr: false })
+	).rejects.toThrow(refused);
+	await expect(
+		server_build(on_node, '@sveltejs/adapter-node', { environment: 'client', ssr: true })
+	).resolves.not.toThrow();
+	await expect(server_build(on_node, '@sveltejs/adapter-node', { ssr: true })).rejects.toThrow(
+		refused
+	);
+	await expect(
+		server_build(on_node, '@sveltejs/adapter-node', { ssr: false })
+	).resolves.not.toThrow();
+});
+
+test("Kit 3's service worker leg, built after the build's end, starts no handoff of its own: no new mark, run or maker", async () => {
+	const plugin = image().find((p) => p.name === '@ogygia/image:load')!;
+	const outDir = path.join(root, '.svelte-kit/output/client');
+	await (plugin.configResolved as (c: unknown) => unknown)({
+		root,
+		command: 'build',
+		build: { outDir, ssr: false },
+		define: { __SVELTEKIT_APP_DIR__: '"_app"' }
+	} as unknown as ResolvedConfig);
+	const started = build_handoff()!;
+	const ended = JSON.stringify({
+		...started,
+		minted: '',
+		mark: '',
+		written: path.join(outDir, '_app')
+	});
+	process.env[BUILD_ENV] = ended;
+	try {
+		await (plugin.buildStart as (this: unknown) => unknown).call({
+			environment: { name: 'serviceWorker', config: { build: { outDir } } }
+		});
+		expect(process.env[BUILD_ENV]).toBe(ended);
+	} finally {
+		delete process.env[BUILD_ENV];
+		fs.rmSync(path.dirname(started.minted), { recursive: true, force: true });
+	}
+});
 
 test("a platform's encoder on another adapter fails the server build, as its links and maker exist only on that platform", async () => {
 	await expect(
